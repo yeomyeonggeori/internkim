@@ -17,7 +17,7 @@ set -eu
 product="${1:-}"
 case "$product" in
   host) shift ;;
-  *) echo "Usage: curl -fsSL https://intern.kim/install.sh | sh -s -- host [--channel stable|testing] [--version vYYYY.MM.DD.HHMMSS]" >&2; exit 1 ;;
+  *) echo "Usage: curl -fsSL https://intern.kim/install.sh | sh -s -- host [--channel stable|testing] [--version vMAJOR.MINOR.PATCH]" >&2; exit 1 ;;
 esac
 
 package_name="internkim"
@@ -26,6 +26,7 @@ channel="stable"
 pinned_version=""
 channel_record_path="/var/lib/internkim/release-channel"
 homebrew_tap="yeomyeonggeori/tap"
+release_tag_pattern='^v(((0|[1-9][0-9]{0,8})\.){2}(0|[1-9][0-9]{0,8})|[0-9]{4}\.[0-9]{2}\.[0-9]{2}\.[0-9]{6})$'
 
 stop() {
   echo "$1" >&2
@@ -36,7 +37,7 @@ while [ $# -gt 0 ]; do
   case "$1" in
     --channel) [ $# -ge 2 ] || stop "--channel needs stable or testing."; channel="$2"; shift 2 ;;
     --channel=*) channel="${1#--channel=}"; shift ;;
-    --version) [ $# -ge 2 ] || stop "--version needs a release tag such as v2026.10.01.203142."; pinned_version="$2"; shift 2 ;;
+    --version) [ $# -ge 2 ] || stop "--version needs a release tag such as v0.0.1."; pinned_version="$2"; shift 2 ;;
     --version=*) pinned_version="${1#--version=}"; shift ;;
     *) stop "install.sh takes --channel stable|testing and --version <tag> after the product, and was given $1." ;;
   esac
@@ -45,10 +46,9 @@ case "$channel" in
   stable|testing) ;;
   *) stop "The channel is stable or testing, and this install asked for $channel." ;;
 esac
-case "$pinned_version" in
-  ""|v[0-9]*) ;;
-  *) stop "A release is named by its tag, such as v2026.10.01.203142, and this install asked for $pinned_version." ;;
-esac
+if [ -n "$pinned_version" ] && ! printf '%s\n' "$pinned_version" | grep -Eq "$release_tag_pattern"; then
+  stop "A release is named by its tag, such as v0.0.1 or v2026.10.01.203142, and this install asked for $pinned_version."
+fi
 
 privileged() {
   if [ "$(id -u)" = 0 ]; then
@@ -207,11 +207,20 @@ dnf_command_for() {
   fi
 }
 
+with_epoch() {
+  case "$1" in
+    "(none):"*) printf '0:%s' "${1#"(none):"}" ;;
+    *) printf '%s' "$1" ;;
+  esac
+}
+
 is_older_than_installed() {
-  installed_version="$(rpm -q --qf '%{VERSION}' "$package_name" 2>/dev/null)" || return 1
-  offered_version="$(rpm -qp --qf '%{VERSION}' "$1" 2>/dev/null)" || return 1
+  installed_version="$(rpm -q --qf '%{EPOCH}:%{VERSION}' "$package_name" 2>/dev/null)" || return 1
+  offered_version="$(rpm -qp --qf '%{EPOCH}:%{VERSION}' "$1" 2>/dev/null)" || return 1
+  installed_version="$(with_epoch "$installed_version")"
+  offered_version="$(with_epoch "$offered_version")"
   [ "$offered_version" != "$installed_version" ] &&
-    [ "$(printf '%s\n%s\n' "$offered_version" "$installed_version" | sort | head -n 1)" = "$offered_version" ]
+    [ "$(printf '%s\n%s\n' "$offered_version" "$installed_version" | sort -V | head -n 1)" = "$offered_version" ]
 }
 
 tell_what_to_do_next() {

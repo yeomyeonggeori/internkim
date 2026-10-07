@@ -3,6 +3,7 @@ package cli
 import (
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -11,6 +12,7 @@ import (
 	"strings"
 
 	"github.com/yeomyeonggeori/internkim/internal/hostupdate"
+	"github.com/yeomyeonggeori/internkim/internal/hostversion"
 	"github.com/yeomyeonggeori/internkim/internal/runtime/blueclaw"
 )
 
@@ -47,6 +49,10 @@ func runReleaseHost(arguments []string) error {
 	if tag := commandArgumentValue(arguments, "--version", ""); tag != "" {
 		return promoteNamedHostRelease(tag, channel, os.Stdout)
 	}
+	milestone, errorValue := chosenMilestone(commandArgumentValue(arguments, "--milestone", ""))
+	if errorValue != nil {
+		return errorValue
+	}
 	repositoryRootPath, errorValue := resolveRepositoryRootPath()
 	if errorValue != nil {
 		return errorValue
@@ -54,7 +60,10 @@ func runReleaseHost(arguments []string) error {
 	if errorValue := checkReleaseTree(repositoryRootPath); errorValue != nil {
 		return errorValue
 	}
-	version := packageVersionFromRepository(repositoryRootPath)
+	if errorValue := refuseAMilestoneBelowTheLatest(repositoryRootPath, milestone); errorValue != nil {
+		return errorValue
+	}
+	version := milestone.Release()
 	existing, isPublished, errorValue := publishedHostRelease(hostReleaseTag(version))
 	if errorValue != nil {
 		return errorValue
@@ -74,6 +83,27 @@ func runReleaseHost(arguments []string) error {
 		return errorValue
 	}
 	return createHostRelease(version, gitRevision(repositoryRootPath), channel, directory, os.Stdout)
+}
+
+func chosenMilestone(requested string) (hostversion.Version, error) {
+	if requested == "" {
+		return hostversion.Version{}, errors.New("release host needs the milestone it releases, as --milestone MAJOR.MINOR.PATCH, because a person chooses that number and a release does not invent one")
+	}
+	return hostversion.ParseMilestone(requested)
+}
+
+func refuseAMilestoneBelowTheLatest(repositoryRootPath string, milestone hostversion.Version) error {
+	latest, errorValue := hostversion.LatestMilestone(repositoryRootPath, "HEAD")
+	if errors.Is(errorValue, hostversion.ErrNoMilestone) {
+		return nil
+	}
+	if errorValue != nil {
+		return errorValue
+	}
+	if hostversion.Compare(milestone, latest) < 0 {
+		return fmt.Errorf("release host refuses %s: %s is already released, and hosts only update to a higher milestone", milestone.Tag(), latest.Tag())
+	}
+	return nil
 }
 
 func hostReleaseTag(version string) string {
@@ -153,6 +183,9 @@ func promoteHostRelease(release gitHubRelease, channel string, output io.Writer)
 func promoteNamedHostRelease(tag string, channel string, output io.Writer) error {
 	if channel != stableChannel {
 		return fmt.Errorf("release host --version names a tested release to make %s; a new %s release is built from a new commit on main", stableChannel, testingChannel)
+	}
+	if _, errorValue := hostversion.ParseReleaseTag(tag); errorValue != nil {
+		return errorValue
 	}
 	release, isPublished, errorValue := publishedHostRelease(tag)
 	if errorValue != nil {

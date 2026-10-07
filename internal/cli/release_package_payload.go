@@ -11,9 +11,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"strconv"
 	"strings"
-	"time"
 
 	"github.com/goreleaser/nfpm/v2/files"
 
@@ -85,26 +83,6 @@ func packageTargetsNamed(requested string) ([]packageTarget, error) {
 		}
 	}
 	return chosen, nil
-}
-
-// packageVersionFromRepository is the time HEAD was committed, in UTC, which
-// dpkg, rpm and pacman all order the way main's history runs. A commit always
-// builds the same version, so a release's tag is a fact about the commit. A
-// release that names --version gets that instead.
-func packageVersionFromRepository(repositoryRootPath string) string {
-	return packageVersionAt(commitTime(repositoryRootPath))
-}
-
-func packageVersionAt(committed time.Time) string {
-	return committed.UTC().Format("2006.01.02.150405")
-}
-
-func commitTime(repositoryRootPath string) time.Time {
-	seconds, errorValue := strconv.ParseInt(strings.TrimSpace(runCmd("git", "-C", repositoryRootPath, "show", "-s", "--format=%ct", "HEAD")), 10, 64)
-	if errorValue != nil {
-		return time.Now()
-	}
-	return time.Unix(seconds, 0)
 }
 
 func packageContents(repositoryRootPath string, target packageTarget, version string, stagingPath string, output io.Writer) (files.Contents, error) {

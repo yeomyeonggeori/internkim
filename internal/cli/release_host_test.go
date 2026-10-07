@@ -10,6 +10,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/yeomyeonggeori/internkim/internal/hostversion"
 	"github.com/yeomyeonggeori/internkim/internal/runtime/blueclaw"
 )
 
@@ -248,24 +249,73 @@ func TestANamedTestedReleaseIsPromotedWithoutLookingAtTheTree(t *testing.T) {
 	tap := tapAnswers(t, "the tested formula", "the old formula")
 	calls := recordGitHubCommands(t, func(arguments []string) (string, error) {
 		if arguments[0] == "release" && arguments[1] == "view" {
-			return `{"tagName":"v1","isPrerelease":true}`, nil
+			return `{"tagName":"v0.0.1","isPrerelease":true}`, nil
 		}
 		return tap(arguments)
 	})
-	if errorValue := runReleaseHost([]string{"--channel", "stable", "--version", "v1"}); errorValue != nil {
+	if errorValue := runReleaseHost([]string{"--channel", "stable", "--version", "v0.0.1"}); errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	if !slices.Equal((*calls)[1], []string{"release", "edit", "v1", "--repo", hostReleaseRepository, "--prerelease=false", "--latest"}) {
+	if !slices.Equal((*calls)[1], []string{"release", "edit", "v0.0.1", "--repo", hostReleaseRepository, "--prerelease=false", "--latest"}) {
 		t.Errorf("the named release was not made stable: %v", *calls)
 	}
 }
 
 func TestANamedReleaseIsOnlyPromotedToStable(t *testing.T) {
 	calls := recordGitHubCommands(t, func([]string) (string, error) { return "", nil })
-	if runReleaseHost([]string{"--channel", "testing", "--version", "v1"}) == nil {
+	if runReleaseHost([]string{"--channel", "testing", "--version", "v0.0.1"}) == nil {
 		t.Error("a named release was accepted for testing")
 	}
 	if len(*calls) != 0 {
 		t.Errorf("gh was asked %v", *calls)
+	}
+}
+
+func TestAnOldDateReleaseCanStillBeNamedForStable(t *testing.T) {
+	tap := tapAnswers(t, "the tested formula", "the old formula")
+	calls := recordGitHubCommands(t, func(arguments []string) (string, error) {
+		if arguments[0] == "release" && arguments[1] == "view" {
+			return `{"tagName":"v2026.10.02.090000"}`, nil
+		}
+		return tap(arguments)
+	})
+	if errorValue := promoteNamedHostRelease("v2026.10.02.090000", stableChannel, io.Discard); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if (*calls)[0][2] != "v2026.10.02.090000" {
+		t.Errorf("gh was asked %v", *calls)
+	}
+}
+
+func TestANamedReleaseThatIsNotAVersionIsRefusedBeforeGitHubIsAsked(t *testing.T) {
+	calls := recordGitHubCommands(t, func([]string) (string, error) { return "", nil })
+	if promoteNamedHostRelease("latest", stableChannel, io.Discard) == nil || len(*calls) != 0 {
+		t.Errorf("a name that is no version reached gh: %v", *calls)
+	}
+}
+
+func TestAFullReleaseRefusesWithoutAMilestoneBeforeAnythingIsChecked(t *testing.T) {
+	original := checkReleaseTree
+	checkReleaseTree = func(string) error { t.Fatal("the tree was checked before the milestone"); return nil }
+	t.Cleanup(func() { checkReleaseTree = original })
+	calls := recordGitHubCommands(t, func([]string) (string, error) { return "", nil })
+	for _, arguments := range [][]string{{"--channel", "testing"}, {"--channel", "stable", "--milestone", "2026.10.07.120000"}, {"--channel", "stable", "--milestone", "0.0.1+3"}} {
+		if runReleaseHost(arguments) == nil {
+			t.Errorf("%v was released", arguments)
+		}
+	}
+	if len(*calls) != 0 {
+		t.Errorf("gh was asked %v", *calls)
+	}
+}
+
+func TestAMilestoneBelowTheLatestIsRefused(t *testing.T) {
+	tree := newShippableTree(t)
+	gitInDirectory(t, tree.root, "tag", "v0.0.2")
+	for milestone, isRefused := range map[string]bool{"0.0.1": true, "0.0.2": false, "0.0.3": false} {
+		parsed, _ := hostversion.ParseMilestone(milestone)
+		if errorValue := refuseAMilestoneBelowTheLatest(tree.root, parsed); (errorValue != nil) != isRefused {
+			t.Errorf("%s: %v", milestone, errorValue)
+		}
 	}
 }

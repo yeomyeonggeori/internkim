@@ -41,6 +41,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from native_install_families import FAMILIES  # noqa: E402
 from native_install_rig import (  # noqa: E402
     BACKUP_TIMER_NAME,
+    release_version_of,
     BACKUP_UNIT_NAME,
     CHECKSUMS_NAME,
     DATA_SERVICE_PATH,
@@ -207,11 +208,11 @@ class FamilyRig:
 
     def observe_going_back(self, step, older_directory, directory, older_version, newer_version):
         self.release.publish(older_directory)
-        attempt = self.run_the_line(f"--version v{older_version}")
+        attempt = self.run_the_line(f"--version v{release_version_of(older_version)}")
         went_back_to = self.installed_version()
         step.observe(
             "the line pinned to the earlier release with --version takes the host back to it",
-            f"`{self.family.version_command}` after `install.sh host --version v{older_version}` on {newer_version}",
+            f"`{self.family.version_command}` after `install.sh host --version v{release_version_of(older_version)}` on {newer_version}",
             "going back is what an administrator asks the agent for after a bad release, and each package "
             "manager refuses an older version by default in its own way",
         ).record(

@@ -6,6 +6,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -15,6 +16,7 @@ import (
 	"github.com/goreleaser/nfpm/v2/files"
 	_ "github.com/goreleaser/nfpm/v2/rpm"
 
+	"github.com/yeomyeonggeori/internkim/internal/hostversion"
 	"github.com/yeomyeonggeori/internkim/internal/runtime/blueclaw"
 )
 
@@ -151,6 +153,7 @@ func linuxPackageInformation(format linuxPackageFormat, target packageTarget, ve
 		Platform:      "linux",
 		Version:       version,
 		VersionSchema: "none",
+		Epoch:         strconv.Itoa(hostversion.MilestoneEpoch),
 		Section:       blueclaw.CompanyPackageSection,
 		Priority:      "optional",
 		Maintainer:    blueclaw.CompanyPackageMaintainer,
@@ -286,7 +289,10 @@ func runReleasePackages(arguments []string) error {
 	if errorValue != nil {
 		return errorValue
 	}
-	version := firstNonEmptyString(commandArgumentValue(arguments, "--version", ""), packageVersionFromRepository(repositoryRootPath))
+	version, errorValue := chosenPackageVersion(commandArgumentValue(arguments, "--version", ""), repositoryRootPath)
+	if errorValue != nil {
+		return errorValue
+	}
 	outputDirectory := firstNonEmptyString(commandArgumentValue(arguments, "--out", ""), filepath.Join(repositoryRootPath, defaultPackageDirectory))
 	return buildHostRelease(repositoryRootPath, targets, version, outputDirectory, formats, os.Stdout)
 }

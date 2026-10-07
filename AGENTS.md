@@ -525,28 +525,43 @@ and delete the duplicates.
 ## Deploying
 
 - A company host is upgraded by its package. `./internkim release host
-  --channel testing`, run on an Apple-silicon Mac, builds the Linux packages
-  and the Homebrew bottle and publishes them as a GitHub Release;
-  `--channel stable` promotes one and gives the Homebrew tap its formula. It
-  refuses a dirty tree, a commit `main` lacks, or a submodule checkout off the
-  recorded pointer. A host takes it by running the install line again.
-- Our own host takes `origin/main` with `tools/ship-host --host-only`. It
-  builds the host's one package here, copies it to the host, keeps it beside
-  the last two, installs it and watches `blueclaw` for two minutes, putting
-  the host back on the version it ran when that fails. It publishes nothing,
-  so it is the everyday deploy. A release builds eight packages, uploads about
+  --channel testing --milestone 0.0.1`, run on an Apple-silicon Mac, builds the
+  Linux packages and the Homebrew bottle and publishes them as a GitHub
+  Release; `--channel stable` promotes one and gives the Homebrew tap its
+  formula. It refuses a dirty tree, a commit `main` lacks, a submodule checkout
+  off the recorded pointer, a missing `--milestone`, or one below the latest
+  milestone. A host takes it by running the install line again.
+- A milestone is `MAJOR.MINOR.PATCH`, chosen by a person, and the first is
+  `v0.0.1`. Releases before it were tagged `vYYYY.MM.DD.HHMMSS`, which sorts
+  above any milestone, so every package carries the epoch `1:` (`1:0.0.1`) and
+  sorts after every date version. The tag and the name a person reads stay
+  `v0.0.1`. A date-tagged release can still be installed or rolled back to, and
+  admind treats any date version as older than any milestone. Homebrew carries
+  the epoch as `version_scheme 1`. `internal/hostversion` holds the grammar,
+  the parsing and the comparison; shell and Python ask it through
+  `./internkim release version`, and `install.sh`, which cannot, and the
+  TypeScript tag schema each have a test against its fixtures.
+- Our own host takes `origin/main` with `tools/ship-host --host-only`. Its
+  version is the last milestone and the commits since it, `0.0.1+37` (`1:0.0.1+37`
+  in the package), which sorts above `1:0.0.1` and below `1:0.0.2`, and it never
+  bumps the number. It builds the host's one package here, copies it to the
+  host, keeps it beside the last two, installs it and watches `blueclaw` for
+  two minutes, putting the host back on the version it ran when that fails. It
+  publishes nothing, so it is the everyday deploy, and it refuses before the
+  first milestone is tagged. A release builds eight packages, uploads about
   2 GB and runs two rigs, more than an hour, so one is cut at a milestone.
-- At a milestone, `tools/ship-host` takes `origin/main` to stable and onto our
-  own host in one command: it cuts the testing release, checks the packages against
-  `SHA256SUMS`, runs the Debian 13 rig and its `--people-upgrade` step (a host
-  that already has people and memory must stay up through the upgrade),
-  promotes, upgrades the host and watches `blueclaw` for two minutes. A
-  failure on the host puts the host back on the release it ran, stable back
-  on the previous stable, and marks the failed one a prerelease. The older
-  stable can be older than the host's database, which an agent cannot start
-  on. If the failed release migrated the database, even the release the host
-  ran may not start, and ship-host says so. `--plan` prints the tags and
-  steps; `--skip-host` stops after promotion.
+- At a milestone, `tools/ship-host --version 0.0.1` takes `origin/main` to
+  stable and onto our own host in one command, and without `--version` it
+  refuses rather than choosing a number. It cuts the testing release, checks the
+  packages against `SHA256SUMS`, runs the Debian 13 rig and its
+  `--people-upgrade` step (a host that already has people and memory must stay
+  up through the upgrade), promotes, upgrades the host and watches `blueclaw`
+  for two minutes. A failure on the host puts the host back on the release it
+  ran, stable back on the previous stable, and marks the failed one a
+  prerelease. The older stable can be older than the host's database, which an
+  agent cannot start on. If the failed release migrated the database, even the
+  release the host ran may not start, and ship-host says so. `--plan` prints
+  the tags and steps; `--skip-host` stops after promotion.
 - The web app is deployed as "SaaS Web Deployment" above says.
 - A green `systemctl` is not a working agent: look for a task run newer than
   the upgrade.

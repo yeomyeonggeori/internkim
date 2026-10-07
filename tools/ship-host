@@ -5,11 +5,16 @@ Every step prints one line and a failing step stops the run. A failure after
 the host was touched puts the host and stable back on the previous stable
 release and marks the failed one a prerelease.
 
+A full release is a milestone and a person names its number, as in
+--version 0.0.1. Without one it refuses.
+
 --host-only builds our host's package from origin/main here and installs it on
 our host, publishing nothing: the everyday deploy between milestone releases.
-A failure puts the host back on the version it ran.
+Its version is the last milestone and the commits since it, such as 0.0.1+37,
+and it never bumps the number. A failure puts the host back on the version it ran.
 
-    tools/ship-host [--skip-host | --host-only] [--plan]
+    tools/ship-host --version MAJOR.MINOR.PATCH [--skip-host] [--plan]
+    tools/ship-host --host-only [--plan]
 """
 
 import argparse
@@ -21,7 +26,6 @@ import sys
 import tempfile
 import time
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
 from pathlib import Path
 
 REPOSITORY_ROOT = Path(__file__).resolve().parent.parent
@@ -71,6 +75,7 @@ class Options:
     skip_host: bool
     is_plan: bool
     is_host_only: bool = False
+    version: str = ""
 
 
 @dataclass
@@ -93,22 +98,22 @@ def parse_arguments(arguments):
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--skip-host", action="store_true", help="stop after stable is promoted")
     parser.add_argument("--host-only", action="store_true", dest="is_host_only", help="build our host's package here and install it on our host, publishing no release")
+    parser.add_argument("--version", default="", help="the milestone a full release carries, MAJOR.MINOR.PATCH; a person chooses it")
     parser.add_argument("--plan", action="store_true", dest="is_plan", help="print the steps and the tags, change nothing")
     parsed = parser.parse_args(arguments)
     if parsed.skip_host and parsed.is_host_only:
         parser.error("--skip-host releases without touching our host and --host-only touches only our host; name one")
-    return Options(skip_host=parsed.skip_host, is_plan=parsed.is_plan, is_host_only=parsed.is_host_only)
+    if parsed.is_host_only and parsed.version:
+        parser.error("--host-only never changes the version number; it is the last milestone and the commits since it")
+    if not parsed.is_host_only and not parsed.version:
+        parser.error("a full release is a milestone and needs --version MAJOR.MINOR.PATCH; use --host-only for the everyday deploy")
+    return Options(skip_host=parsed.skip_host, is_plan=parsed.is_plan, is_host_only=parsed.is_host_only, version=parsed.version)
 
 
-def tag_for_commit_time(epoch_seconds):
-    committed = datetime.fromtimestamp(int(epoch_seconds), timezone.utc)
-    return "v" + committed.strftime("%Y.%m.%d.%H%M%S")
-
-
-def tag_from_release_output(output):
-    found = re.search(r"released (v\d{4}\.\d{2}\.\d{2}\.\d{6}) on testing", output)
-    if found is None:
-        raise ShipFailure("cut a testing release", f"release host did not report a tag: {output.strip()[-300:]}")
+def tag_from_release_output(output, expected_tag):
+    found = re.search(r"released (\S+) on testing", output)
+    if found is None or found.group(1) != expected_tag:
+        raise ShipFailure("cut a testing release", f"release host did not report {expected_tag}: {output.strip()[-300:]}")
     return found.group(1)
 
 
@@ -240,22 +245,28 @@ def read_previous_stable_tag(run):
     return run(["gh", "release", "view", "--repo", RELEASE_REPOSITORY, "--json", "tagName", "--jq", ".tagName"]).strip()
 
 
-def read_origin_tag(run):
-    return tag_for_commit_time(run(["git", "show", "-s", "--format=%ct", "origin/main"]).strip())
+def read_host_only_tag(run):
+    return "v" + run([INTERNKIM, "release", "version"]).strip()
+
+
+def milestone_tag(run, version):
+    return "v" + run([INTERNKIM, "release", "version", "--of", version]).strip()
 
 
 def refuse_unless_origin_main(shipment):
-    shipment.run(["git", "fetch", "--quiet", "origin"])
+    shipment.run(["git", "fetch", "--quiet", "--tags", "origin"])
     head = shipment.run(["git", "rev-parse", "HEAD"]).strip()
     origin = shipment.run(["git", "rev-parse", "origin/main"]).strip()
     if head != origin:
         raise ShipFailure("check the tree", f"HEAD is {head[:12]} and origin/main is {origin[:12]}")
     shipment.run([INTERNKIM, "verify", "release-tree"])
+    if shipment.options.is_host_only:
+        shipment.tag = read_host_only_tag(shipment.run)
 
 
 def cut_testing_release(shipment):
-    output = shipment.run([INTERNKIM, "release", "host", "--channel", "testing"])
-    shipment.tag = tag_from_release_output(output)
+    output = shipment.run([INTERNKIM, "release", "host", "--channel", "testing", "--milestone", shipment.options.version])
+    tag_from_release_output(output, shipment.tag)
 
 
 def download_release(shipment, tag, assets):
@@ -306,7 +317,7 @@ def read_host_architecture(shipment):
 
 def read_host_tag(shipment):
     version = last_line(run_on_host(shipment, f"dpkg-query -W -f '${{Version}}\\n' {PACKAGE_NAME} || true"))
-    return "v" + version if version else ""
+    return milestone_tag(shipment.run, version) if version else ""
 
 
 def check_host_runs(shipment, tag):
@@ -338,7 +349,7 @@ def kept_package_path(tag, architecture):
 def build_host_package(shipment):
     read_host_architecture(shipment)
     output_directory = shipment.directory / package_directory_name(shipment.tag)
-    shipment.run([INTERNKIM, "release", "packages", "--format", "deb", "--architecture", shipment.host_architecture, "--out", str(output_directory)])
+    shipment.run([INTERNKIM, "release", "packages", "--format", "deb", "--architecture", shipment.host_architecture, "--version", shipment.tag.lstrip("v"), "--out", str(output_directory)])
     shipment.package_path = output_directory / f"{PACKAGE_NAME}-{shipment.host_architecture}.deb"
     if not shipment.package_path.is_file():
         raise ShipFailure("build the package", f"release packages left no {shipment.package_path.name} in {output_directory}")
@@ -445,8 +456,14 @@ def planned_steps(options):
     ]
 
 
+def planned_tag(shipment):
+    if shipment.options.is_host_only:
+        return read_host_only_tag(shipment.run)
+    return milestone_tag(shipment.run, shipment.options.version)
+
+
 def print_plan(shipment):
-    shipment.tag = read_origin_tag(shipment.run)
+    shipment.tag = planned_tag(shipment)
     print(f"tag       {shipment.tag}")
     print(f"previous  {shipment.previous_tag}")
     for number, (describe, _) in enumerate(planned_steps(shipment.options), 1):
@@ -458,8 +475,7 @@ def ship(shipment):
     if shipment.options.is_plan:
         print_plan(shipment)
         return
-    if shipment.options.is_host_only:
-        shipment.tag = read_origin_tag(shipment.run)
+    shipment.tag = planned_tag(shipment)
     for number, (describe, step) in enumerate(planned_steps(shipment.options), 1):
         print(f"{number}. {describe(shipment)}", flush=True)
         step(shipment)

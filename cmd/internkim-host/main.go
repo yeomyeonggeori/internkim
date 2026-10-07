@@ -129,7 +129,7 @@ func printUsage(command string) {
 	fmt.Fprintf(os.Stderr, "       %s restore <archive> [--replace]\n", command)
 	fmt.Fprintf(os.Stderr, "       %s refresh\n", command)
 	fmt.Fprintf(os.Stderr, "       %s %s [--skills-directory DIR]\n", command, blueclaw.SkillPreparationVerb)
-	fmt.Fprintf(os.Stderr, "       %s update --version vYYYY.MM.DD.HHMMSS\n", command)
+	fmt.Fprintf(os.Stderr, "       %s update --version vMAJOR.MINOR.PATCH\n", command)
 	os.Exit(1)
 }
 

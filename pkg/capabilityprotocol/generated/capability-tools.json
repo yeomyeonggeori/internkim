@@ -31934,7 +31934,7 @@
           },
           "targetVersion": {
             "description": "The exact tag of a stable release to install, from host_version_get. Omit it to install the latest stable release; name an older one, such as previousStable, to go back.",
-            "pattern": "^v\\d{4}\\.\\d{2}\\.\\d{2}\\.\\d{6}$",
+            "pattern": "^v(?:\\d{4}\\.\\d{2}\\.\\d{2}\\.\\d{6}|(?:0|[1-9]\\d{0,8})\\.(?:0|[1-9]\\d{0,8})\\.(?:0|[1-9]\\d{0,8}))$",
             "type": "string"
           }
         },
@@ -31954,7 +31954,7 @@
           },
           "targetVersion": {
             "description": "The exact tag of a stable release to install, from host_version_get. Omit it to install the latest stable release; name an older one, such as previousStable, to go back.",
-            "pattern": "^v\\d{4}\\.\\d{2}\\.\\d{2}\\.\\d{6}$",
+            "pattern": "^v(?:\\d{4}\\.\\d{2}\\.\\d{2}\\.\\d{6}|(?:0|[1-9]\\d{0,8})\\.(?:0|[1-9]\\d{0,8})\\.(?:0|[1-9]\\d{0,8}))$",
             "type": "string"
           }
         },

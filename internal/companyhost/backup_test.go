@@ -156,6 +156,12 @@ func TestABackupMadeByANewerPackageIsRefused(t *testing.T) {
 	if errorValue := refuseANewerPackage("2026.09.30.120000", "2026.10.01.000000"); errorValue != nil {
 		t.Errorf("a backup from an older package was refused: %v", errorValue)
 	}
+	if errorValue := refuseANewerPackage("2026.10.02.000000", "0.0.1"); errorValue != nil {
+		t.Errorf("a backup from a date version was refused by a milestone: %v", errorValue)
+	}
+	if errorValue := refuseANewerPackage("0.0.1+3", "2026.10.01.000000"); errorValue == nil {
+		t.Error("a milestone backup was accepted by an older date version")
+	}
 	if errorValue := refuseANewerPackage("2026.10.02.000000", ""); errorValue != nil {
 		t.Errorf("a development build with no version refused a backup: %v", errorValue)
 	}

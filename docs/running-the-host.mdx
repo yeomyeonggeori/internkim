@@ -50,11 +50,13 @@ points at over the version you have. On macOS Homebrew upgrades the formula and
 restarts the services on it, asking for your password to do so. The company and its
 data stay in place. The default channel is the latest stable release. On Linux,
 `--channel testing` follows the newest release, prereleases included, and
-`--version` installs one release by its tag, an older one included:
+`--version` installs one release by its tag, an older one included. A release is
+named `v0.0.1`, a milestone version that a person chose. Releases made before it
+carry a date, such as `v2026.10.01.203142`, and still install by that tag:
 
 ```bash
 curl -fsSL https://intern.kim/install.sh | sh -s -- host --channel testing
-curl -fsSL https://intern.kim/install.sh | sh -s -- host --version v2026.10.01.203142
+curl -fsSL https://intern.kim/install.sh | sh -s -- host --version v0.0.1
 ```
 
 The installer records the channel it followed in

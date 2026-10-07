@@ -10,6 +10,8 @@ import (
 	"sort"
 	"strings"
 	"time"
+
+	"github.com/yeomyeonggeori/internkim/internal/hostversion"
 )
 
 const (
@@ -69,11 +71,14 @@ func (source ReleaseSource) StableReleases(ctx context.Context) ([]Release, erro
 }
 
 func IsOlder(version string, than string) bool {
-	return strings.TrimPrefix(version, "v") < strings.TrimPrefix(than, "v")
+	return hostversion.IsOlder(version, than)
 }
 
 func TagOf(packageVersion string) string {
 	trimmed := strings.TrimSpace(packageVersion)
+	if version, errorValue := hostversion.Parse(trimmed); errorValue == nil {
+		return version.Tag()
+	}
 	if trimmed == "" || strings.HasPrefix(trimmed, "v") {
 		return trimmed
 	}

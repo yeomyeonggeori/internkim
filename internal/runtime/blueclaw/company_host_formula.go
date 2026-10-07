@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+
+	"github.com/yeomyeonggeori/internkim/internal/hostversion"
 )
 
 // The company host as a Homebrew formula. Everything it declares is read from
@@ -112,7 +114,8 @@ func HomebrewFormula(request HomebrewFormulaRequest) (string, error) {
 	formula.WriteString("  url " + rubyString(request.SourceTarballURL) + "\n")
 	formula.WriteString("  sha256 " + rubyString(request.SourceSHA256) + "\n")
 	formula.WriteString("  license " + rubyString(companyPackageLicense) + "\n")
-	formula.WriteString("  version " + rubyString(request.Version) + "\n\n")
+	formula.WriteString("  version " + rubyString(request.Version) + "\n")
+	formula.WriteString(fmt.Sprintf("  version_scheme %d\n\n", hostversion.MilestoneEpoch))
 	writeHomebrewBottleBlock(formula, request.BottleRootURL, request.Bottles)
 	writeHomebrewDependencies(formula)
 	writeHomebrewInstallBlock(formula)

@@ -1,6 +1,7 @@
 package hostupdate
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -53,5 +54,36 @@ func TestTheAgentAsksForTheManagersThePackageIsPublishedFor(t *testing.T) {
 	}
 	if want := append(published, "brew"); !slices.Equal(commands, want) {
 		t.Fatalf("the agent looks for %v and the package is published for %v", commands, want)
+	}
+}
+
+func TestInstallScriptAcceptsTheReleaseTagsTheGrammarAcceptsAndNoOthers(t *testing.T) {
+	found := regexp.MustCompile(`(?m)^release_tag_pattern='([^']+)'$`).FindStringSubmatch(publishedInstallScript(t))
+	if found == nil {
+		t.Fatal("install.sh no longer assigns release_tag_pattern a literal")
+	}
+	pattern := regexp.MustCompile(found[1])
+	contents, errorValue := os.ReadFile(filepath.Join("..", "hostversion", "testdata", "versions.json"))
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	var fixture struct {
+		ReleaseTags struct {
+			Accepted []string `json:"accepted"`
+			Refused  []string `json:"refused"`
+		} `json:"releaseTags"`
+	}
+	if errorValue := json.Unmarshal(contents, &fixture); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	for _, tag := range fixture.ReleaseTags.Accepted {
+		if !pattern.MatchString(tag) {
+			t.Errorf("install.sh refuses %s, which the version grammar accepts", tag)
+		}
+	}
+	for _, tag := range fixture.ReleaseTags.Refused {
+		if pattern.MatchString(tag) {
+			t.Errorf("install.sh accepts %s, which the version grammar refuses", tag)
+		}
 	}
 }

@@ -3,15 +3,24 @@ import hashlib
 import importlib.machinery
 import importlib.util
 import io
+import shutil
+import subprocess
 import tempfile
 import unittest
 from pathlib import Path
 
 repository_root = Path(__file__).resolve().parents[2]
 
-NEW_TAG = "v2026.10.03.045216"
-PREVIOUS_TAG = "v2026.10.02.172114"
-HOST_TAG = "v2026.10.03.093452"
+NEW_TAG = "v0.0.2"
+PREVIOUS_TAG = "v0.0.1"
+HOST_TAG = "v0.0.1+9"
+HOST_ONLY_TAG = "v0.0.2+37"
+
+
+def package_line(tag):
+    return "1:" + tag.lstrip("v") + "\n"
+
+
 HEALTHY_UNITS = (
     "internkim-admind.service active success\nblueclaw.service active success\n"
     "chatd.service active success\nbuzz-relay.service active success\ninternkim-box.service inactive success\n"
@@ -34,7 +43,7 @@ class ScriptedCommands:
         self.calls = []
         self.host_answers = {
             "dpkg --print-architecture": "arm64\n",
-            "dpkg-query": [HOST_TAG.lstrip("v") + "\n", NEW_TAG.lstrip("v") + "\n"],
+            "dpkg-query": [package_line(HOST_TAG), package_line(NEW_TAG)],
             "systemctl list-unit-files": HEALTHY_UNITS,
             "systemctl show -p NRestarts": "0\n",
             **(host_answers or {}),
@@ -57,8 +66,8 @@ class ScriptedCommands:
         line = " ".join(arguments)
         if arguments[:3] == ["gh", "release", "view"]:
             return PREVIOUS_TAG + "\n"
-        if arguments[:2] == ["git", "show"]:
-            return "1791003136\n"
+        if arguments[1:3] == ["release", "version"]:
+            return self.read_version(arguments)
         if arguments[:2] == ["git", "rev-parse"]:
             return "0123456789abcdef\n"
         if "--channel testing" in line:
@@ -70,6 +79,11 @@ class ScriptedCommands:
         if "ssh" in arguments:
             return self.host_answer(arguments[-1])
         return ""
+
+    def read_version(self, arguments):
+        if "--of" in arguments:
+            return arguments[-1].split(":")[-1].lstrip("v") + "\n"
+        return HOST_ONLY_TAG.lstrip("v") + "\n"
 
     def write_download(self, arguments):
         directory = Path(arguments[arguments.index("--dir") + 1])
@@ -104,12 +118,18 @@ class ScriptedCommands:
         return [index for index, call in enumerate(self.calls) if text in " ".join(call)]
 
 
+def host_only_commands(host_answers=None, failing=()):
+    answers = {"dpkg-query": [package_line(HOST_TAG), package_line(HOST_ONLY_TAG)], **(host_answers or {})}
+    return ScriptedCommands(answers, failing)
+
+
 def shipment_with(commands, options=None, directory="."):
-    options = options or ship_host.Options(skip_host=False, is_plan=False)
+    options = options or FULL_RELEASE
     return ship_host.Shipment(options=options, run=commands, sleep=lambda seconds: None, directory=Path(directory), send=commands.send)
 
 
 HOST_ONLY = ship_host.Options(skip_host=False, is_plan=False, is_host_only=True)
+FULL_RELEASE = ship_host.Options(skip_host=False, is_plan=False, version=NEW_TAG.lstrip("v"))
 
 
 def ship_quietly(shipment):
@@ -120,53 +140,70 @@ def ship_quietly(shipment):
 
 
 class ArgumentTest(unittest.TestCase):
-    def test_nothing_is_the_whole_run(self):
-        self.assertEqual(ship_host.parse_arguments([]), ship_host.Options(skip_host=False, is_plan=False))
+    def refused(self, arguments):
+        with contextlib.redirect_stderr(io.StringIO()), self.assertRaises(SystemExit):
+            ship_host.parse_arguments(arguments)
+
+    def test_a_full_release_without_a_version_is_refused(self):
+        self.refused([])
+        self.refused(["--skip-host"])
+        self.refused(["--plan"])
+
+    def test_a_full_release_names_its_milestone(self):
+        self.assertEqual(ship_host.parse_arguments(["--version", "0.0.1"]), ship_host.Options(skip_host=False, is_plan=False, version="0.0.1"))
 
     def test_skip_host_and_plan(self):
-        options = ship_host.parse_arguments(["--skip-host", "--plan"])
-        self.assertEqual(options, ship_host.Options(skip_host=True, is_plan=True))
+        options = ship_host.parse_arguments(["--version", "0.0.1", "--skip-host", "--plan"])
+        self.assertEqual(options, ship_host.Options(skip_host=True, is_plan=True, version="0.0.1"))
 
     def test_host_only(self):
         self.assertEqual(ship_host.parse_arguments(["--host-only"]), HOST_ONLY)
 
+    def test_host_only_never_takes_a_version(self):
+        self.refused(["--host-only", "--version", "0.0.1"])
+
     def test_host_only_and_skip_host_are_one_or_the_other(self):
-        with contextlib.redirect_stderr(io.StringIO()), self.assertRaises(SystemExit):
-            ship_host.parse_arguments(["--host-only", "--skip-host"])
+        self.refused(["--host-only", "--skip-host"])
 
     def test_nothing_else_is_accepted(self):
-        with contextlib.redirect_stderr(io.StringIO()), self.assertRaises(SystemExit):
-            ship_host.parse_arguments(["--channel", "stable"])
+        self.refused(["--channel", "stable"])
 
 
 class TagTest(unittest.TestCase):
-    def test_tag_is_the_commit_time_in_utc(self):
-        self.assertEqual(ship_host.tag_for_commit_time("0"), "v1970.01.01.000000")
-        self.assertEqual(ship_host.tag_for_commit_time("1791003136"), NEW_TAG)
-
     def test_tag_is_read_from_what_release_host_prints(self):
         output = f"building\nreleased {NEW_TAG} on testing: https://github.com/example/releases/tag/{NEW_TAG}\n"
-        self.assertEqual(ship_host.tag_from_release_output(output), NEW_TAG)
+        self.assertEqual(ship_host.tag_from_release_output(output, NEW_TAG), NEW_TAG)
 
     def test_output_without_a_tag_stops_the_run(self):
         with self.assertRaises(ship_host.ShipFailure):
-            ship_host.tag_from_release_output("promoted v2026.10.03.045216 from testing to stable\n")
+            ship_host.tag_from_release_output(f"promoted {NEW_TAG} from testing to stable\n", NEW_TAG)
+
+    def test_a_release_of_another_tag_stops_the_run(self):
+        with self.assertRaises(ship_host.ShipFailure):
+            ship_host.tag_from_release_output(f"released {PREVIOUS_TAG} on testing: https://example.com\n", NEW_TAG)
+
+    def test_the_version_the_person_chose_is_the_tag_and_is_asked_of_release_host(self):
+        commands = ScriptedCommands()
+        with tempfile.TemporaryDirectory() as directory:
+            ship_quietly(shipment_with(commands, directory=directory))
+        cut = commands.calls[commands.matching("--channel testing")[0]]
+        self.assertEqual(cut[cut.index("--milestone") + 1], NEW_TAG.lstrip("v"))
 
 
 class PlanTest(unittest.TestCase):
     def test_plan_names_the_tags_and_changes_nothing(self):
         commands = ScriptedCommands()
-        options = ship_host.Options(skip_host=False, is_plan=True)
+        options = ship_host.Options(skip_host=False, is_plan=True, version=NEW_TAG.lstrip("v"))
         output = ship_quietly(shipment_with(commands, options))
         self.assertIn(NEW_TAG, output)
         self.assertIn(PREVIOUS_TAG, output)
         self.assertEqual(len([line for line in output.splitlines() if line[:1].isdigit()]), 7)
         self.assertEqual(
-            [call[:3] for call in commands.calls], [["gh", "release", "view"], ["git", "show", "-s"]]
+            [call[1:3] for call in commands.calls], [["release", "view"], ["release", "version"]]
         )
 
     def test_skip_host_plans_no_host_step(self):
-        options = ship_host.Options(skip_host=True, is_plan=True)
+        options = ship_host.Options(skip_host=True, is_plan=True, version=NEW_TAG.lstrip("v"))
         output = ship_quietly(shipment_with(ScriptedCommands(), options))
         self.assertNotIn("our own host", output)
         self.assertEqual(len([line for line in output.splitlines() if line[:1].isdigit()]), 6)
@@ -196,7 +233,7 @@ class OrderTest(unittest.TestCase):
 
     def test_skip_host_stops_after_promotion(self):
         commands = ScriptedCommands()
-        options = ship_host.Options(skip_host=True, is_plan=False)
+        options = ship_host.Options(skip_host=True, is_plan=False, version=NEW_TAG.lstrip("v"))
         with tempfile.TemporaryDirectory() as directory:
             ship_quietly(shipment_with(commands, options, directory))
         self.assertTrue(commands.matching("--channel stable"))
@@ -243,7 +280,7 @@ class OrderTest(unittest.TestCase):
 
 
 def wrong_version_then_back():
-    return [HOST_TAG.lstrip("v") + "\n", "0.0.0\n", HOST_TAG.lstrip("v") + "\n"]
+    return [package_line(HOST_TAG), "0.0.0\n", package_line(HOST_TAG)]
 
 
 class RollbackTest(unittest.TestCase):
@@ -256,7 +293,7 @@ class RollbackTest(unittest.TestCase):
 
     def test_a_restarting_agent_rolls_the_host_and_stable_back_in_order(self):
         readings = iter(["0\n", "3\n"])
-        commands = ScriptedCommands({"dpkg-query": [HOST_TAG.lstrip("v") + "\n", NEW_TAG.lstrip("v") + "\n", HOST_TAG.lstrip("v") + "\n"]})
+        commands = ScriptedCommands({"dpkg-query": [package_line(HOST_TAG), package_line(NEW_TAG), package_line(HOST_TAG)]})
         original = commands.host_answer
         commands.host_answer = lambda script: "SSH: x\n" + next(readings) if "NRestarts" in script else original(script)
         with tempfile.TemporaryDirectory() as directory, self.assertRaises(ship_host.ShipFailure) as raised:
@@ -276,7 +313,7 @@ class RollbackTest(unittest.TestCase):
         commands, _ = self.failing_host({"dpkg --print-architecture": "amd64\n", "dpkg-query": wrong_version_then_back()})
         downgrade = commands.calls[commands.matching("--allow-downgrades")[0]][-1]
         self.assertIn(f"{HOST_TAG}/internkim-amd64.deb", downgrade)
-        self.assertNotIn(PREVIOUS_TAG, downgrade)
+        self.assertNotIn(f"download/{PREVIOUS_TAG}/", downgrade)
         self.assertTrue(commands.matching("--channel stable --version " + PREVIOUS_TAG))
 
     def test_a_host_without_the_package_is_not_downgraded(self):
@@ -285,7 +322,7 @@ class RollbackTest(unittest.TestCase):
         self.assertTrue(commands.matching("--prerelease"))
 
     def test_a_host_that_does_not_come_back_on_the_release_it_ran_is_named(self):
-        _, failure = self.failing_host({"dpkg-query": [HOST_TAG.lstrip("v") + "\n", "0.0.0\n"]})
+        _, failure = self.failing_host({"dpkg-query": [package_line(HOST_TAG), "0.0.0\n"]})
         self.assertIn("rollback left undone", str(failure))
         self.assertIn("roll the host back to " + HOST_TAG, str(failure))
 
@@ -309,7 +346,7 @@ class RollbackTest(unittest.TestCase):
         self.assertIn("--prerelease", edit)
 
     def test_a_wrong_version_names_what_failed(self):
-        _, failure = self.failing_host({"dpkg-query": [HOST_TAG.lstrip("v") + "\n", "2026.10.02.172114\n", HOST_TAG.lstrip("v") + "\n"]})
+        _, failure = self.failing_host({"dpkg-query": [package_line(HOST_TAG), "2026.10.02.172114\n", package_line(HOST_TAG)]})
         self.assertIn("upgrade our own host", str(failure))
         self.assertIn("is v2026.10.02.172114", str(failure))
 
@@ -339,25 +376,25 @@ class HostOnlyTest(unittest.TestCase):
 
     def test_the_plan_builds_copies_and_installs_and_releases_nothing(self):
         options = ship_host.Options(skip_host=False, is_plan=True, is_host_only=True)
-        output = ship_quietly(shipment_with(ScriptedCommands(), options))
+        output = ship_quietly(shipment_with(host_only_commands(), options))
         steps = [line for line in output.splitlines() if line[:1].isdigit()]
         self.assertEqual(len(steps), 4)
         self.assertNotIn("release", " ".join(steps[1:]))
 
     def test_the_package_built_here_is_the_one_our_host_installs(self):
-        commands = ScriptedCommands({"dpkg --print-architecture": "arm64\n"})
+        commands = host_only_commands({"dpkg --print-architecture": "arm64\n"})
         output = self.ship_host_only(commands)
         build = commands.calls[commands.matching("release packages")[0]]
         self.assertEqual(build[build.index("--format") + 1], "deb")
         self.assertEqual(build[build.index("--architecture") + 1], "arm64")
         self.assertEqual(commands.sent[0][0], b"built here")
-        kept = ship_host.kept_package_path(NEW_TAG, "arm64")
+        kept = ship_host.kept_package_path(HOST_ONLY_TAG, "arm64")
         install = commands.calls[commands.matching("apt-get install")[0]][-1]
         self.assertIn(kept, install)
-        self.assertIn(f"installed {NEW_TAG} on our host", output)
+        self.assertIn(f"installed {HOST_ONLY_TAG} on our host", output)
 
     def test_steps_run_in_order_and_nothing_is_published(self):
-        commands = ScriptedCommands()
+        commands = host_only_commands()
         self.ship_host_only(commands)
         positions = [
             commands.matching("release-tree")[0],
@@ -370,7 +407,7 @@ class HostOnlyTest(unittest.TestCase):
             self.assertFalse(commands.matching(published), published)
 
     def test_a_tree_that_is_not_origin_main_builds_nothing(self):
-        commands = ScriptedCommands()
+        commands = host_only_commands()
         original = commands.answer
         commands.answer = lambda arguments: "other\n" if arguments[:3] == ["git", "rev-parse", "origin/main"] else original(arguments)
         with tempfile.TemporaryDirectory() as directory, self.assertRaises(ship_host.ShipFailure):
@@ -379,7 +416,7 @@ class HostOnlyTest(unittest.TestCase):
         self.assertFalse(commands.sent)
 
     def test_a_failed_install_puts_the_host_back_and_touches_no_release(self):
-        commands = ScriptedCommands({"dpkg-query": wrong_version_then_back()})
+        commands = host_only_commands({"dpkg-query": wrong_version_then_back()})
         with tempfile.TemporaryDirectory() as directory, self.assertRaises(ship_host.ShipFailure) as raised:
             ship_quietly(shipment_with(commands, HOST_ONLY, directory))
         self.assertTrue(commands.matching("--allow-downgrades"))
@@ -394,13 +431,13 @@ class HostOnlyTest(unittest.TestCase):
         self.assertIn(f"{HOST_TAG}/internkim-arm64.deb", script)
 
     def test_the_host_keeps_only_its_newest_packages(self):
-        script = ship_host.keep_package_script("/tmp/staged.deb", ship_host.kept_package_path(NEW_TAG, "arm64"))
+        script = ship_host.keep_package_script("/tmp/staged.deb", ship_host.kept_package_path(HOST_ONLY_TAG, "arm64"))
         self.assertIn(f"tail -n +{ship_host.HOST_PACKAGES_KEPT + 1}", script)
 
 
 class SshFlakeTest(unittest.TestCase):
     def flaky(self, marker, failures, message="✗ exit status 255"):
-        commands = ScriptedCommands()
+        commands = host_only_commands()
         original = commands.answer
         remaining = [failures]
 
@@ -537,3 +574,55 @@ class ReportParsingTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class HostOnlyVersionTest(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        directory = Path(tempfile.mkdtemp())
+        cls.addClassCleanup(lambda: shutil.rmtree(directory, ignore_errors=True))
+        cls.binary = directory / "internkim"
+        subprocess.run(["go", "build", "-o", str(cls.binary), "./cmd/internkim"], cwd=repository_root, check=True)
+
+    def git(self, directory, *arguments):
+        subprocess.run(
+            ["git", "-C", str(directory), "-c", "user.name=Sample", "-c", "user.email=sample@example.com", "-c", "commit.gpgsign=false", *arguments],
+            check=True, capture_output=True,
+        )
+
+    def repository(self, commits_after_milestone):
+        directory = Path(self.enterContext(tempfile.TemporaryDirectory()))
+        (directory / "go.mod").write_text("module example.test/sample\n")
+        self.git(directory, "init", "-q")
+        self.git(directory, "add", "go.mod")
+        self.git(directory, "commit", "-q", "-m", "first")
+        self.git(directory, "tag", "v2026.10.07.120000")
+        self.git(directory, "commit", "-q", "--allow-empty", "-m", "milestone")
+        self.git(directory, "tag", "v0.0.1")
+        for _ in range(commits_after_milestone):
+            self.git(directory, "commit", "-q", "--allow-empty", "-m", "work")
+        return directory
+
+    def read(self, directory, *arguments):
+        return subprocess.run([str(self.binary), "release", "version", *arguments], cwd=directory, capture_output=True, text=True)
+
+    def test_a_host_only_build_is_the_last_milestone_and_the_commits_since_it(self):
+        completed = self.read(self.repository(37))
+        self.assertEqual((completed.returncode, completed.stdout), (0, "0.0.1+37\n"), completed.stderr)
+
+    def test_a_build_at_the_milestone_is_the_milestone(self):
+        self.assertEqual(self.read(self.repository(0)).stdout, "0.0.1\n")
+
+    def test_a_package_version_is_read_back_without_its_epoch(self):
+        self.assertEqual(self.read(self.repository(0), "--of", "1:0.0.1+37").stdout, "0.0.1+37\n")
+
+    def test_before_the_first_milestone_there_is_no_version_to_invent(self):
+        directory = Path(self.enterContext(tempfile.TemporaryDirectory()))
+        (directory / "go.mod").write_text("module example.test/sample\n")
+        self.git(directory, "init", "-q")
+        self.git(directory, "add", "go.mod")
+        self.git(directory, "commit", "-q", "-m", "first")
+        self.git(directory, "tag", "v2026.10.07.120000")
+        completed = self.read(directory)
+        self.assertNotEqual(completed.returncode, 0)
+        self.assertIn("no milestone", completed.stderr)

@@ -48,11 +48,13 @@ Linux에서는 연결 파일 없이도 됩니다. 첫 명령만 실행하면 컴
 버전으로 다시 시작하며, 그러려고 비밀번호를 묻습니다. 회사와 데이터는
 그대로 남습니다. 기본 채널은 최신 정식 릴리스입니다. Linux에서
 `--channel testing`은 사전 릴리스까지 포함해 가장 새 릴리스를 따라가고,
-`--version`은 태그로 릴리스 하나를 설치합니다. 더 오래된 릴리스도 됩니다.
+`--version`은 태그로 릴리스 하나를 설치합니다. 더 오래된 릴리스도 됩니다. 릴리스는 사람이 정한
+마일스톤 버전 `v0.0.1`로 이름 붙입니다. 그 전에 만든 릴리스는
+`v2026.10.01.203142`처럼 날짜 태그이며, 그 태그로도 설치됩니다.
 
 ```bash
 curl -fsSL https://intern.kim/install.sh | sh -s -- host --channel testing
-curl -fsSL https://intern.kim/install.sh | sh -s -- host --version v2026.10.01.203142
+curl -fsSL https://intern.kim/install.sh | sh -s -- host --version v0.0.1
 ```
 
 설치 프로그램은 따라간 채널을 `/var/lib/internkim/release-channel`에 적어

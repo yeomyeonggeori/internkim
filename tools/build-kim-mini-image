@@ -13,7 +13,7 @@ outputDirectory="$repositoryRoot/.artifacts/kim-mini"
 usage() {
   cat <<USAGE
 Usage:
-  tools/build-kim-mini-image --release <vYYYY.MM.DD.HHMMSS> [--wifi-country KR] [--time-zone Asia/Seoul] [--base-image-url <url>]
+  tools/build-kim-mini-image --release <vMAJOR.MINOR.PATCH> [--wifi-country KR] [--time-zone Asia/Seoul] [--base-image-url <url>]
   tools/build-kim-mini-image --release-directory <dir> --release <name> [--wifi-country KR] [--time-zone Asia/Seoul] [--base-image-url <url>]
 
 Builds the Kim mini SD card image: Raspberry Pi OS Lite with the internkim host
