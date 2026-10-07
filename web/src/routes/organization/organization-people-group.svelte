@@ -118,11 +118,15 @@
 			{/if}
 		</span>
 		<h3 class="min-w-0 truncate text-sm font-medium">{section.name}</h3>
-		<OrganizationCountBadge count={section.memberCount} label={`${section.memberCount}${text.memberCountUnit}`}>
-			{#snippet icon()}
-				<UserIcon class="size-3" />
-			{/snippet}
-		</OrganizationCountBadge>
+		{#if isMobile.current}
+			<span class="text-muted-foreground ml-1 shrink-0 text-xs tabular-nums" aria-label={`${section.memberCount}${text.memberCountUnit}`}>{section.memberCount}</span>
+		{:else}
+			<OrganizationCountBadge count={section.memberCount} label={`${section.memberCount}${text.memberCountUnit}`}>
+				{#snippet icon()}
+					<UserIcon class="size-3" />
+				{/snippet}
+			</OrganizationCountBadge>
+		{/if}
 		<span
 			class={[
 				'from-foreground/12 pointer-events-none absolute top-full right-0 h-2 bg-gradient-to-b to-transparent transition-opacity duration-200 [mask-image:linear-gradient(to_right,transparent,black_12%,black_88%,transparent)]',
@@ -133,56 +137,79 @@
 		></span>
 	</div>
 	<Item.Group
-		class="grid grid-cols-1 gap-2 pr-2 sm:grid-cols-[repeat(auto-fill,minmax(11rem,1fr))]"
+		class="grid grid-cols-1 gap-2 pr-2 max-sm:gap-0 sm:grid-cols-[repeat(auto-fill,minmax(11rem,1fr))]"
 		style={`padding-left: ${depth * 16 + 36}px`}
 		data-testid={`organization-members-${section.id || 'root'}`}
 	>
 		{#each section.records as record (record.memberID)}
 			{@const leadership = responsibility(record)}
+			{@const tenure = tenureLabel(record.hireDate)}
 			<Item.Root
-				variant="outline"
+				variant={isMobile.current ? 'default' : 'outline'}
 				class={[
-					'bg-card hover:bg-accent/40 relative flex-col items-stretch gap-2 p-3 text-left sm:items-center sm:px-4 sm:pt-7 sm:pb-2 sm:text-center',
-					selectedUserID === record.memberID && 'shadow-lg'
+					'bg-card hover:bg-accent/40 relative gap-2 max-sm:flex-nowrap max-sm:px-2 max-sm:py-1.5 sm:flex-col sm:items-center sm:px-4 sm:pt-7 sm:pb-2 sm:text-center',
+					selectedUserID === record.memberID && 'shadow-lg max-sm:bg-accent max-sm:shadow-none'
 				]}
 				data-testid={`organization-person-card-${record.memberID}`}
 			>
-				<div class="z-10 flex flex-wrap items-center gap-1 sm:absolute sm:top-2 sm:left-2 sm:grid sm:justify-items-start">
-					{#if leadership}
-						<Badge variant="secondary" class={leadership.class}>
-							{#if leadership.isCompanyWide}
-								<CrownIcon />
-							{:else}
-								<FlagTriangleRightIcon />
-							{/if}
-							{leadership.label}
-						</Badge>
-					{/if}
-					{#if tenureLabel(record.hireDate)}
-						<Tooltip.Root>
-							<Tooltip.Trigger>
-								{#snippet child({ props })}
-									<Badge {...props} variant="outline" class="bg-background h-5 gap-1 rounded-full px-1.5 font-normal tabular-nums">
-										<TimerIcon class="size-3" />
-										{tenureLabel(record.hireDate)}
-									</Badge>
-								{/snippet}
-							</Tooltip.Trigger>
-							<Tooltip.Content side="top">{tenureDetail(record.hireDate)}</Tooltip.Content>
-						</Tooltip.Root>
-					{/if}
-				</div>
+				{#if !isMobile.current}
+					<div class="absolute top-2 left-2 z-10 grid items-center justify-items-start gap-1">
+						{#if leadership}
+							<Badge variant="secondary" class={leadership.class}>
+								{#if leadership.isCompanyWide}
+									<CrownIcon />
+								{:else}
+									<FlagTriangleRightIcon />
+								{/if}
+								{leadership.label}
+							</Badge>
+						{/if}
+						{#if tenure}
+							<Tooltip.Root>
+								<Tooltip.Trigger>
+									{#snippet child({ props })}
+										<Badge {...props} variant="outline" class="bg-background h-5 gap-1 rounded-full px-1.5 font-normal tabular-nums">
+											<TimerIcon class="size-3" />
+											{tenure}
+										</Badge>
+									{/snippet}
+								</Tooltip.Trigger>
+								<Tooltip.Content side="top">{tenureDetail(record.hireDate)}</Tooltip.Content>
+							</Tooltip.Root>
+						{/if}
+					</div>
+				{/if}
 				<button
 					type="button"
-					class="flex min-h-11 w-full min-w-0 items-center gap-3 sm:grid sm:justify-items-center sm:gap-2"
+					class="flex min-h-11 w-full min-w-0 items-center gap-3 max-sm:flex-1 sm:grid sm:justify-items-center sm:gap-2"
 					onclick={() => selectRecord(record)}
 					data-testid={`organization-person-node-${record.memberID}`}
 				>
-					<PersonAvatar name={displayPersonName(record.name)} email={record.email} seed={record.memberID} image={record.image ?? ''} class="size-10 shrink-0 sm:size-20" />
-					<span class="grid min-w-0 w-full gap-0.5 text-left sm:text-center">
-						<span class="break-words text-sm leading-snug font-medium sm:truncate">{personLabel(record)}</span>
-						<span class="text-muted-foreground break-words text-xs leading-normal sm:truncate">{record.jobTitle || text.noTitle}</span>
-					</span>
+					<PersonAvatar name={displayPersonName(record.name)} email={record.email} seed={record.memberID} image={record.image ?? ''} class="size-10 shrink-0 max-sm:size-9 sm:size-20" />
+					{#if isMobile.current}
+						<span class="grid min-w-0 w-full gap-0.5 text-left">
+							<span class="flex min-w-0 items-center gap-2">
+								<span class="truncate text-sm leading-snug font-medium">{personLabel(record)}</span>
+								{#if leadership}
+									<Badge variant="secondary" class="font-normal">
+										{#if leadership.isCompanyWide}<CrownIcon />{:else}<FlagTriangleRightIcon />{/if}
+										{leadership.label}
+									</Badge>
+								{/if}
+							</span>
+							<span class="text-muted-foreground flex min-w-0 items-center gap-2 text-xs leading-normal">
+								<span class="truncate">{record.jobTitle || text.noTitle}</span>
+								{#if tenure}
+									<span class="inline-flex shrink-0 items-center gap-1 tabular-nums" title={tenureDetail(record.hireDate)}><TimerIcon class="size-3" />{tenure}</span>
+								{/if}
+							</span>
+						</span>
+					{:else}
+						<span class="grid min-w-0 w-full gap-0.5 text-left sm:text-center">
+							<span class="break-words text-sm leading-snug font-medium sm:truncate">{personLabel(record)}</span>
+							<span class="text-muted-foreground break-words text-xs leading-normal sm:truncate">{record.jobTitle || text.noTitle}</span>
+						</span>
+					{/if}
 				</button>
 				<OrganizationPersonContactActions email={record.email} phoneNumber={record.phoneNumber ?? ''} {text} />
 			</Item.Root>

@@ -35,10 +35,15 @@
 	import { createPageText } from '$lib/i18n/page-text.svelte';
 	import { attendanceText } from '../text';
 	import { getAttendanceTeamState } from './attendance-team-state.svelte';
+	import { IsMobile } from '$lib/hooks/is-mobile.svelte';
 
 	const text = createPageText(attendanceText);
 	const teamState = getAttendanceTeamState();
 	const attendanceView = getAttendanceViewState();
+	const isPhone = new IsMobile();
+	const workingColor = $derived(isPhone.current ? 'color-mix(in oklch, var(--color-success) 45%, var(--color-muted-foreground))' : 'var(--color-success)');
+	const awayColor = $derived(isPhone.current ? 'color-mix(in oklch, var(--color-warning) 70%, var(--color-muted-foreground))' : 'var(--color-warning)');
+	const locationForm = $derived(isPhone.current ? 'marker' : 'tag');
 	let companyLabel = $state('');
 	const ownEmail = $derived(myAttendanceToday.summary?.currentUserEmail ?? '');
 	const ownName = $derived(appNavigation.displayUserName);
@@ -140,7 +145,7 @@
 </script>
 
 {#snippet actorStack(actors: RecentActor[], label: string, teamKey: string)}
-	<div class="flex min-w-0 items-center justify-between gap-2">
+	<div class="flex min-w-0 items-center justify-between gap-2 max-sm:flex-col max-sm:items-start max-sm:justify-start max-sm:gap-1.5">
 		<span class="text-xs text-muted-foreground">{label}</span>
 		{#if actors.length}
             <PersonAvatarStack people={actors} max={4} label={label} avatarClass="size-8 ring-2 ring-card">
@@ -161,7 +166,7 @@
 {/snippet}
 
 <Tooltip.Provider>
-	<div class="mx-auto flex w-full max-w-7xl flex-col gap-6" data-testid="attendance-team-dashboard" aria-busy={teamState.isLoadingTeams || teamState.isLoadingMembers}>
+	<div class="mx-auto flex w-full max-w-7xl flex-col gap-6 max-sm:gap-4" data-testid="attendance-team-dashboard" aria-busy={teamState.isLoadingTeams || teamState.isLoadingMembers}>
 
         {#if myAttendanceToday.loadFailure}<p role="alert" class="text-sm text-destructive">{myAttendanceToday.loadFailure}</p>{/if}
         <Card.Root class="gap-0 py-0" data-testid="attendance-own-strip" aria-busy={myAttendanceToday.isLoading}>
@@ -181,7 +186,7 @@
 						<ArrowLeftIcon />{text.teamBack}
 					</Button>
 				{/if}
-				<h2 class="text-xl font-semibold tracking-tight">{selectedTeam ? teamName(selectedTeam) : text.teamTodayTitle}</h2>
+				<h2 class="text-xl font-semibold tracking-tight max-sm:text-lg">{selectedTeam ? teamName(selectedTeam) : text.teamTodayTitle}</h2>
 			</div>
 			<div class="flex items-center gap-3">{#if (teamState.isLoadingTeams && teamState.teams.length) || (teamState.isLoadingMembers && teamState.members.length)}<Spinner aria-label={text.refresh} />{/if}<span class="text-xs text-muted-foreground">{teamState.serverTime ? timeOf(teamState.serverTime) : '—'} 기준</span></div>
 		</div>
@@ -198,7 +203,7 @@
 					<Empty.Header><Empty.Title>{text.noTeams}</Empty.Title></Empty.Header>
 				</Empty.Root>
 			{:else if teamState.teams.length || !teamState.error}
-				<div class="grid gap-4 min-[761px]:grid-cols-2 min-[1101px]:grid-cols-3" data-testid="team-card-page">
+				<div class="grid gap-4 max-sm:gap-3 min-[761px]:grid-cols-2 min-[1101px]:grid-cols-3" data-testid="team-card-page">
 					{#each teamState.teams as team (team.teamKey)}
 						<Card.Root class="gap-0 overflow-hidden rounded-xl py-0" data-testid="attendance-team-card">
 							<Card.Header class="gap-3 px-4 pb-3 pt-4">
@@ -209,29 +214,29 @@
 										<span class="block pt-1 text-xs text-muted-foreground">{text.working} {team.working}/{team.memberCount}</span>
 									</div>
 								</div>
-								<div class="flex h-3 overflow-hidden rounded-full bg-muted" role="img" aria-label={`${text.working} ${team.working}, ${text.finished} ${team.done}, ${text.onLeave} ${team.away}, ${text.teamNotStarted} ${team.notStarted}`}>
-									<span class="bg-success" style:width={`${proportion(team.working, team.memberCount)}%`}></span>
-									<span class="bg-muted-foreground" style:width={`${proportion(team.done, team.memberCount)}%`}></span>
-									<span class="bg-warning" style:width={`${proportion(team.away, team.memberCount)}%`}></span>
+								<div class="flex h-3 overflow-hidden rounded-full bg-muted max-sm:h-1.5" role="img" aria-label={`${text.working} ${team.working}, ${text.finished} ${team.done}, ${text.onLeave} ${team.away}, ${text.teamNotStarted} ${team.notStarted}`}>
+									<span style:background-color={workingColor} style:width={`${proportion(team.working, team.memberCount)}%`}></span>
+									<span style:background-color="var(--color-muted-foreground)" style:width={`${proportion(team.done, team.memberCount)}%`}></span>
+									<span style:background-color={awayColor} style:width={`${proportion(team.away, team.memberCount)}%`}></span>
 								</div>
 							</Card.Header>
 							<Card.Content class="flex flex-col gap-4 px-4 pb-4">
                                 <div class="grid grid-cols-2 gap-x-6 gap-y-2 text-xs text-muted-foreground">
-                                    <span class="flex items-center justify-between gap-4"><span class="inline-flex items-center gap-1.5"><ColorMarker color="var(--color-success)" /><span>{text.working}</span></span><strong class="shrink-0 tabular-nums text-foreground">{team.working}</strong></span>
+                                    <span class="flex items-center justify-between gap-4"><span class="inline-flex items-center gap-1.5"><ColorMarker color={workingColor} /><span>{text.working}</span></span><strong class="shrink-0 tabular-nums text-foreground">{team.working}</strong></span>
                                     <span class="flex items-center justify-between gap-4"><span class="inline-flex items-center gap-1.5"><ColorMarker color="var(--color-muted-foreground)" /><span>{text.finished}</span></span><strong class="shrink-0 tabular-nums text-foreground">{team.done}</strong></span>
-                                    <span class="flex items-center justify-between gap-4"><span class="inline-flex items-center gap-1.5"><ColorMarker color="var(--color-warning)" /><span>{text.onLeave}</span></span><strong class="shrink-0 tabular-nums text-foreground">{team.away}</strong></span>
+                                    <span class="flex items-center justify-between gap-4"><span class="inline-flex items-center gap-1.5"><ColorMarker color={awayColor} /><span>{text.onLeave}</span></span><strong class="shrink-0 tabular-nums text-foreground">{team.away}</strong></span>
                                     <span class="flex items-center justify-between gap-4"><span class="inline-flex items-center gap-1.5"><ColorMarker color="var(--color-muted)" /><span>{text.teamNotStarted}</span></span><strong class="shrink-0 tabular-nums text-foreground">{team.notStarted}</strong></span>
                                 </div>
 
 								<div class="flex flex-wrap items-center gap-x-2 gap-y-1 border-t border-border/70 pt-3 text-xs text-muted-foreground">
 																		<span>{text.teamRecordedLocations}</span>
 									{#each team.recordedLocations as location (location.name)}
-										<LocationLabel name={location.name} count={location.count} />
+										<LocationLabel name={location.name} count={location.count} form={locationForm} />
 									{/each}
-									{#if team.unknownLocationCount}<LocationLabel name={text.teamUnknownLocation} count={team.unknownLocationCount} />{/if}
+									{#if team.unknownLocationCount}<LocationLabel name={text.teamUnknownLocation} count={team.unknownLocationCount} form={locationForm} />{/if}
 									{#if !team.recordedLocations.length && !team.unknownLocationCount}<span>—</span>{/if}
 								</div>
-								<div class="flex flex-col gap-3 border-t border-border/70 pt-3">
+								<div class="flex flex-col gap-3 border-t border-border/70 pt-3 max-sm:grid max-sm:grid-cols-2 max-sm:gap-4">
 									{@render actorStack(team.recentClockIns, text.teamRecentIns, team.teamKey)}
 									{@render actorStack(team.recentClockOuts, text.teamRecentOuts, team.teamKey)}
 								</div>

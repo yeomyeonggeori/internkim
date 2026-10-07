@@ -6,6 +6,7 @@
 	import { cn } from '$lib/utils';
 	import * as Card from '$lib/components/ui/card';
 	import { buildTaskBoardCardDisplay } from './task-board-card-model';
+	import TaskBoardCardCompactBody from './task-board-card-compact-body.svelte';
 	import TaskChildProgress from './task-child-progress.svelte';
 	import TaskDateRange from './task-date-range.svelte';
 	import DefinitionBadge from '$lib/components/definition-badge.svelte';
@@ -32,6 +33,7 @@
 		taskTypeColor?: (type: string | null) => string;
 		childProgress?: ChildProgress;
 		childProgressLabel?: string;
+		isCompact?: boolean;
 	};
 
 	let {
@@ -50,7 +52,8 @@
 		businessColor = () => '#64748b',
 		taskTypeColor = () => '#64748b',
 		childProgress,
-		childProgressLabel = '{completed} / {total}'
+		childProgressLabel = '{completed} / {total}',
+		isCompact = false
 	}: Props = $props();
 
 	let canDrag = $derived(isInteractive && isDraggable && !isPending && !isReadOnly);
@@ -66,7 +69,8 @@
 				? 'cursor-grab hover:bg-muted/30 hover:shadow-sm active:cursor-grabbing active:bg-muted/40'
 				: 'cursor-pointer hover:bg-muted/30 hover:shadow-sm',
 		isDragging ? 'bg-card opacity-95 shadow-md' : '',
-		isReadOnly ? 'bg-muted/20' : ''
+		isReadOnly ? 'bg-muted/20' : '',
+		isCompact ? 'rounded-none border-0 shadow-none' : ''
 	].join(' '));
 
 	let display = $derived(buildTaskBoardCardDisplay(task, etcLabel));
@@ -76,10 +80,16 @@
 		display.participantNames.map((name, index) => ({
 			name,
 			seed: display.participantIDs[index] || name,
-			email: memberEmail(display.participantIDs[index] ?? '')
+			email: memberEmail(display.participantIDs[index] ?? '') || undefined
 		}))
 	);
 	let participantNameList = $derived(participants.map((person) => displayPersonName(person.name)).join(', '));
+
+	function childProgressText(progress: ChildProgress): string {
+		return childProgressLabel
+			.replace('{completed}', String(progress.completed))
+			.replace('{total}', String(progress.total));
+	}
 
 	function openCurrentTask(): void {
 		if (isPending || !isInteractive) return;
@@ -142,6 +152,20 @@
 	ondragstart={handleTaskDragStart}
 	ondragend={handleTaskDragEnd}
 >
+	{#if isCompact}
+		<TaskBoardCardCompactBody
+			{task}
+			{participants}
+			{participantNameList}
+			{isOverduePlan}
+			businessColor={businessColor(task.business)}
+		/>
+		{#if childProgress}
+			<div class="px-3 pb-2.5">
+				<TaskChildProgress progress={childProgress} label={childProgressText(childProgress)} />
+			</div>
+		{/if}
+	{:else}
 	<div class="space-y-1 px-3 py-2">
 		<div class="flex min-w-0 items-center justify-between gap-2">
 			<div class="flex min-w-0 items-center gap-2 text-[13px] text-muted-foreground">
@@ -198,14 +222,10 @@
 		{/if}
 
 		{#if childProgress}
-			<TaskChildProgress
-				progress={childProgress}
-				label={childProgressLabel
-					.replace('{completed}', String(childProgress.completed))
-					.replace('{total}', String(childProgress.total))}
-			/>
+			<TaskChildProgress progress={childProgress} label={childProgressText(childProgress)} />
 		{/if}
 	</div>
+	{/if}
 </Card.Root>
 
 <style>

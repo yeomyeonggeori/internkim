@@ -1,7 +1,6 @@
 <script lang="ts">
 	import { Spinner } from '$lib/components/ui/spinner';
 	import { Button } from '$lib/components/ui/button';
-	import TooltipIconButton from '$lib/components/tooltip-icon-button.svelte';
 	import * as Sidebar from '$lib/components/ui/sidebar';
 	import { Input } from '$lib/components/ui/input';
 	import * as Tabs from '$lib/components/ui/tabs';
@@ -26,7 +25,7 @@
 		errorMessage: string;
 		messages: MailMessage[];
 		selectedMessage: MailMessage | null;
-		hasMailboxTrigger: boolean;
+		isNarrow: boolean;
 		searchText: string;
 		activeSearchText?: string;
 		text: PageText<typeof mailText>;
@@ -49,7 +48,7 @@
 		errorMessage,
 		messages,
 		selectedMessage,
-		hasMailboxTrigger,
+		isNarrow,
 		searchText = $bindable(''),
 		activeSearchText = '',
 		text,
@@ -87,28 +86,42 @@
 	}
 </script>
 
-<section class="flex min-h-0 flex-col border-r bg-background max-md:border-r-0">
-	<div class="flex min-h-[52px] shrink-0 flex-wrap items-center gap-2 border-b px-3 py-1 sm:flex-nowrap sm:px-4">
-		{#if hasMailboxTrigger}
-			<Sidebar.Trigger class="-ml-1" />
-		{/if}
-		<h1 class="min-w-0 flex-1 truncate text-xl font-bold">{selectedMailboxLabel}</h1>
-		<Tabs.Root value={isUnreadOnly ? 'unread' : 'all'} onValueChange={(value) => setUnreadOnly(value === 'unread')} class="shrink-0">
-			<Tabs.List>
-				<Tabs.Trigger value="all">{text.allMail}</Tabs.Trigger>
-				<Tabs.Trigger value="unread">{text.unread}</Tabs.Trigger>
-			</Tabs.List>
-		</Tabs.Root>
-	</div>
+{#snippet readFilter()}
+	<Tabs.Root value={isUnreadOnly ? 'unread' : 'all'} onValueChange={(value) => setUnreadOnly(value === 'unread')} class="shrink-0">
+		<Tabs.List>
+			<Tabs.Trigger value="all">{text.allMail}</Tabs.Trigger>
+			<Tabs.Trigger value="unread">{text.unread}</Tabs.Trigger>
+		</Tabs.List>
+	</Tabs.Root>
+{/snippet}
 
-	<div class="shrink-0 bg-background/95 p-3 backdrop-blur supports-[backdrop-filter]:bg-background/60 sm:p-4">
-		<form onsubmit={submitSearch}>
-			<div class="relative">
-				<SearchIcon class="absolute left-2 top-[50%] size-4 translate-y-[-50%] text-muted-foreground" />
-				<Input aria-label={text.searchMail} placeholder={text.searchMail} class="pl-8" bind:value={searchText} />
-			</div>
-		</form>
-	</div>
+{#snippet searchForm(className: string)}
+	<form class={className} onsubmit={submitSearch}>
+		<div class="relative">
+			<SearchIcon class="absolute left-2 top-[50%] size-4 translate-y-[-50%] text-muted-foreground" />
+			<Input aria-label={text.searchMail} placeholder={text.searchMail} class="pl-8" bind:value={searchText} />
+		</div>
+	</form>
+{/snippet}
+
+<section class="flex min-h-0 flex-col border-r bg-background max-md:border-r-0">
+	{#if isNarrow}
+		<div class="flex shrink-0 items-center gap-2 border-b px-3 py-2">
+			<Sidebar.Trigger class="-ml-1 shrink-0" />
+			<h1 class="sr-only">{selectedMailboxLabel}</h1>
+			{@render searchForm('min-w-0 flex-1')}
+			{@render readFilter()}
+		</div>
+	{:else}
+		<div class="flex min-h-[52px] shrink-0 flex-wrap items-center gap-2 border-b px-3 py-1 sm:flex-nowrap sm:px-4">
+			<h1 class="min-w-0 flex-1 truncate text-xl font-bold">{selectedMailboxLabel}</h1>
+			{@render readFilter()}
+		</div>
+
+		<div class="shrink-0 bg-background/95 p-3 backdrop-blur supports-[backdrop-filter]:bg-background/60 sm:p-4">
+			{@render searchForm('')}
+		</div>
+	{/if}
 
 	<div class="flex min-h-0 flex-1 flex-col gap-2 overflow-auto p-4">
 		{#if errorMessage}

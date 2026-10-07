@@ -1,13 +1,13 @@
 import { isTaskStatusCompleted, isTaskStatusInProgress, isTaskStatusPaused, isTaskStatusPlanned, isTaskStatusRejected, isTaskStatusRequested, isTaskStatusStopped } from './task-status';
 
 export function statusBadgeClass(status: string): string {
-	if (isTaskStatusCompleted(status)) return 'bg-[#d4edbc] text-[#1f3826] border-transparent';
-	if (isTaskStatusInProgress(status)) return 'bg-[#bfe1f6] text-[#0b3d63] border-transparent';
-	if (isTaskStatusPlanned(status)) return 'bg-[#ffe5a0] text-[#473821] border-transparent';
-	if (isTaskStatusRequested(status)) return 'bg-[#e6cff2] text-[#3d1c52] border-transparent';
-	if (isTaskStatusPaused(status)) return 'bg-[#ffcfc9] text-[#5b1c14] border-transparent';
-	if (isTaskStatusRejected(status) || isTaskStatusStopped(status)) return 'bg-[#f6c1bd] text-[#5b1c14] border-transparent';
-	return 'bg-muted text-muted-foreground border-transparent';
+	if (isTaskStatusCompleted(status)) return 'bg-[#d4edbc] text-[#1f3826] dark:bg-[#1f3826] dark:text-[#d4edbc] border-transparent';
+	if (isTaskStatusInProgress(status)) return 'bg-[#bfe1f6] text-[#0b3d63] dark:bg-[#0b3d63] dark:text-[#bfe1f6] border-transparent';
+	if (isTaskStatusPlanned(status)) return 'bg-[#ffe5a0] text-[#473821] dark:bg-[#473821] dark:text-[#ffe5a0] border-transparent';
+	if (isTaskStatusRequested(status)) return 'bg-[#e6cff2] text-[#3d1c52] dark:bg-[#3d1c52] dark:text-[#e6cff2] border-transparent';
+	if (isTaskStatusPaused(status)) return 'bg-[#ffcfc9] text-[#5b1c14] dark:bg-[#5b1c14] dark:text-[#ffcfc9] border-transparent';
+	if (isTaskStatusRejected(status) || isTaskStatusStopped(status)) return 'bg-[#f6c1bd] text-[#5b1c14] dark:bg-[#5b1c14] dark:text-[#f6c1bd] border-transparent';
+	return 'bg-muted text-muted-foreground dark:bg-muted border-transparent';
 }
 
 export function statusIconClass(status: string): string {

@@ -337,7 +337,7 @@
 </svelte:head>
 
 <main data-task-ready={!isLoading && !errorMessage && isStateFresh} data-task-progress={isLoading ? summary ? 'tasks' : 'skeleton' : cacheSavedAt ? 'snapshot' : 'ready'} class="min-h-screen min-w-0 flex-1 bg-background text-foreground">
-	<div class="flex w-full min-w-0 flex-col gap-6 px-4 py-6 md:px-8">
+	<div class="flex w-full min-w-0 flex-col gap-6 px-4 py-6 max-sm:gap-4 max-sm:py-4 md:px-8">
 		{#if errorMessage}
 			<div class="rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">
 				{errorMessage}

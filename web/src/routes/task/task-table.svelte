@@ -9,6 +9,7 @@
 	import { Button } from '$lib/components/ui/button';
 	import * as Collapsible from '$lib/components/ui/collapsible';
 	import { MediaQuery } from 'svelte/reactivity';
+	import TaskCompactMetadata from './task-compact-metadata.svelte';
 
 	type PaginationText = {
 		label: string;
@@ -27,9 +28,10 @@
 		openTask: (task: Task) => void;
 		focusedTaskID: string;
 		mobileLabels: { sort: string; details: string; [key: string]: string | PaginationText };
+		businessColor: (business: string | null) => string;
 	};
 
-	let { taskTable, columnCount, pageSize, emptyLabel, showEmpty = true, pagination, openTask, focusedTaskID, mobileLabels }: Props = $props();
+	let { taskTable, columnCount, pageSize, emptyLabel, showEmpty = true, pagination, openTask, focusedTaskID, mobileLabels, businessColor }: Props = $props();
 	const isMobile = new MediaQuery('(max-width: 639px)');
 	let rowModel = $derived(taskTable.getRowModel());
 	let totalRows = $derived(taskTable.getFilteredRowModel().rows.length);
@@ -49,16 +51,19 @@
 		</Collapsible.Root>
 		<ul class="grid gap-2">
 			{#each rowModel.rows as row (row.id)}
-				<li class={cn('min-w-0 rounded-lg border bg-card p-3', row.original.id === focusedTaskID && 'ring-2 ring-primary/30')}>
-					<div class="flex min-w-0 items-start gap-2">
-						<Button variant="ghost" class="h-auto min-h-11 min-w-0 flex-1 justify-start whitespace-normal px-0 text-left" onclick={() => openTask(row.original)}><span class="line-clamp-3 break-words">{row.original.content}</span></Button>
+				<li class={cn('min-w-0 rounded-lg border bg-card px-3 py-1', row.original.id === focusedTaskID && 'ring-2 ring-primary/30')}>
+					<div class="flex min-w-0 items-center gap-2">
+						<Button variant="ghost" class="h-auto min-h-11 min-w-0 flex-1 justify-start whitespace-normal px-0 text-left" onclick={() => openTask(row.original)}><span class="line-clamp-3 break-words break-keep">{row.original.content}</span></Button>
 						{#each row.getVisibleCells().filter((cell) => cell.column.id === 'status') as cell (cell.id)}
 							<FlexRender content={cell.column.columnDef.cell} context={cell.getContext()} />
 						{/each}
 					</div>
 					<Collapsible.Root>
-						<Collapsible.Trigger>{#snippet child({ props })}<Button {...props} variant="ghost" size="sm" class="px-0 text-muted-foreground">{mobileLabels.details}</Button>{/snippet}</Collapsible.Trigger>
-						<Collapsible.Content class="grid gap-3 border-t pt-3 min-[390px]:grid-cols-2">
+						<div class="flex min-w-0 items-center gap-2">
+							<TaskCompactMetadata task={row.original} businessColor={businessColor(row.original.business)} class="flex-1" />
+							<Collapsible.Trigger>{#snippet child({ props })}<Button {...props} variant="ghost" size="sm" class="-mr-2 text-muted-foreground">{mobileLabels.details}</Button>{/snippet}</Collapsible.Trigger>
+						</div>
+						<Collapsible.Content class="mb-2 grid gap-3 border-t pt-3 min-[390px]:grid-cols-2">
 							{#each row.getVisibleCells().filter((cell) => !['content', 'status'].includes(cell.column.id)) as cell (cell.id)}
 								<div class="min-w-0 text-sm"><div class="mb-1 text-xs text-muted-foreground">
 									{mobileLabels[cell.column.id] ?? cell.column.id}

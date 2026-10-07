@@ -55,11 +55,11 @@
 </script>
 
 <div class={cn('flex shrink-0 items-center gap-1', className)}>
-	<TooltipIconButton label={previousWeekLabel} variant="outline" size="icon-sm" {disabled} onclick={() => onSelectWeek(week?.previous ?? '')}>
+	<TooltipIconButton label={previousWeekLabel} variant="outline" size="icon-sm" class="max-sm:hidden" {disabled} onclick={() => onSelectWeek(week?.previous ?? '')}>
 		<ChevronLeftIcon />
 	</TooltipIconButton>
 	<Select.Root type="single" bind:value={selectedWeekCode} {disabled} onValueChange={(weekCode) => weekCode && onSelectWeek(weekCode)}>
-		<Select.Trigger class="h-8 w-[9.5rem] justify-between rounded-[min(var(--radius-md),10px)] tabular-nums" aria-label={selectWeekLabel}>
+		<Select.Trigger class="h-8 w-auto justify-between max-sm:data-[size=default]:h-11 sm:w-[9.5rem] rounded-[min(var(--radius-md),10px)] tabular-nums" aria-label={selectWeekLabel}>
 			{selectedWeekLabel}
 		</Select.Trigger>
 		<Select.Content><Select.Group>
@@ -68,7 +68,7 @@
 			{/each}
 		</Select.Group></Select.Content>
 	</Select.Root>
-	<TooltipIconButton label={nextWeekLabel} variant="outline" size="icon-sm" {disabled} onclick={() => onSelectWeek(week?.next ?? '')}>
+	<TooltipIconButton label={nextWeekLabel} variant="outline" size="icon-sm" class="max-sm:hidden" {disabled} onclick={() => onSelectWeek(week?.next ?? '')}>
 		<ChevronRightIcon />
 	</TooltipIconButton>
 </div>

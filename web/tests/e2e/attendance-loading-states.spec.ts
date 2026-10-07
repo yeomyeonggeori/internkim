@@ -29,7 +29,7 @@ for (const width of [1280, 390, 320]) {
 		await page.goto('/example-co/attendance');
 		await expect(page.getByTestId('attendance-skeleton').first()).toBeVisible();
 		const initialCard = phase === 'before' ? null : await page.locator('[data-attendance-skeleton="dashboard"] [data-slot="card"]').first().boundingBox();
-		const initialMetric = phase === 'before' ? null : await page.locator('[data-attendance-skeleton="dashboard"] [data-slot="card"]').nth(1).boundingBox();
+		const initialMetric = phase === 'before' ? null : await page.locator('[data-attendance-skeleton="dashboard"] [data-testid="attendance-company-summary"]').boundingBox();
 		await capture(page, 'initial', width);
 		fixture.current.release();
 		await expect(page.getByTestId('attendance-own-strip')).toBeVisible();
@@ -40,7 +40,7 @@ for (const width of [1280, 390, 320]) {
 		await expect(page.getByTestId('attendance-team-card')).toHaveCount(6);
 		if (phase !== 'before') {
 			const ownCard = await page.getByTestId('attendance-own-strip').boundingBox();
-			const metric = await page.getByTestId('attendance-company-summary').locator('[data-slot="card"]').first().boundingBox();
+			const metric = await page.getByTestId('attendance-team-dashboard').getByTestId('attendance-company-summary').boundingBox();
 			if (!initialCard || !initialMetric || !ownCard || !metric) throw new Error('Attendance card geometry was not measurable');
 			expect(Math.abs(initialCard.y - ownCard.y)).toBeLessThanOrEqual(1);
 			expect(Math.abs(initialCard.height - ownCard.height)).toBeLessThanOrEqual(2);

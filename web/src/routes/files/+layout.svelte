@@ -10,7 +10,7 @@
 	let { children } = $props();
 
 	const text = createPageText(filesText);
-	const files = new FilesState(text.loadFailed);
+	const files = new FilesState(text.loadFailed, text.companyComputerOffline);
 	setFilesState(files);
 
 	const activeTab = $derived(

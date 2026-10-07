@@ -12,7 +12,6 @@
 	import ChevronLeftIcon from '@lucide/svelte/icons/chevron-left';
 	import ChevronRightIcon from '@lucide/svelte/icons/chevron-right';
 	import SettingsIcon from '@lucide/svelte/icons/settings';
-	import MoreHorizontalIcon from '@lucide/svelte/icons/more-horizontal';
 	import { tick } from 'svelte';
 	import { calendarText } from '../text';
 	import { dateKeyFromDate } from './calendar-month-selection';
@@ -60,6 +59,10 @@
 
 	const text = createPageText(calendarText);
 	const stepLabels = $derived(navigationLabels(toolbarView));
+	const currentViewLabel = $derived(viewLabel(toolbarView));
+	const selectedParticipant = $derived(
+		participantFilterKey ? participantOptions.find((option) => option.value === participantFilterKey) : undefined
+	);
 	let isDatePickerOpen = $state(false);
 	let isMoreOpen = $state(false);
 
@@ -67,6 +70,17 @@
 		if (viewType === ViewType.DAY) return { previous: text.previousDay, next: text.nextDay };
 		if (viewType === ViewType.WEEK) return { previous: text.previousWeek, next: text.nextWeek };
 		return { previous: text.previousMonth, next: text.nextMonth };
+	}
+
+	function viewLabel(viewType: ViewType): string {
+		if (viewType === ViewType.DAY) return text.day;
+		if (viewType === ViewType.WEEK) return text.week;
+		return text.month;
+	}
+
+	function selectViewFromMore(viewType: ViewType): void {
+		isMoreOpen = false;
+		changeCalendarView(viewType);
 	}
 
 	async function openMoreSettings(): Promise<void> {
@@ -117,13 +131,13 @@
 {/snippet}
 
 <Tooltip.Provider delayDuration={120}>
-<header class="calendar-toolbar bg-background border-border/50 sticky top-0 z-20 flex min-h-14 flex-wrap items-center gap-2 border-b py-2 pr-4 pl-6 max-sm:grid max-sm:grid-cols-[minmax(0,1fr)_44px] max-sm:gap-1 max-sm:px-3 max-sm:py-1">
+<header class="calendar-toolbar bg-background border-border/50 sticky top-0 z-20 flex min-h-14 flex-wrap items-center gap-2 border-b py-2 pr-4 pl-6 max-sm:flex-nowrap max-sm:gap-1 max-sm:py-1 max-sm:pr-2 max-sm:pl-3">
 	<Popover.Root bind:open={isDatePickerOpen}>
 		<Popover.Trigger>
 			{#snippet child({ props })}
-				<Button {...props} variant="ghost" class="calendar-toolbar-title -ml-2 gap-1.5 px-2 text-[22px] leading-none font-extrabold tabular-nums max-sm:ml-0 max-sm:min-w-0 max-sm:justify-start max-sm:px-0 max-sm:text-lg">
-					{currentMonthTitle}
-					<ChevronDownIcon class="text-muted-foreground size-4" />
+				<Button {...props} variant="ghost" class="calendar-toolbar-title -ml-2 gap-1.5 px-2 text-[22px] leading-none font-extrabold tabular-nums max-sm:ml-0 max-sm:min-w-0 max-sm:shrink max-sm:justify-start max-sm:px-0 max-sm:text-lg">
+					<span class="truncate max-[359px]:text-base">{currentMonthTitle}</span>
+					<ChevronDownIcon class="text-muted-foreground size-4 max-[359px]:hidden" />
 				</Button>
 			{/snippet}
 		</Popover.Trigger>
@@ -132,27 +146,9 @@
 		</Popover.Content>
 	</Popover.Root>
 
-	<Popover.Root bind:open={isMoreOpen}>
-		<Popover.Trigger>
-			{#snippet child({ props })}
-				<Button {...props} variant="ghost" size="icon" aria-label={text.moreTools} class="sm:hidden">
-					<MoreHorizontalIcon class="size-5" />
-				</Button>
-			{/snippet}
-		</Popover.Trigger>
-		<Popover.Content align="end" class="w-64 p-2">
-			<div class="grid gap-1">
-				{@render participantFilter()}
-				<Button variant="ghost" class="justify-start" onclick={() => void openMoreSettings()}>
-					<SettingsIcon class="size-5" />{text.settings}
-				</Button>
-			</div>
-		</Popover.Content>
-	</Popover.Root>
-
-	<div class="ml-auto flex flex-wrap items-center justify-end gap-2 max-sm:col-span-2 max-sm:ml-0 max-sm:grid max-sm:grid-cols-[minmax(0,1fr)_auto] max-sm:items-center max-sm:gap-1">
+	<div class="ml-auto flex flex-wrap items-center justify-end gap-2 max-sm:flex-nowrap max-sm:gap-1">
 		<div class="max-sm:hidden">{@render participantFilter()}</div>
-		<CalendarViewSwitcher {toolbarView} {changeCalendarView} />
+		<CalendarViewSwitcher {toolbarView} {changeCalendarView} class="max-sm:hidden" />
 		<ButtonGroup.Root>
 			<TooltipIconButton label={stepLabels.previous} variant="outline" size="icon-sm" onclick={goToPrevious}>
 				<ChevronLeftIcon />
@@ -166,5 +162,35 @@
 			<SettingsIcon />
 		</TooltipIconButton>
 	</div>
+
+	<Popover.Root bind:open={isMoreOpen}>
+		<Popover.Trigger>
+			{#snippet child({ props })}
+				<Button {...props} variant="ghost" class="gap-1 px-2 sm:hidden">
+					{#if selectedParticipant}
+						<PersonAvatar
+							name={selectedParticipant.label}
+							email={selectedParticipant.email}
+							seed={selectedParticipant.value}
+							image={selectedParticipant.image}
+							class="size-5 shrink-0"
+						/>
+					{/if}
+					<span>{currentViewLabel}</span>
+					<span class="sr-only">{text.moreTools}</span>
+					<ChevronDownIcon class="text-muted-foreground size-4" />
+				</Button>
+			{/snippet}
+		</Popover.Trigger>
+		<Popover.Content align="end" class="w-64 p-2">
+			<div class="grid gap-1">
+				<CalendarViewSwitcher {toolbarView} changeCalendarView={selectViewFromMore} class="w-full" listClass="w-full" />
+				{@render participantFilter()}
+				<Button variant="ghost" class="justify-start" onclick={() => void openMoreSettings()}>
+					<SettingsIcon class="size-5" />{text.settings}
+				</Button>
+			</div>
+		</Popover.Content>
+	</Popover.Root>
 </header>
 </Tooltip.Provider>

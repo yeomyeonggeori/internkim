@@ -114,7 +114,7 @@
 
 					<div class="grid min-h-0 min-w-0 grid-cols-1">
 						<div class="grid min-h-0 min-w-0 grid-rows-[auto_minmax(0,1fr)] overflow-hidden">
-							<div class="flex min-w-0 flex-wrap items-center gap-2 px-3 py-3 sm:flex-nowrap sm:px-6">
+							<div class="flex min-w-0 items-center gap-2 px-4 py-3 sm:px-6">
 								{#if controller.canManage}
 									<Button type="button" size="icon" variant="outline" aria-label={text.inviteMember} onclick={() => (isInviteOpen = true)}>
 										<UserPlusIcon />
@@ -131,7 +131,7 @@
 									options={organizationOptions}
 									label={text.selectOrganization}
 									searchPlaceholder={text.organization}
-									class="min-w-0 flex-1 sm:ml-auto sm:w-52 sm:flex-none"
+									class="min-w-0 flex-1 max-sm:hidden sm:ml-auto sm:w-52 sm:flex-none"
 								>
 								</FilterCombobox>
 								<FilterCombobox
@@ -139,7 +139,7 @@
 									options={personOptions}
 									label={text.selectEmployee}
 									searchPlaceholder={text.searchPlaceholder}
-									class="order-first w-full min-w-0 sm:order-none sm:w-72 sm:flex-none"
+									class="order-first w-full min-w-0 max-sm:w-auto max-sm:flex-1 sm:order-none sm:w-72 sm:flex-none"
 								>
 									{#snippet selectedContent(option)}
 										<PersonAvatar

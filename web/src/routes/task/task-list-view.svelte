@@ -108,6 +108,7 @@
 
 <TaskTable
 	mobileLabels={text.table}
+	{businessColor}
 	{taskTable}
 	columnCount={taskColumns.length}
 	pageSize={taskPagination.pageSize}

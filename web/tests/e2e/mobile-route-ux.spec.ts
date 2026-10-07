@@ -19,7 +19,7 @@ test.beforeEach(async ({ page }) => {
 });
 
 for (const width of [320, 390, 1280]) {
-	test(`calendar toolbar groups controls in two compact mobile rows at ${width}px`, async ({ page }) => {
+	test(`calendar toolbar keeps its controls on one compact mobile row at ${width}px`, async ({ page }) => {
 		await page.setViewportSize({ width, height: 844 });
 		await routeCalendarShellAPI(page);
 		await page.route('**/api/v1/tools/event_list/invoke', route => route.fulfill({ json: { result: { events: [] } } }));
@@ -30,19 +30,19 @@ for (const width of [320, 390, 1280]) {
 		await fits(page);
 		if (width < 640) {
 			const title = await toolbar.locator('.calendar-toolbar-title').boundingBox();
-			const more = toolbar.getByRole('button', { name: '일정 도구', exact: true });
+			const more = toolbar.getByRole('button', { name: '월 일정 도구', exact: true });
 			const moreBox = await more.boundingBox();
-			const tabs = await toolbar.getByRole('tablist').boundingBox();
 			const today = await toolbar.getByRole('button', { name: '오늘', exact: true }).boundingBox();
-			expect(title && moreBox && tabs && today).toBeTruthy();
-			expect(Math.abs(title!.y - moreBox!.y)).toBeLessThan(1);
-			expect(tabs!.y - (title!.y + title!.height)).toBeLessThanOrEqual(4.5);
-			expect(Math.abs(tabs!.y - today!.y)).toBeLessThan(1);
-			expect(tabs!.height).toBe(44);
+			expect(title && moreBox && today).toBeTruthy();
+			expect(Math.abs(title!.y + title!.height / 2 - (moreBox!.y + moreBox!.height / 2))).toBeLessThan(1);
+			expect(Math.abs(today!.y - moreBox!.y)).toBeLessThan(1);
+			expect(moreBox!.height).toBe(44);
 			expect(today!.height).toBe(44);
+			await expect(toolbar.getByRole('tablist')).toBeHidden();
 			await expect(toolbar.getByRole('combobox', { name: '참여자 선택', exact: true })).toBeHidden();
 			await screenshot(page, `calendar-compact-${width}`);
 			await more.click();
+			await expect(page.getByRole('tab', { name: '주', exact: true })).toBeVisible();
 			const participant = page.getByRole('combobox', { name: '참여자 선택', exact: true });
 			await expect(participant).toBeVisible();
 			await screenshot(page, `calendar-tools-${width}`);
@@ -53,7 +53,7 @@ for (const width of [320, 390, 1280]) {
 			await expect(page.getByRole('dialog')).toBeVisible();
 			await fits(page);
 		} else {
-			await expect(toolbar.getByRole('button', { name: '일정 도구', exact: true })).toBeHidden();
+			await expect(toolbar.getByRole('button', { name: '월 일정 도구', exact: true })).toBeHidden();
 			await expect(toolbar.getByRole('combobox', { name: '참여자 선택', exact: true })).toBeVisible();
 			await screenshot(page, `calendar-compact-${width}`);
 		}

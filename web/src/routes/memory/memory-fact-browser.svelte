@@ -1,5 +1,6 @@
 <script lang="ts">
-	import { onMount } from 'svelte';
+	import { onMount, tick, type Snippet } from 'svelte';
+	import { MediaQuery } from 'svelte/reactivity';
 	import { currentLocale } from '$lib/i18n/locale.svelte';
 	import { Badge } from '$lib/components/ui/badge';
 	import SearchIcon from '@lucide/svelte/icons/search';
@@ -8,7 +9,7 @@
 	import ArrowLeftIcon from '@lucide/svelte/icons/arrow-left';
 	import XIcon from '@lucide/svelte/icons/x';
 	import * as Alert from '$lib/components/ui/alert';
-	import { Button } from '$lib/components/ui/button';
+	import { Button, type ButtonVariant } from '$lib/components/ui/button';
 	import { Checkbox } from '$lib/components/ui/checkbox';
 	import * as Field from '$lib/components/ui/field';
 	import * as InputGroup from '$lib/components/ui/input-group';
@@ -25,7 +26,9 @@
 	import type { MemoryText } from './text';
 	import { isMemoryAccessDenied } from './memory-read-error';
 
-	let { text }: { text: MemoryText } = $props();
+	let { text, scheduleLink }: { text: MemoryText; scheduleLink: Snippet<[ButtonVariant]> } = $props();
+	const isPhone = new MediaQuery('(max-width: 639px)');
+	let detailPanel = $state<HTMLElement | null>(null);
 	let memory = $state<MemoryFactsResponse | null>(null);
 	let circles = $state<Circle[]>([]);
 	let selectedFactID = $state('');
@@ -69,6 +72,13 @@
 		}
 	}
 
+	async function selectFact(factID: string): Promise<void> {
+		selectedFactID = factID;
+		if (!isPhone.current) return;
+		await tick();
+		detailPanel?.scrollIntoView({ block: 'start' });
+	}
+
 	function clearSearch(): void {
 		query = '';
 		selectedFactID = '';
@@ -87,17 +97,19 @@
 	}
 </script>
 
-<div class="grid min-w-0 gap-6 lg:grid-cols-[16rem_minmax(0,1fr)] lg:items-start">
-<aside class="flex min-w-0 flex-col gap-5" aria-label={text.layersTitle}>
+<div class="grid min-w-0 gap-6 max-sm:gap-0 lg:grid-cols-[16rem_minmax(0,1fr)] lg:items-start">
+<aside class={cn('flex min-w-0 flex-col gap-5', selectedFact && 'max-sm:hidden')} aria-label={text.layersTitle}>
 		{#if memory}
 			<MemoryLayerStack layers={memory.layers} selectedKey={selectedLayerKey} {countOf} labelOf={scopeLabel} onSelect={(key) => { selectedLayerKey = key; selectedFactID = ''; }} {text} />
 		{:else if isLoading}
-			<div aria-hidden="true" class="grid gap-3"><Skeleton class="h-4 w-24" /><Skeleton class="h-3 w-4/5" />{#each [0, 1, 2, 3] as layer (layer)}<Skeleton class="h-10 w-full" />{/each}<Skeleton class="h-16 w-full" /></div>
+			<div aria-hidden="true" class="flex min-h-12 items-center gap-6 border-b px-3 sm:hidden">{#each [0, 1, 2] as layer (layer)}<Skeleton class="h-4 w-14" />{/each}</div>
+			<div aria-hidden="true" class="grid gap-3 max-sm:hidden"><Skeleton class="h-4 w-24" /><Skeleton class="h-3 w-4/5" />{#each [0, 1, 2, 3] as layer (layer)}<Skeleton class="h-10 w-full" />{/each}<Skeleton class="h-16 w-full" /></div>
 		{/if}
 </aside>
-<div class="flex min-w-0 flex-col rounded-xl border bg-background">
-	<div class="flex min-w-0 flex-col gap-4 p-4">
-	<form role="search" class="flex flex-col gap-3" onsubmit={(event) => event.preventDefault()}>
+<div class="flex min-w-0 flex-col rounded-xl border bg-background max-sm:-mx-4 max-sm:rounded-none max-sm:border-0">
+	<div class={cn('flex min-w-0 flex-col gap-4 p-4', selectedFact && 'max-sm:hidden')}>
+	<div class="flex min-w-0 items-center gap-2">
+	<form role="search" class="flex min-w-0 flex-1 flex-col gap-3" onsubmit={(event) => event.preventDefault()}>
 		<Field.FieldGroup>
 			<Field.Field>
 				<Field.Label for="memory-search" class="sr-only">{text.searchPrompt}</Field.Label>
@@ -113,8 +125,10 @@
 			</Field.Field>
 		</Field.FieldGroup>
 	</form>
+	<div class="shrink-0 sm:hidden">{@render scheduleLink('ghost')}</div>
+	</div>
 
-	<div class="flex flex-wrap items-center justify-between gap-3">
+	<div class={cn('flex flex-wrap items-center justify-between gap-3', !memory && 'max-sm:hidden')}>
 			<p class="flex min-w-0 items-center gap-2 text-sm text-muted-foreground" aria-live="polite">{#if isLoading}<Spinner />{text.loading}{:else if memory}{isSearching ? text.searchResults : text.currentMemories} · {text.visibleCountTemplate.replace('{count}', String(visibleFacts.length))}{/if}</p>
 		<div class="flex shrink-0 items-center gap-3">
 			<Field.Field orientation="horizontal" class="w-auto">
@@ -129,7 +143,11 @@
 		<div class="px-4 pb-4">
 			<Alert.Root variant="destructive">
 				<Alert.Description>{errorMessage}</Alert.Description>
-				<Alert.Action><Button variant="outline" size="sm" disabled={isLoading} onclick={loadMemory}>{text.retry}</Button></Alert.Action>
+				{#if isPhone.current}
+					<div class="pt-2">{@render retryButton()}</div>
+				{:else}
+					<Alert.Action>{@render retryButton()}</Alert.Action>
+				{/if}
 			</Alert.Root>
 		</div>
 	{/if}
@@ -140,7 +158,7 @@
 			</div>
 	{:else if memory}
 		{#if visibleFacts.length > 0}
-			<div class="grid min-w-0 border-t xl:min-h-[28rem] xl:grid-cols-[minmax(0,0.85fr)_minmax(0,1fr)]">
+			<div class={cn('grid min-w-0 border-t xl:min-h-[28rem] xl:grid-cols-[minmax(0,0.85fr)_minmax(0,1fr)]', selectedFact && 'max-sm:border-t-0')}>
 				<div class={cn('min-w-0 xl:max-h-[65svh] xl:overflow-y-auto', selectedFact && 'hidden xl:block')}>
 					{#each factGroups as group (memoryLayerKey(group.layer))}
 						<section aria-label={scopeLabel(group.layer)}>
@@ -151,7 +169,7 @@
 								{#each group.facts as fact (fact.factID)}
 									<button type="button" aria-pressed={selectedFactID === fact.factID}
 										class={cn('grid w-full grid-cols-[minmax(0,1fr)_auto] gap-x-3 gap-y-3 px-4 py-5 text-left transition-colors hover:bg-muted/50 focus-visible:outline-2 focus-visible:outline-ring focus-visible:-outline-offset-2', selectedFactID === fact.factID && 'bg-muted/60')}
-										onclick={() => selectedFactID = fact.factID}>
+										onclick={() => selectFact(fact.factID)}>
 										<p class="line-clamp-3 break-words text-sm leading-6">{fact.content}</p>
 										<MemoryImportance class="mt-1.5" importance={fact.importance} label={`${text.importance} ${text.importanceTemplate.replace('{count}', String(fact.importance))}`} />
 										<div class="col-span-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
@@ -164,7 +182,7 @@
 						</section>
 					{/each}
 				</div>
-				<aside class={cn('min-w-0 xl:max-h-[65svh] xl:overflow-y-auto xl:border-l', !selectedFact && 'hidden xl:block')} aria-label={text.memoryDetails}>
+				<aside bind:this={detailPanel} class={cn('min-w-0 scroll-mt-4 xl:max-h-[65svh] xl:overflow-y-auto xl:border-l', !selectedFact && 'hidden xl:block')} aria-label={text.memoryDetails}>
 					{#if selectedFact}
 						<div class="px-4 pt-3 xl:hidden"><Button variant="ghost" size="sm" onclick={() => selectedFactID = ''}><ArrowLeftIcon data-icon="inline-start" />{text.factListTab}</Button></div>
 						{#key selectedFact.factID}
@@ -188,3 +206,7 @@
 	{/if}
 </div>
 </div>
+
+{#snippet retryButton()}
+	<Button variant="outline" size="sm" disabled={isLoading} onclick={loadMemory}>{text.retry}</Button>
+{/snippet}

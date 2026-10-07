@@ -16,17 +16,17 @@
 {/snippet}
 
 {#snippet teams()}
-	<div class="grid gap-4 min-[761px]:grid-cols-2 min-[1101px]:grid-cols-3">
+	<div class="grid gap-4 max-sm:gap-3 min-[761px]:grid-cols-2 min-[1101px]:grid-cols-3">
 		{#each Array.from({ length: rowCount }) as _, index (index)}
 			<Card.Root class="gap-0 overflow-hidden rounded-xl py-0">
 				<Card.Header class="gap-3 px-4 pb-3 pt-4">
 					<div class="flex justify-between gap-3"><div class="space-y-2"><Skeleton class="h-5 w-24" /><Skeleton class="h-4 w-12" /></div><div class="space-y-2"><Skeleton class="ml-auto h-6 w-14" /><Skeleton class="h-4 w-20" /></div></div>
-					<Skeleton class="h-3 w-full rounded-full" />
+					<Skeleton class="h-3 w-full rounded-full max-sm:h-1.5" />
 				</Card.Header>
 				<Card.Content class="flex flex-col gap-4 px-4 pb-4">
 					<div class="grid grid-cols-2 gap-x-6 gap-y-2">{#each Array.from({ length: 4 }) as _, metric (metric)}<Skeleton class="h-4 w-full" />{/each}</div>
 					<div class="border-t border-border/70 pt-3"><Skeleton class="h-4 w-3/4" /></div>
-					<div class="flex flex-col gap-3 border-t border-border/70 pt-3">{#each [0, 1] as row (row)}<div class="flex h-8 items-center justify-between"><Skeleton class="h-4 w-20" /><div class="flex -space-x-2">{#each [0, 1, 2] as avatar (avatar)}<Skeleton class="size-8 rounded-full ring-2 ring-card" />{/each}</div></div>{/each}</div>
+					<div class="flex flex-col gap-3 border-t border-border/70 pt-3 max-sm:grid max-sm:grid-cols-2 max-sm:gap-4">{#each [0, 1] as row (row)}<div class="flex h-8 items-center justify-between max-sm:h-auto max-sm:flex-col max-sm:items-start max-sm:gap-1.5"><Skeleton class="h-4 w-20" /><div class="flex -space-x-2">{#each [0, 1, 2] as avatar (avatar)}<Skeleton class="size-8 rounded-full ring-2 ring-card" />{/each}</div></div>{/each}</div>
 				</Card.Content>
 				<Card.Footer class="h-11 border-t border-border/70 px-4"><Skeleton class="h-4 w-24" /></Card.Footer>
 			</Card.Root>
@@ -35,13 +35,13 @@
 {/snippet}
 
 <div role="status" aria-busy="true" aria-label={text.loading} data-testid="attendance-skeleton" data-attendance-skeleton={kind}>
-	<div aria-hidden="true" class="flex flex-col gap-6">
+	<div aria-hidden="true" class="flex flex-col gap-6 max-sm:gap-4">
 		{#if kind === 'dashboard'}
-			<Card.Root class="gap-0 py-0"><Card.Content class="py-4 sm:py-3">
+			<Card.Root class="gap-0 py-0"><Card.Content class="py-3">
 				<div class="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3">
-					<div class="col-span-2 flex items-center gap-3 sm:col-span-1"><Skeleton class="size-9 rounded-full" /><div class="space-y-1"><Skeleton class="h-5 w-24" /><Skeleton class="h-5 w-32" /></div></div>
-					<Skeleton class="order-3 col-span-2 mt-4 h-11 w-full sm:order-none sm:col-span-1 sm:mt-0 sm:w-56" />
-					<Skeleton class="order-2 col-span-2 mt-4 h-1.5 w-full rounded-full sm:order-3 sm:mt-3" />
+					<div class="col-span-2 flex items-center gap-3 sm:col-span-1"><Skeleton class="size-9 rounded-full" /><div class="space-y-0.5 sm:space-y-1"><Skeleton class="h-5 w-24" /><Skeleton class="h-4 w-32 sm:h-5" /></div></div>
+					<Skeleton class="order-3 col-span-2 mt-3 h-11 w-full sm:order-none sm:col-span-1 sm:mt-0 sm:w-56" />
+					<Skeleton class="order-2 col-span-2 mt-3 h-1.5 w-full rounded-full sm:order-3 sm:mt-3" />
 				</div>
 			</Card.Content></Card.Root>
 			{@render metrics()}

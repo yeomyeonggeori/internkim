@@ -59,10 +59,7 @@
 </svelte:head>
 
 {#snippet generalSections()}
-	<header class="grid gap-1">
-		<h1 class="text-xl font-semibold">{text.signIn}</h1>
-		<p class="text-sm text-muted-foreground">{text.signInDescription}</p>
-	</header>
+	<h1 class="text-xl font-semibold">{text.signIn}</h1>
 	<SignInPasskeys />
 	{#if isSupabaseConfigured()}
 		<SignInPassword />
@@ -131,7 +128,7 @@
 	<div class="mx-auto grid max-w-3xl gap-6 px-4 py-6 max-sm:pb-[calc(var(--app-mobile-nav-height)+var(--app-mobile-nav-bottom)+1.5rem)] sm:px-6">
 		<Tabs.Root bind:value={activeTab}>
 			{#if !isLoading && isAdmin}
-				<Tabs.List class="mb-6">
+				<Tabs.List class="mb-6 max-sm:w-full">
 					<Tabs.Trigger value="general">{text.generalTab}</Tabs.Trigger>
 					<Tabs.Trigger value="admin">{text.adminTab}</Tabs.Trigger>
 				</Tabs.List>

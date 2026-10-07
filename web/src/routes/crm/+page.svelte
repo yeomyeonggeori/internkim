@@ -15,6 +15,7 @@
 	import { Spinner } from '$lib/components/ui/spinner';
 	import CRMLoadingSkeleton from './crm-loading-skeleton.svelte';
 	import PlusIcon from '@lucide/svelte/icons/plus';
+	import ChevronDownIcon from '@lucide/svelte/icons/chevron-down';
 	import XIcon from '@lucide/svelte/icons/x';
 	import { untrack } from 'svelte';
 	import CRMActivityDetailSheet from './crm-activity-detail-sheet.svelte';
@@ -363,7 +364,7 @@
 
 <svelte:head><title>{text.pageTitle}</title></svelte:head>
 
-<main data-crm-ready={controller.hasData && !controller.permissionDenied} class="grid min-h-full w-full content-start gap-4 px-4 py-6 md:px-8">
+<main data-crm-ready={controller.hasData && !controller.permissionDenied} class="grid min-h-full w-full content-start gap-2 px-4 pt-2 pb-6 sm:gap-4 sm:pt-6 md:px-8">
 	{#if feedbackMessage}
 		<div role="status" class="flex items-center gap-2 rounded-md border bg-muted/40 px-3 py-2 text-sm"><CheckCircle2Icon class="size-4 text-primary" /><span>{feedbackMessage}</span><Button type="button" variant="ghost" size="icon-sm" class="ml-auto" aria-label={text.cancel} onclick={() => (feedbackMessage = '')}><XIcon /></Button></div>
 	{/if}
@@ -383,7 +384,7 @@
 			<div role="alert" class="flex items-center gap-2 text-sm text-destructive"><AlertCircleIcon class="size-4" />{controller.directoryErrorMessage}<Button variant="outline" size="sm" onclick={() => controller.retryDirectory()}>{text.retry}</Button></div>
 		{/if}
 		<Collapsible.Root class="min-w-0" data-crm-metrics open={!isMobile.current || showsMetrics} onOpenChange={(open) => showsMetrics = open}>
-			<Collapsible.Trigger class="mb-2 flex min-h-11 w-full items-center justify-between rounded-lg border px-3 text-sm font-medium sm:hidden">{text.metricsOverview}<span aria-hidden="true">{showsMetrics ? '−' : '+'}</span></Collapsible.Trigger>
+			<Collapsible.Trigger class="flex min-h-11 w-full items-center gap-1 text-sm font-medium sm:hidden">{text.metricsOverview}<ChevronDownIcon class="size-4 text-muted-foreground transition-transform {showsMetrics ? 'rotate-180' : ''}" aria-hidden="true" /></Collapsible.Trigger>
 			<Collapsible.Content>
 			<Card.Root class="grid min-w-0 grid-cols-2 gap-px bg-border py-0 lg:grid-cols-4">
 				{#each kpiCards as card (card.id)}<CRMKPICell {card} />{/each}
@@ -397,10 +398,10 @@
 			<UnderlineTabs.Content value="relationships" class="grid min-w-0 gap-3 pb-24">
 				<div class="flex min-w-0 flex-wrap items-center gap-2">
 					<Tabs.Root value={relationshipView} onValueChange={(value) => (relationshipView = value as RelationshipView)} aria-label={text.relationships}><Tabs.List><Tabs.Trigger value="all">{text.allRelationships}</Tabs.Trigger><Tabs.Trigger value="mine" disabled={!controller.isDirectoryReady}>{text.myRelationships}</Tabs.Trigger></Tabs.List></Tabs.Root>
-					<Button type="button" class="ml-auto sm:order-last" disabled={!controller.isDirectoryReady} onclick={() => openCreateSheet('relationship')}><PlusIcon data-icon="inline-start" />{text.newRelationship}</Button>
-					<Collapsible.Root class="w-full min-w-0 sm:contents" open={!isMobile.current || showsRelationshipFilters} onOpenChange={(open) => showsRelationshipFilters = open}>
+					<Button type="button" class="ml-auto max-sm:order-1 sm:order-last" disabled={!controller.isDirectoryReady} onclick={() => openCreateSheet('relationship')}><PlusIcon data-icon="inline-start" />{text.newRelationship}</Button>
+					<Collapsible.Root class="contents" open={!isMobile.current || showsRelationshipFilters} onOpenChange={(open) => showsRelationshipFilters = open}>
 						<Collapsible.Trigger class="sm:hidden">{#snippet child({ props })}<Button {...props} variant="outline">{text.filters}{hasRelationshipFacets ? ' · ' + [selectedStatus, selectedType, selectedImportance, selectedLastContact].filter((value) => value !== 'all').length : ''}</Button>{/snippet}</Collapsible.Trigger>
-						<Collapsible.Content class="flex min-w-0 flex-wrap gap-2 py-2 sm:contents">
+						<Collapsible.Content class="flex w-full min-w-0 flex-wrap gap-2 max-sm:order-2 sm:contents">
 					<FilterCombobox bind:value={selectedStatus} options={statusFilterOptions} label={text.status} clearValue="all" searchable={false} class="w-auto" />
 					<FilterCombobox bind:value={selectedType} options={typeFilterOptions} label={text.type} clearValue="all" searchable={false} class="w-auto" />
 					<FilterCombobox bind:value={selectedImportance} options={importanceFilterOptions} label={text.importance} clearValue="all" searchable={false} class="w-auto" />
@@ -425,23 +426,25 @@
 			<UnderlineTabs.Content value="pipeline" class="grid min-w-0 gap-3 pb-24">
 				<div class="flex min-w-0 flex-wrap items-center gap-2">
 					<Tabs.Root bind:value={pipelineView} aria-label={text.pipeline}><Tabs.List><Tabs.Trigger value="table">{text.tableView}</Tabs.Trigger><Tabs.Trigger value="board">{text.boardView}</Tabs.Trigger></Tabs.List></Tabs.Root>
-					<FilterCombobox value={selectedPipeline} options={pipelineFilterOptions} label={text.progressKind} clearValue="all" onSelect={selectPipeline} searchable={false} class="w-auto" />
-					<FilterCombobox bind:value={selectedStage} options={stageFilterOptions} label={text.stage} clearValue="all" searchable={false} class="w-auto">
-						{#snippet optionContent(option)}
-							{@const StageIcon = dealStageIcon(option.value)}
-							<StageIcon class="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
-							<span class="min-w-0 truncate">{option.label}</span>
-						{/snippet}
-						{#snippet selectedContent(option)}
-							{@const StageIcon = dealStageIcon(option.value)}
-							<StageIcon class="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
-							<span class="truncate">{text.stage}: {option.label}</span>
-						{/snippet}
-					</FilterCombobox>
-					<CRMViewCurrencySelect {text} {currencyCatalogue} {companyBaseCurrency} sourceCurrencies={opportunityCurrencies} />
-					{#if hasPipelineFacets}
-						<Button type="button" variant="ghost" onclick={resetPipelineFacets}>{text.resetFilters}</Button>
-					{/if}
+					<div class="flex w-full min-w-0 flex-wrap items-center gap-2 max-sm:order-last sm:contents">
+						<FilterCombobox value={selectedPipeline} options={pipelineFilterOptions} label={text.progressKind} clearValue="all" onSelect={selectPipeline} searchable={false} class="w-auto" />
+						<FilterCombobox bind:value={selectedStage} options={stageFilterOptions} label={text.stage} clearValue="all" searchable={false} class="w-auto">
+							{#snippet optionContent(option)}
+								{@const StageIcon = dealStageIcon(option.value)}
+								<StageIcon class="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+								<span class="min-w-0 truncate">{option.label}</span>
+							{/snippet}
+							{#snippet selectedContent(option)}
+								{@const StageIcon = dealStageIcon(option.value)}
+								<StageIcon class="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+								<span class="truncate">{text.stage}: {option.label}</span>
+							{/snippet}
+						</FilterCombobox>
+						<CRMViewCurrencySelect {text} {currencyCatalogue} {companyBaseCurrency} sourceCurrencies={opportunityCurrencies} />
+						{#if hasPipelineFacets}
+							<Button type="button" variant="ghost" onclick={resetPipelineFacets}>{text.resetFilters}</Button>
+						{/if}
+					</div>
 					<Button type="button" class="ml-auto" disabled={!controller.isDirectoryReady} onclick={() => openCreateSheet('progress')}><PlusIcon data-icon="inline-start" />{text.newOpportunity}</Button>
 				</div>
 				{#if pipelineView === 'table'}

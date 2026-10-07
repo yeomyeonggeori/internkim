@@ -322,6 +322,9 @@ html.internkim-embedded [data-app-shell-scroll] {
   [data-slot='command-input-wrapper'] [data-slot='input-group'] {
     height: 44px !important;
   }
+  [data-slot='input-group'], [data-slot='select-trigger'] {
+    min-height: 44px;
+  }
   [data-slot='tabs-list'], [data-slot='underline-tabs-list'] {
     min-height: 48px;
     height: auto;
@@ -350,10 +353,15 @@ html.internkim-embedded [data-app-shell-scroll] {
 		padding-right: env(safe-area-inset-right);
 	}
   .internkim-app-crumbs [data-slot='breadcrumb-item'] { min-width: 0; }
+  .internkim-app-crumbs [data-slot='breadcrumb-list'] {
+    font-size: 17px;
+    line-height: 24px;
+  }
   .internkim-app-crumbs [data-slot='breadcrumb-page'] {
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+    font-weight: 600;
   }
   [data-slot='dialog-content']:not([data-mobile-fullscreen]), [data-slot='alert-dialog-content'] {
     top: calc(var(--app-viewport-top, 0px) + var(--app-viewport-height, 100dvh) / 2);

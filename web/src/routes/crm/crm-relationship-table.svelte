@@ -105,7 +105,7 @@
 			<Table.Body class="text-left">
 				{#each visibleOrganizations as organization (organization.id)}
 					<Table.Row class="cursor-pointer align-top hover:bg-muted/40" tabindex={0} onclick={() => openOrganization(organization.id)}>
-						<Table.Cell class="w-full whitespace-normal pl-4">
+						<Table.Cell class="w-full whitespace-normal pl-4 max-sm:max-w-0">
 							<div class="min-w-0">
 								<p class="truncate font-medium">{organization.name}</p>
 								<p class="mt-1 hidden line-clamp-2 text-xs leading-5 text-muted-foreground sm:block">{organization.description}</p>

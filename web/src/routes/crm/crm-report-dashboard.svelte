@@ -72,6 +72,8 @@
 
 	const bounds = buildCRMReportPeriodBounds();
 	const quietAccountLimit = 8;
+	const outcomeCellClass = 'flex min-w-0 flex-col gap-3 bg-card p-4 max-sm:flex-row max-sm:items-center max-sm:justify-between max-sm:py-3';
+	const outcomeValueClass = 'min-w-0 text-2xl font-semibold tracking-tight tabular-nums max-sm:text-lg';
 	const overdueContactDays = 30;
 
 	let period = $state<CRMReportPeriod>('all');
@@ -243,21 +245,21 @@
 
 	<section class="min-w-0" data-crm-report-card="outcome">
 		<Card.Root class="grid min-w-0 grid-cols-1 gap-px bg-border py-0 sm:grid-cols-3">
-			<div class="flex min-w-0 flex-col gap-3 bg-card p-4">
+			<div class={outcomeCellClass}>
 				<h2 class="text-xs font-medium text-muted-foreground">{text.openDealAmount}</h2>
-				<p class="min-w-0 text-2xl font-semibold tracking-tight tabular-nums">
+				<p class={outcomeValueClass}>
 					{@render moneyValue(outcome.openTotals, text.openDealAmount)}
 				</p>
 			</div>
-			<div class="flex min-w-0 flex-col gap-3 bg-card p-4">
+			<div class={outcomeCellClass}>
 				<h2 class="text-xs font-medium text-muted-foreground">{text.wonValue}</h2>
-				<p class="min-w-0 text-2xl font-semibold tracking-tight tabular-nums">
+				<p class={outcomeValueClass}>
 					{@render moneyValue(outcome.wonTotals, text.wonValue)}
 				</p>
 			</div>
-			<div class="flex min-w-0 flex-col gap-3 bg-card p-4">
+			<div class={outcomeCellClass}>
 				<h2 class="text-xs font-medium text-muted-foreground">{text.winRate}</h2>
-				<p class="min-w-0 text-2xl font-semibold tracking-tight tabular-nums">{winRateLabel(outcome.winRate)}</p>
+				<p class={outcomeValueClass}>{winRateLabel(outcome.winRate)}</p>
 			</div>
 		</Card.Root>
 	</section>

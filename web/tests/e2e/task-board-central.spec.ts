@@ -231,8 +231,8 @@ test('a card the signed-in member participates in can be dragged', async ({ page
 	await expect(card).toHaveAttribute('draggable', 'true');
 });
 
-test('the board scrolls sideways rather than widening the page', async ({ page }) => {
-	await page.setViewportSize({ width: 390, height: 844 });
+test('the board scrolls sideways on a wide screen rather than widening the page', async ({ page }) => {
+	await page.setViewportSize({ width: 700, height: 844 });
 	await signInToTheTaskBoard(page);
 
 	const scroller = page.locator('[data-task-board-scroll]');
@@ -244,5 +244,25 @@ test('the board scrolls sideways rather than widening the page', async ({ page }
 	expect(measurements.clientWidth).toBeGreaterThan(0);
 	expect(measurements.scrollWidth).toBeGreaterThan(measurements.clientWidth);
 	expect(measurements.scrollLeft).toBe(0);
+	expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+});
+
+test('the board stacks its columns on a phone rather than scrolling sideways', async ({ page }) => {
+	await page.setViewportSize({ width: 390, height: 844 });
+	await signInToTheTaskBoard(page);
+
+	const scroller = page.locator('[data-task-board-scroll]');
+	const measurements = await scroller.evaluate((element) => ({
+		clientWidth: element.clientWidth,
+		scrollWidth: element.scrollWidth
+	}));
+	expect(measurements.scrollWidth).toBeLessThanOrEqual(measurements.clientWidth);
+	const planned = await taskColumn(page, 'planned').boundingBox();
+	const inProgress = await taskColumn(page, 'in_progress').boundingBox();
+	expect(planned).not.toBeNull();
+	expect(inProgress).not.toBeNull();
+	if (!planned || !inProgress) return;
+	expect(inProgress.x).toBe(planned.x);
+	expect(inProgress.y).toBeGreaterThanOrEqual(planned.y + planned.height);
 	expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
 });
