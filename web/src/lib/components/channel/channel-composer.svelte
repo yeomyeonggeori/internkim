@@ -1,5 +1,5 @@
 <script lang="ts" module>
-	import type { ChannelMessage, ChannelOutgoingAttachment } from './channel-api';
+	import type { ChannelOutgoingAttachment } from './channel-api';
 	import type { DraftMentions } from '$lib/messenger/mention-draft';
 
 	export type OutgoingMessage = {
@@ -25,7 +25,6 @@
 	import ComposerFormatToolbar from './composer-format-toolbar.svelte';
 	import ComposerEditor from './composer-editor.svelte';
 	import type { ComposerFormat } from './composer-formatting';
-	import { composerEditing, type EditingMessage } from './message-edit';
 	import { canChangeMessages } from './channel-api';
 	import { fileToAttachment, formatAttachmentMeta } from './channel-attachments';
 	import type { MentionCandidate, MentionPerson } from '$lib/messenger/mention-candidates';
@@ -35,8 +34,6 @@
 	import { channelText } from '$lib/i18n/channel-text';
 	import { createPageText } from '$lib/i18n/page-text.svelte';
 	import ArrowUpIcon from '@lucide/svelte/icons/arrow-up';
-	import CheckIcon from '@lucide/svelte/icons/check';
-	import PencilIcon from '@lucide/svelte/icons/pencil';
 	import AtSignIcon from '@lucide/svelte/icons/at-sign';
 	import CaseSensitiveIcon from '@lucide/svelte/icons/case-sensitive';
 	import CropIcon from '@lucide/svelte/icons/crop';
@@ -44,7 +41,7 @@
 	import PlusIcon from '@lucide/svelte/icons/plus';
 	import SmilePlusIcon from '@lucide/svelte/icons/smile-plus';
 	import XIcon from '@lucide/svelte/icons/x';
-	import { onDestroy, onMount, tick } from 'svelte';
+	import { onDestroy, onMount } from 'svelte';
 
 	let {
 		name,
@@ -52,10 +49,7 @@
 		participants,
 		isGroup,
 		disabled = false,
-		cancelsEditOnEscape,
 		isSending = $bindable(false),
-		editing = $bindable(null),
-		saveEdit,
 		onSend,
 		onTyping,
 		onCapture
@@ -65,10 +59,7 @@
 		participants: MentionPerson[];
 		isGroup: boolean;
 		disabled?: boolean;
-		cancelsEditOnEscape: boolean;
 		isSending?: boolean;
-		editing?: EditingMessage | null;
-		saveEdit: (messageID: string, text: string) => Promise<boolean>;
 		onSend: (outgoing: OutgoingMessage) => Promise<void>;
 		onTyping?: () => void;
 		onCapture?: () => void;
@@ -105,36 +96,13 @@
 		'aria-controls': `mention-list-${name}`,
 		...(mentions.isOpen ? { 'aria-activedescendant': `mention-row-${name}-${mentions.active}` } : {})
 	});
-	const edit = composerEditing({
-		text: () => value,
-		setText: (written) => (value = written),
-		editing: () => editing,
-		setEditing: (next) => (editing = next),
-		focus: () => void tick().then(() => composerEditor?.focus())
-	});
-
-	export function beginEdit(message: ChannelMessage): void {
-		edit.begin(message);
-	}
-
-	export function cancelEdit(): void {
-		edit.cancel();
-	}
-
 	export function clear(): void {
 		clearAttachments();
 		value = '';
-		editing = null;
 	}
 
 	async function submit(event: SubmitEvent) {
 		event.preventDefault();
-		if (editing) {
-			if (isSending) return;
-			isSending = true;
-			await edit.save(saveEdit).finally(() => (isSending = false));
-			return;
-		}
 		const trimmed = value.trim();
 		const attachments = pendingAttachments.map((pending) => pending.attachment);
 		if ((!trimmed && attachments.length === 0) || isSending) return;
@@ -183,7 +151,7 @@
 
 	function handleInput(): void {
 		refreshMentions();
-		if (!editing && value.trim() !== '') onTyping?.();
+		if (value.trim() !== '') onTyping?.();
 	}
 
 	function refreshMentions(): void {
@@ -235,11 +203,6 @@
 
 	function handleKeydown(event: KeyboardEvent): boolean {
 		if (handledByMentions(event)) return true;
-		if (event.key === 'Escape' && editing && cancelsEditOnEscape) {
-			event.preventDefault();
-			edit.cancel();
-			return true;
-		}
 		if (event.key !== 'Enter' || event.shiftKey || event.isComposing) return false;
 		event.preventDefault();
 		form?.requestSubmit();
@@ -296,18 +259,6 @@
 			onPick={(candidate) => takeMention(candidate)}
 		/>
 	{/if}
-	{#if editing}
-		<div class="frosted-surface mb-2 flex items-center gap-2 rounded-2xl border py-1 pr-1 pl-3 text-sm">
-			<PencilIcon class="text-muted-foreground size-4 shrink-0" />
-			<div class="min-w-0 flex-1 leading-tight">
-				<div class="font-medium">{text.editingMessage}</div>
-				<div class="text-muted-foreground truncate text-xs">{editing.originalText}</div>
-			</div>
-			<Button type="button" variant="ghost" size="icon-sm" class="shrink-0 rounded-full" aria-label={text.cancelEdit} onclick={edit.cancel}>
-				<XIcon />
-			</Button>
-		</div>
-	{/if}
 	<InputGroup.Root class="composer-input frosted-surface">
 		<ComposerEditor
 			bind:this={composerEditor}
@@ -327,7 +278,7 @@
 				size="icon-sm"
 				aria-label={text.addAttachment}
 				onclick={() => fileInput?.click()}
-				disabled={disabled || editing !== null}
+				{disabled}
 			>
 				<PlusIcon />
 			</InputGroup.Button>
@@ -351,7 +302,7 @@
 					size="icon-sm"
 					aria-label={text.addAttachment}
 					onclick={() => fileInput?.click()}
-					disabled={disabled || editing !== null}
+					{disabled}
 				>
 					<PaperclipIcon />
 				</InputGroup.Button>
@@ -417,8 +368,8 @@
 		class={className}
 		disabled={disabled || (value.trim().length === 0 && pendingAttachments.length === 0) || isSending}
 	>
-		{#if editing}<CheckIcon />{:else}<ArrowUpIcon />{/if}
-		<span class="sr-only">{editing ? text.saveEdit : text.send}</span>
+		<ArrowUpIcon />
+		<span class="sr-only">{text.send}</span>
 	</InputGroup.Button>
 {/snippet}
 

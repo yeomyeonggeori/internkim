@@ -24,7 +24,8 @@
 	import { createMessageCapture } from './message-capture.svelte';
 	import { chooseMessageOnClick } from './choose-message-on-click';
 	import { messageTextBeside } from './message-text-beside';
-	import { canEditMessage, type EditingMessage } from './message-edit';
+	import { canEditMessage, saveEditing } from './message-edit';
+	import MessageInlineEditor from './message-inline-editor.svelte';
 	import { firstLinkIn } from './channel-link';
 	import { clockTime, dateKeyOf, dateLabel, relativeTime } from './channel-time';
 	import { threadRepliesByRoot, timelineMessages } from './channel-threads';
@@ -137,8 +138,7 @@
 	);
 	let isSending = $state(false);
 	let dockHeight = $state(0);
-	let threadEditing = $state<EditingMessage | null>(null);
-	let conversationComposer = $state<ChannelComposer | null>(null);
+	let editingMessageID = $state('');
 	let threadComposer = $state<ChannelComposer | null>(null);
 	let loadFailed = $state(false);
 	let hasLoadedOnce = $state(false);
@@ -550,7 +550,7 @@
 			currentUserImage = '';
 			hasLoadedOnce = false;
 			openThreadRoot = null;
-			threadEditing = null;
+			editingMessageID = '';
 			lightbox = null;
 			agentWorkingSince = null;
 			isLoadingOlder = false;
@@ -564,6 +564,11 @@
 		await loadCurrentUser();
 		scheduleRefresh();
 	});
+
+	async function saveInlineEdit(messageID: string, originalText: string, editedText: string): Promise<void> {
+		const outcome = await saveEditing(messageID, originalText, editedText, messageActions.saveEdit);
+		if (outcome !== 'failed') editingMessageID = '';
+	}
 
 	onDestroy(() => {
 		isDestroyed = true;
@@ -748,6 +753,12 @@
 			</Bubble.Reactions>
 			{@render timeStamp(message)}
 		</Bubble.Root>
+	{:else if bodyText && message.id === editingMessageID}
+		<MessageInlineEditor
+			originalText={bodyText}
+			onSave={(editedText) => saveInlineEdit(message.id, bodyText, editedText)}
+			onCancel={() => (editingMessageID = '')}
+		/>
 	{:else if bodyText}
 		<Bubble.Root
 			variant={mine ? 'default' : 'muted'}
@@ -861,7 +872,7 @@
 		)}
 		pictures={messagePicturesOf(openableAttachments(message.attachments ?? [], openableAddressOf))}
 		onReply={() => openThread(message)}
-		onEdit={() => (isInTimeline ? conversationComposer : threadComposer)?.beginEdit(message)}
+		onEdit={() => (editingMessageID = message.id)}
 		onCopy={(wanted) => messageActions.copy(wanted)}
 		onDelete={() => messageActions.askToDelete(message)}
 		onReact={(glyph) => messageActions.reactWith(message, glyph)}
@@ -903,13 +914,10 @@
 	{#key cacheGeneration}<ChannelComposer
 		bind:this={threadComposer}
 		bind:isSending={isThreadSending}
-		bind:editing={threadEditing}
 		name="thread"
 		placeholder={text.threadComposerPlaceholder}
 		{participants}
 		{isGroup}
-		cancelsEditOnEscape={threadLayout === 'inline'}
-		saveEdit={messageActions.saveEdit}
 		onSend={sendThreadReply}
 	/>{/key}
 {/snippet}
@@ -1001,14 +1009,11 @@
 		<div class={capture.isCapturing ? 'hidden' : 'contents'}>
 		{#key cacheGeneration}
 		<ChannelComposer
-			bind:this={conversationComposer}
 			bind:isSending
 			name="conversation"
 			placeholder={text.composerPlaceholder}
 			{participants}
 			{isGroup}
-			cancelsEditOnEscape={true}
-			saveEdit={messageActions.saveEdit}
 			onSend={sendToConversation}
 			onTyping={typing.announce}
 			onCapture={capture.begin}
@@ -1059,9 +1064,9 @@
 			side="right"
 			class="flex w-full flex-col gap-0 p-0 sm:max-w-md"
 			onEscapeKeydown={(event) => {
-				if (!threadEditing) return;
+				if (!editingMessageID) return;
 				event.preventDefault();
-				threadComposer?.cancelEdit();
+				editingMessageID = '';
 			}}
 		>
 			<Sheet.Header class="border-b">
