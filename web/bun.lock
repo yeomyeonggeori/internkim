@@ -22,6 +22,7 @@
         "@tiptap/markdown": "3.31.4",
         "@tiptap/pm": "3.31.4",
         "@tiptap/starter-kit": "3.31.4",
+        "@zumer/snapdom": "3.3.0",
         "bits-ui": "^2.19.3",
         "clsx": "^2.1.1",
         "jose": "^6.2.11",
@@ -569,6 +570,8 @@
     "@ungap/structured-clone": ["@ungap/structured-clone@1.3.0", "", {}, "sha512-WmoN8qaIAo7WTYWbAZuG8PYEhn5fkz7dZrqTBZ7dtt//lL2Gwms1IcnQ5yHqjDfX8Ft5j4YzDM23f87zBfDe9g=="],
 
     "@xmldom/xmldom": ["@xmldom/xmldom@0.9.12", "", {}, "sha512-5AXjrcMClTryPe9LgZrygpB1lj7s0S9E0+W+AHaVKAVyHanafK86iPSvG5xHVSp/jC+VH1UXu0TAEmY279xH7A=="],
+
+    "@zumer/snapdom": ["@zumer/snapdom@3.3.0", "", {}, "sha512-DR4HnXp5vlLDymmAE5z/QWzxtsc+wrpjo/QXvj5R377wKarwpCQO2LzUuQjWhJaMDNAyCjvxJB4EN8Zgs8Ri9w=="],
 
     "accepts": ["accepts@2.0.0", "", { "dependencies": { "mime-types": "^3.0.0", "negotiator": "^1.0.0" } }, "sha512-5cvg6CtKwfgdmVqY1WIiXKc3Q1bkRqGLi+2W/6ao+6Y7gu/RCwRuAhGEzh5B4KlszSuTLgZYuqFqo5bImjNKng=="],
 

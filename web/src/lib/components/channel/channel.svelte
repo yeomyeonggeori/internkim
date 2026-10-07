@@ -18,6 +18,10 @@
 	import { createOutgoingMessages } from './outgoing-messages.svelte';
 	import MessageReactions from './message-reactions.svelte';
 	import MessageRow from './message-row.svelte';
+	import MessageCaptureBar from './message-capture-bar.svelte';
+	import MessageCaptureOverlay from './message-capture-overlay.svelte';
+	import { createMessageCapture } from './message-capture.svelte';
+	import { chooseMessageOnClick } from './choose-message-on-click';
 	import { messageTextBeside } from './message-text-beside';
 	import { canEditMessage, type EditingMessage } from './message-edit';
 	import { firstLinkIn } from './channel-link';
@@ -229,6 +233,13 @@
 	const visibleMessages = $derived(timelineMessages(shownMessages, repliesByRoot));
 
 	const messageGroups = $derived(groupConsecutiveMessages(visibleMessages));
+
+	const capture = createMessageCapture(() => visibleMessages.map((message) => message.id));
+
+	$effect(() => {
+		void channelId;
+		untrack(() => capture.end());
+	});
 
 	type TimelineItem =
 		| { kind: 'date'; id: string; label: string }
@@ -853,6 +864,7 @@
 		onCopy={(wanted) => messageActions.copy(wanted)}
 		onDelete={() => messageActions.askToDelete(message)}
 		onReact={(glyph) => messageActions.reactWith(message, glyph)}
+		onCapture={isInTimeline ? capture.begin : undefined}
 	>
 		{#snippet avatar()}
 			{@render senderAvatar(message.sender)}
@@ -937,7 +949,8 @@
 				<div
 					bind:this={scrollContainer}
 					onscroll={handleViewportScroll}
-					class="@container/conversation flex min-h-0 flex-1 flex-col-reverse gap-4 overflow-x-hidden overflow-y-auto overscroll-y-none px-4 pt-12 pb-[calc(var(--dock-height)+2.5rem)] [scrollbar-gutter:stable]"
+					use:chooseMessageOnClick={{ enabled: capture.isCapturing, onChoose: capture.choose }}
+					class="@container/conversation isolate flex min-h-0 flex-1 flex-col-reverse gap-4 overflow-x-hidden overflow-y-auto overscroll-y-none px-4 pt-12 pb-[calc(var(--dock-height)+2.5rem)] [scrollbar-gutter:stable]"
 				>
 					{#each reversedTimeline as item (item.id)}
 						{#if item.kind === 'date'}
@@ -953,7 +966,10 @@
 						{/if}
 					{/each}
 				</div>
-				{#if showScrollToBottom}
+				{#if capture.isCapturing}
+					<MessageCaptureOverlay scroller={scrollContainer} firstID={capture.firstID} lastID={capture.lastID} />
+				{/if}
+				{#if showScrollToBottom && !capture.isCapturing}
 					<Button
 						variant="outline"
 						size="sm"
@@ -968,6 +984,16 @@
 		{/if}
 	</div>
 	<ConversationDock {activity} bind:height={dockHeight}>
+		{#if capture.isCapturing}
+			<MessageCaptureBar
+				scroller={scrollContainer}
+				chosenIDs={capture.chosenIDs}
+				onClearChoice={capture.clearChoice}
+				onCancel={capture.end}
+				onDone={capture.end}
+			/>
+		{/if}
+		<div class={capture.isCapturing ? 'hidden' : 'contents'}>
 		{#key cacheGeneration}
 		<ChannelComposer
 			bind:this={conversationComposer}
@@ -980,8 +1006,10 @@
 			saveEdit={messageActions.saveEdit}
 			onSend={sendToConversation}
 			onTyping={typing.announce}
+			onCapture={capture.begin}
 		/>
 		{/key}
+		</div>
 	</ConversationDock>
 </div>
 {#if threadLayout === 'inline' && openThreadRoot}

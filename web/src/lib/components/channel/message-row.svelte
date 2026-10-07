@@ -31,6 +31,7 @@
 		onCopy,
 		onDelete,
 		onReact,
+		onCapture,
 		avatar,
 		children,
 		footer
@@ -53,6 +54,7 @@
 		onCopy: (wanted: MessageCopy) => void;
 		onDelete: () => void;
 		onReact: (glyph: string) => void;
+		onCapture?: () => void;
 		avatar: Snippet;
 		children: Snippet<[{ nameWidthPixels: number }]>;
 		footer: Snippet;
@@ -65,7 +67,7 @@
 	let pictureUnderPointer = $state('');
 
 	const canChangeThis = $derived(canChange && isSettled);
-	const hasActions = $derived(canChangeThis || canReply || copyable.kind !== 'nothing');
+	const hasActions = $derived(canChangeThis || canReply || copyable.kind !== 'nothing' || onCapture !== undefined);
 	const pictureToCopy = $derived(pictureUnderPointer || (copyable.kind === 'picture' ? copyable.address : ''));
 	const pictureToDownload = $derived(pictures.find((picture) => picture.address === pictureToCopy));
 	const hasHeader = $derived(startsGroup && !mine && senderName !== '');
@@ -108,6 +110,7 @@
 		onCopyPicture={() => onCopy({ kind: 'picture', address: pictureToCopy })}
 		onDownloadPicture={() => pictureToDownload && startDownload(pictureToDownload.address, pictureToDownload.filename)}
 		{onDelete}
+		{onCapture}
 	>
 		<div
 			bind:this={contentElement}
