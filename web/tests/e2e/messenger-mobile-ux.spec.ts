@@ -84,11 +84,11 @@ for (const width of [320, 360, 390]) {
 		const composer = page.getByRole('combobox', { name: '메시지를 입력하세요' });
 		const attachment = page.getByRole('button', { name: '파일 첨부' });
 		await expectTouchTarget(attachment);
-		expect(await attachment.evaluate((element) => getComputedStyle(element).borderWidth)).toBe('0px');
 		expect(await attachment.evaluate((element) => getComputedStyle(element).backgroundColor)).toBe('rgba(0, 0, 0, 0)');
 		const pill = await page.locator('.composer-input').evaluate((element) => ({ radius: parseFloat(getComputedStyle(element).borderRadius), height: element.getBoundingClientRect().height }));
 		expect(pill.height).toBeLessThanOrEqual(40);
 		expect(pill.radius).toBeGreaterThanOrEqual(pill.height / 2);
+		expect(await page.locator('.composer-input').evaluate((element) => getComputedStyle(element).backgroundColor)).not.toMatch(/^rgba\(.*, 0\)$|transparent/);
 		const placeholderCenter = await page.locator('.composer-input [data-slot="input-group-control"] > span').evaluate((element) => { const box = element.getBoundingClientRect(); return box.top + box.height / 2; });
 		for (const button of [attachment, page.getByRole('button', { name: '보내기', exact: true })]) {
 			const box = await button.boundingBox();
@@ -240,7 +240,7 @@ test('software keyboard viewport and bottom safe area keep the composer reachabl
 	await expect.poll(async () => {
 		const inputBounds = await input.boundingBox();
 		return inputBounds ? 464 - inputBounds.y - inputBounds.height : Infinity;
-	}).toBeLessThanOrEqual(4.5);
+	}).toBeLessThanOrEqual(8.5);
 	await expectTouchTarget(page.getByRole('button', { name: '파일 첨부' }));
 	await page.evaluate(() => {
 		const viewport = window.visualViewport!;
@@ -261,15 +261,14 @@ test('software keyboard viewport and bottom safe area keep the composer reachabl
 
 async function expectComposerGap(page: Page): Promise<void> {
 	await expect.poll(async () => {
+		const form = await page.locator('.channel-composer').boundingBox();
 		const input = await page.locator('.channel-composer .composer-input').boundingBox();
 		const navigation = await page.locator('.internkim-app-mobile-navigation').boundingBox();
-		return input && navigation ? navigation.y - input.y - input.height : -1;
-	}).toBeGreaterThanOrEqual(0);
-	await expect.poll(async () => {
-		const input = await page.locator('.channel-composer .composer-input').boundingBox();
-		const navigation = await page.locator('.internkim-app-mobile-navigation').boundingBox();
-		return input && navigation ? navigation.y - input.y - input.height : Infinity;
-	}).toBeLessThanOrEqual(4.5);
+		if (!form || !input || !navigation) return Infinity;
+		const above = input.y - form.y;
+		const below = navigation.y - input.y - input.height;
+		return Math.abs(above - below);
+	}).toBeLessThanOrEqual(1);
 }
 
 async function selectText(composer: Locator, start: number, end: number): Promise<void> {

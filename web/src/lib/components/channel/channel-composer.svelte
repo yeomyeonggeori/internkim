@@ -250,7 +250,7 @@
 	onDestroy(clearAttachments);
 </script>
 
-<form bind:this={form} onsubmit={submit} class="channel-composer relative px-3 pb-1 pt-2 sm:p-3">
+<form bind:this={form} onsubmit={submit} class="channel-composer relative px-3 py-2 sm:p-3">
 	<input bind:this={fileInput} type="file" multiple class="hidden" onchange={handleFilesSelected} />
 	{#if pendingAttachments.length > 0}
 		<Attachment.Group class="mb-2">
@@ -300,7 +300,7 @@
 			<Button type="button" variant="ghost" size="xs" onclick={edit.cancel}>{text.cancelEdit}</Button>
 		</div>
 	{/if}
-	<InputGroup.Root class="composer-input">
+	<InputGroup.Root class="composer-input frosted-surface">
 		<ComposerEditor
 			bind:this={composerEditor}
 			bind:value
@@ -317,7 +317,6 @@
 			<InputGroup.Button
 				variant="ghost"
 				size="icon-sm"
-				class="border-0 bg-transparent"
 				aria-label={text.addAttachment}
 				onclick={() => fileInput?.click()}
 				disabled={disabled || editing !== null}
@@ -431,7 +430,6 @@
 			height: auto;
 			padding: 3px;
 			border-radius: 20px;
-			background: color-mix(in srgb, var(--muted) 45%, var(--background));
 		}
 		.channel-composer :global(.composer-tools-start),
 		.channel-composer :global(.composer-send-end) {
@@ -447,12 +445,17 @@
 		}
 		.channel-composer :global(.composer-input button) {
 			width: 32px;
+			min-width: 32px;
 			height: 32px;
 			min-height: 32px;
 			border-radius: 9999px;
+			transition-property: transform, opacity, background-color, color;
+			transition-duration: 150ms;
+			transition-timing-function: cubic-bezier(0.23, 1, 0.32, 1);
 		}
-		.channel-composer :global(.composer-tools-start button) {
-			color: var(--muted-foreground);
+		.channel-composer :global(.composer-input button:active:not(:disabled)) {
+			transform: scale(0.92);
+			transition-duration: 100ms;
 		}
 		.channel-composer :global([data-slot="input-group-control"]) {
 			grid-column: 2;
@@ -462,7 +465,7 @@
 			min-height: 32px;
 			max-height: min(160px, 30dvh);
 			overflow-y: auto;
-			padding: 6px 4px 6px 0;
+			padding: 6px 4px;
 			font-size: 16px;
 			line-height: 20px;
 		}
@@ -471,8 +474,13 @@
 		}
 		.channel-composer :global([data-slot="input-group-control"] > span) {
 			top: 6px;
-			left: 0;
+			left: 4px;
 			line-height: 20px;
+		}
+	}
+	@media (max-width: 639px) and (prefers-reduced-motion: reduce) {
+		.channel-composer :global(.composer-input button:active:not(:disabled)) {
+			transform: none;
 		}
 	}
 </style>
