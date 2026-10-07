@@ -363,6 +363,7 @@ export const attendanceText = {
 		save: '저장',
 		cancel: '취소',
 		close: '닫기',
+		back: '뒤로',
 		editReason: '수정 사유',
 		editReasonPlaceholder: '수정 사유를 입력하세요',
 		records: {
@@ -807,6 +808,7 @@ export const attendanceText = {
 		save: 'Save',
 		cancel: 'Cancel',
 		close: 'Close',
+		back: 'Back',
 		editReason: 'Edit reason',
 		editReasonPlaceholder: 'Enter a reason for the edit',
 		records: {

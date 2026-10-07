@@ -21,9 +21,10 @@
 		today: string;
 		text: AttendanceText;
 		emptyMessage?: string;
+		backLabel?: string;
 	};
 
-	let { rows, summary, statusDates, selectedDate, today, text, emptyMessage }: Props = $props();
+	let { rows, summary, statusDates, selectedDate, today, text, emptyMessage, backLabel }: Props = $props();
 	const initialRenderedDateCount = 6;
 	const renderedDateChunkSize = 6;
 	let renderedDateCount = $state(initialRenderedDateCount);
@@ -296,4 +297,4 @@
 	</div>
 </div>
 
-<TeamStatusDayDetailDialog {text} bind:isOpen={isDetailOpen} detail={selectedDetail} />
+<TeamStatusDayDetailDialog {text} bind:isOpen={isDetailOpen} detail={selectedDetail} {backLabel} />

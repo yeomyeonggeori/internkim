@@ -1,4 +1,6 @@
 <script lang="ts">
+	import ArrowLeftIcon from '@lucide/svelte/icons/arrow-left';
+	import { Button } from '$lib/components/ui/button';
 	import PersonAvatar from '$lib/components/person-avatar.svelte';
 	import { displayPersonName } from '$lib/person-name.svelte';
 	import { IsMobile } from '$lib/hooks/is-mobile.svelte';
@@ -11,9 +13,10 @@
 		text: AttendanceText;
 		isOpen: boolean;
 		detail: TeamStatusDayDetail | null;
+		backLabel?: string;
 	};
 
-	let { text, isOpen = $bindable(), detail }: Props = $props();
+	let { text, isOpen = $bindable(), detail, backLabel }: Props = $props();
 	const isMobile = new IsMobile();
 
 	function formatDate(date: string): string {
@@ -33,12 +36,17 @@
 		side={isMobile.current ? 'bottom' : 'right'}
 		class={isMobile.current
 			? 'max-h-[92vh] gap-0 rounded-t-xl p-0'
-			: 'w-full gap-0 p-0 sm:max-w-[34rem]'}
+			: backLabel ? 'w-full gap-0 p-0 sm:max-w-2xl' : 'w-full gap-0 p-0 sm:max-w-[34rem]'}
 		closeLabel={text.close}
 		data-testid={isMobile.current ? 'team-status-day-detail-sheet' : 'team-status-day-detail-dialog'}
 	>
 		{#if detail}
 			<Sheet.Header class="gap-4 border-b px-5 py-5 pr-14 text-left">
+				{#if backLabel}
+					<Button variant="ghost" size="sm" class="-ml-2 self-start" aria-label={`${text.back}: ${backLabel}`} onclick={() => (isOpen = false)} data-testid="team-status-day-detail-back">
+						<ArrowLeftIcon data-icon="inline-start" />{backLabel}
+					</Button>
+				{/if}
 				<Sheet.Title class="min-w-0 text-lg font-semibold tracking-tight text-balance" data-testid="team-status-day-detail-date">
 					{formatDate(detail.day.date)}
 				</Sheet.Title>

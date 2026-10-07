@@ -13,8 +13,9 @@
 
 	const attendance = getAttendanceState();
 	const text = createPageText(attendanceText);
-	let { initialMemberName = '', summary: scopedSummary, onSelectMonth: onScopedMonth }: {
+	let { initialMemberName = '', backLabel, summary: scopedSummary, onSelectMonth: onScopedMonth }: {
 		initialMemberName?: string;
+		backLabel?: string;
 		summary?: AttendanceSummary | null;
 		onSelectMonth?: (month: string) => void;
 	} = $props();
@@ -100,6 +101,7 @@
 			selectedDate={attendance.selectedDate || defaultAnchorDate}
 			{today}
 			{text}
+			{backLabel}
 		/>{/if}
 	</Card.Content>
 </Card.Root>
