@@ -35,6 +35,8 @@
 	import { channelText } from '$lib/i18n/channel-text';
 	import { createPageText } from '$lib/i18n/page-text.svelte';
 	import ArrowUpIcon from '@lucide/svelte/icons/arrow-up';
+	import CheckIcon from '@lucide/svelte/icons/check';
+	import PencilIcon from '@lucide/svelte/icons/pencil';
 	import AtSignIcon from '@lucide/svelte/icons/at-sign';
 	import CaseSensitiveIcon from '@lucide/svelte/icons/case-sensitive';
 	import CropIcon from '@lucide/svelte/icons/crop';
@@ -295,9 +297,15 @@
 		/>
 	{/if}
 	{#if editing}
-		<div class="text-muted-foreground flex items-center justify-between gap-2 text-xs">
-			<span>{text.editingMessage}</span>
-			<Button type="button" variant="ghost" size="xs" onclick={edit.cancel}>{text.cancelEdit}</Button>
+		<div class="frosted-surface mb-2 flex items-center gap-2 rounded-2xl border py-1 pr-1 pl-3 text-sm">
+			<PencilIcon class="text-muted-foreground size-4 shrink-0" />
+			<div class="min-w-0 flex-1 leading-tight">
+				<div class="font-medium">{text.editingMessage}</div>
+				<div class="text-muted-foreground truncate text-xs">{editing.originalText}</div>
+			</div>
+			<Button type="button" variant="ghost" size="icon-sm" class="shrink-0 rounded-full" aria-label={text.cancelEdit} onclick={edit.cancel}>
+				<XIcon />
+			</Button>
 		</div>
 	{/if}
 	<InputGroup.Root class="composer-input frosted-surface">
@@ -409,7 +417,7 @@
 		class={className}
 		disabled={disabled || (value.trim().length === 0 && pendingAttachments.length === 0) || isSending}
 	>
-		<ArrowUpIcon />
+		{#if editing}<CheckIcon />{:else}<ArrowUpIcon />{/if}
 		<span class="sr-only">{editing ? text.saveEdit : text.send}</span>
 	</InputGroup.Button>
 {/snippet}
