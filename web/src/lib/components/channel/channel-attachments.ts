@@ -1,6 +1,7 @@
 import type { ChannelMessageAttachment, ChannelOutgoingAttachment } from './channel-api';
 import type { AttachmentState } from '$lib/components/ui/attachment/index.js';
 import type { AttachmentProgress, AttachmentSourceStatus } from '$lib/stores/attachment-source.svelte';
+import type { LightboxItem } from './channel-lightbox.svelte';
 
 export function openableAttachments(
 	attachments: ChannelMessageAttachment[],
@@ -36,6 +37,22 @@ export function messagePicturesOf(attachments: ChannelMessageAttachment[]): Mess
 	return attachments
 		.filter((attachment) => attachment.kind === 'image' && attachment.source)
 		.map((attachment) => ({ address: attachment.source ?? '', filename: attachment.filename ?? '' }));
+}
+
+export function lightboxItemsOf(attachments: ChannelMessageAttachment[]): LightboxItem[] {
+	return attachments.flatMap((attachment) => {
+		if (!attachment.source) return [];
+		if (attachment.kind !== 'image' && attachment.kind !== 'video') return [];
+		return [
+			{
+				kind: attachment.kind,
+				source: attachment.source,
+				filename: attachment.filename ?? '',
+				width: attachment.widthPixels,
+				height: attachment.heightPixels
+			}
+		];
+	});
 }
 
 export function formatAttachmentMeta(attachment: {

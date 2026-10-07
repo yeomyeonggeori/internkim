@@ -7,6 +7,7 @@ import { customEmoji } from '$lib/stores/custom-emoji.svelte';
 import { personPicture } from '$lib/stores/person-picture.svelte';
 import { attachmentSource } from '$lib/stores/attachment-source.svelte';
 import { emojifyText, glyphOfEmojiName } from './emoji-glyph';
+import { attachmentKindOf, type AttachmentKind } from './attachment-kind';
 import { customEmojiNamesIn } from './custom-emoji-names';
 import { messengerCacheScope, requireCurrentMessengerScope } from './cache-scope';
 import {
@@ -55,7 +56,7 @@ type Reaction = { emoji: string; value: string; count: number; reactedByMe: bool
 // body's own link is stripped against; source is where this browser can
 // actually open it.
 type Attachment = {
-	kind: 'image' | 'file';
+	kind: AttachmentKind;
 	url: string;
 	source: string;
 	filename?: string;
@@ -297,7 +298,7 @@ function messageOf(post: MessengerPost, people: MessengerDirectory, viewer: View
 			people: reaction.people.map((person) => participantOf(person, people))
 		})),
 		attachments: post.attachments.map((attachment) => ({
-			kind: attachment.contentType.startsWith('image/') ? ('image' as const) : ('file' as const),
+			kind: attachmentKindOf(attachment.contentType),
 			url: attachment.url,
 			source: attachmentSource.openable(attachment.url),
 			filename: attachment.filename,
