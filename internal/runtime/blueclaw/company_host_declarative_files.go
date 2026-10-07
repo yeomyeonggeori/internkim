@@ -24,6 +24,7 @@ func companyHostServiceAccounts() []companyHostServiceAccount {
 	return []companyHostServiceAccount{
 		{BlueclawUser, "the agent runs as", BlueclawHomePath},
 		{RelayUserName, "the relay runs as", "-"},
+		{EmbeddingUserName, "the embedding server runs as", "-"},
 		{CompanyHostDatabaseUser, "the database runs as", "-"},
 		{CompanyHostCacheUser, "the cache runs as", "-"},
 	}

@@ -76,7 +76,8 @@ func TestEveryPackagedUnitStartsAProgramFromThePackage(t *testing.T) {
 				continue
 			}
 			program := strings.Fields(strings.TrimPrefix(line, "ExecStart="))[0]
-			if !strings.HasPrefix(program, CompanyPackageBinaryRoot+"/") && !strings.HasPrefix(program, CompanyPackageHelperRoot+"/") {
+			isPayloadProgram := program == LinuxCompanyHostLayout().EmbeddingServerPath()
+			if !isPayloadProgram && !strings.HasPrefix(program, CompanyPackageBinaryRoot+"/") && !strings.HasPrefix(program, CompanyPackageHelperRoot+"/") {
 				t.Fatalf("%s starts %s, which the package does not install", unit.FileName(), program)
 			}
 			started++

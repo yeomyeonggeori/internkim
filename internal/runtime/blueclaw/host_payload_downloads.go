@@ -7,10 +7,11 @@ import (
 	"strings"
 )
 
-// Five programs the company host runs are packaged by nobody: the two browsers the
-// skills drive, the S3 gateway the messenger stores attachments through, and the two
-// toolchains the agent and the document skills shell out to. They arrive as pinned
-// downloads, and this is where the pins live. Which five is not decided here:
+// Six programs the company host runs are packaged by nobody: the two browsers the
+// skills drive, the S3 gateway the messenger stores attachments through, the two
+// toolchains the agent and the document skills shell out to, and the llama.cpp server
+// that embeds every memory and skill. They arrive as pinned downloads, and this is
+// where the pins live, with the embedding model's weights beside them. Which six is not decided here:
 // host_dependencies.go declares them ArrivesAsPayload and
 // TestThePinsCoverExactlyThePayloadProgramsDeclared holds this table to that list in
 // both directions, because a program declared and not pinned ships a package
@@ -25,6 +26,10 @@ type HostPayloadDownload struct {
 	SHA256      string
 	// PathInsideArchive is empty when the download is the program itself.
 	PathInsideArchive string
+	// DirectoryInsideArchive is set when the program cannot run apart from the
+	// files beside it: the whole directory is installed, and the program is the
+	// entry in it that carries ProgramName.
+	DirectoryInsideArchive string
 }
 
 const (
@@ -32,10 +37,18 @@ const (
 	agentBrowserVersion  = "0.32.3"
 	bunVersion           = "1.4.2"
 	uvVersion            = "0.11.11"
+	llamaCppVersion      = "b11476"
+)
+
+const (
+	embeddingModelRepository = "ggml-org/embeddinggemma-2-GGUF"
+	embeddingModelRevision   = "bfcd298762cc34d0357ece5ebdd31791a3a374d8"
+	embeddingModelFileName   = "embeddinggemma-2-Q8_0.gguf"
+	embeddingModelSHA256     = "2188ac1deca4b77dffefd603c2776a9d76d9d74ec01841392982ebb840b09135"
 )
 
 // The machines this release pins a binary for. A target names the operating
-// system as well as the architecture, because four of the five programs publish
+// system as well as the architecture, because five of the six programs publish
 // a differently named asset per platform and one of them capitalises it
 // differently too.
 const (
@@ -66,6 +79,7 @@ var hostPayloadDownloadsByTarget = map[string][]HostPayloadDownload{
 		mediaServerPayload("Linux", "arm64", "b34051d33f5a9c457f790896acb7bd7d7e15ad8d92efb70616b924f37e401910"),
 		bunPayload("linux-aarch64", "54328bbc2d9c8e0c9f892c544d66c57a83b84139e34909e5ee81758f1ac8fda7"),
 		packageResolverPayload("aarch64-unknown-linux-gnu", "155fe4d3b3cb4bfce118ab4b1380f71515ae874d13d9858171b4f9c26e16684d"),
+		embeddingServerPayload("ubuntu-arm64", "9aa7c1dcea2e0491f27441b30217767ec4730bcdeefa646e288825454a71bfa1"),
 	},
 	HostPayloadLinuxAmd64: {
 		deviceBrowserPayload("x86_64-unknown-linux-gnu", "7128ca9b9f7e7bb5ab58b1c6cbf0910a2e22008f4662ea87bd6b8ab8493e3181"),
@@ -73,6 +87,7 @@ var hostPayloadDownloadsByTarget = map[string][]HostPayloadDownload{
 		mediaServerPayload("Linux", "x86_64", "2ba2c734d10d2c4e651d03182cb4b246656bc735a2f282db7b0b73fba6073467"),
 		bunPayload("linux-x64", "36368faef7527875d5ffa52e53cd48021741f2a83eb6208a8dd64068d422a913"),
 		packageResolverPayload("x86_64-unknown-linux-gnu", "a767848254391855c96df271e9ca8b7f72dd172d310460447853d25d907b9ae0"),
+		embeddingServerPayload("ubuntu-x64", "2cda5ff9363967f1aba5b5b096032e1b7d9eb568b011769282bf34e4f1cf4b5e"),
 	},
 	HostPayloadDarwinArm64: {
 		deviceBrowserPayload("aarch64-apple-darwin", "8ce3bff3d003b4e04b366908ad14656456e1bf347b2be251b734cf1d60d654a6"),
@@ -80,6 +95,7 @@ var hostPayloadDownloadsByTarget = map[string][]HostPayloadDownload{
 		mediaServerPayload("Darwin", "arm64", "4953096f65a9c0d62ab184fb6b2ba7c2435229205cf00a56cb62cd4bf6b216ca"),
 		bunPayload("darwin-aarch64", "90987a3a16d7db556d886ac3d551e7b6d3edf0a1cf43acaed622e8676be1d12f"),
 		packageResolverPayload("aarch64-apple-darwin", "3a185bf8f46a7b7c8b910d111825907b1638d0ae503cb3c333ae205772354046"),
+		embeddingServerPayload("macos-arm64", "577634a1b8a59e8dabe02ba10de1e610be0574dfaf1cf3020e6dd42853ed877e"),
 	},
 }
 
@@ -137,6 +153,25 @@ func packageResolverPayload(targetTriple string, checksum string) HostPayloadDow
 	}
 }
 
+func embeddingServerPayload(assetTarget string, checksum string) HostPayloadDownload {
+	return HostPayloadDownload{
+		ProgramName:            EmbeddingServerProgramName,
+		Version:                llamaCppVersion,
+		URL:                    "https://github.com/ggml-org/llama.cpp/releases/download/" + llamaCppVersion + "/llama-" + llamaCppVersion + "-bin-" + assetTarget + ".tar.gz",
+		SHA256:                 checksum,
+		DirectoryInsideArchive: "llama-" + llamaCppVersion,
+	}
+}
+
+func HostEmbeddingModelDownload() HostPayloadDownload {
+	return HostPayloadDownload{
+		ProgramName: embeddingModelFileName,
+		Version:     embeddingModelRevision,
+		URL:         "https://huggingface.co/" + embeddingModelRepository + "/resolve/" + embeddingModelRevision + "/" + embeddingModelFileName,
+		SHA256:      embeddingModelSHA256,
+	}
+}
+
 // HostPayloadDownloads is what the host fetches for one Debian architecture. An
 // architecture nobody publishes for is an error rather than an empty list, because a
 // box that installed none of these answers and does nothing.
@@ -160,7 +195,7 @@ func HostPayloadTargetForDebianArchitecture(debianArchitecture string) (string, 
 	return target, nil
 }
 
-// HostPayloadDownloadsForTarget is the same five programs for a machine named by
+// HostPayloadDownloadsForTarget is the same six programs for a machine named by
 // operating system as well as architecture, which is what the Homebrew release
 // asks for: the Darwin assets are named differently from the Linux ones and one
 // of them capitalises the platform.

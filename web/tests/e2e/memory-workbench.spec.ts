@@ -10,7 +10,7 @@ function factsResponse(returnedFacts = facts) {
 	return {
 		personID: 'tester',
 		layers: [{ scopeType: 'person', scopeID: 'tester' }, { scopeType: 'circle', scopeID: 'member' }, { scopeType: 'workspace' }],
-		index: { embeddingModel: 'baai/bge-m3', current: returnedFacts.length, stale: 0 },
+		index: { embeddingModel: 'google/embeddinggemma-2', current: returnedFacts.length, stale: 0 },
 		facts: returnedFacts
 	};
 }

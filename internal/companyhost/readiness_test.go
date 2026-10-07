@@ -52,3 +52,21 @@ func TestTheServerIsNotReadyUntilTheAgentHoldsTheRoster(t *testing.T) {
 		}
 	}
 }
+
+func TestInstallWaitsForTheEmbeddingServerBeforeTheAgentIsAskedAnything(t *testing.T) {
+	embeddingIndex, agentIndex := -1, -1
+	for index, probe := range companyHostProbes(blueclaw.CompanyHostLayout{}) {
+		switch probe.SupervisedName {
+		case blueclaw.EmbeddingServiceName:
+			embeddingIndex = index
+			if !strings.HasSuffix(strings.Join(probe.Command, " "), blueclaw.EmbeddingListenAddress+blueclaw.EmbeddingHealthPath) {
+				t.Fatalf("the embedding server probe asks %v, not llama-server's health route", probe.Command)
+			}
+		case blueclaw.BlueclawServiceName:
+			agentIndex = index
+		}
+	}
+	if embeddingIndex < 0 || embeddingIndex > agentIndex {
+		t.Fatalf("the embedding server is probed at %d and the agent at %d; a member's first message would be remembered with nothing to embed it", embeddingIndex, agentIndex)
+	}
+}

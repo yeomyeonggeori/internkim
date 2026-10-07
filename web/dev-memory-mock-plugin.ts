@@ -219,7 +219,7 @@ function createDevMemoryFacts(state: DevMemoryMockState): MemoryFactsResponse {
 	return {
 		personID: 'dev-person',
 		layers: [{ scopeType: 'person', scopeID: 'dev-person' }, { scopeType: 'circle', scopeID: 'human-resources' }, { scopeType: 'workspace' }],
-		index: { embeddingModel: 'baai/bge-m3', current: facts.length, stale: 0 },
+		index: { embeddingModel: 'google/embeddinggemma-2', current: facts.length, stale: 0 },
 		facts: facts.filter((fact) => !state.forgottenFactIDs.includes(fact.factID))
 	};
 }

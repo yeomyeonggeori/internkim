@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"io"
+	"io/fs"
 	"net/http"
 	"os"
 	"os/exec"
@@ -363,6 +364,9 @@ func vendoredPrograms(repositoryRootPath string, target packageTarget, stagingPa
 	}
 	packaged := []packagedFile{}
 	for _, download := range downloads {
+		if download.DirectoryInsideArchive != "" {
+			continue
+		}
 		programPath, errorValue := fetchVendoredProgram(repositoryRootPath, download, stagingPath, output)
 		if errorValue != nil {
 			return nil, errorValue
@@ -373,7 +377,55 @@ func vendoredPrograms(repositoryRootPath string, target packageTarget, stagingPa
 			Mode:        0o755,
 		})
 	}
-	return packaged, nil
+	embedding, errorValue := vendoredEmbedding(repositoryRootPath, target, stagingPath, output)
+	if errorValue != nil {
+		return nil, errorValue
+	}
+	return append(packaged, embedding...), nil
+}
+
+func vendoredEmbedding(repositoryRootPath string, target packageTarget, stagingPath string, output io.Writer) ([]packagedFile, error) {
+	server, errorValue := embeddingServerPin(target.Architecture)
+	if errorValue != nil {
+		return nil, errorValue
+	}
+	serverDirectory := filepath.Join(stagingPath, filepath.Base(packageLayout.EmbeddingServerDirectory()))
+	if errorValue := fetchVendoredDirectory(repositoryRootPath, server, serverDirectory, output); errorValue != nil {
+		return nil, errorValue
+	}
+	if errorValue := requireDirectoryProgramsFit(serverDirectory, target); errorValue != nil {
+		return nil, errorValue
+	}
+	modelPath, errorValue := fetchPinnedPayload(repositoryRootPath, blueclaw.HostEmbeddingModelDownload(), output)
+	if errorValue != nil {
+		return nil, errorValue
+	}
+	return []packagedFile{
+		{SourcePath: serverDirectory, Destination: packageLayout.EmbeddingServerDirectory(), Mode: 0o755, IsDirectoryTree: true},
+		{SourcePath: modelPath, Destination: packageLayout.EmbeddingModelPath(), Mode: 0o644},
+	}, nil
+}
+
+func embeddingServerPin(debianArchitecture string) (blueclaw.HostPayloadDownload, error) {
+	downloads, errorValue := blueclaw.HostPayloadDownloads(debianArchitecture)
+	if errorValue != nil {
+		return blueclaw.HostPayloadDownload{}, errorValue
+	}
+	for _, download := range downloads {
+		if download.ProgramName == blueclaw.EmbeddingServerProgramName {
+			return download, nil
+		}
+	}
+	return blueclaw.HostPayloadDownload{}, fmt.Errorf("no %s is pinned for %s", blueclaw.EmbeddingServerProgramName, debianArchitecture)
+}
+
+func requireDirectoryProgramsFit(directoryPath string, target packageTarget) error {
+	return filepath.WalkDir(directoryPath, func(path string, entry fs.DirEntry, walkError error) error {
+		if walkError != nil || !entry.Type().IsRegular() {
+			return walkError
+		}
+		return requireELFFits(path, target)
+	})
 }
 
 // fetchVendoredProgram is the pinned program's path: the download itself, or
@@ -384,6 +436,17 @@ func fetchVendoredProgram(repositoryRootPath string, download blueclaw.HostPaylo
 		return downloadedPath, errorValue
 	}
 	return extractProgram(downloadedPath, download.PathInsideArchive, filepath.Join(directoryPath, download.ProgramName))
+}
+
+func fetchVendoredDirectory(repositoryRootPath string, download blueclaw.HostPayloadDownload, destinationPath string, output io.Writer) error {
+	downloadedPath, errorValue := fetchPinnedPayload(repositoryRootPath, download, output)
+	if errorValue != nil {
+		return errorValue
+	}
+	if errorValue := os.RemoveAll(destinationPath); errorValue != nil {
+		return errorValue
+	}
+	return extractDirectoryFromGzippedTar(downloadedPath, download.DirectoryInsideArchive, destinationPath)
 }
 
 func fetchPinnedPayload(repositoryRootPath string, download blueclaw.HostPayloadDownload, output io.Writer) (string, error) {
@@ -471,7 +534,11 @@ func extractPinnedFromZip(archivePath string, wantedPath string, outputPath stri
 }
 
 func copyProgram(held io.Reader, outputPath string) (string, error) {
-	extracted, errorValue := os.OpenFile(outputPath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o755)
+	return copyProgramWithMode(held, outputPath, 0o755)
+}
+
+func copyProgramWithMode(held io.Reader, outputPath string, mode os.FileMode) (string, error) {
+	extracted, errorValue := os.OpenFile(outputPath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, mode)
 	if errorValue != nil {
 		return "", errorValue
 	}
@@ -507,6 +574,64 @@ func extractFromGzippedTar(archivePath string, wantedPath string, outputPath str
 		}
 		return copyProgram(archive, outputPath)
 	}
+}
+
+func extractDirectoryFromGzippedTar(archivePath string, directoryInsideArchive string, destinationPath string) error {
+	file, errorValue := os.Open(archivePath)
+	if errorValue != nil {
+		return errorValue
+	}
+	defer file.Close()
+	decompressed, errorValue := gzip.NewReader(file)
+	if errorValue != nil {
+		return errorValue
+	}
+	defer decompressed.Close()
+	archive := tar.NewReader(decompressed)
+	extractedCount := 0
+	for {
+		header, errorValue := archive.Next()
+		if errorValue == io.EOF {
+			break
+		}
+		if errorValue != nil {
+			return errorValue
+		}
+		relativePath, isInside := strings.CutPrefix(filepath.Clean(header.Name), directoryInsideArchive+string(filepath.Separator))
+		if !isInside {
+			continue
+		}
+		if errorValue := extractArchiveEntry(archive, header, filepath.Join(destinationPath, relativePath), relativePath); errorValue != nil {
+			return errorValue
+		}
+		extractedCount++
+	}
+	if extractedCount == 0 {
+		return fmt.Errorf("%s holds no %s directory", archivePath, directoryInsideArchive)
+	}
+	return nil
+}
+
+func extractArchiveEntry(archive *tar.Reader, header *tar.Header, outputPath string, relativePath string) error {
+	if !filepath.IsLocal(relativePath) {
+		return fmt.Errorf("%s names %s, which leaves the directory it is extracted into", header.Name, relativePath)
+	}
+	if errorValue := os.MkdirAll(filepath.Dir(outputPath), 0o755); errorValue != nil {
+		return errorValue
+	}
+	switch header.Typeflag {
+	case tar.TypeDir:
+		return os.MkdirAll(outputPath, 0o755)
+	case tar.TypeSymlink:
+		if !filepath.IsLocal(header.Linkname) {
+			return fmt.Errorf("%s links to %s, which leaves the directory it is extracted into", header.Name, header.Linkname)
+		}
+		return os.Symlink(header.Linkname, outputPath)
+	case tar.TypeReg:
+		_, errorValue := copyProgramWithMode(archive, outputPath, header.FileInfo().Mode().Perm())
+		return errorValue
+	}
+	return fmt.Errorf("%s is a kind of archive entry this package does not know how to extract", header.Name)
 }
 
 func writeRenderedFiles(stagingPath string) ([]packagedFile, error) {
@@ -637,6 +762,9 @@ func shippedProgramNames(architecture string) ([]string, error) {
 		return nil, errorValue
 	}
 	for _, download := range downloads {
+		if download.DirectoryInsideArchive != "" {
+			continue
+		}
 		names = append(names, download.ProgramName)
 	}
 	return names, nil

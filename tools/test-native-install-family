@@ -88,6 +88,7 @@ judge = load_the_judge_of_the_debian_package()
 CACHE_USER = "internkim-cache"
 AGENT_USER = "blueclaw"
 RELAY_USER = "internkim"
+EMBEDDING_USER = "internkim-embedding"
 DATABASE_SOCKET_DIRECTORY = "/run/internkim-postgres"
 CACHE_SOCKET_PATH = "/run/internkim-cache/cache.sock"
 HELPER_PATH = "/usr/lib/internkim/blueclaw-posix-helper"
@@ -323,16 +324,16 @@ class FamilyRig:
         )
         accounts = self.shell_value(
             "for user in %s; do getent passwd \"$user\" | cut -d: -f1,7; done" % " ".join(
-                [AGENT_USER, RELAY_USER, DATABASE_USER, CACHE_USER]
+                [AGENT_USER, RELAY_USER, EMBEDDING_USER, DATABASE_USER, CACHE_USER]
             )
         )
         step.observe(
-            "the four service accounts exist and none can log in",
-            "`getent passwd` for blueclaw, internkim, internkim-postgres and internkim-cache",
+            "the five service accounts exist and none can log in",
+            "`getent passwd` for blueclaw, internkim, internkim-embedding, internkim-postgres and internkim-cache",
             "a package that runs a service as an account it never created starts nothing, and an account with "
             "a login shell is one more way in",
         ).record(
-            len(accounts.splitlines()) == 4 and all(
+            len(accounts.splitlines()) == 5 and all(
                 line.split(":")[1].endswith(("nologin", "false")) for line in accounts.splitlines()
             ),
             accounts,

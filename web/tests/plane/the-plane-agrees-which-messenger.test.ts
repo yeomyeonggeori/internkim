@@ -12,6 +12,7 @@ test('the plane starts every daemon with the current company-box contract', () =
 		blueclawWorkspacePath: '/tmp/workspace',
 		openRouterKeyPath: '/tmp/openrouter-key',
 		blueclawURL: 'http://127.0.0.1:8080',
+		embeddingServerURL: 'http://127.0.0.1:8083',
 		admindURL: 'http://127.0.0.1:8081',
 		chatdEndpoint: 'http://127.0.0.1:8082',
 		chatdPlatform: 'buzz',
@@ -23,6 +24,7 @@ test('the plane starts every daemon with the current company-box contract', () =
 
 	expect(argumentsForCapabilityd).toContain('--device-browser');
 	expect(argumentsForCapabilityd).toContain('--file-read-python');
+	expect(argumentsForCapabilityd).toContain('--embedding-url');
 	expect(argumentsForCapabilityd).not.toContain('--device-browser-cdp');
 
 	const argumentsForBlueclaw = blueclawArgumentsForPlane({

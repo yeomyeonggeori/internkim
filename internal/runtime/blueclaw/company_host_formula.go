@@ -14,7 +14,7 @@ import (
 //
 // What the formula does *not* do is the whole of why there is a second line.
 // It supervises nothing: `brew services` holds one service block per formula and
-// this bundle is nine, and UserName is not among the keys Homebrew::Service can
+// this bundle is ten, and UserName is not among the keys Homebrew::Service can
 // emit, so the one service that runs unprivileged could not be given its
 // account. It cannot set the setuid bit on the POSIX helper: pouring a bottle is
 // a tar extraction as an ordinary user and extraction drops the bit, `brew`

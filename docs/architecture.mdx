@@ -317,10 +317,11 @@ The package registers each as its own service with systemd or launchd;
 | the relay (`internkim-relay`) | outbound only; `127.0.0.1:18091` for the connector | answers the app's calls, turns messages into agent turns, serves the agent its tools | `host/relay/` |
 | the connector (`chatd`) | `127.0.0.1:18090` | the messenger adapter for Buzz | `.dependency/blueclaw/chatd/` |
 | the agent (`blueclaw`) | `/run/internkim/acp/blueclaw-acp.sock`; admin API on `127.0.0.1:8080` | the ACP agent: runs, approval, the task ledger, memory | `.dependency/blueclaw/` |
-| `internkim-capabilityd` | `/run/internkim/capability.sock` | holds provider credentials: model calls, embeddings, the mail, web and browser tools | `cmd/internkim-capabilityd/`, `internal/capabilityd/` |
+| `internkim-capabilityd` | `/run/internkim/capability.sock` | holds provider credentials: model calls, the mail, web and browser tools; passes embedding requests on to the embedding server | `cmd/internkim-capabilityd/`, `internal/capabilityd/` |
 | Moli (`moli serve`), one per requester | `127.0.0.1:9230` and up | the device browser for plain public-text navigation; capabilityd starts each person's on first use, with their own profile, and stops it when idle | `internal/browser/device_browsers.go` |
 | `internkim-admind` | `127.0.0.1:18080`, `/run/internkim/admind.sock` | the workspace screens, the roster, and the company tools the plane carries to the host | `cmd/internkim-admind/`, `internal/admind/` |
 | `internkim-maild` | `127.0.0.1:18092` | answers mail for whichever account a call carries | `cmd/internkim-maild/` |
+| `internkim-embedding` | `127.0.0.1:18095` | llama.cpp serving EmbeddingGemma 2 on the CPU; every memory and skill is embedded here, with weights the package carries | `internal/runtime/blueclaw/company_host_services.go` |
 | the agent's store | `DATABASE_URL` | Postgres holding conversations, runs, policy | — |
 
 ## What the agent is made of
@@ -340,8 +341,9 @@ in the workspace, as [What lives where](/docs/what-lives-where#a-persons-memory)
 lays out. When a run finishes, bluememo has a model extract
 self-contained sentences from it; a newer sentence replaces an older one, and a
 person can ask the agent to forget one. Recall searches the file by embedding
-and by words and answers without calling a model. None of it lives in
-Postgres.
+and by words and answers without calling a model. The embedding is made on the
+host, by the embedding server, so no text a person remembered leaves the
+computer to be embedded. None of it lives in Postgres.
 
 Models are named in one place, `internal/modelladder`. The agent asks for a
 tier, and capabilityd holds the key and makes the call, so the agent never sees

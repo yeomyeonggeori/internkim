@@ -215,7 +215,8 @@ func companyHostOrderingFor(serviceName string) companyHostUnitOrdering {
 		}
 	case CapabilitydServiceName:
 		return companyHostUnitOrdering{
-			After:    []string{CompanyHostPrepareServiceName + ".service"},
+			After:    []string{CompanyHostPrepareServiceName + ".service", EmbeddingServiceName + ".service"},
+			Wants:    []string{EmbeddingServiceName + ".service"},
 			Requires: []string{CompanyHostPrepareServiceName + ".service"},
 		}
 	case BlueclawServiceName:

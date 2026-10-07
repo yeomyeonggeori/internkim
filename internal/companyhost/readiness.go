@@ -48,6 +48,13 @@ func companyHostProbes(layout blueclaw.CompanyHostLayout) []serviceProbe {
 			WhatItCosts:    "every picture and file in the messenger is read and written through it",
 		},
 		{
+			Service:        "the embedding server",
+			SupervisedName: blueclaw.EmbeddingServiceName,
+			Command:        curlCommand("http://" + blueclaw.EmbeddingListenAddress + blueclaw.EmbeddingHealthPath),
+			WhenSilent:     "the embedding server is not answering on " + blueclaw.EmbeddingListenAddress,
+			WhatItCosts:    "every memory and skill the agent looks up is embedded by it",
+		},
+		{
 			Service:        "the messenger",
 			SupervisedName: blueclaw.BuzzRelayServiceName,
 			Command:        curlCommand(blueclaw.BuzzRelayReadinessURL()),

@@ -297,10 +297,11 @@ Durable Object는 모든 소켓을 WebSocket Hibernation API로 받습니다. �
 | 릴레이 (`internkim-relay`) | 바깥으로만; 커넥터를 위해 `127.0.0.1:18091` | 앱의 호출에 답하고, 메시지를 에이전트의 턴으로 바꾸고, 에이전트에게 도구를 서빙 | `host/relay/` |
 | 커넥터 (`chatd`) | `127.0.0.1:18090` | Buzz용 메신저 어댑터 | `.dependency/blueclaw/chatd/` |
 | 에이전트 (`blueclaw`) | `/run/internkim/acp/blueclaw-acp.sock`; 관리 API는 `127.0.0.1:8080` | ACP 에이전트: 실행, 승인, 태스크 원장, 기억 | `.dependency/blueclaw/` |
-| `internkim-capabilityd` | `/run/internkim/capability.sock` | 프로바이더 자격증명을 쥠: 모델 호출, 임베딩, 메일·웹·브라우저 도구 | `cmd/internkim-capabilityd/`, `internal/capabilityd/` |
+| `internkim-capabilityd` | `/run/internkim/capability.sock` | 프로바이더 자격증명을 쥠: 모델 호출, 메일·웹·브라우저 도구. 임베딩 요청은 임베딩 서버로 넘김 | `cmd/internkim-capabilityd/`, `internal/capabilityd/` |
 | Moli (`moli serve`), 요청자마다 하나 | `127.0.0.1:9230`부터 | 공개 페이지의 단순한 텍스트를 탐색하는 디바이스 브라우저. capabilityd가 사람마다 처음 쓸 때 그 사람의 프로필로 띄우고, 쓰지 않으면 내립니다 | `internal/browser/device_browsers.go` |
 | `internkim-admind` | `127.0.0.1:18080`, `/run/internkim/admind.sock` | 워크스페이스 화면, 명부, 그리고 평면이 호스트로 실어 오는 회사 도구 | `cmd/internkim-admind/`, `internal/admind/` |
 | `internkim-maild` | `127.0.0.1:18092` | 호출이 실어 온 계정으로 메일에 답함 | `cmd/internkim-maild/` |
+| `internkim-embedding` | `127.0.0.1:18095` | EmbeddingGemma 2를 CPU로 서빙하는 llama.cpp. 모든 기억과 스킬이 여기서 임베딩되며, 가중치는 패키지가 싣고 있음 | `internal/runtime/blueclaw/company_host_services.go` |
 | 에이전트의 저장소 | `DATABASE_URL` | 대화, 실행, 폴리시를 담는 Postgres | — |
 
 ## 에이전트는 무엇으로 만들어졌는지 [#what-the-agent-is-made-of]
@@ -321,7 +322,9 @@ blueclaw는 프로세스 하나이고, 저마다 한 가지 일을 하는 별개
 [무엇이 어디 사는지](/ko/docs/what-lives-where#a-persons-memory)에 있습니다. 실행이 끝나면 bluememo가 모델을 시켜 거기서 그 자체로 뜻이 통하는
 문장들을 뽑습니다. 새 문장은 옛 문장을 대체하고, 사람은 에이전트에게 하나를
 잊으라고 할 수 있습니다. 회상은 그 파일을 임베딩과 낱말로 검색하고, 모델을
-부르지 않고 답합니다. 기억은 Postgres에 하나도 두지 않습니다.
+부르지 않고 답합니다. 임베딩은 호스트의 임베딩 서버가 만들기 때문에, 사람이
+기억시킨 글이 임베딩을 위해 컴퓨터 밖으로 나가지 않습니다. 기억은 Postgres에
+하나도 두지 않습니다.
 
 모델의 이름은 `internal/modelladder` 한 곳에 있습니다. 에이전트는 티어를
 요청하고, 키를 쥔 capabilityd가 호출하므로 에이전트는 프로바이더 토큰을 보지

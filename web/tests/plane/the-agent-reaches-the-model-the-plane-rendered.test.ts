@@ -12,7 +12,7 @@ import {
 	type Ask
 } from './a-model-nobody-pays-for';
 
-type RenderedRung = { endpoint: string; model: string; apiKeyPath?: string };
+type RenderedRung = { endpoint?: string; model: string; apiKeyPath?: string; dimensions?: number };
 type RenderedLanguageModel = {
 	tiers?: Record<string, RenderedRung[]>;
 	embedding?: RenderedRung;
@@ -28,6 +28,13 @@ function renderedLanguageModel(plane: ACompanyPlane): RenderedLanguageModel {
 	};
 	expect(rendered.languageModel, 'the renderer wrote no languageModel block').toBeDefined();
 	return rendered.languageModel as RenderedLanguageModel;
+}
+
+function renderedMemory(plane: ACompanyPlane): { embeddingModel?: string; embeddingDimensions?: number } {
+	const rendered = JSON.parse(readFileSync(plane.runtimeConfigurationPath, 'utf8')) as {
+		memory?: { embeddingModel?: string; embeddingDimensions?: number };
+	};
+	return rendered.memory ?? {};
 }
 
 async function until(satisfied: () => Promise<boolean>, seconds: number): Promise<boolean> {
@@ -71,8 +78,13 @@ test('every tier is rendered as an endpoint this plane chose', async () => {
 			}
 		}
 
-		expect(languageModel.embedding?.endpoint).toBe(plane.model.url);
-		expect(languageModel.embedding?.model).toBeTruthy();
+		expect(
+			languageModel.embedding?.endpoint,
+			'embeddings go through capabilityd, so the rung names no endpoint of its own'
+		).toBeUndefined();
+		expect(languageModel.embedding?.model).toBe('google/embeddinggemma-2');
+		expect(renderedMemory(plane).embeddingModel).toBe('google/embeddinggemma-2');
+		expect(renderedMemory(plane).embeddingDimensions).toBe(768);
 	} finally {
 		await plane.stop();
 	}

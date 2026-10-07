@@ -227,6 +227,12 @@ var hostDependencies = []HostDependency{
 		ProgramsTheHostRuns: []string{BuzzMediaProgramName},
 		NeededBy:            []HostPart{HostPartMessenger},
 	},
+	{
+		ArrivesAsPayload:    true,
+		WhatAnswersItOnAMac: "the package carries it",
+		ProgramsTheHostRuns: []string{EmbeddingServerProgramName},
+		NeededBy:            []HostPart{HostPartAgent},
+	},
 }
 
 // HostDependencies is the company host's dependency list, and the only one.

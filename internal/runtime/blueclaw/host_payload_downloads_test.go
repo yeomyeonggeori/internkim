@@ -119,3 +119,41 @@ func machineFor(t *testing.T, debianArchitecture string) string {
 	t.Fatalf("no machine name for %s", debianArchitecture)
 	return ""
 }
+
+// llama-server finds its libraries by rpath, so every target pins the whole directory
+// and the package installs it whole; a pin for the lone binary would start nothing.
+func TestTheEmbeddingServerIsPinnedAsADirectoryForEveryTarget(t *testing.T) {
+	for _, architecture := range debianArchitecturesThePinsCover(t) {
+		downloads, errorValue := blueclaw.HostPayloadDownloads(architecture)
+		if errorValue != nil {
+			t.Fatalf("%s: %v", architecture, errorValue)
+		}
+		found := false
+		for _, download := range downloads {
+			if download.ProgramName != blueclaw.EmbeddingServerProgramName {
+				continue
+			}
+			found = true
+			if download.DirectoryInsideArchive == "" || download.PathInsideArchive != "" {
+				t.Errorf("%s pins %s as %+v, and it cannot run apart from its libraries", architecture, download.ProgramName, download)
+			}
+		}
+		if !found {
+			t.Errorf("%s pins no %s", architecture, blueclaw.EmbeddingServerProgramName)
+		}
+	}
+}
+
+func TestTheEmbeddingModelIsPinnedByCommitAndChecksumOverHTTPS(t *testing.T) {
+	model := blueclaw.HostEmbeddingModelDownload()
+
+	if !strings.HasPrefix(model.URL, "https://") || len(model.SHA256) != 64 || len(model.Version) != 40 {
+		t.Fatalf("the model is pinned as %+v", model)
+	}
+	if !strings.Contains(model.URL, "/resolve/"+model.Version+"/") {
+		t.Fatalf("the model is fetched from %s and not from the commit %s it is pinned at", model.URL, model.Version)
+	}
+	if !strings.HasSuffix(model.URL, "/"+model.ProgramName) {
+		t.Fatalf("the model is named %s and fetched from %s", model.ProgramName, model.URL)
+	}
+}

@@ -68,17 +68,17 @@ func TestEveryFormatsPostInstallDeclaresAccountsAndDirectoriesToSystemd(t *testi
 	}
 }
 
-func TestTheDeclaredAccountsAreTheFourServiceAccountsWithNoLogin(t *testing.T) {
+func TestTheDeclaredAccountsAreTheFiveServiceAccountsWithNoLogin(t *testing.T) {
 	declared := blueclaw.CompanyHostSysusersFile()
 	for _, account := range []string{
-		blueclaw.BlueclawUser, blueclaw.RelayUserName,
+		blueclaw.BlueclawUser, blueclaw.RelayUserName, blueclaw.EmbeddingUserName,
 		blueclaw.CompanyHostDatabaseUser, blueclaw.CompanyHostCacheUser,
 	} {
 		if !strings.Contains(declared, "u "+account+" - ") {
 			t.Errorf("sysusers does not declare %s:\n%s", account, declared)
 		}
 	}
-	if strings.Count(declared, "/usr/sbin/nologin") != 4 {
+	if strings.Count(declared, "/usr/sbin/nologin") != 5 {
 		t.Errorf("an account can log in:\n%s", declared)
 	}
 }

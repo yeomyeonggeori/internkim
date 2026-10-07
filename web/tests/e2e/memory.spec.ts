@@ -3,7 +3,7 @@ import { expect, test } from '@playwright/test';
 const memoryFactsFixture = {
 	personID: 'person-1',
 	layers: [{ scopeType: 'circle', scopeID: 'member' }, { scopeType: 'workspace' }],
-	index: { embeddingModel: 'baai/bge-m3', current: 12, stale: 0 },
+	index: { embeddingModel: 'google/embeddinggemma-2', current: 12, stale: 0 },
 	facts: Array.from({ length: 12 }, (_, index) => ({
 		factID: `fact-${index}`,
 		originID: `origin-${index}`,

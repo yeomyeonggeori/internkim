@@ -88,7 +88,7 @@ func whatIsMissingOf(platform companyHostPlatform, machine Machine, dependency b
 // the keg's libexec and never on PATH. PATH answers only for what the
 // operating system or its package manager provides.
 func carriesWhatThePackageShips(platform companyHostPlatform, machine Machine, program string) bool {
-	return machine.CarriesFile(platform.Layout().BinaryPath(program)) == nil
+	return machine.CarriesFile(platform.Layout().PayloadProgramPath(program)) == nil
 }
 
 func machineCarriesAnyOf(machine Machine, programs []string) bool {

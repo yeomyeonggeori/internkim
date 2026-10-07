@@ -66,6 +66,7 @@ type CapabilitydPlaneArguments = {
 	blueclawWorkspacePath: string;
 	openRouterKeyPath: string;
 	blueclawURL: string;
+	embeddingServerURL: string;
 	admindURL: string;
 	chatdEndpoint: string;
 	chatdPlatform: string;
@@ -115,6 +116,7 @@ export function capabilitydArgumentsForPlane(argumentsForPlane: CapabilitydPlane
 			'--socket': argumentsForPlane.socketPath,
 			'--openrouter-key': argumentsForPlane.openRouterKeyPath,
 			'--blueclaw-url': argumentsForPlane.blueclawURL,
+			'--embedding-url': argumentsForPlane.embeddingServerURL,
 			'--blueclaw-workspace': argumentsForPlane.blueclawWorkspacePath,
 			'--admind-url': argumentsForPlane.admindURL,
 			'--admind-socket': argumentsForPlane.admindSocketPath,
@@ -424,6 +426,7 @@ export async function aCompanyPlane(request: PlaneRequest = {}): Promise<ACompan
 						blueclawWorkspacePath: join(runDirectory, 'workspace'),
 						openRouterKeyPath,
 						blueclawURL,
+						embeddingServerURL: new URL(standInModel.url).origin,
 						admindURL,
 						chatdEndpoint: connector.url,
 						chatdPlatform: capabilitydPlatform,

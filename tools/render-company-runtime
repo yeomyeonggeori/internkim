@@ -109,4 +109,4 @@ jq \
 
 "${capabilitydPath}" --print-capabilities --socket "${CAPABILITY_SOCKET_PATH}" > "${capabilitiesPath}"
 "${capabilitydPath}" --print-model-ladder "${MODEL_API_KEY_PATH}" --model-endpoint "${MODEL_ENDPOINT:-}" > "${languageModelPath}"
-jq -s '.[0] * {capabilities: .[1], languageModel: .[2], memory: {embeddingModel: .[2].embedding.model}}' "${renderedPath}" "${capabilitiesPath}" "${languageModelPath}" > "${outputPath}"
+jq -s '.[0] * {capabilities: .[1], languageModel: .[2], memory: {embeddingModel: .[2].embedding.model, embeddingDimensions: .[2].embedding.dimensions}}' "${renderedPath}" "${capabilitiesPath}" "${languageModelPath}" > "${outputPath}"

@@ -109,3 +109,14 @@ func TestThePlaneAsksTheVisualReviewerOnTheDecisionsRoute(t *testing.T) {
 		t.Fatalf("expected the visual reviewer beside the decision model with the same key, got %+v", document.VisualReview)
 	}
 }
+
+func TestTheEmbeddingRungNamesAModelAndWidthButNoEndpoint(t *testing.T) {
+	document := LanguageModelDocument("https://models.example.com/v1", "/run/example-key")
+
+	if document.Embedding.Model != EmbeddingModel || document.Embedding.Dimensions != EmbeddingDimensions {
+		t.Fatalf("the embedding rung is %+v", document.Embedding)
+	}
+	if document.Embedding.Endpoint != "" || document.Embedding.APIKeyPath != "" {
+		t.Fatalf("the agent reaches embeddings through capabilityd, so the rung names no endpoint or key: %+v", document.Embedding)
+	}
+}
