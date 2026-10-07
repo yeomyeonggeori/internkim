@@ -9,6 +9,7 @@
 	import MessengerChannelHeaderActions from './messenger-channel-header-actions.svelte';
 	import MessengerChannelMembersDialog from './messenger-channel-members-dialog.svelte';
 	import MessengerChannelOwnerDialog from './messenger-channel-owner-dialog.svelte';
+	import MessengerConversationExportDialog from './messenger-conversation-export-dialog.svelte';
 	import MessengerNewChannelDialog from './messenger-new-channel-dialog.svelte';
 	import MessengerPersonProfile from './messenger-person-profile.svelte';
 	import { muteConversation, mutedConversations, unmuteConversation } from '$lib/notifications/muted-conversations';
@@ -81,6 +82,13 @@
 	let isNewChannelOpen = $state(false);
 	let isBrowseChannelsOpen = $state(false);
 	let isChannelDetailsOpen = $state(false);
+	let isExportOpen = $state(false);
+	let exportingConversation = $state<ChannelSummary | null>(null);
+
+	function exportConversation(conversation: ChannelSummary) {
+		exportingConversation = conversation;
+		isExportOpen = true;
+	}
 	let isChannelMembersOpen = $state(false);
 	let isChannelOwnerOpen = $state(false);
 	let channelOwnerAction = $state<'add' | 'hand-over'>('add');
@@ -441,6 +449,7 @@
 			{groupChannels}
 			{muted}
 			{switchMuted}
+			{exportConversation}
 			openNewDirectMessage={openNewDirectMessageFromSheet}
 			openNewChannel={canManageChannels ? openNewChannel : undefined}
 			openBrowseChannels={canManageChannels ? openBrowseChannels : undefined}
@@ -463,6 +472,7 @@
 				{groupChannels}
 				{muted}
 				{switchMuted}
+				{exportConversation}
 				{openNewDirectMessage}
 				openNewChannel={canManageChannels ? openNewChannel : undefined}
 				openBrowseChannels={canManageChannels ? openBrowseChannels : undefined}
@@ -529,6 +539,8 @@
 	</div>
 </Sheet.Root>
 
+<MessengerConversationExportDialog bind:open={isExportOpen} conversation={exportingConversation} />
+
 <MessengerPersonProfile bind:open={isPersonProfileOpen} person={profilePerson} onMessage={messagePerson} />
 
 {#if activeConversation?.kind === 'group'}
@@ -540,6 +552,7 @@
 		openOwnerHandover={() => (
 			(isChannelDetailsOpen = false), (channelOwnerAction = 'hand-over'), (isChannelOwnerOpen = true)
 		)}
+		openExport={() => ((isChannelDetailsOpen = false), exportConversation(activeConversation))}
 		onLeft={leftChannel}
 		onDeleted={leftChannel}
 	/>

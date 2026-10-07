@@ -1,6 +1,7 @@
 <script lang="ts">
 	import CrownIcon from '@lucide/svelte/icons/crown';
 	import DoorOpenIcon from '@lucide/svelte/icons/door-open';
+	import FileDownIcon from '@lucide/svelte/icons/file-down';
 	import HashIcon from '@lucide/svelte/icons/hash';
 	import Trash2Icon from '@lucide/svelte/icons/trash-2';
 	import LockIcon from '@lucide/svelte/icons/lock';
@@ -12,6 +13,7 @@
 	import { Separator } from '$lib/components/ui/separator';
 	import * as Sheet from '$lib/components/ui/sheet';
 	import { channelText } from '$lib/i18n/channel-text';
+	import { conversationExportText } from '$lib/i18n/conversation-export-text';
 	import { createPageText } from '$lib/i18n/page-text.svelte';
 	import type { ChannelSummary } from '$lib/components/channel/channel-api';
 	import { displayPersonName } from '$lib/person-name.svelte';
@@ -24,6 +26,7 @@
 		openMembers,
 		openOwnerAdd,
 		openOwnerHandover,
+		openExport,
 		onLeft,
 		onDeleted
 	}: {
@@ -32,11 +35,15 @@
 		openMembers: () => void;
 		openOwnerAdd: () => void;
 		openOwnerHandover: () => void;
+		openExport: () => void;
 		onLeft: (channelID: string) => void;
 		onDeleted: (channelID: string) => void;
 	} = $props();
 
 	const text = createPageText(channelText);
+	const exportText = createPageText(conversationExportText);
+	const valueRowClass = 'text-muted-foreground h-7 min-w-0 justify-end text-sm';
+	const actionRowClass = 'min-h-7 justify-center text-left';
 	const members = $derived(channel.members ?? []);
 	const memberCountLabel = $derived(text.channelMemberCount.replace('{count}', String(members.length)));
 	const owners = $derived(members.filter((member) => member.role === 'owner'));
@@ -115,10 +122,10 @@
 					<Item.Root>
 						<Item.Content>
 							<Item.Title>{text.channelVisibility}</Item.Title>
-							<Item.Description>
-								{channel.isPrivate ? text.channelPrivate : text.channelPublic}
-							</Item.Description>
 						</Item.Content>
+						<Item.Actions class={valueRowClass}>
+							{channel.isPrivate ? text.channelPrivate : text.channelPublic}
+						</Item.Actions>
 					</Item.Root>
 					<Separator />
 					{#if amOwner}
@@ -127,9 +134,11 @@
 								<button {...props} type="button" onclick={openOwnerAdd}>
 									<Item.Content class="text-left">
 										<Item.Title>{text.channelOwner}</Item.Title>
-										<Item.Description>{ownerNames}</Item.Description>
 									</Item.Content>
-									<Item.Actions><CrownIcon class="text-muted-foreground size-4" /></Item.Actions>
+									<Item.Actions class={valueRowClass}>
+										<span class="truncate">{ownerNames}</span>
+										<CrownIcon class="size-4 shrink-0" />
+									</Item.Actions>
 								</button>
 							{/snippet}
 						</Item.Root>
@@ -140,7 +149,7 @@
 									<Item.Content class="text-left">
 										<Item.Title>{text.handOverChannel}</Item.Title>
 									</Item.Content>
-									<Item.Actions><CrownIcon class="text-muted-foreground size-4" /></Item.Actions>
+									<Item.Actions class={valueRowClass}><CrownIcon class="size-4" /></Item.Actions>
 								</button>
 							{/snippet}
 						</Item.Root>
@@ -148,8 +157,8 @@
 						<Item.Root>
 							<Item.Content>
 								<Item.Title>{text.channelOwner}</Item.Title>
-								<Item.Description>{ownerNames}</Item.Description>
 							</Item.Content>
+							<Item.Actions class={valueRowClass}><span class="truncate">{ownerNames}</span></Item.Actions>
 						</Item.Root>
 					{/if}
 					<Separator />
@@ -158,9 +167,9 @@
 							<button {...props} type="button" onclick={openMembers}>
 								<Item.Content class="text-left">
 									<Item.Title>{text.channelMembersTitle}</Item.Title>
-									<Item.Description>{memberCountLabel}</Item.Description>
 								</Item.Content>
-								<Item.Actions>
+								<Item.Actions class={valueRowClass}>
+									<span>{memberCountLabel}</span>
 									<PersonAvatarStack
 										people={members.map((member) => ({
 											name: member.name,
@@ -178,9 +187,9 @@
 					<Item.Root>
 						<Item.Content>
 							<Item.Title>{text.channelIDLabel}</Item.Title>
-							<Item.Description class="font-mono" title={channel.id}>{shortChannelID}</Item.Description>
 						</Item.Content>
-						<Item.Actions>
+						<Item.Actions class={valueRowClass}>
+							<span class="font-mono" title={channel.id}>{shortChannelID}</span>
 							<CopyButton text={channel.id} size="icon-sm" tabindex={0}>
 								<span class="sr-only">{text.copyChannelID}</span>
 							</CopyButton>
@@ -191,9 +200,20 @@
 				<div class="mt-4 rounded-lg border">
 					<Item.Root>
 						{#snippet child({ props })}
+							<button {...props} type="button" onclick={openExport}>
+								<Item.Media variant="icon"><FileDownIcon /></Item.Media>
+								<Item.Content class={actionRowClass}>
+									<Item.Title>{exportText.exportConversation}</Item.Title>
+								</Item.Content>
+							</button>
+						{/snippet}
+					</Item.Root>
+					<Separator />
+					<Item.Root>
+						{#snippet child({ props })}
 							<button {...props} type="button" onclick={() => (isConfirmingLeave = true)}>
 								<Item.Media variant="icon"><DoorOpenIcon /></Item.Media>
-								<Item.Content class="text-left">
+								<Item.Content class={actionRowClass}>
 									<Item.Title>{text.leaveChannel}</Item.Title>
 								</Item.Content>
 							</button>
@@ -205,7 +225,7 @@
 							{#snippet child({ props })}
 								<button {...props} type="button" onclick={() => (isConfirmingDelete = true)}>
 									<Item.Media variant="icon"><Trash2Icon class="text-destructive" /></Item.Media>
-									<Item.Content class="text-left">
+									<Item.Content class={actionRowClass}>
 										<Item.Title class="text-destructive">{text.deleteChannel}</Item.Title>
 									</Item.Content>
 								</button>

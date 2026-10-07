@@ -8,6 +8,7 @@
 	import LockIcon from '@lucide/svelte/icons/lock';
 	import PlusIcon from '@lucide/svelte/icons/plus';
 	import { channelText } from '$lib/i18n/channel-text';
+	import { conversationExportText } from '$lib/i18n/conversation-export-text';
 	import { createPageText } from '$lib/i18n/page-text.svelte';
 	import { cn } from '$lib/utils';
 	import ConversationMenu from '$lib/components/channel/conversation-menu.svelte';
@@ -29,6 +30,7 @@
 		groupChannels,
 		muted,
 		switchMuted,
+		exportConversation,
 		openNewDirectMessage,
 		openNewChannel,
 		openBrowseChannels,
@@ -46,6 +48,7 @@
 		groupChannels: ChannelSummary[];
 		muted: Set<string>;
 		switchMuted: (conversationID: string) => void;
+		exportConversation: (conversation: ChannelSummary) => void;
 		openNewDirectMessage: () => void;
 		openNewChannel?: () => void;
 		openBrowseChannels?: () => void;
@@ -56,6 +59,7 @@
 	} = $props();
 
 	const text = createPageText(channelText);
+	const exportText = createPageText(conversationExportText);
 
 	let draggedChannelID = $state<string | null>(null);
 	let dragOverChannelID = $state<string | null>(null);
@@ -174,6 +178,8 @@
 							unmuteLabel={text.unmuteConversation}
 							menuLabel={text.conversationMenu}
 							onSwitchMuted={() => switchMuted(conversation.id)}
+							exportLabel={exportText.exportConversation}
+							onExport={() => exportConversation(conversation)}
 						>
 							<Sidebar.MenuButton
 								isActive={activeID === conversation.id}

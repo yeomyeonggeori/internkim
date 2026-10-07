@@ -5,6 +5,7 @@
 	import BellIcon from '@lucide/svelte/icons/bell';
 	import BellOffIcon from '@lucide/svelte/icons/bell-off';
 	import EllipsisVerticalIcon from '@lucide/svelte/icons/ellipsis-vertical';
+	import FileDownIcon from '@lucide/svelte/icons/file-down';
 	import { mergeProps } from 'bits-ui';
 	import type { Snippet } from 'svelte';
 	import { fromAction } from 'svelte/attachments';
@@ -18,12 +19,23 @@
 		unmuteLabel: string;
 		menuLabel: string;
 		onSwitchMuted: () => void;
+		exportLabel?: string;
+		onExport?: () => void;
 		itemProps?: HTMLLiAttributes & Record<string, unknown>;
 		children: Snippet;
 	};
 
-	let { isMuted, muteLabel, unmuteLabel, menuLabel, onSwitchMuted, itemProps = {}, children }: Props =
-		$props();
+	let {
+		isMuted,
+		muteLabel,
+		unmuteLabel,
+		menuLabel,
+		onSwitchMuted,
+		exportLabel = '',
+		onExport,
+		itemProps = {},
+		children
+	}: Props = $props();
 
 	const canHover = new MediaQuery('hover: hover', true);
 	let isContextMenuOpen = $state(false);
@@ -37,6 +49,11 @@
 		<BellOffIcon />
 		<span>{muteLabel}</span>
 	{/if}
+{/snippet}
+
+{#snippet exportConversationLabel()}
+	<FileDownIcon />
+	<span>{exportLabel}</span>
 {/snippet}
 
 <ContextMenu.Root bind:open={isContextMenuOpen}>
@@ -60,6 +77,11 @@
 							<DropdownMenu.Item onSelect={onSwitchMuted}>
 								{@render switchMutedLabel()}
 							</DropdownMenu.Item>
+							{#if onExport}
+								<DropdownMenu.Item onSelect={onExport}>
+									{@render exportConversationLabel()}
+								</DropdownMenu.Item>
+							{/if}
 						</DropdownMenu.Content>
 					</DropdownMenu.Root>
 				{/if}
@@ -70,5 +92,10 @@
 		<ContextMenu.Item onSelect={onSwitchMuted}>
 			{@render switchMutedLabel()}
 		</ContextMenu.Item>
+		{#if onExport}
+			<ContextMenu.Item onSelect={onExport}>
+				{@render exportConversationLabel()}
+			</ContextMenu.Item>
+		{/if}
 	</ContextMenu.Content>
 </ContextMenu.Root>
