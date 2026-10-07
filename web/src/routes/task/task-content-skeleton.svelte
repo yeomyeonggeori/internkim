@@ -59,7 +59,7 @@
 		{:else}
 			<div class="space-y-3">
 				<div class="overflow-hidden rounded-lg border bg-card">
-					<Table.Root class="min-w-[1080px]">
+					<Table.Root>
 						<Table.Header class="bg-muted/40"><Table.Row class="hover:bg-transparent">{#each [text?.table.business, text?.table.type, text?.table.content, text?.table.participants, text?.table.size, text?.table.status, text?.table.startDate, text?.table.endDate] as heading, column (column)}<Table.Head class="h-10"><div class="flex items-center gap-1 text-xs font-medium uppercase tracking-wide text-muted-foreground">{#if heading}{heading}{:else}<Skeleton class="h-4 w-12" />{/if}{#if column !== 2 && column !== 3}<ArrowUpDownIcon class="size-3 opacity-40" />{/if}</div></Table.Head>{/each}</Table.Row></Table.Header>
 						<Table.Body>{#each [0, 1, 2, 3, 4, 5] as row (row)}<Table.Row>
 							<Table.Cell><Skeleton class="h-5 w-14 rounded-md" /></Table.Cell><Table.Cell><Skeleton class="h-5 w-14 rounded-md" /></Table.Cell><Table.Cell><Skeleton class="h-4 w-64 max-w-[26rem]" /></Table.Cell><Table.Cell><Skeleton class="h-5 w-24 rounded-full" /></Table.Cell><Table.Cell><Skeleton class="h-5 w-8 rounded-full" /></Table.Cell><Table.Cell><Skeleton class="h-7 w-28" /></Table.Cell><Table.Cell><Skeleton class="h-4 w-20" /></Table.Cell><Table.Cell><Skeleton class="h-4 w-20" /></Table.Cell>

@@ -30,16 +30,20 @@
 	let totalRows = $derived(taskTable.getFilteredRowModel().rows.length);
 	let pageCount = $derived(taskTable.getPageCount());
 	let pageIndex = $derived(taskTable.getState().pagination.pageIndex);
+
+	function columnWidthClass(columnID: string): string {
+		return columnID === 'content' ? 'w-full min-w-48 max-w-0' : 'w-px whitespace-nowrap';
+	}
 </script>
 
 <div class="space-y-3">
 	<div class="overflow-hidden rounded-lg border bg-card">
-		<Table.Root class="min-w-[1080px]">
+		<Table.Root>
 			<Table.Header class="bg-muted/40">
 				{#each taskTable.getHeaderGroups() as headerGroup (headerGroup.id)}
 					<Table.Row class="hover:bg-transparent">
 						{#each headerGroup.headers as header (header.id)}
-							<Table.Head class="h-10">
+							<Table.Head class={cn("h-10", columnWidthClass(header.column.id))}>
 								{#if !header.isPlaceholder}
 									<FlexRender content={header.column.columnDef.header} context={header.getContext()} />
 								{/if}
@@ -58,7 +62,7 @@
 						onclick={() => openTask(row.original)}
 					>
 						{#each row.getVisibleCells() as cell (cell.id)}
-							<Table.Cell>
+							<Table.Cell class={columnWidthClass(cell.column.id)}>
 								<FlexRender content={cell.column.columnDef.cell} context={cell.getContext()} />
 							</Table.Cell>
 						{/each}

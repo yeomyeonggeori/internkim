@@ -37,7 +37,7 @@ for (const width of [320, 360, 390, 568, 1280]) {
 		const filters = await openTaskFilters(page);
 		await filters.getByPlaceholder('내용, 목표, 참여자 검색').fill(title);
 		await page.keyboard.press('Escape');
-		await page.getByRole('tab', { name: '목록', exact: true }).click();
+		await page.getByRole('tab', { name: '표', exact: true }).click();
 		if (width < 640) {
 			const task = page.getByRole('row').filter({ hasText: title });
 			await expect(task).toBeVisible();

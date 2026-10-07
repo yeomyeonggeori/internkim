@@ -360,6 +360,8 @@ html.internkim-embedded [data-app-shell-scroll] {
   [data-slot='tabs-list'], [data-slot='underline-tabs-list'] {
     max-width: 100%;
     overflow-x: auto;
+    overflow-y: hidden;
+    scrollbar-width: none;
     justify-content: flex-start;
   }
   [data-slot='underline-tabs-list'] {

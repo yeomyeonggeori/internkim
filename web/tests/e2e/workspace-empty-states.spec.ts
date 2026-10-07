@@ -215,7 +215,7 @@ for (const width of [1280, 390, 320]) {
 		await prepareWorkspaceLoading(page, fixture);
 		await page.goto('/example-co/task');
 		await expect(page.locator('[data-task-ready="true"]')).toBeVisible();
-		await page.getByRole('tab', { name: '목록', exact: true }).click();
+		await page.getByRole('tab', { name: '표', exact: true }).click();
 		await expect.poll(() => fixture.requested.has('task_list')).toBe(true);
 		await expect(page.locator('[data-task-content-skeleton="list"]')).toBeVisible();
 		await expect(page.locator('[data-task-active-tab] [data-slot="empty"]')).toHaveCount(0);
