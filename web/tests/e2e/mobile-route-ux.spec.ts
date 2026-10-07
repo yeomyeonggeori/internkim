@@ -170,3 +170,18 @@ for (const viewport of [{ width: 320, height: 760 }, { width: 360, height: 760 }
 		await screenshot(page, `calendar-embed-${viewport.width}`);
 	});
 }
+
+test('the bottom navigation clears the home indicator on a phone with a safe area', async ({ page }) => {
+	await page.setViewportSize({ width: 390, height: 844 });
+	await routeCalendarShellAPI(page);
+	await page.route('**/api/v1/tools/event_list/invoke', route => route.fulfill({ json: { result: { events: [] } } }));
+	await page.route('**/api/v1/tools/company_settings_get/invoke', route => route.fulfill({ json: { result: { timeZone: 'Asia/Seoul' } } }));
+	const session = await page.context().newCDPSession(page);
+	await session.send('Emulation.setSafeAreaInsetsOverride', { insets: { top: 47, bottom: 34, left: 0, right: 0 } });
+	await page.goto('/calendar/');
+	await expect(page.locator('meta[name="viewport"]')).toHaveAttribute('content', /viewport-fit=cover/);
+	const navigation = page.locator('.internkim-app-mobile-navigation');
+	await expect(navigation).toBeVisible();
+	const lastItemBottom = await navigation.locator('a, button').last().evaluate(item => item.getBoundingClientRect().bottom);
+	expect(844 - lastItemBottom).toBeGreaterThanOrEqual(34);
+});
