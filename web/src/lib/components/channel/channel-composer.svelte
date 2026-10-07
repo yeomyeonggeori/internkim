@@ -451,7 +451,7 @@
 			border-radius: 9999px;
 			transition-property: transform, opacity, background-color, color;
 			transition-duration: 150ms;
-			transition-timing-function: cubic-bezier(0.23, 1, 0.32, 1);
+			transition-timing-function: var(--ease-out-strong);
 		}
 		.channel-composer :global(.composer-input button:active:not(:disabled)) {
 			transform: scale(0.92);

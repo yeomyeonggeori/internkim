@@ -1,60 +1,29 @@
 <script lang="ts">
-	import * as Bubble from '$lib/components/ui/bubble/index.js';
 	import * as Tooltip from '$lib/components/ui/tooltip/index.js';
-	import { Button } from '$lib/components/ui/button/index.js';
+	import { toggleVariants } from '$lib/components/ui/toggle/index.js';
+	import { cn } from '$lib/utils.js';
 	import { channelText } from '$lib/i18n/channel-text';
 	import { createPageText } from '$lib/i18n/page-text.svelte';
 	import { reactionPeopleLabel } from './channel-reactions';
 	import type { ChannelMessageReaction } from './channel-api';
 	import { customEmoji } from '$lib/stores/custom-emoji.svelte';
 	import LoadingImage from '$lib/components/loading-image.svelte';
+	import SmilePlusIcon from '@lucide/svelte/icons/smile-plus';
 
 	let {
 		reactions,
 		canChange,
-		side,
-		farCorner,
-		nameWidthPixels,
-		onToggle
+		onToggle,
+		onAdd
 	}: {
 		reactions: ChannelMessageReaction[];
 		canChange: boolean;
-		side: 'top' | 'bottom';
-		farCorner: 'start' | 'end';
-		nameWidthPixels: number;
 		onToggle: (reaction: ChannelMessageReaction) => void;
+		onAdd: (anchor: HTMLElement) => void;
 	} = $props();
 
 	const text = createPageText(channelText);
-	const cornerInsetPixels = 12;
-	const gapAfterNamePixels = 8;
-
-	let pill = $state<HTMLDivElement | null>(null);
-	let pillWidthPixels = $state(0);
-	let bubbleWidthPixels = $state(0);
-
-	const placement = $derived.by(() => {
-		if (pillWidthPixels === 0) return undefined;
-		const fromFarCorner = bubbleWidthPixels - cornerInsetPixels - pillWidthPixels;
-		if (farCorner === 'start') return `right: ${Math.max(cornerInsetPixels, fromFarCorner)}px; left: auto`;
-		const clearOfName = nameWidthPixels > 0 ? nameWidthPixels + gapAfterNamePixels : cornerInsetPixels;
-		return `left: ${Math.max(clearOfName, fromFarCorner)}px; right: auto`;
-	});
-
-	$effect(() => {
-		const bubble = pill?.parentElement;
-		if (!pill || !bubble) return;
-		const measured = pill;
-		const measure = (): void => {
-			pillWidthPixels = measured.offsetWidth;
-			bubbleWidthPixels = bubble.clientWidth;
-		};
-		const observer = new ResizeObserver(measure);
-		observer.observe(measured);
-		observer.observe(bubble);
-		measure();
-		return () => observer.disconnect();
-	});
+	const chipClass = cn(toggleVariants({ variant: 'outline', size: 'sm' }), 'h-6 min-w-0 rounded-full px-2 tabular-nums aria-pressed:border-foreground/30');
 
 	function toggleWhenJoinable(reaction: ChannelMessageReaction): void {
 		if (canChange && !reactionImage(reaction)) onToggle(reaction);
@@ -65,7 +34,7 @@
 	}
 </script>
 
-<Bubble.Reactions bind:ref={pill} {side} align={farCorner} style={placement}>
+<div class="message-reactions flex flex-wrap gap-1.5 group-data-[align=end]/message:justify-end">
 	{#each reactions as reaction (reaction.value)}
 		{@const imageURL = reactionImage(reaction)}
 		{@const shortcode = `:${reaction.value}:`}
@@ -76,11 +45,11 @@
 		<Tooltip.Root>
 			<Tooltip.Trigger>
 				{#snippet child({ props })}
-					<Button
+					<button
 						{...props}
-						variant={reaction.reactedByMe ? 'outline' : 'ghost'}
-						size="xs"
-						class={reaction.reactedByMe ? 'border-foreground/30 hover:bg-foreground/10' : 'hover:bg-foreground/10'}
+						type="button"
+						data-slot="toggle"
+						class={chipClass}
 						aria-pressed={reaction.reactedByMe ?? false}
 						aria-label={imageURL ? `${shortcode} ${reaction.count}` : undefined}
 						onclick={() => toggleWhenJoinable(reaction)}
@@ -88,10 +57,10 @@
 						{#if imageURL}
 							<LoadingImage src={imageURL} alt={shortcode} fallbackText={shortcode} fill loading="eager" class="size-4 shrink-0 rounded-none" />
 						{:else}
-							{reaction.emoji}
+							<span class="text-sm leading-none">{reaction.emoji}</span>
 						{/if}
-						{#if reaction.count > 1}<span>{reaction.count}</span>{/if}
-					</Button>
+						<span>{reaction.count}</span>
+					</button>
 				{/snippet}
 			</Tooltip.Trigger>
 			<Tooltip.Content>
@@ -113,4 +82,17 @@
 			</Tooltip.Content>
 		</Tooltip.Root>
 	{/each}
-</Bubble.Reactions>
+	{#if canChange}
+		<button type="button" data-slot="toggle" class={cn(chipClass, 'text-muted-foreground')} aria-label={text.addReaction} onclick={(event) => onAdd(event.currentTarget)}>
+			<SmilePlusIcon />
+		</button>
+	{/if}
+</div>
+
+<style>
+	@media (max-width: 639px) {
+		.message-reactions :global([data-slot='toggle']) {
+			min-height: 24px;
+		}
+	}
+</style>

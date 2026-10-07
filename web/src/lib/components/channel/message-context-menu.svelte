@@ -23,6 +23,7 @@
 		canDownloadPicture,
 		disabled,
 		open = $bindable(false),
+		omitsWhatTheBarOffers = false,
 		onQuickReact,
 		onOpenPicker,
 		onReply,
@@ -43,6 +44,7 @@
 		canDownloadPicture: boolean;
 		disabled?: boolean;
 		open?: boolean;
+		omitsWhatTheBarOffers?: boolean;
 		onQuickReact: (glyph: string) => void;
 		onOpenPicker: () => void;
 		onReply: () => void;
@@ -68,7 +70,7 @@
 		{@render children()}
 	</ContextMenu.Trigger>
 	<ContextMenu.Content class="w-52">
-		{#if canChange}
+		{#if canChange && !omitsWhatTheBarOffers}
 			<div class="flex items-center justify-between px-1 py-1">
 				{#each quickEmojiGlyphs(5) as glyph (glyph)}
 					<ContextMenu.Item
@@ -86,7 +88,7 @@
 			</ContextMenu.Item>
 			<ContextMenu.Separator />
 		{/if}
-		{#if canReply}
+		{#if canReply && !omitsWhatTheBarOffers}
 			<ContextMenu.Item onSelect={onReply}>
 				<ReplyIcon />
 				<span>{text.reply}</span>

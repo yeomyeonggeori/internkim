@@ -574,14 +574,12 @@
 	});
 </script>
 
-{#snippet ownReactions(message: ChannelMessage, farCorner: 'start' | 'end', nameWidthPixels: number)}
+{#snippet ownReactions(message: ChannelMessage, openPicker: (anchor: HTMLElement) => void)}
 	<MessageReactions
 		reactions={message.reactions ?? []}
 		canChange={canChange && !message.id.startsWith('pending-')}
-		side="top"
-		{farCorner}
-		{nameWidthPixels}
 		onToggle={(reaction) => messageActions.toggleReaction(message, reaction)}
+		onAdd={openPicker}
 	/>
 {/snippet}
 
@@ -591,11 +589,8 @@
 		message.text,
 		attachments.map((attachment) => attachment.url)
 	)}
-	{@const reactions = message.reactions ?? []}
 	{@const mine = isMine(message)}
 	{@const reactionAlign = mine ? 'start' : 'end'}
-	{@const reactionSpacing = reactions.length > 0 && nameWidthPixels === 0 ? 'mt-5' : ''}
-	{@const imageReactionSpacing = bodyText ? '' : reactionSpacing}
 	{@const loneImage =
 		attachments.length === 1 && attachments[0].kind === 'image' && attachments[0].source
 			? attachments[0]
@@ -605,7 +600,7 @@
 			? attachments[0]
 			: undefined}
 	{#if loneVideo}
-		<div class={`relative w-fit max-w-[80%] self-start group-data-[align=end]/message:self-end ${imageReactionSpacing}`}>
+		<div class={`relative w-fit max-w-[80%] self-start group-data-[align=end]/message:self-end`}>
 			<ChannelVideoPlayer
 				source={loneVideo.source ?? ''}
 				width={loneVideo.widthPixels}
@@ -613,9 +608,6 @@
 				variant="message"
 				onOpen={() => openLightbox(attachments, loneVideo.source ?? '')}
 			/>
-			{#if !bodyText && reactions.length > 0}
-				{@render ownReactions(message, reactionAlign, nameWidthPixels)}
-			{/if}
 			{#if !bodyText}{@render timeStamp(message)}{/if}
 		</div>
 	{:else if loneImage}
@@ -630,7 +622,7 @@
 		     The proportions come from the message when the messenger reported them,
 		     so the browser holds the space before the file arrives and nothing below
 		     jumps when it does. -->
-		<div class={`relative w-fit max-w-[80%] self-start group-data-[align=end]/message:self-end ${imageReactionSpacing}`}>
+		<div class={`relative w-fit max-w-[80%] self-start group-data-[align=end]/message:self-end`}>
 			<button
 				type="button"
 				class="block max-w-full cursor-zoom-in overflow-hidden rounded-lg"
@@ -647,13 +639,10 @@
 					class="rounded-lg"
 				/>
 			</button>
-			{#if !bodyText && reactions.length > 0}
-				{@render ownReactions(message, reactionAlign, nameWidthPixels)}
-			{/if}
 			{#if !bodyText}{@render timeStamp(message)}{/if}
 		</div>
 	{:else if attachments.length > 0}
-		<div class={`relative w-fit max-w-[80%] self-start group-data-[align=end]/message:self-end ${imageReactionSpacing}`}>
+		<div class={`relative w-fit max-w-[80%] self-start group-data-[align=end]/message:self-end`}>
 			<Attachment.Group class="relative w-fit max-w-full">
 			{#each attachments as attachment (attachment.url)}
 				{@const attachmentState = attachmentStateOf(attachment.source, attachmentSource.status(attachment.url))}
@@ -726,9 +715,6 @@
 				</Attachment.Root>
 			{/each}
 			</Attachment.Group>
-			{#if !bodyText && reactions.length > 0}
-				{@render ownReactions(message, reactionAlign, nameWidthPixels)}
-			{/if}
 			{#if !bodyText}{@render timeStamp(message)}{/if}
 		</div>
 	{/if}
@@ -765,7 +751,7 @@
 	{:else if bodyText}
 		<Bubble.Root
 			variant={mine ? 'default' : 'muted'}
-			class={`max-w-[min(80%,32rem)] ${reactionSpacing}`}
+			class="max-w-[min(80%,32rem)]"
 		>
 			<Bubble.Content>
 				<div class="chat-markdown prose prose-sm dark:prose-invert max-w-none">
@@ -777,9 +763,6 @@
 					/>
 				</div>
 			</Bubble.Content>
-			{#if reactions.length > 0}
-				{@render ownReactions(message, reactionAlign, nameWidthPixels)}
-			{/if}
 			{@render timeStamp(message)}
 		</Bubble.Root>
 		{#if firstLinkIn(bodyText)}
@@ -841,7 +824,7 @@
 {/snippet}
 
 {#snippet senderAvatar(sender: ChannelParticipant)}
-	<Message.Avatar>
+	<Message.Avatar class="group-has-data-[slot=message-footer]/message:-translate-y-(--footer-lift)">
 		<PersonAvatar
 			name={sender.name}
 			email={sender.email ?? ''}
@@ -868,7 +851,7 @@
 		canDelete={isMine(message) || canModerate}
 		canEdit={canEditMessage(message, isMine(message))}
 		isSettled={!message.id.startsWith('pending-')}
-		hasFooter={replyChip !== undefined || isUnsent}
+		hasFooter={replyChip !== undefined || isUnsent || (message.reactions ?? []).length > 0}
 		copyable={whatToCopy(
 			messageTextBeside(
 				message.text,
@@ -892,7 +875,8 @@
 				{@render messageBody(message, nameWidthPixels)}
 			</Bubble.Group>
 		{/snippet}
-		{#snippet footer()}
+		{#snippet footer({ openPicker })}
+			{#if (message.reactions ?? []).length > 0}{@render ownReactions(message, openPicker)}{/if}
 			{#if replyChip}{@render threadChip(message, replyChip)}{/if}
 			{#if isUnsent}
 				<FailedMessageActions onRetry={() => void sendAgain(message.id)} onDiscard={() => outgoing.discard(message.id)} />
@@ -987,16 +971,19 @@
 				{#if capture.isCapturing}
 					<MessageCaptureOverlay scroller={scrollContainer} firstID={capture.firstID} lastID={capture.lastID} />
 				{/if}
-				{#if showScrollToBottom && !capture.isCapturing}
-					<Button
-						variant="outline"
-						size="icon"
-						onclick={scrollToBottom}
-						aria-label={jumpToLatestLabel(unseenCount, text)}
-						class="frosted-surface absolute bottom-[calc(var(--dock-height)+0.75rem)] left-1/2 z-10 size-9 -translate-x-1/2 rounded-full"
-					>
-						<ArrowDownIcon />
-					</Button>
+				{#if !capture.isCapturing}
+					<div class="pointer-events-none absolute inset-x-0 bottom-(--dock-height) z-10 flex justify-center">
+						<Button
+							variant="outline"
+							size="icon"
+							onclick={scrollToBottom}
+							aria-label={jumpToLatestLabel(unseenCount, text)}
+							data-visible={showScrollToBottom}
+							class="jump-to-latest frosted-surface pointer-events-auto size-9 rounded-full"
+						>
+							<ArrowDownIcon />
+						</Button>
+					</div>
 				{/if}
 			</div>
 		{/if}
@@ -1086,6 +1073,26 @@
 {/if}
 
 <style>
+	:global(.jump-to-latest) {
+		transition:
+			opacity 180ms var(--ease-out-strong),
+			transform 180ms var(--ease-out-strong),
+			visibility 0s;
+	}
+	:global(.jump-to-latest[data-visible='false']) {
+		visibility: hidden;
+		opacity: 0;
+		transform: translateY(8px) scale(0.96);
+		transition:
+			opacity 180ms var(--ease-out-strong),
+			transform 180ms var(--ease-out-strong),
+			visibility 0s linear 180ms;
+	}
+	@media (prefers-reduced-motion: reduce) {
+		:global(.jump-to-latest[data-visible='false']) {
+			transform: none;
+		}
+	}
 	.chat-markdown {
 		overflow-wrap: anywhere;
 	}
