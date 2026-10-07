@@ -6,7 +6,6 @@
 	import { cn } from '$lib/utils';
 	import * as Card from '$lib/components/ui/card';
 	import { buildTaskBoardCardDisplay } from './task-board-card-model';
-	import TaskBoardCardCompactBody from './task-board-card-compact-body.svelte';
 	import TaskChildProgress from './task-child-progress.svelte';
 	import TaskDateRange from './task-date-range.svelte';
 	import DefinitionBadge from '$lib/components/definition-badge.svelte';
@@ -33,7 +32,6 @@
 		taskTypeColor?: (type: string | null) => string;
 		childProgress?: ChildProgress;
 		childProgressLabel?: string;
-		isCompact?: boolean;
 	};
 
 	let {
@@ -52,8 +50,7 @@
 		businessColor = () => '#64748b',
 		taskTypeColor = () => '#64748b',
 		childProgress,
-		childProgressLabel = '{completed} / {total}',
-		isCompact = false
+		childProgressLabel = '{completed} / {total}'
 	}: Props = $props();
 
 	let canDrag = $derived(isInteractive && isDraggable && !isPending && !isReadOnly);
@@ -69,8 +66,7 @@
 				? 'cursor-grab hover:bg-muted/30 hover:shadow-sm active:cursor-grabbing active:bg-muted/40'
 				: 'cursor-pointer hover:bg-muted/30 hover:shadow-sm',
 		isDragging ? 'bg-card opacity-95 shadow-md' : '',
-		isReadOnly ? 'bg-muted/20' : '',
-		isCompact ? 'rounded-none border-0 shadow-none' : ''
+		isReadOnly ? 'bg-muted/20' : ''
 	].join(' '));
 
 	let display = $derived(buildTaskBoardCardDisplay(task, etcLabel));
@@ -152,20 +148,6 @@
 	ondragstart={handleTaskDragStart}
 	ondragend={handleTaskDragEnd}
 >
-	{#if isCompact}
-		<TaskBoardCardCompactBody
-			{task}
-			{participants}
-			{participantNameList}
-			{isOverduePlan}
-			businessColor={businessColor(task.business)}
-		/>
-		{#if childProgress}
-			<div class="px-3 pb-2.5">
-				<TaskChildProgress progress={childProgress} label={childProgressText(childProgress)} />
-			</div>
-		{/if}
-	{:else}
 	<div class="space-y-1 px-3 py-2">
 		<div class="flex min-w-0 items-center justify-between gap-2">
 			<div class="flex min-w-0 items-center gap-2 text-[13px] text-muted-foreground">
@@ -187,7 +169,9 @@
 					</span>
 				{/if}
 			</div>
-			<Badge class={`h-[18px] min-w-7 shrink-0 justify-center px-1.5 text-[11px] font-semibold leading-none ${sizeBadgeClass(task.size)}`}>{task.size}</Badge>
+			{#if task.size}
+				<Badge class={`h-[18px] min-w-7 shrink-0 justify-center px-1.5 text-[11px] font-semibold leading-none ${sizeBadgeClass(task.size)}`}>{task.size}</Badge>
+			{/if}
 		</div>
 
 		<div class="line-clamp-2 text-sm font-semibold leading-5 text-card-foreground">
@@ -225,7 +209,6 @@
 			<TaskChildProgress progress={childProgress} label={childProgressText(childProgress)} />
 		{/if}
 	</div>
-	{/if}
 </Card.Root>
 
 <style>

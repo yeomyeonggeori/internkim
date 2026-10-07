@@ -6,10 +6,6 @@
 	import { cn } from '$lib/utils';
 	import type { Table as TableInstance } from '@tanstack/table-core';
 	import type { Task } from './task-types';
-	import { Button } from '$lib/components/ui/button';
-	import * as Collapsible from '$lib/components/ui/collapsible';
-	import { MediaQuery } from 'svelte/reactivity';
-	import TaskCompactMetadata from './task-compact-metadata.svelte';
 
 	type PaginationText = {
 		label: string;
@@ -27,12 +23,9 @@
 		pagination: PaginationText;
 		openTask: (task: Task) => void;
 		focusedTaskID: string;
-		mobileLabels: { sort: string; details: string; [key: string]: string | PaginationText };
-		businessColor: (business: string | null) => string;
 	};
 
-	let { taskTable, columnCount, pageSize, emptyLabel, showEmpty = true, pagination, openTask, focusedTaskID, mobileLabels, businessColor }: Props = $props();
-	const isMobile = new MediaQuery('(max-width: 639px)');
+	let { taskTable, columnCount, pageSize, emptyLabel, showEmpty = true, pagination, openTask, focusedTaskID }: Props = $props();
 	let rowModel = $derived(taskTable.getRowModel());
 	let totalRows = $derived(taskTable.getFilteredRowModel().rows.length);
 	let pageCount = $derived(taskTable.getPageCount());
@@ -40,43 +33,6 @@
 </script>
 
 <div class="space-y-3">
-	{#if isMobile.current}
-		<Collapsible.Root class="grid gap-2">
-			<Collapsible.Trigger>{#snippet child({ props })}<Button {...props} variant="outline" class="justify-self-start">{mobileLabels.sort}</Button>{/snippet}</Collapsible.Trigger>
-			<Collapsible.Content class="flex flex-wrap gap-2 rounded-lg border p-2">
-				{#each taskTable.getFlatHeaders().filter((header) => header.column.getCanSort()) as header (header.id)}
-					<FlexRender content={header.column.columnDef.header} context={header.getContext()} />
-				{/each}
-			</Collapsible.Content>
-		</Collapsible.Root>
-		<ul class="grid gap-2">
-			{#each rowModel.rows as row (row.id)}
-				<li class={cn('min-w-0 rounded-lg border bg-card px-3 py-1', row.original.id === focusedTaskID && 'ring-2 ring-primary/30')}>
-					<div class="flex min-w-0 items-center gap-2">
-						<Button variant="ghost" class="h-auto min-h-11 min-w-0 flex-1 justify-start whitespace-normal px-0 text-left" onclick={() => openTask(row.original)}><span class="line-clamp-3 break-words break-keep">{row.original.content}</span></Button>
-						{#each row.getVisibleCells().filter((cell) => cell.column.id === 'status') as cell (cell.id)}
-							<FlexRender content={cell.column.columnDef.cell} context={cell.getContext()} />
-						{/each}
-					</div>
-					<Collapsible.Root>
-						<div class="flex min-w-0 items-center gap-2">
-							<TaskCompactMetadata task={row.original} businessColor={businessColor(row.original.business)} class="flex-1" />
-							<Collapsible.Trigger>{#snippet child({ props })}<Button {...props} variant="ghost" size="sm" class="-mr-2 text-muted-foreground">{mobileLabels.details}</Button>{/snippet}</Collapsible.Trigger>
-						</div>
-						<Collapsible.Content class="mb-2 grid gap-3 border-t pt-3 min-[390px]:grid-cols-2">
-							{#each row.getVisibleCells().filter((cell) => !['content', 'status'].includes(cell.column.id)) as cell (cell.id)}
-								<div class="min-w-0 text-sm"><div class="mb-1 text-xs text-muted-foreground">
-									{mobileLabels[cell.column.id] ?? cell.column.id}
-								</div><FlexRender content={cell.column.columnDef.cell} context={cell.getContext()} /></div>
-							{/each}
-						</Collapsible.Content>
-					</Collapsible.Root>
-				</li>
-			{:else}
-				{#if showEmpty}<li><Empty.Root><Empty.Header><Empty.Title>{emptyLabel}</Empty.Title></Empty.Header></Empty.Root></li>{/if}
-			{/each}
-		</ul>
-	{:else}
 	<div class="overflow-hidden rounded-lg border bg-card">
 		<Table.Root class="min-w-[1080px]">
 			<Table.Header class="bg-muted/40">
@@ -118,7 +74,6 @@
 			</Table.Body>
 		</Table.Root>
 	</div>
-	{/if}
 	<ListPaginationFooter
  onPageChange={(page) => taskTable.setPageIndex(page)}
 		totalItems={totalRows}
