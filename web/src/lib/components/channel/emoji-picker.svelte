@@ -67,19 +67,19 @@
 			{/snippet}
 		</Popover.Trigger>
 	{/if}
-	<Popover.Content bind:ref={content} {side} {align} {customAnchor} class="w-64 p-0">
+	<Popover.Content bind:ref={content} {side} {align} {customAnchor} class="w-80 max-w-[calc(100vw-1rem)] p-0">
 		<Command.Root shouldFilter={false}>
 			<Command.Input bind:value={query} placeholder={text.searchEmoji} />
 			<Command.List>
 				{#if query.trim() === ''}
 					<Command.Group heading={text.quickEmojiTitle}>
-						<div class="grid grid-cols-5 gap-1 p-1 sm:grid-cols-8">
+						<div class="grid grid-cols-7 p-1 sm:grid-cols-8 max-sm:[&>:nth-child(8)]:hidden">
 							{#each quickGlyphs as glyph (glyph)}
 								<button
 									type="button"
 									aria-label={glyph}
 									onclick={() => pickEmoji(glyph)}
-									class="hover:bg-muted focus-visible:bg-muted flex aspect-square items-center justify-center rounded-sm text-base outline-hidden max-sm:min-h-11 max-sm:min-w-11"
+									class="hover:bg-muted focus-visible:bg-muted flex aspect-square items-center justify-center rounded-md text-2xl leading-none outline-hidden"
 								>
 									{glyph}
 								</button>
@@ -88,14 +88,14 @@
 					</Command.Group>
 					{#each emojiCategories() as category (category.name)}
 						<Command.Group heading={categoryLabels[category.name] ?? category.name}>
-							<div class="grid grid-cols-5 gap-1 p-1 sm:grid-cols-8 [contain-intrinsic-size:auto_12rem] [content-visibility:auto]">
+							<div class="grid grid-cols-7 p-1 sm:grid-cols-8 [contain-intrinsic-size:auto_12rem] [content-visibility:auto]">
 								{#each category.emoji as emoji (emoji.name)}
 									<button
 										type="button"
 										aria-label={emoji.name}
 										title={emoji.name}
 										onclick={() => pickEmoji(emoji.glyph)}
-										class="hover:bg-muted focus-visible:bg-muted flex aspect-square items-center justify-center rounded-sm text-base outline-hidden max-sm:min-h-11 max-sm:min-w-11"
+										class="hover:bg-muted focus-visible:bg-muted flex aspect-square items-center justify-center rounded-md text-2xl leading-none outline-hidden"
 									>
 										{emoji.glyph}
 									</button>
@@ -106,7 +106,7 @@
 				{:else}
 					{#each searchResults as emoji (emoji.name)}
 						<Command.Item value={emoji.name} class="max-sm:min-h-11" onSelect={() => pickEmoji(emoji.glyph)}>
-							<span class="text-base">{emoji.glyph}</span>
+							<span class="text-xl leading-none">{emoji.glyph}</span>
 							<span class="truncate">{emoji.name}</span>
 						</Command.Item>
 					{/each}
