@@ -61,6 +61,7 @@ describe('host gateway connections', () => {
 			resolveSecondOpen = resolve;
 		});
 		const server = Bun.serve<{ authorization: string | null }>({
+			hostname: '127.0.0.1',
 			port: 0,
 			fetch(request, serverInstance) {
 				if (serverInstance.upgrade(request, { data: { authorization: request.headers.get('Authorization') } })) return;
@@ -101,6 +102,7 @@ describe('the host socket keeping itself alive', () => {
 		let opened = 0;
 		let pings = 0;
 		const server = Bun.serve({
+			hostname: '127.0.0.1',
 			port: 0,
 			fetch(request, serving) {
 				if (serving.upgrade(request, { data: undefined })) return;
@@ -159,6 +161,7 @@ describe('app streams over the host socket', () => {
 		const relayClosed: number[] = [];
 		const relayHosts: (string | null)[] = [];
 		const relay = Bun.serve<{ host: string | null }>({
+			hostname: '127.0.0.1',
 			port: 0,
 			fetch(request, serving) {
 				if (serving.upgrade(request, { data: { host: request.headers.get('host') } })) return;
@@ -178,6 +181,7 @@ describe('app streams over the host socket', () => {
 		const heardByGateway: Record<string, unknown>[] = [];
 		let gatewaySide: { close: () => void } | null = null;
 		const gateway = Bun.serve({
+			hostname: '127.0.0.1',
 			port: 0,
 			fetch(request, serving) {
 				if (serving.upgrade(request, { data: undefined })) return;

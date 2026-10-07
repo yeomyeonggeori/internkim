@@ -110,6 +110,7 @@ async function servedByTheStore(request: Request, url: URL): Promise<Response> {
 
 beforeAll(() => {
 	relay = Bun.serve({
+		hostname: '127.0.0.1',
 		port: 0,
 		async fetch(request) {
 			const url = new URL(request.url);
@@ -125,7 +126,7 @@ beforeAll(() => {
 			return servedByTheRelay(request, url, received);
 		}
 	});
-	storage = Bun.serve({ port: 0, fetch: (request) => servedByTheStore(request, new URL(request.url)) });
+	storage = Bun.serve({ hostname: '127.0.0.1', port: 0, fetch: (request) => servedByTheStore(request, new URL(request.url)) });
 });
 
 afterAll(() => {

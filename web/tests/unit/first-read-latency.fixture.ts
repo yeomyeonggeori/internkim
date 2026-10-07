@@ -232,26 +232,26 @@ if (scenario === 'mail') {
 	const { fetchMessengerDirectory } = await import('../../src/lib/messenger/messenger-directory');
 	const messages = await import('../../src/lib/components/channel/channel-message-cache');
 	const reopenedKey = 'messenger-conversations:' + JSON.stringify(['https://project.example.com', 'first', 'first-company']);
-	sessionStorage.setItem(reopenedKey, '["reopened-first"]');
+	localStorage.setItem(reopenedKey, '["reopened-first"]');
 	const firstScope = await cache.messengerCacheScope();
-	const reopenPreserved = sessionStorage.getItem(reopenedKey) !== null;
+	const reopenPreserved = localStorage.getItem(reopenedKey) !== null;
 	const firstDirectory = await fetchMessengerDirectory();
 	const sameScopeReused = firstDirectory === await fetchMessengerDirectory();
 	messages.setCachedMessages('shared-channel', []);
 	const firstStorageKey = cache.conversationStorageKey(firstScope);
-	sessionStorage.setItem(firstStorageKey, '["private-first"]');
+	localStorage.setItem(firstStorageKey, '["private-first"]');
 	localStorage.setItem(`messenger-last-channel:${firstScope.key}`, 'first-channel');
 	session = { access_token: 'first-refreshed', user: { id: 'first' } };
 	authChanged('TOKEN_REFRESHED', session);
 	await cache.messengerCacheScope();
-	const refreshPreserved = sessionStorage.getItem(firstStorageKey) !== null && messages.getCachedMessages('shared-channel') !== undefined;
+	const refreshPreserved = localStorage.getItem(firstStorageKey) !== null && messages.getCachedMessages('shared-channel') !== undefined;
 	session = { access_token: 'second-token', user: { id: 'second' } };
 	company = 'second-company';
 	authChanged('SIGNED_IN', session);
 	const oldMessagesGone = messages.getCachedMessages('shared-channel') === undefined;
 	const secondScope = await cache.messengerCacheScope();
 	const secondDirectory = await fetchMessengerDirectory();
-	const oldStoredGone = sessionStorage.getItem(firstStorageKey) === null;
+	const oldStoredGone = localStorage.getItem(firstStorageKey) === null;
 	let releaseVerification = () => {};
 	delayVerification = new Promise((resolve) => { releaseVerification = resolve; });
 	cache.invalidateMessengerCacheScope();
@@ -265,12 +265,56 @@ if (scenario === 'mail') {
 	releaseVerification();
 	const lateRefused = await late;
 	const correctAfterRace = cache.messengerCacheKey() === thirdScope.key;
-	sessionStorage.setItem(cache.conversationStorageKey(thirdScope), '[]');
+	localStorage.setItem(cache.conversationStorageKey(thirdScope), '[]');
 	session = null;
 	authChanged('SIGNED_OUT', session);
 	console.log(JSON.stringify({ keysDiffer: firstScope.key !== secondScope.key, containsToken: firstScope.key.includes('first-token'),
 		firstName: firstDirectory.nameOfMember.get('member'), secondName: secondDirectory.nameOfMember.get('member'), sameScopeReused, oldMessagesGone, oldStoredGone,
 		lateRefused, correctAfterRace, reopenPreserved, refreshPreserved, logoutCleared: sessionStorage.length === 0 && localStorage.length === 0 && cache.messengerCacheKey() === '' }));
+} else if (scenario === 'remembered-scope') {
+	const { Window } = await import('happy-dom');
+	const browser = new Window();
+	Reflect.set(globalThis, 'sessionStorage', browser.sessionStorage);
+	Reflect.set(globalThis, 'localStorage', browser.localStorage);
+	type Session = { access_token: string; user: { id: string } };
+	let session: Session | null = { access_token: 'other-token', user: { id: 'other' } };
+	let authChanged: (event: string, session: Session | null) => void = () => {};
+	let releaseVerification = () => {};
+	const verification = new Promise<void>((resolve) => { releaseVerification = resolve; });
+	mock.module('$lib/supabase', () => ({
+		isSupabaseConfigured: () => true,
+		projectURL: () => 'https://project.example.com',
+		supabase: () => ({ auth: { getSession: async () => ({ data: { session } }), onAuthStateChange: (listener: typeof authChanged) => { authChanged = listener; return {}; } } })
+	}));
+	mock.module('$lib/company-session-scope', () => ({
+		readVerifiedCompanyScope: async () => {
+			await verification;
+			return { projectURL: 'https://project.example.com', accountID: session?.user.id ?? '', companyID: 'company', accessToken: session?.access_token ?? '', sessionKey: 'fingerprint' };
+		}
+	}));
+	const cache = await import('../../src/lib/messenger/cache-scope');
+	const messages = await import('../../src/lib/components/channel/channel-message-cache');
+	const { readCachedConversations } = await import('../../src/lib/messenger/conversation-list-cache');
+	const key = JSON.stringify(['https://project.example.com', 'first', 'company']);
+	const kept = { id: 'p1', sender: { id: 'member:m1', name: '이샘플' }, text: '안녕', sentAt: '2026-10-06T10:00:00Z' };
+	localStorage.setItem('messenger-verified-scope', key);
+	localStorage.setItem(cache.conversationStorageKey({ key, generation: 0 }), '[{"id":"kept-channel"}]');
+	localStorage.setItem(cache.messageStorageKey(key, 'c1'), JSON.stringify([kept]));
+	localStorage.setItem(cache.readerStorageKey(key), 'member:m1');
+	const otherAccountAdopted = await cache.adoptRememberedMessengerScope();
+	session = { access_token: 'first-token', user: { id: 'first' } };
+	const adopted = await cache.adoptRememberedMessengerScope();
+	const listBeforeVerification = adopted ? readCachedConversations(adopted).map((conversation) => conversation.id) : [];
+	const messagesBeforeVerification = messages.getCachedMessages('c1')?.map((message) => message.text);
+	const readerBeforeVerification = messages.getCachedReaderID();
+	releaseVerification();
+	await cache.messengerCacheScope();
+	messages.setCachedMessages('c2', Array.from({ length: 60 }, (_, index) => ({ ...kept, id: `p${index}` })));
+	const storedLength = JSON.parse(localStorage.getItem(cache.messageStorageKey(key, 'c2')) ?? '[]').length;
+	session = null;
+	authChanged('SIGNED_OUT', session);
+	console.log(JSON.stringify({ otherAccountAdopted, adoptedKey: adopted?.key === key, listBeforeVerification, messagesBeforeVerification,
+		readerBeforeVerification, storedLength, logoutCleared: localStorage.length === 0 && messages.getCachedMessages('c1') === undefined }));
 } else if (scenario === 'ownership') {
 	type Session = { access_token: string; user: { id: string } };
 	let session: Session | null = { access_token: 'first-token', user: { id: 'first-account' } };
