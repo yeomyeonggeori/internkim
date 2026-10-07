@@ -255,6 +255,21 @@ export async function bridgeConversation(channelID?: string, before?: string): P
 	);
 	void personPicture.rememberExternals(posts.map((post) => externalIDOf(post.author, people)));
 	void attachmentSource.wants(posts.flatMap((post) => post.attachments));
+	return conversationPageOf(channelID, posts, people, viewer);
+}
+
+export async function bridgeConversationRecord(channelID: string, before?: string): Promise<Conversation> {
+	const [people, posts] = await Promise.all([fetchMessengerDirectory(), fetchPosts(channelID, before)]);
+	const viewer = await whoIsReading(people);
+	return conversationPageOf(channelID, posts, people, viewer);
+}
+
+function conversationPageOf(
+	channelID: string,
+	posts: MessengerPost[],
+	people: MessengerDirectory,
+	viewer: Viewer
+): Conversation {
 	return {
 		conversationID: channelID,
 		currentUserID: viewer.key,
