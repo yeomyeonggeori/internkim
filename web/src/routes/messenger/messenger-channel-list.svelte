@@ -31,6 +31,7 @@
 		muted,
 		switchMuted,
 		exportConversation,
+		leaveChannel,
 		openNewDirectMessage,
 		openNewChannel,
 		openBrowseChannels,
@@ -49,6 +50,7 @@
 		muted: Set<string>;
 		switchMuted: (conversationID: string) => void;
 		exportConversation: (conversation: ChannelSummary) => void;
+		leaveChannel: (channel: ChannelSummary) => void;
 		openNewDirectMessage: () => void;
 		openNewChannel?: () => void;
 		openBrowseChannels?: () => void;
@@ -124,6 +126,8 @@
 							unmuteLabel={text.unmuteConversation}
 							menuLabel={text.conversationMenu}
 							onSwitchMuted={() => switchMuted(channel.id)}
+							leaveLabel={text.leaveChannel}
+							onLeave={() => leaveChannel(channel)}
 							itemProps={{
 								draggable: 'true',
 								class:

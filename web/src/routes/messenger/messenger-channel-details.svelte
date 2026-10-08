@@ -17,7 +17,7 @@
 	import { createPageText } from '$lib/i18n/page-text.svelte';
 	import type { ChannelSummary } from '$lib/components/channel/channel-api';
 	import { displayPersonName } from '$lib/person-name.svelte';
-	import { MessengerRefusal, deleteChannel, leaveChannel } from '$lib/messenger/messenger-api';
+	import { MessengerRefusal, deleteChannel } from '$lib/messenger/messenger-api';
 	import { toast } from 'svelte-sonner';
 
 	let {
@@ -27,7 +27,7 @@
 		openOwnerAdd,
 		openOwnerHandover,
 		openExport,
-		onLeft,
+		openLeave,
 		onDeleted
 	}: {
 		open?: boolean;
@@ -36,7 +36,7 @@
 		openOwnerAdd: () => void;
 		openOwnerHandover: () => void;
 		openExport: () => void;
-		onLeft: (channelID: string) => void;
+		openLeave: () => void;
 		onDeleted: (channelID: string) => void;
 	} = $props();
 
@@ -50,8 +50,6 @@
 	const ownerNames = $derived(owners.map((owner) => displayPersonName(owner.name) || text.unnamedMember).join(', '));
 	const amOwner = $derived(channel.myRole === 'owner');
 
-	let isConfirmingLeave = $state(false);
-	let isLeaving = $state(false);
 	let isConfirmingDelete = $state(false);
 	let isDeleting = $state(false);
 
@@ -71,25 +69,6 @@
 			}
 		} finally {
 			isDeleting = false;
-		}
-	}
-
-	async function leave() {
-		isLeaving = true;
-		try {
-			await leaveChannel(channel.id);
-			isConfirmingLeave = false;
-			open = false;
-			onLeft(channel.id);
-		} catch (failure) {
-			isConfirmingLeave = false;
-			if (failure instanceof MessengerRefusal && failure.reason === 'last-owner') {
-				toast.error(text.lastOwnerCannotLeave);
-			} else {
-				toast.error(failure instanceof Error ? failure.message : text.leaveChannelFailed);
-			}
-		} finally {
-			isLeaving = false;
 		}
 	}
 
@@ -211,7 +190,7 @@
 					<Separator />
 					<Item.Root>
 						{#snippet child({ props })}
-							<button {...props} type="button" onclick={() => (isConfirmingLeave = true)}>
+							<button {...props} type="button" onclick={openLeave}>
 								<Item.Media variant="icon"><DoorOpenIcon /></Item.Media>
 								<Item.Content class={actionRowClass}>
 									<Item.Title>{text.leaveChannel}</Item.Title>
@@ -249,19 +228,6 @@
 			<AlertDialog.Action variant="destructive" disabled={isDeleting} onclick={remove}>
 				{text.delete}
 			</AlertDialog.Action>
-		</AlertDialog.Footer>
-	</AlertDialog.Content>
-</AlertDialog.Root>
-
-<AlertDialog.Root bind:open={isConfirmingLeave}>
-	<AlertDialog.Content>
-		<AlertDialog.Header>
-			<AlertDialog.Title>{text.leaveChannelTitle.replace('{name}', channel.name)}</AlertDialog.Title>
-			<AlertDialog.Description>{text.leaveChannelDescription}</AlertDialog.Description>
-		</AlertDialog.Header>
-		<AlertDialog.Footer>
-			<AlertDialog.Cancel disabled={isLeaving}>{text.cancel}</AlertDialog.Cancel>
-			<AlertDialog.Action disabled={isLeaving} onclick={leave}>{text.leaveChannel}</AlertDialog.Action>
 		</AlertDialog.Footer>
 	</AlertDialog.Content>
 </AlertDialog.Root>
