@@ -54,3 +54,30 @@ test('beside a long first message the picture stays on the top line of the bubbl
 	expect(avatar.y).toBeGreaterThanOrEqual(bubble.y);
 	expect(avatar.y - bubble.y).toBeLessThanOrEqual(8);
 });
+
+test('a message with a file shows its text above the file', async ({ page }) => {
+	await openConversation(page, [
+		{
+			id: 'last',
+			sender: author,
+			text: '회의록 공유드립니다.',
+			sentAt: '2026-10-07T01:01:00Z',
+			attachments: [
+				{
+					kind: 'file',
+					url: 'meeting-notes',
+					source: 'https://store.example.com/object/sign/asset/meeting-notes.pdf?token=sample',
+					filename: '회의록 초안.pdf',
+					mimeType: 'application/pdf',
+					sizeBytes: 2048
+				}
+			]
+		}
+	]);
+
+	const row = page.locator('[data-message-id="last"]');
+	const bubble = await boxOf(bubbleOf(page, 'last'));
+	const file = await boxOf(row.getByText('회의록 초안.pdf'));
+	expect(file.y).toBeGreaterThan(bubble.y + bubble.height);
+	await expect(row.locator('time')).toHaveCount(1);
+});
