@@ -51,6 +51,8 @@
 	import { holdBackNotificationsFor } from '$lib/native-shell/open-conversation';
 	import { adoptRememberedMessengerScope, messengerCacheScope, messengerCacheKey, onMessengerCacheReset, requireCurrentMessengerScope, type MessengerCacheScope } from '$lib/messenger/cache-scope';
 	import { keepCachedConversations, readCachedConversations } from '$lib/messenger/conversation-list-cache';
+	import { followBuzzArrivals, stopBuzzArrivals } from '$lib/messenger/buzz-arrivals';
+	import { prefetchArrivedConversation } from '$lib/messenger/arrived-message-prefetch';
 
 	const lastChannelKey = 'messenger-last-channel';
 
@@ -349,7 +351,13 @@
 			.finally(() => {
 				isReadingList = null;
 			});
+		prefetchArrivedConversation(event, activeID);
 	}
+
+	$effect(() => {
+		if (!isSupabaseConfigured()) return;
+		followBuzzArrivals(buzzIdentity.secretHex, conversations.map((conversation) => conversation.id));
+	});
 
 	let stopListeningForArrivals = () => {};
 	let stopFollowingCacheScope = () => {};
@@ -379,6 +387,7 @@
 		conversationReadSequence += 1;
 		peopleReadSequence += 1;
 		stopListeningForArrivals();
+		stopBuzzArrivals();
 		stopFollowingCacheScope();
 		holdBackNotificationsFor(undefined).catch((failure: unknown) =>
 			console.warn('the shell is still holding back a closed conversation', failure)

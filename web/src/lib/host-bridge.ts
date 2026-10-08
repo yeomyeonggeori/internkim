@@ -2,6 +2,7 @@ import { gatewayURL, supabase } from '$lib/supabase';
 import { supabaseMember } from '$lib/supabase-session';
 import { companyEventOf, type CompanyEvent } from '$lib/company-event';
 import { HostUnreachableError, readyWithPresence, type Frame } from '$lib/host-presence';
+import { createRepeatedArrivalFilter } from '$lib/repeated-arrivals';
 
 export { HostUnreachableError };
 
@@ -29,6 +30,7 @@ let isServerConnected = false;
 let redialsInARow = 0;
 const waiting = new Map<string, (answer: HostAnswer | null) => void>();
 const listeners = new Set<(event: CompanyEvent) => void>();
+const isRepeatedArrival = createRepeatedArrivalFilter(1_000);
 
 function isAnyoneListening(): boolean {
 	return listeners.size > 0;
@@ -124,7 +126,7 @@ function receive(payload: Frame): void {
 	}
 	if (payload.kind === 'deliver') {
 		const event = companyEventOf(payload.event);
-		if (event) for (const listener of listeners) listener(event);
+		if (event) announceCompanyEvent(event);
 		return;
 	}
 	if (payload.kind !== 'result' || typeof payload.requestID !== 'string') return;
@@ -141,6 +143,11 @@ export function onCompanyEvent(listener: (event: CompanyEvent) => void): () => v
 	return () => {
 		listeners.delete(listener);
 	};
+}
+
+export function announceCompanyEvent(event: CompanyEvent): void {
+	if (isRepeatedArrival(event)) return;
+	for (const listener of listeners) listener(event);
 }
 
 export async function isCompanyAppRunning(): Promise<boolean> {
