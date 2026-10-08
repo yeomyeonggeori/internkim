@@ -9,7 +9,7 @@
 import { SQL } from 'bun';
 import { existsSync, mkdirSync, openSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import {
 	addMember,
@@ -23,7 +23,7 @@ import {
 	type ARecordingMessenger
 } from './a-messenger-nobody-runs';
 import { aModelNobodyPaysFor, type AModelNobodyPaysFor } from './a-model-nobody-pays-for';
-import { theArgumentsThatStart } from '../support/the-package-units';
+import { theArgumentsThatStart, theCommandThatStarts } from '../support/the-package-units';
 
 const repositoryRoot = join(import.meta.dir, '..', '..', '..');
 
@@ -130,6 +130,13 @@ export function capabilitydArgumentsForPlane(argumentsForPlane: CapabilitydPlane
 			'--file-read-python': argumentsForPlane.fileReadPythonPath
 		}
 	);
+}
+
+export function embeddingServerCommandForPlane(serverDirectory: string, modelPath: string, port: number): string[] {
+	return theCommandThatStarts('llama-server', join(serverDirectory, 'llama-server'), {
+		'-m': modelPath,
+		'--port': String(port)
+	});
 }
 
 export function blueclawArgumentsForPlane(argumentsForPlane: BlueclawPlaneArguments): string[] {
@@ -417,6 +424,25 @@ export async function aCompanyPlane(request: PlaneRequest = {}): Promise<ACompan
 		// the door the relay uses; over TCP the same call is an anonymous 401.
 		const requesterSocketPath = join(socketDirectory, 'admind.sock');
 
+		const planeDirectory = dirname(binaryDirectory);
+		const embeddingPort = await aFreePort();
+		const embeddingServerURL = `http://127.0.0.1:${embeddingPort}`;
+		const embeddingServer = Bun.spawn(
+			embeddingServerCommandForPlane(
+				join(planeDirectory, 'llama.cpp'),
+				join(planeDirectory, 'models', 'embeddinggemma-2-Q8_0.gguf'),
+				embeddingPort
+			),
+			{ ...logsTo(join(runDirectory, 'embedding-server.log')), cwd: runDirectory, env: theBoxEnvironment() }
+		);
+		started.push(embeddingServer);
+		await untilReady(
+			'the embedding server',
+			async () => (await fetch(`${embeddingServerURL}/health`).catch(() => undefined))?.ok === true,
+			120,
+			embeddingServer
+		);
+
 		started.push(
 			Bun.spawn(
 				[
@@ -426,7 +452,7 @@ export async function aCompanyPlane(request: PlaneRequest = {}): Promise<ACompan
 						blueclawWorkspacePath: join(runDirectory, 'workspace'),
 						openRouterKeyPath,
 						blueclawURL,
-						embeddingServerURL: new URL(standInModel.url).origin,
+						embeddingServerURL,
 						admindURL,
 						chatdEndpoint: connector.url,
 						chatdPlatform: capabilitydPlatform,

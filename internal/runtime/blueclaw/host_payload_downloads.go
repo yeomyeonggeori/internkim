@@ -79,7 +79,6 @@ var hostPayloadDownloadsByTarget = map[string][]HostPayloadDownload{
 		mediaServerPayload("Linux", "arm64", "b34051d33f5a9c457f790896acb7bd7d7e15ad8d92efb70616b924f37e401910"),
 		bunPayload("linux-aarch64", "54328bbc2d9c8e0c9f892c544d66c57a83b84139e34909e5ee81758f1ac8fda7"),
 		packageResolverPayload("aarch64-unknown-linux-gnu", "155fe4d3b3cb4bfce118ab4b1380f71515ae874d13d9858171b4f9c26e16684d"),
-		embeddingServerPayload("ubuntu-arm64", "9aa7c1dcea2e0491f27441b30217767ec4730bcdeefa646e288825454a71bfa1"),
 	},
 	HostPayloadLinuxAmd64: {
 		deviceBrowserPayload("x86_64-unknown-linux-gnu", "7128ca9b9f7e7bb5ab58b1c6cbf0910a2e22008f4662ea87bd6b8ab8493e3181"),
@@ -87,7 +86,6 @@ var hostPayloadDownloadsByTarget = map[string][]HostPayloadDownload{
 		mediaServerPayload("Linux", "x86_64", "2ba2c734d10d2c4e651d03182cb4b246656bc735a2f282db7b0b73fba6073467"),
 		bunPayload("linux-x64", "36368faef7527875d5ffa52e53cd48021741f2a83eb6208a8dd64068d422a913"),
 		packageResolverPayload("x86_64-unknown-linux-gnu", "a767848254391855c96df271e9ca8b7f72dd172d310460447853d25d907b9ae0"),
-		embeddingServerPayload("ubuntu-x64", "2cda5ff9363967f1aba5b5b096032e1b7d9eb568b011769282bf34e4f1cf4b5e"),
 	},
 	HostPayloadDarwinArm64: {
 		deviceBrowserPayload("aarch64-apple-darwin", "8ce3bff3d003b4e04b366908ad14656456e1bf347b2be251b734cf1d60d654a6"),
@@ -172,6 +170,19 @@ func HostEmbeddingModelDownload() HostPayloadDownload {
 	}
 }
 
+// HostProgramsBuiltFromSource are payload programs a Linux package carries from
+// tools/prepare-llama-server instead of from a pin, because the upstream Linux
+// build needs a newer glibc than HostGlibcMinimum.
+func HostProgramsBuiltFromSource() []string {
+	return []string{EmbeddingServerProgramName}
+}
+
+// EmbeddingServerArtifactPathFor is where tools/prepare-llama-server leaves the
+// server built for one Debian architecture.
+func EmbeddingServerArtifactPathFor(debianArchitecture string) string {
+	return ".dependency/llama-server-linux-" + debianArchitecture
+}
+
 // HostPayloadDownloads is what the host fetches for one Debian architecture. An
 // architecture nobody publishes for is an error rather than an empty list, because a
 // box that installed none of these answers and does nothing.
@@ -195,7 +206,7 @@ func HostPayloadTargetForDebianArchitecture(debianArchitecture string) (string, 
 	return target, nil
 }
 
-// HostPayloadDownloadsForTarget is the same six programs for a machine named by
+// HostPayloadDownloadsForTarget is the same programs for a machine named by
 // operating system as well as architecture, which is what the Homebrew release
 // asks for: the Darwin assets are named differently from the Linux ones and one
 // of them capitalises the platform.

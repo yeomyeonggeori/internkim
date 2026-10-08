@@ -3,7 +3,7 @@ GO_CACHE ?= /tmp/internkim-go-cache-$(GO_HOST)
 GO_MOD_CACHE ?= /tmp/internkim-go-mod-cache-$(GO_HOST)
 RELAY_TARGET ?=
 
-.PHONY: build build-maild build-relay build-company-host verify-generated-protocol check test doctor deps-sim deps-browser prepare-buzz-relay prepare-buzz-relay-linux
+.PHONY: build build-maild build-relay build-company-host verify-generated-protocol check test doctor deps-sim deps-browser prepare-buzz-relay prepare-buzz-relay-linux prepare-llama-server-linux
 
 build: verify-generated-protocol
 	GOCACHE=$(GO_CACHE) GOMODCACHE=$(GO_MOD_CACHE) go build -o internkim ./cmd/internkim
@@ -50,4 +50,7 @@ prepare-buzz-relay:
 
 prepare-buzz-relay-linux:
 	tools/prepare-buzz-relay --target linux
+
+prepare-llama-server-linux:
+	tools/prepare-llama-server --target linux
 

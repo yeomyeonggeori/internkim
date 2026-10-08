@@ -20,6 +20,21 @@ CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -o "$binaryDirectory/internkim-ca
 CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -o "$binaryDirectory/internkim-admind" ./cmd/internkim-admind
 CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -o "$binaryDirectory/describe-company-host" ./cmd/describe-company-host
 go run ./cmd/describe-company-host "$planeDirectory"
+
+# The plane runs the embedding server the packaged host runs: the same build, the same weights.
+"$repositoryRoot/tools/prepare-llama-server" --target linux-arm64
+rm -rf "$planeDirectory/llama.cpp"
+cp -a "$repositoryRoot/.dependency/llama-server-linux-arm64/llama.cpp" "$planeDirectory/llama.cpp"
+modelFileName="$(jq -r .fileName "$planeDirectory/embedding-model.json")"
+modelURL="$(jq -r .url "$planeDirectory/embedding-model.json")"
+modelChecksum="$(jq -r .sha256 "$planeDirectory/embedding-model.json")"
+modelCachePath="$repositoryRoot/.dependency/host-payload/$modelFileName"
+mkdir -p "$(dirname "$modelCachePath")" "$planeDirectory/models"
+if [ "$(shasum -a 256 "$modelCachePath" 2>/dev/null | cut -d' ' -f1)" != "$modelChecksum" ]; then
+  curl -fL --retry 3 -o "$modelCachePath" "$modelURL"
+  [ "$(shasum -a 256 "$modelCachePath" | cut -d' ' -f1)" = "$modelChecksum" ] || { echo "$modelFileName does not hash to the pin" >&2; exit 1; }
+fi
+cp "$modelCachePath" "$planeDirectory/models/$modelFileName"
 (
   cd "$repositoryRoot/.dependency/blueclaw"
   CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -o "$binaryDirectory/blueclaw" ./cmd/blueclaw

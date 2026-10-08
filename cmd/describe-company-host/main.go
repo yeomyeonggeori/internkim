@@ -56,6 +56,14 @@ func describe(directory string) error {
 	if errorValue := os.WriteFile(filepath.Join(directory, "services.json"), append(document, '\n'), 0o644); errorValue != nil {
 		return errorValue
 	}
+	model := blueclaw.HostEmbeddingModelDownload()
+	modelDocument, errorValue := json.MarshalIndent(map[string]string{"fileName": model.ProgramName, "url": model.URL, "sha256": model.SHA256}, "", "  ")
+	if errorValue != nil {
+		return errorValue
+	}
+	if errorValue := os.WriteFile(filepath.Join(directory, "embedding-model.json"), append(modelDocument, '\n'), 0o644); errorValue != nil {
+		return errorValue
+	}
 	packages := []string{}
 	for _, file := range blueclaw.HostFilesTheBundledSkillsRead() {
 		packages = append(packages, file.DebianPackage)

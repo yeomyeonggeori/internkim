@@ -114,6 +114,8 @@ syncSharedDependencyArtifacts() {
   syncLocalState ".dependency/device-browser"
   syncLocalState ".dependency/agent-browser"
   syncLocalState ".dependency/buzz-relay"
+  syncLocalState ".dependency/llama-server-linux-arm64"
+  syncLocalState ".dependency/llama-server-linux-amd64"
 }
 
 syncMode="link"

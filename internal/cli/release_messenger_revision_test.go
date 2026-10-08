@@ -147,3 +147,54 @@ func TestAKegCarriesARelayBuiltAtTheTreesRevision(t *testing.T) {
 		}
 	}
 }
+
+func embeddingServerRepository(t *testing.T) string {
+	t.Helper()
+	repository := t.TempDir()
+	content, errorValue := os.ReadFile(filepath.Join("..", "..", embeddingServerPrepareScriptPath))
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	writeExecutableForTest(t, filepath.Join(repository, embeddingServerPrepareScriptPath), content)
+	return repository
+}
+
+func TestALinuxPackageRefusesAnEmbeddingServerBuiltAtAnotherRevision(t *testing.T) {
+	repository := embeddingServerRepository(t)
+	artifactDirectory := blueclaw.EmbeddingServerArtifactPathFor("arm64")
+	recordMessengerRevision(t, repository, artifactDirectory, "b1+0000+cpu")
+	writeExecutableForTest(t, filepath.Join(repository, artifactDirectory, "llama.cpp", "llama-server"), []byte("x"))
+
+	_, errorValue := builtEmbeddingServer(repository, packageTargets[0])
+
+	if errorValue == nil || !strings.Contains(errorValue.Error(), "b1+0000+cpu") || !strings.Contains(errorValue.Error(), "prepare-llama-server --target linux-arm64") {
+		t.Fatalf("expected a refusal naming the stale revision and the fix, got %v", errorValue)
+	}
+}
+
+func TestALinuxPackageRefusesAnEmbeddingServerThatWasNeverBuilt(t *testing.T) {
+	repository := embeddingServerRepository(t)
+
+	_, errorValue := builtEmbeddingServer(repository, packageTargets[1])
+
+	if errorValue == nil || !strings.Contains(errorValue.Error(), "record no revision") {
+		t.Fatalf("expected a refusal, got %v", errorValue)
+	}
+}
+
+func TestALinuxPackageCarriesAnEmbeddingServerBuiltAtTheTreesRevision(t *testing.T) {
+	repository := embeddingServerRepository(t)
+	artifactDirectory := blueclaw.EmbeddingServerArtifactPathFor("amd64")
+	revision, errorValue := expectedPreparedRevision(repository, embeddingServerPrepareScriptPath)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	recordMessengerRevision(t, repository, artifactDirectory, revision)
+	writeExecutableForTest(t, filepath.Join(repository, artifactDirectory, "llama.cpp", "llama-server"), []byte("x"))
+
+	directory, errorValue := builtEmbeddingServer(repository, packageTargets[1])
+
+	if errorValue != nil || filepath.Base(directory) != "llama.cpp" {
+		t.Fatalf("a server built at this tree's revision was refused: %q, %v", directory, errorValue)
+	}
+}

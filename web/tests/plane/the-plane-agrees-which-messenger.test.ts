@@ -3,7 +3,8 @@ import {
 	aCompanyPlane,
 	admindArgumentsForPlane,
 	blueclawArgumentsForPlane,
-	capabilitydArgumentsForPlane
+	capabilitydArgumentsForPlane,
+	embeddingServerCommandForPlane
 } from './a-company-plane';
 
 test('the plane starts every daemon with the current company-box contract', () => {
@@ -67,6 +68,17 @@ test('the plane starts every daemon with the current company-box contract', () =
 	expect(argumentsForAdmind).toContain('-blueclaw-assertion-key');
 	expect(argumentsForAdmind).toContain('-agent-profile-picture');
 	expect(argumentsForAdmind).toContain('/tmp/agent-picture.png');
+});
+
+test('the plane starts the embedding server the way the package does, on its own model and port', () => {
+	const command = embeddingServerCommandForPlane('/plane/llama.cpp', '/plane/models/model.gguf', 18123);
+
+	expect(command[0]).toBe('/plane/llama.cpp/llama-server');
+	expect(command[command.indexOf('-m') + 1]).toBe('/plane/models/model.gguf');
+	expect(command[command.indexOf('--port') + 1]).toBe('18123');
+	expect(command).toContain('--embeddings');
+	expect(command[command.indexOf('--pooling') + 1]).toBe('mean');
+	expect(command[command.indexOf('--device') + 1]).toBe('none');
 });
 
 test('a plane told two different messengers refuses to start', async () => {

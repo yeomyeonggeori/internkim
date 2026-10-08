@@ -247,6 +247,7 @@ func companyHostEmbeddingService(layout CompanyHostLayout) CompanyHostService {
 			"-m", layout.EmbeddingModelPath(),
 			"--embeddings",
 			"--pooling", "mean",
+			"--device", "none",
 			"--host", EmbeddingListenHost,
 			"--port", EmbeddingListenPort,
 			"-c", EmbeddingContextTokens,

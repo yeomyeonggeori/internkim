@@ -15,7 +15,7 @@ func TestTheEmbeddingServerRunsTheLibraryModelOnLoopbackAsItsOwnAccount(t *testi
 		command := strings.Join(service.Command, " ")
 		for _, wanted := range []string{
 			layout.EmbeddingServerPath() + " -m " + layout.EmbeddingModelPath(),
-			"--embeddings", "--pooling mean",
+			"--embeddings", "--pooling mean", "--device none",
 			"--host 127.0.0.1 --port " + EmbeddingListenPort,
 			"-c 2048 -b 2048 -ub 2048",
 		} {

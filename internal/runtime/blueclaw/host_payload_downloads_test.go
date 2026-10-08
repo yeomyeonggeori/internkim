@@ -22,6 +22,12 @@ func TestThePinsCoverExactlyThePayloadProgramsDeclared(t *testing.T) {
 	if len(declared) == 0 {
 		t.Fatal("no dependency declares ArrivesAsPayload, so this test reads the wrong list")
 	}
+	for _, programName := range blueclaw.HostProgramsBuiltFromSource() {
+		if !declared[programName] {
+			t.Fatalf("%s is built from source and no dependency declares it ArrivesAsPayload", programName)
+		}
+		delete(declared, programName)
+	}
 
 	for _, architecture := range debianArchitecturesThePinsCover(t) {
 		downloads, errorValue := blueclaw.HostPayloadDownloads(architecture)
@@ -120,26 +126,32 @@ func machineFor(t *testing.T, debianArchitecture string) string {
 	return ""
 }
 
-// llama-server finds its libraries by rpath, so every target pins the whole directory
-// and the package installs it whole; a pin for the lone binary would start nothing.
-func TestTheEmbeddingServerIsPinnedAsADirectoryForEveryTarget(t *testing.T) {
-	for _, architecture := range debianArchitecturesThePinsCover(t) {
-		downloads, errorValue := blueclaw.HostPayloadDownloads(architecture)
-		if errorValue != nil {
-			t.Fatalf("%s: %v", architecture, errorValue)
-		}
-		found := false
-		for _, download := range downloads {
-			if download.ProgramName != blueclaw.EmbeddingServerProgramName {
-				continue
-			}
+func TestTheMacEmbeddingServerIsPinnedAsADirectoryAndLinuxBuildsItFromSource(t *testing.T) {
+	downloads, errorValue := blueclaw.HostPayloadDownloadsForTarget(blueclaw.HostPayloadDarwinArm64)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	found := false
+	for _, download := range downloads {
+		if download.ProgramName == blueclaw.EmbeddingServerProgramName {
 			found = true
 			if download.DirectoryInsideArchive == "" || download.PathInsideArchive != "" {
-				t.Errorf("%s pins %s as %+v, and it cannot run apart from its libraries", architecture, download.ProgramName, download)
+				t.Errorf("the Mac pins %s as %+v, and it cannot run apart from its libraries", download.ProgramName, download)
 			}
 		}
-		if !found {
-			t.Errorf("%s pins no %s", architecture, blueclaw.EmbeddingServerProgramName)
+	}
+	if !found {
+		t.Error("the Mac pins no embedding server")
+	}
+	for _, architecture := range debianArchitecturesThePinsCover(t) {
+		linux, errorValue := blueclaw.HostPayloadDownloads(architecture)
+		if errorValue != nil {
+			t.Fatal(errorValue)
+		}
+		for _, download := range linux {
+			if download.ProgramName == blueclaw.EmbeddingServerProgramName {
+				t.Errorf("%s pins the upstream embedding server, whose Linux build needs a newer glibc than the package promises", architecture)
+			}
 		}
 	}
 }

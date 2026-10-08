@@ -40,6 +40,8 @@ every unit stays inactive rather than restarting into a failure.`
 
 	payloadCacheDirectory = ".dependency/host-payload"
 
+	embeddingServerPrepareScriptPath = "tools/prepare-llama-server"
+
 	documentConversionLockPath = "assets/document-conversion/requirements.txt"
 
 	packageLicense = "Apache-2.0"
@@ -364,9 +366,6 @@ func vendoredPrograms(repositoryRootPath string, target packageTarget, stagingPa
 	}
 	packaged := []packagedFile{}
 	for _, download := range downloads {
-		if download.DirectoryInsideArchive != "" {
-			continue
-		}
 		programPath, errorValue := fetchVendoredProgram(repositoryRootPath, download, stagingPath, output)
 		if errorValue != nil {
 			return nil, errorValue
@@ -385,12 +384,8 @@ func vendoredPrograms(repositoryRootPath string, target packageTarget, stagingPa
 }
 
 func vendoredEmbedding(repositoryRootPath string, target packageTarget, stagingPath string, output io.Writer) ([]packagedFile, error) {
-	server, errorValue := embeddingServerPin(target.Architecture)
+	serverDirectory, errorValue := builtEmbeddingServer(repositoryRootPath, target)
 	if errorValue != nil {
-		return nil, errorValue
-	}
-	serverDirectory := filepath.Join(stagingPath, filepath.Base(packageLayout.EmbeddingServerDirectory()))
-	if errorValue := fetchVendoredDirectory(repositoryRootPath, server, serverDirectory, output); errorValue != nil {
 		return nil, errorValue
 	}
 	if errorValue := requireDirectoryProgramsFit(serverDirectory, target); errorValue != nil {
@@ -406,17 +401,18 @@ func vendoredEmbedding(repositoryRootPath string, target packageTarget, stagingP
 	}, nil
 }
 
-func embeddingServerPin(debianArchitecture string) (blueclaw.HostPayloadDownload, error) {
-	downloads, errorValue := blueclaw.HostPayloadDownloads(debianArchitecture)
-	if errorValue != nil {
-		return blueclaw.HostPayloadDownload{}, errorValue
+func builtEmbeddingServer(repositoryRootPath string, target packageTarget) (string, error) {
+	artifactDirectory := blueclaw.EmbeddingServerArtifactPathFor(target.Architecture)
+	if errorValue := requirePreparedRevision(repositoryRootPath, embeddingServerPrepareScriptPath,
+		blueclaw.EmbeddingServerProgramName, artifactDirectory, "linux-"+target.Architecture); errorValue != nil {
+		return "", errorValue
 	}
-	for _, download := range downloads {
-		if download.ProgramName == blueclaw.EmbeddingServerProgramName {
-			return download, nil
-		}
+	serverDirectory := filepath.Join(repositoryRootPath, artifactDirectory, filepath.Base(packageLayout.EmbeddingServerDirectory()))
+	if _, errorValue := os.Stat(filepath.Join(serverDirectory, blueclaw.EmbeddingServerProgramName)); errorValue != nil {
+		return "", fmt.Errorf("%s is not built at %s; build it with `%s --target linux-%s`: %w",
+			blueclaw.EmbeddingServerProgramName, serverDirectory, embeddingServerPrepareScriptPath, target.Architecture, errorValue)
 	}
-	return blueclaw.HostPayloadDownload{}, fmt.Errorf("no %s is pinned for %s", blueclaw.EmbeddingServerProgramName, debianArchitecture)
+	return serverDirectory, nil
 }
 
 func requireDirectoryProgramsFit(directoryPath string, target packageTarget) error {
@@ -762,9 +758,6 @@ func shippedProgramNames(architecture string) ([]string, error) {
 		return nil, errorValue
 	}
 	for _, download := range downloads {
-		if download.DirectoryInsideArchive != "" {
-			continue
-		}
 		names = append(names, download.ProgramName)
 	}
 	return names, nil
