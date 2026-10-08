@@ -201,6 +201,32 @@ class AgentPdfReadingTests(unittest.TestCase):
         self.assertFalse(driver.the_agent_sent_a_pdf("pdfs=0\n"))
         self.assertFalse(driver.the_agent_sent_a_pdf('pdfs=ERROR:relation"events"doesnotexist\n'))
 
+class PdfTurnSettlingTests(unittest.TestCase):
+    def setUp(self):
+        self.driver = load_driver()
+
+    def test_a_terminal_task_and_an_empty_queue_is_a_finished_turn(self):
+        for status in ("completed", "failed", "cancelled"):
+            self.assertTrue(self.driver.the_turn_has_settled(f"status={status}\nqueued=0\nkeys=\n"))
+
+    def test_a_running_task_is_not_a_finished_turn(self):
+        self.assertFalse(self.driver.the_turn_has_settled("status=running\nqueued=0\nkeys=\n"))
+
+    def test_a_queued_event_is_not_a_finished_turn(self):
+        self.assertFalse(self.driver.the_turn_has_settled("status=completed\nqueued=1\nkeys=abc \n"))
+
+    def test_no_task_or_an_unreadable_queue_is_not_a_finished_turn(self):
+        self.assertFalse(self.driver.the_turn_has_settled("status=\nqueued=0\n"))
+        self.assertFalse(self.driver.the_turn_has_settled("status=completed\nqueued=the relay unit sets no RELAY_STATE_DIR\n"))
+
+    def test_the_queue_command_names_its_keys(self):
+        self.assertIn("keys=", self.driver.RELAY_QUEUE_COMMAND)
+
+    def test_every_reading_of_an_answer_stays_in_the_askers_channel(self):
+        for command in (self.driver.AGENT_ANSWER_COMMAND, self.driver.AGENT_PDF_COMMAND, self.driver.AGENT_LEDGER_COMMAND):
+            self.assertIn("answer.channel_id is not distinct from asked.channel_id", command)
+
+
 if __name__ == "__main__":
     unittest.main()
 
