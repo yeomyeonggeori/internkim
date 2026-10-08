@@ -126,7 +126,9 @@ echo "the agent did not answer after its restart"; exit 1
 RELAY_QUEUE_COMMAND = r"""
 directory="$(systemctl show %(relay)s -p Environment --value 2>/dev/null | tr ' ' '\n' | sed -n 's/^RELAY_STATE_DIR=//p')"
 [ -n "$directory" ] || { echo "queued=the relay unit sets no RELAY_STATE_DIR"; exit 0; }
-printf 'queued=%%s\n' "$(ls "$directory/inbound" 2>/dev/null | grep -c '\.json$' || true)"
+keys="$(ls "$directory/inbound" 2>/dev/null | sed -n 's/\.json$//p' | tr '\n' ' ')"
+printf 'queued=%%s\n' "$(printf '%%s' "$keys" | wc -w | tr -d ' ')"
+printf 'keys=%%s\n' "$keys"
 printf 'dropped=%%s\n' "$(journalctl -u %(relay)s --no-pager --since '-%(seconds)s seconds' 2>/dev/null | grep -c 'dropped ' || true)"
 """
 PEOPLE_DIRECTORY = "/workspace/private/people"
@@ -215,8 +217,17 @@ AGENT_ANSWER_COMMAND = r"""
 agent_url="$(sed -n 's/^DATABASE_URL=//p' %(agent_path)s 2>/dev/null | head -1)"
 messenger_url="$(sed -n 's/^DATABASE_URL=//p' %(messenger_path)s 2>/dev/null | head -1)"
 printf 'task=%%s\n' "$(psql "$agent_url" -tAc "select status from task_run where position('%(text)s' in prompt) > 0 order by created_at desc limit 1" 2>&1 | tr -d ' \n')"
-printf 'answers=%%s\n' "$(psql "$messenger_url" -tAc "select count(*) from events answer join events asked on encode(asked.id,'hex') = '%(message)s' where answer.kind = 9 and answer.pubkey <> asked.pubkey and answer.created_at >= asked.created_at" 2>&1 | tr -d ' \n')"
+printf 'answers=%%s\n' "$(psql "$messenger_url" -tAc "select count(*) from events answer join events asked on encode(asked.id,'hex') = '%(message)s' where answer.kind = 9 and answer.channel_id is not distinct from asked.channel_id and answer.pubkey <> asked.pubkey and answer.created_at >= asked.created_at" 2>&1 | tr -d ' \n')"
 """
+
+# How the agent's task for a message stands: its status in the agent's ledger,
+# found by the marker the message carries.
+AGENT_TASK_STATUS_COMMAND = r"""
+agent_url="$(sed -n 's/^DATABASE_URL=//p' %(agent_path)s 2>/dev/null | head -1)"
+printf 'status=%%s\n' "$(psql "$agent_url" -tAc "select status from task_run where position('%(marker)s' in prompt) > 0 order by created_at desc limit 1" 2>&1 | tr -d ' \n')"
+"""
+
+TERMINAL_TASK_STATUSES = ("completed", "failed", "cancelled")
 
 # Whether the agent's answer carried a PDF: a message in the messenger's store
 # from anyone but the member, written after theirs, whose media tags name one.
@@ -224,7 +235,7 @@ printf 'answers=%%s\n' "$(psql "$messenger_url" -tAc "select count(*) from event
 # that references it landed.
 AGENT_PDF_COMMAND = r"""
 messenger_url="$(sed -n 's/^DATABASE_URL=//p' %(messenger_path)s 2>/dev/null | head -1)"
-printf 'pdfs=%%s\n' "$(psql "$messenger_url" -tAc "select count(*) from events answer join events asked on encode(asked.id,'hex') = '%(message)s' where answer.kind = 9 and answer.pubkey <> asked.pubkey and answer.created_at >= asked.created_at and answer.tags @> '[[\"imeta\", \"m application/pdf\"]]'::jsonb" 2>&1 | tr -d ' \n')"
+printf 'pdfs=%%s\n' "$(psql "$messenger_url" -tAc "select count(*) from events answer join events asked on encode(asked.id,'hex') = '%(message)s' where answer.kind = 9 and answer.channel_id is not distinct from asked.channel_id and answer.pubkey <> asked.pubkey and answer.created_at >= asked.created_at and answer.tags @> '[[\"imeta\", \"m application/pdf\"]]'::jsonb" 2>&1 | tr -d ' \n')"
 """
 
 # The agent writes its log to the directory its runtime document names; its
@@ -245,7 +256,7 @@ task="$(psql "$agent_url" -tAc "select task_run_id from task_run where position(
 printf 'task=%%s status=%%s\n' "$task" "$(psql "$agent_url" -tAc "select status from task_run where task_run_id = '$task'" 2>&1 | tr -d ' \n')"
 printf 'events=%%s\n' "$(psql "$agent_url" -tAc "select name from task_event where task_run_id = '$task' order by created_at" 2>&1 | uniq -c | awk '{print $2 "x" $1}' | tr '\n' ' ')"
 psql "$agent_url" -tAc "select name || ': ' || left(body, 600) from task_event where task_run_id = '$task' and name in ('completion.change_check', 'agent.evidence_missing', 'agent.failure_report', 'blueclaw.launch.failure_report', 'blueclaw.connector.files_undelivered') order by created_at desc limit 3" 2>&1
-psql "$messenger_url" -tAc "select 'answered: ' || left(replace(answer.content, chr(10), ' '), 300) from events answer join events asked on encode(asked.id,'hex') = '%(message)s' where answer.kind = 9 and answer.pubkey <> asked.pubkey and answer.created_at >= asked.created_at order by answer.created_at" 2>&1
+psql "$messenger_url" -tAc "select 'answered: ' || left(replace(answer.content, chr(10), ' '), 300) from events answer join events asked on encode(asked.id,'hex') = '%(message)s' where answer.kind = 9 and answer.channel_id is not distinct from asked.channel_id and answer.pubkey <> asked.pubkey and answer.created_at >= asked.created_at order by answer.created_at" 2>&1
 """
 
 BRIDGE_COMMAND = (
@@ -307,6 +318,11 @@ def the_agent_sent_a_pdf(reading):
     reported = dict(line.split("=", 1) for line in reading.splitlines() if "=" in line)
     sent = reported.get("pdfs", "")
     return sent.isdigit() and int(sent) > 0
+
+
+def the_turn_has_settled(reading):
+    reported = dict(line.split("=", 1) for line in reading.splitlines() if "=" in line)
+    return reported.get("status") in TERMINAL_TASK_STATUSES and reported.get("queued") == "0"
 
 
 def the_agent_answered(reading):
@@ -1220,6 +1236,20 @@ class Rig:
             + "\n"
             + self.relay_journal_lines("did not reach|transfer:", 10),
         )
+        self.observe_the_turn_settles(step, message_id)
+
+    def observe_the_turn_settles(self, step, message_id):
+        script = (
+            AGENT_TASK_STATUS_COMMAND % {"agent_path": COMPANY_CONDITION_PATH, "marker": self.message_text.split()[-1]}
+            + RELAY_QUEUE_COMMAND % {"relay": RELAY_UNIT_NAME, "seconds": 0}
+        )
+        settled = self.wait_in_the_guest(script, the_turn_has_settled, timeout_seconds=900)
+        step.observe(
+            "the turn that sent the PDF is finished before the next step touches the agent",
+            "the agent's task ledger entry for the message and the relay's inbound queue on disk",
+            "a file message exists before the turn that made it is over, and a restart in the next step "
+            "interrupts a turn still running; the task is terminal and the queue empty only when the turn is done",
+        ).record(the_turn_has_settled(settled.stdout), f"asked in {message_id or 'no message'}: {settled.stdout.strip()}")
 
     def observe_a_message_that_arrives_before_the_roster(self, step, plane):
         """What the stranger run lost: a member who writes before the agent knows them."""
