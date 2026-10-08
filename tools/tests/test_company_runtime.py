@@ -8,7 +8,7 @@ import unittest
 
 
 class CompanyRuntimeTests(unittest.TestCase):
-    def test_rendered_runtime_embeds_with_the_ladders_model(self):
+    def test_rendered_runtime_embeds_with_the_ladders_model_and_width(self):
         repository_root = Path(__file__).resolve().parents[2]
         with tempfile.TemporaryDirectory() as temporary_directory:
             temporary_path = Path(temporary_directory)
@@ -17,7 +17,7 @@ class CompanyRuntimeTests(unittest.TestCase):
                 "#!/bin/sh\n"
                 "case \"$1\" in\n"
                 "--print-capabilities) printf '{\"tools\":[]}' ;;\n"
-                "--print-model-ladder) printf '{\"embedding\":{\"model\":\"example/embedding\"}}' ;;\n"
+                "--print-model-ladder) printf '{\"embedding\":{\"model\":\"example/embedding\",\"dimensions\":768}}' ;;\n"
                 "*) exit 1 ;;\n"
                 "esac\n"
             )
@@ -71,6 +71,7 @@ class CompanyRuntimeTests(unittest.TestCase):
         self.assertEqual(runtime["memory"], {
             "adminAssertionKeyPath": "/root/.internkim/secrets/agent-key",
             "embeddingModel": "example/embedding",
+            "embeddingDimensions": 768,
             "embeddingExecutionMode": "auto",
             "extractionDisabled": False,
         })
@@ -89,7 +90,7 @@ class CompanyRuntimeTests(unittest.TestCase):
                 "#!/bin/sh\n"
                 "case \"$1\" in\n"
                 "--print-capabilities) printf '{\"tools\":[]}' ;;\n"
-                "--print-model-ladder) printf '{\"embedding\":{\"model\":\"example/embedding\"}}' ;;\n"
+                "--print-model-ladder) printf '{\"embedding\":{\"model\":\"example/embedding\",\"dimensions\":768}}' ;;\n"
                 "*) exit 1 ;;\n"
                 "esac\n"
             )
@@ -122,7 +123,7 @@ class CompanyRuntimeTests(unittest.TestCase):
                 "#!/bin/sh\n"
                 "case \"$1\" in\n"
                 "--print-capabilities) printf '{\"tools\":[]}' ;;\n"
-                "--print-model-ladder) printf '{\"embedding\":{\"model\":\"example/embedding\"}}' ;;\n"
+                "--print-model-ladder) printf '{\"embedding\":{\"model\":\"example/embedding\",\"dimensions\":768}}' ;;\n"
                 "*) exit 1 ;;\n"
                 "esac\n"
             )

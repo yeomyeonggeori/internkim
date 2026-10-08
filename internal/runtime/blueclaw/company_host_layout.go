@@ -149,6 +149,25 @@ func (layout CompanyHostLayout) RuntimeTemplatePath() string {
 	return layout.LibraryRoot + "/runtime.template.json"
 }
 
+func (layout CompanyHostLayout) EmbeddingServerDirectory() string {
+	return layout.LibraryRoot + "/llama.cpp"
+}
+
+func (layout CompanyHostLayout) EmbeddingServerPath() string {
+	return layout.EmbeddingServerDirectory() + "/" + EmbeddingServerProgramName
+}
+
+func (layout CompanyHostLayout) EmbeddingModelPath() string {
+	return layout.LibraryRoot + "/models/" + embeddingModelFileName
+}
+
+func (layout CompanyHostLayout) PayloadProgramPath(programName string) string {
+	if programName == EmbeddingServerProgramName {
+		return layout.EmbeddingServerPath()
+	}
+	return layout.BinaryPath(programName)
+}
+
 func (layout CompanyHostLayout) AgentProfilePicturePath() string {
 	return layout.LibraryRoot + "/agent-profile-picture.png"
 }

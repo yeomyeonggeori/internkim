@@ -10,10 +10,12 @@ const (
 	Endpoint = "https://openrouter.ai/api/v1"
 
 	PrimaryModel      = "z-ai/glm-5.3-flash"
-	EmbeddingModel    = "baai/bge-m3"
+	EmbeddingModel    = "google/embeddinggemma-2"
 	ImageModel        = "google/gemini-3.1-flash-lite-image"
 	DecisionModel     = "~typesafe/jev-latest"
 	VisualReviewModel = "cloudflare/clef"
+
+	EmbeddingDimensions = 768
 )
 
 var DegradedModels = []string{
@@ -44,8 +46,9 @@ func ReasoningEffort(tier string) string {
 }
 
 type Rung struct {
-	Endpoint        string `json:"endpoint"`
+	Endpoint        string `json:"endpoint,omitempty"`
 	Model           string `json:"model"`
+	Dimensions      int    `json:"dimensions,omitempty"`
 	APIKeyPath      string `json:"apiKeyPath,omitempty"`
 	ProviderSort    string `json:"providerSort,omitempty"`
 	ReasoningEffort string `json:"reasoningEffort,omitempty"`
@@ -107,7 +110,7 @@ func LanguageModelDocument(endpointURL string, apiKeyPath string) Document {
 	}
 	return Document{
 		Tiers:        tiers,
-		Embedding:    Rung{Endpoint: reachedEndpoint, Model: EmbeddingModel, APIKeyPath: apiKeyPath},
+		Embedding:    Rung{Model: EmbeddingModel, Dimensions: EmbeddingDimensions},
 		Decision:     Rung{Endpoint: DecisionsURL(reachedEndpoint), Model: DecisionModel, APIKeyPath: apiKeyPath},
 		VisualReview: Rung{Endpoint: DecisionsURL(reachedEndpoint), Model: VisualReviewModel, APIKeyPath: apiKeyPath},
 	}

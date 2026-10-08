@@ -1,6 +1,8 @@
 package cli
 
 import (
+	"archive/tar"
+	"compress/gzip"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -42,8 +44,9 @@ func TestThePackageShipsEveryProgramItsUnitsStart(t *testing.T) {
 			t.Fatalf("%s: %v", target.Architecture, errorValue)
 		}
 		shippedPaths := map[string]bool{
-			packageLayout.PrepareScriptPath(): true,
-			packageLayout.DataServicePath():   true,
+			packageLayout.PrepareScriptPath():   true,
+			packageLayout.DataServicePath():     true,
+			packageLayout.EmbeddingServerPath(): true,
 		}
 		for _, name := range shipped {
 			shippedPaths[packageLayout.BinaryPath(name)] = true
@@ -360,6 +363,90 @@ func TestEveryHostCarriesTheAgentPictureWhereAdmindIsToldToFindIt(t *testing.T) 
 		named := slices.Index(service.Command, "-agent-profile-picture")
 		if named < 0 || named+1 >= len(service.Command) || service.Command[named+1] != layout.AgentProfilePicturePath() {
 			t.Fatalf("admind is started as %v and not told the agent picture is at %s", service.Command, layout.AgentProfilePicturePath())
+		}
+	}
+}
+
+func writeTarball(t *testing.T, entries []tar.Header, contents map[string]string) string {
+	t.Helper()
+	archivePath := filepath.Join(t.TempDir(), "payload.tar.gz")
+	file, errorValue := os.Create(archivePath)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	defer file.Close()
+	compressed := gzip.NewWriter(file)
+	defer compressed.Close()
+	archive := tar.NewWriter(compressed)
+	defer archive.Close()
+	for _, header := range entries {
+		header.Size = int64(len(contents[header.Name]))
+		if errorValue := archive.WriteHeader(&header); errorValue != nil {
+			t.Fatal(errorValue)
+		}
+		if _, errorValue := archive.Write([]byte(contents[header.Name])); errorValue != nil {
+			t.Fatal(errorValue)
+		}
+	}
+	return archivePath
+}
+
+func TestADirectoryPayloadKeepsItsSymlinksAndModesAndLeavesOtherEntriesBehind(t *testing.T) {
+	archivePath := writeTarball(t, []tar.Header{
+		{Name: "runtime-1", Typeflag: tar.TypeDir, Mode: 0o755},
+		{Name: "runtime-1/server", Typeflag: tar.TypeReg, Mode: 0o755},
+		{Name: "runtime-1/libone.so.1", Typeflag: tar.TypeReg, Mode: 0o644},
+		{Name: "runtime-1/libone.so", Typeflag: tar.TypeSymlink, Linkname: "libone.so.1", Mode: 0o777},
+		{Name: "elsewhere/readme", Typeflag: tar.TypeReg, Mode: 0o644},
+	}, map[string]string{"runtime-1/server": "program", "runtime-1/libone.so.1": "library", "elsewhere/readme": "x"})
+	destinationPath := filepath.Join(t.TempDir(), "runtime")
+
+	if errorValue := extractDirectoryFromGzippedTar(archivePath, "runtime-1", destinationPath); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+
+	linkTarget, errorValue := os.Readlink(filepath.Join(destinationPath, "libone.so"))
+	if errorValue != nil || linkTarget != "libone.so.1" {
+		t.Fatalf("the symlink was not kept: %q, %v", linkTarget, errorValue)
+	}
+	information, errorValue := os.Stat(filepath.Join(destinationPath, "server"))
+	if errorValue != nil || information.Mode().Perm() != 0o755 {
+		t.Fatalf("the program lost its mode: %v, %v", information, errorValue)
+	}
+	if _, errorValue := os.Stat(filepath.Join(destinationPath, "readme")); errorValue == nil {
+		t.Fatal("an entry outside the pinned directory was extracted")
+	}
+}
+
+func TestADirectoryPayloadRefusesALinkThatLeavesTheDirectory(t *testing.T) {
+	archivePath := writeTarball(t, []tar.Header{
+		{Name: "runtime-1/escape", Typeflag: tar.TypeSymlink, Linkname: "../../etc/passwd", Mode: 0o777},
+	}, nil)
+
+	errorValue := extractDirectoryFromGzippedTar(archivePath, "runtime-1", filepath.Join(t.TempDir(), "runtime"))
+
+	if errorValue == nil || !strings.Contains(errorValue.Error(), "leaves the directory") {
+		t.Fatalf("expected a refusal, got %v", errorValue)
+	}
+}
+
+func TestADirectoryPayloadThatIsNotInTheArchiveIsAnError(t *testing.T) {
+	archivePath := writeTarball(t, []tar.Header{{Name: "other/file", Typeflag: tar.TypeReg, Mode: 0o644}}, nil)
+
+	if errorValue := extractDirectoryFromGzippedTar(archivePath, "runtime-1", filepath.Join(t.TempDir(), "runtime")); errorValue == nil {
+		t.Fatal("an archive without the pinned directory extracted nothing and reported success")
+	}
+}
+
+func TestTheEmbeddingServerIsNotAProgramInTheBinaryRoot(t *testing.T) {
+	for _, target := range packageTargets {
+		shipped, errorValue := shippedProgramNames(target.Architecture)
+		if errorValue != nil {
+			t.Fatal(errorValue)
+		}
+		if slices.Contains(shipped, blueclaw.EmbeddingServerProgramName) {
+			t.Fatalf("%s lists %s as a program in %s, and it is installed under %s", target.Architecture,
+				blueclaw.EmbeddingServerProgramName, packageLayout.BinaryRoot, packageLayout.EmbeddingServerDirectory())
 		}
 	}
 }

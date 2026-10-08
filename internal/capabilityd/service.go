@@ -36,8 +36,7 @@ type Configuration struct {
 	OpenRouterGatewaySecretPath   string
 	OpenRouterGatewaySecretHeader string
 	OpenRouterWebBaseURL          string
-	OpenRouterEmbeddingBaseURL    string
-	OpenRouterEmbeddingModel      string
+	EmbeddingServerURL            string
 	OpenRouterImageModel          string
 	SocketGroupName               string
 	LocalOnly                     bool
@@ -83,8 +82,7 @@ func DefaultConfiguration() Configuration {
 		OpenRouterModel:               blueclaw.BlueclawDefaultModelName,
 		OpenRouterGatewaySecretHeader: "X-INTERNKIM-GATEWAY-SECRET",
 		OpenRouterWebBaseURL:          "https://openrouter.ai/api/v1/chat/completions",
-		OpenRouterEmbeddingBaseURL:    "https://openrouter.ai/api/v1/embeddings",
-		OpenRouterEmbeddingModel:      llmbackend.DefaultEmbeddingModelName,
+		EmbeddingServerURL:            "http://" + blueclaw.EmbeddingListenAddress,
 		OpenRouterImageModel:          modelladder.ImageModel,
 		SocketGroupName:               "blueclaw",
 		LocalOnly:                     false,
@@ -425,11 +423,8 @@ func (configuration Configuration) WithDefaults() Configuration {
 	if configuration.OpenRouterWebBaseURL == "" {
 		configuration.OpenRouterWebBaseURL = defaultConfiguration.OpenRouterWebBaseURL
 	}
-	if configuration.OpenRouterEmbeddingBaseURL == "" {
-		configuration.OpenRouterEmbeddingBaseURL = defaultConfiguration.OpenRouterEmbeddingBaseURL
-	}
-	if configuration.OpenRouterEmbeddingModel == "" {
-		configuration.OpenRouterEmbeddingModel = defaultConfiguration.OpenRouterEmbeddingModel
+	if configuration.EmbeddingServerURL == "" {
+		configuration.EmbeddingServerURL = defaultConfiguration.EmbeddingServerURL
 	}
 	if configuration.OpenRouterImageModel == "" {
 		configuration.OpenRouterImageModel = defaultConfiguration.OpenRouterImageModel

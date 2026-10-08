@@ -7,10 +7,11 @@ import (
 	"strings"
 )
 
-// Five programs the company host runs are packaged by nobody: the two browsers the
-// skills drive, the S3 gateway the messenger stores attachments through, and the two
-// toolchains the agent and the document skills shell out to. They arrive as pinned
-// downloads, and this is where the pins live. Which five is not decided here:
+// Six programs the company host runs are packaged by nobody: the two browsers the
+// skills drive, the S3 gateway the messenger stores attachments through, the two
+// toolchains the agent and the document skills shell out to, and the llama.cpp server
+// that embeds every memory and skill. They arrive as pinned downloads, and this is
+// where the pins live, with the embedding model's weights beside them. Which six is not decided here:
 // host_dependencies.go declares them ArrivesAsPayload and
 // TestThePinsCoverExactlyThePayloadProgramsDeclared holds this table to that list in
 // both directions, because a program declared and not pinned ships a package
@@ -24,7 +25,8 @@ type HostPayloadDownload struct {
 	URL         string
 	SHA256      string
 	// PathInsideArchive is empty when the download is the program itself.
-	PathInsideArchive string
+	PathInsideArchive      string
+	DirectoryInsideArchive string
 }
 
 const (
@@ -32,10 +34,18 @@ const (
 	agentBrowserVersion  = "0.32.3"
 	bunVersion           = "1.4.2"
 	uvVersion            = "0.11.11"
+	llamaCppVersion      = "b11476"
+)
+
+const (
+	embeddingModelRepository = "ggml-org/embeddinggemma-2-GGUF"
+	embeddingModelRevision   = "bfcd298762cc34d0357ece5ebdd31791a3a374d8"
+	embeddingModelFileName   = "embeddinggemma-2-Q8_0.gguf"
+	embeddingModelSHA256     = "2188ac1deca4b77dffefd603c2776a9d76d9d74ec01841392982ebb840b09135"
 )
 
 // The machines this release pins a binary for. A target names the operating
-// system as well as the architecture, because four of the five programs publish
+// system as well as the architecture, because five of the six programs publish
 // a differently named asset per platform and one of them capitalises it
 // differently too.
 const (
@@ -80,6 +90,7 @@ var hostPayloadDownloadsByTarget = map[string][]HostPayloadDownload{
 		mediaServerPayload("Darwin", "arm64", "4953096f65a9c0d62ab184fb6b2ba7c2435229205cf00a56cb62cd4bf6b216ca"),
 		bunPayload("darwin-aarch64", "90987a3a16d7db556d886ac3d551e7b6d3edf0a1cf43acaed622e8676be1d12f"),
 		packageResolverPayload("aarch64-apple-darwin", "3a185bf8f46a7b7c8b910d111825907b1638d0ae503cb3c333ae205772354046"),
+		embeddingServerPayload("macos-arm64", "577634a1b8a59e8dabe02ba10de1e610be0574dfaf1cf3020e6dd42853ed877e"),
 	},
 }
 
@@ -137,6 +148,38 @@ func packageResolverPayload(targetTriple string, checksum string) HostPayloadDow
 	}
 }
 
+func embeddingServerPayload(assetTarget string, checksum string) HostPayloadDownload {
+	return HostPayloadDownload{
+		ProgramName:            EmbeddingServerProgramName,
+		Version:                llamaCppVersion,
+		URL:                    "https://github.com/ggml-org/llama.cpp/releases/download/" + llamaCppVersion + "/llama-" + llamaCppVersion + "-bin-" + assetTarget + ".tar.gz",
+		SHA256:                 checksum,
+		DirectoryInsideArchive: "llama-" + llamaCppVersion,
+	}
+}
+
+func HostEmbeddingModelDownload() HostPayloadDownload {
+	return HostPayloadDownload{
+		ProgramName: embeddingModelFileName,
+		Version:     embeddingModelRevision,
+		URL:         "https://huggingface.co/" + embeddingModelRepository + "/resolve/" + embeddingModelRevision + "/" + embeddingModelFileName,
+		SHA256:      embeddingModelSHA256,
+	}
+}
+
+// HostProgramsBuiltFromSource are payload programs a Linux package carries from
+// tools/prepare-llama-server instead of from a pin, because the upstream Linux
+// build needs a newer glibc than HostGlibcMinimum.
+func HostProgramsBuiltFromSource() []string {
+	return []string{EmbeddingServerProgramName}
+}
+
+// EmbeddingServerArtifactPathFor is where tools/prepare-llama-server leaves the
+// server built for one Debian architecture.
+func EmbeddingServerArtifactPathFor(debianArchitecture string) string {
+	return ".dependency/llama-server-linux-" + debianArchitecture
+}
+
 // HostPayloadDownloads is what the host fetches for one Debian architecture. An
 // architecture nobody publishes for is an error rather than an empty list, because a
 // box that installed none of these answers and does nothing.
@@ -160,7 +203,7 @@ func HostPayloadTargetForDebianArchitecture(debianArchitecture string) (string, 
 	return target, nil
 }
 
-// HostPayloadDownloadsForTarget is the same five programs for a machine named by
+// HostPayloadDownloadsForTarget is the same programs for a machine named by
 // operating system as well as architecture, which is what the Homebrew release
 // asks for: the Darwin assets are named differently from the Linux ones and one
 // of them capitalises the platform.

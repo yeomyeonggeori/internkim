@@ -8,7 +8,7 @@ import (
 	"strings"
 )
 
-// The same nine services, as LaunchDaemons. Everything a plist says about one of
+// The same services, as LaunchDaemons. Everything a plist says about one of
 // them is read from CompanyHostServices; nothing here decides what runs.
 //
 // Three things launchd cannot be told, and what happens to each:
@@ -16,7 +16,7 @@ import (
 //   - Ordering. After=, Requires= and BindsTo= have no counterpart, so the
 //     bundle comes up in whatever order launchd pleases and every process has to
 //     tolerate its dependencies being absent and retry. `internkim install` polls
-//     the same six readiness endpoints it polls under systemd, and on a Mac that
+//     the same readiness endpoints it polls under systemd, and on a Mac that
 //     polling is the only thing standing where systemd's ordering stood.
 //   - EnvironmentFile=. launchd reads no file; EnvironmentVariables is baked into
 //     the plist when it is written. So the plists are written by `internkim

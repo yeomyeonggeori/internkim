@@ -70,6 +70,7 @@ func main() {
 	for _, download := range blueclaw.DocumentFontDownloads() {
 		fmt.Println(download.URL)
 	}
+	fmt.Println(blueclaw.HostEmbeddingModelDownload().URL)
 }
 """
 

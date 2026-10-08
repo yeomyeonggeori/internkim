@@ -123,6 +123,7 @@ func CompanyHostServices(layout CompanyHostLayout) []CompanyHostService {
 		companyHostPrepareService(layout),
 		companyHostMediaService(layout),
 		companyHostMessengerService(layout),
+		companyHostEmbeddingService(layout),
 		companyHostCapabilityService(layout),
 		companyHostAgentService(layout),
 		companyHostAdminService(layout),
@@ -237,6 +238,28 @@ func companyHostMessengerService(layout CompanyHostLayout) CompanyHostService {
 	}
 }
 
+func companyHostEmbeddingService(layout CompanyHostLayout) CompanyHostService {
+	return CompanyHostService{
+		Name:        EmbeddingServiceName,
+		Description: "internkim Embedding Server",
+		Command: []string{
+			layout.EmbeddingServerPath(),
+			"-m", layout.EmbeddingModelPath(),
+			"--embeddings",
+			"--pooling", "mean",
+			"--device", "none",
+			"--host", EmbeddingListenHost,
+			"--port", EmbeddingListenPort,
+			"-c", EmbeddingContextTokens,
+			"-b", EmbeddingContextTokens,
+			"-ub", EmbeddingContextTokens,
+		},
+		Account:               EmbeddingUserName,
+		RestartAfterSeconds:   5,
+		WaitsForTheFileAtPath: CompanyHostEnvironmentPath,
+	}
+}
+
 func companyHostCapabilityService(layout CompanyHostLayout) CompanyHostService {
 	return CompanyHostService{
 		Name:        CapabilitydServiceName,
@@ -246,6 +269,7 @@ func companyHostCapabilityService(layout CompanyHostLayout) CompanyHostService {
 			"--socket", layout.CapabilitySocketPath(),
 			"--openrouter-key", CompanyHostModelKeyPath,
 			"--blueclaw-url", BlueclawBaseURL,
+			"--embedding-url", "http://" + EmbeddingListenAddress,
 			"--blueclaw-workspace", layout.WorkspacePath,
 			"--admind-url", "http://" + CompanyHostAdmindListenAddress,
 			"--admind-socket", layout.AdmindSocketPath(),

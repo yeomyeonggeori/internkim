@@ -73,3 +73,23 @@ export function theArgumentsThatStart(
 	});
 	return [...fromThePackage, ...Object.entries(sandboxOnly).flat()];
 }
+
+export function theCommandThatStarts(
+	program: string,
+	executablePath: string,
+	valueFlags: Record<string, string>
+): string[] {
+	const service = theServices().find((candidate) => basename(candidate.arguments[0] ?? '') === program);
+	if (!service) throw new Error(`the package's units start no ${program}`);
+	const [, ...rest] = service.arguments;
+	for (const name of Object.keys(valueFlags)) {
+		if (!rest.includes(name)) {
+			throw new Error(`this sandbox starts ${program} with ${name} as if the package did, and it does not`);
+		}
+	}
+	const replaced = rest.map((token, index) => {
+		const flag = rest[index - 1];
+		return flag !== undefined && flag in valueFlags ? valueFlags[flag] : token;
+	});
+	return [executablePath, ...replaced];
+}

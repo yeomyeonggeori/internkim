@@ -52,7 +52,10 @@ func TestAKegFindsThePackagesProgramsWhereTheLayoutPutsThemAndNotOnPath(t *testi
 	prefix := t.TempDir()
 	platform := macPlatform{homebrewPrefix: prefix}
 	layout := platform.Layout()
-	placeStubPrograms(t, layout.BinaryRoot, append(blueclaw.HostProgramsThePackageShips(), blueclaw.HostProgramsThatArriveAsPayload()...))
+	placeStubPrograms(t, layout.BinaryRoot, blueclaw.HostProgramsThePackageShips())
+	for _, programName := range blueclaw.HostProgramsThatArriveAsPayload() {
+		placeStubPrograms(t, filepath.Dir(layout.PayloadProgramPath(programName)), []string{programName})
+	}
 	placeStubPrograms(t, filepath.Join(prefix, "bin"), append(whatTheOperatingSystemProvides(), blueclaw.CompanyPackageName))
 	t.Setenv("PATH", filepath.Join(prefix, "bin"))
 

@@ -17,7 +17,7 @@ import (
 // box a host: it creates the two accounts through the directory service, sets
 // the helper's ownership and its setuid bit — the one thing a bottle pour cannot
 // carry, because extracting a tar as an ordinary user drops the bit and
-// Homebrew's own linter forbids even recommending it — writes the nine
+// Homebrew's own linter forbids even recommending it — writes the ten
 // LaunchDaemons from the same declaration the units come from, and then polls
 // readiness where ordering used to stand.
 //
@@ -29,7 +29,7 @@ import (
 // `brew services`, and may do nothing else with it. And `Homebrew::Services::
 // System.path` returns /Library/LaunchDaemons with the `system` domain target
 // when euid is zero, so the database and the cache land in the same domain as
-// the nine daemons here and survive a reboot with nobody logged in.
+// the ten daemons here and survive a reboot with nobody logged in.
 
 const (
 	// Below 500 so the accounts do not appear at the login window, and far
@@ -78,9 +78,9 @@ func homebrewPrefix() string {
 }
 
 // companyHostServiceAccount is one unprivileged account the bundle runs a
-// service as. Two exist, and they are separate because the relay outlives the
-// agent: it keeps answering when the agent is down, so it does not share the
-// agent's identity or its files.
+// service as. They are separate because the relay outlives the agent: it keeps
+// answering when the agent is down, so it does not share the agent's identity or
+// its files, and the embedding server needs neither.
 type companyHostServiceAccount struct {
 	Name        string
 	HomePath    string
@@ -91,6 +91,7 @@ func companyHostServiceAccounts(layout blueclaw.CompanyHostLayout) []companyHost
 	return []companyHostServiceAccount{
 		{Name: blueclaw.BlueclawUser, HomePath: layout.AgentHomePath, Description: "internkim agent"},
 		{Name: blueclaw.RelayUserName, Description: "internkim relay"},
+		{Name: blueclaw.EmbeddingUserName, Description: "internkim embedding server"},
 	}
 }
 

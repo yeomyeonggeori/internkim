@@ -3,22 +3,16 @@ package llmbackend
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
-	"log"
 	"math"
 	"strings"
-	"time"
 
 	"github.com/yeomyeonggeori/internkim/internal/modelladder"
 )
 
 const (
-	EmbeddingGemmaModelName         = "embeddinggemma"
-	DefaultEmbeddingModelName       = modelladder.EmbeddingModel
-	qwen3EmbeddingModelNamePrefix   = "qwen/qwen3-embedding"
-	qwen3EmbeddingInstructionPrefix = "Instruct: "
-	qwen3EmbeddingQueryInstruction  = "Instruct: Given a question about a person or their work, retrieve the memory facts that answer it\nQuery: "
+	embeddingGemmaModelNamePrefix = "embeddinggemma"
+	DefaultEmbeddingModelName     = modelladder.EmbeddingModel
 )
 
 type EmbeddingRequest struct {
@@ -48,59 +42,6 @@ type EmbeddingProvider interface {
 	EmbeddingCreator
 }
 
-type EmbeddingBackend interface {
-	EmbeddingProvider
-	Name() string
-	Ping(context.Context) error
-}
-
-type AutoEmbeddingProvider struct {
-	Providers      []EmbeddingProvider
-	AttemptTimeout time.Duration
-}
-
-func (provider AutoEmbeddingProvider) CreateEmbedding(ctx context.Context, request EmbeddingRequest) (EmbeddingResponse, error) {
-	return createWithEmbeddingProviderChain(provider.Providers, func(candidate EmbeddingProvider) (EmbeddingResponse, error) {
-		attemptContext, cancel := providerAttemptContext(ctx, provider.AttemptTimeout)
-		defer cancel()
-		return candidate.CreateEmbedding(attemptContext, request)
-	})
-}
-
-func createWithEmbeddingProviderChain(providers []EmbeddingProvider, create func(EmbeddingProvider) (EmbeddingResponse, error)) (EmbeddingResponse, error) {
-	attempts := make([]string, 0, len(providers))
-	for index, candidate := range providers {
-		if candidate == nil {
-			continue
-		}
-		response, errorValue := create(candidate)
-		if errorValue == nil {
-			return response, nil
-		}
-		attempts = append(attempts, embeddingProviderFailure(candidate, errorValue))
-		if index < len(providers)-1 {
-			logEmbeddingFallback(errorValue)
-		}
-	}
-	if len(attempts) == 0 {
-		return EmbeddingResponse{}, errors.New("no embedding provider is available")
-	}
-	return EmbeddingResponse{}, errors.New("embedding provider attempts failed: " + strings.Join(attempts, "; "))
-}
-
-func embeddingProviderFailure(provider EmbeddingProvider, errorValue error) string {
-	if namedProvider, ok := provider.(interface{ Name() string }); ok {
-		return namedProvider.Name() + ": " + errorValue.Error()
-	}
-	return errorValue.Error()
-}
-
-func logEmbeddingFallback(errorValue error) {
-	if errorValue != nil {
-		log.Printf("embedding provider failed; trying next provider: %v", errorValue)
-	}
-}
-
 func normalizeEmbeddingInputs(input any) ([]string, bool) {
 	switch value := input.(type) {
 	case []any:
@@ -127,17 +68,19 @@ func embeddingInputString(input any) string {
 	return string(document)
 }
 
-func prepareEmbeddingInputs(inputs []string, request EmbeddingRequest, modelName string, isBatch bool) []string {
-	trimmedModelName := strings.TrimSpace(modelName)
-	if strings.EqualFold(trimmedModelName, EmbeddingGemmaModelName) {
-		return mapEmbeddingInputs(inputs, func(input string) string {
-			return applyEmbeddingGemmaPrompt(input, request, isBatch)
-		})
+func prepareEmbeddingInputs(inputs []string, request EmbeddingRequest, modelName string) []string {
+	inputType := embeddingInputType(request)
+	if !isEmbeddingGemmaModel(modelName) || inputType == "" {
+		return inputs
 	}
-	if isQwen3EmbeddingModel(trimmedModelName) && embeddingInputType(request, isBatch) == "query" {
-		return mapEmbeddingInputs(inputs, applyQwen3QueryInstruction)
-	}
-	return inputs
+	return mapEmbeddingInputs(inputs, func(input string) string {
+		return applyEmbeddingGemmaPrompt(input, request, inputType)
+	})
+}
+
+func isEmbeddingGemmaModel(modelName string) bool {
+	lastSegment := modelName[strings.LastIndex(modelName, "/")+1:]
+	return strings.HasPrefix(strings.ToLower(strings.TrimSpace(lastSegment)), embeddingGemmaModelNamePrefix)
 }
 
 func mapEmbeddingInputs(inputs []string, transform func(string) string) []string {
@@ -148,23 +91,12 @@ func mapEmbeddingInputs(inputs []string, transform func(string) string) []string
 	return transformedInputs
 }
 
-func isQwen3EmbeddingModel(modelName string) bool {
-	return strings.HasPrefix(strings.ToLower(modelName), qwen3EmbeddingModelNamePrefix)
-}
-
-func applyQwen3QueryInstruction(input string) string {
-	if strings.HasPrefix(input, qwen3EmbeddingInstructionPrefix) {
-		return input
-	}
-	return qwen3EmbeddingQueryInstruction + input
-}
-
-func applyEmbeddingGemmaPrompt(input string, request EmbeddingRequest, isBatch bool) string {
+func applyEmbeddingGemmaPrompt(input string, request EmbeddingRequest, inputType string) string {
 	trimmedInput := strings.TrimSpace(input)
 	if hasEmbeddingGemmaPrompt(trimmedInput) {
 		return trimmedInput
 	}
-	if embeddingInputType(request, isBatch) == "document" {
+	if inputType == "document" {
 		title := firstNonEmpty(request.Title, "none")
 		return "title: " + title + " | text: " + trimmedInput
 	}
@@ -176,18 +108,14 @@ func hasEmbeddingGemmaPrompt(input string) bool {
 	return strings.HasPrefix(normalized, "task: ") || strings.HasPrefix(normalized, "title: ")
 }
 
-func embeddingInputType(request EmbeddingRequest, isBatch bool) string {
-	normalized := strings.ToLower(strings.TrimSpace(request.InputType))
-	switch normalized {
+func embeddingInputType(request EmbeddingRequest) string {
+	switch strings.ToLower(strings.TrimSpace(request.InputType)) {
 	case "document", "doc":
 		return "document"
 	case "query":
 		return "query"
 	default:
-		if isBatch {
-			return "document"
-		}
-		return "query"
+		return ""
 	}
 }
 

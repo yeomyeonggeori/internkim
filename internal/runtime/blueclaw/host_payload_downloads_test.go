@@ -22,6 +22,12 @@ func TestThePinsCoverExactlyThePayloadProgramsDeclared(t *testing.T) {
 	if len(declared) == 0 {
 		t.Fatal("no dependency declares ArrivesAsPayload, so this test reads the wrong list")
 	}
+	for _, programName := range blueclaw.HostProgramsBuiltFromSource() {
+		if !declared[programName] {
+			t.Fatalf("%s is built from source and no dependency declares it ArrivesAsPayload", programName)
+		}
+		delete(declared, programName)
+	}
 
 	for _, architecture := range debianArchitecturesThePinsCover(t) {
 		downloads, errorValue := blueclaw.HostPayloadDownloads(architecture)
@@ -118,4 +124,48 @@ func machineFor(t *testing.T, debianArchitecture string) string {
 	}
 	t.Fatalf("no machine name for %s", debianArchitecture)
 	return ""
+}
+
+func TestTheMacEmbeddingServerIsPinnedAsADirectoryAndLinuxBuildsItFromSource(t *testing.T) {
+	downloads, errorValue := blueclaw.HostPayloadDownloadsForTarget(blueclaw.HostPayloadDarwinArm64)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	found := false
+	for _, download := range downloads {
+		if download.ProgramName == blueclaw.EmbeddingServerProgramName {
+			found = true
+			if download.DirectoryInsideArchive == "" || download.PathInsideArchive != "" {
+				t.Errorf("the Mac pins %s as %+v, and it cannot run apart from its libraries", download.ProgramName, download)
+			}
+		}
+	}
+	if !found {
+		t.Error("the Mac pins no embedding server")
+	}
+	for _, architecture := range debianArchitecturesThePinsCover(t) {
+		linux, errorValue := blueclaw.HostPayloadDownloads(architecture)
+		if errorValue != nil {
+			t.Fatal(errorValue)
+		}
+		for _, download := range linux {
+			if download.ProgramName == blueclaw.EmbeddingServerProgramName {
+				t.Errorf("%s pins the upstream embedding server, whose Linux build needs a newer glibc than the package promises", architecture)
+			}
+		}
+	}
+}
+
+func TestTheEmbeddingModelIsPinnedByCommitAndChecksumOverHTTPS(t *testing.T) {
+	model := blueclaw.HostEmbeddingModelDownload()
+
+	if !strings.HasPrefix(model.URL, "https://") || len(model.SHA256) != 64 || len(model.Version) != 40 {
+		t.Fatalf("the model is pinned as %+v", model)
+	}
+	if !strings.Contains(model.URL, "/resolve/"+model.Version+"/") {
+		t.Fatalf("the model is fetched from %s and not from the commit %s it is pinned at", model.URL, model.Version)
+	}
+	if !strings.HasSuffix(model.URL, "/"+model.ProgramName) {
+		t.Fatalf("the model is named %s and fetched from %s", model.ProgramName, model.URL)
+	}
 }

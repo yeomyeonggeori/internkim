@@ -26,7 +26,7 @@ What it can judge, and does:
 
 What it cannot judge, and says so rather than pretending:
 
-  * whether the nine LaunchDaemons bring the bundle up. That needs a company,
+  * whether the ten LaunchDaemons bring the bundle up. That needs a company,
     which needs a connection document from a plane, and it writes to
     /Library/LaunchDaemons and creates two accounts on this Mac. It is behind
     --install-the-company, it is off by default, and --undo takes it back out.
@@ -56,7 +56,7 @@ RIG_TAP = "internkim-rig/rig"
 LAUNCH_DAEMON_ROOT = Path("/Library/LaunchDaemons")
 LAUNCH_DAEMON_PREFIX = "kim.intern."
 STATE_ROOT = Path("/var/lib/internkim")
-SERVICE_ACCOUNTS = ("blueclaw", "internkim-relay")
+SERVICE_ACCOUNTS = ("blueclaw", "internkim-relay", "internkim-embedding")
 DEFAULT_ARTIFACT_DIRECTORY = Path(".artifacts/native-package")
 RELEASE_DOWNLOAD_PREFIX = "https://github.com/yeomyeonggeori/internkim/releases/download/"
 
@@ -148,7 +148,7 @@ def what_a_company_would_change(with_company):
         return []
     return [
         f"create the {' and '.join(SERVICE_ACCOUNTS)} accounts in this Mac's directory service",
-        f"write nine {LAUNCH_DAEMON_PREFIX}* plists into {LAUNCH_DAEMON_ROOT} and bootstrap them into the system domain",
+        f"write ten {LAUNCH_DAEMON_PREFIX}* plists into {LAUNCH_DAEMON_ROOT} and bootstrap them into the system domain",
         f"write this company's keys and settings under {STATE_ROOT}",
         "start Homebrew's postgresql@17 and redis under `sudo brew services`",
         "make the POSIX helper setuid root inside the keg",
@@ -300,6 +300,9 @@ def step_three_every_program_the_services_start_is_there_and_runs(keg):
     missing = [name for name in programs_the_plists_name() if not (library / name).is_file()]
     if missing:
         raise RigFailure(f"the keg carries no {', '.join(missing)}, and the plists start them by absolute path")
+    model = library / "models/embeddinggemma-2-Q8_0.gguf"
+    if not model.is_file():
+        raise RigFailure(f"the keg carries no {model.name}, and the embedding server loads it by absolute path")
     unrunnable = []
     for name in programs_the_plists_name():
         path = library / name
@@ -326,7 +329,7 @@ def programs_the_plists_name():
         "blueclaw", "blueclaw-posix-helper", "internkim-admind", "internkim-capabilityd",
         "internkim-maild", "internkim-relay", "chatd", "buzz-relay", "buzz-admin",
         "buzz-migrate", "versitygw", "moli", "agent-browser", "bun", "uv",
-        "render-company-runtime",
+        "llama.cpp/llama-server", "render-company-runtime",
     ]
 
 
@@ -378,8 +381,8 @@ def step_seven_the_company_is_supervised(connection_path):
     observations.append(f"the {' and '.join(SERVICE_ACCOUNTS)} accounts exist")
 
     plists = sorted(LAUNCH_DAEMON_ROOT.glob(f"{LAUNCH_DAEMON_PREFIX}*.plist"))
-    if len(plists) != 9:
-        raise RigFailure(f"{len(plists)} daemons were written and the bundle is nine")
+    if len(plists) != 10:
+        raise RigFailure(f"{len(plists)} daemons were written and the bundle is ten")
     for path in plists:
         # The label is the file name without its extension, because the install
         # writes the plist under its own label. Reading it back out of the plist
@@ -392,7 +395,7 @@ def step_seven_the_company_is_supervised(connection_path):
             raise RigFailure(f"{label} is not loaded in the system domain")
         if "state = running" not in printed.stdout and "LaunchOnlyOnce" not in path.read_text():
             raise RigFailure(f"{label} is loaded and not running:\n{printed.stdout[:2000]}")
-    observations.append("all nine daemons are loaded in the system domain")
+    observations.append("all ten daemons are loaded in the system domain")
 
     helper = installed_keg_path() / "libexec/blueclaw-posix-helper"
     mode = helper.stat()
@@ -514,7 +517,7 @@ def main():
         print(f"✓ {observation}")
     if not with_company:
         print(
-            "\nNot judged: whether the nine LaunchDaemons bring the bundle up. That needs a company,\n"
+            "\nNot judged: whether the ten LaunchDaemons bring the bundle up. That needs a company,\n"
             "and giving this Mac one writes to /Library/LaunchDaemons and creates two accounts.\n"
             "Run it again with --install-the-company <connection.json> to judge that too."
         )

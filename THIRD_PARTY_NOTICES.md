@@ -34,3 +34,14 @@ file.
 (https://avatars.outpacestudios.com/). MIT License, Copyright (c) 2026 Outpace
 Studios. The full text is in `web/src/lib/avatar-gradient/LICENSE`.
 
+
+## Embedding server and model
+
+The company host package carries llama.cpp b11476 (MIT License, Copyright (c)
+2023-2026 The ggml authors, https://github.com/ggml-org/llama.cpp), built from
+source on Linux by `tools/prepare-llama-server` and taken as the upstream
+release on macOS, with its `LICENSE` file beside its programs. It also carries
+the Q8_0 GGUF conversion of Google's EmbeddingGemma 2 published at
+https://huggingface.co/ggml-org/embeddinggemma-2-GGUF, which its model card
+licenses under Apache-2.0. `internal/runtime/blueclaw/host_payload_downloads.go`
+pins the model and the macOS release by version and checksum.

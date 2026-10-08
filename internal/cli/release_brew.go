@@ -305,7 +305,15 @@ func fetchBrewVendoredPrograms(repositoryRootPath string, libraryPath string, ou
 	if errorValue != nil {
 		return errorValue
 	}
+	layout := blueclaw.MacCompanyHostLayout("")
 	for _, download := range downloads {
+		if download.DirectoryInsideArchive != "" {
+			serverPath := filepath.Join(libraryPath, strings.TrimPrefix(layout.EmbeddingServerDirectory(), layout.LibraryRoot))
+			if errorValue := fetchVendoredDirectory(repositoryRootPath, download, serverPath, output); errorValue != nil {
+				return errorValue
+			}
+			continue
+		}
 		programPath, errorValue := fetchVendoredProgram(repositoryRootPath, download, libraryPath, output)
 		if errorValue != nil {
 			return errorValue
@@ -318,7 +326,11 @@ func fetchBrewVendoredPrograms(repositoryRootPath string, libraryPath string, ou
 			return errorValue
 		}
 	}
-	return nil
+	modelPath, errorValue := fetchPinnedPayload(repositoryRootPath, blueclaw.HostEmbeddingModelDownload(), output)
+	if errorValue != nil {
+		return errorValue
+	}
+	return copyFile(modelPath, filepath.Join(libraryPath, strings.TrimPrefix(layout.EmbeddingModelPath(), layout.LibraryRoot)), 0o644)
 }
 
 func copyBrewCarriedTrees(repositoryRootPath string, libraryPath string) error {

@@ -1,0 +1,89 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+repository_root="$(cd "$(dirname "$0")/.." && pwd)"
+
+pinned_tag="b11476"
+pinned_revision="988190680d5a89fce97de3c20df2c2813731fd61"
+source_repository="https://github.com/ggml-org/llama.cpp"
+
+# Bump this when the cmake line or the files kept change, so an artifact built
+# the old way is rebuilt rather than trusted.
+build_recipe="cpu-all-variants-static-libstdcxx-gcc14-2"
+built_revision="$pinned_tag+$pinned_revision+$build_recipe"
+
+# The prebuilt ubuntu assets are built on Ubuntu 24.04 and need glibc 2.38 and a
+# GCC 13 libstdc++; the package promises glibc 2.35 (HostGlibcMinimum). Building on
+# Ubuntu 22.04 keeps the glibc floor, and linking libstdc++ and libgcc statically
+# keeps the C++ runtime out of what the machine must provide. GCC 11, Ubuntu 22.04's
+# own, cannot target the armv9.2 SME CPU variant, so the compiler is GCC 14 (the first with SME) from the
+# toolchain PPA; it only compiles, and what it links in is static. macOS keeps the
+# prebuilt tarball, which tools/verify-vendored-downloads probes.
+target=""
+case "${1:-}" in
+  --target) target="$2"; shift 2 ;;
+  --print-revision) printf '%s\n' "$built_revision"; exit 0 ;;
+  *) echo "usage: prepare-llama-server --target linux-arm64|linux-amd64|linux | --print-revision" >&2; exit 1 ;;
+esac
+
+if [ "$target" = "linux" ]; then
+  "$0" --target linux-arm64
+  exec "$0" --target linux-amd64
+fi
+
+case "$target" in
+  linux-arm64) artifact_directory="$repository_root/.dependency/llama-server-linux-arm64"; container_platform="linux/arm64" ;;
+  linux-amd64) artifact_directory="$repository_root/.dependency/llama-server-linux-amd64"; container_platform="linux/amd64" ;;
+  *) echo "no llama-server is built for $target; the targets are linux-arm64 and linux-amd64" >&2; exit 1 ;;
+esac
+
+source_directory="$artifact_directory/src"
+server_directory="$artifact_directory/llama.cpp"
+revision_file="$artifact_directory/REVISION"
+
+if [ -x "$server_directory/llama-server" ] && [ "$(cat "$revision_file" 2>/dev/null)" = "$built_revision" ]; then
+  echo "llama-server artifact already up to date at $built_revision"
+  exit 0
+fi
+
+mkdir -p "$artifact_directory"
+if [ ! -d "$source_directory/.git" ]; then
+  rm -rf "$source_directory"
+  git init -q "$source_directory"
+  git -C "$source_directory" remote add origin "$source_repository"
+fi
+git -C "$source_directory" fetch --depth 1 origin "$pinned_revision"
+git -C "$source_directory" checkout --force --detach "$pinned_revision"
+rm -rf "$source_directory/build"
+
+# GGML_NATIVE=OFF with GGML_CPU_ALL_VARIANTS builds one CPU module per
+# instruction-set level and loads the best one the machine supports at run time,
+# so a package built here runs on any CPU of its architecture.
+container run --rm --platform "$container_platform" --memory 8G \
+  -v "$source_directory:/build" -w /build ubuntu:22.04 \
+  bash -c '
+    set -euo pipefail
+    apt-get update -qq
+    DEBIAN_FRONTEND=noninteractive apt-get install -y -qq build-essential cmake git software-properties-common >/dev/null
+    add-apt-repository -y ppa:ubuntu-toolchain-r/test >/dev/null
+    DEBIAN_FRONTEND=noninteractive apt-get install -y -qq gcc-14 g++-14 >/dev/null
+    export CC=gcc-14 CXX=g++-14
+    static_runtime="-static-libstdc++ -static-libgcc"
+    cmake -S . -B build -DCMAKE_BUILD_TYPE=Release \
+      -DBUILD_SHARED_LIBS=ON -DGGML_BACKEND_DL=ON -DGGML_CPU_ALL_VARIANTS=ON -DGGML_NATIVE=OFF \
+      -DGGML_CUDA=OFF -DGGML_VULKAN=OFF -DGGML_METAL=OFF -DGGML_OPENMP=OFF \
+      -DLLAMA_OPENSSL=OFF -DLLAMA_BUILD_UI=OFF -DLLAMA_USE_PREBUILT_UI=OFF \
+      -DLLAMA_BUILD_TESTS=OFF -DLLAMA_BUILD_EXAMPLES=OFF -DLLAMA_BUILD_TOOLS=ON -DLLAMA_BUILD_SERVER=ON \
+      -DCMAKE_BUILD_RPATH_USE_ORIGIN=ON \
+      -DCMAKE_EXE_LINKER_FLAGS="$static_runtime" -DCMAKE_SHARED_LINKER_FLAGS="$static_runtime" \
+      -DCMAKE_MODULE_LINKER_FLAGS="$static_runtime"
+    cmake --build build --target llama-server -j "$(nproc)"
+  '
+
+rm -rf "$server_directory"
+mkdir -p "$server_directory"
+cp -a "$source_directory/build/bin/llama-server" "$server_directory/"
+cp -a "$source_directory"/build/bin/lib*.so* "$server_directory/"
+cp "$source_directory/LICENSE" "$server_directory/LICENSE"
+printf '%s\n' "$built_revision" > "$revision_file"
+echo "llama-server artifact prepared at $built_revision for $target"
