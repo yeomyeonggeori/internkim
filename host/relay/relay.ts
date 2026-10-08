@@ -55,6 +55,7 @@ import { SessionBindingStore } from './session-binding-store';
 import { agentFilePoster, conversationEditor, conversationPoster } from './conversation-post';
 import { ArrivalWatchers, activeMemberIDsOf, arrivalsPath, keepWatchingArrivals } from './arrival-watchers';
 import { readTyping, typingPath, typingTeller } from './typing';
+import { readWithdrawal, withdrawalsPath, withdrawalTeller, WithdrawnMessages } from './withdrawn';
 import { fetchWhenChatdListens } from './chatd-reach';
 
 
@@ -143,6 +144,7 @@ const arrivalWatchers = new ArrivalWatchers({
 	askChatd: (capability, body) => dispatch.askChatd(capability, body),
 	arrivalsURL: `http://127.0.0.1:${arrivalsPort}${arrivalsPath}`,
 	typingURL: `http://127.0.0.1:${arrivalsPort}${typingPath}`,
+	withdrawalsURL: `http://127.0.0.1:${arrivalsPort}${withdrawalsPath}`,
 	report: (line) => console.log(line),
 	now: () => Date.now()
 });
@@ -344,9 +346,27 @@ async function tellThoseAddressed(arrived: ArrivedMessage): Promise<number> {
 	]);
 	const spoken = await askTheProject<{ told?: number }>(
 		'notify',
-		notifyRequestOf(arrived, authorName, messengerPlatform, senderPicturePath)
+		notifyRequestOf(arrived, authorName, messengerPlatform, senderPicturePath, withdrawnMessages.in(arrived.conversationID))
 	);
 	return spoken.told ?? 0;
+}
+
+const withdrawnMessages = new WithdrawnMessages();
+
+const tellWithdrawalTo = withdrawalTeller({
+	withdrawn: withdrawnMessages,
+	platform: messengerPlatform,
+	askTheProject: (request) => askTheProject('withdraw-notification', request)
+});
+
+async function tellWithdrawal(offered: unknown): Promise<Response> {
+	const withdrawal = readWithdrawal(offered);
+	if (!withdrawal) return new Response('that is not a message taken back', { status: 400 });
+	const reached = await tellWithdrawalTo(withdrawal).catch((error) => {
+		console.error('withdrawal not told:', error instanceof Error ? error.message : error);
+		return 0;
+	});
+	return Response.json({ reached });
 }
 
 const personPictures = new PersonPictures({
@@ -542,6 +562,7 @@ Bun.serve({
 		const offered = await request.json().catch(() => null);
 		if (pathname === '/inbound') return keepInboundMessage(offered);
 		if (pathname === typingPath) return tellTyping(offered);
+		if (pathname === withdrawalsPath) return tellWithdrawal(offered);
 		const arrived = readArrivedMessage(offered);
 		if (!arrived) return new Response('that is not a message', { status: 400 });
 		const told = await tellThoseAddressed(arrived).catch((error) => {

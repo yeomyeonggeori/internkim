@@ -20,6 +20,8 @@ type NotifyRequest = {
 	openPath?: unknown;
 	tag?: unknown;
 	conversationID?: unknown;
+	messageID?: unknown;
+	withdrawnMessageIDs?: unknown;
 	senderExternalID?: unknown;
 	senderPicturePath?: unknown;
 };
@@ -96,6 +98,10 @@ function askedNotification(asked: NotifyRequest): Notification {
 		title,
 		body: typeof asked.body === 'string' ? asked.body : '',
 		openPath: typeof asked.openPath === 'string' ? asked.openPath : '/task/',
-		tag: typeof asked.tag === 'string' ? asked.tag : 'internkim'
+		tag: typeof asked.tag === 'string' ? asked.tag : 'internkim',
+		messageID: typeof asked.messageID === 'string' ? asked.messageID : '',
+		withdrawnMessageIDs: Array.isArray(asked.withdrawnMessageIDs)
+			? asked.withdrawnMessageIDs.filter((messageID): messageID is string => typeof messageID === 'string' && messageID !== '')
+			: []
 	};
 }

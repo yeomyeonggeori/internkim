@@ -1301,6 +1301,10 @@
     {
       "name": "tell-member",
       "verifyJWT": false
+    },
+    {
+      "name": "withdraw-notification",
+      "verifyJWT": false
     }
   ],
   "scheduled": [

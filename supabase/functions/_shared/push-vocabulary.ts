@@ -6,6 +6,8 @@ export type Notification = {
 	icon?: string;
 	senderName?: string;
 	senderID?: string;
+	messageID?: string;
+	withdrawnMessageIDs?: string[];
 };
 
 export type NotificationSender = {

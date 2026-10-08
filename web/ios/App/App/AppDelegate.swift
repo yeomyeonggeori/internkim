@@ -1,4 +1,5 @@
 import UIKit
+import UserNotifications
 import Capacitor
 import WidgetKit
 
@@ -47,6 +48,11 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         didReceiveRemoteNotification userInfo: [AnyHashable: Any],
         fetchCompletionHandler completionHandler: @escaping (UIBackgroundFetchResult) -> Void
     ) {
+        if let withdrawn = userInfo["withdrawnMessageIDs"] as? [String] {
+            UNUserNotificationCenter.current().removeDeliveredNotifications(withIdentifiers: withdrawn)
+            completionHandler(.newData)
+            return
+        }
         guard userInfo["widget"] as? String == "attendance" else {
             completionHandler(.noData)
             return
