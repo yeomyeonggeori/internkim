@@ -12,7 +12,7 @@ import (
 const testHomebrewPrefix = "/opt/homebrew"
 
 // What `internkim install` will have on disk by the time it writes the plists:
-// the company's own environment and the six secret files the services read.
+// the company's own environment and the secret files the services read.
 func environmentFilesForTest() map[string]string {
 	return map[string]string{
 		CompanyHostEnvironmentPath: strings.Join([]string{
@@ -48,7 +48,7 @@ func launchDaemonsForTest(t *testing.T) []CompanyHostLaunchDaemon {
 }
 
 // One declaration, two supervisors. A service that exists for systemd and not
-// for launchd is a Mac that runs eight of the nine things a Debian box runs, and
+// for launchd is a Mac that runs fewer things than a Debian box, and
 // nothing would say which one is missing.
 func TestTheSameServicesAreRenderedForBothSupervisors(t *testing.T) {
 	daemons := launchDaemonsForTest(t)
@@ -78,7 +78,7 @@ func TestNoLaunchDaemonCarriesAnUnexpandedReference(t *testing.T) {
 
 // A required environment file that is not there is what happens when the plists
 // are written before there is a company. Rendering an empty EnvironmentVariables
-// would produce nine daemons that start and can do nothing.
+// would produce daemons that start and can do nothing.
 func TestARequiredEnvironmentFileThatIsMissingRefusesToRender(t *testing.T) {
 	files := environmentFilesForTest()
 	delete(files, CompanyHostBuzzDatabasePath)

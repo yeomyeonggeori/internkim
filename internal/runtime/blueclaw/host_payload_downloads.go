@@ -7,12 +7,12 @@ import (
 	"strings"
 )
 
-// Six programs the company host runs are packaged by nobody: the two browsers the
-// skills drive, the S3 gateway the messenger stores attachments through, the two
+// The programs the company host runs that are packaged by nobody: the browsers the
+// skills drive, the S3 gateway the messenger stores attachments through, the
 // toolchains the agent and the document skills shell out to, and the llama.cpp server
 // that embeds every memory and skill. They arrive as pinned downloads, and this is
-// where the pins live, with the embedding model's weights beside them. Which six is not decided here:
-// host_dependencies.go declares them ArrivesAsPayload and
+// where the pins live, with the embedding model's weights beside them. Which programs
+// is not decided here: host_dependencies.go declares them ArrivesAsPayload and
 // TestThePinsCoverExactlyThePayloadProgramsDeclared holds this table to that list in
 // both directions, because a program declared and not pinned ships a package
 // `internkim install` refuses at its first check.
@@ -45,7 +45,7 @@ const (
 )
 
 // The machines this release pins a binary for. A target names the operating
-// system as well as the architecture, because five of the six programs publish
+// system as well as the architecture, because most of these programs publish
 // a differently named asset per platform and one of them capitalises it
 // differently too.
 const (

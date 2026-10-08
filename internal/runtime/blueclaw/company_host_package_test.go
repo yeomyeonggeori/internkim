@@ -166,7 +166,7 @@ func TestThePreparationScriptRefusesWithoutACompany(t *testing.T) {
 }
 
 // The package is where the object store stopped being MinIO. The gateway is a pinned
-// download like the two browsers, its unit is one entry beside the others, and the
+// download like the browsers, its unit is one entry beside the others, and the
 // relay waits for it — which is the whole cost of the swap on this path.
 func TestThePackageCarriesTheMediaStoreAndTheRelayWaitsForIt(t *testing.T) {
 	media := ""
