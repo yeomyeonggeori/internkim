@@ -174,7 +174,7 @@ for (const viewport of [{ width: 320, height: 760 }, { width: 360, height: 760 }
 	});
 }
 
-test('the bottom navigation clears the home indicator on a phone with a safe area', async ({ page }) => {
+test('the app keeps clear of the status bar and home indicator and its tabs answer down to the screen edge', async ({ page }) => {
 	await page.setViewportSize({ width: 390, height: 844 });
 	await routeCalendarShellAPI(page);
 	await page.route('**/api/v1/tools/event_list/invoke', route => route.fulfill({ json: { result: { events: [] } } }));
@@ -185,6 +185,15 @@ test('the bottom navigation clears the home indicator on a phone with a safe are
 	await expect(page.locator('meta[name="viewport"]')).toHaveAttribute('content', /viewport-fit=cover/);
 	const navigation = page.locator('.internkim-app-mobile-navigation');
 	await expect(navigation).toBeVisible();
-	const lastItemBottom = await navigation.locator('a, button').last().evaluate(item => item.getBoundingClientRect().bottom);
-	expect(844 - lastItemBottom).toBeGreaterThanOrEqual(34);
+	const headerTop = await page.locator('.internkim-app-header').evaluate(header => header.getBoundingClientRect().top);
+	expect(headerTop).toBeGreaterThanOrEqual(47);
+	const lastLabelBottom = await navigation.locator('a, button').last().locator('span').evaluate(label => label.getBoundingClientRect().bottom);
+	expect(844 - lastLabelBottom).toBeGreaterThanOrEqual(34);
+	const tabsUnderTheScreenEdge = await navigation.locator('a, button').evaluateAll(items =>
+		items.map(item => {
+			const bounds = item.getBoundingClientRect();
+			return document.elementFromPoint(bounds.left + bounds.width / 2, 843)?.closest('a, button') === item;
+		})
+	);
+	expect(tabsUnderTheScreenEdge).toEqual([true, true, true, true, true]);
 });
