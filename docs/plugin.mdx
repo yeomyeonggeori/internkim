@@ -27,7 +27,7 @@ codex plugin add internkim@internkim
 ```
 
 Other clients that read the Agent Plugins layout are covered in the plugin's
-README.
+[DOCS.md](https://github.com/yeomyeonggeori/internkim-plugin/blob/main/DOCS.md#loading-it).
 
 ## Sign in [#sign-in]
 
@@ -43,12 +43,12 @@ token's permission opens is under [Permissions](/docs/api#permissions).
 
 ## What runs where [#what-runs-where]
 
-A few skills, such as the calculator and the data room, run entirely on your
+A few skills, such as the calculator and the weather, run entirely on your
 machine and need no account. The others call the tool server, which reads and
 writes your company's record. Documents, PDFs, spreadsheets and decks are one
 skill, [`office`](/docs/office), which works locally and needs the server only
-to fill company forms on letterhead and to read attachments. The plugin's README
-lists every skill and which group it is in.
+to fill company forms on letterhead and to read attachments. The plugin's
+[DOCS.md](https://github.com/yeomyeonggeori/internkim-plugin/blob/main/DOCS.md#skills) says how to tell which group a skill is in.
 
 The skills need Python 3 and [uv](https://docs.astral.sh/uv/) on `PATH`; each
 skill installs what it needs with its own setup command, which the agent runs
