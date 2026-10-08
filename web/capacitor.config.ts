@@ -5,7 +5,6 @@ const config: CapacitorConfig = {
 	appName: 'internkim',
 	webDir: 'app-shell',
 	server: { url: 'https://intern.kim' },
-	ios: { contentInset: 'always' },
 	plugins: {
 		PushNotifications: { presentationOptions: ['badge', 'sound', 'banner', 'list'] }
 	}

@@ -212,7 +212,7 @@
 
 {#if usesAppShell(page.url.pathname)}
 	<Tooltip.Provider delayDuration={120}>
-		<Sidebar.Provider bind:open={isAppSidebarOpen} class="flex h-[min(var(--app-viewport-height,100dvh),100%)] min-h-0 w-full bg-background text-foreground max-sm:relative max-sm:top-[var(--app-viewport-top,0px)]">
+		<Sidebar.Provider bind:open={isAppSidebarOpen} class="flex h-[min(var(--app-viewport-height,100dvh),100%)] min-h-0 w-full bg-background pt-[env(safe-area-inset-top)] text-foreground max-sm:relative max-sm:top-[var(--app-viewport-top,0px)]">
 			{#if !isEmbeddedFrame()}
 				<EffectErrorBoundary region="app rail">
 					<AppRail session={data.session} {workspaceScope} onSearch={openCommandPalette} />
