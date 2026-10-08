@@ -17,7 +17,6 @@
 		message,
 		mine,
 		startsGroup,
-		endsGroup,
 		senderName,
 		canChange,
 		canReply,
@@ -40,7 +39,6 @@
 		message: ChannelMessage;
 		mine: boolean;
 		startsGroup: boolean;
-		endsGroup: boolean;
 		senderName: string;
 		canChange: boolean;
 		canReply: boolean;
@@ -63,7 +61,6 @@
 
 	let contentElement = $state<HTMLDivElement | null>(null);
 	let measuredNameWidthPixels = $state(0);
-	let footerHeightPixels = $state(0);
 	let isAnchoredPickerOpen = $state(false);
 	let pickerAnchor = $state<HTMLElement | null>(null);
 	let isContextMenuOpen = $state(false);
@@ -142,9 +139,9 @@
 			use:swallowClickAfterTouchHold={{ isMenuOpen: isContextMenuOpen }}
 			use:openThreadOnTap={{ onOpen: onReply, disabled: !canReply || !isSettled }}
 		>
-			<Message.Root align={mine ? 'end' : 'start'} style="--footer-lift: {footerHeightPixels + 10}px">
+			<Message.Root align={mine ? 'end' : 'start'}>
 				{#if !mine}
-					{#if endsGroup}
+					{#if startsGroup}
 						{@render avatar()}
 					{:else}
 						<Message.Avatar />
@@ -159,7 +156,7 @@
 					{@render children({ nameWidthPixels: hasHeader ? measuredNameWidthPixels : 0 })}
 					{#if hasFooter}
 						<Message.Footer class="px-0">
-							<div bind:offsetHeight={footerHeightPixels} class="flex min-w-0 flex-wrap items-center gap-1.5 group-data-[align=end]/message:justify-end">
+							<div class="flex min-w-0 flex-wrap items-center gap-1.5 group-data-[align=end]/message:justify-end">
 								{@render footer({ openPicker: openPickerAt })}
 							</div>
 						</Message.Footer>

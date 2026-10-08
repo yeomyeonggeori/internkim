@@ -19,6 +19,7 @@
 	import { createOutgoingMessages } from './outgoing-messages.svelte';
 	import MessageReactions from './message-reactions.svelte';
 	import MessageRow from './message-row.svelte';
+	import SenderAvatar from './sender-avatar.svelte';
 	import MessageCaptureBar from './message-capture-bar.svelte';
 	import MessageCaptureOverlay from './message-capture-overlay.svelte';
 	import { createMessageCapture } from './message-capture.svelte';
@@ -835,7 +836,7 @@
 {/snippet}
 
 {#snippet senderAvatar(sender: ChannelParticipant)}
-	<Message.Avatar class="group-has-data-[slot=message-footer]/message:-translate-y-(--footer-lift)">
+	<SenderAvatar>
 		<PersonAvatar
 			name={sender.name}
 			email={sender.email ?? ''}
@@ -845,17 +846,16 @@
 			externalID={sender.externalID ?? ''}
 		/>
 
-	</Message.Avatar>
+	</SenderAvatar>
 {/snippet}
 
-{#snippet messageRow(message: ChannelMessage, startsGroup: boolean, endsGroup: boolean, isInTimeline: boolean)}
+{#snippet messageRow(message: ChannelMessage, startsGroup: boolean, isInTimeline: boolean)}
 	{@const replyChip = isInTimeline ? message.thread : undefined}
 	{@const isUnsent = outgoing.hasFailed(message.id)}
 	<MessageRow
 		{message}
 		mine={isMine(message)}
 		{startsGroup}
-		{endsGroup}
 		senderName={showSenderNames ? message.sender.name : ''}
 		{canChange}
 		canReply={isInTimeline && !message.threadRootId}
@@ -900,11 +900,11 @@
 	<div class="@container/conversation min-h-0 flex-1 overflow-y-auto">
 		<div class="flex flex-col gap-4 px-4 py-8">
 			{#if openThreadRoot}
-				{@render messageRow(openThreadRoot, true, true, false)}
+				{@render messageRow(openThreadRoot, true, false)}
 				{#each threadReplyGroups as group (group.id)}
 					<Message.Group class="gap-0">
 						{#each group.items as reply, index (reply.id)}
-							{@render messageRow(reply, index === 0, index === group.items.length - 1, false)}
+							{@render messageRow(reply, index === 0, false)}
 						{/each}
 					</Message.Group>
 				{/each}
@@ -970,7 +970,7 @@
 						{:else}
 							<Message.Group class="gap-0">
 								{#each item.items as message, index (message.id)}
-									{@render messageRow(message, index === 0, index === item.items.length - 1, true)}
+									{@render messageRow(message, index === 0, true)}
 								{/each}
 							</Message.Group>
 						{/if}
