@@ -14,10 +14,10 @@ import (
 )
 
 // The macOS half. `brew install internkim` delivers the files and this makes the
-// box a host: it creates the two accounts through the directory service, sets
+// box a host: it creates the service accounts through the directory service, sets
 // the helper's ownership and its setuid bit — the one thing a bottle pour cannot
 // carry, because extracting a tar as an ordinary user drops the bit and
-// Homebrew's own linter forbids even recommending it — writes the ten
+// Homebrew's own linter forbids even recommending it — writes the
 // LaunchDaemons from the same declaration the units come from, and then polls
 // readiness where ordering used to stand.
 //
@@ -29,7 +29,7 @@ import (
 // `brew services`, and may do nothing else with it. And `Homebrew::Services::
 // System.path` returns /Library/LaunchDaemons with the `system` domain target
 // when euid is zero, so the database and the cache land in the same domain as
-// the ten daemons here and survive a reboot with nobody logged in.
+// the daemons here and survive a reboot with nobody logged in.
 
 const (
 	// Below 500 so the accounts do not appear at the login window, and far
@@ -95,9 +95,9 @@ func companyHostServiceAccounts(layout blueclaw.CompanyHostLayout) []companyHost
 	}
 }
 
-// dscl is the whole of account creation on a Mac, and it is eight commands
-// rather than one because the directory service has no adduser. The same eight
-// are what blueclaw's POSIX helper runs for a projected person, and the reason
+// dscl is the whole of account creation on a Mac, and it is a sequence of commands
+// rather than one because the directory service has no adduser. The same sequence
+// is what blueclaw's POSIX helper runs for a projected person, and the reason
 // they are written twice is that the helper is a `package main` in another
 // module. A test holds the two orders together.
 func (platform macPlatform) EnsureServiceAccounts(machine Machine) error {

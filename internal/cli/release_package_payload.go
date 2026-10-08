@@ -740,7 +740,7 @@ func carriedLibraryFiles(layout blueclaw.CompanyHostLayout) []packagedFile {
 }
 
 // shippedProgramNames is every program the package puts in /usr/bin, derived from
-// the same four declarations buildPackagedPrograms builds from, so a unit that starts a
+// the same declarations buildPackagedPrograms builds from, so a unit that starts a
 // program nothing produces is a test failure rather than a box that does not come up.
 func shippedProgramNames(architecture string) ([]string, error) {
 	names := []string{blueclaw.RenderCompanyRuntimeName, blueclaw.BuzzRelayName, blueclaw.BuzzAdminName}

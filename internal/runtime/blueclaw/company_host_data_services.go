@@ -15,7 +15,7 @@ import (
 // socket in a directory only its own group can open, so there is no port to
 // collide with and nothing on loopback to guard.
 //
-// The same two units serve every family. Where the binaries are, which major
+// The same units serve every family. Where the binaries are, which major
 // version a cluster was made by, and whether the cache is called redis or valkey
 // differ between distributions, and CompanyHostDataServiceScript is the one place
 // that knows.
@@ -90,7 +90,7 @@ func (layout CompanyHostLayout) DataServicePath() string {
 	return layout.HelperRoot + "/" + CompanyHostDataServiceProgramName
 }
 
-// CompanyHostDataServiceUnits are the two units, systemd's alone: a Mac has
+// CompanyHostDataServiceUnits are the data service units, systemd's alone: a Mac has
 // Homebrew's own services and no counterpart for either.
 func CompanyHostDataServiceUnits(layout CompanyHostLayout) []CompanyPackageUnit {
 	if !layout.OwnsItsDataServices() {

@@ -17,7 +17,7 @@ import (
 // this machine makes an account, reaches its database, supervises a process, and
 // names the command that installs something.
 
-// The two services the company host opens and does not ship. They are named here
+// The services the company host opens and does not ship. They are named here
 // because each platform calls them something different — internkim-postgresql and
 // internkim-cache under systemd, postgresql@17 and redis under `brew services` — and a
 // probe should not have to know which machine it is on.

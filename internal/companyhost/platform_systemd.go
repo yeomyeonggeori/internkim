@@ -83,11 +83,11 @@ func (platform linuxPlatform) SuperviseTheBundle(machine Machine, progress io.Wr
 	return nil
 }
 
-// A person reads one command, not a list of twelve names to look up. The
+// A person reads one command, not a list of names to look up. The
 // command is the one this machine's own package manager takes, with the names
 // the declaration gives that manager, because a Debian package name is the wrong
 // name on a machine that does not use Debian packages. A machine with none of
-// the four managers the declaration names gets the pieces by what they are.
+// the managers the declaration names gets the pieces by what they are.
 func (linuxPlatform) HowToInstallTheseByHand(machine Machine, missing []missingPiece) []string {
 	manager, isKnown := packageManagerOf(machine)
 	if !isKnown {
