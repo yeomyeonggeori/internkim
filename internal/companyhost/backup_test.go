@@ -268,3 +268,41 @@ func TestEveryCommandRunAsAnotherAccountStartsFromANeutralDirectory(t *testing.T
 		t.Fatalf("only %d commands ran as another account: %v", asAnotherAccount, machine.runs)
 	}
 }
+
+func TestABackupDoesNotCarryTheRelaysInFlightMessages(t *testing.T) {
+	relayState := t.TempDir()
+	for name, content := range map[string]string{
+		"sessions.json":            "{}",
+		"inbound/x.json":           "a message whose turn had not finished",
+		"inbound/y.json.1.writing": "half written",
+		"inbound/z.settled":        "delivered",
+	} {
+		if errorValue := os.MkdirAll(filepath.Dir(filepath.Join(relayState, name)), 0o755); errorValue != nil {
+			t.Fatal(errorValue)
+		}
+		if errorValue := os.WriteFile(filepath.Join(relayState, name), []byte(content), 0o600); errorValue != nil {
+			t.Fatal(errorValue)
+		}
+	}
+	roots := []hostbackup.FileRoot{}
+	for _, root := range hostFileRoots(blueclaw.LinuxCompanyHostLayout()) {
+		if root.Role == relayRole {
+			root.Path = relayState
+			roots = append(roots, root)
+		}
+	}
+	var archived bytes.Buffer
+	if _, errorValue := hostbackup.WriteFiles(&archived, roots, hostbackup.SQLiteSnapshots{ScratchDirectoryPath: t.TempDir()}); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	restored := filepath.Join(t.TempDir(), "relay")
+	if _, errorValue := hostbackup.ExtractFiles(&archived, map[string]string{relayRole: restored}); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	for name, wanted := range map[string]bool{"sessions.json": true, "inbound/z.settled": true, "inbound/x.json": false, "inbound/y.json.1.writing": false} {
+		_, errorValue := os.Lstat(filepath.Join(restored, name))
+		if (errorValue == nil) != wanted {
+			t.Errorf("%s restored = %v, want %v", name, errorValue == nil, wanted)
+		}
+	}
+}
