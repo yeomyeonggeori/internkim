@@ -15,6 +15,10 @@ class NotificationService: UNNotificationServiceExtension {
         arrived = request.content
         lock.unlock()
 
+        if let withdrawn = request.content.userInfo["withdrawnMessageIDs"] as? [String] {
+            UNUserNotificationCenter.current().removeDeliveredNotifications(withIdentifiers: withdrawn)
+        }
+
         guard let address = request.content.userInfo["pictureURL"] as? String,
               let pictureURL = URL(string: address),
               pictureURL.scheme == "https" else {

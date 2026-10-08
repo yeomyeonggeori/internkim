@@ -11,6 +11,7 @@ export type ApnsKey = {
 };
 
 const halfAnHour = 1800;
+const collapseIDByteLimit = 64;
 
 let held: { token: string; issuedAt: number; keyID: string } | null = null;
 
@@ -25,7 +26,23 @@ export function outcomeOfApnsAnswer(status: number, reason: string): PushOutcome
 	return 'refused';
 }
 
+export function apnsCollapseID(notification: Notification): string {
+	const messageID = notification.messageID ?? '';
+	return new TextEncoder().encode(messageID).length <= collapseIDByteLimit ? messageID : '';
+}
+
 export function apnsPayload(notification: Notification): Record<string, unknown> {
+	const payload = alertPayload(notification);
+	const withdrawnMessageIDs = notification.withdrawnMessageIDs ?? [];
+	if (withdrawnMessageIDs.length === 0) return payload;
+	return {
+		...payload,
+		aps: { ...(payload.aps as Record<string, unknown>), 'mutable-content': 1 },
+		withdrawnMessageIDs
+	};
+}
+
+function alertPayload(notification: Notification): Record<string, unknown> {
 	const aps: Record<string, unknown> = {
 		alert: { title: notification.title, body: notification.body },
 		sound: 'default',
@@ -88,6 +105,7 @@ export async function sendApns(
 		return 'refused';
 	}
 
+	const collapseID = apnsCollapseID(notification);
 	try {
 		const response = await fetch(`https://${apnsHostOf(key)}/3/device/${deviceToken}`, {
 			method: 'POST',
@@ -96,7 +114,8 @@ export async function sendApns(
 				'apns-topic': key.bundleID,
 				'apns-push-type': 'alert',
 				'apns-priority': '10',
-				'content-type': 'application/json'
+				'content-type': 'application/json',
+				...(collapseID ? { 'apns-collapse-id': collapseID } : {})
 			},
 			body: JSON.stringify(apnsPayload(notification))
 		});

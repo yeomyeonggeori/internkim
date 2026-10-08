@@ -12,6 +12,7 @@ export type ArrivalWatchersDependencies = {
 	askChatd: (capability: string, body: Record<string, unknown>) => Promise<{ status: number; body: unknown }>;
 	arrivalsURL: string;
 	typingURL: string;
+	withdrawalsURL: string;
 	report: (line: string) => void;
 	now: () => number;
 };
@@ -72,7 +73,8 @@ export class ArrivalWatchers {
 		const answer = await this.dependencies.askChatd(arrivalsWatchCapability, {
 			actor,
 			arrivalsURL: this.dependencies.arrivalsURL,
-			typingURL: this.dependencies.typingURL
+			typingURL: this.dependencies.typingURL,
+			withdrawalsURL: this.dependencies.withdrawalsURL
 		});
 		if (answer.status >= 300) return `member ${memberID}: chatd answered ${answer.status}: ${JSON.stringify(answer.body)}`;
 		this.watchedAt.set(memberID, this.dependencies.now());

@@ -40,6 +40,8 @@ export type NotifyRequest = Told & {
 	senderExternalID: string;
 	category: 'message';
 	conversationID: string;
+	messageID: string;
+	withdrawnMessageIDs: string[];
 	senderPicturePath: string;
 };
 
@@ -61,7 +63,8 @@ export function notifyRequestOf(
 	arrived: ArrivedMessage,
 	authorName: string,
 	platform: string,
-	senderPicturePath: string
+	senderPicturePath: string,
+	withdrawnMessageIDs: string[]
 ): NotifyRequest {
 	return {
 		platform,
@@ -69,6 +72,8 @@ export function notifyRequestOf(
 		senderExternalID: arrived.authorExternalID,
 		category: 'message',
 		conversationID: arrived.conversationID,
+		messageID: arrived.messageID,
+		withdrawnMessageIDs,
 		senderPicturePath,
 		...tellingOf(arrived, authorName)
 	};

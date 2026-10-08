@@ -9,6 +9,7 @@ import {
 
 const arrivalsURL = 'http://127.0.0.1:18091/arrived';
 const typingURL = 'http://127.0.0.1:18091/typing';
+const withdrawalsURL = 'http://127.0.0.1:18091/withdrawn';
 
 type Asked = { capability: string; body: Record<string, unknown> };
 
@@ -23,6 +24,7 @@ function dependencies(overrides: Partial<ArrivalWatchersDependencies> = {}): Arr
 		askChatd: async () => ({ status: 200, body: {} }),
 		arrivalsURL,
 		typingURL,
+		withdrawalsURL,
 		report: () => {},
 		now: () => 0,
 		...overrides
@@ -63,8 +65,8 @@ describe('renewing arrival watches', () => {
 		const renewal = await watchers.renewEveryone();
 
 		expect(asked).toEqual([
-			{ capability: arrivalsWatchCapability, body: { actor: credentialOf('member-1'), arrivalsURL, typingURL } },
-			{ capability: arrivalsWatchCapability, body: { actor: credentialOf('member-3'), arrivalsURL, typingURL } }
+			{ capability: arrivalsWatchCapability, body: { actor: credentialOf('member-1'), arrivalsURL, typingURL, withdrawalsURL } },
+			{ capability: arrivalsWatchCapability, body: { actor: credentialOf('member-3'), arrivalsURL, typingURL, withdrawalsURL } }
 		]);
 		expect(renewal).toEqual({
 			watched: 1,

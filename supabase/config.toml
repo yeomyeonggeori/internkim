@@ -220,6 +220,9 @@ verify_jwt = true
 [functions.tell-member]
 verify_jwt = false
 
+[functions.withdraw-notification]
+verify_jwt = false
+
 [remotes.production]
 project_id = "mutvimjbvmoludotyehk"
 
