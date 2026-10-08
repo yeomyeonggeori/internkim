@@ -319,10 +319,12 @@ const (
 	workspaceRole      = "workspace"
 )
 
+var inFlightInboundEvents = []string{"inbound/*.json", "inbound/*.writing"}
+
 func hostFileRoots(layout blueclaw.CompanyHostLayout) []hostbackup.FileRoot {
 	return []hostbackup.FileRoot{
 		{Role: stateRole, Path: blueclaw.CompanyHostStateRoot, Excluded: []string{"media/.vgwlocks", "media/*/.sgwtmp"}},
-		{Role: relayRole, Path: blueclaw.RelayStateDirectoryPath(blueclaw.CompanyHostRelayStateDirectoryName)},
+		{Role: relayRole, Path: blueclaw.RelayStateDirectoryPath(blueclaw.CompanyHostRelayStateDirectoryName), Excluded: inFlightInboundEvents},
 		{Role: configurationRole, Path: blueclaw.CompanyHostConfigurationRoot},
 		{Role: administrationRole, Path: AdministrationStateRoot},
 		{Role: workspaceRole, Path: layout.WorkspacePath, Excluded: []string{"shared/cache", "private/people/*/tmp"}},
