@@ -42,12 +42,6 @@ func TestEmbeddingGemmaDocumentsCarryTheirTitle(t *testing.T) {
 	}
 }
 
-func TestOnlyEmbeddingGemmaModelsStartWithThePrefixOnTheLastSegment(t *testing.T) {
-	if isEmbeddingGemmaModel("embeddinggemma/other-model") {
-		t.Fatal("a directory named embeddinggemma does not make its model one")
-	}
-}
-
 func llamaCppServerAnswering(t *testing.T, received *[]map[string]any) *httptest.Server {
 	t.Helper()
 	server := httptest.NewServer(http.HandlerFunc(func(responseWriter http.ResponseWriter, request *http.Request) {

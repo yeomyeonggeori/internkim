@@ -13,6 +13,7 @@ require (
 	github.com/goreleaser/nfpm/v2 v2.47.0
 	github.com/lib/pq v1.12.3
 	github.com/nbd-wtf/go-nostr v0.52.3
+	github.com/yeomyeonggeori/blueprotocol v0.0.0
 	golang.org/x/crypto v0.56.0
 	golang.org/x/term v0.45.0
 	modernc.org/sqlite v1.48.2
@@ -89,3 +90,5 @@ require (
 	modernc.org/mathutil v1.7.1 // indirect
 	modernc.org/memory v1.11.0 // indirect
 )
+
+replace github.com/yeomyeonggeori/blueprotocol => ./.dependency/blueclaw/.dependency/blueprotocol

@@ -5,15 +5,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"math"
-	"strings"
 
+	"github.com/yeomyeonggeori/blueprotocol/model/embeddingprompt"
 	"github.com/yeomyeonggeori/internkim/internal/modelladder"
 )
 
-const (
-	embeddingGemmaModelNamePrefix = "embeddinggemma"
-	DefaultEmbeddingModelName     = modelladder.EmbeddingModel
-)
+const DefaultEmbeddingModelName = modelladder.EmbeddingModel
 
 type EmbeddingRequest struct {
 	Input            any    `json:"input"`
@@ -69,75 +66,12 @@ func embeddingInputString(input any) string {
 }
 
 func prepareEmbeddingInputs(inputs []string, request EmbeddingRequest, modelName string) []string {
-	inputType := embeddingInputType(request)
-	if !isEmbeddingGemmaModel(modelName) || inputType == "" {
-		return inputs
-	}
-	return mapEmbeddingInputs(inputs, func(input string) string {
-		return applyEmbeddingGemmaPrompt(input, request, inputType)
-	})
-}
-
-func isEmbeddingGemmaModel(modelName string) bool {
-	lastSegment := modelName[strings.LastIndex(modelName, "/")+1:]
-	return strings.HasPrefix(strings.ToLower(strings.TrimSpace(lastSegment)), embeddingGemmaModelNamePrefix)
-}
-
-func mapEmbeddingInputs(inputs []string, transform func(string) string) []string {
-	transformedInputs := make([]string, 0, len(inputs))
+	options := embeddingprompt.Options{Task: request.Task, Title: request.Title}
+	preparedInputs := make([]string, 0, len(inputs))
 	for _, input := range inputs {
-		transformedInputs = append(transformedInputs, transform(input))
+		preparedInputs = append(preparedInputs, embeddingprompt.ApplyWith(modelName, request.InputType, input, options))
 	}
-	return transformedInputs
-}
-
-func applyEmbeddingGemmaPrompt(input string, request EmbeddingRequest, inputType string) string {
-	trimmedInput := strings.TrimSpace(input)
-	if hasEmbeddingGemmaPrompt(trimmedInput) {
-		return trimmedInput
-	}
-	if inputType == "document" {
-		title := firstNonEmpty(request.Title, "none")
-		return "title: " + title + " | text: " + trimmedInput
-	}
-	return "task: " + embeddingTaskDescription(request.Task) + " | query: " + trimmedInput
-}
-
-func hasEmbeddingGemmaPrompt(input string) bool {
-	normalized := strings.ToLower(strings.TrimSpace(input))
-	return strings.HasPrefix(normalized, "task: ") || strings.HasPrefix(normalized, "title: ")
-}
-
-func embeddingInputType(request EmbeddingRequest) string {
-	switch strings.ToLower(strings.TrimSpace(request.InputType)) {
-	case "document", "doc":
-		return "document"
-	case "query":
-		return "query"
-	default:
-		return ""
-	}
-}
-
-func embeddingTaskDescription(task string) string {
-	switch strings.ToLower(strings.TrimSpace(task)) {
-	case "", "retrieval", "search":
-		return "search result"
-	case "question_answering", "question-answering", "question answering", "qa":
-		return "question answering"
-	case "fact_checking", "fact-checking", "fact checking", "fact_verification", "fact verification":
-		return "fact checking"
-	case "classification":
-		return "classification"
-	case "clustering":
-		return "clustering"
-	case "semantic_similarity", "semantic-similarity", "sentence_similarity", "sentence similarity", "sts":
-		return "sentence similarity"
-	case "code_retrieval", "code-retrieval", "code retrieval":
-		return "code retrieval"
-	default:
-		return strings.TrimSpace(task)
-	}
+	return preparedInputs
 }
 
 func finalizeEmbeddingResponse(response EmbeddingResponse, request EmbeddingRequest) (EmbeddingResponse, error) {
