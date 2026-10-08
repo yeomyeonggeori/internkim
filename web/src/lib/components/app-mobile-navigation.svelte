@@ -104,7 +104,7 @@
 		data-sveltekit-preload-data="hover"
 		data-sveltekit-replacestate
 		onclick={() => feelHaptic('selection')}
-		class="flex min-h-11 min-w-0 flex-col items-center justify-center gap-1 rounded-md px-1 py-1 text-[11px] font-medium leading-none text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring data-[active=true]:text-foreground data-[active=true]:font-semibold"
+		class="flex min-h-11 min-w-0 flex-col items-center justify-center gap-1 rounded-md px-1 text-[11px] font-medium leading-none text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring data-[active=true]:text-foreground data-[active=true]:font-semibold"
 	>
 		<Icon class="size-5 shrink-0" />
 		<span class="max-w-full truncate">{item.label}</span>
@@ -195,7 +195,7 @@
 			feelHaptic('selection');
 			isMoreSheetOpen = true;
 		}}
-		class="flex min-h-11 min-w-0 flex-col items-center justify-center gap-1 rounded-md px-1 py-1 text-[11px] font-medium leading-none text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring data-[active=true]:text-foreground data-[active=true]:font-semibold"
+		class="flex min-h-11 min-w-0 flex-col items-center justify-center gap-1 rounded-md px-1 text-[11px] font-medium leading-none text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring data-[active=true]:text-foreground data-[active=true]:font-semibold"
 	>
 		<MoreHorizontalIcon class="size-5 shrink-0" />
 		<span class="max-w-full truncate">{text.more}</span>
