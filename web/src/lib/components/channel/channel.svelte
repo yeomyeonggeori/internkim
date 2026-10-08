@@ -19,6 +19,7 @@
 	import { createOutgoingMessages } from './outgoing-messages.svelte';
 	import MessageReactions from './message-reactions.svelte';
 	import MessageRow from './message-row.svelte';
+	import SenderAvatar from './sender-avatar.svelte';
 	import MessageCaptureBar from './message-capture-bar.svelte';
 	import MessageCaptureOverlay from './message-capture-overlay.svelte';
 	import { createMessageCapture } from './message-capture.svelte';
@@ -604,6 +605,63 @@
 		attachments.length === 1 && attachments[0].kind === 'video' && attachments[0].source
 			? attachments[0]
 			: undefined}
+	{#if message.isError}
+		<Bubble.Root variant="destructive" class="max-w-[min(80%,32rem)]">
+			<Bubble.Content>{text.errorSummary}</Bubble.Content>
+			<Bubble.Reactions align={reactionAlign}>
+				<Popover.Root>
+					<Popover.Trigger>
+						{#snippet child({ props })}
+							<Button
+								{...props}
+								variant="ghost"
+								size="icon-xs"
+								aria-label={text.errorDetailsLabel}
+								class="aria-expanded:text-destructive"
+							>
+								<InfoIcon />
+							</Button>
+						{/snippet}
+					</Popover.Trigger>
+					<Popover.Content class="max-w-sm">
+						<Popover.Header>
+							<Popover.Title class="text-sm">{text.errorDetailsTitle}</Popover.Title>
+							<Popover.Description class="text-sm break-words whitespace-pre-wrap">
+								{bodyText}
+							</Popover.Description>
+						</Popover.Header>
+					</Popover.Content>
+				</Popover.Root>
+			</Bubble.Reactions>
+			{@render timeStamp(message)}
+		</Bubble.Root>
+	{:else if bodyText && message.id === editingMessageID}
+		<MessageInlineEditor
+			originalText={bodyText}
+			onSave={(editedText) => saveInlineEdit(message.id, bodyText, editedText)}
+			onCancel={() => (editingMessageID = '')}
+		/>
+	{:else if bodyText}
+		<Bubble.Root
+			variant={mine ? 'default' : 'muted'}
+			class="max-w-[min(80%,32rem)]"
+		>
+			<Bubble.Content>
+				<div class="chat-markdown prose prose-sm dark:prose-invert max-w-none">
+					<ChannelMessageBody
+						source={applyCustomEmoji(bodyText, message.customEmoji, customEmoji.nameToURL)}
+						mentionLabels={mentionLabelsOf(message.mentions, (externalID) =>
+							nameByExternalID.get(externalID)
+						)}
+					/>
+				</div>
+			</Bubble.Content>
+			{#if attachments.length === 0}{@render timeStamp(message)}{/if}
+		</Bubble.Root>
+		{#if firstLinkIn(bodyText)}
+			<ChannelLinkPreview url={firstLinkIn(bodyText)} />
+		{/if}
+	{/if}
 	{#if loneVideo}
 		<div class={`relative w-fit max-w-[80%] self-start group-data-[align=end]/message:self-end`}>
 			<ChannelVideoPlayer
@@ -613,7 +671,7 @@
 				variant="message"
 				onOpen={() => openLightbox(attachments, loneVideo.source ?? '')}
 			/>
-			{#if !bodyText}{@render timeStamp(message)}{/if}
+			{@render timeStamp(message)}
 		</div>
 	{:else if loneImage}
 		<!-- One photograph is a photograph, not a thumbnail in a grid: it keeps its
@@ -644,7 +702,7 @@
 					class="rounded-lg"
 				/>
 			</button>
-			{#if !bodyText}{@render timeStamp(message)}{/if}
+			{@render timeStamp(message)}
 		</div>
 	{:else if attachments.length > 0}
 		<div class={`relative w-fit max-w-[80%] self-start group-data-[align=end]/message:self-end`}>
@@ -720,65 +778,8 @@
 				</Attachment.Root>
 			{/each}
 			</Attachment.Group>
-			{#if !bodyText}{@render timeStamp(message)}{/if}
+			{@render timeStamp(message)}
 		</div>
-	{/if}
-	{#if message.isError}
-		<Bubble.Root variant="destructive" class="max-w-[min(80%,32rem)]">
-			<Bubble.Content>{text.errorSummary}</Bubble.Content>
-			<Bubble.Reactions align={reactionAlign}>
-				<Popover.Root>
-					<Popover.Trigger>
-						{#snippet child({ props })}
-							<Button
-								{...props}
-								variant="ghost"
-								size="icon-xs"
-								aria-label={text.errorDetailsLabel}
-								class="aria-expanded:text-destructive"
-							>
-								<InfoIcon />
-							</Button>
-						{/snippet}
-					</Popover.Trigger>
-					<Popover.Content class="max-w-sm">
-						<Popover.Header>
-							<Popover.Title class="text-sm">{text.errorDetailsTitle}</Popover.Title>
-							<Popover.Description class="text-sm break-words whitespace-pre-wrap">
-								{bodyText}
-							</Popover.Description>
-						</Popover.Header>
-					</Popover.Content>
-				</Popover.Root>
-			</Bubble.Reactions>
-			{@render timeStamp(message)}
-		</Bubble.Root>
-	{:else if bodyText && message.id === editingMessageID}
-		<MessageInlineEditor
-			originalText={bodyText}
-			onSave={(editedText) => saveInlineEdit(message.id, bodyText, editedText)}
-			onCancel={() => (editingMessageID = '')}
-		/>
-	{:else if bodyText}
-		<Bubble.Root
-			variant={mine ? 'default' : 'muted'}
-			class="max-w-[min(80%,32rem)]"
-		>
-			<Bubble.Content>
-				<div class="chat-markdown prose prose-sm dark:prose-invert max-w-none">
-					<ChannelMessageBody
-						source={applyCustomEmoji(bodyText, message.customEmoji, customEmoji.nameToURL)}
-						mentionLabels={mentionLabelsOf(message.mentions, (externalID) =>
-							nameByExternalID.get(externalID)
-						)}
-					/>
-				</div>
-			</Bubble.Content>
-			{@render timeStamp(message)}
-		</Bubble.Root>
-		{#if firstLinkIn(bodyText)}
-			<ChannelLinkPreview url={firstLinkIn(bodyText)} />
-		{/if}
 	{/if}
 	{#if message.interaction}
 		<div class="flex flex-wrap gap-2">
@@ -835,7 +836,7 @@
 {/snippet}
 
 {#snippet senderAvatar(sender: ChannelParticipant)}
-	<Message.Avatar class="group-has-data-[slot=message-footer]/message:-translate-y-(--footer-lift)">
+	<SenderAvatar>
 		<PersonAvatar
 			name={sender.name}
 			email={sender.email ?? ''}
@@ -845,17 +846,16 @@
 			externalID={sender.externalID ?? ''}
 		/>
 
-	</Message.Avatar>
+	</SenderAvatar>
 {/snippet}
 
-{#snippet messageRow(message: ChannelMessage, startsGroup: boolean, endsGroup: boolean, isInTimeline: boolean)}
+{#snippet messageRow(message: ChannelMessage, startsGroup: boolean, isInTimeline: boolean)}
 	{@const replyChip = isInTimeline ? message.thread : undefined}
 	{@const isUnsent = outgoing.hasFailed(message.id)}
 	<MessageRow
 		{message}
 		mine={isMine(message)}
 		{startsGroup}
-		{endsGroup}
 		senderName={showSenderNames ? message.sender.name : ''}
 		{canChange}
 		canReply={isInTimeline && !message.threadRootId}
@@ -900,11 +900,11 @@
 	<div class="@container/conversation min-h-0 flex-1 overflow-y-auto">
 		<div class="flex flex-col gap-4 px-4 py-8">
 			{#if openThreadRoot}
-				{@render messageRow(openThreadRoot, true, true, false)}
+				{@render messageRow(openThreadRoot, true, false)}
 				{#each threadReplyGroups as group (group.id)}
 					<Message.Group class="gap-0">
 						{#each group.items as reply, index (reply.id)}
-							{@render messageRow(reply, index === 0, index === group.items.length - 1, false)}
+							{@render messageRow(reply, index === 0, false)}
 						{/each}
 					</Message.Group>
 				{/each}
@@ -970,7 +970,7 @@
 						{:else}
 							<Message.Group class="gap-0">
 								{#each item.items as message, index (message.id)}
-									{@render messageRow(message, index === 0, index === item.items.length - 1, true)}
+									{@render messageRow(message, index === 0, true)}
 								{/each}
 							</Message.Group>
 						{/if}
