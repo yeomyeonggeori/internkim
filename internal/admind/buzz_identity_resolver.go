@@ -15,18 +15,25 @@ import (
 var errBuzzKeySeedMissing = errors.New("buzz key seed is not configured")
 
 func (service *Service) buzzKeySeed() string {
-	service.buzzKeySeedOnce.Do(func() {
-		path := strings.TrimSpace(service.Configuration.BuzzKeySeedPath)
-		if path == "" {
-			return
-		}
-		contents, errorValue := os.ReadFile(path)
-		if errorValue != nil {
-			return
-		}
-		service.buzzKeySeedValue = strings.TrimSpace(string(contents))
-	})
+	service.buzzKeySeedMutex.Lock()
+	defer service.buzzKeySeedMutex.Unlock()
+	if service.buzzKeySeedValue != "" {
+		return service.buzzKeySeedValue
+	}
+	service.buzzKeySeedValue = readBuzzKeySeed(service.Configuration.BuzzKeySeedPath)
 	return service.buzzKeySeedValue
+}
+
+func readBuzzKeySeed(path string) string {
+	trimmedPath := strings.TrimSpace(path)
+	if trimmedPath == "" {
+		return ""
+	}
+	contents, errorValue := os.ReadFile(trimmedPath)
+	if errorValue != nil {
+		return ""
+	}
+	return strings.TrimSpace(string(contents))
 }
 
 // personBuzzSecret resolves the caller's stable Buzz secret. The secret is a

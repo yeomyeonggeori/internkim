@@ -39,7 +39,7 @@ type Service struct {
 	mattermostAdminClient   *mattermostadmin.Client
 	buzzInviteStore         *buzzInviteStore
 	buzzInviteStoreOnce     sync.Once
-	buzzKeySeedOnce         sync.Once
+	buzzKeySeedMutex        sync.Mutex
 	buzzKeySeedValue        string
 	mailBackend             mail.Backend
 	mailPasswords           mail.PasswordOpener
