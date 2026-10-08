@@ -9,6 +9,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/yeomyeonggeori/internkim/internal/hostversion"
 	"github.com/yeomyeonggeori/internkim/internal/runtime/blueclaw"
@@ -41,7 +42,24 @@ func releaseDirectoryWithEveryAsset(t *testing.T) string {
 	return directory
 }
 
-func TestATestingReleaseIsAPrereleaseCarryingEveryPackageTheBottleAndTheChecksums(t *testing.T) {
+func commandsStarting(calls [][]string, name string, verb string) [][]string {
+	matching := [][]string{}
+	for _, call := range calls {
+		if call[0] == name && call[1] == verb {
+			matching = append(matching, call)
+		}
+	}
+	return matching
+}
+
+func withoutAssetRetryWaits(t *testing.T) {
+	t.Helper()
+	original := waitBeforeAssetRetry
+	waitBeforeAssetRetry = func(time.Duration) {}
+	t.Cleanup(func() { waitBeforeAssetRetry = original })
+}
+
+func TestATestingReleaseIsADraftFilledAssetByAssetThenPublishedAsAPrerelease(t *testing.T) {
 	calls := recordGitHubCommands(t, func([]string) (string, error) { return "", nil })
 	directory := releaseDirectoryWithEveryAsset(t)
 
@@ -50,20 +68,112 @@ func TestATestingReleaseIsAPrereleaseCarryingEveryPackageTheBottleAndTheChecksum
 	}
 	tag := "v" + testReleaseVersion
 	created := (*calls)[0]
-	if !slices.Equal(created[:9], []string{"release", "create", tag, "--repo", hostReleaseRepository, "--target", "abc123", "--title", tag}) {
+	if !slices.Equal(created[:9], []string{"release", "create", tag, "--repo", hostReleaseRepository, "--draft", "--target", "abc123", "--title"}) {
 		t.Fatalf("gh was asked %v", created)
 	}
-	if !slices.Contains(created, "--prerelease") || slices.Contains(created, "--latest") {
-		t.Errorf("a testing release has to be a prerelease and must not become latest: %v", created)
-	}
 	expected := append(releaseAssetNamesWithoutBottle(), blueclaw.HomebrewBottleFileName(testReleaseVersion, "arm64_ventura"), releaseChecksumsName)
-	for _, name := range expected {
-		if !slices.Contains(created, filepath.Join(directory, name)) {
-			t.Errorf("the release does not carry %s", name)
+	for _, argument := range created {
+		if strings.HasPrefix(argument, directory) {
+			t.Errorf("the draft was created carrying %s, so one stalled upload would roll the whole release back", argument)
 		}
 	}
-	if len(*calls) != 1 {
-		t.Errorf("a testing release reached past the release itself, and the tap is what every Mac installs: %v", (*calls)[1:])
+	uploads := commandsStarting(*calls, "release", "upload")
+	if len(uploads) != len(expected) {
+		t.Fatalf("%d uploads for %d assets: %v", len(uploads), len(expected), uploads)
+	}
+	for _, name := range expected {
+		path := filepath.Join(directory, name)
+		if !slices.ContainsFunc(uploads, func(call []string) bool { return call[3] == path && slices.Contains(call, "--clobber") }) {
+			t.Errorf("%s was not uploaded with --clobber", name)
+		}
+	}
+	published := (*calls)[len(*calls)-1]
+	if !slices.Equal(published, []string{"release", "edit", tag, "--repo", hostReleaseRepository, "--draft=false", "--prerelease"}) {
+		t.Errorf("a testing release has to be published as a prerelease and must not become latest: %v", published)
+	}
+	if len(*calls) != len(expected)+2 {
+		t.Errorf("a testing release reached past the release itself, and the tap is what every Mac installs: %v", *calls)
+	}
+}
+
+func TestAnAssetThatTimesOutOnceIsUploadedAgainAndTheReleaseIsPublished(t *testing.T) {
+	withoutAssetRetryWaits(t)
+	stalled := false
+	calls := recordGitHubCommands(t, func(arguments []string) (string, error) {
+		if arguments[1] == "upload" && !stalled && strings.HasSuffix(arguments[3], ".deb") {
+			stalled = true
+			return "", errors.New("gh release upload: exit status 1: HTTP 408: Upload body timed out due to inactivity")
+		}
+		return "", nil
+	})
+	if errorValue := createHostRelease(testReleaseVersion, "abc123", testingChannel, releaseDirectoryWithEveryAsset(t), io.Discard); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	uploads := commandsStarting(*calls, "release", "upload")
+	if !slices.Equal(uploads[0], uploads[1]) {
+		t.Errorf("the stalled asset was not tried again: %v %v", uploads[0], uploads[1])
+	}
+	if published := (*calls)[len(*calls)-1]; !slices.Contains(published, "--draft=false") {
+		t.Errorf("the release was not published: %v", published)
+	}
+}
+
+func TestAnAssetThatKeepsFailingLeavesTheDraftAndNamesTheAsset(t *testing.T) {
+	withoutAssetRetryWaits(t)
+	calls := recordGitHubCommands(t, func(arguments []string) (string, error) {
+		if arguments[1] == "upload" && strings.HasSuffix(arguments[3], "internkim-arm64.deb") {
+			return "", errors.New("gh release upload: HTTP 408: Upload body timed out due to inactivity")
+		}
+		return "", nil
+	})
+	errorValue := createHostRelease(testReleaseVersion, "abc123", testingChannel, releaseDirectoryWithEveryAsset(t), io.Discard)
+	if errorValue == nil || !strings.Contains(errorValue.Error(), "internkim-arm64.deb") || !strings.Contains(errorValue.Error(), "draft") {
+		t.Fatalf("the error does not name the asset and the draft: %v", errorValue)
+	}
+	for _, call := range *calls {
+		if call[1] == "edit" || call[1] == "delete" {
+			t.Errorf("the draft was changed after a failed upload: %v", call)
+		}
+	}
+	failing := 0
+	for _, call := range commandsStarting(*calls, "release", "upload") {
+		if strings.HasSuffix(call[3], "internkim-arm64.deb") {
+			failing++
+		}
+	}
+	if failing != assetUploadAttempts {
+		t.Errorf("the asset was tried %d times, not %d", failing, assetUploadAttempts)
+	}
+}
+
+func TestAnUploadRefusedWithAClientErrorIsNotRetried(t *testing.T) {
+	withoutAssetRetryWaits(t)
+	calls := recordGitHubCommands(t, func(arguments []string) (string, error) {
+		if arguments[1] == "upload" {
+			return "", errors.New("gh release upload: HTTP 422: Validation Failed")
+		}
+		return "", nil
+	})
+	if errorValue := createHostRelease(testReleaseVersion, "abc123", testingChannel, releaseDirectoryWithEveryAsset(t), io.Discard); errorValue == nil {
+		t.Fatal("a refused upload was reported as released")
+	}
+	if uploads := commandsStarting(*calls, "release", "upload"); len(uploads) != 1 {
+		t.Errorf("a 422 was retried: %v", uploads)
+	}
+}
+
+func TestADraftLeftByAnEarlierRunIsContinued(t *testing.T) {
+	calls := recordGitHubCommands(t, func(arguments []string) (string, error) {
+		if arguments[1] == "create" {
+			return "a release with the same tag name already exists", errors.New("gh release create: exit status 1: a release with the same tag name already exists")
+		}
+		return "", nil
+	})
+	if errorValue := createHostRelease(testReleaseVersion, "abc123", testingChannel, releaseDirectoryWithEveryAsset(t), io.Discard); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if len(commandsStarting(*calls, "release", "upload")) == 0 {
+		t.Error("nothing was uploaded to the existing draft")
 	}
 }
 
@@ -101,9 +211,9 @@ func TestAStableReleaseBecomesLatestAndGivesTheTapTheFormulaItCarries(t *testing
 	if errorValue := createHostRelease(testReleaseVersion, "abc123", stableChannel, releaseDirectoryWithEveryAsset(t), io.Discard); errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	created := (*calls)[0]
-	if !slices.Contains(created, "--latest") || slices.Contains(created, "--prerelease") {
-		t.Errorf("a stable release is what releases/latest/download answers with: %v", created)
+	published := commandsStarting(*calls, "release", "edit")[0]
+	if !slices.Contains(published, "--draft=false") || !slices.Contains(published, "--latest") || slices.Contains(published, "--prerelease") {
+		t.Errorf("a stable release is what releases/latest/download answers with: %v", published)
 	}
 	written := (*calls)[len(*calls)-1]
 	expected := []string{

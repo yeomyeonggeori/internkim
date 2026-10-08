@@ -9,7 +9,9 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strings"
+	"time"
 
 	"github.com/yeomyeonggeori/internkim/internal/hostupdate"
 	"github.com/yeomyeonggeori/internkim/internal/hostversion"
@@ -29,6 +31,7 @@ const (
 type gitHubRelease struct {
 	TagName      string `json:"tagName"`
 	IsPrerelease bool   `json:"isPrerelease"`
+	IsDraft      bool   `json:"isDraft"`
 }
 
 var runGitHubCommand = func(arguments ...string) (string, error) {
@@ -146,7 +149,7 @@ func refuseUnreleasableTree(repositoryRootPath string) error {
 // publishedHostRelease asks before anything is built, so a gh that is signed
 // out or cannot see the repository stops the release in seconds.
 func publishedHostRelease(tag string) (gitHubRelease, bool, error) {
-	output, errorValue := runGitHubCommand("release", "view", tag, "--repo", hostReleaseRepository, "--json", "tagName,isPrerelease")
+	output, errorValue := runGitHubCommand("release", "view", tag, "--repo", hostReleaseRepository, "--json", "tagName,isPrerelease,isDraft")
 	if errorValue != nil && strings.Contains(output, "release not found") {
 		return gitHubRelease{}, false, nil
 	}
@@ -157,7 +160,7 @@ func publishedHostRelease(tag string) (gitHubRelease, bool, error) {
 	if errorValue := json.Unmarshal([]byte(output), &release); errorValue != nil {
 		return gitHubRelease{}, false, fmt.Errorf("gh release view %s answered something other than its JSON: %w", tag, errorValue)
 	}
-	return release, true, nil
+	return release, !release.IsDraft, nil
 }
 
 // promoteHostRelease makes a tested build stable without rebuilding it, so
@@ -204,26 +207,73 @@ func releasedChannel(release gitHubRelease) string {
 	return stableChannel
 }
 
+const (
+	assetUploadAttempts    = 4
+	assetUploadBaseBackoff = 15 * time.Second
+)
+
+var waitBeforeAssetRetry = time.Sleep
+
+var transientUploadFailure = regexp.MustCompile(`HTTP (408|429|5\d\d)\b|connection reset|timed? ?out|timeout|unexpected EOF|broken pipe|connection refused|TLS handshake`)
+
 func createHostRelease(version string, revision string, channel string, directory string, output io.Writer) error {
 	assets, errorValue := completeReleaseAssets(directory, version)
 	if errorValue != nil {
 		return errorValue
 	}
 	tag := hostReleaseTag(version)
-	arguments := []string{"release", "create", tag, "--repo", hostReleaseRepository, "--target", revision, "--title", tag, "--notes", hostReleaseNotes(channel), "--generate-notes"}
-	if channel == testingChannel {
-		arguments = append(arguments, "--prerelease")
-	} else {
-		arguments = append(arguments, "--latest")
-	}
-	if _, errorValue := runGitHubCommand(append(arguments, assets...)...); errorValue != nil {
+	if errorValue := createReleaseDraft(tag, revision, channel); errorValue != nil {
 		return errorValue
+	}
+	for _, asset := range assets {
+		if errorValue := uploadReleaseAsset(tag, asset, output); errorValue != nil {
+			return fmt.Errorf("%s stays a draft on %s with the assets uploaded so far; rerun the release or publish it once %s is uploaded: %w", tag, hostReleaseRepository, filepath.Base(asset), errorValue)
+		}
+	}
+	if _, errorValue := runGitHubCommand("release", "edit", tag, "--repo", hostReleaseRepository, "--draft=false", channelFlag(channel)); errorValue != nil {
+		return fmt.Errorf("%s has every asset but is still a draft on %s: %w", tag, hostReleaseRepository, errorValue)
 	}
 	fmt.Fprintf(output, "released %s on %s: https://github.com/%s/releases/tag/%s\n", tag, channel, hostReleaseRepository, tag)
 	if channel == testingChannel {
 		return nil
 	}
 	return publishFormulaToTap(tag, output)
+}
+
+func channelFlag(channel string) string {
+	if channel == testingChannel {
+		return "--prerelease"
+	}
+	return "--latest"
+}
+
+// createReleaseDraft holds the release back until every asset is on it, so a
+// stalled upload cannot take the release with it. A draft left by an earlier
+// run is continued rather than refused: its uploads are replaced by --clobber.
+func createReleaseDraft(tag string, revision string, channel string) error {
+	output, errorValue := runGitHubCommand("release", "create", tag, "--repo", hostReleaseRepository, "--draft", "--target", revision, "--title", tag, "--notes", hostReleaseNotes(channel), "--generate-notes")
+	if errorValue != nil && !strings.Contains(output, "already exists") {
+		return errorValue
+	}
+	return nil
+}
+
+func uploadReleaseAsset(tag string, asset string, output io.Writer) error {
+	var errorValue error
+	for attempt := 1; attempt <= assetUploadAttempts; attempt++ {
+		_, errorValue = runGitHubCommand("release", "upload", tag, asset, "--repo", hostReleaseRepository, "--clobber")
+		if errorValue == nil {
+			return nil
+		}
+		if !transientUploadFailure.MatchString(errorValue.Error()) {
+			return errorValue
+		}
+		if attempt < assetUploadAttempts {
+			fmt.Fprintf(output, "uploading %s failed (attempt %d of %d), retrying\n", filepath.Base(asset), attempt, assetUploadAttempts)
+			waitBeforeAssetRetry(assetUploadBaseBackoff * time.Duration(1<<(attempt-1)))
+		}
+	}
+	return fmt.Errorf("uploading %s failed %d times: %w", filepath.Base(asset), assetUploadAttempts, errorValue)
 }
 
 // completeReleaseAssets is the paths a release uploads, refused unless the
