@@ -205,7 +205,22 @@ esac
 RELAY_ROSTER_COMMAND = r"""
 url="$(sed -n 's/^DATABASE_URL=//p' %(path)s 2>/dev/null | head -1)"
 [ -n "$url" ] || { echo "roster=no-database-url"; exit 0; }
-printf 'roster=%%s\n' "$(psql "$url" -tAc "select case when count(*) > 0 then 'yes' else 'no' end from relay_members where lower(pubkey) = lower('%(pubkey)s')" 2>&1 | tr -d ' \n')"
+host="$(sed -n 's/^RELAY_URL=//p' %(host_path)s 2>/dev/null | head -1 | sed 's#^[a-z]*://##; s#/.*##')"
+[ -n "$host" ] || { echo "roster=no-relay-url"; exit 0; }
+printf 'host=%%s\n' "$host"
+printf 'roster=%%s\n' "$(psql "$url" -tAc "select case when count(*) > 0 then 'yes' else 'no' end from relay_members member join communities community on community.id = member.community_id where lower(community.host) = lower('$host') and lower(member.pubkey) = lower('%(pubkey)s')" 2>&1 | tr -d ' \n')"
+"""
+
+RELAY_MEMBERSHIP_EVIDENCE_COMMAND = r"""
+url="$(sed -n 's/^DATABASE_URL=//p' %(path)s 2>/dev/null | head -1)"
+[ -n "$url" ] || { echo "no DATABASE_URL in %(path)s"; exit 0; }
+echo "communities (id | host | deletion_state)"
+psql "$url" -tAc "select id, host, deletion_state from communities" 2>&1
+echo "relay_members (community_id | pubkey | role)"
+psql "$url" -tAc "select community_id, pubkey, role from relay_members order by community_id, role, pubkey" 2>&1
+echo "admind on buzz relay membership"
+journalctl -u %(admind)s --no-pager 2>/dev/null | grep -i 'buzz relay membership' | tail -n 20
+true
 """
 
 # Whether the agent took the message and said something back. The task is the
@@ -1086,7 +1101,11 @@ class Rig:
         )
         roster = self.wait_in_the_guest(
             RELAY_ROSTER_COMMAND
-            % {"path": MESSENGER_DATABASE_PATH, "pubkey": messenger_identity or "nobody"},
+            % {
+                "path": MESSENGER_DATABASE_PATH,
+                "host_path": COMPANY_CONDITION_PATH,
+                "pubkey": messenger_identity or "nobody",
+            },
             lambda reported: "roster=yes" in reported,
             timeout_seconds=600,
         )
@@ -1118,6 +1137,7 @@ class Rig:
             MESSENGER_STORE_COMMAND
             % {"path": MESSENGER_DATABASE_PATH, "message": message_id or "no-message"}
         )
+        has_landed = bool(message_id) and self.message_text in stored.stdout
         step.observe(
             "the message reaches the messenger inside the guest",
             f"the row the message id names in the guest's own event store, read with psql through "
@@ -1125,8 +1145,9 @@ class Rig:
             "the answer the member received is the company's account of its own run; this is the "
             "store the company's machine keeps, read on the machine, by a path that did not write it",
         ).record(
-            bool(message_id) and self.message_text in stored.stdout,
-            (stored.stdout.strip() or "the store holds no such message")[-400:],
+            has_landed,
+            (stored.stdout.strip() or "the store holds no such message")[-400:]
+            + ("" if has_landed else "\n" + self.membership_evidence(roster.stdout)),
         )
 
         step.observe(
@@ -1164,6 +1185,12 @@ class Rig:
             + "\n"
             + self.relay_journal_lines("arrival watch|typing not told", 10),
         )
+
+    def membership_evidence(self, roster_reading):
+        evidence = self.machine.shell(
+            RELAY_MEMBERSHIP_EVIDENCE_COMMAND % {"path": MESSENGER_DATABASE_PATH, "admind": ADMIND_UNIT_NAME}
+        ).stdout.strip()
+        return f"the roster check read: {roster_reading.strip()}\n{evidence}"[-3000:]
 
     def agent_log_lines(self, pattern, lines):
         return self.machine.shell(

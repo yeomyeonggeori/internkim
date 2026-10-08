@@ -227,6 +227,27 @@ class PdfTurnSettlingTests(unittest.TestCase):
             self.assertIn("answer.channel_id is not distinct from asked.channel_id", command)
 
 
+class RosterScopeTests(unittest.TestCase):
+    def setUp(self):
+        self.driver = load_driver()
+
+    def test_the_roster_is_the_community_the_relay_serves(self):
+        command = self.driver.RELAY_ROSTER_COMMAND
+        self.assertIn("RELAY_URL=", command)
+        self.assertIn("join communities community on community.id = member.community_id", command)
+        self.assertIn("lower(community.host) = lower('$host')", command)
+
+    def test_the_evidence_reads_communities_members_and_admind(self):
+        command = self.driver.RELAY_MEMBERSHIP_EVIDENCE_COMMAND
+        self.assertIn("select id, host, deletion_state from communities", command)
+        self.assertIn("select community_id, pubkey, role from relay_members", command)
+        self.assertIn("buzz relay membership", command)
+
+    def test_both_commands_format_with_the_names_the_rig_gives_them(self):
+        self.driver.RELAY_ROSTER_COMMAND % {"path": "p", "host_path": "h", "pubkey": "k"}
+        self.driver.RELAY_MEMBERSHIP_EVIDENCE_COMMAND % {"path": "p", "admind": "a"}
+
+
 if __name__ == "__main__":
     unittest.main()
 
