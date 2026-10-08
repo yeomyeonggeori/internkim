@@ -902,7 +902,7 @@
 			{#if openThreadRoot}
 				{@render messageRow(openThreadRoot, true, true, false)}
 				{#each threadReplyGroups as group (group.id)}
-					<Message.Group>
+					<Message.Group class="gap-0">
 						{#each group.items as reply, index (reply.id)}
 							{@render messageRow(reply, index === 0, index === group.items.length - 1, false)}
 						{/each}
@@ -968,7 +968,7 @@
 								<Marker.Content>{item.label}</Marker.Content>
 							</Marker.Root>
 						{:else}
-							<Message.Group>
+							<Message.Group class="gap-0">
 								{#each item.items as message, index (message.id)}
 									{@render messageRow(message, index === 0, index === item.items.length - 1, true)}
 								{/each}
