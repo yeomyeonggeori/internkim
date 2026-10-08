@@ -31,19 +31,26 @@ const memberChannelSyncInterval = 24 * time.Hour
 const memberChannelFirstPassInterval = 30 * time.Second
 
 func (service *Service) startMemberChannelMembershipSync(ctx context.Context) {
-	if !service.canWriteToBuzzRelay() {
-		return
-	}
-	go func() {
-		for {
-			service.withinASweepBudget(ctx, service.ensureMemberChannelMembership)
-			select {
-			case <-ctx.Done():
-				return
-			case <-time.After(service.intervalUntilTheNextMembershipPass(ctx)):
-			}
+	go service.repeatMembershipPasses(ctx, memberChannelFirstPassInterval, service.runMembershipPass)
+}
+
+func (service *Service) runMembershipPass(ctx context.Context) time.Duration {
+	service.withinASweepBudget(ctx, service.ensureMemberChannelMembership)
+	return service.intervalUntilTheNextMembershipPass(ctx)
+}
+
+func (service *Service) repeatMembershipPasses(ctx context.Context, retryInterval time.Duration, pass func(context.Context) time.Duration) {
+	for {
+		wait := retryInterval
+		if service.canWriteToBuzzRelay() {
+			wait = pass(ctx)
 		}
-	}()
+		select {
+		case <-ctx.Done():
+			return
+		case <-time.After(wait):
+		}
+	}
 }
 
 func (service *Service) intervalUntilTheNextMembershipPass(ctx context.Context) time.Duration {
