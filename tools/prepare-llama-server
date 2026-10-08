@@ -9,7 +9,7 @@ source_repository="https://github.com/ggml-org/llama.cpp"
 
 # Bump this when the cmake line or the files kept change, so an artifact built
 # the old way is rebuilt rather than trusted.
-build_recipe="cpu-all-variants-static-libstdcxx-gcc14-1"
+build_recipe="cpu-all-variants-static-libstdcxx-gcc14-2"
 built_revision="$pinned_tag+$pinned_revision+$build_recipe"
 
 # The prebuilt ubuntu assets are built on Ubuntu 24.04 and need glibc 2.38 and a
@@ -74,7 +74,7 @@ container run --rm --platform "$container_platform" --memory 8G \
       -DGGML_CUDA=OFF -DGGML_VULKAN=OFF -DGGML_METAL=OFF -DGGML_OPENMP=OFF \
       -DLLAMA_OPENSSL=OFF -DLLAMA_BUILD_UI=OFF -DLLAMA_USE_PREBUILT_UI=OFF \
       -DLLAMA_BUILD_TESTS=OFF -DLLAMA_BUILD_EXAMPLES=OFF -DLLAMA_BUILD_TOOLS=ON -DLLAMA_BUILD_SERVER=ON \
-      -DCMAKE_BUILD_WITH_INSTALL_RPATH=ON -DCMAKE_INSTALL_RPATH=\$ORIGIN \
+      -DCMAKE_BUILD_RPATH_USE_ORIGIN=ON \
       -DCMAKE_EXE_LINKER_FLAGS="$static_runtime" -DCMAKE_SHARED_LINKER_FLAGS="$static_runtime" \
       -DCMAKE_MODULE_LINKER_FLAGS="$static_runtime"
     cmake --build build --target llama-server -j "$(nproc)"
