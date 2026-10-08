@@ -10,6 +10,7 @@
 	import MessengerChannelMembersDialog from './messenger-channel-members-dialog.svelte';
 	import MessengerChannelOwnerDialog from './messenger-channel-owner-dialog.svelte';
 	import MessengerConversationExportDialog from './messenger-conversation-export-dialog.svelte';
+	import MessengerLeaveChannelDialog from './messenger-leave-channel-dialog.svelte';
 	import MessengerNewChannelDialog from './messenger-new-channel-dialog.svelte';
 	import MessengerPersonProfile from './messenger-person-profile.svelte';
 	import { muteConversation, mutedConversations, unmuteConversation } from '$lib/notifications/muted-conversations';
@@ -89,6 +90,13 @@
 		exportingConversation = conversation;
 		isExportOpen = true;
 	}
+	let isLeaveOpen = $state(false);
+	let leavingChannel = $state<ChannelSummary | null>(null);
+
+	function leaveChannel(channel: ChannelSummary) {
+		leavingChannel = channel;
+		isLeaveOpen = true;
+	}
 	let isChannelMembersOpen = $state(false);
 	let isChannelOwnerOpen = $state(false);
 	let channelOwnerAction = $state<'add' | 'hand-over'>('add');
@@ -157,6 +165,10 @@
 
 	async function leftChannel(channelID: string) {
 		conversations = conversations.filter((conversation) => conversation.id !== channelID);
+		if (activeID !== channelID) {
+			refreshConversations('the channel list did not refresh after leaving');
+			return;
+		}
 		const next = groupChannels[0] ?? conversations[0];
 		if (next) selectChannel(next.id);
 		refreshConversations('the channel list did not refresh after leaving');
@@ -450,6 +462,7 @@
 			{muted}
 			{switchMuted}
 			{exportConversation}
+			{leaveChannel}
 			openNewDirectMessage={openNewDirectMessageFromSheet}
 			openNewChannel={canManageChannels ? openNewChannel : undefined}
 			openBrowseChannels={canManageChannels ? openBrowseChannels : undefined}
@@ -473,6 +486,7 @@
 				{muted}
 				{switchMuted}
 				{exportConversation}
+				{leaveChannel}
 				{openNewDirectMessage}
 				openNewChannel={canManageChannels ? openNewChannel : undefined}
 				openBrowseChannels={canManageChannels ? openBrowseChannels : undefined}
@@ -541,6 +555,8 @@
 
 <MessengerConversationExportDialog bind:open={isExportOpen} conversation={exportingConversation} />
 
+<MessengerLeaveChannelDialog bind:open={isLeaveOpen} channel={leavingChannel} onLeft={leftChannel} />
+
 <MessengerPersonProfile bind:open={isPersonProfileOpen} person={profilePerson} onMessage={messagePerson} />
 
 {#if activeConversation?.kind === 'group'}
@@ -553,7 +569,7 @@
 			(isChannelDetailsOpen = false), (channelOwnerAction = 'hand-over'), (isChannelOwnerOpen = true)
 		)}
 		openExport={() => ((isChannelDetailsOpen = false), exportConversation(activeConversation))}
-		onLeft={leftChannel}
+		openLeave={() => ((isChannelDetailsOpen = false), leaveChannel(activeConversation))}
 		onDeleted={leftChannel}
 	/>
 	<MessengerChannelMembersDialog

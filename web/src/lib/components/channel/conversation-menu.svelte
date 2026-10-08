@@ -4,6 +4,7 @@
 	import * as Sidebar from '$lib/components/ui/sidebar/index.js';
 	import BellIcon from '@lucide/svelte/icons/bell';
 	import BellOffIcon from '@lucide/svelte/icons/bell-off';
+	import DoorOpenIcon from '@lucide/svelte/icons/door-open';
 	import EllipsisVerticalIcon from '@lucide/svelte/icons/ellipsis-vertical';
 	import FileDownIcon from '@lucide/svelte/icons/file-down';
 	import { mergeProps } from 'bits-ui';
@@ -21,6 +22,8 @@
 		onSwitchMuted: () => void;
 		exportLabel?: string;
 		onExport?: () => void;
+		leaveLabel?: string;
+		onLeave?: () => void;
 		itemProps?: HTMLLiAttributes & Record<string, unknown>;
 		children: Snippet;
 	};
@@ -33,6 +36,8 @@
 		onSwitchMuted,
 		exportLabel = '',
 		onExport,
+		leaveLabel = '',
+		onLeave,
 		itemProps = {},
 		children
 	}: Props = $props();
@@ -54,6 +59,11 @@
 {#snippet exportConversationLabel()}
 	<FileDownIcon />
 	<span>{exportLabel}</span>
+{/snippet}
+
+{#snippet leaveConversationLabel()}
+	<DoorOpenIcon />
+	<span>{leaveLabel}</span>
 {/snippet}
 
 <ContextMenu.Root bind:open={isContextMenuOpen}>
@@ -82,6 +92,11 @@
 									{@render exportConversationLabel()}
 								</DropdownMenu.Item>
 							{/if}
+							{#if onLeave}
+								<DropdownMenu.Item onSelect={onLeave}>
+									{@render leaveConversationLabel()}
+								</DropdownMenu.Item>
+							{/if}
 						</DropdownMenu.Content>
 					</DropdownMenu.Root>
 				{/if}
@@ -95,6 +110,11 @@
 		{#if onExport}
 			<ContextMenu.Item onSelect={onExport}>
 				{@render exportConversationLabel()}
+			</ContextMenu.Item>
+		{/if}
+		{#if onLeave}
+			<ContextMenu.Item onSelect={onLeave}>
+				{@render leaveConversationLabel()}
 			</ContextMenu.Item>
 		{/if}
 	</ContextMenu.Content>

@@ -35,6 +35,22 @@ test.describe('on a pointer that can hover', () => {
 		await expect(page.getByRole('menuitem', { name: '이 대화 알림 끄기' })).toBeVisible();
 		await expect(page).toHaveURL(/channel=channel-open/);
 	});
+
+	test('a channel row offers leaving behind a confirmation and a direct conversation does not', async ({ page }) => {
+		await mockDeviceMessenger(page, reader, conversations, []);
+		await page.setViewportSize({ width: 1280, height: 800 });
+		await page.goto('/messenger?channel=channel-open');
+
+		await itemNamed(page, '누를 채널').click({ button: 'right' });
+		await page.getByRole('menuitem', { name: '채널 나가기' }).click();
+		await expect(page.getByRole('alertdialog', { name: '누를 채널 채널에서 나갈까요?' })).toBeVisible();
+		await page.getByRole('button', { name: '취소' }).click();
+		await expect(page).toHaveURL(/channel=channel-open/);
+
+		await itemNamed(page, '박예시').click({ button: 'right' });
+		await expect(page.getByRole('menuitem', { name: '이 대화 알림 끄기' })).toBeVisible();
+		await expect(page.getByRole('menuitem', { name: '채널 나가기' })).toHaveCount(0);
+	});
 });
 
 test.describe('on a touch screen', () => {
