@@ -13,7 +13,7 @@ import (
 
 func TestEmbeddingInputsRemainUnchangedForOtherModels(t *testing.T) {
 	inputs := []string{"hello"}
-	preparedInputs := prepareEmbeddingInputs(inputs, EmbeddingRequest{InputType: "query"}, "baai/bge-m3", false)
+	preparedInputs := prepareEmbeddingInputs(inputs, EmbeddingRequest{InputType: "query"}, "baai/bge-m3")
 
 	if len(preparedInputs) != 1 || preparedInputs[0] != "hello" {
 		t.Fatalf("expected unchanged input, got %+v", preparedInputs)
@@ -22,7 +22,7 @@ func TestEmbeddingInputsRemainUnchangedForOtherModels(t *testing.T) {
 
 func TestEveryEmbeddingGemmaNameGetsThePrompts(t *testing.T) {
 	for _, modelName := range []string{"embeddinggemma", "google/embeddinggemma-2", "Google/EmbeddingGemma-300m", "ggml-org/embeddinggemma-2-GGUF"} {
-		preparedInputs := prepareEmbeddingInputs([]string{"who runs payroll"}, EmbeddingRequest{InputType: "query"}, modelName, false)
+		preparedInputs := prepareEmbeddingInputs([]string{"who runs payroll"}, EmbeddingRequest{InputType: "query"}, modelName)
 
 		if len(preparedInputs) != 1 || preparedInputs[0] != "task: search result | query: who runs payroll" {
 			t.Fatalf("%s: expected the query prompt, got %+v", modelName, preparedInputs)
@@ -31,8 +31,8 @@ func TestEveryEmbeddingGemmaNameGetsThePrompts(t *testing.T) {
 }
 
 func TestEmbeddingGemmaDocumentsCarryTheirTitle(t *testing.T) {
-	titled := prepareEmbeddingInputs([]string{"이샘플 runs payroll"}, EmbeddingRequest{InputType: "document", Title: "payroll"}, "google/embeddinggemma-2", true)
-	untitled := prepareEmbeddingInputs([]string{"이샘플 runs payroll"}, EmbeddingRequest{InputType: "document"}, "google/embeddinggemma-2", true)
+	titled := prepareEmbeddingInputs([]string{"이샘플 runs payroll"}, EmbeddingRequest{InputType: "document", Title: "payroll"}, "google/embeddinggemma-2")
+	untitled := prepareEmbeddingInputs([]string{"이샘플 runs payroll"}, EmbeddingRequest{InputType: "document"}, "google/embeddinggemma-2")
 
 	if titled[0] != "title: payroll | text: 이샘플 runs payroll" {
 		t.Fatalf("expected the titled document prompt, got %q", titled[0])
@@ -65,12 +65,12 @@ func llamaCppServerAnswering(t *testing.T, received *[]map[string]any) *httptest
 	return server
 }
 
-func TestLlamaCppEmbeddingSendsTheQueryPromptForASingleInput(t *testing.T) {
+func TestLlamaCppEmbeddingSendsTheQueryPromptForAQuery(t *testing.T) {
 	received := []map[string]any{}
 	server := llamaCppServerAnswering(t, &received)
 	backend := LlamaCppEmbeddingBackend{BaseURL: server.URL, ModelName: "google/embeddinggemma-2"}
 
-	response, errorValue := backend.CreateEmbedding(context.Background(), EmbeddingRequest{Input: "who runs payroll", Model: "google/embeddinggemma-2"})
+	response, errorValue := backend.CreateEmbedding(context.Background(), EmbeddingRequest{Input: "who runs payroll", Model: "google/embeddinggemma-2", InputType: "query"})
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
@@ -83,12 +83,12 @@ func TestLlamaCppEmbeddingSendsTheQueryPromptForASingleInput(t *testing.T) {
 	}
 }
 
-func TestLlamaCppEmbeddingSendsDocumentPromptsForABatch(t *testing.T) {
+func TestLlamaCppEmbeddingSendsDocumentPromptsForDocuments(t *testing.T) {
 	received := []map[string]any{}
 	server := llamaCppServerAnswering(t, &received)
 	backend := LlamaCppEmbeddingBackend{BaseURL: server.URL}
 
-	response, errorValue := backend.CreateEmbedding(context.Background(), EmbeddingRequest{Input: []string{"a", "b"}, Model: "default"})
+	response, errorValue := backend.CreateEmbedding(context.Background(), EmbeddingRequest{Input: []string{"a", "b"}, Model: "default", InputType: "document"})
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
@@ -174,5 +174,13 @@ func TestEmbeddingOutputDimensionsNormalizeTruncatedVector(t *testing.T) {
 	}
 	if response.Embedding[0] != 0.6 || response.Embedding[1] != 0.8 {
 		t.Fatalf("expected normalized embedding, got %+v", response.Embedding)
+	}
+}
+
+func TestUntypedEmbeddingInputIsSentAsWritten(t *testing.T) {
+	preparedInputs := prepareEmbeddingInputs([]string{"who runs payroll"}, EmbeddingRequest{}, "google/embeddinggemma-2")
+
+	if preparedInputs[0] != "who runs payroll" {
+		t.Fatalf("expected an input with no type to go out unchanged, got %q", preparedInputs[0])
 	}
 }

@@ -68,12 +68,13 @@ func embeddingInputString(input any) string {
 	return string(document)
 }
 
-func prepareEmbeddingInputs(inputs []string, request EmbeddingRequest, modelName string, isBatch bool) []string {
-	if !isEmbeddingGemmaModel(modelName) {
+func prepareEmbeddingInputs(inputs []string, request EmbeddingRequest, modelName string) []string {
+	inputType := embeddingInputType(request)
+	if !isEmbeddingGemmaModel(modelName) || inputType == "" {
 		return inputs
 	}
 	return mapEmbeddingInputs(inputs, func(input string) string {
-		return applyEmbeddingGemmaPrompt(input, request, isBatch)
+		return applyEmbeddingGemmaPrompt(input, request, inputType)
 	})
 }
 
@@ -90,12 +91,12 @@ func mapEmbeddingInputs(inputs []string, transform func(string) string) []string
 	return transformedInputs
 }
 
-func applyEmbeddingGemmaPrompt(input string, request EmbeddingRequest, isBatch bool) string {
+func applyEmbeddingGemmaPrompt(input string, request EmbeddingRequest, inputType string) string {
 	trimmedInput := strings.TrimSpace(input)
 	if hasEmbeddingGemmaPrompt(trimmedInput) {
 		return trimmedInput
 	}
-	if embeddingInputType(request, isBatch) == "document" {
+	if inputType == "document" {
 		title := firstNonEmpty(request.Title, "none")
 		return "title: " + title + " | text: " + trimmedInput
 	}
@@ -107,18 +108,14 @@ func hasEmbeddingGemmaPrompt(input string) bool {
 	return strings.HasPrefix(normalized, "task: ") || strings.HasPrefix(normalized, "title: ")
 }
 
-func embeddingInputType(request EmbeddingRequest, isBatch bool) string {
-	normalized := strings.ToLower(strings.TrimSpace(request.InputType))
-	switch normalized {
+func embeddingInputType(request EmbeddingRequest) string {
+	switch strings.ToLower(strings.TrimSpace(request.InputType)) {
 	case "document", "doc":
 		return "document"
 	case "query":
 		return "query"
 	default:
-		if isBatch {
-			return "document"
-		}
-		return "query"
+		return ""
 	}
 }
 

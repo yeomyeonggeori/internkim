@@ -37,7 +37,7 @@ func (backend LlamaCppEmbeddingBackend) CreateEmbedding(ctx context.Context, req
 	if errorValue != nil {
 		return EmbeddingResponse{}, errorValue
 	}
-	embeddings, errorValue := backend.send(ctx, modelName, request.OutputDimensions, prepareEmbeddingInputs(inputs, request, modelName, isBatch))
+	embeddings, errorValue := backend.send(ctx, modelName, request.OutputDimensions, prepareEmbeddingInputs(inputs, request, modelName))
 	if errorValue != nil {
 		return EmbeddingResponse{}, errorValue
 	}

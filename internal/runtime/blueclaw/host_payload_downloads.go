@@ -25,10 +25,7 @@ type HostPayloadDownload struct {
 	URL         string
 	SHA256      string
 	// PathInsideArchive is empty when the download is the program itself.
-	PathInsideArchive string
-	// DirectoryInsideArchive is set when the program cannot run apart from the
-	// files beside it: the whole directory is installed, and the program is the
-	// entry in it that carries ProgramName.
+	PathInsideArchive      string
 	DirectoryInsideArchive string
 }
 

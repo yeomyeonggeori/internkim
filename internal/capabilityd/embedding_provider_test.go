@@ -30,7 +30,7 @@ func TestEveryExecutionModeEmbedsOnTheLocalServer(t *testing.T) {
 		server := embeddingServerRecording(t, &received)
 		service := Service{Configuration: Configuration{EmbeddingServerURL: server.URL}}
 
-		response, errorValue := service.createEmbedding(context.Background(), EmbeddingRequest{Input: "hello", Model: "google/embeddinggemma-2", ExecutionMode: executionMode})
+		response, errorValue := service.createEmbedding(context.Background(), EmbeddingRequest{Input: "hello", Model: "google/embeddinggemma-2", InputType: "query", ExecutionMode: executionMode})
 		if errorValue != nil {
 			t.Fatalf("execution mode %q: %v", executionMode, errorValue)
 		}
