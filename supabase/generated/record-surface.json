@@ -440,6 +440,15 @@
       "name": "crm_opportunity_close",
       "arguments": "target_opportunity_id uuid, target_stage_id crm_stage, target_stage_position integer, target_stage_changed_at timestamp with time zone, target_lost_reason text, target_base_amount_minor bigint, target_base_currency_code text",
       "returns": "opportunity",
+      "security": "invoker",
+      "callableBy": [
+        "authenticated"
+      ]
+    },
+    {
+      "name": "crm_opportunity_hand_over",
+      "arguments": "target_opportunity_id uuid, target_owner_id uuid",
+      "returns": "opportunity",
       "security": "definer",
       "callableBy": [
         "authenticated"
