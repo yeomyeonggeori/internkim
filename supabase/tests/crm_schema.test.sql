@@ -290,25 +290,25 @@ end $$;$block$, 'crm: RLS isolates companies and audit fields record the actor')
 
 select lives_ok($block$do $$
 declare
-  organization_privileges integer;
-  opportunity_privileges integer;
+  organization_privileges text[];
+  opportunity_privileges text[];
 begin
-  select count(*) into organization_privileges
+  select array_agg(privilege_type::text order by privilege_type) into organization_privileges
   from information_schema.role_table_grants
   where table_schema = 'public'
     and table_name = 'organization'
     and grantee = 'authenticated'
     and privilege_type in ('SELECT', 'INSERT', 'UPDATE', 'DELETE');
 
-  select count(*) into opportunity_privileges
+  select array_agg(privilege_type::text order by privilege_type) into opportunity_privileges
   from information_schema.role_table_grants
   where table_schema = 'public'
     and table_name = 'opportunity'
     and grantee = 'authenticated'
     and privilege_type in ('SELECT', 'INSERT', 'UPDATE', 'DELETE');
 
-  assert organization_privileges = 4, 'organization has all API grants';
-  assert opportunity_privileges = 4, 'opportunity has all API grants';
+  assert organization_privileges = array['INSERT', 'SELECT', 'UPDATE'], 'organization is read, added and updated, never deleted';
+  assert opportunity_privileges = array['INSERT', 'SELECT', 'UPDATE'], 'opportunity is read, added and updated, never deleted';
 end $$;$block$, 'crm: new tables expose the expected API grants');
 
 select lives_ok(

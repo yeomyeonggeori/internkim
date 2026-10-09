@@ -309,6 +309,31 @@ describe('the deals a company is working on', () => {
 		expect(resultOf(reordered).stage).toBe('done');
 		expect(resultOf(reordered).stageChangedAt).toBe(stood.stageChangedAt);
 	});
+
+	test('are seen by whoever is responsible for them, and handed to someone out of the giver\'s sight', async () => {
+		const colleagueEmail = `${slug}-colleague@example.test`;
+		const colleagueID = await addMember(client, companyID, colleagueEmail);
+		await client.from('member').update({ name: '박예시' }).eq('id', colleagueID);
+		const colleague = await signedInMember(colleagueID, colleagueEmail);
+		const asColleague = async (name: string, input: Record<string, unknown> = {}) =>
+			heldToTheContract(name, await runToolOverTheRecord(colleague, client, colleagueID, name, input, now, leavesTaskLabelsUndecided));
+
+		expect(opportunitiesOf(await asColleague('crm_opportunity_list', {}))).toHaveLength(0);
+		expect(organizationsOf(await asColleague('crm_organization_list', {})).length).toBeGreaterThan(0);
+
+		await asAdmin('crm_opportunity_add', { organizationHint: 'ABC상사', title: '견본 이관 건', ownerPersonHint: '이샘플' });
+		const handed = await asSample('crm_opportunity_update', {
+			opportunityHint: '견본 이관 건',
+			ownerPersonHint: '박예시',
+			description: '박예시가 이어받는다'
+		});
+
+		expect(handed.status).toBe(200);
+		expect(resultOf(handed).ownerPersonID).toBe(colleagueID);
+		expect(resultOf(handed).description).toBe('박예시가 이어받는다');
+		expect(opportunitiesOf(await asSample('crm_opportunity_list', {})).map((deal) => deal.title)).not.toContain('견본 이관 건');
+		expect(opportunitiesOf(await asColleague('crm_opportunity_list', {})).map((deal) => deal.title)).toEqual(['견본 이관 건']);
+	});
 });
 
 describe('the words a company runs its CRM in', () => {

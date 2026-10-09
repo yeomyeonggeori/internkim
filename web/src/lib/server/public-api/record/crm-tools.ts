@@ -564,14 +564,26 @@ export async function crmOpportunityUpdate(
 	const change = await opportunityChange(context, vocabulary, input, row);
 	if (Object.keys(change).length === 0) throw new Error('an update names at least one field to change');
 
-	const written = await writtenRow<OpportunityRow>(
-		context.caller,
-		'opportunity',
-		opportunityColumns,
-		change,
-		row.id
-	);
+	const { owner_id: ownerID, ...edit } = change;
+	const edited = Object.keys(edit).length > 0
+		? await writtenRow<OpportunityRow>(context.caller, 'opportunity', opportunityColumns, edit, row.id)
+		: row;
+	const written = ownerID === undefined || ownerID === row.owner_id
+		? edited
+		: await handedOverOpportunity(context, row.id, ownerID);
 	return answeredOpportunity(written, (await activityCountByOpportunity(context.caller)).get(row.id) ?? 0);
+}
+
+async function handedOverOpportunity(
+	context: RecordContext,
+	opportunityID: string,
+	ownerID: unknown
+): Promise<OpportunityRow> {
+	const { data, error } = await context.caller
+		.rpc('crm_opportunity_hand_over', { target_opportunity_id: opportunityID, target_owner_id: ownerID })
+		.single<OpportunityRow>();
+	if (error) throw new RecordRefusedTheWrite(error.message, statusOfPostgresCode(error.code));
+	return data;
 }
 
 export async function crmOpportunityMove(

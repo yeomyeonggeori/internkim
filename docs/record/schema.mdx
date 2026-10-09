@@ -154,6 +154,15 @@ foreign-currency deal closed without a converted amount is refused, and so is
 a lost deal without a written reason. The settled amount is never recomputed.
 A record in use is archived instead of deleted.
 
+Every member reads and edits organizations and contacts. A deal, its amount
+and the activity on it are seen by the member responsible for it, meaning its
+owner or, while it has none, whoever created it, by that member's team and
+every team above it, and by administrators. Someone outside that line still
+sees an activity they take part in or asked for. Totals count only the deals
+the reader can see. `crm_opportunity_hand_over` gives a deal its reader can
+see to anyone in the company, even if that takes it out of their sight. Nobody
+signed in deletes a CRM record; it is archived.
+
 ## The seal and logo are data room documents [#service-files]
 
 The company row holds no seal. The seal, the letterhead logo and any later
