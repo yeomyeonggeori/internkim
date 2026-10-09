@@ -51,7 +51,7 @@ function buildMoneySummary(
 	const collapsedValue = view ? collapsedViewMoneyTotal(totals, view) : undefined;
 	if (view && collapsedValue !== undefined) {
 		return {
-			displayValue: formatViewMoney({ value: collapsedValue, currency: view.selected, isConverted: true }, text.noValue, locale)
+			displayValue: formatViewMoney({ value: collapsedValue, currency: view.selected, isConverted: true }, text.nothingToTotal, locale)
 		};
 	}
 	const moneyDetails = catalogue.reduce<CRMKPIMoneyDetail[]>((details, entry) => {
@@ -59,10 +59,10 @@ function buildMoneySummary(
 		if (amount === undefined) return details;
 		return [
 			...details,
-			{ currency: entry.code, displayValue: formatMoney(amount, entry.code, text.noValue, locale) }
+			{ currency: entry.code, displayValue: formatMoney(amount, entry.code, text.nothingToTotal, locale) }
 		];
 	}, []);
-	if (moneyDetails.length <= 1) return { displayValue: formatMoneyTotals(totals, catalogue, text.noValue, locale) };
+	if (moneyDetails.length <= 1) return { displayValue: formatMoneyTotals(totals, catalogue, text.nothingToTotal, locale) };
 	const primary = moneyDetails.find((detail) => detail.currency === view?.selected) ?? moneyDetails[0];
 	return { displayValue: primary.displayValue, moneyDetails };
 }

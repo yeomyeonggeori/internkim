@@ -160,7 +160,7 @@
 	}
 
 	function money(totals: CRMMoneyTotals): string {
-		return formatViewMoneyTotals(totals, currencyCatalogue, crmViewCurrency, text.noValue, currentLocale.value);
+		return formatViewMoneyTotals(totals, currencyCatalogue, crmViewCurrency, text.nothingToTotal, currentLocale.value);
 	}
 
 	function monthLabel(month: string): string {
@@ -193,7 +193,7 @@
 	}
 
 	function winRateLabel(rate: number | null): string {
-		return rate === null ? text.noValue : `${Math.round(rate * 100)}%`;
+		return rate === null ? text.nothingToTotal : `${Math.round(rate * 100)}%`;
 	}
 </script>
 
