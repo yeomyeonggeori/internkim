@@ -124,7 +124,7 @@
 									<div class="flex flex-wrap gap-1.5">
 										<CRMPipelineBadge {opportunity} {organization} {pipelines} {text} />
 										<Badge variant="secondary" class="ml-auto h-5 bg-muted px-1.5 py-0 text-[11px] font-medium tabular-nums text-foreground/75 shadow-none">
-											{opportunity.expectedValue === undefined ? text.noValue : formatViewMoney(crmViewCurrency.viewAmount(opportunity.expectedValue, opportunity.currency), text.noValue, currentLocale.value)}
+											{opportunity.expectedValue === undefined ? text.amountNotEntered : formatViewMoney(crmViewCurrency.viewAmount(opportunity.expectedValue, opportunity.currency), text.amountNotEntered, currentLocale.value)}
 										</Badge>
 									</div>
 									<div class="text-xs leading-5 text-muted-foreground">

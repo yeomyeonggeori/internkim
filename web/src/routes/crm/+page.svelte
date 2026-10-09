@@ -85,6 +85,7 @@
 	const companyBaseCurrency = $derived(controller.companyBaseCurrency);
 	const organizationTypeDefinitions = $derived(controller.vocabulary.organization_types);
 	let isAdmin = $state(crmFixtureMode);
+	let isRoleKnown = $state(crmFixtureMode);
 	const tabItems: Array<{ value: CRMTab; label: string }> = $derived([
 		{ value: 'relationships', label: text.relationships },
 		{ value: 'contacts', label: text.contactDirectory },
@@ -204,8 +205,11 @@
 		let active = true;
 		untrack(() => { void controller.load(email); });
 		isAdmin = crmFixtureMode;
+		isRoleKnown = crmFixtureMode;
 		if (isSupabaseConfigured()) void supabaseMemberRole().then((role) => {
-			if (active) isAdmin = role === 'admin';
+			if (!active) return;
+			isAdmin = role === 'admin';
+			isRoleKnown = true;
 		}).catch(() => {});
 		return () => { active = false; controller.dispose(); };
 	});
@@ -394,6 +398,7 @@
 			<Card.Root class="grid min-w-0 grid-cols-2 gap-px bg-border py-0 lg:grid-cols-4">
 				{#each kpiCards as card (card.id)}<CRMKPICell {card} />{/each}
 			</Card.Root>
+			{#if isRoleKnown && !isAdmin}<p class="mt-2 text-xs text-muted-foreground" data-crm-totals-scope>{text.totalsCountVisibleDeals}</p>{/if}
 			</Collapsible.Content>
 		</Collapsible.Root>
 

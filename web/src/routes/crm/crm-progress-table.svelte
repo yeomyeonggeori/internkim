@@ -145,7 +145,7 @@
 							</div>
 							<div class="mt-2 grid gap-2 font-normal sm:hidden">
 								<p class="break-words text-sm text-muted-foreground">{organization?.name ?? text.none}</p>
-								<div class="flex flex-wrap items-center justify-between gap-2"><Badge variant={getStageVariant(opportunity.stage)}>{opportunityStageLabel(stages, opportunity.stage, text)}</Badge><span class="break-all font-medium tabular-nums">{opportunity.expectedValue === undefined ? text.noValue : formatViewMoney(crmViewCurrency.viewAmount(opportunity.expectedValue, opportunity.currency), text.noValue, currentLocale.value)}</span></div>
+								<div class="flex flex-wrap items-center justify-between gap-2"><Badge variant={getStageVariant(opportunity.stage)}>{opportunityStageLabel(stages, opportunity.stage, text)}</Badge><span class="break-all font-medium tabular-nums">{opportunity.expectedValue === undefined ? text.amountNotEntered : formatViewMoney(crmViewCurrency.viewAmount(opportunity.expectedValue, opportunity.currency), text.amountNotEntered, currentLocale.value)}</span></div>
 								{#if opportunity.targetDate}<p class={isDeadlineMissed(opportunity) ? 'text-sm text-destructive' : 'text-sm text-muted-foreground'}>{text.targetDate} · {formatCRMDate(opportunity.targetDate, currentLocale.value)}</p>{/if}
 							</div>
 						</Table.Cell>
@@ -158,7 +158,7 @@
 						<Table.Cell class="hidden whitespace-nowrap sm:table-cell">
 							{@const StageIcon = dealStageIcon(opportunity.stage)}<Badge variant={getStageVariant(opportunity.stage)}><StageIcon data-icon="inline-start" aria-hidden="true" />{opportunityStageLabel(stages, opportunity.stage, text)}</Badge>
 						</Table.Cell>
-						<Table.Cell class="hidden whitespace-nowrap pr-6 text-right font-medium tabular-nums sm:table-cell md:pr-0">{opportunity.expectedValue === undefined ? text.noValue : formatViewMoney(crmViewCurrency.viewAmount(opportunity.expectedValue, opportunity.currency), text.noValue, currentLocale.value)}</Table.Cell>
+						<Table.Cell class="hidden whitespace-nowrap pr-6 text-right font-medium tabular-nums sm:table-cell md:pr-0">{opportunity.expectedValue === undefined ? text.amountNotEntered : formatViewMoney(crmViewCurrency.viewAmount(opportunity.expectedValue, opportunity.currency), text.amountNotEntered, currentLocale.value)}</Table.Cell>
 						<Table.Cell class={`hidden whitespace-nowrap pr-6 text-right tabular-nums md:table-cell lg:pr-0 ${isDeadlineMissed(opportunity) ? 'text-destructive' : 'text-muted-foreground'}`}>
 							{opportunity.targetDate ? formatCRMDate(opportunity.targetDate, currentLocale.value) : text.none}
 						</Table.Cell>

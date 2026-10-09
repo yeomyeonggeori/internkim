@@ -142,7 +142,7 @@
 							{organization.nextActionDate ? formatCRMDate(organization.nextActionDate, currentLocale.value) : text.none}
 						</Table.Cell>
 						<Table.Cell class="whitespace-nowrap pr-6 text-right font-medium tabular-nums">
-							{formatViewMoneyTotals(organization.expectedValues, currencyCatalogue, crmViewCurrency, text.noValue, currentLocale.value)}
+							{formatViewMoneyTotals(organization.expectedValues, currencyCatalogue, crmViewCurrency, text.nothingToTotal, currentLocale.value)}
 						</Table.Cell>
 					</Table.Row>
 				{:else}
