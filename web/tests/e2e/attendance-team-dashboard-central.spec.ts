@@ -58,7 +58,7 @@ test('a team opens a server-paged employee list with search and on-demand monthl
 	expect(await employeePage.getByRole('button',{name:/이샘플/}).count()).toBe(1);
 
 	await page.getByRole('textbox', { name: '이름 또는 이메일 검색' }).fill('없는구성원');
-	await expect(employeePage.getByText('표시할 구성원이 없습니다.')).toBeVisible();
+	await expect(employeePage.getByText('검색 조건에 맞는 구성원이 없습니다.')).toBeVisible();
 	await page.getByRole('textbox', { name: '이름 또는 이메일 검색' }).fill('이샘플');
 	await expect(employeePage.getByText('이샘플')).toBeVisible();
 	const monthReads: Array<{ path: string; input: Record<string, unknown> }> = [];
