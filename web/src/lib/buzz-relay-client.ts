@@ -1,4 +1,4 @@
-import { finalizeEvent, getPublicKey, type Event, type EventTemplate } from "nostr-tools/pure";
+import { finalizeEvent, getPublicKey, type EventTemplate, type VerifiedEvent } from "nostr-tools/pure";
 
 const STREAM_MESSAGE_KIND = 9;
 const AUTH_KIND = 22242;
@@ -20,7 +20,7 @@ export function buzzPublicKeyOf(secretHex: string): string {
 export function signBuzzEvent(
 	secretHex: string,
 	template: { kind: number; content: string; tags: string[][]; created_at?: number }
-): Event {
+): VerifiedEvent {
 	const event: EventTemplate = {
 		kind: template.kind,
 		content: template.content,
