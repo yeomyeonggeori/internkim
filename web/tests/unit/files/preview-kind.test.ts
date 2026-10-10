@@ -2,6 +2,7 @@ import { describe, expect, test } from 'bun:test';
 import {
 	boundedGrid,
 	columnLabel,
+	isTooLargeToPreview,
 	maxPreviewColumns,
 	maxPreviewRows,
 	previewKindOf
@@ -14,12 +15,27 @@ describe('previewKindOf', () => {
 		expect(previewKindOf('cap-table.xlsx')).toBe('spreadsheet');
 		expect(previewKindOf('ledger.csv')).toBe('spreadsheet');
 		expect(previewKindOf('content.txt')).toBe('text');
+		expect(previewKindOf('README.md')).toBe('markdown');
+		expect(previewKindOf('config.json')).toBe('code');
+		expect(previewKindOf('server.go')).toBe('code');
+		expect(previewKindOf('ir-deck.pptx')).toBe('presentation');
+		expect(previewKindOf('report.HTM')).toBe('html');
 	});
 
 	test('names no preview for a format it cannot draw', () => {
 		expect(previewKindOf('contract.docx')).toBe('none');
+		expect(previewKindOf('legacy-deck.ppt')).toBe('none');
 		expect(previewKindOf('README')).toBe('none');
 		expect(previewKindOf('.gitignore')).toBe('none');
+	});
+});
+
+describe('isTooLargeToPreview', () => {
+	test('holds text to a smaller ceiling than a document drawn from bytes', () => {
+		const threeMegabytes = 3 * 1024 * 1024;
+		expect(isTooLargeToPreview('notes.md', threeMegabytes)).toBeTrue();
+		expect(isTooLargeToPreview('report.pdf', threeMegabytes)).toBeFalse();
+		expect(isTooLargeToPreview('report.pdf', 60 * 1024 * 1024)).toBeTrue();
 	});
 });
 

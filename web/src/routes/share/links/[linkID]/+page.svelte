@@ -8,7 +8,6 @@
 	import { Checkbox } from '$lib/components/ui/checkbox';
 	import { Spinner } from '$lib/components/ui/spinner';
 	import * as Field from '$lib/components/ui/field';
-	import LockKeyholeIcon from '@lucide/svelte/icons/lock-keyhole';
 	import GuestRoom from '$lib/data-room/guest-room.svelte';
 	import { sharedDataRoomLinkSchema } from '$lib/data-room/schemas';
 	import { DataRoomRefused } from '$lib/data-room/viewer';
@@ -116,9 +115,7 @@
 		<div class="flex min-h-dvh items-center justify-center p-4">
 		<section class="bg-background grid w-full max-w-md gap-6 rounded-2xl border p-6 shadow-sm sm:p-8">
 			<header class="grid gap-2">
-				<div class="bg-primary text-primary-foreground mb-2 flex size-10 items-center justify-center rounded-lg">
-					<LockKeyholeIcon class="size-5" />
-				</div>
+				<img src="/favicon.svg" alt="" class="mb-2 size-10" />
 				<h1 class="text-xl font-semibold">{text.enterCode}</h1>
 				<p class="text-sm text-muted-foreground">{text.unlockDescription}</p>
 			</header>

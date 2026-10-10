@@ -1,5 +1,4 @@
 <script lang="ts">
-	import LockKeyholeIcon from '@lucide/svelte/icons/lock-keyhole';
 	import RefreshCwIcon from '@lucide/svelte/icons/refresh-cw';
 	import SearchIcon from '@lucide/svelte/icons/search';
 	import { Badge } from '$lib/components/ui/badge';
@@ -95,9 +94,7 @@
 <div class="bg-muted/40 flex min-h-dvh flex-col">
 	<header class="bg-background sticky top-0 z-10 border-b">
 		<div class="mx-auto flex w-full max-w-7xl items-center gap-3 px-4 py-3">
-			<div class="bg-primary text-primary-foreground flex size-9 shrink-0 items-center justify-center rounded-lg">
-				<LockKeyholeIcon class="size-4" />
-			</div>
+			<img src="/favicon.svg" alt="" class="size-9 shrink-0" />
 			<div class="min-w-0 flex-1">
 				<h1 class="truncate text-base font-semibold">{text.sharedRoom}</h1>
 				<p class="text-muted-foreground truncate text-xs">{text.confidential}</p>
@@ -167,7 +164,7 @@
 					<Table.Header>
 						<Table.Row>
 							<Table.Head class="pl-4">{text.name}</Table.Head>
-							<Table.Head class="max-md:hidden">{text.category}</Table.Head>
+							<Table.Head class="w-44 max-md:hidden">{text.category}</Table.Head>
 							<Table.Head class="w-28 max-sm:hidden">{text.date}</Table.Head>
 							<Table.Head class="w-16 pr-4 max-sm:hidden">{text.fileType}</Table.Head>
 						</Table.Row>
@@ -175,19 +172,19 @@
 					<Table.Body>
 						{#each visibleDocuments as document (document.id)}
 							{@const visual = fileVisual(sharedFileName(document) ?? '')}
-							<Table.Row class="cursor-pointer" onclick={() => (openID = document.id)}>
+							<Table.Row class="cursor-pointer has-[button:focus-visible]:bg-muted/50" onclick={() => (openID = document.id)}>
 								<Table.Cell class="max-w-0 py-3 pl-4">
 									<div class="flex items-center gap-3">
 										<visual.icon class="size-5 shrink-0 {visual.colorClass}" />
 										<div class="min-w-0">
-											<button type="button" class="block max-w-full truncate text-left font-medium hover:underline"
+											<button type="button" class="block max-w-full truncate text-left font-medium focus-visible:outline-none"
 												>{document.title}</button
 											>
 											{#if document.summary}<p class="text-muted-foreground truncate text-xs">{document.summary}</p>{/if}
 										</div>
 									</div>
 								</Table.Cell>
-								<Table.Cell class="text-muted-foreground max-w-48 truncate max-md:hidden"
+								<Table.Cell class="text-muted-foreground max-w-44 truncate max-md:hidden"
 									>{categoryLabel(document.category_code)}</Table.Cell
 								>
 								<Table.Cell class="text-muted-foreground tabular-nums max-sm:hidden">{document.document_date ?? ''}</Table.Cell>

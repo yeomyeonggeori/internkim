@@ -1,4 +1,3 @@
-import type { PreviewSource } from '$lib/files/preview/document-preview.svelte';
 import { previewKindOf } from '$lib/files/preview/kind';
 
 export type ViewerDocument = {
@@ -11,7 +10,7 @@ export type ViewerDocument = {
 	details: [label: string, value: string][];
 };
 
-export type ViewerSource = PreviewSource & { isTextPreview: boolean };
+export type ViewerSource = { url: string; fileName: string; isTextPreview: boolean };
 
 export type FileSigner = (derivedFileName?: string) => Promise<string>;
 

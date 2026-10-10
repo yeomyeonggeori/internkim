@@ -5,6 +5,7 @@ import FileTextIcon from '@lucide/svelte/icons/file-text';
 import FileCodeIcon from '@lucide/svelte/icons/file-code';
 import FileImageIcon from '@lucide/svelte/icons/file-image';
 import FileSpreadsheetIcon from '@lucide/svelte/icons/file-spreadsheet';
+import PresentationIcon from '@lucide/svelte/icons/presentation';
 
 export type FileVisual = {
 	icon: Component;
@@ -21,6 +22,11 @@ const extensionGroups: { icon: Component; colorClass: string; extensions: string
 		icon: FileSpreadsheetIcon,
 		colorClass: 'text-emerald-600',
 		extensions: ['csv', 'tsv', 'xls', 'xlsx']
+	},
+	{
+		icon: PresentationIcon,
+		colorClass: 'text-orange-600',
+		extensions: ['ppt', 'pptx', 'key', 'odp']
 	},
 	{
 		icon: FileCodeIcon,
@@ -43,14 +49,6 @@ export function fileVisual(fileName: string): FileVisual {
 	const group = extensionGroups.find((candidate) => candidate.extensions.includes(extension));
 	if (group) return { icon: group.icon, colorClass: group.colorClass };
 	return { icon: FileIcon, colorClass: 'text-muted-foreground' };
-}
-
-export function parseDelimitedText(content: string, delimiter: string): string[][] {
-	return content
-		.replace(/\r\n/g, '\n')
-		.replace(/\n+$/, '')
-		.split('\n')
-		.map((line) => line.split(delimiter));
 }
 
 export function formatFileSize(bytes: number): string {
@@ -86,10 +84,7 @@ export function formatModified(isoTimestamp: string, locale: 'ko' | 'en'): strin
 
 
 const languageByExtension: Record<string, SupportedLanguage> = {
-	html: 'html',
-	htm: 'html',
 	xml: 'html',
-	svg: 'html',
 	css: 'css',
 	js: 'javascript',
 	mjs: 'javascript',
@@ -115,13 +110,6 @@ const languageByExtension: Record<string, SupportedLanguage> = {
 	h: 'c',
 	diff: 'diff',
 	patch: 'diff',
-	md: 'markdown',
-	markdown: 'markdown',
-	txt: 'markdown',
-	text: 'markdown',
-	log: 'markdown',
-	csv: 'markdown',
-	tsv: 'markdown',
 	env: 'bash',
 	ini: 'bash',
 	conf: 'bash',

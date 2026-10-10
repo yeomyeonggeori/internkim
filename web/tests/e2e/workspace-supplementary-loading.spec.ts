@@ -63,7 +63,7 @@ const scenes: Scene[] = [
 	{ name: 'settings-members', path: '/example-co/settings/setup', gates: ['person_list'], ready: 'text=member1@example.com', focus: async page => { await page.getByRole('button', { name: '구성원 초대', exact: true }).scrollIntoViewIfNeeded(); } },
 	{ name: 'data-room', path: '/example-co/files/data-room', gates: ['dataroom_get', 'company_document_list'], ready: 'button:has-text("회사 소개")' },
 	{ name: 'public-data-room', path: `/share/${companyID}`, gates: ['public-data-room'], ready: 'tbody tr' },
-	{ name: 'file-preview', path: '/example-co/files', gates: ['person.files.download'], ready: 'pre:has-text("Fixture preview")', action: async page => { await page.getByRole('button', { name: /주간-회고-1.md/ }).click(); } },
+	{ name: 'file-preview', path: '/example-co/files', gates: ['person.files.download'], ready: 'article:has-text("Fixture preview")', action: async page => { await page.getByRole('button', { name: /주간-회고-1.md/ }).click(); } },
 	{ name: 'run-approvals', path: '/example-co/runs/approvals', gates: ['person.runs.list'], ready: 'button:has-text("이번만 승인")' },
 	{ name: 'run-logs', path: '/example-co/runs/dev-task-run-001', gates: ['service-logs'], ready: 'pre:has-text("task accepted")', action: async page => { await page.getByRole('tab', { name: '로그', exact: true }).click(); } },
 	{ name: 'run-inbound', path: '/example-co/runs', gates: ['person.runs.inbound'], ready: 'text=다음 주 출시 확정됐어요!', action: async page => { await page.getByRole('tab', { name: '받은 메시지', exact: true }).click(); } },
@@ -150,12 +150,12 @@ for (const status of [401, 403]) for (const target of ['memory', 'files', 'mail'
 			const entry = page.getByRole('button', { name: /주간-회고-1.md/ });
 			await expect(entry).toBeVisible();
 			await entry.click();
-			await expect(page.locator('pre:has-text("Fixture preview")')).toBeVisible();
+			await expect(page.locator('article:has-text("Fixture preview")')).toBeVisible();
 			fixture.statuses.set('person.files.list', status);
 			await page.getByRole('tabpanel', { name: '워크스페이스' }).getByRole('button', { name: '새로고침', exact: true }).click();
 			await expect(page.getByRole('alert')).toBeVisible();
 			await expect(entry).toHaveCount(0);
-			await expect(page.locator('pre:has-text("Fixture preview")')).toHaveCount(0);
+			await expect(page.locator('article:has-text("Fixture preview")')).toHaveCount(0);
 		} else if (target === 'mail') {
 			const message = page.getByRole('button', { name: /메일 캐시 동작 확인/ }).first();
 			await expect(message).toBeVisible();

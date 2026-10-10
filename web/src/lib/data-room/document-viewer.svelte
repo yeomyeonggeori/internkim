@@ -146,7 +146,7 @@
 									{sourceFailure}
 								</p>
 							{:else if source}
-								{#key source}<DocumentPreview {source} />{/key}
+								{#key source}<DocumentPreview fileName={source.fileName} readURL={() => Promise.resolve(source?.url ?? '')} />{/key}
 							{:else if source === null}
 								<p class="text-muted-foreground flex h-full items-center justify-center p-6 text-center text-sm">{text.noPreview}</p>
 							{:else}

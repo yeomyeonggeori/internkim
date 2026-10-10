@@ -54,12 +54,12 @@ for (const width of [320, 360, 390, 568, 1280]) {
 		await capture('share-invitation');
 		await page.route('**/api/v1/data-room/00000000-0000-4000-8000-000000000002', route => route.fulfill({ json: {
 			categories: [{ code: 'C', parent: null, name: 'A long category label that should remain readable', name_ko: '법인 자료', description: '', slug: 'corporate' }],
-			documents: [{ id: 'document-sample', title: '공유 문서의 긴 제목과 상세 설명도 좁은 화면에서 읽을 수 있습니다', summary: '자료실 미리보기 검증', category_code: 'C', document_date: null, status: null }]
+			documents: [{ id: 'document-sample', title: '공유 문서의 긴 제목과 상세 설명도 좁은 화면에서 읽을 수 있습니다', summary: '자료실 미리보기 검증', category_code: 'C', document_date: null, status: null, extension: 'pdf' }]
 		} }));
 		await page.goto('/share/00000000-0000-4000-8000-000000000002');
-		await expect(page.getByRole('heading', { name: /공유 문서의 긴 제목/ })).toBeVisible();
+		await expect(page.getByRole('button', { name: /공유 문서의 긴 제목/ })).toBeVisible();
 		if (width < 768) {
-			await page.getByRole('button', { name: 'Categories', exact: true }).click();
+			await page.getByRole('combobox', { name: /^(Folders|폴더)$/ }).click();
 			await page.getByRole('option').last().click();
 			await expect(page.getByRole('listbox')).toBeHidden();
 		}

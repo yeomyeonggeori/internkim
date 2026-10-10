@@ -1,4 +1,15 @@
-export type PreviewKind = 'pdf' | 'image' | 'spreadsheet' | 'text' | 'none';
+import { codeLanguageForFile } from '$lib/files/view';
+
+export type PreviewKind =
+	| 'pdf'
+	| 'image'
+	| 'spreadsheet'
+	| 'presentation'
+	| 'html'
+	| 'markdown'
+	| 'code'
+	| 'text'
+	| 'none';
 
 const kindsByExtension: Record<string, PreviewKind> = {
 	pdf: 'pdf',
@@ -16,11 +27,14 @@ const kindsByExtension: Record<string, PreviewKind> = {
 	ods: 'spreadsheet',
 	csv: 'spreadsheet',
 	tsv: 'spreadsheet',
+	pptx: 'presentation',
+	html: 'html',
+	htm: 'html',
+	md: 'markdown',
+	markdown: 'markdown',
 	txt: 'text',
-	md: 'text',
-	markdown: 'text',
-	log: 'text',
-	json: 'text'
+	text: 'text',
+	log: 'text'
 };
 
 export function extensionOf(fileName: string): string {
@@ -29,7 +43,18 @@ export function extensionOf(fileName: string): string {
 }
 
 export function previewKindOf(fileName: string): PreviewKind {
-	return kindsByExtension[extensionOf(fileName)] ?? 'none';
+	const kind = kindsByExtension[extensionOf(fileName)];
+	if (kind) return kind;
+	return codeLanguageForFile(fileName) ? 'code' : 'none';
+}
+
+const textualKinds: PreviewKind[] = ['html', 'markdown', 'code', 'text'];
+const maxTextualPreviewBytes = 2 * 1024 * 1024;
+const maxBinaryPreviewBytes = 50 * 1024 * 1024;
+
+export function isTooLargeToPreview(fileName: string, size: number): boolean {
+	const limit = textualKinds.includes(previewKindOf(fileName)) ? maxTextualPreviewBytes : maxBinaryPreviewBytes;
+	return size > limit;
 }
 
 export type SheetGrid = { rows: string[][]; columnCount: number; isTruncated: boolean };
