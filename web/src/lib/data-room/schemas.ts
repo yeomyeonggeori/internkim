@@ -1,11 +1,19 @@
 import { z } from 'zod';
 import { circleSchema, dataRoomCategorySchema } from './model';
 
+export const sharedDocumentColumns = 'id,title,summary,category_code,document_date,status,storage_path';
+
 export const sharedDataRoomSchema = z.object({
 	categories: z.array(z.object({ code: z.string(), parent: z.string().nullable(),
 		name: z.string(), name_ko: z.string(), description: z.string(), slug: z.string() })),
 	documents: z.array(z.object({ id: z.string(), title: z.string(), summary: z.string().nullable(),
-		category_code: z.string(), document_date: z.string().nullable(), status: z.string().nullable() }))
+		category_code: z.string(), document_date: z.string().nullable(), status: z.string().nullable(),
+		extension: z.string().nullable() }))
+});
+
+export const sharedDataRoomLinkSchema = sharedDataRoomSchema.extend({
+	canDownload: z.boolean(),
+	expiresAt: z.string()
 });
 
 export const companyDocumentPublishedSchema = z.strictObject({

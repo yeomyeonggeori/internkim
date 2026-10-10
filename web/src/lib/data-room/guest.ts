@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { supabase } from '$lib/supabase';
+import { DataRoomRefused } from './viewer';
 export { sharedDataRoomSchema } from './schemas';
 
 export async function dataRoomRequest(path: string, method = 'GET'): Promise<unknown> {
@@ -10,7 +11,7 @@ export async function dataRoomRequest(path: string, method = 'GET'): Promise<unk
 	const answer: unknown = await response.json();
 	if (!response.ok) {
 		const refusal = z.object({ message: z.string() }).safeParse(answer);
-		throw new Error(refusal.success ? refusal.data.message : `data room returned ${response.status}`);
+		throw new DataRoomRefused(refusal.success ? refusal.data.message : `data room returned ${response.status}`, response.status);
 	}
 	return answer;
 }
