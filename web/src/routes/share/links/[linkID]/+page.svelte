@@ -8,17 +8,15 @@
 	import { Checkbox } from '$lib/components/ui/checkbox';
 	import { Spinner } from '$lib/components/ui/spinner';
 	import * as Field from '$lib/components/ui/field';
-	import FileBrowserList from '$lib/components/file-browser-list.svelte';
-	import FileBrowserPreview from '$lib/components/file-browser-preview.svelte';
-	import { sharedDataRoomSchema } from '$lib/data-room/schemas';
+	import LockKeyholeIcon from '@lucide/svelte/icons/lock-keyhole';
+	import GuestRoom from '$lib/data-room/guest-room.svelte';
+	import { sharedDataRoomLinkSchema } from '$lib/data-room/schemas';
+	import { DataRoomRefused } from '$lib/data-room/viewer';
 	import { dataRoomNoticeVersion } from '$lib/data-room/links';
 	import { createPageText } from '$lib/i18n/page-text.svelte';
-	import { currentLocale } from '$lib/i18n/locale.svelte';
 	import { dataRoomSharingText } from '$lib/data-room/sharing-text';
 	import { dataRoomText } from '$lib/data-room/text';
-	const sharedLinkSchema = sharedDataRoomSchema.extend({ canDownload: z.boolean() });
-	type SharedRoom = z.infer<typeof sharedLinkSchema>;
-	type SharedDocument = SharedRoom['documents'][number];
+	type SharedLinkRoom = z.infer<typeof sharedDataRoomLinkSchema>;
 	const text = createPageText(dataRoomSharingText);
 	const browserText = createPageText(dataRoomText);
 	const fieldID = $props.id();
@@ -26,51 +24,18 @@
 	let hasAccepted = $state(false);
 	let isBusy = $state(false);
 	let errorMessage = $state('');
-	let room = $state<SharedRoom | null>(null);
-	let selectedCode = $state('');
-	let selectedDocument = $state<SharedDocument | null>(null);
+	let room = $state<SharedLinkRoom | null>(null);
 	const endpoint = $derived(`/api/v1/data-room/links/${page.params.linkID}`);
-	const categories = $derived(room?.categories ?? []);
-	const entries = $derived(
-		(room?.documents ?? [])
-			.filter(
-				(document) =>
-					!selectedCode ||
-					document.category_code === selectedCode ||
-					categories.find((category) => category.code === document.category_code)?.parent ===
-						selectedCode
-			)
-			.map((document) => ({
-				id: document.id,
-				name: document.title,
-				secondary: document.category_code,
-				date: document.document_date ?? ''
-			}))
-	);
-
-	function categoryLabel(code: string): string {
-		const category = categories.find((candidate) => candidate.code === code);
-		return currentLocale.value === 'ko'
-			? category?.name_ko || category?.name || code
-			: category?.name || code;
-	}
-
 	async function readResponse(response: Response): Promise<unknown> {
 		const answer: unknown = await response.json();
 		if (response.ok) return answer;
-		if (response.status === 401 || response.status === 403) {
-			room = null;
-			selectedDocument = null;
-		}
+		if (response.status === 401 || response.status === 403) room = null;
 		const refusal = z.object({ message: z.string() }).safeParse(answer);
-		throw new Error(refusal.success ? refusal.data.message : text.failure);
+		throw new DataRoomRefused(refusal.success ? refusal.data.message : text.failure, response.status);
 	}
 
 	async function load() {
-		room = sharedLinkSchema.parse(await readResponse(await fetch(endpoint, { cache: 'no-store' })));
-		if (selectedDocument)
-			selectedDocument =
-				room.documents.find((document) => document.id === selectedDocument?.id) ?? null;
+		room = sharedDataRoomLinkSchema.parse(await readResponse(await fetch(endpoint, { cache: 'no-store' })));
 	}
 
 	async function unlock(event: SubmitEvent) {
@@ -95,18 +60,18 @@
 		}
 	}
 
+	async function signFile(documentID: string, derivedFileName?: string): Promise<string> {
+		const parameters = new URLSearchParams({ documentID });
+		if (derivedFileName) parameters.set('fileName', derivedFileName);
+		const answer = await readResponse(await fetch(`${endpoint}?${parameters}`, { cache: 'no-store' }));
+		return z.object({ downloadURL: z.string().url() }).parse(answer).downloadURL;
+	}
+
 	async function download(documentID: string) {
 		isBusy = true;
 		errorMessage = '';
 		try {
-			const answer = z
-				.object({ downloadURL: z.string().url() })
-				.parse(
-					await readResponse(
-						await fetch(`${endpoint}?${new URLSearchParams({ documentID })}`, { cache: 'no-store' })
-					)
-				);
-			window.location.assign(answer.downloadURL);
+			window.location.assign(await signFile(documentID));
 		} catch (error) {
 			errorMessage = error instanceof Error ? error.message : text.failure;
 		} finally {
@@ -123,7 +88,15 @@
 		}
 	}
 
+	async function resumeSession() {
+		await load().catch((error: unknown) => {
+			if (error instanceof DataRoomRefused && (error.status === 401 || error.status === 403)) return;
+			errorMessage = error instanceof Error ? error.message : text.failure;
+		});
+	}
+
 	onMount(() => {
+		void resumeSession();
 		const timer = window.setInterval(() => {
 			if (room && !isBusy) void refresh();
 		}, 30000);
@@ -138,10 +111,14 @@
 	/></svelte:head
 >
 
-<main class="mx-auto w-full max-w-6xl p-4 sm:p-8">
+<main class="bg-muted/40 min-h-dvh">
 	{#if !room}
-		<section class="mx-auto grid max-w-md gap-6 py-8">
+		<div class="flex min-h-dvh items-center justify-center p-4">
+		<section class="bg-background grid w-full max-w-md gap-6 rounded-2xl border p-6 shadow-sm sm:p-8">
 			<header class="grid gap-2">
+				<div class="bg-primary text-primary-foreground mb-2 flex size-10 items-center justify-center rounded-lg">
+					<LockKeyholeIcon class="size-5" />
+				</div>
 				<h1 class="text-xl font-semibold">{text.enterCode}</h1>
 				<p class="text-sm text-muted-foreground">{text.unlockDescription}</p>
 			</header>
@@ -190,71 +167,24 @@
 					>{#if isBusy}<Spinner />{/if}{text.unlock}</Button
 				>
 			</form>
+			{#if errorMessage}<p role="alert" class="text-sm text-destructive">{errorMessage}</p>{/if}
 		</section>
+		</div>
 	{:else}
-		<header class="mb-6 flex items-center justify-between gap-3">
-			<h1 class="text-xl font-semibold">{browserText.title}</h1>
-			<Button variant="outline" size="sm" onclick={refresh}>{browserText.refresh}</Button>
-		</header>
-		<div class="mb-4 flex flex-wrap gap-2">
-			<Button
-				size="sm"
-				variant={!selectedCode ? 'secondary' : 'ghost'}
-				onclick={() => {
-					selectedCode = '';
-					selectedDocument = null;
-				}}>{browserText.allDocuments}</Button
-			>{#each categories as category (category.code)}<Button
-					size="sm"
-					variant={selectedCode === category.code ? 'secondary' : 'ghost'}
-					onclick={() => {
-						selectedCode = category.code;
-						selectedDocument = null;
-					}}>{categoryLabel(category.code)}</Button
-				>{/each}
-		</div>
-		<div class="flex items-start gap-4">
-			<FileBrowserList
-				{entries}
-				title={browserText.title}
-				nameLabel={browserText.name}
-				secondaryLabel={browserText.category}
-				isSecondaryBadge
-				dateLabel={browserText.date}
-				emptyLabel={browserText.empty}
-				selectedID={selectedDocument?.id}
-				onSelect={(entry) =>
-					(selectedDocument = room?.documents.find((document) => document.id === entry.id) ?? null)}
-			/>
-			<FileBrowserPreview
-				isOpen={selectedDocument !== null}
-				title={selectedDocument?.title ?? browserText.title}
-				onClose={() => (selectedDocument = null)}
-				>{#if selectedDocument}<div class="flex items-start justify-between gap-3 border-b p-4">
-						<h2 class="text-sm font-semibold">{selectedDocument.title}</h2>
-						<Button variant="ghost" size="sm" onclick={() => (selectedDocument = null)}
-							>{browserText.close}</Button
-						>
-					</div>
-					<div class="grid gap-4 overflow-auto p-4">
-						<p class="text-xs text-muted-foreground">
-							{categoryLabel(selectedDocument.category_code)} · {selectedDocument.document_date ??
-								''}
-						</p>
-						<p class="whitespace-pre-wrap text-sm">
-							{selectedDocument.summary || browserText.noSummary}
-						</p>
-						{#if room.canDownload}<Button
-								variant="outline"
-								disabled={isBusy}
-								onclick={() => selectedDocument && download(selectedDocument.id)}
-								>{browserText.download}</Button
-							>{/if}
-					</div>{/if}</FileBrowserPreview
+		<GuestRoom
+			{room}
+			canDownload={room.canDownload}
+			expiresAt={room.expiresAt}
+			{signFile}
+			onDownload={download}
+			isDownloading={isBusy}
+			onRefresh={refresh}
+		/>
+		{#if errorMessage}<p
+				role="alert"
+				class="bg-background text-destructive fixed inset-x-4 bottom-4 mx-auto max-w-md rounded-lg border p-3 text-sm shadow-lg"
 			>
-		</div>
+				{errorMessage}
+			</p>{/if}
 	{/if}
-	{#if errorMessage}<p role="alert" class="mx-auto mt-4 max-w-md text-sm text-destructive">
-			{errorMessage}
-		</p>{/if}
 </main>

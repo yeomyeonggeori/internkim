@@ -1,10 +1,10 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import type { z } from 'zod';
+	import { toast } from 'svelte-sonner';
+	import { z } from 'zod';
 	import { Button } from '$lib/components/ui/button';
 	import * as Breadcrumb from '$lib/components/ui/breadcrumb';
 	import FileBrowserList, { type FileBrowserEntry } from '$lib/components/file-browser-list.svelte';
-	import FileBrowserPreview from '$lib/components/file-browser-preview.svelte';
 	import TooltipIconButton from '$lib/components/tooltip-icon-button.svelte';
 	import RefreshCwIcon from '@lucide/svelte/icons/refresh-cw';
 	import { invokeTool } from '$lib/public-api-call';
@@ -14,18 +14,21 @@
 	import {
 		dataRoomFolderEntries,
 		documentCategoryLabel,
+		documentFileName,
 		type DataRoomDocument
 	} from '$lib/data-room/browser';
 	import { dataRoomGetResultSchema, companyDocumentListResultSchema } from '$lib/data-room/schemas';
 	import { dataRoomText } from '$lib/data-room/text';
-	import DocumentDetail from './document-detail.svelte';
+	import DocumentViewer from '$lib/data-room/document-viewer.svelte';
+	import { previewSourceOf, type ViewerDocument } from '$lib/data-room/viewer';
 	import ShareLinks from './share-links.svelte';
 
 	const text = createPageText(dataRoomText);
 	let room = $state<z.infer<typeof dataRoomGetResultSchema> | null>(null);
 	let documents = $state<DataRoomDocument[]>([]);
 	let selectedCode = $state('');
-	let selectedDocument = $state<DataRoomDocument | null>(null);
+	let openID = $state<string | null>(null);
+	let isDownloading = $state(false);
 	let isLoading = $state(true);
 	let errorMessage = $state('');
 	let loadGeneration = 0;
@@ -36,6 +39,9 @@
 	);
 	const entries = $derived(
 		dataRoomFolderEntries(documents, categories, selectedCode, currentLocale.value)
+	);
+	const viewerDocuments = $derived(
+		documents.filter((document) => document.categoryCode === selectedCode).map(viewerDocumentOf)
 	);
 	const breadcrumbs = $derived([
 		{ code: '', name: text.title },
@@ -59,7 +65,6 @@
 			invokeTool('company_document_list', {}).then((answer) => {
 				if (generation !== loadGeneration) return;
 				documents = companyDocumentListResultSchema.parse(answer).documents;
-				selectedDocument = null;
 			})
 		]);
 		if (generation !== loadGeneration) return;
@@ -69,16 +74,59 @@
 		isLoading = false;
 	}
 
+	function viewerDocumentOf(document: DataRoomDocument): ViewerDocument {
+		const details: [string, string][] = [
+			[text.category, documentCategoryLabel(document, categories, currentLocale.value)],
+			[text.date, document.date ?? ''],
+			[text.documentNumber, document.documentNumber ?? ''],
+			[text.counterpart, document.counterpart ?? ''],
+			[text.status, document.status ?? ''],
+			[text.tags, document.tags.join(' · ')]
+		];
+		return {
+			id: document.documentID,
+			title: document.title,
+			fileName: document.storagePath ? documentFileName(document) : null,
+			category: documentCategoryLabel(document, categories, currentLocale.value),
+			date: document.date ?? '',
+			summary: document.summary ?? '',
+			details: details.filter(([, value]) => value)
+		};
+	}
+
+	async function signedURL(documentID: string, derivedFileName?: string): Promise<string> {
+		const answer = await invokeTool('company_document_download', {
+			documentHint: documentID,
+			...(derivedFileName ? { fileName: derivedFileName } : {})
+		});
+		return z.object({ downloadURL: z.string().url() }).parse(answer).downloadURL;
+	}
+
+	async function download(document: ViewerDocument) {
+		isDownloading = true;
+		try {
+			const link = window.document.createElement('a');
+			link.href = await signedURL(document.id);
+			link.download = document.fileName ?? document.title;
+			link.rel = 'noopener';
+			link.click();
+		} catch (error) {
+			toast.error(error instanceof Error ? error.message : text.loadFailed);
+		} finally {
+			isDownloading = false;
+		}
+	}
+
 	function openCategory(code: string) {
 		selectedCode = code;
-		selectedDocument = null;
+		openID = null;
 	}
 	function openEntry(entry: FileBrowserEntry) {
 		if (entry.isDirectory) {
 			openCategory(entry.id);
 			return;
 		}
-		selectedDocument = documents.find((document) => document.documentID === entry.id) ?? null;
+		openID = entry.id;
 	}
 	onMount(load);
 </script>
@@ -118,20 +166,18 @@
 				countBadgeVariant="secondary"
 				dateLabel={text.date}
 				emptyLabel={text.empty}
-				selectedID={selectedDocument?.documentID}
+				selectedID={openID ?? undefined}
 				onSelect={openEntry}
 			/>
-			<FileBrowserPreview
-				isOpen={selectedDocument !== null}
-				title={selectedDocument?.title ?? text.title}
-				onClose={() => (selectedDocument = null)}
-			>
-				{#if selectedDocument}{#key selectedDocument.documentID}<DocumentDetail
-							document={selectedDocument}
-							category={documentCategoryLabel(selectedDocument, categories, currentLocale.value)}
-							onClose={() => (selectedDocument = null)}
-						/>{/key}{/if}
-			</FileBrowserPreview>
 		</div>
 	</div>
 </div>
+
+<DocumentViewer
+	documents={viewerDocuments}
+	bind:openID
+	readSource={(document) =>
+		previewSourceOf(document.fileName ?? '', (derivedFileName) => signedURL(document.id, derivedFileName), true)}
+	onDownload={download}
+	{isDownloading}
+/>
