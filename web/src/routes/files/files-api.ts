@@ -22,6 +22,7 @@ export type WorkspaceEntry = {
 	agentPath: string;
 	isDirectory: boolean;
 	size: number;
+	entryCount?: number;
 	modifiedAt: string;
 };
 

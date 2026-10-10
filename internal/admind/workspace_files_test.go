@@ -85,7 +85,12 @@ func workspaceFilesMockList(workspaceDirectory string, agentPath string) *http.R
 		if directoryEntry.Name() == ".blueclaw" {
 			continue
 		}
-		entries = append(entries, map[string]any{"name": directoryEntry.Name(), "isDirectory": directoryEntry.IsDir()})
+		entry := map[string]any{"name": directoryEntry.Name(), "isDirectory": directoryEntry.IsDir()}
+		if directoryEntry.IsDir() {
+			children, _ := os.ReadDir(filepath.Join(workspaceFilesMockHostPath(workspaceDirectory, agentPath), directoryEntry.Name()))
+			entry["entryCount"] = len(children)
+		}
+		entries = append(entries, entry)
 	}
 	document, _ := json.Marshal(map[string]any{"entries": entries})
 	return jsonResponse(http.StatusOK, string(document), nil)
@@ -172,6 +177,37 @@ func TestWorkspaceFilesListAllowsOwnCircleAndShared(t *testing.T) {
 		if !strings.Contains(recorder.Body.String(), testCase.expected) {
 			t.Fatalf("list %q missing %q: %s", testCase.path, testCase.expected, recorder.Body.String())
 		}
+	}
+}
+
+func TestWorkspaceFilesListCarriesHowManyEntriesAFolderHolds(t *testing.T) {
+	service, workspaceDirectory := newWorkspaceFilesTestService(t)
+	seedWorkspaceFile(t, workspaceDirectory, "circles/engineering/drafts/outline.md", "outline")
+	if errorValue := os.MkdirAll(filepath.Join(workspaceDirectory, "circles/engineering/empty"), 0o755); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	recorder := workspaceFilesRequest(t, service, http.MethodGet, "/files/api/list?path=/workspace/circles/engineering", "me@example.com", nil, "")
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("status = %d body = %s", recorder.Code, recorder.Body.String())
+	}
+	var listing struct {
+		Entries []workspaceEntry `json:"entries"`
+	}
+	if errorValue := json.Unmarshal(recorder.Body.Bytes(), &listing); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	entryCountByName := map[string]*int{}
+	for _, entry := range listing.Entries {
+		entryCountByName[entry.Name] = entry.EntryCount
+	}
+	if count := entryCountByName["drafts"]; count == nil || *count != 1 {
+		t.Fatalf("expected drafts to hold one entry, got %s", recorder.Body.String())
+	}
+	if count := entryCountByName["empty"]; count == nil || *count != 0 {
+		t.Fatalf("expected empty to hold none, got %s", recorder.Body.String())
+	}
+	if entryCountByName["spec.md"] != nil {
+		t.Fatalf("expected a file to carry no entry count, got %s", recorder.Body.String())
 	}
 }
 

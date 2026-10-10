@@ -115,8 +115,7 @@
 				hasLoadError={Boolean(errorMessage)}
 				title={text.title}
 				nameLabel={text.name}
-				secondaryLabel={text.category}
-				isSecondaryBadge
+				countBadgeVariant="secondary"
 				dateLabel={text.date}
 				emptyLabel={text.empty}
 				selectedID={selectedDocument?.documentID}

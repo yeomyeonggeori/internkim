@@ -34,6 +34,7 @@ type workspaceEntry struct {
 	AgentPath   string `json:"agentPath"`
 	IsDirectory bool   `json:"isDirectory"`
 	Size        int64  `json:"size"`
+	EntryCount  *int   `json:"entryCount,omitempty"`
 	ModifiedAt  string `json:"modifiedAt"`
 }
 
