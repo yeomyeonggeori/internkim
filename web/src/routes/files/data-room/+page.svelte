@@ -21,6 +21,7 @@
 	import { dataRoomText } from '$lib/data-room/text';
 	import DocumentViewer from '$lib/data-room/document-viewer.svelte';
 	import { previewSourceOf, type ViewerDocument } from '$lib/data-room/viewer';
+	import { formatFileSize, formatModified } from '$lib/files/view';
 	import ShareLinks from './share-links.svelte';
 
 	const text = createPageText(dataRoomText);
@@ -81,7 +82,10 @@
 			[text.documentNumber, document.documentNumber ?? ''],
 			[text.counterpart, document.counterpart ?? ''],
 			[text.status, document.status ?? ''],
-			[text.tags, document.tags.join(' · ')]
+			[text.tags, document.tags.join(' · ')],
+			[text.size, document.sizeBytes === null ? '' : formatFileSize(document.sizeBytes)],
+			[text.created, formatModified(document.createdAt, currentLocale.value)],
+			[text.modified, formatModified(document.updatedAt, currentLocale.value)]
 		];
 		return {
 			id: document.documentID,
