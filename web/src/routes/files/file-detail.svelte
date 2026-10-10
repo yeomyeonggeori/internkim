@@ -1,11 +1,8 @@
 <script lang="ts">
-	import * as Code from '$lib/components/ui/code';
 	import { Button } from '$lib/components/ui/button';
-	import { Skeleton } from '$lib/components/ui/skeleton';
-	import LoadingImage from '$lib/components/loading-image.svelte';
 	import DownloadIcon from '@lucide/svelte/icons/download';
-	import FileIcon from '@lucide/svelte/icons/file';
 	import XIcon from '@lucide/svelte/icons/x';
+	import DocumentPreview from '$lib/files/preview/document-preview.svelte';
 	import { createPageText } from '$lib/i18n/page-text.svelte';
 	import { currentLocale } from '$lib/i18n/locale.svelte';
 	import {
@@ -14,13 +11,7 @@
 		workspaceFileForReading,
 		type WorkspaceEntry
 	} from './files-api';
-	import {
-		codeLanguageForFile,
-		fileVisual,
-		formatFileSize,
-		formatModified,
-		parseDelimitedText
-	} from '$lib/files/view';
+	import { fileVisual, formatFileSize, formatModified } from '$lib/files/view';
 	import { filesText } from './text';
 
 	let { file, onClose }: { file: WorkspaceEntry; onClose?: () => void } = $props();
@@ -28,65 +19,20 @@
 	const text = createPageText(filesText);
 	const visual = $derived(fileVisual(file.name));
 	const FileTypeIcon = $derived(visual.icon);
-	const imagePattern = /\.(png|jpe?g|gif|webp|svg|bmp|ico|avif)$/i;
-	const tabularPattern = /\.(csv|tsv)$/i;
-	const maxPreviewBytes = 2 * 1024 * 1024;
-	const maxImagePreviewBytes = 20 * 1024 * 1024;
 	const isOnTheCompanyComputer = isWorkspaceOnTheCompanyComputer();
-
-	const isImage = $derived(imagePattern.test(file.name));
-	const isTabular = $derived(tabularPattern.test(file.name));
 	const deviceDownloadURL = $derived(workspaceDownloadURL(file.agentPath));
-	const previewLanguage = $derived(codeLanguageForFile(file.name));
-	const isTextFile = $derived(!isImage && previewLanguage !== null);
-	const canPreviewText = $derived(isTextFile && file.size <= maxPreviewBytes);
-	const isTextFileTooLarge = $derived(isTextFile && file.size > maxPreviewBytes);
-	const canPreviewImage = $derived(isImage && (!isOnTheCompanyComputer || file.size <= maxImagePreviewBytes));
-	let previewContent = $state('');
-	let previewURL = $state('');
-	let isPreviewLoading = $state(false);
-	let hasPreviewError = $state(false);
 	let isPreparingDownload = $state(false);
 	let preparedFraction = $state<number | null>(null);
 	let downloadFailure = $state('');
 
-	const imageSource = $derived(isOnTheCompanyComputer ? previewURL : deviceDownloadURL);
-
-	const tableDelimiter = $derived(file.name.toLowerCase().endsWith('.tsv') ? '\t' : ',');
-	const tableRows = $derived(isTabular ? parseDelimitedText(previewContent, tableDelimiter) : []);
-
 	$effect(() => {
+		void file;
 		downloadFailure = '';
-		previewContent = '';
-		previewURL = '';
-		if (!canPreviewText && !(isOnTheCompanyComputer && canPreviewImage)) return;
-		void loadPreview(file);
 	});
 
 	async function readableAddressOf(entry: WorkspaceEntry): Promise<string> {
 		if (!isOnTheCompanyComputer) return workspaceDownloadURL(entry.agentPath);
 		return workspaceFileForReading(entry, 'preview');
-	}
-
-	async function loadPreview(entry: WorkspaceEntry) {
-		isPreviewLoading = true;
-		hasPreviewError = false;
-		try {
-			const address = await readableAddressOf(entry);
-			if (entry !== file) return;
-			if (isImage) {
-				previewURL = address;
-				return;
-			}
-			const response = await fetch(address, isOnTheCompanyComputer ? {} : { credentials: 'include' });
-			if (!response.ok) throw new Error(`preview returned ${response.status}`);
-			const content = await response.text();
-			if (entry === file) previewContent = content;
-		} catch {
-			if (entry === file) hasPreviewError = true;
-		} finally {
-			if (entry === file) isPreviewLoading = false;
-		}
 	}
 
 	async function downloadFromTheCompanyComputer() {
@@ -135,53 +81,8 @@
 		{/if}
 	</div>
 
-	<div class="flex min-h-0 flex-1 flex-col gap-4 overflow-auto p-4">
-		{#if canPreviewImage && imageSource}
-		<LoadingImage
-			src={imageSource}
-			alt={file.name}
-			loading="eager"
-			fill
-			class="bg-muted aspect-video max-h-80 w-full rounded-md border"
-		/>
-	{:else if canPreviewImage && isPreviewLoading}
-		<div role="status" aria-label={text.previewLoading} aria-busy="true"><Skeleton aria-hidden="true" class="aspect-video max-h-80 w-full rounded-md" /></div>
-	{:else if canPreviewImage && hasPreviewError}
-		<p class="text-destructive text-sm">{text.previewError}</p>
-	{:else if canPreviewText}
-		{#if isPreviewLoading}
-			<div role="status" aria-label={text.previewLoading} aria-busy="true"><div aria-hidden="true" class="grid gap-3 rounded-md border p-3">{#each [0, 1, 2, 3, 4, 5] as row (row)}<div class={isTabular ? 'grid grid-cols-3 gap-3' : 'grid'}><Skeleton class="h-3 w-4/5" />{#if isTabular}<Skeleton class="h-3 w-full" /><Skeleton class="h-3 w-2/3" />{/if}</div>{/each}</div></div>
-		{:else if hasPreviewError}
-			<p class="text-destructive text-sm">{text.previewError}</p>
-		{:else if isTabular}
-			<div class="overflow-auto rounded-lg border">
-				<table class="w-full border-collapse text-sm">
-					<tbody>
-						{#each tableRows as row, rowIndex (rowIndex)}
-							<tr class="border-b last:border-b-0">
-								{#each row as cell, cellIndex (cellIndex)}
-									{#if rowIndex === 0}
-										<th class="bg-muted/50 text-muted-foreground border-r px-3 py-2 text-left font-medium last:border-r-0">
-											{cell}
-										</th>
-									{:else}
-										<td class="border-r px-3 py-1.5 tabular-nums last:border-r-0">{cell}</td>
-									{/if}
-								{/each}
-							</tr>
-						{/each}
-					</tbody>
-				</table>
-			</div>
-		{:else}
-			<Code.Root code={previewContent} lang={previewLanguage ?? 'markdown'} class="text-xs" />
-		{/if}
-		{:else}
-			<div class="text-muted-foreground bg-muted/40 flex flex-col items-center gap-2 rounded-lg border border-dashed py-10 text-center">
-				<FileIcon class="size-6" />
-				<p class="px-6 text-sm">{isTextFileTooLarge ? text.previewTooLarge : text.previewUnavailable}</p>
-			</div>
-		{/if}
+	<div class="bg-muted/40 min-h-0 flex-1">
+		{#key file}<DocumentPreview fileName={file.name} size={file.size} readURL={() => readableAddressOf(file)} />{/key}
 	</div>
 
 	<div class="flex flex-col gap-2 border-t p-4 max-sm:pb-[max(1rem,env(safe-area-inset-bottom))]">

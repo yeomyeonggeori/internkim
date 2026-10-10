@@ -25,6 +25,22 @@ export function derivedPath(original: string, documentID: string, fileName: stri
 	return original.slice(0, original.lastIndexOf(marker) + marker.length) + fileName;
 }
 
+export function isDerivedFileName(fileName: string): boolean {
+	return fileName.length > 0 && !fileName.includes('/') && fileName !== '.' && fileName !== '..';
+}
+
+export function originalExtensionOf(storagePath: string | null): string | null {
+	if (!storagePath) return null;
+	return storagePath.slice(storagePath.lastIndexOf('.') + 1);
+}
+
+export function withOriginalExtension<Row extends { storage_path: string | null }>({
+	storage_path,
+	...row
+}: Row): Omit<Row, 'storage_path'> & { extension: string | null } {
+	return { ...row, extension: originalExtensionOf(storage_path) };
+}
+
 function slugOf(value: string): string {
 	return value
 		.normalize('NFKD')
