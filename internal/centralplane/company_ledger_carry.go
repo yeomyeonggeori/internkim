@@ -122,7 +122,7 @@ func (client *Client) CarryCompanyDocument(
 		"document_type": document.DocumentType,
 		"title":         document.Title,
 		"requester_id":  session.memberID,
-		"issued_at":     document.CreatedAt.UTC().Format(time.RFC3339Nano),
+		"created_at":    document.CreatedAt.UTC().Format(time.RFC3339Nano),
 	}
 	for field, value := range map[string]string{
 		"document_number": document.DocumentNumber,
