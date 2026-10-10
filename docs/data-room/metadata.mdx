@@ -3,7 +3,10 @@ title: Document metadata
 ---
 
 Each document has an identifier, title, kind, factual summary, language and
-date. `categoryCode` names a category without children or `X`. Optional fields
+date. `date` is the day the document itself bears, the day it was issued.
+`createdAt` is when it entered the data room and `updatedAt` when its record
+last changed; `sizeBytes` is the original's size, empty without one.
+`categoryCode` names a category without children or `X`. Optional fields
 include counterpart, covered period, tags, status and the document it supersedes.
 A replacement preserves earlier documents.
 

@@ -43,8 +43,7 @@
 			.map((document) => ({
 				id: document.id,
 				name: document.title,
-				secondary: document.category_code,
-				date: document.document_date ?? ''
+				cells: [document.category_code, document.document_date ?? '']
 			}))
 	);
 
@@ -218,9 +217,10 @@
 				{entries}
 				title={browserText.title}
 				nameLabel={browserText.name}
-				secondaryLabel={browserText.category}
-				isSecondaryBadge
-				dateLabel={browserText.date}
+				columns={[
+					{ label: browserText.category, width: 'narrow', isBadge: true },
+					{ label: browserText.date, width: 'wide' }
+				]}
 				emptyLabel={browserText.empty}
 				selectedID={selectedDocument?.id}
 				onSelect={(entry) =>

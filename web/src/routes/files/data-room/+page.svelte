@@ -116,7 +116,11 @@
 				title={text.title}
 				nameLabel={text.name}
 				countBadgeVariant="secondary"
-				dateLabel={text.date}
+				columns={[
+					{ label: text.size, width: 'narrow' },
+					{ label: text.created, width: 'wide' },
+					{ label: text.modified, width: 'wide' }
+				]}
 				emptyLabel={text.empty}
 				selectedID={selectedDocument?.documentID}
 				onSelect={openEntry}

@@ -196,6 +196,9 @@ func TestCompanyShareSnapshotPublishesOnlyApprovedEvidence(t *testing.T) {
 			t.Fatalf("snapshot exposed private evidence %q: %s", privateValue, serialized)
 		}
 	}
+	if len(snapshot.Documents) != 1 || snapshot.Documents[0].IssuedAt != "2025-11-28" {
+		t.Fatalf("a published document shows the day it was issued, not the day it was entered: %+v", snapshot.Documents)
+	}
 }
 
 func TestCompanyShareNarrativesAreNormalizedAndPublished(t *testing.T) {
@@ -510,7 +513,7 @@ const (
 	companyShareLedgerDocuments = `{"count":1,"documents":[` +
 		`{"documentID":"public-document","documentNumber":"AWD-2025-001","kind":"received","documentType":"award-certificate",` +
 		`"title":"\uc218\uc0c1 \ud655\uc778\uc11c","counterpart":"Private Counterpart","language":"ko","filePath":"private/path",` +
-		`"summary":"\uc120\uc815 \uadfc\uac70 \uc694\uc57d","requesterID":"member-private","issuedAt":"2025-12-02T00:00:00Z"}]}`
+		`"summary":"\uc120\uc815 \uadfc\uac70 \uc694\uc57d","requesterID":"member-private","createdAt":"2025-12-02T00:00:00Z","date":"2025-11-28"}]}`
 )
 
 func newCompanyShareProfileService(t *testing.T, profilesByLanguage map[string]string) *Service {

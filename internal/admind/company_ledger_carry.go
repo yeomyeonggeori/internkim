@@ -307,7 +307,7 @@ func carriedCompanyDocumentOf(document heldCompanyDocument) (centralplane.Carrie
 		Language:       document.Language,
 		FilePath:       document.FilePath,
 		Summary:        document.Summary,
-		IssuedAt:       issuedAt,
+		CreatedAt:      issuedAt,
 	}, nil
 }
 

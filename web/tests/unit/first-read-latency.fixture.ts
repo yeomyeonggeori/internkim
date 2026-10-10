@@ -92,8 +92,8 @@ if (scenario === 'mail') {
 	const target = document.createElement('div');
 	document.body.appendChild(target);
 	const component = mount(FileBrowserList, { target, props: {
-		entries: [{ id: 'folder', name: 'Available folder', isDirectory: true, secondary: '', date: '' }],
-		isLoading: true, title: 'Files', nameLabel: 'Name', secondaryLabel: 'Type', dateLabel: 'Date', emptyLabel: 'Empty', onSelect: () => {}
+		entries: [{ id: 'folder', name: 'Available folder', isDirectory: true, cells: ['', ''] }],
+		isLoading: true, title: 'Files', nameLabel: 'Name', columns: [{ label: 'Type', width: 'narrow' }, { label: 'Date', width: 'wide' }], emptyLabel: 'Empty', onSelect: () => {}
 	} });
 	flushSync();
 	console.log(JSON.stringify({ visible: target.querySelector('button')?.textContent?.trim(), busy: target.querySelector('section')?.getAttribute('aria-busy') }));

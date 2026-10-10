@@ -214,20 +214,6 @@ export type CompanyRecord = {
 	updatedAt: string;
 };
 
-export type CompanyDocument = {
-	documentID: string;
-	documentNumber: string | null;
-	kind: string;
-	documentType: string;
-	title: string;
-	counterpart: string | null;
-	language: string | null;
-	filePath: string | null;
-	summary: string | null;
-	requesterID: string | null;
-	issuedAt: string;
-};
-
 export type CompanyShareNarrative = {
 	highlights: string[];
 	businessModel: string;
@@ -287,7 +273,3 @@ export type CompanyRecordListResult = {
 	records: CompanyRecord[];
 };
 
-export type CompanyDocumentListResult = {
-	count: number;
-	documents: CompanyDocument[];
-};

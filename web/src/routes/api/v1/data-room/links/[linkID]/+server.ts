@@ -86,7 +86,7 @@ export const GET = async ({ params, platform, cookies, url }: DataRoomLinkReques
 			.select('id,title,summary,category_code,document_date,status')
 			.eq('company_id', companyID)
 			.not('category_code', 'is', null)
-			.order('issued_at', { ascending: false })
+			.order('created_at', { ascending: false })
 	]);
 	if (categories.error || documents.error) error(502, 'the data room could not be read');
 	return json(

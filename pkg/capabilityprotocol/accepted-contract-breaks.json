@@ -558,5 +558,85 @@
 		"path": "event_list.result.events[].isOpenToCompany",
 		"reason": "An event open to the whole company says so, because that scope was only the absence of attendees and a deleted attendee turned a personal event into one. The field is present only on an open event, so every other answer is the shape the fleet already reads.",
 		"release": "the release carrying the catalog that names isOpenToCompany reaches devices before the plane deploys the migration that returns it; no shipped skill reads it"
+	},
+	{
+		"path": "company_document_list.result.documents[].issuedAt",
+		"reason": "issuedAt held when a document was entered, not the day it was issued, which is date. createdAt replaces it under the name of what it holds.",
+		"release": "the release carrying this catalog reaches company hosts by ship-host before the web/API deploy, after the migration that adds updated_at, created_at and size_bytes; a host still on the older catalog refuses document answers until it takes the catalog"
+	},
+	{
+		"path": "company_document_list.result.documents[].createdAt",
+		"reason": "createdAt is when a document entered the data room, which issuedAt carried under a misleading name.",
+		"release": "the release carrying this catalog reaches company hosts by ship-host before the web/API deploy, after the migration that adds updated_at, created_at and size_bytes; a host still on the older catalog refuses document answers until it takes the catalog"
+	},
+	{
+		"path": "company_document_list.result.documents[].updatedAt",
+		"reason": "updatedAt is when a document's record last changed, stamped by the record on every change.",
+		"release": "the release carrying this catalog reaches company hosts by ship-host before the web/API deploy, after the migration that adds updated_at, created_at and size_bytes; a host still on the older catalog refuses document answers until it takes the catalog"
+	},
+	{
+		"path": "company_document_list.result.documents[].sizeBytes",
+		"reason": "sizeBytes is the original's size as storage recorded it, null without an original or where the caller may not read it.",
+		"release": "the release carrying this catalog reaches company hosts by ship-host before the web/API deploy, after the migration that adds updated_at, created_at and size_bytes; a host still on the older catalog refuses document answers until it takes the catalog"
+	},
+	{
+		"path": "company_document_search.result.documents[].issuedAt",
+		"reason": "issuedAt held when a document was entered, not the day it was issued, which is date. createdAt replaces it under the name of what it holds.",
+		"release": "the release carrying this catalog reaches company hosts by ship-host before the web/API deploy, after the migration that adds updated_at, created_at and size_bytes; a host still on the older catalog refuses document answers until it takes the catalog"
+	},
+	{
+		"path": "company_document_search.result.documents[].createdAt",
+		"reason": "createdAt is when a document entered the data room, which issuedAt carried under a misleading name.",
+		"release": "the release carrying this catalog reaches company hosts by ship-host before the web/API deploy, after the migration that adds updated_at, created_at and size_bytes; a host still on the older catalog refuses document answers until it takes the catalog"
+	},
+	{
+		"path": "company_document_search.result.documents[].updatedAt",
+		"reason": "updatedAt is when a document's record last changed, stamped by the record on every change.",
+		"release": "the release carrying this catalog reaches company hosts by ship-host before the web/API deploy, after the migration that adds updated_at, created_at and size_bytes; a host still on the older catalog refuses document answers until it takes the catalog"
+	},
+	{
+		"path": "company_document_search.result.documents[].sizeBytes",
+		"reason": "sizeBytes is the original's size as storage recorded it, null without an original or where the caller may not read it.",
+		"release": "the release carrying this catalog reaches company hosts by ship-host before the web/API deploy, after the migration that adds updated_at, created_at and size_bytes; a host still on the older catalog refuses document answers until it takes the catalog"
+	},
+	{
+		"path": "company_document_register.result.issuedAt",
+		"reason": "issuedAt held when a document was entered, not the day it was issued, which is date. createdAt replaces it under the name of what it holds.",
+		"release": "the release carrying this catalog reaches company hosts by ship-host before the web/API deploy, after the migration that adds updated_at, created_at and size_bytes; a host still on the older catalog refuses document answers until it takes the catalog"
+	},
+	{
+		"path": "company_document_register.result.createdAt",
+		"reason": "createdAt is when a document entered the data room, which issuedAt carried under a misleading name.",
+		"release": "the release carrying this catalog reaches company hosts by ship-host before the web/API deploy, after the migration that adds updated_at, created_at and size_bytes; a host still on the older catalog refuses document answers until it takes the catalog"
+	},
+	{
+		"path": "company_document_register.result.updatedAt",
+		"reason": "updatedAt is when a document's record last changed, stamped by the record on every change.",
+		"release": "the release carrying this catalog reaches company hosts by ship-host before the web/API deploy, after the migration that adds updated_at, created_at and size_bytes; a host still on the older catalog refuses document answers until it takes the catalog"
+	},
+	{
+		"path": "company_document_register.result.sizeBytes",
+		"reason": "sizeBytes is the original's size as storage recorded it, null without an original or where the caller may not read it.",
+		"release": "the release carrying this catalog reaches company hosts by ship-host before the web/API deploy, after the migration that adds updated_at, created_at and size_bytes; a host still on the older catalog refuses document answers until it takes the catalog"
+	},
+	{
+		"path": "company_document_update.result.issuedAt",
+		"reason": "issuedAt held when a document was entered, not the day it was issued, which is date. createdAt replaces it under the name of what it holds.",
+		"release": "the release carrying this catalog reaches company hosts by ship-host before the web/API deploy, after the migration that adds updated_at, created_at and size_bytes; a host still on the older catalog refuses document answers until it takes the catalog"
+	},
+	{
+		"path": "company_document_update.result.createdAt",
+		"reason": "createdAt is when a document entered the data room, which issuedAt carried under a misleading name.",
+		"release": "the release carrying this catalog reaches company hosts by ship-host before the web/API deploy, after the migration that adds updated_at, created_at and size_bytes; a host still on the older catalog refuses document answers until it takes the catalog"
+	},
+	{
+		"path": "company_document_update.result.updatedAt",
+		"reason": "updatedAt is when a document's record last changed, stamped by the record on every change.",
+		"release": "the release carrying this catalog reaches company hosts by ship-host before the web/API deploy, after the migration that adds updated_at, created_at and size_bytes; a host still on the older catalog refuses document answers until it takes the catalog"
+	},
+	{
+		"path": "company_document_update.result.sizeBytes",
+		"reason": "sizeBytes is the original's size as storage recorded it, null without an original or where the caller may not read it.",
+		"release": "the release carrying this catalog reaches company hosts by ship-host before the web/API deploy, after the migration that adds updated_at, created_at and size_bytes; a host still on the older catalog refuses document answers until it takes the catalog"
 	}
 ]
