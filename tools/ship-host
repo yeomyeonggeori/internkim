@@ -259,6 +259,7 @@ def refuse_unless_origin_main(shipment):
     origin = shipment.run(["git", "rev-parse", "origin/main"]).strip()
     if head != origin:
         raise ShipFailure("check the tree", f"HEAD is {head[:12]} and origin/main is {origin[:12]}")
+    shipment.run(["make", "build"])
     shipment.run([INTERNKIM, "verify", "release-tree"])
     if shipment.options.is_host_only:
         shipment.tag = read_host_only_tag(shipment.run)
@@ -431,7 +432,7 @@ def upgrade_host_or_roll_back(shipment):
 
 def host_only_steps():
     return [
-        (lambda shipment: "refuse unless the checkout is clean and HEAD is origin/main", refuse_unless_origin_main),
+        (lambda shipment: "refuse unless the checkout is clean and HEAD is origin/main, then build internkim from it", refuse_unless_origin_main),
         (lambda shipment: f"build {shipment.tag} for our host's architecture here", build_host_package),
         (lambda shipment: f"copy {shipment.tag} to our host and keep it in {HOST_PACKAGE_CACHE}", copy_package_to_host),
         (lambda shipment: f"install {shipment.tag} on our host, watch it for {SETTLE_SECONDS} seconds, roll it back to the version it ran on failure", upgrade_host_or_roll_back),
@@ -442,7 +443,7 @@ def planned_steps(options):
     if options.is_host_only:
         return host_only_steps()
     steps = [
-        (lambda shipment: "refuse unless the checkout is clean and HEAD is origin/main", refuse_unless_origin_main),
+        (lambda shipment: "refuse unless the checkout is clean and HEAD is origin/main, then build internkim from it", refuse_unless_origin_main),
         (lambda shipment: "cut the testing release", cut_testing_release),
         (lambda shipment: f"download {shipment.tag} and {shipment.previous_tag} and verify their checksums", download_and_verify),
         (lambda shipment: f"run the {RIG_DISTRIBUTION} install and upgrade rig, {shipment.previous_tag} to {shipment.tag}", run_install_rig),

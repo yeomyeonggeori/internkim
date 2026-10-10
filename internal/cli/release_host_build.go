@@ -28,7 +28,7 @@ func thisCLIBuild() cliBuild {
 }
 
 func staleBuildReason(build cliBuild, head string) string {
-	const rebuild = "; run `make build` and release again"
+	const rebuild = "; run `make build` and build again"
 	switch {
 	case build.Revision == "":
 		return "this internkim records no commit it was built from, and it writes the package's units and scripts from its own code" + rebuild
@@ -42,7 +42,7 @@ func staleBuildReason(build cliBuild, head string) string {
 
 func refuseAStaleCLI(repositoryRootPath string) error {
 	if reason := staleBuildReason(thisCLIBuild(), gitRevision(repositoryRootPath)); reason != "" {
-		return fmt.Errorf("release host refuses to publish: %s", reason)
+		return fmt.Errorf("refusing to build packages: %s", reason)
 	}
 	return nil
 }

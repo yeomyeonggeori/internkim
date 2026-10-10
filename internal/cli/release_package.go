@@ -302,6 +302,9 @@ func runReleasePackages(arguments []string) error {
 // and the SHA256SUMS that lists them. The bottle goes first because it is the
 // part that needs this machine to be an Apple-silicon Mac.
 func buildHostRelease(repositoryRootPath string, targets []packageTarget, version string, outputDirectory string, formats releaseFormats, output io.Writer) error {
+	if errorValue := refuseAStaleCLI(repositoryRootPath); errorValue != nil {
+		return errorValue
+	}
 	if formats.Homebrew {
 		if errorValue := buildHomebrewRelease(repositoryRootPath, version, outputDirectory, output); errorValue != nil {
 			return errorValue
