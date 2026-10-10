@@ -42,9 +42,27 @@ func (thisComputer) Run(name string, arguments []string, environment []string, o
 	if environment != nil {
 		command.Env = append(os.Environ(), environment...)
 	}
-	command.Stdout = output
-	command.Stderr = output
-	return command.Run()
+	var said bytes.Buffer
+	combined := io.MultiWriter(output, &said)
+	command.Stdout = combined
+	command.Stderr = combined
+	if errorValue := command.Run(); errorValue != nil {
+		return failureInItsOwnWords(errorValue, said.String())
+	}
+	return nil
+}
+
+const saidLinesKept = 10
+
+func failureInItsOwnWords(failure error, said string) error {
+	lines := strings.Split(strings.TrimSpace(said), "\n")
+	if lines[0] == "" {
+		return failure
+	}
+	if len(lines) > saidLinesKept {
+		lines = lines[len(lines)-saidLinesKept:]
+	}
+	return fmt.Errorf("%w: %s", failure, strings.Join(lines, "\n"))
 }
 
 // Output answers with what the command printed on its standard output, and with

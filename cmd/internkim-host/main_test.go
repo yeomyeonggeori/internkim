@@ -3,9 +3,12 @@ package main
 import (
 	"bytes"
 	"context"
+	"errors"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -109,6 +112,28 @@ func TestOutputCarriesTheComplaintOfACommandThatFailed(t *testing.T) {
 	_, errorValue := thisComputer{}.Output("sh", []string{"-c", "echo 'no such cluster' >&2; exit 3"})
 	if errorValue == nil || !strings.Contains(errorValue.Error(), "no such cluster") {
 		t.Fatalf("the failure was %v", errorValue)
+	}
+}
+
+func TestRunCarriesTheComplaintOfACommandThatFailedEvenWhenNothingReadsItsOutput(t *testing.T) {
+	script := "echo 'Failed to enable unit: Unit file internkim-embedding.service does not exist.' >&2; exit 1"
+	errorValue := thisComputer{}.Run("sh", []string{"-c", script}, nil, io.Discard)
+	if errorValue == nil || !strings.Contains(errorValue.Error(), "internkim-embedding.service does not exist") {
+		t.Fatalf("the failure was %v", errorValue)
+	}
+	var exitError *exec.ExitError
+	if !errors.As(errorValue, &exitError) || exitError.ExitCode() != 1 {
+		t.Fatalf("the failure no longer carries the exit status: %v", errorValue)
+	}
+}
+
+func TestRunStillStreamsWhatTheCommandSays(t *testing.T) {
+	var output bytes.Buffer
+	if errorValue := (thisComputer{}).Run("sh", []string{"-c", "echo progress; echo warning >&2"}, nil, &output); errorValue != nil {
+		t.Fatalf("the command failed: %v", errorValue)
+	}
+	if !strings.Contains(output.String(), "progress") || !strings.Contains(output.String(), "warning") {
+		t.Fatalf("the output was %q", output.String())
 	}
 }
 
