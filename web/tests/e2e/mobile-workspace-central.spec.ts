@@ -85,7 +85,7 @@ for (const width of [320, 360, 390, 568, 1280]) {
 				await expect(management.getByText('직원별 휴가 정보를 불러오지 못했습니다.')).toBeVisible();
 				await expect(page.getByTestId('leave-management-employee-detail-header')).toBeHidden();
 				await page.unroute('**/api/v1/tools/company_settings_get/invoke');
-				await page.getByTestId('leave-management-refresh').click();
+				await page.getByRole('dialog').getByTestId('leave-management-refresh').click();
 				await expect(page.getByTestId('leave-management-employee-detail-header')).toContainText('member3@example.com');
 				await page.keyboard.press('Escape');
 			}

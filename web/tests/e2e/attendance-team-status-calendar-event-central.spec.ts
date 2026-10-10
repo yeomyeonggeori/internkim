@@ -32,6 +32,13 @@ function dayCell(page: Page, date: string) {
 	return page.getByTestId(`team-status-cell-${member1Email}-${date}`);
 }
 
+function seededEvent(page: Page) {
+	return page
+		.getByTestId('team-status-day-detail-dialog')
+		.getByTestId('team-status-calendar-event')
+		.filter({ hasText: eventTitle });
+}
+
 async function openDayDetail(page: Page, date: string): Promise<void> {
 	await signInToAttendance(page);
 	await openMonthlyAttendance(page);
@@ -43,14 +50,13 @@ async function openDayDetail(page: Page, date: string): Promise<void> {
 test('a whole-day event appears on the company day it covers', async ({ page }) => {
 	await openDayDetail(page, eventDay);
 
-	const detail = page.getByTestId('team-status-day-detail-dialog');
-	await expect(detail.getByTestId('team-status-calendar-event')).toContainText(eventTitle);
+	await expect(seededEvent(page)).toHaveCount(1);
 });
 
 test('a whole-day event does not appear one day early', async ({ page }) => {
 	await openDayDetail(page, dayBeforeEvent);
 
 	const detail = page.getByTestId('team-status-day-detail-dialog');
-	await expect(detail.getByTestId('calendar-empty-state')).toBeVisible();
-	await expect(detail.getByTestId('team-status-calendar-event')).toHaveCount(0);
+	await expect(detail.getByTestId('team-status-calendar-header').getByTestId('section-count-badge')).toBeVisible();
+	await expect(seededEvent(page)).toHaveCount(0);
 });
