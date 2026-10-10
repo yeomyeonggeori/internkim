@@ -41,7 +41,7 @@ async function prepare(page: Page, fixture: SupplementaryFixture) {
 	await page.route('**/api/company/box', route => route.fulfill({ json: { connected: null, empty: [] } }));
 	await page.route('**/api/member/push-device', route => route.fulfill({ json: { serverKey: '', isServerKeyVaulted: false, hasClaimedDevice: false } }));
 	await page.route('**/admin/api/diagnostics/service-logs?*', route => reply(route, 'service-logs', { service: 'blueclaw', lines: ['2026-10-06T03:00:00Z task accepted', '2026-10-06T03:00:01Z model request started', '2026-10-06T03:00:04Z task completed'], count: 3 }));
-	await page.route(`**/api/v1/data-room/${companyID}`, route => reply(route, 'public-data-room', { categories: categories.map(({ nameKO, ...category }) => ({ ...category, name_ko: nameKO })), documents: documents.map(document => ({ id: document.documentID, title: document.title, summary: document.summary, category_code: document.categoryCode, document_date: document.date, status: document.status })) }));
+	await page.route(`**/api/v1/data-room/${companyID}`, route => reply(route, 'public-data-room', { categories: categories.map(({ nameKO, ...category }) => ({ ...category, name_ko: nameKO })), documents: documents.map(document => ({ id: document.documentID, title: document.title, summary: document.summary, category_code: document.categoryCode, document_date: document.date, status: document.status, extension: null })) }));
 	await page.route('http://127.0.0.1:56801/**', async route => {
 		const path = new URL(route.request().url()).pathname;
 		if (path === '/rest/v1/member' && !fixture.isAdmin) return route.fulfill({ json: { id: '10000000-0000-4000-8000-000000000001', company_id: companyID, is_admin: false, name: '이샘플', company: { slug: 'example-co', locale: 'ko' } } });
@@ -62,7 +62,7 @@ const scenes: Scene[] = [
 	{ name: 'settings-setup', path: '/example-co/settings/setup', gates: ['host-setup'], ready: 'text=예시 회사' },
 	{ name: 'settings-members', path: '/example-co/settings/setup', gates: ['person_list'], ready: 'text=member1@example.com', focus: async page => { await page.getByRole('button', { name: '구성원 초대', exact: true }).scrollIntoViewIfNeeded(); } },
 	{ name: 'data-room', path: '/example-co/files/data-room', gates: ['dataroom_get', 'company_document_list'], ready: 'button:has-text("회사 소개")' },
-	{ name: 'public-data-room', path: `/share/${companyID}`, gates: ['public-data-room'], ready: 'article' },
+	{ name: 'public-data-room', path: `/share/${companyID}`, gates: ['public-data-room'], ready: 'tbody tr' },
 	{ name: 'file-preview', path: '/example-co/files', gates: ['person.files.download'], ready: 'pre:has-text("Fixture preview")', action: async page => { await page.getByRole('button', { name: /주간-회고-1.md/ }).click(); } },
 	{ name: 'run-approvals', path: '/example-co/runs/approvals', gates: ['person.runs.list'], ready: 'button:has-text("이번만 승인")' },
 	{ name: 'run-logs', path: '/example-co/runs/dev-task-run-001', gates: ['service-logs'], ready: 'pre:has-text("task accepted")', action: async page => { await page.getByRole('tab', { name: '로그', exact: true }).click(); } },
@@ -193,7 +193,7 @@ test('security and public data-room first-read failures do not masquerade as emp
 	await page.goto(`/share/${companyID}`);
 	await expect(page.getByRole('alert')).toBeVisible();
 	if (phase === 'after') {
-		await expect(page.getByText('No documents are available to you.', { exact: true })).toHaveCount(0);
+		await expect(page.getByText(/^(No documents yet\.|보관된 자료가 없습니다\.)$/)).toHaveCount(0);
 		await expect(page.getByText('Loading…', { exact: true })).toHaveCount(0);
 	}
 	await capture(page, 'public-data-room', 1280, 'error');

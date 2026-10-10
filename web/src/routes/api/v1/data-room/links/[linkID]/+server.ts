@@ -8,7 +8,8 @@ import {
 	unlockDataRoomLink
 } from '$lib/server/data-room-link-request';
 import { dataRoomUnlockSchema } from '$lib/data-room/links';
-import { sharedDataRoomSchema } from '$lib/data-room/schemas';
+import { sharedDataRoomLinkSchema, sharedDocumentColumns } from '$lib/data-room/schemas';
+import { derivedPath, isDerivedFileName, withOriginalExtension } from '$lib/data-room/storage-path';
 import type { RequestHandler } from './$types';
 
 type DataRoomLinkRequest = Pick<
@@ -67,9 +68,13 @@ export const GET = async ({ params, platform, cookies, url }: DataRoomLinkReques
 			.maybeSingle();
 		if (refusal) error(502, 'the document could not be read');
 		if (!data?.storage_path) error(404, 'document not found');
+		const fileName = url.searchParams.get('fileName');
+		if (fileName !== null && !isDerivedFileName(fileName)) error(400, 'use one file name');
+		const path = fileName ? derivedPath(data.storage_path, documentID, fileName) : data.storage_path;
 		const lifetime = Math.max(1, Math.min(60, Math.floor((expiresAt - Date.now()) / 1000)));
-		const signed = await caller.storage.from('asset').createSignedUrl(data.storage_path, lifetime);
-		if (signed.error) error(403, 'original downloads are not permitted');
+		const signed = await caller.storage.from('asset').createSignedUrl(path, lifetime);
+		if (signed.error)
+			error(fileName ? 404 : 403, fileName ? 'file not found' : 'original downloads are not permitted');
 		return json(
 			{ downloadURL: signed.data.signedUrl },
 			{ headers: { 'Cache-Control': 'no-store' } }
@@ -83,17 +88,19 @@ export const GET = async ({ params, platform, cookies, url }: DataRoomLinkReques
 			.order('position'),
 		caller
 			.from('company_document')
-			.select('id,title,summary,category_code,document_date,status')
+			.select(sharedDocumentColumns)
 			.eq('company_id', companyID)
 			.not('category_code', 'is', null)
 			.order('issued_at', { ascending: false })
 	]);
 	if (categories.error || documents.error) error(502, 'the data room could not be read');
 	return json(
-		{
-			...sharedDataRoomSchema.parse({ categories: categories.data, documents: documents.data }),
-			canDownload
-		},
+		sharedDataRoomLinkSchema.parse({
+			categories: categories.data,
+			documents: documents.data.map(withOriginalExtension),
+			canDownload,
+			expiresAt: new Date(expiresAt).toISOString()
+		}),
 		{ headers: { 'Cache-Control': 'no-store' } }
 	);
 };
