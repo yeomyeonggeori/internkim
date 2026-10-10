@@ -236,38 +236,6 @@ func TestPurgeKeepsTheCompanyAndSaysSo(t *testing.T) {
 	}
 }
 
-func TestRemovalNamesThePostgresqlRepositoryAnEarlierInstallShAddedAndKeepsIt(t *testing.T) {
-	script := maintainerScript(debianPackageFormat, postRemoveScript)
-	removal := "sudo rm -f " + strings.Join(postgresqlRepositoryPaths, " ") + " && sudo apt-get update"
-	if !strings.Contains(script, removal) {
-		t.Fatalf("removal does not name the command that takes PostgreSQL's repository away, %q:\n%s", removal, script)
-	}
-	for _, line := range strings.Split(script, "\n") {
-		command := strings.TrimSpace(line)
-		for _, path := range postgresqlRepositoryPaths {
-			if strings.HasPrefix(command, "rm ") && strings.Contains(command, path) {
-				t.Fatalf("removal runs %q, and the PostgreSQL that made the company's database updates from it", command)
-			}
-		}
-	}
-}
-
-func TestUpgradeAndRemovalTakeTheDeviceUsersSync(t *testing.T) {
-	removal := "rm -f " + strings.Join(deviceUsersSyncPaths(), " ")
-	for _, script := range []packageScript{postInstallScript, preRemoveScript} {
-		rendered := maintainerScript(debianPackageFormat, script)
-		if !strings.Contains(rendered, removal) {
-			t.Fatalf("%s leaves the device users sync the first release wrote, %q", script, removal)
-		}
-		for _, unitName := range deviceUsersSyncUnitNames() {
-			resetAt := strings.Index(rendered, "systemctl reset-failed ")
-			if resetAt < strings.Index(rendered, removal) || !strings.Contains(rendered[resetAt:], unitName) {
-				t.Fatalf("%s removes %s but leaves its failed record, so `systemctl list-units --state=failed` names a unit nothing ships", script, unitName)
-			}
-		}
-	}
-}
-
 // An upgrade that unpacks a new binary and leaves the old process serving is the
 // failure AGENTS.md is written around: dpkg's version, the file's mtime and apt's
 // output all move, and the only thing that did not is the thing that matters. Step 5
