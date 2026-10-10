@@ -1,7 +1,6 @@
 <script lang="ts">
 	import RefreshCwIcon from '@lucide/svelte/icons/refresh-cw';
 	import SearchIcon from '@lucide/svelte/icons/search';
-	import { Badge } from '$lib/components/ui/badge';
 	import * as InputGroup from '$lib/components/ui/input-group';
 	import * as Select from '$lib/components/ui/select';
 	import * as Table from '$lib/components/ui/table';
@@ -55,10 +54,18 @@
 			? new Date(expiresAt).toLocaleString(currentLocale.value === 'ko' ? 'ko-KR' : 'en-US', {
 					month: 'short',
 					day: 'numeric',
-					hour: '2-digit',
+					hour: 'numeric',
 					minute: '2-digit'
 				})
 			: ''
+	);
+	const accessLine = $derived(
+		[
+			canDownload === undefined ? '' : canDownload ? text.downloadAllowed : text.viewOnly,
+			expiryLabel ? `${text.expires} ${expiryLabel}` : ''
+		]
+			.filter(Boolean)
+			.join(' · ')
 	);
 
 	function categoryLabel(code: string): string {
@@ -94,17 +101,11 @@
 <div class="bg-muted/40 flex min-h-dvh flex-col">
 	<header class="bg-background sticky top-0 z-10 border-b">
 		<div class="mx-auto flex w-full max-w-7xl items-center gap-3 px-4 py-3">
-			<img src="/favicon.svg" alt="" class="size-9 shrink-0" />
+			<img src="/favicon.svg" alt="" class="size-8 shrink-0" />
 			<div class="min-w-0 flex-1">
-				<h1 class="truncate text-base font-semibold">{text.sharedRoom}</h1>
-				<p class="text-muted-foreground truncate text-xs">{text.confidential}</p>
+				<h1 class="truncate text-base leading-tight font-semibold">{text.sharedRoom}</h1>
+				{#if accessLine}<p class="text-muted-foreground mt-0.5 truncate text-xs">{accessLine}</p>{/if}
 			</div>
-			{#if canDownload !== undefined}
-				<Badge variant={canDownload ? 'secondary' : 'outline'}>{canDownload ? text.downloadAllowed : text.viewOnly}</Badge>
-			{/if}
-			{#if expiryLabel}
-				<p class="text-muted-foreground hidden text-xs sm:block">{text.accessUntil} {expiryLabel}</p>
-			{/if}
 			<TooltipIconButton label={text.refresh} variant="ghost" size="icon-sm" onclick={onRefresh}
 				><RefreshCwIcon /></TooltipIconButton
 			>
@@ -200,6 +201,7 @@
 					</Table.Body>
 				</Table.Root>
 			</div>
+			<p class="text-muted-foreground text-xs">{text.confidential}</p>
 		</section>
 	</div>
 </div>
