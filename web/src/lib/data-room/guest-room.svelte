@@ -36,7 +36,7 @@
 		canDownload?: boolean;
 		expiresAt?: string;
 		signFile: (documentID: string, derivedFileName?: string) => Promise<string>;
-		onDownload: (documentID: string) => void;
+		onDownload: (documentID: string, fileName: string) => void;
 		isDownloading?: boolean;
 		onRefresh: () => void;
 	} = $props();
@@ -49,6 +49,13 @@
 	const selectedFolder = $derived(folders.find((folder) => folder.code === selectedCode));
 	const visibleDocuments = $derived(matchingDocuments(documentsInFolder(room, selectedCode), query));
 	const viewerDocuments = $derived(visibleDocuments.map(viewerDocumentOf));
+	const openedAt = new Date();
+	const watermark = $derived(
+		`${room.viewer ?? text.publicViewer} · ${openedAt.toLocaleString(currentLocale.value === 'ko' ? 'ko-KR' : 'en-US', {
+			dateStyle: 'medium',
+			timeStyle: 'short'
+		})}`
+	);
 	const expiryLabel = $derived(
 		expiresAt
 			? new Date(expiresAt).toLocaleString(currentLocale.value === 'ko' ? 'ko-KR' : 'en-US', {
@@ -211,7 +218,8 @@
 	bind:openID
 	readSource={(document) =>
 		previewSourceOf(document.fileName ?? '', (derivedFileName) => signFile(document.id, derivedFileName), canDownload ?? true)}
-	onDownload={canDownload === false ? undefined : (document) => onDownload(document.id)}
+	onDownload={canDownload === false ? undefined : (document) => onDownload(document.id, document.fileName ?? document.title)}
 	{isDownloading}
+	{watermark}
 />
 </Tooltip.Provider>

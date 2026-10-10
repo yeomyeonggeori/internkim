@@ -10,7 +10,7 @@ import type { RequestHandler } from './$types';
 export const POST: RequestHandler = async ({ request, platform, params, url }) => {
 	if (!z.string().uuid().safeParse(params.shareID).success) error(404, 'invitation not found');
 	const environment = environmentOf(platform);
-	const caller = await dataRoomCaller(request, environment);
+	const { caller } = await dataRoomCaller(request, environment);
 	const { data, error: refusal } = await caller.from('data_room_share')
 		.select('company_id,email,expires_at,revoked_at').eq('id', params.shareID).eq('audience', 'email').maybeSingle();
 	if (refusal || !data) error(404, 'invitation not found');

@@ -9,6 +9,7 @@ import {
 } from '$lib/server/data-room-link-request';
 import { dataRoomUnlockSchema } from '$lib/data-room/links';
 import { sharedDataRoomLinkSchema, sharedDocumentColumns } from '$lib/data-room/schemas';
+import { downloadedAt, guestDownloadResponse } from '$lib/server/data-room-download';
 import { derivedPath, isDerivedFileName, withOriginalExtension } from '$lib/data-room/storage-path';
 import type { RequestHandler } from './$types';
 
@@ -51,7 +52,7 @@ export const POST = async ({
 
 export const GET = async ({ params, platform, cookies, url }: DataRoomLinkRequest) => {
 	if (!z.string().uuid().safeParse(params.linkID).success) error(404, 'share link not found');
-	const { caller, companyID, expiresAt, canDownload } = await dataRoomLinkCaller(
+	const { caller, companyID, expiresAt, canDownload, label } = await dataRoomLinkCaller(
 		dataRoomPlane(environmentOf(platform)),
 		params.linkID,
 		cookies.get(dataRoomCookieName)
@@ -61,17 +62,26 @@ export const GET = async ({ params, platform, cookies, url }: DataRoomLinkReques
 		if (!z.string().uuid().safeParse(documentID).success) error(404, 'document not found');
 		const { data, error: refusal } = await caller
 			.from('company_document')
-			.select('storage_path')
+			.select('storage_path,title')
 			.eq('company_id', companyID)
 			.eq('id', documentID)
 			.not('category_code', 'is', null)
 			.maybeSingle();
 		if (refusal) error(502, 'the document could not be read');
 		if (!data?.storage_path) error(404, 'document not found');
+		const lifetime = Math.max(1, Math.min(60, Math.floor((expiresAt - Date.now()) / 1000)));
+		if (url.searchParams.has('download')) {
+			if (!canDownload) error(403, 'original downloads are not permitted');
+			return guestDownloadResponse(caller, {
+				storagePath: data.storage_path,
+				title: data.title,
+				watermark: [`Shared link ${params.linkID.slice(0, 8)}`, downloadedAt(new Date())],
+				signedLifetimeSeconds: lifetime
+			});
+		}
 		const fileName = url.searchParams.get('fileName');
 		if (fileName !== null && !isDerivedFileName(fileName)) error(400, 'use one file name');
 		const path = fileName ? derivedPath(data.storage_path, documentID, fileName) : data.storage_path;
-		const lifetime = Math.max(1, Math.min(60, Math.floor((expiresAt - Date.now()) / 1000)));
 		const signed = await caller.storage.from('asset').createSignedUrl(path, lifetime);
 		if (signed.error)
 			error(fileName ? 404 : 403, fileName ? 'file not found' : 'original downloads are not permitted');
@@ -99,7 +109,8 @@ export const GET = async ({ params, platform, cookies, url }: DataRoomLinkReques
 			categories: categories.data,
 			documents: documents.data.map(withOriginalExtension),
 			canDownload,
-			expiresAt: new Date(expiresAt).toISOString()
+			expiresAt: new Date(expiresAt).toISOString(),
+			viewer: label
 		}),
 		{ headers: { 'Cache-Control': 'no-store' } }
 	);

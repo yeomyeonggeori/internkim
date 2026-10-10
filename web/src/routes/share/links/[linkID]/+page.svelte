@@ -11,6 +11,7 @@
 	import GuestRoom from '$lib/data-room/guest-room.svelte';
 	import { sharedDataRoomLinkSchema } from '$lib/data-room/schemas';
 	import { DataRoomRefused } from '$lib/data-room/viewer';
+	import { savedDownload } from '$lib/data-room/guest';
 	import { dataRoomNoticeVersion } from '$lib/data-room/links';
 	import { createPageText } from '$lib/i18n/page-text.svelte';
 	import { dataRoomSharingText } from '$lib/data-room/sharing-text';
@@ -66,11 +67,12 @@
 		return z.object({ downloadURL: z.string().url() }).parse(answer).downloadURL;
 	}
 
-	async function download(documentID: string) {
+	async function download(documentID: string, fileName: string) {
 		isBusy = true;
 		errorMessage = '';
 		try {
-			window.location.assign(await signFile(documentID));
+			const parameters = new URLSearchParams({ documentID, download: '1' });
+			await savedDownload(await fetch(`${endpoint}?${parameters}`, { cache: 'no-store' }), fileName);
 		} catch (error) {
 			errorMessage = error instanceof Error ? error.message : text.failure;
 		} finally {

@@ -14,20 +14,22 @@
 	import { fileVisual } from '$lib/files/view';
 	import { createPageText } from '$lib/i18n/page-text.svelte';
 	import { dataRoomText } from './text';
-	import { neighbourID, type ViewerDocument, type ViewerSource } from './viewer';
+	import { neighbourID, watermarkTile, type ViewerDocument, type ViewerSource } from './viewer';
 
 	let {
 		documents,
 		openID = $bindable(),
 		readSource,
 		onDownload,
-		isDownloading = false
+		isDownloading = false,
+		watermark
 	}: {
 		documents: ViewerDocument[];
 		openID: string | null;
 		readSource: (document: ViewerDocument) => Promise<ViewerSource | null>;
 		onDownload?: (document: ViewerDocument) => void;
 		isDownloading?: boolean;
+		watermark?: string;
 	} = $props();
 
 	const text = createPageText(dataRoomText);
@@ -132,7 +134,13 @@
 					</div>
 				</header>
 				<div class="flex min-h-0 flex-1 flex-col lg:flex-row">
-					<div class="bg-muted/50 flex min-w-0 flex-1 flex-col">
+					<div class="bg-muted/50 relative flex min-w-0 flex-1 flex-col">
+						{#if watermark}<div
+								aria-hidden="true"
+								data-watermark={watermark}
+								class="pointer-events-none absolute inset-0 z-10"
+								style:background-image={watermarkTile(watermark)}
+							></div>{/if}
 						{#if source?.isTextPreview}
 							<p class="text-muted-foreground border-b bg-amber-50 px-4 py-2 text-xs dark:bg-amber-950/30">
 								{text.textPreviewNotice}

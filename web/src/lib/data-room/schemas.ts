@@ -8,7 +8,8 @@ export const sharedDataRoomSchema = z.object({
 		name: z.string(), name_ko: z.string(), description: z.string(), slug: z.string() })),
 	documents: z.array(z.object({ id: z.string(), title: z.string(), summary: z.string().nullable(),
 		category_code: z.string(), document_date: z.string().nullable(), status: z.string().nullable(),
-		extension: z.string().nullable() }))
+		extension: z.string().nullable() })),
+	viewer: z.string().nullable()
 });
 
 export const sharedDataRoomLinkSchema = sharedDataRoomSchema.extend({

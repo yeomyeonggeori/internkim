@@ -4,6 +4,7 @@ import {
 	neighbourID,
 	previewSourceOf,
 	type FileSigner,
+	watermarkTile,
 	type ViewerDocument
 } from '../../../src/lib/data-room/viewer';
 
@@ -76,5 +77,14 @@ describe('neighbourID', () => {
 		expect(neighbourID(documents, 'a', -1)).toBeUndefined();
 		expect(neighbourID(documents, 'c', 1)).toBeUndefined();
 		expect(neighbourID(documents, 'gone', 1)).toBeUndefined();
+	});
+});
+
+describe('watermarkTile', () => {
+	test('draws the text as an image and keeps markup in it inert', () => {
+		const tile = decodeURIComponent(watermarkTile('<b>투자사 A</b> & "B"'));
+		expect(tile).toStartWith('url("data:image/svg+xml,<svg');
+		expect(tile).toContain('&lt;b&gt;투자사 A&lt;/b&gt; &amp; &quot;B&quot;');
+		expect(tile).not.toContain('<b>');
 	});
 });

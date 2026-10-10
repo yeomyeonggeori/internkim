@@ -51,6 +51,16 @@ async function refusedAsNull(request: Promise<string>): Promise<string | null> {
 	});
 }
 
+const markupEscapes: Record<string, string> = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
+
+export function watermarkTile(text: string): string {
+	const escaped = text.replace(/[&<>"']/g, (character) => markupEscapes[character]);
+	const width = Math.max(320, text.length * 9 + 120);
+	const height = Math.round(width * 0.6);
+	const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}"><text x="${width / 2}" y="${height / 2}" text-anchor="middle" dominant-baseline="middle" transform="rotate(-30 ${width / 2} ${height / 2})" font-family="system-ui, sans-serif" font-size="15" fill="rgba(128,128,128,0.28)">${escaped}</text></svg>`;
+	return `url("data:image/svg+xml,${encodeURIComponent(svg)}")`;
+}
+
 export function neighbourID(
 	documents: ViewerDocument[],
 	openID: string,
