@@ -1,6 +1,8 @@
 package cli
 
 import (
+	"io"
+	"os"
 	"strings"
 	"testing"
 )
@@ -25,5 +27,19 @@ func TestACLIBuiltFromADirtyTreeOrWithoutACommitIsRefused(t *testing.T) {
 		if staleBuildReason(build, releasedHead) == "" {
 			t.Errorf("%+v was allowed to release", build)
 		}
+	}
+}
+
+func TestBuildingPackagesRefusesACLIThatRecordsNoCommit(t *testing.T) {
+	if thisCLIBuild().Revision != "" {
+		t.Skip("this test binary records the commit it was built from")
+	}
+	outputDirectory := t.TempDir()
+	errorValue := buildHostRelease(t.TempDir(), nil, "0.0.1", outputDirectory, everyReleaseFormat(), io.Discard)
+	if errorValue == nil || !strings.Contains(errorValue.Error(), "records no commit") {
+		t.Fatalf("building packages with a CLI that records no commit answered %v", errorValue)
+	}
+	if entries, _ := os.ReadDir(outputDirectory); len(entries) != 0 {
+		t.Fatalf("a refused build left %d files behind", len(entries))
 	}
 }

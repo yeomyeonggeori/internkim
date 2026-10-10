@@ -74,9 +74,6 @@ func runReleaseHost(arguments []string) error {
 	if isPublished {
 		return promoteHostRelease(existing, channel, os.Stdout)
 	}
-	if errorValue := refuseAStaleCLI(repositoryRootPath); errorValue != nil {
-		return errorValue
-	}
 	directory, errorValue := os.MkdirTemp("", "internkim-host-release-*")
 	if errorValue != nil {
 		return errorValue

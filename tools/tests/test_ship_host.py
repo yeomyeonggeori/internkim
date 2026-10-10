@@ -221,6 +221,7 @@ class OrderTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             ship_quietly(shipment_with(commands, directory=directory))
         positions = [
+            commands.matching("make build")[0],
             commands.matching("release-tree")[0],
             commands.matching("--channel testing")[0],
             commands.matching("gh release download")[0],
@@ -397,6 +398,7 @@ class HostOnlyTest(unittest.TestCase):
         commands = host_only_commands()
         self.ship_host_only(commands)
         positions = [
+            commands.matching("make build")[0],
             commands.matching("release-tree")[0],
             commands.matching("release packages")[0],
             commands.matching("send")[0],
@@ -412,6 +414,7 @@ class HostOnlyTest(unittest.TestCase):
         commands.answer = lambda arguments: "other\n" if arguments[:3] == ["git", "rev-parse", "origin/main"] else original(arguments)
         with tempfile.TemporaryDirectory() as directory, self.assertRaises(ship_host.ShipFailure):
             ship_quietly(shipment_with(commands, HOST_ONLY, directory))
+        self.assertFalse(commands.matching("make build"))
         self.assertFalse(commands.matching("release packages"))
         self.assertFalse(commands.sent)
 
