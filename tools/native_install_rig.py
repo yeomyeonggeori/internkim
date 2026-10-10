@@ -1187,6 +1187,13 @@ class CompanyPlane:
                 return json.loads(line)
         return {"refused": (completed.stderr.strip() or completed.stdout.strip() or "the member session said nothing")[-900:]}
 
+    def active_member_emails(self, company_id):
+        status, document = self.read_record(
+            f"/rest/v1/member?select=email&company_id=eq.{company_id}&status=eq.active"
+        )
+        rows = json.loads(document) if status == 200 and document else []
+        return sorted(row["email"].lower() for row in rows if row.get("email"))
+
     def member_identity(self, company_id):
         """The member row the seeded address belongs to on this company."""
         status, document = self.read_record(
