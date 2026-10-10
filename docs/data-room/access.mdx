@@ -40,6 +40,11 @@ identity. An expired or revoked share stops new reads. Original file downloads
 require `canDownload`; text previews follow read access. A downloaded copy
 cannot be recalled, and issued file links expire within ten minutes.
 
+A PDF a guest downloads is stamped on every page with the recipient's email,
+or the link's identifier, and the time in UTC. A PDF that cannot be stamped is
+not downloaded. While a guest reads, the viewer overlays their email or the
+link's name and the time the room was opened.
+
 Publication requires an explicit public share. It never publishes `X`.
 
 ## Code-protected links

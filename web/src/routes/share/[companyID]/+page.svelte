@@ -5,7 +5,7 @@
 	import { Spinner } from '$lib/components/ui/spinner';
 	import GuestRoom from '$lib/data-room/guest-room.svelte';
 	import type { SharedRoom } from '$lib/data-room/guest-room';
-	import { dataRoomRequest, dataRoomFile, sharedDataRoomSchema } from '$lib/data-room/guest';
+	import { dataRoomRequest, dataRoomDownload, dataRoomFile, sharedDataRoomSchema } from '$lib/data-room/guest';
 	import { createPageText } from '$lib/i18n/page-text.svelte';
 	import { dataRoomText } from '$lib/data-room/text';
 
@@ -23,10 +23,10 @@
 		}
 	}
 
-	async function download(documentID: string) {
+	async function download(documentID: string, fileName: string) {
 		failure = '';
 		try {
-			window.location.assign(await dataRoomFile(companyID, documentID));
+			await dataRoomDownload(companyID, documentID, fileName);
 		} catch (error) {
 			failure = error instanceof Error ? error.message : text.loadFailed;
 		}

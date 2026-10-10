@@ -37,7 +37,8 @@ const room: SharedRoom = {
 	documents: [
 		document('audit', 'FS', '2025 감사보고서', 'pdf'),
 		document('return', 'FT', '법인세 신고서', null)
-	]
+	],
+	viewer: null
 };
 
 describe('guestFolders', () => {

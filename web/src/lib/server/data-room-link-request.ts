@@ -61,7 +61,7 @@ export async function dataRoomLinkCaller(
 	const caller = asMember(plane, accessToken);
 	const { data, error: refusal } = await controlPlane(plane)
 		.from('data_room_link_session')
-		.select('expires_at,data_room_link!inner(id,company_id,expires_at,revoked_at,can_download)')
+		.select('expires_at,data_room_link!inner(id,company_id,label,expires_at,revoked_at,can_download)')
 		.eq('id', claims.sub)
 		.eq('link_id', linkID)
 		.maybeSingle();
@@ -72,6 +72,7 @@ export async function dataRoomLinkCaller(
 			data_room_link: z.object({
 				id: z.string(),
 				company_id: z.string(),
+				label: z.string(),
 				expires_at: z.string(),
 				revoked_at: z.string().nullable(),
 				can_download: z.boolean()
@@ -89,6 +90,7 @@ export async function dataRoomLinkCaller(
 		caller,
 		companyID: metadata.data.dataRoomCompanyID,
 		expiresAt: Date.parse(session.data.expires_at),
-		canDownload: session.data.data_room_link.can_download
+		canDownload: session.data.data_room_link.can_download,
+		label: session.data.data_room_link.label
 	};
 }

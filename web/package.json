@@ -96,6 +96,7 @@
 		"clsx": "^2.1.1",
 		"jose": "^6.2.11",
 		"nostr-tools": "^2.24.1",
+		"pdf-lib": "1.17.1",
 		"pdfjs-dist": "6.3.289",
 		"pptx-preview": "1.0.7",
 		"runed": "^0.37.1",

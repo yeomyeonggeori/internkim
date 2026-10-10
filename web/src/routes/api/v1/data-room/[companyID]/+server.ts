@@ -2,19 +2,26 @@ import { error, json } from '@sveltejs/kit';
 import { z } from 'zod';
 import { environmentOf } from '$lib/server/agent-request';
 import { dataRoomCaller } from '$lib/server/data-room-request';
+import { downloadedAt, guestDownloadResponse } from '$lib/server/data-room-download';
 import { sharedDataRoomSchema, sharedDocumentColumns } from '$lib/data-room/schemas';
 import { derivedPath, isDerivedFileName, withOriginalExtension } from '$lib/data-room/storage-path';
 import type { RequestHandler } from './$types';
 
 export const GET: RequestHandler = async ({ request, platform, params, url }) => {
 	if (!z.string().uuid().safeParse(params.companyID).success) error(404, 'data room not found');
-	const caller = await dataRoomCaller(request, environmentOf(platform));
+	const { caller, viewerEmail } = await dataRoomCaller(request, environmentOf(platform));
 	const documentID = url.searchParams.get('documentID');
 	if (documentID) {
 		const { data, error: refusal } = await caller.from('company_document')
-			.select('storage_path').eq('company_id', params.companyID).eq('id', documentID).maybeSingle();
+			.select('storage_path,title').eq('company_id', params.companyID).eq('id', documentID).maybeSingle();
 		if (refusal) error(502, refusal.message);
 		if (!data?.storage_path) error(404, 'document not found');
+		if (url.searchParams.has('download')) return guestDownloadResponse(caller, {
+			storagePath: data.storage_path,
+			title: data.title,
+			watermark: [viewerEmail ?? 'Public share', downloadedAt(new Date())],
+			signedLifetimeSeconds: 600
+		});
 		const fileName = url.searchParams.get('fileName');
 		if (fileName !== null && !isDerivedFileName(fileName)) error(400, 'use one file name');
 		const path = fileName ? derivedPath(data.storage_path, documentID, fileName) : data.storage_path;
@@ -29,5 +36,5 @@ export const GET: RequestHandler = async ({ request, platform, params, url }) =>
 			.eq('company_id', params.companyID).not('category_code', 'is', null).order('created_at', { ascending: false })
 	]);
 	if (categories.error || documents.error) error(502, 'the data room could not be read');
-	return json(sharedDataRoomSchema.parse({ categories: categories.data, documents: documents.data.map(withOriginalExtension) }));
+	return json(sharedDataRoomSchema.parse({ categories: categories.data, documents: documents.data.map(withOriginalExtension), viewer: viewerEmail }));
 };
