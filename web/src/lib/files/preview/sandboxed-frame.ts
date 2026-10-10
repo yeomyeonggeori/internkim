@@ -1,21 +1,10 @@
 import { z } from 'zod';
 
-export const isolatedContentPolicy =
-	"default-src 'none'; img-src data: blob:; media-src data: blob:; style-src 'unsafe-inline'; font-src data:";
-
 export const presentationFrameMessageSchema = z.discriminatedUnion('type', [
 	z.object({ type: z.literal('ready') }),
 	z.object({ type: z.literal('rendered'), slideCount: z.number().int() }),
 	z.object({ type: z.literal('failed'), message: z.string() })
 ]);
-
-const doctypePattern = /^\uFEFF?\s*<!doctype[^>]*>/i;
-
-export function isolatedHTMLDocument(html: string): string {
-	const policy = `<meta http-equiv="Content-Security-Policy" content="${isolatedContentPolicy}">`;
-	const doctype = html.match(doctypePattern)?.[0] ?? '';
-	return `${doctype}${policy}${html.slice(doctype.length)}`;
-}
 
 export function presentationFrameDocument(libraryURL: string): string {
 	return `<!doctype html><meta charset="utf-8">

@@ -14,7 +14,7 @@ export const previewText = {
 		rowNumber: '행',
 		slides: '슬라이드',
 		htmlPage: 'HTML 미리보기',
-		htmlIsolated: '스크립트와 외부 리소스를 막은 상태로 표시합니다.'
+		htmlIsolated: '스크립트는 실행하지 않고 표시합니다.'
 	},
 	en: {
 		loading: 'Loading preview',
@@ -31,6 +31,6 @@ export const previewText = {
 		rowNumber: 'Row',
 		slides: 'slides',
 		htmlPage: 'HTML preview',
-		htmlIsolated: 'Shown with scripts and external resources blocked.'
+		htmlIsolated: 'Shown without running its scripts.'
 	}
 } as const;
