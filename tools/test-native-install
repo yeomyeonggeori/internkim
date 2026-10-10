@@ -1478,7 +1478,7 @@ class Rig:
         self.wait_until_the_relay_knows(requester["email"])
         mention = self.ask_the_messenger(
             "open_mention", email=requester["email"], channelName=f"rig-inbound-mention-{uuid.uuid4().hex[:10]}",
-            body="rig mention probe",
+            body="Please reply in this channel with the word acknowledged.",
         )
         message_id = mention.get("messageID", "")
         ledger = self.wait_for_the_messenger(
