@@ -1361,7 +1361,8 @@ class Rig:
     def wait_until_the_relay_knows(self, email):
         pubkey = self.ask_the_messenger("identity", email=email).get("externalID", "")
         roster = self.wait_in_the_guest(
-            RELAY_ROSTER_COMMAND % {"path": MESSENGER_DATABASE_PATH, "pubkey": pubkey or "nobody"},
+            RELAY_ROSTER_COMMAND
+            % {"path": MESSENGER_DATABASE_PATH, "host_path": COMPANY_CONDITION_PATH, "pubkey": pubkey or "nobody"},
             lambda reported: "roster=yes" in reported,
             timeout_seconds=600,
         )
