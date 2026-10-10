@@ -170,7 +170,7 @@ func TestCompanyLedgerCarryKeepsWhatTheDeviceWroteRatherThanMintingItAgain(t *te
 				t.Fatalf("the number this document was issued under was not kept: %#v", row.Body)
 			}
 			if row.Body["issued_at"] != "2025-12-02T00:00:00Z" {
-				t.Fatalf("the day this document was issued was not kept: %#v", row.Body)
+				t.Fatalf("the moment this document was entered was not kept: %#v", row.Body)
 			}
 			if row.Body["requester_id"] != "member-member@example.com" {
 				t.Fatalf("the document does not name who asked for it: %#v", row.Body)

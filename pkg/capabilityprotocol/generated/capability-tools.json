@@ -14689,6 +14689,9 @@
                     }
                   ]
                 },
+                "createdAt": {
+                  "type": "string"
+                },
                 "date": {
                   "anyOf": [
                     {
@@ -14724,9 +14727,6 @@
                       "type": "null"
                     }
                   ]
-                },
-                "issuedAt": {
-                  "type": "string"
                 },
                 "kind": {
                   "type": "string"
@@ -14812,6 +14812,18 @@
                     }
                   ]
                 },
+                "sizeBytes": {
+                  "anyOf": [
+                    {
+                      "maximum": 9007199254740991,
+                      "minimum": -9007199254740991,
+                      "type": "integer"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
                 "status": {
                   "anyOf": [
                     {
@@ -14860,6 +14872,9 @@
                 },
                 "title": {
                   "type": "string"
+                },
+                "updatedAt": {
+                  "type": "string"
                 }
               },
               "required": [
@@ -14873,7 +14888,8 @@
                 "filePath",
                 "summary",
                 "requesterID",
-                "issuedAt",
+                "createdAt",
+                "updatedAt",
                 "categoryCode",
                 "date",
                 "period",
@@ -14882,6 +14898,7 @@
                 "sha256",
                 "tags",
                 "storagePath",
+                "sizeBytes",
                 "published"
               ],
               "type": "object"
@@ -14927,6 +14944,9 @@
                       }
                     ]
                   },
+                  "createdAt": {
+                    "type": "string"
+                  },
                   "date": {
                     "anyOf": [
                       {
@@ -14962,9 +14982,6 @@
                         "type": "null"
                       }
                     ]
-                  },
-                  "issuedAt": {
-                    "type": "string"
                   },
                   "kind": {
                     "type": "string"
@@ -15050,6 +15067,18 @@
                       }
                     ]
                   },
+                  "sizeBytes": {
+                    "anyOf": [
+                      {
+                        "maximum": 9007199254740991,
+                        "minimum": -9007199254740991,
+                        "type": "integer"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
                   "status": {
                     "anyOf": [
                       {
@@ -15098,6 +15127,9 @@
                   },
                   "title": {
                     "type": "string"
+                  },
+                  "updatedAt": {
+                    "type": "string"
                   }
                 },
                 "required": [
@@ -15111,7 +15143,8 @@
                   "filePath",
                   "summary",
                   "requesterID",
-                  "issuedAt",
+                  "createdAt",
+                  "updatedAt",
                   "categoryCode",
                   "date",
                   "period",
@@ -15120,6 +15153,7 @@
                   "sha256",
                   "tags",
                   "storagePath",
+                  "sizeBytes",
                   "published"
                 ],
                 "type": "object"
@@ -15320,6 +15354,9 @@
               }
             ]
           },
+          "createdAt": {
+            "type": "string"
+          },
           "date": {
             "anyOf": [
               {
@@ -15355,9 +15392,6 @@
                 "type": "null"
               }
             ]
-          },
-          "issuedAt": {
-            "type": "string"
           },
           "kind": {
             "type": "string"
@@ -15443,6 +15477,18 @@
               }
             ]
           },
+          "sizeBytes": {
+            "anyOf": [
+              {
+                "maximum": 9007199254740991,
+                "minimum": -9007199254740991,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "status": {
             "anyOf": [
               {
@@ -15494,6 +15540,9 @@
           },
           "title": {
             "type": "string"
+          },
+          "updatedAt": {
+            "type": "string"
           }
         },
         "required": [
@@ -15507,7 +15556,8 @@
           "filePath",
           "summary",
           "requesterID",
-          "issuedAt",
+          "createdAt",
+          "updatedAt",
           "categoryCode",
           "date",
           "period",
@@ -15516,6 +15566,7 @@
           "sha256",
           "tags",
           "storagePath",
+          "sizeBytes",
           "published",
           "storageDirectory"
         ],
@@ -15550,6 +15601,9 @@
                   "type": "null"
                 }
               ]
+            },
+            "createdAt": {
+              "type": "string"
             },
             "date": {
               "anyOf": [
@@ -15586,9 +15640,6 @@
                   "type": "null"
                 }
               ]
-            },
-            "issuedAt": {
-              "type": "string"
             },
             "kind": {
               "type": "string"
@@ -15674,6 +15725,18 @@
                 }
               ]
             },
+            "sizeBytes": {
+              "anyOf": [
+                {
+                  "maximum": 9007199254740991,
+                  "minimum": -9007199254740991,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
             "status": {
               "anyOf": [
                 {
@@ -15725,6 +15788,9 @@
             },
             "title": {
               "type": "string"
+            },
+            "updatedAt": {
+              "type": "string"
             }
           },
           "required": [
@@ -15738,7 +15804,8 @@
             "filePath",
             "summary",
             "requesterID",
-            "issuedAt",
+            "createdAt",
+            "updatedAt",
             "categoryCode",
             "date",
             "period",
@@ -15747,6 +15814,7 @@
             "sha256",
             "tags",
             "storagePath",
+            "sizeBytes",
             "published",
             "storageDirectory"
           ],
@@ -15824,6 +15892,9 @@
                     }
                   ]
                 },
+                "createdAt": {
+                  "type": "string"
+                },
                 "date": {
                   "anyOf": [
                     {
@@ -15859,9 +15930,6 @@
                       "type": "null"
                     }
                   ]
-                },
-                "issuedAt": {
-                  "type": "string"
                 },
                 "kind": {
                   "type": "string"
@@ -15947,6 +16015,18 @@
                     }
                   ]
                 },
+                "sizeBytes": {
+                  "anyOf": [
+                    {
+                      "maximum": 9007199254740991,
+                      "minimum": -9007199254740991,
+                      "type": "integer"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
                 "status": {
                   "anyOf": [
                     {
@@ -15995,6 +16075,9 @@
                 },
                 "title": {
                   "type": "string"
+                },
+                "updatedAt": {
+                  "type": "string"
                 }
               },
               "required": [
@@ -16008,7 +16091,8 @@
                 "filePath",
                 "summary",
                 "requesterID",
-                "issuedAt",
+                "createdAt",
+                "updatedAt",
                 "categoryCode",
                 "date",
                 "period",
@@ -16017,6 +16101,7 @@
                 "sha256",
                 "tags",
                 "storagePath",
+                "sizeBytes",
                 "published"
               ],
               "type": "object"
@@ -16062,6 +16147,9 @@
                       }
                     ]
                   },
+                  "createdAt": {
+                    "type": "string"
+                  },
                   "date": {
                     "anyOf": [
                       {
@@ -16097,9 +16185,6 @@
                         "type": "null"
                       }
                     ]
-                  },
-                  "issuedAt": {
-                    "type": "string"
                   },
                   "kind": {
                     "type": "string"
@@ -16185,6 +16270,18 @@
                       }
                     ]
                   },
+                  "sizeBytes": {
+                    "anyOf": [
+                      {
+                        "maximum": 9007199254740991,
+                        "minimum": -9007199254740991,
+                        "type": "integer"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
                   "status": {
                     "anyOf": [
                       {
@@ -16233,6 +16330,9 @@
                   },
                   "title": {
                     "type": "string"
+                  },
+                  "updatedAt": {
+                    "type": "string"
                   }
                 },
                 "required": [
@@ -16246,7 +16346,8 @@
                   "filePath",
                   "summary",
                   "requesterID",
-                  "issuedAt",
+                  "createdAt",
+                  "updatedAt",
                   "categoryCode",
                   "date",
                   "period",
@@ -16255,6 +16356,7 @@
                   "sha256",
                   "tags",
                   "storagePath",
+                  "sizeBytes",
                   "published"
                 ],
                 "type": "object"
@@ -16428,6 +16530,9 @@
               }
             ]
           },
+          "createdAt": {
+            "type": "string"
+          },
           "date": {
             "anyOf": [
               {
@@ -16463,9 +16568,6 @@
                 "type": "null"
               }
             ]
-          },
-          "issuedAt": {
-            "type": "string"
           },
           "kind": {
             "type": "string"
@@ -16551,6 +16653,18 @@
               }
             ]
           },
+          "sizeBytes": {
+            "anyOf": [
+              {
+                "maximum": 9007199254740991,
+                "minimum": -9007199254740991,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "status": {
             "anyOf": [
               {
@@ -16599,6 +16713,9 @@
           },
           "title": {
             "type": "string"
+          },
+          "updatedAt": {
+            "type": "string"
           }
         },
         "required": [
@@ -16612,7 +16729,8 @@
           "filePath",
           "summary",
           "requesterID",
-          "issuedAt",
+          "createdAt",
+          "updatedAt",
           "categoryCode",
           "date",
           "period",
@@ -16621,6 +16739,7 @@
           "sha256",
           "tags",
           "storagePath",
+          "sizeBytes",
           "published"
         ],
         "type": "object"
@@ -16654,6 +16773,9 @@
                   "type": "null"
                 }
               ]
+            },
+            "createdAt": {
+              "type": "string"
             },
             "date": {
               "anyOf": [
@@ -16690,9 +16812,6 @@
                   "type": "null"
                 }
               ]
-            },
-            "issuedAt": {
-              "type": "string"
             },
             "kind": {
               "type": "string"
@@ -16778,6 +16897,18 @@
                 }
               ]
             },
+            "sizeBytes": {
+              "anyOf": [
+                {
+                  "maximum": 9007199254740991,
+                  "minimum": -9007199254740991,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
             "status": {
               "anyOf": [
                 {
@@ -16826,6 +16957,9 @@
             },
             "title": {
               "type": "string"
+            },
+            "updatedAt": {
+              "type": "string"
             }
           },
           "required": [
@@ -16839,7 +16973,8 @@
             "filePath",
             "summary",
             "requesterID",
-            "issuedAt",
+            "createdAt",
+            "updatedAt",
             "categoryCode",
             "date",
             "period",
@@ -16848,6 +16983,7 @@
             "sha256",
             "tags",
             "storagePath",
+            "sizeBytes",
             "published"
           ],
           "type": "object"

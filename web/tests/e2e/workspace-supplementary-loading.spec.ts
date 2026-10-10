@@ -7,7 +7,7 @@ const phase = process.env.LOADING_CAPTURE_PHASE ?? 'after';
 const output = process.env.LOADING_CAPTURE_DIR;
 const companyID = '20000000-0000-4000-8000-000000000001';
 const categories = ['A', 'B', 'C'].map((code, index) => ({ code, slug: `folder-${index}`, name: ['Company overview', 'Products', 'Operations'][index], nameKO: ['회사 소개', '제품', '운영'][index], parent: null, description: '' }));
-const documents = Array.from({ length: 3 }, (_, index) => ({ documentID: `document-${index}`, documentNumber: null, kind: 'document', documentType: 'memo', title: `Fixture 자료 ${index + 1}`, counterpart: null, language: 'ko', filePath: null, summary: '검토를 위해 공유한 예시 자료입니다.', requesterID: null, issuedAt: '2026-10-06T03:00:00Z', categoryCode: 'A', date: '2026-10-06', period: null, status: 'published', supersedes: null, sha256: null, tags: [], storagePath: null, published: null }));
+const documents = Array.from({ length: 3 }, (_, index) => ({ documentID: `document-${index}`, documentNumber: null, kind: 'document', documentType: 'memo', title: `Fixture 자료 ${index + 1}`, counterpart: null, language: 'ko', filePath: null, summary: '검토를 위해 공유한 예시 자료입니다.', requesterID: null, createdAt: '2026-10-06T03:00:00Z', updatedAt: '2026-10-06T03:00:00Z', categoryCode: 'A', date: '2026-10-06', period: null, status: 'published', supersedes: null, sha256: null, tags: [], storagePath: null, sizeBytes: null, published: null }));
 
 class SupplementaryFixture extends WorkspaceLoadingFixture {
 	readonly statuses = new Map<string, number>();

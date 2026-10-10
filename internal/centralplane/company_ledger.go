@@ -48,7 +48,7 @@ type CompanyDocument struct {
 	FilePath       string                    `json:"filePath"`
 	Summary        string                    `json:"summary"`
 	RequesterID    string                    `json:"requesterID"`
-	IssuedAt       string                    `json:"issuedAt"`
+	CreatedAt      string                    `json:"createdAt"`
 	CategoryCode   string                    `json:"categoryCode"`
 	Date           string                    `json:"date"`
 	Period         string                    `json:"period"`

@@ -35,8 +35,10 @@
 				name: entry.name,
 				isDirectory: entry.isDirectory,
 				entryCount: entry.entryCount,
-				secondary: entry.isDirectory ? '' : formatFileSize(entry.size),
-				date: formatModified(entry.modifiedAt, currentLocale.value)
+				cells: [
+					entry.isDirectory ? '' : formatFileSize(entry.size),
+					formatModified(entry.modifiedAt, currentLocale.value)
+				]
 			}))
 	);
 
@@ -140,8 +142,10 @@
 							{entries}
 							title={text.title}
 							nameLabel={text.name}
-							secondaryLabel={text.size}
-							dateLabel={text.modified}
+							columns={[
+								{ label: text.size, width: 'narrow' },
+								{ label: text.modified, width: 'wide' }
+							]}
 							emptyLabel={text.empty}
 							selectedID={files.selectedFile?.agentPath}
 								isLoading={files.isLoading || files.isLoadingPath(files.currentPath)}

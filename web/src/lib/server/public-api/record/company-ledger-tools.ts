@@ -97,7 +97,7 @@ const metricColumns =
 	'id, metric, year, quarter, month, value, currency_code, value_usd, unit, note, updated_at';
 const recordColumns = 'id, category, record_date, title, detail, attributes, updated_at';
 const documentColumns =
-	'id, document_number, kind, document_type, title, counterpart, language, file_path, summary, requester_id, issued_at, category_code, document_date, period, status, supersedes, sha256, tags, storage_path, published_from, published_at, published_by';
+	'id, document_number, kind, document_type, title, counterpart, language, file_path, summary, requester_id, created_at, updated_at, category_code, document_date, period, status, supersedes, sha256, tags, storage_path, size_bytes, published_from, published_at, published_by';
 
 const documentNumberPrefixes: Record<string, string> = {
 	'quote': 'Q',
@@ -157,7 +157,8 @@ type DocumentRow = {
 	file_path: string | null;
 	summary: string | null;
 	requester_id: string | null;
-	issued_at: string;
+	created_at: string;
+	updated_at: string;
 	category_code: string;
 	document_date: string | null;
 	period: string | null;
@@ -166,6 +167,7 @@ type DocumentRow = {
 	sha256: string | null;
 	tags: string[] | null;
 	storage_path: string | null;
+	size_bytes: number | null;
 	published_from: string | null;
 	published_at: string | null;
 	published_by: string | null;
@@ -211,7 +213,8 @@ function answeredDocument(row: DocumentRow): CompanyDocumentResult {
 		filePath: row.file_path,
 		summary: row.summary,
 		requesterID: row.requester_id,
-		issuedAt: row.issued_at,
+		createdAt: row.created_at,
+		updatedAt: row.updated_at,
 		categoryCode: row.category_code,
 		date: row.document_date,
 		period: row.period,
@@ -220,6 +223,7 @@ function answeredDocument(row: DocumentRow): CompanyDocumentResult {
 		sha256: row.sha256,
 		tags: row.tags ?? [],
 		storagePath: row.storage_path,
+		sizeBytes: row.size_bytes,
 		published: publishedOf(row)
 	};
 }
@@ -503,7 +507,7 @@ async function documentRows(context: RecordContext): Promise<DocumentRow[]> {
 		.from('company_document')
 		.select(documentColumns)
 		.eq('company_id', context.companyID)
-		.order('issued_at', { ascending: false })
+		.order('created_at', { ascending: false })
 		.returns<DocumentRow[]>();
 	if (error) throw new Error(error.message);
 	return data ?? [];
@@ -567,7 +571,6 @@ export async function companyDocumentRegister(
 		file_path: orNull(input.filePath),
 		summary: orNull(input.summary),
 		requester_id: context.requesterID,
-		issued_at: context.now.toISOString(),
 		...(await dataRoomChangeOf(context, input, categoryCode)),
 		category_code: categoryCode
 	};
@@ -700,10 +703,9 @@ export async function companyDocumentSearch(
 	const asked = textOf(input.query, 'a document search asks something');
 	const limit = Math.min(Math.max(input.limit ?? documentSearchDefaultLimit, 1), documentSearchLimit);
 
-	const { data, error } = await context.caller.rpc('company_documents_matching', {
-		target_query: asked,
-		target_limit: limit
-	});
+	const { data, error } = await context.caller
+		.rpc('company_documents_matching', { target_query: asked, target_limit: limit })
+		.select(documentColumns);
 	if (error) throw new Error(error.message);
 	if (!Array.isArray(data)) throw new Error('a document search answers a list of documents');
 	const documents = (data as DocumentRow[]).map(answeredDocument);

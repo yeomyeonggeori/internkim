@@ -25,7 +25,8 @@ export const companyDocumentResultSchema = z.strictObject({
   filePath: z.string().nullable(),
   summary: z.string().nullable(),
   requesterID: z.string().nullable(),
-  issuedAt: z.string(),
+  createdAt: z.string(),
+  updatedAt: z.string(),
   categoryCode: z.string(),
   date: z.string().nullable(),
   period: z.string().nullable(),
@@ -34,6 +35,7 @@ export const companyDocumentResultSchema = z.strictObject({
   sha256: z.string().nullable(),
   tags: z.array(z.string()),
   storagePath: z.string().nullable(),
+  sizeBytes: z.number().int().nullable(),
   published: companyDocumentPublishedSchema.nullable(),
 });
 

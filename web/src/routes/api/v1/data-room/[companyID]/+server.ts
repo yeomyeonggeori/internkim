@@ -26,7 +26,7 @@ export const GET: RequestHandler = async ({ request, platform, params, url }) =>
 		caller.from('data_room_category').select('code,parent,name,name_ko,description,slug')
 			.eq('company_id', params.companyID).order('position'),
 		caller.from('company_document').select('id,title,summary,category_code,document_date,status')
-			.eq('company_id', params.companyID).not('category_code', 'is', null).order('issued_at', { ascending: false })
+			.eq('company_id', params.companyID).not('category_code', 'is', null).order('created_at', { ascending: false })
 	]);
 	if (categories.error || documents.error) error(502, 'the data room could not be read');
 	return json(sharedDataRoomSchema.parse({ categories: categories.data, documents: documents.data }));

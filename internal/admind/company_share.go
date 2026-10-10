@@ -553,7 +553,7 @@ func (service *Service) readCompanyShareDocuments(ctx context.Context, documentI
 			Title:        held.Title,
 			Language:     held.Language,
 			Summary:      held.Summary,
-			IssuedAt:     held.IssuedAt,
+			IssuedAt:     held.Date,
 		})
 	}
 	return documents, nil

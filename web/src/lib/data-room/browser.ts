@@ -2,6 +2,8 @@ import type { z } from 'zod';
 import { categoryName, type DataRoomCategory } from './model';
 import type { companyDocumentResultSchema } from './schemas';
 import type { FileBrowserEntry } from '$lib/components/file-browser-list.svelte';
+import { formatFileSize, formatModified } from '$lib/files/view';
+import type { Locale } from '$lib/i18n/locale';
 
 export type DataRoomDocument = z.infer<typeof companyDocumentResultSchema>;
 
@@ -39,7 +41,7 @@ export function dataRoomFolderEntries(
 	documents: DataRoomDocument[],
 	categories: DataRoomCategory[],
 	code: string,
-	locale: string
+	locale: Locale
 ): FileBrowserEntry[] {
 	const folders = categories.filter((category) => category.parent === (code || null));
 	const folderEntries = folders.map((category) => ({
@@ -48,7 +50,7 @@ export function dataRoomFolderEntries(
 		isDirectory: true,
 		tag: category.code,
 		entryCount: documentsInCategory(documents, categories, category.code).length,
-		date: ''
+		cells: []
 	}));
 	const fileEntries = documents
 		.filter((document) => document.categoryCode === code)
@@ -56,7 +58,11 @@ export function dataRoomFolderEntries(
 			id: document.documentID,
 			name: documentFileName(document),
 			fileName: documentFileName(document),
-			date: document.date ?? ''
+			cells: [
+				document.sizeBytes === null ? '' : formatFileSize(document.sizeBytes),
+				formatModified(document.createdAt, locale),
+				formatModified(document.updatedAt, locale)
+			]
 		}));
 	return [...folderEntries, ...fileEntries];
 }

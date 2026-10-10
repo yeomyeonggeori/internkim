@@ -40,7 +40,7 @@ export async function newestServiceFile(
 		.eq('category_code', file.categoryCode)
 		.like('storage_path', `${dataRoomFolder(companyID, file.categoryCode)}/${file.name}.%`)
 		.order('document_date', { ascending: false })
-		.order('issued_at', { ascending: false })
+		.order('created_at', { ascending: false })
 		.returns<VersionRow[]>();
 	if (error) throw new Error(error.message);
 	return (data ?? []).map((row) => keptVersionOf(companyID, row)).find((version) => version !== undefined);

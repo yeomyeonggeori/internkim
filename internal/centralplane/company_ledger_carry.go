@@ -44,7 +44,7 @@ type CarriedCompanyDocument struct {
 	Language       string
 	FilePath       string
 	Summary        string
-	IssuedAt       time.Time
+	CreatedAt      time.Time
 }
 
 // company_metric_written_by_admin and company_record_written_by_admin admit a
@@ -122,7 +122,7 @@ func (client *Client) CarryCompanyDocument(
 		"document_type": document.DocumentType,
 		"title":         document.Title,
 		"requester_id":  session.memberID,
-		"issued_at":     document.IssuedAt.UTC().Format(time.RFC3339Nano),
+		"issued_at":     document.CreatedAt.UTC().Format(time.RFC3339Nano),
 	}
 	for field, value := range map[string]string{
 		"document_number": document.DocumentNumber,
