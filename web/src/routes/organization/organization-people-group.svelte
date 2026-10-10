@@ -9,7 +9,7 @@
 	import ComponentIcon from '@lucide/svelte/icons/component';
 	import UserIcon from '@lucide/svelte/icons/user';
 	import { Badge } from '$lib/components/ui/badge';
-	import OrganizationCountBadge from './organization-count-badge.svelte';
+	import CountBadge from '$lib/components/count-badge.svelte';
 	import OrganizationPersonContactActions from './organization-person-contact-actions.svelte';
 	import * as Item from '$lib/components/ui/item';
 	import * as Tooltip from '$lib/components/ui/tooltip';
@@ -121,11 +121,11 @@
 		{#if isMobile.current}
 			<span class="text-muted-foreground ml-1 shrink-0 text-xs tabular-nums" aria-label={`${section.memberCount}${text.memberCountUnit}`}>{section.memberCount}</span>
 		{:else}
-			<OrganizationCountBadge count={section.memberCount} label={`${section.memberCount}${text.memberCountUnit}`}>
+			<CountBadge count={section.memberCount} label={`${section.memberCount}${text.memberCountUnit}`}>
 				{#snippet icon()}
 					<UserIcon class="size-3" />
 				{/snippet}
-			</OrganizationCountBadge>
+			</CountBadge>
 		{/if}
 		<span
 			class={[

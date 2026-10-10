@@ -46,7 +46,8 @@ export function dataRoomFolderEntries(
 		id: category.code,
 		name: categoryName(category, locale),
 		isDirectory: true,
-		secondary: category.code,
+		tag: category.code,
+		entryCount: documentsInCategory(documents, categories, category.code).length,
 		date: ''
 	}));
 	const fileEntries = documents
@@ -55,7 +56,6 @@ export function dataRoomFolderEntries(
 			id: document.documentID,
 			name: documentFileName(document),
 			fileName: documentFileName(document),
-			secondary: document.categoryCode ?? '',
 			date: document.date ?? ''
 		}));
 	return [...folderEntries, ...fileEntries];

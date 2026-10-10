@@ -1,5 +1,5 @@
 <script lang="ts">
-	import OrganizationCountBadge from './organization-count-badge.svelte';
+	import CountBadge from '$lib/components/count-badge.svelte';
 	import { Button } from '$lib/components/ui/button';
 	import { MediaQuery } from 'svelte/reactivity';
 	import Building2Icon from '@lucide/svelte/icons/building-2';
@@ -161,11 +161,11 @@
 				{/if}
 				<span class="min-w-0 truncate">{tree.root.name}</span>
 				{#if childCount('') > 0}
-					<OrganizationCountBadge count={childCount('')} label={text.organization}>
+					<CountBadge count={childCount('')} label={text.organization}>
 						{#snippet icon()}
 							<ComponentIcon class="size-3" />
 						{/snippet}
-					</OrganizationCountBadge>
+					</CountBadge>
 				{/if}
 			</button>
 			{#if canManage && !isEditing}
@@ -241,11 +241,11 @@
 				>
 					<span class="min-w-0 truncate">{node.name}</span>
 					{#if hasChildren(node.id)}
-						<OrganizationCountBadge count={childCount(node.id)} label={text.organization}>
+						<CountBadge count={childCount(node.id)} label={text.organization}>
 							{#snippet icon()}
 								<ComponentIcon class="size-3" />
 							{/snippet}
-						</OrganizationCountBadge>
+						</CountBadge>
 					{/if}
 				</button>
 				{#if !isEditing && !hasChildren(node.id)}

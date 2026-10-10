@@ -34,7 +34,8 @@
 				id: entry.agentPath,
 				name: entry.name,
 				isDirectory: entry.isDirectory,
-				secondary: formatFileSize(entry.size),
+				entryCount: entry.entryCount,
+				secondary: entry.isDirectory ? '' : formatFileSize(entry.size),
 				date: formatModified(entry.modifiedAt, currentLocale.value)
 			}))
 	);

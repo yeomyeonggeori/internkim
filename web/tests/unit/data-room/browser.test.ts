@@ -29,4 +29,12 @@ describe('data room folder browser', () => {
 		expect(entries.map((entry) => entry.name)).toEqual(['statement.63000000-0000-0000-0000-000000000020.pdf']);
 		expect(entries[0].isDirectory).toBeUndefined();
 	});
+	test('a folder counts the documents filed anywhere under it', () => {
+		const rootEntries = dataRoomFolderEntries([document], dataRoomTemplate.categories, '', 'en');
+		expect(rootEntries.find((entry) => entry.id === 'F')?.entryCount).toBe(1);
+		expect(rootEntries.find((entry) => entry.id === 'C')?.entryCount).toBe(0);
+		const financeEntries = dataRoomFolderEntries([document], dataRoomTemplate.categories, 'F', 'en');
+		expect(financeEntries.find((entry) => entry.id === 'FS')?.entryCount).toBe(1);
+		expect(financeEntries.find((entry) => entry.id === 'FT')?.entryCount).toBe(0);
+	});
 });

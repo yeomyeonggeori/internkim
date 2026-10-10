@@ -27,7 +27,7 @@ const roots: WorkspaceRoot[] = [
 ];
 
 function directory(name: string, parent: string, modifiedAt: string): WorkspaceEntry {
-	return { name, agentPath: `${parent}/${name}`, isDirectory: true, size: 0, modifiedAt };
+	return { name, agentPath: `${parent}/${name}`, isDirectory: true, size: 4096, modifiedAt };
 }
 
 function file(name: string, parent: string, size: number, modifiedAt: string): WorkspaceEntry {
@@ -39,6 +39,7 @@ const listings: Record<string, WorkspaceEntry[]> = {
 		directory('문서', personalPath, '2026-06-21T09:12:00+09:00'),
 		directory('이미지', personalPath, '2026-06-18T14:03:00+09:00'),
 		directory('프로젝트', personalPath, '2026-06-20T18:45:00+09:00'),
+		directory('임시', personalPath, '2026-06-15T10:20:00+09:00'),
 		file('주간-회고.md', personalPath, 4213, '2026-06-22T08:30:00+09:00'),
 		file('할일.txt', personalPath, 612, '2026-06-22T07:05:00+09:00')
 	],
@@ -156,6 +157,11 @@ export function devFilesMockPlugin(options: DevFilesMockPluginOptions): Plugin {
 	};
 }
 
+function withEntryCount(entry: WorkspaceEntry): WorkspaceEntry {
+	if (!entry.isDirectory) return entry;
+	return { ...entry, entryCount: listings[entry.agentPath]?.length ?? 0 };
+}
+
 function createDevFilesMockResponse(
 	state: DevAdminMockState,
 	request: DevMockRequest
@@ -165,7 +171,7 @@ function createDevFilesMockResponse(
 	}
 	if (request.method === 'GET' && request.pathname === '/files/api/list') {
 		const path = request.searchParams.get('path') ?? '';
-		return { status: 200, body: { entries: listings[path] ?? [] } };
+		return { status: 200, body: { entries: (listings[path] ?? []).map(withEntryCount) } };
 	}
 	if (request.method === 'POST' && request.pathname === '/files/api/upload') {
 		return { status: 200, body: { uploaded: [] } };
