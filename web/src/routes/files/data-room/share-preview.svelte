@@ -26,7 +26,7 @@
 	let circleItems = $state<CircleItem[]>([]);
 	let downloadableCircleIDs = $state<string[]>([]);
 	let circleID = $state('investor');
-	let canDownload = $state(false);
+	let canDownload = $state(true);
 	let room = $state<PreviewedRoom | null>(null);
 	const circleLabel = $derived(circleItems.find((item) => item.value === circleID)?.label ?? '');
 	const endpoint = $derived(`/api/v1/data-room/preview/${encodeURIComponent(circleID)}`);
@@ -120,7 +120,7 @@
 				<Checkbox
 					id="{fieldID}-download"
 					class="border-primary-foreground"
-					checked={canDownload}
+					checked={canDownload && downloadableCircleIDs.includes(circleID)}
 					disabled={isBusy || !downloadableCircleIDs.includes(circleID)}
 					onCheckedChange={(checked) => {
 						canDownload = checked === true;
