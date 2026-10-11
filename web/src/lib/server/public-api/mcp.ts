@@ -1,7 +1,7 @@
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { WebStandardStreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js';
 import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js';
-import type { CallToolResult, Tool, ToolAnnotations } from '@modelcontextprotocol/sdk/types.js';
+import type { CallToolRequest, CallToolResult, Tool, ToolAnnotations } from '@modelcontextprotocol/sdk/types.js';
 import { capabilityAnsweredFilesMetaKey, capabilityDescriptorMetaKey } from './catalog/protocol';
 import { isSeenByAModel, permissionForTool, toolsAModelReachesWith } from '$lib/server/public-api/catalog';
 import type { ToolDescriptor } from '$lib/server/public-api/catalog';
@@ -73,20 +73,36 @@ function companyToolServer(environment: Environment, member: CallingMember): Ser
 
 	server.setRequestHandler(ListToolsRequestSchema, () => ({ tools: toolsOfferedTo(member) }));
 
-	server.setRequestHandler(CallToolRequestSchema, async (request) => {
-		if (!isSeenByAModel(request.params.name)) {
-			return toolResultOf(404, { message: `no tool here goes by ${request.params.name}` });
-		}
-		const answered = await toolAnswerOrRefusal(environment, member, request.params.name, {
-			input: request.params.arguments ?? {}
-		});
-		if (answered.status >= 300 || !keepsAnsweredFiles(request.params._meta)) {
-			return toolResultOf(answered.status, answered.body);
-		}
-		return toolResultOf(answered.status, answered.body, await filesAnsweredBy(request.params.name, member, answered.body));
-	});
+	server.setRequestHandler(CallToolRequestSchema, (request) =>
+		answerToolCall(environment, member, request.params).catch((failure: unknown) =>
+			toolFailureOf(request.params.name, failure)
+		)
+	);
 
 	return server;
+}
+
+async function answerToolCall(
+	environment: Environment,
+	member: CallingMember,
+	call: CallToolRequest['params']
+): Promise<CallToolResult> {
+	if (!isSeenByAModel(call.name)) {
+		return toolResultOf(404, { message: `no tool here goes by ${call.name}` });
+	}
+	const answered = await toolAnswerOrRefusal(environment, member, call.name, { input: call.arguments ?? {} });
+	if (answered.status >= 300 || !keepsAnsweredFiles(call._meta)) {
+		return toolResultOf(answered.status, answered.body);
+	}
+	return toolResultOf(answered.status, answered.body, await filesAnsweredBy(call.name, member, answered.body));
+}
+
+// MCP 2025-06-18, Tools §Error Handling: a tool execution error is reported in
+// the result with isError, where the model reads it.
+function toolFailureOf(name: string, failure: unknown): CallToolResult {
+	const reason = failure instanceof Error ? failure.message : String(failure);
+	console.error('mcp.tool_failed', { tool: name, reason });
+	return toolResultOf(500, { error: `${name} failed: ${reason}` });
 }
 
 export async function answerMCP(

@@ -1,5 +1,3 @@
-import { randomUUID } from 'node:crypto';
-
 export type MemberSession = { accessToken: string; expiresAt: number };
 
 export type RecordCatalogSettings = {
@@ -26,7 +24,6 @@ export const recordCatalogName = 'internkim';
  */
 export class RecordCatalogs {
 	private readonly settings: RecordCatalogSettings;
-	private readonly ticketByConversation = new Map<string, string>();
 	private readonly emailByTicket = new Map<string, string>();
 	private readonly sessionByEmail = new Map<string, MemberSession>();
 	private readonly mintingByEmail = new Map<string, Promise<MemberSession>>();
@@ -35,10 +32,10 @@ export class RecordCatalogs {
 		this.settings = settings;
 	}
 
-	serversFor(requesterEmail: string, conversationID: string): McpServerEntry[] {
+	serversFor(requesterEmail: string, ticket: string): McpServerEntry[] {
 		const email = requesterEmail.trim().toLowerCase();
 		if (!email) return [];
-		const ticket = this.ticketFor(email, conversationID);
+		this.emailByTicket.set(ticket, email);
 		return [
 			{
 				type: 'http',
@@ -50,40 +47,32 @@ export class RecordCatalogs {
 	}
 
 	async serve(request: Request, ticket: string): Promise<Response> {
+		const call = await request.text();
 		const email = this.emailByTicket.get(ticket);
-		if (!email) return new Response('no catalog was opened under that name', { status: 404 });
+		if (!email) return refusedCall(call, 'this relay opened no record catalog under that address');
 		let session: MemberSession;
 		try {
 			session = await this.sessionFor(email);
 		} catch (failure) {
 			this.settings.report?.(`no session for ${email}: ${String(failure)}`);
-			return new Response('the record would not open a session for that person', { status: 502 });
+			return refusedCall(call, `the record would not open a session for ${email}: ${String(failure)}`);
 		}
-		const answered = await fetch(`${this.settings.appURL}/api/v1/mcp`, {
+		const answered = await this.forward(request, call, session).catch((failure: unknown) => failure);
+		if (answered instanceof Response) return answeredOrRefused(call, answered);
+		this.settings.report?.(`the company app did not answer: ${String(answered)}`);
+		return refusedCall(call, `the company app at ${this.settings.appURL} could not be reached: ${String(answered)}`);
+	}
+
+	private forward(request: Request, call: string, session: MemberSession): Promise<Response> {
+		return fetch(`${this.settings.appURL}/api/v1/mcp`, {
 			method: 'POST',
 			headers: {
 				Authorization: `Bearer ${session.accessToken}`,
 				'Content-Type': request.headers.get('content-type') ?? 'application/json',
 				Accept: request.headers.get('accept') ?? 'application/json'
 			},
-			body: await request.text()
+			body: call
 		});
-		return new Response(answered.body, {
-			status: answered.status,
-			headers: { 'Content-Type': answered.headers.get('content-type') ?? 'application/json' }
-		});
-	}
-
-	private ticketFor(requesterEmail: string, conversationID: string): string {
-		const held = this.ticketByConversation.get(conversationID);
-		if (held) {
-			this.emailByTicket.set(held, requesterEmail);
-			return held;
-		}
-		const ticket = randomUUID();
-		this.ticketByConversation.set(conversationID, ticket);
-		this.emailByTicket.set(ticket, requesterEmail);
-		return ticket;
 	}
 
 	private async sessionFor(requesterEmail: string): Promise<MemberSession> {
@@ -106,4 +95,28 @@ export class RecordCatalogs {
 export function ticketOf(pathname: string): string {
 	if (!pathname.startsWith(recordCatalogPath)) return '';
 	return pathname.slice(recordCatalogPath.length);
+}
+
+async function answeredOrRefused(call: string, answered: Response): Promise<Response> {
+	const contentType = answered.headers.get('content-type') ?? 'application/json';
+	if (answered.ok) return new Response(answered.body, { status: answered.status, headers: { 'Content-Type': contentType } });
+	const said = (await answered.text()).trim();
+	return refusedCall(call, `the company app answered ${answered.status}${said ? `: ${said}` : ''}`);
+}
+
+// JSON-RPC 2.0 §5.1: an error for a request is a response object carrying the
+// request's id.
+const failedCallCode = -32603;
+
+function refusedCall(call: string, reason: string): Response {
+	return Response.json({ jsonrpc: '2.0', id: requestIDIn(call), error: { code: failedCallCode, message: reason } });
+}
+
+function requestIDIn(call: string): string | number | null {
+	try {
+		const id: unknown = JSON.parse(call)?.id;
+		return typeof id === 'string' || typeof id === 'number' ? id : null;
+	} catch {
+		return null;
+	}
 }

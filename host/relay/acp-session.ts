@@ -12,6 +12,7 @@ import {
 	type SessionNotification,
 	type StopReason
 } from '@agentclientprotocol/sdk';
+import { randomUUID } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import type { KeptAttachment, WorkspaceFile } from './file-transfer';
 import type { SessionBindingStore } from './session-binding-store';
@@ -84,7 +85,7 @@ export type EditInConversation = (addressing: Addressing, messageID: string, mes
 export type ACPSessionSettings = {
 	socketPath: string;
 	workspaceRootPath: string;
-	catalogFor: (requesterEmail: string, conversationID: string) => McpServerEntry[];
+	catalogFor: (requesterEmail: string, catalogTicket: string) => McpServerEntry[];
 	postToConversation: PostToConversation;
 	postFileToConversation: PostFileToConversation;
 	editInConversation: EditInConversation;
@@ -99,6 +100,7 @@ export type SessionBinding = {
 	sessionID: string;
 	requester: Requester;
 	addressing: Addressing;
+	catalogTicket: string;
 };
 
 type PendingApproval = {
@@ -144,8 +146,13 @@ export class BlueclawACPClient {
 	async restoreSessionBindings(): Promise<void> {
 		for (const binding of await this.settings.sessions.list()) {
 			this.bindingByConversation.set(binding.addressing.conversationID, binding);
+			this.catalogOf(binding);
 		}
 		void this.agent().catch(() => this.reconnectUntilItComesBack());
+	}
+
+	private catalogOf(binding: SessionBinding): McpServerEntry[] {
+		return this.settings.catalogFor(binding.requester.email, binding.catalogTicket);
 	}
 
 	async ask(
@@ -225,10 +232,7 @@ export class BlueclawACPClient {
 				.loadSession({
 					sessionId: binding.sessionID,
 					cwd: this.settings.workspaceRootPath,
-					mcpServers: this.settings.catalogFor(
-						binding.requester.email,
-						binding.addressing.conversationID
-					),
+					mcpServers: this.catalogOf(binding),
 					_meta: { [sessionMetaKey]: { requester: binding.requester, addressing: binding.addressing } }
 				})
 				.catch((failure) => {
@@ -245,12 +249,13 @@ export class BlueclawACPClient {
 	): Promise<string> {
 		const binding = this.bindingByConversation.get(addressing.conversationID);
 		if (binding) return binding.sessionID;
+		const catalogTicket = randomUUID();
 		const opened = await agent.newSession({
 			cwd: this.settings.workspaceRootPath,
-			mcpServers: this.settings.catalogFor(requester.email, addressing.conversationID),
+			mcpServers: this.settings.catalogFor(requester.email, catalogTicket),
 			_meta: { [sessionMetaKey]: { requester, addressing } }
 		});
-		const sessionBinding: SessionBinding = { sessionID: opened.sessionId, requester, addressing };
+		const sessionBinding: SessionBinding = { sessionID: opened.sessionId, requester, addressing, catalogTicket };
 		this.bindingByConversation.set(addressing.conversationID, sessionBinding);
 		await this.settings.sessions.save(sessionBinding);
 		return opened.sessionId;
