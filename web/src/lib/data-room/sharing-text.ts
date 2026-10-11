@@ -21,6 +21,9 @@ export const dataRoomSharingText = {
 		noLinks: '공유 링크가 없습니다.',
 		noCircles: '공유할 수 있는 서클이 없습니다. 관리자에게 서클을 요청하세요.',
 		live: '선택한 서클이 읽는 현재 자료와 이후 추가되는 자료를 공유합니다.',
+		preview: '미리보기',
+		previewing: '받는 사람이 보는 화면',
+		previewViewer: '미리보기',
 		enterCode: '데이터룸 열기',
 		unlockDescription:
 			'공유받은 6자리 코드를 입력하고 기밀유지 안내에 동의하세요. 계정은 필요하지 않습니다.',
@@ -55,6 +58,9 @@ export const dataRoomSharingText = {
 		noLinks: 'No share links yet.',
 		noCircles: 'No circle you can share. Ask an administrator to add you to one.',
 		live: 'Shares current documents and future additions in the selected circle.',
+		preview: 'Preview',
+		previewing: 'What a recipient sees',
+		previewViewer: 'Preview',
 		enterCode: 'Open dataroom',
 		unlockDescription:
 			'Enter the shared six digit code and acknowledge the confidentiality notice. No account is required.',
