@@ -19,11 +19,13 @@ describe('previewKindOf', () => {
 		expect(previewKindOf('config.json')).toBe('code');
 		expect(previewKindOf('server.go')).toBe('code');
 		expect(previewKindOf('ir-deck.pptx')).toBe('presentation');
+		expect(previewKindOf('contract.docx')).toBe('word');
 		expect(previewKindOf('report.HTM')).toBe('html');
 	});
 
 	test('names no preview for a format it cannot draw', () => {
-		expect(previewKindOf('contract.docx')).toBe('none');
+		expect(previewKindOf('contract.doc')).toBe('none');
+		expect(previewKindOf('contract.hwp')).toBe('none');
 		expect(previewKindOf('legacy-deck.ppt')).toBe('none');
 		expect(previewKindOf('README')).toBe('none');
 		expect(previewKindOf('.gitignore')).toBe('none');

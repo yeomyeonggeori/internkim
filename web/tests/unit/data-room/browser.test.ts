@@ -24,11 +24,6 @@ describe('data room folder browser', () => {
 		expect(entries.map((entry) => entry.id)).toContain('FS');
 		expect(entries.every((entry) => entry.isDirectory)).toBe(true);
 	});
-	test('a leaf lists its actual stored file name', () => {
-		const entries = dataRoomFolderEntries([document], dataRoomTemplate.categories, 'FS', 'en');
-		expect(entries.map((entry) => entry.name)).toEqual(['statement.63000000-0000-0000-0000-000000000020.pdf']);
-		expect(entries[0].isDirectory).toBeUndefined();
-	});
 	test('a document row shows its size and when it was created and changed, and a folder shows none', () => {
 		const leaf = dataRoomFolderEntries([document], dataRoomTemplate.categories, 'FS', 'en');
 		expect(leaf[0].cells[0]).toBe('1.5 KB');
@@ -43,5 +38,12 @@ describe('data room folder browser', () => {
 		const financeEntries = dataRoomFolderEntries([document], dataRoomTemplate.categories, 'F', 'en');
 		expect(financeEntries.find((entry) => entry.id === 'FS')?.entryCount).toBe(1);
 		expect(financeEntries.find((entry) => entry.id === 'FT')?.entryCount).toBe(0);
+	});
+
+	test('a filed document is listed by its title, and keeps the extension its original has', () => {
+		const [entry] = dataRoomFolderEntries([document], dataRoomTemplate.categories, 'FS', 'en');
+		expect(entry.name).toBe('Sample statement');
+		expect(entry.fileName).toBe('Sample statement.pdf');
+		expect(entry.isDirectory).toBeUndefined();
 	});
 });

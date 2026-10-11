@@ -12,6 +12,7 @@
 	import PdfPreview from './pdf-preview.svelte';
 	import SpreadsheetPreview from './spreadsheet-preview.svelte';
 	import PresentationPreview from './presentation-preview.svelte';
+	import WordPreview from './word-preview.svelte';
 	import HtmlPreview from './html-preview.svelte';
 
 	let {
@@ -78,6 +79,8 @@
 	<SpreadsheetPreview {bytes} fileName={fileName} onFailure={showFailure} />
 {:else if kind === 'presentation'}
 	<PresentationPreview {bytes} onFailure={showFailure} />
+{:else if kind === 'word'}
+	<WordPreview {bytes} onFailure={showFailure} />
 {:else if kind === 'html'}
 	<HtmlPreview {bytes} />
 {:else if kind === 'image'}

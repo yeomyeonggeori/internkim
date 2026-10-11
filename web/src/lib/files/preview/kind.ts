@@ -5,6 +5,7 @@ export type PreviewKind =
 	| 'image'
 	| 'spreadsheet'
 	| 'presentation'
+	| 'word'
 	| 'html'
 	| 'markdown'
 	| 'code'
@@ -28,6 +29,7 @@ const kindsByExtension: Record<string, PreviewKind> = {
 	csv: 'spreadsheet',
 	tsv: 'spreadsheet',
 	pptx: 'presentation',
+	docx: 'word',
 	html: 'html',
 	htm: 'html',
 	md: 'markdown',

@@ -1,5 +1,6 @@
 import type { z } from 'zod';
 import { categoryName, type DataRoomCategory } from './model';
+import { originalExtensionOf } from './storage-path';
 import type { companyDocumentResultSchema } from './schemas';
 import type { FileBrowserEntry } from '$lib/components/file-browser-list.svelte';
 import { formatFileSize, formatModified } from '$lib/files/view';
@@ -34,7 +35,9 @@ export function documentCategoryLabel(
 }
 
 export function documentFileName(document: DataRoomDocument): string {
-	return document.storagePath?.split('/').pop() || document.filePath?.split('/').pop() || document.title;
+	const extension = originalExtensionOf(document.storagePath);
+	if (extension) return `${document.title}.${extension}`;
+	return document.filePath?.split('/').pop() || document.title;
 }
 
 export function dataRoomFolderEntries(
@@ -56,7 +59,7 @@ export function dataRoomFolderEntries(
 		.filter((document) => document.categoryCode === code)
 		.map((document) => ({
 			id: document.documentID,
-			name: documentFileName(document),
+			name: document.title,
 			fileName: documentFileName(document),
 			cells: [
 				document.sizeBytes === null ? '' : formatFileSize(document.sizeBytes),
