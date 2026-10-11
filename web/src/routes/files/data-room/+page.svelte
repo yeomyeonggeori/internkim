@@ -23,6 +23,7 @@
 	import { previewSourceOf, type ViewerDocument } from '$lib/data-room/viewer';
 	import { formatFileSize, formatModified } from '$lib/files/view';
 	import ShareLinks from './share-links.svelte';
+	import SharePreview from './share-preview.svelte';
 
 	const text = createPageText(dataRoomText);
 	let room = $state<z.infer<typeof dataRoomGetResultSchema> | null>(null);
@@ -151,10 +152,12 @@
 						>{/each}</Breadcrumb.List
 				></Breadcrumb.Root
 			>
-			<TooltipIconButton label={text.refresh} variant="ghost" size="icon-sm" onclick={load}
-				><RefreshCwIcon /></TooltipIconButton
-			>
-			{#if room}<ShareLinks />{/if}
+			<div class="flex items-center gap-2">
+				<TooltipIconButton label={text.refresh} variant="ghost" size="icon-sm" onclick={load}
+					><RefreshCwIcon /></TooltipIconButton
+				>
+				{#if room}<SharePreview /><ShareLinks />{/if}
+			</div>
 		</div>
 		{#if errorMessage}<div role="alert" class="mb-4 flex items-center justify-between gap-3">
 				<p class="text-destructive text-sm">{errorMessage}</p>

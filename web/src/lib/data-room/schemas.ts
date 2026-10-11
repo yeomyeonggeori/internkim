@@ -12,8 +12,11 @@ export const sharedDataRoomSchema = z.object({
 	viewer: z.string().nullable()
 });
 
-export const sharedDataRoomLinkSchema = sharedDataRoomSchema.extend({
-	canDownload: z.boolean(),
+export const previewedDataRoomSchema = sharedDataRoomSchema.extend({
+	canDownload: z.boolean()
+});
+
+export const sharedDataRoomLinkSchema = previewedDataRoomSchema.extend({
 	expiresAt: z.string()
 });
 

@@ -864,6 +864,22 @@ function createPaths(copy: ApiCopy) {
 					'401': errorResponse(copy.errors.unauthorized), '404': { description: 'Document unavailable' } }
 			}
 		},
+		'/data-room/preview/{circleID}': {
+			get: {
+				operationId: 'previewDataRoomCircle', summary: 'Read what a share link for a circle would show, before creating one',
+				description: 'Answers a member who could share the circle with exactly the categories and documents its link would show. canDownload=1 previews a link that allows original downloads, when the member could create one. Signed URLs expire after one minute.',
+				security: [{ memberToken: [] }],
+				parameters: [
+					{ name: 'circleID', in: 'path', required: true, schema: { type: 'string' } },
+					{ name: 'canDownload', in: 'query', schema: { type: 'string', enum: ['1'] } },
+					{ name: 'documentID', in: 'query', schema: { type: 'string', format: 'uuid' } },
+					{ name: 'fileName', in: 'query', schema: { type: 'string' }, description: 'A derived file such as content.txt; omit to request the original.' }
+				],
+				responses: { '200': { description: 'The categories and documents the link would show, or downloadURL' },
+					'401': errorResponse(copy.errors.unauthorized), '403': { description: 'The circle reads more than this member may share' },
+					'404': { description: 'Document unavailable' } }
+			}
+		},
 		'/data-room/invitations/{shareID}': {
 			post: {
 				operationId: 'acceptDataRoomInvitation', summary: 'Accept an invitation as its verified email recipient',

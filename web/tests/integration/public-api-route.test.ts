@@ -30,6 +30,7 @@ const { POST: removeMember } = await import('../../src/routes/api/member/remove/
 const { POST: invitePerson } = await import('../../src/routes/api/member/invite/+server');
 const { GET: readDataRoom } = await import('../../src/routes/api/v1/data-room/[companyID]/+server');
 const { GET: readDataRoomLink, POST: unlockDataRoomLink } = await import('../../src/routes/api/v1/data-room/links/[linkID]/+server');
+const { GET: previewDataRoomCircle } = await import('../../src/routes/api/v1/data-room/preview/[circleID]/+server');
 const { POST: acceptDataRoom } = await import('../../src/routes/api/v1/data-room/invitations/[shareID]/+server');
 const { POST: sendDataRoomInvitation } = await import('../../src/routes/api/v1/data-room/invitations/[shareID]/send/+server');
 
@@ -120,6 +121,12 @@ function asking(path: string, token: string | null, options: RequestInit = {}): 
 }
 
 type RouteAnswer = { status: number; body: unknown };
+
+function previewAs(token: string, circleID: string, query = ''): Promise<RouteAnswer> {
+	const request = asking(`/data-room/preview/${circleID}${query}`, token);
+	return answerOf(() => Promise.resolve(previewDataRoomCircle({ request, url: new URL(request.url),
+		params: { circleID }, platform: undefined } as Parameters<typeof previewDataRoomCircle>[0])));
+}
 
 async function answerOf(handler: () => Promise<Response>): Promise<RouteAnswer> {
 	try {
@@ -916,6 +923,7 @@ function reachDocumented(operation: Operation, revocableName: string): Promise<R
 		return answerOf(() => Promise.resolve(readDataRoom({ request, url: new URL(request.url),
 			params: { companyID }, platform: undefined } as Parameters<typeof readDataRoom>[0])));
 	}
+	if (operation.path === '/data-room/preview/{circleID}') return previewAs(administratorSession, 'investor');
 	if (operation.path === '/data-room/invitations/{shareID}') {
 		const shareID = crypto.randomUUID();
 		const request = asking(`/data-room/invitations/${shareID}`, sessionToken, { method: 'POST' });
@@ -1151,5 +1159,38 @@ describe('a refused picture write', () => {
 
 		await client.from('company').update({ profile_image: null }).eq('id', companyID);
 		await client.storage.from('asset').remove([company!.profile_image]);
+	});
+});
+
+describe('a share link preview', () => {
+	test('shows a member exactly the documents the link for that circle shows', async () => {
+		const shown = await asMember({ projectURL, publishableKey }, administratorSession).rpc('data_room_circle_categories', { target_company: companyID, target_circle: 'investor' });
+		const inside = z.array(z.string()).parse(shown.data);
+		const { data: categories } = await client.from('data_room_category').select('code').eq('company_id', companyID);
+		const outside = (categories ?? []).map((category) => category.code).find((code) => !inside.includes(code) && code !== 'X');
+		const children = new Set((categories ?? []).map((category) => category.code));
+		const filing = inside.find((code) => code.length > 1 && children.has(code));
+		if (!filing || !outside) throw new Error('the template has no investor category and no category outside it');
+		await client.from('company_document').insert([
+			{ company_id: companyID, document_type: 'report', title: 'Preview inside', category_code: filing },
+			{ company_id: companyID, document_type: 'report', title: 'Preview outside', category_code: outside.length > 1 ? outside : filing }
+		]);
+
+		const preview = await previewAs(administratorSession, 'investor');
+		const linkRequest = asking(`/data-room/links/${dataRoomLinkID}`, null);
+		const link = await answerOf(() => Promise.resolve(readDataRoomLink({ request: linkRequest, url: new URL(linkRequest.url),
+			params: { linkID: dataRoomLinkID }, platform: undefined, cookies: { get: () => dataRoomLinkCookie, set: () => {} },
+			getClientAddress: () => '127.0.0.1' })));
+		const titles = (answer: RouteAnswer) => z.object({ documents: z.array(z.object({ title: z.string() })) })
+			.parse(answer.body).documents.map((document) => document.title).sort();
+
+		expect(preview.status).toBe(200);
+		expect(titles(preview)).toContain('Preview inside');
+		expect(titles(preview)).toEqual(titles(link));
+	});
+
+	test('refuses a circle that reads more than the member may share', async () => {
+		const preview = await previewAs(sessionToken, 'leadership');
+		expect(preview.status).toBe(403);
 	});
 });

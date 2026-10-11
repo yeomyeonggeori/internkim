@@ -19,6 +19,7 @@
 	import { currentLocale } from '$lib/i18n/locale.svelte';
 	import { dataRoomSharingText } from '$lib/data-room/sharing-text';
 	import { dataRoomText } from '$lib/data-room/text';
+	import { shareableCircleItems } from './circle-items';
 	const text = createPageText(dataRoomSharingText);
 	const browserText = createPageText(dataRoomText);
 	const fieldID = $props.id();
@@ -35,14 +36,7 @@
 	let createdLink = $state<z.infer<typeof dataRoomLinkCreatedSchema> | null>(null);
 	let errorMessage = $state('');
 	let isCopied = $state(false);
-	const circleItems = $derived(
-		circles
-			.filter((circle) => shareableCircleIDs.includes(circle.id))
-			.map((circle) => ({
-				value: circle.id,
-				label: currentLocale.value === 'ko' ? circle.nameKO || circle.name : circle.name
-			}))
-	);
+	const circleItems = $derived(shareableCircleItems(circles, shareableCircleIDs, currentLocale.value));
 	const lifetimeItems = $derived(
 		dataRoomLinkLifetimeHours.map((hours) => ({
 			value: String(hours),
