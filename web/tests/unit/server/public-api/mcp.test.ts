@@ -4,6 +4,7 @@ import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/
 import { annotationsOf, answerMCP, descriptorMetaKey, toolsOfferedTo } from '$lib/server/public-api/mcp';
 import { isSeenByAModel, toolsAModelReachesWith, toolsReachableBy } from '$lib/server/public-api/catalog';
 import type { CallingMember } from '$lib/server/member-request';
+import type { Environment } from '$lib/server/agent-request';
 import type { PublicAPIPermission } from '$lib/public-api-permission';
 
 function aMemberWhoMay(permission: PublicAPIPermission): CallingMember {
@@ -12,12 +13,12 @@ function aMemberWhoMay(permission: PublicAPIPermission): CallingMember {
 
 const address = new URL('https://space.example.test/api/v1/mcp');
 
-async function anMCPClient(permission: PublicAPIPermission): Promise<Client> {
+async function anMCPClient(permission: PublicAPIPermission, environment: Environment = {}): Promise<Client> {
 	const connected = new Client({ name: 'unit', version: '1' });
 	await connected.connect(
 		new StreamableHTTPClientTransport(address, {
 			fetch: (url, options) =>
-				answerMCP(new Request(url instanceof Request ? url : String(url), options), {}, aMemberWhoMay(permission))
+				answerMCP(new Request(url instanceof Request ? url : String(url), options), environment, aMemberWhoMay(permission))
 		})
 	);
 	return connected;
@@ -123,6 +124,20 @@ describe('the MCP server on a fetch handler', () => {
 		try {
 			const answered = await connected.callTool({ name: aToolOnlyTheAPIReaches(), arguments: {} });
 			expect(answered.isError).toBe(true);
+		} finally {
+			await connected.close();
+		}
+	});
+
+	test('answers a call that broke with what broke, which a protocol error would hide from the model', async () => {
+		const unreachableGateway = { GATEWAY_URL: 'http://127.0.0.1:1', GATEWAY_ADMIN_TOKEN: 'unit' };
+		const connected = await anMCPClient('delete', unreachableGateway);
+		try {
+			const answered = await connected.callTool({ name: 'host_version_get', arguments: {} });
+			expect(answered.isError).toBe(true);
+			expect(answered.structuredContent).toEqual({
+				error: expect.stringMatching(/^host_version_get failed: \S/)
+			});
 		} finally {
 			await connected.close();
 		}
