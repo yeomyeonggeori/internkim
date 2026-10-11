@@ -461,6 +461,10 @@ and delete the duplicates.
   `authenticated` and `service_role` get no privileges by default on a fresh or
   self-hosted database — see `20260803000016_api_grants.sql`. RLS is the
   boundary; grants are what let the API reach the table at all.
+- A migration that drops a reference it cannot carry, like a storage object,
+  ships a `web/scripts/` mover with `--dry-run`, and its pull request counts the
+  production rows touched. #2274 assumed test data and unlinked sixteen
+  real originals.
 - Row level security is the access boundary. Read on someone's behalf with
   their own token (`asMember`); the service key is only for what security
   cannot reach, and it never leaves a server route.
