@@ -48,7 +48,7 @@ describe('previewSourceOf', () => {
 
 	test('reads the extracted text for a format it cannot draw', async () => {
 		const signer = signerAnswering({ 'content.txt': 'https://files/text' });
-		expect(await previewSourceOf('contract.docx', signer, true)).toMatchObject({ isTextPreview: true });
+		expect(await previewSourceOf('contract.hwp', signer, true)).toMatchObject({ isTextPreview: true });
 		expect(signer.asked).toEqual(['content.txt']);
 	});
 
