@@ -186,10 +186,12 @@ describe('the company master profile', () => {
 			bankAccount: '예시은행 123-456-789 주식회사 예시',
 			phone: '02-000-0000',
 			email: 'hello@example.com',
+			capital: { amount: 500000000, currency: 'KRW' },
 			legalAttributes: '{"사업자등록번호": "123-45-67890"}'
 		});
 
 		expect(written.status).toBe(200);
+		expect(resultOf(written).capital).toEqual({ amount: 500000000, currency: 'KRW' });
 		expect(resultOf(written).missingFields).toEqual([]);
 		expect(resultOf(written).legalAttributes).toEqual([
 			{ label: '사업자등록번호', value: '123-45-67890' }

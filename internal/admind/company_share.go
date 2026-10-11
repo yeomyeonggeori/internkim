@@ -449,8 +449,8 @@ func buildCompanyShareProfiles(profilesByLanguage map[string]centralplane.Compan
 		if included["representativeTitle"] {
 			profile.RepresentativeTitle = strings.TrimSpace(info.RepresentativeTitle)
 		}
-		if included["capital"] {
-			profile.Capital = strings.TrimSpace(info.Capital)
+		if included["capital"] && info.Capital != nil {
+			profile.Capital = info.Capital.String()
 		}
 		if included["fiscalYearEnd"] {
 			profile.FiscalYearEnd = strings.TrimSpace(info.FiscalYearEnd)

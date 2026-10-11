@@ -638,5 +638,20 @@
 		"path": "company_document_update.result.sizeBytes",
 		"reason": "sizeBytes is the original's size as storage recorded it, null without an original or where the caller may not read it.",
 		"release": "the release carrying this catalog reaches company hosts by ship-host before the web/API deploy, after the migration that adds updated_at, created_at and size_bytes; a host still on the older catalog refuses document answers until it takes the catalog"
+	},
+	{
+		"path": "dataroom_get.result.categories[].fields",
+		"reason": "A data room category now names the company page fields its readers see, so an agent can read and change who sees each field. A host holding the older closed contract refuses the added array until it takes the release that ships it.",
+		"release": "the company page visibility release carries the updated catalog and data room skill to company hosts before the web/API deployment"
+	},
+	{
+		"path": "company_info_get.result.capital",
+		"reason": "Paid-in capital is an amount in a currency, {amount, currency}, instead of prose such as '500,000,000 KRW', so it can be compared, converted and shown in the reader's locale. A migration converts every stored value and refuses prose it cannot read.",
+		"release": "the capital-as-money release carries the updated catalog to company hosts before the web/API deployment"
+	},
+	{
+		"path": "company_info_set.result.capital",
+		"reason": "Paid-in capital is an amount in a currency, {amount, currency}, instead of prose such as '500,000,000 KRW', so it can be compared, converted and shown in the reader's locale. A migration converts every stored value and refuses prose it cannot read.",
+		"release": "the capital-as-money release carries the updated catalog to company hosts before the web/API deployment"
 	}
 ]

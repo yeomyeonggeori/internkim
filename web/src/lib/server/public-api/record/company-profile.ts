@@ -1,4 +1,5 @@
 import type { CompanyProfileLegalAttribute, CompanyProfileResult } from '../catalog/company';
+import type { Money } from '$lib/money';
 
 export type LocalizedText = Record<string, string>;
 
@@ -15,7 +16,7 @@ export type CompanyProfileDocument = {
 	bankAccount?: LocalizedText;
 	legalAttributes?: Record<string, LocalizedText>;
 	foundedDate?: string;
-	capital?: string;
+	capital?: Money;
 	fiscalYearEnd?: string;
 	employeeCount?: number;
 	phone?: string;
@@ -39,7 +40,7 @@ export type CompanyProfileUpdate = {
 	bankAccount?: string;
 	legalAttributes?: string;
 	foundedDate?: string;
-	capital?: string;
+	capital?: Money;
 	fiscalYearEnd?: string;
 	employeeCount?: number;
 	phone?: string;
@@ -61,7 +62,7 @@ const localizedFields = [
 	'bankAccount'
 ] as const;
 
-const plainFields = ['foundedDate', 'capital', 'fiscalYearEnd', 'phone', 'fax', 'email', 'website'] as const;
+const plainFields = ['foundedDate', 'fiscalYearEnd', 'phone', 'fax', 'email', 'website'] as const;
 
 const coreLocalizedFields = ['name', 'representative', 'address', 'bankAccount'] as const;
 
@@ -107,7 +108,7 @@ export function companyProfileView(
 		bankAccount: resolvedCore('bankAccount'),
 		legalAttributes: legalAttributesIn(profile.legalAttributes, language),
 		foundedDate: profile.foundedDate ?? '',
-		capital: profile.capital ?? '',
+		capital: profile.capital ?? null,
 		fiscalYearEnd: profile.fiscalYearEnd ?? '',
 		employeeCount: profile.employeeCount ?? 0,
 		phone: profile.phone ?? '',
@@ -149,6 +150,7 @@ export function profileWithUpdate(
 		const offered = update[field]?.trim();
 		if (offered) written[field] = offered;
 	}
+	if (update.capital) written.capital = update.capital;
 	if (update.employeeCount !== undefined && update.employeeCount > 0) {
 		written.employeeCount = update.employeeCount;
 	}

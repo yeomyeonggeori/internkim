@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, describe, expect, mock, test } from 'bun:test';
+import { z } from 'zod';
 import { addMember, asMember, controlPlane, provisionCompany, sessionForMember } from '../../src/lib/server/control-plane';
 import { projectURL, publishableKey, serviceRoleKey, signingKey } from './supabase-environment';
 import { heldToTheContract } from './tool-answers';
@@ -348,6 +349,18 @@ describe('the category data room', () => {
 		const left = await asAdmin('circle_member_update', { memberID: sampleID, circleIDs: ['member'] });
 		expect(left.status).toBe(200);
 		expect(resultOf(await asSample('company_document_list', { categoryCode: 'F' })).count).toBe(0);
+	});
+
+	test('lets an administrator, and nobody else, choose who sees a company field', async () => {
+		const refused = await asSample('dataroom_field_update', { field: 'capital', categoryCode: 'GP' });
+		expect(refused.status).toBeGreaterThanOrEqual(400);
+		const moved = await asAdmin('dataroom_field_update', { field: 'capital', categoryCode: 'GP' });
+		expect(moved.status).toBe(200);
+		const categories = z.array(z.object({ code: z.string(), fields: z.array(z.string()) }))
+			.parse(resultOf(await asAdmin('dataroom_get')).categories);
+		expect(categories.filter((category) => category.fields.includes('capital')).map((category) => category.code)).toEqual(['GP']);
+		const restored = await asAdmin('dataroom_field_update', { field: 'capital', categoryCode: 'CO' });
+		expect(restored.status).toBe(200);
 	});
 
 	test('lends what a circle reads to someone outside the company, and takes it back', async () => {

@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { dataRoomGetResultSchema, dataRoomCategorySetInputSchema,
+import { dataRoomGetResultSchema, dataRoomCategorySetInputSchema, dataRoomFieldSetInputSchema,
 	dataRoomShareCreateInputSchema, dataRoomShareRevokeInputSchema } from '../catalog/data-room';
 import type { RecordContext } from './company';
 import { RecordRefusedTheWrite, statusOfPostgresCode } from './tasks';
@@ -8,7 +8,8 @@ import { dataRoomLinkInputSchema, dataRoomLinkRevokeSchema, dataRoomLinksSchema,
 
 const categoryRowSchema = z.object({
 	code: z.string(), parent: z.string().nullable(), slug: z.string(),
-	name: z.string(), name_ko: z.string(), description: z.string(), choice_group: z.number().nullable()
+	name: z.string(), name_ko: z.string(), description: z.string(), fields: z.array(z.string()),
+	choice_group: z.number().nullable()
 });
 const shareRowSchema = z.object({
 	id: z.string(), circle_id: z.string(), audience: z.enum(['email', 'public']),
@@ -40,7 +41,8 @@ export async function companyDataRoomGet(context: RecordContext) {
 		categories: categories.map((value) => {
 			const row = categoryRowSchema.parse(value);
 			return { code: row.code, parent: row.parent, slug: row.slug,
-				name: row.name, nameKO: row.name_ko, description: row.description, choiceGroup: row.choice_group };
+				name: row.name, nameKO: row.name_ko, description: row.description, fields: row.fields,
+				choiceGroup: row.choice_group };
 		}),
 		shares: shares.map(answeredShare), canManage
 	});
@@ -62,6 +64,14 @@ export async function companyDataRoomCategorySet(context: RecordContext, value: 
 		...(category.choiceGroup === undefined ? {} : { choice_group: category.choiceGroup })
 	});
 	if (error) throw new RecordRefusedTheWrite(error.message, statusOfPostgresCode(error.code));
+	return { saved: true };
+}
+
+export async function companyDataRoomFieldSet(context: RecordContext, value: unknown) {
+	const input = dataRoomFieldSetInputSchema.parse(value);
+	await dataRoomCall(context.caller, 'data_room_field_set', {
+		target_company: context.companyID, target_field: input.field, target_category: input.categoryCode ?? null
+	});
 	return { saved: true };
 }
 

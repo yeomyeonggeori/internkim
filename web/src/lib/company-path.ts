@@ -5,7 +5,6 @@ export const reservedFirstSegments = [
 	'attendance',
 	'auth',
 	'calendar',
-	'company',
 	'crm',
 	'data-room',
 	'files',

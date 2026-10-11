@@ -4,6 +4,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { environmentOf } from '$lib/server/agent-request';
 import { callingMember } from '$lib/server/member-request';
 import { downloadedAt, guestDownloadResponse } from '$lib/server/data-room-download';
+import { companyShownToCircle } from '$lib/server/data-room-company';
 import { previewedDataRoomSchema, sharedDocumentColumns } from '$lib/data-room/schemas';
 import { derivedPath, isDerivedFileName, withOriginalExtension } from '$lib/data-room/storage-path';
 import type { RequestHandler } from './$types';
@@ -19,17 +20,19 @@ export const GET: RequestHandler = async ({ request, platform, params, url }) =>
 	const canDownload = url.searchParams.get('canDownload') === '1' && (await circleMayDownload(member.caller, member.companyID, params.circleID));
 	const documentID = url.searchParams.get('documentID');
 	if (documentID) return previewedFile(member.caller, { companyID: member.companyID, documentID, codes, canDownload, email: member.email, url });
-	const [categories, documents] = await Promise.all([
+	const [categories, documents, company] = await Promise.all([
 		member.caller.from('data_room_category').select('code,parent,name,name_ko,description,slug')
 			.eq('company_id', member.companyID).order('position'),
 		member.caller.from('company_document').select(sharedDocumentColumns)
-			.eq('company_id', member.companyID).in('category_code', codes).order('created_at', { ascending: false })
+			.eq('company_id', member.companyID).in('category_code', codes).order('created_at', { ascending: false }),
+		companyShownToCircle(member.caller, member.companyID, params.circleID)
 	]);
 	if (categories.error || documents.error) error(502, 'the data room could not be read');
 	return json(
 		previewedDataRoomSchema.parse({
 			categories: categories.data,
 			documents: documents.data.map(withOriginalExtension),
+			company,
 			canDownload,
 			viewer: null
 		}),

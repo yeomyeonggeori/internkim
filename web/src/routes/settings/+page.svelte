@@ -14,6 +14,7 @@
 	import AgentIdentitySection from '../admin/agent-identity-section.svelte';
 	import CompanyMembers from './company-members.svelte';
 	import Circles from './circles.svelte';
+	import CompanyFields from './company-fields.svelte';
 	import AttendanceWorkSettingsSection from '../admin/attendance-work-settings-section.svelte';
 	import AttendanceLeavePolicySettings from '../admin/attendance-leave-policy-settings.svelte';
 	import LearnedSkillsSection from '../admin/learned-skills-section.svelte';
@@ -108,7 +109,7 @@
 		<p class="text-sm text-muted-foreground">{text.membersDescription}</p>
 	</header>
 	<CompanyMembers />
-	{#if isSupabaseConfigured()}<Circles />{/if}
+	{#if isSupabaseConfigured()}<Circles /><CompanyFields />{/if}
 	<AttendanceWorkSettingsSection adminBaseURL="" text={attendanceSettingsText} />
 	<AttendanceLeavePolicySettings adminBaseURL="" text={attendanceSettingsText} />
 	<header class="grid gap-1 pt-2">
