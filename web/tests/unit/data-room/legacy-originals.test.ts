@@ -22,6 +22,7 @@ describe('the extension of a legacy original', () => {
 		expect(extensionOfBytes(encoded('\n<!DOCTYPE html><html></html>'))).toBe('html');
 		expect(extensionOfBytes(encoded('<svg xmlns="http://www.w3.org/2000/svg"/>'))).toBe('svg');
 		expect(extensionOfBytes(encoded('# 서비스 개요\n'))).toBe('md');
+		expect(extensionOfBytes(encoded('---\ntitle: 서비스 개요\n---\n\n본문'))).toBe('md');
 		expect(extensionOfBytes(encoded('plain notes'))).toBe('txt');
 	});
 });

@@ -64,7 +64,7 @@ export function extensionOfBytes(bytes: Uint8Array): string {
 	const opening = new TextDecoder().decode(bytes.subarray(0, 512)).trimStart().toLowerCase();
 	if (opening.startsWith('<!doctype html') || opening.startsWith('<html')) return 'html';
 	if (opening.startsWith('<svg')) return 'svg';
-	return opening.startsWith('#') ? 'md' : 'txt';
+	return opening.startsWith('#') || opening.startsWith('---\n') ? 'md' : 'txt';
 }
 
 function startsWith(bytes: Uint8Array, signature: number[]): boolean {
