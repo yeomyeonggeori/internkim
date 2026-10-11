@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { mkdir, readFile } from 'node:fs/promises';
 import { dirname } from 'node:path';
 import type { SessionBinding } from './acp-session';
@@ -17,6 +18,23 @@ export class SessionBindingStore {
 	}
 
 	async list(): Promise<SessionBinding[]> {
+		const written = await this.readFromDisk();
+		const bindings = written.map(withCatalogTicket);
+		if (!written.every(hasCatalogTicket)) await this.replaceAll(bindings);
+		return bindings;
+	}
+
+	save(binding: SessionBinding): Promise<void> {
+		this.writing = this.writing.then(() => this.saveToDisk(binding));
+		return this.writing;
+	}
+
+	private replaceAll(bindings: SessionBinding[]): Promise<void> {
+		this.writing = this.writing.then(() => this.writeToDisk(bindings));
+		return this.writing;
+	}
+
+	private async readFromDisk(): Promise<WrittenBinding[]> {
 		const written = await readFile(this.settings.filePath, 'utf8').catch(nothingWhenMissing);
 		if (written === null) return [];
 		const offered = nothingWhenUnparsable(written);
@@ -25,22 +43,33 @@ export class SessionBindingStore {
 		return [];
 	}
 
-	save(binding: SessionBinding): Promise<void> {
-		this.writing = this.writing.then(() => this.saveToDisk(binding));
-		return this.writing;
+	private async saveToDisk(binding: SessionBinding): Promise<void> {
+		const known = (await this.readFromDisk())
+			.filter((other) => other.addressing.conversationID !== binding.addressing.conversationID)
+			.map(withCatalogTicket);
+		await this.writeToDisk([...known, binding]);
 	}
 
-	private async saveToDisk(binding: SessionBinding): Promise<void> {
-		const known = (await this.list()).filter((other) => other.addressing.conversationID !== binding.addressing.conversationID);
+	private async writeToDisk(bindings: SessionBinding[]): Promise<void> {
 		await mkdir(dirname(this.settings.filePath), { recursive: true });
-		await writeDurably(this.settings.filePath, JSON.stringify([...known, binding]));
+		await writeDurably(this.settings.filePath, JSON.stringify(bindings));
 	}
+}
+
+type WrittenBinding = Omit<SessionBinding, 'catalogTicket'> & { catalogTicket?: string };
+
+function hasCatalogTicket(binding: WrittenBinding): boolean {
+	return binding.catalogTicket !== undefined;
+}
+
+function withCatalogTicket(binding: WrittenBinding): SessionBinding {
+	return { ...binding, catalogTicket: binding.catalogTicket ?? randomUUID() };
 }
 
 const requesterTexts = ['name', 'callingName', 'handle'];
 const addressingTexts = ['conversationType', 'replyTargetID', 'responseLanguage'];
 
-function isSessionBinding(offered: unknown): offered is SessionBinding {
+function isSessionBinding(offered: unknown): offered is WrittenBinding {
 	if (!isRecord(offered) || !isRecord(offered.requester) || !isRecord(offered.addressing)) return false;
 	const { requester, addressing } = offered;
 	return (
@@ -48,6 +77,7 @@ function isSessionBinding(offered: unknown): offered is SessionBinding {
 		isFilled(requester.email) &&
 		isFilled(addressing.platform) &&
 		isFilled(addressing.conversationID) &&
+		(offered.catalogTicket === undefined || isFilled(offered.catalogTicket)) &&
 		[...requesterTexts.map((name) => requester[name]), ...addressingTexts.map((name) => addressing[name])].every(isTextOrAbsent) &&
 		(addressing.isThread === undefined || typeof addressing.isThread === 'boolean')
 	);

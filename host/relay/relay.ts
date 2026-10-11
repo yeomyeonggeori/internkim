@@ -518,8 +518,7 @@ const postFileToConversation = agentFilePoster({ keepForTheMessenger, postToConv
 const blueclawClient = new BlueclawACPClient({
 	socketPath: blueclawACPSocketPath,
 	workspaceRootPath,
-	catalogFor: (requesterEmail, conversationID) =>
-		recordCatalogs.serversFor(requesterEmail, conversationID),
+	catalogFor: (requesterEmail, catalogTicket) => recordCatalogs.serversFor(requesterEmail, catalogTicket),
 	postToConversation,
 	postFileToConversation,
 	editInConversation,

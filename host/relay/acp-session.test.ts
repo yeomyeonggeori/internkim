@@ -30,6 +30,7 @@ import {
 	type MessageFacts
 } from './acp-session';
 import { SessionBindingStore } from './session-binding-store';
+import { RecordCatalogs, ticketOf } from './record-catalog';
 import { agentFilePoster } from './conversation-post';
 import type { KeptAttachment, WorkspaceFile } from './file-transfer';
 
@@ -631,6 +632,55 @@ test('after a restart the session bindings are loaded, a reissued approval waits
 	expect(conversation.posted).toEqual([]);
 	expect(agent.sessionsOpened).toHaveLength(1);
 });
+
+test('after a restart a session keeps the record catalog address it was opened with, and the new relay answers it', async () => {
+	const agent = anAgentOnASocket({ reply: '네' });
+	const sessions = aSessionStore();
+	const catalogsBefore = aRecordCatalog();
+	const beforeTheRestart = aClientFor(agent.socketPath, aConversation(), {
+		sessions,
+		catalogFor: (email, ticket) => catalogsBefore.serversFor(email, ticket)
+	});
+	await beforeTheRestart.ask(sampleRequester, sampleAddressing, '안녕하세요');
+	beforeTheRestart.close();
+
+	const catalogsAfter = aRecordCatalog();
+	const afterTheRestart = aClientFor(agent.socketPath, aConversation(), {
+		sessions,
+		catalogFor: (email, ticket) => catalogsAfter.serversFor(email, ticket)
+	});
+	await afterTheRestart.restoreSessionBindings();
+	await waitUntil(() => agent.sessionsLoaded.length === 1, 'the session binding to be loaded');
+
+	const openedAt = agent.sessionsOpened[0].mcpServers[0];
+	const loadedAt = agent.sessionsLoaded[0].mcpServers[0];
+	expect('url' in loadedAt && loadedAt.url).toBe('url' in openedAt && openedAt.url);
+	const address = new URL('url' in openedAt ? openedAt.url : '');
+	const originalFetch = globalThis.fetch;
+	globalThis.fetch = (async () => Response.json({ jsonrpc: '2.0', id: 1, result: { tools: [] } })) as unknown as typeof fetch;
+	try {
+		const answered = await catalogsAfter.serve(aCatalogCall(address), ticketOf(address.pathname));
+		expect(await answered.json()).toEqual({ jsonrpc: '2.0', id: 1, result: { tools: [] } });
+	} finally {
+		globalThis.fetch = originalFetch;
+	}
+});
+
+function aRecordCatalog(): RecordCatalogs {
+	return new RecordCatalogs({
+		appURL: 'http://app.test',
+		loopbackURL: 'http://127.0.0.1:18091',
+		mintFor: async () => ({ accessToken: 'a-member-token', expiresAt: Math.floor(Date.now() / 1000) + 3600 })
+	});
+}
+
+function aCatalogCall(address: URL): Request {
+	return new Request(address, {
+		method: 'POST',
+		headers: { 'Content-Type': 'application/json' },
+		body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/list', params: {} })
+	});
+}
 
 test('a reply that finds its progress message gone is posted as a new message and the failure is reported', async () => {
 	const agent = anAgentOnASocket({});
