@@ -5,13 +5,9 @@
 	import { Input } from '$lib/components/ui/input';
 	import * as Item from '$lib/components/ui/item';
 	import { Label } from '$lib/components/ui/label';
-	import BriefcaseBusinessIcon from '@lucide/svelte/icons/briefcase-business';
-	import ComponentIcon from '@lucide/svelte/icons/component';
 	import MailIcon from '@lucide/svelte/icons/mail';
-	import PhoneIcon from '@lucide/svelte/icons/phone';
-	import TimerIcon from '@lucide/svelte/icons/timer';
-	import UserRoundIcon from '@lucide/svelte/icons/user-round';
 	import type { AdminPageText } from '../admin/admin-types';
+	import OrganizationPersonDetails from './organization-person-details.svelte';
 	import OrganizationProfileFields from '../admin/organization-profile-fields.svelte';
 	import type { OrgGroup, UserRecord } from '../../lib/organization/types';
 	import type { organizationDirectoryText } from './text';
@@ -62,26 +58,8 @@
 		localEditingRecord = editingRecord;
 	});
 
-	function groupName(groupID: string | undefined): string {
-		const normalizedGroupID = groupID?.trim() ?? '';
-		if (!normalizedGroupID) return text.unassignedTeam;
-		return groups.find((group) => group.id === normalizedGroupID)?.name ?? normalizedGroupID;
-	}
-
 	function personLabel(person: UserRecord): string {
 		return displayPersonName(person.name || person.email);
-	}
-
-	function personTitle(person: UserRecord): string {
-		return person.jobTitle || text.noTitle;
-	}
-
-	function directSupervisorLabel(person: UserRecord): string {
-		const supervisorID = person.supervisorID?.trim() ?? '';
-		if (!supervisorID) return text.noSupervisor;
-		const supervisor = userRecords.find((candidate) => candidate.memberID === supervisorID);
-		if (!supervisor) return text.noSupervisor;
-		return `${personLabel(supervisor)} · ${personTitle(supervisor)}`;
 	}
 </script>
 
@@ -139,50 +117,7 @@
 					/>
 				</div>
 			{:else}
-				<Item.Group class="gap-2">
-					<Item.Root variant="muted" size="sm">
-						<Item.Media variant="icon"><MailIcon /></Item.Media>
-						<Item.Content>
-							<Item.Description>{text.email}</Item.Description>
-							<Item.Title class="w-full truncate">{record.email}</Item.Title>
-						</Item.Content>
-					</Item.Root>
-					<Item.Root variant="muted" size="sm">
-						<Item.Media variant="icon"><PhoneIcon /></Item.Media>
-						<Item.Content>
-							<Item.Description>{text.phoneNumber}</Item.Description>
-							<Item.Title class="w-full truncate">{record.phoneNumber || text.notProvided}</Item.Title>
-						</Item.Content>
-					</Item.Root>
-					<Item.Root variant="muted" size="sm">
-						<Item.Media variant="icon"><ComponentIcon /></Item.Media>
-						<Item.Content>
-							<Item.Description>{text.primaryOrganization}</Item.Description>
-							<Item.Title class="w-full truncate">{groupName(record.groupID)}</Item.Title>
-						</Item.Content>
-					</Item.Root>
-					<Item.Root variant="muted" size="sm">
-						<Item.Media variant="icon"><BriefcaseBusinessIcon /></Item.Media>
-						<Item.Content>
-							<Item.Description>{text.position}</Item.Description>
-							<Item.Title class="w-full truncate">{record.jobTitle || text.noTitle}</Item.Title>
-						</Item.Content>
-					</Item.Root>
-					<Item.Root variant="muted" size="sm">
-						<Item.Media variant="icon"><UserRoundIcon /></Item.Media>
-						<Item.Content>
-							<Item.Description>{text.directSupervisor}</Item.Description>
-							<Item.Title class="w-full truncate">{directSupervisorLabel(record)}</Item.Title>
-						</Item.Content>
-					</Item.Root>
-					<Item.Root variant="muted" size="sm">
-						<Item.Media variant="icon"><TimerIcon /></Item.Media>
-						<Item.Content>
-							<Item.Description>{text.hireDate}</Item.Description>
-							<Item.Title class="w-full truncate">{record.hireDate || text.notProvided}</Item.Title>
-						</Item.Content>
-					</Item.Root>
-				</Item.Group>
+				<OrganizationPersonDetails {record} {groups} {userRecords} {text} />
 			{/if}
 		</div>
 
