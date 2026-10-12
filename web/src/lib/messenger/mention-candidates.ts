@@ -1,5 +1,6 @@
 export type MentionPerson = {
 	externalID: string;
+	memberID?: string;
 	name: string;
 	avatarURL?: string;
 };

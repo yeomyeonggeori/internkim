@@ -119,8 +119,13 @@
 		void startDirectMessage({ id: person.externalID, name: person.name });
 	}
 
+	function showPersonProfile(person: MentionPerson) {
+		profilePerson = person;
+		isPersonProfileOpen = true;
+	}
+
 	setContext<PersonProfileActions>(personProfileContext, {
-		show: (person) => ((profilePerson = person), (isPersonProfileOpen = true)),
+		show: showPersonProfile,
 		message: messagePerson
 	});
 
@@ -519,19 +524,35 @@
 						{/snippet}
 					</Sheet.Trigger>
 					{#if activeConversation?.kind === 'dm'}
-						<PersonAvatar
-							name={activeConversation.name}
-							seed={activeConversation.id}
-							image={activeConversation.avatarURL ?? ''}
-							memberID={activeConversation.counterpart?.memberID ?? ''}
-							externalID={activeConversation.counterpart?.externalID ?? ''}
-							class="size-6"
-						/>
-
-					{:else if activeConversation}
-						<HashIcon class="text-muted-foreground size-5 shrink-0" />
+						{@const conversation = activeConversation}
+						<button
+							type="button"
+							class="hover:bg-accent flex min-w-0 cursor-pointer items-center gap-2 rounded-md px-1 py-0.5"
+							aria-label={text.personProfile}
+							onclick={() =>
+								showPersonProfile({
+									externalID: conversation.counterpart?.externalID ?? '',
+									memberID: conversation.counterpart?.memberID,
+									name: conversation.name,
+									avatarURL: conversation.avatarURL
+								})}
+						>
+							<PersonAvatar
+								name={conversation.name}
+								seed={conversation.id}
+								image={conversation.avatarURL ?? ''}
+								memberID={conversation.counterpart?.memberID ?? ''}
+								externalID={conversation.counterpart?.externalID ?? ''}
+								class="size-6"
+							/>
+							<span class="truncate font-semibold">{conversation.name}</span>
+						</button>
+					{:else}
+						{#if activeConversation}
+							<HashIcon class="text-muted-foreground size-5 shrink-0" />
+						{/if}
+						<span class="truncate font-semibold">{activeConversation?.name ?? text.messenger}</span>
 					{/if}
-					<span class="truncate font-semibold">{activeConversation?.name ?? text.messenger}</span>
 					{#if activeConversation?.kind === 'group' && activeConversation.members}
 						<MessengerChannelHeaderActions
 							memberCount={activeConversation.members.length}
