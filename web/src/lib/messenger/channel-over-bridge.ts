@@ -26,6 +26,7 @@ import {
 	type MessengerChannel,
 	type MessengerPerson,
 	type MessengerPost,
+	type MessengerPostPage,
 	type MessengerSearchMatch
 } from './messenger-api';
 import {
@@ -86,8 +87,6 @@ type Conversation = {
 	hasMoreBefore: boolean;
 	historyCursor: string;
 };
-
-const pageSize = 50;
 
 // key is the one name this app knows the reader by; names is every name they
 // answer to, because a conversation carries whichever one the messenger it came
@@ -244,32 +243,33 @@ export async function bridgeAgentConversation(): Promise<string> {
 
 export async function bridgeConversation(channelID?: string, before?: string): Promise<Conversation> {
 	const scope = await messengerCacheScope();
-	const [people, posts] = await Promise.all([
+	const [people, page] = await Promise.all([
 		fetchMessengerDirectory(),
-		channelID ? fetchPosts(channelID, before) : Promise.resolve([])
+		channelID ? fetchPosts(channelID, before) : Promise.resolve(null)
 	]);
 	const viewer = await whoIsReading(people);
 	await requireCurrentMessengerScope(scope);
-	if (!channelID) {
+	if (!channelID || !page) {
 		return { conversationID: '', currentUserID: viewer.key, messages: [], hasMoreBefore: false, historyCursor: '' };
 	}
+	const posts = page.posts;
 	void customEmoji.load().then(() => customEmoji.draw(customEmojiNamesIn(posts))).catch((failure: unknown) =>
 		console.warn('custom emoji did not load', failure)
 	);
 	void personPicture.rememberExternals(posts.map((post) => externalIDOf(post.author, people)));
 	void attachmentSource.wants(posts.flatMap((post) => post.attachments));
-	return conversationPageOf(channelID, posts, people, viewer);
+	return conversationPageOf(channelID, page, people, viewer);
 }
 
 export async function bridgeConversationRecord(channelID: string, before?: string): Promise<Conversation> {
-	const [people, posts] = await Promise.all([fetchMessengerDirectory(), fetchPosts(channelID, before)]);
+	const [people, page] = await Promise.all([fetchMessengerDirectory(), fetchPosts(channelID, before)]);
 	const viewer = await whoIsReading(people);
-	return conversationPageOf(channelID, posts, people, viewer);
+	return conversationPageOf(channelID, page, people, viewer);
 }
 
 function conversationPageOf(
 	channelID: string,
-	posts: MessengerPost[],
+	{ posts, hasMoreBefore }: MessengerPostPage,
 	people: MessengerDirectory,
 	viewer: Viewer
 ): Conversation {
@@ -277,7 +277,7 @@ function conversationPageOf(
 		conversationID: channelID,
 		currentUserID: viewer.key,
 		messages: posts.map((post) => messageOf(post, people, viewer)),
-		hasMoreBefore: posts.length >= pageSize,
+		hasMoreBefore,
 		historyCursor: posts[0]?.id ?? ''
 	};
 }

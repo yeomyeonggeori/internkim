@@ -146,7 +146,10 @@ if (scenario === 'mail') {
 		removeReaction: async () => {}, searchPosts: async () => [], writePost: async () => {}, keepAttachmentForSending: async () => ({}),
 		fetchPosts: async () => {
 			postsStarted = true;
-			return [{ id: 'post', author: { memberID: 'member' }, body: 'Message text', postedAt: '2026-10-02', reactions: [], attachments: [] }];
+			return {
+				posts: [{ id: 'post', author: { memberID: 'member' }, body: 'Message text', postedAt: '2026-10-02', reactions: [], attachments: [] }],
+				hasMoreBefore: false
+			};
 		}
 	}));
 	const { bridgeConversation } = await import('../../src/lib/messenger/channel-over-bridge');
