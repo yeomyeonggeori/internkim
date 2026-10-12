@@ -836,7 +836,11 @@
 {/snippet}
 
 {#snippet senderAvatar(sender: ChannelParticipant)}
-	<SenderAvatar>
+	<SenderAvatar
+		person={sender.externalID || sender.memberID
+			? { externalID: sender.externalID ?? '', memberID: sender.memberID, name: sender.name, avatarURL: sender.avatarURL }
+			: undefined}
+	>
 		<PersonAvatar
 			name={sender.name}
 			email={sender.email ?? ''}

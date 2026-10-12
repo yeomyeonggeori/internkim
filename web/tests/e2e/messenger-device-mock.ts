@@ -11,6 +11,7 @@ export type MockConversation = {
 	unreadCount?: number;
 	isWithTheAgent?: boolean;
 	members?: { externalID: string; name: string; role: string }[];
+	counterpart?: { memberID?: string; externalID?: string };
 };
 
 export async function mockDeviceMessenger(
