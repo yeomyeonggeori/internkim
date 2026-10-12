@@ -58,7 +58,7 @@ type Reaction = { emoji: string; value: string; count: number; reactedByMe: bool
 type Attachment = {
 	kind: AttachmentKind;
 	url: string;
-	source: string;
+	source?: string;
 	filename?: string;
 	mimeType?: string;
 	sizeBytes?: number;
@@ -300,7 +300,6 @@ function messageOf(post: MessengerPost, people: MessengerDirectory, viewer: View
 		attachments: post.attachments.map((attachment) => ({
 			kind: attachmentKindOf(attachment.contentType),
 			url: attachment.url,
-			source: attachmentSource.openable(attachment.url),
 			filename: attachment.filename,
 			mimeType: attachment.contentType,
 			sizeBytes: attachment.sizeBytes,
