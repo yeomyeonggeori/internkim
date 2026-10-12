@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 import { interimCurrencyCatalogue } from '../../../src/lib/currency/currency-catalogue';
 import {
+	amountInputOf,
 	formatAmountInput,
 	formatOptionalMoney,
 	formatMoneyTotals,
@@ -15,10 +16,25 @@ import type { CRMViewAmount, CRMViewCurrencyReader } from '../../../src/routes/c
 
 describe('CRM money formatting', () => {
 	test('formats and parses an integer amount with thousands separators', () => {
-		expect(formatAmountInput('12000000')).toBe('12,000,000');
-		expect(formatAmountInput('0012,000,000원')).toBe('12,000,000');
+		expect(formatAmountInput('12000000', 'KRW')).toBe('12,000,000');
+		expect(formatAmountInput('0012,000,000원', 'KRW')).toBe('12,000,000');
 		expect(parseAmountInput('12,000,000')).toBe(12000000);
 		expect(parseAmountInput('')).toBe(undefined);
+	});
+
+	test('keeps as many decimals as the currency has, and none for one that has none', () => {
+		expect(formatAmountInput('1234.5', 'USD')).toBe('1,234.5');
+		expect(formatAmountInput('1234.567', 'USD')).toBe('1,234.56');
+		expect(formatAmountInput('1234.', 'USD')).toBe('1,234.');
+		expect(formatAmountInput('.5', 'USD')).toBe('0.5');
+		expect(formatAmountInput('1.2.3', 'USD')).toBe('1.23');
+		expect(formatAmountInput('1234.5', 'KRW')).toBe('1,234');
+		expect(parseAmountInput('1,234.50')).toBe(1234.5);
+		expect(parseAmountInput('.')).toBe(undefined);
+		expect(moneyFromAmountInput('10.5', 'USD')).toEqual({ amount: 10.5, currency: 'USD' });
+		expect(amountInputOf({ amount: 1234.5, currency: 'USD' })).toBe('1,234.5');
+		expect(amountInputOf({ amount: 1.234, currency: 'KWD' })).toBe('1.234');
+		expect(amountInputOf(undefined)).toBe('');
 	});
 
 	test('reads a typed amount as money in the chosen currency', () => {

@@ -17,3 +17,12 @@ export function formatCompactMoney(money: Money, locale: string): string {
 		useGrouping: 'always'
 	}).format(money.amount);
 }
+
+export function fractionDigitsOf(currency: string): number {
+	return new Intl.NumberFormat('en', { style: 'currency', currency }).resolvedOptions().maximumFractionDigits ?? 0;
+}
+
+export function roundedMoney(amount: number, currency: string): Money {
+	const scale = 10 ** fractionDigitsOf(currency);
+	return { amount: Math.round(amount * scale) / scale, currency };
+}

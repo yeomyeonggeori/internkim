@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import { createMockFetch } from '../test-fetch';
-import { convertMinorAmount, frankfurterProvider, minorUnitDigitsOf } from '../../../src/lib/server/exchange-rates';
+import { frankfurterProvider } from '../../../src/lib/server/exchange-rates';
 
 const oneHourInMilliseconds = 60 * 60 * 1000;
 const twelveHoursInMilliseconds = 12 * oneHourInMilliseconds;
@@ -13,37 +13,6 @@ function pendingResponseUntilAbort(signal: AbortSignal | null | undefined): Prom
 		signal.addEventListener('abort', () => reject(signal.reason), { once: true });
 	});
 }
-
-describe('minorUnitDigitsOf', () => {
-	test('zero-decimal currencies have no minor digits', () => {
-		expect(minorUnitDigitsOf('KRW')).toBe(0);
-		expect(minorUnitDigitsOf('JPY')).toBe(0);
-	});
-
-	test('three-decimal currencies keep three minor digits', () => {
-		expect(minorUnitDigitsOf('BHD')).toBe(3);
-		expect(minorUnitDigitsOf('KWD')).toBe(3);
-	});
-
-	test('every other currency defaults to two minor digits', () => {
-		expect(minorUnitDigitsOf('USD')).toBe(2);
-		expect(minorUnitDigitsOf('EUR')).toBe(2);
-	});
-});
-
-describe('convertMinorAmount', () => {
-	test('converts 1200.00 USD minor units to KRW minor units at the quoted rate', () => {
-		expect(convertMinorAmount(120000, 1350.12, 2, 0)).toBe(1620144);
-	});
-
-	test('rounds a half unit up when the target currency has no minor digits', () => {
-		expect(convertMinorAmount(100, 250.5, 2, 0)).toBe(251);
-	});
-
-	test('rounds a half unit up when the target currency has three minor digits', () => {
-		expect(convertMinorAmount(100, 0.3085, 2, 3)).toBe(309);
-	});
-});
 
 describe('frankfurterProvider().supportedCurrencies', () => {
 	test('aborts a stalled request and retries without caching the cold failure', async () => {
@@ -72,7 +41,7 @@ describe('frankfurterProvider().supportedCurrencies', () => {
 		);
 		expect(requestAborted).toBe(true);
 		expect(await provider.supportedCurrencies()).toEqual([
-			{ code: 'USD', name: 'United States Dollar', minorUnitDigits: 2 }
+			{ code: 'USD', name: 'United States Dollar' }
 		]);
 		expect(fetchCallCount).toBe(2);
 	}, 1000);
@@ -93,8 +62,8 @@ describe('frankfurterProvider().supportedCurrencies', () => {
 			now: () => currentTimeInMilliseconds
 		});
 		const expectedList = [
-			{ code: 'USD', name: 'United States Dollar', minorUnitDigits: 2 },
-			{ code: 'KRW', name: 'South Korean Won', minorUnitDigits: 0 }
+			{ code: 'KRW', name: 'South Korean Won' },
+			{ code: 'USD', name: 'United States Dollar' }
 		];
 
 		try {

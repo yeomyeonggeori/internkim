@@ -51,7 +51,7 @@ beforeEach(() => {
 	directory = async () => ({ records: [owner], availableGroups: [] });
 	read = async () => snapshot();
 	write = async () => ({});
-	catalogue = async () => [{ code: 'BHD', name: 'Bahraini Dinar', minorUnitDigits: 3 }];
+	catalogue = async () => [{ code: 'BHD', name: 'Bahraini Dinar' }];
 	baseCurrency = async () => 'BHD';
 });
 
@@ -104,7 +104,7 @@ test('currency metadata remains required before showing amounts', async () => {
 	await Promise.resolve();
 	expect(controller.hasData).toBe(false);
 	expect(controller.isLoading).toBe(true);
-	pending.resolve([{ code: 'BHD', name: 'Bahraini Dinar', minorUnitDigits: 3 }]);
+	pending.resolve([{ code: 'BHD', name: 'Bahraini Dinar' }]);
 	await loading;
 	expect(controller.opportunities[0].amount).toEqual({ amount: 12.345, currency: 'BHD' });
 });

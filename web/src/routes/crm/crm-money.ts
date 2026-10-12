@@ -1,24 +1,33 @@
 import type { CRMMoneyTotals, CRMOpportunity } from './crm-types';
-import { formatCompactMoney, type Money } from '$lib/money';
+import { formatCompactMoney, fractionDigitsOf, type Money } from '$lib/money';
 import type { CurrencyCatalogue } from '$lib/currency/currency-catalogue';
 import type { Locale } from '$lib/i18n/locale.svelte';
 import type { CRMViewCurrencyReader } from './crm-view-currency.svelte';
 
 export const rateHintAnchorCurrency = 'USD';
 
-export function formatAmountInput(value: string): string {
-	const digits = value.replace(/\D/g, '');
-	if (digits === '') return '';
-	const normalized = digits.replace(/^0+(?=\d)/, '');
-	return normalized.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+export function formatAmountInput(value: string, currency: string): string {
+	const [whole = '', ...fractions] = value.replace(/[^\d.]/g, '').split('.');
+	const grouped = groupedDigits(whole);
+	const fractionDigits = fractionDigitsOf(currency);
+	if (fractionDigits === 0 || fractions.length === 0) return grouped;
+	return `${grouped || '0'}.${fractions.join('').slice(0, fractionDigits)}`;
+}
+
+function groupedDigits(digits: string): string {
+	return digits.replace(/^0+(?=\d)/, '').replace(/\B(?=(\d{3})+(?!\d))/g, ',');
 }
 
 export function parseAmountInput(value: string): number | undefined {
 	const normalized = value.replaceAll(',', '');
-	if (normalized === '') return undefined;
+	if (normalized === '' || normalized === '.') return undefined;
 	const amount = Number(normalized);
-	if (!Number.isSafeInteger(amount) || amount < 0) return undefined;
+	if (!Number.isFinite(amount) || amount < 0) return undefined;
 	return amount;
+}
+
+export function amountInputOf(money: Money | undefined): string {
+	return money === undefined ? '' : formatAmountInput(String(money.amount), money.currency);
 }
 
 export function moneyFromAmountInput(value: string, currency: string): Money | undefined {

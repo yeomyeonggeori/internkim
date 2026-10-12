@@ -84,7 +84,7 @@ export async function prepareWorkspaceLoading(page: Page, fixture: WorkspaceLoad
 	await page.route('**/auth/session**', route => route.fulfill({ json: { authenticated: true, email, isAdmin: true } }));
 	await page.route('**/admin/api/locale', route => route.fulfill({ json: { locale: 'ko' } }));
 	await page.route('**/agent/api/**', route => route.fulfill({ json: {} }));
-	await page.route('**/api/currencies', route => route.fulfill({ json: { currencies: [{ code: 'KRW', name: 'Korean Won', minorUnitDigits: 0 }] } }));
+	await page.route('**/api/currencies', route => route.fulfill({ json: { currencies: [{ code: 'KRW', name: 'Korean Won' }] } }));
 	await page.route('**/api/member/mail-account', async route => { await fixture.waitFor('mail-account'); await route.fulfill({ json: { account: fixture.mail.account } }); });
 	await page.route('**/api/v1/tools/*/invoke', async route => {
 		const name = new URL(route.request().url()).pathname.split('/').at(-2) ?? '';

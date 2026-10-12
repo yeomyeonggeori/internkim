@@ -8,7 +8,7 @@
 	import * as Sheet from '$lib/components/ui/sheet';
 	import { Textarea } from '$lib/components/ui/textarea';
 	import type { OrgGroup, UserRecord } from '$lib/organization/types';
-	import { formatAmountInput, moneyFromAmountInput } from './crm-money';
+	import { amountInputOf, moneyFromAmountInput } from './crm-money';
 	import CRMConversionPreview from './crm-conversion-preview.svelte';
 	import CRMMoneyField from './crm-money-field.svelte';
 	import CRMOwnerSelect from './crm-owner-select.svelte';
@@ -80,7 +80,7 @@
 		business = selectedOpportunity.business;
 		name = selectedOpportunity.name;
 		stage = requestedStage ?? selectedOpportunity.stage;
-		amount = selectedOpportunity.amount === undefined ? '' : formatAmountInput(String(selectedOpportunity.amount.amount));
+		amount = amountInputOf(selectedOpportunity.amount);
 		currency = selectedOpportunity.amount?.currency ?? companyBaseCurrency;
 		importance = selectedOpportunity.importance;
 		targetDate = selectedOpportunity.targetDate;

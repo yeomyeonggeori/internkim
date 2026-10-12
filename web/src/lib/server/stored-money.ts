@@ -1,15 +1,10 @@
-import type { Money } from '$lib/money';
-import { minorUnitDigitsOf } from './exchange-rates';
-
-export function moneyFromMinor(amountMinor: number, currency: string): Money {
-	return { amount: amountMinor / 10 ** minorUnitDigitsOf(currency), currency };
-}
+import { fractionDigitsOf, type Money } from '$lib/money';
 
 export function storedMoneyOf(amountMinor: number | null, currency: string | null): Money | null {
 	if (amountMinor === null || !currency) return null;
-	return moneyFromMinor(amountMinor, currency);
+	return { amount: amountMinor / 10 ** fractionDigitsOf(currency), currency };
 }
 
 export function minorOfMoney(money: Money): number {
-	return Math.round(money.amount * 10 ** minorUnitDigitsOf(money.currency));
+	return Math.round(money.amount * 10 ** fractionDigitsOf(money.currency));
 }
