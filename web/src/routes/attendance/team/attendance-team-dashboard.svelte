@@ -9,7 +9,8 @@
 	import { invokeTool, ToolRefused } from '$lib/public-api-call';
 	import { appNavigation } from '$lib/components/app-navigation.svelte';
 	import { getAttendanceViewState } from '../attendance-view-state.svelte';
-	import { onMount } from 'svelte';
+	import { onMount, untrack } from 'svelte';
+	import { leaveOpenedTeamThroughHistory, rememberOpenedTeam, teamKeyInHistory } from './attendance-team-history';
 	import AttendanceLoadingSkeleton from '../attendance-loading-skeleton.svelte';
 	import AttendanceCompanyMetrics from './attendance-company-metrics.svelte';
 	import { Spinner } from '$lib/components/ui/spinner';
@@ -133,13 +134,23 @@
 		searchDraft = '';
 		locationDraft = '';
 		teamState.selectTeam(key);
+		rememberOpenedTeam(key);
 	}
 
 	function backToTeams(): void {
+		if (leaveOpenedTeamThroughHistory()) return;
+		dismissTeam();
+	}
+
+	function dismissTeam(): void {
 		teamState.clearSelection();
 		searchDraft = '';
 		locationDraft = '';
 	}
+
+	$effect(() => {
+		if (teamKeyInHistory() === undefined && untrack(() => teamState.selectedTeamKey) !== '') dismissTeam();
+	});
 
 	type RecentActor = AttendanceTeamPage['teams'][number]['recentClockIns'][number];
 </script>
