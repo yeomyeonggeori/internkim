@@ -18,7 +18,7 @@
 	const text = createPageText(channelText);
 </script>
 
-<div class="ml-auto flex shrink-0 items-center gap-1">
+<div class="flex shrink-0 items-center gap-1">
 	<Button
 		variant="ghost"
 		size="sm"

@@ -20,11 +20,13 @@ import {
 	keepAttachmentForSending,
 	openDirectChannel,
 	removeReaction,
+	searchPosts,
 	writePost,
 	type OutgoingAttachment,
 	type MessengerChannel,
 	type MessengerPerson,
-	type MessengerPost
+	type MessengerPost,
+	type MessengerSearchMatch
 } from './messenger-api';
 import {
 	externalIDsOfMember,
@@ -306,6 +308,33 @@ function messageOf(post: MessengerPost, people: MessengerDirectory, viewer: View
 			widthPixels: attachment.widthPixels,
 			heightPixels: attachment.heightPixels
 		}))
+	};
+}
+
+export type ConversationSearchMatch = {
+	id: string;
+	threadRootId?: string;
+	sender: Participant;
+	isMine: boolean;
+	text: string;
+	sentAt: string;
+};
+
+export async function bridgeSearchConversation(channelID: string, query: string): Promise<ConversationSearchMatch[]> {
+	const [people, matches] = await Promise.all([fetchMessengerDirectory(), searchPosts(channelID, query)]);
+	const viewer = await whoIsReading(people);
+	void personPicture.rememberExternals(matches.map((match) => externalIDOf(match.author, people)));
+	return matches.map((match) => searchMatchOf(match, people, viewer));
+}
+
+function searchMatchOf(match: MessengerSearchMatch, people: MessengerDirectory, viewer: Viewer): ConversationSearchMatch {
+	return {
+		id: match.id,
+		threadRootId: match.parentID,
+		sender: participantOf(match.author, people),
+		isMine: isViewer(match.author, people, viewer),
+		text: emojifyText(match.body),
+		sentAt: match.postedAt
 	};
 }
 

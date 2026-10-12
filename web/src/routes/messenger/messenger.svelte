@@ -10,6 +10,8 @@
 	import MessengerChannelMembersDialog from './messenger-channel-members-dialog.svelte';
 	import MessengerChannelOwnerDialog from './messenger-channel-owner-dialog.svelte';
 	import MessengerConversationExportDialog from './messenger-conversation-export-dialog.svelte';
+	import MessengerConversationSearch from './messenger-conversation-search.svelte';
+	import type { ConversationSearchMatch } from '$lib/messenger/channel-over-bridge';
 	import MessengerLeaveChannelDialog from './messenger-leave-channel-dialog.svelte';
 	import MessengerNewChannelDialog from './messenger-new-channel-dialog.svelte';
 	import MessengerPersonProfile from './messenger-person-profile.svelte';
@@ -23,6 +25,7 @@
 	import { IsMobile } from '$lib/hooks/is-mobile.svelte';
 	import HashIcon from '@lucide/svelte/icons/hash';
 	import PanelLeftIcon from '@lucide/svelte/icons/panel-left';
+	import SearchIcon from '@lucide/svelte/icons/search';
 	import { channelText } from '$lib/i18n/channel-text';
 	import { mentionPeopleOf, type MentionPerson } from '$lib/messenger/mention-candidates';
 	import { personProfileContext, type PersonProfileActions } from '$lib/messenger/person-profile';
@@ -80,6 +83,12 @@
 	let conversationReadSequence = 0;
 	let isDestroyed = false;
 	let activeID = $state<string | undefined>(undefined);
+	let isSearchOpen = $state(false);
+	let channelView = $state<Channel | null>(null);
+
+	async function revealSearchMatch(match: ConversationSearchMatch): Promise<boolean> {
+		return (await channelView?.revealMessage(match.id, match.threadRootId)) ?? false;
+	}
 	let cacheGeneration = $state(0);
 	let isNewDirectMessageOpen = $state(false);
 	let isNewChannelOpen = $state(false);
@@ -553,6 +562,18 @@
 						{/if}
 						<span class="truncate font-semibold">{activeConversation?.name ?? text.messenger}</span>
 					{/if}
+					{#if activeConversation}
+						<Button
+							variant={isSearchOpen ? 'secondary' : 'ghost'}
+							size="icon-sm"
+							class="ml-auto shrink-0"
+							aria-label={text.conversationSearch}
+							aria-pressed={isSearchOpen}
+							onclick={() => (isSearchOpen = !isSearchOpen)}
+						>
+							<SearchIcon />
+						</Button>
+					{/if}
 					{#if activeConversation?.kind === 'group' && activeConversation.members}
 						<MessengerChannelHeaderActions
 							memberCount={activeConversation.members.length}
@@ -568,6 +589,7 @@
 				{:else}
 				{#key `${cacheGeneration}:${activeID}`}
 					<Channel
+						bind:this={channelView}
 						channelId={activeID}
 						participants={mentionPeopleOf(activeConversation)}
 						isGroup={activeConversation?.kind === 'group'}
@@ -579,6 +601,15 @@
 				{/key}
 				{/if}
 			</div>
+			{#if isSearchOpen && activeID}
+				{#key activeID}
+					<MessengerConversationSearch
+						channelID={activeID}
+						choose={revealSearchMatch}
+						close={() => (isSearchOpen = false)}
+					/>
+				{/key}
+			{/if}
 		</div>
 	</div>
 </Sheet.Root>
