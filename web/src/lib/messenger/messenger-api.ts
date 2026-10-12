@@ -69,6 +69,8 @@ export type MessengerPost = {
 	attachments: MessengerAttachment[];
 };
 
+export type MessengerSearchMatch = Pick<MessengerPost, 'id' | 'channelID' | 'parentID' | 'author' | 'body' | 'postedAt'>;
+
 export type LinkPreview = {
 	url: string;
 	title: string;
@@ -112,6 +114,11 @@ type PersonalMessage = {
 	reactions: PersonalReaction[];
 	attachments: PersonalAttachment[];
 };
+
+type PersonalMessageMatch = Pick<
+	PersonalMessage,
+	'id' | 'conversationID' | 'parentID' | 'authorExternalID' | 'body' | 'postedAt'
+>;
 
 export class MessengerRefusal extends Error {
 	constructor(
@@ -292,6 +299,21 @@ export async function fetchPosts(channelID: string, before?: string): Promise<Me
 		before
 	});
 	return answer.messages.map(asPost);
+}
+
+export async function searchPosts(channelID: string, query: string): Promise<MessengerSearchMatch[]> {
+	const answer = await ask<{ matches: PersonalMessageMatch[] }>('person.messages.search', {
+		conversationID: channelID,
+		query
+	});
+	return answer.matches.map((match) => ({
+		id: match.id,
+		channelID: match.conversationID,
+		parentID: match.parentID,
+		author: { externalID: match.authorExternalID },
+		body: match.body,
+		postedAt: match.postedAt
+	}));
 }
 
 export function copyAttachmentForReading(

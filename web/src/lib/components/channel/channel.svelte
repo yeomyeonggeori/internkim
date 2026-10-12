@@ -88,7 +88,8 @@
 	import { onCompanyEvent } from '$lib/host-bridge';
 	import type { CompanyEvent } from '$lib/company-event';
 	import { isSupabaseConfigured } from '$lib/supabase';
-	import { onDestroy, onMount, untrack } from 'svelte';
+	import { onDestroy, onMount, tick, untrack } from 'svelte';
+	import { loadHistoryUntilHeld, revealMessageElement } from './message-reveal';
 
 	let {
 		isActive = true,
@@ -325,6 +326,7 @@
 	// (top) end, so the browser keeps the reading position natively — no scrollTop
 	// math and nothing for an autoscroll to fight.
 	let scrollContainer = $state<HTMLDivElement | null>(null);
+	let threadScroller = $state<HTMLDivElement | null>(null);
 	let showScrollToBottom = $state(false);
 	const reversedTimeline = $derived(timeline.slice().reverse());
 	let isPageVisible = $state(typeof document === 'undefined' || document.visibilityState === 'visible');
@@ -399,6 +401,26 @@
 
 	function scrollToBottom() {
 		scrollContainer?.scrollTo({ top: 0, behavior: 'smooth' });
+	}
+
+	export async function revealMessage(messageID: string, threadRootID?: string): Promise<boolean> {
+		const timelineID = threadRootID ?? messageID;
+		const held = await loadHistoryUntilHeld({
+			holds: () => messages.some((message) => message.id === timelineID),
+			hasMore: () => hasMoreBefore,
+			isLoading: () => isLoadingOlder,
+			loadOlder: loadOlderMessages
+		});
+		if (!held || !scrollContainer) return false;
+		await tick();
+		const revealedInTimeline = revealMessageElement(scrollContainer, timelineID);
+		if (!threadRootID) return revealedInTimeline;
+		const threadRoot = visibleMessages.find((message) => message.id === threadRootID);
+		if (!threadRoot) return false;
+		openThread(threadRoot);
+		await tick();
+		await new Promise((resolve) => requestAnimationFrame(resolve));
+		return threadScroller ? revealMessageElement(threadScroller, messageID) : false;
 	}
 
 	function conversationSignature(list: ChannelMessage[]): string {
@@ -903,7 +925,7 @@
 {/snippet}
 
 {#snippet threadBody()}
-	<div class="@container/conversation min-h-0 flex-1 overflow-y-auto">
+	<div bind:this={threadScroller} class="@container/conversation min-h-0 flex-1 overflow-y-auto">
 		<div class="flex flex-col gap-4 px-4 py-8">
 			{#if openThreadRoot}
 				{@render messageRow(openThreadRoot, true, false)}
