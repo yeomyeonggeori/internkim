@@ -7,6 +7,7 @@ import type {
 	CRMPipelineStage
 } from './crm-types';
 import { sumOpportunityMoney } from './crm-money';
+import type { Money } from '$lib/money';
 import { isTaskStatusFinished } from '../task/task-status';
 import { findOrganizationByID, getProgressKind } from './crm-view-model';
 
@@ -14,7 +15,7 @@ export type CRMReportPeriod = 'quarter' | 'next_90_days' | 'all';
 
 export type CRMReportRange = { start: string; end: string } | null;
 
-export type MoneyConverter = (value: number | undefined, currency: string) => number;
+export type MoneyConverter = (money: Money | undefined) => number;
 
 export type CRMMonthBucket = {
 	month: string;
@@ -97,7 +98,7 @@ function withOutcome(
 }
 
 export function convertedTotal(opportunities: CRMOpportunity[], convert: MoneyConverter): number {
-	return opportunities.reduce((total, opportunity) => total + convert(opportunity.expectedValue, opportunity.currency), 0);
+	return opportunities.reduce((total, opportunity) => total + convert(opportunity.amount), 0);
 }
 
 export function winRate(wonCount: number, lostCount: number): number | null {

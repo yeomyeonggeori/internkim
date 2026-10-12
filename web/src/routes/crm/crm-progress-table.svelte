@@ -16,7 +16,7 @@
 	import { nextSortState, sortRows, type CRMSortComparators, type CRMSortState } from './crm-table-sort';
 	import { crmLabel } from './crm-labels';
 	import { daysLabel, findOrganizationByID, findNextActionByID, formatCRMDate, getProgressKind, getStageVariant, opportunityStageLabel } from './crm-view-model';
-	import { formatViewMoney } from './crm-money';
+	import { formatOptionalMoney } from './crm-money';
 	import { crmViewCurrency } from './crm-view-currency.svelte';
 		import type { CRMText } from './text';
 
@@ -39,9 +39,7 @@
 		pipeline: (opportunity) => pipelineLabelOf(opportunity),
 		stage: (opportunity) => stages.find((stage) => stage.stage === opportunity.stage)?.position ?? Number.MAX_SAFE_INTEGER,
 		amount: (opportunity) =>
-			opportunity.expectedValue === undefined
-				? undefined
-				: crmViewCurrency.viewAmount(opportunity.expectedValue, opportunity.currency).value,
+			opportunity.amount === undefined ? undefined : crmViewCurrency.viewAmount(opportunity.amount).amount,
 		targetDate: (opportunity) => opportunity.targetDate,
 		owner: (opportunity) => opportunity.ownerName,
 		staleDays: (opportunity) => opportunity.staleDays
@@ -145,7 +143,7 @@
 							</div>
 							<div class="mt-2 grid gap-2 font-normal sm:hidden">
 								<p class="break-words text-sm text-muted-foreground">{organization?.name ?? text.none}</p>
-								<div class="flex flex-wrap items-center justify-between gap-2"><Badge variant={getStageVariant(opportunity.stage)}>{opportunityStageLabel(stages, opportunity.stage, text)}</Badge><span class="break-all font-medium tabular-nums">{opportunity.expectedValue === undefined ? text.amountNotEntered : formatViewMoney(crmViewCurrency.viewAmount(opportunity.expectedValue, opportunity.currency), text.amountNotEntered, currentLocale.value)}</span></div>
+								<div class="flex flex-wrap items-center justify-between gap-2"><Badge variant={getStageVariant(opportunity.stage)}>{opportunityStageLabel(stages, opportunity.stage, text)}</Badge><span class="break-all font-medium tabular-nums">{opportunity.amount === undefined ? text.amountNotEntered : formatOptionalMoney(crmViewCurrency.viewAmount(opportunity.amount), text.amountNotEntered, currentLocale.value)}</span></div>
 								{#if opportunity.targetDate}<p class={isDeadlineMissed(opportunity) ? 'text-sm text-destructive' : 'text-sm text-muted-foreground'}>{text.targetDate} · {formatCRMDate(opportunity.targetDate, currentLocale.value)}</p>{/if}
 							</div>
 						</Table.Cell>
@@ -158,7 +156,7 @@
 						<Table.Cell class="hidden whitespace-nowrap sm:table-cell">
 							{@const StageIcon = dealStageIcon(opportunity.stage)}<Badge variant={getStageVariant(opportunity.stage)}><StageIcon data-icon="inline-start" aria-hidden="true" />{opportunityStageLabel(stages, opportunity.stage, text)}</Badge>
 						</Table.Cell>
-						<Table.Cell class="hidden whitespace-nowrap pr-6 text-right font-medium tabular-nums sm:table-cell md:pr-0">{opportunity.expectedValue === undefined ? text.amountNotEntered : formatViewMoney(crmViewCurrency.viewAmount(opportunity.expectedValue, opportunity.currency), text.amountNotEntered, currentLocale.value)}</Table.Cell>
+						<Table.Cell class="hidden whitespace-nowrap pr-6 text-right font-medium tabular-nums sm:table-cell md:pr-0">{opportunity.amount === undefined ? text.amountNotEntered : formatOptionalMoney(crmViewCurrency.viewAmount(opportunity.amount), text.amountNotEntered, currentLocale.value)}</Table.Cell>
 						<Table.Cell class={`hidden whitespace-nowrap pr-6 text-right tabular-nums md:table-cell lg:pr-0 ${isDeadlineMissed(opportunity) ? 'text-destructive' : 'text-muted-foreground'}`}>
 							{opportunity.targetDate ? formatCRMDate(opportunity.targetDate, currentLocale.value) : text.none}
 						</Table.Cell>

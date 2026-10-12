@@ -45,7 +45,7 @@ export class WorkspaceLoadingFixture {
 		if (name === 'circle_list') return { circles: [] };
 		if (name === 'crm_organization_list') return { organizations };
 		if (name === 'crm_contact_list') return { contacts: [] };
-		if (name === 'crm_opportunity_list') return { opportunities: organizations.slice(0, 3).map((organization, index) => ({ opportunityID: `opportunity-${index}`, organizationID: organization.organizationID, contactID: '', title: `협력 제안 ${index + 1}`, business: '', pipeline: 'sales', stage: 'in_progress', stagePosition: index, stageChangedAt: date, ownerPersonID: memberID, amountMinor: 1500000, currencyCode: 'KRW', baseAmountMinor: null, baseCurrencyCode: '', importance: 'medium', expectedCloseAt: '', expectedCloseTimeZone: '', lostReason: '', description: '', activityCount: 0, audit })) };
+		if (name === 'crm_opportunity_list') return { opportunities: organizations.slice(0, 3).map((organization, index) => ({ opportunityID: `opportunity-${index}`, organizationID: organization.organizationID, contactID: '', title: `협력 제안 ${index + 1}`, business: '', pipeline: 'sales', stage: 'in_progress', stagePosition: index, stageChangedAt: date, ownerPersonID: memberID, amount: { amount: 1500000, currency: 'KRW' }, settledAmount: null, importance: 'medium', expectedCloseAt: '', expectedCloseTimeZone: '', lostReason: '', description: '', activityCount: 0, audit })) };
 		if (name === 'crm_activity_list') return { activities: [], registeredLabels: { businesses: [], types: [] } };
 		if (name === 'crm_vocabulary_get') return { organizationTypes: [], pipelines: [{ id: 'sales', name: '영업', color: 'blue' }] };
 		if (name === 'mail_mailbox_list') return { mailboxes: this.mail.mailboxes };

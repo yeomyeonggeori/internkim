@@ -18236,10 +18236,26 @@
             "items": {
               "additionalProperties": false,
               "properties": {
-                "currency": {
+                "amount": {
                   "anyOf": [
                     {
-                      "type": "string"
+                      "additionalProperties": false,
+                      "properties": {
+                        "amount": {
+                          "description": "The amount in the currency's own unit, e.g. 500000000 for ₩500,000,000 or 10.5 for $10.50.",
+                          "type": "number"
+                        },
+                        "currency": {
+                          "description": "ISO 4217 currency code, e.g. KRW or USD.",
+                          "pattern": "^[A-Z]{3}$",
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "amount",
+                        "currency"
+                      ],
+                      "type": "object"
                     },
                     {
                       "type": "null"
@@ -18285,10 +18301,17 @@
                 "updatedAt": {
                   "type": "string"
                 },
-                "value": {
-                  "type": "number"
+                "usdEquivalent": {
+                  "anyOf": [
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
                 },
-                "valueUSD": {
+                "value": {
                   "anyOf": [
                     {
                       "type": "number"
@@ -18310,9 +18333,9 @@
                 "year",
                 "quarter",
                 "month",
+                "amount",
+                "usdEquivalent",
                 "value",
-                "currency",
-                "valueUSD",
                 "unit",
                 "note",
                 "updatedAt"
@@ -18347,10 +18370,26 @@
               "items": {
                 "additionalProperties": false,
                 "properties": {
-                  "currency": {
+                  "amount": {
                     "anyOf": [
                       {
-                        "type": "string"
+                        "additionalProperties": false,
+                        "properties": {
+                          "amount": {
+                            "description": "The amount in the currency's own unit, e.g. 500000000 for ₩500,000,000 or 10.5 for $10.50.",
+                            "type": "number"
+                          },
+                          "currency": {
+                            "description": "ISO 4217 currency code, e.g. KRW or USD.",
+                            "pattern": "^[A-Z]{3}$",
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "amount",
+                          "currency"
+                        ],
+                        "type": "object"
                       },
                       {
                         "type": "null"
@@ -18396,10 +18435,17 @@
                   "updatedAt": {
                     "type": "string"
                   },
-                  "value": {
-                    "type": "number"
+                  "usdEquivalent": {
+                    "anyOf": [
+                      {
+                        "type": "number"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
                   },
-                  "valueUSD": {
+                  "value": {
                     "anyOf": [
                       {
                         "type": "number"
@@ -18421,9 +18467,9 @@
                   "year",
                   "quarter",
                   "month",
+                  "amount",
+                  "usdEquivalent",
                   "value",
-                  "currency",
-                  "valueUSD",
                   "unit",
                   "note",
                   "updatedAt"
@@ -18456,7 +18502,7 @@
         "mode": "success",
         "targetKind": "company"
       },
-      "description": "Record or correct one company metric value for a period — annual revenue, operating profit, MAU, employee count, GMV and similar time-series numbers. Monetary values use an allowed currency plus a stable USD equivalent; non-monetary values use unit. Add quarter (1-4) OR month (1-12) for sub-annual periods, never both. Same call overwrites the same period.",
+      "description": "Record or correct one company metric value for a period — annual revenue, operating profit, MAU, employee count, GMV and similar time-series numbers. Money goes in amount with its USD equivalent; anything else goes in value with a unit. Add quarter (1-4) OR month (1-12) for sub-annual periods, never both. Same call overwrites the same period.",
       "estimatedLatency": "low",
       "idempotency": {
         "required": false,
@@ -18467,23 +18513,25 @@
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
         "properties": {
-          "currency": {
-            "description": "ISO currency of a monetary value. Use currency instead of unit for money.",
-            "enum": [
-              "USD",
-              "KRW",
-              "EUR",
-              "JPY",
-              "GBP",
-              "CNY",
-              "HKD",
-              "SGD",
-              "AUD",
-              "CAD",
-              "CHF",
-              "INR"
+          "amount": {
+            "additionalProperties": false,
+            "description": "The value when the metric is money, e.g. {\"amount\": 1200000000, \"currency\": \"KRW\"}. Give amount or value, never both.",
+            "properties": {
+              "amount": {
+                "description": "The amount in the currency's own unit, e.g. 500000000 for ₩500,000,000 or 10.5 for $10.50.",
+                "type": "number"
+              },
+              "currency": {
+                "description": "ISO 4217 currency code, e.g. KRW or USD.",
+                "pattern": "^[A-Z]{3}$",
+                "type": "string"
+              }
+            },
+            "required": [
+              "amount",
+              "currency"
             ],
-            "type": "string"
+            "type": "object"
           },
           "metric": {
             "description": "Metric key in lowerCamelCase, e.g. 'annualRevenue', 'operatingProfit', 'mau', 'employees'. Reuse the same key across periods.",
@@ -18506,15 +18554,15 @@
             "type": "integer"
           },
           "unit": {
-            "description": "Unit for a non-monetary value, e.g. 'people', 'orders', 'sites'. Do not combine with currency.",
+            "description": "Unit of a value that is not money, e.g. 'people', 'orders', 'sites'.",
             "type": "string"
           },
-          "value": {
-            "description": "Numeric value, e.g. 1200000000 for 1.2 billion. Use the raw number, not a formatted string.",
+          "usdEquivalent": {
+            "description": "The amount in US dollars at the time it is recorded, kept so metrics compare across currencies. Required when amount is not in USD.",
             "type": "number"
           },
-          "valueUSD": {
-            "description": "Stable USD equivalent for a non-USD monetary value. Required when currency is not USD; omitted for non-monetary values.",
+          "value": {
+            "description": "The value when the metric is not money, e.g. 26400 for MAU. Use the raw number, not a formatted string.",
             "type": "number"
           },
           "year": {
@@ -18530,23 +18578,25 @@
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
         "properties": {
-          "currency": {
-            "description": "ISO currency of a monetary value. Use currency instead of unit for money.",
-            "enum": [
-              "USD",
-              "KRW",
-              "EUR",
-              "JPY",
-              "GBP",
-              "CNY",
-              "HKD",
-              "SGD",
-              "AUD",
-              "CAD",
-              "CHF",
-              "INR"
+          "amount": {
+            "additionalProperties": false,
+            "description": "The value when the metric is money, e.g. {\"amount\": 1200000000, \"currency\": \"KRW\"}. Give amount or value, never both.",
+            "properties": {
+              "amount": {
+                "description": "The amount in the currency's own unit, e.g. 500000000 for ₩500,000,000 or 10.5 for $10.50.",
+                "type": "number"
+              },
+              "currency": {
+                "description": "ISO 4217 currency code, e.g. KRW or USD.",
+                "pattern": "^[A-Z]{3}$",
+                "type": "string"
+              }
+            },
+            "required": [
+              "amount",
+              "currency"
             ],
-            "type": "string"
+            "type": "object"
           },
           "metric": {
             "description": "Metric key in lowerCamelCase, e.g. 'annualRevenue', 'operatingProfit', 'mau', 'employees'. Reuse the same key across periods.",
@@ -18569,15 +18619,15 @@
             "type": "integer"
           },
           "unit": {
-            "description": "Unit for a non-monetary value, e.g. 'people', 'orders', 'sites'. Do not combine with currency.",
+            "description": "Unit of a value that is not money, e.g. 'people', 'orders', 'sites'.",
             "type": "string"
           },
-          "value": {
-            "description": "Numeric value, e.g. 1200000000 for 1.2 billion. Use the raw number, not a formatted string.",
+          "usdEquivalent": {
+            "description": "The amount in US dollars at the time it is recorded, kept so metrics compare across currencies. Required when amount is not in USD.",
             "type": "number"
           },
-          "valueUSD": {
-            "description": "Stable USD equivalent for a non-USD monetary value. Required when currency is not USD; omitted for non-monetary values.",
+          "value": {
+            "description": "The value when the metric is not money, e.g. 26400 for MAU. Use the raw number, not a formatted string.",
             "type": "number"
           },
           "year": {
@@ -18589,7 +18639,6 @@
         },
         "required": [
           "metric",
-          "value",
           "year"
         ],
         "type": "object"
@@ -18605,10 +18654,26 @@
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
         "properties": {
-          "currency": {
+          "amount": {
             "anyOf": [
               {
-                "type": "string"
+                "additionalProperties": false,
+                "properties": {
+                  "amount": {
+                    "description": "The amount in the currency's own unit, e.g. 500000000 for ₩500,000,000 or 10.5 for $10.50.",
+                    "type": "number"
+                  },
+                  "currency": {
+                    "description": "ISO 4217 currency code, e.g. KRW or USD.",
+                    "pattern": "^[A-Z]{3}$",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "amount",
+                  "currency"
+                ],
+                "type": "object"
               },
               {
                 "type": "null"
@@ -18654,10 +18719,17 @@
           "updatedAt": {
             "type": "string"
           },
-          "value": {
-            "type": "number"
+          "usdEquivalent": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
-          "valueUSD": {
+          "value": {
             "anyOf": [
               {
                 "type": "number"
@@ -18679,9 +18751,9 @@
           "year",
           "quarter",
           "month",
+          "amount",
+          "usdEquivalent",
           "value",
-          "currency",
-          "valueUSD",
           "unit",
           "note",
           "updatedAt"
@@ -18705,10 +18777,26 @@
           "$schema": "https://json-schema.org/draft/2020-12/schema",
           "additionalProperties": false,
           "properties": {
-            "currency": {
+            "amount": {
               "anyOf": [
                 {
-                  "type": "string"
+                  "additionalProperties": false,
+                  "properties": {
+                    "amount": {
+                      "description": "The amount in the currency's own unit, e.g. 500000000 for ₩500,000,000 or 10.5 for $10.50.",
+                      "type": "number"
+                    },
+                    "currency": {
+                      "description": "ISO 4217 currency code, e.g. KRW or USD.",
+                      "pattern": "^[A-Z]{3}$",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "amount",
+                    "currency"
+                  ],
+                  "type": "object"
                 },
                 {
                   "type": "null"
@@ -18754,10 +18842,17 @@
             "updatedAt": {
               "type": "string"
             },
-            "value": {
-              "type": "number"
+            "usdEquivalent": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ]
             },
-            "valueUSD": {
+            "value": {
               "anyOf": [
                 {
                   "type": "number"
@@ -18779,9 +18874,9 @@
             "year",
             "quarter",
             "month",
+            "amount",
+            "usdEquivalent",
             "value",
-            "currency",
-            "valueUSD",
             "unit",
             "note",
             "updatedAt"
@@ -18816,8 +18911,28 @@
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
         "properties": {
+          "amount": {
+            "additionalProperties": false,
+            "description": "The money the event is about, e.g. a funding round or a grant: {\"amount\": 2000000, \"currency\": \"USD\"}.",
+            "properties": {
+              "amount": {
+                "description": "The amount in the currency's own unit, e.g. 500000000 for ₩500,000,000 or 10.5 for $10.50.",
+                "type": "number"
+              },
+              "currency": {
+                "description": "ISO 4217 currency code, e.g. KRW or USD.",
+                "pattern": "^[A-Z]{3}$",
+                "type": "string"
+              }
+            },
+            "required": [
+              "amount",
+              "currency"
+            ],
+            "type": "object"
+          },
           "attributes": {
-            "description": "JSON object string of structured details, e.g. {\"round\": \"Seed\", \"amount\": \"2,000,000 USD\", \"investors\": \"ABC Ventures\"}.",
+            "description": "JSON object string of other structured details, e.g. {\"round\": \"Seed\", \"investors\": \"ABC Ventures\"}. Money goes in amount.",
             "type": "string"
           },
           "category": {
@@ -18843,8 +18958,28 @@
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
         "properties": {
+          "amount": {
+            "additionalProperties": false,
+            "description": "The money the event is about, e.g. a funding round or a grant: {\"amount\": 2000000, \"currency\": \"USD\"}.",
+            "properties": {
+              "amount": {
+                "description": "The amount in the currency's own unit, e.g. 500000000 for ₩500,000,000 or 10.5 for $10.50.",
+                "type": "number"
+              },
+              "currency": {
+                "description": "ISO 4217 currency code, e.g. KRW or USD.",
+                "pattern": "^[A-Z]{3}$",
+                "type": "string"
+              }
+            },
+            "required": [
+              "amount",
+              "currency"
+            ],
+            "type": "object"
+          },
           "attributes": {
-            "description": "JSON object string of structured details, e.g. {\"round\": \"Seed\", \"amount\": \"2,000,000 USD\", \"investors\": \"ABC Ventures\"}.",
+            "description": "JSON object string of other structured details, e.g. {\"round\": \"Seed\", \"investors\": \"ABC Ventures\"}. Money goes in amount.",
             "type": "string"
           },
           "category": {
@@ -18881,6 +19016,32 @@
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
         "properties": {
+          "amount": {
+            "anyOf": [
+              {
+                "additionalProperties": false,
+                "properties": {
+                  "amount": {
+                    "description": "The amount in the currency's own unit, e.g. 500000000 for ₩500,000,000 or 10.5 for $10.50.",
+                    "type": "number"
+                  },
+                  "currency": {
+                    "description": "ISO 4217 currency code, e.g. KRW or USD.",
+                    "pattern": "^[A-Z]{3}$",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "amount",
+                  "currency"
+                ],
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "attributes": {
             "items": {
               "additionalProperties": false,
@@ -18939,6 +19100,7 @@
           "date",
           "title",
           "detail",
+          "amount",
           "attributes",
           "updatedAt"
         ],
@@ -18961,6 +19123,32 @@
           "$schema": "https://json-schema.org/draft/2020-12/schema",
           "additionalProperties": false,
           "properties": {
+            "amount": {
+              "anyOf": [
+                {
+                  "additionalProperties": false,
+                  "properties": {
+                    "amount": {
+                      "description": "The amount in the currency's own unit, e.g. 500000000 for ₩500,000,000 or 10.5 for $10.50.",
+                      "type": "number"
+                    },
+                    "currency": {
+                      "description": "ISO 4217 currency code, e.g. KRW or USD.",
+                      "pattern": "^[A-Z]{3}$",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "amount",
+                    "currency"
+                  ],
+                  "type": "object"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
             "attributes": {
               "items": {
                 "additionalProperties": false,
@@ -19019,6 +19207,7 @@
             "date",
             "title",
             "detail",
+            "amount",
             "attributes",
             "updatedAt"
           ],
@@ -19074,6 +19263,32 @@
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
         "properties": {
+          "amount": {
+            "anyOf": [
+              {
+                "additionalProperties": false,
+                "properties": {
+                  "amount": {
+                    "description": "The amount in the currency's own unit, e.g. 500000000 for ₩500,000,000 or 10.5 for $10.50.",
+                    "type": "number"
+                  },
+                  "currency": {
+                    "description": "ISO 4217 currency code, e.g. KRW or USD.",
+                    "pattern": "^[A-Z]{3}$",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "amount",
+                  "currency"
+                ],
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "attributes": {
             "items": {
               "additionalProperties": false,
@@ -19132,6 +19347,7 @@
           "date",
           "title",
           "detail",
+          "amount",
           "attributes",
           "updatedAt"
         ],
@@ -19155,6 +19371,32 @@
           "$schema": "https://json-schema.org/draft/2020-12/schema",
           "additionalProperties": false,
           "properties": {
+            "amount": {
+              "anyOf": [
+                {
+                  "additionalProperties": false,
+                  "properties": {
+                    "amount": {
+                      "description": "The amount in the currency's own unit, e.g. 500000000 for ₩500,000,000 or 10.5 for $10.50.",
+                      "type": "number"
+                    },
+                    "currency": {
+                      "description": "ISO 4217 currency code, e.g. KRW or USD.",
+                      "pattern": "^[A-Z]{3}$",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "amount",
+                    "currency"
+                  ],
+                  "type": "object"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
             "attributes": {
               "items": {
                 "additionalProperties": false,
@@ -19213,6 +19455,7 @@
             "date",
             "title",
             "detail",
+            "amount",
             "attributes",
             "updatedAt"
           ],
@@ -19272,6 +19515,32 @@
             "items": {
               "additionalProperties": false,
               "properties": {
+                "amount": {
+                  "anyOf": [
+                    {
+                      "additionalProperties": false,
+                      "properties": {
+                        "amount": {
+                          "description": "The amount in the currency's own unit, e.g. 500000000 for ₩500,000,000 or 10.5 for $10.50.",
+                          "type": "number"
+                        },
+                        "currency": {
+                          "description": "ISO 4217 currency code, e.g. KRW or USD.",
+                          "pattern": "^[A-Z]{3}$",
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "amount",
+                        "currency"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
                 "attributes": {
                   "items": {
                     "additionalProperties": false,
@@ -19330,6 +19599,7 @@
                 "date",
                 "title",
                 "detail",
+                "amount",
                 "attributes",
                 "updatedAt"
               ],
@@ -19363,6 +19633,32 @@
               "items": {
                 "additionalProperties": false,
                 "properties": {
+                  "amount": {
+                    "anyOf": [
+                      {
+                        "additionalProperties": false,
+                        "properties": {
+                          "amount": {
+                            "description": "The amount in the currency's own unit, e.g. 500000000 for ₩500,000,000 or 10.5 for $10.50.",
+                            "type": "number"
+                          },
+                          "currency": {
+                            "description": "ISO 4217 currency code, e.g. KRW or USD.",
+                            "pattern": "^[A-Z]{3}$",
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "amount",
+                          "currency"
+                        ],
+                        "type": "object"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
                   "attributes": {
                     "items": {
                       "additionalProperties": false,
@@ -19421,6 +19717,7 @@
                   "date",
                   "title",
                   "detail",
+                  "amount",
                   "attributes",
                   "updatedAt"
                 ],
@@ -19458,6 +19755,26 @@
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
         "properties": {
+          "amount": {
+            "additionalProperties": false,
+            "description": "New amount. Omit to keep unchanged.",
+            "properties": {
+              "amount": {
+                "description": "The amount in the currency's own unit, e.g. 500000000 for ₩500,000,000 or 10.5 for $10.50.",
+                "type": "number"
+              },
+              "currency": {
+                "description": "ISO 4217 currency code, e.g. KRW or USD.",
+                "pattern": "^[A-Z]{3}$",
+                "type": "string"
+              }
+            },
+            "required": [
+              "amount",
+              "currency"
+            ],
+            "type": "object"
+          },
           "attributes": {
             "description": "JSON object string replacing the stored attributes. Omit to keep unchanged.",
             "type": "string"
@@ -19485,6 +19802,26 @@
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
         "properties": {
+          "amount": {
+            "additionalProperties": false,
+            "description": "New amount. Omit to keep unchanged.",
+            "properties": {
+              "amount": {
+                "description": "The amount in the currency's own unit, e.g. 500000000 for ₩500,000,000 or 10.5 for $10.50.",
+                "type": "number"
+              },
+              "currency": {
+                "description": "ISO 4217 currency code, e.g. KRW or USD.",
+                "pattern": "^[A-Z]{3}$",
+                "type": "string"
+              }
+            },
+            "required": [
+              "amount",
+              "currency"
+            ],
+            "type": "object"
+          },
           "attributes": {
             "description": "JSON object string replacing the stored attributes. Omit to keep unchanged.",
             "type": "string"
@@ -19526,6 +19863,32 @@
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
         "properties": {
+          "amount": {
+            "anyOf": [
+              {
+                "additionalProperties": false,
+                "properties": {
+                  "amount": {
+                    "description": "The amount in the currency's own unit, e.g. 500000000 for ₩500,000,000 or 10.5 for $10.50.",
+                    "type": "number"
+                  },
+                  "currency": {
+                    "description": "ISO 4217 currency code, e.g. KRW or USD.",
+                    "pattern": "^[A-Z]{3}$",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "amount",
+                  "currency"
+                ],
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "attributes": {
             "items": {
               "additionalProperties": false,
@@ -19584,6 +19947,7 @@
           "date",
           "title",
           "detail",
+          "amount",
           "attributes",
           "updatedAt"
         ],
@@ -19606,6 +19970,32 @@
           "$schema": "https://json-schema.org/draft/2020-12/schema",
           "additionalProperties": false,
           "properties": {
+            "amount": {
+              "anyOf": [
+                {
+                  "additionalProperties": false,
+                  "properties": {
+                    "amount": {
+                      "description": "The amount in the currency's own unit, e.g. 500000000 for ₩500,000,000 or 10.5 for $10.50.",
+                      "type": "number"
+                    },
+                    "currency": {
+                      "description": "ISO 4217 currency code, e.g. KRW or USD.",
+                      "pattern": "^[A-Z]{3}$",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "amount",
+                    "currency"
+                  ],
+                  "type": "object"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
             "attributes": {
               "items": {
                 "additionalProperties": false,
@@ -19664,6 +20054,7 @@
             "date",
             "title",
             "detail",
+            "amount",
             "attributes",
             "updatedAt"
           ],
@@ -23484,12 +23875,26 @@
                   "minimum": -9007199254740991,
                   "type": "integer"
                 },
-                "amountMinor": {
+                "amount": {
                   "anyOf": [
                     {
-                      "maximum": 9007199254740991,
-                      "minimum": -9007199254740991,
-                      "type": "integer"
+                      "additionalProperties": false,
+                      "properties": {
+                        "amount": {
+                          "description": "The amount in the currency's own unit, e.g. 500000000 for ₩500,000,000 or 10.5 for $10.50.",
+                          "type": "number"
+                        },
+                        "currency": {
+                          "description": "ISO 4217 currency code, e.g. KRW or USD.",
+                          "pattern": "^[A-Z]{3}$",
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "amount",
+                        "currency"
+                      ],
+                      "type": "object"
                     },
                     {
                       "type": "null"
@@ -23535,28 +23940,10 @@
                   ],
                   "type": "object"
                 },
-                "baseAmountMinor": {
-                  "anyOf": [
-                    {
-                      "maximum": 9007199254740991,
-                      "minimum": -9007199254740991,
-                      "type": "integer"
-                    },
-                    {
-                      "type": "null"
-                    }
-                  ]
-                },
-                "baseCurrencyCode": {
-                  "type": "string"
-                },
                 "business": {
                   "type": "string"
                 },
                 "contactID": {
-                  "type": "string"
-                },
-                "currencyCode": {
                   "type": "string"
                 },
                 "description": {
@@ -23588,6 +23975,32 @@
                 "pipeline": {
                   "type": "string"
                 },
+                "settledAmount": {
+                  "anyOf": [
+                    {
+                      "additionalProperties": false,
+                      "properties": {
+                        "amount": {
+                          "description": "The amount in the currency's own unit, e.g. 500000000 for ₩500,000,000 or 10.5 for $10.50.",
+                          "type": "number"
+                        },
+                        "currency": {
+                          "description": "ISO 4217 currency code, e.g. KRW or USD.",
+                          "pattern": "^[A-Z]{3}$",
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "amount",
+                        "currency"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
                 "stage": {
                   "type": "string"
                 },
@@ -23614,10 +24027,8 @@
                 "stagePosition",
                 "stageChangedAt",
                 "ownerPersonID",
-                "amountMinor",
-                "currencyCode",
-                "baseAmountMinor",
-                "baseCurrencyCode",
+                "amount",
+                "settledAmount",
                 "importance",
                 "expectedCloseAt",
                 "expectedCloseTimeZone",
@@ -23661,12 +24072,26 @@
                     "minimum": -9007199254740991,
                     "type": "integer"
                   },
-                  "amountMinor": {
+                  "amount": {
                     "anyOf": [
                       {
-                        "maximum": 9007199254740991,
-                        "minimum": -9007199254740991,
-                        "type": "integer"
+                        "additionalProperties": false,
+                        "properties": {
+                          "amount": {
+                            "description": "The amount in the currency's own unit, e.g. 500000000 for ₩500,000,000 or 10.5 for $10.50.",
+                            "type": "number"
+                          },
+                          "currency": {
+                            "description": "ISO 4217 currency code, e.g. KRW or USD.",
+                            "pattern": "^[A-Z]{3}$",
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "amount",
+                          "currency"
+                        ],
+                        "type": "object"
                       },
                       {
                         "type": "null"
@@ -23712,28 +24137,10 @@
                     ],
                     "type": "object"
                   },
-                  "baseAmountMinor": {
-                    "anyOf": [
-                      {
-                        "maximum": 9007199254740991,
-                        "minimum": -9007199254740991,
-                        "type": "integer"
-                      },
-                      {
-                        "type": "null"
-                      }
-                    ]
-                  },
-                  "baseCurrencyCode": {
-                    "type": "string"
-                  },
                   "business": {
                     "type": "string"
                   },
                   "contactID": {
-                    "type": "string"
-                  },
-                  "currencyCode": {
                     "type": "string"
                   },
                   "description": {
@@ -23765,6 +24172,32 @@
                   "pipeline": {
                     "type": "string"
                   },
+                  "settledAmount": {
+                    "anyOf": [
+                      {
+                        "additionalProperties": false,
+                        "properties": {
+                          "amount": {
+                            "description": "The amount in the currency's own unit, e.g. 500000000 for ₩500,000,000 or 10.5 for $10.50.",
+                            "type": "number"
+                          },
+                          "currency": {
+                            "description": "ISO 4217 currency code, e.g. KRW or USD.",
+                            "pattern": "^[A-Z]{3}$",
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "amount",
+                          "currency"
+                        ],
+                        "type": "object"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
                   "stage": {
                     "type": "string"
                   },
@@ -23791,10 +24224,8 @@
                   "stagePosition",
                   "stageChangedAt",
                   "ownerPersonID",
-                  "amountMinor",
-                  "currencyCode",
-                  "baseAmountMinor",
-                  "baseCurrencyCode",
+                  "amount",
+                  "settledAmount",
                   "importance",
                   "expectedCloseAt",
                   "expectedCloseTimeZone",
@@ -23842,11 +24273,25 @@
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
         "properties": {
-          "amountMinor": {
-            "description": "What it is worth, in the currency's smallest unit: 15000000 is ₩15,000,000.",
-            "maximum": 9007199254740991,
-            "minimum": -9007199254740991,
-            "type": "integer"
+          "amount": {
+            "additionalProperties": false,
+            "description": "What it is worth, e.g. {\"amount\": 15000000, \"currency\": \"KRW\"}.",
+            "properties": {
+              "amount": {
+                "description": "The amount in the currency's own unit, e.g. 500000000 for ₩500,000,000 or 10.5 for $10.50.",
+                "type": "number"
+              },
+              "currency": {
+                "description": "ISO 4217 currency code, e.g. KRW or USD.",
+                "pattern": "^[A-Z]{3}$",
+                "type": "string"
+              }
+            },
+            "required": [
+              "amount",
+              "currency"
+            ],
+            "type": "object"
           },
           "business": {
             "description": "Business label from a task_list result.",
@@ -23857,12 +24302,6 @@
             "description": "The person: their exact contact ID, their email address, or their name as crm_contact_list shows it.",
             "maxLength": 256,
             "minLength": 1,
-            "type": "string"
-          },
-          "currencyCode": {
-            "description": "ISO 4217, e.g. 'KRW'.",
-            "maxLength": 3,
-            "minLength": 3,
             "type": "string"
           },
           "description": {
@@ -23920,11 +24359,25 @@
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
         "properties": {
-          "amountMinor": {
-            "description": "What it is worth, in the currency's smallest unit: 15000000 is ₩15,000,000.",
-            "maximum": 9007199254740991,
-            "minimum": -9007199254740991,
-            "type": "integer"
+          "amount": {
+            "additionalProperties": false,
+            "description": "What it is worth, e.g. {\"amount\": 15000000, \"currency\": \"KRW\"}.",
+            "properties": {
+              "amount": {
+                "description": "The amount in the currency's own unit, e.g. 500000000 for ₩500,000,000 or 10.5 for $10.50.",
+                "type": "number"
+              },
+              "currency": {
+                "description": "ISO 4217 currency code, e.g. KRW or USD.",
+                "pattern": "^[A-Z]{3}$",
+                "type": "string"
+              }
+            },
+            "required": [
+              "amount",
+              "currency"
+            ],
+            "type": "object"
           },
           "business": {
             "description": "Business label from a task_list result.",
@@ -23935,12 +24388,6 @@
             "description": "The person: their exact contact ID, their email address, or their name as crm_contact_list shows it.",
             "maxLength": 256,
             "minLength": 1,
-            "type": "string"
-          },
-          "currencyCode": {
-            "description": "ISO 4217, e.g. 'KRW'.",
-            "maxLength": 3,
-            "minLength": 3,
             "type": "string"
           },
           "description": {
@@ -24014,12 +24461,26 @@
             "minimum": -9007199254740991,
             "type": "integer"
           },
-          "amountMinor": {
+          "amount": {
             "anyOf": [
               {
-                "maximum": 9007199254740991,
-                "minimum": -9007199254740991,
-                "type": "integer"
+                "additionalProperties": false,
+                "properties": {
+                  "amount": {
+                    "description": "The amount in the currency's own unit, e.g. 500000000 for ₩500,000,000 or 10.5 for $10.50.",
+                    "type": "number"
+                  },
+                  "currency": {
+                    "description": "ISO 4217 currency code, e.g. KRW or USD.",
+                    "pattern": "^[A-Z]{3}$",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "amount",
+                  "currency"
+                ],
+                "type": "object"
               },
               {
                 "type": "null"
@@ -24065,28 +24526,10 @@
             ],
             "type": "object"
           },
-          "baseAmountMinor": {
-            "anyOf": [
-              {
-                "maximum": 9007199254740991,
-                "minimum": -9007199254740991,
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "baseCurrencyCode": {
-            "type": "string"
-          },
           "business": {
             "type": "string"
           },
           "contactID": {
-            "type": "string"
-          },
-          "currencyCode": {
             "type": "string"
           },
           "description": {
@@ -24118,6 +24561,32 @@
           "pipeline": {
             "type": "string"
           },
+          "settledAmount": {
+            "anyOf": [
+              {
+                "additionalProperties": false,
+                "properties": {
+                  "amount": {
+                    "description": "The amount in the currency's own unit, e.g. 500000000 for ₩500,000,000 or 10.5 for $10.50.",
+                    "type": "number"
+                  },
+                  "currency": {
+                    "description": "ISO 4217 currency code, e.g. KRW or USD.",
+                    "pattern": "^[A-Z]{3}$",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "amount",
+                  "currency"
+                ],
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "stage": {
             "type": "string"
           },
@@ -24144,10 +24613,8 @@
           "stagePosition",
           "stageChangedAt",
           "ownerPersonID",
-          "amountMinor",
-          "currencyCode",
-          "baseAmountMinor",
-          "baseCurrencyCode",
+          "amount",
+          "settledAmount",
           "importance",
           "expectedCloseAt",
           "expectedCloseTimeZone",
@@ -24180,12 +24647,26 @@
               "minimum": -9007199254740991,
               "type": "integer"
             },
-            "amountMinor": {
+            "amount": {
               "anyOf": [
                 {
-                  "maximum": 9007199254740991,
-                  "minimum": -9007199254740991,
-                  "type": "integer"
+                  "additionalProperties": false,
+                  "properties": {
+                    "amount": {
+                      "description": "The amount in the currency's own unit, e.g. 500000000 for ₩500,000,000 or 10.5 for $10.50.",
+                      "type": "number"
+                    },
+                    "currency": {
+                      "description": "ISO 4217 currency code, e.g. KRW or USD.",
+                      "pattern": "^[A-Z]{3}$",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "amount",
+                    "currency"
+                  ],
+                  "type": "object"
                 },
                 {
                   "type": "null"
@@ -24231,28 +24712,10 @@
               ],
               "type": "object"
             },
-            "baseAmountMinor": {
-              "anyOf": [
-                {
-                  "maximum": 9007199254740991,
-                  "minimum": -9007199254740991,
-                  "type": "integer"
-                },
-                {
-                  "type": "null"
-                }
-              ]
-            },
-            "baseCurrencyCode": {
-              "type": "string"
-            },
             "business": {
               "type": "string"
             },
             "contactID": {
-              "type": "string"
-            },
-            "currencyCode": {
               "type": "string"
             },
             "description": {
@@ -24284,6 +24747,32 @@
             "pipeline": {
               "type": "string"
             },
+            "settledAmount": {
+              "anyOf": [
+                {
+                  "additionalProperties": false,
+                  "properties": {
+                    "amount": {
+                      "description": "The amount in the currency's own unit, e.g. 500000000 for ₩500,000,000 or 10.5 for $10.50.",
+                      "type": "number"
+                    },
+                    "currency": {
+                      "description": "ISO 4217 currency code, e.g. KRW or USD.",
+                      "pattern": "^[A-Z]{3}$",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "amount",
+                    "currency"
+                  ],
+                  "type": "object"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
             "stage": {
               "type": "string"
             },
@@ -24310,10 +24799,8 @@
             "stagePosition",
             "stageChangedAt",
             "ownerPersonID",
-            "amountMinor",
-            "currencyCode",
-            "baseAmountMinor",
-            "baseCurrencyCode",
+            "amount",
+            "settledAmount",
             "importance",
             "expectedCloseAt",
             "expectedCloseTimeZone",
@@ -24352,11 +24839,25 @@
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
         "properties": {
-          "amountMinor": {
-            "description": "What it is worth, in the currency's smallest unit: 15000000 is ₩15,000,000.",
-            "maximum": 9007199254740991,
-            "minimum": -9007199254740991,
-            "type": "integer"
+          "amount": {
+            "additionalProperties": false,
+            "description": "What it is worth, e.g. {\"amount\": 15000000, \"currency\": \"KRW\"}.",
+            "properties": {
+              "amount": {
+                "description": "The amount in the currency's own unit, e.g. 500000000 for ₩500,000,000 or 10.5 for $10.50.",
+                "type": "number"
+              },
+              "currency": {
+                "description": "ISO 4217 currency code, e.g. KRW or USD.",
+                "pattern": "^[A-Z]{3}$",
+                "type": "string"
+              }
+            },
+            "required": [
+              "amount",
+              "currency"
+            ],
+            "type": "object"
           },
           "business": {
             "description": "Business label from a task_list result.",
@@ -24367,12 +24868,6 @@
             "description": "The person: their exact contact ID, their email address, or their name as crm_contact_list shows it.",
             "maxLength": 256,
             "minLength": 1,
-            "type": "string"
-          },
-          "currencyCode": {
-            "description": "ISO 4217, e.g. 'KRW'.",
-            "maxLength": 3,
-            "minLength": 3,
             "type": "string"
           },
           "description": {
@@ -24419,11 +24914,25 @@
         "additionalProperties": false,
         "minProperties": 2,
         "properties": {
-          "amountMinor": {
-            "description": "What it is worth, in the currency's smallest unit: 15000000 is ₩15,000,000.",
-            "maximum": 9007199254740991,
-            "minimum": -9007199254740991,
-            "type": "integer"
+          "amount": {
+            "additionalProperties": false,
+            "description": "What it is worth, e.g. {\"amount\": 15000000, \"currency\": \"KRW\"}.",
+            "properties": {
+              "amount": {
+                "description": "The amount in the currency's own unit, e.g. 500000000 for ₩500,000,000 or 10.5 for $10.50.",
+                "type": "number"
+              },
+              "currency": {
+                "description": "ISO 4217 currency code, e.g. KRW or USD.",
+                "pattern": "^[A-Z]{3}$",
+                "type": "string"
+              }
+            },
+            "required": [
+              "amount",
+              "currency"
+            ],
+            "type": "object"
           },
           "business": {
             "description": "Business label from a task_list result.",
@@ -24434,12 +24943,6 @@
             "description": "The person: their exact contact ID, their email address, or their name as crm_contact_list shows it.",
             "maxLength": 256,
             "minLength": 1,
-            "type": "string"
-          },
-          "currencyCode": {
-            "description": "ISO 4217, e.g. 'KRW'.",
-            "maxLength": 3,
-            "minLength": 3,
             "type": "string"
           },
           "description": {
@@ -24506,12 +25009,26 @@
             "minimum": -9007199254740991,
             "type": "integer"
           },
-          "amountMinor": {
+          "amount": {
             "anyOf": [
               {
-                "maximum": 9007199254740991,
-                "minimum": -9007199254740991,
-                "type": "integer"
+                "additionalProperties": false,
+                "properties": {
+                  "amount": {
+                    "description": "The amount in the currency's own unit, e.g. 500000000 for ₩500,000,000 or 10.5 for $10.50.",
+                    "type": "number"
+                  },
+                  "currency": {
+                    "description": "ISO 4217 currency code, e.g. KRW or USD.",
+                    "pattern": "^[A-Z]{3}$",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "amount",
+                  "currency"
+                ],
+                "type": "object"
               },
               {
                 "type": "null"
@@ -24557,28 +25074,10 @@
             ],
             "type": "object"
           },
-          "baseAmountMinor": {
-            "anyOf": [
-              {
-                "maximum": 9007199254740991,
-                "minimum": -9007199254740991,
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "baseCurrencyCode": {
-            "type": "string"
-          },
           "business": {
             "type": "string"
           },
           "contactID": {
-            "type": "string"
-          },
-          "currencyCode": {
             "type": "string"
           },
           "description": {
@@ -24610,6 +25109,32 @@
           "pipeline": {
             "type": "string"
           },
+          "settledAmount": {
+            "anyOf": [
+              {
+                "additionalProperties": false,
+                "properties": {
+                  "amount": {
+                    "description": "The amount in the currency's own unit, e.g. 500000000 for ₩500,000,000 or 10.5 for $10.50.",
+                    "type": "number"
+                  },
+                  "currency": {
+                    "description": "ISO 4217 currency code, e.g. KRW or USD.",
+                    "pattern": "^[A-Z]{3}$",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "amount",
+                  "currency"
+                ],
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "stage": {
             "type": "string"
           },
@@ -24636,10 +25161,8 @@
           "stagePosition",
           "stageChangedAt",
           "ownerPersonID",
-          "amountMinor",
-          "currencyCode",
-          "baseAmountMinor",
-          "baseCurrencyCode",
+          "amount",
+          "settledAmount",
           "importance",
           "expectedCloseAt",
           "expectedCloseTimeZone",
@@ -24672,12 +25195,26 @@
               "minimum": -9007199254740991,
               "type": "integer"
             },
-            "amountMinor": {
+            "amount": {
               "anyOf": [
                 {
-                  "maximum": 9007199254740991,
-                  "minimum": -9007199254740991,
-                  "type": "integer"
+                  "additionalProperties": false,
+                  "properties": {
+                    "amount": {
+                      "description": "The amount in the currency's own unit, e.g. 500000000 for ₩500,000,000 or 10.5 for $10.50.",
+                      "type": "number"
+                    },
+                    "currency": {
+                      "description": "ISO 4217 currency code, e.g. KRW or USD.",
+                      "pattern": "^[A-Z]{3}$",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "amount",
+                    "currency"
+                  ],
+                  "type": "object"
                 },
                 {
                   "type": "null"
@@ -24723,28 +25260,10 @@
               ],
               "type": "object"
             },
-            "baseAmountMinor": {
-              "anyOf": [
-                {
-                  "maximum": 9007199254740991,
-                  "minimum": -9007199254740991,
-                  "type": "integer"
-                },
-                {
-                  "type": "null"
-                }
-              ]
-            },
-            "baseCurrencyCode": {
-              "type": "string"
-            },
             "business": {
               "type": "string"
             },
             "contactID": {
-              "type": "string"
-            },
-            "currencyCode": {
               "type": "string"
             },
             "description": {
@@ -24776,6 +25295,32 @@
             "pipeline": {
               "type": "string"
             },
+            "settledAmount": {
+              "anyOf": [
+                {
+                  "additionalProperties": false,
+                  "properties": {
+                    "amount": {
+                      "description": "The amount in the currency's own unit, e.g. 500000000 for ₩500,000,000 or 10.5 for $10.50.",
+                      "type": "number"
+                    },
+                    "currency": {
+                      "description": "ISO 4217 currency code, e.g. KRW or USD.",
+                      "pattern": "^[A-Z]{3}$",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "amount",
+                    "currency"
+                  ],
+                  "type": "object"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
             "stage": {
               "type": "string"
             },
@@ -24802,10 +25347,8 @@
             "stagePosition",
             "stageChangedAt",
             "ownerPersonID",
-            "amountMinor",
-            "currencyCode",
-            "baseAmountMinor",
-            "baseCurrencyCode",
+            "amount",
+            "settledAmount",
             "importance",
             "expectedCloseAt",
             "expectedCloseTimeZone",
@@ -24848,11 +25391,25 @@
             "description": "When the move happened. ISO 8601 with a time zone for a moment, or yyyy-mm-dd for a whole day. Defaults to now.",
             "type": "string"
           },
-          "finalAmountMinor": {
-            "description": "What it was worth in the company's own currency, which the record converts when the call does not.",
-            "maximum": 9007199254740991,
-            "minimum": -9007199254740991,
-            "type": "integer"
+          "finalAmount": {
+            "additionalProperties": false,
+            "description": "What it was worth, in the company's own currency. Omit to let the record convert the deal's amount.",
+            "properties": {
+              "amount": {
+                "description": "The amount in the currency's own unit, e.g. 500000000 for ₩500,000,000 or 10.5 for $10.50.",
+                "type": "number"
+              },
+              "currency": {
+                "description": "ISO 4217 currency code, e.g. KRW or USD.",
+                "pattern": "^[A-Z]{3}$",
+                "type": "string"
+              }
+            },
+            "required": [
+              "amount",
+              "currency"
+            ],
+            "type": "object"
           },
           "position": {
             "description": "Where it sits at that stage, counting from 0.",
@@ -24889,11 +25446,25 @@
             "description": "When the move happened. ISO 8601 with a time zone for a moment, or yyyy-mm-dd for a whole day. Defaults to now.",
             "type": "string"
           },
-          "finalAmountMinor": {
-            "description": "What it was worth in the company's own currency, which the record converts when the call does not.",
-            "maximum": 9007199254740991,
-            "minimum": -9007199254740991,
-            "type": "integer"
+          "finalAmount": {
+            "additionalProperties": false,
+            "description": "What it was worth, in the company's own currency. Omit to let the record convert the deal's amount.",
+            "properties": {
+              "amount": {
+                "description": "The amount in the currency's own unit, e.g. 500000000 for ₩500,000,000 or 10.5 for $10.50.",
+                "type": "number"
+              },
+              "currency": {
+                "description": "ISO 4217 currency code, e.g. KRW or USD.",
+                "pattern": "^[A-Z]{3}$",
+                "type": "string"
+              }
+            },
+            "required": [
+              "amount",
+              "currency"
+            ],
+            "type": "object"
           },
           "opportunityHint": {
             "description": "The deal: its exact opportunity ID, or its exact CURRENT title from crm_opportunity_list. Never a new title.",
@@ -24946,12 +25517,26 @@
             "minimum": -9007199254740991,
             "type": "integer"
           },
-          "amountMinor": {
+          "amount": {
             "anyOf": [
               {
-                "maximum": 9007199254740991,
-                "minimum": -9007199254740991,
-                "type": "integer"
+                "additionalProperties": false,
+                "properties": {
+                  "amount": {
+                    "description": "The amount in the currency's own unit, e.g. 500000000 for ₩500,000,000 or 10.5 for $10.50.",
+                    "type": "number"
+                  },
+                  "currency": {
+                    "description": "ISO 4217 currency code, e.g. KRW or USD.",
+                    "pattern": "^[A-Z]{3}$",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "amount",
+                  "currency"
+                ],
+                "type": "object"
               },
               {
                 "type": "null"
@@ -24997,28 +25582,10 @@
             ],
             "type": "object"
           },
-          "baseAmountMinor": {
-            "anyOf": [
-              {
-                "maximum": 9007199254740991,
-                "minimum": -9007199254740991,
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "baseCurrencyCode": {
-            "type": "string"
-          },
           "business": {
             "type": "string"
           },
           "contactID": {
-            "type": "string"
-          },
-          "currencyCode": {
             "type": "string"
           },
           "description": {
@@ -25050,6 +25617,32 @@
           "pipeline": {
             "type": "string"
           },
+          "settledAmount": {
+            "anyOf": [
+              {
+                "additionalProperties": false,
+                "properties": {
+                  "amount": {
+                    "description": "The amount in the currency's own unit, e.g. 500000000 for ₩500,000,000 or 10.5 for $10.50.",
+                    "type": "number"
+                  },
+                  "currency": {
+                    "description": "ISO 4217 currency code, e.g. KRW or USD.",
+                    "pattern": "^[A-Z]{3}$",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "amount",
+                  "currency"
+                ],
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "stage": {
             "type": "string"
           },
@@ -25076,10 +25669,8 @@
           "stagePosition",
           "stageChangedAt",
           "ownerPersonID",
-          "amountMinor",
-          "currencyCode",
-          "baseAmountMinor",
-          "baseCurrencyCode",
+          "amount",
+          "settledAmount",
           "importance",
           "expectedCloseAt",
           "expectedCloseTimeZone",
@@ -25113,12 +25704,26 @@
               "minimum": -9007199254740991,
               "type": "integer"
             },
-            "amountMinor": {
+            "amount": {
               "anyOf": [
                 {
-                  "maximum": 9007199254740991,
-                  "minimum": -9007199254740991,
-                  "type": "integer"
+                  "additionalProperties": false,
+                  "properties": {
+                    "amount": {
+                      "description": "The amount in the currency's own unit, e.g. 500000000 for ₩500,000,000 or 10.5 for $10.50.",
+                      "type": "number"
+                    },
+                    "currency": {
+                      "description": "ISO 4217 currency code, e.g. KRW or USD.",
+                      "pattern": "^[A-Z]{3}$",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "amount",
+                    "currency"
+                  ],
+                  "type": "object"
                 },
                 {
                   "type": "null"
@@ -25164,28 +25769,10 @@
               ],
               "type": "object"
             },
-            "baseAmountMinor": {
-              "anyOf": [
-                {
-                  "maximum": 9007199254740991,
-                  "minimum": -9007199254740991,
-                  "type": "integer"
-                },
-                {
-                  "type": "null"
-                }
-              ]
-            },
-            "baseCurrencyCode": {
-              "type": "string"
-            },
             "business": {
               "type": "string"
             },
             "contactID": {
-              "type": "string"
-            },
-            "currencyCode": {
               "type": "string"
             },
             "description": {
@@ -25217,6 +25804,32 @@
             "pipeline": {
               "type": "string"
             },
+            "settledAmount": {
+              "anyOf": [
+                {
+                  "additionalProperties": false,
+                  "properties": {
+                    "amount": {
+                      "description": "The amount in the currency's own unit, e.g. 500000000 for ₩500,000,000 or 10.5 for $10.50.",
+                      "type": "number"
+                    },
+                    "currency": {
+                      "description": "ISO 4217 currency code, e.g. KRW or USD.",
+                      "pattern": "^[A-Z]{3}$",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "amount",
+                    "currency"
+                  ],
+                  "type": "object"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
             "stage": {
               "type": "string"
             },
@@ -25243,10 +25856,8 @@
             "stagePosition",
             "stageChangedAt",
             "ownerPersonID",
-            "amountMinor",
-            "currencyCode",
-            "baseAmountMinor",
-            "baseCurrencyCode",
+            "amount",
+            "settledAmount",
             "importance",
             "expectedCloseAt",
             "expectedCloseTimeZone",

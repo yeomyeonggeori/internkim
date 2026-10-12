@@ -2,6 +2,8 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { crmStageSettles, isCRMStage, type CRMStage } from '$lib/crm/crm-stage';
 import { convertedAmount } from '$lib/server/converted-amount';
 import { frankfurterProvider } from '$lib/server/exchange-rates';
+import { minorOfMoney, storedMoneyOf } from '$lib/server/stored-money';
+import type { Money } from '$lib/money';
 import {
 	activityCountByOpportunity,
 	answeredVocabulary,
@@ -92,8 +94,7 @@ export type CRMOpportunityWritten = {
 	organizationHint?: string;
 	pipeline?: string;
 	business?: string;
-	amountMinor?: number;
-	currencyCode?: string;
+	amount?: Money;
 	contactHint?: string;
 	ownerPersonHint?: string;
 	importance?: string;
@@ -107,7 +108,7 @@ export type CRMOpportunityMoveInput = {
 	stage?: string;
 	position?: number;
 	closedAt?: string;
-	finalAmountMinor?: number;
+	finalAmount?: Money;
 	reason?: string;
 };
 
@@ -193,10 +194,8 @@ function answeredOpportunity(row: OpportunityRow, activityCount: number): CRMOpp
 		stagePosition: row.stage_position,
 		stageChangedAt: row.stage_changed_at,
 		ownerPersonID: row.owner_id ?? '',
-		amountMinor: row.amount_minor,
-		currencyCode: row.currency_code ?? '',
-		baseAmountMinor: row.base_amount_minor,
-		baseCurrencyCode: row.base_currency_code ?? '',
+		amount: storedMoneyOf(row.amount_minor, row.currency_code),
+		settledAmount: storedMoneyOf(row.base_amount_minor, row.base_currency_code),
 		importance: row.importance,
 		expectedCloseAt: row.due_at ?? '',
 		expectedCloseTimeZone: row.due_time_zone ?? '',
@@ -475,9 +474,9 @@ async function opportunityChange(
 	if (input.business !== undefined) change.business = trimmedOr(input.business, null);
 	if (input.importance !== undefined) change.importance = input.importance.trim();
 	if (input.description !== undefined) change.description = trimmedOr(input.description, null);
-	if (input.amountMinor !== undefined) change.amount_minor = input.amountMinor;
-	if (input.currencyCode !== undefined) {
-		change.currency_code = input.currencyCode.trim().toUpperCase() || null;
+	if (input.amount !== undefined) {
+		change.amount_minor = minorOfMoney(input.amount);
+		change.currency_code = input.amount.currency;
 	}
 	if (input.ownerPersonHint !== undefined) {
 		change.owner_id = ownerOf(context, input.ownerPersonHint, row?.owner_id ?? null);
@@ -596,7 +595,7 @@ export async function crmOpportunityMove(
 
 	const company = await crmCompanyRow(context.caller);
 	const settled = crmStageSettles(stage)
-		? await settledAmountOf(row, company.currency_code, input.finalAmountMinor)
+		? await settledAmountOf(row, company.currency_code, input.finalAmount)
 		: null;
 
 	const { data, error } = await context.caller.rpc('crm_opportunity_close', {
@@ -636,16 +635,22 @@ async function reorderedOpportunity(
 async function settledAmountOf(
 	row: OpportunityRow,
 	companyCurrency: string,
-	finalAmountMinor: number | undefined
+	finalAmount: Money | undefined
 ): Promise<{ amountMinor: number; currencyCode: string } | null> {
-	if (finalAmountMinor !== undefined) {
-		return { amountMinor: finalAmountMinor, currencyCode: companyCurrency };
+	if (finalAmount !== undefined) {
+		if (finalAmount.currency !== companyCurrency) {
+			throw new RecordRefusedTheWrite(`a final amount is in the company currency ${companyCurrency}, and this one is in ${finalAmount.currency}`, 422);
+		}
+		return { amountMinor: minorOfMoney(finalAmount), currencyCode: companyCurrency };
 	}
 	if (row.base_amount_minor !== null) return null;
 	if (row.amount_minor === null || row.currency_code === null) return null;
 	if (row.currency_code === companyCurrency) return null;
 
-	return convertedAmount(exchangeRates, row.amount_minor, row.currency_code, companyCurrency);
+	const amount = storedMoneyOf(row.amount_minor, row.currency_code);
+	if (!amount) return null;
+	const converted = await convertedAmount(exchangeRates, amount, companyCurrency);
+	return { amountMinor: minorOfMoney(converted.amount), currencyCode: companyCurrency };
 }
 
 export async function crmOpportunityArchive(

@@ -1,6 +1,7 @@
 import type { CRMImportance, CRMOrganizationStatus } from '$lib/crm/crm-record-values';
 import type { CRMStage } from '$lib/crm/crm-stage';
 import type { CentralTaskStatus } from '$lib/task/central-task';
+import type { Money } from '$lib/money';
 
 export const crmOrganizationTypes = ['customer', 'partner', 'sponsor', 'vendor', 'investor', 'portfolio', 'other'] as const;
 export type CRMOrganizationType = string;
@@ -84,10 +85,8 @@ export type CRMOpportunity = {
 	ownerCircleID?: string;
 	ownerName: string;
 	ownerEmail: string;
-	expectedValue?: number;
-	currency: CRMCurrency;
-	baseAmountMinor?: number;
-	baseCurrencyCode?: CRMCurrency;
+	amount?: Money;
+	settledAmount?: Money;
 	importance: CRMImportance;
 	nextActionID?: string;
 	targetDate: string;
@@ -135,8 +134,7 @@ export type CRMOpportunityCreateDraft = {
 	stage: CRMOpportunityStage;
 	lostReason: string;
 	ownerPersonID: string;
-	amount?: number;
-	currency: CRMCurrency;
+	amount?: Money;
 	importance: CRMImportance;
 	targetDate: string;
 	description: string;

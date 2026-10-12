@@ -28,6 +28,7 @@
 	import { formatViewMoneyTotals } from './crm-money';
 	import { crmViewCurrency } from './crm-view-currency.svelte';
 	import type { CurrencyCatalogue } from '$lib/currency/currency-catalogue';
+	import type { Money } from '$lib/money';
 	import { formatCRMDate, opportunityStageLabel } from './crm-view-model';
 	import {
 		crmReportRange,
@@ -90,8 +91,8 @@
 		period === 'quarter' ? quarterLabel : period === 'next_90_days' ? text.reportPeriodNext90Days : text.reportPeriodAll
 	);
 
-	const convert = $derived((value: number | undefined, currency: string) =>
-		value === undefined ? 0 : crmViewCurrency.viewAmount(value, currency).value
+	const convert = $derived((money: Money | undefined) =>
+		money === undefined ? 0 : crmViewCurrency.viewAmount(money).amount
 	);
 
 	const range = $derived(crmReportRange(period, bounds));

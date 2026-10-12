@@ -653,5 +653,230 @@
 		"path": "company_info_set.result.capital",
 		"reason": "Paid-in capital is an amount in a currency, {amount, currency}, instead of prose such as '500,000,000 KRW', so it can be compared, converted and shown in the reader's locale. A migration converts every stored value and refuses prose it cannot read.",
 		"release": "the capital-as-money release carries the updated catalog to company hosts before the web/API deployment"
+	},
+	{
+		"path": "company_metric_list.result.metrics[].amount",
+		"reason": "A metric that is money carries it in amount as Money in any ISO currency, beside its usdEquivalent; a metric that is not money carries value and unit. This replaces value, currency and valueUSD, where currency was limited to twelve codes.",
+		"release": "the money release carries the updated catalog to company hosts before the web/API deployment"
+	},
+	{
+		"path": "company_metric_list.result.metrics[].currency",
+		"reason": "A metric that is money carries it in amount as Money in any ISO currency, beside its usdEquivalent; a metric that is not money carries value and unit. This replaces value, currency and valueUSD, where currency was limited to twelve codes.",
+		"release": "the money release carries the updated catalog to company hosts before the web/API deployment"
+	},
+	{
+		"path": "company_metric_list.result.metrics[].usdEquivalent",
+		"reason": "A metric that is money carries it in amount as Money in any ISO currency, beside its usdEquivalent; a metric that is not money carries value and unit. This replaces value, currency and valueUSD, where currency was limited to twelve codes.",
+		"release": "the money release carries the updated catalog to company hosts before the web/API deployment"
+	},
+	{
+		"path": "company_metric_list.result.metrics[].value",
+		"reason": "A metric that is money carries it in amount as Money in any ISO currency, beside its usdEquivalent; a metric that is not money carries value and unit. This replaces value, currency and valueUSD, where currency was limited to twelve codes.",
+		"release": "the money release carries the updated catalog to company hosts before the web/API deployment"
+	},
+	{
+		"path": "company_metric_list.result.metrics[].valueUSD",
+		"reason": "A metric that is money carries it in amount as Money in any ISO currency, beside its usdEquivalent; a metric that is not money carries value and unit. This replaces value, currency and valueUSD, where currency was limited to twelve codes.",
+		"release": "the money release carries the updated catalog to company hosts before the web/API deployment"
+	},
+	{
+		"path": "company_metric_record.input.currency",
+		"reason": "A metric that is money carries it in amount as Money in any ISO currency, beside its usdEquivalent; a metric that is not money carries value and unit. This replaces value, currency and valueUSD, where currency was limited to twelve codes.",
+		"release": "the money release carries the updated catalog to company hosts before the web/API deployment"
+	},
+	{
+		"path": "company_metric_record.input.valueUSD",
+		"reason": "A metric that is money carries it in amount as Money in any ISO currency, beside its usdEquivalent; a metric that is not money carries value and unit. This replaces value, currency and valueUSD, where currency was limited to twelve codes.",
+		"release": "the money release carries the updated catalog to company hosts before the web/API deployment"
+	},
+	{
+		"path": "company_metric_record.result.amount",
+		"reason": "A metric that is money carries it in amount as Money in any ISO currency, beside its usdEquivalent; a metric that is not money carries value and unit. This replaces value, currency and valueUSD, where currency was limited to twelve codes.",
+		"release": "the money release carries the updated catalog to company hosts before the web/API deployment"
+	},
+	{
+		"path": "company_metric_record.result.currency",
+		"reason": "A metric that is money carries it in amount as Money in any ISO currency, beside its usdEquivalent; a metric that is not money carries value and unit. This replaces value, currency and valueUSD, where currency was limited to twelve codes.",
+		"release": "the money release carries the updated catalog to company hosts before the web/API deployment"
+	},
+	{
+		"path": "company_metric_record.result.usdEquivalent",
+		"reason": "A metric that is money carries it in amount as Money in any ISO currency, beside its usdEquivalent; a metric that is not money carries value and unit. This replaces value, currency and valueUSD, where currency was limited to twelve codes.",
+		"release": "the money release carries the updated catalog to company hosts before the web/API deployment"
+	},
+	{
+		"path": "company_metric_record.result.value",
+		"reason": "A metric that is money carries it in amount as Money in any ISO currency, beside its usdEquivalent; a metric that is not money carries value and unit. This replaces value, currency and valueUSD, where currency was limited to twelve codes.",
+		"release": "the money release carries the updated catalog to company hosts before the web/API deployment"
+	},
+	{
+		"path": "company_metric_record.result.valueUSD",
+		"reason": "A metric that is money carries it in amount as Money in any ISO currency, beside its usdEquivalent; a metric that is not money carries value and unit. This replaces value, currency and valueUSD, where currency was limited to twelve codes.",
+		"release": "the money release carries the updated catalog to company hosts before the web/API deployment"
+	},
+	{
+		"path": "company_record_add.result.amount",
+		"reason": "A company record names the money it is about, such as a funding round, in amount as Money instead of a formatted string inside attributes.",
+		"release": "the money release carries the updated catalog to company hosts before the web/API deployment"
+	},
+	{
+		"path": "company_record_delete.result.amount",
+		"reason": "A company record names the money it is about, such as a funding round, in amount as Money instead of a formatted string inside attributes.",
+		"release": "the money release carries the updated catalog to company hosts before the web/API deployment"
+	},
+	{
+		"path": "company_record_list.result.records[].amount",
+		"reason": "A company record names the money it is about, such as a funding round, in amount as Money instead of a formatted string inside attributes.",
+		"release": "the money release carries the updated catalog to company hosts before the web/API deployment"
+	},
+	{
+		"path": "company_record_update.result.amount",
+		"reason": "A company record names the money it is about, such as a funding round, in amount as Money instead of a formatted string inside attributes.",
+		"release": "the money release carries the updated catalog to company hosts before the web/API deployment"
+	},
+	{
+		"path": "crm_opportunity_add.input.amountMinor",
+		"reason": "A deal's amount and its settled amount are Money, { amount, currency }, with the amount as a person reads it, replacing amountMinor and currencyCode in the currency's smallest unit, which models misread.",
+		"release": "the money release carries the updated catalog to company hosts before the web/API deployment"
+	},
+	{
+		"path": "crm_opportunity_add.input.currencyCode",
+		"reason": "A deal's amount and its settled amount are Money, { amount, currency }, with the amount as a person reads it, replacing amountMinor and currencyCode in the currency's smallest unit, which models misread.",
+		"release": "the money release carries the updated catalog to company hosts before the web/API deployment"
+	},
+	{
+		"path": "crm_opportunity_add.result.amount",
+		"reason": "A deal's amount and its settled amount are Money, { amount, currency }, with the amount as a person reads it, replacing amountMinor and currencyCode in the currency's smallest unit, which models misread.",
+		"release": "the money release carries the updated catalog to company hosts before the web/API deployment"
+	},
+	{
+		"path": "crm_opportunity_add.result.amountMinor",
+		"reason": "A deal's amount and its settled amount are Money, { amount, currency }, with the amount as a person reads it, replacing amountMinor and currencyCode in the currency's smallest unit, which models misread.",
+		"release": "the money release carries the updated catalog to company hosts before the web/API deployment"
+	},
+	{
+		"path": "crm_opportunity_add.result.baseAmountMinor",
+		"reason": "A deal's amount and its settled amount are Money, { amount, currency }, with the amount as a person reads it, replacing amountMinor and currencyCode in the currency's smallest unit, which models misread.",
+		"release": "the money release carries the updated catalog to company hosts before the web/API deployment"
+	},
+	{
+		"path": "crm_opportunity_add.result.baseCurrencyCode",
+		"reason": "A deal's amount and its settled amount are Money, { amount, currency }, with the amount as a person reads it, replacing amountMinor and currencyCode in the currency's smallest unit, which models misread.",
+		"release": "the money release carries the updated catalog to company hosts before the web/API deployment"
+	},
+	{
+		"path": "crm_opportunity_add.result.currencyCode",
+		"reason": "A deal's amount and its settled amount are Money, { amount, currency }, with the amount as a person reads it, replacing amountMinor and currencyCode in the currency's smallest unit, which models misread.",
+		"release": "the money release carries the updated catalog to company hosts before the web/API deployment"
+	},
+	{
+		"path": "crm_opportunity_add.result.settledAmount",
+		"reason": "A deal's amount and its settled amount are Money, { amount, currency }, with the amount as a person reads it, replacing amountMinor and currencyCode in the currency's smallest unit, which models misread.",
+		"release": "the money release carries the updated catalog to company hosts before the web/API deployment"
+	},
+	{
+		"path": "crm_opportunity_list.result.opportunities[].amount",
+		"reason": "A deal's amount and its settled amount are Money, { amount, currency }, with the amount as a person reads it, replacing amountMinor and currencyCode in the currency's smallest unit, which models misread.",
+		"release": "the money release carries the updated catalog to company hosts before the web/API deployment"
+	},
+	{
+		"path": "crm_opportunity_list.result.opportunities[].amountMinor",
+		"reason": "A deal's amount and its settled amount are Money, { amount, currency }, with the amount as a person reads it, replacing amountMinor and currencyCode in the currency's smallest unit, which models misread.",
+		"release": "the money release carries the updated catalog to company hosts before the web/API deployment"
+	},
+	{
+		"path": "crm_opportunity_list.result.opportunities[].baseAmountMinor",
+		"reason": "A deal's amount and its settled amount are Money, { amount, currency }, with the amount as a person reads it, replacing amountMinor and currencyCode in the currency's smallest unit, which models misread.",
+		"release": "the money release carries the updated catalog to company hosts before the web/API deployment"
+	},
+	{
+		"path": "crm_opportunity_list.result.opportunities[].baseCurrencyCode",
+		"reason": "A deal's amount and its settled amount are Money, { amount, currency }, with the amount as a person reads it, replacing amountMinor and currencyCode in the currency's smallest unit, which models misread.",
+		"release": "the money release carries the updated catalog to company hosts before the web/API deployment"
+	},
+	{
+		"path": "crm_opportunity_list.result.opportunities[].currencyCode",
+		"reason": "A deal's amount and its settled amount are Money, { amount, currency }, with the amount as a person reads it, replacing amountMinor and currencyCode in the currency's smallest unit, which models misread.",
+		"release": "the money release carries the updated catalog to company hosts before the web/API deployment"
+	},
+	{
+		"path": "crm_opportunity_list.result.opportunities[].settledAmount",
+		"reason": "A deal's amount and its settled amount are Money, { amount, currency }, with the amount as a person reads it, replacing amountMinor and currencyCode in the currency's smallest unit, which models misread.",
+		"release": "the money release carries the updated catalog to company hosts before the web/API deployment"
+	},
+	{
+		"path": "crm_opportunity_move.input.finalAmountMinor",
+		"reason": "A deal's amount and its settled amount are Money, { amount, currency }, with the amount as a person reads it, replacing amountMinor and currencyCode in the currency's smallest unit, which models misread.",
+		"release": "the money release carries the updated catalog to company hosts before the web/API deployment"
+	},
+	{
+		"path": "crm_opportunity_move.result.amount",
+		"reason": "A deal's amount and its settled amount are Money, { amount, currency }, with the amount as a person reads it, replacing amountMinor and currencyCode in the currency's smallest unit, which models misread.",
+		"release": "the money release carries the updated catalog to company hosts before the web/API deployment"
+	},
+	{
+		"path": "crm_opportunity_move.result.amountMinor",
+		"reason": "A deal's amount and its settled amount are Money, { amount, currency }, with the amount as a person reads it, replacing amountMinor and currencyCode in the currency's smallest unit, which models misread.",
+		"release": "the money release carries the updated catalog to company hosts before the web/API deployment"
+	},
+	{
+		"path": "crm_opportunity_move.result.baseAmountMinor",
+		"reason": "A deal's amount and its settled amount are Money, { amount, currency }, with the amount as a person reads it, replacing amountMinor and currencyCode in the currency's smallest unit, which models misread.",
+		"release": "the money release carries the updated catalog to company hosts before the web/API deployment"
+	},
+	{
+		"path": "crm_opportunity_move.result.baseCurrencyCode",
+		"reason": "A deal's amount and its settled amount are Money, { amount, currency }, with the amount as a person reads it, replacing amountMinor and currencyCode in the currency's smallest unit, which models misread.",
+		"release": "the money release carries the updated catalog to company hosts before the web/API deployment"
+	},
+	{
+		"path": "crm_opportunity_move.result.currencyCode",
+		"reason": "A deal's amount and its settled amount are Money, { amount, currency }, with the amount as a person reads it, replacing amountMinor and currencyCode in the currency's smallest unit, which models misread.",
+		"release": "the money release carries the updated catalog to company hosts before the web/API deployment"
+	},
+	{
+		"path": "crm_opportunity_move.result.settledAmount",
+		"reason": "A deal's amount and its settled amount are Money, { amount, currency }, with the amount as a person reads it, replacing amountMinor and currencyCode in the currency's smallest unit, which models misread.",
+		"release": "the money release carries the updated catalog to company hosts before the web/API deployment"
+	},
+	{
+		"path": "crm_opportunity_update.input.amountMinor",
+		"reason": "A deal's amount and its settled amount are Money, { amount, currency }, with the amount as a person reads it, replacing amountMinor and currencyCode in the currency's smallest unit, which models misread.",
+		"release": "the money release carries the updated catalog to company hosts before the web/API deployment"
+	},
+	{
+		"path": "crm_opportunity_update.input.currencyCode",
+		"reason": "A deal's amount and its settled amount are Money, { amount, currency }, with the amount as a person reads it, replacing amountMinor and currencyCode in the currency's smallest unit, which models misread.",
+		"release": "the money release carries the updated catalog to company hosts before the web/API deployment"
+	},
+	{
+		"path": "crm_opportunity_update.result.amount",
+		"reason": "A deal's amount and its settled amount are Money, { amount, currency }, with the amount as a person reads it, replacing amountMinor and currencyCode in the currency's smallest unit, which models misread.",
+		"release": "the money release carries the updated catalog to company hosts before the web/API deployment"
+	},
+	{
+		"path": "crm_opportunity_update.result.amountMinor",
+		"reason": "A deal's amount and its settled amount are Money, { amount, currency }, with the amount as a person reads it, replacing amountMinor and currencyCode in the currency's smallest unit, which models misread.",
+		"release": "the money release carries the updated catalog to company hosts before the web/API deployment"
+	},
+	{
+		"path": "crm_opportunity_update.result.baseAmountMinor",
+		"reason": "A deal's amount and its settled amount are Money, { amount, currency }, with the amount as a person reads it, replacing amountMinor and currencyCode in the currency's smallest unit, which models misread.",
+		"release": "the money release carries the updated catalog to company hosts before the web/API deployment"
+	},
+	{
+		"path": "crm_opportunity_update.result.baseCurrencyCode",
+		"reason": "A deal's amount and its settled amount are Money, { amount, currency }, with the amount as a person reads it, replacing amountMinor and currencyCode in the currency's smallest unit, which models misread.",
+		"release": "the money release carries the updated catalog to company hosts before the web/API deployment"
+	},
+	{
+		"path": "crm_opportunity_update.result.currencyCode",
+		"reason": "A deal's amount and its settled amount are Money, { amount, currency }, with the amount as a person reads it, replacing amountMinor and currencyCode in the currency's smallest unit, which models misread.",
+		"release": "the money release carries the updated catalog to company hosts before the web/API deployment"
+	},
+	{
+		"path": "crm_opportunity_update.result.settledAmount",
+		"reason": "A deal's amount and its settled amount are Money, { amount, currency }, with the amount as a person reads it, replacing amountMinor and currencyCode in the currency's smallest unit, which models misread.",
+		"release": "the money release carries the updated catalog to company hosts before the web/API deployment"
 	}
 ]

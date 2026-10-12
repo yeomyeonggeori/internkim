@@ -12,7 +12,7 @@ import {
 } from '../../../src/lib/data-room/company';
 
 const metric = (year: number, value: number, quarter?: number): CompanyMetric => ({
-	metric: 'annualRevenue', year, value, currency: 'KRW', ...(quarter ? { quarter } : {})
+	metric: 'annualRevenue', year, amount: { amount: value, currency: 'KRW' }, ...(quarter ? { quarter } : {})
 });
 
 describe('the company a data room shows', () => {

@@ -28,8 +28,8 @@ const stages: CRMPipelineStage[] = [
 ];
 
 // A dollar is worth a thousand won here, so a mixed period has one comparable total.
-const convert: MoneyConverter = (value, currency) =>
-	value === undefined ? 0 : currency === 'USD' ? value * 1000 : value;
+const convert: MoneyConverter = (money) =>
+	money === undefined ? 0 : money.currency === 'USD' ? money.amount * 1000 : money.amount;
 
 function deal(overrides: Partial<CRMOpportunity> & { id: string }): CRMOpportunity {
 	return {
@@ -39,7 +39,6 @@ function deal(overrides: Partial<CRMOpportunity> & { id: string }): CRMOpportuni
 		stage: 'waiting',
 		ownerName: '이샘플',
 		ownerEmail: 'sample@example.com',
-		currency: 'KRW',
 		importance: 'medium',
 		targetDate: '2026-08-10',
 		staleDays: 1,
@@ -97,10 +96,10 @@ describe('the report period', () => {
 
 describe('the period outcome', () => {
 	const deals = [
-		deal({ id: 'open-krw', stage: 'in_progress', expectedValue: 3_000_000 }),
-		deal({ id: 'open-usd', stage: 'waiting', expectedValue: 2_000, currency: 'USD' }),
-		deal({ id: 'won', stage: 'done', expectedValue: 5_000_000 }),
-		deal({ id: 'lost', stage: 'lost', expectedValue: 9_000_000 })
+		deal({ id: 'open-krw', stage: 'in_progress', amount: { amount: 3_000_000, currency: 'KRW' } }),
+		deal({ id: 'open-usd', stage: 'waiting', amount: { amount: 2_000, currency: 'USD' } }),
+		deal({ id: 'won', stage: 'done', amount: { amount: 5_000_000, currency: 'KRW' } }),
+		deal({ id: 'lost', stage: 'lost', amount: { amount: 9_000_000, currency: 'KRW' } })
 	];
 
 	test('totals open and won separately, keeping each currency for the breakdown', () => {
@@ -118,7 +117,7 @@ describe('the period outcome', () => {
 	});
 
 	test('has no win rate to report until something is decided', () => {
-		const stillOpen = [deal({ id: 'open', stage: 'waiting', expectedValue: 1 })];
+		const stillOpen = [deal({ id: 'open', stage: 'waiting', amount: { amount: 1, currency: 'KRW' } })];
 
 		expect(periodOutcome(stillOpen, stages, convert).winRate).toBe(null);
 		expect(winRate(0, 0)).toBe(null);
@@ -134,9 +133,9 @@ describe('the monthly buckets', () => {
 
 	test('splits each month into what is open and what is won', () => {
 		const deals = [
-			deal({ id: 'august-open', stage: 'waiting', targetDate: '2026-08-04', expectedValue: 1_000_000 }),
-			deal({ id: 'august-won', stage: 'done', targetDate: '2026-08-20', expectedValue: 4_000_000 }),
-			deal({ id: 'october-open', stage: 'in_progress', targetDate: '2026-10-02', expectedValue: 2_000_000 })
+			deal({ id: 'august-open', stage: 'waiting', targetDate: '2026-08-04', amount: { amount: 1_000_000, currency: 'KRW' } }),
+			deal({ id: 'august-won', stage: 'done', targetDate: '2026-08-20', amount: { amount: 4_000_000, currency: 'KRW' } }),
+			deal({ id: 'october-open', stage: 'in_progress', targetDate: '2026-10-02', amount: { amount: 2_000_000, currency: 'KRW' } })
 		];
 
 		const buckets = monthBuckets(deals, stages, null, convert);
@@ -149,7 +148,7 @@ describe('the monthly buckets', () => {
 	});
 
 	test('spans the chosen window rather than the deals when a period is set', () => {
-		const deals = [deal({ id: 'one', targetDate: '2026-08-10', expectedValue: 1 })];
+		const deals = [deal({ id: 'one', targetDate: '2026-08-10', amount: { amount: 1, currency: 'KRW' } })];
 
 		const buckets = monthBuckets(deals, stages, { start: '2026-07-01', end: '2026-09-30' }, convert);
 
@@ -177,7 +176,7 @@ describe('the stage and pipeline rows', () => {
 			{ pipeline: 'sales', label: '영업', direction: 'outbound', isActive: true, color: '#2563eb' },
 			{ pipeline: 'empty', label: '빈 것', direction: 'outbound', isActive: true, color: '#000000' }
 		];
-		const deals = [deal({ id: 'one', pipeline: 'sales', expectedValue: 1_000 })];
+		const deals = [deal({ id: 'one', pipeline: 'sales', amount: { amount: 1_000, currency: 'KRW' } })];
 
 		const rows = pipelineRows(deals, [], pipelines, (kind) => kind, convert);
 
@@ -224,9 +223,9 @@ describe('the owner rows', () => {
 			account({ id: 'b', ownerName: '박예시', ownerEmail: 'yesi@example.com' })
 		];
 		const deals = [
-			deal({ id: 'open', stage: 'waiting', ownerName: '이샘플', expectedValue: 1_000_000, nextActionID: 'action-one' }),
-			deal({ id: 'won', stage: 'done', ownerName: '이샘플', expectedValue: 7_000_000 }),
-			deal({ id: 'other', stage: 'in_progress', ownerName: '박예시', expectedValue: 500_000 })
+			deal({ id: 'open', stage: 'waiting', ownerName: '이샘플', amount: { amount: 1_000_000, currency: 'KRW' }, nextActionID: 'action-one' }),
+			deal({ id: 'won', stage: 'done', ownerName: '이샘플', amount: { amount: 7_000_000, currency: 'KRW' } }),
+			deal({ id: 'other', stage: 'in_progress', ownerName: '박예시', amount: { amount: 500_000, currency: 'KRW' } })
 		];
 
 		const rows = ownerRows(deals, accounts, [], stages, convert);

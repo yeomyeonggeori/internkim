@@ -22,20 +22,6 @@ export function findCurrencyCatalogueEntry(
 	return catalogue.find((entry) => entry.code === currency);
 }
 
-const assumedMinorUnitDigits = 2;
-
-function minorUnitDigitsOf(currency: string, catalogue: CurrencyCatalogue): number {
-	return findCurrencyCatalogueEntry(catalogue, currency)?.minorUnitDigits ?? assumedMinorUnitDigits;
-}
-
-export function majorAmountOf(amountMinor: number, currency: string, catalogue: CurrencyCatalogue): number {
-	return amountMinor / 10 ** minorUnitDigitsOf(currency, catalogue);
-}
-
-export function minorAmountOf(amountMajor: number, currency: string, catalogue: CurrencyCatalogue): number {
-	return Math.round(amountMajor * 10 ** minorUnitDigitsOf(currency, catalogue));
-}
-
 const providerPatienceInMilliseconds = 5000;
 
 export async function loadCurrencyCatalogue(): Promise<CurrencyCatalogue> {

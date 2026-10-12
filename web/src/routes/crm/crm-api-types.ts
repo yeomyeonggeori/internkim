@@ -2,13 +2,13 @@ import type {
 	CRMOrganizationStatus,
 	CRMOrganizationType,
 	CRMActivityKind,
-	CRMCurrency,
 	CRMImportance,
 	CRMOpportunityContact,
 	CRMOpportunityStage,
 	CRMProgressKind
 } from './crm-types';
 import type { TaskVocabulary } from '$lib/task/task-vocabulary';
+import type { Money } from '$lib/money';
 
 export type CRMAuditResponse = {
 	createdAt: string;
@@ -60,10 +60,8 @@ export type CRMOpportunityResponse = {
 	stageChangedAt: string;
 	ownerPersonID: string;
 	ownerCircleID?: string;
-	amountMinor?: number;
-	currencyCode: CRMCurrency | '';
-	baseAmountMinor?: number;
-	baseCurrencyCode?: CRMCurrency;
+	amount?: Money;
+	settledAmount?: Money;
 	importance: CRMImportance;
 	dueAt?: string;
 	dueTimeZone?: string;
@@ -127,8 +125,7 @@ export type CRMOpportunityPayload = {
 	pipeline: CRMProgressKind;
 	ownerPersonID: string;
 	ownerCircleID: string;
-	amountMinor: number | null;
-	currencyCode: CRMCurrency | '';
+	amount: Money | null;
 	importance: CRMImportance;
 	dueAt: string;
 	dueTimeZone: string;
@@ -161,8 +158,7 @@ export type CRMTransitionPayload = {
 	beforeOpportunityID: string;
 	occurredAt: string;
 	lostReason: string;
-	baseAmountMinor: number | null;
-	baseCurrencyCode: CRMCurrency | '';
+	finalAmount: Money | null;
 };
 
 export type CRMPositionPayload = {

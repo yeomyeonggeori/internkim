@@ -486,10 +486,13 @@ func (service *Service) readCompanyShareMetrics(ctx context.Context, metricNames
 			Year:     held.Year,
 			Quarter:  held.Quarter,
 			Month:    held.Month,
-			Value:    held.Value,
-			Currency: held.Currency,
-			ValueUSD: held.ValueUSD,
+			ValueUSD: held.USDEquivalent,
 			Unit:     strings.TrimSpace(held.Unit),
+		}
+		if held.Amount != nil {
+			metric.Value, metric.Currency = held.Amount.Amount, held.Amount.Currency
+		} else if held.Value != nil {
+			metric.Value = *held.Value
 		}
 		if contexts[held.Metric].ShowSource {
 			metric.Source = strings.TrimSpace(held.Note)

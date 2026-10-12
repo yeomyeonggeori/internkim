@@ -10,7 +10,7 @@
 	import { findOrganizationByID, findNextActionByID, formatCRMDate, getProgressKind, opportunityStageLabel } from './crm-view-model';
 	import { dealStageIcon } from './crm-status-icons';
 	import CRMPipelineBadge from './crm-pipeline-badge.svelte';
-	import { formatViewMoney } from './crm-money';
+	import { formatOptionalMoney } from './crm-money';
 	import { crmViewCurrency } from './crm-view-currency.svelte';
 		import type { CRMText } from './text';
 
@@ -124,7 +124,7 @@
 									<div class="flex flex-wrap gap-1.5">
 										<CRMPipelineBadge {opportunity} {organization} {pipelines} {text} />
 										<Badge variant="secondary" class="ml-auto h-5 bg-muted px-1.5 py-0 text-[11px] font-medium tabular-nums text-foreground/75 shadow-none">
-											{opportunity.expectedValue === undefined ? text.amountNotEntered : formatViewMoney(crmViewCurrency.viewAmount(opportunity.expectedValue, opportunity.currency), text.amountNotEntered, currentLocale.value)}
+											{opportunity.amount === undefined ? text.amountNotEntered : formatOptionalMoney(crmViewCurrency.viewAmount(opportunity.amount), text.amountNotEntered, currentLocale.value)}
 										</Badge>
 									</div>
 									<div class="text-xs leading-5 text-muted-foreground">

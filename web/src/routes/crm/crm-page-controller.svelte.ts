@@ -167,7 +167,7 @@ export class CRMPageController {
 			this.currencyCatalogue = catalogue;
 			this.companyBaseCurrency = baseCurrency;
 			this.remoteData = data;
-			this.applyViewData(mapCRMViewData(data, this.people, this.currencyCatalogue, browserTimeZone(), this.groups));
+			this.applyViewData(mapCRMViewData(data, this.people, browserTimeZone(), this.groups));
 			this.hasData = true;
 		} catch (error) {
 			if (generation === this.generation) this.applyError(error);
@@ -197,7 +197,7 @@ export class CRMPageController {
 			this.people = directory.records ?? [];
 			this.groups = directory.availableGroups ?? [];
 			this.isDirectoryReady = true;
-			if (this.remoteData) this.applyViewData(mapCRMViewData(this.remoteData, this.people, this.currencyCatalogue, browserTimeZone(), this.groups));
+			if (this.remoteData) this.applyViewData(mapCRMViewData(this.remoteData, this.people, browserTimeZone(), this.groups));
 		} catch {
 			if (generation === this.generation) this.directoryErrorMessage = this.text.organizationLoadFailed;
 		} finally {
@@ -219,13 +219,11 @@ export class CRMPageController {
 			}
 			if (draft.kind === 'progress') {
 				const owner = resolveOwner(this.people, ownerHint(draft), this.currentEmail);
-				const payload = opportunityPayloadFromDraft(draft, owner, browserTimeZone(), this.currencyCatalogue);
+				const payload = opportunityPayloadFromDraft(draft, owner, browserTimeZone());
 				const transition = {
 					...this.transitionPayload('', draft.stage, null, {
-						amountMinor: payload.amountMinor,
-						currencyCode: payload.currencyCode,
-						baseAmountMinor: null,
-						baseCurrencyCode: '',
+						amount: payload.amount,
+						settledAmount: null,
 						lostReason: draft.lostReason
 					}),
 					stagePosition: 0
@@ -275,16 +273,14 @@ export class CRMPageController {
 	async saveOpportunity(opportunity: CRMOpportunity): Promise<void> {
 		await this.mutate(async (assertCurrent) => {
 			const existing = this.opportunities.find((candidate) => candidate.id === opportunity.id);
-			const payload = opportunityPayload(opportunity, this.currencyCatalogue);
+			const payload = opportunityPayload(opportunity);
 			if (!existing || opportunity.stage === existing.stage) {
 				await updateCRMOpportunity(opportunity.id, payload);
 				return;
 			}
 			const transition = this.transitionPayload(opportunity.id, opportunity.stage, null, {
-				amountMinor: payload.amountMinor,
-				currencyCode: payload.currencyCode,
-				baseAmountMinor: opportunity.baseAmountMinor ?? null,
-				baseCurrencyCode: opportunity.baseCurrencyCode ?? '',
+				amount: payload.amount,
+				settledAmount: opportunity.settledAmount ?? null,
 				lostReason: opportunity.lostReason ?? ''
 			});
 			if (!this.settlesThroughCloseEndpoint(opportunity.stage)) {
@@ -321,7 +317,7 @@ export class CRMPageController {
 		if (!opportunity) return;
 		await this.mutateWithoutAForm(async () => {
 			if (opportunity.stage !== request.targetStage) {
-				const payload = opportunityPayload(opportunity, this.currencyCatalogue);
+				const payload = opportunityPayload(opportunity);
 				await transitionCRMOpportunity(
 					opportunity.id,
 					this.transitionPayload(
@@ -329,10 +325,8 @@ export class CRMPageController {
 						request.targetStage,
 						request.beforeOpportunityID,
 						{
-							amountMinor: payload.amountMinor,
-							currencyCode: payload.currencyCode,
-							baseAmountMinor: opportunity.baseAmountMinor ?? null,
-							baseCurrencyCode: opportunity.baseCurrencyCode ?? '',
+							amount: payload.amount,
+							settledAmount: opportunity.settledAmount ?? null,
 							lostReason: opportunity.lostReason ?? ''
 						}
 					)
@@ -429,15 +423,12 @@ export class CRMPageController {
 		if (generation !== this.generation) return;
 		this.validateCurrencies(data, this.currencyCatalogue);
 		this.remoteData = data;
-		this.applyViewData(mapCRMViewData(data, this.people, this.currencyCatalogue, browserTimeZone(), this.groups));
+		this.applyViewData(mapCRMViewData(data, this.people, browserTimeZone(), this.groups));
 	}
 
 	private validateCurrencies(data: CRMDataResponse, catalogue: CurrencyCatalogue): void {
 		for (const opportunity of data.opportunities) {
-			const currencies = [
-				...(opportunity.amountMinor === undefined ? [] : [opportunity.currencyCode]),
-				...(opportunity.baseAmountMinor === undefined ? [] : [opportunity.baseCurrencyCode])
-			];
+			const currencies = [opportunity.amount, opportunity.settledAmount].flatMap((money) => (money ? [money.currency] : []));
 			if (currencies.some((code) => !catalogue.some((entry) => entry.code === code))) {
 				throw new Error(this.text.currencyUnavailable);
 			}

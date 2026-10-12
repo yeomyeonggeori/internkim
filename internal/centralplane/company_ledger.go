@@ -8,10 +8,10 @@ type CompanyMetric struct {
 	Year      int      `json:"year"`
 	Quarter   int      `json:"quarter"`
 	Month     int      `json:"month"`
-	Value     float64  `json:"value"`
-	Currency  string   `json:"currency"`
-	ValueUSD  *float64 `json:"valueUSD"`
-	Unit      string   `json:"unit"`
+	Amount        *Money   `json:"amount"`
+	USDEquivalent *float64 `json:"usdEquivalent"`
+	Value         *float64 `json:"value"`
+	Unit          string   `json:"unit"`
 	Note      string   `json:"note"`
 	UpdatedAt string   `json:"updatedAt"`
 }
@@ -27,6 +27,7 @@ type CompanyRecord struct {
 	Date       string                   `json:"date"`
 	Title      string                   `json:"title"`
 	Detail     string                   `json:"detail"`
+	Amount     *Money                   `json:"amount"`
 	Attributes []CompanyRecordAttribute `json:"attributes"`
 	UpdatedAt  string                   `json:"updatedAt"`
 }

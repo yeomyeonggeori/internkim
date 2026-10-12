@@ -7,6 +7,7 @@ import {
   crmRecordImportOutcomes,
   crmRecordImportProblems,
 } from '$lib/crm/crm-record-import';
+import { moneySchema } from '$lib/money';
 
 import {
   CapabilityAnsweredBy,
@@ -27,7 +28,6 @@ const resourceIDSchema = z.string()
 
 const dayDescription = 'A day as yyyy-mm-dd.';
 const momentDescription = 'ISO 8601 with a time zone for a moment, or yyyy-mm-dd for a whole day.';
-const amountDescription = "What it is worth, in the currency's smallest unit: 15000000 is ₩15,000,000.";
 
 const organizationHintSchema = z.string().min(1).max(256).describe(
   'The organization: its exact ID, or its name as crm_organization_list shows it.',
@@ -70,8 +70,7 @@ const opportunityFields = {
   title: z.string().min(1).max(256).describe('What the deal is called.'),
   pipeline: z.string().max(128).describe('The pipeline from crm_vocabulary_get. Omit when the company runs one.').optional(),
   business: z.string().max(128).describe('Business label from a task_list result.').optional(),
-  amountMinor: z.number().int().describe(amountDescription).optional(),
-  currencyCode: z.string().length(3).describe("ISO 4217, e.g. 'KRW'.").optional(),
+  amount: moneySchema.describe('What it is worth, e.g. {"amount": 15000000, "currency": "KRW"}.').optional(),
   contactHint: contactHintSchema.optional(),
   ownerPersonHint: z.string().max(256).describe(ownerHintDescription).optional(),
   importance: z.string().max(32).describe(importanceDescription).optional(),
@@ -175,7 +174,7 @@ const crmOpportunityMoveObjectSchema = z.strictObject({
   stage: crmStageSchema.describe('Where it moves to. Omit to only change its position.').optional(),
   position: z.number().int().min(0).describe('Where it sits at that stage, counting from 0.').optional(),
   closedAt: z.string().describe(`When the move happened. ${momentDescription} Defaults to now.`).optional(),
-  finalAmountMinor: z.number().int().describe("What it was worth in the company's own currency, which the record converts when the call does not.").optional(),
+  finalAmount: moneySchema.describe("What it was worth, in the company's own currency. Omit to let the record convert the deal's amount.").optional(),
   reason: z.string().max(1024).describe('Why it was lost. A move into lost is refused without one.').optional(),
 });
 
@@ -383,10 +382,8 @@ export const crmOpportunityResultSchema = z.strictObject({
   stagePosition: z.number().int(),
   stageChangedAt: z.string(),
   ownerPersonID: z.string(),
-  amountMinor: z.number().int().nullable(),
-  currencyCode: z.string(),
-  baseAmountMinor: z.number().int().nullable(),
-  baseCurrencyCode: z.string(),
+  amount: moneySchema.nullable(),
+  settledAmount: moneySchema.nullable(),
   importance: z.string(),
   expectedCloseAt: z.string(),
   expectedCloseTimeZone: z.string(),

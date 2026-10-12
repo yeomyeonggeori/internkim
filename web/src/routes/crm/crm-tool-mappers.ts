@@ -9,9 +9,9 @@ import type {
 	CRMOrganizationResponse
 } from './crm-api-types';
 import type { NamedColour } from '$lib/task/task-vocabulary';
+import type { Money } from '$lib/money';
 import type {
 	CRMActivityKind,
-	CRMCurrency,
 	CRMImportance,
 	CRMOpportunityStage,
 	CRMOrganizationStatus,
@@ -64,10 +64,8 @@ export type CRMOpportunityToolResult = {
 	stagePosition: number;
 	stageChangedAt: string;
 	ownerPersonID: string;
-	amountMinor: number | null;
-	currencyCode: string;
-	baseAmountMinor: number | null;
-	baseCurrencyCode: string;
+	amount: Money | null;
+	settledAmount: Money | null;
 	importance: string;
 	expectedCloseAt: string;
 	expectedCloseTimeZone: string;
@@ -118,10 +116,8 @@ export function opportunityResponseOf(result: CRMOpportunityToolResult): CRMOppo
 		stagePosition: result.stagePosition,
 		stageChangedAt: result.stageChangedAt,
 		ownerPersonID: result.ownerPersonID,
-		amountMinor: result.amountMinor ?? undefined,
-		currencyCode: currencyOf(result.currencyCode),
-		baseAmountMinor: result.baseAmountMinor ?? undefined,
-		baseCurrencyCode: currencyOf(result.baseCurrencyCode) || undefined,
+		amount: result.amount ?? undefined,
+		settledAmount: result.settledAmount ?? undefined,
 		importance: importanceOf(result.importance),
 		dueAt: result.expectedCloseAt || undefined,
 		dueTimeZone: result.expectedCloseTimeZone || undefined,
@@ -154,10 +150,6 @@ function statusOf(value: string): CRMOrganizationStatus {
 
 function importanceOf(value: string): CRMImportance {
 	return crmImportances.find((importance) => importance === value) ?? 'medium';
-}
-
-function currencyOf(value: string): CRMCurrency {
-	return /^[A-Z]{3}$/.test(value) ? value : '';
 }
 
 export type CRMActivityToolResult = {

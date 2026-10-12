@@ -42,7 +42,7 @@ function snapshot(name = 'Sample Account'): CRMDataResponse {
 		organizations: [{ id: 'organization', name, status: 'active', types: [], tags: [], importance: 'medium', ownerPersonID: 'owner', audit }],
 		contacts: [{ id: 'contact', organizationID: 'organization', name: 'Sample Contact', ownerPersonID: 'owner', audit }],
 		opportunities: [{ id: 'deal', organizationID: 'organization', name: 'Sample Deal', pipeline: 'sales', stage: 'waiting',
-			stagePosition: 1, stageChangedAt: '2026-10-01', ownerPersonID: 'owner', amountMinor: 12345, currencyCode: 'BHD', importance: 'medium', audit }],
+			stagePosition: 1, stageChangedAt: '2026-10-01', ownerPersonID: 'owner', amount: { amount: 12.345, currency: 'BHD' }, importance: 'medium', audit }],
 		activities: [], pipelines: [], vocabulary: { organization_types: [], pipelines: [] }, taskVocabulary: {}
 	};
 }
@@ -65,7 +65,7 @@ test('slow directory does not delay complete amounts and metrics; contact edits 
 	expect(controller.isDirectoryReady).toBe(false);
 	expect(controller.organizations[0].ownerName).toBe('owner');
 	expect(controller.organizations[0].openOpportunityCount).toBe(1);
-	expect(controller.opportunities[0].expectedValue).toBe(12.345);
+	expect(controller.opportunities[0].amount).toEqual({ amount: 12.345, currency: 'BHD' });
 	let writes = 0;
 	write = async () => { writes += 1; };
 	await controller.saveContact(controller.contacts[0]);
@@ -77,7 +77,7 @@ test('slow directory does not delay complete amounts and metrics; contact edits 
 	await pending.promise;
 	expect(controller.isDirectoryReady).toBe(true);
 	expect(controller.organizations[0].ownerName).toBe(owner.name);
-	expect(controller.opportunities[0].expectedValue).toBe(12.345);
+	expect(controller.opportunities[0].amount).toEqual({ amount: 12.345, currency: 'BHD' });
 });
 
 test('directory failures stay separate and retry only the directory', async () => {
@@ -106,7 +106,7 @@ test('currency metadata remains required before showing amounts', async () => {
 	expect(controller.isLoading).toBe(true);
 	pending.resolve([{ code: 'BHD', name: 'Bahraini Dinar', minorUnitDigits: 3 }]);
 	await loading;
-	expect(controller.opportunities[0].expectedValue).toBe(12.345);
+	expect(controller.opportunities[0].amount).toEqual({ amount: 12.345, currency: 'BHD' });
 });
 
 test('a fallback catalogue cannot silently use two decimal places for an unknown currency', async () => {

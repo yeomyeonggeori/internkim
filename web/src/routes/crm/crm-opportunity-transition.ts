@@ -1,11 +1,10 @@
 import type { CRMTransitionPayload } from './crm-api-types';
 import type { CRMCurrency, CRMPipelineStage } from './crm-types';
+import type { Money } from '$lib/money';
 
 export type CRMOpportunityTransitionValues = {
-	amountMinor: number | null;
-	currencyCode: CRMCurrency | '';
-	baseAmountMinor: number | null;
-	baseCurrencyCode: CRMCurrency | '';
+	amount: Money | null;
+	settledAmount: Money | null;
 	lostReason: string;
 };
 
@@ -51,16 +50,13 @@ export function opportunityTransitionOutcome(
 	stage: string,
 	values: CRMOpportunityTransitionValues,
 	settlement: CRMOpportunitySettlement
-): Pick<CRMTransitionPayload, 'lostReason' | 'baseAmountMinor' | 'baseCurrencyCode'> {
+): Pick<CRMTransitionPayload, 'lostReason' | 'finalAmount'> {
 	const outcome = opportunityStageOutcome(stages, stage);
 	if (outcome !== 'won' && outcome !== 'lost') {
-		return { lostReason: '', baseAmountMinor: null, baseCurrencyCode: '' };
+		return { lostReason: '', finalAmount: null };
 	}
 	const lostReason = outcome === 'lost' ? values.lostReason.trim() : '';
 	if (outcome === 'lost' && !lostReason) throw new CRMOpportunityTransitionError('lost_reason_required');
-	if (values.amountMinor === null) return { lostReason, baseAmountMinor: null, baseCurrencyCode: '' };
-	if (values.baseAmountMinor !== null && values.baseCurrencyCode !== '') {
-		return { lostReason, baseAmountMinor: values.baseAmountMinor, baseCurrencyCode: values.baseCurrencyCode };
-	}
-	return { lostReason, baseAmountMinor: null, baseCurrencyCode: '' };
+	if (values.amount === null) return { lostReason, finalAmount: null };
+	return { lostReason, finalAmount: values.settledAmount };
 }

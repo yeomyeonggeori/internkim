@@ -10,3 +10,10 @@ export type Money = z.infer<typeof moneySchema>;
 export function formatMoney(money: Money, locale: string): string {
 	return new Intl.NumberFormat(locale, { style: 'currency', currency: money.currency }).format(money.amount);
 }
+
+export function formatCompactMoney(money: Money, locale: string): string {
+	return new Intl.NumberFormat(locale, {
+		style: 'currency', currency: money.currency, currencyDisplay: 'narrowSymbol', notation: 'compact', maximumFractionDigits: 1,
+		useGrouping: 'always'
+	}).format(money.amount);
+}

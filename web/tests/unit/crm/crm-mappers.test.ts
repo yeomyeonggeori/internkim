@@ -1,6 +1,5 @@
 import { describe, expect, test } from 'bun:test';
 import { taskTypeColor } from '../../../src/routes/task/task-definition-colors';
-import { interimCurrencyCatalogue } from '../../../src/lib/currency/currency-catalogue';
 import {
 	activityPayload,
 	activityPayloadFromDraft,
@@ -41,7 +40,7 @@ describe('CRM service mappers', () => {
 			{ ...data.activities[0]!, id: 'finished-call', opportunityID: 'opportunity-1', taskStatus: 'completed', occurredAt: '2026-08-19T05:00:00Z' }
 		];
 
-		const view = mapCRMViewData(data, [], interimCurrencyCatalogue, 'Asia/Seoul');
+		const view = mapCRMViewData(data, [], 'Asia/Seoul');
 
 		expect(view.opportunities[0]?.nextActionID).toBe('sooner-call');
 	});
@@ -53,7 +52,7 @@ describe('CRM service mappers', () => {
 			{ ...data.activities[0]!, id: 'finished-meeting', taskStatus: 'completed', occurredAt: '2026-08-19T05:00:00Z' }
 		];
 
-		const view = mapCRMViewData(data, [], interimCurrencyCatalogue, 'Asia/Seoul');
+		const view = mapCRMViewData(data, [], 'Asia/Seoul');
 
 		expect(view.nextActions.map((action) => action.id)).toEqual(['open-call']);
 		expect(view.nextActions[0]?.dueDate).toBe('2026-08-23');
@@ -67,7 +66,7 @@ describe('CRM service mappers', () => {
 			dueTimeZone: 'America/New_York'
 		};
 
-		expect(mapCRMViewData(data, [], interimCurrencyCatalogue, 'Asia/Seoul').opportunities[0]?.targetDate).toBe('2026-08-10');
+		expect(mapCRMViewData(data, [], 'Asia/Seoul').opportunities[0]?.targetDate).toBe('2026-08-10');
 	});
 
 	test('preserves empty and multiple relationship types in create payloads', () => {
@@ -92,7 +91,6 @@ describe('CRM service mappers', () => {
 		const view = mapCRMViewData(
 			serviceData(),
 			[{ memberID: 'person-owner', handle: 'owner', name: '담당자', email: 'owner@example.com' }],
-			interimCurrencyCatalogue,
 			'Asia/Seoul'
 		);
 
@@ -108,26 +106,25 @@ describe('CRM service mappers', () => {
 		data.opportunities[0] = {
 			...data.opportunities[0]!,
 			stage: 'done',
-			baseAmountMinor: 4500,
-			baseCurrencyCode: 'USD'
+			settledAmount: { amount: 45, currency: 'USD' }
 		};
-		const opportunity = mapCRMViewData(data, [], interimCurrencyCatalogue, 'Asia/Seoul').opportunities[0];
+		const opportunity = mapCRMViewData(data, [], 'Asia/Seoul').opportunities[0];
 
-		expect(opportunity?.baseAmountMinor).toBe(4500);
-		expect(opportunity?.baseCurrencyCode).toBe('USD');
+		expect(opportunity?.settledAmount).toEqual({ amount: 45, currency: 'USD' });
 	});
 
 	test('preserves contact and opportunity relationships in update payloads', () => {
-		const view = mapCRMViewData(serviceData(), [], interimCurrencyCatalogue, 'Asia/Seoul');
+		const view = mapCRMViewData(serviceData(), [], 'Asia/Seoul');
 
 		expect(contactPayload(view.contacts[0]!)).toMatchObject({ department: '파트너십' });
-		expect(opportunityPayload(view.opportunities[0]!, interimCurrencyCatalogue)).toMatchObject({
+		expect(opportunityPayload(view.opportunities[0]!)).toMatchObject({
+			amount: { amount: 5000, currency: 'KRW' },
 			contacts: [{ contactID: 'contact-1' }]
 		});
 	});
 
 	test('preserves stage-change kinds for updates while excluding them from create payloads', () => {
-		const activity = mapCRMViewData(serviceData(), [], interimCurrencyCatalogue, 'Asia/Seoul').activities[0]!;
+		const activity = mapCRMViewData(serviceData(), [], 'Asia/Seoul').activities[0]!;
 		activity.kind = 'stage_change';
 
 		expect(activityPayload(activity).kind).toBe('stage_change');
@@ -155,7 +152,6 @@ describe('CRM service mappers', () => {
 		const view = mapCRMViewData(
 			{ ...data, activities: [{ ...data.activities[0]!, taskStatus: undefined }] },
 			[],
-			interimCurrencyCatalogue,
 			'Asia/Seoul'
 		);
 
@@ -166,7 +162,6 @@ describe('CRM service mappers', () => {
 		const view = mapCRMViewData(
 			serviceData(),
 			[{ memberID: 'person-owner', handle: 'owner', name: '담당자', email: 'owner@example.com' }],
-			interimCurrencyCatalogue,
 			'Asia/Seoul'
 		);
 
@@ -175,7 +170,7 @@ describe('CRM service mappers', () => {
 	});
 
 	test('leaves the owner email empty when no member matches the person id', () => {
-		const view = mapCRMViewData(serviceData(), [], interimCurrencyCatalogue, 'Asia/Seoul');
+		const view = mapCRMViewData(serviceData(), [], 'Asia/Seoul');
 
 		expect(view.opportunities[0]?.ownerEmail).toBe('');
 		expect(view.opportunities[0]?.ownerName).toBe('person-owner');
@@ -193,14 +188,13 @@ describe('CRM service mappers', () => {
 			stage: 'waiting',
 			lostReason: '',
 			ownerPersonID: 'person-ops',
-			currency: 'KRW',
 			importance: 'medium',
 			targetDate: '',
 			description: '',
 			calendar: { isRequested: false, isAllDay: true, startTime: '', endTime: '', location: '' }
-		}, owner, 'Asia/Seoul', interimCurrencyCatalogue);
+		}, owner, 'Asia/Seoul');
 
-		expect(payload).toMatchObject({ ownerPersonID: 'person-ops', ownerCircleID: 'team-ops' });
+		expect(payload).toMatchObject({ ownerPersonID: 'person-ops', ownerCircleID: 'team-ops', amount: null });
 	});
 
 	test('rejects a non-empty owner hint that does not match the directory', () => {
@@ -218,8 +212,8 @@ describe('CRM service mappers', () => {
 	test('derives activity dates in the selected display time zone', () => {
 		const people = [{ memberID: 'person-owner', handle: 'owner', name: '담당자', email: 'owner@example.com' }];
 
-		expect(mapCRMViewData(serviceData(), people, interimCurrencyCatalogue, 'Asia/Seoul').organizations[0]?.lastContactDate).toBe('2026-08-04');
-		expect(mapCRMViewData(serviceData(), people, interimCurrencyCatalogue, 'America/New_York').organizations[0]?.lastContactDate).toBe('2026-08-03');
+		expect(mapCRMViewData(serviceData(), people, 'Asia/Seoul').organizations[0]?.lastContactDate).toBe('2026-08-04');
+		expect(mapCRMViewData(serviceData(), people, 'America/New_York').organizations[0]?.lastContactDate).toBe('2026-08-03');
 	});
 });
 
@@ -233,7 +227,7 @@ function serviceData(): CRMDataResponse {
 	return {
 		organizations: [{ id: 'organization-1', name: '관계처', status: 'active', types: ['customer'], tags: [], importance: 'high', ownerPersonID: 'person-owner', audit }],
 		contacts: [{ id: 'contact-1', organizationID: 'organization-1', name: '담당 연락처', department: '파트너십', ownerPersonID: 'person-owner', audit }],
-		opportunities: [{ id: 'opportunity-1', organizationID: 'organization-1', name: '진행 건', pipeline: 'sales', stage: 'waiting', stagePosition: 1024, stageChangedAt: '2026-08-02T00:00:00Z', ownerPersonID: 'person-owner', amountMinor: 5000, currencyCode: 'KRW', importance: 'high', dueAt: '2026-08-10T03:00:00Z', dueTimeZone: 'Asia/Seoul', contacts: [{ contactID: 'contact-1' }], audit }],
+		opportunities: [{ id: 'opportunity-1', organizationID: 'organization-1', name: '진행 건', pipeline: 'sales', stage: 'waiting', stagePosition: 1024, stageChangedAt: '2026-08-02T00:00:00Z', ownerPersonID: 'person-owner', amount: { amount: 5000, currency: 'KRW' }, importance: 'high', dueAt: '2026-08-10T03:00:00Z', dueTimeZone: 'Asia/Seoul', contacts: [{ contactID: 'contact-1' }], audit }],
 		activities: [{ id: 'activity-1', organizationID: 'organization-1', kind: 'meeting', title: '미팅', occurredAt: '2026-08-03T15:30:00Z', content: '논의', audit }],
 		pipelines: [{ pipeline: 'sales', label: '판매', direction: 'outbound', isActive: true }],
 		vocabulary: { organization_types: [{ id: 'customer', name: '고객사' }], pipelines: [] },

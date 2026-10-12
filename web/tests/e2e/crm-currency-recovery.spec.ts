@@ -30,7 +30,7 @@ async function openDeals(page: Page, fixture: CurrencyFixture) {
 		}
 		const rate = fixture.rates[pair];
 		if (rate === undefined) throw new Error(`Unexpected conversion request: ${pair}`);
-		await route.fulfill({ json: { amountMinor: 1000000 * rate, currencyCode: to, rate, asOf: '2026-10-06' } });
+		await route.fulfill({ json: { amount: { amount: 1000000 * rate, currency: to }, rate, asOf: '2026-10-06' } });
 	});
 	await page.goto('/example-co/crm');
 	await expect(page.locator('[data-crm-ready="true"]')).toBeVisible();
