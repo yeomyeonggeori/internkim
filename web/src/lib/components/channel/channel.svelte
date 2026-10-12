@@ -696,6 +696,7 @@
 					messagePicture
 					src={loneImage.source ?? ''}
 					alt={loneImage.filename ?? ''}
+					onFailed={() => attachmentSource.renew(loneImage.url)}
 					width={loneImage.widthPixels}
 					height={loneImage.heightPixels}
 					loading="lazy"
@@ -722,6 +723,7 @@
 									messagePicture
 									src={attachment.source}
 									alt={attachment.filename ?? ''}
+									onFailed={() => attachmentSource.renew(attachment.url)}
 									loading="lazy"
 									fill
 									class="aspect-square h-full w-full"

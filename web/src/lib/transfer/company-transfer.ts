@@ -9,7 +9,7 @@ export { TransferFailed, type TransferProgress };
 
 export type ReadableCopy = { address: string; sizeBytes: number };
 
-const readableForSeconds = 60 * 60;
+export const readableForSeconds = 60 * 60;
 
 const hostConnection: HostConnection = { call: callCompanyApp, listen: onCompanyEvent };
 

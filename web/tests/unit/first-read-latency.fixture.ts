@@ -182,7 +182,7 @@ if (scenario === 'mail') {
 		assetBucket: 'assets', readableForSeconds: 86400, keptAssetPathOf: () => null,
 		readableAddresses: async () => { signedOldAssets += 1; return new Map([['old-avatar', 'signed-old-avatar'], ['old-address', 'signed-old-file']]); }
 	}));
-	mock.module('$lib/transfer/company-transfer', () => ({ signedForReading: async () => { signedOldAssets += 1; return 'signed-old-file'; } }));
+	mock.module('$lib/transfer/company-transfer', () => ({ readableForSeconds: 3600, signedForReading: async () => { signedOldAssets += 1; return 'signed-old-file'; } }));
 	const { customEmoji } = await import('../../src/lib/stores/custom-emoji.svelte');
 	const { personPicture } = await import('../../src/lib/stores/person-picture.svelte');
 	const { attachmentSource } = await import('../../src/lib/stores/attachment-source.svelte');

@@ -2,14 +2,18 @@ import { isSupabaseConfigured, projectURL } from '$lib/supabase';
 import { copyAttachmentForReading, type MessengerAttachment } from '$lib/messenger/messenger-api';
 import { keptAssetPathOf } from '$lib/messenger/kept-attachment';
 import { onMessengerCacheReset } from '$lib/messenger/cache-scope';
-import { signedForReading } from '$lib/transfer/company-transfer';
+import { readableForSeconds, signedForReading } from '$lib/transfer/company-transfer';
 
 export type AttachmentSourceStatus = 'unasked' | 'loading' | 'ready' | 'failed';
 
 export type AttachmentProgress = { copiedBytes: number; totalBytes: number };
 
+type Openable = { address: string; expiresAt: number };
+
+const renewBeforeExpiryMilliseconds = 5 * 60 * 1000;
+
 class AttachmentSourceStore {
-	private openableByURL = $state<Map<string, string>>(new Map());
+	private openableByURL = $state<Map<string, Openable>>(new Map());
 	private progressByURL = $state<Map<string, AttachmentProgress>>(new Map());
 	private failureByURL = $state<Map<string, string>>(new Map());
 	private loadingURLs = $state<Set<string>>(new Set());
@@ -28,7 +32,7 @@ class AttachmentSourceStore {
 	}
 
 	openable(url: string): string {
-		return this.openableByURL.get(url) ?? '';
+		return this.openableByURL.get(url)?.address ?? '';
 	}
 
 	status(url: string): AttachmentSourceStatus {
@@ -49,10 +53,16 @@ class AttachmentSourceStore {
 	wants(attachments: MessengerAttachment[]): void {
 		if (!isSupabaseConfigured()) return;
 		for (const attachment of attachments) {
-			if (this.asked.has(attachment.url)) continue;
+			if (this.asked.has(attachment.url) && !this.needsRenewal(attachment.url)) continue;
 			this.asked.set(attachment.url, attachment);
 			void this.open(attachment);
 		}
+	}
+
+	renew(url: string): void {
+		const attachment = this.asked.get(url);
+		if (!attachment || !this.needsRenewal(url)) return;
+		void this.open(attachment);
 	}
 
 	retry(url: string): void {
@@ -62,6 +72,11 @@ class AttachmentSourceStore {
 		void this.open(attachment);
 	}
 
+	private needsRenewal(url: string, now: number = Date.now()): boolean {
+		const openable = this.openableByURL.get(url);
+		return Boolean(openable && isStale(openable, now) && !this.loadingURLs.has(url));
+	}
+
 	private async open(attachment: MessengerAttachment): Promise<void> {
 		const generation = this.generation;
 		const url = attachment.url;
@@ -69,9 +84,10 @@ class AttachmentSourceStore {
 		try {
 			const address = keptAssetPathOf(projectURL(), url) ? url : await this.copied(attachment, generation);
 			if (generation !== this.generation) return;
+			const expiresAt = Date.now() + readableForSeconds * 1000;
 			const signed = await signedForReading(address);
 			if (generation !== this.generation) return;
-			this.openableByURL = new Map(this.openableByURL).set(url, signed);
+			this.openableByURL = new Map(this.openableByURL).set(url, { address: signed, expiresAt });
 		} catch (failure) {
 			if (generation !== this.generation) return;
 			const reason = failure instanceof Error ? failure.message : String(failure);
@@ -90,6 +106,10 @@ class AttachmentSourceStore {
 		});
 		return copy.address;
 	}
+}
+
+function isStale(openable: Openable, now: number): boolean {
+	return openable.expiresAt - renewBeforeExpiryMilliseconds <= now;
 }
 
 function withoutKey<Value>(values: Map<string, Value>, key: string): Map<string, Value> {

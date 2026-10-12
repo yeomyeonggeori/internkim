@@ -14,9 +14,16 @@ function readStoredMessages(storageKey: string): ChannelMessage[] | undefined {
 	}
 }
 
+function withoutSignedSources(message: ChannelMessage): ChannelMessage {
+	if (!message.attachments) return message;
+	return { ...message, attachments: message.attachments.map((attachment) => ({ ...attachment, source: undefined })) };
+}
+
 function storeMessages(storageKey: string, messages: ChannelMessage[]): void {
 	try {
-		if (typeof localStorage !== 'undefined') localStorage.setItem(storageKey, JSON.stringify(messages.slice(-storedMessageLimit)));
+		if (typeof localStorage !== 'undefined') {
+			localStorage.setItem(storageKey, JSON.stringify(messages.slice(-storedMessageLimit).map(withoutSignedSources)));
+		}
 	} catch (refusal) {
 		console.warn('the channel could not keep its messages on this device', refusal);
 	}

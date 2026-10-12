@@ -16,7 +16,8 @@
 		class: className,
 		imageClass,
 		fallbackText,
-		messagePicture = false
+		messagePicture = false,
+		onFailed
 	}: {
 		src: string;
 		alt: string;
@@ -29,6 +30,7 @@
 		imageClass?: string;
 		fallbackText?: string;
 		messagePicture?: boolean;
+		onFailed?: () => void;
 	} = $props();
 
 	const text = createPageText({
@@ -51,6 +53,7 @@
 		return observeImageLoad(image, (nextState) => {
 			if (source !== src) return;
 			result = { source, state: nextState, width: image.naturalWidth, height: image.naturalHeight };
+			if (nextState === 'error') onFailed?.();
 		});
 	}
 </script>
