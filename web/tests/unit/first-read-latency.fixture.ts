@@ -170,7 +170,7 @@ if (scenario === 'mail') {
 	const emoji = new Promise<{ dataURL: string }>((resolve) => { releaseEmoji = () => resolve({ dataURL: 'old-image' }); });
 	const avatar = new Promise<{ address: string }>((resolve) => { releaseAvatar = () => resolve({ address: 'old-avatar' }); });
 	const attachment = new Promise<{ address: string }>((resolve) => { releaseAttachment = () => resolve({ address: 'old-address' }); });
-	mock.module('$lib/messenger/cache-scope', () => ({ messengerCacheKey: () => 'scope', onMessengerCacheReset: (reset: () => void) => { resets.push(reset); return () => {}; } }));
+	mock.module('$lib/messenger/cache-scope', () => ({ adoptRememberedMessengerScope: async () => null, messengerCacheKey: () => 'scope', onMessengerCacheReset: (reset: () => void) => { resets.push(reset); return () => {}; } }));
 	mock.module('$lib/supabase', () => ({ isSupabaseConfigured: () => true, projectURL: () => 'https://project.example.com', supabase: () => ({ storage: { from: () => ({}) } }) }));
 	mock.module('$lib/messenger/messenger-api', () => ({
 		fetchCustomEmojiNames: async () => ['logo'], fetchCustomEmojiImage: () => useNewEmoji ? Promise.resolve({ dataURL: 'new-image' }) : emoji,

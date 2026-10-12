@@ -61,7 +61,8 @@ mock.module('$lib/messenger/messenger-api', () => ({
 	fetchPeople: () =>
 		Promise.resolve([
 			{ externalID: 'unchanged-account', name: 'unchanged-account', avatarURL: 'https://relay.example.com/media/same.png' },
-			{ externalID: 'changed-account', name: 'changed-account', avatarURL: 'https://relay.example.com/media/new.png' }
+			{ externalID: 'changed-account', name: 'changed-account', avatarURL: 'https://relay.example.com/media/new.png' },
+			{ externalID: 'expired-account', name: 'expired-account', avatarURL: 'https://relay.example.com/media/kept.png' }
 		]),
 	keepPersonPictureForReading: (person: { externalID: string; avatarURL: string }) => {
 		askedWith.push(person);
@@ -77,6 +78,15 @@ const keptOnEarlierVisit = [
 	[
 		'changed-account',
 		keptPictureOf(addressOf('changed-account.png'), signedOf('changed-account.png', 'kept'), 'https://relay.example.com/media/old.png')
+	],
+	[
+		'expired-account',
+		keptPictureOf(
+			addressOf('expired-account.png'),
+			signedOf('expired-account.png', 'expired'),
+			'https://relay.example.com/media/kept.png',
+			Date.now() - 2 * 24 * 60 * 60 * 1000
+		)
 	]
 ];
 Object.defineProperty(globalThis, 'window', {
@@ -86,12 +96,13 @@ Object.defineProperty(globalThis, 'window', {
 });
 Reflect.set(globalThis, '$state', <Value>(value: Value): Value => value);
 const { personPicture } = await import('$lib/stores/person-picture.svelte');
-await personPicture.rememberExternals(['unchanged-account', 'changed-account']);
+await personPicture.rememberExternals(['unchanged-account', 'changed-account', 'expired-account']);
 
 console.log(JSON.stringify({
 	askedWith,
 	unchanged: personPicture.pictureOfExternal('unchanged-account'),
-	changed: personPicture.pictureOfExternal('changed-account')
+	changed: personPicture.pictureOfExternal('changed-account'),
+	expired: personPicture.pictureOfExternal('expired-account')
 }));
 
 export {};

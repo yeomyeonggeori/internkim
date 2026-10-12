@@ -1,6 +1,6 @@
 import { beforeAll, describe, expect, test } from 'bun:test';
 
-type Revisit = { askedWith: { externalID: string; avatarURL: string }[]; unchanged: string; changed: string };
+type Revisit = { askedWith: { externalID: string; avatarURL: string }[]; unchanged: string; changed: string; expired: string };
 
 let revisit: Revisit;
 
@@ -21,6 +21,13 @@ describe('a picture kept on an earlier visit', () => {
 		expect(revisit.askedWith.map((asked) => asked.externalID)).not.toContain('unchanged-account');
 		expect(revisit.unchanged).toBe(
 			'https://company.supabase.co/storage/v1/object/sign/asset/company-1/shared/person-picture/unchanged-account.png?token=kept'
+		);
+	});
+
+	test('is signed again by its kept address, without asking the messenger, once its signature runs out', () => {
+		expect(revisit.askedWith.map((asked) => asked.externalID)).not.toContain('expired-account');
+		expect(revisit.expired).toBe(
+			'https://company.supabase.co/storage/v1/object/sign/asset/company-1/shared/person-picture/expired-account.png?token=fresh'
 		);
 	});
 
