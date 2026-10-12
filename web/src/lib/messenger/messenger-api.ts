@@ -293,12 +293,14 @@ export async function deleteChannel(channelID: string): Promise<void> {
 	await ask('person.channel.delete', { conversationID: channelID });
 }
 
-export async function fetchPosts(channelID: string, before?: string): Promise<MessengerPost[]> {
-	const answer = await ask<{ messages: PersonalMessage[] }>('person.messages.list', {
+export type MessengerPostPage = { posts: MessengerPost[]; hasMoreBefore: boolean };
+
+export async function fetchPosts(channelID: string, before?: string): Promise<MessengerPostPage> {
+	const answer = await ask<{ messages: PersonalMessage[]; hasMoreBefore: boolean }>('person.messages.list', {
 		conversationID: channelID,
 		before
 	});
-	return answer.messages.map(asPost);
+	return { posts: answer.messages.map(asPost), hasMoreBefore: answer.hasMoreBefore };
 }
 
 export async function searchPosts(channelID: string, query: string): Promise<MessengerSearchMatch[]> {
