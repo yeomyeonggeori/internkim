@@ -94,7 +94,7 @@ function externalsByMember(accounts: readonly (readonly [string, string])[]): Ma
 	return externals;
 }
 
-export function externalIDsOfMember(directory: MessengerDirectory, memberID: string): string[] {
+export function externalIDsOfMember(directory: Pick<MessengerDirectory, 'externalsOfMember'>, memberID: string): string[] {
 	return directory.externalsOfMember.get(memberID) ?? [];
 }
 
@@ -103,7 +103,7 @@ export function externalIDsOfMember(directory: MessengerDirectory, memberID: str
 // the host does.
 export function accountsHeldBy(
 	person: { memberID?: string; email?: string },
-	directory: MessengerDirectory
+	directory: Pick<MessengerDirectory, 'memberOfEmail' | 'externalsOfMember'>
 ): string[] {
 	const memberID = person.memberID || directory.memberOfEmail.get((person.email ?? '').trim().toLowerCase());
 	return memberID ? externalIDsOfMember(directory, memberID) : [];

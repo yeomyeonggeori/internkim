@@ -32,6 +32,8 @@
 	const avatarLabel = $derived(displayPersonName(name) || email || 'Person');
 	const identity = $derived({ memberID, email, externalID });
 	const drawn = $derived(personPicture.pictureOf(identity) || image);
+	let failedPicture = $state('');
+	const showsGradient = $derived(!personPicture.isRestoring && (!drawn || failedPicture === drawn));
 
 	$effect(() => {
 		if (memberID || email || externalID) void personPicture.remember([identity]);
@@ -40,12 +42,19 @@
 </script>
 
 {#snippet avatar()}
-	<Avatar.Root class={cn('size-8 overflow-hidden rounded-full bg-background', className)}>
+	<Avatar.Root
+		class={cn('size-8 overflow-hidden rounded-full bg-background', className)}
+		onLoadingStatusChange={(status) => {
+			if (status === 'error') failedPicture = drawn;
+		}}
+	>
 		{#if drawn}
 			<Avatar.Image src={drawn} alt={avatarLabel} />
 		{/if}
-		<Avatar.Fallback class="relative size-full rounded-[inherit] p-0">
-			<GradientAvatar seed={avatarSeed} class="size-full rounded-[inherit]" />
+		<Avatar.Fallback class="relative size-full rounded-[inherit] bg-transparent p-0">
+			{#if showsGradient}
+				<GradientAvatar seed={avatarSeed} class="size-full rounded-[inherit]" />
+			{/if}
 		</Avatar.Fallback>
 	</Avatar.Root>
 {/snippet}

@@ -3,7 +3,17 @@ import { fetchPeople, keepPersonPictureForReading } from '$lib/messenger/messeng
 import { accountsHeldBy, fetchMessengerDirectory, type MessengerDirectory } from '$lib/messenger/messenger-directory';
 import { assetBucket, readableAddresses } from '$lib/messenger/kept-attachment';
 import { messengerCacheKey, onMessengerCacheReset } from '$lib/messenger/cache-scope';
-import { keptPictureOf, readKeptPictures, writeKeptPictures, type KeptPicture } from './person-picture-cache';
+import {
+	freshSignedURLOf,
+	keptPictureOf,
+	readKeptPictures,
+	writeKeptAccounts,
+	writeKeptPictures,
+	type KeptAccounts,
+	type KeptPicture
+} from './person-picture-cache';
+import { keepPictureFiles } from './person-picture-files';
+import { restoreKeptPictures } from './person-picture-restore';
 
 export type PersonIdentity = { memberID?: string; email?: string; externalID?: string };
 
@@ -15,10 +25,10 @@ type PictureAnswer = { externalID: string; address: string; failed: boolean };
 // bytes. What is held here is the address the reader signed for, asked after
 // once: a failure leaves nothing behind to be believed on the next visit.
 class PersonPictureStore {
-	private kept: Map<string, KeptPicture> = readKeptPictures(Date.now(), messengerCacheKey());
-	private readableOfExternal = $state<Map<string, string>>(
-		new Map([...this.kept].map(([externalID, picture]) => [externalID, picture.signedURL]))
-	);
+	private kept: Map<string, KeptPicture> = new Map();
+	private keptAccounts = $state<KeptAccounts | null>(null);
+	private restoring = $state(true);
+	private readableOfExternal = $state<Map<string, string>>(new Map());
 	private urlOfEmail = $state<Map<string, string>>(new Map());
 	private resolved = $state<MessengerDirectory | null>(null);
 	private avatarURLOfExternal = new Map<string, string>();
@@ -27,11 +37,14 @@ class PersonPictureStore {
 	private hostDirectory: Promise<void> | null = null;
 	private avatarURLs: Promise<void> | null = null;
 	private generation = 0;
+	private restored: Promise<void>;
 
 	constructor() {
+		this.restored = typeof window === 'undefined' ? Promise.resolve() : this.restore();
 		onMessengerCacheReset(() => {
 			this.generation += 1;
 			this.kept = new Map();
+			this.keptAccounts = null;
 			this.readableOfExternal = new Map();
 			this.urlOfEmail = new Map();
 			this.resolved = null;
@@ -61,6 +74,10 @@ class PersonPictureStore {
 		return this.readableOfExternal.get(externalID) ?? '';
 	}
 
+	get isRestoring(): boolean {
+		return this.restoring;
+	}
+
 	async remember(people: PersonIdentity[]): Promise<void> {
 		if (!isSupabaseConfigured()) return this.rememberHostDirectory();
 		await this.knownPeople();
@@ -79,20 +96,23 @@ class PersonPictureStore {
 		const generation = this.generation;
 		const wanted = [...new Set(externalIDs)].filter((externalID) => externalID !== '');
 		if (wanted.length === 0) return;
+		await this.restored;
 		await this.knownAvatarURLs();
 		if (generation !== this.generation) return;
-		if (this.kept.size === 0) this.kept = readKeptPictures(Date.now(), messengerCacheKey());
+		if (this.kept.size === 0) this.kept = readKeptPictures(messengerCacheKey());
 		this.forgetListedWithoutPicture(wanted);
-		this.drawKeptWithUnchangedAvatar(wanted);
+		const unshown = this.drawKeptWithUnchangedAvatar(wanted);
 
 		const stale = wanted.filter((externalID) => this.needsAsking(externalID));
-		if (stale.length === 0) return;
+		if (stale.length === 0 && unshown.length === 0) return;
 		stale.forEach((externalID) => this.asked.add(externalID));
 
-		const answers = await Promise.all(stale.map((externalID) => this.askAfter(externalID)));
+		const answers = [...unshown, ...(await Promise.all(stale.map((externalID) => this.askAfter(externalID))))];
 		if (generation !== this.generation) return;
 		const unsigned = answers.filter((answer) => answer.address !== '' && !this.keptSignedURLOf(answer));
 		const readable = await this.signedFor(unsigned.map((answer) => answer.address));
+		if (generation !== this.generation) return;
+		const shown = await keepPictureFiles(this.readableOfAnswers(answers, readable));
 		if (generation !== this.generation) return;
 		const next = new Map(this.readableOfExternal);
 		for (const answer of answers) {
@@ -107,13 +127,37 @@ class PersonPictureStore {
 				this.asked.delete(answer.externalID);
 				continue;
 			}
-			next.set(answer.externalID, signed);
+			next.set(answer.externalID, shown.get(answer.address) || signed);
 			if (!reused) {
 				this.kept.set(answer.externalID, keptPictureOf(answer.address, signed, this.avatarURLOf(answer.externalID)));
 			}
 		}
 		this.readableOfExternal = next;
 		writeKeptPictures(this.kept, messengerCacheKey());
+	}
+
+	private async restore(): Promise<void> {
+		const generation = this.generation;
+		try {
+			const restored = await restoreKeptPictures();
+			if (!restored || generation !== this.generation) return;
+			this.kept = restored.kept;
+			this.keptAccounts = restored.accounts;
+			this.readableOfExternal = restored.shownOfExternal;
+		} catch (failure) {
+			console.warn('the pictures kept on this device could not be read back', failure);
+		} finally {
+			this.restoring = false;
+		}
+	}
+
+	private readableOfAnswers(answers: PictureAnswer[], readable: Map<string, string>): Map<string, string> {
+		const readableOfAddress = new Map<string, string>();
+		for (const answer of answers) {
+			const signed = this.keptSignedURLOf(answer) || readable.get(answer.address);
+			if (signed) readableOfAddress.set(answer.address, signed);
+		}
+		return readableOfAddress;
 	}
 
 	private forgetListedWithoutPicture(externalIDs: string[]): void {
@@ -128,17 +172,16 @@ class PersonPictureStore {
 		writeKeptPictures(this.kept, messengerCacheKey());
 	}
 
-	private drawKeptWithUnchangedAvatar(externalIDs: string[]): void {
+	private drawKeptWithUnchangedAvatar(externalIDs: string[]): PictureAnswer[] {
 		const unchanged = externalIDs.filter((externalID) => !this.asked.has(externalID) && this.keptAvatarIsCurrent(externalID));
-		if (unchanged.length === 0) return;
-		const next = new Map(this.readableOfExternal);
+		const unshown: PictureAnswer[] = [];
 		for (const externalID of unchanged) {
 			const kept = this.kept.get(externalID);
 			if (!kept) continue;
 			this.asked.add(externalID);
-			next.set(externalID, kept.signedURL);
+			if (!this.readableOfExternal.has(externalID)) unshown.push({ externalID, address: kept.address, failed: false });
 		}
-		this.readableOfExternal = next;
+		return unshown;
 	}
 
 	private keptAvatarIsCurrent(externalID: string): boolean {
@@ -148,7 +191,7 @@ class PersonPictureStore {
 
 	private keptSignedURLOf(answer: PictureAnswer): string {
 		const kept = this.kept.get(answer.externalID);
-		return kept && kept.address === answer.address ? kept.signedURL : '';
+		return kept && kept.address === answer.address ? freshSignedURLOf(kept) : '';
 	}
 
 	private avatarURLOf(externalID: string): string {
@@ -194,7 +237,8 @@ class PersonPictureStore {
 	}
 
 	private accountsOf(person: PersonIdentity): string[] {
-		const held = this.resolved ? accountsHeldBy(person, this.resolved) : [];
+		const directory = this.resolved ?? this.keptAccounts;
+		const held = directory ? accountsHeldBy(person, directory) : [];
 		return person.externalID ? [person.externalID, ...held] : held;
 	}
 
@@ -202,7 +246,12 @@ class PersonPictureStore {
 		if (!isSupabaseConfigured()) return Promise.resolve(null);
 		const generation = this.generation;
 		this.directory ??= fetchMessengerDirectory()
-			.then((people) => generation === this.generation ? (this.resolved = people) : null)
+			.then((people) => {
+				if (generation !== this.generation) return null;
+				writeKeptAccounts(people, messengerCacheKey());
+				this.resolved = people;
+				return people;
+			})
 			.catch(() => {
 				if (generation === this.generation) this.directory = null;
 				return null;
