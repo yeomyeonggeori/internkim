@@ -17,6 +17,7 @@
 	} from './calendar-grid-dates';
 	import { defaultCalendarEventColor } from './calendar-grid-events';
 	import { calendarGridWeekLayout, type CalendarGridEvent, type CalendarGridWeekLayout } from './calendar-grid-layout';
+	import { calendarMonthDayRows, calendarMonthVisibleLaneCount, isCalendarMonthSpanVisible } from './calendar-month-day-rows';
 
 	type CalendarMonthViewProps = {
 		visibleDate: Date;
@@ -57,7 +58,6 @@
 	const monthEventRowHeightPixels = 18;
 	const monthEventRowGapPixels = 1;
 	const monthEventLaneHeightPixels = monthEventRowHeightPixels + monthEventRowGapPixels;
-	const visibleChipCount = 3;
 	const scrollOverlayHideDelayMilliseconds = 700;
 	const windowExtendWeeks = 26;
 	const windowExtendMarginPixels = 1200;
@@ -215,26 +215,7 @@
 		}, scrollOverlayHideDelayMilliseconds);
 	}
 
-	function dayLaneCount(layout: CalendarGridWeekLayout, dayIndex: number): number {
-		return layout.spans
-			.filter((span) => dayIndex >= span.startColumn && dayIndex < span.startColumn + span.columnCount)
-			.reduce((count, span) => Math.max(count, span.lane + 1), 0);
-	}
-
-	function timedEventsForDay(layout: CalendarGridWeekLayout, dayIndex: number) {
-		const entries = layout.timedEntries.filter((entry) => entry.dayIndex === dayIndex);
-		const availableChipCount = Math.max(1, visibleChipCount - dayLaneCount(layout, dayIndex));
-		if (entries.length <= availableChipCount) return { visible: entries, hiddenCount: 0 };
-		const visibleCount = Math.max(0, availableChipCount - 1);
-		return {
-			visible: entries.slice(0, visibleCount),
-			hiddenCount: entries.length - visibleCount
-		};
-	}
-
-	function laneSpacerHeightPixels(layout: CalendarGridWeekLayout, dayIndex: number): number {
-		const laneCount = dayLaneCount(layout, dayIndex);
-		if (laneCount === 0) return 0;
+	function laneSpacerHeightPixels(laneCount: number): number {
 		return laneCount * monthEventLaneHeightPixels - monthEventRowGapPixels;
 	}
 
@@ -362,7 +343,7 @@
 					</div>
 				{/if}
 				{#each week.days as day, dayIndex (day.getTime())}
-					{@const timed = timedEventsForDay(layout, dayIndex)}
+					{@const dayRows = calendarMonthDayRows(layout, dayIndex)}
 					<CalendarDayCell
 						{day}
 						dayLabel={String(day.getDate())}
@@ -374,10 +355,10 @@
 						selectDay={(selectedDay) => selectDay(selectedDay)}
 					>
 						<div class="flex min-h-0 flex-col gap-px">
-							{#if dayLaneCount(layout, dayIndex) > 0}
-								<div class="shrink-0" style={`height: ${laneSpacerHeightPixels(layout, dayIndex)}px`}></div>
+							{#if dayRows.spanLaneCount > 0}
+								<div class="shrink-0" style={`height: ${laneSpacerHeightPixels(dayRows.spanLaneCount)}px`}></div>
 							{/if}
-							{#each timed.visible as entry (entry.event.id)}
+							{#each dayRows.visibleTimedEntries as entry (entry.event.id)}
 								<CalendarEventChip
 									event={entry.event}
 									timeLabel={entry.event.isAllDay ? '' : timeFormatter.format(entry.event.start)}
@@ -387,13 +368,13 @@
 									{openEvent}
 								/>
 							{/each}
-							{#if timed.hiddenCount > 0}
+							{#if dayRows.hiddenCount > 0}
 								<button
 									type="button"
 									class="text-muted-foreground hover:text-foreground h-[18px] shrink-0 px-1.5 text-left text-xs"
 									onclick={() => openDay(day)}
 								>
-									{moreEventsText.replace('{count}', String(timed.hiddenCount))}
+									{moreEventsText.replace('{count}', String(dayRows.hiddenCount))}
 								</button>
 							{/if}
 						</div>
@@ -404,14 +385,14 @@
 					<div class="pointer-events-none absolute inset-x-0 top-8 grid grid-cols-7">
 						<div
 							class="px-1.5"
-							style={`grid-column: ${(draftRange?.startColumn ?? 0) + 1} / span ${draftRange?.columnCount ?? 1}; grid-row: 1; margin-top: ${layout.laneCount * monthEventLaneHeightPixels}px`}
+							style={`grid-column: ${(draftRange?.startColumn ?? 0) + 1} / span ${draftRange?.columnCount ?? 1}; grid-row: 1; margin-top: ${calendarMonthVisibleLaneCount(layout) * monthEventLaneHeightPixels}px`}
 						>
 							<CalendarEventChip event={draftEventPreview} isSelected class="h-[18px] shrink-0" openEvent={() => {}} />
 						</div>
 					</div>
 				{/if}
 				<div class="pointer-events-none absolute inset-x-0 top-8 grid grid-cols-7">
-					{#each layout.spans as span (span.event.id)}
+					{#each layout.spans.filter(isCalendarMonthSpanVisible) as span (span.event.id)}
 						<div
 							class="pointer-events-auto px-1.5"
 							style={`grid-column: ${span.startColumn + 1} / span ${span.columnCount}; grid-row: 1; margin-top: ${span.lane * monthEventLaneHeightPixels}px`}
