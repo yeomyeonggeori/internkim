@@ -17,7 +17,8 @@
 		type ConversationDocument,
 		type ExportFormat
 	} from '$lib/messenger/conversation-export';
-	import { printDocument, saveFile } from '$lib/messenger/conversation-export-file';
+	import { printDocument } from '$lib/messenger/conversation-export-file';
+	import { saveFile } from '$lib/save-file';
 	import { collectWholeConversation } from '$lib/messenger/conversation-history';
 
 	let {
