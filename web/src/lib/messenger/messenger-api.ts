@@ -303,19 +303,46 @@ export async function fetchPosts(channelID: string, before?: string): Promise<Me
 	return { posts: answer.messages.map(asPost), hasMoreBefore: answer.hasMoreBefore };
 }
 
-export async function searchPosts(channelID: string, query: string): Promise<MessengerSearchMatch[]> {
-	const answer = await ask<{ matches: PersonalMessageMatch[] }>('person.messages.search', {
-		conversationID: channelID,
-		query
-	});
-	return answer.matches.map((match) => ({
+export type MessengerInboxReason = 'mention' | 'direct' | 'thread_reply';
+
+export type MessengerInboxItem = {
+	reason: MessengerInboxReason;
+	isUnread: boolean;
+	message: MessengerSearchMatch;
+};
+
+export async function fetchInbox(): Promise<MessengerInboxItem[]> {
+	const answer = await ask<{
+		items: { reason: MessengerInboxReason; isUnread: boolean; message: PersonalMessageMatch }[];
+	}>('person.inbox.list');
+	return answer.items.map((item) => ({
+		reason: item.reason,
+		isUnread: item.isUnread,
+		message: asSearchMatch(item.message)
+	}));
+}
+
+export async function markThreadRead(channelID: string, threadRootID: string, readAt: string): Promise<void> {
+	await ask('person.read_state.mark', { conversationID: channelID, parentID: threadRootID, readAt });
+}
+
+function asSearchMatch(match: PersonalMessageMatch): MessengerSearchMatch {
+	return {
 		id: match.id,
 		channelID: match.conversationID,
 		parentID: match.parentID,
 		author: { externalID: match.authorExternalID },
 		body: match.body,
 		postedAt: match.postedAt
-	}));
+	};
+}
+
+export async function searchPosts(channelID: string, query: string): Promise<MessengerSearchMatch[]> {
+	const answer = await ask<{ matches: PersonalMessageMatch[] }>('person.messages.search', {
+		conversationID: channelID,
+		query
+	});
+	return answer.matches.map(asSearchMatch);
 }
 
 export function copyAttachmentForReading(

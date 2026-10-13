@@ -143,7 +143,7 @@ if (scenario === 'mail') {
 	mock.module('$lib/messenger/messenger-api', () => ({
 		addReaction: async () => {}, deletePost: async () => {}, editPost: async () => {},
 		fetchChannels: async () => ({}), fetchPeople: async () => [], openDirectChannel: async () => ({}),
-		removeReaction: async () => {}, searchPosts: async () => [], writePost: async () => {}, keepAttachmentForSending: async () => ({}),
+		removeReaction: async () => {}, searchPosts: async () => [], fetchInbox: async () => [], writePost: async () => {}, keepAttachmentForSending: async () => ({}),
 		fetchPosts: async () => {
 			postsStarted = true;
 			return {

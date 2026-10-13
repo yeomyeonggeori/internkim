@@ -1,0 +1,30 @@
+export const messengerInboxText = {
+	ko: {
+		inbox: '수신함',
+		all: '전체',
+		unread: '안 읽음',
+		direct: '개인 메시지',
+		mention: '멘션',
+		threadReply: '스레드 답장',
+		loading: '수신함을 불러오는 중',
+		loadFailed: '수신함을 불러오지 못했습니다.',
+		retry: '다시 시도',
+		empty: '새로 온 소식이 없어요',
+		emptyUnread: '안 읽은 소식이 없어요',
+		unknownAuthor: '알 수 없는 사람',
+	},
+	en: {
+		inbox: 'Inbox',
+		all: 'All',
+		unread: 'Unread',
+		direct: 'Direct message',
+		mention: 'Mention',
+		threadReply: 'Thread reply',
+		loading: 'Loading the inbox',
+		loadFailed: 'The inbox did not load.',
+		retry: 'Try again',
+		empty: 'Nothing new here',
+		emptyUnread: 'Nothing unread',
+		unknownAuthor: 'Someone',
+	}
+};

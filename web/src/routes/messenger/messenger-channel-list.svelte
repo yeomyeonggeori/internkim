@@ -5,10 +5,12 @@
 	import CompassIcon from '@lucide/svelte/icons/compass';
 	import ExternalLinkIcon from '@lucide/svelte/icons/external-link';
 	import HashIcon from '@lucide/svelte/icons/hash';
+	import InboxIcon from '@lucide/svelte/icons/inbox';
 	import LockIcon from '@lucide/svelte/icons/lock';
 	import PlusIcon from '@lucide/svelte/icons/plus';
 	import { channelText } from '$lib/i18n/channel-text';
 	import { conversationExportText } from '$lib/i18n/conversation-export-text';
+	import { messengerInboxText } from '$lib/i18n/messenger-inbox-text';
 	import { createPageText } from '$lib/i18n/page-text.svelte';
 	import { cn } from '$lib/utils';
 	import ConversationMenu from '$lib/components/channel/conversation-menu.svelte';
@@ -22,6 +24,7 @@
 
 	let {
 		activeID,
+		inbox,
 		isLoading = false,
 		error = '',
 		retry,
@@ -41,6 +44,7 @@
 		sidebarWidth = '16rem'
 	}: {
 		activeID: string | undefined;
+		inbox?: { isActive: boolean; unreadCount: number; open: () => void };
 		isLoading?: boolean;
 		error?: string;
 		retry?: () => void;
@@ -62,6 +66,8 @@
 
 	const text = createPageText(channelText);
 	const exportText = createPageText(conversationExportText);
+	const inboxText = createPageText(messengerInboxText);
+	const shownActiveID = $derived(inbox?.isActive ? undefined : activeID);
 
 	let draggedChannelID = $state<string | null>(null);
 	let dragOverChannelID = $state<string | null>(null);
@@ -90,6 +96,24 @@
 		<Sidebar.Content class="pt-2">
 			{#if error}
 				<div class="space-y-2 px-3 py-2"><p role="alert" class="text-sm text-destructive">{error}</p>{#if retry}<Button variant="outline" size="sm" onclick={retry}>{text.retry}</Button>{/if}</div>
+			{/if}
+			{#if inbox}
+			<Sidebar.Group class="pb-0">
+				<Sidebar.Menu>
+					<Sidebar.MenuItem>
+						<Sidebar.MenuButton isActive={inbox.isActive} onclick={inbox.open}>
+							<InboxIcon />
+							<span class={inbox.unreadCount > 0 ? 'font-semibold' : ''}>{inboxText.inbox}</span>
+						</Sidebar.MenuButton>
+						{#if unreadBadgeLabel(inbox.unreadCount)}
+							<Sidebar.MenuBadge>
+								<span class="sr-only">{text.unreadMessages}</span>
+								{unreadBadgeLabel(inbox.unreadCount)}
+							</Sidebar.MenuBadge>
+						{/if}
+					</Sidebar.MenuItem>
+				</Sidebar.Menu>
+			</Sidebar.Group>
 			{/if}
 			<MessengerChannelSection
 				title={text.channelListTitle}
@@ -154,7 +178,7 @@
 							}}
 						>
 							<Sidebar.MenuButton
-								isActive={activeID === channel.id}
+								isActive={shownActiveID === channel.id}
 								onclick={() => selectChannel(channel.id)}
 							>
 								{#if channel.isPrivate}<LockIcon />{:else}<HashIcon />{/if}
@@ -188,7 +212,7 @@
 							onExport={() => exportConversation(conversation)}
 						>
 							<Sidebar.MenuButton
-								isActive={activeID === conversation.id}
+								isActive={shownActiveID === conversation.id}
 								onclick={() => selectChannel(conversation.id)}
 							>
 								<PersonAvatar
