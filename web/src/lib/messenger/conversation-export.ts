@@ -1,5 +1,6 @@
 import type { ChannelMessage } from '$lib/components/channel/channel-api';
 import { clockTime, dateKeyOf, dateLabel } from '$lib/components/channel/channel-time';
+import { csvDocument } from '$lib/csv';
 
 export type ExportFormat = 'text' | 'csv' | 'pdf';
 
@@ -22,10 +23,7 @@ export type ConversationDocument = {
 
 type DayOfMessages = { label: string; messages: ChannelMessage[] };
 
-const byteOrderMark = '﻿';
-const csvLineBreak = '\r\n';
 const dayRule = '-'.repeat(12);
-const spreadsheetFormulaStart = /^[=+\-@\t\r]/;
 
 function daysOf(messages: ChannelMessage[]): DayOfMessages[] {
 	const days: DayOfMessages[] = [];
@@ -61,11 +59,6 @@ export function conversationAsText(document: ConversationDocument): string {
 	return `${lines.join('\n')}\n`;
 }
 
-function csvCell(value: string): string {
-	const safe = spreadsheetFormulaStart.test(value) ? `'${value}` : value;
-	return /[",\r\n]/.test(safe) ? `"${safe.replaceAll('"', '""')}"` : safe;
-}
-
 export function conversationAsCSV(document: ConversationDocument): string {
 	const { labels } = document;
 	const header = [labels.date, labels.time, labels.sender, labels.content, labels.attachments];
@@ -76,8 +69,7 @@ export function conversationAsCSV(document: ConversationDocument): string {
 		message.text,
 		attachmentNamesOf(message).join('; ')
 	]);
-	const lines = [header, ...rows].map((row) => row.map(csvCell).join(','));
-	return `${byteOrderMark}${lines.join(csvLineBreak)}${csvLineBreak}`;
+	return csvDocument([header, ...rows]);
 }
 
 function escapedHTML(value: string): string {
