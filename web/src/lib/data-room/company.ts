@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { moneySchema, formatMoney } from '$lib/money';
+import { formatCompactMoney, formatMoney, moneySchema } from '$lib/money';
 
 const localizedTextSchema = z.record(z.string(), z.string());
 
@@ -30,8 +30,9 @@ export const dataRoomCompanySchema = z.object({
 		year: z.number().int(),
 		quarter: z.number().int().optional(),
 		month: z.number().int().optional(),
-		value: z.number(),
-		currency: z.string().optional(),
+		amount: moneySchema.optional(),
+		usdEquivalent: z.number().optional(),
+		value: z.number().optional(),
 		unit: z.string().optional(),
 		note: z.string().optional()
 	})),
@@ -40,6 +41,7 @@ export const dataRoomCompanySchema = z.object({
 		date: z.string().optional(),
 		title: z.string(),
 		detail: z.string().optional(),
+		amount: moneySchema.optional(),
 		attributes: z.record(z.string(), z.unknown())
 	}))
 });
@@ -102,20 +104,20 @@ export function periodLabel(metric: CompanyMetric, locale: string): string {
 	return String(metric.year);
 }
 
-export function changeFromPrevious(series: CompanyMetricSeries): number | undefined {
-	const previous = series.points.at(-2);
-	if (!previous || previous.value === 0) return undefined;
-	return (series.latest.value - previous.value) / Math.abs(previous.value) * 100;
+export function metricNumber(metric: CompanyMetric): number {
+	return metric.amount?.amount ?? metric.value ?? 0;
 }
 
-export function formatMetricValue(metric: CompanyMetric, locale: string, value = metric.value): string {
-	if (metric.currency) {
-		return new Intl.NumberFormat(locale, {
-			style: 'currency', currency: metric.currency, currencyDisplay: 'narrowSymbol', notation: 'compact', maximumFractionDigits: 1
-		}).format(value);
-	}
-	const number = new Intl.NumberFormat(locale, { notation: 'compact', maximumFractionDigits: 1 }).format(value);
-	return metric.unit ? `${number} ${metric.unit}` : number;
+export function changeFromPrevious(series: CompanyMetricSeries): number | undefined {
+	const previous = series.points.at(-2);
+	if (!previous || metricNumber(previous) === 0) return undefined;
+	return (metricNumber(series.latest) - metricNumber(previous)) / Math.abs(metricNumber(previous)) * 100;
+}
+
+export function formatMetricValue(metric: CompanyMetric, locale: string, number = metricNumber(metric)): string {
+	if (metric.amount) return formatCompactMoney({ amount: number, currency: metric.amount.currency }, locale);
+	const formatted = new Intl.NumberFormat(locale, { notation: 'compact', maximumFractionDigits: 1 }).format(number);
+	return metric.unit ? `${formatted} ${metric.unit}` : formatted;
 }
 
 export function humanizedKey(key: string): string {

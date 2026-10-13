@@ -30,7 +30,6 @@ function opportunity(organizationID: string, name: string, contactID: string): C
 		stage: 'waiting',
 		ownerName: '담당자',
 		ownerEmail: 'owner@example.com',
-		currency: 'KRW',
 		importance: 'medium',
 		targetDate: '',
 		staleDays: 0,

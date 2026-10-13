@@ -1,4 +1,3 @@
-import { interimCurrencyCatalogue } from '$lib/currency/currency-catalogue';
 import { matchesKoreanSearch } from '$lib/korean-search';
 import { loadCRMData } from '../../routes/crm/crm-data-source';
 import { mapCRMViewData } from '../../routes/crm/crm-mappers';
@@ -25,7 +24,7 @@ class CRMSearch {
 
 	load = async () => {
 		try {
-			const view = mapCRMViewData(await loadCRMData(), [], interimCurrencyCatalogue);
+			const view = mapCRMViewData(await loadCRMData(), []);
 			this.organizations = view.organizations;
 			this.contacts = view.contacts;
 		} catch {

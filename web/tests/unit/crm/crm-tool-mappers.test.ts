@@ -63,10 +63,8 @@ function opportunity(overrides: Partial<CRMOpportunityToolResult> = {}): CRMOppo
 		stagePosition: 2,
 		stageChangedAt: '2026-09-04T00:00:00.000Z',
 		ownerPersonID: 'member-one',
-		amountMinor: 18000000,
-		currencyCode: 'KRW',
-		baseAmountMinor: null,
-		baseCurrencyCode: '',
+		amount: { amount: 18000000, currency: 'KRW' },
+		settledAmount: null,
 		importance: 'high',
 		expectedCloseAt: '2026-09-30T14:59:59.999Z',
 		expectedCloseTimeZone: 'Asia/Seoul',
@@ -132,7 +130,8 @@ describe('what the CRM tools answer becomes what the screens read', () => {
 		expect(answered.dueAt).toBe('2026-09-30T14:59:59.999Z');
 		expect(answered.dueTimeZone).toBe('Asia/Seoul');
 		expect(answered.contacts).toEqual([{ contactID: 'contact-one' }]);
-		expect(answered.baseCurrencyCode).toBeUndefined();
+		expect(answered.amount).toEqual({ amount: 18000000, currency: 'KRW' });
+		expect(answered.settledAmount).toBeUndefined();
 	});
 
 	test('a stage the screens do not know is refused rather than drawn', () => {

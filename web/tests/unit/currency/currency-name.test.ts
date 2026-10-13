@@ -1,8 +1,8 @@
 import { describe, expect, test } from 'bun:test';
 import { currencyDisplayNamesFor, currencyNameOf } from '../../../src/lib/currency/currency-name';
 
-const guernseyPound = { code: 'GGP', name: 'Guernsey Pound', minorUnitDigits: 2 };
-const taiwanDollar = { code: 'TWD', name: 'New Taiwan Dollar', minorUnitDigits: 2 };
+const guernseyPound = { code: 'GGP', name: 'Guernsey Pound' };
+const taiwanDollar = { code: 'TWD', name: 'New Taiwan Dollar' };
 
 describe('currencyNameOf', () => {
 	test('names a currency in the reader locale when the platform knows it', () => {
@@ -19,7 +19,7 @@ describe('currencyNameOf', () => {
 	test('falls back for every currency the platform cannot name', () => {
 		const displayNames = currencyDisplayNamesFor('ko');
 		for (const code of ['GGP', 'IMP', 'JEP']) {
-			const entry = { code, name: `${code} provider name`, minorUnitDigits: 2 };
+			const entry = { code, name: `${code} provider name` };
 			expect(currencyNameOf(entry, displayNames)).toBe(entry.name);
 		}
 	});

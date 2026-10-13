@@ -4,6 +4,7 @@ import { titleNearness } from './hint-nearness';
 import { HintRefused, normalized, resolveHint, type HintMatcher } from './hint-resolution';
 import { RecordRefusedTheWrite, statusOfPostgresCode } from './tasks';
 import type { RecordContext } from './company';
+import type { Money } from '$lib/money';
 import type {
 	CompanyDocumentDownloadResult,
 	CompanyDocumentListResult,
@@ -22,9 +23,9 @@ export type CompanyMetricRecordInput = {
 	year?: number;
 	quarter?: number;
 	month?: number;
+	amount?: Money;
+	usdEquivalent?: number;
 	value?: number;
-	currency?: string;
-	valueUSD?: number;
 	unit?: string;
 	note?: string;
 };
@@ -36,6 +37,7 @@ export type CompanyRecordAddInput = {
 	date?: string;
 	title?: string;
 	detail?: string;
+	amount?: Money;
 	attributes?: string;
 };
 
@@ -95,7 +97,7 @@ const inboxCategoryCode = 'X';
 
 const metricColumns =
 	'id, metric, year, quarter, month, value, currency_code, value_usd, unit, note, updated_at';
-const recordColumns = 'id, category, record_date, title, detail, attributes, updated_at';
+const recordColumns = 'id, category, record_date, title, detail, amount, currency_code, attributes, updated_at';
 const documentColumns =
 	'id, document_number, kind, document_type, title, counterpart, language, file_path, summary, requester_id, created_at, updated_at, category_code, document_date, period, status, supersedes, sha256, tags, storage_path, size_bytes, published_from, published_at, published_by';
 
@@ -142,6 +144,8 @@ type RecordRow = {
 	record_date: string | null;
 	title: string;
 	detail: string | null;
+	amount: number | null;
+	currency_code: string | null;
 	attributes: Record<string, string> | null;
 	updated_at: string;
 };
@@ -180,9 +184,9 @@ function answeredMetric(row: MetricRow): CompanyMetricResult {
 		year: row.year,
 		quarter: row.quarter,
 		month: row.month,
-		value: Number(row.value),
-		currency: row.currency_code,
-		valueUSD: row.value_usd === null ? null : Number(row.value_usd),
+		amount: row.currency_code === null ? null : { amount: Number(row.value), currency: row.currency_code },
+		usdEquivalent: row.value_usd === null ? null : Number(row.value_usd),
+		value: row.currency_code === null ? Number(row.value) : null,
 		unit: row.unit,
 		note: row.note,
 		updatedAt: row.updated_at
@@ -196,6 +200,7 @@ function answeredRecord(row: RecordRow): CompanyRecordResult {
 		date: row.record_date,
 		title: row.title,
 		detail: row.detail,
+		amount: row.amount === null || row.currency_code === null ? null : { amount: Number(row.amount), currency: row.currency_code },
 		attributes: Object.entries(row.attributes ?? {}).map(([label, value]) => ({ label, value })),
 		updatedAt: row.updated_at
 	};
@@ -281,25 +286,23 @@ function decodedAttributes(attributes: string | undefined): Record<string, strin
 	return values;
 }
 
-type MetricMoney = { currencyCode: string | null; valueUSD: number | null; unit: string | null };
+type StoredMetricValue = { value: number; currencyCode: string | null; valueUSD: number | null; unit: string | null };
 
-function moneyOfMetric(input: CompanyMetricRecordInput, value: number): MetricMoney {
-	const currencyCode = input.currency?.trim().toUpperCase() ?? '';
-	const unit = orNull(input.unit);
-	if (currencyCode === '') {
-		if (input.valueUSD !== undefined) {
-			throw new Error('a currency is required when a USD equivalent is given');
-		}
-		return { currencyCode: null, valueUSD: null, unit };
+function storedMetricValueOf(input: CompanyMetricRecordInput): StoredMetricValue {
+	if (input.amount && input.value !== undefined) {
+		throw new Error('a metric is money in amount or a number in value, never both');
 	}
-	if (unit !== null) {
-		throw new Error('a metric carries a currency for money or a unit for everything else, never both');
-	}
-	if (currencyCode === 'USD') return { currencyCode, valueUSD: value, unit: null };
-	if (input.valueUSD === undefined) {
-		throw new Error(`a USD equivalent is required when the currency is ${currencyCode}`);
-	}
-	return { currencyCode, valueUSD: input.valueUSD, unit: null };
+	if (input.amount) return storedMetricAmountOf(input.amount, input);
+	if (input.value === undefined) throw new Error('a metric records money in amount or a number in value');
+	if (input.usdEquivalent !== undefined) throw new Error('a USD equivalent belongs to money, and this metric is a number');
+	return { value: input.value, currencyCode: null, valueUSD: null, unit: orNull(input.unit) };
+}
+
+function storedMetricAmountOf(amount: Money, input: CompanyMetricRecordInput): StoredMetricValue {
+	if (orNull(input.unit) !== null) throw new Error('money carries its currency, not a unit');
+	const valueUSD = amount.currency === 'USD' ? amount.amount : input.usdEquivalent;
+	if (valueUSD === undefined) throw new Error(`a USD equivalent is required when the amount is in ${amount.currency}`);
+	return { value: amount.amount, currencyCode: amount.currency, valueUSD, unit: null };
 }
 
 function periodOfMetric(input: CompanyMetricRecordInput): { quarter: number; month: number } {
@@ -322,9 +325,8 @@ export async function companyMetricRecord(
 	const metric = textOf(input.metric, 'a metric call names the metric it records');
 	const year = input.year ?? 0;
 	if (year < earliestMetricYear) throw new Error('a metric names the four-digit year it belongs to');
-	if (input.value === undefined) throw new Error('a metric records a number');
 	const { quarter, month } = periodOfMetric(input);
-	const money = moneyOfMetric(input, input.value);
+	const stored = storedMetricValueOf(input);
 
 	const { data, error } = await context.caller
 		.from('company_metric')
@@ -335,10 +337,10 @@ export async function companyMetricRecord(
 				year,
 				quarter,
 				month,
-				value: input.value,
-				currency_code: money.currencyCode,
-				value_usd: money.valueUSD,
-				unit: money.unit,
+				value: stored.value,
+				currency_code: stored.currencyCode,
+				value_usd: stored.valueUSD,
+				unit: stored.unit,
 				note: orNull(input.note),
 				updated_at: context.now.toISOString()
 			},
@@ -426,6 +428,8 @@ export async function companyRecordAdd(
 			record_date: orNull(input.date),
 			title,
 			detail: orNull(input.detail),
+			amount: input.amount?.amount ?? null,
+			currency_code: input.amount?.currency ?? null,
 			attributes: decodedAttributes(input.attributes) ?? {},
 			updated_at: context.now.toISOString()
 		})
@@ -447,6 +451,7 @@ export async function companyRecordUpdate(
 	if (orNull(input.title)) change.title = input.title?.trim();
 	if (orNull(input.detail)) change.detail = input.detail?.trim();
 	if (attributes) change.attributes = attributes;
+	if (input.amount) Object.assign(change, { amount: input.amount.amount, currency_code: input.amount.currency });
 
 	const { data, error } = await context.caller
 		.from('company_record')

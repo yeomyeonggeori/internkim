@@ -1,18 +1,8 @@
-import { convertMinorAmount, minorUnitDigitsOf, type ExchangeRateProvider } from '$lib/server/exchange-rates';
+import type { ConvertedAmount } from '$lib/currency/converted-amount';
+import { roundedMoney, type Money } from '$lib/money';
+import type { ExchangeRateProvider } from '$lib/server/exchange-rates';
 
-export type ConvertedAmount = { amountMinor: number; currencyCode: string; rate: number; asOf: string };
-
-export async function convertedAmount(
-	provider: ExchangeRateProvider,
-	amountMinor: number,
-	from: string,
-	to: string
-): Promise<ConvertedAmount> {
-	const rate = await provider.latestRate(from, to);
-	return {
-		amountMinor: convertMinorAmount(amountMinor, rate.rate, minorUnitDigitsOf(from), minorUnitDigitsOf(to)),
-		currencyCode: to,
-		rate: rate.rate,
-		asOf: rate.asOf
-	};
+export async function convertedAmount(provider: ExchangeRateProvider, money: Money, to: string): Promise<ConvertedAmount> {
+	const rate = await provider.latestRate(money.currency, to);
+	return { amount: roundedMoney(money.amount * rate.rate, to), rate: rate.rate, asOf: rate.asOf };
 }

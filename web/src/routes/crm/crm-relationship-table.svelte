@@ -33,7 +33,7 @@
 
 	function openAmountOf(organization: CRMOrganization): number | undefined {
 		const collapsed = collapsedViewMoneyTotal(organization.expectedValues, crmViewCurrency);
-		if (collapsed !== undefined) return collapsed;
+		if (collapsed !== undefined) return collapsed.amount;
 		const amounts = Object.values(organization.expectedValues);
 		if (amounts.length === 0) return undefined;
 		return amounts.reduce<number>((total, amount) => total + (amount ?? 0), 0);

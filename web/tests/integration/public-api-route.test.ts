@@ -690,8 +690,7 @@ describe('the CRM this company keeps', () => {
 			organizationHint: '샘플상사',
 			title: '샘플상사 도입',
 			contactHint: 'yesi',
-			amountMinor: 18000000,
-			currencyCode: 'KRW'
+			amount: { amount: 18000000, currency: 'KRW' }
 		});
 		expect(deal.status).toBe(200);
 		expect(resultOf(deal).stage).toBe('waiting');
@@ -710,11 +709,11 @@ describe('the CRM this company keeps', () => {
 	test('changes a deal, then moves it, and the closing move settles what it was worth', async () => {
 		const changed = await invoke('crm_opportunity_update', holdersToken, {
 			opportunityHint: '샘플상사 도입',
-			amountMinor: 20000000,
+			amount: { amount: 20000000, currency: 'KRW' },
 			expectedCloseDate: '2026-09-30'
 		});
 		expect(changed.status).toBe(200);
-		expect(resultOf(changed).amountMinor).toBe(20000000);
+		expect(resultOf(changed).amount).toEqual({ amount: 20000000, currency: 'KRW' });
 		expect(resultOf(changed).expectedCloseTimeZone).toBe('Asia/Seoul');
 
 		const moved = await invoke('crm_opportunity_move', holdersToken, {
@@ -729,8 +728,7 @@ describe('the CRM this company keeps', () => {
 			stage: 'done'
 		});
 		expect(resultOf(closed).stage).toBe('done');
-		expect(resultOf(closed).baseAmountMinor).toBe(20000000);
-		expect(resultOf(closed).baseCurrencyCode).toBe('KRW');
+		expect(resultOf(closed).settledAmount).toEqual({ amount: 20000000, currency: 'KRW' });
 	});
 
 	test('says which of its tools pause for approval and which do not', async () => {

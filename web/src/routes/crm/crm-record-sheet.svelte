@@ -16,7 +16,7 @@
 	import { crmLabel } from './crm-labels';
 	import { centralTaskStatusOptions, taskStatus } from '$lib/task/central-task';
 	import { taskStatusLabelFrom } from '../task/task-status';
-	import { parseAmountInput } from './crm-money';
+	import { moneyFromAmountInput } from './crm-money';
 	import CRMConversionPreview from './crm-conversion-preview.svelte';
 	import CRMMoneyField from './crm-money-field.svelte';
 	import CRMOwnerSelect from './crm-owner-select.svelte';
@@ -42,7 +42,7 @@
 	} from './crm-types';
 	import { findOrganizationByID, opportunityStageLabel } from './crm-view-model';
 	import { dealStageIcon } from './crm-status-icons';
-	import { minorAmountOf, type CurrencyCatalogue } from '$lib/currency/currency-catalogue';
+	import type { CurrencyCatalogue } from '$lib/currency/currency-catalogue';
 	import type { CRMText } from './text';
 
 	type Props = {
@@ -99,10 +99,7 @@
 	let lostReason = $state('');
 	let amount = $state('');
 	let currency = $state<CRMCurrency>('');
-	let typedAmountMinor = $derived.by(() => {
-		const typedAmount = parseAmountInput(amount);
-		return typedAmount === undefined ? null : minorAmountOf(typedAmount, currency, currencyCatalogue);
-	});
+	let typedAmount = $derived(moneyFromAmountInput(amount, currency));
 	let targetDate = $state('');
 	let opportunityID = $state('');
 	let activityContactID = $state('');
@@ -279,7 +276,7 @@
 			} else if (kind === 'contact') {
 				await onCreate({ kind, organizationID, name: name.trim(), title: contactTitle.trim(), email: email.trim(), phone: phone.trim(), note: description.trim() });
 			} else if (kind === 'progress') {
-				await onCreate({ kind, organizationID, contacts: progressContactID ? [{ contactID: progressContactID }] : [], business, name: name.trim(), progressKind: pipeline, stage, lostReason: stageOutcome === 'lost' ? lostReason : '', ownerPersonID, amount: parseAmountInput(amount), currency, importance, targetDate, description: description.trim(), calendar: { isRequested: false, isAllDay: true, startTime: '', endTime: '', location: '' } });
+				await onCreate({ kind, organizationID, contacts: progressContactID ? [{ contactID: progressContactID }] : [], business, name: name.trim(), progressKind: pipeline, stage, lostReason: stageOutcome === 'lost' ? lostReason : '', ownerPersonID, amount: typedAmount, importance, targetDate, description: description.trim(), calendar: { isRequested: false, isAllDay: true, startTime: '', endTime: '', location: '' } });
 			} else {
 				await onCreate({ kind, organizationID, contactID: activityContactID || undefined, opportunityID: opportunityID || undefined, business, activityKind, title: name.trim(), occurredAt, summary: description.trim(), participantPersonIDs, taskStatus: activityStatus, calendar: { isRequested: registerCalendar, isAllDay, startTime: calendarStart, endTime: calendarEnd, location: calendarLocation.trim() } });
 			}
@@ -328,15 +325,7 @@
 						<Field.Field><Field.Label>{text.business}</Field.Label><Select.Root type="single" bind:value={business}><Select.Trigger class="w-full">{business}</Select.Trigger><Select.Content><Select.Group>{#each businessOptions as option (option)}<Select.Item value={option} label={option}>{option}</Select.Item>{/each}</Select.Group></Select.Content></Select.Root></Field.Field>
 						<div class="grid gap-4 sm:grid-cols-2"><Field.Field><Field.Label>{text.importance}</Field.Label><Select.Root type="single" value={importance} onValueChange={(value) => (importance = value as CRMImportance)}><Select.Trigger class="w-full">{text.importanceLabels[importance]}</Select.Trigger><Select.Content><Select.Group>{#each importanceOptions as option (option)}<Select.Item value={option} label={text.importanceLabels[option]}>{text.importanceLabels[option]}</Select.Item>{/each}</Select.Group></Select.Content></Select.Root></Field.Field><Field.Field><Field.Label for="crm-record-target">{text.targetDate}</Field.Label><Input id="crm-record-target" type="date" bind:value={targetDate} /></Field.Field></div>
 							<CRMMoneyField {currencyCatalogue} id="crm-record-amount" label={text.amount} currencyLabel={text.currency} bind:value={amount} bind:currency />
-							<CRMConversionPreview
-								amountMinor={typedAmountMinor}
-								{currency}
-								baseCurrency={companyBaseCurrency}
-								settledAmountMinor={null}
-								settledCurrency=""
-								{currencyCatalogue}
-								{text}
-							/>
+							<CRMConversionPreview amount={typedAmount} baseCurrency={companyBaseCurrency} settledAmount={undefined} {text} />
 							<Field.Field><Field.Label for="crm-record-progress-contact">{text.externalContact}</Field.Label><CRMContactSelect id="crm-record-progress-contact" bind:value={progressContactID} contacts={organizationContacts} {text} /></Field.Field>
 						<Field.Field><Field.Label for="crm-record-progress-owner">{text.internalOwner}</Field.Label><CRMOwnerSelect id="crm-record-progress-owner" bind:value={ownerPersonID} {people} {groups} {text} /></Field.Field>
 					{:else}

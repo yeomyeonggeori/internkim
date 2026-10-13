@@ -1,4 +1,4 @@
-import { majorAmountOf, type CurrencyCatalogue } from '$lib/currency/currency-catalogue';
+import type { Money } from '$lib/money';
 import { taskStatusLabelFrom } from '../task/task-status';
 import { crmDefinitionLabel, crmLabel } from './crm-labels';
 import type {
@@ -34,7 +34,6 @@ export type CRMExportSource = {
 	organizationTypeDefinitions: readonly { id: string; name: string }[];
 	pipelines: readonly CRMPipeline[];
 	stages: readonly CRMPipelineStage[];
-	currencyCatalogue: CurrencyCatalogue;
 	companyBaseCurrency: string;
 	timeZone: string;
 	text: CRMText;
@@ -132,9 +131,9 @@ function opportunityTable(source: CRMExportSource): CRMExportTable {
 				opportunity.business,
 				pipelineLabel(source, opportunity.pipeline ?? opportunity.kind ?? ''),
 				opportunityStageLabel(source.stages, opportunity.stage, text),
-				amountText(opportunity.expectedValue),
-				opportunity.currency,
-				baseAmountText(source, opportunity),
+				amountText(opportunity.amount),
+				opportunity.amount?.currency ?? '',
+				amountText(opportunity.settledAmount),
 				opportunity.targetDate,
 				opportunity.ownerName,
 				crmLabel(text.importanceLabels, opportunity.importance),
@@ -207,13 +206,8 @@ function pipelineLabel(source: CRMExportSource, pipeline: string): string {
 	return source.pipelines.find((candidate) => candidate.pipeline === pipeline)?.label ?? crmLabel(source.text.progressKinds, pipeline);
 }
 
-function amountText(amount: number | undefined): string {
-	return amount === undefined ? '' : String(amount);
-}
-
-function baseAmountText(source: CRMExportSource, opportunity: CRMOpportunity): string {
-	if (opportunity.baseAmountMinor === undefined) return '';
-	return String(majorAmountOf(opportunity.baseAmountMinor, opportunity.baseCurrencyCode || source.companyBaseCurrency, source.currencyCatalogue));
+function amountText(money: Money | undefined): string {
+	return money === undefined ? '' : String(money.amount);
 }
 
 function calendarTime(dateTime: string | undefined, activity: CRMActivity, timeZone: string): string {

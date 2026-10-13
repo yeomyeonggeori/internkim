@@ -2,6 +2,7 @@
 	import GlobeIcon from '@lucide/svelte/icons/globe';
 	import MailIcon from '@lucide/svelte/icons/mail';
 	import { Badge } from '$lib/components/ui/badge';
+	import { formatCompactMoney } from '$lib/money';
 	import { currentLocale } from '$lib/i18n/locale.svelte';
 	import CompanyMetricChart from './company-metric-chart.svelte';
 	import { dataRoomCompanyText } from './company-text';
@@ -108,6 +109,7 @@
 									<p class="font-medium">{record.title}</p>
 									<Badge variant="secondary">{text.recordCategories[record.category] ?? humanizedKey(record.category)}</Badge>
 								</div>
+								{#if record.amount}<p class="mt-1 text-lg font-semibold tracking-tight tabular-nums">{formatCompactMoney(record.amount, locale)}</p>{/if}
 								{#if record.detail}<p class="text-muted-foreground mt-1 text-sm leading-6 text-pretty">{record.detail}</p>{/if}
 								{#if attributes.length > 0}
 									<dl class="mt-1.5 flex flex-wrap gap-x-4 gap-y-1 text-xs">

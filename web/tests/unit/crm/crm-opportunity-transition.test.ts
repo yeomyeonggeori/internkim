@@ -16,69 +16,55 @@ const stages: CRMPipelineStage[] = [
 describe('CRM opportunity transition outcome', () => {
 	test('clears realization fields for an open stage', () => {
 		expect(opportunityTransitionOutcome(stages, 'waiting', {
-			amountMinor: 10000,
-			currencyCode: 'KRW',
-			baseAmountMinor: null,
-			baseCurrencyCode: '',
+			amount: { amount: 10000, currency: 'KRW' },
+			settledAmount: null,
 			lostReason: 'budget'
-		}, { baseCurrency: 'KRW' })).toEqual({ lostReason: '', baseAmountMinor: null, baseCurrencyCode: '' });
+		}, { baseCurrency: 'KRW' })).toEqual({ lostReason: '', finalAmount: null });
 	});
 
 	test('leaves an amount already in the company currency to the record to settle', () => {
 		expect(opportunityTransitionOutcome(stages, 'done', {
-			amountMinor: 2500,
-			currencyCode: 'KRW',
-			baseAmountMinor: null,
-			baseCurrencyCode: '',
+			amount: { amount: 2500, currency: 'KRW' },
+			settledAmount: null,
 			lostReason: ''
-		}, { baseCurrency: 'KRW' })).toEqual({ lostReason: '', baseAmountMinor: null, baseCurrencyCode: '' });
+		}, { baseCurrency: 'KRW' })).toEqual({ lostReason: '', finalAmount: null });
 	});
 
 	test('preserves a converted base amount for foreign currency', () => {
 		expect(opportunityTransitionOutcome(stages, 'done', {
-			amountMinor: 2500,
-			currencyCode: 'USD',
-			baseAmountMinor: 3400000,
-			baseCurrencyCode: 'KRW',
+			amount: { amount: 25, currency: 'USD' },
+			settledAmount: { amount: 3400000, currency: 'KRW' },
 			lostReason: ''
-		}, { baseCurrency: 'KRW' })).toEqual({ lostReason: '', baseAmountMinor: 3400000, baseCurrencyCode: 'KRW' });
+		}, { baseCurrency: 'KRW' })).toEqual({ lostReason: '', finalAmount: { amount: 3400000, currency: 'KRW' } });
 	});
 
 	test('leaves the base amount to the server when the server converts', () => {
 		expect(opportunityTransitionOutcome(stages, 'done', {
-			amountMinor: 2500,
-			currencyCode: 'USD',
-			baseAmountMinor: null,
-			baseCurrencyCode: '',
+			amount: { amount: 25, currency: 'USD' },
+			settledAmount: null,
 			lostReason: ''
 		}, { baseCurrency: 'KRW' })).toEqual({
 			lostReason: '',
-			baseAmountMinor: null,
-			baseCurrencyCode: ''
+			finalAmount: null
 		});
 	});
 
 	test('keeps a settled base amount even when the server converts', () => {
 		expect(opportunityTransitionOutcome(stages, 'done', {
-			amountMinor: 2500,
-			currencyCode: 'USD',
-			baseAmountMinor: 3400000,
-			baseCurrencyCode: 'KRW',
+			amount: { amount: 25, currency: 'USD' },
+			settledAmount: { amount: 3400000, currency: 'KRW' },
 			lostReason: ''
 		}, { baseCurrency: 'KRW' })).toEqual({
 			lostReason: '',
-			baseAmountMinor: 3400000,
-			baseCurrencyCode: 'KRW'
+			finalAmount: { amount: 3400000, currency: 'KRW' }
 		});
 	});
 
 	test('requires an explicit lost reason', () => {
 		try {
 			opportunityTransitionOutcome(stages, 'lost', {
-				amountMinor: null,
-				currencyCode: '',
-				baseAmountMinor: null,
-				baseCurrencyCode: '',
+				amount: null,
+				settledAmount: null,
 				lostReason: ''
 			}, { baseCurrency: 'KRW' });
 			throw new Error('expected lost transition to reject');

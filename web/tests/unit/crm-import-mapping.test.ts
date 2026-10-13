@@ -1,5 +1,4 @@
 import { describe, expect, test } from 'bun:test';
-import { interimCurrencyCatalogue } from '../../src/lib/currency/currency-catalogue';
 import { crmExportTable } from '../../src/routes/crm/crm-export-table';
 import { crmImportFieldNames } from '../../src/routes/crm/crm-import-headers';
 import { crmText, type CRMText } from '../../src/routes/crm/text';
@@ -59,7 +58,6 @@ describe('a file the CRM exported', () => {
 			organizationTypeDefinitions: [],
 			pipelines: [],
 			stages: [],
-			currencyCatalogue: interimCurrencyCatalogue,
 			companyBaseCurrency: 'KRW',
 			timeZone: 'Asia/Seoul',
 			text

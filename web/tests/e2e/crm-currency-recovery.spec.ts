@@ -14,9 +14,9 @@ class CurrencyFixture extends WorkspaceLoadingFixture {
 async function openDeals(page: Page, fixture: CurrencyFixture) {
 	await prepareWorkspaceLoading(page, fixture);
 	await page.route('**/api/currencies', route => route.fulfill({ json: { currencies: [
-		{ code: 'KRW', name: 'Korean Won', minorUnitDigits: 0 },
-		{ code: 'USD', name: 'US Dollar', minorUnitDigits: 2 },
-		{ code: 'EUR', name: 'Euro', minorUnitDigits: 2 }
+		{ code: 'KRW', name: 'Korean Won' },
+		{ code: 'USD', name: 'US Dollar' },
+		{ code: 'EUR', name: 'Euro' }
 	] } }));
 	await page.route('**/api/currencies/conversion?**', async route => {
 		const parameters = new URL(route.request().url()).searchParams;
@@ -30,7 +30,7 @@ async function openDeals(page: Page, fixture: CurrencyFixture) {
 		}
 		const rate = fixture.rates[pair];
 		if (rate === undefined) throw new Error(`Unexpected conversion request: ${pair}`);
-		await route.fulfill({ json: { amountMinor: 1000000 * rate, currencyCode: to, rate, asOf: '2026-10-06' } });
+		await route.fulfill({ json: { amount: { amount: 1000000 * rate, currency: to }, rate, asOf: '2026-10-06' } });
 	});
 	await page.goto('/example-co/crm');
 	await expect(page.locator('[data-crm-ready="true"]')).toBeVisible();

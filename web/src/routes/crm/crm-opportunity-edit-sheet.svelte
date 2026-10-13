@@ -8,7 +8,7 @@
 	import * as Sheet from '$lib/components/ui/sheet';
 	import { Textarea } from '$lib/components/ui/textarea';
 	import type { OrgGroup, UserRecord } from '$lib/organization/types';
-	import { formatAmountInput, parseAmountInput } from './crm-money';
+	import { amountInputOf, moneyFromAmountInput } from './crm-money';
 	import CRMConversionPreview from './crm-conversion-preview.svelte';
 	import CRMMoneyField from './crm-money-field.svelte';
 	import CRMOwnerSelect from './crm-owner-select.svelte';
@@ -26,7 +26,7 @@
 	} from './crm-types';
 	import { findOrganizationByID, opportunityStageLabel } from './crm-view-model';
 	import { dealStageIcon } from './crm-status-icons';
-	import { minorAmountOf, type CurrencyCatalogue } from '$lib/currency/currency-catalogue';
+	import type { CurrencyCatalogue } from '$lib/currency/currency-catalogue';
 	import type { CRMText } from './text';
 
 	type Props = {
@@ -57,10 +57,7 @@
 	let stage = $state<CRMOpportunityStage>('waiting');
 	let amount = $state('');
 	let currency = $state<CRMCurrency>('');
-	let typedAmountMinor = $derived.by(() => {
-		const typedAmount = parseAmountInput(amount);
-		return typedAmount === undefined ? null : minorAmountOf(typedAmount, currency, currencyCatalogue);
-	});
+	let typedAmount = $derived(moneyFromAmountInput(amount, currency));
 	let importance = $state<CRMImportance>('medium');
 	let targetDate = $state('');
 	let description = $state('');
@@ -83,8 +80,8 @@
 		business = selectedOpportunity.business;
 		name = selectedOpportunity.name;
 		stage = requestedStage ?? selectedOpportunity.stage;
-		amount = selectedOpportunity.expectedValue === undefined ? '' : formatAmountInput(String(selectedOpportunity.expectedValue));
-		currency = selectedOpportunity.currency;
+		amount = amountInputOf(selectedOpportunity.amount);
+		currency = selectedOpportunity.amount?.currency ?? companyBaseCurrency;
 		importance = selectedOpportunity.importance;
 		targetDate = selectedOpportunity.targetDate;
 		description = selectedOpportunity.description ?? '';
@@ -125,8 +122,7 @@
 				business,
 				name: name.trim(),
 				stage,
-				expectedValue: parseAmountInput(amount),
-				currency,
+				amount: typedAmount,
 				importance,
 				targetDate,
 				description: description.trim(),
@@ -189,15 +185,7 @@
 				<div class="grid gap-4 sm:grid-cols-2"><Field.Field><Field.Label>{text.importance}</Field.Label><Select.Root type="single" value={importance} onValueChange={(value) => (importance = value as CRMImportance)}><Select.Trigger class="w-full">{text.importanceLabels[importance]}</Select.Trigger><Select.Content><Select.Group>{#each importanceOptions as option (option)}<Select.Item value={option} label={text.importanceLabels[option]}>{text.importanceLabels[option]}</Select.Item>{/each}</Select.Group></Select.Content></Select.Root></Field.Field><Field.Field><Field.Label for="crm-edit-opportunity-target">{text.targetDate}</Field.Label><Input id="crm-edit-opportunity-target" type="date" bind:value={targetDate} /></Field.Field></div>
 				<CRMMoneyField {currencyCatalogue} id="crm-edit-opportunity-amount" label={text.amount} currencyLabel={text.currency} bind:value={amount} bind:currency disabled={isRealized} />
 				{#if isRealized}<p class="text-sm text-muted-foreground">{text.realizedAmountReadonly}</p>{/if}
-				<CRMConversionPreview
-					amountMinor={typedAmountMinor}
-					{currency}
-					baseCurrency={companyBaseCurrency}
-					settledAmountMinor={opportunity?.baseAmountMinor ?? null}
-					settledCurrency={opportunity?.baseCurrencyCode ?? ''}
-					{currencyCatalogue}
-					{text}
-				/>
+				<CRMConversionPreview amount={typedAmount} baseCurrency={companyBaseCurrency} settledAmount={opportunity?.settledAmount} {text} />
 				<Field.Field><Field.Label for="crm-edit-opportunity-contact">{text.externalContact}</Field.Label><CRMContactSelect id="crm-edit-opportunity-contact" bind:value={contactID} contacts={organizationContacts} {text} /></Field.Field>
 				<Field.Field><Field.Label for="crm-edit-opportunity-owner">{text.internalOwner}</Field.Label><CRMOwnerSelect disabled={!isDirectoryReady} id="crm-edit-opportunity-owner" bind:value={ownerPersonID} {people} {groups} {text} /></Field.Field>
 				<Field.Field><Field.Label for="crm-edit-opportunity-details">{text.details}</Field.Label><Textarea id="crm-edit-opportunity-details" rows={8} bind:value={description} /></Field.Field>

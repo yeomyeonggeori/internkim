@@ -1,12 +1,13 @@
 import { isSupabaseConfigured } from '$lib/supabase';
+import type { Money } from '$lib/money';
 
-export type ConvertedAmount = { amountMinor: number; currencyCode: string; rate: number; asOf: string };
+export type ConvertedAmount = { amount: Money; rate: number; asOf: string };
 
-export async function loadConvertedAmount(amountMinor: number, from: string, to: string): Promise<ConvertedAmount | null> {
+export async function loadConvertedAmount(money: Money, to: string): Promise<ConvertedAmount | null> {
 	if (!isSupabaseConfigured()) return null;
-	if (!from || !to || from === to) return null;
-	if (!Number.isSafeInteger(amountMinor) || amountMinor <= 0) return null;
-	const searchParameters = new URLSearchParams({ amountMinor: String(amountMinor), from, to });
+	if (!to || money.currency === to) return null;
+	if (!Number.isFinite(money.amount) || money.amount <= 0) return null;
+	const searchParameters = new URLSearchParams({ amount: String(money.amount), from: money.currency, to });
 	const controller = new AbortController();
 	const timeout = setTimeout(() => controller.abort(), 8000);
 	try {

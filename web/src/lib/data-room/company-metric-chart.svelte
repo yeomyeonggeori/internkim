@@ -1,11 +1,11 @@
 <script lang="ts">
 	import * as Chart from '$lib/components/ui/chart';
 	import { AreaChart } from 'layerchart';
-	import { formatMetricValue, periodLabel, type CompanyMetricSeries } from './company';
+	import { formatMetricValue, metricNumber, periodLabel, type CompanyMetricSeries } from './company';
 
 	let { series, label, locale }: { series: CompanyMetricSeries; label: string; locale: string } = $props();
 
-	const chartData = $derived(series.points.map((point, index) => ({ index, value: point.value })));
+	const chartData = $derived(series.points.map((point, index) => ({ index, value: metricNumber(point) })));
 	const chartConfig = $derived<Chart.ChartConfig>({ value: { label, color: 'var(--color-foreground)' } });
 	const edgeTicks = $derived([0, series.points.length - 1]);
 

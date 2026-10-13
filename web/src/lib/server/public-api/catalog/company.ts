@@ -13,9 +13,6 @@ import { ResourceMutationEffect, type CapabilityToolDefinition } from './definit
 import { imageFieldOf, serviceFileImageExtensions, serviceFileNames, serviceFiles } from '$lib/data-room/service-files';
 import { moneySchema } from '$lib/money';
 
-const companyMetricCurrencies = [
-  'USD', 'KRW', 'EUR', 'JPY', 'GBP', 'CNY', 'HKD', 'SGD', 'AUD', 'CAD', 'CHF', 'INR',
-] as const;
 
 
 
@@ -132,21 +129,22 @@ const companyMetricListInputSchema = z.strictObject({
 });
 
 const companyMetricRecordInputSchema = z.strictObject({
-  currency: z.enum(companyMetricCurrencies).describe("ISO currency of a monetary value. Use currency instead of unit for money.").optional(),
+  amount: moneySchema.describe("The value when the metric is money, e.g. {\"amount\": 1200000000, \"currency\": \"KRW\"}. Give amount or value, never both.").optional(),
   metric: z.string().describe("Metric key in lowerCamelCase, e.g. 'annualRevenue', 'operatingProfit', 'mau', 'employees'. Reuse the same key across periods."),
   month: z.int().describe("Month 1-12 for a monthly value. Leave out for annual or quarterly values; never combine with quarter.").optional(),
   note: z.string().describe("Source or context note, e.g. 'from the audited financial statements'.").optional(),
   quarter: z.int().describe("Quarter 1-4 for a quarterly value. Leave out for annual or monthly values; never combine with month.").optional(),
-  unit: z.string().describe("Unit for a non-monetary value, e.g. 'people', 'orders', 'sites'. Do not combine with currency.").optional(),
-  value: z.number().describe("Numeric value, e.g. 1200000000 for 1.2 billion. Use the raw number, not a formatted string."),
-  valueUSD: z.number().describe("Stable USD equivalent for a non-USD monetary value. Required when currency is not USD; omitted for non-monetary values.").optional(),
+  unit: z.string().describe("Unit of a value that is not money, e.g. 'people', 'orders', 'sites'.").optional(),
+  usdEquivalent: z.number().describe("The amount in US dollars at the time it is recorded, kept so metrics compare across currencies. Required when amount is not in USD.").optional(),
+  value: z.number().describe("The value when the metric is not money, e.g. 26400 for MAU. Use the raw number, not a formatted string.").optional(),
   year: z.int().describe("Four-digit year the value belongs to, e.g. 2025."),
 });
 
 const companyMetricRecordInputIntentSchema = companyMetricRecordInputSchema.partial();
 
 const companyRecordAddInputSchema = z.strictObject({
-  attributes: z.string().describe("JSON object string of structured details, e.g. {\"round\": \"Seed\", \"amount\": \"2,000,000 USD\", \"investors\": \"ABC Ventures\"}.").optional(),
+  amount: moneySchema.describe("The money the event is about, e.g. a funding round or a grant: {\"amount\": 2000000, \"currency\": \"USD\"}.").optional(),
+  attributes: z.string().describe("JSON object string of other structured details, e.g. {\"round\": \"Seed\", \"investors\": \"ABC Ventures\"}. Money goes in amount.").optional(),
   category: z.string().describe("Record category: 'history', 'funding', 'product', 'certification', 'ip', 'award', 'reference', 'grant', or another short kebab-case label."),
   date: z.string().describe("Date of the event in YYYY-MM-DD or YYYY-MM format. Used to sort the company timeline.").optional(),
   detail: z.string().describe("One-to-three sentence description.").optional(),
@@ -167,6 +165,7 @@ const companyRecordListInputSchema = z.strictObject({
 });
 
 const companyRecordUpdateInputSchema = z.strictObject({
+  amount: moneySchema.describe("New amount. Omit to keep unchanged.").optional(),
   attributes: z.string().describe("JSON object string replacing the stored attributes. Omit to keep unchanged.").optional(),
   category: z.string().describe("New category. Omit to keep unchanged.").optional(),
   date: z.string().describe("New date. Omit to keep unchanged.").optional(),
@@ -213,9 +212,9 @@ export const companyMetricResultSchema = z.strictObject({
   year: z.number().int(),
   quarter: z.number().int(),
   month: z.number().int(),
-  value: z.number(),
-  currency: z.string().nullable(),
-  valueUSD: z.number().nullable(),
+  amount: moneySchema.nullable(),
+  usdEquivalent: z.number().nullable(),
+  value: z.number().nullable(),
   unit: z.string().nullable(),
   note: z.string().nullable(),
   updatedAt: z.string(),
@@ -237,6 +236,7 @@ export const companyRecordResultSchema = z.strictObject({
   date: z.string().nullable(),
   title: z.string(),
   detail: z.string().nullable(),
+  amount: moneySchema.nullable(),
   attributes: z.array(companyRecordAttributeSchema),
   updatedAt: z.string(),
 });
@@ -412,7 +412,7 @@ export const companyToolDefinitions: CapabilityToolDefinition[] = [
     answeredBy: CapabilityAnsweredBy.Record,
     privacyClass: "workspace_company",
     policyResource: "tool:company_metric_record",
-    description: "Record or correct one company metric value for a period — annual revenue, operating profit, MAU, employee count, GMV and similar time-series numbers. Monetary values use an allowed currency plus a stable USD equivalent; non-monetary values use unit. Add quarter (1-4) OR month (1-12) for sub-annual periods, never both. Same call overwrites the same period.",
+    description: "Record or correct one company metric value for a period — annual revenue, operating profit, MAU, employee count, GMV and similar time-series numbers. Money goes in amount with its USD equivalent; anything else goes in value with a unit. Add quarter (1-4) OR month (1-12) for sub-annual periods, never both. Same call overwrites the same period.",
     version: "1",
     estimatedLatency: CapabilityEstimatedLatency.Low,
     inputSchema: companyMetricRecordInputSchema,

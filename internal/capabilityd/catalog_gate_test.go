@@ -678,16 +678,16 @@ func gateCases() map[string]catalogGateCase {
 		},
 		"company_metric_record": {
 			kind:    provesCarrying,
-			reaches: map[gateBackend]*standingIn{admindOverTheSocket: answering(`{"tool":"company_metric_record","result":{"metricID":"metric-1","metric":"annualRevenue","year":2025,"quarter":0,"month":0,"value":1200000000,"currency":"KRW","valueUSD":870000,"unit":null,"note":null,"updatedAt":"2026-09-04T00:00:00Z"}}`)},
-			input:   `{"metric":"annualRevenue","year":2025,"value":1200000000,"currency":"KRW","valueUSD":870000}`,
+			reaches: map[gateBackend]*standingIn{admindOverTheSocket: answering(`{"tool":"company_metric_record","result":{"metricID":"metric-1","metric":"annualRevenue","year":2025,"quarter":0,"month":0,"amount":{"amount":1200000000,"currency":"KRW"},"usdEquivalent":870000,"value":null,"unit":null,"note":null,"updatedAt":"2026-09-04T00:00:00Z"}}`)},
+			input:   `{"metric":"annualRevenue","year":2025,"amount":{"amount":1200000000,"currency":"KRW"},"usdEquivalent":870000}`,
 			expect: func(t *testing.T, answered capabilities.ToolInvokeResponse) {
 				expectSucceeded(t, answered)
-				expectResultHolds(t, answered, `"valueUSD":870000`)
+				expectResultHolds(t, answered, `"usdEquivalent":870000`)
 			},
 		},
 		"company_metric_list": {
 			kind:    provesCarrying,
-			reaches: map[gateBackend]*standingIn{admindOverTheSocket: answering(`{"tool":"company_metric_list","result":{"count":1,"metrics":[{"metricID":"metric-1","metric":"annualRevenue","year":2025,"quarter":0,"month":0,"value":1200000000,"currency":"KRW","valueUSD":870000,"unit":null,"note":null,"updatedAt":"2026-09-04T00:00:00Z"}]}}`)},
+			reaches: map[gateBackend]*standingIn{admindOverTheSocket: answering(`{"tool":"company_metric_list","result":{"count":1,"metrics":[{"metricID":"metric-1","metric":"annualRevenue","year":2025,"quarter":0,"month":0,"amount":{"amount":1200000000,"currency":"KRW"},"usdEquivalent":870000,"value":null,"unit":null,"note":null,"updatedAt":"2026-09-04T00:00:00Z"}]}}`)},
 			input:   `{"metric":"annualRevenue","fromYear":2024}`,
 			expect: func(t *testing.T, answered capabilities.ToolInvokeResponse) {
 				expectSucceeded(t, answered)
@@ -696,7 +696,7 @@ func gateCases() map[string]catalogGateCase {
 		},
 		"company_record_add": {
 			kind:    provesCarrying,
-			reaches: map[gateBackend]*standingIn{admindOverTheSocket: answering(`{"tool":"company_record_add","result":{"recordID":"record-1","category":"funding","date":"2025-12-01","title":"Seed round closed","detail":null,"attributes":[{"label":"round","value":"Seed"}],"updatedAt":"2026-09-04T00:00:00Z"}}`)},
+			reaches: map[gateBackend]*standingIn{admindOverTheSocket: answering(`{"tool":"company_record_add","result":{"recordID":"record-1","category":"funding","date":"2025-12-01","title":"Seed round closed","detail":null,"amount":null,"attributes":[{"label":"round","value":"Seed"}],"updatedAt":"2026-09-04T00:00:00Z"}}`)},
 			input:   `{"category":"funding","date":"2025-12-01","title":"Seed round closed","attributes":"{\"round\": \"Seed\"}"}`,
 			expect: func(t *testing.T, answered capabilities.ToolInvokeResponse) {
 				expectSucceeded(t, answered)
@@ -705,7 +705,7 @@ func gateCases() map[string]catalogGateCase {
 		},
 		"company_record_list": {
 			kind:    provesCarrying,
-			reaches: map[gateBackend]*standingIn{admindOverTheSocket: answering(`{"tool":"company_record_list","result":{"count":1,"records":[{"recordID":"record-1","category":"funding","date":"2025-12-01","title":"Seed round closed","detail":null,"attributes":[],"updatedAt":"2026-09-04T00:00:00Z"}]}}`)},
+			reaches: map[gateBackend]*standingIn{admindOverTheSocket: answering(`{"tool":"company_record_list","result":{"count":1,"records":[{"recordID":"record-1","category":"funding","date":"2025-12-01","title":"Seed round closed","detail":null,"amount":null,"attributes":[],"updatedAt":"2026-09-04T00:00:00Z"}]}}`)},
 			input:   `{"category":"funding"}`,
 			expect: func(t *testing.T, answered capabilities.ToolInvokeResponse) {
 				expectSucceeded(t, answered)
@@ -714,7 +714,7 @@ func gateCases() map[string]catalogGateCase {
 		},
 		"company_record_update": {
 			kind:    provesCarrying,
-			reaches: map[gateBackend]*standingIn{admindOverTheSocket: answering(`{"tool":"company_record_update","result":{"recordID":"record-1","category":"funding","date":"2025-12-01","title":"Pre-seed round closed","detail":null,"attributes":[],"updatedAt":"2026-09-04T01:00:00Z"}}`)},
+			reaches: map[gateBackend]*standingIn{admindOverTheSocket: answering(`{"tool":"company_record_update","result":{"recordID":"record-1","category":"funding","date":"2025-12-01","title":"Pre-seed round closed","detail":null,"amount":null,"attributes":[],"updatedAt":"2026-09-04T01:00:00Z"}}`)},
 			input:   `{"recordHint":"Seed round closed","title":"Pre-seed round closed"}`,
 			expect: func(t *testing.T, answered capabilities.ToolInvokeResponse) {
 				expectSucceeded(t, answered)
@@ -723,7 +723,7 @@ func gateCases() map[string]catalogGateCase {
 		},
 		"company_record_delete": {
 			kind:    provesCarrying,
-			reaches: map[gateBackend]*standingIn{admindOverTheSocket: answering(`{"tool":"company_record_delete","result":{"recordID":"record-1","category":"funding","date":"2025-12-01","title":"Pre-seed round closed","detail":null,"attributes":[],"updatedAt":"2026-09-04T01:00:00Z"}}`)},
+			reaches: map[gateBackend]*standingIn{admindOverTheSocket: answering(`{"tool":"company_record_delete","result":{"recordID":"record-1","category":"funding","date":"2025-12-01","title":"Pre-seed round closed","detail":null,"amount":null,"attributes":[],"updatedAt":"2026-09-04T01:00:00Z"}}`)},
 			input:   `{"recordHint":"record-1"}`,
 			expect: func(t *testing.T, answered capabilities.ToolInvokeResponse) {
 				expectSucceeded(t, answered)
@@ -894,7 +894,7 @@ func gateCases() map[string]catalogGateCase {
 		},
 		"crm_opportunity_list": {
 			kind:    provesCarrying,
-			reaches: map[gateBackend]*standingIn{admindOverTheSocket: answering(`{"tool":"crm_opportunity_list","result":{"count":1,"opportunities":[{"opportunityID":"p1","organizationID":"o1","contactID":"c1","title":"ABC\uc0c1\uc0ac \ub3c4\uc785","business":"\uc601\uc5c5","pipeline":"partnership","stage":"review","stagePosition":0,"stageChangedAt":"2026-09-04T00:00:00Z","ownerPersonID":"m1","amountMinor":18000000,"currencyCode":"KRW","baseAmountMinor":null,"baseCurrencyCode":"","importance":"high","expectedCloseAt":"2026-09-30T14:59:59.999Z","expectedCloseTimeZone":"Asia/Seoul","lostReason":"","description":"","activityCount":2,"audit":{"createdAt":"2026-09-01T00:00:00Z","createdByPersonID":"m1","updatedAt":"2026-09-04T00:00:00Z","updatedByPersonID":"m1","archivedAt":null,"archivedByPersonID":""}}]}}`)},
+			reaches: map[gateBackend]*standingIn{admindOverTheSocket: answering(`{"tool":"crm_opportunity_list","result":{"count":1,"opportunities":[{"opportunityID":"p1","organizationID":"o1","contactID":"c1","title":"ABC\uc0c1\uc0ac \ub3c4\uc785","business":"\uc601\uc5c5","pipeline":"partnership","stage":"review","stagePosition":0,"stageChangedAt":"2026-09-04T00:00:00Z","ownerPersonID":"m1","amount":{"amount":18000000,"currency":"KRW"},"settledAmount":null,"importance":"high","expectedCloseAt":"2026-09-30T14:59:59.999Z","expectedCloseTimeZone":"Asia/Seoul","lostReason":"","description":"","activityCount":2,"audit":{"createdAt":"2026-09-01T00:00:00Z","createdByPersonID":"m1","updatedAt":"2026-09-04T00:00:00Z","updatedByPersonID":"m1","archivedAt":null,"archivedByPersonID":""}}]}}`)},
 			input:   `{"organizationHint":"ABC\uc0c1\uc0ac","stage":"review"}`,
 			expect: func(t *testing.T, answered capabilities.ToolInvokeResponse) {
 				expectSucceeded(t, answered)
@@ -903,8 +903,8 @@ func gateCases() map[string]catalogGateCase {
 		},
 		"crm_opportunity_add": {
 			kind:    provesCarrying,
-			reaches: map[gateBackend]*standingIn{admindOverTheSocket: answering(`{"tool":"crm_opportunity_add","result":{"opportunityID":"p1","organizationID":"o1","contactID":"c1","title":"ABC\uc0c1\uc0ac \ub3c4\uc785","business":"\uc601\uc5c5","pipeline":"partnership","stage":"waiting","stagePosition":0,"stageChangedAt":"2026-09-04T00:00:00Z","ownerPersonID":"m1","amountMinor":18000000,"currencyCode":"KRW","baseAmountMinor":null,"baseCurrencyCode":"","importance":"high","expectedCloseAt":"2026-09-30T14:59:59.999Z","expectedCloseTimeZone":"Asia/Seoul","lostReason":"","description":"","activityCount":2,"audit":{"createdAt":"2026-09-01T00:00:00Z","createdByPersonID":"m1","updatedAt":"2026-09-04T00:00:00Z","updatedByPersonID":"m1","archivedAt":null,"archivedByPersonID":""}}}`)},
-			input:   `{"organizationHint":"ABC\uc0c1\uc0ac","title":"ABC\uc0c1\uc0ac \ub3c4\uc785","amountMinor":18000000,"currencyCode":"KRW"}`,
+			reaches: map[gateBackend]*standingIn{admindOverTheSocket: answering(`{"tool":"crm_opportunity_add","result":{"opportunityID":"p1","organizationID":"o1","contactID":"c1","title":"ABC\uc0c1\uc0ac \ub3c4\uc785","business":"\uc601\uc5c5","pipeline":"partnership","stage":"waiting","stagePosition":0,"stageChangedAt":"2026-09-04T00:00:00Z","ownerPersonID":"m1","amount":{"amount":18000000,"currency":"KRW"},"settledAmount":null,"importance":"high","expectedCloseAt":"2026-09-30T14:59:59.999Z","expectedCloseTimeZone":"Asia/Seoul","lostReason":"","description":"","activityCount":2,"audit":{"createdAt":"2026-09-01T00:00:00Z","createdByPersonID":"m1","updatedAt":"2026-09-04T00:00:00Z","updatedByPersonID":"m1","archivedAt":null,"archivedByPersonID":""}}}`)},
+			input:   `{"organizationHint":"ABC\uc0c1\uc0ac","title":"ABC\uc0c1\uc0ac \ub3c4\uc785","amount":{"amount":18000000,"currency":"KRW"}}`,
 			expect: func(t *testing.T, answered capabilities.ToolInvokeResponse) {
 				expectSucceeded(t, answered)
 				expectResultHolds(t, answered, `"stage":"waiting"`)
@@ -912,20 +912,20 @@ func gateCases() map[string]catalogGateCase {
 		},
 		"crm_opportunity_update": {
 			kind:    provesCarrying,
-			reaches: map[gateBackend]*standingIn{admindOverTheSocket: answering(`{"tool":"crm_opportunity_update","result":{"opportunityID":"p1","organizationID":"o1","contactID":"c1","title":"ABC\uc0c1\uc0ac \ub3c4\uc785","business":"\uc601\uc5c5","pipeline":"partnership","stage":"review","stagePosition":0,"stageChangedAt":"2026-09-04T00:00:00Z","ownerPersonID":"m1","amountMinor":18000000,"currencyCode":"KRW","baseAmountMinor":null,"baseCurrencyCode":"","importance":"high","expectedCloseAt":"2026-09-30T14:59:59.999Z","expectedCloseTimeZone":"Asia/Seoul","lostReason":"","description":"","activityCount":2,"audit":{"createdAt":"2026-09-01T00:00:00Z","createdByPersonID":"m1","updatedAt":"2026-09-04T00:00:00Z","updatedByPersonID":"m1","archivedAt":null,"archivedByPersonID":""}}}`)},
-			input:   `{"opportunityHint":"ABC\uc0c1\uc0ac \ub3c4\uc785","amountMinor":18000000}`,
+			reaches: map[gateBackend]*standingIn{admindOverTheSocket: answering(`{"tool":"crm_opportunity_update","result":{"opportunityID":"p1","organizationID":"o1","contactID":"c1","title":"ABC\uc0c1\uc0ac \ub3c4\uc785","business":"\uc601\uc5c5","pipeline":"partnership","stage":"review","stagePosition":0,"stageChangedAt":"2026-09-04T00:00:00Z","ownerPersonID":"m1","amount":{"amount":18000000,"currency":"KRW"},"settledAmount":null,"importance":"high","expectedCloseAt":"2026-09-30T14:59:59.999Z","expectedCloseTimeZone":"Asia/Seoul","lostReason":"","description":"","activityCount":2,"audit":{"createdAt":"2026-09-01T00:00:00Z","createdByPersonID":"m1","updatedAt":"2026-09-04T00:00:00Z","updatedByPersonID":"m1","archivedAt":null,"archivedByPersonID":""}}}`)},
+			input:   `{"opportunityHint":"ABC\uc0c1\uc0ac \ub3c4\uc785","amount":{"amount":18000000,"currency":"KRW"}}`,
 			expect: func(t *testing.T, answered capabilities.ToolInvokeResponse) {
 				expectSucceeded(t, answered)
-				expectResultHolds(t, answered, `"amountMinor":18000000`)
+				expectResultHolds(t, answered, `"amount":{"amount":18000000,"currency":"KRW"}`)
 			},
 		},
 		"crm_opportunity_move": {
 			kind:    provesCarrying,
-			reaches: map[gateBackend]*standingIn{admindOverTheSocket: answering(`{"tool":"crm_opportunity_move","result":{"opportunityID":"p1","organizationID":"o1","contactID":"c1","title":"ABC\uc0c1\uc0ac \ub3c4\uc785","business":"\uc601\uc5c5","pipeline":"partnership","stage":"done","stagePosition":1,"stageChangedAt":"2026-09-04T00:00:00Z","ownerPersonID":"m1","amountMinor":18000000,"currencyCode":"KRW","baseAmountMinor":18000000,"baseCurrencyCode":"KRW","importance":"high","expectedCloseAt":"2026-09-30T14:59:59.999Z","expectedCloseTimeZone":"Asia/Seoul","lostReason":"","description":"","activityCount":2,"audit":{"createdAt":"2026-09-01T00:00:00Z","createdByPersonID":"m1","updatedAt":"2026-09-04T00:00:00Z","updatedByPersonID":"m1","archivedAt":null,"archivedByPersonID":""}}}`)},
+			reaches: map[gateBackend]*standingIn{admindOverTheSocket: answering(`{"tool":"crm_opportunity_move","result":{"opportunityID":"p1","organizationID":"o1","contactID":"c1","title":"ABC\uc0c1\uc0ac \ub3c4\uc785","business":"\uc601\uc5c5","pipeline":"partnership","stage":"done","stagePosition":1,"stageChangedAt":"2026-09-04T00:00:00Z","ownerPersonID":"m1","amount":{"amount":18000000,"currency":"KRW"},"settledAmount":{"amount":18000000,"currency":"KRW"},"importance":"high","expectedCloseAt":"2026-09-30T14:59:59.999Z","expectedCloseTimeZone":"Asia/Seoul","lostReason":"","description":"","activityCount":2,"audit":{"createdAt":"2026-09-01T00:00:00Z","createdByPersonID":"m1","updatedAt":"2026-09-04T00:00:00Z","updatedByPersonID":"m1","archivedAt":null,"archivedByPersonID":""}}}`)},
 			input:   `{"opportunityHint":"ABC\uc0c1\uc0ac \ub3c4\uc785","stage":"done","position":1}`,
 			expect: func(t *testing.T, answered capabilities.ToolInvokeResponse) {
 				expectSucceeded(t, answered)
-				expectResultHolds(t, answered, `"baseAmountMinor":18000000`)
+				expectResultHolds(t, answered, `"settledAmount":{"amount":18000000,"currency":"KRW"}`)
 			},
 		},
 		"crm_opportunity_archive": {

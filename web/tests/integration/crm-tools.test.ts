@@ -244,8 +244,7 @@ describe('the deals a company is working on', () => {
 			organizationHint: 'ABC상사',
 			title: 'ABC상사 도입',
 			contactHint: 'yesi',
-			amountMinor: 18000000,
-			currencyCode: 'KRW',
+			amount: { amount: 18000000, currency: 'KRW' },
 			business: '영업',
 			expectedCloseDate: '2026-09-30'
 		});
@@ -253,7 +252,7 @@ describe('the deals a company is working on', () => {
 		expect(resultOf(opened).stage).toBe('waiting');
 		expect(resultOf(opened).pipeline).toBe('partnership');
 		expect(resultOf(opened).expectedCloseTimeZone).toBe('Asia/Seoul');
-		expect(resultOf(opened).amountMinor).toBe(18000000);
+		expect(resultOf(opened).amount).toEqual({ amount: 18000000, currency: 'KRW' });
 	});
 
 	test('are changed field by field, keeping what the call does not name', async () => {
@@ -266,7 +265,7 @@ describe('the deals a company is working on', () => {
 		expect(changed.status).toBe(200);
 		expect(resultOf(changed).importance).toBe('medium');
 		expect(resultOf(changed).description).toBe('보안 검토가 남았다');
-		expect(resultOf(changed).amountMinor).toBe(18000000);
+		expect(resultOf(changed).amount).toEqual({ amount: 18000000, currency: 'KRW' });
 		expect(resultOf(changed).contactID).not.toBe('');
 	});
 
@@ -297,8 +296,7 @@ describe('the deals a company is working on', () => {
 		const settled = await asSample('crm_opportunity_move', { opportunityHint: 'ABC상사 도입', stage: 'done' });
 
 		expect(resultOf(settled).stage).toBe('done');
-		expect(resultOf(settled).baseAmountMinor).toBe(18000000);
-		expect(resultOf(settled).baseCurrencyCode).toBe('KRW');
+		expect(resultOf(settled).settledAmount).toEqual({ amount: 18000000, currency: 'KRW' });
 	});
 
 	test('are reordered without moving stage, which leaves the day they last moved alone', async () => {

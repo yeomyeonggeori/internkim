@@ -21,7 +21,7 @@ const openStages = new Set<CRMOpportunityStage>([
 
 describe('CRM fixture integrity', () => {
 	test('contains thirty opportunities across every supported classification', () => {
-		const currencies = new Set<CRMCurrency>(crmOpportunities.map((opportunity) => opportunity.currency));
+		const currencies = new Set<CRMCurrency>(crmOpportunities.flatMap((opportunity) => (opportunity.amount ? [opportunity.amount.currency] : [])));
 		const stages = new Set<CRMOpportunityStage>(crmOpportunities.map((opportunity) => opportunity.stage));
 		const kinds = new Set<CRMProgressKind | undefined>(
 			crmOpportunities.map((opportunity) => opportunity.kind)

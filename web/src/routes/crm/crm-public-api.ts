@@ -124,7 +124,7 @@ export async function transitionSupabaseCRMOpportunity(id: string, payload: CRMT
 			position: payload.stagePosition,
 			closedAt: payload.occurredAt,
 			...(payload.lostReason ? { reason: payload.lostReason } : {}),
-			...(payload.baseAmountMinor === null ? {} : { finalAmountMinor: payload.baseAmountMinor })
+			...(payload.finalAmount === null ? {} : { finalAmount: payload.finalAmount })
 		})
 	);
 }
@@ -204,9 +204,8 @@ function opportunityInput(payload: CRMOpportunityPayload): Record<string, unknow
 		description: payload.description ?? '',
 		ownerPersonHint: payload.ownerPersonID ?? '',
 		contactHint: payload.contacts[0]?.contactID ?? '',
-		currencyCode: payload.currencyCode || '',
 		expectedCloseDate: payload.dueAt ?? '',
-		...(payload.amountMinor === null ? {} : { amountMinor: payload.amountMinor })
+		...(payload.amount === null ? {} : { amount: payload.amount })
 	};
 }
 

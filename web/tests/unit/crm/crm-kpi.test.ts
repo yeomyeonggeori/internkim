@@ -8,7 +8,7 @@ import { crmText } from '../../../src/routes/crm/text';
 function opportunity(
 	id: string,
 	currency: CRMCurrency,
-	expectedValue: number,
+	amount: number,
 	stage: CRMOpportunityStage,
 	staleDays: number
 ): CRMOpportunity {
@@ -21,8 +21,7 @@ function opportunity(
 		stage,
 		ownerName: '이샘플',
 		ownerEmail: 'sample@example.com',
-		expectedValue,
-		currency,
+		amount: { amount, currency },
 		importance: 'medium',
 		targetDate: '2026-08-01',
 		staleDays
@@ -170,10 +169,10 @@ describe('CRM KPI money details', () => {
 		];
 		const view: CRMViewCurrencyReader = {
 			selected: 'USD',
-			viewAmount: (value, currency) =>
-				currency === 'USD'
-					? { value, currency: 'USD', isConverted: true }
-					: { value: value * 0.00075, currency: 'USD', isConverted: true }
+			viewAmount: (money) =>
+				money.currency === 'USD'
+					? { ...money, isConverted: true }
+					: { amount: money.amount * 0.00075, currency: 'USD', isConverted: true }
 		};
 
 		const pipelineHealth = buildCRMKPICards(interimCurrencyCatalogue, [], opportunities, [], pipelines, stages, crmText.ko, undefined, 'ko', view)[0];
@@ -196,7 +195,7 @@ describe('CRM KPI money details', () => {
 		];
 		const view: CRMViewCurrencyReader = {
 			selected: 'USD',
-			viewAmount: (value, currency) => (currency === 'USD' ? { value, currency: 'USD', isConverted: true } : { value, currency, isConverted: false })
+			viewAmount: (money) => ({ ...money, isConverted: money.currency === 'USD' })
 		};
 
 		const pipelineHealth = buildCRMKPICards(interimCurrencyCatalogue, [], opportunities, [], pipelines, stages, crmText.ko, undefined, 'ko', view)[0];

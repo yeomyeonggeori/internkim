@@ -21,11 +21,13 @@
 	let { id, label, currencyLabel, value = $bindable(), currency = $bindable(), currencyCatalogue, disabled = false }: Props = $props();
 
 	function updateAmount(event: Event & { currentTarget: HTMLInputElement }): void {
-		value = formatAmountInput(event.currentTarget.value);
+		value = formatAmountInput(event.currentTarget.value, currency);
 	}
 
-	function updateCurrency(value: string): void {
-		if (findCurrencyCatalogueEntry(currencyCatalogue, value)) currency = value;
+	function updateCurrency(chosen: string): void {
+		if (!findCurrencyCatalogueEntry(currencyCatalogue, chosen)) return;
+		currency = chosen;
+		value = formatAmountInput(value, chosen);
 	}
 
 	const currencyDisplayNames = $derived(currencyDisplayNamesFor(currentLocale.value));
@@ -49,7 +51,7 @@
 			<Input
 				{id}
 				type="text"
-				inputmode="numeric"
+				inputmode="decimal"
 				autocomplete="off"
 				value={value}
 				oninput={updateAmount}

@@ -27,7 +27,7 @@ function snapshot(): CRMDataResponse {
 		opportunities: [{
 			id: 'deal', organizationID: 'organization', name: 'Example', pipeline: 'sales', stage: 'waiting',
 			stagePosition: 1, stageChangedAt: '2026-10-01', ownerPersonID: 'member',
-			amountMinor: 12345, currencyCode: 'USD', baseAmountMinor: 16450000, baseCurrencyCode: 'KRW', importance: 'medium',
+			amount: { amount: 123.45, currency: 'USD' }, settledAmount: { amount: 16450000, currency: 'KRW' }, importance: 'medium',
 			audit: { createdAt: '2026-10-01', createdByPersonID: 'member', updatedAt: '2026-10-01', updatedByPersonID: 'member' }
 		}]
 	};
@@ -42,14 +42,14 @@ test('a cold or explicit full refresh still reads all five complete sources', as
 	expect(asked).toHaveLength(5);
 });
 
-test('contact refresh preserves loaded metrics, currency minor units and definitions without rereading unrelated sources', async () => {
+test('contact refresh preserves loaded metrics, money and definitions without rereading unrelated sources', async () => {
 	asked.length = 0;
 	const before = snapshot();
 	const after = await loadSupabaseCRMData(before, ['contacts']);
 	expect(asked).toEqual(['crm_contact_list']);
 	expect(after.opportunities).toBe(before.opportunities);
-	expect(after.opportunities[0].amountMinor).toBe(12345);
-	expect(after.opportunities[0].baseAmountMinor).toBe(16450000);
+	expect(after.opportunities[0].amount).toEqual({ amount: 123.45, currency: 'USD' });
+	expect(after.opportunities[0].settledAmount).toEqual({ amount: 16450000, currency: 'KRW' });
 	expect(after.vocabulary).toBe(before.vocabulary);
 	expect(after.taskVocabulary).toBe(before.taskVocabulary);
 });
@@ -68,6 +68,6 @@ test('a denied refresh leaves the prior complete snapshot untouched', async () =
 	denied = true;
 	try {
 		await expect(loadSupabaseCRMData(before, ['contacts'])).rejects.toThrow('permission denied');
-		expect(before.opportunities[0].amountMinor).toBe(12345);
+		expect(before.opportunities[0].amount).toEqual({ amount: 123.45, currency: 'USD' });
 	} finally { denied = false; }
 });

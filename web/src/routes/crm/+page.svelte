@@ -100,7 +100,6 @@
 		organizationTypeDefinitions,
 		pipelines: controller.pipelines,
 		stages: controller.stages,
-		currencyCatalogue,
 		companyBaseCurrency,
 		timeZone: browserTimeZone(),
 		text
@@ -280,7 +279,7 @@
 	let selectedContact = $derived(selectedContactID ? controller.contacts.find((contact) => contact.id === selectedContactID) : undefined);
 	let selectedOpportunity = $derived(selectedOpportunityID ? controller.opportunities.find((opportunity) => opportunity.id === selectedOpportunityID) : undefined);
 	let selectedActivity = $derived(selectedActivityID ? controller.activities.find((activity) => activity.id === selectedActivityID) : undefined);
-	let opportunityCurrencies = $derived([...new Set(controller.opportunities.map((opportunity) => opportunity.currency))]);
+	let opportunityCurrencies = $derived([...new Set(controller.opportunities.flatMap((opportunity) => (opportunity.amount ? [opportunity.amount.currency] : [])))]);
 	let activityTaskDefinitions = $derived<TaskDefinitions>({
 		categories: controller.taskVocabulary.businesses?.map((entry) => entry.name) ?? [],
 		categoryColors: Object.fromEntries(

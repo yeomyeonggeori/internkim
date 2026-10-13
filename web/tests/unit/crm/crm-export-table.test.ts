@@ -1,6 +1,5 @@
 import { describe, expect, test } from 'bun:test';
 import { csvDocument } from '../../../src/lib/csv';
-import { interimCurrencyCatalogue } from '../../../src/lib/currency/currency-catalogue';
 import {
 	crmExportFilename,
 	crmExportRowMatches,
@@ -45,10 +44,8 @@ const opportunity: CRMOpportunity = {
 	stage: 'in_progress',
 	ownerName: '이샘플',
 	ownerEmail: 'sample@example.com',
-	expectedValue: 85000,
-	currency: 'USD',
-	baseAmountMinor: 116450000,
-	baseCurrencyCode: 'KRW',
+	amount: { amount: 85000, currency: 'USD' },
+	settledAmount: { amount: 116450000, currency: 'KRW' },
 	importance: 'medium',
 	targetDate: '2026-11-30',
 	staleDays: 0,
@@ -81,7 +78,6 @@ function sourceWith(overrides: Partial<CRMExportSource> = {}): CRMExportSource {
 		organizationTypeDefinitions: [],
 		pipelines: [],
 		stages: [],
-		currencyCatalogue: interimCurrencyCatalogue,
 		companyBaseCurrency: 'KRW',
 		timeZone: 'Asia/Seoul',
 		text: crmText.ko,

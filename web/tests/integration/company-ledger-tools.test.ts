@@ -123,36 +123,46 @@ describe('what the company states about itself', () => {
 		const refused = await asSample('company_metric_record', {
 			metric: 'annualRevenue',
 			year: 2025,
-			value: 1_200_000_000,
-			currency: 'KRW',
-			valueUSD: 870_000
+			amount: { amount: 1_200_000_000, currency: 'KRW' },
+			usdEquivalent: 870_000
 		});
 
 		expect(refused.status).toBe(403);
 		expect(errorOf(refused)).toContain('administrator');
 	});
 
-	test('records a number with the USD equivalent a reader can compare', async () => {
+	test('records money with the USD equivalent a reader can compare', async () => {
 		const written = await asAdmin('company_metric_record', {
 			metric: 'annualRevenue',
 			year: 2025,
-			value: 1_200_000_000,
-			currency: 'krw',
-			valueUSD: 870_000
+			amount: { amount: 1_200_000_000, currency: 'KRW' },
+			usdEquivalent: 870_000
 		});
 
 		expect(written.status).toBe(200);
-		expect(resultOf(written).currency).toBe('KRW');
-		expect(resultOf(written).valueUSD).toBe(870_000);
+		expect(resultOf(written).amount).toEqual({ amount: 1_200_000_000, currency: 'KRW' });
+		expect(resultOf(written).usdEquivalent).toBe(870_000);
+		expect(resultOf(written).value).toBeNull();
 		expect(resultOf(written).quarter).toBe(0);
+	});
+
+	test('takes money in any ISO currency', async () => {
+		const written = await asAdmin('company_metric_record', {
+			metric: 'vietnamRevenue',
+			year: 2023,
+			amount: { amount: 25_000_000_000, currency: 'VND' },
+			usdEquivalent: 1_000_000
+		});
+
+		expect(written.status).toBe(200);
+		expect(resultOf(written).amount).toEqual({ amount: 25_000_000_000, currency: 'VND' });
 	});
 
 	test('refuses money whose USD equivalent nobody gave', async () => {
 		const refused = await asAdmin('company_metric_record', {
 			metric: 'operatingProfit',
 			year: 2025,
-			value: 1_000,
-			currency: 'KRW'
+			amount: { amount: 1_000, currency: 'KRW' }
 		});
 
 		expect(refused.status).toBe(400);
@@ -176,15 +186,13 @@ describe('what the company states about itself', () => {
 		await asAdmin('company_metric_record', {
 			metric: 'annualRevenue',
 			year: 2025,
-			value: 1_300_000_000,
-			currency: 'USD',
-			valueUSD: 1_300_000_000
+			amount: { amount: 1_300_000_000, currency: 'USD' }
 		});
 		const listed = await asAdmin('company_metric_list', { metric: 'annualRevenue' });
 
 		expect(listed.status).toBe(200);
 		expect(resultOf(listed).count).toBe(1);
-		expect((resultOf(listed).metrics as { value: number }[])[0].value).toBe(1_300_000_000);
+		expect(z.array(z.object({ amount: z.object({ amount: z.number() }) })).parse(resultOf(listed).metrics)[0].amount.amount).toBe(1_300_000_000);
 	});
 
 	test('is read by anybody who works here, and filtered by year', async () => {
@@ -193,7 +201,7 @@ describe('what the company states about itself', () => {
 		const everything = await asSample('company_metric_list');
 		const recent = await asSample('company_metric_list', { fromYear: 2025 });
 
-		expect(resultOf(everything).count).toBe(2);
+		expect(resultOf(everything).count).toBe(3);
 		expect(resultOf(recent).count).toBe(1);
 		expect((resultOf(recent).metrics as { metric: string }[])[0].metric).toBe('annualRevenue');
 	});
@@ -215,10 +223,12 @@ describe('what happened to the company', () => {
 			date: '2025-12-01',
 			title: 'Seed round closed',
 			detail: 'Capital secured for product validation.',
+			amount: { amount: 2_000_000, currency: 'USD' },
 			attributes: '{"round": "Seed", "investors": "ABC Ventures"}'
 		});
 
 		expect(added.status).toBe(200);
+		expect(resultOf(added).amount).toEqual({ amount: 2_000_000, currency: 'USD' });
 		expect(resultOf(added).attributes).toEqual([
 			{ label: 'round', value: 'Seed' },
 			{ label: 'investors', value: 'ABC Ventures' }

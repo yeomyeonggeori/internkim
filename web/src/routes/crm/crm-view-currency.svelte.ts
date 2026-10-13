@@ -2,19 +2,16 @@ import { loadConvertedAmount } from '$lib/currency/converted-amount';
 import { isSupabaseConfigured } from '$lib/supabase-session';
 import { crmFixtureMode, loadFixtureConvertedAmount } from './dev-crm-fixture';
 import { rateHintAnchorCurrency } from './crm-money';
+import type { Money } from '$lib/money';
 
-export type CRMViewAmount = {
-	value: number;
-	currency: string;
-	isConverted: boolean;
-};
+export type CRMViewAmount = Money & { isConverted: boolean };
 
 export type CRMViewCurrencyReader = {
 	readonly selected: string;
-	viewAmount(value: number, currency: string): CRMViewAmount;
+	viewAmount(money: Money): CRMViewAmount;
 };
 
-const ratePreviewAmountMinor = 1000000;
+const ratePreviewAmount = 1000000;
 
 function currencyRequestKey(view: string, sourceCurrencies: string[]): string {
 	return `${view}|${[...new Set(sourceCurrencies)].sort().join(',')}`;
@@ -77,8 +74,8 @@ export class CRMViewCurrency implements CRMViewCurrencyReader {
 					rates[source] = previousRates[source];
 					return;
 				}
-				const converted = await this.loadRate(ratePreviewAmountMinor, source, view);
-				if (!converted || converted.currencyCode !== view || !Number.isFinite(converted.rate) || converted.rate <= 0) {
+				const converted = await this.loadRate({ amount: ratePreviewAmount, currency: source }, view);
+				if (!converted || converted.amount.currency !== view || !Number.isFinite(converted.rate) || converted.rate <= 0) {
 					throw new Error('The requested view currency rate is unavailable');
 				}
 				rates[source] = converted.rate;
@@ -102,11 +99,11 @@ export class CRMViewCurrency implements CRMViewCurrencyReader {
 		}
 	}
 
-	viewAmount(value: number, currency: string): CRMViewAmount {
-		if (this.selected === '' || currency === this.selected) return { value, currency, isConverted: false };
-		const rate = this.ratesBySource[currency];
-		if (rate === undefined) return { value, currency, isConverted: false };
-		return { value: value * rate, currency: this.selected, isConverted: true };
+	viewAmount(money: Money): CRMViewAmount {
+		if (this.selected === '' || money.currency === this.selected) return { ...money, isConverted: false };
+		const rate = this.ratesBySource[money.currency];
+		if (rate === undefined) return { ...money, isConverted: false };
+		return { amount: money.amount * rate, currency: this.selected, isConverted: true };
 	}
 }
 

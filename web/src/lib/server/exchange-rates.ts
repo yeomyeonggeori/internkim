@@ -1,7 +1,7 @@
-export type SupportedCurrency = { code: string; name: string; minorUnitDigits: number };
+import type { CurrencyCatalogueEntry } from '$lib/currency/currency-catalogue';
 export type ExchangeRate = { base: string; quote: string; rate: number; asOf: string };
 export type ExchangeRateProvider = {
-	supportedCurrencies(): Promise<SupportedCurrency[]>;
+	supportedCurrencies(): Promise<CurrencyCatalogueEntry[]>;
 	latestRate(base: string, quote: string): Promise<ExchangeRate>;
 };
 
@@ -11,40 +11,8 @@ const cacheLifetimeInMilliseconds = 12 * 60 * 60 * 1000;
 const rateCacheLifetimeInMilliseconds = 60 * 60 * 1000;
 const defaultRequestTimeoutInMilliseconds = 5000;
 
-const zeroDecimalCurrencyCodes = new Set([
-	'BIF',
-	'CLP',
-	'DJF',
-	'GNF',
-	'ISK',
-	'JPY',
-	'KMF',
-	'KRW',
-	'PYG',
-	'RWF',
-	'UGX',
-	'VND',
-	'VUV',
-	'XAF',
-	'XOF',
-	'XPF'
-]);
-
-const threeDecimalCurrencyCodes = new Set(['BHD', 'IQD', 'JOD', 'KWD', 'LYD', 'OMR', 'TND']);
-
-export function minorUnitDigitsOf(code: string): number {
-	if (zeroDecimalCurrencyCodes.has(code)) return 0;
-	if (threeDecimalCurrencyCodes.has(code)) return 3;
-	return 2;
-}
-
-export function convertMinorAmount(amountMinor: number, rate: number, fromDigits: number, toDigits: number): number {
-	const scaledAmount = amountMinor * rate * 10 ** (toDigits - fromDigits);
-	return Math.round(scaledAmount);
-}
-
 type SupportedCurrenciesCache = {
-	currencies: SupportedCurrency[];
+	currencies: CurrencyCatalogueEntry[];
 	fetchedAtInMilliseconds: number;
 };
 
@@ -62,9 +30,7 @@ function pairKeyOf(base: string, quote: string): string {
 	return `${base}:${quote}`;
 }
 
-type FrankfurterCurrency = { code: string; name: string };
-
-function parsedCurrenciesPayload(payload: unknown, attemptedPath: string): FrankfurterCurrency[] {
+function parsedCurrenciesPayload(payload: unknown, attemptedPath: string): CurrencyCatalogueEntry[] {
 	if (!Array.isArray(payload)) {
 		throw new Error(`${providerName} returned a malformed currency list from ${attemptedPath}: expected a JSON array`);
 	}
@@ -152,15 +118,11 @@ async function fetchJSON(
 async function fetchedSupportedCurrencies(
 	fetchImplementation: typeof fetch,
 	requestTimeoutInMilliseconds: number
-): Promise<SupportedCurrency[]> {
+): Promise<CurrencyCatalogueEntry[]> {
 	const currenciesURL = new URL(`${frankfurterBaseURL}/currencies`);
 	const payload = await fetchJSON(fetchImplementation, currenciesURL, requestTimeoutInMilliseconds);
 	const currencies = parsedCurrenciesPayload(payload, pathOf(currenciesURL));
-	return currencies.map(({ code, name }) => ({
-		code,
-		name,
-		minorUnitDigits: minorUnitDigitsOf(code)
-	}));
+	return currencies.toSorted((left, right) => left.code.localeCompare(right.code));
 }
 
 async function cachedSupportedCurrencies(
@@ -168,7 +130,7 @@ async function cachedSupportedCurrencies(
 	fetchImplementation: typeof fetch,
 	nowInMilliseconds: number,
 	requestTimeoutInMilliseconds: number
-): Promise<SupportedCurrency[]> {
+): Promise<CurrencyCatalogueEntry[]> {
 	const cache = caches.supportedCurrencies;
 	if (cache && nowInMilliseconds - cache.fetchedAtInMilliseconds < cacheLifetimeInMilliseconds) {
 		return cache.currencies;

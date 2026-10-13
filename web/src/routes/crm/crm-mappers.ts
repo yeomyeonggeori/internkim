@@ -1,4 +1,3 @@
-import { majorAmountOf, minorAmountOf, type CurrencyCatalogue } from '$lib/currency/currency-catalogue';
 import type { OrgGroup, UserRecord } from '$lib/organization/types';
 import type {
 	CRMOrganizationPayload,
@@ -16,12 +15,12 @@ import type { TaskVocabulary } from '$lib/task/task-vocabulary';
 import { centralStatusFromWord, taskStatus } from '$lib/task/central-task';
 import { isTaskStatusFinished } from '../task/task-status';
 import { crmStages } from './crm-stages';
+import { sumOpportunityMoney } from './crm-money';
 import type {
 	CRMOrganization,
 	CRMActivity,
 	CRMContact,
 	CRMCreateDraft,
-	CRMCurrency,
 	CRMNextAction,
 	CRMOpportunity,
 	CRMPipeline,
@@ -53,7 +52,6 @@ export class CRMOwnerResolutionError extends Error {
 export function mapCRMViewData(
 	data: CRMDataResponse,
 	people: UserRecord[],
-	catalogue: CurrencyCatalogue,
 	timeZone = browserTimeZone(),
 	groups: OrgGroup[] = []
 ): CRMViewData {
@@ -61,7 +59,7 @@ export function mapCRMViewData(
 	const activities = data.activities.map((activity) => mapActivity(activity, people));
 	const nextActions = nextActionsOf(activities, timeZone);
 	const opportunities = data.opportunities.map((opportunity) =>
-		withNextAction(mapOpportunity(opportunity, people, catalogue), nextActions)
+		withNextAction(mapOpportunity(opportunity, people), nextActions)
 	);
 	const organizations = data.organizations.map((organization) => mapOrganization(organization, people, opportunities, activities, stages, timeZone, groups));
 	return {
@@ -154,7 +152,7 @@ export function contactPayloadFromDraft(
 	};
 }
 
-export function opportunityPayload(opportunity: CRMOpportunity, catalogue: CurrencyCatalogue): CRMOpportunityPayload {
+export function opportunityPayload(opportunity: CRMOpportunity): CRMOpportunityPayload {
 	return {
 		organizationID: opportunity.organizationID,
 		business: opportunity.business,
@@ -162,8 +160,7 @@ export function opportunityPayload(opportunity: CRMOpportunity, catalogue: Curre
 		pipeline: opportunity.pipeline ?? opportunity.kind ?? 'sales',
 		ownerPersonID: opportunity.ownerPersonID ?? '',
 		ownerCircleID: opportunity.ownerCircleID ?? '',
-		amountMinor: majorToMinor(opportunity.expectedValue, opportunity.currency, catalogue),
-		currencyCode: opportunity.expectedValue === undefined ? '' : opportunity.currency,
+		amount: opportunity.amount ?? null,
 		importance: opportunity.importance,
 		dueAt: opportunity.targetDate ? localDateToUTC(opportunity.targetDate, opportunity.dueTimeZone ?? browserTimeZone()) : '',
 		dueTimeZone: opportunity.targetDate ? opportunity.dueTimeZone ?? browserTimeZone() : '',
@@ -175,8 +172,7 @@ export function opportunityPayload(opportunity: CRMOpportunity, catalogue: Curre
 export function opportunityPayloadFromDraft(
 	draft: Extract<CRMCreateDraft, { kind: 'progress' }>,
 	owner: UserRecord,
-	timeZone: string,
-	catalogue: CurrencyCatalogue
+	timeZone: string
 ): CRMOpportunityPayload {
 	return {
 		organizationID: draft.organizationID,
@@ -185,8 +181,7 @@ export function opportunityPayloadFromDraft(
 		pipeline: draft.progressKind,
 		ownerPersonID: owner.memberID,
 		ownerCircleID: owner.groupID ?? '',
-		amountMinor: majorToMinor(draft.amount, draft.currency, catalogue),
-		currencyCode: draft.amount === undefined ? '' : draft.currency,
+		amount: draft.amount ?? null,
 		importance: draft.importance,
 		dueAt: draft.targetDate ? localDateToUTC(draft.targetDate, timeZone) : '',
 		dueTimeZone: draft.targetDate ? timeZone : '',
@@ -311,7 +306,7 @@ function mapOrganization(
 		lastContactDate: activityDates.at(-1) ?? utcToLocalDate(organization.audit.createdAt, timeZone),
 		nextActionDate: dueDates[0] ?? '',
 		openOpportunityCount: openOpportunities.length,
-		expectedValues: moneyTotals(openOpportunities)
+		expectedValues: sumOpportunityMoney(openOpportunities)
 	};
 }
 
@@ -332,8 +327,7 @@ function mapContact(contact: CRMContactResponse): CRMContact {
 
 function mapOpportunity(
 	opportunity: CRMOpportunityResponse,
-	people: UserRecord[],
-	catalogue: CurrencyCatalogue
+	people: UserRecord[]
 ): CRMOpportunity {
 	const owner = people.find((person) => person.memberID === opportunity.ownerPersonID);
 	const timeZone = opportunity.dueTimeZone || 'UTC';
@@ -350,10 +344,8 @@ function mapOpportunity(
 		ownerCircleID: opportunity.ownerCircleID,
 		ownerName: owner?.name || owner?.email || opportunity.ownerPersonID,
 		ownerEmail: owner?.email ?? '',
-		expectedValue: minorToMajor(opportunity.amountMinor, opportunity.currencyCode, catalogue),
-		currency: opportunity.currencyCode || 'KRW',
-		baseAmountMinor: opportunity.baseAmountMinor,
-		baseCurrencyCode: opportunity.baseCurrencyCode,
+		amount: opportunity.amount,
+		settledAmount: opportunity.settledAmount,
 		importance: opportunity.importance,
 		targetDate: utcToLocalDate(opportunity.dueAt, timeZone),
 		dueTimeZone: timeZone,
@@ -419,27 +411,6 @@ function mapActivity(activity: CRMActivityResponse, people: UserRecord[]): CRMAc
 
 function stageOutcome(stages: CRMPipelineStage[], opportunity: CRMOpportunity): CRMPipelineStage['outcome'] | undefined {
 	return stages.find((stage) => stage.stage === opportunity.stage)?.outcome;
-}
-
-function moneyTotals(opportunities: CRMOpportunity[]) {
-	return opportunities.reduce<Partial<Record<CRMCurrency, number>>>((totals, opportunity) => {
-		if (opportunity.expectedValue === undefined) return totals;
-		return { ...totals, [opportunity.currency]: (totals[opportunity.currency] ?? 0) + opportunity.expectedValue };
-	}, {});
-}
-
-function majorToMinor(value: number | undefined, currency: CRMCurrency, catalogue: CurrencyCatalogue): number | null {
-	if (value === undefined) return null;
-	return minorAmountOf(value, currency, catalogue);
-}
-
-function minorToMajor(
-	value: number | undefined,
-	currency: CRMCurrency | '',
-	catalogue: CurrencyCatalogue
-): number | undefined {
-	if (value === undefined) return undefined;
-	return majorAmountOf(value, currency || 'KRW', catalogue);
 }
 
 function daysSince(dateTime: string): number {

@@ -1,7 +1,7 @@
 import type { CRMOrganization, CRMCurrency, CRMNextAction, CRMOpportunity, CRMPipeline, CRMPipelineStage } from './crm-types';
 import { currentCRMDate, shiftCRMDate } from './crm-date';
 import { isTaskStatusFinished } from '../task/task-status';
-import { collapsedViewMoneyTotal, formatMoney, formatMoneyTotals, formatViewMoney, sumOpportunityMoney } from './crm-money';
+import { collapsedViewMoneyTotal, formatOptionalMoney, formatMoneyTotals, sumOpportunityMoney } from './crm-money';
 import type { CurrencyCatalogue } from '$lib/currency/currency-catalogue';
 import type { Locale } from '$lib/i18n/locale.svelte';
 import { crmLabel } from './crm-labels';
@@ -48,18 +48,16 @@ function buildMoneySummary(
 	view?: CRMViewCurrencyReader
 ): { displayValue: string; moneyDetails?: CRMKPIMoneyDetail[] } {
 	const totals = sumOpportunityMoney(opportunities);
-	const collapsedValue = view ? collapsedViewMoneyTotal(totals, view) : undefined;
-	if (view && collapsedValue !== undefined) {
-		return {
-			displayValue: formatViewMoney({ value: collapsedValue, currency: view.selected, isConverted: true }, text.nothingToTotal, locale)
-		};
+	const collapsedTotal = view ? collapsedViewMoneyTotal(totals, view) : undefined;
+	if (collapsedTotal !== undefined) {
+		return { displayValue: formatOptionalMoney(collapsedTotal, text.nothingToTotal, locale) };
 	}
 	const moneyDetails = catalogue.reduce<CRMKPIMoneyDetail[]>((details, entry) => {
 		const amount = totals[entry.code];
 		if (amount === undefined) return details;
 		return [
 			...details,
-			{ currency: entry.code, displayValue: formatMoney(amount, entry.code, text.nothingToTotal, locale) }
+			{ currency: entry.code, displayValue: formatOptionalMoney({ amount, currency: entry.code }, text.nothingToTotal, locale) }
 		];
 	}, []);
 	if (moneyDetails.length <= 1) return { displayValue: formatMoneyTotals(totals, catalogue, text.nothingToTotal, locale) };

@@ -26,7 +26,7 @@ import {
 } from '../task/task-status';
 import type { CRMText } from './text';
 import type { Locale } from '$lib/i18n/locale.svelte';
-export { formatMoney, formatMoneyTotals } from './crm-money';
+export { formatOptionalMoney, formatMoneyTotals } from './crm-money';
 export { interimCurrencyCatalogue } from '$lib/currency/currency-catalogue';
 
 export type CRMTab = 'relationships' | 'contacts' | 'pipeline' | 'activities' | 'reports' | 'definitions';
