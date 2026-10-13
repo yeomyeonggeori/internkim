@@ -25,3 +25,37 @@ test('the conversation list shows how many messages each conversation has unread
 	await expect(itemNamed('새 글 채널').getByText('새 글 채널')).toHaveClass(/font-semibold/);
 	await expect(itemNamed('읽은 채널').getByText('읽은 채널')).not.toHaveClass(/font-semibold/);
 });
+
+test('the unread count gives way to the more button while the row is hovered or its menu is open', async ({ page }) => {
+	await mockDeviceMessenger(
+		page,
+		reader,
+		[
+			{ id: 'channel-read', name: '읽은 채널', kind: 'group', myRole: 'member', unreadCount: 0 },
+			{ id: 'channel-few', name: '새 글 채널', kind: 'group', myRole: 'member', unreadCount: 6 }
+		],
+		[]
+	);
+	await page.setViewportSize({ width: 1280, height: 800 });
+	await page.goto('/messenger?channel=channel-read');
+
+	const row = page.locator('[data-sidebar="menu-item"]').filter({ hasText: '새 글 채널' });
+	const badge = row.locator('[data-sidebar="menu-badge"]');
+	const moreButton = row.getByRole('button', { name: '대화 메뉴' });
+
+	await expect(badge).toHaveCSS('opacity', '1');
+
+	await row.hover();
+	await expect(moreButton).toHaveCSS('opacity', '1');
+	await expect(badge).toHaveCSS('opacity', '0');
+
+	await moreButton.click();
+	await expect(page.getByRole('menuitem', { name: '이 대화 알림 끄기' })).toBeVisible();
+	await page.mouse.move(0, 0);
+	await expect(badge).toHaveCSS('opacity', '0');
+
+	await page.keyboard.press('Escape');
+	await moreButton.blur();
+	await expect(moreButton).toHaveCSS('opacity', '0');
+	await expect(badge).toHaveCSS('opacity', '1');
+});
