@@ -25,6 +25,10 @@
 	import CRMContactTable from './crm-contact-table.svelte';
 	import CRMDefinitionsEditor from './crm-definitions-editor.svelte';
 	import { crmFixtureMode } from './dev-crm-fixture';
+	import CRMExportDialog from './crm-export-dialog.svelte';
+	import CRMMoreMenu from './crm-more-menu.svelte';
+	import type { CRMExportSource, CRMExportTab } from './crm-export-table';
+	import { browserTimeZone } from './crm-mappers';
 	import { currentCRMDate } from './crm-date';
 	import { crmDefinitionLabel, crmLabel } from './crm-labels';
 	import CRMKPICell from './crm-kpi-card.svelte';
@@ -84,6 +88,25 @@
 	const currencyCatalogue = $derived(controller.currencyCatalogue);
 	const companyBaseCurrency = $derived(controller.companyBaseCurrency);
 	const organizationTypeDefinitions = $derived(controller.vocabulary.organization_types);
+	let isExportOpen = $state(false);
+	let exportTab = $state<CRMExportTab>('relationships');
+	const exportSource: CRMExportSource = $derived({
+		organizations: controller.organizations,
+		contacts: controller.contacts,
+		opportunities: controller.opportunities,
+		activities: controller.activities,
+		organizationTypeDefinitions,
+		pipelines: controller.pipelines,
+		stages: controller.stages,
+		currencyCatalogue,
+		companyBaseCurrency,
+		timeZone: browserTimeZone(),
+		text
+	});
+	function openExport(tab: CRMExportTab): void {
+		exportTab = tab;
+		isExportOpen = true;
+	}
 	let isAdmin = $state(crmFixtureMode);
 	let isRoleKnown = $state(crmFixtureMode);
 	const tabItems: Array<{ value: CRMTab; label: string }> = $derived([
@@ -408,7 +431,8 @@
 			<UnderlineTabs.Content value="relationships" class="grid min-w-0 gap-3 pb-24">
 				<div class="flex min-w-0 flex-wrap items-center gap-2">
 					<Tabs.Root value={relationshipView} onValueChange={(value) => (relationshipView = value as RelationshipView)} aria-label={text.relationships}><Tabs.List><Tabs.Trigger value="all">{text.allRelationships}</Tabs.Trigger><Tabs.Trigger value="mine" disabled={!controller.isDirectoryReady}>{text.myRelationships}</Tabs.Trigger></Tabs.List></Tabs.Root>
-					<Button type="button" class="ml-auto max-sm:order-1 sm:order-last" disabled={!controller.isDirectoryReady} onclick={() => openCreateSheet('relationship')}><PlusIcon data-icon="inline-start" />{text.newRelationship}</Button>
+					<CRMMoreMenu {text} class="ml-auto max-sm:order-1 sm:order-last" onExport={() => openExport('relationships')} />
+					<Button type="button" class="max-sm:order-1 sm:order-last" disabled={!controller.isDirectoryReady} onclick={() => openCreateSheet('relationship')}><PlusIcon data-icon="inline-start" />{text.newRelationship}</Button>
 					<Collapsible.Root class="contents" open={!isMobile.current || showsRelationshipFilters} onOpenChange={(open) => showsRelationshipFilters = open}>
 						<Collapsible.Trigger class="sm:hidden">{#snippet child({ props })}<Button {...props} variant="outline" class="gap-1" aria-label={relationshipFilterLabel}><FilterIcon class="size-4" />{#if relationshipFacetCount > 0}<span class="tabular-nums" aria-hidden="true">{relationshipFacetCount}</span>{/if}</Button>{/snippet}</Collapsible.Trigger>
 						<Collapsible.Content class="flex w-full min-w-0 flex-wrap gap-2 max-sm:order-2 sm:contents">
@@ -428,7 +452,8 @@
 
 			<UnderlineTabs.Content value="contacts" class="grid min-w-0 gap-3 pb-24">
 				<div class="flex min-w-0 flex-wrap items-center gap-2">
-					<Button type="button" class="ml-auto" disabled={!controller.isDirectoryReady} onclick={() => openCreateSheet('contact')}><PlusIcon data-icon="inline-start" />{text.newContact}</Button>
+					<CRMMoreMenu {text} class="ml-auto" onExport={() => openExport('contacts')} />
+					<Button type="button" disabled={!controller.isDirectoryReady} onclick={() => openCreateSheet('contact')}><PlusIcon data-icon="inline-start" />{text.newContact}</Button>
 				</div>
 				<CRMContactTable contacts={controller.contacts} organizations={controller.organizations} people={controller.people} {text} onEdit={openContactEdit} />
 			</UnderlineTabs.Content>
@@ -455,7 +480,8 @@
 							<Button type="button" variant="ghost" onclick={resetPipelineFacets}>{text.resetFilters}</Button>
 						{/if}
 					</div>
-					<Button type="button" class="ml-auto" disabled={!controller.isDirectoryReady} onclick={() => openCreateSheet('progress')}><PlusIcon data-icon="inline-start" />{text.newOpportunity}</Button>
+					<CRMMoreMenu {text} class="ml-auto" onExport={() => openExport('pipeline')} />
+					<Button type="button" disabled={!controller.isDirectoryReady} onclick={() => openCreateSheet('progress')}><PlusIcon data-icon="inline-start" />{text.newOpportunity}</Button>
 				</div>
 				{#if pipelineView === 'table'}
 					<CRMProgressTable opportunities={pipelineOpportunities} organizations={controller.organizations} pipelines={controller.pipelines} nextActions={controller.nextActions} stages={controller.stages} {text} emptyLabel={hasPipelineFacets ? text.noMatchingProgress : text.progressEmpty} onEdit={openOpportunityEdit} />
@@ -470,7 +496,8 @@
 					{#if activityView !== 'all'}
 						<Button type="button" variant="ghost" onclick={() => (activityView = 'all')}>{text.resetFilters}</Button>
 					{/if}
-					<Button type="button" class="ml-auto" disabled={!controller.isDirectoryReady} onclick={() => openCreateSheet('activity')}><PlusIcon data-icon="inline-start" />{text.logActivity}</Button>
+					<CRMMoreMenu {text} class="ml-auto" onExport={() => openExport('activities')} />
+					<Button type="button" disabled={!controller.isDirectoryReady} onclick={() => openCreateSheet('activity')}><PlusIcon data-icon="inline-start" />{text.logActivity}</Button>
 				</div>
 				<CRMActivityTable activities={filteredActivities} organizations={controller.organizations} opportunities={controller.opportunities} people={controller.people} taskDefinitions={activityTaskDefinitions} {text} emptyLabel={activityView !== 'all' ? text.noActivities : text.activitiesEmpty} onEdit={openActivityEdit} />
 			</UnderlineTabs.Content>
@@ -483,6 +510,7 @@
 
 {#if controller.hasData && !controller.permissionDenied}
 <CRMRelationshipDetailSheet bind:open={isOrganizationSheetOpen} organization={selectedOrganization} contacts={controller.contacts} opportunities={controller.opportunities} activities={controller.activities} stages={controller.stages} {organizationTypeDefinitions} {currencyCatalogue} {text} onEdit={openOrganizationEdit} />
+<CRMExportDialog bind:open={isExportOpen} initialTab={exportTab} source={exportSource} />
 <CRMContactEditSheet bind:open={isContactEditOpen} contact={selectedContact} organizations={controller.organizations} opportunities={controller.opportunities} {text} onSave={saveContact} />
 <CRMRelationshipEditSheet isDirectoryReady={controller.isDirectoryReady} bind:open={isRelationshipEditOpen} organization={selectedOrganization} contacts={controller.contacts} organizationTypeOptions={controller.organizationTypeOptions} {organizationTypeDefinitions} people={controller.people} groups={controller.groups} {text} onSave={saveOrganization} onArchive={archiveOrganization} onEditContact={openRelationshipContactEdit} onCreateContact={openRelationshipContactCreate} />
 <CRMOpportunityEditSheet isDirectoryReady={controller.isDirectoryReady} {currencyCatalogue} {companyBaseCurrency} bind:open={isOpportunityEditOpen} opportunity={selectedOpportunity} organizations={controller.organizations} contacts={controller.contacts} pipelines={controller.pipelines} stages={controller.stages} businessOptions={controller.businessOptions} people={controller.people} groups={controller.groups} requestedStage={requestedOpportunityStage} {text} onSave={saveOpportunity} onArchive={archiveOpportunity} />
