@@ -561,3 +561,127 @@ describe('what a company puts away', () => {
 		expect(activitiesOf(await asSample('crm_activity_list', {})).length).toBeGreaterThan(0);
 	});
 });
+
+describe('records imported from a file', () => {
+	const importedName = '가져온상사';
+	const heldName = '가져오기기존상사';
+
+	beforeAll(async () => {
+		await asSample('crm_organization_add', { name: heldName, address: '대구' });
+	}, networkHookTimeout);
+
+	function importedRowsOf(answer: { body: unknown }): Record<string, unknown>[] {
+		return resultOf(answer).rows as Record<string, unknown>[];
+	}
+
+	async function organizationNamed(name: string): Promise<Record<string, unknown> | undefined> {
+		return organizationsOf(await asSample('crm_organization_list', { query: name })).find(
+			(organization) => organization.name === name
+		);
+	}
+
+	test('are checked without a write on a dry run', async () => {
+		const checked = await asSample('crm_record_import', {
+			kind: 'organization',
+			dryRun: true,
+			rows: [
+				{ line: 2, name: importedName, types: ['고객'] },
+				{ line: 3, name: ` ${heldName} ` },
+				{ line: 4, name: '' },
+				{ line: 5, name: '유형없는상사', types: ['없는유형'] },
+				{ line: 6, name: importedName }
+			]
+		});
+
+		expect(checked.status).toBe(200);
+		expect(resultOf(checked)).toMatchObject({ dryRun: true, written: false, created: 1, skipped: 1, refused: 3 });
+		expect(importedRowsOf(checked).map((row) => [row.line, row.outcome, row.problems])).toEqual([
+			[2, 'create', []],
+			[3, 'skip', []],
+			[4, 'refused', ['name_missing']],
+			[5, 'refused', ['type_unknown']],
+			[6, 'refused', ['name_repeated_in_file']]
+		]);
+		expect(importedRowsOf(checked)[1].duplicateOfID).not.toBe('');
+		expect(await organizationNamed(importedName)).toBeUndefined();
+	});
+
+	test('write nothing when one record is refused', async () => {
+		const refused = await asSample('crm_record_import', {
+			kind: 'organization',
+			rows: [
+				{ line: 2, name: importedName },
+				{ line: 3, name: '담당없는상사', ownerPersonHint: '없는사람' }
+			]
+		});
+
+		expect(refused.status).toBe(200);
+		expect(resultOf(refused)).toMatchObject({ written: false, refused: 1 });
+		expect(importedRowsOf(refused)[1].problems).toEqual(['owner_unresolved']);
+		expect(await organizationNamed(importedName)).toBeUndefined();
+	});
+
+	test('add new organizations and update a held one without blanking what the file leaves empty', async () => {
+		const held = await organizationNamed(heldName);
+		const imported = await asSample('crm_record_import', {
+			kind: 'organization',
+			rows: [
+				{ line: 2, name: importedName, types: ['customer'], address: '부산, "해운대"\n2층', ownerPersonHint: '이샘플' },
+				{ line: 3, name: heldName, onDuplicate: 'update', description: '가져오기로 고친 설명', address: '' }
+			]
+		});
+
+		expect(resultOf(imported)).toMatchObject({ written: true, created: 1, updated: 1, refused: 0 });
+		const added = await organizationNamed(importedName);
+		expect(added).toMatchObject({ address: '부산, "해운대"\n2층', types: ['customer'], ownerPersonID: sampleID, status: 'active' });
+		expect(added?.organizationID).toBe(importedRowsOf(imported)[0].recordID);
+		expect(await organizationNamed(heldName)).toMatchObject({
+			organizationID: held?.organizationID,
+			address: held?.address,
+			description: '가져오기로 고친 설명'
+		});
+	});
+
+	test('add contacts to the organization their file names', async () => {
+		const imported = await asSample('crm_record_import', {
+			kind: 'contact',
+			dryRun: true,
+			rows: [
+				{ line: 2, name: '박예시', organizationName: importedName, email: 'yesi@example.com' },
+				{ line: 3, name: '연락없음', organizationName: importedName },
+				{ line: 4, name: '주소틀림', organizationName: importedName, email: 'not-an-email' },
+				{ line: 5, name: '소속없음', organizationName: '없는상사', phoneNumber: '010-0000-0000' },
+				{ line: 6, name: '섞인칸', organizationName: importedName, email: 'mixed@example.com', address: '서울' }
+			]
+		});
+
+		expect(importedRowsOf(imported).map((row) => row.problems)).toEqual([
+			[],
+			['contact_unreachable'],
+			['email_invalid'],
+			['organization_unknown'],
+			['field_of_other_kind']
+		]);
+
+		const written = await asSample('crm_record_import', {
+			kind: 'contact',
+			rows: [{ line: 2, name: '박예시', organizationName: importedName, email: 'yesi@example.com' }]
+		});
+		expect(resultOf(written)).toMatchObject({ written: true, created: 1 });
+		const organization = await organizationNamed(importedName);
+		const contacts = resultOf(
+			await asSample('crm_contact_list', { organizationHint: String(organization?.organizationID) })
+		).contacts as Record<string, unknown>[];
+		expect(contacts.map((contact) => contact.name)).toEqual(['박예시']);
+	});
+
+	test('stay inside the importing company', async () => {
+		const imported = await asOutsider('crm_record_import', {
+			kind: 'organization',
+			rows: [{ line: 2, name: importedName, onDuplicate: 'update', description: '다른 회사' }]
+		});
+
+		expect(resultOf(imported)).toMatchObject({ written: true, created: 1, updated: 0 });
+		expect((await organizationNamed(importedName))?.description).not.toBe('다른 회사');
+	});
+});

@@ -1,3 +1,4 @@
+import { crmImportances, crmOrganizationStatuses } from '$lib/crm/crm-record-values';
 import { isCRMStage } from '$lib/crm/crm-stage';
 import { CRMApiError } from './crm-error';
 import type {
@@ -76,9 +77,6 @@ export type CRMOpportunityToolResult = {
 	audit: CRMAuditToolResult;
 };
 
-const organizationStatuses: CRMOrganizationStatus[] = ['prospect', 'active', 'paused'];
-const importances: CRMImportance[] = ['high', 'medium', 'low'];
-
 export function organizationResponseOf(result: CRMOrganizationToolResult): CRMOrganizationResponse {
 	return {
 		id: result.organizationID,
@@ -151,11 +149,11 @@ function stageOf(value: string): CRMOpportunityStage {
 }
 
 function statusOf(value: string): CRMOrganizationStatus {
-	return organizationStatuses.find((status) => status === value) ?? 'active';
+	return crmOrganizationStatuses.find((status) => status === value) ?? 'active';
 }
 
 function importanceOf(value: string): CRMImportance {
-	return importances.find((importance) => importance === value) ?? 'medium';
+	return crmImportances.find((importance) => importance === value) ?? 'medium';
 }
 
 function currencyOf(value: string): CRMCurrency {

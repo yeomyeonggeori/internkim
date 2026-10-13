@@ -158,7 +158,7 @@ export async function saveSupabaseCRMVocabulary(vocabulary: CRMVocabulary): Prom
 	});
 }
 
-async function callTool<Result>(name: string, input: Record<string, unknown>): Promise<Result> {
+export async function callTool<Result>(name: string, input: Record<string, unknown>): Promise<Result> {
 	try {
 		return await invokeTool<Result>(name, input);
 	} catch (refusal) {
