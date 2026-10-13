@@ -26884,6 +26884,350 @@
       "availability": {
         "state": "ok"
       },
+      "canonicalName": "crm_record_import",
+      "description": "Import many organization or contact records from one file in one write: every record is written, or none is. A record whose name is already held is skipped or updated as each one says, and an updated record keeps any field the file leaves empty. dryRun checks them all and writes nothing.",
+      "estimatedLatency": "high",
+      "idempotency": {
+        "required": false,
+        "scope": "operation",
+        "supported": false
+      },
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "dryRun": {
+            "description": "true checks every record and writes nothing.",
+            "type": "boolean"
+          },
+          "kind": {
+            "enum": [
+              "organization",
+              "contact"
+            ],
+            "type": "string"
+          },
+          "rows": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "address": {
+                  "maxLength": 512,
+                  "type": "string"
+                },
+                "department": {
+                  "maxLength": 128,
+                  "type": "string"
+                },
+                "description": {
+                  "maxLength": 4096,
+                  "type": "string"
+                },
+                "email": {
+                  "maxLength": 256,
+                  "type": "string"
+                },
+                "importance": {
+                  "description": "high, medium or low.",
+                  "maxLength": 32,
+                  "type": "string"
+                },
+                "line": {
+                  "description": "The line of the file this record came from, so a problem can be shown where it is.",
+                  "maximum": 9007199254740991,
+                  "minimum": 1,
+                  "type": "integer"
+                },
+                "name": {
+                  "maxLength": 256,
+                  "type": "string"
+                },
+                "onDuplicate": {
+                  "description": "What to do when a record with the same name is already held. Defaults to skip.",
+                  "enum": [
+                    "skip",
+                    "update"
+                  ],
+                  "type": "string"
+                },
+                "organizationName": {
+                  "description": "The exact name of the organization a contact works at.",
+                  "maxLength": 256,
+                  "type": "string"
+                },
+                "ownerPersonHint": {
+                  "description": "The colleague who owns it, by name or email.",
+                  "maxLength": 256,
+                  "type": "string"
+                },
+                "phoneNumber": {
+                  "maxLength": 64,
+                  "type": "string"
+                },
+                "role": {
+                  "maxLength": 128,
+                  "type": "string"
+                },
+                "status": {
+                  "description": "prospect, active or paused.",
+                  "maxLength": 32,
+                  "type": "string"
+                },
+                "tags": {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                "types": {
+                  "description": "Organization types, by key or name from crm_vocabulary_get.",
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                }
+              },
+              "required": [
+                "line",
+                "name"
+              ],
+              "type": "object"
+            },
+            "maxItems": 20000,
+            "minItems": 1,
+            "type": "array"
+          }
+        },
+        "required": [
+          "kind",
+          "rows"
+        ],
+        "type": "object"
+      },
+      "inputSchemaStrict": true,
+      "modelName": "crm_record_import",
+      "modelVisibility": "hidden",
+      "modelVisible": false,
+      "name": "crm_record_import",
+      "namespace": "crm",
+      "namespaceSummary": "Organizations and contacts the company deals with, deals moving through a pipeline, and the work recorded against them.",
+      "outputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "created": {
+            "maximum": 9007199254740991,
+            "minimum": -9007199254740991,
+            "type": "integer"
+          },
+          "dryRun": {
+            "type": "boolean"
+          },
+          "refused": {
+            "maximum": 9007199254740991,
+            "minimum": -9007199254740991,
+            "type": "integer"
+          },
+          "rows": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "duplicateOfID": {
+                  "description": "The record already held under the same name, or empty.",
+                  "type": "string"
+                },
+                "line": {
+                  "maximum": 9007199254740991,
+                  "minimum": -9007199254740991,
+                  "type": "integer"
+                },
+                "outcome": {
+                  "enum": [
+                    "create",
+                    "update",
+                    "skip",
+                    "refused"
+                  ],
+                  "type": "string"
+                },
+                "problems": {
+                  "items": {
+                    "enum": [
+                      "name_missing",
+                      "name_repeated_in_file",
+                      "organization_unknown",
+                      "organization_ambiguous",
+                      "type_unknown",
+                      "status_unknown",
+                      "importance_unknown",
+                      "owner_unresolved",
+                      "email_invalid",
+                      "contact_unreachable",
+                      "field_of_other_kind"
+                    ],
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                "recordID": {
+                  "description": "The record written or to be updated, or empty.",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "line",
+                "outcome",
+                "duplicateOfID",
+                "recordID",
+                "problems"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "skipped": {
+            "maximum": 9007199254740991,
+            "minimum": -9007199254740991,
+            "type": "integer"
+          },
+          "updated": {
+            "maximum": 9007199254740991,
+            "minimum": -9007199254740991,
+            "type": "integer"
+          },
+          "written": {
+            "description": "false when nothing was written, because this was a dry run or a record was refused.",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "dryRun",
+          "written",
+          "created",
+          "updated",
+          "skipped",
+          "refused",
+          "rows"
+        ],
+        "type": "object"
+      },
+      "outputSchemaStrict": true,
+      "policyResource": "tool:crm_record_import",
+      "privacyClass": "workspace_crm",
+      "requiresUserPresence": false,
+      "resultContract": {
+        "effects": [],
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "additionalProperties": false,
+          "properties": {
+            "created": {
+              "maximum": 9007199254740991,
+              "minimum": -9007199254740991,
+              "type": "integer"
+            },
+            "dryRun": {
+              "type": "boolean"
+            },
+            "refused": {
+              "maximum": 9007199254740991,
+              "minimum": -9007199254740991,
+              "type": "integer"
+            },
+            "rows": {
+              "items": {
+                "additionalProperties": false,
+                "properties": {
+                  "duplicateOfID": {
+                    "description": "The record already held under the same name, or empty.",
+                    "type": "string"
+                  },
+                  "line": {
+                    "maximum": 9007199254740991,
+                    "minimum": -9007199254740991,
+                    "type": "integer"
+                  },
+                  "outcome": {
+                    "enum": [
+                      "create",
+                      "update",
+                      "skip",
+                      "refused"
+                    ],
+                    "type": "string"
+                  },
+                  "problems": {
+                    "items": {
+                      "enum": [
+                        "name_missing",
+                        "name_repeated_in_file",
+                        "organization_unknown",
+                        "organization_ambiguous",
+                        "type_unknown",
+                        "status_unknown",
+                        "importance_unknown",
+                        "owner_unresolved",
+                        "email_invalid",
+                        "contact_unreachable",
+                        "field_of_other_kind"
+                      ],
+                      "type": "string"
+                    },
+                    "type": "array"
+                  },
+                  "recordID": {
+                    "description": "The record written or to be updated, or empty.",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "line",
+                  "outcome",
+                  "duplicateOfID",
+                  "recordID",
+                  "problems"
+                ],
+                "type": "object"
+              },
+              "type": "array"
+            },
+            "skipped": {
+              "maximum": 9007199254740991,
+              "minimum": -9007199254740991,
+              "type": "integer"
+            },
+            "updated": {
+              "maximum": 9007199254740991,
+              "minimum": -9007199254740991,
+              "type": "integer"
+            },
+            "written": {
+              "description": "false when nothing was written, because this was a dry run or a record was refused.",
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "dryRun",
+            "written",
+            "created",
+            "updated",
+            "skipped",
+            "refused",
+            "rows"
+          ],
+          "type": "object"
+        }
+      },
+      "sideEffect": "workspace_write",
+      "sideEffectClass": "workspace_write",
+      "version": "1",
+      "worksOffline": false
+    },
+    {
+      "answeredBy": "record",
+      "availability": {
+        "state": "ok"
+      },
       "canonicalName": "company_settings_get",
       "description": "The company settings: its name, country, language, time zone, base currency, the work locations attendance can be recorded at, the annual leave a person is granted, whether everybody may see the whole company's attendance, and the address of its picture. Read this to answer 'what time zone are we on', 'which currency do we use', or 'where can we clock in from'. The work location names are what attendance_add's location takes.",
       "estimatedLatency": "low",

@@ -37,6 +37,8 @@ import {
 	crmVocabularyGet,
 	crmVocabularySet
 } from './crm-tools';
+import { crmRecordImport } from './crm-import-tools';
+import { crmRecordImportInputSchema } from '../catalog/crm';
 import {
 	companyDocumentDownload,
 	companyDocumentList,
@@ -198,6 +200,7 @@ const toolsOverTheRecord: Record<string, ToolRun> = {
 	crm_opportunity_archive: (context, input) => crmOpportunityArchive(context, input),
 	crm_vocabulary_get: (context) => crmVocabularyGet(context),
 	crm_vocabulary_set: (context, input) => crmVocabularySet(context, input),
+	crm_record_import: (context, input) => crmRecordImport(context, crmRecordImportInputSchema.parse(input)),
 	crm_activity_list: (context, input) => crmActivityList(context, input),
 	crm_activity_save: (context, input) => crmActivitySave(context, input)
 };

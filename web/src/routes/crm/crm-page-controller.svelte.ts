@@ -264,6 +264,10 @@ export class CRMPageController {
 		await this.mutate(() => archiveCRMOrganization(organizationID), ['organizations']);
 	}
 
+	async reload(changed: readonly CRMReadPart[]): Promise<void> {
+		await this.mutateWithoutAForm(async () => {}, changed);
+	}
+
 	async saveContact(contact: CRMContact): Promise<void> {
 		await this.mutate(() => updateCRMContact(contact.id, contactPayload(contact)), ['contacts']);
 	}

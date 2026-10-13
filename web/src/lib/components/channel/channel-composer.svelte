@@ -26,7 +26,8 @@
 	import ComposerEditor from './composer-editor.svelte';
 	import type { ComposerFormat } from './composer-formatting';
 	import { canChangeMessages } from './channel-api';
-	import { fileToAttachment, formatAttachmentMeta } from './channel-attachments';
+	import { formatAttachmentMeta } from './channel-attachments';
+	import { PendingAttachments } from './composer-pending-attachments.svelte';
 	import type { MentionCandidate, MentionPerson } from '$lib/messenger/mention-candidates';
 	import { mentionKeyAction } from '$lib/messenger/mention-draft';
 	import { createMentionPicker } from '$lib/messenger/mention-picker.svelte';
@@ -65,14 +66,6 @@
 		onCapture?: () => void;
 	} = $props();
 
-	type PendingAttachment = {
-		id: string;
-		previewURL: string;
-		isImage: boolean;
-		sizeBytes: number;
-		attachment: ChannelOutgoingAttachment;
-	};
-
 	const text = createPageText(channelText);
 	const isMobile = new IsMobile(640);
 	let showsSelectionFormatting = $state(false);
@@ -82,8 +75,7 @@
 	let activeFormats = $state<ComposerFormat[]>([]);
 	let fileInput = $state<HTMLInputElement | null>(null);
 	let form = $state<HTMLFormElement | null>(null);
-	let pendingAttachments = $state<PendingAttachment[]>([]);
-	let attachmentSerial = 0;
+	const pendingAttachments = new PendingAttachments();
 	let showsFormatToolbar = $state(false);
 	const formatToggleLabel = $derived(showsFormatToolbar ? text.hideFormatting : text.showFormatting);
 	const canMention = $derived(canChangeMessages() && participants.length > 0);
@@ -97,21 +89,25 @@
 		...(mentions.isOpen ? { 'aria-activedescendant': `mention-row-${name}-${mentions.active}` } : {})
 	});
 	export function clear(): void {
-		clearAttachments();
+		pendingAttachments.clear();
 		value = '';
+	}
+
+	export function attach(files: File[]): Promise<void> {
+		return pendingAttachments.add(files);
 	}
 
 	async function submit(event: SubmitEvent) {
 		event.preventDefault();
 		const trimmed = value.trim();
-		const attachments = pendingAttachments.map((pending) => pending.attachment);
+		const attachments = pendingAttachments.outgoing;
 		if ((!trimmed && attachments.length === 0) || isSending) return;
 		const outgoingMentions = mentions.mentionsIn(trimmed);
 		isSending = true;
 		value = '';
 		mentions.forget();
 		const attachmentSummary = attachments.map((attachment) => attachment.filename).join(', ');
-		clearAttachments();
+		pendingAttachments.clear();
 		await onSend({ text: trimmed, attachments, mentions: outgoingMentions, attachmentSummary }).finally(
 			() => (isSending = false)
 		);
@@ -124,29 +120,8 @@
 		return files;
 	}
 
-	async function handleFilesSelected(event: Event) {
-		const built: PendingAttachment[] = [];
-		for (const file of filesFromInput(event)) {
-			built.push({
-				id: `attachment-${attachmentSerial++}`,
-				previewURL: URL.createObjectURL(file),
-				isImage: file.type.startsWith('image/'),
-				sizeBytes: file.size,
-				attachment: await fileToAttachment(file)
-			});
-		}
-		pendingAttachments = [...pendingAttachments, ...built];
-	}
-
-	function removeAttachment(id: string) {
-		const removed = pendingAttachments.find((pending) => pending.id === id);
-		if (removed) URL.revokeObjectURL(removed.previewURL);
-		pendingAttachments = pendingAttachments.filter((pending) => pending.id !== id);
-	}
-
-	function clearAttachments() {
-		for (const pending of pendingAttachments) URL.revokeObjectURL(pending.previewURL);
-		pendingAttachments = [];
+	function handleFilesSelected(event: Event): Promise<void> {
+		return pendingAttachments.add(filesFromInput(event));
 	}
 
 	function handleInput(): void {
@@ -212,43 +187,11 @@
 	onMount(() => {
 		showsFormatToolbar = isFormatToolbarShown();
 	});
-	onDestroy(clearAttachments);
+	onDestroy(() => pendingAttachments.clear());
 </script>
 
 <form bind:this={form} onsubmit={submit} class="channel-composer relative px-3 py-2 sm:p-3">
 	<input bind:this={fileInput} type="file" multiple class="hidden" onchange={handleFilesSelected} />
-	{#if pendingAttachments.length > 0}
-		<Attachment.Group class="mb-2">
-			{#each pendingAttachments as pending (pending.id)}
-				<Attachment.Root size="sm">
-					{#if pending.isImage}
-						<Attachment.Media variant="image">
-							<img src={pending.previewURL} alt="" />
-						</Attachment.Media>
-					{:else}
-						<Attachment.Media>
-							<FileIcon />
-						</Attachment.Media>
-					{/if}
-					<Attachment.Content>
-						<Attachment.Title>{pending.attachment.filename}</Attachment.Title>
-						<Attachment.Description>
-							{formatAttachmentMeta({
-								mimeType: pending.attachment.contentType,
-								filename: pending.attachment.filename,
-								sizeBytes: pending.sizeBytes
-							})}
-						</Attachment.Description>
-					</Attachment.Content>
-					<Attachment.Actions>
-						<Attachment.Action aria-label={text.removeAttachment} onclick={() => removeAttachment(pending.id)}>
-							<XIcon />
-						</Attachment.Action>
-					</Attachment.Actions>
-				</Attachment.Root>
-			{/each}
-		</Attachment.Group>
-	{/if}
 	{#if mentions.isOpen}
 		<MentionPopup
 			{name}
@@ -260,6 +203,40 @@
 		/>
 	{/if}
 	<InputGroup.Root class="composer-input frosted-surface">
+		{#if pendingAttachments.items.length > 0}
+			<InputGroup.Addon align="block-start" class="composer-attachments">
+				<Attachment.Group class="w-full">
+					{#each pendingAttachments.items as pending (pending.id)}
+						<Attachment.Root size="sm">
+							{#if pending.isImage}
+								<Attachment.Media variant="image">
+									<img src={pending.previewURL} alt="" />
+								</Attachment.Media>
+							{:else}
+								<Attachment.Media>
+									<FileIcon />
+								</Attachment.Media>
+							{/if}
+							<Attachment.Content>
+								<Attachment.Title>{pending.attachment.filename}</Attachment.Title>
+								<Attachment.Description>
+									{formatAttachmentMeta({
+										mimeType: pending.attachment.contentType,
+										filename: pending.attachment.filename,
+										sizeBytes: pending.sizeBytes
+									})}
+								</Attachment.Description>
+							</Attachment.Content>
+							<Attachment.Actions>
+								<Attachment.Action aria-label={text.removeAttachment} onclick={() => pendingAttachments.remove(pending.id)}>
+									<XIcon />
+								</Attachment.Action>
+							</Attachment.Actions>
+						</Attachment.Root>
+					{/each}
+				</Attachment.Group>
+			</InputGroup.Addon>
+		{/if}
 		<ComposerEditor
 			bind:this={composerEditor}
 			bind:value
@@ -271,6 +248,7 @@
 			onInput={handleInput}
 			onSelectionChange={handleSelectionChange}
 			onBlur={() => mentions.close()}
+			onPasteFiles={(files) => void pendingAttachments.add(files)}
 		/>
 		<InputGroup.Addon align="inline-start" class="composer-tools-start sm:hidden">
 			<InputGroup.Button
@@ -366,7 +344,7 @@
 		variant="default"
 		size="icon-sm"
 		class={className}
-		disabled={disabled || (value.trim().length === 0 && pendingAttachments.length === 0) || isSending}
+		disabled={disabled || (value.trim().length === 0 && pendingAttachments.items.length === 0) || isSending}
 	>
 		<ArrowUpIcon />
 		<span class="sr-only">{text.send}</span>
@@ -390,9 +368,13 @@
 			padding: 3px;
 			border-radius: 20px;
 		}
+		.channel-composer :global(.composer-attachments) {
+			grid-column: 1 / -1;
+			grid-row: 1;
+		}
 		.channel-composer :global(.composer-tools-start),
 		.channel-composer :global(.composer-send-end) {
-			grid-row: 1;
+			grid-row: 2;
 			margin: 0;
 			padding: 0;
 		}
@@ -418,7 +400,7 @@
 		}
 		.channel-composer :global([data-slot="input-group-control"]) {
 			grid-column: 2;
-			grid-row: 1;
+			grid-row: 2;
 		}
 		.channel-composer :global(.tiptap) {
 			min-height: 32px;

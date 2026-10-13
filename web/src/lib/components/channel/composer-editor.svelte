@@ -14,6 +14,7 @@
 	} from './composer-formatting';
 	import { composerDocumentOf, markdownOfComposer } from './composer-markdown';
 	import type { WrittenMention } from '$lib/messenger/mention-draft';
+	import { filesToAttachFromClipboard } from './clipboard-files';
 
 	let {
 		value = $bindable(''),
@@ -24,7 +25,8 @@
 		onKeydown,
 		onInput,
 		onSelectionChange,
-		onBlur
+		onBlur,
+		onPasteFiles
 	}: {
 		value?: string;
 		activeFormats?: ComposerFormat[];
@@ -35,6 +37,7 @@
 		onInput: () => void;
 		onSelectionChange: () => void;
 		onBlur: () => void;
+		onPasteFiles: (files: File[]) => void;
 	} = $props();
 
 	const allFormats: ComposerFormat[] = [
@@ -117,6 +120,13 @@
 		return false;
 	}
 
+	function handlePaste(event: ClipboardEvent): boolean {
+		const files = filesToAttachFromClipboard(event.clipboardData);
+		if (files.length === 0) return false;
+		onPasteFiles(files);
+		return true;
+	}
+
 	function emit(current: Editor): void {
 		emittedValue = current.isEmpty ? '' : markdownOfComposer(current.getJSON());
 		value = emittedValue;
@@ -132,7 +142,8 @@
 			editable: !disabled,
 			editorProps: {
 				attributes: { ...ariaAttributes, class: editorClass, 'aria-multiline': 'true' },
-				handleKeyDown: (_view, event) => handleKeyDown(event)
+				handleKeyDown: (_view, event) => handleKeyDown(event),
+				handlePaste: (_view, event) => handlePaste(event)
 			},
 			onUpdate: ({ editor: current }) => emit(current),
 			onSelectionUpdate: () => onSelectionChange(),
