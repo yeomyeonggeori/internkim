@@ -35,6 +35,7 @@
 		switchMuted,
 		exportConversation,
 		leaveChannel,
+		hideDirectMessage,
 		openNewDirectMessage,
 		openNewChannel,
 		openBrowseChannels,
@@ -55,6 +56,7 @@
 		switchMuted: (conversationID: string) => void;
 		exportConversation: (conversation: ChannelSummary) => void;
 		leaveChannel: (channel: ChannelSummary) => void;
+		hideDirectMessage?: (conversation: ChannelSummary) => void;
 		openNewDirectMessage: () => void;
 		openNewChannel?: () => void;
 		openBrowseChannels?: () => void;
@@ -210,6 +212,8 @@
 							onSwitchMuted={() => switchMuted(conversation.id)}
 							exportLabel={exportText.exportConversation}
 							onExport={() => exportConversation(conversation)}
+							hideLabel={text.hideConversation}
+							onHide={hideDirectMessage ? () => hideDirectMessage(conversation) : undefined}
 						>
 							<Sidebar.MenuButton
 								isActive={shownActiveID === conversation.id}
