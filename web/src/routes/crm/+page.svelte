@@ -100,7 +100,6 @@
 		organizationTypeDefinitions,
 		pipelines: controller.pipelines,
 		stages: controller.stages,
-		currencyCatalogue,
 		companyBaseCurrency,
 		timeZone: browserTimeZone(),
 		text
