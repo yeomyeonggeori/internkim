@@ -37,10 +37,10 @@ describe('columns of an imported file', () => {
 	test('become rows that keep their line, split lists and read a status by its label', () => {
 		const rows = importedRows(
 			['name', 'tags', 'status', null],
-			[{ line: 3, cells: ['가나상사', '제조, 수출;우수', '활성', '버릴 값'] }],
+			[{ line: 3, cells: ['샘플상사', '제조, 수출;우수', '활성', '버릴 값'] }],
 			labels
 		);
 
-		expect(rows).toEqual([{ line: 3, name: '가나상사', tags: ['제조', '수출', '우수'], status: 'active' }]);
+		expect(rows).toEqual([{ line: 3, name: '샘플상사', tags: ['제조', '수출', '우수'], status: 'active' }]);
 	});
 });

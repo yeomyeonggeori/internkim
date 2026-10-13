@@ -940,6 +940,15 @@ func gateCases() map[string]catalogGateCase {
 				expectResultHolds(t, answered, `"stage":"on_hold"`)
 			},
 		},
+		"crm_record_import": {
+			kind:    provesCarrying,
+			reaches: map[gateBackend]*standingIn{admindOverTheSocket: answering(`{"tool":"crm_record_import","result":{"dryRun":true,"written":false,"created":1,"updated":0,"skipped":0,"refused":0,"rows":[{"line":2,"outcome":"create","duplicateOfID":"","recordID":"","problems":[]}]}}`)},
+			input:   `{"kind":"organization","dryRun":true,"rows":[{"line":2,"name":"\uc0d8\ud50c\uc0c1\uc0ac"}]}`,
+			expect: func(t *testing.T, answered capabilities.ToolInvokeResponse) {
+				expectSucceeded(t, answered)
+				expectResultHolds(t, answered, `"outcome":"create"`)
+			},
+		},
 		"crm_vocabulary_set": {
 			kind:    provesCarrying,
 			reaches: map[gateBackend]*standingIn{admindOverTheSocket: answering(`{"tool":"crm_vocabulary_set","result":{"organizationTypes":[{"id":"customer","name":"\uace0\uac1d"}],"pipelines":[{"id":"partnership","name":"\ud30c\ud2b8\ub108\uc2ed"}],"stages":[{"stage":"waiting","outcome":"open"},{"stage":"in_progress","outcome":"open"},{"stage":"review","outcome":"open"},{"stage":"done","outcome":"won"},{"stage":"on_hold","outcome":"on_hold"},{"stage":"lost","outcome":"lost"}]}}`)},
