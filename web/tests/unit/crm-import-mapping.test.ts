@@ -1,4 +1,8 @@
 import { describe, expect, test } from 'bun:test';
+import { interimCurrencyCatalogue } from '../../src/lib/currency/currency-catalogue';
+import { crmExportTable } from '../../src/routes/crm/crm-export-table';
+import { crmImportFieldNames } from '../../src/routes/crm/crm-import-headers';
+import { crmText, type CRMText } from '../../src/routes/crm/text';
 import {
 	crmImportFields,
 	importedRows,
@@ -43,4 +47,42 @@ describe('columns of an imported file', () => {
 
 		expect(rows).toEqual([{ line: 3, name: '샘플상사', tags: ['제조', '수출', '우수'], status: 'active' }]);
 	});
+});
+
+describe('a file the CRM exported', () => {
+	function exportedColumns(tab: 'relationships' | 'contacts', text: CRMText): string[] {
+		return crmExportTable(tab, {
+			organizations: [],
+			contacts: [],
+			opportunities: [],
+			activities: [],
+			organizationTypeDefinitions: [],
+			pipelines: [],
+			stages: [],
+			currencyCatalogue: interimCurrencyCatalogue,
+			companyBaseCurrency: 'KRW',
+			timeZone: 'Asia/Seoul',
+			text
+		}).columns;
+	}
+
+	for (const text of [crmText.ko, crmText.en]) {
+		test(`matches every column it can import by itself in ${text === crmText.ko ? 'Korean' : 'English'}`, () => {
+			const organizationColumns = exportedColumns('relationships', text);
+			expect(
+				suggestedMapping(organizationColumns, crmImportFields.organization, crmImportFieldNames('organization'))
+			).toEqual(['name', 'types', 'status', 'importance', 'ownerPersonHint', null, 'address', 'tags', 'description']);
+
+			const contactColumns = exportedColumns('contacts', text);
+			expect(suggestedMapping(contactColumns, crmImportFields.contact, crmImportFieldNames('contact'))).toEqual([
+				'name',
+				'organizationName',
+				'role',
+				'department',
+				'email',
+				'phoneNumber',
+				'description'
+			]);
+		});
+	}
 });

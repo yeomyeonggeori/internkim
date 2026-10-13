@@ -12,6 +12,7 @@
 	import { createPageText } from '$lib/i18n/page-text.svelte';
 	import { crmErrorMessage } from './crm-error-text';
 	import { crmImportMaxFileBytes } from './crm-import-csv';
+	import { crmImportFieldNames } from './crm-import-headers';
 	import { CRMImportFlow, crmImportFilters, type CRMImportPreviewRow } from './crm-import-flow.svelte';
 	import { crmImportRequiredFields, type CRMImportField } from './crm-import-mapping';
 	import { crmImportText } from './crm-import-text';
@@ -24,7 +25,7 @@
 	}: {
 		open?: boolean;
 		kind: CRMRecordImportKind;
-		onImported: () => void;
+		onImported: () => Promise<void>;
 	} = $props();
 
 	const text = createPageText(crmImportText);
@@ -44,7 +45,7 @@
 	function newFlow(): CRMImportFlow {
 		return new CRMImportFlow({
 			kind,
-			fieldNames: (field) => [field, crmImportText.ko.fields[field], crmImportText.en.fields[field]],
+			fieldNames: crmImportFieldNames(kind),
 			valueLabels: {
 				status: [crmText.ko.organizationStatuses, crmText.en.organizationStatuses],
 				importance: [crmText.ko.importanceLabels, crmText.en.importanceLabels]
@@ -89,9 +90,9 @@
 		await run(async () => {
 			const saved = await flow.save();
 			if (!saved.written) return;
+			await onImported();
 			toast.success(text.saved.replace('{count}', String(saved.created + saved.updated)));
 			open = false;
-			onImported();
 		});
 	}
 
