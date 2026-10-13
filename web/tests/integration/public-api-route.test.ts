@@ -31,6 +31,7 @@ const { POST: invitePerson } = await import('../../src/routes/api/member/invite/
 const { GET: readDataRoom } = await import('../../src/routes/api/v1/data-room/[companyID]/+server');
 const { GET: readDataRoomLink, POST: unlockDataRoomLink } = await import('../../src/routes/api/v1/data-room/links/[linkID]/+server');
 const { GET: previewDataRoomCircle } = await import('../../src/routes/api/v1/data-room/preview/[circleID]/+server');
+const { GET: readDataRoomCompany } = await import('../../src/routes/api/v1/data-room/company/+server');
 const { POST: acceptDataRoom } = await import('../../src/routes/api/v1/data-room/invitations/[shareID]/+server');
 const { POST: sendDataRoomInvitation } = await import('../../src/routes/api/v1/data-room/invitations/[shareID]/send/+server');
 
@@ -126,6 +127,12 @@ function previewAs(token: string, circleID: string, query = ''): Promise<RouteAn
 	const request = asking(`/data-room/preview/${circleID}${query}`, token);
 	return answerOf(() => Promise.resolve(previewDataRoomCircle({ request, url: new URL(request.url),
 		params: { circleID }, platform: undefined } as Parameters<typeof previewDataRoomCircle>[0])));
+}
+
+function companyAs(token: string): Promise<RouteAnswer> {
+	const request = asking('/data-room/company', token);
+	return answerOf(() => Promise.resolve(readDataRoomCompany({ request, url: new URL(request.url),
+		params: {}, platform: undefined } as Parameters<typeof readDataRoomCompany>[0])));
 }
 
 async function answerOf(handler: () => Promise<Response>): Promise<RouteAnswer> {
@@ -924,6 +931,7 @@ function reachDocumented(operation: Operation, revocableName: string): Promise<R
 			params: { companyID }, platform: undefined } as Parameters<typeof readDataRoom>[0])));
 	}
 	if (operation.path === '/data-room/preview/{circleID}') return previewAs(administratorSession, 'investor');
+	if (operation.path === '/data-room/company') return companyAs(sessionToken);
 	if (operation.path === '/data-room/invitations/{shareID}') {
 		const shareID = crypto.randomUUID();
 		const request = asking(`/data-room/invitations/${shareID}`, sessionToken, { method: 'POST' });
@@ -1192,5 +1200,25 @@ describe('a share link preview', () => {
 	test('refuses a circle that reads more than the member may share', async () => {
 		const preview = await previewAs(sessionToken, 'leadership');
 		expect(preview.status).toBe(403);
+	});
+});
+
+describe('the company a data room shows', () => {
+	const companyOf = (body: unknown) => z.object({
+		profile: z.record(z.string(), z.unknown()),
+		metrics: z.array(z.object({ metric: z.string() }))
+	}).parse(body);
+
+	test('sends each reader only the fields of the categories they read', async () => {
+		await client.from('company').update({ profile: { brandName: { en: 'Sample' }, capital: { amount: 1000, currency: 'USD' }, bankAccount: { en: 'Sample Bank 000' } } }).eq('id', companyID);
+		await client.from('company_metric').insert({ company_id: companyID, metric: 'annualRevenue', year: 2025, value: 1000, currency_code: 'USD', value_usd: 1000 });
+
+		const member = companyOf((await companyAs(sessionToken)).body);
+		const investor = companyOf(z.object({ company: z.unknown() }).parse((await previewAs(administratorSession, 'investor')).body).company);
+
+		expect(Object.keys(member.profile)).toEqual(['brandName']);
+		expect(member.metrics).toEqual([]);
+		expect(Object.keys(investor.profile).sort()).toEqual(['brandName', 'capital']);
+		expect(investor.metrics.map((metric) => metric.metric)).toEqual(['annualRevenue']);
 	});
 });

@@ -8,6 +8,8 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"regexp"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -97,12 +99,15 @@ func (held heldCompanyProfile) changeForLanguage(language string) map[string]any
 		}
 	}
 	for field, value := range map[string]string{
-		"foundedDate": held.FoundedDate, "capital": held.Capital, "fiscalYearEnd": held.FiscalYearEnd,
+		"foundedDate": held.FoundedDate, "fiscalYearEnd": held.FiscalYearEnd,
 		"phone": held.Phone, "fax": held.Fax, "email": held.Email, "website": held.Website,
 	} {
 		if trimmed := strings.TrimSpace(value); trimmed != "" {
 			change[field] = trimmed
 		}
+	}
+	if capital := strings.TrimSpace(held.Capital); capital != "" {
+		change["capital"] = capitalAsMoney(capital)
 	}
 	if held.EmployeeCount > 0 {
 		change["employeeCount"] = held.EmployeeCount
@@ -197,4 +202,18 @@ func (service *Service) handleCompanyProfileCarry(responseWriter http.ResponseWr
 	}
 	service.sweepTheCompanyProfileTheRecordNowHolds(request.Context())
 	service.writeJSON(responseWriter, report)
+}
+
+var writtenCapital = regexp.MustCompile(`^[$₩]?\s*([0-9][0-9,]*(?:\.[0-9]+)?)\s*([A-Z]{3})$`)
+
+func capitalAsMoney(written string) any {
+	parts := writtenCapital.FindStringSubmatch(strings.ToUpper(written))
+	if parts == nil {
+		return written
+	}
+	amount, errorValue := strconv.ParseFloat(strings.ReplaceAll(parts[1], ",", ""), 64)
+	if errorValue != nil {
+		return written
+	}
+	return map[string]any{"amount": amount, "currency": parts[2]}
 }

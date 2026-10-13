@@ -54,7 +54,16 @@ for (const width of [320, 360, 390, 568, 1280]) {
 		await capture('share-invitation');
 		await page.route('**/api/v1/data-room/00000000-0000-4000-8000-000000000002', route => route.fulfill({ json: {
 			categories: [{ code: 'C', parent: null, name: 'A long category label that should remain readable', name_ko: '법인 자료', description: '', slug: 'corporate' }],
-			documents: [{ id: 'document-sample', title: '공유 문서의 긴 제목과 상세 설명도 좁은 화면에서 읽을 수 있습니다', summary: '자료실 미리보기 검증', category_code: 'C', document_date: null, status: null, extension: 'pdf' }]
+			documents: [{ id: 'document-sample', title: '공유 문서의 긴 제목과 상세 설명도 좁은 화면에서 읽을 수 있습니다', summary: '자료실 미리보기 검증', category_code: 'C', document_date: null, status: null, extension: 'pdf' }],
+			company: {
+				profile: { brandName: { ko: '샘플' }, slogan: { ko: '좁은 화면에서도 회사 소개가 한눈에 읽힙니다' }, capital: { amount: 500000000, currency: 'KRW' }, foundedDate: '2020-01-02' },
+				metrics: [
+					{ metric: 'annualRevenue', year: 2024, value: 900000000, currency: 'KRW' },
+					{ metric: 'annualRevenue', year: 2025, value: 1200000000, currency: 'KRW' }
+				],
+				records: [{ category: 'funding', date: '2025-03-01', title: '시드 투자 유치', attributes: { leadInvestor: 'ABC Ventures' } }]
+			},
+			viewer: null
 		} }));
 		await page.goto('/share/00000000-0000-4000-8000-000000000002');
 		await expect(page.getByRole('button', { name: /공유 문서의 긴 제목/ })).toBeVisible();
@@ -64,13 +73,12 @@ for (const width of [320, 360, 390, 568, 1280]) {
 			await expect(page.getByRole('listbox')).toBeHidden();
 		}
 		await capture('shared-room');
+		await page.getByRole('tab', { name: /^(Company|회사 소개)$/ }).click();
+		await expect(page.getByText('시드 투자 유치')).toBeVisible();
+		await capture('shared-room-company');
 		await page.goto('/oauth/consent');
 		await expect(page.locator('main')).toBeVisible();
 		await capture('consent-sign-in');
-		await page.route('**/company/api/session', route => route.fulfill({ json: { available: true, authenticated: false } }));
-		await page.goto('/company');
-		await expect(page.locator('input[type="password"]')).toBeVisible();
-		await capture('company-locked');
 		async function capture(name: string) {
 			expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
 			const output = process.env.MOBILE_UX_SCREENSHOTS;

@@ -2,6 +2,7 @@ import { error, json } from '@sveltejs/kit';
 import { z } from 'zod';
 import { environmentOf } from '$lib/server/agent-request';
 import { dataRoomCaller } from '$lib/server/data-room-request';
+import { companyShownTo } from '$lib/server/data-room-company';
 import { downloadedAt, guestDownloadResponse } from '$lib/server/data-room-download';
 import { sharedDataRoomSchema, sharedDocumentColumns } from '$lib/data-room/schemas';
 import { derivedPath, isDerivedFileName, withOriginalExtension } from '$lib/data-room/storage-path';
@@ -29,12 +30,13 @@ export const GET: RequestHandler = async ({ request, platform, params, url }) =>
 		if (signed.error) error(404, 'file not found or download not permitted');
 		return json({ downloadURL: signed.data.signedUrl });
 	}
-	const [categories, documents] = await Promise.all([
+	const [categories, documents, company] = await Promise.all([
 		caller.from('data_room_category').select('code,parent,name,name_ko,description,slug')
 			.eq('company_id', params.companyID).order('position'),
 		caller.from('company_document').select(sharedDocumentColumns)
-			.eq('company_id', params.companyID).not('category_code', 'is', null).order('created_at', { ascending: false })
+			.eq('company_id', params.companyID).not('category_code', 'is', null).order('created_at', { ascending: false }),
+		companyShownTo(caller, params.companyID)
 	]);
 	if (categories.error || documents.error) error(502, 'the data room could not be read');
-	return json(sharedDataRoomSchema.parse({ categories: categories.data, documents: documents.data.map(withOriginalExtension), viewer: viewerEmail }));
+	return json(sharedDataRoomSchema.parse({ categories: categories.data, documents: documents.data.map(withOriginalExtension), company, viewer: viewerEmail }));
 };

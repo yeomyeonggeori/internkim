@@ -11,6 +11,7 @@ import {
 
 import { ResourceMutationEffect, type CapabilityToolDefinition } from './definition';
 import { imageFieldOf, serviceFileImageExtensions, serviceFileNames, serviceFiles } from '$lib/data-room/service-files';
+import { moneySchema } from '$lib/money';
 
 const companyMetricCurrencies = [
   'USD', 'KRW', 'EUR', 'JPY', 'GBP', 'CNY', 'HKD', 'SGD', 'AUD', 'CAD', 'CHF', 'INR',
@@ -94,7 +95,7 @@ const companyInfoSetInputSchema = z.strictObject({
   address: z.string().describe("Registered head-office address.").optional(),
   bankAccount: z.string().describe("One-line bank account: bank, account number, holder. Use the 'en' slot for international wire details (SWIFT/IBAN).").optional(),
   brandName: z.string().describe("Service or brand name when it differs from the legal name.").optional(),
-  capital: z.string().describe("Paid-in capital, written the way the company states it, e.g. '500,000,000 KRW'.").optional(),
+  capital: moneySchema.describe("Paid-in capital as an amount and its currency, e.g. {\"amount\": 500000000, \"currency\": \"KRW\"}.").optional(),
   description: z.string().describe("One-line company description for proposals and IR material.").optional(),
   email: z.string().describe("Main company email address.").optional(),
   employeeCount: z.int().describe("Official employee headcount. Independent of platform member count.").optional(),
@@ -195,7 +196,7 @@ export const companyProfileResultSchema = z.strictObject({
   bankAccount: z.string(),
   legalAttributes: z.array(companyProfileLegalAttributeSchema),
   foundedDate: z.string(),
-  capital: z.string(),
+  capital: moneySchema.nullable(),
   fiscalYearEnd: z.string(),
   employeeCount: z.number().int(),
   phone: z.string(),

@@ -8,8 +8,6 @@ import type {
 	CompanyHoliday,
 	CompanyHolidayInput,
 	CompanyHolidaysResponse,
-	CompanyShareSettings,
-	CompanyShareSettingsUpdate,
 	CredentialProviderStatus,
 	CredentialProvidersResponse,
 	OrgGroup,
@@ -89,30 +87,6 @@ export async function updateWorkspaceSettings(adminBaseURL: string, settings: Wo
 		body: JSON.stringify(settings)
 	});
 	return readJSON<WorkspaceSettings>(response, fallbackMessage);
-}
-
-export async function fetchCompanyShareSettings(adminBaseURL: string, fallbackMessage: string): Promise<CompanyShareSettings> {
-	const response = await fetch(`${adminBaseURL}/company-share`, { credentials: 'include' });
-	return readJSON<CompanyShareSettings>(response, fallbackMessage);
-}
-
-export async function updateCompanyShareSettings(
-	adminBaseURL: string,
-	settings: CompanyShareSettingsUpdate,
-	fallbackMessage: string
-): Promise<CompanyShareSettings> {
-	const response = await fetch(`${adminBaseURL}/company-share`, {
-		method: 'PUT',
-		credentials: 'include',
-		headers: { 'Content-Type': 'application/json' },
-		body: JSON.stringify(settings)
-	});
-	return readJSON<CompanyShareSettings>(response, fallbackMessage);
-}
-
-export async function publishCompanyShare(adminBaseURL: string, fallbackMessage: string): Promise<CompanyShareSettings> {
-	const response = await fetch(`${adminBaseURL}/company-share/publish`, { method: 'POST', credentials: 'include' });
-	return readJSON<CompanyShareSettings>(response, fallbackMessage);
 }
 
 export async function fetchUsers(adminBaseURL: string, fallbackMessage: string): Promise<UsersResponse> {

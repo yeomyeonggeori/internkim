@@ -110,6 +110,12 @@ func gateCases() map[string]catalogGateCase {
 			input:   `{"code":"FZ","parent":"F","slug":"custom","name":"Custom","nameKO":"추가","description":"Sample finance records."}`,
 			expect:  func(t *testing.T, answered capabilities.ToolInvokeResponse) { expectSucceeded(t, answered) },
 		},
+		"dataroom_field_update": {
+			kind:    provesCarrying,
+			reaches: map[gateBackend]*standingIn{admindOverTheSocket: answering(`{"tool":"dataroom_field_update","result":{"saved":true}}`)},
+			input:   `{"field":"capital","categoryCode":"CO"}`,
+			expect:  func(t *testing.T, answered capabilities.ToolInvokeResponse) { expectSucceeded(t, answered) },
+		},
 		"circle_update": {
 			kind:    provesCarrying,
 			reaches: map[gateBackend]*standingIn{admindOverTheSocket: answering(`{"tool":"circle_update","result":{"saved":true}}`)},
@@ -546,7 +552,7 @@ func gateCases() map[string]catalogGateCase {
 		},
 		"company_info_get": {
 			kind:    provesCarrying,
-			reaches: map[gateBackend]*standingIn{admindOverTheSocket: answering(`{"tool":"company_info_get","result":{"language":"ko","name":"\uc8fc\uc2dd\ud68c\uc0ac \uc608\uc2dc","brandName":"","slogan":"","description":"","representative":"\uc774\uc0d8\ud50c","representativeTitle":"\ub300\ud45c\uc774\uc0ac","address":"\uc11c\uc6b8","officeAddress":"","jurisdiction":"","bankAccount":"","legalAttributes":[],"foundedDate":"","capital":"","fiscalYearEnd":"","employeeCount":0,"phone":"","fax":"","email":"","website":"","missingFields":["bankAccount","phone","email"],"updatedAt":""}}`)},
+			reaches: map[gateBackend]*standingIn{admindOverTheSocket: answering(`{"tool":"company_info_get","result":{"language":"ko","name":"\uc8fc\uc2dd\ud68c\uc0ac \uc608\uc2dc","brandName":"","slogan":"","description":"","representative":"\uc774\uc0d8\ud50c","representativeTitle":"\ub300\ud45c\uc774\uc0ac","address":"\uc11c\uc6b8","officeAddress":"","jurisdiction":"","bankAccount":"","legalAttributes":[],"foundedDate":"","capital":null,"fiscalYearEnd":"","employeeCount":0,"phone":"","fax":"","email":"","website":"","missingFields":["bankAccount","phone","email"],"updatedAt":""}}`)},
 			input:   `{"language":"ko"}`,
 			expect: func(t *testing.T, answered capabilities.ToolInvokeResponse) {
 				expectSucceeded(t, answered)
@@ -555,7 +561,7 @@ func gateCases() map[string]catalogGateCase {
 		},
 		"company_info_set": {
 			kind:    provesCarrying,
-			reaches: map[gateBackend]*standingIn{admindOverTheSocket: answering(`{"tool":"company_info_set","result":{"language":"ko","name":"\uc8fc\uc2dd\ud68c\uc0ac \uc608\uc2dc","brandName":"","slogan":"","description":"","representative":"\uc774\uc0d8\ud50c","representativeTitle":"\ub300\ud45c\uc774\uc0ac","address":"\uc11c\uc6b8","officeAddress":"","jurisdiction":"","bankAccount":"","legalAttributes":[{"label":"\uc0ac\uc5c5\uc790\ub4f1\ub85d\ubc88\ud638","value":"123-45-67890"}],"foundedDate":"","capital":"","fiscalYearEnd":"","employeeCount":0,"phone":"","fax":"","email":"","website":"","missingFields":[],"updatedAt":"2026-09-03T00:00:00Z"}}`)},
+			reaches: map[gateBackend]*standingIn{admindOverTheSocket: answering(`{"tool":"company_info_set","result":{"language":"ko","name":"\uc8fc\uc2dd\ud68c\uc0ac \uc608\uc2dc","brandName":"","slogan":"","description":"","representative":"\uc774\uc0d8\ud50c","representativeTitle":"\ub300\ud45c\uc774\uc0ac","address":"\uc11c\uc6b8","officeAddress":"","jurisdiction":"","bankAccount":"","legalAttributes":[{"label":"\uc0ac\uc5c5\uc790\ub4f1\ub85d\ubc88\ud638","value":"123-45-67890"}],"foundedDate":"","capital":null,"fiscalYearEnd":"","employeeCount":0,"phone":"","fax":"","email":"","website":"","missingFields":[],"updatedAt":"2026-09-03T00:00:00Z"}}`)},
 			input:   `{"language":"ko","representative":"\uc774\uc0d8\ud50c","legalAttributes":"{\"\uc0ac\uc5c5\uc790\ub4f1\ub85d\ubc88\ud638\": \"123-45-67890\"}"}`,
 			expect: func(t *testing.T, answered capabilities.ToolInvokeResponse) {
 				expectSucceeded(t, answered)

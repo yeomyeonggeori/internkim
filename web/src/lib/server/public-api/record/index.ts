@@ -83,7 +83,7 @@ import {
 	leaveUpdate
 } from './leave-tools';
 import { personInvite, personList, personUpdate } from './people-tools';
-import { companyDataRoomGet, companyDataRoomCategorySet,
+import { companyDataRoomGet, companyDataRoomCategorySet, companyDataRoomFieldSet,
 	companyDataRoomShareCreate, companyDataRoomShareRevoke,
 	companyDataRoomLinksGet, companyDataRoomLinkCreate, companyDataRoomLinkRevoke } from './data-room';
 import { companyCircleList, companyCircleMemberSet, companyCircleSet } from './circle';
@@ -178,6 +178,7 @@ const toolsOverTheRecord: Record<string, ToolRun> = {
 	dataroom_link_add: (context, input) => companyDataRoomLinkCreate(context, input),
 	dataroom_link_delete: (context, input) => companyDataRoomLinkRevoke(context, input),
 	dataroom_category_update: (context, input) => companyDataRoomCategorySet(context, input),
+	dataroom_field_update: (context, input) => companyDataRoomFieldSet(context, input),
 	dataroom_share_add: (context, input) => companyDataRoomShareCreate(context, input),
 	dataroom_share_delete: (context, input) => companyDataRoomShareRevoke(context, input),
 	notification_settings_get: (context) => notificationSettingsGet(context),

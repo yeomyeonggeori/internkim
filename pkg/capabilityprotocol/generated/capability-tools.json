@@ -17346,7 +17346,30 @@
             "type": "string"
           },
           "capital": {
-            "type": "string"
+            "anyOf": [
+              {
+                "additionalProperties": false,
+                "properties": {
+                  "amount": {
+                    "description": "The amount in the currency's own unit, e.g. 500000000 for ₩500,000,000 or 10.5 for $10.50.",
+                    "type": "number"
+                  },
+                  "currency": {
+                    "description": "ISO 4217 currency code, e.g. KRW or USD.",
+                    "pattern": "^[A-Z]{3}$",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "amount",
+                  "currency"
+                ],
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "description": {
             "type": "string"
@@ -17470,7 +17493,30 @@
               "type": "string"
             },
             "capital": {
-              "type": "string"
+              "anyOf": [
+                {
+                  "additionalProperties": false,
+                  "properties": {
+                    "amount": {
+                      "description": "The amount in the currency's own unit, e.g. 500000000 for ₩500,000,000 or 10.5 for $10.50.",
+                      "type": "number"
+                    },
+                    "currency": {
+                      "description": "ISO 4217 currency code, e.g. KRW or USD.",
+                      "pattern": "^[A-Z]{3}$",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "amount",
+                    "currency"
+                  ],
+                  "type": "object"
+                },
+                {
+                  "type": "null"
+                }
+              ]
             },
             "description": {
               "type": "string"
@@ -17615,8 +17661,24 @@
             "type": "string"
           },
           "capital": {
-            "description": "Paid-in capital, written the way the company states it, e.g. '500,000,000 KRW'.",
-            "type": "string"
+            "additionalProperties": false,
+            "description": "Paid-in capital as an amount and its currency, e.g. {\"amount\": 500000000, \"currency\": \"KRW\"}.",
+            "properties": {
+              "amount": {
+                "description": "The amount in the currency's own unit, e.g. 500000000 for ₩500,000,000 or 10.5 for $10.50.",
+                "type": "number"
+              },
+              "currency": {
+                "description": "ISO 4217 currency code, e.g. KRW or USD.",
+                "pattern": "^[A-Z]{3}$",
+                "type": "string"
+              }
+            },
+            "required": [
+              "amount",
+              "currency"
+            ],
+            "type": "object"
           },
           "description": {
             "description": "One-line company description for proposals and IR material.",
@@ -17712,8 +17774,24 @@
             "type": "string"
           },
           "capital": {
-            "description": "Paid-in capital, written the way the company states it, e.g. '500,000,000 KRW'.",
-            "type": "string"
+            "additionalProperties": false,
+            "description": "Paid-in capital as an amount and its currency, e.g. {\"amount\": 500000000, \"currency\": \"KRW\"}.",
+            "properties": {
+              "amount": {
+                "description": "The amount in the currency's own unit, e.g. 500000000 for ₩500,000,000 or 10.5 for $10.50.",
+                "type": "number"
+              },
+              "currency": {
+                "description": "ISO 4217 currency code, e.g. KRW or USD.",
+                "pattern": "^[A-Z]{3}$",
+                "type": "string"
+              }
+            },
+            "required": [
+              "amount",
+              "currency"
+            ],
+            "type": "object"
           },
           "description": {
             "description": "One-line company description for proposals and IR material.",
@@ -17816,7 +17894,30 @@
             "type": "string"
           },
           "capital": {
-            "type": "string"
+            "anyOf": [
+              {
+                "additionalProperties": false,
+                "properties": {
+                  "amount": {
+                    "description": "The amount in the currency's own unit, e.g. 500000000 for ₩500,000,000 or 10.5 for $10.50.",
+                    "type": "number"
+                  },
+                  "currency": {
+                    "description": "ISO 4217 currency code, e.g. KRW or USD.",
+                    "pattern": "^[A-Z]{3}$",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "amount",
+                  "currency"
+                ],
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "description": {
             "type": "string"
@@ -17946,7 +18047,30 @@
               "type": "string"
             },
             "capital": {
-              "type": "string"
+              "anyOf": [
+                {
+                  "additionalProperties": false,
+                  "properties": {
+                    "amount": {
+                      "description": "The amount in the currency's own unit, e.g. 500000000 for ₩500,000,000 or 10.5 for $10.50.",
+                      "type": "number"
+                    },
+                    "currency": {
+                      "description": "ISO 4217 currency code, e.g. KRW or USD.",
+                      "pattern": "^[A-Z]{3}$",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "amount",
+                    "currency"
+                  ],
+                  "type": "object"
+                },
+                {
+                  "type": "null"
+                }
+              ]
             },
             "description": {
               "type": "string"
@@ -20111,6 +20235,14 @@
                 "description": {
                   "type": "string"
                 },
+                "fields": {
+                  "description": "What the company page shows to readers of this category: company_info keys, company_metric keys and company_record categories, e.g. ['capital'] or ['annualRevenue']. A field belongs to one category; one no category names is shown only to readers of X. Move one with dataroom_field_update.",
+                  "items": {
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
                 "name": {
                   "minLength": 1,
                   "type": "string"
@@ -20264,6 +20396,14 @@
                   },
                   "description": {
                     "type": "string"
+                  },
+                  "fields": {
+                    "description": "What the company page shows to readers of this category: company_info keys, company_metric keys and company_record categories, e.g. ['capital'] or ['annualRevenue']. A field belongs to one category; one no category names is shown only to readers of X. Move one with dataroom_field_update.",
+                    "items": {
+                      "minLength": 1,
+                      "type": "string"
+                    },
+                    "type": "array"
                   },
                   "name": {
                     "minLength": 1,
@@ -20529,6 +20669,109 @@
       },
       "outputSchemaStrict": true,
       "policyResource": "tool:dataroom_category_update",
+      "privacyClass": "workspace_company",
+      "requiresApproval": true,
+      "requiresUserPresence": false,
+      "resultContract": {
+        "effects": [
+          {
+            "effect": "updated",
+            "effectIdentity": "singleton",
+            "objectType": "data_room"
+          }
+        ],
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "additionalProperties": false,
+          "properties": {
+            "saved": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "saved"
+          ],
+          "type": "object"
+        }
+      },
+      "sideEffect": "workspace_write",
+      "sideEffectClass": "workspace_write",
+      "version": "1",
+      "worksOffline": false
+    },
+    {
+      "answeredBy": "record",
+      "approvalScope": "company",
+      "availability": {
+        "state": "ok"
+      },
+      "canonicalName": "dataroom_field_update",
+      "description": "Company dataroom: Choose who sees one company page field by naming the category whose readers see it; the field leaves the category that held it. Confirm the audience first: every circle and share that reads the category sees the value.",
+      "estimatedLatency": "low",
+      "idempotency": {
+        "required": false,
+        "scope": "operation",
+        "supported": false
+      },
+      "inputIntentSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "categoryCode": {
+            "description": "Exact code from dataroom_get whose readers should see the field. Omit to show it only to readers of X.",
+            "pattern": "^[A-Z]{1,2}$",
+            "type": "string"
+          },
+          "field": {
+            "description": "Exact field as stored: a company_info key such as 'capital', a company_metric key such as 'annualRevenue', or a company_record category such as 'funding'.",
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "categoryCode": {
+            "description": "Exact code from dataroom_get whose readers should see the field. Omit to show it only to readers of X.",
+            "pattern": "^[A-Z]{1,2}$",
+            "type": "string"
+          },
+          "field": {
+            "description": "Exact field as stored: a company_info key such as 'capital', a company_metric key such as 'annualRevenue', or a company_record category such as 'funding'.",
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "field"
+        ],
+        "type": "object"
+      },
+      "inputSchemaStrict": true,
+      "modelName": "dataroom_field_update",
+      "modelVisibility": "visible",
+      "modelVisible": true,
+      "name": "dataroom_field_update",
+      "namespace": "dataroom",
+      "namespaceSummary": "The company document archive: categories, sharing with people outside the company, and revocable links.",
+      "outputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "saved": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "saved"
+        ],
+        "type": "object"
+      },
+      "outputSchemaStrict": true,
+      "policyResource": "tool:dataroom_field_update",
       "privacyClass": "workspace_company",
       "requiresApproval": true,
       "requiresUserPresence": false,

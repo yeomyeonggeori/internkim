@@ -3,6 +3,7 @@ package centralplane
 import (
 	"context"
 	"fmt"
+	"strconv"
 	"strings"
 )
 
@@ -22,7 +23,7 @@ type CompanyProfile struct {
 	BankAccount         string                         `json:"bankAccount"`
 	LegalAttributes     []CompanyProfileLegalAttribute `json:"legalAttributes"`
 	FoundedDate         string                         `json:"foundedDate"`
-	Capital             string                         `json:"capital"`
+	Capital             *Money                         `json:"capital"`
 	FiscalYearEnd       string                         `json:"fiscalYearEnd"`
 	EmployeeCount       int                            `json:"employeeCount"`
 	Phone               string                         `json:"phone"`
@@ -31,6 +32,15 @@ type CompanyProfile struct {
 	Website             string                         `json:"website"`
 	MissingFields       []string                       `json:"missingFields"`
 	UpdatedAt           string                         `json:"updatedAt"`
+}
+
+type Money struct {
+	Amount   float64 `json:"amount"`
+	Currency string  `json:"currency"`
+}
+
+func (money Money) String() string {
+	return strconv.FormatFloat(money.Amount, 'f', -1, 64) + " " + money.Currency
 }
 
 type CompanyProfileLegalAttribute struct {

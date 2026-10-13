@@ -4,6 +4,7 @@
 	import { z } from 'zod';
 	import { Button } from '$lib/components/ui/button';
 	import * as Breadcrumb from '$lib/components/ui/breadcrumb';
+	import * as Tabs from '$lib/components/ui/tabs';
 	import FileBrowserList, { type FileBrowserEntry } from '$lib/components/file-browser-list.svelte';
 	import TooltipIconButton from '$lib/components/tooltip-icon-button.svelte';
 	import RefreshCwIcon from '@lucide/svelte/icons/refresh-cw';
@@ -19,6 +20,10 @@
 	} from '$lib/data-room/browser';
 	import { dataRoomGetResultSchema, companyDocumentListResultSchema } from '$lib/data-room/schemas';
 	import { dataRoomText } from '$lib/data-room/text';
+	import { dataRoomCompanySchema, isEmptyCompany, type DataRoomCompany } from '$lib/data-room/company';
+	import { dataRoomCompanyText } from '$lib/data-room/company-text';
+	import CompanyOverview from '$lib/data-room/company-overview.svelte';
+	import { dataRoomRequest } from '$lib/data-room/guest';
 	import DocumentViewer from '$lib/data-room/document-viewer.svelte';
 	import { previewSourceOf, type ViewerDocument } from '$lib/data-room/viewer';
 	import { formatFileSize, formatModified } from '$lib/files/view';
@@ -28,6 +33,8 @@
 	const text = createPageText(dataRoomText);
 	let room = $state<z.infer<typeof dataRoomGetResultSchema> | null>(null);
 	let documents = $state<DataRoomDocument[]>([]);
+	let company = $state<DataRoomCompany | null>(null);
+	let view = $state('documents');
 	let selectedCode = $state('');
 	let openID = $state<string | null>(null);
 	let isDownloading = $state(false);
@@ -35,6 +42,8 @@
 	let errorMessage = $state('');
 	let loadGeneration = 0;
 	const categories = $derived(room?.categories ?? []);
+	const companyText = $derived(dataRoomCompanyText[currentLocale.value]);
+	const hasCompany = $derived(company !== null && !isEmptyCompany(company));
 	const selectedCategory = $derived(categories.find((category) => category.code === selectedCode));
 	const parentCategory = $derived(
 		categories.find((category) => category.code === selectedCategory?.parent)
@@ -67,6 +76,10 @@
 			invokeTool('company_document_list', {}).then((answer) => {
 				if (generation !== loadGeneration) return;
 				documents = companyDocumentListResultSchema.parse(answer).documents;
+			}),
+			dataRoomRequest('/api/v1/data-room/company').then((answer) => {
+				if (generation !== loadGeneration) return;
+				company = dataRoomCompanySchema.parse(answer);
 			})
 		]);
 		if (generation !== loadGeneration) return;
@@ -140,47 +153,59 @@
 
 <div class="flex h-full min-h-0">
 	<div class="min-w-0 flex-1 overflow-auto p-4 md:p-6">
-		<div class="mb-4 flex items-center justify-between gap-3">
-			<Breadcrumb.Root
-				><Breadcrumb.List
-					>{#each breadcrumbs as crumb, index (crumb.code)}{#if index > 0}<Breadcrumb.Separator
-							/>{/if}<Breadcrumb.Item
-							>{#if index === breadcrumbs.length - 1}<Breadcrumb.Page>{crumb.name}</Breadcrumb.Page
-								>{:else}<Breadcrumb.Link onclick={() => openCategory(crumb.code)}
-									>{crumb.name}</Breadcrumb.Link
-								>{/if}</Breadcrumb.Item
-						>{/each}</Breadcrumb.List
-				></Breadcrumb.Root
-			>
-			<div class="flex items-center gap-2">
-				<TooltipIconButton label={text.refresh} variant="ghost" size="icon-sm" onclick={load}
-					><RefreshCwIcon /></TooltipIconButton
+		{#if hasCompany}
+			<Tabs.Root bind:value={view} class="mb-4">
+				<Tabs.List>
+					<Tabs.Trigger value="documents">{companyText.documentsTab}</Tabs.Trigger>
+					<Tabs.Trigger value="company">{companyText.companyTab}</Tabs.Trigger>
+				</Tabs.List>
+			</Tabs.Root>
+		{/if}
+		{#if company && hasCompany && view === 'company'}
+			<div class="max-w-4xl"><CompanyOverview {company} /></div>
+		{:else}
+			<div class="mb-4 flex items-center justify-between gap-3">
+				<Breadcrumb.Root
+					><Breadcrumb.List
+						>{#each breadcrumbs as crumb, index (crumb.code)}{#if index > 0}<Breadcrumb.Separator
+								/>{/if}<Breadcrumb.Item
+								>{#if index === breadcrumbs.length - 1}<Breadcrumb.Page>{crumb.name}</Breadcrumb.Page
+									>{:else}<Breadcrumb.Link onclick={() => openCategory(crumb.code)}
+										>{crumb.name}</Breadcrumb.Link
+									>{/if}</Breadcrumb.Item
+							>{/each}</Breadcrumb.List
+					></Breadcrumb.Root
 				>
-				{#if room}<SharePreview /><ShareLinks />{/if}
+				<div class="flex items-center gap-2">
+					<TooltipIconButton label={text.refresh} variant="ghost" size="icon-sm" onclick={load}
+						><RefreshCwIcon /></TooltipIconButton
+					>
+					{#if room}<SharePreview /><ShareLinks />{/if}
+				</div>
 			</div>
-		</div>
-		{#if errorMessage}<div role="alert" class="mb-4 flex items-center justify-between gap-3">
-				<p class="text-destructive text-sm">{errorMessage}</p>
-				<Button variant="outline" size="sm" onclick={load}>{text.retry}</Button>
-			</div>{/if}
-		<div class="flex items-start gap-4">
-			<FileBrowserList
-				{entries}
-				{isLoading}
-				hasLoadError={Boolean(errorMessage)}
-				title={text.title}
-				nameLabel={text.name}
-				countBadgeVariant="secondary"
-				columns={[
-					{ label: text.size, width: 'narrow' },
-					{ label: text.created, width: 'wide' },
-					{ label: text.modified, width: 'wide' }
-				]}
-				emptyLabel={text.empty}
-				selectedID={openID ?? undefined}
-				onSelect={openEntry}
-			/>
-		</div>
+			{#if errorMessage}<div role="alert" class="mb-4 flex items-center justify-between gap-3">
+					<p class="text-destructive text-sm">{errorMessage}</p>
+					<Button variant="outline" size="sm" onclick={load}>{text.retry}</Button>
+				</div>{/if}
+			<div class="flex items-start gap-4">
+				<FileBrowserList
+					{entries}
+					{isLoading}
+					hasLoadError={Boolean(errorMessage)}
+					title={text.title}
+					nameLabel={text.name}
+					countBadgeVariant="secondary"
+					columns={[
+						{ label: text.size, width: 'narrow' },
+						{ label: text.created, width: 'wide' },
+						{ label: text.modified, width: 'wide' }
+					]}
+					emptyLabel={text.empty}
+					selectedID={openID ?? undefined}
+					onSelect={openEntry}
+				/>
+			</div>
+		{/if}
 	</div>
 </div>
 

@@ -10,6 +10,7 @@ import {
 import { dataRoomUnlockSchema } from '$lib/data-room/links';
 import { sharedDataRoomLinkSchema, sharedDocumentColumns } from '$lib/data-room/schemas';
 import { downloadedAt, guestDownloadResponse } from '$lib/server/data-room-download';
+import { companyShownTo } from '$lib/server/data-room-company';
 import { derivedPath, isDerivedFileName, withOriginalExtension } from '$lib/data-room/storage-path';
 import type { RequestHandler } from './$types';
 
@@ -90,7 +91,7 @@ export const GET = async ({ params, platform, cookies, url }: DataRoomLinkReques
 			{ headers: { 'Cache-Control': 'no-store' } }
 		);
 	}
-	const [categories, documents] = await Promise.all([
+	const [categories, documents, company] = await Promise.all([
 		caller
 			.from('data_room_category')
 			.select('code,parent,name,name_ko,description,slug')
@@ -101,13 +102,15 @@ export const GET = async ({ params, platform, cookies, url }: DataRoomLinkReques
 			.select(sharedDocumentColumns)
 			.eq('company_id', companyID)
 			.not('category_code', 'is', null)
-			.order('created_at', { ascending: false })
+			.order('created_at', { ascending: false }),
+		companyShownTo(caller, companyID)
 	]);
 	if (categories.error || documents.error) error(502, 'the data room could not be read');
 	return json(
 		sharedDataRoomLinkSchema.parse({
 			categories: categories.data,
 			documents: documents.data.map(withOriginalExtension),
+			company,
 			canDownload,
 			expiresAt: new Date(expiresAt).toISOString(),
 			viewer: label

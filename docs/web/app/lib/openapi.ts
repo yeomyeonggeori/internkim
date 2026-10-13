@@ -847,7 +847,7 @@ function createPaths(copy: ApiCopy) {
 				operationId: 'readDataRoomLink', summary: 'Read the documents permitted by an opened share link', security: [{ dataRoomSession: [] }],
 				description: 'Requires the HttpOnly session cookie issued after code entry and acknowledgment. The link, its circle, and the permissions of its creator are checked on every read. Original downloads require a grant; signed URLs expire within one minute.',
 				parameters: [{ name: 'linkID', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }, { name: 'documentID', in: 'query', schema: { type: 'string', format: 'uuid' } }],
-				responses: { '200': { description: 'Permitted categories and documents, or downloadURL' }, '401': { description: 'Code entry and acknowledgment required' }, '403': { description: 'Link expired or revoked' }, '404': { description: 'Document unavailable' } }
+				responses: { '200': { description: 'Permitted categories, documents and company fields, or downloadURL' }, '401': { description: 'Code entry and acknowledgment required' }, '403': { description: 'Link expired or revoked' }, '404': { description: 'Document unavailable' } }
 			}
 		},
 		'/data-room/{companyID}': {
@@ -860,8 +860,16 @@ function createPaths(copy: ApiCopy) {
 					{ name: 'documentID', in: 'query', schema: { type: 'string', format: 'uuid' } },
 					{ name: 'fileName', in: 'query', schema: { type: 'string' }, description: 'A derived file such as content.txt; omit to request the original.' }
 				],
-				responses: { '200': { description: 'Permitted categories and documents, or downloadURL' },
+				responses: { '200': { description: 'Permitted categories, documents and company fields, or downloadURL' },
 					'401': errorResponse(copy.errors.unauthorized), '404': { description: 'Document unavailable' } }
+			}
+		},
+		'/data-room/company': {
+			get: {
+				operationId: 'readDataRoomCompany', summary: 'Read the company page the calling member may see',
+				description: 'Answers the company profile fields, metrics and records whose data room category the member reads. Each category names its fields; a field no category names is shown only to readers of X. The filtering happens in the database, so a field outside the caller\'s categories is never sent.',
+				security: [{ memberToken: [] }],
+				responses: { '200': { description: 'profile, metrics and records' }, '401': errorResponse(copy.errors.unauthorized) }
 			}
 		},
 		'/data-room/preview/{circleID}': {
@@ -875,7 +883,7 @@ function createPaths(copy: ApiCopy) {
 					{ name: 'documentID', in: 'query', schema: { type: 'string', format: 'uuid' } },
 					{ name: 'fileName', in: 'query', schema: { type: 'string' }, description: 'A derived file such as content.txt; omit to request the original.' }
 				],
-				responses: { '200': { description: 'The categories and documents the link would show, or downloadURL' },
+				responses: { '200': { description: 'The categories, documents and company fields the link would show, or downloadURL' },
 					'401': errorResponse(copy.errors.unauthorized), '403': { description: 'The circle reads more than this member may share' },
 					'404': { description: 'Document unavailable' } }
 			}

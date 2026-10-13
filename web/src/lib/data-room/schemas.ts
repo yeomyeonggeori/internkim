@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { circleSchema, dataRoomCategorySchema } from './model';
+import { dataRoomCompanySchema } from './company';
 
 export const sharedDocumentColumns = 'id,title,summary,category_code,document_date,status,storage_path';
 
@@ -9,6 +10,7 @@ export const sharedDataRoomSchema = z.object({
 	documents: z.array(z.object({ id: z.string(), title: z.string(), summary: z.string().nullable(),
 		category_code: z.string(), document_date: z.string().nullable(), status: z.string().nullable(),
 		extension: z.string().nullable() })),
+	company: dataRoomCompanySchema,
 	viewer: z.string().nullable()
 });
 

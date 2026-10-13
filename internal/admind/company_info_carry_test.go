@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"reflect"
 	"testing"
 )
 
@@ -161,5 +162,18 @@ func TestADeviceNamingNoCompanyKeepsTheProfileFile(t *testing.T) {
 
 	if _, errorValue := os.Stat(service.companyProfilePath()); errorValue != nil {
 		t.Fatal("a device that names no company let go of the profile nobody else holds")
+	}
+}
+
+func TestTheCarryWritesCapitalAsAnAmountInACurrency(t *testing.T) {
+	for written, expected := range map[string]any{
+		"500,000,000 KRW": map[string]any{"amount": float64(500000000), "currency": "KRW"},
+		"$1,000.50 usd":   map[string]any{"amount": 1000.5, "currency": "USD"},
+		"5억원":             "5억원",
+		"10000000":        "10000000",
+	} {
+		if carried := capitalAsMoney(written); !reflect.DeepEqual(carried, expected) {
+			t.Fatalf("capital %q carried as %#v, want %#v", written, carried, expected)
+		}
 	}
 }
