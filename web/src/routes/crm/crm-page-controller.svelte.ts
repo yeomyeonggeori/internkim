@@ -6,6 +6,7 @@ import {
 } from '$lib/currency/currency-catalogue';
 import { interimCompanyBaseCurrency, loadCompanyBaseCurrency } from '$lib/company/base-currency';
 import { loadCRMOrganizationDirectory } from './crm-data-source';
+import { forgetCRMData, rememberCRMData, rememberedCRMData, type CRMDataSnapshot } from './crm-data-cache';
 import type { CRMReadPart } from './crm-data-source';
 import type { CRMDataResponse } from './crm-api-types';
 import {
@@ -156,24 +157,58 @@ export class CRMPageController {
 				this.isDirectoryReady = true;
 				return;
 			}
-			void this.loadDirectory(generation);
-			const [data, catalogue, baseCurrency] = await Promise.all([
-				loadCRMData(),
-				loadCurrencyCatalogue(),
-				loadCompanyBaseCurrency()
-			]);
-			if (generation !== this.generation) return;
-			this.validateCurrencies(data, catalogue);
-			this.currencyCatalogue = catalogue;
-			this.companyBaseCurrency = baseCurrency;
-			this.remoteData = data;
-			this.applyViewData(mapCRMViewData(data, this.people, browserTimeZone(), this.groups));
-			this.hasData = true;
+			const remembered = rememberedCRMData(currentEmail);
+			if (remembered) this.restore(remembered);
+			const refresh = this.fetchAll(generation);
+			if (remembered) this.mutationQueue = refresh.catch(() => {});
+			await refresh;
 		} catch (error) {
 			if (generation === this.generation) this.applyError(error);
 		} finally {
 			if (generation === this.generation) this.isLoading = false;
 		}
+	}
+
+	private async fetchAll(generation: number): Promise<void> {
+		void this.loadDirectory(generation);
+		const [data, catalogue, baseCurrency] = await Promise.all([
+			loadCRMData(),
+			loadCurrencyCatalogue(),
+			loadCompanyBaseCurrency()
+		]);
+		if (generation !== this.generation) return;
+		this.validateCurrencies(data, catalogue);
+		this.currencyCatalogue = catalogue;
+		this.companyBaseCurrency = baseCurrency;
+		this.remoteData = data;
+		this.applyViewData(mapCRMViewData(data, this.people, browserTimeZone(), this.groups));
+		this.hasData = true;
+		this.remember();
+	}
+
+	private restore(snapshot: CRMDataSnapshot): void {
+		this.currencyCatalogue = snapshot.currencyCatalogue;
+		this.companyBaseCurrency = snapshot.companyBaseCurrency;
+		this.people = snapshot.people;
+		this.groups = snapshot.groups;
+		this.isDirectoryReady = snapshot.isDirectoryReady;
+		this.remoteData = snapshot.data;
+		this.applyViewData(mapCRMViewData(snapshot.data, this.people, browserTimeZone(), this.groups));
+		this.hasData = true;
+		this.isLoading = false;
+	}
+
+	private remember(): void {
+		if (!this.remoteData) return;
+		rememberCRMData({
+			email: this.currentEmail,
+			data: this.remoteData,
+			currencyCatalogue: this.currencyCatalogue,
+			companyBaseCurrency: this.companyBaseCurrency,
+			people: this.people,
+			groups: this.groups,
+			isDirectoryReady: this.isDirectoryReady
+		});
 	}
 
 	dispose(): void {
@@ -198,6 +233,7 @@ export class CRMPageController {
 			this.groups = directory.availableGroups ?? [];
 			this.isDirectoryReady = true;
 			if (this.remoteData) this.applyViewData(mapCRMViewData(this.remoteData, this.people, browserTimeZone(), this.groups));
+			this.remember();
 		} catch {
 			if (generation === this.generation) this.directoryErrorMessage = this.text.organizationLoadFailed;
 		} finally {
@@ -309,6 +345,7 @@ export class CRMPageController {
 			this.vocabulary = cloneCRMVocabulary(vocabulary);
 			this.pipelines = crmPipelinesOf(vocabulary);
 			if (this.remoteData) this.remoteData = { ...this.remoteData, vocabulary: this.vocabulary, pipelines: this.pipelines };
+			this.remember();
 		}, []);
 	}
 
@@ -424,6 +461,7 @@ export class CRMPageController {
 		this.validateCurrencies(data, this.currencyCatalogue);
 		this.remoteData = data;
 		this.applyViewData(mapCRMViewData(data, this.people, browserTimeZone(), this.groups));
+		this.remember();
 	}
 
 	private validateCurrencies(data: CRMDataResponse, catalogue: CurrencyCatalogue): void {
@@ -472,6 +510,7 @@ export class CRMPageController {
 	private applyError(error: unknown): void {
 		this.permissionDenied = isPermissionDenial(error);
 		this.error = error;
+		if (this.permissionDenied) forgetCRMData();
 	}
 
 	private transitionPayload(

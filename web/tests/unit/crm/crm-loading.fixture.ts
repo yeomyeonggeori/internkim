@@ -35,6 +35,7 @@ mock.module('../../../src/routes/crm/crm-data-source', () => ({
 }));
 
 const { CRMPageController } = await import('../../../src/routes/crm/crm-page-controller.svelte');
+const { forgetCRMData } = await import('../../../src/routes/crm/crm-data-cache');
 
 function snapshot(name = 'Sample Account'): CRMDataResponse {
 	const audit = { createdAt: '2026-10-01', createdByPersonID: 'owner', updatedAt: '2026-10-01', updatedByPersonID: 'owner' };
@@ -48,6 +49,7 @@ function snapshot(name = 'Sample Account'): CRMDataResponse {
 }
 
 beforeEach(() => {
+	forgetCRMData();
 	directory = async () => ({ records: [owner], availableGroups: [] });
 	read = async () => snapshot();
 	write = async () => ({});
