@@ -46,7 +46,8 @@
 	import type { CompanyEvent } from '$lib/company-event';
 	import { isSupabaseConfigured } from '$lib/supabase';
 	import { keepCentralBuzzIdentity } from '$lib/central-buzz-identity';
-	import { markChannelRead } from '$lib/messenger/messenger-api';
+	import { hideDirectChannel, markChannelRead, revealDirectChannel } from '$lib/messenger/messenger-api';
+	import { hiddenConversationAnsweredBy, shownConversations } from '$lib/messenger/hidden-direct-messages';
 	import { createConversationReadMarker } from '$lib/messenger/conversation-read-marker';
 	import { page } from '$app/state';
 	import { afterNavigate, replaceState } from '$app/navigation';
@@ -257,9 +258,9 @@
 		if (isDestroyed) return;
 		const requestedID = page.url.searchParams.get('channel') ?? loadLastChannelID();
 		const remembered = requestedID
-			? conversations.find((conversation) => conversation.id === requestedID)
+			? shownConversations(conversations).find((conversation) => conversation.id === requestedID)
 			: undefined;
-		const initial = remembered ?? groupChannels[0] ?? conversations[0];
+		const initial = remembered ?? groupChannels[0] ?? shownConversations(conversations)[0];
 		if (initial) selectChannel(initial.id);
 	}
 
@@ -328,7 +329,25 @@
 			userChannelOrder
 		)
 	);
-	const directMessages = $derived(conversations.filter((conversation) => conversation.kind === 'dm'));
+	const directMessages = $derived(
+		shownConversations(conversations).filter((conversation) => conversation.kind === 'dm')
+	);
+
+	async function hideDirectMessage(conversation: ChannelSummary) {
+		try {
+			await hideDirectChannel(conversation.id);
+		} catch (failure) {
+			toast.error(failure instanceof Error ? failure.message : text.hideConversationFailed);
+			return;
+		}
+		conversations = conversations.map((candidate) =>
+			candidate.id === conversation.id ? { ...candidate, isHidden: true } : candidate
+		);
+		toast.success(text.conversationHidden);
+		if (activeID !== conversation.id) return;
+		const next = groupChannels[0] ?? directMessages[0];
+		if (next) selectChannel(next.id);
+	}
 
 	function reorderChannels(draggedChannelID: string, targetChannelID: string) {
 		const reordered = moveChannel(
@@ -387,6 +406,13 @@
 		if (event.kind !== 'message.arrived' || !event.conversationID) return;
 		const conversationID = event.conversationID;
 		if (conversationsNotMine.has(conversationID)) return;
+		const answered = hiddenConversationAnsweredBy(conversations, event);
+		if (answered) {
+			revealDirectChannel(answered.id)
+				.then(() => loadConversationList())
+				.catch((failure: unknown) => console.warn('a hidden conversation someone wrote in did not come back', failure));
+			return;
+		}
 		isReadingList ??= loadConversationList()
 			.then(() => {
 				if (!conversations.some((conversation) => conversation.id === conversationID)) {
@@ -536,6 +562,7 @@
 			{switchMuted}
 			{exportConversation}
 			{leaveChannel}
+			hideDirectMessage={canManageChannels ? hideDirectMessage : undefined}
 			openNewDirectMessage={openNewDirectMessageFromSheet}
 			openNewChannel={canManageChannels ? openNewChannel : undefined}
 			openBrowseChannels={canManageChannels ? openBrowseChannels : undefined}
@@ -561,6 +588,7 @@
 				{switchMuted}
 				{exportConversation}
 				{leaveChannel}
+				hideDirectMessage={canManageChannels ? hideDirectMessage : undefined}
 				{openNewDirectMessage}
 				openNewChannel={canManageChannels ? openNewChannel : undefined}
 				openBrowseChannels={canManageChannels ? openBrowseChannels : undefined}

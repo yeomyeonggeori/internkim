@@ -127,6 +127,7 @@ export type ChannelSummary = {
 	id: string;
 	name: string;
 	kind: 'dm' | 'group';
+	isHidden?: boolean;
 	isPrivate?: boolean;
 	avatarURL?: string;
 	counterpart?: { memberID?: string; externalID?: string };

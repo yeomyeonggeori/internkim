@@ -17,6 +17,7 @@ export type MessengerChannel = {
 	platform: string;
 	name: string;
 	isDirect: boolean;
+	isHidden?: boolean;
 	isPrivate: boolean;
 	position: number;
 	participants: MessengerPerson[];
@@ -84,6 +85,7 @@ type PersonalConversation = {
 	name: string;
 	description?: string;
 	kind: 'dm' | 'group';
+	isHidden?: boolean;
 	isPrivate?: boolean;
 	avatarURL?: string;
 	participantExternalIDs?: string[];
@@ -168,6 +170,7 @@ export function asChannel(conversation: PersonalConversation, position: number):
 		platform: 'mattermost',
 		name: conversation.name,
 		isDirect: conversation.kind === 'dm',
+		isHidden: conversation.isHidden,
 		isPrivate: conversation.isPrivate ?? false,
 		position,
 		isWithTheAgent: conversation.isWithTheAgent,
@@ -235,6 +238,14 @@ export async function openDirectChannel(externalIDs: string[]): Promise<Messenge
 		counterpartExternalIDs: externalIDs
 	});
 	return asChannel(conversation, 0);
+}
+
+export async function hideDirectChannel(channelID: string): Promise<void> {
+	await ask('person.dm.hide', { conversationID: channelID });
+}
+
+export async function revealDirectChannel(channelID: string): Promise<void> {
+	await ask('person.dm.reveal', { conversationID: channelID });
 }
 
 export type NewChannel = {

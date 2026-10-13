@@ -43,6 +43,7 @@ type ChannelSummary = {
 	id: string;
 	name: string;
 	kind: 'dm' | 'group';
+	isHidden: boolean;
 	isPrivate: boolean;
 	counterpart?: MessengerPerson;
 	members?: ChannelMember[];
@@ -158,6 +159,7 @@ export async function bridgeConversations(): Promise<ChannelSummary[]> {
 				channelText[currentLocale.value].title
 			),
 			kind: channel.isDirect ? ('dm' as const) : ('group' as const),
+			isHidden: channel.isHidden === true,
 			isPrivate: channel.isPrivate,
 			counterpart: channel.isDirect ? counterpartOf(channel, people, viewer) : undefined,
 			members: channel.isDirect

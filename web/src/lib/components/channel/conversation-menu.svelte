@@ -5,6 +5,7 @@
 	import BellIcon from '@lucide/svelte/icons/bell';
 	import BellOffIcon from '@lucide/svelte/icons/bell-off';
 	import DoorOpenIcon from '@lucide/svelte/icons/door-open';
+	import EyeOffIcon from '@lucide/svelte/icons/eye-off';
 	import EllipsisVerticalIcon from '@lucide/svelte/icons/ellipsis-vertical';
 	import FileDownIcon from '@lucide/svelte/icons/file-down';
 	import { mergeProps } from 'bits-ui';
@@ -24,6 +25,8 @@
 		onExport?: () => void;
 		leaveLabel?: string;
 		onLeave?: () => void;
+		hideLabel?: string;
+		onHide?: () => void;
 		itemProps?: HTMLLiAttributes & Record<string, unknown>;
 		children: Snippet;
 	};
@@ -38,6 +41,8 @@
 		onExport,
 		leaveLabel = '',
 		onLeave,
+		hideLabel = '',
+		onHide,
 		itemProps = {},
 		children
 	}: Props = $props();
@@ -64,6 +69,11 @@
 {#snippet leaveConversationLabel()}
 	<DoorOpenIcon />
 	<span>{leaveLabel}</span>
+{/snippet}
+
+{#snippet hideConversationLabel()}
+	<EyeOffIcon />
+	<span>{hideLabel}</span>
 {/snippet}
 
 <ContextMenu.Root bind:open={isContextMenuOpen}>
@@ -97,6 +107,11 @@
 									{@render leaveConversationLabel()}
 								</DropdownMenu.Item>
 							{/if}
+							{#if onHide}
+								<DropdownMenu.Item onSelect={onHide}>
+									{@render hideConversationLabel()}
+								</DropdownMenu.Item>
+							{/if}
 						</DropdownMenu.Content>
 					</DropdownMenu.Root>
 				{/if}
@@ -115,6 +130,11 @@
 		{#if onLeave}
 			<ContextMenu.Item onSelect={onLeave}>
 				{@render leaveConversationLabel()}
+			</ContextMenu.Item>
+		{/if}
+		{#if onHide}
+			<ContextMenu.Item onSelect={onHide}>
+				{@render hideConversationLabel()}
 			</ContextMenu.Item>
 		{/if}
 	</ContextMenu.Content>
