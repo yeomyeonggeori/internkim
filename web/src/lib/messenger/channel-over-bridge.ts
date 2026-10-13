@@ -15,6 +15,7 @@ import {
 	deletePost,
 	editPost,
 	fetchChannels,
+	fetchInbox,
 	fetchPeople,
 	fetchPosts,
 	keepAttachmentForSending,
@@ -24,6 +25,7 @@ import {
 	writePost,
 	type OutgoingAttachment,
 	type MessengerChannel,
+	type MessengerInboxReason,
 	type MessengerPerson,
 	type MessengerPost,
 	type MessengerPostPage,
@@ -336,6 +338,32 @@ function searchMatchOf(match: MessengerSearchMatch, people: MessengerDirectory, 
 		text: emojifyText(match.body),
 		sentAt: match.postedAt
 	};
+}
+
+export type InboxEntry = {
+	id: string;
+	conversationID: string;
+	threadRootId?: string;
+	reason: MessengerInboxReason;
+	isUnread: boolean;
+	sender: Participant;
+	text: string;
+	sentAt: string;
+};
+
+export async function bridgeInbox(): Promise<InboxEntry[]> {
+	const [people, items] = await Promise.all([fetchMessengerDirectory(), fetchInbox()]);
+	void personPicture.rememberExternals(items.map((item) => externalIDOf(item.message.author, people)));
+	return items.map(({ reason, isUnread, message }) => ({
+		id: message.id,
+		conversationID: message.channelID,
+		threadRootId: message.parentID,
+		reason,
+		isUnread,
+		sender: participantOf(message.author, people),
+		text: emojifyText(message.body),
+		sentAt: message.postedAt
+	}));
 }
 
 export async function bridgeSendMessage(

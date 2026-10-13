@@ -415,7 +415,7 @@
 		const held = await loadHistoryUntilHeld({
 			holds: () => messages.some((message) => message.id === timelineID),
 			hasMore: () => hasMoreBefore,
-			isLoading: () => isLoadingOlder,
+			isLoading: () => isLoadingOlder || (!hasLoadedOnce && !loadFailed && !isDestroyed),
 			loadOlder: loadOlderMessages
 		});
 		if (!held || !scrollContainer) return false;

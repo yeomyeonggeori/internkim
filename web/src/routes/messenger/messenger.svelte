@@ -3,6 +3,9 @@
 	import Channel from '$lib/components/channel/channel.svelte';
 	import ChannelLoadingSkeleton from '$lib/components/channel/channel-loading-skeleton.svelte';
 	import MessengerChannelList from './messenger-channel-list.svelte';
+	import MessengerInbox from './messenger-inbox.svelte';
+	import { MessengerInboxState } from './messenger-inbox-state.svelte';
+	import type { InboxEntry } from '$lib/messenger/channel-over-bridge';
 	import MessengerListSkeleton from './messenger-list-skeleton.svelte';
 	import MessengerBrowseChannelsDialog from './messenger-browse-channels-dialog.svelte';
 	import MessengerChannelDetails from './messenger-channel-details.svelte';
@@ -38,7 +41,7 @@
 		type ChannelSummary,
 		type Person
 	} from '$lib/components/channel/channel-api';
-	import { onDestroy, onMount, setContext } from 'svelte';
+	import { onDestroy, onMount, setContext, tick } from 'svelte';
 	import { onCompanyEvent } from '$lib/host-bridge';
 	import type { CompanyEvent } from '$lib/company-event';
 	import { isSupabaseConfigured } from '$lib/supabase';
@@ -85,6 +88,34 @@
 	let activeID = $state<string | undefined>(undefined);
 	let isSearchOpen = $state(false);
 	let channelView = $state<Channel | null>(null);
+
+	const inbox = new MessengerInboxState();
+	let isInboxOpen = $state(isSupabaseConfigured() && !page.url.searchParams.has('channel'));
+	let chosenInboxEntryID = $state<string | undefined>(undefined);
+	const inboxEntry = $derived(
+		isSupabaseConfigured() ? { isActive: isInboxOpen, unreadCount: inbox.unreadCount, open: openInbox } : undefined
+	);
+
+	function openInbox() {
+		isChannelSheetOpen = false;
+		isInboxOpen = true;
+		chosenInboxEntryID = undefined;
+		void inbox.load();
+	}
+
+	function chooseChannel(channelID: string) {
+		isInboxOpen = false;
+		selectChannel(channelID);
+	}
+
+	async function chooseInboxEntry(entry: InboxEntry) {
+		chosenInboxEntryID = entry.id;
+		if (isMobile.current) isInboxOpen = false;
+		inbox.markRead(entry).catch((failure: unknown) => console.warn('the messenger did not record this thread as read', failure));
+		if (activeID !== entry.conversationID) selectChannel(entry.conversationID);
+		await tick();
+		await channelView?.revealMessage(entry.id, entry.threadRootId);
+	}
 
 	async function revealSearchMatch(match: ConversationSearchMatch): Promise<boolean> {
 		return (await channelView?.revealMessage(match.id, match.threadRootId)) ?? false;
@@ -139,6 +170,7 @@
 	});
 
 	const isMobile = new IsMobile();
+	const isChannelCoveredByInbox = $derived(isInboxOpen && isMobile.current);
 
 	$effect(() => {
 		if (isMobile.current) return;
@@ -147,7 +179,7 @@
 
 	function selectChannelFromSheet(channelID: string) {
 		isChannelSheetOpen = false;
-		selectChannel(channelID);
+		chooseChannel(channelID);
 	}
 
 	function openNewDirectMessageFromSheet() {
@@ -366,6 +398,7 @@
 				isReadingList = null;
 			});
 		prefetchArrivedConversation(event, activeID);
+		void inbox.refresh();
 	}
 
 	$effect(() => {
@@ -428,10 +461,16 @@
 			isBrowseChannelsOpen = false;
 			isNewChannelOpen = false;
 			conversationsNotMine.clear();
+			inbox.reset();
+			chosenInboxEntryID = undefined;
+			if (isSupabaseConfigured()) void inbox.load();
 			void loadConversationList().then(selectInitialChannel).catch(() => undefined);
 		});
 		userChannelOrder = loadChannelOrder();
-		if (isSupabaseConfigured()) stopListeningForArrivals = onCompanyEvent(readListOnArrival);
+		if (isSupabaseConfigured()) {
+			stopListeningForArrivals = onCompanyEvent(readListOnArrival);
+			void inbox.load();
+		}
 
 		const mountedGeneration = cacheGeneration;
 		const remembered = await adoptRememberedMessengerScope();
@@ -469,6 +508,16 @@
 </svelte:head>
 
 
+{#snippet channelListTrigger()}
+	<Sheet.Trigger>
+		{#snippet child({ props })}
+			<Button {...props} variant="ghost" size="icon-sm" class="shrink-0 sm:hidden" aria-label={text.openChannelList}>
+				<PanelLeftIcon />
+			</Button>
+		{/snippet}
+	</Sheet.Trigger>
+{/snippet}
+
 <Sheet.Root bind:open={isChannelSheetOpen}>
 	<Sheet.Content side="left" class="gap-0 p-0" closeLabel={text.closeChannelList}>
 		<Sheet.Header class="min-h-16 justify-center border-b px-4 py-3">
@@ -480,6 +529,7 @@
 			error={conversationError}
 			retry={() => refreshConversations('the channel list did not refresh')}
 			{activeID}
+			inbox={inboxEntry}
 			{directMessages}
 			{groupChannels}
 			{muted}
@@ -504,6 +554,7 @@
 				error={conversationError}
 				retry={() => refreshConversations('the channel list did not refresh')}
 				{activeID}
+				inbox={inboxEntry}
 				{directMessages}
 				{groupChannels}
 				{muted}
@@ -515,23 +566,25 @@
 				openBrowseChannels={canManageChannels ? openBrowseChannels : undefined}
 				{openOnPlatform}
 				{reorderChannels}
-				{selectChannel}
+				selectChannel={chooseChannel}
 			/>
-			<div class="flex min-h-0 min-w-0 flex-1 flex-col">
+			{#if isInboxOpen}
+				<div class="flex min-h-0 w-80 shrink-0 flex-col border-r max-sm:w-full max-sm:border-r-0">
+					<header class="flex h-12 shrink-0 items-center border-b px-2 sm:hidden">
+						{@render channelListTrigger()}
+					</header>
+					<MessengerInbox
+						class="min-h-0 flex-1"
+						{inbox}
+						{conversations}
+						chosenID={chosenInboxEntryID}
+						choose={chooseInboxEntry}
+					/>
+				</div>
+			{/if}
+			<div class={['flex min-h-0 min-w-0 flex-1 flex-col', isInboxOpen && 'max-sm:hidden']}>
 				<header class="flex h-12 shrink-0 items-center gap-2 border-b px-2 sm:h-14 sm:px-6">
-					<Sheet.Trigger>
-						{#snippet child({ props })}
-							<Button
-								{...props}
-								variant="ghost"
-								size="icon-sm"
-								class="shrink-0 sm:hidden"
-								aria-label={text.openChannelList}
-							>
-								<PanelLeftIcon />
-							</Button>
-						{/snippet}
-					</Sheet.Trigger>
+					{@render channelListTrigger()}
 					{#if activeConversation?.kind === 'dm'}
 						{@const conversation = activeConversation}
 						<button
@@ -596,7 +649,7 @@
 						showSenderNames={activeConversation?.kind === 'group'}
 						canModerate={activeConversation?.myRole === 'owner' || activeConversation?.myRole === 'admin'}
 						isWithTheAgent={activeConversation?.isWithTheAgent === true}
-						onReadThrough={(sentAt) => readThrough(activeID, sentAt)}
+						onReadThrough={isChannelCoveredByInbox ? undefined : (sentAt) => readThrough(activeID, sentAt)}
 					/>
 				{/key}
 				{/if}

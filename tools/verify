@@ -274,7 +274,11 @@ GROUPS = [
             "web/src/app.css",
             "web/bun.lock",
         ],
-        [["bun", "run", "test:e2e:messenger"], ["bun", "run", "test:e2e:mobile:fixture"]],
+        [
+            ["bun", "run", "test:e2e:messenger"],
+            ["bun", "run", "test:e2e:messenger:inbox:fixture"],
+            ["bun", "run", "test:e2e:mobile:fixture"],
+        ],
         working_directory="web",
         lane="web",
     ),
