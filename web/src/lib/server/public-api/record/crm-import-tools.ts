@@ -1,3 +1,4 @@
+import type { CRMRecordImportProblem } from '$lib/crm/crm-record-import';
 import { crmImportances, crmOrganizationStatuses } from '$lib/crm/crm-record-values';
 import {
 	contactsOfCompany,
@@ -14,7 +15,6 @@ import { RecordRefusedTheWrite, statusOfPostgresCode } from './tasks';
 import type { RecordContext } from './company';
 import type {
 	CRMRecordImportInput,
-	CRMRecordImportProblem,
 	CRMRecordImportResult,
 	CRMRecordImportRow
 } from '../catalog/crm';

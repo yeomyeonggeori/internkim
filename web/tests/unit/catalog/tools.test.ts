@@ -141,6 +141,7 @@ describe('canonical capability tools', () => {
       'crm_organization_archive',
       'crm_organization_list',
       'crm_organization_update',
+      'crm_record_import',
       'crm_vocabulary_get',
       'crm_vocabulary_set',
       'dataroom_category_update',
@@ -930,6 +931,7 @@ describe('canonical capability tools', () => {
       mail_connection_start: 'it hands back a setup address and writes nothing',
       company_document_upload: 'it hands back an upload address; company_document_register records the document',
       company_image_upload: 'it hands back an upload address; company_info_set keeps the image',
+      crm_record_import: 'it writes many records in one call and names each one in its rows, which an effect cannot list',
     };
     const catalog = buildCapabilityToolCatalog(protocolVersion);
     const writes = catalog.tools.filter(tool => tool.sideEffectClass !== CapabilitySideEffect.Read

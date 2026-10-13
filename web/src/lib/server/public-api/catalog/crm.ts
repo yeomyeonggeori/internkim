@@ -1,6 +1,12 @@
 import { z } from 'zod';
 
 import { crmStageKeys } from '$lib/crm/crm-stage';
+import {
+  crmRecordImportDuplicateChoices,
+  crmRecordImportKinds,
+  crmRecordImportOutcomes,
+  crmRecordImportProblems,
+} from '$lib/crm/crm-record-import';
 
 import {
   CapabilityAnsweredBy,
@@ -206,23 +212,6 @@ export const crmVocabularySetInputSchema = z.strictObject({
 });
 
 export const crmVocabularySetInputIntentSchema = crmVocabularySetInputSchema.partial();
-
-export const crmRecordImportKinds = ['organization', 'contact'] as const;
-export const crmRecordImportDuplicateChoices = ['skip', 'update'] as const;
-export const crmRecordImportOutcomes = ['create', 'update', 'skip', 'refused'] as const;
-export const crmRecordImportProblems = [
-  'name_missing',
-  'name_repeated_in_file',
-  'organization_unknown',
-  'organization_ambiguous',
-  'type_unknown',
-  'status_unknown',
-  'importance_unknown',
-  'owner_unresolved',
-  'email_invalid',
-  'contact_unreachable',
-  'field_of_other_kind',
-] as const;
 
 const crmRecordImportRowSchema = z.strictObject({
   line: z.number().int().min(1).describe('The line of the file this record came from, so a problem can be shown where it is.'),
@@ -728,7 +717,6 @@ export type CRMVocabularyResult = z.infer<typeof crmVocabularyResultSchema>;
 export type CRMRecordImportInput = z.infer<typeof crmRecordImportInputSchema>;
 export type CRMRecordImportRow = CRMRecordImportInput['rows'][number];
 export type CRMRecordImportResult = z.infer<typeof crmRecordImportResultSchema>;
-export type CRMRecordImportProblem = (typeof crmRecordImportProblems)[number];
 export type CRMActivityListInput = z.infer<typeof crmActivityListInputSchema>;
 export type CRMActivitySaveInput = z.infer<typeof crmActivitySaveInputSchema>;
 export type CRMActivityResult = z.infer<typeof crmActivityResultSchema>;
