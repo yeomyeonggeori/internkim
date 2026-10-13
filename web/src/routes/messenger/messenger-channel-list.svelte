@@ -76,7 +76,9 @@
 {#snippet unreadBadge(conversation: ChannelSummary)}
 	{@const label = unreadBadgeLabel(conversation.unreadCount)}
 	{#if label}
-		<Sidebar.MenuBadge>
+		<Sidebar.MenuBadge
+			class="md:group-hover/menu-item:opacity-0 md:group-focus-within/menu-item:opacity-0 md:group-has-[[data-sidebar=menu-action][data-state=open]]/menu-item:opacity-0"
+		>
 			<span class="sr-only">{text.unreadMessages}</span>
 			{label}
 		</Sidebar.MenuBadge>
