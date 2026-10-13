@@ -1,9 +1,10 @@
+import type { CRMImportance, CRMOrganizationStatus } from '$lib/crm/crm-record-values';
 import type { CRMStage } from '$lib/crm/crm-stage';
 import type { CentralTaskStatus } from '$lib/task/central-task';
 
 export const crmOrganizationTypes = ['customer', 'partner', 'sponsor', 'vendor', 'investor', 'portfolio', 'other'] as const;
 export type CRMOrganizationType = string;
-export type CRMOrganizationStatus = 'prospect' | 'active' | 'paused';
+export type { CRMImportance, CRMOrganizationStatus };
 export type CRMOpportunityStage = CRMStage;
 export type CRMActivityKind = string;
 
@@ -11,7 +12,6 @@ export type CRMActionUrgency = 'overdue' | 'today' | 'due_soon' | 'scheduled' | 
 export type CRMIntakeDraftSource = 'file' | 'mail' | 'calendar';
 export type CRMProgressKind = string;
 export type CRMRecordKind = 'relationship' | 'contact' | 'progress' | 'activity';
-export type CRMImportance = 'high' | 'medium' | 'low';
 export type CRMCalendarRegistrationState = 'registered' | 'failed';
 export type CRMCurrency = string;
 export type CRMMoneyTotals = Partial<Record<CRMCurrency, number>>;

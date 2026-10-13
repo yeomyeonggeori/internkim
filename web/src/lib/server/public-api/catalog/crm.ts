@@ -5,6 +5,7 @@ import { crmStageKeys } from '$lib/crm/crm-stage';
 import {
   CapabilityAnsweredBy,
   CapabilityEstimatedLatency,
+  CapabilityModelVisibility,
   CapabilitySideEffect,
   ResourceEffectIdentity,
 } from './protocol';
@@ -205,6 +206,63 @@ export const crmVocabularySetInputSchema = z.strictObject({
 });
 
 export const crmVocabularySetInputIntentSchema = crmVocabularySetInputSchema.partial();
+
+export const crmRecordImportKinds = ['organization', 'contact'] as const;
+export const crmRecordImportDuplicateChoices = ['skip', 'update'] as const;
+export const crmRecordImportOutcomes = ['create', 'update', 'skip', 'refused'] as const;
+export const crmRecordImportProblems = [
+  'name_missing',
+  'name_repeated_in_file',
+  'organization_unknown',
+  'organization_ambiguous',
+  'type_unknown',
+  'status_unknown',
+  'importance_unknown',
+  'owner_unresolved',
+  'email_invalid',
+  'contact_unreachable',
+  'field_of_other_kind',
+] as const;
+
+const crmRecordImportRowSchema = z.strictObject({
+  line: z.number().int().min(1).describe('The line of the file this record came from, so a problem can be shown where it is.'),
+  onDuplicate: z.enum(crmRecordImportDuplicateChoices).describe('What to do when a record with the same name is already held. Defaults to skip.').optional(),
+  name: z.string().max(256),
+  types: z.array(z.string()).describe('Organization types, by key or name from crm_vocabulary_get.').optional(),
+  status: z.string().max(32).describe('prospect, active or paused.').optional(),
+  importance: z.string().max(32).describe(importanceDescription).optional(),
+  tags: z.array(z.string()).optional(),
+  ownerPersonHint: z.string().max(256).describe(ownerHintDescription).optional(),
+  address: z.string().max(512).optional(),
+  organizationName: z.string().max(256).describe("The exact name of the organization a contact works at.").optional(),
+  email: z.string().max(256).optional(),
+  phoneNumber: z.string().max(64).optional(),
+  role: z.string().max(128).optional(),
+  department: z.string().max(128).optional(),
+  description: z.string().max(4096).optional(),
+});
+
+export const crmRecordImportInputSchema = z.strictObject({
+  kind: z.enum(crmRecordImportKinds),
+  rows: z.array(crmRecordImportRowSchema).min(1).max(20000),
+  dryRun: z.boolean().describe('true checks every record and writes nothing.').optional(),
+});
+
+export const crmRecordImportResultSchema = z.strictObject({
+  dryRun: z.boolean(),
+  written: z.boolean().describe('false when nothing was written, because this was a dry run or a record was refused.'),
+  created: z.number().int(),
+  updated: z.number().int(),
+  skipped: z.number().int(),
+  refused: z.number().int(),
+  rows: z.array(z.strictObject({
+    line: z.number().int(),
+    outcome: z.enum(crmRecordImportOutcomes),
+    duplicateOfID: z.string().describe('The record already held under the same name, or empty.'),
+    recordID: z.string().describe('The record written or to be updated, or empty.'),
+    problems: z.array(z.enum(crmRecordImportProblems)),
+  })),
+});
 
 const activityHintSchema = z.string().min(1).max(256).describe(
   'The activity: its exact task ID, or its exact CURRENT title as crm_activity_list shows it.',
@@ -632,6 +690,20 @@ export const crmToolDefinitions: CapabilityToolDefinition[] = [
     sideEffect: CapabilitySideEffect.WorkspaceWrite,
     completionEvidence: { mode: 'success', action: 'write_crm', targetKind: 'crm_vocabulary' },
   },
+  {
+    name: 'crm_record_import',
+    namespace: 'crm',
+    answeredBy: CapabilityAnsweredBy.Record,
+    privacyClass: 'workspace_crm',
+    policyResource: 'tool:crm_record_import',
+    description: 'Import many organization or contact records from one file in one write: every record is written, or none is. A record whose name is already held is skipped or updated as each one says, and an updated record keeps any field the file leaves empty. dryRun checks them all and writes nothing.',
+    version: '1',
+    estimatedLatency: CapabilityEstimatedLatency.High,
+    modelVisibility: CapabilityModelVisibility.Hidden,
+    inputSchema: crmRecordImportInputSchema,
+    result: { schema: crmRecordImportResultSchema, effects: [] },
+    sideEffect: CapabilitySideEffect.WorkspaceWrite,
+  },
 ];
 
 export type CRMOrganizationListInput = z.infer<typeof crmOrganizationListInputSchema>;
@@ -653,6 +725,10 @@ export type CRMOpportunityListResult = z.infer<typeof crmOpportunityListResultSc
 export type CRMArchivedResult = z.infer<typeof crmArchivedResultSchema>;
 export type CRMVocabularySetInput = z.infer<typeof crmVocabularySetInputSchema>;
 export type CRMVocabularyResult = z.infer<typeof crmVocabularyResultSchema>;
+export type CRMRecordImportInput = z.infer<typeof crmRecordImportInputSchema>;
+export type CRMRecordImportRow = CRMRecordImportInput['rows'][number];
+export type CRMRecordImportResult = z.infer<typeof crmRecordImportResultSchema>;
+export type CRMRecordImportProblem = (typeof crmRecordImportProblems)[number];
 export type CRMActivityListInput = z.infer<typeof crmActivityListInputSchema>;
 export type CRMActivitySaveInput = z.infer<typeof crmActivitySaveInputSchema>;
 export type CRMActivityResult = z.infer<typeof crmActivityResultSchema>;
