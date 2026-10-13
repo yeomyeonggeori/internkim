@@ -28,6 +28,8 @@
 	import { canEditMessage, saveEditing } from './message-edit';
 	import MessageInlineEditor from './message-inline-editor.svelte';
 	import { firstLinkIn } from './channel-link';
+	import { ConversationFileDrag, receivesFileDrag } from './conversation-file-drag.svelte';
+	import ConversationFileDropOverlay from './conversation-file-drop-overlay.svelte';
 	import { clockTime, dateKeyOf, dateLabel, relativeTime } from './channel-time';
 	import { threadRepliesByRoot, timelineMessages } from './channel-threads';
 	import PersonAvatar from '$lib/components/person-avatar.svelte';
@@ -142,6 +144,11 @@
 	let dockHeight = $state(0);
 	let editingMessageID = $state('');
 	let threadComposer = $state<ChannelComposer | null>(null);
+	let conversationComposer = $state<ChannelComposer | null>(null);
+	const fileDrag = new ConversationFileDrag({
+		onFiles: (files) => void conversationComposer?.attach(files),
+		isDisabled: () => capture.isCapturing
+	});
 	let loadFailed = $state(false);
 	let hasLoadedOnce = $state(false);
 	let olderMessages = $state<ChannelMessage[]>([]);
@@ -951,7 +958,8 @@
 {/snippet}
 
 <div class="flex min-h-0 flex-1">
-<div class="relative flex min-h-0 min-w-0 flex-1 flex-col" style:--dock-height="{dockHeight}px">
+<div class="relative flex min-h-0 min-w-0 flex-1 flex-col" style:--dock-height="{dockHeight}px" use:receivesFileDrag={fileDrag}>
+	<ConversationFileDropOverlay visible={fileDrag.isOver} title={text.dropFilesTitle} description={text.dropFilesDescription} />
 	<div class="min-h-0 min-w-0 flex-1 overflow-hidden">
 			{#if !hasLoadedOnce}
 				<ChannelLoadingSkeleton label={text.loadingMessages} />
@@ -1037,6 +1045,7 @@
 		<div class={capture.isCapturing ? 'hidden' : 'contents'}>
 		{#key cacheGeneration}
 		<ChannelComposer
+			bind:this={conversationComposer}
 			bind:isSending
 			name="conversation"
 			placeholder={text.composerPlaceholder}
