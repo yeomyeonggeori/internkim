@@ -109,6 +109,35 @@ test.describe('messenger composer toolbar', () => {
 	});
 });
 
+test('a message shows every blank line it was written with', async ({ page }) => {
+	await page.setViewportSize({ width: 1280, height: 800 });
+	const sender = { id: 'person-sender', name: '박예시', email: 'sender@example.com' };
+	await mockDeviceMessenger(
+		page,
+		reader,
+		[{ id: channelID, name: '입력 채널', kind: 'group', myRole: 'member' }],
+		[
+			{ id: 'message-spaced', sender, text: '위\n\n\n\n\n\n아래', sentAt: '2026-09-28T01:00:00Z' },
+			{ id: 'message-paragraphs', sender, text: '첫 문단\n\n둘째 문단', sentAt: '2026-09-28T01:01:00Z' }
+		]
+	);
+	await page.goto(`/messenger?channel=${channelID}`);
+
+	const gapBetween = async (first: string, second: string) => {
+		const above = page.getByText(first, { exact: true });
+		const below = page.getByText(second, { exact: true });
+		await expect(below).toBeVisible();
+		const lineHeight = await above.evaluate((element) => parseFloat(getComputedStyle(element).lineHeight));
+		const gap = (await below.boundingBox())!.y - ((await above.boundingBox())!.y + lineHeight);
+		return { gap, lineHeight };
+	};
+
+	const spaced = await gapBetween('위', '아래');
+	expect(spaced.gap).toBeGreaterThanOrEqual(4 * spaced.lineHeight);
+	const paragraphs = await gapBetween('첫 문단', '둘째 문단');
+	expect(paragraphs.gap).toBeLessThan(paragraphs.lineHeight);
+});
+
 test.describe('messenger composer on a touch keyboard', () => {
 	test.use({ hasTouch: true, isMobile: true, viewport: { width: 390, height: 760 } });
 
