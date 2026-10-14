@@ -43,6 +43,7 @@
 	import SmilePlusIcon from '@lucide/svelte/icons/smile-plus';
 	import XIcon from '@lucide/svelte/icons/x';
 	import { onDestroy, onMount } from 'svelte';
+	import { MediaQuery } from 'svelte/reactivity';
 
 	let {
 		name,
@@ -68,6 +69,7 @@
 
 	const text = createPageText(channelText);
 	const isMobile = new IsMobile(640);
+	const typesOnTouchKeyboard = new MediaQuery('pointer: coarse');
 	let showsSelectionFormatting = $state(false);
 	let selectionAnchor = $state<HTMLElement | null>(null);
 	let value = $state('');
@@ -86,6 +88,7 @@
 		'aria-autocomplete': 'list',
 		'aria-expanded': String(mentions.isOpen),
 		'aria-controls': `mention-list-${name}`,
+		enterkeyhint: typesOnTouchKeyboard.current ? 'enter' : 'send',
 		...(mentions.isOpen ? { 'aria-activedescendant': `mention-row-${name}-${mentions.active}` } : {})
 	});
 	export function clear(): void {
@@ -178,7 +181,7 @@
 
 	function handleKeydown(event: KeyboardEvent): boolean {
 		if (handledByMentions(event)) return true;
-		if (event.key !== 'Enter' || event.shiftKey || event.isComposing) return false;
+		if (event.key !== 'Enter' || event.shiftKey || event.isComposing || typesOnTouchKeyboard.current) return false;
 		event.preventDefault();
 		form?.requestSubmit();
 		return true;
@@ -357,6 +360,10 @@
 		align-items: center;
 		gap: 0.25rem;
 	}
+	.channel-composer :global(.tiptap) {
+		max-height: min(240px, 40dvh);
+		overflow-y: auto;
+	}
 	@media (max-width: 639px) {
 		.channel-composer :global(.composer-input) {
 			display: grid;
@@ -404,7 +411,7 @@
 		}
 		.channel-composer :global(.tiptap) {
 			min-height: 32px;
-			max-height: min(160px, 30dvh);
+			max-height: calc(4 * 20px + 12px);
 			overflow-y: auto;
 			padding: 6px 4px;
 			font-size: 16px;
