@@ -263,7 +263,7 @@ describe('handing the agent a file from the workspace to the messenger', () => {
 			readWorkspaceRange: workspace.read,
 			uploadMedia: async (asWhom, sourceURL, contentType) => {
 				uploads.push({ actor: asWhom, sourceURL, contentType });
-				return { status: 200, body: { media: { address: 'http://127.0.0.1:3000/media/9f2c.pdf', digest: '9f2c', sizeBytes: 8 } } };
+				return { status: 200, body: { media: { address: 'http://127.0.0.1:3000/media/9f2c.pdf', digest: '9f2c', sizeBytes: 8, contentType: 'application/pdf' } } };
 			}
 		});
 
@@ -285,6 +285,25 @@ describe('handing the agent a file from the workspace to the messenger', () => {
 			sizeBytes: 8
 		});
 		expect(calls.filter((call) => call.method === 'DELETE')).toHaveLength(1);
+	});
+
+	test('a file the messenger keeps converted is named and typed as what it keeps', async () => {
+		storeTakingUploads();
+		const { values } = dependencies({
+			readWorkspaceRange: workspaceHolding('mov bytes').read,
+			uploadMedia: async () => ({
+				status: 200,
+				body: { media: { address: 'http://127.0.0.1:3000/media/7a1b.mp4', digest: '7a1b', sizeBytes: 5, contentType: 'video/mp4' } }
+			})
+		});
+
+		const kept = await keepWorkspaceFileInTheMessenger(values, 'member-1', actor, 'sample@example.test', {
+			filename: '현장 영상.mov',
+			workspacePath: '/workspace/private/people/person-1/현장 영상.mov',
+			contentType: 'video/quicktime'
+		});
+
+		expect(kept).toMatchObject({ filename: '현장 영상.mp4', contentType: 'video/mp4', address: 'http://127.0.0.1:3000/media/7a1b.mp4' });
 	});
 
 	test('a messenger that will not keep it fails with what the messenger said, and the copy is let go', async () => {
