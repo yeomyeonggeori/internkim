@@ -29,6 +29,10 @@ function companyConversations(): Conversation[] {
 	];
 }
 
+const inboxFromPark = [
+	{ reason: 'direct', isUnread: true, message: { id: 'direct-park', conversationID: 'dm-park', authorExternalID: parkExternalID, body: '자료 보냈어요', postedAt: '2026-10-13T01:00:00.000Z' } }
+];
+
 async function signInToTheCompanyApp(page: Page, conversations: Conversation[], asked: string[]): Promise<void> {
 	await page.addInitScript(({ memberID, email }) => {
 		const issuedAt = Math.floor(Date.now() / 1000);
@@ -58,9 +62,14 @@ async function signInToTheCompanyApp(page: Page, conversations: Conversation[], 
 			if (message.capability === 'person.conversations.list') return answer({ conversations });
 			if (message.capability === 'person.identity') return answer({ externalID: readerExternalID, name: '이샘플' });
 			if (message.capability === 'person.messages.list') return answer({ messages: [], hasMoreBefore: false });
+			if (message.capability === 'person.inbox.list') return answer({ items: inboxFromPark });
 			if (message.capability === 'person.dm.hide') {
 				const hidden = conversations.find((conversation) => conversation.id === message.body?.conversationID);
 				if (hidden) hidden.isHidden = true;
+			}
+			if (message.capability === 'person.dm.reveal') {
+				const revealed = conversations.find((conversation) => conversation.id === message.body?.conversationID);
+				if (revealed) revealed.isHidden = false;
 			}
 			answer({});
 		});
@@ -98,4 +107,21 @@ test('a channel row offers no hiding', async ({ page }) => {
 	await rowNamed(page, '공지').click({ button: 'right' });
 	await expect(page.getByRole('menuitem', { name: '채널 나가기' })).toBeVisible();
 	await expect(page.getByRole('menuitem', { name: '대화 숨기기' })).toHaveCount(0);
+});
+
+test('a hidden direct conversation opened from the inbox comes back to the list', async ({ page }) => {
+	const asked: string[] = [];
+	const conversations = companyConversations().map((conversation) =>
+		conversation.id === 'dm-park' ? { ...conversation, isHidden: true } : conversation
+	);
+	await signInToTheCompanyApp(page, conversations, asked);
+	await page.setViewportSize({ width: 1280, height: 800 });
+	await page.goto('/messenger');
+	await expect(rowNamed(page, '최견본')).toBeVisible();
+	await expect(rowNamed(page, '박예시')).toHaveCount(0);
+
+	await page.getByRole('complementary', { name: '수신함' }).locator('[data-inbox-entry="direct-park"]').click();
+	await expect(page).toHaveURL(/channel=dm-park/);
+	await expect(rowNamed(page, '박예시')).toBeVisible();
+	expect(asked).toContain('person.dm.reveal');
 });

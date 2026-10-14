@@ -114,6 +114,9 @@
 		if (isMobile.current) isInboxOpen = false;
 		inbox.markRead(entry).catch((failure: unknown) => console.warn('the messenger did not record this thread as read', failure));
 		if (activeID !== entry.conversationID) selectChannel(entry.conversationID);
+		if (conversations.some((conversation) => conversation.id === entry.conversationID && conversation.isHidden === true)) {
+			bringBackHiddenConversation(entry.conversationID);
+		}
 		await tick();
 		await channelView?.revealMessage(entry.id, entry.threadRootId);
 	}
@@ -399,6 +402,12 @@
 		}
 	}
 
+	function bringBackHiddenConversation(conversationID: string): void {
+		revealDirectChannel(conversationID)
+			.then(() => loadConversationList())
+			.catch((failure: unknown) => console.warn('a hidden conversation did not come back', failure));
+	}
+
 	const conversationsNotMine = new Set<string>();
 	let isReadingList: Promise<void> | null = null;
 
@@ -408,9 +417,7 @@
 		if (conversationsNotMine.has(conversationID)) return;
 		const answered = hiddenConversationAnsweredBy(conversations, event);
 		if (answered) {
-			revealDirectChannel(answered.id)
-				.then(() => loadConversationList())
-				.catch((failure: unknown) => console.warn('a hidden conversation someone wrote in did not come back', failure));
+			bringBackHiddenConversation(answered.id);
 			return;
 		}
 		isReadingList ??= loadConversationList()
