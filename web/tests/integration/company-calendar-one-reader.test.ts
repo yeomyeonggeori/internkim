@@ -201,7 +201,7 @@ async function entriesTheToolAnswers(): Promise<AnsweredEntry[]> {
 			client,
 			adminID,
 			'event_list',
-			{ startsAt: inDays(-1).toISOString(), endsAt: inDays(7).toISOString() },
+			{ startsAt: inDays(-1).toISOString(), endsAt: inDays(7).toISOString(), scope: 'all' },
 			now,
 			leavesTaskLabelsUndecided
 		)
@@ -229,6 +229,17 @@ function expectedTitles(): string[] {
 }
 
 describe('what is on the company calendar', () => {
+	test('defaults to the requester schedule and excludes another member leave', async () => {
+		const answered = heldToTheContract('event_list', await runToolOverTheRecord(
+			caller, client, adminID, 'event_list',
+			{ startsAt: inDays(-1).toISOString(), endsAt: inDays(7).toISOString() },
+			now, leavesTaskLabelsUndecided
+		));
+		expect(answered.status).toBe(200);
+		const result = answered.body as { result: { events: AnsweredEntry[] } };
+		expect(titlesOf(result.result.events)).toEqual([timedEventTitle, wholeDayEventTitle, '함께하는 일정'].sort());
+	}, networkHookTimeout);
+
 	test('reaches the agent through event_list, leave included and named as leave', async () => {
 		const entries = await entriesTheToolAnswers();
 

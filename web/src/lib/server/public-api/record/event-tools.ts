@@ -324,6 +324,7 @@ export type EventListInput = {
 	weekTo?: number;
 	query?: string;
 	personHints?: string[];
+	scope?: string;
 	limit?: number;
 };
 
@@ -395,6 +396,7 @@ export function isOnScheduleOf(whose: WhoseRecords, entry: CompanyCalendarEntry)
 }
 
 export async function eventList(context: RecordContext, input: EventListInput) {
+	const whose = whoseRecords(context.people, input.personHints, input.scope, context.requesterID);
 	const window = eventWindowOf(context, input);
 	const entries = await companyCalendarEntries(
 		calendarReaderOf(context),
@@ -403,12 +405,8 @@ export async function eventList(context: RecordContext, input: EventListInput) {
 	);
 
 	const asked = (input.query ?? '').trim().toLowerCase();
-	const personHints = input.personHints?.filter((hint) => hint.trim() !== '');
-	const whose = personHints?.length
-		? whoseRecords(context.people, personHints, undefined, context.requesterID)
-		: null;
 	const found = entries.filter((entry) => {
-		if (whose && !isOnScheduleOf(whose, entry)) return false;
+		if (!isOnScheduleOf(whose, entry)) return false;
 		if (!asked) return true;
 		const searched = `${entry.title} ${entry.description} ${entry.location}`;
 		return searched.toLowerCase().includes(asked);

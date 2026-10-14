@@ -29,6 +29,7 @@ type AnsweredEntry = AnsweredEvent & {
 export async function companyCalendarEntries(from: Date, to: Date, requestedTimeZone = companyTimeZone()): Promise<CalendarEvent[]> {
 	const [answered, timeZone] = await Promise.all([
 		invokeTool<{ events: AnsweredEntry[] }>('event_list', {
+			scope: 'all',
 			startsAt: from.toISOString(),
 			endsAt: to.toISOString()
 		}),
