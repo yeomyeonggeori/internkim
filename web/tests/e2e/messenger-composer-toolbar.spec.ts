@@ -98,4 +98,61 @@ test.describe('messenger composer toolbar', () => {
 
 		await expect(composer).toHaveText(/^좋아요\p{Extended_Pictographic}/u);
 	});
+
+	test('a long message stops growing the composer and scrolls inside it', async ({ page }) => {
+		const composer = page.getByRole('combobox', { name: /메시지/ });
+		await composer.click();
+		for (let line = 0; line < 20; line++) await composer.press('Shift+Enter');
+
+		await expect.poll(() => composer.evaluate((element) => element.clientHeight)).toBe(240);
+		expect(await composer.evaluate((element) => element.scrollHeight > element.clientHeight)).toBe(true);
+	});
+});
+
+test.describe('messenger composer on a touch keyboard', () => {
+	test.use({ hasTouch: true, isMobile: true, viewport: { width: 390, height: 760 } });
+
+	test.beforeEach(async ({ page }) => {
+		await mockDeviceMessenger(
+			page,
+			reader,
+			[{ id: channelID, name: '입력 채널', kind: 'group', myRole: 'member' }],
+			[]
+		);
+		await page.goto(`/messenger?channel=${channelID}`);
+	});
+
+	test('Enter starts a new line and only the send button sends', async ({ page }) => {
+		const sent: string[] = [];
+		await page.route('**/agent/api/dm**', async (route) => {
+			if (route.request().method() === 'POST') {
+				const { message } = route.request().postDataJSON() as { message: string };
+				sent.push(message);
+			}
+			await route.fulfill({
+				json: { conversationID: channelID, currentUserId: reader.id, messages: [], hasMoreBefore: false, historyCursor: '' }
+			});
+		});
+		const composer = page.getByRole('combobox', { name: /메시지/ });
+		await expect(composer).toHaveAttribute('enterkeyhint', 'enter');
+
+		await composer.click();
+		await composer.pressSequentially('첫 줄');
+		await composer.press('Enter');
+		await composer.pressSequentially('둘째 줄');
+		await expect(composer).toHaveText('첫 줄둘째 줄');
+		expect(sent).toEqual([]);
+
+		await page.getByRole('button', { name: '보내기' }).tap();
+		await expect.poll(() => sent).toEqual(['첫 줄\n둘째 줄']);
+	});
+
+	test('the composer grows to four lines and scrolls inside after that', async ({ page }) => {
+		const composer = page.getByRole('combobox', { name: /메시지/ });
+		await composer.click();
+		for (let line = 0; line < 10; line++) await composer.press('Enter');
+
+		await expect.poll(() => composer.evaluate((element) => element.clientHeight)).toBe(92);
+		expect(await composer.evaluate((element) => element.scrollHeight > element.clientHeight)).toBe(true);
+	});
 });

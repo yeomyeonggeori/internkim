@@ -114,7 +114,7 @@
 
 	function handleKeyDown(event: KeyboardEvent): boolean {
 		if (onKeydown(event)) return true;
-		if (event.key === 'Enter' && event.shiftKey && !event.isComposing && editor) {
+		if (event.key === 'Enter' && !event.isComposing && editor) {
 			return splitWithoutSending(editor);
 		}
 		return false;
