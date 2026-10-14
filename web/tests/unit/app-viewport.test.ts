@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, test } from 'bun:test';
 import { keepAppInVisualViewport } from '../../src/lib/app-viewport';
+import type { NativeKeyboardWatcher } from '../../src/lib/native-shell/keyboard';
 
 class FakeViewport extends EventTarget {
 	height = 844;
@@ -25,7 +26,7 @@ class FakeRoot {
 const originalWindow = globalThis.window;
 const originalDocument = globalThis.document;
 
-function installPhone(): { viewport: FakeViewport; root: FakeRoot; stop: () => void } {
+function installPhone(watchNativeKeyboard?: NativeKeyboardWatcher): { viewport: FakeViewport; root: FakeRoot; stop: () => void } {
 	const viewport = new FakeViewport();
 	const root = new FakeRoot();
 	const fakeWindow = Object.assign(new EventTarget(), {
@@ -38,7 +39,7 @@ function installPhone(): { viewport: FakeViewport; root: FakeRoot; stop: () => v
 		}
 	});
 	Object.assign(globalThis, { window: fakeWindow, document: { documentElement: root } });
-	return { viewport, root, stop: keepAppInVisualViewport() };
+	return { viewport, root, stop: keepAppInVisualViewport(watchNativeKeyboard) };
 }
 
 afterEach(() => {
@@ -71,5 +72,28 @@ describe('keepAppInVisualViewport', () => {
 		expect(root.attributes.size).toBe(0);
 		expect(window.scrollY).toBe(0);
 		stop();
+	});
+
+	test('hides the phone chrome while the native shell says its keyboard is open, even when the web view shrinks with it', () => {
+		let tellKeyboard: (isOpen: boolean) => void = () => {};
+		let isWatching = false;
+		const { root, stop } = installPhone((onChange) => {
+			tellKeyboard = onChange;
+			isWatching = true;
+			return () => {
+				isWatching = false;
+			};
+		});
+		tellKeyboard(true);
+		expect(root.attributes.has('data-mobile-keyboard-open')).toBe(true);
+		expect(root.properties.get('--app-viewport-safe-bottom')).toBe('0px');
+		expect(root.properties.has('--app-viewport-bottom')).toBe(false);
+		window.dispatchEvent(new Event('resize'));
+		expect(root.attributes.has('data-mobile-keyboard-open')).toBe(true);
+		tellKeyboard(false);
+		expect([...root.properties.keys()]).toEqual([]);
+		expect(root.attributes.size).toBe(0);
+		stop();
+		expect(isWatching).toBe(false);
 	});
 });
