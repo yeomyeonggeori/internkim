@@ -577,7 +577,7 @@ describe('an event written through the record', () => {
 		);
 		expect(onSampleSchedule.events).toEqual([]);
 
-		const listed = resultOf(await run('event_list', { query: '떠난 사람의 일정' }));
+		const listed = resultOf(await run('event_list', { query: '떠난 사람의 일정', scope: 'all' }));
 		const [event] = listed.events as { isOpenToCompany?: true; participants: unknown[] }[];
 		expect(event.participants).toEqual([]);
 		expect(event.isOpenToCompany).toBeUndefined();
@@ -608,8 +608,24 @@ describe('an event written through the record', () => {
 			'전사 일정표 확인'
 		]);
 
-		const everyone = resultOf(await run('event_list', { query: '일정표 확인' }));
+		const defaultSchedule = resultOf(await run('event_list', { query: '일정표 확인' }));
+		const eventIDs = (events: unknown) => (events as { eventID: string }[]).map(event => event.eventID).sort();
+		expect(eventIDs(defaultSchedule.events)).toEqual(eventIDs(mine.events));
+
+		const emptyHints = resultOf(await run('event_list', { query: '일정표 확인', personHints: [] }));
+		expect(eventIDs(emptyHints.events)).toEqual(eventIDs(mine.events));
+
+		const everyone = resultOf(await run('event_list', { query: '일정표 확인', scope: 'all' }));
 		expect((everyone.events as unknown[]).length).toBe(3);
+	});
+
+	test('refuses an unresolved calendar person and contradictory scope', async () => {
+		const unresolved = await run('event_list', { personHints: ['missing@example.com'] });
+		expect(unresolved.status).toBe(409);
+		expect(unresolved.body).toMatchObject({ errorCode: 'person_not_found' });
+		const contradicted = await run('event_list', { personHints: ['박예시'], scope: 'all' });
+		expect(contradicted.status).toBe(400);
+		expect(contradicted.body).toMatchObject({ errorCode: 'whose_records_contradicted' });
 	});
 
 	test('answers the hours where the company is, not in UTC', async () => {
@@ -650,7 +666,7 @@ describe('an event written through the record', () => {
 				participantPersonHints: ['박예시']
 			})
 		);
-		const listed = resultOf(await run('event_list', { query: '남에게 부탁한' }));
+		const listed = resultOf(await run('event_list', { query: '남에게 부탁한', scope: 'all' }));
 		expect((listed.events as unknown[]).length).toBe(1);
 		expect((made.participants as { name: string }[]).map((one) => one.name)).toEqual(['박예시']);
 	});

@@ -616,7 +616,8 @@ export const calendarListInputSchema = z.strictObject({
     .optional(),
   weekTo: z.number().int().describe('End of the week range as an offset from this week.').optional(),
   query: z.string().describe('Optional free-text filter matched against event titles, notes, and locations.').optional(),
-  personHints: z.array(z.string()).describe("Only the calendar entries on these people's schedule: events they attend, plus events open to the whole company, which name no attendees. Another person's leave is left out. Give exact person IDs, names, @handles, or emails; for a personal briefing or a person asking about their own day, supply the requester's exact person ID or email. Omit to read the whole visible company calendar.").optional(),
+  personHints: z.array(z.string()).describe(personHintsDescription('calendar entries')).optional(),
+  scope: z.enum(WorkspaceTaskScope).describe(whoseScopeDescription('calendar entries')).optional(),
   limit: z.number().positive().refine(Number.isInteger, 'Limit must be a whole number.').describe('Maximum number of events to return.').optional(),
 });
 
@@ -1389,8 +1390,8 @@ const calendarToolDefinitions: CapabilityToolDefinition[] = [
     answeredBy: CapabilityAnsweredBy.Record,
     privacyClass: 'workspace_calendar',
     policyResource: 'tool:event_list',
-    description: 'List everything on the company calendar in a concrete time window: scheduled events and the approved leave of everyone who is off, optionally filtered by title, description, or location. Each entry names its source; a leave entry is read-only and cannot be updated or deleted. Resolve natural-language dates to startISO and endISO before calling.',
-    version: '3',
+    description: "List calendar entries in a concrete time window. Reads the requester's own schedule unless personHints names other people or scope is all. Personal schedules include events they attend and company-open events. Each entry names its source; approved leave is read-only. Resolve natural-language dates to startsAt and endsAt before calling.",
+    version: '4',
     estimatedLatency: CapabilityEstimatedLatency.Low,
     inputSchema: calendarListInputSchema,
     result: { schema: calendarListResultSchema, effects: [] },
