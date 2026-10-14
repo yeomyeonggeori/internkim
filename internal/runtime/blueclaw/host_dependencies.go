@@ -134,6 +134,14 @@ var hostDependencies = []HostDependency{
 		NeededBy:            []HostPart{HostPartMessenger},
 	},
 	{
+		DebianPackage:       "ffmpeg",
+		DnfPackages:         []string{"ffmpeg", "ffmpeg-free"},
+		PacmanPackages:      []string{"ffmpeg"},
+		HomebrewFormula:     "ffmpeg",
+		ProgramsTheHostRuns: []string{"ffmpeg"},
+		NeededBy:            []HostPart{HostPartMessenger},
+	},
+	{
 		DebianPackage:   "openssl",
 		DnfPackages:     []string{"openssl"},
 		PacmanPackages:  []string{"openssl"},

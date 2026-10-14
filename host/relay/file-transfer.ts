@@ -1,4 +1,5 @@
 import { attachmentAddress, attachmentKind, sharedAssetPath } from './asset-store';
+import { filenameAfterConversion } from './converted-filename';
 import {
 	copyIntoStore,
 	copyWithinStore,
@@ -193,11 +194,11 @@ async function keptInTheMessenger(
 	upload: { object: string; filename: string; contentType: string }
 ): Promise<KeptAttachment> {
 	const answer = await dependencies.uploadMedia(actor, sourceURL, upload.contentType);
-	const named = { filename: upload.filename, contentType: upload.contentType };
 	if (answer.status === 200) {
-		const media = (answer.body as { media?: { address: string; digest: string; sizeBytes: number } } | null)?.media;
+		const media = (answer.body as { media?: { address: string; digest: string; sizeBytes: number; contentType: string } } | null)?.media;
 		if (!media) throw new TransferFailed(502, 'the messenger kept the file and said nothing about where');
-		return { ...named, address: media.address, digest: media.digest, sizeBytes: media.sizeBytes };
+		const filename = filenameAfterConversion(upload.filename, upload.contentType, media.contentType);
+		return { filename, contentType: media.contentType, address: media.address, digest: media.digest, sizeBytes: media.sizeBytes };
 	}
 	if (answer.status !== refusedByTheMessengerStatus) throw new TransferFailed(answer.status, reasonOf(answer.body, answer.status));
 	return keptInTheCompanyBucket(dependencies, upload, answer.body);
