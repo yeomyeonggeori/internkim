@@ -2,6 +2,7 @@ import type { ChannelMessageAttachment, ChannelOutgoingAttachment } from './chan
 import type { AttachmentState } from '$lib/components/ui/attachment/index.js';
 import type { AttachmentProgress, AttachmentSourceStatus } from '$lib/stores/attachment-source.svelte';
 import type { LightboxItem } from './channel-lightbox.svelte';
+import { withoutPictureMetadata } from './picture-metadata';
 
 export function openableAttachments(
 	attachments: ChannelMessageAttachment[],
@@ -105,11 +106,11 @@ async function reencodeImage(file: File): Promise<ChannelOutgoingAttachment> {
 	context.drawImage(bitmap, 0, 0, width, height);
 	bitmap.close();
 	const outputType = file.type === 'image/png' ? 'image/png' : 'image/jpeg';
-	const blob = await canvasToBlob(canvas, outputType);
+	const encoded = new Uint8Array(await (await canvasToBlob(canvas, outputType)).arrayBuffer());
 	return {
 		filename: withExtension(file.name, outputType),
 		contentType: outputType,
-		content: blob
+		content: new Blob([withoutPictureMetadata(encoded, outputType)], { type: outputType })
 	};
 }
 
