@@ -22,8 +22,8 @@ test('the conversation list shows how many messages each conversation has unread
 	await expect(itemNamed('새 글 채널').locator('[data-sidebar="menu-badge"]')).toHaveText(/^읽지 않은 메시지\s*3$/);
 	await expect(itemNamed('많은 채널').locator('[data-sidebar="menu-badge"]')).toHaveText(/^읽지 않은 메시지\s*99\+$/);
 	await expect(itemNamed('읽은 채널').locator('[data-sidebar="menu-badge"]')).toHaveCount(0);
-	await expect(itemNamed('새 글 채널').getByText('새 글 채널')).toHaveClass(/font-semibold/);
-	await expect(itemNamed('읽은 채널').getByText('읽은 채널')).not.toHaveClass(/font-semibold/);
+	await expect(itemNamed('새 글 채널').getByText('새 글 채널')).toHaveClass(/font-bold/);
+	await expect(itemNamed('읽은 채널').getByText('읽은 채널')).not.toHaveClass(/font-bold/);
 });
 
 test('the unread count gives way to the more button while the row is hovered or its menu is open', async ({ page }) => {
