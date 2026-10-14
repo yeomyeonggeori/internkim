@@ -105,7 +105,7 @@
 					<Sidebar.MenuItem>
 						<Sidebar.MenuButton isActive={inbox.isActive} onclick={inbox.open}>
 							<InboxIcon />
-							<span class={inbox.unreadCount > 0 ? 'font-semibold' : ''}>{inboxText.inbox}</span>
+							<span class={inbox.unreadCount > 0 ? 'font-bold' : ''}>{inboxText.inbox}</span>
 						</Sidebar.MenuButton>
 						{#if unreadBadgeLabel(inbox.unreadCount)}
 							<Sidebar.MenuBadge>
@@ -184,7 +184,7 @@
 								onclick={() => selectChannel(channel.id)}
 							>
 								{#if channel.isPrivate}<LockIcon />{:else}<HashIcon />{/if}
-								<span class={isUnreadEmphasized(channel.unreadCount, muted.has(channel.id)) ? 'font-semibold' : ''}>{channel.name}</span>
+								<span class={isUnreadEmphasized(channel.unreadCount, muted.has(channel.id)) ? 'font-bold' : ''}>{channel.name}</span>
 							</Sidebar.MenuButton>
 							{@render unreadBadge(channel)}
 						</ConversationMenu>
@@ -229,7 +229,7 @@
 									class="size-4"
 								/>
 
-								<span class={isUnreadEmphasized(conversation.unreadCount, muted.has(conversation.id)) ? 'font-semibold' : ''}>{conversation.name}</span>
+								<span class={isUnreadEmphasized(conversation.unreadCount, muted.has(conversation.id)) ? 'font-bold' : ''}>{conversation.name}</span>
 							</Sidebar.MenuButton>
 							{@render unreadBadge(conversation)}
 						</ConversationMenu>
