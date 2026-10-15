@@ -56,9 +56,20 @@ class MessengerInboxFixture extends WorkspaceLoadingFixture {
 	}
 }
 
-async function openMessenger(page: Page, width: number): Promise<MessengerInboxFixture> {
+class LongInboxFixture extends MessengerInboxFixture {
+	host(capability: string, body: Record<string, unknown>): { status: number; body: unknown } {
+		if (capability !== 'person.inbox.list') return super.host(capability, body);
+		const olderEntries = Array.from({ length: 40 }, (_, index) => ({
+			reason: 'direct',
+			isUnread: true,
+			message: { id: `older-${index}`, conversationID: 'dm-1', authorExternalID: 'pk-park', body: `지난 메시지 ${index}`, postedAt: new Date(Date.parse('2026-10-04T01:00:00.000Z') - index * 60_000).toISOString() }
+		}));
+		return { status: 200, body: { items: [...inbox, ...olderEntries] } };
+	}
+}
+
+async function openMessenger(page: Page, width: number, fixture = new MessengerInboxFixture()): Promise<MessengerInboxFixture> {
 	await page.setViewportSize({ width, height: 900 });
-	const fixture = new MessengerInboxFixture();
 	await prepareWorkspaceLoading(page, fixture);
 	await page.route('http://127.0.0.1:56801/rest/v1/member?**', async (route) => {
 		if (route.request().url().includes('user_id=eq.')) return route.fallback();
@@ -131,4 +142,15 @@ test('on a phone the conversation behind the inbox is not marked read', async ({
 
 	await inboxPanel(page).locator('[data-inbox-entry="mention-1"]').click();
 	await expect.poll(() => fixture.marks.map((mark) => mark.conversationID)).toContain('channel-1');
+});
+
+test('a long inbox stays inside its panel instead of lengthening the page', async ({ page }) => {
+	await openMessenger(page, 1280, new LongInboxFixture());
+	await expect(inboxPanel(page).locator('[data-inbox-entry]')).toHaveCount(43);
+
+	await inboxPanel(page).locator('[data-inbox-entry="direct-1"]').click();
+
+	const documentBox = await page.evaluate(() => ({ scrollHeight: document.documentElement.scrollHeight, clientHeight: document.documentElement.clientHeight, scrollTop: document.documentElement.scrollTop }));
+	expect(documentBox.scrollHeight).toBe(documentBox.clientHeight);
+	expect(documentBox.scrollTop).toBe(0);
 });

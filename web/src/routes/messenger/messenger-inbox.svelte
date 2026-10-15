@@ -70,7 +70,7 @@
 			</Empty.Header>
 		</Empty.Root>
 	{:else}
-		<Item.Group class="min-h-0 flex-1 gap-1 overflow-y-auto p-2">
+		<Item.Group class="relative min-h-0 flex-1 gap-1 overflow-y-auto p-2">
 			{#each inbox.shown as entry (entry.id)}
 				{@const place = placeLabel(entry)}
 				<Item.Root size="sm" class={cn('hover:bg-muted text-left', entry.id === chosenID && 'bg-muted')}>
