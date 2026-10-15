@@ -1,6 +1,7 @@
 import { isSupabaseConfigured, projectURL } from '$lib/supabase';
 import { copyAttachmentForReading, type MessengerAttachment } from '$lib/messenger/messenger-api';
 import { keptAssetPathOf } from '$lib/messenger/kept-attachment';
+import { forgetAttachmentFiles, isKeptAsFile, keepAttachmentFile, keptAttachmentFile } from '$lib/messenger/attachment-files';
 import { onMessengerCacheReset } from '$lib/messenger/cache-scope';
 import { readableForSeconds, signedForReading } from '$lib/transfer/company-transfer';
 
@@ -28,6 +29,7 @@ class AttachmentSourceStore {
 			this.failureByURL = new Map();
 			this.loadingURLs = new Set();
 			this.asked.clear();
+			void forgetAttachmentFiles();
 		});
 	}
 
@@ -82,12 +84,19 @@ class AttachmentSourceStore {
 		const url = attachment.url;
 		this.loadingURLs = new Set([...this.loadingURLs, url]);
 		try {
+			const kept = isKeptAsFile(attachment.contentType) ? await keptAttachmentFile(url) : '';
+			if (generation !== this.generation) return;
+			if (kept) {
+				this.openableByURL = new Map(this.openableByURL).set(url, { address: kept, expiresAt: Number.POSITIVE_INFINITY });
+				return;
+			}
 			const address = keptAssetPathOf(projectURL(), url) ? url : await this.copied(attachment, generation);
 			if (generation !== this.generation) return;
 			const expiresAt = Date.now() + readableForSeconds * 1000;
 			const signed = await signedForReading(address);
 			if (generation !== this.generation) return;
 			this.openableByURL = new Map(this.openableByURL).set(url, { address: signed, expiresAt });
+			if (isKeptAsFile(attachment.contentType)) void keepAttachmentFile(url, signed);
 		} catch (failure) {
 			if (generation !== this.generation) return;
 			const reason = failure instanceof Error ? failure.message : String(failure);
