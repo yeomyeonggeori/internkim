@@ -21456,6 +21456,28 @@
             "items": {
               "additionalProperties": false,
               "properties": {
+                "channelID": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "The messenger channel the company computer opened for it, or null until it has"
+                },
+                "channelName": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "The name of the circle's own private messenger channel, or null when it has none. Its members are exactly the circle's."
+                },
                 "id": {
                   "pattern": "^[a-z][a-z0-9-]*$",
                   "type": "string"
@@ -21485,7 +21507,9 @@
                 "name",
                 "nameKO",
                 "readableCategories",
-                "memberIDs"
+                "memberIDs",
+                "channelName",
+                "channelID"
               ],
               "type": "object"
             },
@@ -21511,6 +21535,28 @@
               "items": {
                 "additionalProperties": false,
                 "properties": {
+                  "channelID": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "description": "The messenger channel the company computer opened for it, or null until it has"
+                  },
+                  "channelName": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "description": "The name of the circle's own private messenger channel, or null when it has none. Its members are exactly the circle's."
+                  },
                   "id": {
                     "pattern": "^[a-z][a-z0-9-]*$",
                     "type": "string"
@@ -21540,7 +21586,9 @@
                   "name",
                   "nameKO",
                   "readableCategories",
-                  "memberIDs"
+                  "memberIDs",
+                  "channelName",
+                  "channelID"
                 ],
                 "type": "object"
               },
@@ -21685,7 +21733,7 @@
         "state": "ok"
       },
       "canonicalName": "circle_member_update",
-      "description": "Company circles: Set the circles an active member belongs to, replacing them atomically. Only administrators place people in circles. A member gains each circle's workspace folder, memory and data room categories.",
+      "description": "Company circles: Set the circles an active member belongs to, replacing them atomically. Only administrators place people in circles. A member gains each circle's workspace folder, memory and data room categories, and joins its channel when it has one.",
       "estimatedLatency": "low",
       "idempotency": {
         "required": false,
@@ -21781,6 +21829,208 @@
       },
       "sideEffect": "workspace_write",
       "sideEffectClass": "workspace_write",
+      "version": "1",
+      "worksOffline": false
+    },
+    {
+      "answeredBy": "record",
+      "approvalScope": "company",
+      "availability": {
+        "state": "ok"
+      },
+      "canonicalName": "circle_channel_add",
+      "description": "Company circles: Add a private messenger channel of the circle's own. Its members are exactly the circle's, kept so as people join and leave the circle, and nobody adds or removes anyone by hand. A circle has at most one channel. Only administrators add one.",
+      "estimatedLatency": "low",
+      "idempotency": {
+        "required": false,
+        "scope": "operation",
+        "supported": false
+      },
+      "inputIntentSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "circleID": {
+            "description": "The exact id of the circle, as circle_list shows it",
+            "type": "string"
+          },
+          "name": {
+            "description": "What the channel is called on the messenger, usually the circle's own name",
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "circleID": {
+            "description": "The exact id of the circle, as circle_list shows it",
+            "type": "string"
+          },
+          "name": {
+            "description": "What the channel is called on the messenger, usually the circle's own name",
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "circleID",
+          "name"
+        ],
+        "type": "object"
+      },
+      "inputSchemaStrict": true,
+      "modelName": "circle_channel_add",
+      "modelVisibility": "visible",
+      "modelVisible": true,
+      "name": "circle_channel_add",
+      "namespace": "circle",
+      "namespaceSummary": "Groups of people who share a workspace folder, a memory, and the data room categories they read.",
+      "outputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "saved": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "saved"
+        ],
+        "type": "object"
+      },
+      "outputSchemaStrict": true,
+      "policyResource": "tool:circle_channel_add",
+      "privacyClass": "workspace_company",
+      "requiresApproval": true,
+      "requiresUserPresence": false,
+      "resultContract": {
+        "effects": [
+          {
+            "effect": "updated",
+            "effectIdentity": "singleton",
+            "objectType": "circle"
+          }
+        ],
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "additionalProperties": false,
+          "properties": {
+            "saved": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "saved"
+          ],
+          "type": "object"
+        }
+      },
+      "sideEffect": "workspace_write",
+      "sideEffectClass": "workspace_write",
+      "version": "1",
+      "worksOffline": false
+    },
+    {
+      "answeredBy": "record",
+      "approvalScope": "company",
+      "availability": {
+        "state": "ok"
+      },
+      "canonicalName": "circle_channel_delete",
+      "description": "Company circles: Delete the circle's messenger channel, so nobody reads or writes in it again. Takes the channel's exact current name from circle_list as confirmation and refuses any other. Only administrators delete one, and the circle itself stays.",
+      "estimatedLatency": "low",
+      "idempotency": {
+        "required": false,
+        "scope": "operation",
+        "supported": false
+      },
+      "inputIntentSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "circleID": {
+            "description": "The exact id of the circle, as circle_list shows it",
+            "type": "string"
+          },
+          "name": {
+            "description": "The channel's exact current name, as circle_list shows it in channelName. Any other value is refused.",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "circleID": {
+            "description": "The exact id of the circle, as circle_list shows it",
+            "type": "string"
+          },
+          "name": {
+            "description": "The channel's exact current name, as circle_list shows it in channelName. Any other value is refused.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "circleID",
+          "name"
+        ],
+        "type": "object"
+      },
+      "inputSchemaStrict": true,
+      "modelName": "circle_channel_delete",
+      "modelVisibility": "visible",
+      "modelVisible": true,
+      "name": "circle_channel_delete",
+      "namespace": "circle",
+      "namespaceSummary": "Groups of people who share a workspace folder, a memory, and the data room categories they read.",
+      "outputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "saved": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "saved"
+        ],
+        "type": "object"
+      },
+      "outputSchemaStrict": true,
+      "policyResource": "tool:circle_channel_delete",
+      "privacyClass": "workspace_company",
+      "requiresApproval": true,
+      "requiresUserPresence": false,
+      "resultContract": {
+        "effects": [
+          {
+            "effect": "deleted",
+            "effectIdentity": "singleton",
+            "objectType": "circle"
+          }
+        ],
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "additionalProperties": false,
+          "properties": {
+            "saved": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "saved"
+          ],
+          "type": "object"
+        }
+      },
+      "sideEffect": "destructive",
+      "sideEffectClass": "destructive",
       "version": "1",
       "worksOffline": false
     },

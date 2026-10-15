@@ -16,6 +16,7 @@
 	import MessengerConversationSearch from './messenger-conversation-search.svelte';
 	import type { ConversationSearchMatch } from '$lib/messenger/channel-over-bridge';
 	import MessengerLeaveChannelDialog from './messenger-leave-channel-dialog.svelte';
+	import { circleChannels } from '$lib/messenger/circle-channels.svelte';
 	import MessengerNewChannelDialog from './messenger-new-channel-dialog.svelte';
 	import MessengerPersonProfile from './messenger-person-profile.svelte';
 	import { muteConversation, mutedConversations, unmuteConversation } from '$lib/notifications/muted-conversations';
@@ -240,6 +241,9 @@
 		const sequence = ++conversationReadSequence;
 		isLoadingConversations = true;
 		conversationError = '';
+		void circleChannels.load().catch((failure: unknown) =>
+			console.warn('the channels circles keep were not read', failure)
+		);
 		try {
 			const scope = await messengerCacheScope();
 			const next = await fetchConversations();

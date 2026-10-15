@@ -878,5 +878,15 @@
 		"path": "crm_opportunity_update.result.settledAmount",
 		"reason": "A deal's amount and its settled amount are Money, { amount, currency }, with the amount as a person reads it, replacing amountMinor and currencyCode in the currency's smallest unit, which models misread.",
 		"release": "the money release carries the updated catalog to company hosts before the web/API deployment"
+	},
+	{
+		"path": "circle_list.result.circles[].channelID",
+		"reason": "A circle may have a private messenger channel of its own whose members are the circle's, so circle_list names it: channelName is what an administrator asked for and channelID is what the company host opened.",
+		"release": "the circle channel release carries this catalog to company hosts together with the admind pass that opens and seats the channel"
+	},
+	{
+		"path": "circle_list.result.circles[].channelName",
+		"reason": "A circle may have a private messenger channel of its own whose members are the circle's, so circle_list names it: channelName is what an administrator asked for and channelID is what the company host opened.",
+		"release": "the circle channel release carries this catalog to company hosts together with the admind pass that opens and seats the channel"
 	}
 ]

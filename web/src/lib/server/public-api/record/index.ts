@@ -86,7 +86,9 @@ import { personInvite, personList, personUpdate } from './people-tools';
 import { companyDataRoomGet, companyDataRoomCategorySet, companyDataRoomFieldSet,
 	companyDataRoomShareCreate, companyDataRoomShareRevoke,
 	companyDataRoomLinksGet, companyDataRoomLinkCreate, companyDataRoomLinkRevoke } from './data-room';
-import { companyCircleList, companyCircleMemberSet, companyCircleSet } from './circle';
+import {
+	companyCircleChannelAdd, companyCircleChannelDelete, companyCircleList, companyCircleMemberSet, companyCircleSet
+} from './circle';
 import { taskAdd, taskDelete, taskList, taskBoard, taskUpdate, taskVocabularySet } from './task-tools';
 import { teamAdd, teamDelete, teamList, teamUpdate } from './team-tools';
 import { previewOfTool } from './preview';
@@ -173,6 +175,8 @@ const toolsOverTheRecord: Record<string, ToolRun> = {
 	circle_list: (context) => companyCircleList(context),
 	circle_update: (context, input) => companyCircleSet(context, input),
 	circle_member_update: (context, input) => companyCircleMemberSet(context, input),
+	circle_channel_add: (context, input) => companyCircleChannelAdd(context, input),
+	circle_channel_delete: (context, input) => companyCircleChannelDelete(context, input),
 	dataroom_get: (context) => companyDataRoomGet(context),
 	dataroom_links_get: (context) => companyDataRoomLinksGet(context),
 	dataroom_link_add: (context, input) => companyDataRoomLinkCreate(context, input),

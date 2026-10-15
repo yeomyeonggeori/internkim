@@ -69,5 +69,11 @@ export const dataRoomGetResultSchema = z.strictObject({
 });
 
 export const circleListResultSchema = z.strictObject({
- circles: z.array(circleSchema.extend({ memberIDs: z.array(z.string()) }))
+ circles: z.array(circleSchema.extend({
+  memberIDs: z.array(z.string()),
+  channelName: z.string().nullable().describe("The name of the circle's own private messenger channel, or null when it has none. Its members are exactly the circle's."),
+  channelID: z.string().nullable().describe('The messenger channel the company computer opened for it, or null until it has')
+ }))
 });
+
+export type ListedCircle = z.infer<typeof circleListResultSchema>['circles'][number];

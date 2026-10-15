@@ -5,15 +5,17 @@
 	import { Input } from '$lib/components/ui/input';
 	import { Checkbox } from '$lib/components/ui/checkbox';
 	import { invokeTool } from '$lib/public-api-call';
-	import { normalizeCategoryGrants, categoryName, type Circle, type DataRoomCategory } from '$lib/data-room/model';
+	import { normalizeCategoryGrants, categoryName, type DataRoomCategory } from '$lib/data-room/model';
+	import type { ListedCircle } from '$lib/data-room/schemas';
 	import { currentLocale } from '$lib/i18n/locale.svelte';
 	import { createPageText } from '$lib/i18n/page-text.svelte';
 	import { dataRoomText } from '$lib/data-room/text';
+	import CircleChannelSwitch from './circle-channel-switch.svelte';
 	let {
 		circles,
 		categories,
 		onSaved
-	}: { circles: Circle[]; categories: DataRoomCategory[]; onSaved: () => Promise<void> } = $props();
+	}: { circles: ListedCircle[]; categories: DataRoomCategory[]; onSaved: () => Promise<void> } = $props();
 	const text = createPageText(dataRoomText);
 	const fieldID = $props.id();
 	let isOpen = $state(false);
@@ -25,8 +27,9 @@
 	let errorMessage = $state('');
 	let isExisting = $state(false);
 	const parents = $derived(categories.filter((category) => !category.parent));
+	const editedCircle = $derived(isExisting ? circles.find((circle) => circle.id === id) : undefined);
 
-	function edit(circle?: Circle) {
+	function edit(circle?: ListedCircle) {
 		id = circle?.id ?? '';
 		name = circle?.name ?? '';
 		nameKO = circle?.nameKO ?? '';
@@ -108,6 +111,7 @@
 					/></Field.Field
 				></Field.Group
 			>
+			{#if editedCircle}<CircleChannelSwitch circle={editedCircle} onChanged={onSaved} />{/if}
 			<div class="grid gap-4 sm:grid-cols-2">
 				{#each parents as parent (parent.code)}<fieldset class="grid gap-2">
 						<legend class="sr-only">{categoryName(parent, currentLocale.value)}</legend>

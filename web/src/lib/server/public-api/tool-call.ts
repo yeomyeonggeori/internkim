@@ -3,7 +3,7 @@ import { askWhoAnswersFor, type AttendanceAsked } from '$lib/server/ask-who-answ
 import { askTheProject } from '$lib/server/project-function';
 import { fullPublicAPIPermission, reachesPermission } from '$lib/public-api-permission';
 import { callCompany } from '$lib/server/public-api/company-call';
-import { answererOfTool, permissionForTool, toolReachableBy } from '$lib/server/public-api/catalog';
+import { answererOfTool, objectTypesWrittenBy, permissionForTool, toolReachableBy } from '$lib/server/public-api/catalog';
 import type { ToolDescriptor } from '$lib/server/public-api/catalog';
 import { recordRunsTheTool, runToolOverTheRecord } from '$lib/server/public-api/record';
 import { taskLabelGetToolName } from '$lib/server/public-api/catalog/labels';
@@ -15,6 +15,10 @@ import type { Environment } from '$lib/server/agent-request';
 export type ToolCallAnswer = { status: number; body: unknown };
 
 export const apiRequestCapability = 'person.api.request';
+
+const directoryChangedCapability = 'directory.changed';
+
+const objectTypesTheCompanyMirrors = new Set(['circle']);
 
 export function descriptorTheTokenReaches(name: string, member: Pick<CallingMember, 'permission'>): ToolDescriptor {
 	const descriptor = toolReachableBy(name, member.permission);
@@ -82,6 +86,7 @@ export async function toolCalledByMember(
 		new Date(),
 		taskLabelsDecidedByTheCompany(environment, member)
 	);
+	if (answered.status < 300) await tellTheCompanyWhatItMirrorsChanged(environment, member, name);
 	return {
 		status: answered.status,
 		body: await withTheCompanyTold(environment, member, name, input as AttendanceAsked, answered.body)
@@ -100,6 +105,13 @@ export async function toolAnswerOrRefusal(
 		if (isHttpError(refusal)) return { status: refusal.status, body: refusal.body };
 		throw refusal;
 	}
+}
+
+async function tellTheCompanyWhatItMirrorsChanged(environment: Environment, member: CallingMember, name: string) {
+	if (!objectTypesWrittenBy(name).some((objectType) => objectTypesTheCompanyMirrors.has(objectType))) return;
+	const answer = await callCompany(environment, member.companyID, directoryChangedCapability, {})
+		.catch((refusal: unknown) => ({ status: 503, body: refusal }));
+	if (answer.status >= 300) console.warn('directory.change_untold', { tool: name, status: answer.status, body: answer.body });
 }
 
 type AttendanceWrite = { status: string; eventID: string | null; backdated: boolean };

@@ -21,6 +21,7 @@ func (service *Service) handleDirectoryChanged(responseWriter http.ResponseWrite
 	log.Printf("buzz credentials after the directory changed: %s", recording)
 	if service.canWriteToBuzzRelay() {
 		service.ensureMemberChannelMembership(request.Context())
+		service.keepCircleChannelsToTheirCircles(request.Context())
 	}
 	inTheBackgroundWithin(buzzDatabaseRequestBudget, service.showOutWhoeverLeftTheCompany)
 	inTheBackgroundWithin(buzzDatabaseSweepBudget, func(ctx context.Context) {

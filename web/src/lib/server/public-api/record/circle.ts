@@ -1,10 +1,15 @@
 import { z } from 'zod';
 import { circleListResultSchema } from '$lib/data-room/schemas';
-import { circleMemberSetInputSchema, circleSetInputSchema } from '../catalog/circle';
+import {
+	circleChannelAddInputSchema, circleChannelDeleteInputSchema, circleMemberSetInputSchema, circleSetInputSchema
+} from '../catalog/circle';
 import type { RecordContext } from './company';
 import { companyRows, dataRoomCall } from './data-room';
 
-const circleRowSchema = z.object({ id: z.string(), name: z.string(), name_ko: z.string() });
+const circleRowSchema = z.object({
+	id: z.string(), name: z.string(), name_ko: z.string(),
+	channel_name: z.string().nullable(), channel_id: z.string().nullable()
+});
 const readRowSchema = z.object({ circle_id: z.string(), category_code: z.string() });
 const memberRowSchema = z.object({ circle_id: z.string(), member_id: z.string() });
 
@@ -20,7 +25,8 @@ export async function companyCircleList(context: RecordContext) {
 		circles: z.array(circleRowSchema).parse(circles).map((circle) => ({
 			id: circle.id, name: circle.name, nameKO: circle.name_ko,
 			readableCategories: categories.filter((row) => row.circle_id === circle.id).map((row) => row.category_code),
-			memberIDs: memberships.filter((row) => row.circle_id === circle.id).map((row) => row.member_id)
+			memberIDs: memberships.filter((row) => row.circle_id === circle.id).map((row) => row.member_id),
+			channelName: circle.channel_name, channelID: circle.channel_id
 		}))
 	});
 }
@@ -38,6 +44,22 @@ export async function companyCircleMemberSet(context: RecordContext, value: unkn
 	const assignment = circleMemberSetInputSchema.parse(value);
 	await dataRoomCall(context.caller, 'member_circles_set', {
 		target_company: context.companyID, target_member: assignment.memberID, circle_ids: assignment.circleIDs
+	});
+	return { saved: true };
+}
+
+export async function companyCircleChannelAdd(context: RecordContext, value: unknown) {
+	const channel = circleChannelAddInputSchema.parse(value);
+	await dataRoomCall(context.caller, 'circle_channel_add', {
+		target_company: context.companyID, target_circle: channel.circleID, channel_name: channel.name
+	});
+	return { saved: true };
+}
+
+export async function companyCircleChannelDelete(context: RecordContext, value: unknown) {
+	const channel = circleChannelDeleteInputSchema.parse(value);
+	await dataRoomCall(context.caller, 'circle_channel_delete', {
+		target_company: context.companyID, target_circle: channel.circleID, confirmed_name: channel.name
 	});
 	return { saved: true };
 }

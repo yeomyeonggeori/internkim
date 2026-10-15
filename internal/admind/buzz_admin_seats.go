@@ -59,11 +59,13 @@ func adminsMissingTheirSeat(heldRoles map[string]string, adminPubkeys []string) 
 
 // The relay refuses every write to an archived room, and an add to a room only
 // from someone already in it, so a room archived or left empty is one no
-// administrator can ever be seated in.
+// administrator can ever be seated in. A private room the agent opened seats
+// exactly the people the company names for it, such as a circle's channel.
 const everyStreamChannelQuery = `
 SELECT c.id::text FROM channels c
 WHERE c.community_id = ANY($1::uuid[]) AND c.channel_type = 'stream'
   AND c.deleted_at IS NULL AND c.archived_at IS NULL
+  AND NOT (c.visibility = 'private' AND c.created_by = decode($2, 'hex'))
   AND EXISTS (SELECT 1 FROM channel_members m WHERE m.channel_id = c.id AND m.removed_at IS NULL)
 ORDER BY c.id`
 
@@ -92,12 +94,13 @@ func everyStreamChannel(
 	ctx context.Context,
 	database *sql.DB,
 	communities []string,
+	agentPubkey string,
 ) ([]string, error) {
 	if len(communities) == 0 {
 		return nil, nil
 	}
 	rows, errorValue := database.QueryContext(
-		ctx, everyStreamChannelQuery, pq.Array(communities))
+		ctx, everyStreamChannelQuery, pq.Array(communities), agentPubkey)
 	if errorValue != nil {
 		return nil, errorValue
 	}
@@ -200,7 +203,12 @@ func (service *Service) seatAdministratorsEverywhere(ctx context.Context, apply 
 		log.Printf("buzz admin seats: cannot reach the relay database: %v", errorValue)
 		return nil, true
 	}
-	channelIDs, errorValue := everyStreamChannel(ctx, database, service.buzzCommunities(ctx, database))
+	agentPubkey, errorValue := buzzPublicKey(buzzidentity.Secret(seed, buzzidentity.AgentSubject))
+	if errorValue != nil {
+		log.Printf("buzz admin seats: the agent has no key: %v", errorValue)
+		return nil, true
+	}
+	channelIDs, errorValue := everyStreamChannel(ctx, database, service.buzzCommunities(ctx, database), agentPubkey)
 	if errorValue != nil {
 		log.Printf("buzz admin seats: cannot read the channels: %v", errorValue)
 		return nil, true

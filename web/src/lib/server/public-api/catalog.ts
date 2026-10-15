@@ -82,6 +82,11 @@ export function toolReachableBy(name: string, permission: PublicAPIPermission): 
 	return descriptor;
 }
 
+export function objectTypesWrittenBy(name: string): string[] {
+	const descriptor = catalog.tools.find((candidate) => candidate.name === name);
+	return (descriptor?.resultContract?.effects ?? []).map((effect) => effect.objectType);
+}
+
 export const liveParameter = 'live';
 
 export type BaseCatalogAnswer = {

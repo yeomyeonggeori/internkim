@@ -38,6 +38,8 @@ The record answers these directly. A caller reaches one at `POST /rest/v1/rpc/<n
 | `calendar_subscription_company` | `target_token_hash text` | `uuid` | definer | service_role |
 | `calendar_subscription_save` | `target_token_hash text` | `void` | definer | authenticated |
 | `can_manage_task_relationship` | `target_task_id uuid` | `boolean` | definer | nobody |
+| `circle_channel_add` | `target_company uuid, target_circle text, channel_name text` | `void` | definer | authenticated, service_role |
+| `circle_channel_delete` | `target_company uuid, target_circle text, confirmed_name text` | `void` | definer | authenticated, service_role |
 | `circle_set` | `target_company uuid, circle_id text, circle_name text, readable_categories text[], circle_name_ko text DEFAULT ''::text` | `void` | definer | authenticated, service_role |
 | `claim_empty_box` | `claiming_company uuid, box_key text, ticket_hash text, fresh_since timestamp with time zone` | `TABLE(outcome text, encryption_key text)` | definer | service_role |
 | `company_documents_matching` | `target_query text, target_limit integer` | `SETOF company_document` | invoker | authenticated |
@@ -56,8 +58,12 @@ The record answers these directly. A caller reaches one at `POST /rest/v1/rpc/<n
 | `crm_opportunity_hand_over` | `target_opportunity_id uuid, target_owner_id uuid` | `opportunity` | definer | authenticated |
 | `crm_vocabulary_save` | `target_vocabulary jsonb` | `jsonb` | definer | authenticated |
 | `data_room_administrator` | `target_company uuid` | `boolean` | definer | anon, authenticated, service_role |
+| `data_room_circle_categories` | `target_company uuid, target_circle text` | `text[]` | definer | authenticated, service_role |
+| `data_room_circle_company` | `target_company uuid, target_circle text` | `jsonb` | definer | anon, authenticated, service_role |
+| `data_room_company` | `target_company uuid` | `jsonb` | definer | anon, authenticated, service_role |
 | `data_room_document_readable` | `document company_document` | `boolean` | definer | anon, authenticated, service_role |
 | `data_room_document_writable` | `document company_document` | `boolean` | definer | anon, authenticated, service_role |
+| `data_room_field_set` | `target_company uuid, target_field text, target_category text` | `void` | invoker | anon, authenticated, service_role |
 | `data_room_link_create` | `target_company uuid, circle_id text, label text, access_code text, lifetime_hours integer DEFAULT 72, can_download boolean DEFAULT false` | `uuid` | definer | authenticated, service_role |
 | `data_room_link_revoke` | `target_link uuid` | `void` | definer | authenticated, service_role |
 | `data_room_link_unlock` | `target_link uuid, access_code text, notice_version text, client_fingerprint text` | `jsonb` | definer | service_role |
@@ -77,6 +83,7 @@ The record answers these directly. A caller reaches one at `POST /rest/v1/rpc/<n
 | `is_company_admin` | — | `boolean` | definer | anon, authenticated, service_role |
 | `is_company_profile` | `profile jsonb` | `boolean` | invoker | anon, authenticated, service_role |
 | `is_messenger_accounts` | `accounts jsonb` | `boolean` | invoker | anon, authenticated, service_role |
+| `is_money` | `money jsonb` | `boolean` | invoker | anon, authenticated, service_role |
 | `is_public_identity_credential` | `kind text` | `boolean` | definer | authenticated, service_role |
 | `is_work_hours` | `schedule jsonb` | `boolean` | invoker | anon, authenticated, service_role |
 | `leave_accrue_due` | — | `jsonb` | definer | authenticated, service_role |
@@ -115,6 +122,7 @@ The record answers these directly. A caller reaches one at `POST /rest/v1/rpc/<n
 | `read_member_secret` | `target_member uuid, target_kind text` | `text` | definer | service_role |
 | `reopen_parent_for_an_unfinished_child` | `parent_id uuid` | `void` | definer | service_role |
 | `reserve_document_number` | `target_company uuid, requested_prefix text` | `text` | definer | authenticated, service_role |
+| `size_bytes` | `document company_document` | `bigint` | invoker | authenticated, service_role |
 | `status_my_leave_request_takes` | — | `leave_status` | definer | authenticated, service_role |
 | `task_children_link` | `parent_id uuid, child_ids uuid[]` | `void` | definer | authenticated |
 | `task_parent_set` | `target_task_id uuid, target_parent_task_id uuid` | `void` | definer | authenticated |
@@ -164,6 +172,7 @@ These run when a row changes. Nobody calls them.
 | `refuse_a_second_copy_of_an_event` |
 | `refuse_task_parent_cycle` |
 | `resolve_attendance` |
+| `stamp_company_document_update` |
 | `stamp_crm_record` |
 | `stamp_task_on_participant_change` |
 | `stamp_task_update` |

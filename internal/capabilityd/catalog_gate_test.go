@@ -58,7 +58,7 @@ func gateCases() map[string]catalogGateCase {
 		},
 		"circle_list": {
 			kind:    provesCarrying,
-			reaches: map[gateBackend]*standingIn{admindOverTheSocket: answering(`{"tool":"circle_list","result":{"circles":[{"id":"finance","name":"Finance","nameKO":"재무","readableCategories":["F"],"memberIDs":[]}]}}`)},
+			reaches: map[gateBackend]*standingIn{admindOverTheSocket: answering(`{"tool":"circle_list","result":{"circles":[{"id":"finance","name":"Finance","nameKO":"재무","readableCategories":["F"],"memberIDs":[],"channelName":null,"channelID":null}]}}`)},
 			input:   `{}`,
 			expect:  func(t *testing.T, answered capabilities.ToolInvokeResponse) { expectSucceeded(t, answered) },
 		},
@@ -114,6 +114,18 @@ func gateCases() map[string]catalogGateCase {
 			kind:    provesCarrying,
 			reaches: map[gateBackend]*standingIn{admindOverTheSocket: answering(`{"tool":"dataroom_field_update","result":{"saved":true}}`)},
 			input:   `{"field":"capital","categoryCode":"CO"}`,
+			expect:  func(t *testing.T, answered capabilities.ToolInvokeResponse) { expectSucceeded(t, answered) },
+		},
+		"circle_channel_add": {
+			kind:    provesCarrying,
+			reaches: map[gateBackend]*standingIn{admindOverTheSocket: answering(`{"tool":"circle_channel_add","result":{"saved":true}}`)},
+			input:   `{"circleID":"finance","name":"재무"}`,
+			expect:  func(t *testing.T, answered capabilities.ToolInvokeResponse) { expectSucceeded(t, answered) },
+		},
+		"circle_channel_delete": {
+			kind:    provesCarrying,
+			reaches: map[gateBackend]*standingIn{admindOverTheSocket: answering(`{"tool":"circle_channel_delete","result":{"saved":true}}`)},
+			input:   `{"circleID":"finance","name":"재무"}`,
 			expect:  func(t *testing.T, answered capabilities.ToolInvokeResponse) { expectSucceeded(t, answered) },
 		},
 		"circle_update": {

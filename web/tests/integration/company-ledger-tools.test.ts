@@ -354,11 +354,31 @@ describe('the category data room', () => {
 		expect(joined.status).toBe(200);
 		const { circles } = circleListResultSchema.parse(resultOf(await asSample('circle_list')));
 		expect(circles.find((listed) => listed.id === 'room-test'))
-			.toEqual({ id: 'room-test', name: 'Sample finance reader', nameKO: '', readableCategories: ['F'], memberIDs: [sampleID] });
+			.toEqual({
+				id: 'room-test', name: 'Sample finance reader', nameKO: '', readableCategories: ['F'], memberIDs: [sampleID],
+				channelName: null, channelID: null
+			});
 		expect(resultOf(await asSample('company_document_list', { categoryCode: 'F' })).count).toBe(1);
 		const left = await asAdmin('circle_member_update', { memberID: sampleID, circleIDs: ['member'] });
 		expect(left.status).toBe(200);
 		expect(resultOf(await asSample('company_document_list', { categoryCode: 'F' })).count).toBe(0);
+	});
+
+	test('gives a circle a channel of its own and deletes it only by its exact name', async () => {
+		const refused = await asSample('circle_channel_add', { circleID: 'finance', name: 'Sample finance' });
+		expect(refused.status).toBe(403);
+		const added = await asAdmin('circle_channel_add', { circleID: 'finance', name: 'Sample finance' });
+		expect(added.status).toBe(200);
+		const listed = circleListResultSchema.parse(resultOf(await asSample('circle_list'))).circles;
+		expect(listed.find((circle) => circle.id === 'finance')).toMatchObject({ channelName: 'Sample finance', channelID: null });
+		const twice = await asAdmin('circle_channel_add', { circleID: 'finance', name: 'Another finance' });
+		expect(twice.status).toBe(409);
+		const misnamed = await asAdmin('circle_channel_delete', { circleID: 'finance', name: 'sample finance' });
+		expect(misnamed.status).toBe(422);
+		const deleted = await asAdmin('circle_channel_delete', { circleID: 'finance', name: 'Sample finance' });
+		expect(deleted.status).toBe(200);
+		const after = circleListResultSchema.parse(resultOf(await asSample('circle_list'))).circles;
+		expect(after.find((circle) => circle.id === 'finance')).toMatchObject({ channelName: null });
 	});
 
 	test('lets an administrator, and nobody else, choose who sees a company field', async () => {
