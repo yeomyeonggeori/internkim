@@ -51,14 +51,6 @@ func (service *Service) saveCompanyUserRecord(ctx context.Context, write central
 	return errorValue
 }
 
-func (service *Service) withdrawCompanyUser(ctx context.Context, email string) error {
-	client := service.centralPlane()
-	if client == nil {
-		return errNoCompanyDirectory
-	}
-	return client.WithdrawMember(ctx, email)
-}
-
 // A handle is an identifier the company issues, not something a messenger hands
 // back. The address already carries one everybody recognises.
 func handleFromEmail(email string) string {

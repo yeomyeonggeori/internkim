@@ -6,10 +6,6 @@ import (
 	"github.com/yeomyeonggeori/internkim/internal/tasksize"
 )
 
-func defaultTaskSizeDefinitions() []taskSizeDefinition {
-	return defaultTaskSizeDefinitionsForLocale("ko")
-}
-
 func defaultTaskSizeDefinitionsForLocale(locale string) []taskSizeDefinition {
 	definitions := tasksize.Definitions()
 	adminDefinitions := make([]taskSizeDefinition, 0, len(definitions))

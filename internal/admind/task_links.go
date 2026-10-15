@@ -7,14 +7,6 @@ import (
 	"time"
 )
 
-func (service *Service) linkedTaskID(taskID string) string {
-	taskID = strings.TrimSpace(taskID)
-	if taskID == "" || !service.linksGoToTheRecord() {
-		return taskID
-	}
-	return service.recordTaskIDCarrying(taskID)
-}
-
 func (service *Service) linksGoToTheRecord() bool {
 	return strings.TrimSpace(service.Configuration.CentralPlaneAppURL) != ""
 }

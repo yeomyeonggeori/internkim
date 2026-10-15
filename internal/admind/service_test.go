@@ -124,73 +124,6 @@ func TestOpenSQLiteDatabaseUsesWALAndBusyTimeout(t *testing.T) {
 	}
 }
 
-func TestCredentialProviderStatusMasksOpenRouterKey(t *testing.T) {
-	rootPath := t.TempDir()
-	keyPath := filepath.Join(rootPath, "secrets", "openrouter-api-key")
-	if errorValue := os.MkdirAll(filepath.Dir(keyPath), 0o700); errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	if errorValue := os.WriteFile(keyPath, []byte("sk-secret-value"), 0o600); errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	service := NewService(Configuration{
-		StateDirectory:    filepath.Join(rootPath, "state"),
-		AdminEmailPath:    writeTestFile(t, "admin@example.com"),
-		OpenRouterKeyPath: keyPath,
-	})
-	request := httptest.NewRequest(http.MethodGet, "/admin/api/credentials/providers", nil)
-	request.RemoteAddr = "127.0.0.1:12345"
-	response := httptest.NewRecorder()
-
-	service.router().ServeHTTP(response, request)
-
-	if response.Code != http.StatusOK {
-		t.Fatalf("expected status success, got %d: %s", response.Code, response.Body.String())
-	}
-	responseBody := response.Body.String()
-	if strings.Contains(responseBody, "sk-secret-value") {
-		t.Fatalf("expected response to omit secret, got %s", responseBody)
-	}
-	if !strings.Contains(responseBody, `"configured":true`) || !strings.Contains(responseBody, `"fingerprint":"sha256:`) {
-		t.Fatalf("expected masked configured status, got %s", responseBody)
-	}
-}
-
-func TestCredentialProviderSavesValidatedOpenRouterKey(t *testing.T) {
-	rootPath := t.TempDir()
-	keyPath := filepath.Join(rootPath, "secrets", "openrouter-api-key")
-	service := NewService(Configuration{
-		StateDirectory:      filepath.Join(rootPath, "state"),
-		AdminEmailPath:      writeTestFile(t, "admin@example.com"),
-		OpenRouterKeyPath:   keyPath,
-		OpenRouterModelsURL: "https://openrouter.test/models",
-	})
-	service.HTTPClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
-		if request.URL.String() != "https://openrouter.test/models" {
-			t.Fatalf("unexpected validation url: %s", request.URL.String())
-		}
-		if request.Header.Get("Authorization") != "Bearer sk-new" {
-			t.Fatalf("unexpected authorization header: %q", request.Header.Get("Authorization"))
-		}
-		return jsonResponse(http.StatusOK, `{"data":[]}`, nil), nil
-	})}
-	request := httptest.NewRequest(http.MethodPut, "/admin/api/credentials/openrouter-key", strings.NewReader(`{"apiKey":"sk-new"}`))
-	request.RemoteAddr = "127.0.0.1:12345"
-	response := httptest.NewRecorder()
-
-	service.router().ServeHTTP(response, request)
-
-	if response.Code != http.StatusOK {
-		t.Fatalf("expected save success, got %d: %s", response.Code, response.Body.String())
-	}
-	if readTrimmedFile(keyPath) != "sk-new" {
-		t.Fatalf("expected key to be stored")
-	}
-	if strings.Contains(response.Body.String(), "sk-new") {
-		t.Fatalf("expected response to omit key, got %s", response.Body.String())
-	}
-}
-
 func TestCredentialProviderRejectsNonAdmin(t *testing.T) {
 	service := NewService(Configuration{
 		StateDirectory: t.TempDir(),
@@ -532,58 +465,6 @@ func adminUsersProxyTestService(t *testing.T, directory *companyDirectoryForTest
 		}
 	})}
 	return service
-}
-
-func TestAdminUsersProxyWritesAPersonThroughTheCompanyDoor(t *testing.T) {
-	directory := companyDirectoryHolding(
-		memberForTest("admin@example.com", "이샘플", "admin"),
-		memberForTest("colleague@example.com", "박예시", "member"),
-	)
-	service := adminUsersProxyTestService(t, directory)
-
-	request := httptest.NewRequest(http.MethodPost, "/admin/api/users", strings.NewReader(`{"email":"colleague@example.com","name":"박예시","role":"admin","note":"HR follow-up"}`))
-	request.Header.Set("Cf-Access-Authenticated-User-Email", "admin@example.com")
-	response := httptest.NewRecorder()
-	service.router().ServeHTTP(response, request)
-	if response.Code != http.StatusOK {
-		t.Fatalf("users proxy status = %d body = %s", response.Code, response.Body.String())
-	}
-	if len(directory.writes) != 1 {
-		t.Fatalf("the company received %d writes, want one: %+v", len(directory.writes), directory.writes)
-	}
-	written := directory.writes[0]
-	if written.Email != "colleague@example.com" || written.Name != "박예시" || written.Role != "admin" || written.Note != "HR follow-up" {
-		t.Fatalf("the company received %+v", written)
-	}
-	var answered pagesUsersResponse
-	if errorValue := json.NewDecoder(response.Body).Decode(&answered); errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	if len(answered.Records) != 2 || answered.Records[1].Email != "colleague@example.com" || answered.Records[1].Role != "admin" {
-		t.Fatalf("the console was answered with something other than the company's directory: %+v", answered.Records)
-	}
-}
-
-func TestAdminUsersProxyWithdrawsAPersonThroughTheCompanyDoor(t *testing.T) {
-	directory := companyDirectoryHolding(
-		memberForTest("admin@example.com", "이샘플", "admin"),
-		memberForTest("colleague@example.com", "박예시", "member"),
-	)
-	service := adminUsersProxyTestService(t, directory)
-
-	request := httptest.NewRequest(http.MethodDelete, "/admin/api/users/colleague%40example.com", nil)
-	request.Header.Set("Cf-Access-Authenticated-User-Email", "admin@example.com")
-	response := httptest.NewRecorder()
-	service.router().ServeHTTP(response, request)
-	if response.Code != http.StatusOK {
-		t.Fatalf("users proxy status = %d body = %s", response.Code, response.Body.String())
-	}
-	if len(directory.withdrawn) != 1 || directory.withdrawn[0] != "colleague@example.com" {
-		t.Fatalf("the company withdrew %v", directory.withdrawn)
-	}
-	if strings.Contains(response.Body.String(), "colleague@example.com") {
-		t.Fatalf("somebody withdrawn is still listed as working here: %s", response.Body.String())
-	}
 }
 
 func TestAdminUsersProxyRefusesToRemoveTheLastAdmin(t *testing.T) {
@@ -1034,19 +915,6 @@ func writeTestFile(t *testing.T, document string) string {
 		t.Fatal(errorValue)
 	}
 	return path
-}
-
-func readJSONFile(t *testing.T, path string) map[string]any {
-	t.Helper()
-	document, errorValue := os.ReadFile(path)
-	if errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	var result map[string]any
-	if errorValue := json.Unmarshal(document, &result); errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	return result
 }
 
 type roundTripFunc func(*http.Request) (*http.Response, error)

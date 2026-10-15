@@ -80,3 +80,7 @@ func seedLegacyStateDatabase(t *testing.T, databasePath string, statements ...st
 		}
 	}
 }
+
+func sqliteDatabaseDSN(databasePath string) string {
+	return sqliteDatabaseDSNWithOptions(databasePath, sqliteDatabaseOptions{})
+}

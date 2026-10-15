@@ -83,15 +83,6 @@ func (service *Service) readBuzzIdentitySecret(subject string) (string, error) {
 	return string(plaintext), nil
 }
 
-func (service *Service) hasBuzzIdentitySecret(subject string) bool {
-	encryptionKey, errorValue := loadOrCreateSecretEncryptionKey(service.buzzIdentityVaultKeyPath())
-	if errorValue != nil {
-		return false
-	}
-	_, errorValue = os.Stat(service.buzzIdentitySecretPath(encryptionKey, subject))
-	return errorValue == nil
-}
-
 func (service *Service) deleteBuzzIdentitySecret(subject string) error {
 	encryptionKey, errorValue := loadOrCreateSecretEncryptionKey(service.buzzIdentityVaultKeyPath())
 	if errorValue != nil {

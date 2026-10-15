@@ -9,10 +9,6 @@ import (
 	"github.com/yeomyeonggeori/internkim/internal/personname"
 )
 
-func (service *Service) inviteBlueclawPerson(ctx context.Context, userID string, email string, name string) error {
-	return service.upsertBlueclawPerson(ctx, userID, email, name, "", nil, nil)
-}
-
 // upsertBlueclawPerson reads the roster once, applies everything about the person, and
 // writes once. Two read-modify-write passes were a race with our own first write: the
 // second read has to see it, and on a device the agent reads the file across a share, so
@@ -44,36 +40,6 @@ func (service *Service) upsertBlueclawPerson(ctx context.Context, userID string,
 	}
 	service.seedUserDocument(ctx, policyString(person["personID"]), personname.DefaultCallMe(name, language))
 	return nil
-}
-
-func (service *Service) removeBlueclawPerson(ctx context.Context, email string) error {
-	normalizedEmail := normalizedRosterEmail(email)
-	if normalizedEmail == "" {
-		return nil
-	}
-	var policyDocument map[string]any
-	if errorValue := service.blueclawJSONRequest(ctx, http.MethodGet, "/admin/api/policy", nil, &policyDocument); errorValue != nil {
-		return errorValue
-	}
-	people, _ := policyDocument["people"].([]any)
-	remaining := blueclawPeopleWithoutEmail(people, normalizedEmail)
-	if len(remaining) == len(people) {
-		return nil
-	}
-	policyDocument["people"] = remaining
-	return service.deliverBlueclawPolicy(ctx, policyDocument)
-}
-
-func blueclawPeopleWithoutEmail(people []any, email string) []any {
-	remaining := make([]any, 0, len(people))
-	for _, value := range people {
-		person, isPerson := value.(map[string]any)
-		if isPerson && blueclawPersonHasEmail(person, email) {
-			continue
-		}
-		remaining = append(remaining, value)
-	}
-	return remaining
 }
 
 func blueclawPersonWithEmail(people []any, email string) map[string]any {

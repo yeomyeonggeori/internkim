@@ -14,10 +14,10 @@ func TestTaskLabelQuestionsOfferEverySizeAndOnlyRegisteredLabels(t *testing.T) {
 	questions := taskLabelQuestions(taskDefinitions{
 		Categories: []string{"Sample business"},
 		Types:      []string{"Development", " "},
-		Sizes:      defaultTaskSizeDefinitions(),
+		Sizes:      defaultTaskSizeDefinitionsForLocale("ko"),
 	})
 
-	if offered := optionsOf(t, questions["size"]); len(offered) != len(defaultTaskSizeDefinitions()) {
+	if offered := optionsOf(t, questions["size"]); len(offered) != len(defaultTaskSizeDefinitionsForLocale("ko")) {
 		t.Fatalf("size options = %v", offered)
 	}
 	if offered := optionsOf(t, questions["business"]); len(offered) != 1 || offered["Sample business"] == "" {
@@ -29,7 +29,7 @@ func TestTaskLabelQuestionsOfferEverySizeAndOnlyRegisteredLabels(t *testing.T) {
 }
 
 func TestTaskLabelQuestionsSkipALabelTheCompanyHasNone(t *testing.T) {
-	questions := taskLabelQuestions(taskDefinitions{Sizes: defaultTaskSizeDefinitions()})
+	questions := taskLabelQuestions(taskDefinitions{Sizes: defaultTaskSizeDefinitionsForLocale("ko")})
 
 	if _, asked := questions["business"]; asked {
 		t.Fatal("asked for a business the company has not registered")
@@ -43,7 +43,7 @@ func TestTaskLabelsKeepOnlyOfferedChoices(t *testing.T) {
 	questions := taskLabelQuestions(taskDefinitions{
 		Categories: []string{"Sample business"},
 		Types:      []string{"Development"},
-		Sizes:      defaultTaskSizeDefinitions(),
+		Sizes:      defaultTaskSizeDefinitionsForLocale("ko"),
 	})
 
 	labels := taskLabelsOfAnswers(map[string]llmbackend.DecisionAnswer{
@@ -60,7 +60,7 @@ func TestTaskLabelsKeepOnlyOfferedChoices(t *testing.T) {
 func TestTaskLabelsLeaveABusinessEmptyWhenTheChoiceIsAGuess(t *testing.T) {
 	questions := taskLabelQuestions(taskDefinitions{
 		Categories: []string{"Sample business", "Other business"},
-		Sizes:      defaultTaskSizeDefinitions(),
+		Sizes:      defaultTaskSizeDefinitionsForLocale("ko"),
 	})
 	answersWithBusinessConfidence := func(confidence *float64) map[string]llmbackend.DecisionAnswer {
 		return map[string]llmbackend.DecisionAnswer{
