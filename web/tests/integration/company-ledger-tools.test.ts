@@ -342,7 +342,7 @@ describe('the category data room', () => {
 		});
 		expect(category.status).toBe(200);
 		const circle = await asAdmin('circle_update', {
-			id: 'room-test', name: 'Sample finance reader', nameKO: '', readableCategories: ['F', 'FS']
+			id: 'room-test', name: 'Sample finance reader', readableCategories: ['F', 'FS']
 		});
 		expect(circle.status).toBe(200);
 		const filed = await asAdmin('company_document_register', {
@@ -355,7 +355,7 @@ describe('the category data room', () => {
 		const { circles } = circleListResultSchema.parse(resultOf(await asSample('circle_list')));
 		expect(circles.find((listed) => listed.id === 'room-test'))
 			.toEqual({
-				id: 'room-test', name: 'Sample finance reader', nameKO: '', readableCategories: ['F'], memberIDs: [sampleID],
+				id: 'room-test', name: 'Sample finance reader', isDefault: false, readableCategories: ['F'], memberIDs: [sampleID],
 				channelName: null, channelID: null
 			});
 		expect(resultOf(await asSample('company_document_list', { categoryCode: 'F' })).count).toBe(1);
@@ -406,9 +406,16 @@ describe('the category data room', () => {
 		expect(revoked.status).toBe(200);
 	});
 
+	test('names a default circle in the company language and never renames it', async () => {
+		const { circles } = circleListResultSchema.parse(resultOf(await asAdmin('circle_list')));
+		expect(circles.find((circle) => circle.id === 'leadership')).toMatchObject({ isDefault: true });
+		const renamed = await asAdmin('circle_update', { id: 'leadership', name: 'Bosses', readableCategories: ['F'] });
+		expect(renamed.status).toBe(422);
+	});
+
 	test('a colleague cannot widen what their own circle reads', async () => {
 		const refused = await asSample('circle_update', {
-			id: 'member', name: 'Member', nameKO: '', readableCategories: ['F']
+			id: 'member', readableCategories: ['F']
 		});
 		expect(refused.status).toBe(403);
 	});

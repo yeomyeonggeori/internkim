@@ -139,3 +139,12 @@ func TestBuzzIdentitySecretDeletes(t *testing.T) {
 		t.Fatalf("deleting a missing secret should be a no-op, got %v", errorValue)
 	}
 }
+
+func (service *Service) hasBuzzIdentitySecret(subject string) bool {
+	encryptionKey, errorValue := loadOrCreateSecretEncryptionKey(service.buzzIdentityVaultKeyPath())
+	if errorValue != nil {
+		return false
+	}
+	_, errorValue = os.Stat(service.buzzIdentitySecretPath(encryptionKey, subject))
+	return errorValue == nil
+}

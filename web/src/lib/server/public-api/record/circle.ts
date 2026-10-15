@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { circleName, defaultCircleName } from '$lib/data-room/model';
 import { circleListResultSchema } from '$lib/data-room/schemas';
 import {
 	circleChannelAddInputSchema, circleChannelDeleteInputSchema, circleMemberSetInputSchema, circleSetInputSchema
@@ -7,7 +8,7 @@ import type { RecordContext } from './company';
 import { companyRows, dataRoomCall } from './data-room';
 
 const circleRowSchema = z.object({
-	id: z.string(), name: z.string(), name_ko: z.string(),
+	id: z.string(), name: z.string().nullable(),
 	channel_name: z.string().nullable(), channel_id: z.string().nullable()
 });
 const readRowSchema = z.object({ circle_id: z.string(), category_code: z.string() });
@@ -23,7 +24,7 @@ export async function companyCircleList(context: RecordContext) {
 	const memberships = z.array(memberRowSchema).parse(members);
 	return circleListResultSchema.parse({
 		circles: z.array(circleRowSchema).parse(circles).map((circle) => ({
-			id: circle.id, name: circle.name, nameKO: circle.name_ko,
+			id: circle.id, name: circleName(circle, context.locale), isDefault: defaultCircleName(circle.id, context.locale) !== undefined,
 			readableCategories: categories.filter((row) => row.circle_id === circle.id).map((row) => row.category_code),
 			memberIDs: memberships.filter((row) => row.circle_id === circle.id).map((row) => row.member_id),
 			channelName: circle.channel_name, channelID: circle.channel_id
@@ -34,8 +35,8 @@ export async function companyCircleList(context: RecordContext) {
 export async function companyCircleSet(context: RecordContext, value: unknown) {
 	const circle = circleSetInputSchema.parse(value);
 	await dataRoomCall(context.caller, 'circle_set', {
-		target_company: context.companyID, circle_id: circle.id, circle_name: circle.name,
-		circle_name_ko: circle.nameKO, readable_categories: circle.readableCategories
+		target_company: context.companyID, circle_id: circle.id, circle_name: circle.name ?? null,
+		readable_categories: circle.readableCategories
 	});
 	return { saved: true };
 }

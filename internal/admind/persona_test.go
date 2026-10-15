@@ -281,7 +281,7 @@ func TestARosterWriteGivesThePersonADocumentWithTheNameTheDirectoryKnows(t *test
 	service.Configuration.BlueclawBaseURL = blueclaw.URL
 	service.Configuration.BlueclawPolicyDeliveryPath = filepath.Join(t.TempDir(), "policy.json")
 
-	if errorValue := service.inviteBlueclawPerson(context.Background(), "person-1", "sample@example.com", "샘플 이"); errorValue != nil {
+	if errorValue := service.upsertBlueclawPerson(context.Background(), "person-1", "sample@example.com", "샘플 이", "", nil, nil); errorValue != nil {
 		t.Fatal(errorValue)
 	}
 

@@ -8,7 +8,7 @@
 	import { invokeTool } from '$lib/public-api-call';
 	import { currentLocale } from '$lib/i18n/locale.svelte';
 	import { dataRoomRequest } from '$lib/data-room/guest';
-	import { categoryName } from '$lib/data-room/model';
+	import { categoryName, circleName } from '$lib/data-room/model';
 	import { circleListResultSchema, dataRoomGetResultSchema } from '$lib/data-room/schemas';
 	import { dataRoomCompanySchema, humanizedKey } from '$lib/data-room/company';
 	import { dataRoomCompanyText } from '$lib/data-room/company-text';
@@ -78,7 +78,7 @@
 
 	function readers(code: string): string {
 		const names = circlesReading(code, circles, room?.categories ?? [])
-			.map((circle) => (currentLocale.value === 'ko' ? circle.nameKO || circle.name : circle.name));
+			.map((circle) => circleName(circle, currentLocale.value));
 		return names.join(', ') || text.settings.nobody;
 	}
 

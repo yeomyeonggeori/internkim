@@ -6,8 +6,6 @@ import {
 	memberRoles as sharedMemberRoles,
 	memberStatuses as sharedMemberStatuses
 } from '../../../supabase/functions/_shared/member-vocabulary.ts';
-import { allUserRoleOptions } from '../../src/routes/admin/users-section-policy';
-import { adminText } from '../../src/routes/admin/text';
 
 const pinnedPath = join(import.meta.dir, '../../../supabase/tests/member_role_and_status_are_declared_once.test.sql');
 
@@ -43,13 +41,5 @@ describe('the record is what the vocabulary is read from', () => {
 	test('a boolean column can only mean two roles', () => {
 		expect(theDatabasePinsTheRoleToABoolean()).toBe(true);
 		expect(memberRoles).toHaveLength(2);
-	});
-});
-
-describe('the admin console offers the roles the record can hold', () => {
-	test('every role option is a declared role, and every declared role is offered', () => {
-		expect(allUserRoleOptions(adminText.ko).map((option) => option.value).sort()).toEqual(
-			[...memberRoles].sort()
-		);
 	});
 });

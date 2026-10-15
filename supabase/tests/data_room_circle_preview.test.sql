@@ -18,7 +18,7 @@ insert into public.company_document (company_id, document_type, title, category_
 set local role authenticated;
 select set_config('request.jwt.claims', '{"sub":"64000000-0000-0000-0000-000000000001"}', true);
 select public.circle_set('64000000-0000-0000-0000-000000000010', 'statements', 'Statements', array['FS']);
-select public.circle_set('64000000-0000-0000-0000-000000000010', 'finance', 'Finance', array['F']);
+select public.circle_set('64000000-0000-0000-0000-000000000010', 'finance', null, array['F']);
 select public.member_circles_set('64000000-0000-0000-0000-000000000010', '64000000-0000-0000-0000-000000000012', array['statements']);
 
 select is(public.data_room_circle_categories('64000000-0000-0000-0000-000000000010', 'statements'), array['FS'],

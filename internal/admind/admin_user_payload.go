@@ -1,10 +1,5 @@
 package admind
 
-import (
-	"errors"
-	"strings"
-)
-
 type adminUserMutation struct {
 	MemberID               string   `json:"memberID,omitempty"`
 	Handle                 string   `json:"handle,omitempty"`
@@ -21,20 +16,4 @@ type adminUserMutation struct {
 	Status                 string   `json:"status,omitempty"`
 	TemporaryPassword      string   `json:"temporaryPassword,omitempty"`
 	TemporaryPasswordEmail string   `json:"temporaryPasswordEmail,omitempty"`
-}
-
-func normalizeAdminUserPayload(payload adminUserMutation) (adminUserMutation, bool, error) {
-	hasExplicitCircleMutation := payload.Circles != nil
-	payload.Email = strings.ToLower(strings.TrimSpace(payload.Email))
-	if payload.Email == "" {
-		return adminUserMutation{}, false, errors.New("email required")
-	}
-	payload.Handle = normalizeMemberHandle(firstNonEmpty(payload.Handle, memberHandleBase(payload.Email)))
-	if !isValidMemberHandle(payload.Handle) {
-		return adminUserMutation{}, false, errors.New("handle must start with a letter and contain 3-22 lowercase letters, numbers, dots, dashes, or underscores")
-	}
-	payload.Name = firstNonEmpty(strings.TrimSpace(payload.Name), payload.Handle)
-	payload.Note = strings.TrimSpace(payload.Note)
-	payload.Role = normalizeAdminUserRole(payload.Role)
-	return payload, hasExplicitCircleMutation, nil
 }

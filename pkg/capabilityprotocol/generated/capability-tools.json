@@ -21479,8 +21479,13 @@
                   "description": "The name of the circle's own private messenger channel, or null when it has none. Its members are exactly the circle's."
                 },
                 "id": {
+                  "description": "The lowercase English name the company host gives its folder and group; it never changes",
                   "pattern": "^[a-z][a-z0-9-]*$",
                   "type": "string"
+                },
+                "isDefault": {
+                  "description": "Whether the product named this circle; a default circle cannot be renamed",
+                  "type": "boolean"
                 },
                 "memberIDs": {
                   "items": {
@@ -21489,10 +21494,7 @@
                   "type": "array"
                 },
                 "name": {
-                  "minLength": 1,
-                  "type": "string"
-                },
-                "nameKO": {
+                  "description": "What people call it. A default circle's name is the product's, in the company's language",
                   "type": "string"
                 },
                 "readableCategories": {
@@ -21505,7 +21507,7 @@
               "required": [
                 "id",
                 "name",
-                "nameKO",
+                "isDefault",
                 "readableCategories",
                 "memberIDs",
                 "channelName",
@@ -21558,8 +21560,13 @@
                     "description": "The name of the circle's own private messenger channel, or null when it has none. Its members are exactly the circle's."
                   },
                   "id": {
+                    "description": "The lowercase English name the company host gives its folder and group; it never changes",
                     "pattern": "^[a-z][a-z0-9-]*$",
                     "type": "string"
+                  },
+                  "isDefault": {
+                    "description": "Whether the product named this circle; a default circle cannot be renamed",
+                    "type": "boolean"
                   },
                   "memberIDs": {
                     "items": {
@@ -21568,10 +21575,7 @@
                     "type": "array"
                   },
                   "name": {
-                    "minLength": 1,
-                    "type": "string"
-                  },
-                  "nameKO": {
+                    "description": "What people call it. A default circle's name is the product's, in the company's language",
                     "type": "string"
                   },
                   "readableCategories": {
@@ -21584,7 +21588,7 @@
                 "required": [
                   "id",
                   "name",
-                  "nameKO",
+                  "isDefault",
                   "readableCategories",
                   "memberIDs",
                   "channelName",
@@ -21613,7 +21617,7 @@
         "state": "ok"
       },
       "canonicalName": "circle_update",
-      "description": "Company circles: Create or edit a circle. id is its lowercase identifier, such as leadership, and never changes; name and nameKO are what people read. readableCategories names the data room categories its members read, and a parent grants all descendants. Members change access immediately, so read circle_list and confirm who is affected first. A circle confers no administrative or editing rights.",
+      "description": "Company circles: Create or edit a circle. id is its lowercase English name, such as sales-team, and never changes; name is what people read and is given only to a circle the company made, since the product names its default circles in every language. readableCategories names the data room categories its members read, and a parent grants all descendants. Members change access immediately, so read circle_list and confirm who is affected first. A circle confers no administrative or editing rights.",
       "estimatedLatency": "low",
       "idempotency": {
         "required": false,
@@ -21625,14 +21629,13 @@
         "additionalProperties": false,
         "properties": {
           "id": {
+            "description": "The lowercase English name the company host gives its folder and group, such as sales-team; it never changes",
             "pattern": "^[a-z][a-z0-9-]*$",
             "type": "string"
           },
           "name": {
+            "description": "What people call a circle the company made. Required for one; a default circle takes none, because the product names it",
             "minLength": 1,
-            "type": "string"
-          },
-          "nameKO": {
             "type": "string"
           },
           "readableCategories": {
@@ -21649,14 +21652,13 @@
         "additionalProperties": false,
         "properties": {
           "id": {
+            "description": "The lowercase English name the company host gives its folder and group, such as sales-team; it never changes",
             "pattern": "^[a-z][a-z0-9-]*$",
             "type": "string"
           },
           "name": {
+            "description": "What people call a circle the company made. Required for one; a default circle takes none, because the product names it",
             "minLength": 1,
-            "type": "string"
-          },
-          "nameKO": {
             "type": "string"
           },
           "readableCategories": {
@@ -21668,8 +21670,6 @@
         },
         "required": [
           "id",
-          "name",
-          "nameKO",
           "readableCategories"
         ],
         "type": "object"

@@ -1,3 +1,4 @@
+import { circleName } from '$lib/data-room/model';
 import { circleListResultSchema, type ListedCircle } from '$lib/data-room/schemas';
 import { currentLocale } from '$lib/i18n/locale.svelte';
 import { invokeTool } from '$lib/public-api-call';
@@ -8,8 +9,7 @@ class CircleChannels {
 
 	circleNameOf(channelID: string): string | undefined {
 		const circle = this.#circleOfChannel.get(channelID);
-		if (!circle) return undefined;
-		return currentLocale.value === 'ko' ? circle.nameKO || circle.name : circle.name;
+		return circle && circleName(circle, currentLocale.value);
 	}
 
 	async load(): Promise<void> {

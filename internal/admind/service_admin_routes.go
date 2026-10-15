@@ -36,12 +36,6 @@ func (service *Service) handleAdmin(responseWriter http.ResponseWriter, request 
 	if service.handleAdminDiagnosticsRoute(responseWriter, request, path) {
 		return
 	}
-	if service.handleAdminUserRoute(responseWriter, request, path) {
-		return
-	}
-	if service.handleAdminAgentRoute(responseWriter, request, path) {
-		return
-	}
 	if service.handleAdminSettingsRoute(responseWriter, request, path) {
 		return
 	}
@@ -115,38 +109,6 @@ func (service *Service) handleAdminDiagnosticsRoute(responseWriter http.Response
 		service.writeServiceLogs(responseWriter, request)
 	case request.Method == http.MethodGet && path == "/diagnostics/llm-failure":
 		service.writeLLMFailureEvidence(responseWriter, request)
-	default:
-		return false
-	}
-	return true
-}
-
-func (service *Service) handleAdminUserRoute(responseWriter http.ResponseWriter, request *http.Request, path string) bool {
-	switch {
-	case request.Method == http.MethodGet && path == "/users":
-		service.proxyUsers(responseWriter, request)
-	case request.Method == http.MethodPost && path == "/users":
-		service.proxyUsers(responseWriter, request)
-	case request.Method == http.MethodDelete && strings.HasPrefix(path, "/users/"):
-		service.proxyUsers(responseWriter, request)
-	default:
-		return false
-	}
-	return true
-}
-
-func (service *Service) handleAdminAgentRoute(responseWriter http.ResponseWriter, request *http.Request, path string) bool {
-	switch {
-	case request.Method == http.MethodGet && path == "/soul":
-		service.writeSoul(responseWriter, request)
-	case request.Method == http.MethodPut && path == "/soul":
-		service.updateSoul(responseWriter, request)
-	case request.Method == http.MethodGet && path == "/credentials/providers":
-		service.writeCredentialProviders(responseWriter)
-	case request.Method == http.MethodPut && path == "/credentials/openrouter-key":
-		service.updateOpenRouterKey(responseWriter, request)
-	case request.Method == http.MethodDelete && path == "/credentials/openrouter-key":
-		service.deleteOpenRouterKey(responseWriter)
 	default:
 		return false
 	}

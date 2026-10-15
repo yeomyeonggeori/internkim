@@ -52,10 +52,6 @@ func (service *Service) openSQLiteDatabaseWithSchemaName(ctx context.Context, da
 	return database, nil
 }
 
-func sqliteDatabaseDSN(databasePath string) string {
-	return sqliteDatabaseDSNWithOptions(databasePath, sqliteDatabaseOptions{})
-}
-
 func sqliteDatabaseDSNWithOptions(databasePath string, options sqliteDatabaseOptions) string {
 	query := url.Values{}
 	query.Add("_pragma", "journal_mode(WAL)")

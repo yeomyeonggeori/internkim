@@ -3,8 +3,7 @@ import { adminApiFetch } from '$lib/admin-api';
 import { callCompanyApp } from '$lib/host-bridge';
 import { invokeTool } from '$lib/public-api-call';
 import { isSupabaseConfigured } from '$lib/supabase';
-import { circleListResultSchema } from '$lib/data-room/schemas';
-import type { Circle } from '$lib/data-room/model';
+import { circleListResultSchema, type ListedCircle } from '$lib/data-room/schemas';
 import type { MemoryChange } from './memory-change';
 import { MemoryReadError } from './memory-read-error';
 
@@ -79,7 +78,7 @@ export async function fetchMemoryRecall(query: string): Promise<MemoryRecallResp
 	return memoryRecallResponseSchema.parse(document);
 }
 
-export async function fetchCircles(): Promise<Circle[]> {
+export async function fetchCircles(): Promise<ListedCircle[]> {
 	if (!isSupabaseConfigured()) return [];
 	return circleListResultSchema.parse(await invokeTool('circle_list', {})).circles;
 }

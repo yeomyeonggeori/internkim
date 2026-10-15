@@ -5,7 +5,7 @@
 	import { Input } from '$lib/components/ui/input';
 	import { Checkbox } from '$lib/components/ui/checkbox';
 	import { invokeTool } from '$lib/public-api-call';
-	import { normalizeCategoryGrants, categoryName, type DataRoomCategory } from '$lib/data-room/model';
+	import { normalizeCategoryGrants, categoryName, circleName, type DataRoomCategory } from '$lib/data-room/model';
 	import type { ListedCircle } from '$lib/data-room/schemas';
 	import { currentLocale } from '$lib/i18n/locale.svelte';
 	import { createPageText } from '$lib/i18n/page-text.svelte';
@@ -22,17 +22,17 @@
 	let isSaving = $state(false);
 	let id = $state('');
 	let name = $state('');
-	let nameKO = $state('');
 	let readableCategories = $state<string[]>([]);
 	let errorMessage = $state('');
 	let isExisting = $state(false);
 	const parents = $derived(categories.filter((category) => !category.parent));
 	const editedCircle = $derived(isExisting ? circles.find((circle) => circle.id === id) : undefined);
+	const isDefault = $derived(editedCircle?.isDefault ?? false);
+	const title = $derived(editedCircle ? circleName(editedCircle, currentLocale.value) : text.createCircle);
 
 	function edit(circle?: ListedCircle) {
 		id = circle?.id ?? '';
-		name = circle?.name ?? '';
-		nameKO = circle?.nameKO ?? '';
+		name = circle && !circle.isDefault ? circle.name : '';
 		readableCategories = circle?.readableCategories ?? [];
 		isExisting = !!circle;
 		errorMessage = '';
@@ -54,12 +54,7 @@
 		isSaving = true;
 		errorMessage = '';
 		try {
-			await invokeTool('circle_update', {
-				id,
-				name,
-				nameKO: nameKO || name,
-				readableCategories
-			});
+			await invokeTool('circle_update', isDefault ? { id, readableCategories } : { id, name, readableCategories });
 			await onSaved();
 			isOpen = false;
 		} catch (error) {
@@ -76,41 +71,36 @@
 			variant="ghost"
 			size="sm"
 			onclick={() => edit(circle)}
-			>{currentLocale.value === 'ko' ? circle.nameKO || circle.name : circle.name}</Button
+			>{circleName(circle, currentLocale.value)}</Button
 		>{/each}
 </div>
 <Dialog.Root bind:open={isOpen}
 	><Dialog.Content class="max-h-[85vh] overflow-auto sm:max-w-2xl"
 		><Dialog.Header
-			><Dialog.Title>{text.circle}</Dialog.Title><Dialog.Description
+			><Dialog.Title>{title}</Dialog.Title><Dialog.Description
 				>{text.circleDescription}</Dialog.Description
 			></Dialog.Header
 		>
 		<form onsubmit={save} class="grid gap-5">
-			<Field.Group
-				><Field.Field
-					><Field.Label for="{fieldID}-id">{text.circleID}</Field.Label><Input
-						id="{fieldID}-id"
-						required
-						pattern="[a-z][a-z0-9-]*"
-						bind:value={id}
-						disabled={isExisting || isSaving}
-					/></Field.Field
-				><Field.Field
-					><Field.Label for="{fieldID}-name">{text.circleName}</Field.Label><Input
-						id="{fieldID}-name"
-						required
-						bind:value={name}
-						disabled={isSaving}
-					/></Field.Field
-				><Field.Field
-					><Field.Label for="{fieldID}-name-ko">{text.koreanCircleName}</Field.Label><Input
-						id="{fieldID}-name-ko"
-						bind:value={nameKO}
-						disabled={isSaving}
-					/></Field.Field
-				></Field.Group
-			>
+			{#if !isDefault}<Field.Group
+					><Field.Field
+						><Field.Label for="{fieldID}-name">{text.circleName}</Field.Label><Input
+							id="{fieldID}-name"
+							required
+							bind:value={name}
+							disabled={isSaving}
+						/></Field.Field
+					><Field.Field
+						><Field.Label for="{fieldID}-id">{text.circleID}</Field.Label><Input
+							id="{fieldID}-id"
+							required
+							pattern="[a-z][a-z0-9\-]*"
+							placeholder="sales-team"
+							bind:value={id}
+							disabled={isExisting || isSaving}
+						/><Field.Description>{text.circleIDDescription}</Field.Description></Field.Field
+					></Field.Group
+				>{/if}
 			{#if editedCircle}<CircleChannelSwitch circle={editedCircle} onChanged={onSaved} />{/if}
 			<div class="grid gap-4 sm:grid-cols-2">
 				{#each parents as parent (parent.code)}<fieldset class="grid gap-2">

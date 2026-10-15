@@ -7,40 +7,8 @@ import type { PageText } from '$lib/i18n/page-text.svelte';
 export type { OrgGroup, UserRecord } from '$lib/organization/types';
 export type { UserRole } from '$lib/types';
 export type WorkspaceLanguage = 'ko' | 'en';
-export type AdminSection =
-	| 'bot'
-	| 'credentials'
-	| 'users'
-	| 'settings'
-	| 'workSettings'
-	| 'leaveSettings'
-	| 'sharing'
-	| 'buzz'
-	| 'apiTokens';
 
-export type BuzzInviteRecord = {
-	code: string;
-	name: string;
-	email: string;
-	createdAt: string;
-	expiresAt: string;
-	claimedPubkey?: string;
-};
 export type AdminPageText = PageText<typeof adminText>;
-
-export type CircleRecord = {
-	circleID: string;
-	displayName: string;
-};
-
-export type UsersResponse = {
-	users?: string[];
-	records?: UserRecord[];
-	availableCircles?: CircleRecord[];
-	availableGroups?: OrgGroup[];
-	temporaryPassword?: string;
-	temporaryPasswordEmail?: string;
-};
 
 export type AdminSession = {
 	email: string;
@@ -93,8 +61,6 @@ export type WorkspaceSettings = {
 	language: WorkspaceLanguage;
 	updatedAt?: string;
 };
-
-export type CalendarHolidaySyncState = 'healthy' | 'degraded' | 'neverSynced';
 
 export type LeaveBalanceMode = 'annual' | 'separate' | 'none';
 export type LeaveBalanceTrackingMode = 'managed' | 'unlimited';

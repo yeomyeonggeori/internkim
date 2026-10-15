@@ -25,9 +25,9 @@ select set_eq(
   'a company starts with the default circles'
 );
 select is(
-  (select name_ko from public.circle where company_id = '44000000-0000-0000-0000-0000000000a0' and id = 'member'),
-  '구성원',
-  'the circle everyone is in is called member, so the employer is in it too'
+  (select name from public.circle where company_id = '44000000-0000-0000-0000-0000000000a0' and id = 'member'),
+  null,
+  'a default circle carries no name of its own, because the product names it in every language'
 );
 select set_eq(
   $$select circle_id from public.circle_member where member_id = '44000000-0000-0000-0000-0000000000a1'$$,
@@ -46,7 +46,7 @@ select throws_ok(
   'a circle id is a lowercase name a folder and a group can carry'
 );
 
-update public.circle set id = 'everyone'
+update public.circle set id = 'everyone', name = 'Everyone'
   where company_id = '44000000-0000-0000-0000-0000000000b0' and id = 'member';
 select set_eq(
   $$select circle_id from public.circle_member where member_id = '44000000-0000-0000-0000-0000000000b1'$$,
