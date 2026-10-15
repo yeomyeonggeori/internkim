@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import { createConversationReadMarker, latestSentAtOf } from '../../src/lib/messenger/conversation-read-marker';
-import { isUnreadEmphasized, unreadBadgeLabel } from '../../src/lib/messenger/unread-badge';
+import { conversationNameClass, isUnreadEmphasized, unreadBadgeLabel } from '../../src/lib/messenger/unread-badge';
 
 describe('unread badge', () => {
 	test('shows nothing for a conversation with nothing unread', () => {
@@ -18,6 +18,13 @@ describe('unread badge', () => {
 		expect(isUnreadEmphasized(4, false)).toBe(true);
 		expect(isUnreadEmphasized(4, true)).toBe(false);
 		expect(isUnreadEmphasized(0, false)).toBe(false);
+	});
+
+	test('a read conversation is dimmed unless it is the open one', () => {
+		expect(conversationNameClass(4, false, false)).toBe('font-bold');
+		expect(conversationNameClass(0, false, false)).toBe('text-sidebar-foreground/70');
+		expect(conversationNameClass(4, true, false)).toBe('text-sidebar-foreground/70');
+		expect(conversationNameClass(0, false, true)).toBe('');
 	});
 });
 

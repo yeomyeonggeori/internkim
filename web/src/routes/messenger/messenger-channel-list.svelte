@@ -19,7 +19,7 @@
 	import { Button } from '$lib/components/ui/button';
 	import { isSectionOpen, setSectionOpen } from './channel-sections.svelte';
 	import type { ChannelSummary } from '$lib/components/channel/channel-api';
-	import { isUnreadEmphasized, unreadBadgeLabel } from '$lib/messenger/unread-badge';
+	import { conversationNameClass, unreadBadgeLabel } from '$lib/messenger/unread-badge';
 	import { avatarPresenceOf } from '$lib/messenger/member-presence.svelte';
 
 	let {
@@ -105,7 +105,7 @@
 					<Sidebar.MenuItem>
 						<Sidebar.MenuButton isActive={inbox.isActive} onclick={inbox.open}>
 							<InboxIcon />
-							<span class={inbox.unreadCount > 0 ? 'font-bold' : ''}>{inboxText.inbox}</span>
+							<span class={conversationNameClass(inbox.unreadCount, false, inbox.isActive)}>{inboxText.inbox}</span>
 						</Sidebar.MenuButton>
 						{#if unreadBadgeLabel(inbox.unreadCount)}
 							<Sidebar.MenuBadge>
@@ -184,7 +184,7 @@
 								onclick={() => selectChannel(channel.id)}
 							>
 								{#if channel.isPrivate}<LockIcon />{:else}<HashIcon />{/if}
-								<span class={isUnreadEmphasized(channel.unreadCount, muted.has(channel.id)) ? 'font-bold' : ''}>{channel.name}</span>
+								<span class={conversationNameClass(channel.unreadCount, muted.has(channel.id), shownActiveID === channel.id)}>{channel.name}</span>
 							</Sidebar.MenuButton>
 							{@render unreadBadge(channel)}
 						</ConversationMenu>
@@ -229,7 +229,7 @@
 									class="size-4"
 								/>
 
-								<span class={isUnreadEmphasized(conversation.unreadCount, muted.has(conversation.id)) ? 'font-bold' : ''}>{conversation.name}</span>
+								<span class={conversationNameClass(conversation.unreadCount, muted.has(conversation.id), shownActiveID === conversation.id)}>{conversation.name}</span>
 							</Sidebar.MenuButton>
 							{@render unreadBadge(conversation)}
 						</ConversationMenu>
