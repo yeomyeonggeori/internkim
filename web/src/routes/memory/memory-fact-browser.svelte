@@ -20,7 +20,7 @@
 	import MemoryFactDetail from './memory-fact-detail.svelte';
 	import MemoryImportance from './memory-importance.svelte';
 	import MemoryLayerStack from './memory-layer-stack.svelte';
-	import type { Circle } from '$lib/data-room/model';
+	import type { ListedCircle } from '$lib/data-room/schemas';
 	import { fetchCircles, fetchMemoryFacts, type MemoryLayer, type MemoryFactsResponse } from './memory-facts-api';
 	import { filterMemoryFacts, groupFactsByLayer, isCurrentMemory, memoryLayerKey, memoryScopeLabel, memoryWhen } from './memory-workbench-model';
 	import type { MemoryText } from './text';
@@ -30,7 +30,7 @@
 	const isPhone = new MediaQuery('(max-width: 639px)');
 	let detailPanel = $state<HTMLElement | null>(null);
 	let memory = $state<MemoryFactsResponse | null>(null);
-	let circles = $state<Circle[]>([]);
+	let circles = $state<ListedCircle[]>([]);
 	let selectedFactID = $state('');
 	let selectedLayerKey = $state('all');
 	let query = $state('');

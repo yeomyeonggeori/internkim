@@ -12,21 +12,33 @@ export const dataRoomCategorySchema = z.strictObject({
 	choiceGroup: z.number().int().min(1).max(2).nullable().optional()
 });
 
-export const circleSchema = z.strictObject({
-	id: z.string().regex(/^[a-z][a-z0-9-]*$/),
+export const circleIDSchema = z.string().regex(/^[a-z][a-z0-9-]*$/);
+
+const templateCircleSchema = z.strictObject({
+	id: circleIDSchema,
 	name: z.string().min(1),
-	nameKO: z.string(),
+	nameKO: z.string().min(1),
 	readableCategories: z.array(z.string())
 });
 
 export type DataRoomCategory = z.infer<typeof dataRoomCategorySchema>;
-export type Circle = z.infer<typeof circleSchema>;
+export type TemplateCircle = z.infer<typeof templateCircleSchema>;
 
 export const dataRoomTemplate = z.strictObject({
 	version: z.number().int(),
 	categories: z.array(dataRoomCategorySchema),
-	circles: z.array(circleSchema)
+	circles: z.array(templateCircleSchema)
 }).parse(defaultTemplate);
+
+export function defaultCircleName(circleID: string, locale: string): string | undefined {
+	const circle = dataRoomTemplate.circles.find((candidate) => candidate.id === circleID);
+	if (!circle) return undefined;
+	return locale === 'ko' ? circle.nameKO : circle.name;
+}
+
+export function circleName(circle: { id: string; name: string | null }, locale: string): string {
+	return defaultCircleName(circle.id, locale) ?? circle.name ?? circle.id;
+}
 
 export function filingCategories(categories: DataRoomCategory[]): DataRoomCategory[] {
 	const parentCodes = new Set(categories.map((category) => category.parent));

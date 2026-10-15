@@ -4,8 +4,8 @@ import { member1ID, member3ID } from './central-test-utils';
 import { openTaskFilters, seedTasks, removeTasks, taskRowOf } from './task-central-test-utils';
 import { seedAttendanceEvents, cleanupAttendanceEvents, seoulInstant, seoulMonthToday, monthBefore, dayOfMonth } from './attendance-central-test-utils';
 import { readFileSync } from 'node:fs';
-import type { Circle, DataRoomCategory } from '../../src/lib/data-room/model';
-const dataRoomTemplate: { categories: DataRoomCategory[]; circles: Circle[] } = JSON.parse(readFileSync(new URL('../../src/lib/data-room/template.json', import.meta.url), 'utf8'));
+import type { DataRoomCategory, TemplateCircle } from '../../src/lib/data-room/model';
+const dataRoomTemplate: { categories: DataRoomCategory[]; circles: TemplateCircle[] } = JSON.parse(readFileSync(new URL('../../src/lib/data-room/template.json', import.meta.url), 'utf8'));
 
 test.describe.configure({ mode: 'serial', timeout: 150_000 });
 test.use({ locale: 'ko-KR' });
@@ -106,7 +106,7 @@ for (const width of [320, 360, 390, 568, 1280]) {
 		await page.route('**/api/v1/tools/dataroom_get/invoke', route => route.fulfill({ json: { result: { categories: dataRoomTemplate.categories, shares: [], canManage: true } } }));
 		await page.route('**/api/v1/tools/company_document_list/invoke', route => route.fulfill({ json: { result: { count: 0, documents: [] } } }));
 		await page.route('**/api/v1/tools/dataroom_links_get/invoke', route => route.fulfill({ json: { result: { links: [], shareableCircleIDs: dataRoomTemplate.circles.map(circle => circle.id), downloadableCircleIDs: [] } } }));
-		await page.route('**/api/v1/tools/circle_list/invoke', route => route.fulfill({ json: { result: { circles: dataRoomTemplate.circles.map(circle => ({ ...circle, memberIDs: [] })) } } }));
+		await page.route('**/api/v1/tools/circle_list/invoke', route => route.fulfill({ json: { result: { circles: dataRoomTemplate.circles.map(circle => ({ id: circle.id, name: circle.nameKO, isDefault: true, readableCategories: circle.readableCategories, memberIDs: [], channelName: null, channelID: null })) } } }));
 		await page.goto('/example-co/files/data-room');
 		const browser = page.getByRole('region', { name: '데이터룸', exact: true });
 		await expect(browser.getByRole('button')).toHaveCount(topLevelFolders.length);

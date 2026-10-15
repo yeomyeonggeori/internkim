@@ -888,5 +888,20 @@
 		"path": "circle_list.result.circles[].channelName",
 		"reason": "A circle may have a private messenger channel of its own whose members are the circle's, so circle_list names it: channelName is what an administrator asked for and channelID is what the company host opened.",
 		"release": "the circle channel release carries this catalog to company hosts together with the admind pass that opens and seats the channel"
+	},
+	{
+		"path": "circle_list.result.circles[].isDefault",
+		"reason": "The product names its default circles in every language and the company names the circles it makes once, so a circle carries one name: nameKO is gone, circle_list names each circle in the company's language and says with isDefault which ones the product named.",
+		"release": "the circle naming release carries this catalog to company hosts before the plane drops circle.name_ko"
+	},
+	{
+		"path": "circle_list.result.circles[].nameKO",
+		"reason": "The product names its default circles in every language and the company names the circles it makes once, so a circle carries one name: nameKO is gone, circle_list names each circle in the company's language and says with isDefault which ones the product named.",
+		"release": "the circle naming release carries this catalog to company hosts before the plane drops circle.name_ko"
+	},
+	{
+		"path": "circle_update.input.nameKO",
+		"reason": "The product names its default circles in every language and the company names the circles it makes once, so a circle carries one name: nameKO is gone, circle_list names each circle in the company's language and says with isDefault which ones the product named.",
+		"release": "the circle naming release carries this catalog to company hosts before the plane drops circle.name_ko"
 	}
 ]

@@ -1,4 +1,5 @@
-import type { Circle } from '$lib/data-room/model';
+import { circleName as circleNameIn } from '$lib/data-room/model';
+import type { ListedCircle } from '$lib/data-room/schemas';
 import type { MemoryFact, MemoryLayer } from './memory-facts-api';
 import type { MemoryText } from './text';
 
@@ -15,16 +16,16 @@ export function filterMemoryFacts(facts: MemoryFact[], query: string, scopeLabel
 	);
 }
 
-export function memoryScopeLabel(layer: MemoryLayer, circles: Circle[], text: MemoryText, locale: string): string {
+export function memoryScopeLabel(layer: MemoryLayer, circles: ListedCircle[], text: MemoryText, locale: string): string {
 	if (layer.scopeType === 'person') return text.myMemory;
 	if (layer.scopeType === 'workspace') return text.companyMemory;
 	return circleName(layer.scopeID ?? '', circles, locale);
 }
 
-function circleName(circleID: string, circles: Circle[], locale: string): string {
+function circleName(circleID: string, circles: ListedCircle[], locale: string): string {
 	const circle = circles.find((candidate) => candidate.id === circleID);
 	if (!circle) return circleID;
-	return locale === 'ko' ? circle.nameKO || circle.name : circle.name;
+	return circleNameIn(circle, locale);
 }
 
 export function memoryLayerKey(layer: MemoryLayer): string {

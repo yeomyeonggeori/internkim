@@ -8,6 +8,7 @@
 	import { Switch } from '$lib/components/ui/switch';
 	import { confirmDelete } from '$lib/components/ui/confirm-delete-dialog';
 	import { invokeTool } from '$lib/public-api-call';
+	import { circleName } from '$lib/data-room/model';
 	import type { ListedCircle } from '$lib/data-room/schemas';
 	import { dataRoomText } from '$lib/data-room/text';
 	import { currentLocale } from '$lib/i18n/locale.svelte';
@@ -33,7 +34,7 @@
 	}
 
 	function askToAdd() {
-		channelName = currentLocale.value === 'ko' ? circle.nameKO || circle.name : circle.name;
+		channelName = circleName(circle, currentLocale.value);
 		isAdding = true;
 	}
 

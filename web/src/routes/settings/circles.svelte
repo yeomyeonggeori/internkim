@@ -11,6 +11,7 @@
 	import { invokeTool } from '$lib/public-api-call';
 	import { supabaseOrganizationDirectory } from '$lib/organization/supabase-directory';
 	import { circleListResultSchema, dataRoomGetResultSchema } from '$lib/data-room/schemas';
+	import { circleName } from '$lib/data-room/model';
 	import { dataRoomText } from '$lib/data-room/text';
 	import { createPageText } from '$lib/i18n/page-text.svelte';
 	import { currentLocale } from '$lib/i18n/locale.svelte';
@@ -28,8 +29,8 @@
 	let errorMessage = $state('');
 	const fieldID = $props.id();
 
-	function circleName(circle: (typeof circles)[number]): string {
-		return currentLocale.value === 'ko' ? circle.nameKO || circle.name : circle.name;
+	function circleNameShown(circle: (typeof circles)[number]): string {
+		return circleName(circle, currentLocale.value);
 	}
 
 	function circlesOf(employeeID: string): typeof circles {
@@ -115,7 +116,7 @@
 									><p class="font-medium">{employee.name}</p>
 									<p class="text-xs text-muted-foreground">{employee.email}</p></Table.Cell
 								><Table.Cell
-									>{circlesOf(employee.id).map(circleName).join(', ') || text.noCircles}</Table.Cell
+									>{circlesOf(employee.id).map(circleNameShown).join(', ') || text.noCircles}</Table.Cell
 								><Table.Cell class="text-right"
 									><Button variant="outline" size="sm" onclick={() => edit(employee)}
 										>{text.chooseCircles}</Button
@@ -150,7 +151,7 @@
 						onCheckedChange={(checked) => toggle(circle.id, checked === true)}
 						disabled={isSaving}
 					/><label for="{fieldID}-{circle.id}" class="grid gap-1 text-sm"
-						><span>{circleName(circle)}</span><span class="text-xs text-muted-foreground"
+						><span>{circleNameShown(circle)}</span><span class="text-xs text-muted-foreground"
 							>{circle.readableCategories.join(', ')}</span
 						></label
 					>

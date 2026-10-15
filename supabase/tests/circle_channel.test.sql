@@ -58,9 +58,11 @@ select throws_ok(
   null,
   'which channel the company computer opened is its own to record'
 );
-select lives_ok(
+select throws_ok(
   $$update public.circle set name = 'Money' where company_id = '45000000-0000-0000-0000-0000000000a0' and id = 'finance'$$,
-  'an administrator still renames a circle'
+  '42501',
+  null,
+  'a circle is written through circle_set and nowhere else'
 );
 select throws_ok(
   $$select public.circle_channel_delete('45000000-0000-0000-0000-0000000000a0', 'finance', '재무 ')$$,

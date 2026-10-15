@@ -14,7 +14,9 @@ const fact: MemoryFact = {
 	createdAt: '2026-08-01T00:00:00Z',
 	triggerPhrases: []
 };
-const leadership = { id: 'leadership', name: 'Leadership', nameKO: '경영진', readableCategories: [] };
+const listed = { readableCategories: [], memberIDs: [], channelName: null, channelID: null };
+const leadership = { ...listed, id: 'leadership', name: '경영진', isDefault: true };
+const salesTeam = { ...listed, id: 'sales-team', name: '영업팀', isDefault: false };
 const now = Date.parse('2026-09-01T00:00:00Z');
 
 describe('the remembered facts people inspect', () => {
@@ -30,6 +32,7 @@ describe('the remembered facts people inspect', () => {
 		expect(memoryScopeLabel({ ...fact, scopeType: 'circle', scopeID: 'leadership' }, [leadership], memoryText.ko, 'ko')).toBe('경영진');
 		expect(memoryScopeLabel({ ...fact, scopeType: 'circle', scopeID: 'leadership' }, [leadership], memoryText.en, 'en')).toBe('Leadership');
 		expect(memoryScopeLabel({ ...fact, scopeType: 'circle', scopeID: 'finance' }, [], memoryText.en, 'en')).toBe('finance');
+		expect(memoryScopeLabel({ ...fact, scopeType: 'circle', scopeID: 'sales-team' }, [salesTeam], memoryText.en, 'en')).toBe('영업팀');
 		expect(memoryScopeLabel({ ...fact, scopeType: 'workspace' }, [], memoryText.ko, 'ko')).toBe('회사 공용');
 	});
 

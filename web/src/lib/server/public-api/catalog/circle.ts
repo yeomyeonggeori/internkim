@@ -1,11 +1,15 @@
 import { z } from 'zod';
-import { circleSchema } from '$lib/data-room/model';
+import { circleIDSchema } from '$lib/data-room/model';
 import { circleListResultSchema } from '$lib/data-room/schemas';
 import { companyRecordTool, recordSavedSchema } from './data-room';
 import { ResourceMutationEffect, type CapabilityToolDefinition } from './definition';
 import { CapabilitySideEffect, ResourceEffectIdentity } from './protocol';
 
-export const circleSetInputSchema = circleSchema;
+export const circleSetInputSchema = z.strictObject({
+	id: circleIDSchema.describe('The lowercase English name the company host gives its folder and group, such as sales-team; it never changes'),
+	name: z.string().trim().min(1).optional().describe('What people call a circle the company made. Required for one; a default circle takes none, because the product names it'),
+	readableCategories: z.array(z.string())
+});
 export const circleMemberSetInputSchema = z.strictObject({ memberID: z.string().uuid(), circleIDs: z.array(z.string()) });
 export const circleChannelAddInputSchema = z.strictObject({
 	circleID: z.string().describe('The exact id of the circle, as circle_list shows it'),
@@ -23,7 +27,7 @@ export const circleToolDefinitions: CapabilityToolDefinition[] = [
 		'Read every circle with the members who belong to it and the data room categories it reads. A circle is also a shared workspace folder and a shared memory on the company computer. A parent category grants all its children.',
 		z.strictObject({}), circleListResultSchema),
 	circleTool('circle_update',
-		'Create or edit a circle. id is its lowercase identifier, such as leadership, and never changes; name and nameKO are what people read. readableCategories names the data room categories its members read, and a parent grants all descendants. Members change access immediately, so read circle_list and confirm who is affected first. A circle confers no administrative or editing rights.',
+		'Create or edit a circle. id is its lowercase English name, such as sales-team, and never changes; name is what people read and is given only to a circle the company made, since the product names its default circles in every language. readableCategories names the data room categories its members read, and a parent grants all descendants. Members change access immediately, so read circle_list and confirm who is affected first. A circle confers no administrative or editing rights.',
 		circleSetInputSchema, recordSavedSchema, true),
 	circleTool('circle_member_update',
 		'Set the circles an active member belongs to, replacing them atomically. Only administrators place people in circles. A member gains each circle\'s workspace folder, memory and data room categories, and joins its channel when it has one.',

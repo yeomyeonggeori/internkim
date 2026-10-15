@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { circleSchema, dataRoomCategorySchema } from './model';
+import { circleIDSchema, dataRoomCategorySchema } from './model';
 import { dataRoomCompanySchema } from './company';
 
 export const sharedDocumentColumns = 'id,title,summary,category_code,document_date,status,storage_path';
@@ -69,7 +69,11 @@ export const dataRoomGetResultSchema = z.strictObject({
 });
 
 export const circleListResultSchema = z.strictObject({
- circles: z.array(circleSchema.extend({
+ circles: z.array(z.strictObject({
+  id: circleIDSchema.describe('The lowercase English name the company host gives its folder and group; it never changes'),
+  name: z.string().describe("What people call it. A default circle's name is the product's, in the company's language"),
+  isDefault: z.boolean().describe('Whether the product named this circle; a default circle cannot be renamed'),
+  readableCategories: z.array(z.string()),
   memberIDs: z.array(z.string()),
   channelName: z.string().nullable().describe("The name of the circle's own private messenger channel, or null when it has none. Its members are exactly the circle's."),
   channelID: z.string().nullable().describe('The messenger channel the company computer opened for it, or null until it has')
