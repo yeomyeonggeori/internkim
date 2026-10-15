@@ -48,6 +48,13 @@ service writes every file, and the subject's group may only read it. A recall
 runs as the reader's own Linux user, so the kernel decides which files open:
 their own, their circles' and the workspace's.
 
+What a conversation says reaches a shared file only when the conversation's
+people are exactly that file's readers. A room the whole company is in writes
+the workspace's file, and a room of exactly a circle's readers writes that
+circle's. A room with anyone else in it writes neither, so nobody adds to a
+memory they cannot read and nobody reads one about a conversation they were
+not in. A message kept this way gets a 📝 reaction.
+
 ## The agent's store
 
 The host's own Postgres, defined in `.dependency/blueclaw/migrations/`. The
