@@ -21,6 +21,7 @@
 	import type { ChannelSummary } from '$lib/components/channel/channel-api';
 	import { conversationNameClass, unreadBadgeLabel } from '$lib/messenger/unread-badge';
 	import { avatarPresenceOf } from '$lib/messenger/member-presence.svelte';
+	import { circleChannels } from '$lib/messenger/circle-channels.svelte';
 
 	let {
 		activeID,
@@ -155,7 +156,7 @@
 							menuLabel={text.conversationMenu}
 							onSwitchMuted={() => switchMuted(channel.id)}
 							leaveLabel={text.leaveChannel}
-							onLeave={() => leaveChannel(channel)}
+							onLeave={circleChannels.circleNameOf(channel.id) ? undefined : () => leaveChannel(channel)}
 							itemProps={{
 								draggable: 'true',
 								class:

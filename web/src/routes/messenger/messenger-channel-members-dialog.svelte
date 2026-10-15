@@ -12,6 +12,7 @@
 	import type { ChannelMember, ChannelRole } from '$lib/components/channel/channel-api';
 	import { fetchChannelCandidates, type ChannelCandidate } from '$lib/messenger/channel-candidates';
 	import { MessengerRefusal, addChannelMembers, removeChannelMember } from '$lib/messenger/messenger-api';
+	import { circleChannels } from '$lib/messenger/circle-channels.svelte';
 	import { displayPersonName } from '$lib/person-name.svelte';
 	import { avatarPresenceOf } from '$lib/messenger/member-presence.svelte';
 	import UserMinusIcon from '@lucide/svelte/icons/user-minus';
@@ -41,11 +42,12 @@
 	let removing = $state<ChannelMember | null>(null);
 	let isRemoving = $state(false);
 
+	const keepingCircleName = $derived(circleChannels.circleNameOf(channelID));
 	const memberExternalIDs = $derived(new Set(members.map((member) => member.externalID)));
 	const addable = $derived(candidates.filter((candidate) => !memberExternalIDs.has(candidate.externalID)));
 
 	$effect(() => {
-		if (!open) return;
+		if (!open || keepingCircleName) return;
 		let active = true;
 		chosenIDs = [];
 		isLoadingCandidates = true;
@@ -118,24 +120,30 @@
 		<Dialog.Header>
 			<Dialog.Title>{text.channelMembersTitle}</Dialog.Title>
 		</Dialog.Header>
-		<div class="flex items-start gap-2">
-			<div class="min-w-0 flex-1">
-				<PersonMultiSelect
-					selectedIDs={chosenIDs}
-					people={addable}
-					label={text.addChannelMembers}
-					placeholder={text.addMembersPlaceholder}
-					onToggle={switchChosen}
-					onRemove={switchChosen}
-					disabled={isAdding || isLoadingCandidates || Boolean(candidateError)}
-				/>
+		{#if keepingCircleName}
+			<p class="text-sm text-muted-foreground">
+				{text.channelMembersFollowCircle.replace('{circle}', keepingCircleName)}
+			</p>
+		{:else}
+			<div class="flex items-start gap-2">
+				<div class="min-w-0 flex-1">
+					<PersonMultiSelect
+						selectedIDs={chosenIDs}
+						people={addable}
+						label={text.addChannelMembers}
+						placeholder={text.addMembersPlaceholder}
+						onToggle={switchChosen}
+						onRemove={switchChosen}
+						disabled={isAdding || isLoadingCandidates || Boolean(candidateError)}
+					/>
+				</div>
+				<Button onclick={addChosen} disabled={isAdding || chosenIDs.length === 0}>
+					{#if isAdding}<Spinner />{/if}
+					{text.addChannelMembers}
+				</Button>
 			</div>
-			<Button onclick={addChosen} disabled={isAdding || chosenIDs.length === 0}>
-				{#if isAdding}<Spinner />{/if}
-				{text.addChannelMembers}
-			</Button>
-		</div>
-		{#if isLoadingCandidates}<div role="status" aria-label={text.loadingPeople} class="flex justify-center"><Spinner /></div>{:else if candidateError}<p role="alert" class="text-sm text-destructive">{candidateError}</p>{/if}
+			{#if isLoadingCandidates}<div role="status" aria-label={text.loadingPeople} class="flex justify-center"><Spinner /></div>{:else if candidateError}<p role="alert" class="text-sm text-destructive">{candidateError}</p>{/if}
+		{/if}
 		<Command.Root>
 			<Command.Input placeholder={text.searchMembers} />
 			<Command.List>

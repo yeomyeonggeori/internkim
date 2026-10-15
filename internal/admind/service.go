@@ -33,6 +33,7 @@ type Service struct {
 
 	mutex                   sync.Mutex
 	adminSeating            sync.Mutex
+	circleChannelKeeping    sync.Mutex
 	centralPlaneOnce        sync.Once
 	centralPlaneClient      *centralplane.Client
 	mattermostAdminOnce     sync.Once
@@ -135,6 +136,7 @@ func (service *Service) startBackgroundWork(ctx context.Context) {
 	service.startMemberChannelMembershipSync(ctx)
 	service.startJoiningNoticePruning(ctx)
 	service.startAdminChannelSeatSync(ctx)
+	service.startCircleChannelSync(ctx)
 }
 
 func (service *Service) startRequesterSocketListener(socketServer *http.Server) error {

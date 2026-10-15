@@ -13,7 +13,9 @@ import (
 
 const (
 	CreateChannelKind = 9007
+	DeleteChannelKind = 9008
 	AddMemberKind     = 9000
+	RemoveMemberKind  = 9001
 	ProfileKind       = 0
 	OpenDirectKind    = 41010
 )
@@ -165,6 +167,18 @@ func (publisher *Publisher) OpenDirectMessage(ctx context.Context, actorSecretHe
 // one is how an add also promotes.
 func (publisher *Publisher) AddMember(ctx context.Context, actorSecretHex, channelID, memberPubkeyHex, role string) error {
 	return publisher.signAndPublish(ctx, actorSecretHex, AddMemberKind, "", addMemberTags(channelID, memberPubkeyHex, role))
+}
+
+func (publisher *Publisher) RemoveMember(ctx context.Context, actorSecretHex, channelID, memberPubkeyHex string) error {
+	tags := nostr.Tags{
+		nostr.Tag{"h", channelID},
+		nostr.Tag{"p", strings.ToLower(memberPubkeyHex)},
+	}
+	return publisher.signAndPublish(ctx, actorSecretHex, RemoveMemberKind, "", tags)
+}
+
+func (publisher *Publisher) DeleteChannel(ctx context.Context, actorSecretHex, channelID string) error {
+	return publisher.signAndPublish(ctx, actorSecretHex, DeleteChannelKind, "", nostr.Tags{nostr.Tag{"h", channelID}})
 }
 
 func addMemberTags(channelID, memberPubkeyHex, role string) nostr.Tags {

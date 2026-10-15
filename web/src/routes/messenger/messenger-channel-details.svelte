@@ -18,6 +18,7 @@
 	import type { ChannelSummary } from '$lib/components/channel/channel-api';
 	import { displayPersonName } from '$lib/person-name.svelte';
 	import { MessengerRefusal, deleteChannel } from '$lib/messenger/messenger-api';
+	import { circleChannels } from '$lib/messenger/circle-channels.svelte';
 	import { toast } from 'svelte-sonner';
 
 	let {
@@ -49,6 +50,7 @@
 	const owners = $derived(members.filter((member) => member.role === 'owner'));
 	const ownerNames = $derived(owners.map((owner) => displayPersonName(owner.name) || text.unnamedMember).join(', '));
 	const amOwner = $derived(channel.myRole === 'owner');
+	const keepingCircleName = $derived(circleChannels.circleNameOf(channel.id));
 
 	let isConfirmingDelete = $state(false);
 	let isDeleting = $state(false);
@@ -141,6 +143,16 @@
 						</Item.Root>
 					{/if}
 					<Separator />
+					{#if keepingCircleName}
+						<Item.Root>
+							<Item.Content>
+								<Item.Title>{text.channelKeptByCircle}</Item.Title>
+								<Item.Description>{text.channelKeptByCircleDescription}</Item.Description>
+							</Item.Content>
+							<Item.Actions class={valueRowClass}><span class="truncate">{keepingCircleName}</span></Item.Actions>
+						</Item.Root>
+						<Separator />
+					{/if}
 					<Item.Root>
 						{#snippet child({ props })}
 							<button {...props} type="button" onclick={openMembers}>
@@ -187,17 +199,19 @@
 							</button>
 						{/snippet}
 					</Item.Root>
-					<Separator />
-					<Item.Root>
-						{#snippet child({ props })}
-							<button {...props} type="button" onclick={openLeave}>
-								<Item.Media variant="icon"><DoorOpenIcon /></Item.Media>
-								<Item.Content class={actionRowClass}>
-									<Item.Title>{text.leaveChannel}</Item.Title>
-								</Item.Content>
-							</button>
-						{/snippet}
-					</Item.Root>
+					{#if !keepingCircleName}
+						<Separator />
+						<Item.Root>
+							{#snippet child({ props })}
+								<button {...props} type="button" onclick={openLeave}>
+									<Item.Media variant="icon"><DoorOpenIcon /></Item.Media>
+									<Item.Content class={actionRowClass}>
+										<Item.Title>{text.leaveChannel}</Item.Title>
+									</Item.Content>
+								</button>
+							{/snippet}
+						</Item.Root>
+					{/if}
 					{#if amOwner}
 						<Separator />
 						<Item.Root>

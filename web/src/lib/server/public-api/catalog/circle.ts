@@ -2,10 +2,19 @@ import { z } from 'zod';
 import { circleSchema } from '$lib/data-room/model';
 import { circleListResultSchema } from '$lib/data-room/schemas';
 import { companyRecordTool, recordSavedSchema } from './data-room';
-import type { CapabilityToolDefinition } from './definition';
+import { ResourceMutationEffect, type CapabilityToolDefinition } from './definition';
+import { CapabilitySideEffect, ResourceEffectIdentity } from './protocol';
 
 export const circleSetInputSchema = circleSchema;
 export const circleMemberSetInputSchema = z.strictObject({ memberID: z.string().uuid(), circleIDs: z.array(z.string()) });
+export const circleChannelAddInputSchema = z.strictObject({
+	circleID: z.string().describe('The exact id of the circle, as circle_list shows it'),
+	name: z.string().trim().min(1).describe("What the channel is called on the messenger, usually the circle's own name")
+});
+export const circleChannelDeleteInputSchema = z.strictObject({
+	circleID: z.string().describe('The exact id of the circle, as circle_list shows it'),
+	name: z.string().describe("The channel's exact current name, as circle_list shows it in channelName. Any other value is refused.")
+});
 
 const circleTool = companyRecordTool('circle', 'circle', 'Company circles');
 
@@ -17,6 +26,19 @@ export const circleToolDefinitions: CapabilityToolDefinition[] = [
 		'Create or edit a circle. id is its lowercase identifier, such as leadership, and never changes; name and nameKO are what people read. readableCategories names the data room categories its members read, and a parent grants all descendants. Members change access immediately, so read circle_list and confirm who is affected first. A circle confers no administrative or editing rights.',
 		circleSetInputSchema, recordSavedSchema, true),
 	circleTool('circle_member_update',
-		'Set the circles an active member belongs to, replacing them atomically. Only administrators place people in circles. A member gains each circle\'s workspace folder, memory and data room categories.',
-		circleMemberSetInputSchema, recordSavedSchema, true)
+		'Set the circles an active member belongs to, replacing them atomically. Only administrators place people in circles. A member gains each circle\'s workspace folder, memory and data room categories, and joins its channel when it has one.',
+		circleMemberSetInputSchema, recordSavedSchema, true),
+	circleTool('circle_channel_add',
+		"Add a private messenger channel of the circle's own. Its members are exactly the circle's, kept so as people join and leave the circle, and nobody adds or removes anyone by hand. A circle has at most one channel. Only administrators add one.",
+		circleChannelAddInputSchema, recordSavedSchema, true),
+	{
+		...circleTool('circle_channel_delete',
+			"Delete the circle's messenger channel, so nobody reads or writes in it again. Takes the channel's exact current name from circle_list as confirmation and refuses any other. Only administrators delete one, and the circle itself stays.",
+			circleChannelDeleteInputSchema, recordSavedSchema, true),
+		result: {
+			schema: recordSavedSchema,
+			effects: [{ objectType: 'circle', effect: ResourceMutationEffect.Deleted, effectIdentity: ResourceEffectIdentity.Singleton }]
+		},
+		sideEffect: CapabilitySideEffect.Destructive
+	}
 ];

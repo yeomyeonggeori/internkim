@@ -1,6 +1,7 @@
 import { expect, test } from 'bun:test';
 
-import { directoryChangedCapability, serveCallForMember, type Dispatch } from './forward';
+import { serveRoutedCall } from './gateway-connector';
+import { directoryChangedCapability, type Dispatch } from './forward';
 
 function dispatchThatRecords(told: string[]): Dispatch {
 	return {
@@ -20,16 +21,25 @@ function dispatchThatRecords(told: string[]): Dispatch {
 	} as unknown as Dispatch;
 }
 
-// Somebody invited on the company is given a Linux user here, and until this
-// device reads the directory again the agent refuses them as a stranger.
-test('the company saying its directory changed reaches admind', async () => {
+const ceiling = 3_000_000;
+
+function directoryChanged(memberID: string | null) {
+	return { kind: 'call' as const, requestID: 'call-1', memberID, capability: directoryChangedCapability, body: {} };
+}
+
+test('a member saying the directory changed reaches admind', async () => {
 	const told: string[] = [];
 
-	const served = await serveCallForMember(
-		dispatchThatRecords(told),
-		{ callID: 'call-1', capability: directoryChangedCapability, body: {} },
-		'member-1'
-	);
+	const served = await serveRoutedCall(directoryChanged('member-1'), dispatchThatRecords(told), ceiling);
+
+	expect(told).toEqual(['admind']);
+	expect(served.status).toBe(202);
+});
+
+test('the record saying the directory changed reaches admind without naming a member', async () => {
+	const told: string[] = [];
+
+	const served = await serveRoutedCall(directoryChanged(null), dispatchThatRecords(told), ceiling);
 
 	expect(told).toEqual(['admind']);
 	expect(served.status).toBe(202);
@@ -38,10 +48,10 @@ test('the company saying its directory changed reaches admind', async () => {
 test('anything else still goes where it went before', async () => {
 	const told: string[] = [];
 
-	await serveCallForMember(
+	await serveRoutedCall(
+		{ kind: 'call', requestID: 'call-2', memberID: 'member-1', capability: 'asset.link', body: {} },
 		dispatchThatRecords(told),
-		{ callID: 'call-2', capability: 'asset.link', body: {} },
-		'member-1'
+		ceiling
 	);
 
 	expect(told).toEqual(['asset:asset.link']);

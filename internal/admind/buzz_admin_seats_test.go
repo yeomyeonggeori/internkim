@@ -4,6 +4,8 @@ import (
 	"context"
 	"reflect"
 	"testing"
+
+	"github.com/yeomyeonggeori/internkim/internal/buzzidentity"
 )
 
 func TestAnAdministratorWithNoSeatIsNamed(t *testing.T) {
@@ -52,8 +54,10 @@ func TestAdministratorsAreSeatedOnlyInRoomsTheRelayLetsThemInto(t *testing.T) {
 		everyoneLeft  = "00000000-0000-0000-0000-0000000000a4"
 		deletedRoom   = "00000000-0000-0000-0000-0000000000a5"
 		directRoom    = "00000000-0000-0000-0000-0000000000a6"
+		circleRoom    = "00000000-0000-0000-0000-0000000000a7"
 		somebodysSeat = "aa00000000000000000000000000000000000000000000000000000000000001"
 	)
+	agentKey := derivedKey(t, buzzidentity.AgentSubject)
 	holdRoom(t, relay, liveRoom, "stream", "private", "", "")
 	seatInRoom(t, relay, liveRoom, somebodysSeat, false)
 	holdRoom(t, relay, archivedRoom, "stream", "private", "now()", "")
@@ -65,19 +69,21 @@ func TestAdministratorsAreSeatedOnlyInRoomsTheRelayLetsThemInto(t *testing.T) {
 	seatInRoom(t, relay, deletedRoom, somebodysSeat, false)
 	holdRoom(t, relay, directRoom, "dm", "private", "", "")
 	seatInRoom(t, relay, directRoom, somebodysSeat, false)
+	holdRoomOpenedBy(t, relay, circleRoom, "private", agentKey)
+	seatInRoom(t, relay, circleRoom, somebodysSeat, false)
 
-	channelIDs, errorValue := everyStreamChannel(context.Background(), relay, []string{roomCommunity})
+	channelIDs, errorValue := everyStreamChannel(context.Background(), relay, []string{roomCommunity}, agentKey)
 	if errorValue != nil {
 		t.Fatalf("read the rooms: %v", errorValue)
 	}
 
 	if !reflect.DeepEqual(channelIDs, []string{liveRoom}) {
-		t.Fatalf("only a live, unarchived company room somebody is still in can take an administrator, got %v", channelIDs)
+		t.Fatalf("only a live, unarchived room somebody is still in and the company does not seat by name can take an administrator, got %v", channelIDs)
 	}
 }
 
 func TestEveryStreamChannelAsksForNothingWhenNoCommunityIsKnown(t *testing.T) {
-	channelIDs, errorValue := everyStreamChannel(context.Background(), nil, nil)
+	channelIDs, errorValue := everyStreamChannel(context.Background(), nil, nil, "")
 	if errorValue != nil || channelIDs != nil {
 		t.Fatalf("a device that knows no community should ask for nothing, got %v %v", channelIDs, errorValue)
 	}

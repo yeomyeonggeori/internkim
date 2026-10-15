@@ -1,6 +1,7 @@
 import {
 	apiFileCapability,
 	apiRequestCapability,
+	directoryChangedCapability,
 	serveCallForMember,
 	servePublicAPIFile,
 	servePublicAPIRequest,
@@ -86,6 +87,7 @@ async function servedCall(
 		if (messengerCapabilities.has(call.capability)) return dispatch.serveMessenger(call.capability, call.body);
 		return serveTelling(dispatch, call.body);
 	}
+	if (call.capability === directoryChangedCapability) return dispatch.tellAdmindTheDirectoryChanged();
 	if (!call.memberID) {
 		return { status: 400, body: { error: `${call.capability} is asked for by a member, and none was named` } };
 	}

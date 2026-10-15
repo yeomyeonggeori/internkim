@@ -240,10 +240,6 @@ async function serveForMember(
 	body: Record<string, unknown>,
 	replyTo: string
 ): Promise<Served> {
-	if (capability === directoryChangedCapability) {
-		return { ...(await dispatch.tellAdmindTheDirectoryChanged()), replyTo };
-	}
-
 	if (!isPersonCapability(capability)) {
 		return { status: 200, body: await dispatch.serveAsset(capability, body), replyTo };
 	}

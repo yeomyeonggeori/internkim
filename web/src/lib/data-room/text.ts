@@ -50,7 +50,20 @@ export const dataRoomText = {
 		circleName: '이름 (영어)',
 		koreanCircleName: '이름 (한국어)',
 		circleDescription:
-			'이 서클 사람들이 읽을 분류를 고릅니다. 대분류를 고르면 현재와 이후 추가되는 하위 분류까지 포함합니다. 저장하면 이 서클의 사람과 공유 링크에 바로 적용됩니다.'
+			'이 서클 사람들이 읽을 분류를 고릅니다. 대분류를 고르면 현재와 이후 추가되는 하위 분류까지 포함합니다. 저장하면 이 서클의 사람과 공유 링크에 바로 적용됩니다.',
+		circleChannel: '전용 채널',
+		circleChannelDescription: '서클 사람이 모두 들어가는 비공개 채널을 만듭니다.',
+		circleChannelKept: '{name} 채널에 서클 사람이 모두 들어가 있습니다. 서클에 사람을 넣거나 빼면 채널에도 바로 반영됩니다.',
+		circleChannelOpening: '{name} 채널을 만드는 중입니다. 회사 컴퓨터가 연결되어 있어야 만들어집니다.',
+		addCircleChannel: '전용 채널 만들기',
+		addCircleChannelDescription: '서클 사람이 모두 들어간 비공개 채널을 만듭니다. 채널 멤버는 서클을 따라가고, 채널에서 직접 넣거나 뺄 수 없습니다.',
+		circleChannelName: '채널 이름',
+		deleteCircleChannel: '전용 채널 삭제',
+		deleteCircleChannelDescription: '채널과 그 안의 대화가 모두 사라지며 되돌릴 수 없습니다. 삭제하려면 채널 이름을 그대로 입력하세요: {name}',
+		circleChannelFailed: '전용 채널을 바꾸지 못했습니다.',
+		create: '만들기',
+		delete: '삭제',
+		cancel: '취소'
 	},
 	en: {
 		title: 'Dataroom',
@@ -103,6 +116,19 @@ export const dataRoomText = {
 		circleName: 'Name (English)',
 		koreanCircleName: 'Name (Korean)',
 		circleDescription:
-			'Choose the categories this circle reads. A parent includes all current and future children. Saving changes access right away for its people and share links.'
+			'Choose the categories this circle reads. A parent includes all current and future children. Saving changes access right away for its people and share links.',
+		circleChannel: 'Channel',
+		circleChannelDescription: 'Open a private channel with everyone in this circle.',
+		circleChannelKept: 'Everyone in this circle is in {name}. Adding someone to the circle or removing them changes the channel right away.',
+		circleChannelOpening: 'Opening {name}. It is opened once the company computer is connected.',
+		addCircleChannel: 'Open a channel',
+		addCircleChannelDescription: 'Opens a private channel with everyone in this circle. Its members follow the circle and cannot be added or removed in the channel.',
+		circleChannelName: 'Channel name',
+		deleteCircleChannel: 'Delete the channel',
+		deleteCircleChannelDescription: 'The channel and everything said in it will be gone, and this cannot be undone. To delete it, type the channel name exactly: {name}',
+		circleChannelFailed: 'The channel could not be changed.',
+		create: 'Open',
+		delete: 'Delete',
+		cancel: 'Cancel'
 	}
 } as const;

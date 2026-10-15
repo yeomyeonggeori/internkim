@@ -299,6 +299,26 @@
       "callableBy": []
     },
     {
+      "name": "circle_channel_add",
+      "arguments": "target_company uuid, target_circle text, channel_name text",
+      "returns": "void",
+      "security": "definer",
+      "callableBy": [
+        "authenticated",
+        "service_role"
+      ]
+    },
+    {
+      "name": "circle_channel_delete",
+      "arguments": "target_company uuid, target_circle text, confirmed_name text",
+      "returns": "void",
+      "security": "definer",
+      "callableBy": [
+        "authenticated",
+        "service_role"
+      ]
+    },
+    {
       "name": "circle_set",
       "arguments": "target_company uuid, circle_id text, circle_name text, readable_categories text[], circle_name_ko text DEFAULT ''::text",
       "returns": "void",
@@ -475,6 +495,38 @@
       ]
     },
     {
+      "name": "data_room_circle_categories",
+      "arguments": "target_company uuid, target_circle text",
+      "returns": "text[]",
+      "security": "definer",
+      "callableBy": [
+        "authenticated",
+        "service_role"
+      ]
+    },
+    {
+      "name": "data_room_circle_company",
+      "arguments": "target_company uuid, target_circle text",
+      "returns": "jsonb",
+      "security": "definer",
+      "callableBy": [
+        "anon",
+        "authenticated",
+        "service_role"
+      ]
+    },
+    {
+      "name": "data_room_company",
+      "arguments": "target_company uuid",
+      "returns": "jsonb",
+      "security": "definer",
+      "callableBy": [
+        "anon",
+        "authenticated",
+        "service_role"
+      ]
+    },
+    {
       "name": "data_room_document_readable",
       "arguments": "document company_document",
       "returns": "boolean",
@@ -490,6 +542,17 @@
       "arguments": "document company_document",
       "returns": "boolean",
       "security": "definer",
+      "callableBy": [
+        "anon",
+        "authenticated",
+        "service_role"
+      ]
+    },
+    {
+      "name": "data_room_field_set",
+      "arguments": "target_company uuid, target_field text, target_category text",
+      "returns": "void",
+      "security": "invoker",
       "callableBy": [
         "anon",
         "authenticated",
@@ -680,6 +743,17 @@
     {
       "name": "is_messenger_accounts",
       "arguments": "accounts jsonb",
+      "returns": "boolean",
+      "security": "invoker",
+      "callableBy": [
+        "anon",
+        "authenticated",
+        "service_role"
+      ]
+    },
+    {
+      "name": "is_money",
+      "arguments": "money jsonb",
       "returns": "boolean",
       "security": "invoker",
       "callableBy": [
@@ -1087,6 +1161,16 @@
       ]
     },
     {
+      "name": "size_bytes",
+      "arguments": "document company_document",
+      "returns": "bigint",
+      "security": "invoker",
+      "callableBy": [
+        "authenticated",
+        "service_role"
+      ]
+    },
+    {
       "name": "status_my_leave_request_takes",
       "arguments": "",
       "returns": "leave_status",
@@ -1274,6 +1358,7 @@
     "refuse_a_second_copy_of_an_event",
     "refuse_task_parent_cycle",
     "resolve_attendance",
+    "stamp_company_document_update",
     "stamp_crm_record",
     "stamp_task_on_participant_change",
     "stamp_task_update",
