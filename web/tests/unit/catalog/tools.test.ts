@@ -107,6 +107,7 @@ describe('canonical capability tools', () => {
       'company_document_classify',
       'company_document_download',
       'company_document_list',
+      'company_document_recall',
       'company_document_register',
       'company_document_search',
       'company_document_update',
