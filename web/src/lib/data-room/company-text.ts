@@ -34,8 +34,10 @@ type CompanyText = {
 		tracked: (people: number) => string;
 		teamsShown: (shown: number, total: number) => string;
 		contributions: string;
-		attendance: string;
+		attendance: (day: string, isToday: boolean) => string;
 		board: string;
+		showMore: string;
+		showLess: string;
 		contributionsLabel: (count: number) => string;
 		events: (count: number) => string;
 		month: (month: number) => string;
@@ -97,8 +99,10 @@ export const dataRoomCompanyText: Record<Locale, CompanyText> = {
 			teamsShown: (shown, total) => `팀 ${total}개 중 인원이 많은 ${shown}개`,
 			asOf: (day) => `${day} 기준`,
 			contributions: '지난 1년 동안 등록하거나 완료한 업무',
-			attendance: '오늘의 근태',
-			board: '이번 주 업무',
+			attendance: (day, isToday) => (isToday ? '오늘의 근태' : `${day} 근태`),
+			board: '최근 업무',
+			showMore: '더 보기',
+			showLess: '접기',
 			contributionsLabel: (count) => `${new Intl.NumberFormat('ko').format(count)}건`,
 			events: (count) => `${count}건`,
 			month: (month) => `${month}월`,
@@ -194,8 +198,10 @@ export const dataRoomCompanyText: Record<Locale, CompanyText> = {
 			teamsShown: (shown, total) => `The ${shown} largest of ${total} teams`,
 			asOf: (day) => `As of ${day}`,
 			contributions: 'Tasks added or completed over the past year',
-			attendance: 'Attendance today',
-			board: 'This week',
+			attendance: (day, isToday) => (isToday ? 'Attendance today' : `Attendance on ${day}`),
+			board: 'Recent work',
+			showMore: 'Show more',
+			showLess: 'Show less',
 			contributionsLabel: (count) => new Intl.NumberFormat('en').format(count),
 			events: (count) => `${count} ${count === 1 ? 'task' : 'tasks'}`,
 			month: (month) => new Intl.DateTimeFormat('en', { month: 'short', timeZone: 'UTC' }).format(Date.UTC(2000, month - 1, 1)),

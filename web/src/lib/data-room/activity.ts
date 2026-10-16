@@ -36,9 +36,8 @@ const namedColorSchema = z.object({ name: z.string(), color: z.string().optional
 
 const activityBaseSchema = z.object({
 	today: z.string(),
-	weekStart: z.string(),
-	weekEnd: z.string(),
 	attendance: z.object({
+		date: z.string(),
 		summary: z.object({ memberCount: count, working: count, done: count, away: count, notStarted: count, needsCheckout: count }),
 		teams: z.array(activityTeamSchema)
 	}),

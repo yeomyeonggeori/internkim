@@ -9,9 +9,7 @@ import {
 
 const activity = (contributions: CompanyActivity['contributions']): CompanyActivity => ({
 	today: '2026-10-16',
-	weekStart: '2026-10-12',
-	weekEnd: '2026-10-18',
-	attendance: { summary: { memberCount: 0, working: 0, done: 0, away: 0, notStarted: 0, needsCheckout: 0 }, teams: [] },
+	attendance: { date: '2026-10-16', summary: { memberCount: 0, working: 0, done: 0, away: 0, notStarted: 0, needsCheckout: 0 }, teams: [] },
 	board: {
 		vocabulary: {},
 		counts: { in_progress: 1 },

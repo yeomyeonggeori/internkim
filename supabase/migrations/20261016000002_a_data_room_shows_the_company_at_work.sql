@@ -3,8 +3,8 @@ returns text language sql immutable set search_path = ''
 as $$
   select coalesce(string_agg(case
       when char_length(word) <= 1 then word
-      when char_length(word) = 2 then left(word, 1) || '*'
-      else left(word, 1) || repeat('*', char_length(word) - 2) || right(word, 1)
+      when char_length(word) = 2 then left(word, 1) || '█'
+      else left(word, 1) || repeat('█', char_length(word) - 2) || right(word, 1)
     end, ' ' order by position), '')
   from regexp_split_to_table(btrim(coalesce(full_name, '')), '\s+') with ordinality as part(word, position)
   where word <> '';
@@ -26,7 +26,7 @@ as $$
   ) parts;
 $$;
 
-create function internal.attendance_states(target_company uuid)
+create function internal.attendance_states(target_company uuid, as_of timestamptz default now())
 returns table (member_id uuid, team_id uuid, state text, location text)
 language sql stable security definer set search_path = ''
 as $$
@@ -35,7 +35,7 @@ as $$
       when active_leave.id is not null then 'away'
       when latest.kind = 'clock_in' then 'working'
       when latest.kind = 'clock_out'
-        and latest.occurred_at >= date_trunc('day', now() at time zone company.timezone) at time zone company.timezone then 'done'
+        and latest.occurred_at >= date_trunc('day', as_of at time zone company.timezone) at time zone company.timezone then 'done'
       else 'not_started'
     end,
     latest.location
@@ -43,20 +43,20 @@ as $$
   join public.company on company.id = colleague.company_id
   left join lateral (
     select event.kind, event.occurred_at, event.location from public.attendance as event
-    where event.member_id = colleague.id and event.deleted_at is null
+    where event.member_id = colleague.id and event.deleted_at is null and event.occurred_at <= as_of
     order by event.occurred_at desc, event.id desc limit 1
   ) latest on true
   left join lateral (
     select leave.id from public.leave
     where leave.member_id = colleague.id and leave.status = 'approved'
-      and leave.days < 0 and leave.starts_at <= now() and leave.ends_at > now()
+      and leave.days < 0 and leave.starts_at <= as_of and leave.ends_at > as_of
     order by leave.starts_at, leave.id limit 1
   ) active_leave on true
   where colleague.company_id = target_company and colleague.status = 'active';
 $$;
 
-comment on function internal.attendance_states(uuid) is
-  'where each active member of a company stands today; attendance_team_page derives the same states and a test holds the two together';
+comment on function internal.attendance_states(uuid, timestamptz) is
+  'where each active member of a company stood at a moment, now unless another is named; attendance_team_page derives the same states for now and a test holds the two together';
 
 create function internal.data_room_activity(target_company uuid)
 returns jsonb language sql stable security definer set search_path = ''
@@ -70,16 +70,26 @@ as $$
       select company.name, company.timezone as zone, company.task_vocabulary,
         (now() at time zone company.timezone)::date as today
       from public.company where company.id = target_company
-    ), week as (
-      select today - (extract(isodow from today)::integer - 1) as starts_on,
-        today - (extract(isodow from today)::integer - 1) + 6 as ends_on
+    ), attended as (
+      select coalesce(max((event.occurred_at at time zone company.zone)::date), company.today) as day
       from company
+      left join public.attendance as event
+        on event.kind = 'clock_in' and event.deleted_at is null
+        and (event.occurred_at at time zone company.zone)::date <= company.today
+        and event.member_id in (select member.id from public.member
+          where member.company_id = target_company and member.status = 'active')
+      group by company.today
+    ), moment as (
+      select attended.day,
+        case when attended.day = company.today then now()
+          else ((attended.day + 1)::timestamp at time zone company.zone) - interval '1 microsecond' end as as_of
+      from attended, company
     ), people as (
       select member.id, member.name, member.profile_image,
         'p' || row_number() over (order by member.id) as person_key
       from public.member where member.company_id = target_company and member.status = 'active'
     ), states as (
-      select * from internal.attendance_states(target_company)
+      select states.* from moment, internal.attendance_states(target_company, moment.as_of) as states
     ), teams as (
       select team.id as team_id, team.id::text as team_key, team.name, team.position
       from public.team where team.company_id = target_company
@@ -90,7 +100,8 @@ as $$
       select distinct on (event.member_id, event.kind) event.member_id, event.kind, event.occurred_at, event.id
       from public.attendance as event
       join people on people.id = event.member_id
-      where event.deleted_at is null
+      cross join moment
+      where event.deleted_at is null and event.occurred_at <= moment.as_of
       order by event.member_id, event.kind, event.occurred_at desc, event.id desc
     ), work as (
       select task.id, task.title, task.status::text as status, task.business, task.type, task.size,
@@ -101,13 +112,10 @@ as $$
       where task.company_id = target_company and not task.is_event and task.opportunity_id is null
     ), board as (
       select work.*, row_number() over (partition by work.status order by work.updated_at desc, work.id) as rank_in_column
-      from work, week
-      where work.status in ('requested', 'paused', 'in_progress')
-        or (work.status = 'planned' and coalesce(work.ends_on, work.starts_on, week.ends_on) <= week.ends_on)
-        or (work.status = 'completed' and work.ends_on between week.starts_on and week.ends_on)
+      from work
     ), shown_tasks as (
       select board.*, 't' || row_number() over (order by board.status, board.rank_in_column) as task_key
-      from board where board.rank_in_column <= 12
+      from board where board.rank_in_column <= 100
     ), task_people as (
       select shown_tasks.task_key, people.person_key, people.name
       from shown_tasks
@@ -137,9 +145,8 @@ as $$
     )
     select jsonb_build_object(
       'today', company.today,
-      'weekStart', week.starts_on,
-      'weekEnd', week.ends_on,
       'attendance', jsonb_build_object(
+        'date', moment.day,
         'summary', (
           select jsonb_build_object('memberCount', count(*),
             'working', count(*) filter (where state = 'working'),
@@ -195,7 +202,7 @@ as $$
             'createdAt', shown_tasks.created_at,
             'people', coalesce((select jsonb_agg(task_people.person_key order by task_people.name)
               from task_people where task_people.task_key = shown_tasks.task_key), '[]')
-          )) order by shown_tasks.task_key)
+          )) order by shown_tasks.status, shown_tasks.rank_in_column)
           from shown_tasks), '[]')
       ),
       'contributions', coalesce((
@@ -206,12 +213,12 @@ as $$
           'picture', people.profile_image)))
         from people where people.person_key in (select person_key from mentioned)), '{}')
     )
-    from company, week
+    from company, moment
   ) as built(activity);
 $$;
 
 comment on function internal.data_room_activity(uuid) is
-  'the company at work, as a data room reader may see it, or null when nothing has happened in a year and nobody is in today: attendance today, this week''s board and a year of task activity, with names and titles masked; picture paths are replaced by blurred thumbnails on the server before anything leaves it';
+  'the company at work, as a data room reader may see it, or null when nothing has happened in a year and nobody has come in: attendance on the latest day anyone came in (now, if that is today), the latest hundred tasks of each status and a year of task activity, with names and titles masked; picture paths are replaced by blurred thumbnails on the server before anything leaves it';
 
 create or replace function internal.data_room_company_shown(target_company uuid, shown_categories text[])
 returns jsonb language sql stable security definer set search_path = ''
@@ -262,4 +269,4 @@ where category.code = 'GP'
     where other.company_id = category.company_id and 'activity' = any(other.fields));
 
 revoke all on function internal.masked_person_name(text), internal.masked_task_title(text),
-  internal.attendance_states(uuid), internal.data_room_activity(uuid) from public, anon, authenticated;
+  internal.attendance_states(uuid, timestamptz), internal.data_room_activity(uuid) from public, anon, authenticated;

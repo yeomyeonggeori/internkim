@@ -19,6 +19,9 @@
 	const teams = $derived(
 		activity.attendance.teams.toSorted((left, right) => right.memberCount - left.memberCount).slice(0, shownTeams)
 	);
+	const isAttendanceToday = $derived(activity.attendance.date === activity.today);
+	const attendanceDay = $derived(new Intl.DateTimeFormat(locale, { month: 'long', day: 'numeric', weekday: 'short', timeZone: 'UTC' })
+		.format(new Date(`${activity.attendance.date}T00:00:00Z`)));
 	const asOf = $derived(new Intl.DateTimeFormat(locale, { month: 'long', day: 'numeric', weekday: 'short', timeZone: 'UTC' })
 		.format(new Date(`${activity.today}T00:00:00Z`)));
 </script>
@@ -58,7 +61,7 @@
 
 		<div class="grid gap-3">
 			<div class="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
-				<h4 class="text-sm font-semibold">{text.attendance}</h4>
+				<h4 class="text-sm font-semibold">{text.attendance(attendanceDay, isAttendanceToday)}</h4>
 				<p class="text-muted-foreground text-xs">{text.tracked(activity.attendance.summary.memberCount)}{#if allTeams > teams.length} · {text.teamsShown(teams.length, allTeams)}{/if}</p>
 			</div>
 			<AttendanceCompanyMetrics summary={activity.attendance.summary} />

@@ -1,5 +1,6 @@
 <script lang="ts">
-	import { buildTaskBoard } from '../../routes/task/task-board-model';
+	import { SvelteSet } from 'svelte/reactivity';
+	import { BOARD_STATUS_VALUES } from '../../routes/task/task-board-model';
 	import TaskBoardCard from '../../routes/task/task-board-card.svelte';
 	import { taskStatusIcon } from '../../routes/task/task-status-style';
 	import { taskText } from '../../routes/task/text';
@@ -9,14 +10,21 @@
 
 	let { activity, locale }: { activity: CompanyActivity; locale: 'ko' | 'en' } = $props();
 
-	const cardsPerColumn = 3;
+	const cardsPerColumn = 15;
+	const cardsPerColumnOnPhone = 3;
 	const neutralColor = '#a1a1aa';
 	const text = $derived(dataRoomCompanyText[locale].activity);
 	const statusText = $derived(taskText[locale].status);
 	const tasks = $derived(activityTasks(activity).map((task) => ({ ...task, size: '' })));
 	const columns = $derived(
-		buildTaskBoard(tasks, { weekStartISO: activity.weekStart, weekEndISO: activity.weekEnd, weekPosition: 'current' })
+		BOARD_STATUS_VALUES.map((status) => ({ status, tasks: tasks.filter((task) => task.status === status) }))
 	);
+	const expandedColumns = new SvelteSet<string>();
+
+	function toggleColumn(status: string): void {
+		if (expandedColumns.has(status)) expandedColumns.delete(status);
+		else expandedColumns.add(status);
+	}
 
 	function neutral(): string {
 		return neutralColor;
@@ -33,6 +41,8 @@
 		{#each columns as column (column.status)}
 			{@const StatusIcon = taskStatusIcon(column.status)}
 			{@const total = activity.board.counts[column.status] ?? column.tasks.length}
+			{@const isExpanded = expandedColumns.has(column.status)}
+			{@const shown = isExpanded ? column.tasks : column.tasks.slice(0, cardsPerColumn)}
 			<section class="bg-muted/30 flex min-w-0 flex-col overflow-hidden rounded-lg border" aria-label={statusLabel(column.status)}>
 				<header class="bg-card flex h-11 items-center gap-2 border-b px-3">
 					<StatusIcon class="text-muted-foreground size-4 shrink-0" aria-hidden="true" />
@@ -40,8 +50,8 @@
 					<span class="bg-muted text-muted-foreground inline-flex h-5 min-w-5 items-center justify-center rounded-full px-1.5 text-xs font-medium tabular-nums">{total}</span>
 				</header>
 				<div class="grid content-start gap-2 p-2.5">
-					{#each column.tasks.slice(0, cardsPerColumn) as task, index (task.id)}
-						<div class={index > 0 ? 'max-lg:hidden' : ''}>
+					{#each shown as task, index (task.id)}
+						<div class={!isExpanded && index >= cardsPerColumnOnPhone ? 'max-lg:hidden' : ''}>
 						<TaskBoardCard
 							{task}
 							etcLabel=""
@@ -73,9 +83,18 @@
 					{:else}
 						<p class="text-muted-foreground py-6 text-center text-xs">—</p>
 					{/each}
-					{#if total > 1}<p class="text-muted-foreground px-1 pt-1 text-xs tabular-nums lg:hidden">{text.moreTasks(total - 1)}</p>{/if}
-					{#if total > cardsPerColumn}
-						<p class="text-muted-foreground px-1 pt-1 text-xs tabular-nums max-lg:hidden">{text.moreTasks(total - Math.min(cardsPerColumn, column.tasks.length))}</p>
+					{#if column.tasks.length > cardsPerColumnOnPhone}
+						<button
+							type="button"
+							class="text-muted-foreground hover:text-foreground px-1 pt-1 text-left text-xs tabular-nums {column.tasks.length > cardsPerColumn ? '' : 'lg:hidden'}"
+							aria-expanded={isExpanded}
+							onclick={() => toggleColumn(column.status)}
+						>
+							{isExpanded ? text.showLess : text.showMore}
+						</button>
+					{/if}
+					{#if total > shown.length}
+						<p class="text-muted-foreground px-1 text-xs tabular-nums {isExpanded ? '' : 'max-lg:hidden'}">{text.moreTasks(total - shown.length)}</p>
 					{/if}
 				</div>
 			</section>
