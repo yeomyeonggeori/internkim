@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { SvelteSet } from 'svelte/reactivity';
+	import '../../routes/task/task-board-layout.css';
 	import { BOARD_STATUS_VALUES } from '../../routes/task/task-board-model';
 	import TaskBoardCard from '../../routes/task/task-board-card.svelte';
 	import { taskStatusIcon } from '../../routes/task/task-status-style';
@@ -37,13 +38,14 @@
 	function ignoreOpen(): void {}
 </script>
 
-<div class="grid gap-3 lg:grid-cols-5">
+<div data-task-board-scroll class="min-w-0 snap-x snap-mandatory overflow-x-auto max-sm:snap-none max-sm:overflow-visible">
+	<div class="flex min-w-max items-start gap-3 max-sm:min-w-0 max-sm:flex-col max-sm:items-stretch">
 		{#each columns as column (column.status)}
 			{@const StatusIcon = taskStatusIcon(column.status)}
 			{@const total = activity.board.counts[column.status] ?? column.tasks.length}
 			{@const isExpanded = expandedColumns.has(column.status)}
 			{@const shown = isExpanded ? column.tasks : column.tasks.slice(0, cardsPerColumn)}
-			<section class="bg-muted/30 flex min-w-0 flex-col overflow-hidden rounded-lg border" aria-label={statusLabel(column.status)}>
+			<section class="task-board-column bg-muted/30 flex shrink-0 snap-start flex-col overflow-hidden rounded-lg border" aria-label={statusLabel(column.status)}>
 				<header class="bg-card flex h-11 items-center gap-2 border-b px-3">
 					<StatusIcon class="text-muted-foreground size-4 shrink-0" aria-hidden="true" />
 					<h4 class="truncate text-sm font-semibold">{statusLabel(column.status)}</h4>
@@ -51,7 +53,7 @@
 				</header>
 				<div class="grid content-start gap-2 p-2.5">
 					{#each shown as task, index (task.id)}
-						<div class={!isExpanded && index >= cardsPerColumnOnPhone ? 'max-lg:hidden' : ''}>
+						<div class={!isExpanded && index >= cardsPerColumnOnPhone ? 'max-sm:hidden' : ''}>
 						<TaskBoardCard
 							{task}
 							etcLabel=""
@@ -86,7 +88,7 @@
 					{#if column.tasks.length > cardsPerColumnOnPhone}
 						<button
 							type="button"
-							class="text-muted-foreground hover:text-foreground px-1 pt-1 text-left text-xs tabular-nums {column.tasks.length > cardsPerColumn ? '' : 'lg:hidden'}"
+							class="text-muted-foreground hover:text-foreground px-1 pt-1 text-left text-xs tabular-nums {column.tasks.length > cardsPerColumn ? '' : 'sm:hidden'}"
 							aria-expanded={isExpanded}
 							onclick={() => toggleColumn(column.status)}
 						>
@@ -94,9 +96,10 @@
 						</button>
 					{/if}
 					{#if total > shown.length}
-						<p class="text-muted-foreground px-1 text-xs tabular-nums {isExpanded ? '' : 'max-lg:hidden'}">{text.moreTasks(total - shown.length)}</p>
+						<p class="text-muted-foreground px-1 text-xs tabular-nums {isExpanded ? '' : 'max-sm:hidden'}">{text.moreTasks(total - shown.length)}</p>
 					{/if}
 				</div>
 			</section>
 		{/each}
+	</div>
 </div>
