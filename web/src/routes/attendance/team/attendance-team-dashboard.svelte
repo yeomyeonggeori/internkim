@@ -13,13 +13,13 @@
 	import { leaveOpenedTeamThroughHistory, rememberOpenedTeam, teamKeyInHistory } from './attendance-team-history';
 	import AttendanceLoadingSkeleton from '../attendance-loading-skeleton.svelte';
 	import AttendanceCompanyMetrics from './attendance-company-metrics.svelte';
+	import AttendanceTeamCard from './attendance-team-card.svelte';
 	import { Spinner } from '$lib/components/ui/spinner';
 	import SearchIcon from '@lucide/svelte/icons/search';
 	import ArrowLeftIcon from '@lucide/svelte/icons/arrow-left';
 	import ArrowRightIcon from '@lucide/svelte/icons/arrow-right';
 	import Clock3Icon from '@lucide/svelte/icons/clock-3';
 	import LocationLabel from '../shared/location-label.svelte';
-	import ColorMarker from '$lib/components/color-marker.svelte';
 	import PersonAvatarStack from '$lib/components/person-avatar-stack.svelte';
 	import PersonAvatar from '$lib/components/person-avatar.svelte';
 	import { Badge } from '$lib/components/ui/badge';
@@ -36,15 +36,10 @@
 	import { createPageText } from '$lib/i18n/page-text.svelte';
 	import { attendanceText } from '../text';
 	import { getAttendanceTeamState } from './attendance-team-state.svelte';
-	import { IsMobile } from '$lib/hooks/is-mobile.svelte';
 
 	const text = createPageText(attendanceText);
 	const teamState = getAttendanceTeamState();
 	const attendanceView = getAttendanceViewState();
-	const isPhone = new IsMobile();
-	const workingColor = $derived(isPhone.current ? 'color-mix(in oklch, var(--color-success) 45%, var(--color-muted-foreground))' : 'var(--color-success)');
-	const awayColor = $derived(isPhone.current ? 'color-mix(in oklch, var(--color-warning) 70%, var(--color-muted-foreground))' : 'var(--color-warning)');
-	const locationForm = $derived(isPhone.current ? 'marker' : 'tag');
 	let companyLabel = $state('');
 	const ownEmail = $derived(myAttendanceToday.summary?.currentUserEmail ?? '');
 	const ownName = $derived(appNavigation.displayUserName);
@@ -126,9 +121,6 @@
 		return text.teamNotStarted;
 	}
 
-	function proportion(count: number, total: number): number {
-		return total ? count / total * 100 : 0;
-	}
 
 	function selectTeam(key: string): void {
 		searchDraft = '';
@@ -155,7 +147,7 @@
 	type RecentActor = AttendanceTeamPage['teams'][number]['recentClockIns'][number];
 </script>
 
-{#snippet actorStack(actors: RecentActor[], label: string, teamKey: string)}
+{#snippet recentActors(actors: RecentActor[], label: string, teamKey: string)}
 	<div class="flex min-w-0 items-center justify-between gap-2 max-sm:flex-col max-sm:items-start max-sm:justify-start max-sm:gap-1.5">
 		<span class="text-xs text-muted-foreground">{label}</span>
 		{#if actors.length}
@@ -216,48 +208,14 @@
 			{:else if teamState.teams.length || !teamState.error}
 				<div class="grid gap-4 max-sm:gap-3 min-[761px]:grid-cols-2 min-[1101px]:grid-cols-3" data-testid="team-card-page">
 					{#each teamState.teams as team (team.teamKey)}
-						<Card.Root class="gap-0 overflow-hidden rounded-xl py-0" data-testid="attendance-team-card">
-							<Card.Header class="gap-3 px-4 pb-3 pt-4">
-								<div class="flex items-start justify-between gap-3">
-									<div class="min-w-0"><Card.Title class="truncate text-base">{teamName(team)}</Card.Title><p class="mt-1 text-xs text-muted-foreground">{team.memberCount}명</p></div>
-									<div class="shrink-0 text-right" aria-label={`${team.working}/${team.memberCount} ${text.working}`}>
-										<span class="text-2xl font-semibold leading-none tabular-nums">{Math.round(proportion(team.working, team.memberCount))}%</span>
-										<span class="block pt-1 text-xs text-muted-foreground">{text.working} {team.working}/{team.memberCount}</span>
-									</div>
-								</div>
-								<div class="flex h-3 overflow-hidden rounded-full bg-muted max-sm:h-1.5" role="img" aria-label={`${text.working} ${team.working}, ${text.finished} ${team.done}, ${text.onLeave} ${team.away}, ${text.teamNotStarted} ${team.notStarted}`}>
-									<span style:background-color={workingColor} style:width={`${proportion(team.working, team.memberCount)}%`}></span>
-									<span style:background-color="var(--color-muted-foreground)" style:width={`${proportion(team.done, team.memberCount)}%`}></span>
-									<span style:background-color={awayColor} style:width={`${proportion(team.away, team.memberCount)}%`}></span>
-								</div>
-							</Card.Header>
-							<Card.Content class="flex flex-col gap-4 px-4 pb-4">
-                                <div class="grid grid-cols-2 gap-x-6 gap-y-2 text-xs text-muted-foreground">
-                                    <span class="flex items-center justify-between gap-4"><span class="inline-flex items-center gap-1.5"><ColorMarker color={workingColor} /><span>{text.working}</span></span><strong class="shrink-0 tabular-nums text-foreground">{team.working}</strong></span>
-                                    <span class="flex items-center justify-between gap-4"><span class="inline-flex items-center gap-1.5"><ColorMarker color="var(--color-muted-foreground)" /><span>{text.finished}</span></span><strong class="shrink-0 tabular-nums text-foreground">{team.done}</strong></span>
-                                    <span class="flex items-center justify-between gap-4"><span class="inline-flex items-center gap-1.5"><ColorMarker color={awayColor} /><span>{text.onLeave}</span></span><strong class="shrink-0 tabular-nums text-foreground">{team.away}</strong></span>
-                                    <span class="flex items-center justify-between gap-4"><span class="inline-flex items-center gap-1.5"><ColorMarker color="var(--color-muted)" /><span>{text.teamNotStarted}</span></span><strong class="shrink-0 tabular-nums text-foreground">{team.notStarted}</strong></span>
-                                </div>
-
-								<div class="flex flex-wrap items-center gap-x-2 gap-y-1 border-t border-border/70 pt-3 text-xs text-muted-foreground">
-																		<span>{text.teamRecordedLocations}</span>
-									{#each team.recordedLocations as location (location.name)}
-										<LocationLabel name={location.name} count={location.count} form={locationForm} />
-									{/each}
-									{#if team.unknownLocationCount}<LocationLabel name={text.teamUnknownLocation} count={team.unknownLocationCount} form={locationForm} />{/if}
-									{#if !team.recordedLocations.length && !team.unknownLocationCount}<span>—</span>{/if}
-								</div>
-								<div class="flex flex-col gap-3 border-t border-border/70 pt-3 max-sm:grid max-sm:grid-cols-2 max-sm:gap-4">
-									{@render actorStack(team.recentClockIns, text.teamRecentIns, team.teamKey)}
-									{@render actorStack(team.recentClockOuts, text.teamRecentOuts, team.teamKey)}
-								</div>
-							</Card.Content>
-							<Card.Footer class="border-t border-border/70 bg-card p-0">
+						<AttendanceTeamCard {team} name={teamName(team)}>
+							{#snippet actorStack(actors: RecentActor[], label: string)}{@render recentActors(actors, label, team.teamKey)}{/snippet}
+							{#snippet footer()}
 								<Button variant="ghost" class="h-11 w-full justify-between rounded-none px-4 text-sm font-medium" onclick={() => selectTeam(team.teamKey)}>
-								{text.teamEmployeesView}<ArrowRightIcon class="size-4" />
-							</Button>
-						</Card.Footer>
-						</Card.Root>
+									{text.teamEmployeesView}<ArrowRightIcon class="size-4" />
+								</Button>
+							{/snippet}
+						</AttendanceTeamCard>
 					{/each}
 				</div>
 				<ListPaginationFooter totalItems={teamState.teamTotal} pageIndex={teamState.teamOffset / 6} pageSize={6} pageCount={Math.ceil(teamState.teamTotal / 6)} canPreviousPage={teamState.teamOffset > 0} canNextPage={teamState.teamOffset + 6 < teamState.teamTotal} previousPage={() => void teamState.loadTeams(teamState.teamOffset - 6)} nextPage={() => void teamState.loadTeams(teamState.teamOffset + 6)} onPageChange={(page) => void teamState.loadTeams(page * 6)} disabled={teamState.isLoadingTeams} summary={'{from}–{to} / {total}'} previousLabel={text.teamPagePrevious} nextLabel={text.teamPageNext} showSummary={true} />

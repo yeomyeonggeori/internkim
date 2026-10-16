@@ -25,6 +25,7 @@
 		onTaskDragStart?: (event: DragEvent, task: Task) => void;
 		onTaskDragEnd?: (event: DragEvent, task: Task) => void;
 		primaryParticipantChip?: Snippet;
+		content?: Snippet;
 		isInteractive?: boolean;
 		memberEmail?: (memberID: string) => string;
 		isOverduePlan?: boolean;
@@ -44,6 +45,7 @@
 		onTaskDragStart,
 		onTaskDragEnd,
 		primaryParticipantChip,
+		content,
 		isInteractive = true,
 		memberEmail = () => '',
 		isOverduePlan = false,
@@ -175,7 +177,7 @@
 		</div>
 
 		<div class="line-clamp-2 text-sm font-semibold leading-5 text-card-foreground">
-			{task.content}
+			{#if content}{@render content()}{:else}{task.content}{/if}
 		</div>
 
 		{#if display.businessLabel || display.metadataLabels.length > 0 || task.startDate || task.endDate}
