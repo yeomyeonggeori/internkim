@@ -142,12 +142,15 @@ const companyMetricRecordInputSchema = z.strictObject({
 
 const companyMetricRecordInputIntentSchema = companyMetricRecordInputSchema.partial();
 
+const companyRecordStatusSchema = z.enum(["in_progress", "completed"]).describe("'in_progress' while it is still happening, such as a funding round being raised (its amount is the target); 'completed' once it happened. Defaults to completed.");
+
 const companyRecordAddInputSchema = z.strictObject({
   amount: moneySchema.describe("The money the event is about, e.g. a funding round or a grant: {\"amount\": 2000000, \"currency\": \"USD\"}.").optional(),
   attributes: z.string().describe("JSON object string of other structured details, e.g. {\"round\": \"Seed\", \"investors\": \"ABC Ventures\"}. Money goes in amount.").optional(),
   category: z.string().describe("Record category: 'history', 'funding', 'product', 'certification', 'ip', 'award', 'reference', 'grant', or another short kebab-case label."),
-  date: z.string().describe("Date of the event in YYYY-MM-DD or YYYY-MM format. Used to sort the company timeline.").optional(),
+  date: z.string().describe("Date of the event in YYYY-MM-DD or YYYY-MM format. Used to sort the company timeline. For something still in progress, when it is expected to finish.").optional(),
   detail: z.string().describe("One-to-three sentence description.").optional(),
+  status: companyRecordStatusSchema.optional(),
   title: z.string().describe("Short title, e.g. 'Seed round closed' or 'Product launched'."),
 });
 
@@ -171,6 +174,7 @@ const companyRecordUpdateInputSchema = z.strictObject({
   date: z.string().describe("New date. Omit to keep unchanged.").optional(),
   detail: z.string().describe("New detail text. Omit to keep unchanged.").optional(),
   recordHint: z.string().describe("The record to update: its id from a prior company_record_list result, or its exact CURRENT title. Never the new title this call is about to set."),
+  status: companyRecordStatusSchema.describe("New status, e.g. 'completed' when a round closes. Omit to keep unchanged.").optional(),
   title: z.string().describe("New title. Omit to keep unchanged.").optional(),
 });
 
@@ -236,6 +240,7 @@ export const companyRecordResultSchema = z.strictObject({
   date: z.string().nullable(),
   title: z.string(),
   detail: z.string().nullable(),
+  status: companyRecordStatusSchema,
   amount: moneySchema.nullable(),
   attributes: z.array(companyRecordAttributeSchema),
   updatedAt: z.string(),
@@ -267,6 +272,58 @@ export const companyDocumentRegisteredResultSchema = z.strictObject({
   storageDirectory: z.string(),
 });
 
+
+const equityHolderKindSchema = z.enum(["founder", "employee", "investor", "option_pool", "other"]);
+
+const companyEquityAddInputSchema = z.strictObject({
+  effectiveDate: z.string().describe("The day the change took effect, YYYY-MM-DD. To start a ledger from today's register, date every opening line on the day of that register."),
+  fundingRoundHint: z.string().describe("The funding round that issued these shares: a funding record's id from company_record_list, or its exact CURRENT title. Leave out for founders' shares, grants and transfers.").optional(),
+  holder: z.string().describe("The holder exactly as the shareholder register names them, e.g. 'Sample Kim' or 'Sample Ventures Fund I'."),
+  holderKind: equityHolderKindSchema.describe("Who the holder is: 'founder', 'employee', 'investor', 'option_pool' for options reserved but not yet granted, or 'other'."),
+  note: z.string().describe("Where the line comes from, e.g. 'shareholder register of 2026-06-30'.").optional(),
+  securityClass: z.string().describe("What is held, as the company calls it, e.g. 'common', 'RCPS', 'Series A preferred', 'options'. Defaults to common.").optional(),
+  shares: z.number().describe("Shares received (positive) or given up (negative); options count as the shares they convert into. Never zero."),
+});
+
+const companyEquityAddInputIntentSchema = companyEquityAddInputSchema.partial();
+
+const companyEquityListInputSchema = z.strictObject({
+  asOfDate: z.string().describe("Sum the ledger up to this day, YYYY-MM-DD. Leave out for today.").optional(),
+  holder: z.string().describe("Only the lines of holders whose name contains this text.").optional(),
+});
+
+const companyEquityDeleteInputSchema = z.strictObject({
+  entryHint: z.string().describe("The ledger line to delete: its entryID from a prior company_equity_list result. Never invent an id."),
+});
+
+const companyEquityDeleteInputIntentSchema = z.strictObject({});
+
+export const companyEquityEntryResultSchema = z.strictObject({
+  entryID: z.string(),
+  effectiveDate: z.string(),
+  holder: z.string(),
+  holderKind: equityHolderKindSchema,
+  securityClass: z.string(),
+  shares: z.number(),
+  fundingRecordID: z.string().nullable(),
+  note: z.string().nullable(),
+});
+
+export const companyEquityListResultSchema = z.strictObject({
+  asOfDate: z.string(),
+  totalShares: z.number(),
+  holdings: z.array(z.strictObject({
+    holder: z.string(),
+    holderKind: equityHolderKindSchema,
+    securityClass: z.string(),
+    shares: z.number(),
+    percent: z.number(),
+  })),
+  entries: z.array(companyEquityEntryResultSchema),
+});
+
+export type CompanyEquityEntryResult = z.infer<typeof companyEquityEntryResultSchema>;
+export type CompanyEquityListResult = z.infer<typeof companyEquityListResultSchema>;
 
 export const companyToolDefinitions: CapabilityToolDefinition[] = [
   {
@@ -478,7 +535,51 @@ export const companyToolDefinitions: CapabilityToolDefinition[] = [
     result: { schema: companyRecordResultSchema, effects: [{ objectType: "company_record", effect: ResourceMutationEffect.Updated, resultField: "recordID", effectIdentity: ResourceEffectIdentity.ID }] },
     sideEffect: CapabilitySideEffect.WorkspaceWrite,
   },
+  {
+    name: "company_equity_add",
+    namespace: "company",
+    answeredBy: CapabilityAnsweredBy.Record,
+    privacyClass: "workspace_company",
+    policyResource: "tool:company_equity_add",
+    description: "Add one line to the company's equity ledger: shares or options a holder received or gave up on a date, as the shareholder register or a share issuance records it. What anyone holds is the sum of their lines, so record a transfer as two lines, one negative and one positive. Only an administrator keeps the ledger.",
+    version: "1",
+    estimatedLatency: CapabilityEstimatedLatency.Low,
+    inputSchema: companyEquityAddInputSchema,
+    inputIntentSchema: companyEquityAddInputIntentSchema,
+    result: { schema: companyEquityEntryResultSchema, effects: [{ objectType: "company_equity_entry", effect: ResourceMutationEffect.Created, resultField: "entryID", effectIdentity: ResourceEffectIdentity.ID }] },
+    sideEffect: CapabilitySideEffect.WorkspaceWrite,
+    completionEvidence: { mode: "success", action: "write_company", targetKind: "company" },
+  },
+  {
+    name: "company_equity_list",
+    namespace: "company",
+    answeredBy: CapabilityAnsweredBy.Record,
+    privacyClass: "workspace_company",
+    policyResource: "tool:company_equity_list",
+    description: "List the company's equity ledger and what each holder holds as of a day, with their share of the total. Use for cap tables, ownership questions and dilution after a round.",
+    version: "1",
+    estimatedLatency: CapabilityEstimatedLatency.Low,
+    inputSchema: companyEquityListInputSchema,
+    result: { schema: companyEquityListResultSchema, effects: [] },
+    sideEffect: CapabilitySideEffect.Read,
+  },
+  {
+    name: "company_equity_delete",
+    namespace: "company",
+    answeredBy: CapabilityAnsweredBy.Record,
+    privacyClass: "workspace_company",
+    policyResource: "tool:company_equity_delete",
+    description: "Delete one wrong line of the company's equity ledger named by its entryID from company_equity_list. A real transfer or cancellation is a new line, not a delete.",
+    version: "1",
+    estimatedLatency: CapabilityEstimatedLatency.Low,
+    inputSchema: companyEquityDeleteInputSchema,
+    inputIntentSchema: companyEquityDeleteInputIntentSchema,
+    result: { schema: companyEquityEntryResultSchema, effects: [{ objectType: "company_equity_entry", effect: ResourceMutationEffect.Deleted, resultField: "entryID", effectIdentity: ResourceEffectIdentity.ID }] },
+    sideEffect: CapabilitySideEffect.Destructive,
+    requiresApproval: true,
+  },
 ];
+
 
 export type CompanyInfoGetInput = z.infer<typeof companyInfoGetInputSchema>;
 export type CompanyInfoSetInput = z.infer<typeof companyInfoSetInputSchema>;

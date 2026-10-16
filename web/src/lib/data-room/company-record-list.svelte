@@ -2,7 +2,7 @@
 	import { Badge } from '$lib/components/ui/badge';
 	import { formatCompactMoney } from '$lib/money';
 	import { dataRoomCompanyText } from './company-text';
-	import { humanizedKey, recordAttributes, type CompanyRecord } from './company';
+	import { humanizedKey, isInProgress, recordAttributes, type CompanyRecord } from './company';
 
 	let {
 		id,
@@ -30,6 +30,7 @@
 					<div class="flex flex-wrap items-center gap-2">
 						<p class="font-medium">{record.title}</p>
 						{#if record.category !== plainCategory}<Badge variant="secondary">{text.recordCategories[record.category] ?? humanizedKey(record.category)}</Badge>{/if}
+						{#if isInProgress(record)}<Badge variant="outline">{text.inProgress}</Badge>{/if}
 					</div>
 					{#if record.detail}<p class="text-muted-foreground mt-0.5 text-sm text-pretty">{record.detail}</p>{/if}
 					{#if attributes.length > 0}

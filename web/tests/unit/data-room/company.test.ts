@@ -8,6 +8,8 @@ import {
 	isEmptyCompany,
 	localized,
 	metricBars,
+	ownershipShares,
+	roundBeingRaised,
 	metricSeries,
 	periodLabel,
 	proofGroups,
@@ -130,5 +132,26 @@ describe('the company a data room shows', () => {
 	test('keeps the latest periods when there are more than fit', () => {
 		const points = [2019, 2020, 2021, 2022, 2023, 2024].map((year) => metric(year, year));
 		expect(metricBars(metricSeries(points)[0], 5, 'en').bars.map((bar) => bar.period)).toEqual(['2020', '2021', '2022', '2023', '2024']);
+	});
+
+	test('keeps a round being raised out of what was raised, and names it as the round in progress', () => {
+		const raising = { ...record('funding', 'Series B', '2026-12-31', 100), status: 'in_progress' as const };
+		const records = [raising, record('funding', 'Seed', '2021-09-01', 5), record('funding', 'A', '2023-01-01', 20)];
+		expect(totalRaised(records)).toEqual({ amount: 25, currency: 'KRW' });
+		expect(roundBeingRaised(records)?.title).toBe('Series B');
+		expect(roundBeingRaised(records.slice(1))).toBeUndefined();
+	});
+
+	test('shares out ownership by kind of holder in a fixed order, leaving out kinds that hold nothing', () => {
+		expect(ownershipShares([
+			{ kind: 'investor', shares: 200 },
+			{ kind: 'founder', shares: 700 },
+			{ kind: 'option_pool', shares: 100 },
+			{ kind: 'other', shares: 0 }
+		])).toEqual([
+			{ kind: 'founder', shares: 700, percent: 70 },
+			{ kind: 'investor', shares: 200, percent: 20 },
+			{ kind: 'option_pool', shares: 100, percent: 10 }
+		]);
 	});
 });

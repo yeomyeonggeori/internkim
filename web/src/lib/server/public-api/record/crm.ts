@@ -40,6 +40,7 @@ export type OpportunityRow = CRMAuditColumns & {
 	id: string;
 	organization_id: string;
 	contact_id: string | null;
+	funding_record_id: string | null;
 	name: string;
 	business: string | null;
 	pipeline_id: string;
@@ -73,7 +74,7 @@ export const organizationColumns =
 export const contactColumns =
 	'id, organization_id, name, email, phone, title, department, description, created_at, created_by, updated_at, updated_by, archived_at, archived_by';
 export const opportunityColumns =
-	'id, organization_id, contact_id, name, business, pipeline_id, stage_id, stage_position, stage_changed_at, owner_id, amount_minor, currency_code, base_amount_minor, base_currency_code, importance, due_at, due_time_zone, lost_reason, description, created_at, created_by, updated_at, updated_by, archived_at, archived_by';
+	'id, organization_id, contact_id, funding_record_id, name, business, pipeline_id, stage_id, stage_position, stage_changed_at, owner_id, amount_minor, currency_code, base_amount_minor, base_currency_code, importance, due_at, due_time_zone, lost_reason, description, created_at, created_by, updated_at, updated_by, archived_at, archived_by';
 
 export async function crmCompanyRow(caller: SupabaseClient): Promise<CRMCompanyRow> {
 	const { data, error } = await caller
