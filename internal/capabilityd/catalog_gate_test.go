@@ -742,6 +742,33 @@ func gateCases() map[string]catalogGateCase {
 				expectResultHolds(t, answered, `"recordID":"record-1"`)
 			},
 		},
+		"company_equity_add": {
+			kind:    provesCarrying,
+			reaches: map[gateBackend]*standingIn{admindOverTheSocket: answering(`{"tool":"company_equity_add","result":{"entryID":"entry-1","effectiveDate":"2026-06-30","holder":"Sample Kim","holderKind":"founder","securityClass":"common","shares":600000,"fundingRecordID":null,"note":null}}`)},
+			input:   `{"effectiveDate":"2026-06-30","holder":"Sample Kim","holderKind":"founder","shares":600000}`,
+			expect: func(t *testing.T, answered capabilities.ToolInvokeResponse) {
+				expectSucceeded(t, answered)
+				expectResultHolds(t, answered, `"entryID":"entry-1"`)
+			},
+		},
+		"company_equity_list": {
+			kind:    provesCarrying,
+			reaches: map[gateBackend]*standingIn{admindOverTheSocket: answering(`{"tool":"company_equity_list","result":{"asOfDate":"2026-06-30","totalShares":600000,"holdings":[{"holder":"Sample Kim","holderKind":"founder","securityClass":"common","shares":600000,"percent":100}],"entries":[{"entryID":"entry-1","effectiveDate":"2026-06-30","holder":"Sample Kim","holderKind":"founder","securityClass":"common","shares":600000,"fundingRecordID":null,"note":null}]}}`)},
+			input:   `{"asOfDate":"2026-06-30"}`,
+			expect: func(t *testing.T, answered capabilities.ToolInvokeResponse) {
+				expectSucceeded(t, answered)
+				expectResultHolds(t, answered, `"totalShares":600000`)
+			},
+		},
+		"company_equity_delete": {
+			kind:    provesCarrying,
+			reaches: map[gateBackend]*standingIn{admindOverTheSocket: answering(`{"tool":"company_equity_delete","result":{"entryID":"entry-1","effectiveDate":"2026-06-30","holder":"Sample Kim","holderKind":"founder","securityClass":"common","shares":600000,"fundingRecordID":null,"note":null}}`)},
+			input:   `{"entryHint":"entry-1"}`,
+			expect: func(t *testing.T, answered capabilities.ToolInvokeResponse) {
+				expectSucceeded(t, answered)
+				expectResultHolds(t, answered, `"entryID":"entry-1"`)
+			},
+		},
 		"company_document_register": {
 			kind:    provesCarrying,
 			reaches: map[gateBackend]*standingIn{admindOverTheSocket: answering(`{"tool":"company_document_register","result":{"documentID":"document-1","documentNumber":"Q-2026-001","kind":"issued","documentType":"quote","title":"ABC Trading onboarding quote","counterpart":"ABC Trading","language":"ko","filePath":null,"summary":"A quote for the onboarding consulting.","requesterID":"member-1","createdAt":"2026-09-04T00:00:00Z","updatedAt":"2026-09-04T00:00:00Z","date":null,"period":null,"status":null,"supersedes":null,"sha256":null,"tags":[],"storagePath":null,"sizeBytes":null,"published":null,"storageDirectory":"/workspace/circles/member/documents/quote"}}`)},

@@ -903,5 +903,45 @@
 		"path": "circle_update.input.nameKO",
 		"reason": "The product names its default circles in every language and the company names the circles it makes once, so a circle carries one name: nameKO is gone, circle_list names each circle in the company's language and says with isDefault which ones the product named.",
 		"release": "the circle naming release carries this catalog to company hosts before the plane drops circle.name_ko"
+	},
+	{
+		"path": "company_record_add.result.status",
+		"reason": "A funding record may be a round still being raised, so a company record carries status: in_progress until the round closes, completed for everything else.",
+		"release": "the release carrying this catalog reaches company hosts by ship-host before the web/API deploy, after the migration that adds company_record.status and opportunity.funding_record_id; a host still on the older catalog refuses these answers until it takes the catalog"
+	},
+	{
+		"path": "company_record_delete.result.status",
+		"reason": "A funding record may be a round still being raised, so a company record carries status: in_progress until the round closes, completed for everything else.",
+		"release": "the release carrying this catalog reaches company hosts by ship-host before the web/API deploy, after the migration that adds company_record.status and opportunity.funding_record_id; a host still on the older catalog refuses these answers until it takes the catalog"
+	},
+	{
+		"path": "company_record_list.result.records[].status",
+		"reason": "A funding record may be a round still being raised, so a company record carries status: in_progress until the round closes, completed for everything else.",
+		"release": "the release carrying this catalog reaches company hosts by ship-host before the web/API deploy, after the migration that adds company_record.status and opportunity.funding_record_id; a host still on the older catalog refuses these answers until it takes the catalog"
+	},
+	{
+		"path": "company_record_update.result.status",
+		"reason": "A funding record may be a round still being raised, so a company record carries status: in_progress until the round closes, completed for everything else.",
+		"release": "the release carrying this catalog reaches company hosts by ship-host before the web/API deploy, after the migration that adds company_record.status and opportunity.funding_record_id; a host still on the older catalog refuses these answers until it takes the catalog"
+	},
+	{
+		"path": "crm_opportunity_add.result.fundingRecordID",
+		"reason": "An investment deal may name the funding round it is for, so a deal carries fundingRecordID, the round whose committed amount its won value counts toward.",
+		"release": "the release carrying this catalog reaches company hosts by ship-host before the web/API deploy, after the migration that adds company_record.status and opportunity.funding_record_id; a host still on the older catalog refuses these answers until it takes the catalog"
+	},
+	{
+		"path": "crm_opportunity_list.result.opportunities[].fundingRecordID",
+		"reason": "An investment deal may name the funding round it is for, so a deal carries fundingRecordID, the round whose committed amount its won value counts toward.",
+		"release": "the release carrying this catalog reaches company hosts by ship-host before the web/API deploy, after the migration that adds company_record.status and opportunity.funding_record_id; a host still on the older catalog refuses these answers until it takes the catalog"
+	},
+	{
+		"path": "crm_opportunity_move.result.fundingRecordID",
+		"reason": "An investment deal may name the funding round it is for, so a deal carries fundingRecordID, the round whose committed amount its won value counts toward.",
+		"release": "the release carrying this catalog reaches company hosts by ship-host before the web/API deploy, after the migration that adds company_record.status and opportunity.funding_record_id; a host still on the older catalog refuses these answers until it takes the catalog"
+	},
+	{
+		"path": "crm_opportunity_update.result.fundingRecordID",
+		"reason": "An investment deal may name the funding round it is for, so a deal carries fundingRecordID, the round whose committed amount its won value counts toward.",
+		"release": "the release carrying this catalog reaches company hosts by ship-host before the web/API deploy, after the migration that adds company_record.status and opportunity.funding_record_id; a host still on the older catalog refuses these answers until it takes the catalog"
 	}
 ]

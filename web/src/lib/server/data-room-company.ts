@@ -1,6 +1,7 @@
 import { error } from '@sveltejs/kit';
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { storedCompanySchema, type DataRoomCompany } from '$lib/data-room/company';
+import { storedCompanySchema, type DataRoomCompany, type StoredCompany } from '$lib/data-room/company';
+import { storedMoneyOf } from './stored-money';
 import type { CompanyActivity, StoredActivity } from '$lib/data-room/activity';
 import { controlPlane, type ControlPlaneCredentials } from './control-plane';
 
@@ -24,9 +25,15 @@ export async function companyShownToCircle(
 
 async function shownCompany({ data, error: refusal }: Answer, plane: ControlPlaneCredentials): Promise<DataRoomCompany> {
 	if (refusal) error(502, 'the company could not be read');
-	const { activity, ...company } = storedCompanySchema.parse(data);
-	if (!activity) return company;
-	return { ...company, activity: await withThumbnails(activity, controlPlane(plane)) };
+	const { activity, records, ...company } = storedCompanySchema.parse(data);
+	const shown = { ...company, records: records.map(withCommittedMoney) };
+	if (!activity) return shown;
+	return { ...shown, activity: await withThumbnails(activity, controlPlane(plane)) };
+}
+
+function withCommittedMoney({ committedMinor, ...record }: StoredCompany['records'][number]): DataRoomCompany['records'][number] {
+	const committed = committedMinor ? storedMoneyOf(committedMinor.amountMinor, committedMinor.currency) : null;
+	return committed ? { ...record, committed } : record;
 }
 
 async function withThumbnails(activity: StoredActivity, service: SupabaseClient): Promise<CompanyActivity> {

@@ -667,3 +667,71 @@ describe('the data room', () => {
 		expect(refused.status).toBe(404);
 	});
 });
+
+describe('the round being raised and who holds the company', () => {
+	let seriesAID = '';
+
+	test('a round being raised is a funding record in progress until it closes', async () => {
+		const raising = await asAdmin('company_record_add', {
+			category: 'funding',
+			date: '2026-12-18',
+			title: 'Series A',
+			amount: { amount: 20_000_000_000, currency: 'KRW' },
+			status: 'in_progress'
+		});
+		expect(raising.status).toBe(200);
+		expect(resultOf(raising).status).toBe('in_progress');
+		seriesAID = resultOf(raising).recordID as string;
+
+		const closed = await asAdmin('company_record_update', { recordHint: seriesAID, status: 'completed' });
+		expect(resultOf(closed).status).toBe('completed');
+	});
+
+	test('only an administrator keeps the ledger, and says so instead of showing it empty', async () => {
+		const refusedWrite = await asSample('company_equity_add', {
+			effectiveDate: '2021-03-15', holder: 'Sample Kim', holderKind: 'founder', shares: 600_000
+		});
+		const refusedRead = await asSample('company_equity_list');
+
+		expect(refusedWrite.status).toBe(403);
+		expect(refusedRead.status).toBe(403);
+		expect(errorOf(refusedRead)).toContain('administrator');
+	});
+
+	test('sums its lines into holdings, as of any day', async () => {
+		await asAdmin('company_equity_add', { effectiveDate: '2021-03-15', holder: 'Sample Kim', holderKind: 'founder', shares: 600_000 });
+		await asAdmin('company_equity_add', { effectiveDate: '2022-03-01', holder: 'Option pool', holderKind: 'option_pool', securityClass: 'options', shares: 100_000 });
+		const issued = await asAdmin('company_equity_add', {
+			effectiveDate: '2026-12-18', holder: 'Sample Ventures Fund I', holderKind: 'investor', securityClass: 'RCPS',
+			shares: 300_000, fundingRoundHint: 'Series A'
+		});
+		expect(resultOf(issued).fundingRecordID).toBe(seriesAID);
+
+		const now = resultOf(await asAdmin('company_equity_list', { asOfDate: '2026-12-31' }));
+		expect(now.totalShares).toBe(1_000_000);
+		expect((now.holdings as { holder: string; percent: number }[]).map((holding) => [holding.holder, holding.percent]))
+			.toEqual([['Sample Kim', 60], ['Sample Ventures Fund I', 30], ['Option pool', 10]]);
+
+		const beforeTheRound = resultOf(await asAdmin('company_equity_list', { asOfDate: '2026-12-17' }));
+		expect(beforeTheRound.totalShares).toBe(700_000);
+	});
+
+	test('refuses a line that moves no shares', async () => {
+		const refused = await asAdmin('company_equity_add', { effectiveDate: '2026-01-01', holder: 'Sample Kim', holderKind: 'founder', shares: 0 });
+
+		expect(refused.status).toBe(400);
+	});
+
+	test('deletes a wrong line by its id and nothing else', async () => {
+		const wrong = await asAdmin('company_equity_add', { effectiveDate: '2026-02-01', holder: 'Typo Holder', holderKind: 'other', shares: 5 });
+		const wrongID = resultOf(wrong).entryID as string;
+
+		const deleted = await asAdmin('company_equity_delete', { entryHint: wrongID });
+		expect(resultOf(deleted).entryID).toBe(wrongID);
+
+		const again = await asAdmin('company_equity_delete', { entryHint: wrongID });
+		expect(again.status).toBe(409);
+		expect((again.body as { errorCode?: string }).errorCode).toBe('company_equity_entry_not_found');
+		expect(resultOf(await asAdmin('company_equity_list', { asOfDate: '2026-12-31' })).totalShares).toBe(1_000_000);
+	});
+});

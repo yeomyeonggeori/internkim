@@ -212,7 +212,7 @@ async function writeTheOrganizationHomeOfANewPerson(
 	if (error) throw new RecordRefusedTheWrite(error.message, statusOfPostgresCode(error.code));
 }
 
-function refuseUnlessTheRequesterAdministers(context: RecordContext, doing: string): void {
+export function refuseUnlessTheRequesterAdministers(context: RecordContext, doing: string): void {
 	const requester = context.people.find((person) => person.personID === context.requesterID);
 	if (requester?.isAdmin) return;
 	throw new RecordRefusedTheWrite(`only an administrator ${doing}`, 403, 'administrator_only');

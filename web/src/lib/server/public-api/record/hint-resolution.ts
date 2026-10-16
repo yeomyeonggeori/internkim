@@ -96,7 +96,8 @@ const notFoundCodes = {
 	crmContact: 'crm_contact_not_found',
 	crmOpportunity: 'crm_opportunity_not_found',
 	record: 'company_record_not_found',
-	document: 'company_document_not_found'
+	document: 'company_document_not_found',
+	equityEntry: 'company_equity_entry_not_found'
 } as const;
 
 export type HintSubject = keyof typeof notFoundCodes;
@@ -104,7 +105,8 @@ export type HintSubject = keyof typeof notFoundCodes;
 const subjectNouns: Partial<Record<HintSubject, string>> = {
 	crmOrganization: 'organization',
 	crmContact: 'contact',
-	crmOpportunity: 'deal'
+	crmOpportunity: 'deal',
+	equityEntry: 'equity line'
 };
 
 export type HintCandidate = {

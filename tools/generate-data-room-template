@@ -6,7 +6,7 @@ from pathlib import Path
 
 # An applied migration is never edited, so a template change is written to a
 # new migration and this path moves to it.
-TEMPLATE_MIGRATION = "supabase/migrations/20261016000001_the_data_room_template_names_company_activity.sql"
+TEMPLATE_MIGRATION = "supabase/migrations/20261016000003_the_data_room_template_names_company_ownership.sql"
 
 
 def generated_files(repository):
@@ -33,8 +33,8 @@ def template_reference(template, language="en", is_document=False):
     is_korean = language == "ko"
     title = "분류와 기본 서클" if is_korean else "Categories and default circles"
     lines = ["---", f"title: {title}", "---", ""] if is_document else []
-    lines += ["문서는 업무 목적에 따라 하위 분류가 없는 분류 또는 X에 보관합니다. 중분류가 없는 대분류도 선택할 수 있습니다. 대분류 권한은 이후 추가되는 하위 분류도 포함합니다. Company fields는 그 분류를 읽는 사람에게 회사 소개가 보여 주는 회사 정보 키, 지표 키, 연혁 분류, 그리고 근태·업무 현황을 가린 이름으로 보여 주는 `activity`입니다. 어느 분류에도 없는 필드는 X를 읽는 사람만 봅니다." if is_korean
-              else "File by business function in a category without children or X. A parent without children is a filing destination. A parent grant includes current and future children. Company fields are the company profile keys, metric keys and record categories the company page shows to readers of that category, and `activity`, the company's attendance and work with names masked; a field no category names is shown only to readers of X.", "",
+    lines += ["문서는 업무 목적에 따라 하위 분류가 없는 분류 또는 X에 보관합니다. 중분류가 없는 대분류도 선택할 수 있습니다. 대분류 권한은 이후 추가되는 하위 분류도 포함합니다. Company fields는 그 분류를 읽는 사람에게 회사 소개가 보여 주는 회사 정보 키, 지표 키, 연혁 분류, 근태·업무 현황을 가린 이름으로 보여 주는 `activity`, 지분 장부를 보유자 유형별로 합한 `ownership`입니다. 어느 분류에도 없는 필드는 X를 읽는 사람만 봅니다." if is_korean
+              else "File by business function in a category without children or X. A parent without children is a filing destination. A parent grant includes current and future children. Company fields are the company profile keys, metric keys and record categories the company page shows to readers of that category, `activity`, the company's attendance and work with names masked, and `ownership`, the equity ledger summed by kind of holder; a field no category names is shown only to readers of X.", "",
               "| Code | Category | Parent | Scope | Company fields |", "|---|---|---|---|---|"]
     for category in template["categories"]:
         name = category["nameKO"] if is_korean else category["name"]

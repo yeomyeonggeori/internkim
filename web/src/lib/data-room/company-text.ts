@@ -1,5 +1,5 @@
 import type { Locale } from '$lib/i18n/locale.svelte';
-import type { PeriodKind } from './company';
+import type { HolderKind, PeriodKind } from './company';
 
 type CompanyText = {
 	documentsTab: string;
@@ -13,6 +13,15 @@ type CompanyText = {
 	empty: string;
 	scope: string;
 	attributeNames: Record<string, string>;
+	inProgress: string;
+	raise: { label: string; target: string; committed: (amount: string, percent: string) => string; closes: string };
+	ownership: {
+		title: string;
+		asOf: (date: string, shares: string) => string;
+		shares: (shares: string) => string;
+		afterRound: string;
+		kinds: Record<HolderKind, string>;
+	};
 	highlights: Record<'founded' | 'employees' | 'raised' | 'revenue', string>;
 	yearsOperating: (years: number) => string;
 	rounds: (count: number) => string;
@@ -77,7 +86,16 @@ export const dataRoomCompanyText: Record<Locale, CompanyText> = {
 		contents: '데이터룸 자료',
 		empty: '이 범위에서 보여줄 회사 정보가 없습니다.',
 		scope: '회사 기록에서 바로 읽어 보여줍니다. 기록이 바뀌면 이 화면도 함께 바뀌며, 열람 권한이 있는 분류의 정보만 표시합니다.',
-		attributeNames: { investors: '투자사', leadInvestor: '리드 투자사', valuation: '기업가치', number: '번호', round: '라운드' },
+		attributeNames: { investors: '투자사', leadInvestor: '리드 투자사', valuation: '기업가치', preMoney: '투자 전 기업가치', postMoney: '투자 후 기업가치', instrument: '투자 형태', number: '번호', round: '라운드' },
+		inProgress: '진행 중',
+		raise: { label: '투자 유치 진행 중', target: '목표 금액', committed: (amount, percent) => `${amount} 확약 · ${percent}`, closes: '마감 예정' },
+		ownership: {
+			title: '지분 구조',
+			asOf: (date, shares) => `${date} 기준 · 완전 희석 ${shares}주`,
+			shares: (shares) => `${shares}주`,
+			afterRound: '라운드 직후',
+			kinds: { founder: '창업자', employee: '임직원', investor: '투자자', option_pool: '스톡옵션 풀', other: '기타' }
+		},
 		highlights: { founded: '설립', employees: '임직원', raised: '누적 투자 유치', revenue: '매출' },
 		yearsOperating: (years) => `${years}년 차`,
 		rounds: (count) => `${count}개 라운드`,
@@ -139,6 +157,7 @@ export const dataRoomCompanyText: Record<Locale, CompanyText> = {
 			representative: '대표자',
 			employeeCount: '임직원 수',
 			activity: '일하는 모습 (근태·업무, 이름 일부 가림)',
+			ownership: '지분 구조 (보유자 유형별 합계)',
 			capital: '자본금',
 			jurisdiction: '설립 준거지',
 			fiscalYearEnd: '결산월',
@@ -176,7 +195,16 @@ export const dataRoomCompanyText: Record<Locale, CompanyText> = {
 		contents: 'In this data room',
 		empty: 'There is no company information in this scope.',
 		scope: 'Read straight from the company record, so this page changes when the record does. Shows only what the categories you can read cover.',
-		attributeNames: { investors: 'Investors', leadInvestor: 'Lead investor', valuation: 'Valuation', number: 'Number', round: 'Round' },
+		attributeNames: { investors: 'Investors', leadInvestor: 'Lead investor', valuation: 'Valuation', preMoney: 'Pre-money valuation', postMoney: 'Post-money valuation', instrument: 'Instrument', number: 'Number', round: 'Round' },
+		inProgress: 'In progress',
+		raise: { label: 'Raising now', target: 'Target', committed: (amount, percent) => `${amount} committed · ${percent}`, closes: 'Expected close' },
+		ownership: {
+			title: 'Ownership',
+			asOf: (date, shares) => `As of ${date} · ${shares} shares fully diluted`,
+			shares: (shares) => `${shares} shares`,
+			afterRound: 'Right after',
+			kinds: { founder: 'Founders', employee: 'Employees', investor: 'Investors', option_pool: 'Option pool', other: 'Other' }
+		},
 		highlights: { founded: 'Founded', employees: 'Employees', raised: 'Total raised', revenue: 'Revenue' },
 		yearsOperating: (years) => `Year ${years}`,
 		rounds: (count) => `${count} ${count === 1 ? 'round' : 'rounds'}`,
@@ -238,6 +266,7 @@ export const dataRoomCompanyText: Record<Locale, CompanyText> = {
 			representative: 'Representative',
 			employeeCount: 'Employees',
 			activity: 'At work (attendance and tasks, names partly hidden)',
+			ownership: 'Ownership (summed by kind of holder)',
 			capital: 'Paid-in capital',
 			jurisdiction: 'Jurisdiction',
 			fiscalYearEnd: 'Fiscal year end',

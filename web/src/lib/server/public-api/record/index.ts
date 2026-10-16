@@ -53,6 +53,7 @@ import {
 	companyRecordList,
 	companyRecordUpdate
 } from './company-ledger-tools';
+import { companyEquityAdd, companyEquityDelete, companyEquityList } from './company-equity-tools';
 import {
 	CalendarEventDuplicate,
 	CalendarEventVersionConflict,
@@ -166,6 +167,9 @@ const toolsOverTheRecord: Record<string, ToolRun> = {
 	company_record_list: (context, input) => companyRecordList(context, input),
 	company_record_update: (context, input) => companyRecordUpdate(context, input),
 	company_record_delete: (context, input) => companyRecordDelete(context, input),
+	company_equity_add: (context, input) => companyEquityAdd(context, input),
+	company_equity_list: (context, input) => companyEquityList(context, input),
+	company_equity_delete: (context, input) => companyEquityDelete(context, input),
 	company_document_register: (context, input) => companyDocumentRegister(context, input),
 	company_document_list: (context, input) => companyDocumentList(context, input),
 	company_document_search: (context, input) => companyDocumentSearch(context, input),

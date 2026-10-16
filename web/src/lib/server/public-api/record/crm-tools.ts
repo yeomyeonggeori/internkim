@@ -25,6 +25,7 @@ import {
 	type OrganizationRow
 } from './crm';
 import { instantWritten } from './days';
+import { fundingRecordOfHint } from './company-ledger-tools';
 import { LabelUnresolved } from './labels';
 import { personOfHint } from './people';
 import { RecordRefusedTheWrite, statusOfPostgresCode } from './tasks';
@@ -100,6 +101,7 @@ export type CRMOpportunityWritten = {
 	importance?: string;
 	expectedCloseDate?: string;
 	description?: string;
+	fundingRoundHint?: string;
 	stage?: string;
 };
 
@@ -187,6 +189,7 @@ function answeredOpportunity(row: OpportunityRow, activityCount: number): CRMOpp
 		opportunityID: row.id,
 		organizationID: row.organization_id,
 		contactID: row.contact_id ?? '',
+		fundingRecordID: row.funding_record_id ?? '',
 		title: row.name,
 		business: row.business ?? '',
 		pipeline: row.pipeline_id,
@@ -499,6 +502,10 @@ async function opportunityChange(
 	if (input.contactHint !== undefined) {
 		const written = input.contactHint.trim();
 		change.contact_id = written ? (await contactOfCRMHint(context, written)).id : null;
+	}
+	if (input.fundingRoundHint !== undefined) {
+		const written = input.fundingRoundHint.trim();
+		change.funding_record_id = written ? (await fundingRecordOfHint(context, written)).id : null;
 	}
 	return change;
 }
