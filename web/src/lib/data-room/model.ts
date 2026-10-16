@@ -8,7 +8,7 @@ export const dataRoomCategorySchema = z.strictObject({
 	nameKO: z.string().min(1),
 	parent: z.string().nullable(),
 	description: z.string(),
-	fields: z.array(z.string().min(1)).describe("What the company page shows to readers of this category: company_info keys, company_metric keys and company_record categories, e.g. ['capital'] or ['annualRevenue']. A field belongs to one category; one no category names is shown only to readers of X. Move one with dataroom_field_update.").optional(),
+	fields: z.array(z.string().min(1)).describe("What the company page shows to readers of this category: company_info keys, company_metric keys, company_record categories and 'activity' (attendance and work with names masked), e.g. ['capital'] or ['annualRevenue']. A field belongs to one category; one no category names is shown only to readers of X. Move one with dataroom_field_update.").optional(),
 	choiceGroup: z.number().int().min(1).max(2).nullable().optional()
 });
 

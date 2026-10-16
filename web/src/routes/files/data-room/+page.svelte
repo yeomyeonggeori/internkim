@@ -14,6 +14,7 @@
 	import { categoryName } from '$lib/data-room/model';
 	import {
 		dataRoomFolderEntries,
+		documentsInCategory,
 		documentCategoryLabel,
 		documentFileName,
 		type DataRoomDocument
@@ -50,6 +51,16 @@
 	);
 	const entries = $derived(
 		dataRoomFolderEntries(documents, categories, selectedCode, currentLocale.value)
+	);
+	const companyFolders = $derived(
+		categories
+			.filter((category) => category.parent === null)
+			.map((category) => ({
+				code: category.code,
+				name: categoryName(category, currentLocale.value),
+				documentCount: documentsInCategory(documents, categories, category.code).length
+			}))
+			.filter((folder) => folder.documentCount > 0)
 	);
 	const viewerDocuments = $derived(
 		documents.filter((document) => document.categoryCode === selectedCode).map(viewerDocumentOf)
@@ -139,6 +150,10 @@
 		selectedCode = code;
 		openID = null;
 	}
+	function openCompanyFolder(code: string) {
+		view = 'documents';
+		openCategory(code);
+	}
 	function openEntry(entry: FileBrowserEntry) {
 		if (entry.isDirectory) {
 			openCategory(entry.id);
@@ -156,13 +171,13 @@
 		{#if hasCompany}
 			<Tabs.Root bind:value={view} class="mb-4">
 				<Tabs.List>
-					<Tabs.Trigger value="documents">{companyText.documentsTab}</Tabs.Trigger>
 					<Tabs.Trigger value="company">{companyText.companyTab}</Tabs.Trigger>
+					<Tabs.Trigger value="documents">{companyText.documentsTab}</Tabs.Trigger>
 				</Tabs.List>
 			</Tabs.Root>
 		{/if}
 		{#if company && hasCompany && view === 'company'}
-			<div class="max-w-4xl"><CompanyOverview {company} /></div>
+			<div class="max-w-5xl"><CompanyOverview {company} folders={companyFolders} onOpenFolder={openCompanyFolder} /></div>
 		{:else}
 			<div class="mb-4 flex items-center justify-between gap-3">
 				<Breadcrumb.Root
