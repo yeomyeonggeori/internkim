@@ -9,6 +9,7 @@ import type {
 	CompanyDocumentDownloadResult,
 	CompanyDocumentListResult,
 	CompanyDocumentPublished,
+	CompanyDocumentRecallResult,
 	CompanyDocumentRegisteredResult,
 	CompanyDocumentResult,
 	CompanyDocumentUploadResult,
@@ -94,6 +95,7 @@ export type CompanyDocumentSearchInput = { query?: string; limit?: number };
 const earliestMetricYear = 1900;
 const documentSearchDefaultLimit = 5;
 const documentSearchLimit = 50;
+const documentRecallMinimumRelevance = 0.5;
 const downloadableForTenMinutes = 10 * 60;
 const sha256Pattern = /^[0-9a-f]{64}$/;
 const inboxCategoryCode = 'X';
@@ -722,15 +724,42 @@ export async function companyDocumentSearch(
 	input: CompanyDocumentSearchInput
 ): Promise<CompanyDocumentListResult> {
 	const asked = textOf(input.query, 'a document search asks something');
-	const limit = Math.min(Math.max(input.limit ?? documentSearchDefaultLimit, 1), documentSearchLimit);
+	const documents = (await documentsMatching(context, asked, input.limit, 0)).map(answeredDocument);
+	return { count: documents.length, documents };
+}
 
+export async function companyDocumentRecall(
+	context: RecordContext,
+	input: CompanyDocumentSearchInput
+): Promise<CompanyDocumentRecallResult> {
+	const asked = textOf(input.query, 'a document recall asks something');
+	const documents = await documentsMatching(context, asked, input.limit, documentRecallMinimumRelevance);
+	return { facts: documents.map(recalledDocument) };
+}
+
+async function documentsMatching(
+	context: RecordContext,
+	asked: string,
+	limit: number | undefined,
+	minimumRelevance: number
+): Promise<DocumentRow[]> {
 	const { data, error } = await context.caller
-		.rpc('company_documents_matching', { target_query: asked, target_limit: limit })
+		.rpc('company_documents_matching', {
+			target_query: asked,
+			target_limit: Math.min(Math.max(limit ?? documentSearchDefaultLimit, 1), documentSearchLimit),
+			minimum_relevance: minimumRelevance
+		})
 		.select(documentColumns);
 	if (error) throw new Error(error.message);
 	if (!Array.isArray(data)) throw new Error('a document search answers a list of documents');
-	const documents = (data as DocumentRow[]).map(answeredDocument);
-	return { count: documents.length, documents };
+	return data as DocumentRow[];
+}
+
+function recalledDocument(row: DocumentRow): CompanyDocumentRecallResult['facts'][number] {
+	const counterpart = row.counterpart ? ` with ${row.counterpart}` : '';
+	const summary = row.summary ? `: ${row.summary}` : '';
+	const content = `Data room document "${row.title}"${counterpart}${summary}`;
+	return row.document_date ? { id: row.id, content, validAt: row.document_date } : { id: row.id, content };
 }
 
 function sha256Of(sha256: string | undefined): string {

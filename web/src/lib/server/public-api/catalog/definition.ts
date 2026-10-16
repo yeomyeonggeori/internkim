@@ -48,6 +48,7 @@ type CapabilityToolCommonDefinition = {
   requiresUserPresence?: boolean;
   approvalScope?: string;
   worksOffline?: boolean;
+  recallSource?: boolean;
   completionEvidence?: {
     mode: string;
     action: string;
@@ -134,6 +135,7 @@ export function buildCapabilityDescriptor(
     requiresUserPresence: definition.requiresUserPresence ?? false,
     approvalScope: definition.approvalScope,
     worksOffline: definition.worksOffline ?? false,
+    recallSource: definition.recallSource,
     inputSchema: z.toJSONSchema(definition.inputSchema),
     inputIntentSchema: definition.inputIntentSchema === undefined
       ? undefined
