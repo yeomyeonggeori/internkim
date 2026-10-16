@@ -1,42 +1,36 @@
 <script lang="ts">
-	import * as Chart from '$lib/components/ui/chart';
-	import { AreaChart } from 'layerchart';
-	import { formatMetricValue, metricNumber, periodLabel, type CompanyMetricSeries } from './company';
+	import { cn } from '$lib/utils';
+	import { formatMetricValue, metricBars, type CompanyMetricSeries } from './company';
 
 	let { series, label, locale }: { series: CompanyMetricSeries; label: string; locale: string } = $props();
 
-	const chartData = $derived(series.points.map((point, index) => ({ index, value: metricNumber(point) })));
-	const chartConfig = $derived<Chart.ChartConfig>({ value: { label, color: 'var(--color-foreground)' } });
-	const edgeTicks = $derived([0, series.points.length - 1]);
-
-	function pointLabel(value: unknown): string {
-		const point = series.points[Number(value)];
-		return point ? periodLabel(point, locale) : '';
-	}
+	const shownPeriods = 5;
+	const chart = $derived(metricBars(series, shownPeriods, locale));
 </script>
 
-<Chart.Container config={chartConfig} class="h-20 w-full" aria-label={label}>
-	<AreaChart
-		data={chartData}
-		x="index"
-		y="value"
-		axis="x"
-		rule={false}
-		series={[{ key: 'value', label, color: 'var(--color-foreground)' }]}
-		padding={{ left: 4, right: 4, bottom: 16 }}
-		props={{
-			xAxis: { ticks: edgeTicks, format: pointLabel },
-			area: { fillOpacity: 0.12, line: { strokeWidth: 2 } }
-		}}
-	>
-		{#snippet tooltip()}
-			<Chart.Tooltip labelFormatter={pointLabel} indicator="dot" motion="none">
-				{#snippet formatter({ value })}
-					<span class="text-foreground font-medium tabular-nums">
-						{typeof value === 'number' ? formatMetricValue(series.latest, locale, value) : String(value)}
-					</span>
-				{/snippet}
-			</Chart.Tooltip>
-		{/snippet}
-	</AreaChart>
-</Chart.Container>
+<figure class="grid gap-1.5" aria-label={label}>
+	<div class="grid gap-2" style:grid-template-columns={`repeat(${chart.bars.length}, minmax(0, 1fr))`}>
+		{#each chart.bars as bar (bar.period)}
+			<div class="grid min-w-0 gap-1.5">
+				<span class={cn('truncate text-center text-xs tabular-nums', bar.isLatest ? 'text-foreground font-medium' : 'text-muted-foreground')}>
+					{formatMetricValue(series.latest, locale, bar.value)}
+				</span>
+				<div class="grid h-20" style:grid-template-rows={`${chart.positiveShare}fr ${chart.negativeShare}fr`}>
+					<div class="flex items-end">
+						{#if bar.value > 0}
+							<span class={cn('w-full rounded-t-[3px]', bar.isLatest ? 'bg-foreground' : 'bg-foreground/15')} style:height={`${bar.share * 100}%`}></span>
+						{/if}
+					</div>
+					{#if chart.negativeShare > 0}
+						<div class="border-foreground/25 flex items-start border-t">
+							{#if bar.value < 0}
+								<span class={cn('w-full rounded-b-[3px]', bar.isLatest ? 'bg-foreground' : 'bg-foreground/15')} style:height={`${bar.share * 100}%`}></span>
+							{/if}
+						</div>
+					{/if}
+				</div>
+				<span class="text-muted-foreground truncate text-center text-xs tabular-nums">{bar.period}</span>
+			</div>
+		{/each}
+	</div>
+</figure>

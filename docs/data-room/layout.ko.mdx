@@ -2,7 +2,7 @@
 title: 분류와 기본 서클
 ---
 
-문서는 업무 목적에 따라 하위 분류가 없는 분류 또는 X에 보관합니다. 중분류가 없는 대분류도 선택할 수 있습니다. 대분류 권한은 이후 추가되는 하위 분류도 포함합니다. Company fields는 그 분류를 읽는 사람에게 회사 소개가 보여 주는 회사 정보 키, 지표 키, 연혁 분류입니다. 어느 분류에도 없는 필드는 X를 읽는 사람만 봅니다.
+문서는 업무 목적에 따라 하위 분류가 없는 분류 또는 X에 보관합니다. 중분류가 없는 대분류도 선택할 수 있습니다. 대분류 권한은 이후 추가되는 하위 분류도 포함합니다. Company fields는 그 분류를 읽는 사람에게 회사 소개가 보여 주는 회사 정보 키, 지표 키, 연혁 분류, 그리고 근태·업무 현황을 가린 이름으로 보여 주는 `activity`입니다. 어느 분류에도 없는 필드는 X를 읽는 사람만 봅니다.
 
 | Code | Category | Parent | Scope | Company fields |
 |---|---|---|---|---|
@@ -50,7 +50,7 @@ title: 분류와 기본 서클
 | `RA` | 투자·대출 계약·협상 | R | Equity and debt agreements, term sheets and financing negotiations. Resulting ownership registers belong to CO and resolutions to CG. |  |
 | `RR` | 투자자·금융기관 보고 | R | Investor and lender updates and correspondence outside agreement negotiations. |  |
 | `G` | 전사 기록 | — | Company-wide records outside a specific business function; not miscellaneous storage. |  |
-| `GP` | 회사소개·연혁·전사 계획 | G | Company introductions, history, mission and general company plans. Financing presentations belong to RP. | `name`, `brandName`, `slogan`, `description`, `foundedDate`, `representative`, `representativeTitle`, `officeAddress`, `website`, `email`, `phone`, `fax`, `history`, `product`, `award`, `reference` |
+| `GP` | 회사소개·연혁·전사 계획 | G | Company introductions, history, mission and general company plans. Financing presentations belong to RP. | `name`, `brandName`, `slogan`, `description`, `foundedDate`, `representative`, `representativeTitle`, `officeAddress`, `website`, `email`, `phone`, `fax`, `history`, `product`, `award`, `reference`, `activity` |
 | `GC` | 전사 공지·커뮤니케이션 | G | General company announcements and communication records. |  |
 | `GE` | 행사·문화 기록 | G | Company events and culture records, including event photos and recordings. |  |
 | `X` | 분류 대기 | — | Unclassified or ambiguous documents. Choose X when context does not identify a destination. Do not invent missing facts. |  |

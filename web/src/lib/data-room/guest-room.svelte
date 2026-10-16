@@ -12,7 +12,7 @@
 	import { createPageText } from '$lib/i18n/page-text.svelte';
 	import { cn } from '$lib/utils';
 	import CompanyOverview from './company-overview.svelte';
-	import { isEmptyCompany } from './company';
+	import { isEmptyCompany, localized } from './company';
 	import { dataRoomCompanyText } from './company-text';
 	import DocumentViewer from './document-viewer.svelte';
 	import {
@@ -49,9 +49,12 @@
 	let selectedCode = $state('');
 	let query = $state('');
 	let openID = $state<string | null>(null);
-	let view = $state('documents');
-	const companyText = $derived(dataRoomCompanyText[currentLocale.value]);
 	const hasCompany = $derived(!isEmptyCompany(room.company));
+	let view = $state(isEmptyCompany(room.company) ? 'documents' : 'company');
+	const companyText = $derived(dataRoomCompanyText[currentLocale.value]);
+	const roomTitle = $derived(
+		localized(room.company.profile.brandName, currentLocale.value) || localized(room.company.profile.name, currentLocale.value) || text.sharedRoom
+	);
 	const folders = $derived(guestFolders(room, currentLocale.value));
 	const selectedFolder = $derived(folders.find((folder) => folder.code === selectedCode));
 	const visibleDocuments = $derived(matchingDocuments(documentsInFolder(room, selectedCode), query));
@@ -109,6 +112,11 @@
 		selectedCode = code;
 		openID = null;
 	}
+
+	function openCompanyFolder(code: string) {
+		view = 'documents';
+		openFolder(code);
+	}
 </script>
 
 <Tooltip.Provider delayDuration={120}>
@@ -117,7 +125,7 @@
 		<div class="mx-auto flex w-full max-w-7xl items-center gap-3 px-4 py-3">
 			<img src="/favicon.svg" alt="" class="size-8 shrink-0" />
 			<div class="min-w-0 flex-1">
-				<h1 class="truncate text-base leading-tight font-semibold">{text.sharedRoom}</h1>
+				<h1 class="truncate text-base leading-tight font-semibold">{roomTitle}</h1>
 				{#if accessLine}<p class="text-muted-foreground mt-0.5 truncate text-xs">{accessLine}</p>{/if}
 			</div>
 			<TooltipIconButton label={text.refresh} variant="ghost" size="icon-sm" onclick={onRefresh}
@@ -129,14 +137,14 @@
 	{#if hasCompany}
 		<Tabs.Root bind:value={view} class="mx-auto w-full max-w-7xl px-4 pt-6">
 			<Tabs.List>
-				<Tabs.Trigger value="documents">{companyText.documentsTab}</Tabs.Trigger>
 				<Tabs.Trigger value="company">{companyText.companyTab}</Tabs.Trigger>
+				<Tabs.Trigger value="documents">{companyText.documentsTab}</Tabs.Trigger>
 			</Tabs.List>
 		</Tabs.Root>
 	{/if}
 
 	{#if hasCompany && view === 'company'}
-		<div class="mx-auto w-full max-w-7xl flex-1 px-4 py-6"><div class="max-w-4xl"><CompanyOverview company={room.company} /></div></div>
+		<div class="mx-auto w-full max-w-7xl flex-1 px-4 py-6"><div class="max-w-5xl"><CompanyOverview company={room.company} folders={folders.filter((folder) => !folder.isChild)} onOpenFolder={openCompanyFolder} /></div></div>
 	{:else}
 		<div class="mx-auto grid w-full max-w-7xl flex-1 content-start gap-6 px-4 py-6 md:grid-cols-[15rem_minmax(0,1fr)]">
 			<nav aria-label={text.folders} class="grid content-start gap-0.5 max-md:hidden">

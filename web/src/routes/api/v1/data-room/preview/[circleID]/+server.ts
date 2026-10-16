@@ -5,6 +5,7 @@ import { environmentOf } from '$lib/server/agent-request';
 import { callingMember } from '$lib/server/member-request';
 import { downloadedAt, guestDownloadResponse } from '$lib/server/data-room-download';
 import { companyShownToCircle } from '$lib/server/data-room-company';
+import { dataRoomPlane } from '$lib/server/data-room-link-request';
 import { previewedDataRoomSchema, sharedDocumentColumns } from '$lib/data-room/schemas';
 import { derivedPath, isDerivedFileName, withOriginalExtension } from '$lib/data-room/storage-path';
 import type { RequestHandler } from './$types';
@@ -15,7 +16,8 @@ const codesSchema = z.array(z.string()).nullable();
 
 export const GET: RequestHandler = async ({ request, platform, params, url }) => {
 	if (!circleIDSchema.safeParse(params.circleID).success) error(404, 'circle not found');
-	const member = await callingMember(request, environmentOf(platform));
+	const environment = environmentOf(platform);
+	const member = await callingMember(request, environment);
 	const codes = await categoriesTheCircleShows(member.caller, member.companyID, params.circleID);
 	const canDownload = url.searchParams.get('canDownload') === '1' && (await circleMayDownload(member.caller, member.companyID, params.circleID));
 	const documentID = url.searchParams.get('documentID');
@@ -25,7 +27,7 @@ export const GET: RequestHandler = async ({ request, platform, params, url }) =>
 			.eq('company_id', member.companyID).order('position'),
 		member.caller.from('company_document').select(sharedDocumentColumns)
 			.eq('company_id', member.companyID).in('category_code', codes).order('created_at', { ascending: false }),
-		companyShownToCircle(member.caller, member.companyID, params.circleID)
+		companyShownToCircle(member.caller, member.companyID, params.circleID, dataRoomPlane(environment))
 	]);
 	if (categories.error || documents.error) error(502, 'the data room could not be read');
 	return json(
