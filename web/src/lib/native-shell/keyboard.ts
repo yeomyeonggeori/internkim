@@ -1,10 +1,10 @@
 import type { PluginListenerHandle } from '@capacitor/core';
-import { isInsideNativeShell } from './shell';
+import { isInsideCapacitorShell } from './shell';
 
 export type NativeKeyboardWatcher = (onChange: (isOpen: boolean) => void) => () => void;
 
 export const followNativeKeyboard: NativeKeyboardWatcher = (onChange) => {
-	if (!isInsideNativeShell()) return () => {};
+	if (!isInsideCapacitorShell()) return () => {};
 	let isStopped = false;
 	let handles: PluginListenerHandle[] = [];
 	listenToNativeKeyboard(onChange)

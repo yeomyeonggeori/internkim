@@ -1,4 +1,4 @@
-import { isInsideNativeShell } from './shell';
+import { isInsideCapacitorShell } from './shell';
 
 export type PageTheme = {
 	background: string;
@@ -22,7 +22,7 @@ function currentPageTheme(): PageTheme | null {
 }
 
 export async function keepShellStatusBarOnPageTheme(): Promise<() => void> {
-	if (!isInsideNativeShell()) return () => {};
+	if (!isInsideCapacitorShell()) return () => {};
 	const { registerPlugin } = await import('@capacitor/core');
 	const shell = registerPlugin<PageThemePlugin>('PageTheme');
 	const apply = () => {

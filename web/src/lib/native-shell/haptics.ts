@@ -1,10 +1,10 @@
 import type { HapticsPlugin } from '@capacitor/haptics';
-import { isInsideNativeShell } from './shell';
+import { isInsideCapacitorShell } from './shell';
 
 export type HapticKind = 'selection' | 'touch' | 'success' | 'failure';
 
 export function feelHaptic(kind: HapticKind): void {
-	if (!isInsideNativeShell()) return;
+	if (!isInsideCapacitorShell()) return;
 	void playHaptic(kind);
 }
 

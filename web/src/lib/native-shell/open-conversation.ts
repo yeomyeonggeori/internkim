@@ -1,4 +1,4 @@
-import { isInsideNativeShell } from './shell';
+import { isInsideCapacitorShell } from './shell';
 
 type ForegroundNotificationsPlugin = {
 	holdBack(options: { tag: string }): Promise<void>;
@@ -18,7 +18,7 @@ async function foregroundNotifications(): Promise<{ shell: ForegroundNotificatio
 }
 
 export async function holdBackNotificationsFor(conversationID: string | undefined): Promise<void> {
-	if (!isInsideNativeShell()) return;
+	if (!isInsideCapacitorShell()) return;
 	const { shell } = await foregroundNotifications();
 	await shell.holdBack({ tag: conversationID ? messageNotificationTag(conversationID) : '' });
 }
