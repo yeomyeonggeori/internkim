@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { environmentOf } from '$lib/server/agent-request';
 import { dataRoomCaller } from '$lib/server/data-room-request';
 import { companyShownTo } from '$lib/server/data-room-company';
+import { dataRoomPlane } from '$lib/server/data-room-link-request';
 import { downloadedAt, guestDownloadResponse } from '$lib/server/data-room-download';
 import { sharedDataRoomSchema, sharedDocumentColumns } from '$lib/data-room/schemas';
 import { derivedPath, isDerivedFileName, withOriginalExtension } from '$lib/data-room/storage-path';
@@ -10,7 +11,8 @@ import type { RequestHandler } from './$types';
 
 export const GET: RequestHandler = async ({ request, platform, params, url }) => {
 	if (!z.string().uuid().safeParse(params.companyID).success) error(404, 'data room not found');
-	const { caller, viewerEmail } = await dataRoomCaller(request, environmentOf(platform));
+	const environment = environmentOf(platform);
+	const { caller, viewerEmail } = await dataRoomCaller(request, environment);
 	const documentID = url.searchParams.get('documentID');
 	if (documentID) {
 		const { data, error: refusal } = await caller.from('company_document')
@@ -35,7 +37,7 @@ export const GET: RequestHandler = async ({ request, platform, params, url }) =>
 			.eq('company_id', params.companyID).order('position'),
 		caller.from('company_document').select(sharedDocumentColumns)
 			.eq('company_id', params.companyID).not('category_code', 'is', null).order('created_at', { ascending: false }),
-		companyShownTo(caller, params.companyID)
+		companyShownTo(caller, params.companyID, dataRoomPlane(environment))
 	]);
 	if (categories.error || documents.error) error(502, 'the data room could not be read');
 	return json(sharedDataRoomSchema.parse({ categories: categories.data, documents: documents.data.map(withOriginalExtension), company, viewer: viewerEmail }));

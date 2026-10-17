@@ -10,7 +10,7 @@ export const unlistedCategory = 'X';
 export function companyFieldRows(categories: CategoryFields[], company: DataRoomCompany): CompanyFieldRow[] {
 	const categoryOf = new Map(categories.flatMap((category) => (category.fields ?? []).map((field) => [field, category.code])));
 	const present: [CompanyFieldKind, string[]][] = [
-		['profile', Object.keys(company.profile)],
+		['profile', [...Object.keys(company.profile), ...(company.activity ? ['activity'] : [])]],
 		['metric', company.metrics.map((metric) => metric.metric)],
 		['record', company.records.map((record) => record.category)]
 	];

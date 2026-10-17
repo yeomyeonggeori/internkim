@@ -53,8 +53,9 @@ export const POST = async ({
 
 export const GET = async ({ params, platform, cookies, url }: DataRoomLinkRequest) => {
 	if (!z.string().uuid().safeParse(params.linkID).success) error(404, 'share link not found');
+	const plane = dataRoomPlane(environmentOf(platform));
 	const { caller, companyID, expiresAt, canDownload, label } = await dataRoomLinkCaller(
-		dataRoomPlane(environmentOf(platform)),
+		plane,
 		params.linkID,
 		cookies.get(dataRoomCookieName)
 	);
@@ -103,7 +104,7 @@ export const GET = async ({ params, platform, cookies, url }: DataRoomLinkReques
 			.eq('company_id', companyID)
 			.not('category_code', 'is', null)
 			.order('created_at', { ascending: false }),
-		companyShownTo(caller, companyID)
+		companyShownTo(caller, companyID, plane)
 	]);
 	if (categories.error || documents.error) error(502, 'the data room could not be read');
 	return json(

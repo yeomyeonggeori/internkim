@@ -1,13 +1,52 @@
 import type { Locale } from '$lib/i18n/locale.svelte';
+import type { PeriodKind } from './company';
 
 type CompanyText = {
 	documentsTab: string;
 	companyTab: string;
-	overview: string;
+	legal: string;
 	metrics: string;
 	records: string;
+	funding: string;
+	proof: string;
+	contents: string;
 	empty: string;
 	scope: string;
+	attributeNames: Record<string, string>;
+	highlights: Record<'founded' | 'employees' | 'raised' | 'revenue', string>;
+	yearsOperating: (years: number) => string;
+	rounds: (count: number) => string;
+	documents: (count: number) => string;
+	people: (count: number) => string;
+	change: (percent: string, kind: PeriodKind) => string;
+	turnedPositive: string;
+	turnedNegative: string;
+	date: string;
+	round: string;
+	amount: string;
+	showAll: (count: number) => string;
+	showFewer: string;
+	undated: string;
+	activity: {
+		title: string;
+		description: string;
+		asOf: (day: string) => string;
+		tracked: (people: number) => string;
+		teamsShown: (shown: number, total: number) => string;
+		contributions: string;
+		attendance: (day: string, isToday: boolean) => string;
+		board: string;
+		showMore: string;
+		showLess: string;
+		contributionsLabel: (count: number) => string;
+		events: (count: number) => string;
+		month: (month: number) => string;
+		weekdays: string[];
+		less: string;
+		more: string;
+		moreTasks: (count: number) => string;
+		hidden: string;
+	};
 	loadFailed: string;
 	website: string;
 	email: string;
@@ -30,11 +69,49 @@ export const dataRoomCompanyText: Record<Locale, CompanyText> = {
 	ko: {
 		documentsTab: '자료',
 		companyTab: '회사 소개',
-		overview: '회사 개요',
+		legal: '법인 정보',
 		metrics: '주요 지표',
 		records: '연혁',
+		funding: '자금 조달',
+		proof: '주요 실적',
+		contents: '데이터룸 자료',
 		empty: '이 범위에서 보여줄 회사 정보가 없습니다.',
-		scope: '열람 권한이 있는 분류의 정보만 표시합니다.',
+		scope: '회사 기록에서 바로 읽어 보여줍니다. 기록이 바뀌면 이 화면도 함께 바뀌며, 열람 권한이 있는 분류의 정보만 표시합니다.',
+		attributeNames: { investors: '투자사', leadInvestor: '리드 투자사', valuation: '기업가치', number: '번호', round: '라운드' },
+		highlights: { founded: '설립', employees: '임직원', raised: '누적 투자 유치', revenue: '매출' },
+		yearsOperating: (years) => `${years}년 차`,
+		rounds: (count) => `${count}개 라운드`,
+		documents: (count) => `자료 ${count}건`,
+		people: (count) => `${new Intl.NumberFormat('ko').format(count)}명`,
+		change: (percent, kind) => `${{ year: '전년 대비', quarter: '전 분기 대비', month: '전월 대비' }[kind]} ${percent}`,
+		turnedPositive: '흑자 전환',
+		turnedNegative: '적자 전환',
+		date: '날짜',
+		round: '구분',
+		amount: '금액',
+		showAll: (count) => `${count}건 모두 보기`,
+		showFewer: '접기',
+		undated: '날짜 미상',
+		activity: {
+			title: '일하는 모습',
+			description: '이름과 업무 내용은 일부를 가렸습니다.',
+			tracked: (people) => `출퇴근을 기록하는 구성원 ${people}명`,
+			teamsShown: (shown, total) => `팀 ${total}개 중 인원이 많은 ${shown}개`,
+			asOf: (day) => `${day} 기준`,
+			contributions: '지난 1년 동안 등록하거나 완료한 업무',
+			attendance: (day, isToday) => (isToday ? '오늘의 근태' : `${day} 근태`),
+			board: '최근 업무',
+			showMore: '더 보기',
+			showLess: '접기',
+			contributionsLabel: (count) => `${new Intl.NumberFormat('ko').format(count)}건`,
+			events: (count) => `${count}건`,
+			month: (month) => `${month}월`,
+			weekdays: ['월', '', '수', '', '금', '', ''],
+			less: '적음',
+			more: '많음',
+			moreTasks: (count) => `외 ${count}건`,
+			hidden: '가려진 내용'
+		},
 		loadFailed: '회사 정보를 불러오지 못했습니다.',
 		website: '웹사이트',
 		email: '이메일',
@@ -61,6 +138,7 @@ export const dataRoomCompanyText: Record<Locale, CompanyText> = {
 			foundedDate: '설립일',
 			representative: '대표자',
 			employeeCount: '임직원 수',
+			activity: '일하는 모습 (근태·업무, 이름 일부 가림)',
 			capital: '자본금',
 			jurisdiction: '설립 준거지',
 			fiscalYearEnd: '결산월',
@@ -90,11 +168,49 @@ export const dataRoomCompanyText: Record<Locale, CompanyText> = {
 	en: {
 		documentsTab: 'Documents',
 		companyTab: 'Company',
-		overview: 'Overview',
+		legal: 'Legal entity',
 		metrics: 'Key metrics',
 		records: 'Timeline',
+		funding: 'Funding',
+		proof: 'Track record',
+		contents: 'In this data room',
 		empty: 'There is no company information in this scope.',
-		scope: 'Shows only what the categories you can read cover.',
+		scope: 'Read straight from the company record, so this page changes when the record does. Shows only what the categories you can read cover.',
+		attributeNames: { investors: 'Investors', leadInvestor: 'Lead investor', valuation: 'Valuation', number: 'Number', round: 'Round' },
+		highlights: { founded: 'Founded', employees: 'Employees', raised: 'Total raised', revenue: 'Revenue' },
+		yearsOperating: (years) => `Year ${years}`,
+		rounds: (count) => `${count} ${count === 1 ? 'round' : 'rounds'}`,
+		documents: (count) => `${count} ${count === 1 ? 'document' : 'documents'}`,
+		people: (count) => new Intl.NumberFormat('en').format(count),
+		change: (percent, kind) => `${percent} ${{ year: 'YoY', quarter: 'QoQ', month: 'MoM' }[kind]}`,
+		turnedPositive: 'Turned positive',
+		turnedNegative: 'Turned negative',
+		date: 'Date',
+		round: 'Type',
+		amount: 'Amount',
+		showAll: (count) => `Show all ${count}`,
+		showFewer: 'Show fewer',
+		undated: 'Undated',
+		activity: {
+			title: 'At work',
+			description: 'Names and task details are partly hidden.',
+			tracked: (people) => `${people} people record attendance`,
+			teamsShown: (shown, total) => `The ${shown} largest of ${total} teams`,
+			asOf: (day) => `As of ${day}`,
+			contributions: 'Tasks added or completed over the past year',
+			attendance: (day, isToday) => (isToday ? 'Attendance today' : `Attendance on ${day}`),
+			board: 'Recent work',
+			showMore: 'Show more',
+			showLess: 'Show less',
+			contributionsLabel: (count) => new Intl.NumberFormat('en').format(count),
+			events: (count) => `${count} ${count === 1 ? 'task' : 'tasks'}`,
+			month: (month) => new Intl.DateTimeFormat('en', { month: 'short', timeZone: 'UTC' }).format(Date.UTC(2000, month - 1, 1)),
+			weekdays: ['Mon', '', 'Wed', '', 'Fri', '', ''],
+			less: 'Less',
+			more: 'More',
+			moreTasks: (count) => `${count} more`,
+			hidden: 'hidden'
+		},
 		loadFailed: 'The company information could not be loaded.',
 		website: 'Website',
 		email: 'Email',
@@ -121,6 +237,7 @@ export const dataRoomCompanyText: Record<Locale, CompanyText> = {
 			foundedDate: 'Founded',
 			representative: 'Representative',
 			employeeCount: 'Employees',
+			activity: 'At work (attendance and tasks, names partly hidden)',
 			capital: 'Paid-in capital',
 			jurisdiction: 'Jurisdiction',
 			fiscalYearEnd: 'Fiscal year end',
@@ -139,6 +256,7 @@ export const dataRoomCompanyText: Record<Locale, CompanyText> = {
 		recordCategories: {
 			history: 'Milestone',
 			funding: 'Funding',
+		proof: 'Track record',
 			grant: 'Grant',
 			product: 'Product',
 			certification: 'Certification',
