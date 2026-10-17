@@ -16401,6 +16401,26 @@
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
         "properties": {
+          "candidates": {
+            "description": "Identifiers the runtime's own index ranked nearest the query, nearest first. The source answers those the person may read, after its own matches.",
+            "items": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "maxItems": 50,
+            "type": "array"
+          },
+          "changedAfter": {
+            "description": "Lists instead of matching: every fact the person may read whose changedAt is after this instant, or equal to it with an id after changedAfterID, oldest first.",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+            "type": "string"
+          },
+          "changedAfterID": {
+            "description": "The id of the last fact the previous listing answered, which breaks a tie at changedAfter.",
+            "minLength": 1,
+            "type": "string"
+          },
           "limit": {
             "description": "The most facts to answer.",
             "maximum": 9007199254740991,
@@ -16408,14 +16428,11 @@
             "type": "integer"
           },
           "query": {
-            "description": "What the person asked, in their own words.",
+            "description": "What the person asked, in their own words. Absent when the runtime lists what changed.",
             "minLength": 1,
             "type": "string"
           }
         },
-        "required": [
-          "query"
-        ],
         "type": "object"
       },
       "inputSchemaStrict": true,
@@ -16433,6 +16450,12 @@
             "items": {
               "additionalProperties": false,
               "properties": {
+                "changedAt": {
+                  "description": "When the fact last changed. A listing answers it for every fact.",
+                  "format": "date-time",
+                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                  "type": "string"
+                },
                 "content": {
                   "description": "The fact in one plain sentence the agent reads beside what it remembers.",
                   "minLength": 1,
@@ -16457,6 +16480,11 @@
               "type": "object"
             },
             "type": "array"
+          },
+          "frame": {
+            "description": "How a fact of this source reads when it says nothing of its own. The runtime ranks its index by how far a fact rises above it. A listing answers it.",
+            "minLength": 1,
+            "type": "string"
           }
         },
         "required": [
@@ -16479,6 +16507,12 @@
               "items": {
                 "additionalProperties": false,
                 "properties": {
+                  "changedAt": {
+                    "description": "When the fact last changed. A listing answers it for every fact.",
+                    "format": "date-time",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                    "type": "string"
+                  },
                   "content": {
                     "description": "The fact in one plain sentence the agent reads beside what it remembers.",
                     "minLength": 1,
@@ -16503,6 +16537,11 @@
                 "type": "object"
               },
               "type": "array"
+            },
+            "frame": {
+              "description": "How a fact of this source reads when it says nothing of its own. The runtime ranks its index by how far a fact rises above it. A listing answers it.",
+              "minLength": 1,
+              "type": "string"
             }
           },
           "required": [

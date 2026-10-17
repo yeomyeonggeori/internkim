@@ -518,6 +518,32 @@ describe('the document ledger', () => {
 		expect(resultOf(unrelated).facts).toEqual([]);
 	});
 
+	test('lists what changed for an index, oldest first, and answers only the candidates the requester may read', async () => {
+		const restricted = await asAdmin('company_document_register', {
+			documentType: 'report', categoryCode: 'FS', title: 'Sample restricted statement', summary: 'A record the sample may not read.'
+		});
+		const restrictedID = resultOf(restricted).documentID as string;
+
+		const listed = await asSample('company_document_recall', { changedAfter: '1970-01-01T00:00:00Z', limit: 100 });
+		expect(listed.status).toBe(200);
+		const facts = resultOf(listed).facts as { id: string; changedAt: string }[];
+		expect(resultOf(listed).frame).toBe('Data room document ""');
+		expect(facts.map((fact) => fact.id)).toContain(quoteID);
+		expect(facts.map((fact) => fact.id)).not.toContain(restrictedID);
+		expect(facts.map((fact) => Date.parse(fact.changedAt))).toEqual(facts.map((fact) => Date.parse(fact.changedAt)).toSorted((left, right) => left - right));
+
+		const [first, ...rest] = facts;
+		const next = await asSample('company_document_recall', { changedAfter: first.changedAt, changedAfterID: first.id, limit: 100 });
+		expect((resultOf(next).facts as { id: string }[]).map((fact) => fact.id)).toEqual(rest.map((fact) => fact.id));
+
+		const nearby = await asSample('company_document_recall', {
+			query: 'Book the design review for three tomorrow afternoon',
+			candidates: [restrictedID, quoteID]
+		});
+		expect((resultOf(nearby).facts as { id: string }[]).map((fact) => fact.id)).toEqual([quoteID]);
+		await client.from('company_document').delete().eq('id', restrictedID);
+	});
+
 	test('follows a file that was saved under a path, named by its document number', async () => {
 		const written = await asSample('company_document_update', {
 			documentHint: 'Q-2026-001',
