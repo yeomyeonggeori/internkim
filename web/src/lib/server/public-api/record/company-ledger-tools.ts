@@ -88,11 +88,19 @@ export type CompanyDocumentUploadInput = { documentHint?: string; originalFileNa
 export type CompanyDocumentDownloadInput = { documentHint?: string; fileName?: string };
 
 export type CompanyDocumentSearchInput = { query?: string; limit?: number };
+export type CompanyDocumentRecallInput = {
+	query?: string;
+	candidates?: string[];
+	changedAfter?: string;
+	changedAfterID?: string;
+	limit?: number;
+};
 
 const earliestMetricYear = 1900;
 const documentSearchDefaultLimit = 5;
 const documentSearchLimit = 50;
 const documentRecallMinimumRelevance = 0.5;
+const documentListingLimit = 100;
 const downloadableForTenMinutes = 10 * 60;
 const sha256Pattern = /^[0-9a-f]{64}$/;
 const inboxCategoryCode = 'X';
@@ -714,11 +722,44 @@ export async function companyDocumentSearch(
 
 export async function companyDocumentRecall(
 	context: RecordContext,
-	input: CompanyDocumentSearchInput
+	input: CompanyDocumentRecallInput
 ): Promise<CompanyDocumentRecallResult> {
-	const asked = textOf(input.query, 'a document recall asks something');
-	const documents = await documentsMatching(context, asked, input.limit, documentRecallMinimumRelevance);
-	return { facts: documents.map(recalledDocument) };
+	if (input.changedAfter !== undefined) return documentsChangedAfter(context, input.changedAfter, input.changedAfterID, input.limit);
+	const asked = textOf(input.query, 'a document recall asks something or lists what changed');
+	const limit = Math.min(Math.max(input.limit ?? documentSearchDefaultLimit, 1), documentSearchLimit);
+	const matched = await documentsMatching(context, asked, limit, documentRecallMinimumRelevance);
+	const nearby = await documentsAmong(context, input.candidates ?? []);
+	const recalled = [...matched, ...nearby].filter((row, index, rows) => rows.findIndex((other) => other.id === row.id) === index);
+	return { facts: recalled.slice(0, limit).map(recalledDocument) };
+}
+
+async function documentsAmong(context: RecordContext, candidates: string[]): Promise<DocumentRow[]> {
+	if (candidates.length === 0) return [];
+	const { data, error } = await context.caller.from('company_document').select(documentColumns).in('id', candidates);
+	if (error) throw new Error(error.message);
+	const readable = (data ?? []) as DocumentRow[];
+	return candidates.flatMap((id) => readable.filter((row) => row.id === id));
+}
+
+async function documentsChangedAfter(
+	context: RecordContext,
+	changedAfter: string,
+	changedAfterID: string | undefined,
+	limit: number | undefined
+): Promise<CompanyDocumentRecallResult> {
+	const after = changedAfterID
+		? `updated_at.gt."${changedAfter}",and(updated_at.eq."${changedAfter}",id.gt."${changedAfterID}")`
+		: `updated_at.gt."${changedAfter}"`;
+	const { data, error } = await context.caller
+		.from('company_document')
+		.select(documentColumns)
+		.or(after)
+		.order('updated_at')
+		.order('id')
+		.limit(Math.min(Math.max(limit ?? documentListingLimit, 1), documentListingLimit));
+	if (error) throw new Error(error.message);
+	const facts = ((data ?? []) as DocumentRow[]).map((row) => ({ ...recalledDocument(row), changedAt: row.updated_at }));
+	return { facts, frame: recalledSentence('', null, null) };
 }
 
 async function documentsMatching(
@@ -740,10 +781,14 @@ async function documentsMatching(
 }
 
 function recalledDocument(row: DocumentRow): CompanyDocumentRecallResult['facts'][number] {
-	const counterpart = row.counterpart ? ` with ${row.counterpart}` : '';
-	const summary = row.summary ? `: ${row.summary}` : '';
-	const content = `Data room document "${row.title}"${counterpart}${summary}`;
+	const content = recalledSentence(row.title, row.counterpart, row.summary);
 	return row.document_date ? { id: row.id, content, validAt: row.document_date } : { id: row.id, content };
+}
+
+function recalledSentence(title: string, counterpart: string | null, summary: string | null): string {
+	const withCounterpart = counterpart ? ` with ${counterpart}` : '';
+	const withSummary = summary ? `: ${summary}` : '';
+	return `Data room document "${title}"${withCounterpart}${withSummary}`;
 }
 
 function sha256Of(sha256: string | undefined): string {
