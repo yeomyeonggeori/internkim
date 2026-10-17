@@ -339,7 +339,7 @@
     },
     {
       "name": "company_documents_matching",
-      "arguments": "target_query text, target_limit integer",
+      "arguments": "target_query text, target_limit integer, minimum_relevance real DEFAULT 0",
       "returns": "SETOF company_document",
       "security": "invoker",
       "callableBy": [

@@ -103,6 +103,7 @@ const ledgerToolNames = [
 	'company_document_register',
 	'company_document_list',
 	'company_document_search',
+	'company_document_recall',
 	'company_document_update',
 	'company_document_upload',
 	'company_document_download'
@@ -498,6 +499,23 @@ describe('the document ledger', () => {
 		expect(found.status).toBe(200);
 		expect(resultOf(found).count).toBeGreaterThan(0);
 		expect((resultOf(found).documents as { documentID: string }[])[0].documentID).toBe(quoteID);
+	});
+
+	test('recalls the documents a request names, one sentence each, and none for a request naming nothing', async () => {
+		const recalled = await asSample('company_document_recall', {
+			query: 'What did we promise ABC Trading for the onboarding, and by when?',
+			limit: 3
+		});
+
+		expect(recalled.status).toBe(200);
+		const facts = resultOf(recalled).facts as { id: string; content: string }[];
+		expect(facts.find((fact) => fact.id === quoteID)?.content).toContain('ABC Trading onboarding consulting quote');
+
+		const unrelated = await asSample('company_document_recall', {
+			query: 'Book the design review for three tomorrow afternoon',
+			limit: 3
+		});
+		expect(resultOf(unrelated).facts).toEqual([]);
 	});
 
 	test('follows a file that was saved under a path, named by its document number', async () => {
