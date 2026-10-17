@@ -39,7 +39,10 @@ export type CompanyRecordAddInput = {
 	detail?: string;
 	amount?: Money;
 	attributes?: string;
+	status?: CompanyRecordStatus;
 };
+
+export type CompanyRecordStatus = 'in_progress' | 'completed';
 
 export type CompanyRecordUpdateInput = CompanyRecordAddInput & { recordHint?: string };
 
@@ -97,7 +100,7 @@ const inboxCategoryCode = 'X';
 
 const metricColumns =
 	'id, metric, year, quarter, month, value, currency_code, value_usd, unit, note, updated_at';
-const recordColumns = 'id, category, record_date, title, detail, amount, currency_code, attributes, updated_at';
+const recordColumns = 'id, category, record_date, title, detail, status, amount, currency_code, attributes, updated_at';
 const documentColumns =
 	'id, document_number, kind, document_type, title, counterpart, language, file_path, summary, requester_id, created_at, updated_at, category_code, document_date, period, status, supersedes, sha256, tags, storage_path, size_bytes, published_from, published_at, published_by';
 
@@ -144,6 +147,7 @@ type RecordRow = {
 	record_date: string | null;
 	title: string;
 	detail: string | null;
+	status: CompanyRecordStatus;
 	amount: number | null;
 	currency_code: string | null;
 	attributes: Record<string, string> | null;
@@ -200,6 +204,7 @@ function answeredRecord(row: RecordRow): CompanyRecordResult {
 		date: row.record_date,
 		title: row.title,
 		detail: row.detail,
+		status: row.status,
 		amount: row.amount === null || row.currency_code === null ? null : { amount: Number(row.amount), currency: row.currency_code },
 		attributes: Object.entries(row.attributes ?? {}).map(([label, value]) => ({ label, value })),
 		updatedAt: row.updated_at
@@ -238,18 +243,18 @@ function publishedOf(row: DocumentRow): CompanyDocumentPublished | null {
 	return { at: row.published_at, by: row.published_by, from: row.published_from };
 }
 
-function textOf(value: string | undefined, refusal: string): string {
+export function textOf(value: string | undefined, refusal: string): string {
 	const given = value?.trim();
 	if (!given) throw new Error(refusal);
 	return given;
 }
 
-function orNull(value: string | undefined): string | null {
+export function orNull(value: string | undefined): string | null {
 	const given = value?.trim();
 	return given ? given : null;
 }
 
-function refuseTheWrite(
+export function refuseTheWrite(
 	error: { message: string; code?: string },
 	whenForbidden: string
 ): RecordRefusedTheWrite {
@@ -260,6 +265,7 @@ function refuseTheWrite(
 }
 
 const onlyAnAdministratorWritesMetrics = 'only an administrator can record a company metric';
+const fundingCategory = 'funding';
 const onlyAnAdministratorWritesRecords = 'only an administrator can change a company record';
 const onlyAColleagueWritesDocuments = 'only somebody who works here can change the document ledger';
 
@@ -413,6 +419,14 @@ export async function companyRecordOfHint(
 	);
 }
 
+export async function fundingRecordOfHint(context: RecordContext, hint: string): Promise<RecordRow> {
+	const record = await companyRecordOfHint(context, hint);
+	if (record.category !== fundingCategory) {
+		throw new RecordRefusedTheWrite(`${record.title} is a ${record.category} record, not a funding round`, 422);
+	}
+	return record;
+}
+
 export async function companyRecordAdd(
 	context: RecordContext,
 	input: CompanyRecordAddInput
@@ -428,6 +442,7 @@ export async function companyRecordAdd(
 			record_date: orNull(input.date),
 			title,
 			detail: orNull(input.detail),
+			status: input.status ?? 'completed',
 			amount: input.amount?.amount ?? null,
 			currency_code: input.amount?.currency ?? null,
 			attributes: decodedAttributes(input.attributes) ?? {},
@@ -451,6 +466,7 @@ export async function companyRecordUpdate(
 	if (orNull(input.title)) change.title = input.title?.trim();
 	if (orNull(input.detail)) change.detail = input.detail?.trim();
 	if (attributes) change.attributes = attributes;
+	if (input.status) change.status = input.status;
 	if (input.amount) Object.assign(change, { amount: input.amount.amount, currency_code: input.amount.currency });
 
 	const { data, error } = await context.caller

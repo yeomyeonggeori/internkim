@@ -8,11 +8,15 @@
 	import { cn } from '$lib/utils';
 	import CompanyActivity from './company-activity.svelte';
 	import CompanyMetricCard from './company-metric-card.svelte';
+	import CompanyOwnership from './company-ownership.svelte';
 	import CompanyProof from './company-proof.svelte';
+	import CompanyRaise from './company-raise.svelte';
 	import CompanyRecordList from './company-record-list.svelte';
 	import { dataRoomCompanyText } from './company-text';
 	import {
 		changeFromPrevious,
+		completedRecords,
+		roundBeingRaised,
 		companyFacts,
 		formatMetricValue,
 		fundingCategories,
@@ -60,7 +64,8 @@
 			.toSorted((left, right) => Number(right.latest.amount !== undefined) - Number(left.latest.amount !== undefined))
 	);
 	const metricColumns = $derived(metrics.length % 3 === 0 || metrics.length > 4 ? 3 : Math.min(metrics.length, 2));
-	const fundingRecords = $derived(recordsIn(company.records, fundingCategories).toSorted(newestFirst));
+	const fundingRecords = $derived(completedRecords(recordsIn(company.records, fundingCategories)).toSorted(newestFirst));
+	const raising = $derived(roundBeingRaised(company.records));
 	const proof = $derived(proofGroups(company.records));
 	const timeline = $derived(milestoneRecords(company.records));
 	const highlights = $derived(companyHighlights());
@@ -76,7 +81,7 @@
 				: undefined,
 			people === undefined ? undefined : { key: 'employees', label: text.highlights.employees, value: text.people(people), note: '' },
 			raised
-				? { key: 'raised', label: text.highlights.raised, value: formatCompactMoney(raised, locale), note: text.rounds(recordsIn(company.records, ['funding']).length) }
+				? { key: 'raised', label: text.highlights.raised, value: formatCompactMoney(raised, locale), note: text.rounds(completedRecords(recordsIn(company.records, ['funding'])).length) }
 				: undefined,
 			revenue
 				? { key: 'revenue', label: `${text.highlights.revenue} · ${periodLabel(revenue.latest, locale)}`, value: formatMetricValue(revenue.latest, locale), note: changeNote(revenue) }
@@ -131,6 +136,8 @@
 				</div>
 			{/if}
 
+			{#if raising}<CompanyRaise round={raising} {locale} />{/if}
+
 			{#if highlights.length > 0}
 				<dl
 					class="bg-border grid grid-cols-2 gap-px overflow-hidden rounded-lg border md:grid-cols-(--highlight-columns)"
@@ -169,6 +176,7 @@
 		{#if fundingRecords.length > 0}
 			<CompanyRecordList id="company-funding" title={text.funding} records={fundingRecords} plainCategory="funding" {locale} />
 		{/if}
+		{#if company.ownership}<CompanyOwnership ownership={company.ownership} {locale} />{/if}
 		{#if timeline.length > 0}
 			<CompanyRecordList id="company-timeline" title={text.records} records={timeline} plainCategory="history" {locale} />
 		{/if}

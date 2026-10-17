@@ -18948,11 +18948,19 @@
             "type": "string"
           },
           "date": {
-            "description": "Date of the event in YYYY-MM-DD or YYYY-MM format. Used to sort the company timeline.",
+            "description": "Date of the event in YYYY-MM-DD or YYYY-MM format. Used to sort the company timeline. For something still in progress, when it is expected to finish.",
             "type": "string"
           },
           "detail": {
             "description": "One-to-three sentence description.",
+            "type": "string"
+          },
+          "status": {
+            "description": "'in_progress' while it is still happening, such as a funding round being raised (its amount is the target); 'completed' once it happened. Defaults to completed.",
+            "enum": [
+              "in_progress",
+              "completed"
+            ],
             "type": "string"
           },
           "title": {
@@ -18995,11 +19003,19 @@
             "type": "string"
           },
           "date": {
-            "description": "Date of the event in YYYY-MM-DD or YYYY-MM format. Used to sort the company timeline.",
+            "description": "Date of the event in YYYY-MM-DD or YYYY-MM format. Used to sort the company timeline. For something still in progress, when it is expected to finish.",
             "type": "string"
           },
           "detail": {
             "description": "One-to-three sentence description.",
+            "type": "string"
+          },
+          "status": {
+            "description": "'in_progress' while it is still happening, such as a funding round being raised (its amount is the target); 'completed' once it happened. Defaults to completed.",
+            "enum": [
+              "in_progress",
+              "completed"
+            ],
             "type": "string"
           },
           "title": {
@@ -19095,6 +19111,14 @@
           "recordID": {
             "type": "string"
           },
+          "status": {
+            "description": "'in_progress' while it is still happening, such as a funding round being raised (its amount is the target); 'completed' once it happened. Defaults to completed.",
+            "enum": [
+              "in_progress",
+              "completed"
+            ],
+            "type": "string"
+          },
           "title": {
             "type": "string"
           },
@@ -19108,6 +19132,7 @@
           "date",
           "title",
           "detail",
+          "status",
           "amount",
           "attributes",
           "updatedAt"
@@ -19202,6 +19227,14 @@
             "recordID": {
               "type": "string"
             },
+            "status": {
+              "description": "'in_progress' while it is still happening, such as a funding round being raised (its amount is the target); 'completed' once it happened. Defaults to completed.",
+              "enum": [
+                "in_progress",
+                "completed"
+              ],
+              "type": "string"
+            },
             "title": {
               "type": "string"
             },
@@ -19215,6 +19248,7 @@
             "date",
             "title",
             "detail",
+            "status",
             "amount",
             "attributes",
             "updatedAt"
@@ -19342,6 +19376,14 @@
           "recordID": {
             "type": "string"
           },
+          "status": {
+            "description": "'in_progress' while it is still happening, such as a funding round being raised (its amount is the target); 'completed' once it happened. Defaults to completed.",
+            "enum": [
+              "in_progress",
+              "completed"
+            ],
+            "type": "string"
+          },
           "title": {
             "type": "string"
           },
@@ -19355,6 +19397,7 @@
           "date",
           "title",
           "detail",
+          "status",
           "amount",
           "attributes",
           "updatedAt"
@@ -19450,6 +19493,14 @@
             "recordID": {
               "type": "string"
             },
+            "status": {
+              "description": "'in_progress' while it is still happening, such as a funding round being raised (its amount is the target); 'completed' once it happened. Defaults to completed.",
+              "enum": [
+                "in_progress",
+                "completed"
+              ],
+              "type": "string"
+            },
             "title": {
               "type": "string"
             },
@@ -19463,6 +19514,7 @@
             "date",
             "title",
             "detail",
+            "status",
             "amount",
             "attributes",
             "updatedAt"
@@ -19594,6 +19646,14 @@
                 "recordID": {
                   "type": "string"
                 },
+                "status": {
+                  "description": "'in_progress' while it is still happening, such as a funding round being raised (its amount is the target); 'completed' once it happened. Defaults to completed.",
+                  "enum": [
+                    "in_progress",
+                    "completed"
+                  ],
+                  "type": "string"
+                },
                 "title": {
                   "type": "string"
                 },
@@ -19607,6 +19667,7 @@
                 "date",
                 "title",
                 "detail",
+                "status",
                 "amount",
                 "attributes",
                 "updatedAt"
@@ -19712,6 +19773,14 @@
                   "recordID": {
                     "type": "string"
                   },
+                  "status": {
+                    "description": "'in_progress' while it is still happening, such as a funding round being raised (its amount is the target); 'completed' once it happened. Defaults to completed.",
+                    "enum": [
+                      "in_progress",
+                      "completed"
+                    ],
+                    "type": "string"
+                  },
                   "title": {
                     "type": "string"
                   },
@@ -19725,6 +19794,7 @@
                   "date",
                   "title",
                   "detail",
+                  "status",
                   "amount",
                   "attributes",
                   "updatedAt"
@@ -19799,6 +19869,14 @@
             "description": "New detail text. Omit to keep unchanged.",
             "type": "string"
           },
+          "status": {
+            "description": "New status, e.g. 'completed' when a round closes. Omit to keep unchanged.",
+            "enum": [
+              "in_progress",
+              "completed"
+            ],
+            "type": "string"
+          },
           "title": {
             "description": "New title. Omit to keep unchanged.",
             "type": "string"
@@ -19848,6 +19926,14 @@
           },
           "recordHint": {
             "description": "The record to update: its id from a prior company_record_list result, or its exact CURRENT title. Never the new title this call is about to set.",
+            "type": "string"
+          },
+          "status": {
+            "description": "New status, e.g. 'completed' when a round closes. Omit to keep unchanged.",
+            "enum": [
+              "in_progress",
+              "completed"
+            ],
             "type": "string"
           },
           "title": {
@@ -19942,6 +20028,14 @@
           "recordID": {
             "type": "string"
           },
+          "status": {
+            "description": "'in_progress' while it is still happening, such as a funding round being raised (its amount is the target); 'completed' once it happened. Defaults to completed.",
+            "enum": [
+              "in_progress",
+              "completed"
+            ],
+            "type": "string"
+          },
           "title": {
             "type": "string"
           },
@@ -19955,6 +20049,7 @@
           "date",
           "title",
           "detail",
+          "status",
           "amount",
           "attributes",
           "updatedAt"
@@ -20049,6 +20144,14 @@
             "recordID": {
               "type": "string"
             },
+            "status": {
+              "description": "'in_progress' while it is still happening, such as a funding round being raised (its amount is the target); 'completed' once it happened. Defaults to completed.",
+              "enum": [
+                "in_progress",
+                "completed"
+              ],
+              "type": "string"
+            },
             "title": {
               "type": "string"
             },
@@ -20062,6 +20165,7 @@
             "date",
             "title",
             "detail",
+            "status",
             "amount",
             "attributes",
             "updatedAt"
@@ -20071,6 +20175,737 @@
       },
       "sideEffect": "workspace_write",
       "sideEffectClass": "workspace_write",
+      "version": "1",
+      "worksOffline": false
+    },
+    {
+      "answeredBy": "record",
+      "availability": {
+        "state": "ok"
+      },
+      "canonicalName": "company_equity_add",
+      "completionEvidence": {
+        "action": "write_company",
+        "mode": "success",
+        "targetKind": "company"
+      },
+      "description": "Add one line to the company's equity ledger: shares or options a holder received or gave up on a date, as the shareholder register or a share issuance records it. What anyone holds is the sum of their lines, so record a transfer as two lines, one negative and one positive. Only an administrator keeps the ledger.",
+      "estimatedLatency": "low",
+      "idempotency": {
+        "required": false,
+        "scope": "operation",
+        "supported": false
+      },
+      "inputIntentSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "effectiveDate": {
+            "description": "The day the change took effect, YYYY-MM-DD. To start a ledger from today's register, date every opening line on the day of that register.",
+            "type": "string"
+          },
+          "fundingRoundHint": {
+            "description": "The funding round that issued these shares: a funding record's id from company_record_list, or its exact CURRENT title. Leave out for founders' shares, grants and transfers.",
+            "type": "string"
+          },
+          "holder": {
+            "description": "The holder exactly as the shareholder register names them, e.g. 'Sample Kim' or 'Sample Ventures Fund I'.",
+            "type": "string"
+          },
+          "holderKind": {
+            "description": "Who the holder is: 'founder', 'employee', 'investor', 'option_pool' for options reserved but not yet granted, or 'other'.",
+            "enum": [
+              "founder",
+              "employee",
+              "investor",
+              "option_pool",
+              "other"
+            ],
+            "type": "string"
+          },
+          "note": {
+            "description": "Where the line comes from, e.g. 'shareholder register of 2026-06-30'.",
+            "type": "string"
+          },
+          "securityClass": {
+            "description": "What is held, as the company calls it, e.g. 'common', 'RCPS', 'Series A preferred', 'options'. Defaults to common.",
+            "type": "string"
+          },
+          "shares": {
+            "description": "Shares received (positive) or given up (negative); options count as the shares they convert into. Never zero.",
+            "type": "number"
+          }
+        },
+        "type": "object"
+      },
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "effectiveDate": {
+            "description": "The day the change took effect, YYYY-MM-DD. To start a ledger from today's register, date every opening line on the day of that register.",
+            "type": "string"
+          },
+          "fundingRoundHint": {
+            "description": "The funding round that issued these shares: a funding record's id from company_record_list, or its exact CURRENT title. Leave out for founders' shares, grants and transfers.",
+            "type": "string"
+          },
+          "holder": {
+            "description": "The holder exactly as the shareholder register names them, e.g. 'Sample Kim' or 'Sample Ventures Fund I'.",
+            "type": "string"
+          },
+          "holderKind": {
+            "description": "Who the holder is: 'founder', 'employee', 'investor', 'option_pool' for options reserved but not yet granted, or 'other'.",
+            "enum": [
+              "founder",
+              "employee",
+              "investor",
+              "option_pool",
+              "other"
+            ],
+            "type": "string"
+          },
+          "note": {
+            "description": "Where the line comes from, e.g. 'shareholder register of 2026-06-30'.",
+            "type": "string"
+          },
+          "securityClass": {
+            "description": "What is held, as the company calls it, e.g. 'common', 'RCPS', 'Series A preferred', 'options'. Defaults to common.",
+            "type": "string"
+          },
+          "shares": {
+            "description": "Shares received (positive) or given up (negative); options count as the shares they convert into. Never zero.",
+            "type": "number"
+          }
+        },
+        "required": [
+          "effectiveDate",
+          "holder",
+          "holderKind",
+          "shares"
+        ],
+        "type": "object"
+      },
+      "inputSchemaStrict": true,
+      "modelName": "company_equity_add",
+      "modelVisibility": "visible",
+      "modelVisible": true,
+      "name": "company_equity_add",
+      "namespace": "company",
+      "namespaceSummary": "The company's own record: its profile and settings, holidays, metrics over time, milestones and assets, and a data room of registered documents searchable by question.",
+      "outputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "effectiveDate": {
+            "type": "string"
+          },
+          "entryID": {
+            "type": "string"
+          },
+          "fundingRecordID": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "holder": {
+            "type": "string"
+          },
+          "holderKind": {
+            "enum": [
+              "founder",
+              "employee",
+              "investor",
+              "option_pool",
+              "other"
+            ],
+            "type": "string"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "securityClass": {
+            "type": "string"
+          },
+          "shares": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "entryID",
+          "effectiveDate",
+          "holder",
+          "holderKind",
+          "securityClass",
+          "shares",
+          "fundingRecordID",
+          "note"
+        ],
+        "type": "object"
+      },
+      "outputSchemaStrict": true,
+      "policyResource": "tool:company_equity_add",
+      "privacyClass": "workspace_company",
+      "requiresUserPresence": false,
+      "resultContract": {
+        "effects": [
+          {
+            "effect": "created",
+            "effectIdentity": "id",
+            "objectType": "company_equity_entry",
+            "resultField": "entryID"
+          }
+        ],
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "additionalProperties": false,
+          "properties": {
+            "effectiveDate": {
+              "type": "string"
+            },
+            "entryID": {
+              "type": "string"
+            },
+            "fundingRecordID": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "holder": {
+              "type": "string"
+            },
+            "holderKind": {
+              "enum": [
+                "founder",
+                "employee",
+                "investor",
+                "option_pool",
+                "other"
+              ],
+              "type": "string"
+            },
+            "note": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "securityClass": {
+              "type": "string"
+            },
+            "shares": {
+              "type": "number"
+            }
+          },
+          "required": [
+            "entryID",
+            "effectiveDate",
+            "holder",
+            "holderKind",
+            "securityClass",
+            "shares",
+            "fundingRecordID",
+            "note"
+          ],
+          "type": "object"
+        }
+      },
+      "sideEffect": "workspace_write",
+      "sideEffectClass": "workspace_write",
+      "version": "1",
+      "worksOffline": false
+    },
+    {
+      "answeredBy": "record",
+      "availability": {
+        "state": "ok"
+      },
+      "canonicalName": "company_equity_list",
+      "description": "List the company's equity ledger and what each holder holds as of a day, with their share of the total. Use for cap tables, ownership questions and dilution after a round.",
+      "estimatedLatency": "low",
+      "idempotency": {
+        "required": false,
+        "scope": "operation",
+        "supported": false
+      },
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "asOfDate": {
+            "description": "Sum the ledger up to this day, YYYY-MM-DD. Leave out for today.",
+            "type": "string"
+          },
+          "holder": {
+            "description": "Only the lines of holders whose name contains this text.",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "inputSchemaStrict": true,
+      "modelName": "company_equity_list",
+      "modelVisibility": "visible",
+      "modelVisible": true,
+      "name": "company_equity_list",
+      "namespace": "company",
+      "namespaceSummary": "The company's own record: its profile and settings, holidays, metrics over time, milestones and assets, and a data room of registered documents searchable by question.",
+      "outputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "asOfDate": {
+            "type": "string"
+          },
+          "entries": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "effectiveDate": {
+                  "type": "string"
+                },
+                "entryID": {
+                  "type": "string"
+                },
+                "fundingRecordID": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "holder": {
+                  "type": "string"
+                },
+                "holderKind": {
+                  "enum": [
+                    "founder",
+                    "employee",
+                    "investor",
+                    "option_pool",
+                    "other"
+                  ],
+                  "type": "string"
+                },
+                "note": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "securityClass": {
+                  "type": "string"
+                },
+                "shares": {
+                  "type": "number"
+                }
+              },
+              "required": [
+                "entryID",
+                "effectiveDate",
+                "holder",
+                "holderKind",
+                "securityClass",
+                "shares",
+                "fundingRecordID",
+                "note"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "holdings": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "holder": {
+                  "type": "string"
+                },
+                "holderKind": {
+                  "enum": [
+                    "founder",
+                    "employee",
+                    "investor",
+                    "option_pool",
+                    "other"
+                  ],
+                  "type": "string"
+                },
+                "percent": {
+                  "type": "number"
+                },
+                "securityClass": {
+                  "type": "string"
+                },
+                "shares": {
+                  "type": "number"
+                }
+              },
+              "required": [
+                "holder",
+                "holderKind",
+                "securityClass",
+                "shares",
+                "percent"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "totalShares": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "asOfDate",
+          "totalShares",
+          "holdings",
+          "entries"
+        ],
+        "type": "object"
+      },
+      "outputSchemaStrict": true,
+      "policyResource": "tool:company_equity_list",
+      "privacyClass": "workspace_company",
+      "requiresUserPresence": false,
+      "resultContract": {
+        "effects": [],
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "additionalProperties": false,
+          "properties": {
+            "asOfDate": {
+              "type": "string"
+            },
+            "entries": {
+              "items": {
+                "additionalProperties": false,
+                "properties": {
+                  "effectiveDate": {
+                    "type": "string"
+                  },
+                  "entryID": {
+                    "type": "string"
+                  },
+                  "fundingRecordID": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "holder": {
+                    "type": "string"
+                  },
+                  "holderKind": {
+                    "enum": [
+                      "founder",
+                      "employee",
+                      "investor",
+                      "option_pool",
+                      "other"
+                    ],
+                    "type": "string"
+                  },
+                  "note": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "securityClass": {
+                    "type": "string"
+                  },
+                  "shares": {
+                    "type": "number"
+                  }
+                },
+                "required": [
+                  "entryID",
+                  "effectiveDate",
+                  "holder",
+                  "holderKind",
+                  "securityClass",
+                  "shares",
+                  "fundingRecordID",
+                  "note"
+                ],
+                "type": "object"
+              },
+              "type": "array"
+            },
+            "holdings": {
+              "items": {
+                "additionalProperties": false,
+                "properties": {
+                  "holder": {
+                    "type": "string"
+                  },
+                  "holderKind": {
+                    "enum": [
+                      "founder",
+                      "employee",
+                      "investor",
+                      "option_pool",
+                      "other"
+                    ],
+                    "type": "string"
+                  },
+                  "percent": {
+                    "type": "number"
+                  },
+                  "securityClass": {
+                    "type": "string"
+                  },
+                  "shares": {
+                    "type": "number"
+                  }
+                },
+                "required": [
+                  "holder",
+                  "holderKind",
+                  "securityClass",
+                  "shares",
+                  "percent"
+                ],
+                "type": "object"
+              },
+              "type": "array"
+            },
+            "totalShares": {
+              "type": "number"
+            }
+          },
+          "required": [
+            "asOfDate",
+            "totalShares",
+            "holdings",
+            "entries"
+          ],
+          "type": "object"
+        }
+      },
+      "sideEffect": "read",
+      "sideEffectClass": "read",
+      "version": "1",
+      "worksOffline": false
+    },
+    {
+      "answeredBy": "record",
+      "availability": {
+        "state": "ok"
+      },
+      "canonicalName": "company_equity_delete",
+      "description": "Delete one wrong line of the company's equity ledger named by its entryID from company_equity_list. A real transfer or cancellation is a new line, not a delete.",
+      "estimatedLatency": "low",
+      "idempotency": {
+        "required": false,
+        "scope": "operation",
+        "supported": false
+      },
+      "inputIntentSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {},
+        "type": "object"
+      },
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "entryHint": {
+            "description": "The ledger line to delete: its entryID from a prior company_equity_list result. Never invent an id.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "entryHint"
+        ],
+        "type": "object"
+      },
+      "inputSchemaStrict": true,
+      "modelName": "company_equity_delete",
+      "modelVisibility": "visible",
+      "modelVisible": true,
+      "name": "company_equity_delete",
+      "namespace": "company",
+      "namespaceSummary": "The company's own record: its profile and settings, holidays, metrics over time, milestones and assets, and a data room of registered documents searchable by question.",
+      "outputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "effectiveDate": {
+            "type": "string"
+          },
+          "entryID": {
+            "type": "string"
+          },
+          "fundingRecordID": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "holder": {
+            "type": "string"
+          },
+          "holderKind": {
+            "enum": [
+              "founder",
+              "employee",
+              "investor",
+              "option_pool",
+              "other"
+            ],
+            "type": "string"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "securityClass": {
+            "type": "string"
+          },
+          "shares": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "entryID",
+          "effectiveDate",
+          "holder",
+          "holderKind",
+          "securityClass",
+          "shares",
+          "fundingRecordID",
+          "note"
+        ],
+        "type": "object"
+      },
+      "outputSchemaStrict": true,
+      "policyResource": "tool:company_equity_delete",
+      "privacyClass": "workspace_company",
+      "requiresApproval": true,
+      "requiresUserPresence": false,
+      "resultContract": {
+        "effects": [
+          {
+            "effect": "deleted",
+            "effectIdentity": "id",
+            "objectType": "company_equity_entry",
+            "resultField": "entryID"
+          }
+        ],
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "additionalProperties": false,
+          "properties": {
+            "effectiveDate": {
+              "type": "string"
+            },
+            "entryID": {
+              "type": "string"
+            },
+            "fundingRecordID": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "holder": {
+              "type": "string"
+            },
+            "holderKind": {
+              "enum": [
+                "founder",
+                "employee",
+                "investor",
+                "option_pool",
+                "other"
+              ],
+              "type": "string"
+            },
+            "note": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "securityClass": {
+              "type": "string"
+            },
+            "shares": {
+              "type": "number"
+            }
+          },
+          "required": [
+            "entryID",
+            "effectiveDate",
+            "holder",
+            "holderKind",
+            "securityClass",
+            "shares",
+            "fundingRecordID",
+            "note"
+          ],
+          "type": "object"
+        }
+      },
+      "sideEffect": "destructive",
+      "sideEffectClass": "destructive",
       "version": "1",
       "worksOffline": false
     },
@@ -20635,7 +21470,7 @@
                   "type": "string"
                 },
                 "fields": {
-                  "description": "What the company page shows to readers of this category: company_info keys, company_metric keys and company_record categories, e.g. ['capital'] or ['annualRevenue']. A field belongs to one category; one no category names is shown only to readers of X. Move one with dataroom_field_update.",
+                  "description": "What the company page shows to readers of this category: company_info keys, company_metric keys, company_record categories 'activity' (attendance and work with names masked) and 'ownership' (the equity ledger summed by kind of holder), e.g. ['capital'] or ['annualRevenue']. A field belongs to one category; one no category names is shown only to readers of X. Move one with dataroom_field_update.",
                   "items": {
                     "minLength": 1,
                     "type": "string"
@@ -20797,7 +21632,7 @@
                     "type": "string"
                   },
                   "fields": {
-                    "description": "What the company page shows to readers of this category: company_info keys, company_metric keys and company_record categories, e.g. ['capital'] or ['annualRevenue']. A field belongs to one category; one no category names is shown only to readers of X. Move one with dataroom_field_update.",
+                    "description": "What the company page shows to readers of this category: company_info keys, company_metric keys, company_record categories 'activity' (attendance and work with names masked) and 'ownership' (the equity ledger summed by kind of holder), e.g. ['capital'] or ['annualRevenue']. A field belongs to one category; one no category names is shown only to readers of X. Move one with dataroom_field_update.",
                     "items": {
                       "minLength": 1,
                       "type": "string"
@@ -24213,6 +25048,9 @@
                 "expectedCloseTimeZone": {
                   "type": "string"
                 },
+                "fundingRecordID": {
+                  "type": "string"
+                },
                 "importance": {
                   "type": "string"
                 },
@@ -24278,6 +25116,7 @@
                 "opportunityID",
                 "organizationID",
                 "contactID",
+                "fundingRecordID",
                 "title",
                 "business",
                 "pipeline",
@@ -24410,6 +25249,9 @@
                   "expectedCloseTimeZone": {
                     "type": "string"
                   },
+                  "fundingRecordID": {
+                    "type": "string"
+                  },
                   "importance": {
                     "type": "string"
                   },
@@ -24475,6 +25317,7 @@
                   "opportunityID",
                   "organizationID",
                   "contactID",
+                  "fundingRecordID",
                   "title",
                   "business",
                   "pipeline",
@@ -24571,6 +25414,11 @@
             "description": "When it should close, in the company's time zone. A day as yyyy-mm-dd.",
             "type": "string"
           },
+          "fundingRoundHint": {
+            "description": "For an investment deal, the funding round it is for: a funding record's id from company_record_list or its exact CURRENT title. Its won deals are what the round has committed. Give an empty string to unlink.",
+            "maxLength": 256,
+            "type": "string"
+          },
           "importance": {
             "description": "high, medium or low.",
             "maxLength": 32,
@@ -24655,6 +25503,11 @@
           },
           "expectedCloseDate": {
             "description": "When it should close, in the company's time zone. A day as yyyy-mm-dd.",
+            "type": "string"
+          },
+          "fundingRoundHint": {
+            "description": "For an investment deal, the funding round it is for: a funding record's id from company_record_list or its exact CURRENT title. Its won deals are what the round has committed. Give an empty string to unlink.",
+            "maxLength": 256,
             "type": "string"
           },
           "importance": {
@@ -24799,6 +25652,9 @@
           "expectedCloseTimeZone": {
             "type": "string"
           },
+          "fundingRecordID": {
+            "type": "string"
+          },
           "importance": {
             "type": "string"
           },
@@ -24864,6 +25720,7 @@
           "opportunityID",
           "organizationID",
           "contactID",
+          "fundingRecordID",
           "title",
           "business",
           "pipeline",
@@ -24985,6 +25842,9 @@
             "expectedCloseTimeZone": {
               "type": "string"
             },
+            "fundingRecordID": {
+              "type": "string"
+            },
             "importance": {
               "type": "string"
             },
@@ -25050,6 +25910,7 @@
             "opportunityID",
             "organizationID",
             "contactID",
+            "fundingRecordID",
             "title",
             "business",
             "pipeline",
@@ -25137,6 +25998,11 @@
             "description": "When it should close, in the company's time zone. A day as yyyy-mm-dd.",
             "type": "string"
           },
+          "fundingRoundHint": {
+            "description": "For an investment deal, the funding round it is for: a funding record's id from company_record_list or its exact CURRENT title. Its won deals are what the round has committed. Give an empty string to unlink.",
+            "maxLength": 256,
+            "type": "string"
+          },
           "importance": {
             "description": "high, medium or low.",
             "maxLength": 32,
@@ -25210,6 +26076,11 @@
           },
           "expectedCloseDate": {
             "description": "When it should close, in the company's time zone. A day as yyyy-mm-dd.",
+            "type": "string"
+          },
+          "fundingRoundHint": {
+            "description": "For an investment deal, the funding round it is for: a funding record's id from company_record_list or its exact CURRENT title. Its won deals are what the round has committed. Give an empty string to unlink.",
+            "maxLength": 256,
             "type": "string"
           },
           "importance": {
@@ -25347,6 +26218,9 @@
           "expectedCloseTimeZone": {
             "type": "string"
           },
+          "fundingRecordID": {
+            "type": "string"
+          },
           "importance": {
             "type": "string"
           },
@@ -25412,6 +26286,7 @@
           "opportunityID",
           "organizationID",
           "contactID",
+          "fundingRecordID",
           "title",
           "business",
           "pipeline",
@@ -25533,6 +26408,9 @@
             "expectedCloseTimeZone": {
               "type": "string"
             },
+            "fundingRecordID": {
+              "type": "string"
+            },
             "importance": {
               "type": "string"
             },
@@ -25598,6 +26476,7 @@
             "opportunityID",
             "organizationID",
             "contactID",
+            "fundingRecordID",
             "title",
             "business",
             "pipeline",
@@ -25855,6 +26734,9 @@
           "expectedCloseTimeZone": {
             "type": "string"
           },
+          "fundingRecordID": {
+            "type": "string"
+          },
           "importance": {
             "type": "string"
           },
@@ -25920,6 +26802,7 @@
           "opportunityID",
           "organizationID",
           "contactID",
+          "fundingRecordID",
           "title",
           "business",
           "pipeline",
@@ -26042,6 +26925,9 @@
             "expectedCloseTimeZone": {
               "type": "string"
             },
+            "fundingRecordID": {
+              "type": "string"
+            },
             "importance": {
               "type": "string"
             },
@@ -26107,6 +26993,7 @@
             "opportunityID",
             "organizationID",
             "contactID",
+            "fundingRecordID",
             "title",
             "business",
             "pipeline",

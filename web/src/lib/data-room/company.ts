@@ -4,6 +4,27 @@ import { companyActivitySchema, storedActivitySchema } from './activity';
 
 const localizedTextSchema = z.record(z.string(), z.string());
 
+export const holderKinds = ['founder', 'employee', 'investor', 'option_pool', 'other'] as const;
+const holderKindSchema = z.enum(holderKinds);
+const heldByKindSchema = z.array(z.object({ kind: holderKindSchema, shares: z.number() }));
+
+const recordSchema = z.object({
+	category: z.string(),
+	date: z.string().optional(),
+	title: z.string(),
+	detail: z.string().optional(),
+	status: z.enum(['in_progress', 'completed']).optional(),
+	amount: moneySchema.optional(),
+	committed: moneySchema.optional(),
+	attributes: z.record(z.string(), z.unknown())
+});
+
+const ownershipSchema = z.object({
+	asOf: z.string(),
+	kinds: heldByKindSchema,
+	rounds: z.array(z.object({ title: z.string(), date: z.string().optional(), kinds: heldByKindSchema }))
+});
+
 export const dataRoomCompanySchema = z.object({
 	profile: z.object({
 		name: localizedTextSchema.optional(),
@@ -37,24 +58,25 @@ export const dataRoomCompanySchema = z.object({
 		unit: z.string().optional(),
 		note: z.string().optional()
 	})),
-	records: z.array(z.object({
-		category: z.string(),
-		date: z.string().optional(),
-		title: z.string(),
-		detail: z.string().optional(),
-		amount: moneySchema.optional(),
-		attributes: z.record(z.string(), z.unknown())
-	})),
-	activity: companyActivitySchema.optional()
+	records: z.array(recordSchema),
+	activity: companyActivitySchema.optional(),
+	ownership: ownershipSchema.optional()
 });
 
-export const storedCompanySchema = dataRoomCompanySchema.extend({ activity: storedActivitySchema.optional() });
+export const storedCompanySchema = dataRoomCompanySchema.extend({
+	records: z.array(recordSchema.omit({ committed: true }).extend({
+		committedMinor: z.object({ amountMinor: z.number(), currency: z.string() }).optional()
+	})),
+	activity: storedActivitySchema.optional()
+});
 
 export type DataRoomCompany = z.infer<typeof dataRoomCompanySchema>;
 export type StoredCompany = z.infer<typeof storedCompanySchema>;
 export type CompanyProfile = DataRoomCompany['profile'];
 export type CompanyMetric = DataRoomCompany['metrics'][number];
 export type CompanyRecord = DataRoomCompany['records'][number];
+export type CompanyOwnership = NonNullable<DataRoomCompany['ownership']>;
+export type HolderKind = (typeof holderKinds)[number];
 export type CompanyMetricSeries = { metric: string; latest: CompanyMetric; points: CompanyMetric[] };
 export type CompanyFact = { field: string; value: string };
 export type MetricChange = { kind: 'percent'; percent: number } | { kind: 'turnedPositive' } | { kind: 'turnedNegative' };
@@ -68,7 +90,7 @@ export const headcountMetric = 'employees';
 
 export function isEmptyCompany(company: DataRoomCompany): boolean {
 	return Object.keys(company.profile).length === 0 && company.metrics.length === 0 && company.records.length === 0
-		&& !company.activity;
+		&& !company.activity && !company.ownership;
 }
 
 export function localized(text: Record<string, string> | undefined, locale: string): string {
@@ -191,8 +213,34 @@ export function recordsIn(records: CompanyRecord[], categories: string[]): Compa
 	return records.filter((record) => categories.includes(record.category));
 }
 
+export function isInProgress(record: CompanyRecord): boolean {
+	return record.status === 'in_progress';
+}
+
+export function completedRecords(records: CompanyRecord[]): CompanyRecord[] {
+	return records.filter((record) => !isInProgress(record));
+}
+
+export function roundBeingRaised(records: CompanyRecord[]): CompanyRecord | undefined {
+	return recordsIn(records, ['funding']).filter(isInProgress).toSorted(newestFirst)[0];
+}
+
+export type OwnershipShare = { kind: HolderKind; shares: number; percent: number };
+
+export function ownershipShares(held: CompanyOwnership['kinds']): OwnershipShare[] {
+	const total = held.reduce((sum, entry) => sum + entry.shares, 0);
+	return holderKinds.flatMap((kind) => {
+		const shares = held.find((entry) => entry.kind === kind)?.shares ?? 0;
+		return shares ? [{ kind, shares, percent: total ? (shares / total) * 100 : 0 }] : [];
+	});
+}
+
+export function totalShares(held: CompanyOwnership['kinds']): number {
+	return held.reduce((sum, entry) => sum + entry.shares, 0);
+}
+
 export function totalRaised(records: CompanyRecord[]): Money | undefined {
-	const amounts = recordsIn(records, ['funding']).flatMap((record) => (record.amount ? [record.amount] : []));
+	const amounts = completedRecords(recordsIn(records, ['funding'])).flatMap((record) => (record.amount ? [record.amount] : []));
 	const currency = amounts[0]?.currency;
 	if (!currency || amounts.some((amount) => amount.currency !== currency)) return undefined;
 	return { amount: amounts.reduce((sum, amount) => sum + amount.amount, 0), currency };

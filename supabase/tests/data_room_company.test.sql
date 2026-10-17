@@ -29,7 +29,7 @@ select throws_ok($$update public.data_room_category set fields = array['capital'
 set local role authenticated;
 select set_config('request.jwt.claims', '{"sub":"65000000-0000-0000-0000-000000000002"}', true);
 select is(public.data_room_company('65000000-0000-0000-0000-000000000010'),
-  '{"profile": {"brandName": {"ko": "샘플"}}, "metrics": [], "records": [{"category": "history", "date": "2024-01-02", "title": "Company founded", "attributes": {}}]}'::jsonb,
+  '{"profile": {"brandName": {"ko": "샘플"}}, "metrics": [], "records": [{"category": "history", "date": "2024-01-02", "title": "Company founded", "status": "completed", "attributes": {}}]}'::jsonb,
   'a member sees what the member circle reads');
 
 select set_config('request.jwt.claims', '{"sub":"65000000-0000-0000-0000-000000000001"}', true);

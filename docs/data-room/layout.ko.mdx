@@ -2,13 +2,13 @@
 title: 분류와 기본 서클
 ---
 
-문서는 업무 목적에 따라 하위 분류가 없는 분류 또는 X에 보관합니다. 중분류가 없는 대분류도 선택할 수 있습니다. 대분류 권한은 이후 추가되는 하위 분류도 포함합니다. Company fields는 그 분류를 읽는 사람에게 회사 소개가 보여 주는 회사 정보 키, 지표 키, 연혁 분류, 그리고 근태·업무 현황을 가린 이름으로 보여 주는 `activity`입니다. 어느 분류에도 없는 필드는 X를 읽는 사람만 봅니다.
+문서는 업무 목적에 따라 하위 분류가 없는 분류 또는 X에 보관합니다. 중분류가 없는 대분류도 선택할 수 있습니다. 대분류 권한은 이후 추가되는 하위 분류도 포함합니다. Company fields는 그 분류를 읽는 사람에게 회사 소개가 보여 주는 회사 정보 키, 지표 키, 연혁 분류, 근태·업무 현황을 가린 이름으로 보여 주는 `activity`, 지분 장부를 보유자 유형별로 합한 `ownership`입니다. 어느 분류에도 없는 필드는 X를 읽는 사람만 봅니다.
 
 | Code | Category | Parent | Scope | Company fields |
 |---|---|---|---|---|
 | `C` | 법인·지배구조 | — | Legal entity, ownership and corporate decisions. |  |
 | `CR` | 설립·등록·정관 | C | Formation, articles, registrations and legal entity records. | `jurisdiction`, `legalAttributes`, `fiscalYearEnd`, `address` |
-| `CO` | 주주·지분 | C | Shareholder registers, capitalization tables and ownership records. | `capital` |
+| `CO` | 주주·지분 | C | Shareholder registers, capitalization tables and ownership records. | `capital`, `ownership` |
 | `CG` | 이사회·주주총회 | C | Board and shareholder decisions, minutes and delegated authorities. |  |
 | `H` | 인사·조직 | — | Employment, organization and employee records. |  |
 | `HO` | 조직·인원 현황 | H | Organization charts, job descriptions and aggregate workforce information. | `employeeCount`, `employees` |

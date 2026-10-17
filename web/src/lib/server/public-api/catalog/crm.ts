@@ -76,6 +76,7 @@ const opportunityFields = {
   importance: z.string().max(32).describe(importanceDescription).optional(),
   expectedCloseDate: z.string().describe(`When it should close, in the company's time zone. ${dayDescription}`).optional(),
   description: z.string().max(4096).describe('What to remember about the deal.').optional(),
+  fundingRoundHint: z.string().max(256).describe("For an investment deal, the funding round it is for: a funding record's id from company_record_list or its exact CURRENT title. Its won deals are what the round has committed. Give an empty string to unlink.").optional(),
 };
 
 export const crmOrganizationListInputSchema = z.strictObject({
@@ -375,6 +376,7 @@ export const crmOpportunityResultSchema = z.strictObject({
   opportunityID: resourceIDSchema,
   organizationID: z.string(),
   contactID: z.string(),
+  fundingRecordID: z.string(),
   title: z.string(),
   business: z.string(),
   pipeline: z.string(),
