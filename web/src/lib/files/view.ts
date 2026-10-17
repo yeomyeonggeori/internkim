@@ -38,9 +38,14 @@ const extensionGroups: { icon: Component; colorClass: string; extensions: string
 		]
 	},
 	{
+		icon: FileIcon,
+		colorClass: 'text-red-600',
+		extensions: ['pdf']
+	},
+	{
 		icon: FileTextIcon,
 		colorClass: 'text-amber-600',
-		extensions: ['md', 'markdown', 'txt', 'text', 'log', 'pdf', 'doc', 'docx', 'rtf']
+		extensions: ['md', 'markdown', 'txt', 'text', 'log', 'doc', 'docx', 'rtf']
 	}
 ];
 
