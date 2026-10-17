@@ -17,7 +17,7 @@
 		type Reachability
 	} from '$lib/notifications/subscribe';
 	import { sendTestNotification } from '$lib/notifications/self-test';
-	import { isInsideNativeShell } from '$lib/native-shell/shell';
+	import { isInsideCapacitorShell } from '$lib/native-shell/shell';
 	import BellIcon from '@lucide/svelte/icons/bell';
 	import SendIcon from '@lucide/svelte/icons/send';
 	import { onMount } from 'svelte';
@@ -143,7 +143,7 @@
 			{/if}
 			{#if reach === 'blocked'}
 				<p class="text-sm text-muted-foreground">
-					{isInsideNativeShell() ? text.notifyBlockedOnDevice : text.notifyBlocked}
+					{isInsideCapacitorShell() ? text.notifyBlockedOnDevice : text.notifyBlocked}
 				</p>
 			{/if}
 		{/if}

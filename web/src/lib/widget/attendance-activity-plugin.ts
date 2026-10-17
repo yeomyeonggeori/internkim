@@ -1,4 +1,4 @@
-import { isInsideNativeShell, shellPlatform } from '$lib/native-shell/shell';
+import { isInsideCapacitorShell, shellPlatform } from '$lib/native-shell/shell';
 
 export type ActivityToken = {
 	kind: 'apns-activity-start' | 'apns-activity';
@@ -17,7 +17,7 @@ export type AttendanceActivityPlugin = {
 export type AttendanceActivityShell = { activity: AttendanceActivityPlugin };
 
 export async function attendanceActivityShell(): Promise<AttendanceActivityShell | null> {
-	if (!isInsideNativeShell() || shellPlatform() !== 'ios') return null;
+	if (!isInsideCapacitorShell() || shellPlatform() !== 'ios') return null;
 	const { registerPlugin } = await import('@capacitor/core');
 	return { activity: registerPlugin<AttendanceActivityPlugin>('AttendanceActivity') };
 }

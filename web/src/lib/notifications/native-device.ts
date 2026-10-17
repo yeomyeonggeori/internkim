@@ -1,4 +1,4 @@
-import { isInsideNativeShell, shellPlatform } from '$lib/native-shell/shell';
+import { isInsideCapacitorShell, shellPlatform } from '$lib/native-shell/shell';
 import { ownPath } from '$lib/return-path';
 import { pushDeviceKindOfPlatform, type PushDeviceKind, type Reachability } from './reachability';
 import { claimPushDevice, releasePushDevice } from './push-device';
@@ -120,14 +120,14 @@ export async function stopBeingNativelyReached(): Promise<Reachability> {
 }
 
 export async function keepNativeDeviceClaimed(): Promise<void> {
-	if (!isInsideNativeShell()) return;
+	if (!isInsideCapacitorShell()) return;
 	const { push } = await pushPlugin();
 	if ((await push.checkPermissions()).receive !== 'granted') return;
 	await claim(await registeredToken(push));
 }
 
 export async function goWhereNativeNotificationsPoint(go: (path: string) => void): Promise<() => void> {
-	if (!isInsideNativeShell()) return () => {};
+	if (!isInsideCapacitorShell()) return () => {};
 	const { push } = await pushPlugin();
 	const handle = await push.addListener('pushNotificationActionPerformed', (tapped) => {
 		const path = openPathOfTappedNotification(tapped);

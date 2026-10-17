@@ -1,4 +1,4 @@
-import { isInsideNativeShell } from '$lib/native-shell/shell';
+import { isInsideCapacitorShell } from '$lib/native-shell/shell';
 import { nativeReachability, startBeingNativelyReached } from './native-device';
 
 const askedKey = 'internkim.push.asked';
@@ -24,7 +24,7 @@ function rememberAsking(): void {
 }
 
 async function ask(): Promise<FirstAsk> {
-	if (!isInsideNativeShell() || wasAlreadyAsked()) return 'not-asked';
+	if (!isInsideCapacitorShell() || wasAlreadyAsked()) return 'not-asked';
 	if ((await nativeReachability()) !== 'off') {
 		rememberAsking();
 		return 'not-asked';
