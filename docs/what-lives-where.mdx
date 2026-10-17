@@ -46,7 +46,8 @@ holds what they said and what was said about them, a circle's file holds what
 its members share, and the workspace's file holds what everyone shares. The
 service writes every file, and the subject's group may only read it. A recall
 runs as the reader's own Linux user, so the kernel decides which files open:
-their own, their circles' and the workspace's.
+their own, their circles' and the workspace's. Data room documents are never
+copied in; a recall [asks the data room](/docs/data-room/agent) as the reader.
 
 What a conversation says reaches a shared file only when the conversation's
 people are exactly that file's readers. A room the whole company is in writes

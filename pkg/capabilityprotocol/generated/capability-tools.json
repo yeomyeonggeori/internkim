@@ -16389,6 +16389,138 @@
       "availability": {
         "state": "ok"
       },
+      "canonicalName": "company_document_recall",
+      "description": "Recall the data room documents a request names by title or counterpart, or whose summary holds what it asks, one sentence each. The agent asks this beside its own memory whenever it recalls, so what the requester may read now arrives without being copied into memory.",
+      "estimatedLatency": "low",
+      "idempotency": {
+        "required": false,
+        "scope": "operation",
+        "supported": false
+      },
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "limit": {
+            "description": "The most facts to answer.",
+            "maximum": 9007199254740991,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "query": {
+            "description": "What the person asked, in their own words.",
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "query"
+        ],
+        "type": "object"
+      },
+      "inputSchemaStrict": true,
+      "modelName": "company_document_recall",
+      "modelVisibility": "hidden",
+      "modelVisible": false,
+      "name": "company_document_recall",
+      "namespace": "company",
+      "namespaceSummary": "The company's own record: its profile and settings, holidays, metrics over time, milestones and assets, and a data room of registered documents searchable by question.",
+      "outputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "facts": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "content": {
+                  "description": "The fact in one plain sentence the agent reads beside what it remembers.",
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "id": {
+                  "description": "What the fact came from, as an identifier the source answers to.",
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "validAt": {
+                  "description": "The day the fact holds from.",
+                  "format": "date",
+                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "id",
+                "content"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "facts"
+        ],
+        "type": "object"
+      },
+      "outputSchemaStrict": true,
+      "policyResource": "tool:company_document_recall",
+      "privacyClass": "workspace_company",
+      "recallSource": true,
+      "requiresUserPresence": false,
+      "resultContract": {
+        "effects": [],
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "additionalProperties": false,
+          "properties": {
+            "facts": {
+              "items": {
+                "additionalProperties": false,
+                "properties": {
+                  "content": {
+                    "description": "The fact in one plain sentence the agent reads beside what it remembers.",
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  "id": {
+                    "description": "What the fact came from, as an identifier the source answers to.",
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  "validAt": {
+                    "description": "The day the fact holds from.",
+                    "format": "date",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "id",
+                  "content"
+                ],
+                "type": "object"
+              },
+              "type": "array"
+            }
+          },
+          "required": [
+            "facts"
+          ],
+          "type": "object"
+        }
+      },
+      "sideEffect": "read",
+      "sideEffectClass": "read",
+      "version": "1",
+      "worksOffline": false
+    },
+    {
+      "answeredBy": "record",
+      "availability": {
+        "state": "ok"
+      },
       "canonicalName": "company_document_update",
       "description": "Update a registered company document's file path, title, counterpart, summary, or where it sits in the data room: its categoryCode, date, period, status, tags, hash, and the document it supersedes. Name the document with documentHint from a prior list or search result. Use when a file was moved or renamed so the ledger keeps tracking it, or when an administrator reclassifies it. Category changes require administrator access and move the document's files to the new category's folder.",
       "estimatedLatency": "low",

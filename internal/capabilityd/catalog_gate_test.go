@@ -769,6 +769,15 @@ func gateCases() map[string]catalogGateCase {
 				expectResultHolds(t, answered, `"documentID":"document-1"`)
 			},
 		},
+		"company_document_recall": {
+			kind:    provesCarrying,
+			reaches: map[gateBackend]*standingIn{admindOverTheSocket: answering(`{"tool":"company_document_recall","result":{"facts":[{"id":"document-1","content":"Data room document \"ABC Trading onboarding quote\" with ABC Trading: A quote for the onboarding consulting.","validAt":"2026-09-04"}]}}`)},
+			input:   `{"query":"what did we quote ABC Trading","limit":3}`,
+			expect: func(t *testing.T, answered capabilities.ToolInvokeResponse) {
+				expectSucceeded(t, answered)
+				expectResultHolds(t, answered, `"id":"document-1"`)
+			},
+		},
 		"company_document_update": {
 			kind:    provesCarrying,
 			reaches: map[gateBackend]*standingIn{admindOverTheSocket: answering(`{"tool":"company_document_update","result":{"documentID":"document-1","documentNumber":"Q-2026-001","kind":"issued","documentType":"quote","title":"ABC Trading onboarding quote","counterpart":"ABC Trading","language":"ko","filePath":"shared/documents/quote/abc.md","summary":"A quote for the onboarding consulting.","requesterID":"member-1","createdAt":"2026-09-04T00:00:00Z","updatedAt":"2026-09-04T00:00:00Z","date":null,"period":null,"status":null,"supersedes":null,"sha256":null,"tags":[],"storagePath":null,"sizeBytes":null,"published":null}}`)},

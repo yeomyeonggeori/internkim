@@ -5,8 +5,11 @@ export { companyDocumentPublishedSchema, companyDocumentResultSchema, companyDoc
 import {
   CapabilityAnsweredBy,
   CapabilityEstimatedLatency,
+  CapabilityModelVisibility,
   CapabilitySideEffect,
   ResourceEffectIdentity,
+  recallSourceInputSchema,
+  recallSourceResultSchema,
 } from './protocol';
 
 import { ResourceMutationEffect, type CapabilityToolDefinition } from './definition';
@@ -311,6 +314,21 @@ export const companyToolDefinitions: CapabilityToolDefinition[] = [
     sideEffect: CapabilitySideEffect.Read,
   },
   {
+    name: "company_document_recall",
+    namespace: "company",
+    answeredBy: CapabilityAnsweredBy.Record,
+    privacyClass: "workspace_company",
+    policyResource: "tool:company_document_recall",
+    description: "Recall the data room documents a request names by title or counterpart, or whose summary holds what it asks, one sentence each. The agent asks this beside its own memory whenever it recalls, so what the requester may read now arrives without being copied into memory.",
+    version: "1",
+    estimatedLatency: CapabilityEstimatedLatency.Low,
+    modelVisibility: CapabilityModelVisibility.Hidden,
+    recallSource: true,
+    inputSchema: recallSourceInputSchema,
+    result: { schema: recallSourceResultSchema, effects: [] },
+    sideEffect: CapabilitySideEffect.Read,
+  },
+  {
     name: "company_document_update",
     namespace: "company",
     answeredBy: CapabilityAnsweredBy.Record,
@@ -492,6 +510,7 @@ export type CompanyRecordListResult = z.infer<typeof companyRecordListResultSche
 export type CompanyDocumentResult = z.infer<typeof companyDocumentResultSchema>;
 export type CompanyDocumentRegisteredResult = z.infer<typeof companyDocumentRegisteredResultSchema>;
 export type CompanyDocumentListResult = z.infer<typeof companyDocumentListResultSchema>;
+export type CompanyDocumentRecallResult = z.infer<typeof recallSourceResultSchema>;
 export type CompanyDocumentPublished = z.infer<typeof companyDocumentPublishedSchema>;
 export type CompanyDocumentUploadResult = z.infer<typeof companyDocumentUploadResultSchema>;
 export type CompanyDocumentDownloadResult = z.infer<typeof companyDocumentDownloadResultSchema>;
