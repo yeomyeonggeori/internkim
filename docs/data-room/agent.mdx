@@ -26,9 +26,13 @@ passes through to row-level and file-store policies.
 
 The agent also looks without being asked. Every recall asks
 `company_document_recall`, as the requester, for the documents a request names
-by title or counterpart, and reads one sentence for each beside its memory.
-Nothing is copied into memory, so the next recall sees a revised summary or a
-circle that no longer reads the category.
+by title or counterpart, and for those whose meaning is near it, and reads one
+sentence for each beside its memory. Nearness comes from an index the host
+keeps in its own service state: every few minutes it lists, as each requester,
+the documents that changed and embeds their sentences. The index only orders
+candidates. What the agent reads is asked again as the requester, so the next
+recall sees a revised summary or a circle that no longer reads the category,
+and a request that only shares a document's topic stays below the bar.
 
 A member reads through their circles, so giving a colleague access means
 placing them in a circle. Sharing outside the company lends what one circle
