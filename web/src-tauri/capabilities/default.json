@@ -1,0 +1,7 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "windows": ["main"],
+  "remote": { "urls": ["https://intern.kim/*", "https://*.intern.kim/*"] },
+  "permissions": ["core:default", "os:default"]
+}
