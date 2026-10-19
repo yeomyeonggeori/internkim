@@ -75,8 +75,8 @@ test('links the same external contact to two opportunities', async ({ page }) =>
 	}
 
 	await page.getByRole('tab', { name: '거래' }).click();
-	await expect(page.getByRole('row', { name: new RegExp(firstOpportunityName) })).toBeVisible();
-	await expect(page.getByRole('row', { name: new RegExp(secondOpportunityName) })).toBeVisible();
+	await expect(await dealRow(page, firstOpportunityName)).toBeVisible();
+	await expect(await dealRow(page, secondOpportunityName)).toBeVisible();
 });
 
 async function recordActivity(page: Page, title: string, registersOnTheCalendar: boolean): Promise<void> {
@@ -111,7 +111,7 @@ test('an activity registered on the calendar stays off the task board, and one w
 test('stage change records an automatic activity and editing it keeps the stage', async ({ page }) => {
 	await signIn(page);
 	await page.getByRole('tab', { name: '거래' }).click();
-	await page.getByRole('row', { name: new RegExp(firstOpportunityName) }).click();
+	await (await dealRow(page, firstOpportunityName)).click();
 	const editSheet = page.getByRole('dialog', { name: '거래 수정' });
 	await editSheet.getByLabel('단계').click();
 	await page.getByRole('option', { name: '진행 중', exact: true }).click();
@@ -128,7 +128,7 @@ test('stage change records an automatic activity and editing it keeps the stage'
 	await expect(activitySheet).not.toBeVisible();
 
 	await page.getByRole('tab', { name: '거래' }).click();
-	await expect(page.getByRole('row', { name: new RegExp(firstOpportunityName) })).toContainText('진행 중');
+	await expect(await dealRow(page, firstOpportunityName)).toContainText('진행 중');
 });
 
 test('rejects deleting an in-use CRM definition with guidance', async ({ page }) => {
@@ -207,9 +207,18 @@ async function readAmounts(cells: Locator): Promise<number[]> {
 	});
 }
 
+async function dealRow(page: Page, name: string): Promise<Locator> {
+	const deals = page.getByRole('tabpanel', { name: '거래' });
+	const row = deals.getByRole('row', { name: new RegExp(name) });
+	const nextPage = deals.getByRole('button', { name: '다음', exact: true });
+	await expect(deals.getByRole('row').nth(1)).toBeVisible({ timeout: 20000 });
+	while (!(await row.isVisible()) && (await nextPage.isEnabled())) await nextPage.click();
+	return row;
+}
+
 async function settledNoteOf(page: Page): Promise<string> {
 	await page.getByRole('tab', { name: '거래' }).click();
-	await page.getByRole('row', { name: new RegExp(settledOpportunityName) }).click();
+	await (await dealRow(page, settledOpportunityName)).click();
 	const editSheet = page.getByRole('dialog', { name: '거래 수정' });
 	const note = editSheet.getByText(/확정$/);
 	await expect(note).toBeVisible({ timeout: 20000 });
@@ -255,7 +264,7 @@ test('closing a deal priced in another currency settles it in the base currency'
 	await expect(sheet).not.toBeVisible();
 
 	await page.getByRole('tab', { name: '거래' }).click();
-	await page.getByRole('row', { name: new RegExp(settledOpportunityName) }).click();
+	await (await dealRow(page, settledOpportunityName)).click();
 	const editSheet = page.getByRole('dialog', { name: '거래 수정' });
 	await editSheet.getByLabel('단계').click();
 	await page.getByRole('option', { name: '성사', exact: true }).click();
@@ -284,7 +293,7 @@ test('a settled amount survives a move between terminal stages', async ({ page }
 test('opens in the company base currency and re-denominates amounts when the view currency changes', async ({ page }) => {
 	await signIn(page);
 	await page.getByRole('tab', { name: '거래' }).click();
-	const row = page.getByRole('row', { name: new RegExp(settledOpportunityName) });
+	const row = await dealRow(page, settledOpportunityName);
 	await expect(row).toBeVisible();
 
 	const viewCurrency = page.getByRole('tabpanel', { name: '거래' }).getByLabel('보기 통화');
