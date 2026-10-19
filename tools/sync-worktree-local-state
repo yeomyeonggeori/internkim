@@ -140,6 +140,7 @@ fi
 syncLocalState ".local/ops"
 syncLocalState ".agents"
 syncLocalState "docs/private"
+syncLocalState "web/android/local.properties"
 syncSharedDependencyArtifacts
 checkOutSubmodules
 installBunWorkspaces

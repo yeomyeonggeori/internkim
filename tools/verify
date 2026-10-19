@@ -228,6 +228,17 @@ GROUPS = [
         lane="web",
     ),
     Group(
+        "android-widget",
+        ["web/attendance-widget/android/*", "web/android/*"],
+        [
+            BUN_INSTALL,
+            ["bunx", "cap", "sync", "android"],
+            ["android/gradlew", "-p", "android", "--no-daemon", "--quiet", ":attendance-widget:testDebugUnitTest", ":app:compileDebugJavaWithJavac"],
+        ],
+        working_directory="web",
+        lane="web",
+    ),
+    Group(
         "captive-page",
         [
             "web/captive/*",
