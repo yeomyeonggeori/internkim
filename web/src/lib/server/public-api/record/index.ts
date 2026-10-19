@@ -40,7 +40,7 @@ import {
 import { crmRecordImport } from './crm-import-tools';
 import { crmImportRecordsOf } from './crm-import-file';
 import type { CarriedWorkspaceFile } from '../carried-files';
-import { crmRecordImportInputSchema } from '../catalog/crm';
+import { crmOpportunityMoveInputSchema, crmRecordImportInputSchema, crmVocabularySetInputSchema } from '../catalog/crm';
 import {
 	companyDocumentDownload,
 	companyDocumentList,
@@ -226,10 +226,10 @@ const toolsOverTheRecord: Record<string, ToolRun> = {
 	crm_opportunity_list: (context, input) => crmOpportunityList(context, input),
 	crm_opportunity_add: (context, input) => crmOpportunityAdd(context, input),
 	crm_opportunity_update: (context, input) => crmOpportunityUpdate(context, input),
-	crm_opportunity_move: (context, input) => crmOpportunityMove(context, input),
+	crm_opportunity_move: (context, input) => crmOpportunityMove(context, crmOpportunityMoveInputSchema.parse(input)),
 	crm_opportunity_archive: (context, input) => crmOpportunityArchive(context, input),
 	crm_vocabulary_get: (context) => crmVocabularyGet(context),
-	crm_vocabulary_set: (context, input) => crmVocabularySet(context, input),
+	crm_vocabulary_set: (context, input) => crmVocabularySet(context, crmVocabularySetInputSchema.parse(input)),
 	crm_record_import: async (context, input, { files }) =>
 		crmRecordImport(context, await crmImportRecordsOf(crmRecordImportInputSchema.parse(input), files)),
 	crm_activity_list: (context, input) => crmActivityList(context, input),

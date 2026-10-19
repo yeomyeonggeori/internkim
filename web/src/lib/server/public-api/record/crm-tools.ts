@@ -32,13 +32,18 @@ import { RecordRefusedTheWrite, statusOfPostgresCode } from './tasks';
 import type { RecordContext } from './company';
 import type {
 	CRMArchivedResult,
+	CRMContactListInput,
 	CRMContactListResult,
 	CRMContactResult,
+	CRMOpportunityListInput,
 	CRMOpportunityListResult,
+	CRMOpportunityMoveInput,
 	CRMOpportunityResult,
+	CRMOrganizationListInput,
 	CRMOrganizationListResult,
 	CRMOrganizationResult,
-	CRMVocabularyResult
+	CRMVocabularyResult,
+	CRMVocabularySetInput
 } from '../catalog/crm';
 
 export type CRMColumnsWritten = {
@@ -54,8 +59,6 @@ export type CRMColumnHolder = {
 	contact_id: string | null;
 };
 
-export type CRMOrganizationListInput = { query?: string; includeArchived?: boolean };
-
 export type CRMOrganizationWritten = {
 	name?: string;
 	types?: string[];
@@ -67,12 +70,6 @@ export type CRMOrganizationWritten = {
 	description?: string;
 };
 
-export type CRMContactListInput = {
-	organizationHint?: string;
-	query?: string;
-	includeArchived?: boolean;
-};
-
 export type CRMContactWritten = {
 	name?: string;
 	organizationHint?: string;
@@ -81,13 +78,6 @@ export type CRMContactWritten = {
 	role?: string;
 	department?: string;
 	description?: string;
-};
-
-export type CRMOpportunityListInput = {
-	organizationHint?: string;
-	stage?: string;
-	query?: string;
-	includeArchived?: boolean;
 };
 
 export type CRMOpportunityWritten = {
@@ -103,20 +93,6 @@ export type CRMOpportunityWritten = {
 	description?: string;
 	fundingRoundHint?: string;
 	stage?: string;
-};
-
-export type CRMOpportunityMoveInput = {
-	opportunityHint?: string;
-	stage?: string;
-	position?: number;
-	closedAt?: string;
-	finalAmount?: Money;
-	reason?: string;
-};
-
-export type CRMVocabularySetInput = {
-	organizationTypes?: CRMPipelineDefinition[];
-	pipelines?: CRMPipelineDefinition[];
 };
 
 const exchangeRates = frankfurterProvider();
@@ -685,8 +661,8 @@ export async function crmVocabularySet(
 ): Promise<CRMVocabularyResult> {
 	const { error } = await context.caller.rpc('crm_vocabulary_save', {
 		target_vocabulary: {
-			organization_types: (input.organizationTypes ?? []).map(definitionWritten),
-			pipelines: (input.pipelines ?? []).map(definitionWritten)
+			organization_types: input.organizationTypes.map(definitionWritten),
+			pipelines: input.pipelines.map(definitionWritten)
 		}
 	});
 	if (error) throw refusedVocabularyWrite(error.message, error.code);
