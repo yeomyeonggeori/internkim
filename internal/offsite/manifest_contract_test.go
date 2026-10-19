@@ -35,16 +35,11 @@ func TestTheSnapshotManifestIsTheOneTheWebAppReads(t *testing.T) {
 		t.Fatal(errorValue)
 	}
 	written = append(written, '\n')
-	if os.Getenv("INTERNKIM_WRITE_CONTRACT") == "1" {
-		if errorValue := os.WriteFile(manifestContractPath, written, 0o644); errorValue != nil {
-			t.Fatal(errorValue)
-		}
-	}
 	kept, errorValue := os.ReadFile(manifestContractPath)
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
 	if string(kept) != string(written) {
-		t.Fatalf("%s is not the manifest a snapshot writes; run with INTERNKIM_WRITE_CONTRACT=1 and update keptBackupManifestSchema in web/src/lib/company/box.ts to match:\n%s", manifestContractPath, written)
+		t.Fatalf("%s is not the manifest a snapshot writes; write it there and update keptBackupManifestSchema in web/src/lib/company/box.ts to match:\n%s", manifestContractPath, written)
 	}
 }
