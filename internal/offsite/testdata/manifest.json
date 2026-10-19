@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "archiveName": "internkim-backup-20261019T030000Z.tar",
+  "sealingKey": "c2FtcGxlLXNlYWxpbmcta2V5LXNhbXBsZS1zZWFsaW4",
+  "createdAt": "2026-10-19T03:00:00Z",
+  "parts": [
+    {
+      "name": "part-000001",
+      "size": 1024,
+      "sha256": "00"
+    }
+  ]
+}

@@ -5,7 +5,6 @@ import { sealedSecretSchema, type SealedSecret } from '../../src/lib/company/box
 import { base64URLOf } from '../../src/lib/company/seal-to-box';
 import {
 	addMember,
-	claimFleetForCompany,
 	controlPlane,
 	issueAgentKey,
 	provisionCompany,
@@ -144,9 +143,14 @@ function sealedOf(offered: unknown): SealedSecret {
 
 beforeAll(async () => {
 	boxed = await aCompany('boxed');
-	await claimFleetForCompany(client, boxed.companyID, base64URLOf(x25519.utils.randomSecretKey()), {
-		encryptionKey: boxEncryptionKey
+	const kept = await client.rpc('keep_claimed_box', {
+		claiming_company: boxed.companyID,
+		box_key: base64URLOf(x25519.utils.randomSecretKey()),
+		box_encryption_key: boxEncryptionKey,
+		box_host_name: null,
+		is_replacing: false
 	});
+	if (kept.error) throw new Error(kept.error.message);
 	frozen = await aCompany('frozen');
 }, networkHookTimeout);
 

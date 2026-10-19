@@ -7,20 +7,23 @@ import {
 	adminPasswordOutcomeSchema,
 	boxConfigurationSchema,
 	boxKeySchema,
+	boxRoleSchema,
+	keptBackupManifestSchema,
 	nearbyNetworkListSchema,
 	sealedSecretSchema,
 	wifiOutcomeSchema,
+	type AwaitingBox,
 	type BoxConfiguration,
+	type BoxRole,
+	type CompanyBoxes,
 	type ConnectedBox,
 	type EmptyBox,
+	type KeptBackupManifest,
 	type SealedSecret
 } from '$lib/company/box';
 import type { Environment } from './agent-request';
 import {
-	claimFleetForCompany,
-	companyOfFleet,
 	controlPlane,
-	fleetCredentialKind,
 	hashOf,
 	hostSessionOfCompany,
 	spendAgentKey,
@@ -35,11 +38,12 @@ const emptyBoxesListed = 10;
 const pairingCodeAlphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 const pairingCodeLength = 8;
 const pairingCodeLifetimeMilliseconds = 15 * 60 * 1000;
+const boxColumns = 'public_key, company_id, encryption_key, role, host_name, site, weight, settings, sealed_company_key, last_seen_at';
 
 export class BoxRefused extends Error {
 	constructor(
 		message: string,
-		readonly status: 409 | 429 = 409
+		readonly status: 404 | 409 | 429 = 409
 	) {
 		super(message);
 	}
@@ -95,7 +99,7 @@ export async function announceBox(
 	now: Date = new Date()
 ): Promise<BoxAnnounced> {
 	const { publicKey } = announcement;
-	if (await companyOfFleet(client, publicKey)) return { isClaimed: true };
+	if (await boxOfPublicKey(client, publicKey)) return { isClaimed: true };
 	const { error } = await client.from('empty_box').upsert(
 		{
 			public_key: publicKey,
@@ -208,25 +212,47 @@ export async function verifyBoxCode(
 	return { ticket, publicKey, hostName: data.host_name, publicAddress: data.public_address ?? '' };
 }
 
+export type ClaimIntent = 'add' | 'replace';
+
 export async function claimBox(
 	client: SupabaseClient,
 	companyID: string,
 	publicKey: string,
 	ticket: string,
+	intent: ClaimIntent,
 	now: Date = new Date()
-): Promise<void> {
+): Promise<BoxRole> {
 	const { data, error } = await client
 		.rpc('claim_empty_box', {
 			claiming_company: companyID,
 			box_key: publicKey,
 			ticket_hash: await claimTicketHashOf(ticket),
-			fresh_since: freshSince(now)
+			fresh_since: freshSince(now),
+			is_replacing: intent === 'replace'
 		})
-		.single<{ outcome: VerificationOutcome; encryption_key: string | null }>();
+		.single<{ outcome: VerificationOutcome; given_role: string | null }>();
 	if (error) throw new Error(`claiming box ${publicKey}: ${error.message}`);
 	refuseUnless(data.outcome, 'claimed');
-	if (!data.encryption_key) throw new Error(`claiming box ${publicKey}: the record answered no encryption key`);
-	await claimFleetForCompany(client, companyID, publicKey, { encryptionKey: data.encryption_key });
+	return boxRoleSchema.parse(data.given_role);
+}
+
+async function keepClaimedBox(
+	client: SupabaseClient,
+	companyID: string,
+	publicKey: string,
+	encryptionKey: string,
+	hostName: string | null,
+	intent: ClaimIntent
+): Promise<BoxRole> {
+	const { data, error } = await client.rpc('keep_claimed_box', {
+		claiming_company: companyID,
+		box_key: publicKey,
+		box_encryption_key: encryptionKey,
+		box_host_name: hostName,
+		is_replacing: intent === 'replace'
+	});
+	if (error) throw new Error(`keeping box ${publicKey} for ${companyID}: ${error.message}`);
+	return boxRoleSchema.parse(data);
 }
 
 function claimTicketHashOf(ticket: string): Promise<string> {
@@ -246,21 +272,21 @@ function refuseUnless(outcome: VerificationOutcome, expected: 'verified' | 'clai
 	throw new BoxRefused(...refusalOfOutcome[outcome]);
 }
 
-export async function releaseBox(client: SupabaseClient, companyID: string): Promise<boolean> {
+export async function releaseBox(client: SupabaseClient, companyID: string, publicKey: string): Promise<boolean> {
 	const { data, error } = await client
-		.from('credential')
+		.from('box')
 		.delete()
 		.eq('company_id', companyID)
-		.eq('kind', fleetCredentialKind)
-		.select('external_id');
-	if (error) throw new Error(`releasing the box of ${companyID}: ${error.message}`);
+		.eq('public_key', publicKey)
+		.select('public_key');
+	if (error) throw new Error(`releasing box ${publicKey} of ${companyID}: ${error.message}`);
 	return data.length > 0;
 }
 
 export async function releaseBoxOfKey(client: SupabaseClient, publicKey: string): Promise<boolean> {
-	const companyID = await companyOfFleet(client, publicKey);
-	if (!companyID) return false;
-	return releaseBox(client, companyID);
+	const box = await boxOfPublicKey(client, publicKey);
+	if (!box) return false;
+	return releaseBox(client, box.companyID, publicKey);
 }
 
 export async function claimBoxWithConnectionFile(
@@ -271,7 +297,7 @@ export async function claimBoxWithConnectionFile(
 ): Promise<string | null> {
 	const companyID = await spendAgentKey(client, connectionKey, companyComputerName);
 	if (!companyID) return null;
-	await claimFleetForCompany(client, companyID, publicKey, { encryptionKey });
+	await keepClaimedBox(client, companyID, publicKey, encryptionKey, null, 'replace');
 	const removed = await client.from('empty_box').delete().eq('public_key', publicKey);
 	if (removed.error) throw new Error(`claiming box ${publicKey}: ${removed.error.message}`);
 	return companyID;
@@ -305,9 +331,6 @@ const nearbyNetworksSettingSchema = z.object({
 }).strict();
 
 const boxSettingsSchema = z.object({
-	encryptionKey: boxKeySchema,
-	lastSeenAt: z.string().optional(),
-	sealedModelKey: heldModelKeySchema.optional(),
 	wifiChange: wifiChangeSchema.optional(),
 	wifiOutcome: wifiOutcomeSchema.optional(),
 	nearbyNetworks: nearbyNetworksSettingSchema.optional(),
@@ -318,46 +341,152 @@ const boxSettingsSchema = z.object({
 
 type BoxSettings = z.infer<typeof boxSettingsSchema>;
 
-export type BoxRow = { companyID: string; publicKey: string; settings: BoxSettings };
+const boxRecordSchema = z.object({
+	public_key: boxKeySchema,
+	company_id: z.string(),
+	encryption_key: boxKeySchema,
+	role: boxRoleSchema,
+	host_name: z.string().nullable(),
+	site: z.string(),
+	weight: z.number().int(),
+	settings: boxSettingsSchema,
+	sealed_company_key: sealedSecretSchema.nullable(),
+	last_seen_at: z.string().nullable()
+});
 
-export async function boxOfCompany(client: SupabaseClient, companyID: string): Promise<BoxRow | null> {
-	const { data, error } = await client
-		.from('credential')
-		.select('external_id, settings')
-		.eq('company_id', companyID)
-		.eq('kind', fleetCredentialKind)
-		.maybeSingle<{ external_id: string; settings: unknown }>();
-	if (error) throw new Error(`box of ${companyID}: ${error.message}`);
-	const settings = boxSettingsSchema.safeParse(data?.settings);
-	if (!data || !settings.success) return null;
-	return { companyID, publicKey: data.external_id, settings: settings.data };
+type BoxRecord = z.infer<typeof boxRecordSchema>;
+
+export type BoxRow = {
+	companyID: string;
+	publicKey: string;
+	encryptionKey: string;
+	role: BoxRole;
+	hostName: string | null;
+	site: string;
+	weight: number;
+	settings: BoxSettings;
+	sealedCompanyKey: SealedSecret | null;
+	lastSeenAt: string | null;
+};
+
+function boxRowOf(record: BoxRecord): BoxRow {
+	return {
+		companyID: record.company_id,
+		publicKey: record.public_key,
+		encryptionKey: record.encryption_key,
+		role: record.role,
+		hostName: record.host_name,
+		site: record.site,
+		weight: record.weight,
+		settings: record.settings,
+		sealedCompanyKey: record.sealed_company_key,
+		lastSeenAt: record.last_seen_at
+	};
 }
 
 export async function boxOfPublicKey(client: SupabaseClient, publicKey: string): Promise<BoxRow | null> {
-	const companyID = await companyOfFleet(client, publicKey);
-	if (!companyID) return null;
-	return boxOfCompany(client, companyID);
+	const { data, error } = await client.from('box').select(boxColumns).eq('public_key', publicKey).maybeSingle();
+	if (error) throw new Error(`box ${publicKey}: ${error.message}`);
+	if (!data) return null;
+	return boxRowOf(boxRecordSchema.parse(data));
+}
+
+export async function boxOfCompany(client: SupabaseClient, companyID: string, publicKey: string): Promise<BoxRow | null> {
+	const box = await boxOfPublicKey(client, publicKey);
+	return box?.companyID === companyID ? box : null;
+}
+
+export async function boxesOfCompany(client: SupabaseClient, companyID: string): Promise<BoxRow[]> {
+	const { data, error } = await client
+		.from('box')
+		.select(boxColumns)
+		.eq('company_id', companyID)
+		.order('claimed_at', { ascending: true });
+	if (error) throw new Error(`boxes of ${companyID}: ${error.message}`);
+	return data.map((record) => boxRowOf(boxRecordSchema.parse(record)));
 }
 
 export async function writeBoxSettings(client: SupabaseClient, box: BoxRow, settings: BoxSettings): Promise<void> {
 	const { error } = await client
-		.from('credential')
+		.from('box')
 		.update({ settings })
 		.eq('company_id', box.companyID)
-		.eq('kind', fleetCredentialKind)
-		.eq('external_id', box.publicKey);
-	if (error) throw new Error(`box of ${box.companyID}: ${error.message}`);
+		.eq('public_key', box.publicKey);
+	if (error) throw new Error(`box ${box.publicKey} of ${box.companyID}: ${error.message}`);
 }
 
-export async function connectedBoxOf(client: SupabaseClient, companyID: string): Promise<ConnectedBox | null> {
-	const box = await boxOfCompany(client, companyID);
-	if (!box) return null;
+const keyringRecordSchema = z.object({
+	sealing_key: boxKeySchema,
+	sealed_model_key: heldModelKeySchema.nullable()
+});
+
+export type Keyring = { sealingKey: string; sealedModelKey: HeldModelKey | null };
+
+export async function keyringOf(client: SupabaseClient, companyID: string): Promise<Keyring | null> {
+	const { data, error } = await client
+		.from('box_keyring')
+		.select('sealing_key, sealed_model_key')
+		.eq('company_id', companyID)
+		.maybeSingle();
+	if (error) throw new Error(`keyring of ${companyID}: ${error.message}`);
+	if (!data) return null;
+	const record = keyringRecordSchema.parse(data);
+	return { sealingKey: record.sealing_key, sealedModelKey: record.sealed_model_key };
+}
+
+export function holdsCompanyKey(box: BoxRow, keyring: Keyring | null): boolean {
+	if (!keyring) return false;
+	return box.encryptionKey === keyring.sealingKey || box.sealedCompanyKey !== null;
+}
+
+export async function companyBoxesOf(client: SupabaseClient, companyID: string): Promise<CompanyBoxes> {
+	const [boxes, keyring] = await Promise.all([boxesOfCompany(client, companyID), keyringOf(client, companyID)]);
+	return {
+		boxes: boxes.map((box) => connectedBoxOf(box, keyring)),
+		sealingKey: keyring?.sealingKey ?? null,
+		hasModelKey: Boolean(keyring?.sealedModelKey),
+		newestBackupAt: keyring ? await newestKeptBackupAt(client, companyID, keyring.sealingKey) : null
+	};
+}
+
+const keptBackupBucket = 'box_backup';
+
+export async function newestKeptBackupAt(client: SupabaseClient, companyID: string, sealingKey: string): Promise<string | null> {
+	const { data, error } = await client.storage
+		.from(keptBackupBucket)
+		.list(companyID, { limit: 1000, sortBy: { column: 'name', order: 'desc' } });
+	if (error) throw new Error(`kept backups of ${companyID}: ${error.message}`);
+	for (const archive of data) {
+		const manifest = await keptManifestOf(client, `${companyID}/${archive.name}/manifest.json`);
+		if (manifest?.archiveName === archive.name && manifest.sealingKey === sealingKey) return manifest.createdAt;
+	}
+	return null;
+}
+
+async function keptManifestOf(client: SupabaseClient, path: string): Promise<KeptBackupManifest | null> {
+	const { data } = await client.storage.from(keptBackupBucket).download(path);
+	if (!data) return null;
+	const parsed = keptBackupManifestSchema.safeParse(JSON.parse(await data.text()));
+	return parsed.success ? parsed.data : null;
+}
+
+export async function makeBoxServe(client: SupabaseClient, companyID: string, publicKey: string): Promise<boolean> {
+	const { data, error } = await client.rpc('make_box_serve', { serving_company: companyID, box_key: publicKey });
+	if (error) throw new Error(`making box ${publicKey} serve ${companyID}: ${error.message}`);
+	return data === true;
+}
+
+function connectedBoxOf(box: BoxRow, keyring: Keyring | null): ConnectedBox {
 	return {
 		companyID: box.companyID,
 		publicKey: box.publicKey,
-		encryptionKey: box.settings.encryptionKey,
-		lastSeenAt: box.settings.lastSeenAt ?? null,
-		hasModelKey: Boolean(box.settings.sealedModelKey),
+		encryptionKey: box.encryptionKey,
+		role: box.role,
+		hostName: box.hostName,
+		site: box.site,
+		weight: box.weight,
+		lastSeenAt: box.lastSeenAt,
+		holdsCompanyKey: holdsCompanyKey(box, keyring),
 		hasAdminAccount: box.settings.hasAdminAccount ?? false
 	};
 }
@@ -367,15 +496,58 @@ export async function keepSealedModelKey(
 	companyID: string,
 	sealedModelKey: SealedSecret
 ): Promise<void> {
-	const box = await boxOfCompany(client, companyID);
-	if (!box) throw new BoxRefused('connect the company computer before giving it a model key');
-	await writeBoxSettings(client, box, { ...box.settings, sealedModelKey });
+	const keyring = await keyringOf(client, companyID);
+	if (!keyring) throw new BoxRefused('connect the company computer before giving it a model key');
+	if (sealedModelKey.recipient !== keyring.sealingKey) {
+		throw new BoxRefused('the model key is sealed to a key the company no longer seals to; reload and give it again');
+	}
+	const { error } = await client
+		.from('box_keyring')
+		.update({ sealed_model_key: sealedModelKey })
+		.eq('company_id', companyID)
+		.eq('sealing_key', keyring.sealingKey);
+	if (error) throw new Error(`model key of ${companyID}: ${error.message}`);
+}
+
+export async function keepSealedCompanyKeys(
+	client: SupabaseClient,
+	holder: BoxRow,
+	sealedKeys: { publicKey: string; sealed: SealedSecret }[]
+): Promise<void> {
+	if (!holdsCompanyKey(holder, await keyringOf(client, holder.companyID))) {
+		throw new BoxRefused('only a box that holds the company key may hand it on');
+	}
+	const awaiting = await boxesAwaitingCompanyKey(client, holder.companyID);
+	for (const { publicKey, sealed } of sealedKeys) {
+		const target = awaiting.find((box) => box.publicKey === publicKey);
+		if (!target) throw new BoxRefused(`box ${publicKey} is not waiting for this company's key`, 404);
+		if (sealed.recipient !== target.encryptionKey) throw new BoxRefused(`the key for ${publicKey} is sealed to another key`);
+		const { error } = await client
+			.from('box')
+			.update({ sealed_company_key: sealed })
+			.eq('company_id', holder.companyID)
+			.eq('public_key', publicKey)
+			.is('sealed_company_key', null);
+		if (error) throw new Error(`company key for ${publicKey}: ${error.message}`);
+	}
+}
+
+async function boxesAwaitingCompanyKey(client: SupabaseClient, companyID: string): Promise<AwaitingBox[]> {
+	const [boxes, keyring] = await Promise.all([boxesOfCompany(client, companyID), keyringOf(client, companyID)]);
+	if (!keyring) return [];
+	return boxes
+		.filter((box) => !holdsCompanyKey(box, keyring))
+		.map((box) => ({ publicKey: box.publicKey, encryptionKey: box.encryptionKey }));
 }
 
 export type BoxSession = {
 	configuration: BoxConfiguration;
 	session: HostSession;
+	role: BoxRole;
+	sealingKey: string;
+	sealedCompanyKey: SealedSecret | null;
 	sealedModelKey: HeldModelKey | null;
+	boxesAwaitingCompanyKey: AwaitingBox[];
 };
 
 export async function boxSessionFor(
@@ -385,17 +557,30 @@ export async function boxSessionFor(
 	appURL: string
 ): Promise<BoxSession | null> {
 	const client = controlPlane(credentials);
-	const companyID = await companyOfFleet(client, publicKey);
-	if (!companyID) return null;
-	const box = await boxOfCompany(client, companyID);
+	const box = await boxOfPublicKey(client, publicKey);
 	if (!box) return null;
+	const keyring = await keyringOf(client, box.companyID);
+	if (!keyring) throw new Error(`company ${box.companyID} has a box and no keyring`);
 
-	await writeBoxSettings(client, box, { ...box.settings, lastSeenAt: new Date().toISOString() });
+	await noteBoxSeen(client, box);
+	const holdsKey = holdsCompanyKey(box, keyring);
 	return {
-		configuration: await boxConfigurationOf(client, companyID, environment, appURL),
-		session: await hostSessionOfCompany(credentials, companyID, { fleetID: publicKey }),
-		sealedModelKey: box.settings.sealedModelKey ?? null
+		configuration: await boxConfigurationOf(client, box.companyID, environment, appURL),
+		session: await hostSessionOfCompany(credentials, box.companyID, { fleetID: publicKey }),
+		role: box.role,
+		sealingKey: keyring.sealingKey,
+		sealedCompanyKey: box.sealedCompanyKey,
+		sealedModelKey: holdsKey ? keyring.sealedModelKey : null,
+		boxesAwaitingCompanyKey: holdsKey ? await boxesAwaitingCompanyKey(client, box.companyID) : []
 	};
+}
+
+async function noteBoxSeen(client: SupabaseClient, box: BoxRow): Promise<void> {
+	const { error } = await client
+		.from('box')
+		.update({ last_seen_at: new Date().toISOString() })
+		.eq('public_key', box.publicKey);
+	if (error) throw new Error(`box ${box.publicKey}: ${error.message}`);
 }
 
 async function boxConfigurationOf(

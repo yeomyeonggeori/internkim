@@ -20,7 +20,7 @@ insert into public.member (id, company_id, email, user_id, status, is_admin) val
 insert into public.credential (member_id, kind, name, external_id, permission, settings) values
   ('7f000000-0000-0000-0000-0000000000a1', 'api_key', 'widget', repeat('a', 64), 'read', '{"expiresAt": "2099-01-01T00:00:00Z"}');
 insert into public.credential (company_id, kind, external_id) values
-  ('7f000000-0000-0000-0000-0000000000c1', 'fleet', 'fleet-y');
+  ('7f000000-0000-0000-0000-0000000000c1', 'buzz', 'company-y');
 
 set local role authenticated;
 select set_config('request.jwt.claims', '{"sub":"7f000000-0000-0000-0000-000000000011"}', true);
@@ -45,7 +45,7 @@ select is((select count(*)::integer from public.credential where name = 'widget'
   'a holder still reads their own credential');
 
 select set_config('request.jwt.claims', '{"sub":"7f000000-0000-0000-0000-000000000012"}', true);
-select is((select count(*)::integer from public.credential where kind = 'fleet'), 1,
+select is((select count(*)::integer from public.credential where company_id is not null), 1,
   'an administrator still reads the company credential');
 
 select * from finish();

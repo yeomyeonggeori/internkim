@@ -2,24 +2,37 @@ import { describe, expect, test } from 'bun:test';
 import { boxStepOf, shortBoxName } from '../../../src/routes/settings/setup/box-step';
 
 const publicKey = 'oYwaGe-VYDGlZRd4ButkPDL65UP6m3BBNTUfLugolZI';
-const connected = { companyID: 'company-a', publicKey, encryptionKey: publicKey, lastSeenAt: null, hasModelKey: false, hasAdminAccount: false };
+const connected = {
+	companyID: 'company-a',
+	publicKey,
+	encryptionKey: publicKey,
+	role: 'service' as const,
+	hostName: null,
+	site: '',
+	weight: 1,
+	lastSeenAt: null,
+	holdsCompanyKey: true,
+	hasAdminAccount: false
+};
 const announced = { publicKey, announcedAt: '2026-09-27T00:00:00.000Z', hostName: null, pairingPageAddresses: [] };
+const noBoxes = { boxes: [], sealingKey: null, hasModelKey: false, newestBackupAt: null };
 
 describe('the company computer step', () => {
 	test('waits for a box when none is announcing on this network', () => {
-		expect(boxStepOf({ connected: null, empty: [] })).toBe('searching');
+		expect(boxStepOf({ ...noBoxes, empty: [] })).toBe('searching');
 	});
 
 	test('offers the boxes announcing on this network', () => {
-		expect(boxStepOf({ connected: null, empty: [announced] })).toBe('choosing');
+		expect(boxStepOf({ ...noBoxes, empty: [announced] })).toBe('choosing');
 	});
 
 	test('asks for the model key once a box is connected', () => {
-		expect(boxStepOf({ connected, empty: [announced] })).toBe('givingModelKey');
+		expect(boxStepOf({ boxes: [connected], sealingKey: publicKey, hasModelKey: false, newestBackupAt: null, empty: [announced] })).toBe('givingModelKey');
 	});
 
-	test('is done once the connected box has its model key', () => {
-		expect(boxStepOf({ connected: { ...connected, hasModelKey: true }, empty: [] })).toBe('connected');
+	test('is done once the company has its model key, however many boxes it runs on', () => {
+		const standby = { ...connected, publicKey: 'p'.repeat(43), role: 'standby' as const, holdsCompanyKey: false };
+		expect(boxStepOf({ boxes: [connected, standby], sealingKey: publicKey, hasModelKey: true, newestBackupAt: null, empty: [] })).toBe('connected');
 	});
 });
 

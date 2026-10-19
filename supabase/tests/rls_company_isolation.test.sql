@@ -1019,8 +1019,8 @@ declare
   hosted_contacts integer;
   planted boolean := true;
 begin
-  insert into public.credential (company_id, kind, external_id) values
-    ('00000000-0000-0000-0000-0000ffffff0e', 'fleet', 'box-e-before');
+  insert into public.box (public_key, company_id, encryption_key, role) values
+    ('box-e-before', '00000000-0000-0000-0000-0000ffffff0e', repeat('e', 43), 'service');
 
   set local role authenticated;
   perform set_config('request.jwt.claims',
@@ -1030,8 +1030,8 @@ begin
   assert hosted_contacts = 1, 'the connected computer keeps its company''s contacts, saw ' || hosted_contacts;
 
   reset role;
-  update public.credential set external_id = 'box-e-now'
-    where company_id = '00000000-0000-0000-0000-0000ffffff0e' and kind = 'fleet';
+  update public.box set public_key = 'box-e-now'
+    where company_id = '00000000-0000-0000-0000-0000ffffff0e';
   set local role authenticated;
 
   select public.my_app_company() into claimed_company;
@@ -1066,7 +1066,7 @@ begin
 
   reset role;
   update public.agent set revoked_at = null where api_key_hash = 'hash-e';
-  delete from public.credential where company_id = '00000000-0000-0000-0000-0000ffffff0e' and kind = 'fleet';
+  delete from public.box where company_id = '00000000-0000-0000-0000-0000ffffff0e';
   raise notice 'channel: a host session holds only while its computer is the company''s';
 end $$$block$, 'channel: a host session holds only while its computer is the company''s');
 

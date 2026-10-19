@@ -10,7 +10,7 @@ const callBody = { method: 'POST', path: '/tools/message_send/invoke', requester
 const hostCompanyID = 'host-company';
 let recordURL = '';
 let issuer = '';
-let companyTheRecordGrants: string | null = hostCompanyID;
+let roleTheRecordGrants: 'service' | 'standby' | null = 'service';
 let signingKey: CryptoKey;
 let keyServer: ReturnType<typeof Bun.serve>;
 
@@ -106,7 +106,7 @@ beforeAll(async () => {
 		fetch(request) {
 			const path = new URL(request.url).pathname;
 			if (path === '/jwks') return new Response(publicKeyDocument);
-			if (path === '/rest/v1/rpc/my_app_company') return Response.json(companyTheRecordGrants);
+			if (path === '/rest/v1/rpc/my_app_box_role') return Response.json(roleTheRecordGrants);
 			if (path === '/rest/v1/rpc/company_of_messenger_address') {
 				const slug = new URL(request.url).searchParams.get('address_slug');
 				return Response.json(slug === 'acme' || slug === 'acme-media' || slug === 'acme-upload' ? companyID : null);
@@ -199,7 +199,7 @@ describe('the public fetch handler', () => {
 			exp: 4102444800,
 			app_metadata: { company_id: hostCompanyID }
 		});
-		companyTheRecordGrants = null;
+		roleTheRecordGrants = null;
 		try {
 			const refused = await worker.fetch(
 				new Request(`https://gateway/company/${hostCompanyID}/host`, {
@@ -209,7 +209,28 @@ describe('the public fetch handler', () => {
 			);
 			expect(refused.status).toBe(403);
 		} finally {
-			companyTheRecordGrants = hostCompanyID;
+			roleTheRecordGrants = 'service';
+		}
+	});
+
+	test('refuses a host token from a box that stands by, leaving the serving box connected', async () => {
+		const token = await signedHostToken({
+			sub: 'account-1',
+			iss: issuer, aud: 'authenticated',
+			exp: 4102444800,
+			app_metadata: { company_id: hostCompanyID, fleet_id: 'standby-box' }
+		});
+		roleTheRecordGrants = 'standby';
+		try {
+			const refused = await worker.fetch(
+				new Request(`https://gateway/company/${hostCompanyID}/host`, {
+					headers: { Upgrade: 'websocket', Authorization: `Bearer ${token}` }
+				}),
+				hostEnvironment(new ConnectionObject(newState()))
+			);
+			expect(refused.status).toBe(409);
+		} finally {
+			roleTheRecordGrants = 'service';
 		}
 	});
 

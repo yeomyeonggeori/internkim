@@ -32,10 +32,19 @@ export const boxVerificationSchema = z.object({
 	pairingCode: z.string().trim().min(1).max(32)
 }).strict();
 
+export const boxClaimIntentSchema = z.enum(['add', 'replace']);
+
+export type BoxClaimIntent = z.infer<typeof boxClaimIntentSchema>;
+
 export const boxClaimSchema = z.object({
 	publicKey: boxKeySchema,
-	ticket: z.string().regex(/^[A-Za-z0-9_-]{43}$/)
+	ticket: z.string().regex(/^[A-Za-z0-9_-]{43}$/),
+	intent: boxClaimIntentSchema
 }).strict();
+
+export const boxReleaseSchema = z.object({ publicKey: boxKeySchema }).strict();
+
+export const boxServeSchema = z.object({ publicKey: boxKeySchema }).strict();
 
 export const verifiedBoxSchema = z.object({
 	ticket: z.string(),
@@ -71,16 +80,47 @@ export const boxConfigurationSchema = hostConfigurationSchema.omit({ agentKey: t
 
 export type BoxConfiguration = z.infer<typeof boxConfigurationSchema>;
 
+export const boxRoleSchema = z.enum(['service', 'standby']);
+
+export type BoxRole = z.infer<typeof boxRoleSchema>;
+
 export const connectedBoxSchema = z.object({
 	companyID: z.string(),
 	publicKey: boxKeySchema,
 	encryptionKey: boxKeySchema,
+	role: boxRoleSchema,
+	hostName: z.string().nullable(),
+	site: z.string(),
+	weight: z.number().int(),
 	lastSeenAt: z.string().nullable(),
-	hasModelKey: z.boolean(),
+	holdsCompanyKey: z.boolean(),
 	hasAdminAccount: z.boolean()
 }).strict();
 
 export type ConnectedBox = z.infer<typeof connectedBoxSchema>;
+
+export const companyBoxesSchema = z.object({
+	boxes: z.array(connectedBoxSchema),
+	sealingKey: boxKeySchema.nullable(),
+	hasModelKey: z.boolean(),
+	newestBackupAt: z.string().nullable()
+}).strict();
+
+export const keptBackupManifestVersion = 1;
+
+export const keptBackupManifestSchema = z.object({
+	version: z.literal(keptBackupManifestVersion),
+	archiveName: z.string().min(1),
+	sealingKey: boxKeySchema,
+	createdAt: z.iso.datetime({ offset: true }),
+	parts: z.array(z.object({ name: z.string(), size: z.number().int(), sha256: z.string() }).strict())
+}).strict();
+
+export type KeptBackupManifest = z.infer<typeof keptBackupManifestSchema>;
+
+export type CompanyBoxes = z.infer<typeof companyBoxesSchema>;
+
+export type AwaitingBox = { publicKey: string; encryptionKey: string };
 
 export type WifiNetwork = { ssid: string; password: string };
 

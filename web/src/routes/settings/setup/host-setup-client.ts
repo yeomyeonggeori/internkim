@@ -1,9 +1,11 @@
 import { z } from 'zod';
 import { supabase } from '$lib/supabase';
 import {
-	connectedBoxSchema,
+	companyBoxesSchema,
 	emptyBoxSchema,
 	verifiedBoxSchema,
+	type BoxClaimIntent,
+	type CompanyBoxes,
 	type ConnectedBox,
 	type EmptyBox,
 	type VerifiedBoxAnswer
@@ -11,7 +13,7 @@ import {
 import { hostConfigurationSchema, hostSetupStatusSchema, type HostConfiguration } from '$lib/company/host-setup';
 import { sealModelKey } from '$lib/company/seal-to-box';
 
-export async function askCompanyRoute(path: string, method: 'GET' | 'POST' | 'PUT' | 'DELETE', body?: unknown): Promise<unknown> {
+export async function askCompanyRoute(path: string, method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE', body?: unknown): Promise<unknown> {
 	const { data } = await supabase().auth.getSession();
 	if (!data.session) throw new Error('sign in first');
 	const response = await fetch(path, {
@@ -45,14 +47,9 @@ export function downloadHostConfiguration(configuration: HostConfiguration): voi
 	setTimeout(() => URL.revokeObjectURL(address), 1000);
 }
 
-const boxesSchema = z.object({
-	connected: connectedBoxSchema.nullable(),
-	empty: z.array(emptyBoxSchema)
-}).strict();
+const boxesSchema = companyBoxesSchema.extend({ empty: z.array(emptyBoxSchema) }).strict();
 
-const connectedAnswerSchema = z.object({ connected: connectedBoxSchema.nullable() }).strict();
-
-export type Boxes = { connected: ConnectedBox | null; empty: EmptyBox[] };
+export type Boxes = CompanyBoxes & { empty: EmptyBox[] };
 
 export async function fetchBoxes(): Promise<Boxes> {
 	return boxesSchema.parse(await askCompanyRoute('/api/company/box', 'GET'));
@@ -62,16 +59,19 @@ export async function verifyBoxCode(publicKey: string, pairingCode: string): Pro
 	return verifiedBoxSchema.parse(await askCompanyRoute('/api/company/box/verification', 'POST', { publicKey, pairingCode }));
 }
 
-export async function connectBox(publicKey: string, ticket: string): Promise<ConnectedBox | null> {
-	const answer = await askCompanyRoute('/api/company/box', 'POST', { publicKey, ticket });
-	return connectedAnswerSchema.parse(answer).connected;
+export async function connectBox(publicKey: string, ticket: string, intent: BoxClaimIntent): Promise<CompanyBoxes> {
+	return companyBoxesSchema.parse(await askCompanyRoute('/api/company/box', 'POST', { publicKey, ticket, intent }));
 }
 
-export async function disconnectBox(): Promise<void> {
-	connectedAnswerSchema.parse(await askCompanyRoute('/api/company/box', 'DELETE'));
+export async function disconnectBox(box: ConnectedBox): Promise<CompanyBoxes> {
+	return companyBoxesSchema.parse(await askCompanyRoute('/api/company/box', 'DELETE', { publicKey: box.publicKey }));
 }
 
-export async function giveBoxModelKey(box: ConnectedBox, modelKey: string): Promise<ConnectedBox | null> {
-	const sealed = await sealModelKey(modelKey.trim(), box);
-	return connectedAnswerSchema.parse(await askCompanyRoute('/api/company/box/model-key', 'PUT', sealed)).connected;
+export async function makeBoxServe(box: ConnectedBox): Promise<CompanyBoxes> {
+	return companyBoxesSchema.parse(await askCompanyRoute('/api/company/box', 'PATCH', { publicKey: box.publicKey }));
+}
+
+export async function giveModelKey(companyID: string, sealingKey: string, modelKey: string): Promise<CompanyBoxes> {
+	const sealed = await sealModelKey(modelKey.trim(), { companyID, encryptionKey: sealingKey });
+	return companyBoxesSchema.parse(await askCompanyRoute('/api/company/box/model-key', 'PUT', sealed));
 }

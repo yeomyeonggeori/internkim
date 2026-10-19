@@ -35,7 +35,7 @@
 
 	async function loadStatus() {
 		try {
-			const status = await fetchWifiChangeStatus();
+			const status = await fetchWifiChangeStatus(box);
 			nearbyNetworks = status.nearbyNetworks;
 			isOffered = status.scannedAt !== null || status.pendingRequestID !== null || status.outcome !== null;
 			if (status.pendingRequestID) {
@@ -65,7 +65,7 @@
 		isFormOpen = true;
 		errorMessage = '';
 		try {
-			nearbyNetworks = (await fetchWifiChangeStatus()).nearbyNetworks;
+			nearbyNetworks = (await fetchWifiChangeStatus(box)).nearbyNetworks;
 			selectedSSID = preferredSSIDOf(nearbyNetworks);
 		} catch (error) {
 			errorMessage = error instanceof Error ? error.message : text.boxFailed;
@@ -117,7 +117,7 @@
 	async function poll() {
 		if (!trackedRequestID) return;
 		try {
-			const status = await fetchWifiChangeStatus();
+			const status = await fetchWifiChangeStatus(box);
 			if (status.outcome && status.outcome.requestID === trackedRequestID) {
 				outcome = status.outcome.result;
 				clearInterval(pollTimer);

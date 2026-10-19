@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"fmt"
 	"io"
@@ -9,6 +10,8 @@ import (
 
 	"github.com/yeomyeonggeori/internkim/internal/companyhost"
 	"github.com/yeomyeonggeori/internkim/internal/hostbackup"
+	"github.com/yeomyeonggeori/internkim/internal/offsite"
+	"github.com/yeomyeonggeori/internkim/internal/runtime/blueclaw"
 )
 
 func runBackup(arguments []string) error {
@@ -33,7 +36,31 @@ func runBackup(arguments []string) error {
 		return errorValue
 	}
 	printBackup(os.Stdout, result)
+	shipment, isShipped, errorValue := thisBox().Ship(context.Background(), result.ArchivePath, *keep, time.Now())
+	if errorValue != nil {
+		return fmt.Errorf("the backup is on this computer, and keeping it with the company's boxes failed: %w", errorValue)
+	}
+	printShipment(os.Stdout, shipment, isShipped)
 	return nil
+}
+
+func thisBox() offsite.ThisBox {
+	return offsite.ThisBox{
+		BoxStatePath:    blueclaw.CompanyHostBoxStatePath,
+		ConnectionPath:  companyhost.CurrentConnectionPath(),
+		AccessTokenPath: blueclaw.CompanyHostAgentKeyPath,
+	}
+}
+
+func printShipment(output io.Writer, shipment offsite.Shipment, isShipped bool) {
+	if !isShipped {
+		fmt.Fprintln(output, "This computer is not a box that holds the company key, so the backup stays here alone.")
+		return
+	}
+	fmt.Fprintf(output, "Kept it, sealed to the company key, where the company's other boxes can take over from it (%d parts).\n", len(shipment.Manifest.Parts))
+	for _, pruned := range shipment.Pruned {
+		fmt.Fprintf(output, "Removed the older kept backup %s.\n", pruned)
+	}
 }
 
 func printBackup(output io.Writer, result companyhost.BackupResult) {
@@ -48,12 +75,13 @@ func printBackup(output io.Writer, result companyhost.BackupResult) {
 	for _, pruned := range result.Pruned {
 		fmt.Fprintf(output, "Removed the older backup %s.\n", pruned)
 	}
-	fmt.Fprintln(output, "It holds the company's keys and its people's data, unencrypted. Copy it off this computer encrypted; docs.intern.kim/running-the-host says how.")
+	fmt.Fprintln(output, "The archive here holds the company's keys and its people's data, unencrypted.")
 }
 
 func runRestore(arguments []string) error {
 	flags := flag.NewFlagSet("restore", flag.ContinueOnError)
 	isReplacing := flags.Bool("replace", false, "replace the company this computer already runs, after backing up what it holds now")
+	isTakingOver := flags.Bool("taking-over", false, "this box was made the company's service box: restore what the last one kept, and stay this box")
 	archivePaths := []string{}
 	remaining := arguments
 	for {
@@ -72,11 +100,15 @@ func runRestore(arguments []string) error {
 	if errorValue := companyhost.RequireAdministrator(); errorValue != nil {
 		return errorValue
 	}
-	result, errorValue := companyhost.Restore(companyhost.RestoreRequest{
+	request := companyhost.RestoreRequest{
 		ArchivePath: archivePaths[0],
 		Replace:     *isReplacing,
 		Now:         time.Now(),
-	}, thisComputer{}, os.Stdout)
+	}
+	if *isTakingOver {
+		request.Replace, request.KeepsThisBox, request.BeforeStarting = true, true, markThisBoxInstalled
+	}
+	result, errorValue := companyhost.Restore(request, thisComputer{}, os.Stdout)
 	if errorValue != nil {
 		return errorValue
 	}

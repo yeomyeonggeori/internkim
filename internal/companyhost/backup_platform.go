@@ -94,14 +94,34 @@ func (platform linuxPlatform) OwnersInDump(machine Machine, input io.Reader) ([]
 }
 
 func (platform linuxPlatform) StopTheHost(machine Machine, progress io.Writer) error {
-	units := []string{blueclaw.BoxServiceName + ".service"}
+	units := append([]string{blueclaw.BoxServiceName + ".service"}, platform.companyServiceUnits()...)
+	if errorValue := machine.Run("systemctl", append([]string{"stop"}, units...), nil, progress); errorValue != nil {
+		return fmt.Errorf("the host's services could not be stopped, so nothing was restored: %w", errorValue)
+	}
+	return nil
+}
+
+func (platform linuxPlatform) companyServiceUnits() []string {
+	units := []string{}
 	for _, unit := range blueclaw.CompanyHostSystemdUnits(platform.Layout()) {
 		if !unit.IsDataService() {
 			units = append(units, unit.FileName())
 		}
 	}
-	if errorValue := machine.Run("systemctl", append([]string{"stop"}, units...), nil, progress); errorValue != nil {
-		return fmt.Errorf("the host's services could not be stopped, so nothing was restored: %w", errorValue)
+	return units
+}
+
+func StandDown(machine Machine, progress io.Writer) error {
+	platform, errorValue := ThisMachine()
+	if errorValue != nil {
+		return errorValue
+	}
+	linux, isLinux := platform.(linuxPlatform)
+	if !isLinux {
+		return fmt.Errorf("a box stands by on a Linux host; on %s the company's services are Homebrew's", platform.Describe())
+	}
+	if errorValue := machine.Run("systemctl", append([]string{"disable", "--now"}, linux.companyServiceUnits()...), nil, progress); errorValue != nil {
+		return fmt.Errorf("the company's services could not be stopped on this standby box: %w", errorValue)
 	}
 	return nil
 }

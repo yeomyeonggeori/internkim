@@ -32,7 +32,7 @@
 
 	async function refresh() {
 		try {
-			status = await fetchAdminPasswordStatus();
+			status = await fetchAdminPasswordStatus(box);
 			if (status.hasAdminAccount && !hasEverBeenSet) isFormOpen = true;
 		} catch (error) {
 			errorMessage = error instanceof Error ? error.message : text.boxFailed;

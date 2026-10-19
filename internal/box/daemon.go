@@ -18,10 +18,15 @@ const (
 	announceInterval      = 30 * time.Second
 	sessionRenewalMargin  = 10 * time.Minute
 	shortestSessionWait   = time.Minute
+	companyCheckInterval  = 5 * time.Minute
 	companyMarkerFileName = "company"
 )
 
-var ErrConnectedByFile = errors.New("this computer was connected to its company with a connection file")
+var (
+	ErrConnectedByFile   = errors.New("this computer was connected to its company with a connection file")
+	ErrNothingToTakeOver = errors.New("the company keeps no backup this box can open")
+	ErrTakeOverUnderway  = errors.New("this box is restoring the company's newest backup")
+)
 
 type Places struct {
 	StateDirectoryPath        string
@@ -37,6 +42,8 @@ type Daemon struct {
 	Client            Client
 	Places            Places
 	Install           func(companyhost.Request) error
+	TakeOver          func(ctx context.Context, session Session, keyring Keyring) error
+	StandDown         func() error
 	NameHost          func(ctx context.Context, companySlug string) error
 	GetOnline         func(ctx context.Context, boxPublicKey string) error
 	ChangeWifi        func(ctx context.Context, ssid, password string) error
@@ -126,26 +133,94 @@ func (daemon Daemon) step(ctx context.Context, identity Identity, page *pairingP
 	if errorValue := forgetPairingCode(daemon.Places.StateDirectoryPath); errorValue != nil {
 		return 0, true, errorValue
 	}
-	wait, errorValue := daemon.serveClaimed(session, identity)
+	wait, errorValue := daemon.serveClaimed(ctx, session, identity)
 	return wait, true, errorValue
 }
 
-func (daemon Daemon) serveClaimed(session Session, identity Identity) (time.Duration, error) {
+func (daemon Daemon) serveClaimed(ctx context.Context, session Session, identity Identity) (time.Duration, error) {
+	keyring, errorValue := daemon.keyringFor(identity, session)
+	if errorValue != nil {
+		return 0, errorValue
+	}
+	daemon.handOnCompanyKey(ctx, keyring, session)
+	if !keyring.HoldsCompanyKey(session.SealingKey) {
+		log.Printf("%s connected this box; it waits for another of the company's boxes to hand it the company key", session.Configuration.Company.Name)
+		return announceInterval, nil
+	}
+	if session.Role == RoleStandby {
+		return daemon.standBy(session)
+	}
 	if daemon.installedCompany() == session.Configuration.Company.ID {
-		return daemon.untilRenewal(session.Session), daemon.renew(session, identity)
+		return daemon.untilNextCheck(session.Session), daemon.renew(session, keyring)
 	}
 	if session.SealedModelKey == nil {
 		log.Printf("%s connected this box and has not given it a model key yet", session.Configuration.Company.Name)
 		return announceInterval, nil
 	}
-	modelKey, errorValue := identity.OpenModelKey(*session.SealedModelKey, session.Configuration.Company.ID)
+	modelKey, errorValue := keyring.OpenModelKey(*session.SealedModelKey, session.Configuration.Company.ID)
 	if errorValue != nil {
 		return 0, errorValue
+	}
+	if isTakingOver, errorValue := daemon.takeOver(ctx, session, keyring); errorValue != nil || isTakingOver {
+		return announceInterval, errorValue
 	}
 	if errorValue := daemon.installFor(session, modelKey); errorValue != nil {
 		return 0, errorValue
 	}
-	return daemon.untilRenewal(session.Session), nil
+	return daemon.untilNextCheck(session.Session), nil
+}
+
+func (daemon Daemon) takeOver(ctx context.Context, session Session, keyring Keyring) (bool, error) {
+	if daemon.TakeOver == nil {
+		return false, nil
+	}
+	errorValue := daemon.TakeOver(ctx, session, keyring)
+	switch {
+	case errors.Is(errorValue, ErrNothingToTakeOver):
+		log.Printf("%s keeps no backup this box can open, so it starts the company fresh", session.Configuration.Company.Name)
+		return false, nil
+	case errors.Is(errorValue, ErrTakeOverUnderway):
+		log.Printf("this box is taking %s over from its newest backup", session.Configuration.Company.Name)
+		return true, nil
+	case errorValue != nil:
+		return true, fmt.Errorf("taking %s over: %w", session.Configuration.Company.Name, errorValue)
+	}
+	return false, nil
+}
+
+func (daemon Daemon) keyringFor(identity Identity, session Session) (Keyring, error) {
+	return KeyringFor(identity, daemon.Places.StateDirectoryPath, session.Configuration.Company.ID, session.SealingKey, session.SealedCompanyKey)
+}
+
+func (daemon Daemon) handOnCompanyKey(ctx context.Context, keyring Keyring, session Session) {
+	if len(session.BoxesAwaitingCompanyKey) == 0 || !keyring.HoldsCompanyKey(session.SealingKey) {
+		return
+	}
+	sealed, errorValue := keyring.SealCompanyKeyFor(session.Configuration.Company.ID, session.BoxesAwaitingCompanyKey)
+	if errorValue == nil {
+		errorValue = daemon.Client.HandOnCompanyKey(ctx, keyring.Identity, sealed)
+	}
+	if errorValue != nil {
+		log.Printf("handing the company key to %d waiting boxes: %v; trying again at the next check", len(session.BoxesAwaitingCompanyKey), errorValue)
+		return
+	}
+	log.Printf("handed the company key to %d of %s's boxes", len(sealed), session.Configuration.Company.Name)
+}
+
+func (daemon Daemon) standBy(session Session) (time.Duration, error) {
+	if daemon.installedCompany() != session.Configuration.Company.ID {
+		return daemon.untilNextCheck(session.Session), nil
+	}
+	log.Printf("another box serves %s now, so this one stops its services and stands by", session.Configuration.Company.Name)
+	if daemon.StandDown != nil {
+		if errorValue := daemon.StandDown(); errorValue != nil {
+			return 0, fmt.Errorf("standing down for %s: %w", session.Configuration.Company.Name, errorValue)
+		}
+	}
+	if errorValue := ForgetInstalledCompany(daemon.Places.StateDirectoryPath); errorValue != nil {
+		return 0, errorValue
+	}
+	return daemon.untilNextCheck(session.Session), nil
 }
 
 func (daemon Daemon) announce(ctx context.Context, identity Identity, page LocalPage) error {
@@ -173,7 +248,7 @@ func (daemon Daemon) announce(ctx context.Context, identity Identity, page Local
 	return showPairingCode(daemon.Places.StateDirectoryPath, *announcement.PairingCode)
 }
 
-func (daemon Daemon) renew(session Session, identity Identity) error {
+func (daemon Daemon) renew(session Session, keyring Keyring) error {
 	for _, path := range daemon.Places.CredentialPaths {
 		if errorValue := replaceKeepingOwner(path, session.Session.AccessToken+"\n"); errorValue != nil {
 			return fmt.Errorf("keeping the renewed session at %s: %w", path, errorValue)
@@ -182,7 +257,7 @@ func (daemon Daemon) renew(session Session, identity Identity) error {
 	if session.SealedModelKey == nil {
 		return nil
 	}
-	modelKey, errorValue := identity.OpenModelKey(*session.SealedModelKey, session.Configuration.Company.ID)
+	modelKey, errorValue := keyring.OpenModelKey(*session.SealedModelKey, session.Configuration.Company.ID)
 	if errorValue != nil {
 		return errorValue
 	}
@@ -218,7 +293,19 @@ func (daemon Daemon) installFor(session Session, modelKey string) error {
 	}); errorValue != nil {
 		return fmt.Errorf("installing the server for %s: %w", connection.Company.Name, errorValue)
 	}
-	return writeFileAtomically(daemon.companyMarkerPath(), []byte(connection.Company.ID+"\n"), 0o600)
+	return MarkInstalledCompany(daemon.Places.StateDirectoryPath, connection.Company.ID)
+}
+
+func MarkInstalledCompany(stateDirectoryPath, companyID string) error {
+	return writeFileAtomically(filepath.Join(stateDirectoryPath, companyMarkerFileName), []byte(companyID+"\n"), 0o600)
+}
+
+func ForgetInstalledCompany(stateDirectoryPath string) error {
+	errorValue := os.Remove(filepath.Join(stateDirectoryPath, companyMarkerFileName))
+	if errors.Is(errorValue, os.ErrNotExist) {
+		return nil
+	}
+	return errorValue
 }
 
 func connectionOf(session Session) companyhost.Connection {
@@ -232,9 +319,9 @@ func connectionOf(session Session) companyhost.Connection {
 	}
 }
 
-func (daemon Daemon) untilRenewal(session HostSession) time.Duration {
-	wait := time.Unix(session.ExpiresAt, 0).Sub(daemon.now()) - sessionRenewalMargin
-	return max(wait, shortestSessionWait)
+func (daemon Daemon) untilNextCheck(session HostSession) time.Duration {
+	untilRenewal := time.Unix(session.ExpiresAt, 0).Sub(daemon.now()) - sessionRenewalMargin
+	return min(max(untilRenewal, shortestSessionWait), companyCheckInterval)
 }
 
 func (daemon Daemon) nameHost(ctx context.Context, companySlug string) {
@@ -265,10 +352,6 @@ func (daemon Daemon) connectedByFile() bool {
 
 func (daemon Daemon) installedCompany() string {
 	return installedCompanyIn(daemon.Places.StateDirectoryPath)
-}
-
-func (daemon Daemon) companyMarkerPath() string {
-	return filepath.Join(daemon.Places.StateDirectoryPath, companyMarkerFileName)
 }
 
 func (daemon Daemon) now() time.Time {

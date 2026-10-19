@@ -27,10 +27,21 @@ type HostSession struct {
 	ExpiresAt   int64  `json:"expiresAt"`
 }
 
+type Role string
+
+const (
+	RoleService Role = "service"
+	RoleStandby Role = "standby"
+)
+
 type Session struct {
-	Configuration  Configuration   `json:"configuration"`
-	Session        HostSession     `json:"session"`
-	SealedModelKey *SealedModelKey `json:"sealedModelKey"`
+	Configuration           Configuration   `json:"configuration"`
+	Session                 HostSession     `json:"session"`
+	Role                    Role            `json:"role"`
+	SealingKey              string          `json:"sealingKey"`
+	SealedCompanyKey        *SealedSecret   `json:"sealedCompanyKey"`
+	SealedModelKey          *SealedModelKey `json:"sealedModelKey"`
+	BoxesAwaitingCompanyKey []AwaitingBox   `json:"boxesAwaitingCompanyKey"`
 }
 
 type Client struct {
@@ -127,6 +138,22 @@ func (client Client) Session(ctx context.Context, identity Identity) (Session, b
 		return Session{}, false, fmt.Errorf("asking for this box's session: %w", errorValue)
 	}
 	return session, true, nil
+}
+
+func (client Client) HandOnCompanyKey(ctx context.Context, identity Identity, sealed []SealedCompanyKey) error {
+	body, errorValue := json.Marshal(map[string][]SealedCompanyKey{"sealedKeys": sealed})
+	if errorValue != nil {
+		return errorValue
+	}
+	response, errorValue := client.post(ctx, identity, "/api/box/company-key", body)
+	if errorValue != nil {
+		return errorValue
+	}
+	defer response.Body.Close()
+	if response.StatusCode != http.StatusOK {
+		return refusalOf(response, "handing on the company key")
+	}
+	return nil
 }
 
 func (client Client) post(ctx context.Context, identity Identity, path string, body []byte) (*http.Response, error) {
