@@ -15,6 +15,7 @@ export const capabilityNamespaceSummaries = {
   mail: "The requester's email: connect an account, then read, search, file, and send.",
   message: 'Messages in the company messenger: read a conversation, search, send, edit, delete, react, and hide a direct conversation.',
   notification: 'What the requester is told about, and which conversations are muted.',
+  persona: "Who the agent is to the whole company, and how it works with the requester: what it calls them, their language and tone, and their morning briefing.",
   person: 'The company directory: who works here, what it holds about them, and inviting someone new.',
   schedule: 'Reminders and recurring work done later, once or on a repeat.',
   task: "The team's work items: add, find, update, and who takes part.",

@@ -24,7 +24,7 @@ import tool_name_sources as sources
 TOOLS_BEING_MOVED: dict[str, str] = {}
 
 MINIMUM_MODEL_VISIBLE_TOOLS = 60
-MINIMUM_LOCAL_TOOLS = 8
+MINIMUM_LOCAL_TOOLS = 6
 MINIMUM_KERNEL_TOOLS = 10
 
 

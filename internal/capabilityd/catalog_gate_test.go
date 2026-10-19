@@ -1152,6 +1152,51 @@ func gateCases() map[string]catalogGateCase {
 				expectResultHolds(t, answered, `"document":"{\"taskEvents\"`)
 			},
 		},
+		"persona_identity_get": {
+			kind: provesBehaviour,
+			reaches: map[gateBackend]*standingIn{
+				admindOverTheSocket: answering(`{"schemaVersion":1,"names":["김인턴","Intern Kim"],"handle":"internkim"}`),
+			},
+			input: `{}`,
+			expect: func(t *testing.T, answered capabilities.ToolInvokeResponse) {
+				expectSucceeded(t, answered)
+				expectResultHolds(t, answered, `"handle":"internkim"`)
+			},
+		},
+		"persona_identity_update": {
+			kind: provesBehaviour,
+			reaches: map[gateBackend]*standingIn{
+				admindOverTheSocket: echoingWritesOver(`{"schemaVersion":1,"names":["김인턴"],"handle":"internkim"}`),
+			},
+			input: `{"names":["이샘플"]}`,
+			expect: func(t *testing.T, answered capabilities.ToolInvokeResponse) {
+				expectSucceeded(t, answered)
+				expectResultHolds(t, answered, `"handle":"internkim"`)
+				expectResultHolds(t, answered, `"names":["이샘플"]`)
+			},
+		},
+		"persona_profile_get": {
+			kind: provesBehaviour,
+			reaches: map[gateBackend]*standingIn{
+				admindOverTheSocket: answering(`{"schemaVersion":1,"callMe":"샘플 님","morningBriefing":{"enabled":true,"time":"08:00"}}`),
+			},
+			input: `{}`,
+			expect: func(t *testing.T, answered capabilities.ToolInvokeResponse) {
+				expectSucceeded(t, answered)
+				expectResultHolds(t, answered, `"enabled":true`)
+			},
+		},
+		"persona_profile_update": {
+			kind: provesBehaviour,
+			reaches: map[gateBackend]*standingIn{
+				admindOverTheSocket: echoingWritesOver(`{"schemaVersion":1,"callMe":"샘플 님","morningBriefing":{"enabled":true,"time":"08:00"}}`),
+			},
+			input: `{"morningBriefing":{"enabled":false}}`,
+			expect: func(t *testing.T, answered capabilities.ToolInvokeResponse) {
+				expectSucceeded(t, answered)
+				expectResultHolds(t, answered, `"morningBriefing":{"enabled":false,"time":"08:00"}`)
+			},
+		},
 		"host_update": {
 			kind: provesBehaviour,
 			reaches: map[gateBackend]*standingIn{
