@@ -1,5 +1,5 @@
 import { assetBucket } from '../asset-address';
-import { comparePeriodsNewestFirst } from '$lib/period';
+import { compareMomentsNewestFirst } from '$lib/moment';
 import { dataRoomFolder, derivedPath, originalPath } from '$lib/data-room/storage-path';
 import { titleNearness } from './hint-nearness';
 import { HintRefused, normalized, resolveHint, type HintMatcher } from './hint-resolution';
@@ -419,7 +419,7 @@ async function recordRows(context: RecordContext): Promise<RecordRow[]> {
 		.order('updated_at', { ascending: false })
 		.returns<RecordRow[]>();
 	if (error) throw new Error(error.message);
-	return (data ?? []).toSorted((left, right) => comparePeriodsNewestFirst(left.record_date, right.record_date));
+	return (data ?? []).toSorted((left, right) => compareMomentsNewestFirst(left.record_date, right.record_date));
 }
 
 export async function companyRecordOfHint(
