@@ -1,4 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
+import type { Environment } from '$lib/server/agent-request';
 import { localeOf, type Locale } from '$lib/i18n/locale';
 import { labelsOfVocabulary, type CompanyLabels } from './labels';
 import { leaveKindsOfPolicy, leaveYearStartOfPolicy, type LeaveYearStart, type LeaveKind } from './leave';
@@ -17,6 +18,11 @@ export type RecordContext = {
 	locale: Locale;
 	now: Date;
 	decideTaskLabels: TaskLabelDecider;
+};
+
+export type ToolPlace = {
+	environment: Environment;
+	appAddress: string;
 };
 
 type CompanyRow = {

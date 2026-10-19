@@ -6,6 +6,7 @@ import { callCompany } from '$lib/server/public-api/company-call';
 import { answererOfTool, objectTypesWrittenBy, permissionForTool, toolReachableBy } from '$lib/server/public-api/catalog';
 import type { ToolDescriptor } from '$lib/server/public-api/catalog';
 import { recordRunsTheTool, runToolOverTheRecord } from '$lib/server/public-api/record';
+import type { ToolPlace } from '$lib/server/public-api/record/company';
 import { taskLabelGetToolName } from '$lib/server/public-api/catalog/labels';
 import { decidedTaskLabelsOf, type TaskLabelDecider } from '$lib/server/public-api/record/task-labels';
 import { refusalOfToolInput, toolInputRecovered } from '$lib/server/public-api/tool-input';
@@ -54,12 +55,13 @@ export function refusalOfALocalTool(name: string): ToolCallAnswer | null {
 }
 
 export async function toolCalledByMember(
-	environment: Environment,
+	place: ToolPlace,
 	member: CallingMember,
 	name: string,
 	payload: Record<string, unknown>,
 	query = ''
 ): Promise<ToolCallAnswer> {
+	const { environment } = place;
 	const local = refusalOfALocalTool(name);
 	if (local) return local;
 
@@ -84,7 +86,8 @@ export async function toolCalledByMember(
 		name,
 		input,
 		new Date(),
-		taskLabelsDecidedByTheCompany(environment, member)
+		taskLabelsDecidedByTheCompany(environment, member),
+		place
 	);
 	if (answered.status < 300) await tellTheCompanyWhatItMirrorsChanged(environment, member, name);
 	return {
@@ -94,13 +97,13 @@ export async function toolCalledByMember(
 }
 
 export async function toolAnswerOrRefusal(
-	environment: Environment,
+	place: ToolPlace,
 	member: CallingMember,
 	name: string,
 	payload: Record<string, unknown>
 ): Promise<ToolCallAnswer> {
 	try {
-		return await toolCalledByMember(environment, member, name, payload);
+		return await toolCalledByMember(place, member, name, payload);
 	} catch (refusal) {
 		if (isHttpError(refusal)) return { status: refusal.status, body: refusal.body };
 		throw refusal;
