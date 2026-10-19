@@ -470,9 +470,19 @@ async function keptManifestOf(client: SupabaseClient, path: string): Promise<Kep
 	return parsed.success ? parsed.data : null;
 }
 
-export async function makeBoxServe(client: SupabaseClient, companyID: string, publicKey: string): Promise<boolean> {
+const servingOutcomeSchema = z.enum(['serving', 'not_its_box', 'no_backup']);
+
+export type ServingOutcome = z.infer<typeof servingOutcomeSchema>;
+
+export async function makeBoxServe(client: SupabaseClient, companyID: string, publicKey: string): Promise<ServingOutcome> {
 	const { data, error } = await client.rpc('make_box_serve', { serving_company: companyID, box_key: publicKey });
 	if (error) throw new Error(`making box ${publicKey} serve ${companyID}: ${error.message}`);
+	return servingOutcomeSchema.parse(data);
+}
+
+async function companyKeepsABackup(client: SupabaseClient, companyID: string): Promise<boolean> {
+	const { data, error } = await client.rpc('company_keeps_a_backup', { kept_company: companyID });
+	if (error) throw new Error(`kept backups of ${companyID}: ${error.message}`);
 	return data === true;
 }
 
@@ -548,6 +558,7 @@ export type BoxSession = {
 	sealedCompanyKey: SealedSecret | null;
 	sealedModelKey: HeldModelKey | null;
 	boxesAwaitingCompanyKey: AwaitingBox[];
+	keepsBackups: boolean;
 };
 
 export async function boxSessionFor(
@@ -571,7 +582,8 @@ export async function boxSessionFor(
 		sealingKey: keyring.sealingKey,
 		sealedCompanyKey: box.sealedCompanyKey,
 		sealedModelKey: holdsKey ? keyring.sealedModelKey : null,
-		boxesAwaitingCompanyKey: holdsKey ? await boxesAwaitingCompanyKey(client, box.companyID) : []
+		boxesAwaitingCompanyKey: holdsKey ? await boxesAwaitingCompanyKey(client, box.companyID) : [],
+		keepsBackups: await companyKeepsABackup(client, box.companyID)
 	};
 }
 

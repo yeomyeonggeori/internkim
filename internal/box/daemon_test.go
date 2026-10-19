@@ -32,6 +32,7 @@ type fakePlane struct {
 	awaiting         []AwaitingBox
 	handedOn         [][]SealedCompanyKey
 	ownKey           func() string
+	keepsBackups     bool
 }
 
 func (plane *fakePlane) sessionRole() Role {
@@ -94,6 +95,7 @@ func (plane *fakePlane) serve(t *testing.T) *httptest.Server {
 				SealedCompanyKey:        plane.sealedCompanyKey,
 				SealedModelKey:          plane.sealedModelKey,
 				BoxesAwaitingCompanyKey: plane.awaiting,
+				KeepsBackups:            plane.keepsBackups,
 			})
 		case "/api/box/company-key":
 			var body struct {

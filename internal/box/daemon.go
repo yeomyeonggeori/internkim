@@ -176,8 +176,10 @@ func (daemon Daemon) takeOver(ctx context.Context, session Session, keyring Keyr
 	}
 	errorValue := daemon.TakeOver(ctx, session, keyring)
 	switch {
+	case errors.Is(errorValue, ErrNothingToTakeOver) && session.KeepsBackups:
+		return true, fmt.Errorf("%s keeps backups and none is sealed to a key this box holds, so this box does not start the company fresh", session.Configuration.Company.Name)
 	case errors.Is(errorValue, ErrNothingToTakeOver):
-		log.Printf("%s keeps no backup this box can open, so it starts the company fresh", session.Configuration.Company.Name)
+		log.Printf("%s keeps no backup yet, so this box starts the company fresh", session.Configuration.Company.Name)
 		return false, nil
 	case errors.Is(errorValue, ErrTakeOverUnderway):
 		log.Printf("this box is taking %s over from its newest backup", session.Configuration.Company.Name)

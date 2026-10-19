@@ -191,14 +191,16 @@
 			<Item.Root variant="outline">
 				<Item.Content>
 					<Item.Title>{text.makeServeTitle.replace('{box}', box.hostName ?? shortBoxName(box.publicKey))}</Item.Title>
-					<Item.Description>
-						{boxes.newestBackupAt ? text.makeServeFromBackup.replace('{when}', backupMoment(boxes.newestBackupAt)) : text.makeServeFresh}
-					</Item.Description>
-					<Item.Description>{text.makeServeOld}</Item.Description>
+					{#if boxes.newestBackupAt}
+						<Item.Description>{text.makeServeFromBackup.replace('{when}', backupMoment(boxes.newestBackupAt))}</Item.Description>
+						<Item.Description>{text.makeServeOld}</Item.Description>
+					{:else}
+						<Item.Description>{text.makeServeNeedsBackup}</Item.Description>
+					{/if}
 				</Item.Content>
 				<Item.Actions>
 					<Button variant="outline" onclick={() => (takingOver = null)} disabled={connectingKey !== ''}>{text.cancel}</Button>
-					<Button onclick={() => serveFrom(box)} disabled={connectingKey !== ''}>
+					<Button onclick={() => serveFrom(box)} disabled={connectingKey !== '' || !boxes.newestBackupAt}>
 						{connectingKey === box.publicKey ? text.makingServe : text.makeServe}
 					</Button>
 				</Item.Actions>

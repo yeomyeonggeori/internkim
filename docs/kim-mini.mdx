@@ -169,9 +169,10 @@ When the service box's building loses power or its line, an administrator choose
 Make this box serve on a standby box. The serving box, if it is still up, stops
 its services and stands by. The new service box fetches the newest backup,
 restores it while keeping its own identity, and starts the company from it. What
-the old box held after that backup stays on the old box. With no backup to open,
-the new box starts the company empty, and the setup page says so before the
-administrator confirms. A take-over that fails is not retried until
+the old box held after that backup stays on the old box. While the company keeps
+no backup, the switch is refused, since the new box would have nothing to start
+from, and a box that cannot open the backups the company keeps stops with an
+error instead of starting the company empty. A take-over that fails is not retried until
 `systemctl reset-failed internkim-take-over` says to.
 
 Put the boxes where the power and the internet line are different. Two places

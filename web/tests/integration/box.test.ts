@@ -471,11 +471,23 @@ describe('connecting an empty box', () => {
 		await claimWithCode(switching.companyID, first.publicKey, await announcedCode(first));
 		await claimWithCode(switching.companyID, second.publicKey, await announcedCode(second), 'add');
 
-		expect(await makeBoxServe(client, switching.companyID, stranger.publicKey)).toBe(false);
-		expect(await makeBoxServe(client, switching.companyID, second.publicKey)).toBe(true);
+		expect(await makeBoxServe(client, switching.companyID, stranger.publicKey)).toBe('not_its_box');
+		expect(await makeBoxServe(client, switching.companyID, second.publicKey)).toBe('no_backup');
+		expect(await boxSessionFor(credentials, second.publicKey, environment, appURL)).toMatchObject({
+			role: 'standby',
+			keepsBackups: false
+		});
 
-		expect((await boxSessionFor(credentials, second.publicKey, environment, appURL))?.role).toBe('service');
+		const keptManifest = `${switching.companyID}/kept/manifest.json`;
+		await client.storage.from('box_backup').upload(keptManifest, new Blob(['{}'], { type: 'application/json' }));
+		expect(await makeBoxServe(client, switching.companyID, second.publicKey)).toBe('serving');
+
+		expect(await boxSessionFor(credentials, second.publicKey, environment, appURL)).toMatchObject({
+			role: 'service',
+			keepsBackups: true
+		});
 		expect((await boxSessionFor(credentials, first.publicKey, environment, appURL))?.role).toBe('standby');
+		await client.storage.from('box_backup').remove([keptManifest]);
 	});
 
 	test('the newest backup the boxes share is the newest whole one sealed to the company key', async () => {

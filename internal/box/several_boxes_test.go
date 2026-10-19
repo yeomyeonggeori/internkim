@@ -167,6 +167,20 @@ func TestABoxWithNoBackupToTakeOverFromStartsTheCompanyFresh(t *testing.T) {
 	}
 }
 
+func TestABoxThatCannotOpenTheBackupsTheCompanyKeepsNeverStartsItFresh(t *testing.T) {
+	plane := &fakePlane{isClaimed: true, accessToken: "promoted.session.token", keepsBackups: true}
+	recorded := &installs{}
+	daemon, places := daemonFor(t, plane, recorded)
+	plane.sealedModelKey = sealTo(t, identityOf(t, places), "sk-or-v1-sample")
+	daemon.TakeOver = func(context.Context, Session, Keyring) error { return ErrNothingToTakeOver }
+
+	runSteps(t, daemon, 2)
+
+	if len(recorded.requests) != 0 {
+		t.Fatal("a box that could not open the company's backups started the company empty")
+	}
+}
+
 func TestATakeOverThatFailedIsNotStartedAgainBehindTheAdministratorsBack(t *testing.T) {
 	plane := &fakePlane{isClaimed: true, accessToken: "promoted.session.token"}
 	recorded := &installs{}

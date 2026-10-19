@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(24);
+select plan(26);
 
 delete from public.company;
 
@@ -82,8 +82,22 @@ select public.keep_claimed_box('7e000000-0000-0000-0000-0000000000c1', 'box-five
 
 select is(
   public.make_box_serve('7e000000-0000-0000-0000-0000000000c1', 'box-five'),
-  true,
-  'a standby box is made the service box'
+  'no_backup',
+  'a standby box is not made the service box while the company keeps no backup for it to take over from'
+);
+select is(
+  (select role from public.box where public_key = 'box-four'),
+  'service',
+  'so the box that serves keeps serving'
+);
+
+insert into storage.objects (bucket_id, name)
+values ('box_backup', '7e000000-0000-0000-0000-0000000000c1/kept/manifest.json');
+
+select is(
+  public.make_box_serve('7e000000-0000-0000-0000-0000000000c1', 'box-five'),
+  'serving',
+  'once a backup is kept, a standby box is made the service box'
 );
 select is(
   (select string_agg(public_key || '=' || role, ',' order by public_key) from public.box
@@ -93,7 +107,7 @@ select is(
 );
 select is(
   public.make_box_serve('7e000000-0000-0000-0000-0000000000c1', 'box-three'),
-  false,
+  'not_its_box',
   'another company''s box is never made this company''s service box'
 );
 select public.make_box_serve('7e000000-0000-0000-0000-0000000000c1', 'box-four');

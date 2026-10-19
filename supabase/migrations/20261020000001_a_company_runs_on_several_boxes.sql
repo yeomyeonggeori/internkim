@@ -271,8 +271,28 @@ create policy box_backup_kept_by_the_company_boxes on storage.objects
     and public.asset_company(name) = public.my_app_company()
   );
 
-create function public.make_box_serve(serving_company uuid, box_key text)
+create function public.company_keeps_a_backup(kept_company uuid)
 returns boolean
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select exists (
+    select 1 from storage.objects
+    where bucket_id = 'box_backup'
+      and name like kept_company::text || '/%/manifest.json'
+  );
+$$;
+
+revoke all on function public.company_keeps_a_backup(uuid) from public, anon, authenticated;
+grant execute on function public.company_keeps_a_backup(uuid) to service_role;
+
+comment on function public.company_keeps_a_backup(uuid) is
+  'whether a box of the company has kept an off-site backup of it. A company that keeps one is never started fresh on another box: it is taken over from a backup or not at all';
+
+create function public.make_box_serve(serving_company uuid, box_key text)
+returns text
 language plpgsql
 security definer
 set search_path = ''
@@ -282,13 +302,18 @@ begin
   if not exists (
     select 1 from public.box where company_id = serving_company and public_key = box_key
   ) then
-    return false;
+    return 'not_its_box';
+  end if;
+  if exists (
+    select 1 from public.box where company_id = serving_company and role = 'service' and public_key <> box_key
+  ) and not public.company_keeps_a_backup(serving_company) then
+    return 'no_backup';
   end if;
   update public.box set role = 'standby'
     where company_id = serving_company and role = 'service' and public_key <> box_key;
   update public.box set role = 'service'
     where company_id = serving_company and public_key = box_key;
-  return true;
+  return 'serving';
 end
 $$;
 
@@ -296,4 +321,4 @@ revoke all on function public.make_box_serve(uuid, text) from public, anon, auth
 grant execute on function public.make_box_serve(uuid, text) to service_role;
 
 comment on function public.make_box_serve(uuid, text) is
-  'makes one of the company''s boxes its service box, and the box that served until now a standby, in one transaction; false when the box is not the company''s';
+  'makes one of the company''s boxes its service box, and the box that served until now a standby, in one transaction. Answers serving, not_its_box when the box is not the company''s, or no_backup when another box serves and the company keeps no backup the new one could take over from';

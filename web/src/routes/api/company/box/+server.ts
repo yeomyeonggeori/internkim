@@ -48,8 +48,10 @@ export const PATCH: RequestHandler = async ({ request, platform }) => {
 	const member = await callingHostAdministrator(request, environmentOfPlatform(platform?.env));
 	const serve = boxServeSchema.safeParse(await request.json().catch(() => null));
 	if (!serve.success) error(400, 'name the box that serves the company by its public key');
-	if (!(await makeBoxServe(member.record, member.companyID, serve.data.publicKey))) {
-		error(404, 'this company has no such box connected');
+	const outcome = await makeBoxServe(member.record, member.companyID, serve.data.publicKey);
+	if (outcome === 'not_its_box') error(404, 'this company has no such box connected');
+	if (outcome === 'no_backup') {
+		error(409, 'the company keeps no backup yet for this box to take over from; the box that serves keeps one each day');
 	}
 	return json(await companyBoxesOf(member.record, member.companyID), { headers: privateHeaders });
 };
