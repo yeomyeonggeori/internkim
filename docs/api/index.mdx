@@ -128,7 +128,11 @@ Connecting the company computer is not open to a client.
 `POST /api/company/host-setup`, which answers the connection file, and the
 routes that claim a box, invite or remove members, and choose a connected app's
 rung refuse both an app's token and an `ik_` token: only the person's own
-session reaches them. What the connection file is for is in the [Quickstart](/docs/quickstart),
+session reaches them. The tools for the same acts are held to the token's rung
+instead. `person_invite` takes a write token. `person_withdraw`,
+`person_password_reset` and `person_message_delete` are destructive, so they
+take an `ik_` token with the delete rung, which no app's token reaches. What the
+connection file is for is in the [Quickstart](/docs/quickstart),
 and the install runs on that computer, so nothing here performs it.
 
 Until the account belongs to a company, every tool call answers `403` naming
