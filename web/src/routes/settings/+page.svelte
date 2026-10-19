@@ -1,7 +1,6 @@
 <script lang="ts">
 	import CompanyBaseCurrency from './company-base-currency.svelte';
 	import CompanyProfileImage from './company-profile-image.svelte';
-	import CompanyConnections from './company-connections.svelte';
 	import CompanyHost from './company-host.svelte';
 	import SignInPasskeys from './sign-in-passkeys.svelte';
 	import SignInPassword from './sign-in-password.svelte';
@@ -112,11 +111,6 @@
 	{#if isSupabaseConfigured()}<Circles /><CompanyFields />{/if}
 	<AttendanceWorkSettingsSection adminBaseURL="" text={attendanceSettingsText} />
 	<AttendanceLeavePolicySettings adminBaseURL="" text={attendanceSettingsText} />
-	<header class="grid gap-1 pt-2">
-		<h2 class="text-xl font-semibold">{text.connections}</h2>
-		<p class="text-sm text-muted-foreground">{text.connectionsDescription}</p>
-	</header>
-	<CompanyConnections />
 	<header class="grid gap-1 pt-2">
 		<h2 class="text-xl font-semibold">{text.agent}</h2>
 		<p class="text-sm text-muted-foreground">{text.agentDescription}</p>

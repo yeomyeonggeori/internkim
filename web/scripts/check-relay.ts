@@ -2,7 +2,6 @@
 
 import { createClient } from '@supabase/supabase-js';
 import { addMember, issueAgentKey, provisionCompany } from '../src/lib/server/control-plane';
-import { saveCompanyConnection } from '../src/lib/server/company-credential';
 import { aBrowserThatSubscribed } from '../tests/support/read-as-the-browser-would';
 
 function argument(name: string): string | undefined {
@@ -120,11 +119,6 @@ try {
 	const secondMemberID = await addMember(admin, company.companyID, `second-${stamp}@example.test`);
 	await signUp(`first-${stamp}@example.test`, company.adminMemberID);
 	await signUp(`second-${stamp}@example.test`, secondMemberID);
-	await saveCompanyConnection(admin, company.companyID, {
-		kind: 'mattermost',
-		host: messenger.url,
-		settings: {}
-	});
 	const agent = await issueAgentKey(admin, company.companyID, `relay-check-${stamp}`);
 
 	const relayEnvironment = {
