@@ -60,14 +60,16 @@ export const dataRoomCompanySchema = z.object({
 	})),
 	records: z.array(recordSchema),
 	activity: companyActivitySchema.optional(),
-	ownership: ownershipSchema.optional()
+	ownership: ownershipSchema.optional(),
+	logo: z.string().optional()
 });
 
 export const storedCompanySchema = dataRoomCompanySchema.extend({
 	records: z.array(recordSchema.omit({ committed: true }).extend({
 		committedMinor: z.object({ amountMinor: z.number(), currency: z.string() }).optional()
 	})),
-	activity: storedActivitySchema.optional()
+	activity: storedActivitySchema.optional(),
+	logoPath: z.string().optional()
 });
 
 export type DataRoomCompany = z.infer<typeof dataRoomCompanySchema>;
@@ -79,6 +81,8 @@ export type CompanyOwnership = NonNullable<DataRoomCompany['ownership']>;
 export type HolderKind = (typeof holderKinds)[number];
 export type CompanyMetricSeries = { metric: string; latest: CompanyMetric; points: CompanyMetric[] };
 export type CompanyFact = { field: string; value: string };
+export type CompanyFactGroupName = 'company' | 'entity' | 'registration';
+export type CompanyFactGroup = { group: CompanyFactGroupName; facts: CompanyFact[] };
 export type MetricChange = { kind: 'percent'; percent: number } | { kind: 'turnedPositive' } | { kind: 'turnedNegative' };
 export type PeriodKind = 'year' | 'quarter' | 'month';
 export type RecordGroup = { category: string; records: CompanyRecord[] };
@@ -98,22 +102,36 @@ export function localized(text: Record<string, string> | undefined, locale: stri
 	return text[locale] || text.en || Object.values(text).find(Boolean) || '';
 }
 
-export function companyFacts(profile: CompanyProfile, locale: string): CompanyFact[] {
+export function companyFactGroups(profile: CompanyProfile, locale: string): CompanyFactGroup[] {
 	const representative = [localized(profile.representativeTitle, locale), localized(profile.representative, locale)]
 		.filter(Boolean).join(' ');
-	const facts: CompanyFact[] = [
-		{ field: 'foundedDate', value: profile.foundedDate ?? '' },
-		{ field: 'representative', value: representative },
-		{ field: 'capital', value: profile.capital ? formatMoney(profile.capital, locale) : '' },
-		{ field: 'jurisdiction', value: localized(profile.jurisdiction, locale) },
-		{ field: 'fiscalYearEnd', value: fiscalYearEndLabel(profile.fiscalYearEnd, locale) },
-		{ field: 'address', value: localized(profile.address, locale) },
-		{ field: 'officeAddress', value: localized(profile.officeAddress, locale) },
-		{ field: 'phone', value: profile.phone ?? '' },
-		{ field: 'bankAccount', value: localized(profile.bankAccount, locale) },
-		...Object.entries(legalAttributesIn(profile, locale)).map(([label, value]) => ({ field: label, value }))
+	const groups: CompanyFactGroup[] = [
+		{
+			group: 'company',
+			facts: [
+				{ field: 'representative', value: representative },
+				{ field: 'foundedDate', value: profile.foundedDate ?? '' },
+				{ field: 'address', value: localized(profile.address, locale) },
+				{ field: 'officeAddress', value: localized(profile.officeAddress, locale) }
+			]
+		},
+		{
+			group: 'entity',
+			facts: [
+				{ field: 'jurisdiction', value: localized(profile.jurisdiction, locale) },
+				{ field: 'capital', value: profile.capital ? formatMoney(profile.capital, locale) : '' },
+				{ field: 'fiscalYearEnd', value: fiscalYearEndLabel(profile.fiscalYearEnd, locale) },
+				{ field: 'bankAccount', value: localized(profile.bankAccount, locale) }
+			]
+		},
+		{
+			group: 'registration',
+			facts: Object.entries(legalAttributesIn(profile, locale)).map(([label, value]) => ({ field: label, value }))
+		}
 	];
-	return facts.filter((fact) => fact.value);
+	return groups
+		.map((group) => ({ ...group, facts: group.facts.filter((fact) => fact.value) }))
+		.filter((group) => group.facts.length > 0);
 }
 
 export function fiscalYearEndLabel(fiscalYearEnd: string | undefined, locale: string): string {
@@ -276,8 +294,18 @@ export function humanizedKey(key: string): string {
 		.replace(/^\w/, (character) => character.toUpperCase());
 }
 
-export function recordAttributes(record: CompanyRecord): [string, string][] {
+export function daysUntil(date: string, today: Date): number {
+	return Math.ceil((Date.parse(`${date}T23:59:59+09:00`) - today.getTime()) / 86_400_000);
+}
+
+export function recordAttributes(record: CompanyRecord, locale: string): [string, string][] {
 	return Object.entries(record.attributes)
 		.filter(([, value]) => value !== null && value !== '')
-		.map(([key, value]) => [key, typeof value === 'string' ? value : JSON.stringify(value)]);
+		.map(([key, value]) => [key, attributeText(value, locale)]);
+}
+
+function attributeText(value: unknown, locale: string): string {
+	if (typeof value === 'string') return value;
+	const money = moneySchema.safeParse(value);
+	return money.success ? formatCompactMoney(money.data, locale) : JSON.stringify(value);
 }

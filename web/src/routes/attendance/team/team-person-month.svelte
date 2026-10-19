@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { displayPersonName } from '$lib/person-name.svelte';
 	import PersonWorkStandard from './person-work-standard.svelte';
 	import { ToolRefused } from '$lib/public-api-call';
 	import { Button } from '$lib/components/ui/button';
@@ -96,7 +97,7 @@
 {#if summary}
 	<div class:opacity-60={loading} aria-busy={loading}>
 		{#if member.memberID === summary.currentMemberID}{#key summary.month}<PersonWorkStandard {summary} />{/key}{/if}
-		<TeamStatusGrid {summary} onSelectMonth={(nextMonth) => load(nextMonth)} initialMemberName={member.name} backLabel={member.name} />
+		<TeamStatusGrid {summary} onSelectMonth={(nextMonth) => load(nextMonth)} initialMemberName={member.name} backLabel={displayPersonName(member.name)} />
 	</div>
 {:else if !error}
 	<div aria-busy="true">

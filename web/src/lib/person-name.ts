@@ -10,8 +10,17 @@ import type { Locale } from './i18n/locale';
 // somebody with Korean selected is still John Michael Smith: the reader's
 // language does not change how a Latin name is written.
 export function personName(recorded: string, locale: Locale): string {
+	return orderedName(recorded, locale, isHangul(recorded));
+}
+
+export function redactedPersonName(masked: string, locale: Locale): string {
+	const family = masked.trim().split(/\s+/).at(-1) ?? '';
+	return orderedName(masked, locale, isHangul(family));
+}
+
+function orderedName(recorded: string, locale: Locale, isKoreanName: boolean): string {
 	const parts = recorded.trim().split(/\s+/).filter(Boolean);
-	if (locale !== 'ko' || parts.length < 2 || !isHangul(recorded)) return recorded.trim();
+	if (locale !== 'ko' || parts.length < 2 || !isKoreanName) return recorded.trim();
 	const family = parts[parts.length - 1];
 	const given = parts.slice(0, -1);
 	return family + given.join('');

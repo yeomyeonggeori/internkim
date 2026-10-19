@@ -23,6 +23,7 @@
 	import { dataRoomText } from '$lib/data-room/text';
 	import { dataRoomCompanySchema, isEmptyCompany, type DataRoomCompany } from '$lib/data-room/company';
 	import { dataRoomCompanyText } from '$lib/data-room/company-text';
+	import CurrencySwitcher from '$lib/components/currency-switcher.svelte';
 	import CompanyOverview from '$lib/data-room/company-overview.svelte';
 	import { dataRoomRequest } from '$lib/data-room/guest';
 	import DocumentViewer from '$lib/data-room/document-viewer.svelte';
@@ -169,12 +170,15 @@
 <div class="flex h-full min-h-0">
 	<div class="min-w-0 flex-1 overflow-auto p-4 md:p-6">
 		{#if hasCompany}
-			<Tabs.Root bind:value={view} class="mb-4">
-				<Tabs.List>
-					<Tabs.Trigger value="company">{companyText.companyTab}</Tabs.Trigger>
-					<Tabs.Trigger value="documents">{companyText.documentsTab}</Tabs.Trigger>
-				</Tabs.List>
-			</Tabs.Root>
+			<div class="mb-4 flex max-w-5xl items-center justify-between gap-3">
+				<Tabs.Root bind:value={view}>
+					<Tabs.List>
+						<Tabs.Trigger value="company">{companyText.companyTab}</Tabs.Trigger>
+						<Tabs.Trigger value="documents">{companyText.documentsTab}</Tabs.Trigger>
+					</Tabs.List>
+				</Tabs.Root>
+				{#if view === 'company'}<CurrencySwitcher label={companyText.currency.label} asRecorded={companyText.currency.asRecorded} />{/if}
+			</div>
 		{/if}
 		{#if company && hasCompany && view === 'company'}
 			<div class="max-w-5xl"><CompanyOverview {company} folders={companyFolders} onOpenFolder={openCompanyFolder} /></div>

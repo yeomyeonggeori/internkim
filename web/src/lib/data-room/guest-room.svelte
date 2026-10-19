@@ -8,7 +8,10 @@
 	import * as Tooltip from '$lib/components/ui/tooltip';
 	import TooltipIconButton from '$lib/components/tooltip-icon-button.svelte';
 	import { fileVisual } from '$lib/files/view';
-	import { currentLocale } from '$lib/i18n/locale.svelte';
+	import CurrencySwitcher from '$lib/components/currency-switcher.svelte';
+	import { LanguageSwitcher } from '$lib/components/ui/language-switcher';
+	import { appShellText } from '$lib/i18n/app-shell-text';
+	import { currentLocale, localeOptions, setLocale } from '$lib/i18n/locale.svelte';
 	import { createPageText } from '$lib/i18n/page-text.svelte';
 	import { cn } from '$lib/utils';
 	import CompanyOverview from './company-overview.svelte';
@@ -46,6 +49,7 @@
 	} = $props();
 
 	const text = createPageText(dataRoomText);
+	const shellText = createPageText(appShellText);
 	let selectedCode = $state('');
 	let query = $state('');
 	let openID = $state<string | null>(null);
@@ -123,7 +127,7 @@
 <div class="bg-muted/40 flex min-h-dvh flex-col">
 	<header class="bg-background sticky top-0 z-10 border-b">
 		<div class="mx-auto flex w-full max-w-7xl items-center gap-3 px-4 py-3">
-			<img src="/favicon.svg" alt="" class="size-8 shrink-0" />
+			<img src={room.company.logo ?? '/favicon.svg'} alt="" class="size-8 shrink-0 object-contain" />
 			<div class="min-w-0 flex-1">
 				<h1 class="truncate text-base leading-tight font-semibold">{roomTitle}</h1>
 				{#if accessLine}<p class="text-muted-foreground mt-0.5 truncate text-xs">{accessLine}</p>{/if}
@@ -131,20 +135,32 @@
 			<TooltipIconButton label={text.refresh} variant="ghost" size="icon-sm" onclick={onRefresh}
 				><RefreshCwIcon /></TooltipIconButton
 			>
+			<LanguageSwitcher
+				variant="ghost"
+				languages={localeOptions.map((option) => ({ code: option.value, label: option.label }))}
+				value={currentLocale.value}
+				ariaLabel={shellText.changeLanguage}
+				onChange={(code) => (code === 'ko' || code === 'en') && setLocale(code)}
+			/>
 		</div>
 	</header>
 
 	{#if hasCompany}
-		<Tabs.Root bind:value={view} class="mx-auto w-full max-w-7xl px-4 pt-6">
-			<Tabs.List>
-				<Tabs.Trigger value="company">{companyText.companyTab}</Tabs.Trigger>
-				<Tabs.Trigger value="documents">{companyText.documentsTab}</Tabs.Trigger>
-			</Tabs.List>
-		</Tabs.Root>
+		<div class="mx-auto w-full max-w-7xl px-4 pt-6">
+			<div class="flex max-w-5xl items-center justify-between gap-3">
+				<Tabs.Root bind:value={view}>
+					<Tabs.List>
+						<Tabs.Trigger value="company">{companyText.companyTab}</Tabs.Trigger>
+						<Tabs.Trigger value="documents">{companyText.documentsTab}</Tabs.Trigger>
+					</Tabs.List>
+				</Tabs.Root>
+				{#if view === 'company'}<CurrencySwitcher label={companyText.currency.label} asRecorded={companyText.currency.asRecorded} />{/if}
+			</div>
+		</div>
 	{/if}
 
 	{#if hasCompany && view === 'company'}
-		<div class="mx-auto w-full max-w-7xl flex-1 px-4 py-6"><div class="max-w-5xl"><CompanyOverview company={room.company} folders={folders.filter((folder) => !folder.isChild)} onOpenFolder={openCompanyFolder} /></div></div>
+		<div class="mx-auto w-full max-w-7xl flex-1 px-4 py-6"><div class="max-w-5xl"><CompanyOverview company={room.company} sharedWith={room.viewer} folders={folders.filter((folder) => !folder.isChild)} onOpenFolder={openCompanyFolder} /></div></div>
 	{:else}
 		<div class="mx-auto grid w-full max-w-7xl flex-1 content-start gap-6 px-4 py-6 md:grid-cols-[15rem_minmax(0,1fr)]">
 			<nav aria-label={text.folders} class="grid content-start gap-0.5 max-md:hidden">

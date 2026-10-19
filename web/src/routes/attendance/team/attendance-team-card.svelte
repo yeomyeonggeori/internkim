@@ -67,10 +67,12 @@
 			{#if team.unknownLocationCount}<LocationLabel name={text.teamUnknownLocation} count={team.unknownLocationCount} form={locationForm} />{/if}
 			{#if !team.recordedLocations.length && !team.unknownLocationCount}<span>—</span>{/if}
 		</div>
-		<div class="flex flex-col gap-3 border-t border-border/70 pt-3 max-sm:grid max-sm:grid-cols-2 max-sm:gap-4">
-			{@render actorStack(team.recentClockIns, text.teamRecentIns)}
-			{@render actorStack(team.recentClockOuts, text.teamRecentOuts)}
-		</div>
+		{#if team.recentClockIns.length || team.recentClockOuts.length}
+			<div class="flex flex-col gap-3 border-t border-border/70 pt-3 max-sm:grid max-sm:grid-cols-2 max-sm:gap-4">
+				{#if team.recentClockIns.length}{@render actorStack(team.recentClockIns, text.teamRecentIns)}{/if}
+				{#if team.recentClockOuts.length}{@render actorStack(team.recentClockOuts, text.teamRecentOuts)}{/if}
+			</div>
+		{/if}
 	</Card.Content>
 	{#if footer}
 		<Card.Footer class="border-t border-border/70 bg-card p-0">{@render footer()}</Card.Footer>

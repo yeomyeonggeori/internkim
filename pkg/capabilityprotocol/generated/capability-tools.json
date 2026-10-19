@@ -19111,7 +19111,7 @@
             "type": "object"
           },
           "attributes": {
-            "description": "JSON object string of other structured details, e.g. {\"round\": \"Seed\", \"investors\": \"ABC Ventures\"}. Money goes in amount.",
+            "description": "JSON object string of other structured details, e.g. {\"round\": \"Seed\", \"investors\": \"ABC Ventures\"}. The event's own money goes in amount; any other sum, such as a valuation, is money too: {\"preMoney\": {\"amount\": 30000000000, \"currency\": \"KRW\"}}.",
             "type": "string"
           },
           "category": {
@@ -19166,7 +19166,7 @@
             "type": "object"
           },
           "attributes": {
-            "description": "JSON object string of other structured details, e.g. {\"round\": \"Seed\", \"investors\": \"ABC Ventures\"}. Money goes in amount.",
+            "description": "JSON object string of other structured details, e.g. {\"round\": \"Seed\", \"investors\": \"ABC Ventures\"}. The event's own money goes in amount; any other sum, such as a valuation, is money too: {\"preMoney\": {\"amount\": 30000000000, \"currency\": \"KRW\"}}.",
             "type": "string"
           },
           "category": {

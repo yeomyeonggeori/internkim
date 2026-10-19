@@ -21,7 +21,7 @@
 		emptyLabel: string;
 		showEmpty?: boolean;
 		pagination: PaginationText;
-		openTask: (task: Task) => void;
+		openTask?: (task: Task) => void;
 		focusedTaskID: string;
 	};
 
@@ -56,10 +56,10 @@
 				{#each rowModel.rows as row (row.id)}
 					<Table.Row
 						class={cn(
-							'cursor-pointer hover:bg-muted/40',
+							openTask && 'cursor-pointer hover:bg-muted/40',
 							row.original.id === focusedTaskID && 'bg-primary/10 ring-1 ring-primary/30'
 						)}
-						onclick={() => openTask(row.original)}
+						onclick={() => openTask?.(row.original)}
 					>
 						{#each row.getVisibleCells() as cell (cell.id)}
 							<Table.Cell class={columnWidthClass(cell.column.id)}>

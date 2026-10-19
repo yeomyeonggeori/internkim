@@ -3,8 +3,10 @@ import type { HolderKind, PeriodKind } from './company';
 
 type CompanyText = {
 	documentsTab: string;
+	currency: { label: string; asRecorded: string; converted: (currency: string, date: string) => string };
 	companyTab: string;
 	legal: string;
+	factGroups: Record<'company' | 'entity' | 'registration', string>;
 	metrics: string;
 	records: string;
 	funding: string;
@@ -14,7 +16,7 @@ type CompanyText = {
 	scope: string;
 	attributeNames: Record<string, string>;
 	inProgress: string;
-	raise: { label: string; target: string; committed: (amount: string, percent: string) => string; closes: string };
+	raise: { label: string; terms: string; target: string; committedOfTarget: (target: string) => string; daysLeft: (days: number) => string; leftToInvest: string; share: (percent: string) => string; closes: string; sharedWith: (viewer: string) => string; sharedWithInvited: string; inquire: string; inquirySubject: (round: string) => string };
 	ownership: {
 		title: string;
 		asOf: (date: string, shares: string) => string;
@@ -77,8 +79,10 @@ type CompanyText = {
 export const dataRoomCompanyText: Record<Locale, CompanyText> = {
 	ko: {
 		documentsTab: '자료',
+		currency: { label: '표시 통화', asRecorded: '기록된 통화', converted: (currency, date) => `금액은 ${date} 환율로 ${currency}로 환산했습니다.` },
 		companyTab: '회사 소개',
 		legal: '법인 정보',
+		factGroups: { company: '회사', entity: '법인·회계', registration: '등록 정보' },
 		metrics: '주요 지표',
 		records: '연혁',
 		funding: '자금 조달',
@@ -88,7 +92,7 @@ export const dataRoomCompanyText: Record<Locale, CompanyText> = {
 		scope: '회사 기록에서 바로 읽어 보여줍니다. 기록이 바뀌면 이 화면도 함께 바뀌며, 열람 권한이 있는 분류의 정보만 표시합니다.',
 		attributeNames: { investors: '투자사', leadInvestor: '리드 투자사', valuation: '기업가치', preMoney: '투자 전 기업가치', postMoney: '투자 후 기업가치', instrument: '투자 형태', number: '번호', round: '라운드' },
 		inProgress: '진행 중',
-		raise: { label: '투자 유치 진행 중', target: '목표 금액', committed: (amount, percent) => `${amount} 확약 · ${percent}`, closes: '마감 예정' },
+		raise: { label: '투자 유치 중', terms: '투자 조건', target: '목표 금액', committedOfTarget: (target) => `목표 ${target} 중 확약`, daysLeft: (days) => `${days}일`, leftToInvest: '마감까지 남은 기간', share: (percent) => `목표의 ${percent}`, closes: '마감 예정일', sharedWith: (viewer) => `${viewer}에게만 공유된 비공개 자료입니다.`, sharedWithInvited: '초대받은 분에게만 공유되는 비공개 자료입니다.', inquire: '문의하기', inquirySubject: (round) => `${round} 투자 문의` },
 		ownership: {
 			title: '지분 구조',
 			asOf: (date, shares) => `${date} 기준 · 완전 희석 ${shares}주`,
@@ -186,8 +190,10 @@ export const dataRoomCompanyText: Record<Locale, CompanyText> = {
 	},
 	en: {
 		documentsTab: 'Documents',
+		currency: { label: 'Display currency', asRecorded: 'As recorded', converted: (currency, date) => `Amounts are converted to ${currency} at the ${date} exchange rate.` },
 		companyTab: 'Company',
 		legal: 'Legal entity',
+		factGroups: { company: 'Company', entity: 'Entity & accounts', registration: 'Registration' },
 		metrics: 'Key metrics',
 		records: 'Timeline',
 		funding: 'Funding',
@@ -197,7 +203,7 @@ export const dataRoomCompanyText: Record<Locale, CompanyText> = {
 		scope: 'Read straight from the company record, so this page changes when the record does. Shows only what the categories you can read cover.',
 		attributeNames: { investors: 'Investors', leadInvestor: 'Lead investor', valuation: 'Valuation', preMoney: 'Pre-money valuation', postMoney: 'Post-money valuation', instrument: 'Instrument', number: 'Number', round: 'Round' },
 		inProgress: 'In progress',
-		raise: { label: 'Raising now', target: 'Target', committed: (amount, percent) => `${amount} committed · ${percent}`, closes: 'Expected close' },
+		raise: { label: 'Raising now', terms: 'Terms', target: 'Target', committedOfTarget: (target) => `committed of a ${target} goal`, daysLeft: (days) => `${days} ${days === 1 ? 'day' : 'days'}`, leftToInvest: 'Left to invest', share: (percent) => `${percent} of target`, closes: 'Expected close', sharedWith: (viewer) => `Shared privately with ${viewer}.`, sharedWithInvited: 'Shared privately with invited investors.', inquire: 'Contact us', inquirySubject: (round) => `Inquiry about the ${round} round` },
 		ownership: {
 			title: 'Ownership',
 			asOf: (date, shares) => `As of ${date} · ${shares} shares fully diluted`,

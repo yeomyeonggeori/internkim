@@ -149,7 +149,7 @@ const companyRecordStatusSchema = z.enum(["in_progress", "completed"]).describe(
 
 const companyRecordAddInputSchema = z.strictObject({
   amount: moneySchema.describe("The money the event is about, e.g. a funding round or a grant: {\"amount\": 2000000, \"currency\": \"USD\"}.").optional(),
-  attributes: z.string().describe("JSON object string of other structured details, e.g. {\"round\": \"Seed\", \"investors\": \"ABC Ventures\"}. Money goes in amount.").optional(),
+  attributes: z.string().describe("JSON object string of other structured details, e.g. {\"round\": \"Seed\", \"investors\": \"ABC Ventures\"}. The event's own money goes in amount; any other sum, such as a valuation, is money too: {\"preMoney\": {\"amount\": 30000000000, \"currency\": \"KRW\"}}.").optional(),
   category: z.string().describe("Record category: 'history', 'funding', 'product', 'certification', 'ip', 'award', 'reference', 'grant', or another short kebab-case label."),
   date: z.string().describe("Date of the event in YYYY-MM-DD or YYYY-MM format. Used to sort the company timeline. For something still in progress, when it is expected to finish.").optional(),
   detail: z.string().describe("One-to-three sentence description.").optional(),

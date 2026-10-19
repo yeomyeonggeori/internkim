@@ -9,7 +9,7 @@
 		getPaginationRowModel,
 		getSortedRowModel
 	} from '@tanstack/table-core';
-	import { createTaskListColumns, type TaskListStatusOption } from './task-list-columns';
+	import { createTaskListColumns, type TaskListCells, type TaskListStatusOption } from './task-list-columns';
 	import TaskTable from './task-table.svelte';
 	import type { Task } from './task-types';
 	import { taskText } from './text';
@@ -26,12 +26,13 @@
 		pendingStatusTaskID: string;
 		statusLabel: (status: string) => string;
 		updateTaskStatus: (task: Task, nextStatus: string) => Promise<void>;
-		openTask: (task: Task) => void;
+		openTask?: (task: Task) => void;
 		canUpdateTask: (task: Task) => boolean;
 		focusedTaskID: string;
 		memberEmail: (memberID: string) => string;
 		businessColor: (business: string | null) => string;
 		taskTypeColor: (type: string | null) => string;
+		cells?: TaskListCells;
 	};
 
 	let {
@@ -48,7 +49,8 @@
 		focusedTaskID,
 		memberEmail,
 		businessColor,
-		taskTypeColor
+		taskTypeColor,
+		cells
 	}: Props = $props();
 
 	let taskSorting = $state<SortingState>([]);
@@ -63,7 +65,8 @@
 		canUpdateTask,
 		memberEmail,
 		businessColor,
-		taskTypeColor
+		taskTypeColor,
+		cells
 	}));
 
 	const taskTable = createSvelteTable<Task>({

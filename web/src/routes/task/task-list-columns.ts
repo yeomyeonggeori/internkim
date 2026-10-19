@@ -1,5 +1,6 @@
 import { renderComponent } from '$lib/components/ui/data-table';
 import type { Column, ColumnDef } from '@tanstack/table-core';
+import type { Component } from 'svelte';
 import { compareOptionalDate } from './task-style';
 import TaskListHeaderCell from './task-list-header-cell.svelte';
 import DefinitionBadge from '$lib/components/definition-badge.svelte';
@@ -30,6 +31,12 @@ type TaskListColumnsInput = {
 	memberEmail: (memberID: string) => string;
 	businessColor: (business: string | null) => string;
 	taskTypeColor: (type: string | null) => string;
+	cells?: TaskListCells;
+};
+
+export type TaskListCells = {
+	content?: Component<{ task: Task }>;
+	participants?: Component<{ task: Task }>;
 };
 
 export function createTaskListColumns(input: TaskListColumnsInput): ColumnDef<Task>[] {
@@ -42,7 +49,8 @@ export function createTaskListColumns(input: TaskListColumnsInput): ColumnDef<Ta
 		canUpdateTask,
 		memberEmail,
 		businessColor,
-		taskTypeColor
+		taskTypeColor,
+		cells = {}
 	} = input;
 
 	return [
@@ -66,13 +74,17 @@ export function createTaskListColumns(input: TaskListColumnsInput): ColumnDef<Ta
 			accessorKey: 'content',
 			enableSorting: false,
 			header: (context) => renderHeader(text.table.content, context.column),
-			cell: (info) => renderComponent(TaskListTextCell, { value: info.row.original.content, isTruncated: true })
+			cell: (info) => cells.content
+				? renderComponent(cells.content, { task: info.row.original })
+				: renderComponent(TaskListTextCell, { value: info.row.original.content, isTruncated: true })
 		},
 		{
 			id: 'participants',
 			enableSorting: false,
 			header: (context) => renderHeader(text.table.participants, context.column),
-			cell: (info) => renderComponent(TaskListParticipantsCell, { task: info.row.original, memberEmail })
+			cell: (info) => cells.participants
+				? renderComponent(cells.participants, { task: info.row.original })
+				: renderComponent(TaskListParticipantsCell, { task: info.row.original, memberEmail })
 		},
 		{
 			accessorKey: 'size',

@@ -1,4 +1,5 @@
 <script lang="ts">
+ import { displayPersonName } from '$lib/person-name.svelte';
  import TeamStatusDayProgress from './team-status-day-progress.svelte';
  import type { TeamStatusPersonDay } from './team-status-table-model';
  import type { Snippet } from 'svelte';
@@ -29,7 +30,7 @@
   <button type="button" class={"flex min-w-0 items-center gap-3 text-left " + (!action ? "col-span-2" : "")} {onclick}>
    <PersonAvatar {name} {email} class="size-9" />
    <span class="min-w-0 flex-1">
-    <span class="block truncate font-medium">{name}</span>
+    <span class="block truncate font-medium">{displayPersonName(name)}</span>
     {#if action}<span class="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-1 sm:mt-1 sm:gap-2">{@render metadata()}</span>
     {:else}<span class="block truncate text-xs text-muted-foreground">{email}</span>{/if}
    </span>

@@ -3,7 +3,7 @@ import {
 	activityTasks,
 	contributionTotal,
 	contributionWeeks,
-	maskedSegments,
+	redactedSegments,
 	type CompanyActivity
 } from '../../../src/lib/data-room/activity';
 
@@ -37,13 +37,11 @@ describe('the company at work', () => {
 		expect(contributionTotal(activity(days))).toBe(50);
 	});
 
-	test('cuts a masked title into what is shown and what is hidden', () => {
-		expect(maskedSegments('투자자 •• ••')).toEqual([
-			{ text: '투자자 ', isHidden: false },
-			{ text: '••', isHidden: true },
-			{ text: ' ', isHidden: false },
-			{ text: '••', isHidden: true }
-		]);
+	test('keeps what a masked text shows and turns each hidden run into a bar, a little uneven but the same for the same seed', () => {
+		const segments = redactedSegments('t1', '김•• 외 ••• Kim');
+		expect(segments.map((segment) => ('text' in segment ? segment.text : segment.redactedLength))).toEqual(['김', 2, ' 외 ', 3, ' Kim']);
+		expect(segments.every((segment) => 'text' in segment || (segment.widthScale >= 0.92 && segment.widthScale <= 1.08))).toBe(true);
+		expect(redactedSegments('t1', '김•• 외 ••• Kim')).toEqual(segments);
 	});
 
 	test('turns the board into tasks the task board card draws, named only by masked names', () => {

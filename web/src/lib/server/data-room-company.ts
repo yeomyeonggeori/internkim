@@ -7,6 +7,8 @@ import { controlPlane, type ControlPlaneCredentials } from './control-plane';
 
 const thumbnailSide = 8;
 const largestThumbnailBytes = 4096;
+const logoSide = 96;
+const logoReadableSeconds = 60 * 60;
 
 type Answer = { data: unknown; error: { message: string } | null };
 
@@ -25,10 +27,19 @@ export async function companyShownToCircle(
 
 async function shownCompany({ data, error: refusal }: Answer, plane: ControlPlaneCredentials): Promise<DataRoomCompany> {
 	if (refusal) error(502, 'the company could not be read');
-	const { activity, records, ...company } = storedCompanySchema.parse(data);
-	const shown = { ...company, records: records.map(withCommittedMoney) };
+	const { activity, records, logoPath, ...company } = storedCompanySchema.parse(data);
+	const service = controlPlane(plane);
+	const logo = logoPath ? await readableLogoURL(service, logoPath) : undefined;
+	const shown = { ...company, records: records.map(withCommittedMoney), ...(logo ? { logo } : {}) };
 	if (!activity) return shown;
-	return { ...shown, activity: await withThumbnails(activity, controlPlane(plane)) };
+	return { ...shown, activity: await withThumbnails(activity, service) };
+}
+
+async function readableLogoURL(service: SupabaseClient, logoPath: string): Promise<string | undefined> {
+	const { data } = await service.storage.from('asset').createSignedUrl(logoPath, logoReadableSeconds, {
+		transform: { width: logoSide, height: logoSide, resize: 'contain' }
+	});
+	return data?.signedUrl;
 }
 
 function withCommittedMoney({ committedMinor, ...record }: StoredCompany['records'][number]): DataRoomCompany['records'][number] {

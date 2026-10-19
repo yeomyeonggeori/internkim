@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 import {
 	changeFromPrevious,
-	companyFacts,
+	companyFactGroups,
 	dataRoomCompanySchema,
 	fiscalYearEndLabel,
 	headcount,
@@ -19,7 +19,7 @@ import {
 	yearsOperating,
 	type CompanyMetric,
 	type CompanyRecord
-} from '../../../src/lib/data-room/company';
+, type CompanyFactGroup } from '../../../src/lib/data-room/company';
 
 const metric = (year: number, value: number, quarter?: number): CompanyMetric => ({
 	metric: 'annualRevenue', year, amount: { amount: value, currency: 'KRW' }, ...(quarter ? { quarter } : {})
@@ -38,25 +38,25 @@ describe('the company a data room shows', () => {
 	});
 
 	test('lists only the facts it was given, legal attributes under their own labels', () => {
-		const facts = companyFacts({
+		const groups = companyFactGroups({
 			capital: { amount: 500000000, currency: 'KRW' },
 			representative: { ko: '이샘플' },
 			representativeTitle: { ko: '대표이사' },
+			phone: '02-0000-0000',
 			legalAttributes: { ko: { '사업자등록번호': '123-45-67890' } }
 		}, 'ko');
-		expect(facts).toEqual([
-			{ field: 'representative', value: '대표이사 이샘플' },
-			{ field: 'capital', value: '₩500,000,000' },
-			{ field: '사업자등록번호', value: '123-45-67890' }
+		expect(groups).toEqual([
+			{ group: 'company', facts: [{ field: 'representative', value: '대표이사 이샘플' }] },
+			{ group: 'entity', facts: [{ field: 'capital', value: '₩500,000,000' }] },
+			{ group: 'registration', facts: [{ field: '사업자등록번호', value: '123-45-67890' }] }
 		]);
 	});
 
 	test('prints the legal labels written for the reader language, falling back to English', () => {
 		const english = { 'Business number': '123-45-67890' };
-		expect(companyFacts({ legalAttributes: { ko: { '사업자등록번호': '123-45-67890' }, en: english } }, 'en'))
-			.toEqual([{ field: 'Business number', value: '123-45-67890' }]);
-		expect(companyFacts({ legalAttributes: { en: english } }, 'ko'))
-			.toEqual([{ field: 'Business number', value: '123-45-67890' }]);
+		const registration: CompanyFactGroup[] = [{ group: 'registration', facts: [{ field: 'Business number', value: '123-45-67890' }] }];
+		expect(companyFactGroups({ legalAttributes: { ko: { '사업자등록번호': '123-45-67890' }, en: english } }, 'en')).toEqual(registration);
+		expect(companyFactGroups({ legalAttributes: { en: english } }, 'ko')).toEqual(registration);
 	});
 
 	test('orders a metric by period and compares its latest value with the one before at the same granularity', () => {
@@ -76,8 +76,13 @@ describe('the company a data room shows', () => {
 	});
 
 	test('keeps record attributes under their own keys for the reader language to name, dropping the empty ones', () => {
-		expect(recordAttributes({ category: 'funding', title: 'Seed', attributes: { leadInvestor: 'ABC Ventures', note: '', amount: 2000000 } }))
+		expect(recordAttributes({ category: 'funding', title: 'Seed', attributes: { leadInvestor: 'ABC Ventures', note: '', amount: 2000000 } }, 'en'))
 			.toEqual([['leadInvestor', 'ABC Ventures'], ['amount', '2000000']]);
+	});
+
+	test('shows a money attribute as an amount in its currency', () => {
+		expect(recordAttributes({ category: 'funding', title: 'A', attributes: { preMoney: { amount: 30_000_000_000, currency: 'KRW' } } }, 'ko'))
+			.toEqual([['preMoney', '₩300억']]);
 	});
 
 	const record = (category: string, title: string, date?: string, amount?: number, currency = 'KRW'): CompanyRecord => ({

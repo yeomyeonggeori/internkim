@@ -3,7 +3,7 @@
 	import AttendanceCompanyMetrics from '../../routes/attendance/team/attendance-company-metrics.svelte';
 	import AttendanceTeamCard from '../../routes/attendance/team/attendance-team-card.svelte';
 	import ActivityAvatar from './activity-avatar.svelte';
-	import ActivityBoard from './activity-board.svelte';
+	import ActivityTaskList from './activity-task-list.svelte';
 	import ActivityContributions from './activity-contributions.svelte';
 	import { dataRoomCompanyText } from './company-text';
 	import { contributionTotal, type CompanyActivity } from './activity';
@@ -29,15 +29,11 @@
 {#snippet recentActors(actors: RecentActor[], label: string)}
 	<div class="flex min-w-0 items-center justify-between gap-2 max-sm:flex-col max-sm:items-start max-sm:justify-start max-sm:gap-1.5">
 		<span class="text-muted-foreground text-xs">{label}</span>
-		{#if actors.length}
-			<span class="flex -space-x-2">
-				{#each actors.slice(0, 4) as actor (actor.person)}
-					<ActivityAvatar person={activity.people[actor.person]} seed={actor.person} class="ring-card size-8 ring-2" />
-				{/each}
-			</span>
-		{:else}
-			<span class="text-muted-foreground text-xs">—</span>
-		{/if}
+		<span class="flex -space-x-2">
+			{#each actors.slice(0, 4) as actor (actor.person)}
+				<ActivityAvatar person={activity.people[actor.person]} seed={actor.person} class="ring-card size-8 ring-2" />
+			{/each}
+		</span>
 	</div>
 {/snippet}
 
@@ -76,7 +72,7 @@
 
 		<div class="grid gap-3">
 			<h4 class="text-sm font-semibold">{text.board}</h4>
-			<ActivityBoard {activity} {locale} />
+			<ActivityTaskList {activity} {locale} />
 		</div>
 	</section>
 </Tooltip.Provider>
