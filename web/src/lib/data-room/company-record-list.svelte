@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { Badge } from '$lib/components/ui/badge';
 	import { formatCompactMoney } from '$lib/money';
+	import { periodLabel } from '$lib/company-period';
 	import { dataRoomCompanyText } from './company-text';
 	import { humanizedKey, isInProgress, recordAttributes, type CompanyRecord } from './company';
 
@@ -15,7 +16,7 @@
 	const text = $derived(dataRoomCompanyText[locale]);
 
 	function monthOf(date: string | undefined): string {
-		return date ? date.slice(0, 7).replace('-', '.') : text.undated;
+		return date ? periodLabel(date, locale) : text.undated;
 	}
 </script>
 

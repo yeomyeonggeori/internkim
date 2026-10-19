@@ -19119,7 +19119,7 @@
             "type": "string"
           },
           "date": {
-            "description": "Date of the event in YYYY-MM-DD or YYYY-MM format. Used to sort the company timeline. For something still in progress, when it is expected to finish.",
+            "description": "When it happened, as precisely as known: YYYY-MM-DD, YYYY-MM, YYYY-Q1 to YYYY-Q4 for a quarter, YYYY-H1 or YYYY-H2 for a half, or YYYY. Sorts the company timeline. For something still in progress, when it is expected to finish.",
             "type": "string"
           },
           "detail": {
@@ -19174,7 +19174,7 @@
             "type": "string"
           },
           "date": {
-            "description": "Date of the event in YYYY-MM-DD or YYYY-MM format. Used to sort the company timeline. For something still in progress, when it is expected to finish.",
+            "description": "When it happened, as precisely as known: YYYY-MM-DD, YYYY-MM, YYYY-Q1 to YYYY-Q4 for a quarter, YYYY-H1 or YYYY-H2 for a half, or YYYY. Sorts the company timeline. For something still in progress, when it is expected to finish.",
             "type": "string"
           },
           "detail": {
@@ -20033,7 +20033,7 @@
             "type": "string"
           },
           "date": {
-            "description": "New date. Omit to keep unchanged.",
+            "description": "New date: YYYY-MM-DD, YYYY-MM, YYYY-Q1 to YYYY-Q4, YYYY-H1 or YYYY-H2, or YYYY. Omit to keep unchanged.",
             "type": "string"
           },
           "detail": {
@@ -20088,7 +20088,7 @@
             "type": "string"
           },
           "date": {
-            "description": "New date. Omit to keep unchanged.",
+            "description": "New date: YYYY-MM-DD, YYYY-MM, YYYY-Q1 to YYYY-Q4, YYYY-H1 or YYYY-H2, or YYYY. Omit to keep unchanged.",
             "type": "string"
           },
           "detail": {

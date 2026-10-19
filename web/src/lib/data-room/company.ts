@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { comparePeriodsNewestFirst, periodOf } from '$lib/company-period';
 import { formatCompactMoney, formatMoney, moneySchema, type Money } from '$lib/money';
 import { companyActivitySchema, storedActivitySchema } from './activity';
 
@@ -276,8 +277,7 @@ export function milestoneRecords(records: CompanyRecord[]): CompanyRecord[] {
 }
 
 export function newestFirst(left: CompanyRecord, right: CompanyRecord): number {
-	if (!left.date || !right.date) return Number(!left.date) - Number(!right.date);
-	return right.date.localeCompare(left.date);
+	return comparePeriodsNewestFirst(left.date, right.date);
 }
 
 export function formatMetricValue(metric: CompanyMetric, locale: string, number = metricNumber(metric)): string {
@@ -294,8 +294,10 @@ export function humanizedKey(key: string): string {
 		.replace(/^\w/, (character) => character.toUpperCase());
 }
 
-export function daysUntil(date: string, today: Date): number {
-	return Math.ceil((Date.parse(`${date}T23:59:59+09:00`) - today.getTime()) / 86_400_000);
+export function daysUntil(period: string, today: Date): number {
+	const lastDay = periodOf(period)?.end;
+	if (!lastDay) return 0;
+	return Math.ceil((Date.parse(`${lastDay}T23:59:59+09:00`) - today.getTime()) / 86_400_000);
 }
 
 export function recordAttributes(record: CompanyRecord, locale: string): [string, string][] {

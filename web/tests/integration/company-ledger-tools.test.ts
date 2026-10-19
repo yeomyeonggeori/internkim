@@ -791,3 +791,32 @@ describe('the round being raised and who holds the company', () => {
 		expect(resultOf(await asAdmin('company_equity_list', { asOfDate: '2026-12-31' })).totalShares).toBe(1_000_000);
 	});
 });
+
+describe('when something happened, as precisely as the company knows it', () => {
+	test('takes a year, a half, a quarter, a month or a day, and lists them by when each began', async () => {
+		const periods = ['2024', '2025-H2', '2025-Q3', '2025-07', '2025-07-31', '2025-08'];
+		for (const period of periods) {
+			const added = await asAdmin('company_record_add', { category: 'period-sample', date: period, title: `Happened ${period}` });
+			expect(resultOf(added).date).toBe(period);
+		}
+
+		const listed = await asSample('company_record_list', { category: 'period-sample' });
+
+		expect((resultOf(listed).records as { date: string }[]).map((record) => record.date)).toEqual([
+			'2025-08',
+			'2025-07-31',
+			'2025-H2',
+			'2025-Q3',
+			'2025-07',
+			'2024'
+		]);
+	});
+
+	test('refuses a date that names no period', async () => {
+		for (const period of ['2025-13', '2025-Q5', '2025-02-30', 'July 2025']) {
+			const refused = await asAdmin('company_record_add', { category: 'period-sample', date: period, title: `Never ${period}` });
+			expect(refused.status).toBeGreaterThanOrEqual(400);
+			expect(errorOf(refused)).toContain('company_record_date_names_a_period');
+		}
+	});
+});
