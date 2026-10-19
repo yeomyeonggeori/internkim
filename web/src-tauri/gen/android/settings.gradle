@@ -1,3 +1,5 @@
 include ':app'
+include ':attendance-widget'
+project(':attendance-widget').projectDir = new File('../../../attendance-widget/android')
 
 apply from: 'tauri.settings.gradle'

@@ -6,6 +6,8 @@
     <uses-feature android:name="android.software.leanback" android:required="false" />
 
     <application
+        android:dataExtractionRules="@xml/attendance_widget_data_extraction_rules"
+        android:fullBackupContent="@xml/attendance_widget_backup_rules"
         android:icon="@mipmap/ic_launcher"
         android:label="@string/app_name"
         android:theme="@style/Theme.internkim_tauri"

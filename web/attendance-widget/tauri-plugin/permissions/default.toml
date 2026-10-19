@@ -1,0 +1,3 @@
+[default]
+description = "Lets the web app hand the attendance widget its token"
+permissions = ["allow-install", "allow-supply", "allow-forget"]

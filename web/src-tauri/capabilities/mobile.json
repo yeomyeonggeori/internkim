@@ -1,0 +1,8 @@
+{
+  "$schema": "../gen/schemas/mobile-schema.json",
+  "identifier": "mobile",
+  "platforms": ["android"],
+  "windows": ["main"],
+  "remote": { "urls": ["https://intern.kim/*", "https://*.intern.kim/*"] },
+  "permissions": ["attendance-widget:default"]
+}
