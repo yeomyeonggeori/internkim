@@ -1,18 +1,18 @@
 import { describe, expect, test } from 'bun:test';
-import { comparePeriodsNewestFirst, periodLabel, periodOf } from '../../src/lib/company-period';
+import { comparePeriodsNewestFirst, periodLabel, periodSpanOf } from '../../src/lib/period';
 
 describe('a company period', () => {
 	test('spans the days its precision names', () => {
-		expect(periodOf('2025')).toMatchObject({ precision: 'year', start: '2025-01-01', end: '2025-12-31' });
-		expect(periodOf('2025-H2')).toMatchObject({ precision: 'half', start: '2025-07-01', end: '2025-12-31' });
-		expect(periodOf('2024-Q1')).toMatchObject({ precision: 'quarter', start: '2024-01-01', end: '2024-03-31' });
-		expect(periodOf('2024-02')).toMatchObject({ precision: 'month', start: '2024-02-01', end: '2024-02-29' });
-		expect(periodOf('2025-07-31')).toMatchObject({ precision: 'day', start: '2025-07-31', end: '2025-07-31' });
+		expect(periodSpanOf('2025')).toMatchObject({ precision: 'year', start: '2025-01-01', end: '2025-12-31' });
+		expect(periodSpanOf('2025-H2')).toMatchObject({ precision: 'half', start: '2025-07-01', end: '2025-12-31' });
+		expect(periodSpanOf('2024-Q1')).toMatchObject({ precision: 'quarter', start: '2024-01-01', end: '2024-03-31' });
+		expect(periodSpanOf('2024-02')).toMatchObject({ precision: 'month', start: '2024-02-01', end: '2024-02-29' });
+		expect(periodSpanOf('2025-07-31')).toMatchObject({ precision: 'day', start: '2025-07-31', end: '2025-07-31' });
 	});
 
 	test('is nothing when the text names no period', () => {
 		for (const text of ['2025-13', '2025-Q5', '2025-H3', '2025-02-30', 'July 2025', '', undefined]) {
-			expect(periodOf(text)).toBeUndefined();
+			expect(periodSpanOf(text)).toBeUndefined();
 		}
 	});
 

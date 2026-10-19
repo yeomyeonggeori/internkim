@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { Badge } from '$lib/components/ui/badge';
 	import { formatCompactMoney } from '$lib/money';
-	import { periodLabel } from '$lib/company-period';
+	import { periodLabel } from '$lib/period';
 	import { dataRoomCompanyText } from './company-text';
 	import { humanizedKey, isInProgress, recordAttributes, type CompanyRecord } from './company';
 

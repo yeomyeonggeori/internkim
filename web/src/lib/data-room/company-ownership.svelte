@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { periodLabel } from '$lib/company-period';
+	import { periodLabel } from '$lib/period';
 	import { dataRoomCompanyText } from './company-text';
 	import { holderKinds, ownershipShares, totalShares, type CompanyOwnership, type HolderKind } from './company';
 

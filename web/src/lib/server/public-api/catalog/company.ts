@@ -15,6 +15,7 @@ import {
 import { ResourceMutationEffect, type CapabilityToolDefinition } from './definition';
 import { imageFieldOf, serviceFileImageExtensions, serviceFileNames, serviceFiles } from '$lib/data-room/service-files';
 import { moneySchema } from '$lib/money';
+import { periodSchema } from '$lib/period';
 
 
 
@@ -151,7 +152,7 @@ const companyRecordAddInputSchema = z.strictObject({
   amount: moneySchema.describe("The money the event is about, e.g. a funding round or a grant: {\"amount\": 2000000, \"currency\": \"USD\"}.").optional(),
   attributes: z.string().describe("JSON object string of other structured details, e.g. {\"round\": \"Seed\", \"investors\": \"ABC Ventures\"}. The event's own money goes in amount; any other sum, such as a valuation, is money too: {\"preMoney\": {\"amount\": 30000000000, \"currency\": \"KRW\"}}.").optional(),
   category: z.string().describe("Record category: 'history', 'funding', 'product', 'certification', 'ip', 'award', 'reference', 'grant', or another short kebab-case label."),
-  date: z.string().describe("When it happened, as precisely as known: YYYY-MM-DD, YYYY-MM, YYYY-Q1 to YYYY-Q4 for a quarter, YYYY-H1 or YYYY-H2 for a half, or YYYY. Sorts the company timeline. For something still in progress, when it is expected to finish.").optional(),
+  date: periodSchema.describe("When it happened, as precisely as known: YYYY-MM-DD, YYYY-MM, YYYY-Q1 to YYYY-Q4 for a quarter, YYYY-H1 or YYYY-H2 for a half, or YYYY. Sorts the company timeline. For something still in progress, when it is expected to finish.").optional(),
   detail: z.string().describe("One-to-three sentence description.").optional(),
   status: companyRecordStatusSchema.optional(),
   title: z.string().describe("Short title, e.g. 'Seed round closed' or 'Product launched'."),
@@ -174,7 +175,7 @@ const companyRecordUpdateInputSchema = z.strictObject({
   amount: moneySchema.describe("New amount. Omit to keep unchanged.").optional(),
   attributes: z.string().describe("JSON object string replacing the stored attributes. Omit to keep unchanged.").optional(),
   category: z.string().describe("New category. Omit to keep unchanged.").optional(),
-  date: z.string().describe("New date: YYYY-MM-DD, YYYY-MM, YYYY-Q1 to YYYY-Q4, YYYY-H1 or YYYY-H2, or YYYY. Omit to keep unchanged.").optional(),
+  date: periodSchema.describe("New date: YYYY-MM-DD, YYYY-MM, YYYY-Q1 to YYYY-Q4, YYYY-H1 or YYYY-H2, or YYYY. Omit to keep unchanged.").optional(),
   detail: z.string().describe("New detail text. Omit to keep unchanged.").optional(),
   recordHint: z.string().describe("The record to update: its id from a prior company_record_list result, or its exact CURRENT title. Never the new title this call is about to set."),
   status: companyRecordStatusSchema.describe("New status, e.g. 'completed' when a round closes. Omit to keep unchanged.").optional(),

@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { comparePeriodsNewestFirst, periodOf } from '$lib/company-period';
+import { comparePeriodsNewestFirst, periodSchema, periodSpanOf, type Period } from '$lib/period';
 import { formatCompactMoney, formatMoney, moneySchema, type Money } from '$lib/money';
 import { companyActivitySchema, storedActivitySchema } from './activity';
 
@@ -11,7 +11,7 @@ const heldByKindSchema = z.array(z.object({ kind: holderKindSchema, shares: z.nu
 
 const recordSchema = z.object({
 	category: z.string(),
-	date: z.string().optional(),
+	date: periodSchema.optional(),
 	title: z.string(),
 	detail: z.string().optional(),
 	status: z.enum(['in_progress', 'completed']).optional(),
@@ -23,7 +23,7 @@ const recordSchema = z.object({
 const ownershipSchema = z.object({
 	asOf: z.string(),
 	kinds: heldByKindSchema,
-	rounds: z.array(z.object({ title: z.string(), date: z.string().optional(), kinds: heldByKindSchema }))
+	rounds: z.array(z.object({ title: z.string(), date: periodSchema.optional(), kinds: heldByKindSchema }))
 });
 
 export const dataRoomCompanySchema = z.object({
@@ -294,8 +294,8 @@ export function humanizedKey(key: string): string {
 		.replace(/^\w/, (character) => character.toUpperCase());
 }
 
-export function daysUntil(period: string, today: Date): number {
-	const lastDay = periodOf(period)?.end;
+export function daysUntil(period: Period, today: Date): number {
+	const lastDay = periodSpanOf(period)?.end;
 	if (!lastDay) return 0;
 	return Math.ceil((Date.parse(`${lastDay}T23:59:59+09:00`) - today.getTime()) / 86_400_000);
 }

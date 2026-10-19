@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(9);
+select plan(10);
 
 select is(internal.period_start('2025'), date '2025-01-01', 'a year begins in January');
 select is(internal.period_start('2025-H2'), date '2025-07-01', 'the second half begins in July');
@@ -30,8 +30,13 @@ select is(
   'the data room lists records by when each began');
 
 select is(
-  (select record_date from public.company_record where title = 'Quarter'),
+  (select record_date::text from public.company_record where title = 'Quarter'),
   '2025-Q3', 'a record keeps the period as it was written');
+
+select is(
+  (select format_type(atttypid, atttypmod) from pg_attribute
+    where attrelid = 'public.company_record'::regclass and attname = 'record_date'),
+  'period', 'a record is dated by the period type');
 
 select * from finish();
 rollback;

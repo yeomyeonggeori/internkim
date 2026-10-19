@@ -1,5 +1,5 @@
 import { assetBucket } from '../asset-address';
-import { comparePeriodsNewestFirst } from '$lib/company-period';
+import { comparePeriodsNewestFirst } from '$lib/period';
 import { dataRoomFolder, derivedPath, originalPath } from '$lib/data-room/storage-path';
 import { titleNearness } from './hint-nearness';
 import { HintRefused, normalized, resolveHint, type HintMatcher } from './hint-resolution';
