@@ -127,10 +127,41 @@ function contributionLevel(dayCount: number, thresholds: number[]): number {
 	return 1 + thresholds.filter((threshold) => dayCount >= threshold).length;
 }
 
-export type MaskedSegment = { text: string; isHidden: boolean };
+export type RedactedBar = { redactedLength: number; widthScale: number; outline: [number, number][]; tiltDegrees: number };
+export type RedactedSegment = { text: string } | RedactedBar;
 
-export function maskedSegments(title: string): MaskedSegment[] {
-	return title.split(/(•+)/).filter(Boolean).map((text) => ({ text, isHidden: text.startsWith('•') }));
+export function redactedSegments(seed: string, masked: string): RedactedSegment[] {
+	const next = seededRandom(seed);
+	return masked
+		.split(/(•+)/)
+		.filter(Boolean)
+		.map((text) => (text.startsWith('•') ? redactedBar(text.length, next) : { text }));
+}
+
+function redactedBar(length: number, next: () => number): RedactedBar {
+	const wobble = 7 / Math.sqrt(length);
+	const steps = Math.max(3, Math.round(Math.sqrt(length) * 2));
+	const jitter = (from: number, spread: number): number => Math.round((from + next() * spread) * 10) / 10;
+	const top = Array.from({ length: steps + 1 }, (_, index): [number, number] => [(index / steps) * 100, jitter(4, wobble)]);
+	const bottom = Array.from({ length: steps + 1 }, (_, index): [number, number] => [100 - (index / steps) * 100, jitter(96 - wobble, wobble)]);
+	const startEnd: [number, number] = [jitter(0, wobble / 3), jitter(40, wobble * 2)];
+	const finishEnd: [number, number] = [100 - jitter(0, wobble / 3), jitter(45, wobble * 2)];
+	return {
+		redactedLength: length,
+		widthScale: 0.92 + next() * 0.16,
+		outline: [startEnd, ...top, finishEnd, ...bottom],
+		tiltDegrees: Math.round((next() - 0.5) * (2.4 / Math.sqrt(length)) * 10) / 10
+	};
+}
+
+function seededRandom(seed: string): () => number {
+	let state = [...seed].reduce((hash, character) => Math.imul(hash ^ character.charCodeAt(0), 16777619), 2166136261);
+	return () => {
+		state = (state + 0x6d2b79f5) | 0;
+		let mixed = Math.imul(state ^ (state >>> 15), 1 | state);
+		mixed ^= mixed + Math.imul(mixed ^ (mixed >>> 7), 61 | mixed);
+		return ((mixed ^ (mixed >>> 14)) >>> 0) / 4294967296;
+	};
 }
 
 function dateOf(isoDay: string): Date {

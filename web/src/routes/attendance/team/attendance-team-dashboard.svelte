@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { displayPersonName } from '$lib/person-name.svelte';
  import ListPaginationFooter from "$lib/components/list-pagination-footer.svelte";
 	import { supabaseAttendanceTodaySummary } from '$lib/attendance/supabase-attendance';
 	import type { AttendanceSummary } from '../attendance-context.svelte';
@@ -150,21 +151,17 @@
 {#snippet recentActors(actors: RecentActor[], label: string, teamKey: string)}
 	<div class="flex min-w-0 items-center justify-between gap-2 max-sm:flex-col max-sm:items-start max-sm:justify-start max-sm:gap-1.5">
 		<span class="text-xs text-muted-foreground">{label}</span>
-		{#if actors.length}
             <PersonAvatarStack people={actors} max={4} label={label} avatarClass="size-8 ring-2 ring-card">
                 {#snippet renderPerson(person, index)}
                     {@const actor = actors[index]}
                     <Tooltip.Root>
-                        <Tooltip.Trigger aria-label={actor.name + ' ' + timeOf(actor.occurredAt)} onclick={() => openActor(actor, teamKey)} class="relative rounded-full ring-2 ring-card">
+                        <Tooltip.Trigger aria-label={displayPersonName(actor.name) + ' ' + timeOf(actor.occurredAt)} onclick={() => openActor(actor, teamKey)} class="relative rounded-full ring-2 ring-card">
                             <PersonAvatar name={person.name} email={person.email} class="size-8" />
                         </Tooltip.Trigger>
-                        <Tooltip.Content>{actor.name} · {timeOf(actor.occurredAt)}</Tooltip.Content>
+                        <Tooltip.Content>{displayPersonName(actor.name)} · {timeOf(actor.occurredAt)}</Tooltip.Content>
                     </Tooltip.Root>
                 {/snippet}
             </PersonAvatarStack>
-		{:else}
-			<span class="text-xs text-muted-foreground">—</span>
-		{/if}
 	</div>
 {/snippet}
 

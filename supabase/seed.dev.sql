@@ -223,3 +223,83 @@ select '000000ee-0000-0000-0000-000000000003', 'annual', true, -2, 'requested',
   (date_trunc('day', now() at time zone 'Asia/Seoul') + interval '9 days') at time zone 'Asia/Seoul',
   '가족 행사'
 where not exists (select 1 from public.leave where days < 0);
+
+update public.company set profile = jsonb_build_object(
+  'name', jsonb_build_object('ko', '주식회사 예시회사', 'en', 'Example Co., Ltd.'),
+  'slogan', jsonb_build_object('ko', '반복 업무는 맡기고, 판단에 집중하세요.', 'en', 'Hand off the routine, keep the judgment.'),
+  'description', jsonb_build_object(
+    'ko', '예시회사는 중소기업이 문서, 일정, 고객 응대를 적은 인원으로 처리하도록 업무 자동화 소프트웨어를 만듭니다.',
+    'en', 'Example Co. builds workflow software that lets small companies handle documents, schedules and customers with a small team.'),
+  'representative', jsonb_build_object('ko', '이샘플', 'en', 'Sample Lee'),
+  'representativeTitle', jsonb_build_object('ko', '대표이사', 'en', 'CEO'),
+  'address', jsonb_build_object('ko', '서울특별시 성동구 예시로 1, 2층', 'en', '2F, 1 Yesi-ro, Seongdong-gu, Seoul'),
+  'jurisdiction', jsonb_build_object('ko', '대한민국', 'en', 'the Republic of Korea'),
+  'legalAttributes', jsonb_build_object('ko', jsonb_build_object(
+    '사업자등록번호', '000-00-00000', '법인등록번호', '000000-0000000', '업태', '정보통신업', '종목', '소프트웨어 개발')),
+  'foundedDate', '2021-03-15',
+  'capital', jsonb_build_object('amount', 150000000, 'currency', 'KRW'),
+  'fiscalYearEnd', '12월',
+  'employeeCount', 14,
+  'phone', '02-0000-0000',
+  'email', 'hello@example.com',
+  'website', 'https://example.com'
+)
+where id = '000000cc-0000-0000-0000-000000000001' and profile = '{}'::jsonb;
+
+insert into public.company_metric (id, company_id, metric, year, quarter, month, value, currency_code, value_usd, unit) values
+  ('000000d1-0000-0000-0000-000000000001', '000000cc-0000-0000-0000-000000000001', 'annualRevenue', 2023, 0, 0, 320000000, 'KRW', 232000, null),
+  ('000000d1-0000-0000-0000-000000000002', '000000cc-0000-0000-0000-000000000001', 'annualRevenue', 2024, 0, 0, 910000000, 'KRW', 659000, null),
+  ('000000d1-0000-0000-0000-000000000003', '000000cc-0000-0000-0000-000000000001', 'annualRevenue', 2025, 0, 0, 1840000000, 'KRW', 1333000, null),
+  ('000000d1-0000-0000-0000-000000000004', '000000cc-0000-0000-0000-000000000001', 'operatingProfit', 2023, 0, 0, -410000000, 'KRW', -297000, null),
+  ('000000d1-0000-0000-0000-000000000005', '000000cc-0000-0000-0000-000000000001', 'operatingProfit', 2024, 0, 0, -180000000, 'KRW', -130000, null),
+  ('000000d1-0000-0000-0000-000000000006', '000000cc-0000-0000-0000-000000000001', 'operatingProfit', 2025, 0, 0, 120000000, 'KRW', 87000, null),
+  ('000000d1-0000-0000-0000-000000000007', '000000cc-0000-0000-0000-000000000001', 'employees', 2023, 0, 0, 6, null, null, null),
+  ('000000d1-0000-0000-0000-000000000008', '000000cc-0000-0000-0000-000000000001', 'employees', 2024, 0, 0, 9, null, null, null),
+  ('000000d1-0000-0000-0000-000000000009', '000000cc-0000-0000-0000-000000000001', 'employees', 2025, 0, 0, 14, null, null, null),
+  ('000000d1-0000-0000-0000-000000000010', '000000cc-0000-0000-0000-000000000001', 'mau', 2026, 0, 4, 8200, null, null, null),
+  ('000000d1-0000-0000-0000-000000000011', '000000cc-0000-0000-0000-000000000001', 'mau', 2026, 0, 5, 9100, null, null, null),
+  ('000000d1-0000-0000-0000-000000000012', '000000cc-0000-0000-0000-000000000001', 'mau', 2026, 0, 6, 10400, null, null, null),
+  ('000000d1-0000-0000-0000-000000000013', '000000cc-0000-0000-0000-000000000001', 'mau', 2026, 0, 7, 11800, null, null, null),
+  ('000000d1-0000-0000-0000-000000000014', '000000cc-0000-0000-0000-000000000001', 'mau', 2026, 0, 8, 13500, null, null, null),
+  ('000000d1-0000-0000-0000-000000000015', '000000cc-0000-0000-0000-000000000001', 'mau', 2026, 0, 9, 15200, null, null, null)
+on conflict (id) do nothing;
+
+insert into public.company_record (id, company_id, category, record_date, title, detail, amount, currency_code, status, attributes) values
+  ('000000d2-0000-0000-0000-000000000001', '000000cc-0000-0000-0000-000000000001', 'history', '2021-03-15', '법인 설립', '공동 창업자 두 명이 서울에서 설립했습니다.', null, null, 'completed', '{}'),
+  ('000000d2-0000-0000-0000-000000000002', '000000cc-0000-0000-0000-000000000001', 'product', '2022-06-01', '업무 자동화 서비스 정식 출시', null, null, null, 'completed', '{}'),
+  ('000000d2-0000-0000-0000-000000000003', '000000cc-0000-0000-0000-000000000001', 'history', '2024-09-10', '싱가포르 법인 설립', '동남아시아 영업을 위한 현지 법인입니다.', null, null, 'completed', '{}'),
+  ('000000d2-0000-0000-0000-000000000004', '000000cc-0000-0000-0000-000000000001', 'product', '2025-04-01', '업무 자동화 2.0 출시', '문서 자동 분류와 일정 조율을 더했습니다.', null, null, 'completed', '{}'),
+  ('000000d2-0000-0000-0000-000000000011', '000000cc-0000-0000-0000-000000000001', 'funding', '2021-09-01', '시드', null, 300000000, 'KRW', 'completed', '{"leadInvestor": "예시 벤처스", "instrument": "보통주"}'),
+  ('000000d2-0000-0000-0000-000000000012', '000000cc-0000-0000-0000-000000000001', 'funding', '2023-05-20', '프리 A', null, 1200000000, 'KRW', 'completed', '{"leadInvestor": "샘플 캐피탈", "investors": "샘플 캐피탈, 견본 파트너스", "postMoney": {"amount": 12000000000, "currency": "KRW"}, "instrument": "상환전환우선주"}'),
+  ('000000d2-0000-0000-0000-000000000013', '000000cc-0000-0000-0000-000000000001', 'funding', '2026-12-31', '시리즈 A', '해외 영업과 제품 개발 인력을 늘립니다.', 3000000000, 'KRW', 'in_progress', '{"leadInvestor": "예시 벤처스", "preMoney": {"amount": 30000000000, "currency": "KRW"}, "instrument": "상환전환우선주"}'),
+  ('000000d2-0000-0000-0000-000000000021', '000000cc-0000-0000-0000-000000000001', 'grant', '2022-07-01', '초기창업패키지', null, 100000000, 'KRW', 'completed', '{}'),
+  ('000000d2-0000-0000-0000-000000000022', '000000cc-0000-0000-0000-000000000001', 'grant', '2024-04-01', '민간투자주도형 기술창업지원', null, 500000000, 'KRW', 'completed', '{}'),
+  ('000000d2-0000-0000-0000-000000000031', '000000cc-0000-0000-0000-000000000001', 'certification', '2022-11-01', '벤처기업 확인', null, null, null, 'completed', '{}'),
+  ('000000d2-0000-0000-0000-000000000032', '000000cc-0000-0000-0000-000000000001', 'certification', '2023-03-01', '기업부설연구소 인정', null, null, null, 'completed', '{}'),
+  ('000000d2-0000-0000-0000-000000000033', '000000cc-0000-0000-0000-000000000001', 'ip', '2023-08-01', '문서 자동 분류 방법 특허 등록', null, null, null, 'completed', '{"number": "10-0000000"}'),
+  ('000000d2-0000-0000-0000-000000000034', '000000cc-0000-0000-0000-000000000001', 'award', '2024-12-01', '예시 스타트업 어워드 대상', null, null, null, 'completed', '{}'),
+  ('000000d2-0000-0000-0000-000000000035', '000000cc-0000-0000-0000-000000000001', 'reference', '2025-06-01', '샘플 상사 전사 도입', '임직원 300명이 문서 업무에 씁니다.', null, null, 'completed', '{}')
+on conflict (id) do nothing;
+
+insert into public.opportunity (
+  id, company_id, organization_id, contact_id, name, business, pipeline_id, stage_id,
+  stage_position, stage_changed_at, owner_id, amount_minor, currency_code,
+  base_amount_minor, base_currency_code, importance, funding_record_id, description
+) values
+  ('0000000a-0000-0000-0000-000000000008', '000000cc-0000-0000-0000-000000000001', '000000a0-0000-0000-0000-000000000005', '000000c0-0000-0000-0000-000000000005',
+   '시리즈 A 리드 투자', '사업둘', 'investment', 'done', 2, now() - interval '5 days', '000000ee-0000-0000-0000-000000000002',
+   1800000000, 'KRW', 1800000000, 'KRW', 'high', '000000d2-0000-0000-0000-000000000013', '투자 계약을 마쳤습니다.')
+on conflict (id) do nothing;
+
+update public.opportunity set funding_record_id = '000000d2-0000-0000-0000-000000000013'
+where id = '0000000a-0000-0000-0000-000000000007' and funding_record_id is null;
+
+insert into public.company_equity_entry (id, company_id, effective_on, holder, holder_kind, security_class, shares, funding_record_id) values
+  ('000000d3-0000-0000-0000-000000000001', '000000cc-0000-0000-0000-000000000001', '2021-03-15', '이샘플', 'founder', 'common', 600000, null),
+  ('000000d3-0000-0000-0000-000000000002', '000000cc-0000-0000-0000-000000000001', '2021-03-15', '박예시', 'founder', 'common', 300000, null),
+  ('000000d3-0000-0000-0000-000000000003', '000000cc-0000-0000-0000-000000000001', '2021-09-01', '예시 벤처스', 'investor', 'common', 100000, '000000d2-0000-0000-0000-000000000011'),
+  ('000000d3-0000-0000-0000-000000000004', '000000cc-0000-0000-0000-000000000001', '2021-09-01', '스톡옵션 풀', 'option_pool', 'common', 80000, null),
+  ('000000d3-0000-0000-0000-000000000005', '000000cc-0000-0000-0000-000000000001', '2023-05-20', '샘플 캐피탈', 'investor', 'preferred', 120000, '000000d2-0000-0000-0000-000000000012'),
+  ('000000d3-0000-0000-0000-000000000006', '000000cc-0000-0000-0000-000000000001', '2023-05-20', '견본 파트너스', 'investor', 'preferred', 40000, '000000d2-0000-0000-0000-000000000012'),
+  ('000000d3-0000-0000-0000-000000000007', '000000cc-0000-0000-0000-000000000001', '2024-01-02', '최견본', 'employee', 'common', 20000, null)
+on conflict (id) do nothing;

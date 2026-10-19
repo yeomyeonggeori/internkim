@@ -4,7 +4,7 @@ import { titleNearness } from './hint-nearness';
 import { HintRefused, normalized, resolveHint, type HintMatcher } from './hint-resolution';
 import { RecordRefusedTheWrite, statusOfPostgresCode } from './tasks';
 import type { RecordContext } from './company';
-import type { Money } from '$lib/money';
+import { moneySchema, type Money } from '$lib/money';
 import type {
 	CompanyDocumentDownloadResult,
 	CompanyDocumentListResult,
@@ -160,7 +160,7 @@ type RecordRow = {
 	status: CompanyRecordStatus;
 	amount: number | null;
 	currency_code: string | null;
-	attributes: Record<string, string> | null;
+	attributes: Record<string, RecordAttributeValue> | null;
 	updated_at: string;
 };
 
@@ -216,7 +216,7 @@ function answeredRecord(row: RecordRow): CompanyRecordResult {
 		detail: row.detail,
 		status: row.status,
 		amount: row.amount === null || row.currency_code === null ? null : { amount: Number(row.amount), currency: row.currency_code },
-		attributes: Object.entries(row.attributes ?? {}).map(([label, value]) => ({ label, value })),
+		attributes: Object.entries(row.attributes ?? {}).map(([label, value]) => ({ label, value: attributeText(value) })),
 		updatedAt: row.updated_at
 	};
 }
@@ -279,7 +279,9 @@ const fundingCategory = 'funding';
 const onlyAnAdministratorWritesRecords = 'only an administrator can change a company record';
 const onlyAColleagueWritesDocuments = 'only somebody who works here can change the document ledger';
 
-function decodedAttributes(attributes: string | undefined): Record<string, string> | undefined {
+type RecordAttributeValue = string | Money;
+
+function decodedAttributes(attributes: string | undefined): Record<string, RecordAttributeValue> | undefined {
 	const written = attributes?.trim();
 	if (!written) return undefined;
 	let parsed: unknown;
@@ -293,13 +295,23 @@ function decodedAttributes(attributes: string | undefined): Record<string, strin
 	if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
 		throw new Error('attributes must be a JSON object string of label-to-value pairs');
 	}
-	const values: Record<string, string> = {};
+	const values: Record<string, RecordAttributeValue> = {};
 	for (const [label, value] of Object.entries(parsed as Record<string, unknown>)) {
-		if (typeof value === 'string') values[label] = value;
-		else if (typeof value === 'number' || typeof value === 'boolean') values[label] = String(value);
-		else throw new Error(`attributes.${label} must be a string, a number or a boolean`);
+		values[label] = decodedAttributeValue(label, value);
 	}
 	return values;
+}
+
+function decodedAttributeValue(label: string, value: unknown): RecordAttributeValue {
+	if (typeof value === 'string') return value;
+	if (typeof value === 'number' || typeof value === 'boolean') return String(value);
+	const money = moneySchema.safeParse(value);
+	if (money.success) return money.data;
+	throw new Error(`attributes.${label} must be a string, a number, a boolean, or money like {"amount": 30000000000, "currency": "KRW"}`);
+}
+
+function attributeText(value: RecordAttributeValue): string {
+	return typeof value === 'string' ? value : `${value.amount} ${value.currency}`;
 }
 
 type StoredMetricValue = { value: number; currencyCode: string | null; valueUSD: number | null; unit: string | null };
@@ -523,7 +535,7 @@ export async function companyRecordList(
 }
 
 function recordHolds(row: RecordRow, keyword: string): boolean {
-	const written = [row.title, row.detail ?? '', ...Object.values(row.attributes ?? {})];
+	const written = [row.title, row.detail ?? '', ...Object.values(row.attributes ?? {}).map(attributeText)];
 	return written.some((value) => value.toLowerCase().includes(keyword));
 }
 

@@ -3,6 +3,7 @@
 	import FolderIcon from '@lucide/svelte/icons/folder';
 	import GlobeIcon from '@lucide/svelte/icons/globe';
 	import MailIcon from '@lucide/svelte/icons/mail';
+	import PhoneIcon from '@lucide/svelte/icons/phone';
 	import { formatCompactMoney } from '$lib/money';
 	import { currentLocale } from '$lib/i18n/locale.svelte';
 	import { cn } from '$lib/utils';
@@ -12,12 +13,14 @@
 	import CompanyProof from './company-proof.svelte';
 	import CompanyRaise from './company-raise.svelte';
 	import CompanyRecordList from './company-record-list.svelte';
+	import { displayCurrency } from '$lib/currency/display-currency.svelte';
+	import { companyIn, loadExchangeRates, recordedCurrencies, type ExchangeRates } from './company-currency';
 	import { dataRoomCompanyText } from './company-text';
 	import {
 		changeFromPrevious,
 		completedRecords,
 		roundBeingRaised,
-		companyFacts,
+		companyFactGroups,
 		formatMetricValue,
 		fundingCategories,
 		headcount,
@@ -42,21 +45,32 @@
 	type Highlight = { key: string; label: string; value: string; note: string };
 
 	let {
-		company,
+		company: recordedCompany,
 		folders = [],
+		sharedWith,
 		onOpenFolder
-	}: { company: DataRoomCompany; folders?: Folder[]; onOpenFolder?: (code: string) => void } = $props();
+	}: { company: DataRoomCompany; folders?: Folder[]; sharedWith?: string | null; onOpenFolder?: (code: string) => void } = $props();
+
+	let exchangeRates = $state<ExchangeRates>(new Map());
 
 	const locale = $derived(currentLocale.value);
 	const text = $derived(dataRoomCompanyText[locale]);
+	const currency = $derived(displayCurrency.value);
+	const company = $derived(currency ? companyIn(recordedCompany, currency, exchangeRates) : recordedCompany);
+	const conversionDate = $derived([...exchangeRates.values()].map((rate) => rate.asOf).toSorted().at(-1));
+	const conversionNotice = $derived(currency && conversionDate ? text.currency.converted(currency, conversionDate) : '');
+
+	$effect(() => {
+		if (!currency) return;
+		const target = currency;
+		void loadExchangeRates(recordedCurrencies(recordedCompany), target).then((rates) => {
+			if (displayCurrency.value === target) exchangeRates = rates;
+		});
+	});
 	const profile = $derived(company.profile);
-	const brand = $derived(localized(profile.brandName, locale));
-	const legalName = $derived(localized(profile.name, locale));
-	const title = $derived(brand || legalName);
-	const subtitle = $derived(brand && legalName !== brand ? legalName : '');
 	const slogan = $derived(localized(profile.slogan, locale));
 	const description = $derived(localized(profile.description, locale));
-	const facts = $derived(companyFacts(profile, locale));
+	const factGroups = $derived(companyFactGroups(profile, locale));
 	const people = $derived(headcount(company));
 	const metrics = $derived(
 		metricSeries(company.metrics)
@@ -70,6 +84,9 @@
 	const timeline = $derived(milestoneRecords(company.records));
 	const highlights = $derived(companyHighlights());
 	const documentTotal = $derived(folders.reduce((sum, folder) => sum + folder.documentCount, 0));
+	const hasIntroduction = $derived(
+		Boolean(slogan || description || profile.website || profile.email || profile.phone || raising) || highlights.length > 0
+	);
 
 	function companyHighlights(): Highlight[] {
 		const years = yearsOperating(profile.foundedDate, new Date());
@@ -109,50 +126,40 @@
 	<div class="bg-background text-muted-foreground rounded-lg border px-4 py-12 text-center text-sm">{text.empty}</div>
 {:else}
 	<div class="grid gap-10 break-keep">
-		<header class="grid gap-5">
-			<div class="flex flex-wrap items-start justify-between gap-x-6 gap-y-3">
-				<div class="flex min-w-0 items-center gap-4">
-					{#if title}
-						<div aria-hidden="true" class="bg-foreground text-background grid size-12 shrink-0 place-items-center rounded-lg text-xl font-semibold">
-							{title.slice(0, 1)}
-						</div>
-					{/if}
-					<div class="min-w-0">
-						{#if title}<h2 class="text-2xl font-semibold tracking-tight text-balance">{title}</h2>{/if}
-						{#if subtitle}<p class="text-muted-foreground text-sm">{subtitle}</p>{/if}
-					</div>
-				</div>
-				{#if profile.website || profile.email}
-					<div class="flex flex-wrap gap-x-5 gap-y-1 pt-1 text-sm">
-						{#if profile.website}<a class="inline-flex items-center gap-1.5 hover:underline" href={profile.website} target="_blank" rel="noreferrer"><GlobeIcon class="text-muted-foreground size-4" />{profile.website.replace(/^https?:\/\//, '')}</a>{/if}
-						{#if profile.email}<a class="inline-flex items-center gap-1.5 hover:underline" href={`mailto:${profile.email}`}><MailIcon class="text-muted-foreground size-4" />{profile.email}</a>{/if}
+		{#if conversionNotice}<p class="text-muted-foreground -mb-6 text-xs">{conversionNotice}</p>{/if}
+		{#if hasIntroduction}
+			<header class="grid gap-5">
+				{#if raising}<CompanyRaise round={raising} contact={profile.email} {sharedWith} {locale} />{/if}
+				{#if slogan || description}
+					<div class="grid max-w-[68ch] gap-2">
+						{#if slogan}<p class="text-lg font-medium text-pretty">{slogan}</p>{/if}
+						{#if description}<p class="text-muted-foreground leading-relaxed text-pretty">{description}</p>{/if}
 					</div>
 				{/if}
-			</div>
-			{#if slogan || description}
-				<div class="grid max-w-[68ch] gap-2">
-					{#if slogan}<p class="text-lg font-medium text-pretty">{slogan}</p>{/if}
-					{#if description}<p class="text-muted-foreground leading-relaxed text-pretty">{description}</p>{/if}
-				</div>
-			{/if}
+				{#if profile.website || profile.email || profile.phone}
+					<div class="flex flex-wrap gap-x-5 gap-y-1 text-sm">
+						{#if profile.website}<a class="inline-flex items-center gap-1.5 hover:underline" href={profile.website} target="_blank" rel="noreferrer"><GlobeIcon class="text-muted-foreground size-4" />{profile.website.replace(/^https?:\/\//, '')}</a>{/if}
+						{#if profile.email}<a class="inline-flex items-center gap-1.5 hover:underline" href={`mailto:${profile.email}`}><MailIcon class="text-muted-foreground size-4" />{profile.email}</a>{/if}
+						{#if profile.phone}<a class="inline-flex items-center gap-1.5 tabular-nums hover:underline" href={`tel:${profile.phone}`}><PhoneIcon class="text-muted-foreground size-4" />{profile.phone}</a>{/if}
+					</div>
+				{/if}
 
-			{#if raising}<CompanyRaise round={raising} {locale} />{/if}
-
-			{#if highlights.length > 0}
-				<dl
-					class="bg-border grid grid-cols-2 gap-px overflow-hidden rounded-lg border md:grid-cols-(--highlight-columns)"
-					style:--highlight-columns={`repeat(${highlights.length}, minmax(0, 1fr))`}
-				>
-					{#each highlights as highlight, index (highlight.key)}
-						<div class={cn('bg-background grid content-start gap-1 px-5 py-4', index === highlights.length - 1 && highlights.length % 2 === 1 && 'max-md:col-span-2')}>
-							<dt class="text-muted-foreground text-xs">{highlight.label}</dt>
-							<dd class="text-2xl font-semibold tracking-tight tabular-nums">{highlight.value}</dd>
-							{#if highlight.note}<dd class="text-muted-foreground text-xs tabular-nums">{highlight.note}</dd>{/if}
-						</div>
-					{/each}
-				</dl>
-			{/if}
-		</header>
+				{#if highlights.length > 0}
+					<dl
+						class="bg-border grid grid-cols-2 gap-px overflow-hidden rounded-lg border md:grid-cols-(--highlight-columns)"
+						style:--highlight-columns={`repeat(${highlights.length}, minmax(0, 1fr))`}
+					>
+						{#each highlights as highlight, index (highlight.key)}
+							<div class={cn('bg-background grid content-start gap-1 px-5 py-4', index === highlights.length - 1 && highlights.length % 2 === 1 && 'max-md:col-span-2')}>
+								<dt class="text-muted-foreground text-xs">{highlight.label}</dt>
+								<dd class="text-2xl font-semibold tracking-tight tabular-nums">{highlight.value}</dd>
+								{#if highlight.note}<dd class="text-muted-foreground text-xs tabular-nums">{highlight.note}</dd>{/if}
+							</div>
+						{/each}
+					</dl>
+				{/if}
+			</header>
+		{/if}
 
 		{#if metrics.length > 0}
 			<section class="grid gap-3" aria-labelledby="company-metrics">
@@ -183,17 +190,24 @@
 		{#if proof.length > 0}<CompanyProof groups={proof} {locale} />{/if}
 		{#if company.activity}<CompanyActivity activity={company.activity} {locale} />{/if}
 
-		{#if facts.length > 0}
+		{#if factGroups.length > 0}
 			<section class="grid gap-3" aria-labelledby="company-legal">
 				<h3 id="company-legal" class="text-lg font-semibold">{text.legal}</h3>
-				<dl class="bg-border grid gap-px overflow-hidden rounded-lg border sm:grid-cols-2">
-					{#each facts as fact, index (fact.field)}
-						<div class="{index === facts.length - 1 && facts.length % 2 === 1 ? 'sm:col-span-2' : ''} bg-background grid grid-cols-[7.5rem_minmax(0,1fr)] gap-4 px-4 py-2.5 text-sm">
-							<dt class="text-muted-foreground">{text.fields[fact.field] ?? fact.field}</dt>
-							<dd class="break-words">{fact.value}</dd>
-						</div>
+				<div class="bg-border grid gap-px overflow-hidden rounded-lg border sm:grid-cols-(--fact-columns)" style:--fact-columns={`repeat(${factGroups.length}, minmax(0, 1fr))`}>
+					{#each factGroups as group (group.group)}
+						<article class="bg-background grid content-start gap-3 p-5">
+							<h4 class="text-sm font-semibold">{text.factGroups[group.group]}</h4>
+							<dl class="grid gap-2">
+								{#each group.facts as fact (fact.field)}
+									<div class="grid grid-cols-[auto_minmax(0,1fr)] gap-3 text-sm">
+										<dt class="text-muted-foreground">{text.fields[fact.field] ?? fact.field}</dt>
+										<dd class="text-right break-words tabular-nums">{fact.value}</dd>
+									</div>
+								{/each}
+							</dl>
+						</article>
 					{/each}
-				</dl>
+				</div>
 			</section>
 		{/if}
 

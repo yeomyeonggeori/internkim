@@ -225,14 +225,15 @@ describe('what happened to the company', () => {
 			title: 'Seed round closed',
 			detail: 'Capital secured for product validation.',
 			amount: { amount: 2_000_000, currency: 'USD' },
-			attributes: '{"round": "Seed", "investors": "ABC Ventures"}'
+			attributes: '{"round": "Seed", "investors": "ABC Ventures", "postMoney": {"amount": 8000000, "currency": "USD"}}'
 		});
 
 		expect(added.status).toBe(200);
 		expect(resultOf(added).amount).toEqual({ amount: 2_000_000, currency: 'USD' });
 		expect(resultOf(added).attributes).toEqual([
 			{ label: 'round', value: 'Seed' },
-			{ label: 'investors', value: 'ABC Ventures' }
+			{ label: 'investors', value: 'ABC Ventures' },
+			{ label: 'postMoney', value: '8000000 USD' }
 		]);
 		seedRecordID = resultOf(added).recordID as string;
 	});
@@ -246,6 +247,17 @@ describe('what happened to the company', () => {
 
 		expect(refused.status).toBe(400);
 		expect(errorOf(refused)).toContain('JSON object string');
+	});
+
+	test('refuses a detail that is neither text nor money', async () => {
+		const refused = await asAdmin('company_record_add', {
+			category: 'funding',
+			title: 'Round with a broken valuation',
+			attributes: '{"preMoney": {"amount": "lots", "currency": "KRW"}}'
+		});
+
+		expect(refused.status).toBe(400);
+		expect(errorOf(refused)).toContain('attributes.preMoney');
 	});
 
 	test('is listed newest first and filtered by category and keyword', async () => {

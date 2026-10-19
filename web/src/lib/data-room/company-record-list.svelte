@@ -23,7 +23,7 @@
 	<h3 {id} class="text-lg font-semibold">{title}</h3>
 	<ol class="bg-background divide-y overflow-hidden rounded-lg border">
 		{#each records as record, index (index)}
-			{@const attributes = recordAttributes(record)}
+			{@const attributes = recordAttributes(record, locale)}
 			<li class="grid grid-cols-[4.5rem_minmax(0,1fr)_auto] items-baseline gap-x-4 px-4 py-3">
 				<time class="text-muted-foreground text-sm tabular-nums">{monthOf(record.date)}</time>
 				<div class="min-w-0">
