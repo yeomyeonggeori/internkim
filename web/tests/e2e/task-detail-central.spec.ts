@@ -129,13 +129,36 @@ test('a member who neither participates nor administers is told the sheet is rea
 	await openTaskCard(page, taskID);
 
 	const sheet = taskSheet(page);
-	await expect(sheet.getByText('관리자 또는 참여자만 수정할 수 있습니다.')).toBeVisible();
+	await expect(sheet.getByText('참여자, 요청한 사람, 관리자만 수정할 수 있습니다.')).toBeVisible();
 	await expect(sheet.getByRole('button', { name: '업무 수정' })).toHaveCount(0);
 	await expect(sheet.getByRole('button', { name: '업무 저장' })).toHaveCount(0);
 	await expect(sheet.getByRole('button', { name: '업무 삭제' })).toHaveCount(0);
 	await sheet.getByRole('button', { name: '업무 관계', exact: true }).click();
 	await expect(sheet.getByRole('heading', { name: '업무 관계', exact: true })).toBeVisible();
 	await expect(sheet.getByRole('button', { name: /부모 업무 추가|자녀 업무 추가|관계 작업 더보기/ })).toHaveCount(0);
+});
+
+test('the member who asked for the work may change it and delete it', async ({ page }) => {
+	const taskID = await seedOne({ title: 'E2E 상세 부탁한 업무', status: 'requested', requesterID: member3ID });
+	await signInToTheTaskBoard(page, member3Email);
+	await showEveryParticipant(page);
+	await openTaskCard(page, taskID);
+
+	const sheet = taskSheet(page);
+	await sheet.getByRole('button', { name: '업무 수정' }).click();
+	await expect(sheet.getByRole('button', { name: '업무 저장' })).toBeVisible();
+	await expect(sheet.getByRole('button', { name: '업무 삭제' })).toBeVisible();
+});
+
+test('somebody sharing work may change it but not delete it', async ({ page }) => {
+	const taskID = await seedOne({ title: 'E2E 상세 함께 맡은 업무', participantIDs: [member1ID, member3ID] });
+	await signInToTheTaskBoard(page, member3Email);
+	await openTaskCard(page, taskID);
+
+	const sheet = taskSheet(page);
+	await sheet.getByRole('button', { name: '업무 수정' }).click();
+	await expect(sheet.getByRole('button', { name: '업무 저장' })).toBeVisible();
+	await expect(sheet.getByRole('button', { name: '업무 삭제' })).toHaveCount(0);
 });
 
 test('a participant added in the sheet is on the record', async ({ page }) => {

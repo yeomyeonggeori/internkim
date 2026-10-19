@@ -60,6 +60,7 @@ type EventRow = {
 	is_open_to_company: boolean;
 	updated_at: string;
 	task_participant: { member_id: string }[];
+	task_updatable: boolean;
 };
 
 export type ApprovedLeaveRow = {
@@ -73,7 +74,7 @@ export type ApprovedLeaveRow = {
 };
 
 const eventSelection =
-	'id, title, note, location, starts_at, ends_at, is_whole_day, notify_minutes_before, is_open_to_company, updated_at, task_participant (member_id)';
+	'id, title, note, location, starts_at, ends_at, is_whole_day, notify_minutes_before, is_open_to_company, updated_at, task_participant (member_id), task_updatable';
 
 const leaveSelection = 'id, member_id, kind, days, status, starts_at, ends_at';
 
@@ -169,7 +170,7 @@ function calendarEntryOfEvent(event: EventRow, reader: CompanyCalendarReader): C
 		createdByEmail: '',
 		createdByName: '',
 		updatedAt: event.updated_at,
-		readOnly: false,
+		readOnly: !event.task_updatable,
 		source: 'event'
 	};
 }

@@ -7,10 +7,10 @@ import type { TaskRow } from './tasks';
 
 export type TaskCardRow = Pick<TaskRow,
 	'id' | 'parent_task_id' | 'title' | 'status' | 'business' | 'type' | 'size' |
-	'starts_at' | 'ends_at' | 'created_at' | 'updated_at' | 'requester_id' | 'task_participant' | 'task_deletable'
+	'starts_at' | 'ends_at' | 'created_at' | 'updated_at' | 'requester_id' | 'task_participant' | 'task_deletable' | 'task_updatable'
 > & Partial<Pick<TaskRow, 'organization_id' | 'opportunity_id'>>;
 
-const cardColumns = 'id, parent_task_id, title, status, business, type, size, starts_at, ends_at, created_at, updated_at, requester_id, task_participant (member_id), task_deletable';
+const cardColumns = 'id, parent_task_id, title, status, business, type, size, starts_at, ends_at, created_at, updated_at, requester_id, task_participant (member_id), task_deletable, task_updatable';
 const rowsPerPage = 500;
 const parentIDsPerQuery = 100;
 

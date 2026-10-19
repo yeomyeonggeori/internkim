@@ -10,7 +10,6 @@ import { deleteTaskDraft, saveTaskDraft } from './task-persistence';
 import type { LoadTask } from './task-load-tracker';
 import {
 	canDeleteTask,
-	canManageTaskAssignment,
 	canRemoveTaskParticipant,
 	canUpdateTask,
 	currentTaskMember
@@ -146,9 +145,9 @@ export class TaskEditorController {
 	};
 
 	isOwnTask = (task: Task): boolean => currentTaskMember(this.summary)?.id === task.ownerID;
-	canUpdateTask = (task: Task): boolean => canUpdateTask(this.summary, task);
+	canUpdateTask = (task: Task): boolean => canUpdateTask(task);
 	canDeleteTask = (task: Task): boolean => canDeleteTask(task);
-	canManageTaskAssignment = (task: Task): boolean => Boolean(this.summary?.peopleReady) && canManageTaskAssignment(this.summary, task);
+	canManageTaskAssignment = (task: Task): boolean => Boolean(this.summary?.peopleReady) && canUpdateTask(task);
 	canRemoveParticipant = (task: Task, memberID: string): boolean => canRemoveTaskParticipant(task, memberID);
 
 	private members(): TaskMember[] {

@@ -872,6 +872,22 @@ describe('deleting', () => {
 		expect(gone.deleted).toBe(true);
 	});
 
+	test('says on each task whether a change to it would go through', async () => {
+		await run('task_add', { title: '함께 맡은 점검', participantPersonHints: ['이샘플', '박예시'] });
+		const listed = resultOf(await run('task_list', { scope: 'all', everyWeek: true, query: '맡은' }));
+		const canUpdateOf = (content: string) =>
+			(listed.tasks as { content: string; canUpdate: boolean }[])
+				.find((task) => task.content === content)?.canUpdate;
+
+		expect(canUpdateOf('남이 맡은 정리')).toBe(false);
+		const refused = await run('task_update', { taskHint: '남이 맡은 정리', title: '남의 일을 고침' });
+		expect(refused.status).toBe(403);
+
+		expect(canUpdateOf('함께 맡은 점검')).toBe(true);
+		const changed = resultOf(await run('task_update', { taskHint: '함께 맡은 점검', participantPersonHints: ['이샘플'] }));
+		expect(changed.participantIDs).toEqual([sampleID]);
+	});
+
 	test('refuses to delete something it cannot find', async () => {
 		const refused = await run('task_delete', { taskHint: '없는 업무' });
 		expect(refused.status).toBe(409);

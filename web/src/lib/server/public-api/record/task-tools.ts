@@ -82,6 +82,7 @@ export type AnsweredTask = {
 	endDate: string;
 	weekCode: string;
 	canDelete: boolean;
+	canUpdate: boolean;
 };
 
 function presentationOf(personID: string, person: RecordPerson | undefined, locale: RecordContext['locale']): AnsweredPerson {
@@ -139,7 +140,8 @@ function answeredTask(context: RecordContext, row: TaskCardRow, people = peopleB
 		startDate: dayOfInstant(context.labels.timezone, row.starts_at),
 		endDate,
 		weekCode: endDate ? taskWeekCodeForDateISO(endDate) : '',
-		canDelete: row.task_deletable
+		canDelete: row.task_deletable,
+		canUpdate: row.task_updatable
 	};
 }
 

@@ -56,6 +56,10 @@ describe('a task the record answered', () => {
 		expect(taskOf(answered({ canDelete: false })).canDelete).toBe(false);
 		expect(taskOf(answered()).canDelete).toBe(false);
 	});
+	test('carries whether the record lets the viewer change who takes part', () => {
+		expect(taskOf(answered({ canUpdate: true })).canUpdate).toBe(true);
+		expect(taskOf(answered()).canUpdate).toBe(false);
+	});
 	test('carries the parent, the requester and when it was created', () => {
 		const task = taskOf(
 			answered({

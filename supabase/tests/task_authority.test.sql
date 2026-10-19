@@ -246,14 +246,14 @@ select is(
   'participant assignment: the RPC persists the complete set'
 );
 
-select throws_ok(
+select lives_ok(
   $block$do $$
   begin
     set local role authenticated;
     perform set_config('request.jwt.claims', '{"sub":"46000000-0000-0000-0000-000000000001"}', true);
     perform public.task_save(
       target_task_id => '46000000-0000-0000-0000-000000000102',
-      target_title => 'Shared assignment forgery',
+      target_title => 'Shared assignment change',
       target_status => 'planned',
       target_note => null,
       target_business => null,
@@ -265,10 +265,9 @@ select throws_ok(
       target_participant_ids => array['46000000-0000-0000-0000-0000000000a1'::uuid],
       target_is_event => false
     );
+    reset role;
   end $$;$block$,
-  '42501',
-  null,
-  'participant assignment: a member of a shared task cannot take ownership'
+  'participant assignment: a member of shared work may change who takes part'
 );
 
 select throws_ok(
@@ -375,7 +374,7 @@ begin
     target_is_event => true
   );
   reset role;
-end $$;$block$, '42501', 'only a participant, the member who asked, or a company admin can update a task',
+end $$;$block$, '42501', 'only the people taking part, the member who asked, or a company admin can change a task',
   'calendar save: a colleague who is neither on the event nor asked for it cannot rewrite it');
 
 select is(
@@ -406,12 +405,12 @@ begin
   set title = 'Direct colleague calendar update'
   where id = '46000000-0000-0000-0000-000000000108';
   reset role;
-end $$;$block$, 'calendar update: event RLS preserves same-company collaboration');
+end $$;$block$, 'calendar update: a colleague outside an event is safely filtered');
 
 select is(
   (select title from public.task where id = '46000000-0000-0000-0000-000000000108'),
-  'Direct colleague calendar update',
-  'calendar update: a same-company non-participant direct change persists'
+  'Calendar RPC update',
+  'calendar update: an event keeps its title when somebody outside it writes to it'
 );
 
 select lives_ok($block$do $$

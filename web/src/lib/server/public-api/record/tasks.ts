@@ -29,10 +29,11 @@ export type TaskRow = {
 	requester_id: string | null;
 	task_participant: { member_id: string }[];
 	task_deletable: boolean;
+	task_updatable: boolean;
 };
 
 export const taskSelection =
-	'id, parent_task_id, title, status, note, location, business, type, size, is_event, is_whole_day, is_open_to_company, notify_minutes_before, starts_at, ends_at, created_at, updated_at, organization_id, opportunity_id, contact_id, due_at, requester_id, task_participant (member_id), task_deletable';
+	'id, parent_task_id, title, status, note, location, business, type, size, is_event, is_whole_day, is_open_to_company, notify_minutes_before, starts_at, ends_at, created_at, updated_at, organization_id, opportunity_id, contact_id, due_at, requester_id, task_participant (member_id), task_deletable, task_updatable';
 
 // Postgres says why it refused, and the three answers are different things: a
 // permission the caller does not hold, a row that moved under them, and a rule
@@ -85,13 +86,13 @@ export function refusedWriteOf(reason: string, code: string | undefined, changes
 	if (status !== 403) return new RecordRefusedTheWrite(reason, status);
 	if (changesParticipants) {
 		return new RecordRefusedTheWrite(
-			'only an admin, or the one person taking part in this task, can change who takes part in it',
+			'only the people taking part in it, the member who asked for it, or an admin can change who takes part in it, and the one person on it stays on it while doing so',
 			403,
 			'task_assignment_forbidden'
 		);
 	}
 	return new RecordRefusedTheWrite(
-		'only somebody taking part in this task, or an admin, can change it',
+		'only the people taking part in it, the member who asked for it, or an admin can change it',
 		403,
 		'task_write_forbidden'
 	);

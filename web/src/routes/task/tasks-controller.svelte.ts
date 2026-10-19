@@ -217,7 +217,7 @@ class TasksController {
 	removeParticipantID = this.editor.removeParticipantID;
 	closeEditor = this.editor.closeEditor;
 
-	canUpdateTask = (task: Task): boolean => canUpdateTask(this.summary, task);
+	canUpdateTask = (task: Task): boolean => canUpdateTask(task);
 	canDeleteTask = this.editor.canDeleteTask;
 	canManageTaskAssignment = this.editor.canManageTaskAssignment;
 	canRemoveParticipant = this.editor.canRemoveParticipant;

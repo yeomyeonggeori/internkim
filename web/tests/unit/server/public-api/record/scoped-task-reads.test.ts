@@ -10,7 +10,7 @@ function task(index: number, organizationID: string | null = null): TaskRow {
 		is_event: false, is_whole_day: false, is_open_to_company: false, notify_minutes_before: null, starts_at: null,
 		ends_at: null, created_at: '2026-01-01T00:00:00Z', updated_at: '2026-01-01T00:00:00Z',
 		organization_id: organizationID, opportunity_id: null, contact_id: null, due_at: null,
-		requester_id: null, task_participant: [], task_deletable: false
+		requester_id: null, task_participant: [], task_deletable: false, task_updatable: false
 	};
 }
 
