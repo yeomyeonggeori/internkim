@@ -11,8 +11,6 @@ import android.text.style.RelativeSizeSpan;
 import android.view.View;
 import android.widget.RemoteViews;
 import androidx.annotation.Nullable;
-import app.intern.kim.MainActivity;
-import app.intern.kim.R;
 import java.util.List;
 
 final class AttendanceWidgetDrawing {
@@ -239,7 +237,7 @@ final class AttendanceWidgetDrawing {
     }
 
     private static PendingIntent openApp(Context context) {
-        Intent intent = new Intent(context, MainActivity.class).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+        Intent intent = AttendanceAppLaunch.openingIntent(context);
         return PendingIntent.getActivity(context, 0, intent, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
     }
 }

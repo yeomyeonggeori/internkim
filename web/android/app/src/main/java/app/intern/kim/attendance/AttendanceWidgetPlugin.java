@@ -12,8 +12,8 @@ public class AttendanceWidgetPlugin extends Plugin {
     @PluginMethod
     public void install(PluginCall call) {
         JSObject held = new JSObject();
-        held.put("installID", AttendanceWidgetStore.installID(getContext()));
-        held.put("tokenName", AttendanceWidgetStore.heldTokenName(getContext()));
+        held.put("installID", AttendanceWidgetHandoff.installID(getContext()));
+        held.put("tokenName", AttendanceWidgetHandoff.heldTokenName(getContext()));
         call.resolve(held);
     }
 
@@ -26,15 +26,13 @@ public class AttendanceWidgetPlugin extends Plugin {
             call.reject("token, tokenName and origin are required");
             return;
         }
-        AttendanceWidgetStore.keep(getContext(), new AttendanceWidgetStore.Credential(token, tokenName, origin));
-        AttendanceWidgetProvider.redrawSoon(getContext());
+        AttendanceWidgetHandoff.supply(getContext(), token, tokenName, origin);
         call.resolve();
     }
 
     @PluginMethod
     public void forget(PluginCall call) {
-        AttendanceWidgetStore.forget(getContext());
-        AttendanceWidgetProvider.redrawSoon(getContext());
+        AttendanceWidgetHandoff.forget(getContext());
         call.resolve();
     }
 }

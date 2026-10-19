@@ -3,7 +3,6 @@ package app.intern.kim.attendance;
 import android.content.Context;
 import android.util.Log;
 import androidx.annotation.Nullable;
-import app.intern.kim.R;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;

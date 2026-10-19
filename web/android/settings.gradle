@@ -1,4 +1,6 @@
 include ':app'
+include ':attendance-widget'
+project(':attendance-widget').projectDir = new File('../attendance-widget/android')
 include ':capacitor-cordova-android-plugins'
 project(':capacitor-cordova-android-plugins').projectDir = new File('./capacitor-cordova-android-plugins/')
 

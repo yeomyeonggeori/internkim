@@ -6,7 +6,6 @@ import android.text.SpannableStringBuilder;
 import android.text.Spanned;
 import android.text.style.ForegroundColorSpan;
 import android.text.style.RelativeSizeSpan;
-import app.intern.kim.R;
 import java.util.Locale;
 
 final class AttendanceDurationText {
