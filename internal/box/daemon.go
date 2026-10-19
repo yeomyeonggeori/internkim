@@ -44,6 +44,7 @@ type Daemon struct {
 	Install           func(companyhost.Request) error
 	TakeOver          func(ctx context.Context, session Session, keyring Keyring) error
 	StandDown         func() error
+	StandUp           func() error
 	NameHost          func(ctx context.Context, companySlug string) error
 	GetOnline         func(ctx context.Context, boxPublicKey string) error
 	ChangeWifi        func(ctx context.Context, ssid, password string) error
@@ -123,6 +124,7 @@ func (daemon Daemon) pairingPageFor(isClaimed bool, page *pairingPage, identity 
 func (daemon Daemon) step(ctx context.Context, identity Identity, page *pairingPage) (time.Duration, bool, error) {
 	session, isClaimed, errorValue := daemon.Client.Session(ctx, identity)
 	if errorValue != nil {
+		daemon.standDownWhenTheLeaseRunsOut()
 		return 0, false, errorValue
 	}
 	if !isClaimed {
@@ -151,7 +153,7 @@ func (daemon Daemon) serveClaimed(ctx context.Context, session Session, identity
 		return daemon.standBy(session)
 	}
 	if daemon.installedCompany() == session.Configuration.Company.ID {
-		return daemon.untilNextCheck(session.Session), daemon.renew(session, keyring)
+		return daemon.untilNextCheck(session.Session), daemon.keepServing(session, keyring)
 	}
 	if session.SealedModelKey == nil {
 		log.Printf("%s connected this box and has not given it a model key yet", session.Configuration.Company.Name)
@@ -167,7 +169,17 @@ func (daemon Daemon) serveClaimed(ctx context.Context, session Session, identity
 	if errorValue := daemon.installFor(session, modelKey); errorValue != nil {
 		return 0, errorValue
 	}
-	return daemon.untilNextCheck(session.Session), nil
+	return daemon.untilNextCheck(session.Session), daemon.keepServiceLease(session.TakeOver)
+}
+
+func (daemon Daemon) keepServing(session Session, keyring Keyring) error {
+	if errorValue := daemon.standUpIfItStoodDown(); errorValue != nil {
+		return fmt.Errorf("starting %s's services again: %w", session.Configuration.Company.Name, errorValue)
+	}
+	if errorValue := daemon.keepServiceLease(session.TakeOver); errorValue != nil {
+		return errorValue
+	}
+	return daemon.renew(session, keyring)
 }
 
 func (daemon Daemon) takeOver(ctx context.Context, session Session, keyring Keyring) (bool, error) {
@@ -222,7 +234,7 @@ func (daemon Daemon) standBy(session Session) (time.Duration, error) {
 	if errorValue := ForgetInstalledCompany(daemon.Places.StateDirectoryPath); errorValue != nil {
 		return 0, errorValue
 	}
-	return daemon.untilNextCheck(session.Session), nil
+	return daemon.untilNextCheck(session.Session), daemon.forgetServiceLease()
 }
 
 func (daemon Daemon) announce(ctx context.Context, identity Identity, page LocalPage) error {

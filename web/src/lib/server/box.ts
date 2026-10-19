@@ -562,6 +562,7 @@ export type BoxSession = {
 	sealedModelKey: HeldModelKey | null;
 	boxesAwaitingCompanyKey: AwaitingBox[];
 	keepsBackups: boolean;
+	takeOver: TakeOver;
 };
 
 export async function boxSessionFor(
@@ -586,7 +587,8 @@ export async function boxSessionFor(
 		sealedCompanyKey: box.sealedCompanyKey,
 		sealedModelKey: holdsKey ? keyring.sealedModelKey : null,
 		boxesAwaitingCompanyKey: holdsKey ? await boxesAwaitingCompanyKey(client, box.companyID) : [],
-		keepsBackups: await companyKeepsABackup(client, box.companyID)
+		keepsBackups: await companyKeepsABackup(client, box.companyID),
+		takeOver: await takeOverOf(client, box.companyID)
 	};
 }
 

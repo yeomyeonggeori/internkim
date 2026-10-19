@@ -5,6 +5,7 @@ import (
 	"errors"
 	"os"
 	"testing"
+	"time"
 )
 
 func TestAStandbyBoxHoldsTheCompanyKeyAndInstallsNothing(t *testing.T) {
@@ -219,5 +220,57 @@ func TestAServiceBoxMadeAStandbyStopsItsServicesAndTakesOverAgainWhenItServesOnc
 	runSteps(t, daemon, 1)
 	if tookOver != 1 || len(recorded.requests) != 1 {
 		t.Fatalf("serving again took over %d times and installed %d times", tookOver, len(recorded.requests))
+	}
+}
+
+type serviceSwitches struct{ downs, ups int }
+
+func cutOffServiceBox(t *testing.T, takeOver TakeOverPolicy) (*fakePlane, *installs, Daemon, *time.Time, *serviceSwitches) {
+	t.Helper()
+	plane := &fakePlane{isClaimed: true, accessToken: "service.session.token", takeOver: takeOver}
+	recorded := &installs{}
+	daemon, places := daemonFor(t, plane, recorded)
+	plane.sealedModelKey = sealTo(t, identityOf(t, places), "sk-or-v1-sample")
+	clock := time.Date(2026, 10, 20, 9, 0, 0, 0, time.UTC)
+	switches := &serviceSwitches{}
+	daemon.Now = func() time.Time { return clock }
+	daemon.StandDown = func() error { switches.downs++; return nil }
+	daemon.StandUp = func() error { switches.ups++; return nil }
+	runSteps(t, daemon, 1)
+	if len(recorded.requests) != 1 {
+		t.Fatalf("installs = %+v", recorded.requests)
+	}
+	plane.isAway = true
+	return plane, recorded, daemon, &clock, switches
+}
+
+func TestAServiceBoxCutOffForHalfTheLapseStopsItsServicesAndStartsThemWhenConfirmedAgain(t *testing.T) {
+	plane, recorded, daemon, clock, switches := cutOffServiceBox(t, TakeOverPolicy{IsAutomatic: true, LapseSeconds: 300})
+	*clock = clock.Add(100 * time.Second)
+	runSteps(t, daemon, 1)
+	if switches.downs != 0 {
+		t.Fatal("the box stopped its services before half the lapse passed")
+	}
+
+	*clock = clock.Add(51 * time.Second)
+	runSteps(t, daemon, 2)
+	if switches.downs != 1 || installedCompanyIn(daemon.Places.StateDirectoryPath) != sampleCompanyID {
+		t.Fatalf("stood down %d times, installed %q", switches.downs, installedCompanyIn(daemon.Places.StateDirectoryPath))
+	}
+
+	plane.isAway = false
+	runSteps(t, daemon, 2)
+	if switches.ups != 1 || len(recorded.requests) != 1 {
+		t.Fatalf("stood up %d times and installed %d times", switches.ups, len(recorded.requests))
+	}
+}
+
+func TestAServiceBoxThatNoStandbyTakesOverFromKeepsServingWhileCutOff(t *testing.T) {
+	_, _, daemon, clock, switches := cutOffServiceBox(t, TakeOverPolicy{IsAutomatic: false, LapseSeconds: 300})
+	*clock = clock.Add(24 * time.Hour)
+	runSteps(t, daemon, 2)
+
+	if switches.downs != 0 {
+		t.Fatal("a box no standby takes over from stopped serving while it was cut off")
 	}
 }

@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(12);
+select plan(13);
 
 delete from public.company;
 
@@ -33,6 +33,15 @@ update public.box set last_seen_at = now() where public_key = 'head-office';
 select is(public.note_box_seen('annex'), 'standby', 'a standby box never takes over a service box that is still seen');
 
 update public.box set last_seen_at = now() - interval '10 minutes' where public_key = 'head-office';
+select is(
+  public.note_box_seen('annex'),
+  'standby',
+  'a company that keeps no backup is never taken over, since the box taking over would start it empty'
+);
+
+insert into storage.objects (bucket_id, name)
+values ('box_backup', '7f000000-0000-0000-0000-0000000000c1/kept/manifest.json');
+
 select public.note_box_seen('head-office-spare');
 select public.note_box_seen('waiting');
 select is(
@@ -62,10 +71,10 @@ select is(
 );
 
 select throws_ok(
-  $$insert into public.box_take_over (company_id, lapse_seconds) values ('7f000000-0000-0000-0000-0000000000c1', 30)
+  $$insert into public.box_take_over (company_id, lapse_seconds) values ('7f000000-0000-0000-0000-0000000000c1', 299)
     on conflict (company_id) do update set lapse_seconds = excluded.lapse_seconds$$,
   '23514', null,
-  'a lapse short enough to mistake a slow minute for a lost building is refused'
+  'a lapse under five minutes is refused, since the service box stops itself at half of it and checks in once a minute'
 );
 
 set local role authenticated;

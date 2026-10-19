@@ -1,7 +1,7 @@
 create table public.box_take_over (
   company_id uuid primary key references public.company on delete cascade,
   is_automatic boolean not null default false,
-  lapse_seconds integer not null default 300 check (lapse_seconds between 120 and 86400)
+  lapse_seconds integer not null default 300 check (lapse_seconds between 300 and 86400)
 );
 
 alter table public.box_take_over enable row level security;
@@ -15,7 +15,7 @@ grant select on public.box_take_over to authenticated;
 grant select, insert, update, delete on public.box_take_over to service_role;
 
 comment on table public.box_take_over is
-  'whether a standby box takes the company over by itself when the service box has not been seen for lapse_seconds. Off unless an administrator turns it on; a company with no row has it off';
+  'whether a standby box takes the company over by itself when the service box has not been seen for lapse_seconds. Off unless an administrator turns it on; a company with no row has it off. The service box stops its own services once half the lapse passes without the central plane seeing it, so the two never serve at once';
 
 create function internal.box_rendezvous_score(box_key text, shard text, box_weight integer)
 returns double precision
@@ -65,6 +65,10 @@ begin
     return seen.role;
   end if;
 
+  if not public.company_keeps_a_backup(seen.company_id) then
+    return seen.role;
+  end if;
+
   select candidate.public_key into successor
   from public.box as candidate
   join public.box_keyring as keyring on keyring.company_id = candidate.company_id
@@ -82,7 +86,9 @@ begin
   if successor is distinct from box_key then
     return seen.role;
   end if;
-  perform public.make_box_serve(seen.company_id, box_key);
+  if public.make_box_serve(seen.company_id, box_key) <> 'serving' then
+    return seen.role;
+  end if;
   return 'service';
 end
 $$;
@@ -91,4 +97,4 @@ revoke all on function public.note_box_seen(text) from public, anon, authenticat
 grant execute on function public.note_box_seen(text) to service_role;
 
 comment on function public.note_box_seen(text) is
-  'records that a box was just seen and answers its role. A standby box becomes the service box here, and only here, when the company lets its boxes take over by themselves, the service box has not been seen for the company''s lapse, and this box is the live standby holding the company key that ranks first: one on another site than the lapsed box before one on its site, then by weighted rendezvous score';
+  'records that a box was just seen and answers its role. A standby box becomes the service box here, and only here, when the company lets its boxes take over by themselves, the service box has not been seen for the company''s lapse, the company keeps a backup to take over from, and this box is the live standby holding the company key that ranks first: one on another site than the lapsed box before one on its site, then by weighted rendezvous score';

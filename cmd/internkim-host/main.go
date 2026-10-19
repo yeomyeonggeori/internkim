@@ -306,6 +306,7 @@ func boxDaemon(appURL string) box.Daemon {
 		},
 		TakeOver:  takeOverFromTheNewestBackup,
 		StandDown: standDown,
+		StandUp:   standUp,
 	}
 }
 

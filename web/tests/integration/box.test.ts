@@ -492,7 +492,7 @@ describe('connecting an empty box', () => {
 		await client.storage.from('box_backup').remove([keptManifest]);
 	});
 
-	test('a standby box that holds the company key takes over a service box the company has not seen, once the company lets it', async () => {
+	test('a standby box that holds the company key takes over a service box the company has not seen, once the company lets it and keeps a backup', async () => {
 		const lapsing = await aCompany('lapsing');
 		const first = await aBox();
 		const second = await aBox();
@@ -510,10 +510,18 @@ describe('connecting an empty box', () => {
 		expect((await boxSessionFor(credentials, second.publicKey, environment, appURL))?.role).toBe('standby');
 		await expect(keepTakeOver(client, lapsing.companyID, { isAutomatic: true, lapseSeconds: 10 })).rejects.toMatchObject({ status: 400 });
 		await keepTakeOver(client, lapsing.companyID, { isAutomatic: true, lapseSeconds: 300 });
+		expect((await boxSessionFor(credentials, second.publicKey, environment, appURL))?.role).toBe('standby');
 
-		expect((await boxSessionFor(credentials, second.publicKey, environment, appURL))?.role).toBe('service');
+		const keptManifest = `${lapsing.companyID}/kept/manifest.json`;
+		await client.storage.from('box_backup').upload(keptManifest, new Blob(['{}'], { type: 'application/json' }));
+
+		expect(await boxSessionFor(credentials, second.publicKey, environment, appURL)).toMatchObject({
+			role: 'service',
+			takeOver: { isAutomatic: true, lapseSeconds: 300 }
+		});
 		expect((await boxSessionFor(credentials, first.publicKey, environment, appURL))?.role).toBe('standby');
 		expect((await companyBoxesOf(client, lapsing.companyID)).takeOver).toEqual({ isAutomatic: true, lapseSeconds: 300 });
+		await client.storage.from('box_backup').remove([keptManifest]);
 	});
 
 	test('the newest backup the boxes share is the newest whole one sealed to the company key', async () => {
