@@ -526,11 +526,11 @@ describe('connecting an empty box', () => {
 	});
 
 	test('a standby box is aimed at the release the service box is about to take, and the service box waits for it', async () => {
-		const releasing = await aCompany('releasing');
+		const updating = await aCompany('updating');
 		const first = await aBox();
 		const second = await aBox();
-		await claimWithCode(releasing.companyID, first.publicKey, await announcedCode(first));
-		await claimWithCode(releasing.companyID, second.publicKey, await announcedCode(second), 'add');
+		await claimWithCode(updating.companyID, first.publicKey, await announcedCode(first));
+		await claimWithCode(updating.companyID, second.publicKey, await announcedCode(second), 'add');
 		await boxSessionFor(credentials, first.publicKey, environment, appURL, 'v0.0.1');
 		expect((await boxSessionFor(credentials, second.publicKey, environment, appURL, 'v0.0.1'))?.targetVersion).toBeNull();
 
