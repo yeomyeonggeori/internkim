@@ -15,6 +15,7 @@ import (
 
 	"github.com/yeomyeonggeori/internkim/internal/blueclawworkspace"
 	"github.com/yeomyeonggeori/internkim/internal/localfleet"
+	"github.com/yeomyeonggeori/internkim/internal/modelladder"
 )
 
 type devVirtualSessionArguments struct {
@@ -396,7 +397,10 @@ func devVirtualSessionCommandArguments(sessionArguments devVirtualSessionArgumen
 	if sessionArguments.IsLiveLanguageModel {
 		commandArguments = appendOptionalDevFlag(commandArguments, "--seed", sessionArguments.Seed)
 		commandArguments = appendOptionalDevFlag(commandArguments, "--temperature", sessionArguments.Temperature)
-		commandArguments = append(commandArguments, "--live-llm")
+		commandArguments = append(commandArguments,
+			"--decision-endpoint", modelladder.DecisionsURL(sessionArguments.LanguageModelEndpoint),
+			"--decision-model", modelladder.DecisionModel,
+			"--live-llm")
 	}
 	return commandArguments
 }

@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/yeomyeonggeori/internkim/internal/localfleet"
+	"github.com/yeomyeonggeori/internkim/internal/modelladder"
 )
 
 func TestDevSimulateBuildsLocalVirtualSessionCommand(t *testing.T) {
@@ -207,6 +208,8 @@ func TestDevVirtualSessionCommandArguments(t *testing.T) {
 		"--maximum-model-tier", "low",
 		"--strict-assertions",
 		"--seed", "7",
+		"--decision-endpoint", modelladder.DecisionsURL(""),
+		"--decision-model", modelladder.DecisionModel,
 		"--live-llm",
 	}
 	if !reflect.DeepEqual(arguments, expectedArguments) {
