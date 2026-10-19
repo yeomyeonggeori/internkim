@@ -613,6 +613,29 @@ describe('a channel changed in the messenger', () => {
 	});
 });
 
+describe('a reaction, a hidden conversation and a rewritten message', () => {
+	test('are carried to the company machine, never answered here', async () => {
+		for (const [name, input] of [
+			['message_reaction_add', { messageID: 'a-message', emoji: '+1' }],
+			['conversation_hide', { personHint: 'colleague@example.com' }],
+			['message_update', { messageID: 'a-message', text: 'the whole new text' }]
+		] as const) {
+			const answered = await invoke(name, holdersToken, input);
+			expect(answered.status).toBe(503);
+		}
+	});
+
+	test('refuses a rewrite that also quotes a span, before anything is carried', async () => {
+		const answered = await invoke('message_update', holdersToken, {
+			messageID: 'a-message',
+			text: 'the whole new text',
+			oldText: 'old',
+			newText: 'new'
+		});
+		expect(answered.status).toBe(400);
+	});
+});
+
 describe('looking at what a destructive call would touch', () => {
 	test('answers no target for a tool that has nothing to look at', async () => {
 		const answered = await preview('task_list', holdersToken, {});

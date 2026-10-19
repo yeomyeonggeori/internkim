@@ -231,15 +231,15 @@ func (service Service) invokeChatdPlatformMessageDelete(ctx context.Context, req
 	})
 }
 
-// An edit names a quoted span of the message it changes. The current text comes
-// from the platform's own record of that exact message, the span is applied to
-// it, and the whole result is sent, because that is the only edit the platform
-// itself has.
+// An edit either rewrites the message whole or names a quoted span of it. For a
+// span, the current text comes from the platform's own record of that exact
+// message, the span is applied to it, and the whole result is sent, because
+// that is the only edit the platform itself has.
 func (service Service) invokeChatdPlatformMessageUpdate(ctx context.Context, request capabilities.ToolInvokeRequest, input platformMessageUpdateInput) (capabilities.ToolInvokeResponse, error) {
 	messageID := strings.TrimSpace(input.MessageID)
-	if input.OldText == nil && len(input.Attachments) == 0 {
+	if input.OldText == nil && input.Text == nil && len(input.Attachments) == 0 {
 		return platformToolErrorResponse(request.ToolName, platformToolStaticFailure("invalid_input", "input_decode",
-			"pass oldText with the exact current span and newText with its replacement, or attachments to add files without changing the text")), nil
+			"pass text to rewrite the message, oldText with the exact current span and newText with its replacement, or attachments to add files without changing the text")), nil
 	}
 	attachmentFiles, failure, hasFailure := service.resolvePlatformMessageAttachments(request, input.Attachments)
 	if hasFailure {
@@ -249,17 +249,9 @@ func (service Service) invokeChatdPlatformMessageUpdate(ctx context.Context, req
 	if replyTargetID == "" {
 		replyTargetID = strings.TrimSpace(request.Context.ConversationID)
 	}
-	currentText, failure, hasFailure := service.chatdCurrentMessageText(ctx, messageID)
+	editedText, failure, hasFailure := service.editedMessageText(ctx, messageID, input)
 	if hasFailure {
 		return platformToolErrorResponse(request.ToolName, failure), nil
-	}
-	editedText := currentText
-	if input.OldText != nil {
-		matchCount := strings.Count(currentText, *input.OldText)
-		if matchCount != 1 {
-			return platformToolErrorResponse(request.ToolName, platformMessageEditMatchFailure(matchCount, currentText)), nil
-		}
-		editedText = strings.Replace(currentText, *input.OldText, *input.NewText, 1)
 	}
 	requestBody := map[string]any{
 		"replyTargetID":      replyTargetID,
@@ -279,6 +271,21 @@ func (service Service) invokeChatdPlatformMessageUpdate(ctx context.Context, req
 		"deliveryStatus": "updated",
 		"messageUpdated": true,
 	})
+}
+
+func (service Service) editedMessageText(ctx context.Context, messageID string, input platformMessageUpdateInput) (string, platformToolFailure, bool) {
+	if input.Text != nil {
+		return *input.Text, platformToolFailure{}, false
+	}
+	currentText, failure, hasFailure := service.chatdCurrentMessageText(ctx, messageID)
+	if hasFailure || input.OldText == nil {
+		return currentText, failure, hasFailure
+	}
+	matchCount := strings.Count(currentText, *input.OldText)
+	if matchCount != 1 {
+		return "", platformMessageEditMatchFailure(matchCount, currentText), true
+	}
+	return strings.Replace(currentText, *input.OldText, *input.NewText, 1), platformToolFailure{}, false
 }
 
 // The record an edit reads must be the record message_search answered from: an

@@ -53,6 +53,8 @@ VERBS_BY_EXCEPTION = {
     "crm_organization_archive": "archiving keeps the record and is not a delete",
     "channel_join": "join is the messenger's word for entering an open channel",
     "channel_leave": "leave is the messenger's word for walking out of a channel",
+    "conversation_hide": "hides a conversation from the requester's own list without deleting it",
+    "conversation_reveal": "shows a hidden conversation again, which no record-level verb describes",
     "conversation_mute": "mute is the domain's word",
     "conversation_unmute": "unmute is the domain's word",
     "web_fetch": "fetches a page rather than reading a record",

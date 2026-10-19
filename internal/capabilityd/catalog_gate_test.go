@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"image"
+	"io"
 	"image/png"
 	"net/http"
 	"os"
@@ -368,6 +369,42 @@ func gateCases() map[string]catalogGateCase {
 			expect: func(t *testing.T, answered capabilities.ToolInvokeResponse) {
 				expectSucceeded(t, answered)
 				expectResultHolds(t, answered, "post-1")
+			},
+		},
+		"message_reaction_add": {
+			kind:    provesBehaviour,
+			reaches: reachingTheMessengerAsTheRequester(),
+			input:   `{"messageID":"post-1","emoji":"+1"}`,
+			expect: func(t *testing.T, answered capabilities.ToolInvokeResponse) {
+				expectSucceeded(t, answered)
+				expectResultHolds(t, answered, `"messageID":"post-1"`)
+			},
+		},
+		"message_reaction_delete": {
+			kind:    provesBehaviour,
+			reaches: reachingTheMessengerAsTheRequester(),
+			input:   `{"messageID":"post-1","emoji":"+1"}`,
+			expect: func(t *testing.T, answered capabilities.ToolInvokeResponse) {
+				expectSucceeded(t, answered)
+				expectResultHolds(t, answered, `"emoji":"+1"`)
+			},
+		},
+		"conversation_hide": {
+			kind:    provesBehaviour,
+			reaches: reachingTheMessengerAsTheRequester(),
+			input:   `{"personHint":"박예시"}`,
+			expect: func(t *testing.T, answered capabilities.ToolInvokeResponse) {
+				expectSucceeded(t, answered)
+				expectResultHolds(t, answered, `"isHidden":true`)
+			},
+		},
+		"conversation_reveal": {
+			kind:    provesBehaviour,
+			reaches: reachingTheMessengerAsTheRequester(),
+			input:   `{"personHint":"박예시"}`,
+			expect: func(t *testing.T, answered capabilities.ToolInvokeResponse) {
+				expectSucceeded(t, answered)
+				expectResultHolds(t, answered, `"isHidden":false`)
 			},
 		},
 		"channel_add": {
@@ -1369,7 +1406,9 @@ func reachingTheMessengerAsTheRequester() map[gateBackend]*standingIn {
 func answeringChannelsAsTheRequester(request *http.Request) (int, string) {
 	switch {
 	case strings.HasSuffix(request.URL.Path, "/requester.conversations.list"):
-		return http.StatusOK, `{"conversations":[{"id":"channel-1","name":"전사-공지","kind":"group"},{"id":"dm-1","name":"박예시","kind":"dm"}]}`
+		return http.StatusOK, `{"conversations":[{"id":"channel-1","name":"전사-공지","kind":"group"},{"id":"dm-1","name":"박예시","kind":"dm","participantExternalIDs":["` + requesterPubkeyHex + `","` + colleaguePubkeyHex + `"]}]}`
+	case strings.HasSuffix(request.URL.Path, "/message.search"):
+		return http.StatusOK, `{"channelID":"channel-1","candidates":[{"messageID":"post-1","channelID":"channel-1","text":"9월 1일로 옮깁니다","editable":true}]}`
 	case strings.HasSuffix(request.URL.Path, "/requester.channels.open.list"):
 		return http.StatusOK, `{"channels":[{"id":"channel-2","name":"open-room","kind":"group"}]}`
 	case strings.HasSuffix(request.URL.Path, "/requester.channel.create"):
@@ -1385,7 +1424,11 @@ func answeringTheDirectory(request *http.Request) (int, string) {
 		return http.StatusOK, `{"people":[{"memberID":"person-2","email":"colleague@example.com","name":"박예시"}]}`
 	}
 	if strings.HasSuffix(request.URL.Path, "/directory/buzz-key") {
-		return http.StatusOK, `{"pubkeyHex":"` + strings.Repeat("a", 64) + `"}`
+		asked, _ := io.ReadAll(request.Body)
+		if strings.Contains(string(asked), "colleague@example.com") {
+			return http.StatusOK, `{"pubkeyHex":"` + colleaguePubkeyHex + `"}`
+		}
+		return http.StatusOK, `{"pubkeyHex":"` + requesterPubkeyHex + `"}`
 	}
 	return http.StatusNotFound, `{}`
 }

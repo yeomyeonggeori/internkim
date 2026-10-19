@@ -53,6 +53,7 @@ type platformMessageUpdateInput struct {
 	MessageID   string   `json:"messageID"`
 	OldText     *string  `json:"oldText"`
 	NewText     *string  `json:"newText"`
+	Text        *string  `json:"text"`
 	IsPinned    *bool    `json:"isPinned"`
 	Attachments []string `json:"attachments"`
 }
@@ -341,8 +342,14 @@ func decodePlatformMessageUpdateInput(document json.RawMessage) (platformMessage
 	if (input.OldText == nil) != (input.NewText == nil) {
 		return platformMessageUpdateInput{}, fmt.Errorf("oldText and newText must be given together")
 	}
-	if input.OldText == nil && input.IsPinned == nil && len(input.Attachments) == 0 {
-		return platformMessageUpdateInput{}, fmt.Errorf("oldText with newText, isPinned, or attachments is required")
+	if input.OldText != nil && input.Text != nil {
+		return platformMessageUpdateInput{}, fmt.Errorf("give text to rewrite the message, or oldText with newText to correct it, not both")
+	}
+	if input.OldText == nil && input.Text == nil && input.IsPinned == nil && len(input.Attachments) == 0 {
+		return platformMessageUpdateInput{}, fmt.Errorf("text, oldText with newText, isPinned, or attachments is required")
+	}
+	if input.Text != nil && strings.TrimSpace(*input.Text) == "" {
+		return platformMessageUpdateInput{}, fmt.Errorf("text cannot be empty; delete the message with message_delete instead")
 	}
 	if input.OldText != nil && strings.TrimSpace(*input.OldText) == "" {
 		return platformMessageUpdateInput{}, fmt.Errorf("oldText cannot be empty")

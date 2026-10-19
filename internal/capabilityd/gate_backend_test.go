@@ -1,7 +1,9 @@
 package capabilityd
 
 import (
+	"bytes"
 	"context"
+	"io"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -83,6 +85,7 @@ func (backend *standingIn) handler(t *testing.T) http.Handler {
 		answers := backend.answers
 		backend.mutex.Unlock()
 
+		request.Body = io.NopCloser(bytes.NewReader(body))
 		status, document := answers(request)
 		responseWriter.Header().Set("Content-Type", "application/json")
 		responseWriter.WriteHeader(status)

@@ -87,6 +87,10 @@ export enum MessageToolName {
   Send = 'message_send',
   Update = 'message_update',
   Delete = 'message_delete',
+  ReactionAdd = 'message_reaction_add',
+  ReactionDelete = 'message_reaction_delete',
+  ConversationHide = 'conversation_hide',
+  ConversationReveal = 'conversation_reveal',
 }
 
 export enum MessageTargetType {
@@ -708,12 +712,14 @@ const messageUpdateObjectSchema = z.strictObject({
   messageID: resourceIDSchema.describe('Exact message ID from message_search or message.send.'),
   oldText: z.string().min(1).regex(/\S/, 'oldText must contain a non-whitespace character.').describe('Exact text as it currently appears in that message, copied verbatim from a message_search preview or from the message you sent. Must occur exactly once in the message. Quote only the span that changes, never the whole message.').optional(),
   newText: z.string().describe('Text that replaces oldText. Empty string removes the span.').optional(),
+  text: z.string().min(1).regex(/\S/, 'text must contain a non-whitespace character.').describe('The whole new text of the message, replacing everything it said. Give this instead of oldText and newText when the message is rewritten rather than corrected in one place.').optional(),
   isPinned: z.boolean().describe('Whether the message should be pinned.').optional(),
   attachments: z.array(z.string().min(1)).describe('Workspace file paths to upload into the edited message, copied exactly from the attachment catalog or a file tool result. Use this to add an original file, such as an inbound image, to a message already sent. The message keeps its text when no oldText is given.').optional(),
 });
 
 export const messageUpdateInputSchema = messageUpdateObjectSchema
   .refine(hasPairedMessageEdit, 'oldText and newText must be given together.')
+  .refine(hasOneMessageEdit, 'Give text, or oldText with newText, not both.')
   .refine(hasMutationField, 'At least one message field must be updated.')
   .meta({ minProperties: 2 });
 
@@ -724,6 +730,25 @@ export const messageDeleteInputSchema = z.strictObject({
 });
 
 export const messageDeleteInputIntentSchema = messageDeleteInputSchema.partial();
+
+export const messageReactionInputSchema = z.strictObject({
+  messageID: resourceIDSchema.describe('Exact message ID from message_search.'),
+  emoji: z.string().min(1).regex(/^\S+$/, 'emoji is one name or one character.').describe('The emoji by name, such as +1, heart, tada or eyes, or the emoji character itself.'),
+});
+
+export const messageReactionResultSchema = z.strictObject({
+  messageID: resourceIDSchema,
+  emoji: z.string().min(1),
+});
+
+export const conversationVisibilityInputSchema = z.strictObject({
+  personHint: z.string().min(1).describe('Name, @handle, or email of the one other person in the requester\'s direct conversation.'),
+});
+
+export const conversationVisibilityResultSchema = z.strictObject({
+  conversationID: resourceIDSchema,
+  isHidden: z.boolean(),
+});
 
 const messageSearchCandidateSchema = z.strictObject({
   messageID: resourceIDSchema,
@@ -942,6 +967,10 @@ function hasMutationField(document: object): boolean {
 
 function hasPairedMessageEdit(document: { oldText?: string | undefined; newText?: string | undefined }): boolean {
   return (document.oldText === undefined) === (document.newText === undefined);
+}
+
+function hasOneMessageEdit(document: { oldText?: string | undefined; text?: string | undefined }): boolean {
+  return document.oldText === undefined || document.text === undefined;
 }
 
 function hasAnyField(document: object): boolean {
@@ -1505,8 +1534,8 @@ const messageToolDefinitions: CapabilityToolDefinition[] = [
     answeredBy: CapabilityAnsweredBy.Company,
     privacyClass: 'platform_message',
     policyResource: 'tool:message_update',
-    description: 'Replace one exact span of text inside the assistant\'s messages or your own, leaving the rest of it untouched. oldText must appear exactly once in that message; copy it verbatim from a message_search preview or from the message you sent. This is the tool for every correction to something you already posted — when the user points out a mistake, fix that message instead of posting a correction as a new one. It runs immediately without asking the user to confirm, because it can only change text you quoted. If oldText does not match, the call fails without changing anything and returns the message as it currently reads, so retry with a span copied from that. To rewrite a long message wholesale, read it in full first with message_search messageIDs and quote what you read. attachments uploads workspace files into the edited message; pass it alone to add a file, such as an inbound image original, without changing the text.',
-    version: '2',
+    description: 'Change a message the assistant or the requester wrote. To correct it, pass oldText, one exact span copied verbatim from a message_search preview or from the message you sent, and newText; the rest stays untouched, and oldText must appear exactly once or the call fails without changing anything and returns the message as it currently reads, so retry with a span copied from that. To rewrite it, pass text, which replaces the whole message; read it in full first with message_search messageIDs. This is the tool for every correction to something you already posted: when the user points out a mistake, fix that message instead of posting a correction as a new one. It runs immediately without asking the user to confirm. attachments uploads workspace files into the edited message; pass it alone to add a file, such as an inbound image original, without changing the text.',
+    version: '3',
     estimatedLatency: CapabilityEstimatedLatency.Medium,
     inputSchema: messageUpdateInputSchema,
     inputIntentSchema: messageUpdateInputIntentSchema,
@@ -1546,6 +1575,66 @@ const messageToolDefinitions: CapabilityToolDefinition[] = [
     sideEffect: CapabilitySideEffect.Destructive,
     requiresApproval: true,
     completionEvidence: { mode: 'success', action: 'delete_message', targetKind: 'message' },
+  },
+  {
+    name: MessageToolName.ReactionAdd,
+    namespace: 'message',
+    answeredBy: CapabilityAnsweredBy.Company,
+    privacyClass: 'platform_message',
+    policyResource: 'tool:message_reaction_add',
+    description: 'Add an emoji reaction to a message as the requester, the way their messenger screen does.',
+    version: '1',
+    estimatedLatency: CapabilityEstimatedLatency.Medium,
+    inputSchema: messageReactionInputSchema,
+    inputIntentSchema: messageReactionInputSchema.partial(),
+    result: { schema: messageReactionResultSchema, effects: [{ objectType: 'message', effect: ResourceMutationEffect.Updated, resultField: 'messageID', effectIdentity: ResourceEffectIdentity.ID }] },
+    sideEffect: CapabilitySideEffect.ExternalWrite,
+    requiresApproval: false,
+  },
+  {
+    name: MessageToolName.ReactionDelete,
+    namespace: 'message',
+    answeredBy: CapabilityAnsweredBy.Company,
+    privacyClass: 'platform_message',
+    policyResource: 'tool:message_reaction_delete',
+    description: 'Take back a reaction the requester left on a message. Name the emoji the same way it was added; a reaction the requester never left changes nothing.',
+    version: '1',
+    estimatedLatency: CapabilityEstimatedLatency.Medium,
+    inputSchema: messageReactionInputSchema,
+    inputIntentSchema: messageReactionInputSchema.partial(),
+    result: { schema: messageReactionResultSchema, effects: [{ objectType: 'message', effect: ResourceMutationEffect.Updated, resultField: 'messageID', effectIdentity: ResourceEffectIdentity.ID }] },
+    sideEffect: CapabilitySideEffect.ExternalWrite,
+    requiresApproval: false,
+  },
+  {
+    name: MessageToolName.ConversationHide,
+    namespace: 'message',
+    answeredBy: CapabilityAnsweredBy.Company,
+    privacyClass: 'platform_message',
+    policyResource: 'tool:conversation_hide',
+    description: 'Hide the requester\'s direct conversation with one person from their own conversation list. Nothing is deleted and nobody else is affected; conversation_reveal shows it again.',
+    version: '1',
+    estimatedLatency: CapabilityEstimatedLatency.Medium,
+    inputSchema: conversationVisibilityInputSchema,
+    inputIntentSchema: conversationVisibilityInputSchema.partial(),
+    result: { schema: conversationVisibilityResultSchema, effects: [{ objectType: 'conversation', effect: ResourceMutationEffect.Updated, resultField: 'conversationID', effectIdentity: ResourceEffectIdentity.ID }] },
+    sideEffect: CapabilitySideEffect.ExternalWrite,
+    requiresApproval: false,
+  },
+  {
+    name: MessageToolName.ConversationReveal,
+    namespace: 'message',
+    answeredBy: CapabilityAnsweredBy.Company,
+    privacyClass: 'platform_message',
+    policyResource: 'tool:conversation_reveal',
+    description: 'Show a direct conversation the requester hid with conversation_hide in their conversation list again.',
+    version: '1',
+    estimatedLatency: CapabilityEstimatedLatency.Medium,
+    inputSchema: conversationVisibilityInputSchema,
+    inputIntentSchema: conversationVisibilityInputSchema.partial(),
+    result: { schema: conversationVisibilityResultSchema, effects: [{ objectType: 'conversation', effect: ResourceMutationEffect.Updated, resultField: 'conversationID', effectIdentity: ResourceEffectIdentity.ID }] },
+    sideEffect: CapabilitySideEffect.ExternalWrite,
+    requiresApproval: false,
   },
 ];
 

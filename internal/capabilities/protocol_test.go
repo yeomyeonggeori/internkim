@@ -348,7 +348,7 @@ func TestPlatformMessageDescriptorsMatchMessageInputs(t *testing.T) {
 		version     string
 	}{
 		"message_send":   {effect: "sent", resultField: "messageIDs", version: "3"},
-		"message_update": {effect: "updated", resultField: "messageID", version: "2"},
+		"message_update": {effect: "updated", resultField: "messageID", version: "3"},
 		"message_delete": {effect: "deleted", resultField: "messageIDs", version: "2"},
 	}
 	for toolName, expected := range expectedEffects {

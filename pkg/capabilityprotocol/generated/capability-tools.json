@@ -11201,7 +11201,7 @@
       "modelVisible": true,
       "name": "message_context",
       "namespace": "message",
-      "namespaceSummary": "Messages in the company messenger: read a conversation, search, send, edit, and delete.",
+      "namespaceSummary": "Messages in the company messenger: read a conversation, search, send, edit, delete, react, and hide a direct conversation.",
       "outputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
@@ -11425,7 +11425,7 @@
       "modelVisible": true,
       "name": "message_search",
       "namespace": "message",
-      "namespaceSummary": "Messages in the company messenger: read a conversation, search, send, edit, and delete.",
+      "namespaceSummary": "Messages in the company messenger: read a conversation, search, send, edit, delete, react, and hide a direct conversation.",
       "outputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
@@ -11822,7 +11822,7 @@
       "modelVisible": true,
       "name": "message_send",
       "namespace": "message",
-      "namespaceSummary": "Messages in the company messenger: read a conversation, search, send, edit, and delete.",
+      "namespaceSummary": "Messages in the company messenger: read a conversation, search, send, edit, delete, react, and hide a direct conversation.",
       "outputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
@@ -11960,7 +11960,7 @@
         "mode": "success",
         "targetKind": "message"
       },
-      "description": "Replace one exact span of text inside the assistant's messages or your own, leaving the rest of it untouched. oldText must appear exactly once in that message; copy it verbatim from a message_search preview or from the message you sent. This is the tool for every correction to something you already posted — when the user points out a mistake, fix that message instead of posting a correction as a new one. It runs immediately without asking the user to confirm, because it can only change text you quoted. If oldText does not match, the call fails without changing anything and returns the message as it currently reads, so retry with a span copied from that. To rewrite a long message wholesale, read it in full first with message_search messageIDs and quote what you read. attachments uploads workspace files into the edited message; pass it alone to add a file, such as an inbound image original, without changing the text.",
+      "description": "Change a message the assistant or the requester wrote. To correct it, pass oldText, one exact span copied verbatim from a message_search preview or from the message you sent, and newText; the rest stays untouched, and oldText must appear exactly once or the call fails without changing anything and returns the message as it currently reads, so retry with a span copied from that. To rewrite it, pass text, which replaces the whole message; read it in full first with message_search messageIDs. This is the tool for every correction to something you already posted: when the user points out a mistake, fix that message instead of posting a correction as a new one. It runs immediately without asking the user to confirm. attachments uploads workspace files into the edited message; pass it alone to add a file, such as an inbound image original, without changing the text.",
       "estimatedLatency": "medium",
       "idempotency": {
         "required": false,
@@ -11995,6 +11995,12 @@
           },
           "oldText": {
             "description": "Exact text as it currently appears in that message, copied verbatim from a message_search preview or from the message you sent. Must occur exactly once in the message. Quote only the span that changes, never the whole message.",
+            "minLength": 1,
+            "pattern": "\\S",
+            "type": "string"
+          },
+          "text": {
+            "description": "The whole new text of the message, replacing everything it said. Give this instead of oldText and newText when the message is rewritten rather than corrected in one place.",
             "minLength": 1,
             "pattern": "\\S",
             "type": "string"
@@ -12034,6 +12040,12 @@
             "minLength": 1,
             "pattern": "\\S",
             "type": "string"
+          },
+          "text": {
+            "description": "The whole new text of the message, replacing everything it said. Give this instead of oldText and newText when the message is rewritten rather than corrected in one place.",
+            "minLength": 1,
+            "pattern": "\\S",
+            "type": "string"
           }
         },
         "required": [
@@ -12047,7 +12059,7 @@
       "modelVisible": true,
       "name": "message_update",
       "namespace": "message",
-      "namespaceSummary": "Messages in the company messenger: read a conversation, search, send, edit, and delete.",
+      "namespaceSummary": "Messages in the company messenger: read a conversation, search, send, edit, delete, react, and hide a direct conversation.",
       "outputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
@@ -12119,7 +12131,7 @@
       },
       "sideEffect": "external_write",
       "sideEffectClass": "external_write",
-      "version": "2",
+      "version": "3",
       "worksOffline": false
     },
     {
@@ -12187,7 +12199,7 @@
       "modelVisible": true,
       "name": "message_delete",
       "namespace": "message",
-      "namespaceSummary": "Messages in the company messenger: read a conversation, search, send, edit, and delete.",
+      "namespaceSummary": "Messages in the company messenger: read a conversation, search, send, edit, delete, react, and hide a direct conversation.",
       "outputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
@@ -12312,6 +12324,460 @@
       "sideEffect": "destructive",
       "sideEffectClass": "destructive",
       "version": "2",
+      "worksOffline": false
+    },
+    {
+      "answeredBy": "company",
+      "availability": {
+        "state": "ok"
+      },
+      "canonicalName": "message_reaction_add",
+      "description": "Add an emoji reaction to a message as the requester, the way their messenger screen does.",
+      "estimatedLatency": "medium",
+      "idempotency": {
+        "required": false,
+        "scope": "operation",
+        "supported": false
+      },
+      "inputIntentSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "emoji": {
+            "description": "The emoji by name, such as +1, heart, tada or eyes, or the emoji character itself.",
+            "minLength": 1,
+            "pattern": "^\\S+$",
+            "type": "string"
+          },
+          "messageID": {
+            "description": "Exact message ID from message_search.",
+            "minLength": 1,
+            "pattern": "^\\S(?:.*\\S)?$",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "emoji": {
+            "description": "The emoji by name, such as +1, heart, tada or eyes, or the emoji character itself.",
+            "minLength": 1,
+            "pattern": "^\\S+$",
+            "type": "string"
+          },
+          "messageID": {
+            "description": "Exact message ID from message_search.",
+            "minLength": 1,
+            "pattern": "^\\S(?:.*\\S)?$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "messageID",
+          "emoji"
+        ],
+        "type": "object"
+      },
+      "inputSchemaStrict": true,
+      "modelName": "message_reaction_add",
+      "modelVisibility": "visible",
+      "modelVisible": true,
+      "name": "message_reaction_add",
+      "namespace": "message",
+      "namespaceSummary": "Messages in the company messenger: read a conversation, search, send, edit, delete, react, and hide a direct conversation.",
+      "outputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "emoji": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "messageID": {
+            "minLength": 1,
+            "pattern": "^\\S(?:.*\\S)?$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "messageID",
+          "emoji"
+        ],
+        "type": "object"
+      },
+      "outputSchemaStrict": true,
+      "policyResource": "tool:message_reaction_add",
+      "privacyClass": "platform_message",
+      "requiresApproval": false,
+      "requiresUserPresence": false,
+      "resultContract": {
+        "effects": [
+          {
+            "effect": "updated",
+            "effectIdentity": "id",
+            "objectType": "message",
+            "resultField": "messageID"
+          }
+        ],
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "additionalProperties": false,
+          "properties": {
+            "emoji": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "messageID": {
+              "minLength": 1,
+              "pattern": "^\\S(?:.*\\S)?$",
+              "type": "string"
+            }
+          },
+          "required": [
+            "messageID",
+            "emoji"
+          ],
+          "type": "object"
+        }
+      },
+      "sideEffect": "external_write",
+      "sideEffectClass": "external_write",
+      "version": "1",
+      "worksOffline": false
+    },
+    {
+      "answeredBy": "company",
+      "availability": {
+        "state": "ok"
+      },
+      "canonicalName": "message_reaction_delete",
+      "description": "Take back a reaction the requester left on a message. Name the emoji the same way it was added; a reaction the requester never left changes nothing.",
+      "estimatedLatency": "medium",
+      "idempotency": {
+        "required": false,
+        "scope": "operation",
+        "supported": false
+      },
+      "inputIntentSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "emoji": {
+            "description": "The emoji by name, such as +1, heart, tada or eyes, or the emoji character itself.",
+            "minLength": 1,
+            "pattern": "^\\S+$",
+            "type": "string"
+          },
+          "messageID": {
+            "description": "Exact message ID from message_search.",
+            "minLength": 1,
+            "pattern": "^\\S(?:.*\\S)?$",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "emoji": {
+            "description": "The emoji by name, such as +1, heart, tada or eyes, or the emoji character itself.",
+            "minLength": 1,
+            "pattern": "^\\S+$",
+            "type": "string"
+          },
+          "messageID": {
+            "description": "Exact message ID from message_search.",
+            "minLength": 1,
+            "pattern": "^\\S(?:.*\\S)?$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "messageID",
+          "emoji"
+        ],
+        "type": "object"
+      },
+      "inputSchemaStrict": true,
+      "modelName": "message_reaction_delete",
+      "modelVisibility": "visible",
+      "modelVisible": true,
+      "name": "message_reaction_delete",
+      "namespace": "message",
+      "namespaceSummary": "Messages in the company messenger: read a conversation, search, send, edit, delete, react, and hide a direct conversation.",
+      "outputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "emoji": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "messageID": {
+            "minLength": 1,
+            "pattern": "^\\S(?:.*\\S)?$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "messageID",
+          "emoji"
+        ],
+        "type": "object"
+      },
+      "outputSchemaStrict": true,
+      "policyResource": "tool:message_reaction_delete",
+      "privacyClass": "platform_message",
+      "requiresApproval": false,
+      "requiresUserPresence": false,
+      "resultContract": {
+        "effects": [
+          {
+            "effect": "updated",
+            "effectIdentity": "id",
+            "objectType": "message",
+            "resultField": "messageID"
+          }
+        ],
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "additionalProperties": false,
+          "properties": {
+            "emoji": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "messageID": {
+              "minLength": 1,
+              "pattern": "^\\S(?:.*\\S)?$",
+              "type": "string"
+            }
+          },
+          "required": [
+            "messageID",
+            "emoji"
+          ],
+          "type": "object"
+        }
+      },
+      "sideEffect": "external_write",
+      "sideEffectClass": "external_write",
+      "version": "1",
+      "worksOffline": false
+    },
+    {
+      "answeredBy": "company",
+      "availability": {
+        "state": "ok"
+      },
+      "canonicalName": "conversation_hide",
+      "description": "Hide the requester's direct conversation with one person from their own conversation list. Nothing is deleted and nobody else is affected; conversation_reveal shows it again.",
+      "estimatedLatency": "medium",
+      "idempotency": {
+        "required": false,
+        "scope": "operation",
+        "supported": false
+      },
+      "inputIntentSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "personHint": {
+            "description": "Name, @handle, or email of the one other person in the requester's direct conversation.",
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "personHint": {
+            "description": "Name, @handle, or email of the one other person in the requester's direct conversation.",
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "personHint"
+        ],
+        "type": "object"
+      },
+      "inputSchemaStrict": true,
+      "modelName": "conversation_hide",
+      "modelVisibility": "visible",
+      "modelVisible": true,
+      "name": "conversation_hide",
+      "namespace": "message",
+      "namespaceSummary": "Messages in the company messenger: read a conversation, search, send, edit, delete, react, and hide a direct conversation.",
+      "outputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "conversationID": {
+            "minLength": 1,
+            "pattern": "^\\S(?:.*\\S)?$",
+            "type": "string"
+          },
+          "isHidden": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "conversationID",
+          "isHidden"
+        ],
+        "type": "object"
+      },
+      "outputSchemaStrict": true,
+      "policyResource": "tool:conversation_hide",
+      "privacyClass": "platform_message",
+      "requiresApproval": false,
+      "requiresUserPresence": false,
+      "resultContract": {
+        "effects": [
+          {
+            "effect": "updated",
+            "effectIdentity": "id",
+            "objectType": "conversation",
+            "resultField": "conversationID"
+          }
+        ],
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "additionalProperties": false,
+          "properties": {
+            "conversationID": {
+              "minLength": 1,
+              "pattern": "^\\S(?:.*\\S)?$",
+              "type": "string"
+            },
+            "isHidden": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "conversationID",
+            "isHidden"
+          ],
+          "type": "object"
+        }
+      },
+      "sideEffect": "external_write",
+      "sideEffectClass": "external_write",
+      "version": "1",
+      "worksOffline": false
+    },
+    {
+      "answeredBy": "company",
+      "availability": {
+        "state": "ok"
+      },
+      "canonicalName": "conversation_reveal",
+      "description": "Show a direct conversation the requester hid with conversation_hide in their conversation list again.",
+      "estimatedLatency": "medium",
+      "idempotency": {
+        "required": false,
+        "scope": "operation",
+        "supported": false
+      },
+      "inputIntentSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "personHint": {
+            "description": "Name, @handle, or email of the one other person in the requester's direct conversation.",
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "personHint": {
+            "description": "Name, @handle, or email of the one other person in the requester's direct conversation.",
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "personHint"
+        ],
+        "type": "object"
+      },
+      "inputSchemaStrict": true,
+      "modelName": "conversation_reveal",
+      "modelVisibility": "visible",
+      "modelVisible": true,
+      "name": "conversation_reveal",
+      "namespace": "message",
+      "namespaceSummary": "Messages in the company messenger: read a conversation, search, send, edit, delete, react, and hide a direct conversation.",
+      "outputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "conversationID": {
+            "minLength": 1,
+            "pattern": "^\\S(?:.*\\S)?$",
+            "type": "string"
+          },
+          "isHidden": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "conversationID",
+          "isHidden"
+        ],
+        "type": "object"
+      },
+      "outputSchemaStrict": true,
+      "policyResource": "tool:conversation_reveal",
+      "privacyClass": "platform_message",
+      "requiresApproval": false,
+      "requiresUserPresence": false,
+      "resultContract": {
+        "effects": [
+          {
+            "effect": "updated",
+            "effectIdentity": "id",
+            "objectType": "conversation",
+            "resultField": "conversationID"
+          }
+        ],
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "additionalProperties": false,
+          "properties": {
+            "conversationID": {
+              "minLength": 1,
+              "pattern": "^\\S(?:.*\\S)?$",
+              "type": "string"
+            },
+            "isHidden": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "conversationID",
+            "isHidden"
+          ],
+          "type": "object"
+        }
+      },
+      "sideEffect": "external_write",
+      "sideEffectClass": "external_write",
+      "version": "1",
       "worksOffline": false
     },
     {

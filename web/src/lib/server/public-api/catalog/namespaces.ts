@@ -13,7 +13,7 @@ export const capabilityNamespaceSummaries = {
   image: 'Look at an image, or generate a new one.',
   leave: 'Leave requests and balances: file, correct, approve, and set yearly entitlements.',
   mail: "The requester's email: connect an account, then read, search, file, and send.",
-  message: 'Messages in the company messenger: read a conversation, search, send, edit, and delete.',
+  message: 'Messages in the company messenger: read a conversation, search, send, edit, delete, react, and hide a direct conversation.',
   notification: 'What the requester is told about, and which conversations are muted.',
   person: 'The company directory: who works here, what it holds about them, and inviting someone new.',
   schedule: 'Reminders and recurring work done later, once or on a repeat.',
