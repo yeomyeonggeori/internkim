@@ -4,7 +4,8 @@ import { taskBoardWindow, taskBoardDatePredicate, tasksForBoard, taskChildProgre
 import { matchesTaskBoardWeek, buildTaskBoard } from '../../../../../src/routes/task/task-board-model';
 import { buildTaskChildProgress } from '../../../../../src/routes/task/task-relationships';
 import { taskBoard, taskList } from '$lib/server/public-api/record/task-tools';
-import { taskBoardResultSchema, taskListResultSchema } from '$lib/server/public-api/catalog/tools';
+import { taskBoardInputSchema, taskBoardResultSchema, taskListInputSchema, taskListResultSchema } from '$lib/server/public-api/catalog/tools';
+import { WorkspaceTaskScope } from '$lib/server/public-api/catalog/workspace-task';
 import { labelsOfVocabulary } from '$lib/server/public-api/record/labels';
 import { leavesTaskLabelsUndecided } from '$lib/server/public-api/record/task-labels';
 import { dayOfInstant, instantOfDay } from '$lib/server/public-api/record/days';
@@ -182,10 +183,10 @@ describe('scoped task board query', () => {
 		expect(taskBoardResultSchema.safeParse(mine).success).toBe(true);
 		expect(mine.tasks.map(task => task.taskID)).toEqual(['shared']);
 		expect(mine.tasks[0].participantIDs).toEqual(['member-2', 'member-1']);
-		expect((await taskBoard(context, { boardWeek: '2026-09-28', scope: 'all' })).tasks).toHaveLength(2);
-		await expect(taskBoard(context, { boardWeek: '2026-09-28', everyWeek: true })).rejects.toThrow('cannot be combined');
-		await expect(taskList(context, { boardWeek: '2026-09-28' })).rejects.toThrow('use task_board');
-		const history = await taskList(context, { everyWeek: true, scope: 'all' });
+		expect((await taskBoard(context, { boardWeek: '2026-09-28', scope: WorkspaceTaskScope.All })).tasks).toHaveLength(2);
+		expect(taskBoardInputSchema.safeParse({ boardWeek: '2026-09-28', everyWeek: true }).success).toBe(false);
+		expect(taskListInputSchema.safeParse({ boardWeek: '2026-09-28' }).success).toBe(false);
+		const history = await taskList(context, { everyWeek: true, scope: WorkspaceTaskScope.All });
 		expect(taskListResultSchema.safeParse(history).success).toBe(true);
 		expect(Object.hasOwn(history, 'boardWeek')).toBe(false);
 		expect(Object.hasOwn(history, 'childProgressByParent')).toBe(false);

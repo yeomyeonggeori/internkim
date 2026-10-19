@@ -100,7 +100,7 @@ import { teamAdd, teamDelete, teamList, teamUpdate } from './team-tools';
 import { previewOfTool } from './preview';
 import { leavesTaskLabelsUndecided, type TaskLabelDecider } from './task-labels';
 import { answererOfTool, toolNamesAnsweredBy } from '../catalog';
-import { capabilityToolResultSchema, legacyAttendanceListResultSchema } from '../catalog/tools';
+import { capabilityToolResultSchema, legacyAttendanceListResultSchema, taskBoardInputSchema, taskListInputSchema } from '../catalog/tools';
 import { readWithNullAsAbsent } from '../null-as-absent';
 import { sentencesOfSchemaRefusal } from '../schema-sentences';
 
@@ -129,8 +129,8 @@ function placeTheAppAnswersAt(name: string, place: ToolPlace | undefined): ToolP
 const toolsOverTheRecord: Record<string, ToolRun> = {
 	task_add: (context, input) => taskAdd(context, input),
 	task_update: (context, input) => taskUpdate(context, input),
-	task_list: (context, input) => taskList(context, input),
-	task_board_get: (context, input) => taskBoard(context, input),
+	task_list: (context, input) => taskList(context, taskListInputSchema.parse(input)),
+	task_board_get: (context, input) => taskBoard(context, taskBoardInputSchema.parse(input)),
 	task_delete: (context, input) => taskDelete(context, input),
 	task_vocabulary_set: (context, input) => taskVocabularySet(context, input),
 	event_add: (context, input) => eventAdd(context, input),

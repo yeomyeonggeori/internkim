@@ -2132,6 +2132,7 @@ const capabilityToolDefinitions: CapabilityToolDefinition[] = [
 
 export type TaskAddInput = z.infer<typeof taskAddInputSchema>;
 export type TaskListInput = z.infer<typeof taskListInputSchema>;
+export type TaskBoardInput = z.infer<typeof taskBoardInputSchema>;
 export type TaskUpdateInput = z.infer<typeof taskUpdateInputSchema>;
 export type TaskDeleteInput = z.infer<typeof taskDeleteInputSchema>;
 export type TaskResult = z.infer<typeof taskResultSchema>;
