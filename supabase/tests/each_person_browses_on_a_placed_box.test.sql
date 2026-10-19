@@ -11,7 +11,7 @@ insert into public.member (company_id, email, status)
 select '7b000000-0000-0000-0000-0000000000c1', 'person' || index || '@example.com', 'active'
 from generate_series(1, 400) as index;
 insert into public.member (company_id, email, status)
-values ('7b000000-0000-0000-0000-0000000000c1', 'left@example.com', 'disabled');
+values ('7b000000-0000-0000-0000-0000000000c1', 'left@example.com', 'departed');
 
 select public.keep_claimed_box('7b000000-0000-0000-0000-0000000000c1', 'small', repeat('s', 43), null, false);
 select public.keep_claimed_box('7b000000-0000-0000-0000-0000000000c1', 'large', repeat('l', 43), null, false);
