@@ -56,9 +56,7 @@
 	const hasCompany = $derived(!isEmptyCompany(room.company));
 	let view = $state(isEmptyCompany(room.company) ? 'documents' : 'company');
 	const companyText = $derived(dataRoomCompanyText[currentLocale.value]);
-	const roomTitle = $derived(
-		localized(room.company.profile.brandName, currentLocale.value) || localized(room.company.profile.name, currentLocale.value) || text.sharedRoom
-	);
+	const roomTitle = $derived(localized(room.company.profile.name, currentLocale.value) || text.sharedRoom);
 	const folders = $derived(guestFolders(room, currentLocale.value));
 	const selectedFolder = $derived(folders.find((folder) => folder.code === selectedCode));
 	const visibleDocuments = $derived(matchingDocuments(documentsInFolder(room, selectedCode), query));
