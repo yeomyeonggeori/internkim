@@ -845,6 +845,22 @@ describe('deleting', () => {
 		expect(gone.deleted).toBe(true);
 	});
 
+	test('says on each task whether the delete the record allows would go through', async () => {
+		await run('task_add', { title: '혼자 맡은 정리' });
+		await run('task_add', { title: '둘이 맡은 정리', participantPersonHints: ['이샘플', '박예시'] });
+		const listed = resultOf(await run('task_list', { scope: 'all', query: '맡은 정리' }));
+		const canDeleteOf = (content: string) =>
+			(listed.tasks as { content: string; canDelete: boolean }[]).find((task) => task.content === content)?.canDelete;
+
+		expect(canDeleteOf('둘이 맡은 정리')).toBe(false);
+		const refused = await run('task_delete', { taskHint: '둘이 맡은 정리' });
+		expect(refused.status).toBe(403);
+
+		expect(canDeleteOf('혼자 맡은 정리')).toBe(true);
+		const gone = resultOf(await run('task_delete', { taskHint: '혼자 맡은 정리' }));
+		expect(gone.deleted).toBe(true);
+	});
+
 	test('refuses to delete something it cannot find', async () => {
 		const refused = await run('task_delete', { taskHint: '없는 업무' });
 		expect(refused.status).toBe(409);

@@ -429,6 +429,7 @@ export const taskResultSchema = z.strictObject({
   startDate: z.string().optional(),
   endDate: z.string().optional(),
   weekCode: z.string().optional(),
+  canDelete: z.boolean().optional(),
 });
 
 const parentTaskHintDescription =
@@ -1057,7 +1058,7 @@ const taskToolDefinitions: CapabilityToolDefinition[] = [
     answeredBy: CapabilityAnsweredBy.Record,
     privacyClass: 'workspace_task',
     policyResource: 'tool:task_delete',
-    description: 'Permanently delete a task. taskHint is the exact task ID or exact task title from a task_list result, resolved server-side to the canonical task; use task_list first when neither is known. Requires approval; this action is irreversible.',
+    description: 'Permanently delete a task. taskHint is the exact task ID or exact task title from a task_list result, resolved server-side to the canonical task; use task_list first when neither is known. Only an admin, or the one person taking part in the task, can delete it; task_list says so in canDelete. Requires approval; this action is irreversible.',
     version: '3',
     estimatedLatency: CapabilityEstimatedLatency.Medium,
     inputSchema: taskDeleteInputSchema,

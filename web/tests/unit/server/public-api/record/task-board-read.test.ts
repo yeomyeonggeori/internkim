@@ -17,7 +17,7 @@ function row(id: string, fields: Partial<TaskCardRow> = {}): TaskCardRow {
 		id, parent_task_id: null, title: id, status: 'completed', business: null, type: null,
 		size: 'M', starts_at: null, ends_at: '2020-01-01T00:00:00Z',
 		created_at: '2020-01-01T00:00:00Z', updated_at: '2020-01-01T00:00:00Z', requester_id: null,
-		task_participant: [{ member_id: 'member-1' }], ...fields
+		task_participant: [{ member_id: 'member-1' }], task_deletable: true, ...fields
 	};
 }
 

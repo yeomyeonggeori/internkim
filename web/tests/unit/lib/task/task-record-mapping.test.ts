@@ -51,6 +51,11 @@ describe('a task the record answered', () => {
 		expect(state.tasks).toHaveLength(2);
 		expect(state.isAdmin).toBe(false);
 	});
+	test('carries whether the record lets the viewer delete it', () => {
+		expect(taskOf(answered({ canDelete: true })).canDelete).toBe(true);
+		expect(taskOf(answered({ canDelete: false })).canDelete).toBe(false);
+		expect(taskOf(answered()).canDelete).toBe(false);
+	});
 	test('carries the parent, the requester and when it was created', () => {
 		const task = taskOf(
 			answered({

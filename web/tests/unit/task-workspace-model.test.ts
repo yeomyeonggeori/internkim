@@ -128,7 +128,6 @@ describe('flow task workspace model', () => {
 		const task = taskOf({ ownerID: 'participant', participantIDs: ['participant'] });
 
 		expect(canUpdateTask(summary, task)).toBe(true);
-		expect(canDeleteTask(summary, task)).toBe(true);
 		expect(canManageTaskAssignment(summary, task)).toBe(true);
 		expect(canRemoveTaskParticipant(task, 'participant')).toBe(false);
 	});
@@ -149,12 +148,9 @@ describe('flow task workspace model', () => {
 
 		expect(canUpdateTask(summary, task)).toBe(true);
 		expect(canManageTaskAssignment(summary, task)).toBe(false);
-		expect(canDeleteTask(summary, task)).toBe(false);
 		expect(canUpdateTask({ ...summary, currentUserEmail: 'owner@example.com' }, task)).toBe(true);
 		expect(canManageTaskAssignment({ ...summary, currentUserEmail: 'owner@example.com' }, task)).toBe(false);
-		expect(canDeleteTask({ ...summary, currentUserEmail: 'owner@example.com' }, task)).toBe(false);
 		expect(canManageTaskAssignment({ ...summary, isAdmin: true }, task)).toBe(true);
-		expect(canDeleteTask({ ...summary, isAdmin: true }, task)).toBe(true);
 	});
 
 	test('does not grant task authority without participation', () => {
@@ -166,9 +162,16 @@ describe('flow task workspace model', () => {
 		const task = taskOf({ ownerID: '', participantIDs: [], participantNames: [] });
 
 		expect(canUpdateTask(summary, task)).toBe(false);
-		expect(canDeleteTask(summary, task)).toBe(false);
 		expect(canManageTaskAssignment(summary, task)).toBe(false);
 		expect(canRemoveTaskParticipant(task, 'viewer')).toBe(false);
+	});
+
+	test('offers delete only where the record answered that the viewer may delete', () => {
+		const soleParticipantTask = taskOf({ ownerID: 'participant', participantIDs: ['participant'] });
+
+		expect(canDeleteTask({ ...soleParticipantTask, canDelete: true })).toBe(true);
+		expect(canDeleteTask({ ...soleParticipantTask, canDelete: false })).toBe(false);
+		expect(canDeleteTask(soleParticipantTask)).toBe(false);
 	});
 
 	test('lets a requester edit their unsaved request draft without becoming a participant', () => {
