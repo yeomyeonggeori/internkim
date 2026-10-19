@@ -175,8 +175,19 @@ from, and a box that cannot open the backups the company keeps stops with an
 error instead of starting the company empty. A take-over that fails is not retried until
 `systemctl reset-failed internkim-take-over` says to.
 
-Put the boxes where the power and the internet line are different. Two places
-keep the company running when one goes dark.
+A company can let its boxes do this by themselves. Every box is seen by the
+hosted service once a minute. With automatic take-over on, a standby box that
+holds the company key takes the company over once the service box has not been
+seen for the lapse the administrator chose, five minutes at the shortest of the
+offered choices. One on another site goes before one on the lapsed box's site,
+and among those a box with more capacity is chosen more often. The record makes
+the change in one transaction, so two standby boxes never both serve. It is off
+until an administrator turns it on, since a lapse that was only a slow router
+costs what the old box held after the newest backup.
+
+Put the boxes where the power and the internet line are different, and give
+boxes that share both the same site in company setup. Two places keep the
+company running when one goes dark.
 
 ## The box's identity replaces the agent key
 

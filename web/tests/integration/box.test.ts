@@ -20,7 +20,9 @@ import {
 	keepSealedCompanyKeys,
 	emptyBoxesAt,
 	keepSealedModelKey,
+	keepTakeOver,
 	makeBoxServe,
+	placeBox,
 	newestKeptBackupAt,
 	releaseBox,
 	releaseBoxOfKey
@@ -488,6 +490,30 @@ describe('connecting an empty box', () => {
 		});
 		expect((await boxSessionFor(credentials, first.publicKey, environment, appURL))?.role).toBe('standby');
 		await client.storage.from('box_backup').remove([keptManifest]);
+	});
+
+	test('a standby box that holds the company key takes over a service box the company has not seen, once the company lets it', async () => {
+		const lapsing = await aCompany('lapsing');
+		const first = await aBox();
+		const second = await aBox();
+		await claimWithCode(lapsing.companyID, first.publicKey, await announcedCode(first));
+		await claimWithCode(lapsing.companyID, second.publicKey, await announcedCode(second), 'add');
+		const holder = await boxOfPublicKey(client, first.publicKey);
+		if (!holder) throw new Error('a claimed box is found by its public key');
+		const sealed = { version: 1 as const, recipient: second.encryptionKey, enc: second.encryptionKey, ciphertext: 'a2V5' };
+		await keepSealedCompanyKeys(client, holder, [{ publicKey: second.publicKey, sealed }]);
+		expect(await placeBox(client, lapsing.companyID, first.publicKey, { site: 'Head office', weight: 1 })).toBe(true);
+		expect(await placeBox(client, lapsing.companyID, second.publicKey, { site: 'Annex', weight: 2 })).toBe(true);
+		await expect(placeBox(client, lapsing.companyID, second.publicKey, { site: 'Annex', weight: 0 })).rejects.toMatchObject({ status: 400 });
+		await client.from('box').update({ last_seen_at: new Date(Date.now() - 3_600_000).toISOString() }).eq('public_key', first.publicKey);
+
+		expect((await boxSessionFor(credentials, second.publicKey, environment, appURL))?.role).toBe('standby');
+		await expect(keepTakeOver(client, lapsing.companyID, { isAutomatic: true, lapseSeconds: 10 })).rejects.toMatchObject({ status: 400 });
+		await keepTakeOver(client, lapsing.companyID, { isAutomatic: true, lapseSeconds: 300 });
+
+		expect((await boxSessionFor(credentials, second.publicKey, environment, appURL))?.role).toBe('service');
+		expect((await boxSessionFor(credentials, first.publicKey, environment, appURL))?.role).toBe('standby');
+		expect((await companyBoxesOf(client, lapsing.companyID)).takeOver).toEqual({ isAutomatic: true, lapseSeconds: 300 });
 	});
 
 	test('the newest backup the boxes share is the newest whole one sealed to the company key', async () => {

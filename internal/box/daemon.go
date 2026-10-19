@@ -18,7 +18,7 @@ const (
 	announceInterval      = 30 * time.Second
 	sessionRenewalMargin  = 10 * time.Minute
 	shortestSessionWait   = time.Minute
-	companyCheckInterval  = 5 * time.Minute
+	companyCheckInterval  = time.Minute
 	companyMarkerFileName = "company"
 )
 

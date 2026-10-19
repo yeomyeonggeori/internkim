@@ -1,7 +1,7 @@
 import { error, json } from '@sveltejs/kit';
-import { boxClaimSchema, boxReleaseSchema, boxServeSchema } from '$lib/company/box';
+import { boxClaimSchema, boxPlacementChangeSchema, boxReleaseSchema, boxServeSchema } from '$lib/company/box';
 import { environmentOfPlatform } from '$lib/server/agent-request';
-import { BoxRefused, claimBox, companyBoxesOf, emptyBoxesAt, makeBoxServe, releaseBox } from '$lib/server/box';
+import { BoxRefused, claimBox, companyBoxesOf, emptyBoxesAt, makeBoxServe, placeBox, releaseBox } from '$lib/server/box';
 import { callingHostAdministrator } from '$lib/server/company-host-setup';
 import type { RequestHandler } from './$types';
 
@@ -52,6 +52,20 @@ export const PATCH: RequestHandler = async ({ request, platform }) => {
 	if (outcome === 'not_its_box') error(404, 'this company has no such box connected');
 	if (outcome === 'no_backup') {
 		error(409, 'the company keeps no backup yet for this box to take over from; the box that serves keeps one each day');
+	}
+	return json(await companyBoxesOf(member.record, member.companyID), { headers: privateHeaders });
+};
+
+export const PUT: RequestHandler = async ({ request, platform }) => {
+	const member = await callingHostAdministrator(request, environmentOfPlatform(platform?.env));
+	const placement = boxPlacementChangeSchema.safeParse(await request.json().catch(() => null));
+	if (!placement.success) error(400, 'name the box by its public key with its site and its weight');
+	const { publicKey, ...where } = placement.data;
+	try {
+		if (!(await placeBox(member.record, member.companyID, publicKey, where))) error(404, 'this company has no such box connected');
+	} catch (refusal) {
+		if (refusal instanceof BoxRefused) error(refusal.status, refusal.message);
+		throw refusal;
 	}
 	return json(await companyBoxesOf(member.record, member.companyID), { headers: privateHeaders });
 };

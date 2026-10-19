@@ -11,6 +11,8 @@
 	import type { BoxClaimIntent, ConnectedBox, EmptyBox, VerifiedBoxAnswer } from '$lib/company/box';
 	import { confirmDelete } from '$lib/components/ui/confirm-delete-dialog';
 	import BoxAdminPassword from './box-admin-password.svelte';
+	import BoxPlacement from './box-placement.svelte';
+	import BoxTakeOver from './box-take-over.svelte';
 	import BoxWifiChange from './box-wifi-change.svelte';
 	import ConnectedComputer from './connected-computer.svelte';
 	import { connectBox, disconnectBox, fetchBoxes, giveModelKey, makeBoxServe, verifyBoxCode, type Boxes } from './host-setup-client';
@@ -19,7 +21,14 @@
 	let { isCompanyComputerOnline }: { isCompanyComputerOnline: boolean } = $props();
 	const text = createPageText(hostSetupText);
 	const refreshMilliseconds = 5000;
-	let boxes = $state<Boxes>({ boxes: [], sealingKey: null, hasModelKey: false, newestBackupAt: null, empty: [] });
+	let boxes = $state<Boxes>({
+		boxes: [],
+		sealingKey: null,
+		hasModelKey: false,
+		newestBackupAt: null,
+		takeOver: { isAutomatic: false, lapseSeconds: 300 },
+		empty: []
+	});
 	let modelKey = $state('');
 	let isChangingModelKey = $state(false);
 	let connectingKey = $state('');
@@ -178,7 +187,10 @@
 		<Item.Root variant="outline">
 			<Item.Content>
 				<Item.Title>{box.hostName ?? text.foundBox}</Item.Title>
-				<Item.Description><span class="font-mono">{shortBoxName(box.publicKey)}</span> · {roleOf(box)}</Item.Description>
+				<Item.Description><span class="font-mono">{shortBoxName(box.publicKey)}</span> · {roleOf(box)}{box.site ? ` · ${box.site}` : ''}</Item.Description>
+				{#if hasSeveralBoxes && box.lastSeenAt}
+					<Item.Description>{text.lastSeen.replace('{when}', backupMoment(box.lastSeenAt))}</Item.Description>
+				{/if}
 			</Item.Content>
 			<Item.Actions>
 				{#if canServe(box)}
@@ -207,6 +219,7 @@
 			</Item.Root>
 		{/if}
 		{#if step === 'connected'}
+			{#if hasSeveralBoxes}<BoxPlacement {box} onPlaced={(placed) => (boxes = { ...placed, empty: boxes.empty })} />{/if}
 			<BoxAdminPassword {box} />
 			<BoxWifiChange {box} />
 		{/if}
@@ -218,6 +231,9 @@
 			<p class="text-sm text-muted-foreground">
 				{boxes.newestBackupAt ? text.newestBackup.replace('{when}', backupMoment(boxes.newestBackupAt)) : text.noBackupYet}
 			</p>
+			{#if step === 'connected'}
+				<BoxTakeOver takeOver={boxes.takeOver} onKept={(kept) => (boxes = { ...kept, empty: boxes.empty })} />
+			{/if}
 		{/if}
 		{#if step === 'connected' && !isChangingModelKey}
 			<Button variant="outline" class="justify-self-start" onclick={() => (isChangingModelKey = true)}>{text.changeModelKey}</Button>

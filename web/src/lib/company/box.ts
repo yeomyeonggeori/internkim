@@ -46,6 +46,22 @@ export const boxReleaseSchema = z.object({ publicKey: boxKeySchema }).strict();
 
 export const boxServeSchema = z.object({ publicKey: boxKeySchema }).strict();
 
+export const boxPlacementSchema = z.object({
+	site: z.string().trim(),
+	weight: z.number().int()
+}).strict();
+
+export type BoxPlacement = z.infer<typeof boxPlacementSchema>;
+
+export const boxPlacementChangeSchema = boxPlacementSchema.extend({ publicKey: boxKeySchema }).strict();
+
+export const takeOverSchema = z.object({
+	isAutomatic: z.boolean(),
+	lapseSeconds: z.number().int()
+}).strict();
+
+export type TakeOver = z.infer<typeof takeOverSchema>;
+
 export const verifiedBoxSchema = z.object({
 	ticket: z.string(),
 	publicKey: boxKeySchema,
@@ -103,7 +119,8 @@ export const companyBoxesSchema = z.object({
 	boxes: z.array(connectedBoxSchema),
 	sealingKey: boxKeySchema.nullable(),
 	hasModelKey: z.boolean(),
-	newestBackupAt: z.string().nullable()
+	newestBackupAt: z.string().nullable(),
+	takeOver: takeOverSchema
 }).strict();
 
 export const keptBackupManifestVersion = 1;
