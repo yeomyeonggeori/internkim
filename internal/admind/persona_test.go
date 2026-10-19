@@ -126,21 +126,7 @@ func TestIdentityRulesRefuseAnotherFirstNameOrHandle(t *testing.T) {
 	}
 }
 
-func TestSoulUpdateIsReadOnly(t *testing.T) {
-	service := personaTestService(t)
-	for name, body := range map[string]string{"valid": `{"schemaVersion": 1, "values": ["Lead with the result."]}`, "invalid": `{"schemaVersion": 1, "mood": "happy"}`} {
-		recorder := httptest.NewRecorder()
-		service.updateSoul(recorder, httptest.NewRequest(http.MethodPut, "/soul", strings.NewReader(body)))
-		if recorder.Code != http.StatusConflict {
-			t.Fatalf("expected %s to be refused as read-only, got %d %s", name, recorder.Code, recorder.Body.String())
-		}
-	}
-	if _, errorValue := os.Stat(service.Configuration.SoulDocumentPath); !os.IsNotExist(errorValue) {
-		t.Fatalf("read-only update changed the local soul: %v", errorValue)
-	}
-}
-
-func TestPersonaAPILetsAMemberChangeTheirOwnDocumentButNotTheSoul(t *testing.T) {
+func TestPersonaAPILetsAMemberChangeTheirOwnDocument(t *testing.T) {
 	var blueclawRequests []string
 	var storedDocument []byte
 	blueclaw := httptest.NewServer(http.HandlerFunc(func(responseWriter http.ResponseWriter, request *http.Request) {
@@ -164,12 +150,6 @@ func TestPersonaAPILetsAMemberChangeTheirOwnDocumentButNotTheSoul(t *testing.T) 
 	stubPersonaActor(t, personaActor{email: "sample@example.com", personID: "person-1", isAdmin: false}, true)
 
 	recorder := httptest.NewRecorder()
-	service.handlePersona(recorder, httptest.NewRequest(http.MethodPost, "/persona/api/soul", strings.NewReader(`{"schemaVersion": 1}`)))
-	if recorder.Code != http.StatusForbidden {
-		t.Fatalf("expected a member to be refused the soul, got %d", recorder.Code)
-	}
-
-	recorder = httptest.NewRecorder()
 	service.handlePersona(recorder, httptest.NewRequest(http.MethodPost, "/persona/api/user", strings.NewReader(`{"schemaVersion": 1, "callMe": " 샘플님 ", "preferences": ["Give me the command first."], "language": {"default": "en"}}`)))
 	if recorder.Code != http.StatusOK {
 		t.Fatalf("expected the member's document to save, got %d %s", recorder.Code, recorder.Body.String())
@@ -199,24 +179,15 @@ func TestPersonaAPILetsAMemberChangeTheirOwnDocumentButNotTheSoul(t *testing.T) 
 	}
 }
 
-func TestPersonaAPIDoesNotLetAnAdministratorChangeTheSoul(t *testing.T) {
+func TestPersonaAPIHasNoSoulRoute(t *testing.T) {
 	service := personaTestService(t)
-	blueclaw := httptest.NewServer(http.HandlerFunc(func(responseWriter http.ResponseWriter, request *http.Request) {
-		responseWriter.Header().Set("Content-Type", "application/json")
-		if request.Method == http.MethodPut {
-			_, _ = io.Copy(responseWriter, request.Body)
-			return
-		}
-		_, _ = responseWriter.Write([]byte(`{"identity":{"schemaVersion":1,"names":["김인턴"],"handle":"internkim"},"soul":{"schemaVersion":1,"values":["Say what you did not do."]}}`))
-	}))
-	defer blueclaw.Close()
-	service.Configuration.BlueclawBaseURL = blueclaw.URL
 	stubPersonaActor(t, personaActor{email: "admin@example.com", personID: "person-admin", isAdmin: true}, true)
-
-	recorder := httptest.NewRecorder()
-	service.handlePersona(recorder, httptest.NewRequest(http.MethodPost, "/persona/api/soul", strings.NewReader(`{"schemaVersion": 1, "values": ["Say what you did not do."]}`)))
-	if recorder.Code != http.StatusConflict {
-		t.Fatalf("expected the administrator soul update to be read-only, got %d %s", recorder.Code, recorder.Body.String())
+	for _, method := range []string{http.MethodGet, http.MethodPost} {
+		recorder := httptest.NewRecorder()
+		service.handlePersona(recorder, httptest.NewRequest(method, "/persona/api/soul", strings.NewReader(`{"schemaVersion": 1}`)))
+		if recorder.Code != http.StatusNotFound {
+			t.Fatalf("expected %s /persona/api/soul to be no route, got %d %s", method, recorder.Code, recorder.Body.String())
+		}
 	}
 }
 

@@ -196,15 +196,6 @@ func (service *Service) startPersonaSync(ctx context.Context) {
 	}()
 }
 
-func (service *Service) writeSoul(responseWriter http.ResponseWriter, request *http.Request) {
-	_, soul, errorValue := service.loadCurrentAgentPersona(request.Context())
-	if errorValue != nil {
-		http.Error(responseWriter, errorValue.Error(), http.StatusBadGateway)
-		return
-	}
-	service.writeJSON(responseWriter, soul)
-}
-
 func (service *Service) loadCurrentAgentPersona(ctx context.Context) (identityDocument, soulDocument, error) {
 	var document rawAgentPersonaDocuments
 	if errorValue := service.blueclawPersonaRequest(ctx, http.MethodGet, "/admin/api/persona/agent", nil, "internkim-persona-service", &document); errorValue != nil {
@@ -246,10 +237,6 @@ func (service *Service) seedAgentPersona(ctx context.Context) error {
 		return errorValue
 	}
 	return service.saveSoul(canonicalSoul)
-}
-
-func (service *Service) updateSoul(responseWriter http.ResponseWriter, request *http.Request) {
-	http.Error(responseWriter, "the agent soul is managed by learning review and restore", http.StatusConflict)
 }
 
 func readRequestDocument(request *http.Request) ([]byte, error) {
@@ -685,14 +672,6 @@ func (service *Service) handlePersona(responseWriter http.ResponseWriter, reques
 			return
 		}
 		service.writeJSON(responseWriter, identity)
-	case request.Method == http.MethodGet && path == "/soul":
-		service.writeSoul(responseWriter, request)
-	case request.Method == http.MethodPost && path == "/soul":
-		if !actor.isAdmin {
-			http.Error(responseWriter, "only an administrator changes the agent's soul", http.StatusForbidden)
-			return
-		}
-		service.updateSoul(responseWriter, request)
 	case request.Method == http.MethodGet && path == "/user":
 		service.writeUserDocument(responseWriter, request, actor.personID)
 	case request.Method == http.MethodPost && path == "/user":

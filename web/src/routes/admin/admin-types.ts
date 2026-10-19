@@ -27,15 +27,6 @@ export type AdminSession = {
 
 export type AgentToneRegister = 'formal' | 'polite' | 'casual';
 
-export type AgentSoul = {
-	schemaVersion: 1;
-	values?: string[];
-	boundaries?: string[];
-	workingStyle?: string[];
-	tone?: { register?: AgentToneRegister; traits?: string[] };
-	language?: { default?: string; matchRequester?: boolean };
-};
-
 export type AgentUser = {
 	schemaVersion: 1;
 	callMe?: string;

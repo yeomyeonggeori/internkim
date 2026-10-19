@@ -1,7 +1,7 @@
 import { adminApiFetch } from '$lib/admin-api';
 import { callCompanyApp } from '$lib/host-bridge';
 import { isSupabaseConfigured } from '$lib/supabase';
-import type { AgentSoul, AgentUser } from '../admin/admin-types';
+import type { AgentUser } from '../admin/admin-types';
 
 export type AgentIdentity = {
 	schemaVersion: 1;
@@ -41,14 +41,6 @@ export function fetchMyAgentDocument(): Promise<AgentUser> {
 
 export function updateMyAgentDocument(user: AgentUser): Promise<AgentUser> {
 	return writePersona<AgentUser>('user', 'person.persona.user.update', user);
-}
-
-export function fetchAgentSoul(): Promise<AgentSoul> {
-	return readPersona<AgentSoul>('soul', 'person.persona.soul');
-}
-
-export function updateAgentSoul(soul: AgentSoul): Promise<AgentSoul> {
-	return writePersona<AgentSoul>('soul', 'person.persona.soul.update', soul);
 }
 
 async function readPersona<T>(name: string, capability: string): Promise<T> {
