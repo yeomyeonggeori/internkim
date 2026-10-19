@@ -16,6 +16,7 @@ tauri-plugin-os = "2"
 
 [target.'cfg(any(target_os = "ios", target_os = "android"))'.dependencies]
 tauri-plugin-attendance-widget = { path = "../attendance-widget/tauri-plugin" }
+tauri-plugin-page-theme = { path = "plugins/page-theme" }
 
 [profile.release]
 codegen-units = 1
