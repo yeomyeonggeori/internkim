@@ -1,8 +1,10 @@
 import { z } from 'zod';
-import type { SupabaseClient } from '@supabase/supabase-js';
+import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { dataRoomGetResultSchema, dataRoomCategorySetInputSchema, dataRoomFieldSetInputSchema,
-	dataRoomShareCreateInputSchema, dataRoomShareRevokeInputSchema } from '../catalog/data-room';
-import type { RecordContext } from './company';
+	dataRoomShareCreateInputSchema, dataRoomShareRevokeInputSchema,
+	dataRoomInvitationAcceptInputSchema, dataRoomInvitationSendInputSchema } from '../catalog/data-room';
+import { planeCredentialsOf } from '$lib/server/control-plane';
+import type { RecordContext, ToolPlace } from './company';
 import { RecordRefusedTheWrite, statusOfPostgresCode } from './tasks';
 import { dataRoomLinkInputSchema, dataRoomLinkRevokeSchema, dataRoomLinksSchema, generateDataRoomCode } from '$lib/data-room/links';
 
@@ -120,4 +122,57 @@ export async function companyDataRoomLinkRevoke(context: RecordContext, value: u
 	const link = dataRoomLinkRevokeSchema.parse(value);
 	await dataRoomCall(context.caller, 'data_room_link_revoke', { target_link: link.linkID });
 	return { saved: true };
+}
+
+const invitationRowSchema = z.object({
+	company_id: z.string(), email: z.string(),
+	expires_at: z.string().nullable(), revoked_at: z.string().nullable()
+});
+
+export async function dataRoomShareAccept(caller: SupabaseClient, shareID: string) {
+	const companyID = await dataRoomCall(caller, 'data_room_share_accept', { target_share: shareID });
+	return { shareID, companyID: z.string().uuid().parse(companyID) };
+}
+
+export async function dataRoomInvitationSend(caller: SupabaseClient, place: ToolPlace, shareID: string) {
+	const invitation = await invitationOf(caller, shareID);
+	const isAdministrator = await dataRoomCall(caller, 'data_room_administrator', { target_company: invitation.company_id });
+	if (isAdministrator !== true) throw new RecordRefusedTheWrite('only an administrator sends invitations', 403);
+	if (!isInvitationActive(invitation)) throw new RecordRefusedTheWrite('invitation is no longer active', 403);
+	await sendInvitationEmail(place, invitation.email, shareID);
+	return { shareID, sent: true };
+}
+
+async function invitationOf(caller: SupabaseClient, shareID: string) {
+	const { data, error } = await caller.from('data_room_share')
+		.select('company_id,email,expires_at,revoked_at').eq('id', shareID).eq('audience', 'email').maybeSingle();
+	if (error || !data) throw new RecordRefusedTheWrite('invitation not found', 404);
+	return invitationRowSchema.parse(data);
+}
+
+function isInvitationActive(invitation: z.infer<typeof invitationRowSchema>): boolean {
+	if (invitation.revoked_at) return false;
+	return !invitation.expires_at || new Date(invitation.expires_at) > new Date();
+}
+
+async function sendInvitationEmail(place: ToolPlace, email: string, shareID: string) {
+	const plane = planeCredentialsOf(place.environment);
+	if (!plane) throw new RecordRefusedTheWrite('the data room is not configured', 503);
+	const sender = createClient(plane.projectURL, plane.publishableKey, {
+		auth: { persistSession: false, autoRefreshToken: false }
+	});
+	const { error } = await sender.auth.signInWithOtp({ email, options: {
+		shouldCreateUser: true, emailRedirectTo: `${place.appAddress}/share/invitations/${shareID}`
+	} });
+	if (error) throw new RecordRefusedTheWrite(error.message, error.status ?? 502);
+}
+
+export async function companyDataRoomInvitationSend(context: RecordContext, value: unknown, place: ToolPlace) {
+	const { shareID } = dataRoomInvitationSendInputSchema.parse(value);
+	return dataRoomInvitationSend(context.caller, place, shareID);
+}
+
+export async function companyDataRoomInvitationAccept(context: RecordContext, value: unknown) {
+	const { shareID } = dataRoomInvitationAcceptInputSchema.parse(value);
+	return dataRoomShareAccept(context.caller, shareID);
 }

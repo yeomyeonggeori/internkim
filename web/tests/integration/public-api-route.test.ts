@@ -1281,3 +1281,24 @@ describe('the company a data room shows', () => {
 		expect(investor.metrics.map((metric) => metric.metric)).toEqual(['annualRevenue']);
 	});
 });
+
+describe('a data room invitation through the tools', () => {
+	const guestEmail = `${slug}-guest@example.test`;
+
+	afterAll(async () => {
+		const { data } = await client.auth.admin.listUsers();
+		const guest = data.users.find((user) => user.email === guestEmail);
+		if (guest) await client.auth.admin.deleteUser(guest.id);
+	}, networkHookTimeout);
+
+	test('is emailed through the same invocation every other tool answers on', async () => {
+		const shared = await invoke('dataroom_share_add', administratorsToken,
+			{ circleID: 'investor', audience: 'email', email: guestEmail });
+		const shareID = z.string().uuid().parse(resultOf(shared).shareID);
+
+		const answered = await invoke('dataroom_invitation_send', administratorsToken, { shareID });
+
+		expect(answered.status).toBe(200);
+		expect(resultOf(answered)).toEqual({ shareID, sent: true });
+	});
+});

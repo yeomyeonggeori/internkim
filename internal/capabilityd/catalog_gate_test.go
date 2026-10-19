@@ -147,6 +147,18 @@ func gateCases() map[string]catalogGateCase {
 			input:   `{"shareID":"62000000-0000-4000-8000-000000000001"}`,
 			expect:  func(t *testing.T, answered capabilities.ToolInvokeResponse) { expectSucceeded(t, answered) },
 		},
+		"dataroom_invitation_send": {
+			kind:    provesCarrying,
+			reaches: map[gateBackend]*standingIn{admindOverTheSocket: answering(`{"tool":"dataroom_invitation_send","result":{"shareID":"62000000-0000-4000-8000-000000000001","sent":true}}`)},
+			input:   `{"shareID":"62000000-0000-4000-8000-000000000001"}`,
+			expect:  func(t *testing.T, answered capabilities.ToolInvokeResponse) { expectSucceeded(t, answered) },
+		},
+		"dataroom_invitation_accept": {
+			kind:    provesCarrying,
+			reaches: map[gateBackend]*standingIn{admindOverTheSocket: answering(`{"tool":"dataroom_invitation_accept","result":{"shareID":"62000000-0000-4000-8000-000000000001","companyID":"63000000-0000-4000-8000-000000000001"}}`)},
+			input:   `{"shareID":"62000000-0000-4000-8000-000000000001"}`,
+			expect:  func(t *testing.T, answered capabilities.ToolInvokeResponse) { expectSucceeded(t, answered) },
+		},
 		"company_document_classify": {
 			kind:    provesBehaviour,
 			reaches: map[gateBackend]*standingIn{admindOverTheSocket: answering(`{"categoryCode":"FS"}`)},

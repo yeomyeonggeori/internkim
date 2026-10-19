@@ -1,6 +1,7 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { error } from '@sveltejs/kit';
 import { asMember, planeCredentialsOf } from './control-plane';
+import { RecordRefusedTheWrite } from './public-api/record/tasks';
 import type { Environment } from './agent-request';
 
 export type DataRoomGuest = { caller: SupabaseClient; viewerEmail: string | null };
@@ -20,4 +21,13 @@ export async function dataRoomCaller(request: Request, environment: Environment)
 	const { data, error: refusal } = await caller.auth.getUser();
 	if (refusal || !data.user) error(401, 'sign in first');
 	return { caller, viewerEmail: data.user.email ?? null };
+}
+
+export async function answeredOrRefused<Answer>(pending: Promise<Answer>): Promise<Answer> {
+	try {
+		return await pending;
+	} catch (refusal) {
+		if (refusal instanceof RecordRefusedTheWrite) error(refusal.status, refusal.message);
+		throw refusal;
+	}
 }

@@ -87,7 +87,8 @@ import {
 import { personInvite, personList, personPasswordReset, personUpdate, personWithdraw } from './people-tools';
 import { companyDataRoomGet, companyDataRoomCategorySet, companyDataRoomFieldSet,
 	companyDataRoomShareCreate, companyDataRoomShareRevoke,
-	companyDataRoomLinksGet, companyDataRoomLinkCreate, companyDataRoomLinkRevoke } from './data-room';
+	companyDataRoomLinksGet, companyDataRoomLinkCreate, companyDataRoomLinkRevoke,
+	companyDataRoomInvitationAccept, companyDataRoomInvitationSend } from './data-room';
 import {
 	companyCircleChannelAdd, companyCircleChannelDelete, companyCircleList, companyCircleMemberSet, companyCircleSet
 } from './circle';
@@ -198,6 +199,9 @@ const toolsOverTheRecord: Record<string, ToolRun> = {
 	dataroom_field_update: (context, input) => companyDataRoomFieldSet(context, input),
 	dataroom_share_add: (context, input) => companyDataRoomShareCreate(context, input),
 	dataroom_share_delete: (context, input) => companyDataRoomShareRevoke(context, input),
+	dataroom_invitation_send: (context, input, place) =>
+		companyDataRoomInvitationSend(context, input, placeTheAppAnswersAt('dataroom_invitation_send', place)),
+	dataroom_invitation_accept: (context, input) => companyDataRoomInvitationAccept(context, input),
 	notification_settings_get: (context) => notificationSettingsGet(context),
 	notification_settings_set: (context, input) => notificationSettingsSet(context, input),
 	conversation_mute: (context, input) => conversationMute(context, input),

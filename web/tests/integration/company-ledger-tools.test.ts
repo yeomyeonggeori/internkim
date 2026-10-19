@@ -19,6 +19,10 @@ const networkHookTimeout = 60_000;
 const client = controlPlane({ projectURL, serviceRoleKey });
 const slug = `company-ledger-${Date.now()}`;
 const now = new Date('2026-09-04T00:00:00.000Z');
+const place = {
+	environment: { SUPABASE_URL: projectURL, SUPABASE_SECRET_KEY: serviceRoleKey, SUPABASE_PUBLISHABLE_KEY: publishableKey, SUPABASE_JWT_SIGNING_KEY: signingKey },
+	appAddress: 'http://localhost:5173'
+};
 
 let companyID = '';
 let sampleID = '';
@@ -64,15 +68,15 @@ afterAll(async () => {
 }, networkHookTimeout);
 
 async function asSample(name: string, input: Record<string, unknown> = {}) {
-	return heldToTheContract(name, await runToolOverTheRecord(sample, client, sampleID, name, input, now, leavesTaskLabelsUndecided));
+	return heldToTheContract(name, await runToolOverTheRecord(sample, client, sampleID, name, input, now, leavesTaskLabelsUndecided, place));
 }
 
 async function asColleague(name: string, input: Record<string, unknown> = {}) {
-	return heldToTheContract(name, await runToolOverTheRecord(colleague, client, colleagueID, name, input, now, leavesTaskLabelsUndecided));
+	return heldToTheContract(name, await runToolOverTheRecord(colleague, client, colleagueID, name, input, now, leavesTaskLabelsUndecided, place));
 }
 
 async function asAdmin(name: string, input: Record<string, unknown> = {}) {
-	return heldToTheContract(name, await runToolOverTheRecord(admin, client, adminID, name, input, now, leavesTaskLabelsUndecided));
+	return heldToTheContract(name, await runToolOverTheRecord(admin, client, adminID, name, input, now, leavesTaskLabelsUndecided, place));
 }
 
 function resultOf(answer: { body: unknown }): Record<string, unknown> {
@@ -418,6 +422,37 @@ describe('the category data room', () => {
 		]));
 		const revoked = await asAdmin('dataroom_share_delete', { shareID });
 		expect(revoked.status).toBe(200);
+	});
+
+	test('emails an invitation only when an administrator sends a share still open', async () => {
+		const guestEmail = `${slug}-guest@example.test`;
+		const shareID = resultOf(await asAdmin('dataroom_share_add', {
+			circleID: 'investor', audience: 'email', email: guestEmail
+		})).shareID;
+		try {
+			expect((await asSample('dataroom_invitation_send', { shareID })).status).toBe(404);
+			const sent = await asAdmin('dataroom_invitation_send', { shareID });
+			expect(sent.status).toBe(200);
+			expect(resultOf(sent)).toEqual({ shareID, sent: true });
+			await asAdmin('dataroom_share_delete', { shareID });
+			expect((await asAdmin('dataroom_invitation_send', { shareID })).status).toBe(403);
+		} finally {
+			const { data } = await client.auth.admin.listUsers();
+			const guest = data.users.find((user) => user.email === guestEmail);
+			if (guest) await client.auth.admin.deleteUser(guest.id);
+		}
+	});
+
+	test('lets only the email an invitation names accept it', async () => {
+		const shareID = resultOf(await asAdmin('dataroom_share_add', {
+			circleID: 'investor', audience: 'email', email: `${slug}-sample@example.test`
+		})).shareID;
+
+		expect((await asAdmin('dataroom_invitation_accept', { shareID })).status).toBe(403);
+		const accepted = await asSample('dataroom_invitation_accept', { shareID });
+		expect(accepted.status).toBe(200);
+		expect(resultOf(accepted)).toEqual({ shareID, companyID });
+		await asAdmin('dataroom_share_delete', { shareID });
 	});
 
 	test('names a default circle in the company language and never renames it', async () => {
