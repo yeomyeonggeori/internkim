@@ -420,12 +420,12 @@ begin
   perform set_config('request.jwt.claims', '{"sub":"46000000-0000-0000-0000-000000000003"}', true);
   delete from public.task where id = '46000000-0000-0000-0000-000000000108';
   reset role;
-end $$;$block$, 'calendar delete: a same-company non-participant can delete an event');
+end $$;$block$, 'calendar delete: a colleague outside an event is safely filtered');
 
 select is(
   (select count(*) from public.task where id = '46000000-0000-0000-0000-000000000108'),
-  0::bigint,
-  'calendar delete: the same-company event deletion persists'
+  1::bigint,
+  'calendar delete: an event stays when somebody outside it deletes it'
 );
 
 select lives_ok($block$do $$

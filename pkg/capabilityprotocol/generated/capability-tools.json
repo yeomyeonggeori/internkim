@@ -2924,7 +2924,7 @@
         "mode": "success",
         "targetKind": "task"
       },
-      "description": "Permanently delete a task. taskHint is the exact task ID or exact task title from a task_list result, resolved server-side to the canonical task; use task_list first when neither is known. Only an admin, or the one person taking part in the task, can delete it; task_list says so in canDelete. Requires approval; this action is irreversible.",
+      "description": "Permanently delete a task. taskHint is the exact task ID or exact task title from a task_list result, resolved server-side to the canonical task; use task_list first when neither is known. Only an admin, the member who asked for the task, or the one person taking part in it can delete it; task_list says so in canDelete. Requires approval; this action is irreversible.",
       "estimatedLatency": "medium",
       "idempotency": {
         "required": false,
@@ -5961,7 +5961,7 @@
         "mode": "success",
         "targetKind": "calendar"
       },
-      "description": "Permanently delete a calendar event. eventHint is the exact event ID or exact event title from a event_list result, resolved server-side to the canonical event; use event_list first when neither is known. Requires approval; this action is irreversible.",
+      "description": "Permanently delete a calendar event. Only the people in it, the member who asked for it, or an admin can delete it, and anyone in the company can delete an event open to the whole company. eventHint is the exact event ID or exact event title from a event_list result, resolved server-side to the canonical event; use event_list first when neither is known. Requires approval; this action is irreversible.",
       "estimatedLatency": "medium",
       "idempotency": {
         "required": false,

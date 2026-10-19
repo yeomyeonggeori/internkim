@@ -836,8 +836,19 @@ describe('deleting', () => {
 	});
 
 	test('refuses to take away a task that is somebody else’s', async () => {
-		const refused = await run('task_delete', { taskHint: '채용 공고 검토' });
+		const { data: task } = await client
+			.from('task')
+			.insert({ company_id: companyID, title: '남이 맡은 정리' })
+			.select('id')
+			.single();
+		await client.from('task_participant').insert({ task_id: task!.id, member_id: exampleID });
+		const refused = await run('task_delete', { taskHint: '남이 맡은 정리' });
 		expect(refused.status).toBe(403);
+	});
+
+	test('takes away work the caller asked of somebody else', async () => {
+		const gone = resultOf(await run('task_delete', { taskHint: '채용 공고 검토' }));
+		expect(gone.deleted).toBe(true);
 	});
 
 	test('takes an event away too', async () => {
