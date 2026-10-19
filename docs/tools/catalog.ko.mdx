@@ -177,6 +177,10 @@ Blueclaw가 요청자 권한으로 파일을 읽어 내용을 호출에 실어 �
 회사 자체의 장부와 설정입니다. 등록된 문서, 기록된 지표, 기록, 휴일, 회사 정보를 다룹니다.
 여기에 등록한 문서가 [데이터룸](/docs/data-room)이 보관하는 문서입니다.
 
+회사 사진은 직인과 같은 방법으로 올립니다. `company_image_upload`에 `image`를
+`picture`로 주면 PUT할 곳을 답하고, `company_settings_update`의 `profileImage`가
+그 사진을 걸어 둡니다. 빈 값을 주면 사진을 내립니다.
+
 ## 메일 [#mail]
 
 <ToolCatalog namespace="mail" language="ko" />

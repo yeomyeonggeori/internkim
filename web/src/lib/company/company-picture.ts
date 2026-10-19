@@ -13,6 +13,8 @@ export const largestPictureACompanyCanHave = companyPictureMegabytes * 1024 * 10
 
 export const companyPicturePath = '/company/profile-image';
 
+export const companyPictureImage = 'picture';
+
 export function refusalOfCompanyPictureSize(sizeBytes: number): string {
 	if (sizeBytes <= largestPictureACompanyCanHave) return '';
 	return `${(sizeBytes / 1024 / 1024).toFixed(1)}MB`;
