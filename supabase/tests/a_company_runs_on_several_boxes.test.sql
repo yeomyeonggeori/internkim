@@ -92,7 +92,7 @@ select is(
 );
 
 insert into storage.objects (bucket_id, name)
-values ('box_backup', '7e000000-0000-0000-0000-0000000000c1/kept/manifest.json');
+values ('box_backup', '7e000000-0000-0000-0000-0000000000c1/snapshots/internkim-snapshot-20261020T000000Z.json');
 
 select is(
   public.make_box_serve('7e000000-0000-0000-0000-0000000000c1', 'box-five'),
@@ -117,15 +117,6 @@ set local role authenticated;
 select set_config('request.jwt.claims',
   '{"sub":"7e000000-0000-0000-0000-00000000f0f0","app_metadata":{"company_id":"7e000000-0000-0000-0000-0000000000c1","fleet_id":"box-five"}}',
   true);
-select lives_ok(
-  $$insert into storage.objects (bucket_id, name) values ('box_backup', '7e000000-0000-0000-0000-0000000000c1/archive/manifest.json')$$,
-  'a box keeps a backup under its own company'
-);
-select throws_ok(
-  $$insert into storage.objects (bucket_id, name) values ('box_backup', '7e000000-0000-0000-0000-0000000000c2/archive/manifest.json')$$,
-  '42501', null,
-  'and never under another company'
-);
 select is(public.my_app_company(), '7e000000-0000-0000-0000-0000000000c1'::uuid, 'a standby box''s session names its company');
 select is(public.my_app_box_role(), 'standby', 'and says it stands by');
 
@@ -133,6 +124,15 @@ select set_config('request.jwt.claims',
   '{"sub":"7e000000-0000-0000-0000-00000000f0f0","app_metadata":{"company_id":"7e000000-0000-0000-0000-0000000000c1","fleet_id":"box-four"}}',
   true);
 select is(public.my_app_box_role(), 'service', 'the service box''s session says it serves');
+select lives_ok(
+  $$insert into storage.objects (bucket_id, name) values ('box_backup', '7e000000-0000-0000-0000-0000000000c1/archive/manifest.json')$$,
+  'the service box keeps a backup under its own company'
+);
+select throws_ok(
+  $$insert into storage.objects (bucket_id, name) values ('box_backup', '7e000000-0000-0000-0000-0000000000c2/archive/manifest.json')$$,
+  '42501', null,
+  'and never under another company'
+);
 
 select set_config('request.jwt.claims',
   '{"sub":"7e000000-0000-0000-0000-00000000f0f0","app_metadata":{"company_id":"7e000000-0000-0000-0000-0000000000c1","fleet_id":"box-three"}}',

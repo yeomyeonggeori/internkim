@@ -457,11 +457,11 @@ const keptBackupBucket = 'box_backup';
 export async function newestKeptBackupAt(client: SupabaseClient, companyID: string, sealingKey: string): Promise<string | null> {
 	const { data, error } = await client.storage
 		.from(keptBackupBucket)
-		.list(companyID, { limit: 1000, sortBy: { column: 'name', order: 'desc' } });
-	if (error) throw new Error(`kept backups of ${companyID}: ${error.message}`);
-	for (const archive of data) {
-		const manifest = await keptManifestOf(client, `${companyID}/${archive.name}/manifest.json`);
-		if (manifest?.archiveName === archive.name && manifest.sealingKey === sealingKey) return manifest.createdAt;
+		.list(`${companyID}/snapshots`, { limit: 1000, sortBy: { column: 'name', order: 'desc' } });
+	if (error) throw new Error(`kept snapshots of ${companyID}: ${error.message}`);
+	for (const snapshot of data) {
+		const manifest = await keptManifestOf(client, `${companyID}/snapshots/${snapshot.name}`);
+		if (manifest?.name === snapshot.name && manifest.sealingKey === sealingKey) return manifest.createdAt;
 	}
 	return null;
 }
@@ -469,8 +469,17 @@ export async function newestKeptBackupAt(client: SupabaseClient, companyID: stri
 async function keptManifestOf(client: SupabaseClient, path: string): Promise<KeptBackupManifest | null> {
 	const { data } = await client.storage.from(keptBackupBucket).download(path);
 	if (!data) return null;
-	const parsed = keptBackupManifestSchema.safeParse(JSON.parse(await data.text()));
+	const parsed = keptBackupManifestSchema.safeParse(documentOf(await data.text()));
 	return parsed.success ? parsed.data : null;
+}
+
+function documentOf(text: string): unknown {
+	try {
+		return JSON.parse(text);
+	} catch (refusal) {
+		if (refusal instanceof SyntaxError) return null;
+		throw refusal;
+	}
 }
 
 const servingOutcomeSchema = z.enum(['serving', 'not_its_box', 'no_backup']);

@@ -480,7 +480,7 @@ describe('connecting an empty box', () => {
 			keepsBackups: false
 		});
 
-		const keptManifest = `${switching.companyID}/kept/manifest.json`;
+		const keptManifest = `${switching.companyID}/snapshots/internkim-snapshot-20261020T000000Z.json`;
 		await client.storage.from('box_backup').upload(keptManifest, new Blob(['{}'], { type: 'application/json' }));
 		expect(await makeBoxServe(client, switching.companyID, second.publicKey)).toBe('serving');
 
@@ -512,7 +512,7 @@ describe('connecting an empty box', () => {
 		await keepTakeOver(client, lapsing.companyID, { isAutomatic: true, lapseSeconds: 300 });
 		expect((await boxSessionFor(credentials, second.publicKey, environment, appURL))?.role).toBe('standby');
 
-		const keptManifest = `${lapsing.companyID}/kept/manifest.json`;
+		const keptManifest = `${lapsing.companyID}/snapshots/internkim-snapshot-20261020T000000Z.json`;
 		await client.storage.from('box_backup').upload(keptManifest, new Blob(['{}'], { type: 'application/json' }));
 
 		expect(await boxSessionFor(credentials, second.publicKey, environment, appURL)).toMatchObject({
@@ -524,26 +524,28 @@ describe('connecting an empty box', () => {
 		await client.storage.from('box_backup').remove([keptManifest]);
 	});
 
-	test('the newest backup the boxes share is the newest whole one sealed to the company key', async () => {
+	test('the newest snapshot the boxes share is the newest readable one sealed to the company key', async () => {
 		const backingUp = await aCompany('backing-up');
 		const first = await aBox();
 		await claimWithCode(backingUp.companyID, first.publicKey, await announcedCode(first));
 		const bucket = client.storage.from('box_backup');
-		const manifestOf = (archiveName: string, sealingKey: string, createdAt: string) =>
-			new Blob([JSON.stringify({ version: 1, archiveName, sealingKey, createdAt, parts: [] })], { type: 'application/json' });
+		const snapshots = `${backingUp.companyID}/snapshots`;
+		const manifestOf = (name: string, sealingKey: string, createdAt: string) =>
+			new Blob([JSON.stringify({ version: 2, name, sealingKey, createdAt, archive: {}, chunks: {} })], { type: 'application/json' });
 		expect(await newestKeptBackupAt(client, backingUp.companyID, first.encryptionKey)).toBeNull();
 
-		await bucket.upload(`${backingUp.companyID}/a-2026-10-17/manifest.json`, manifestOf('a-2026-10-17', first.encryptionKey, '2026-10-17T03:00:00Z'));
-		await bucket.upload(`${backingUp.companyID}/a-2026-10-18/manifest.json`, manifestOf('a-2026-10-18', 'o'.repeat(43), '2026-10-18T03:00:00Z'));
-		await bucket.upload(`${backingUp.companyID}/a-2026-10-19/part-000001`, new Blob(['half']));
+		await bucket.upload(`${snapshots}/internkim-snapshot-20261017T030000Z.json`, manifestOf('internkim-snapshot-20261017T030000Z.json', first.encryptionKey, '2026-10-17T03:00:00Z'));
+		await bucket.upload(`${snapshots}/internkim-snapshot-20261018T030000Z.json`, manifestOf('internkim-snapshot-20261018T030000Z.json', 'o'.repeat(43), '2026-10-18T03:00:00Z'));
+		await bucket.upload(`${snapshots}/internkim-snapshot-20261019T030000Z.json`, new Blob(['half written']));
 
 		expect(await newestKeptBackupAt(client, backingUp.companyID, first.encryptionKey)).toBe('2026-10-17T03:00:00Z');
 		await bucket.remove([
-			`${backingUp.companyID}/a-2026-10-17/manifest.json`,
-			`${backingUp.companyID}/a-2026-10-18/manifest.json`,
-			`${backingUp.companyID}/a-2026-10-19/part-000001`
+			`${snapshots}/internkim-snapshot-20261017T030000Z.json`,
+			`${snapshots}/internkim-snapshot-20261018T030000Z.json`,
+			`${snapshots}/internkim-snapshot-20261019T030000Z.json`
 		]);
 	});
+
 
 	test('an administrator disconnects one box, which then announces as empty, and the others stay', async () => {
 		const releasing = await aCompany('releasing');

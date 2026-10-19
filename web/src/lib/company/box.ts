@@ -123,15 +123,14 @@ export const companyBoxesSchema = z.object({
 	takeOver: takeOverSchema
 }).strict();
 
-export const keptBackupManifestVersion = 1;
+export const keptBackupManifestVersion = 2;
 
 export const keptBackupManifestSchema = z.object({
 	version: z.literal(keptBackupManifestVersion),
-	archiveName: z.string().min(1),
+	name: z.string().min(1),
 	sealingKey: boxKeySchema,
-	createdAt: z.iso.datetime({ offset: true }),
-	parts: z.array(z.object({ name: z.string(), size: z.number().int(), sha256: z.string() }).strict())
-}).strict();
+	createdAt: z.iso.datetime({ offset: true })
+});
 
 export type KeptBackupManifest = z.infer<typeof keptBackupManifestSchema>;
 

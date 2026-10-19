@@ -108,6 +108,8 @@ func main() {
 		stopOnFailure("Backup stopped", runBackup(os.Args[2:]))
 	case "restore":
 		stopOnFailure("Restore stopped", runRestore(os.Args[2:]))
+	case "snapshot":
+		stopOnFailure("The snapshot was not kept", runSnapshot(os.Args[2:]))
 	case "refresh":
 		stopOnFailure("The company was not brought back", runRefresh())
 	case blueclaw.SkillPreparationVerb:
@@ -145,6 +147,7 @@ func printUsage(command string) {
 	fmt.Fprintf(os.Stderr, "       %s box code\n", command)
 	fmt.Fprintf(os.Stderr, "       %s backup [--directory DIR] [--keep N]\n", command)
 	fmt.Fprintf(os.Stderr, "       %s restore <archive> [--replace]\n", command)
+	fmt.Fprintf(os.Stderr, "       %s snapshot [--keep N]\n", command)
 	fmt.Fprintf(os.Stderr, "       %s refresh\n", command)
 	fmt.Fprintf(os.Stderr, "       %s %s [--skills-directory DIR]\n", command, blueclaw.SkillPreparationVerb)
 	fmt.Fprintf(os.Stderr, "       %s update --version vMAJOR.MINOR.PATCH\n", command)
@@ -304,9 +307,10 @@ func boxDaemon(appURL string) box.Daemon {
 			_, errorValue := companyhost.Install(request, thisComputer{}, os.Stdout)
 			return errorValue
 		},
-		TakeOver:  takeOverFromTheNewestBackup,
-		StandDown: standDown,
-		StandUp:   standUp,
+		TakeOver:       takeOverFromTheNewestBackup,
+		StandDown:      standDown,
+		StandUp:        standUp,
+		StartKeepingUp: startKeepingUpWithTheServiceBox,
 	}
 }
 

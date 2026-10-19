@@ -161,18 +161,26 @@ own key, and a box that already holds the company key seals it to the newcomer a
 its next check, within five minutes. Until then the setup page says the new box
 is receiving the key.
 
-The service box seals its daily backup to the company key as it writes it and
-keeps that copy in the hosted service, where any of the company's boxes can open
-it and nothing else can. The setup page shows when the newest one was made.
+Every fifteen minutes the service box takes a snapshot of everything a backup
+holds and keeps it in the hosted service, sealed to the company key, where any
+of the company's boxes can open it and nothing else can. A snapshot is cut into
+chunks by their content, and only chunks the service box has not kept before
+are sent, so a quiet quarter hour costs a few megabytes. Each standby box
+fetches the newest snapshot's chunks as they appear. Only the service box may
+write snapshots, so a box that has just stopped serving cannot leave a stale
+one behind. The setup page shows when the newest one was made, and
+`SNAPSHOTS_KEPT` in `/etc/internkim/company-host.env` says how many are kept,
+eight unless set.
 
 When the service box's building loses power or its line, an administrator chooses
 Make this box serve on a standby box. The serving box, if it is still up, stops
-its services and stands by. The new service box fetches the newest backup,
-restores it while keeping its own identity, and starts the company from it. What
-the old box held after that backup stays on the old box. While the company keeps
-no backup, the switch is refused, since the new box would have nothing to start
-from, and a box that cannot open the backups the company keeps stops with an
-error instead of starting the company empty. A take-over that fails is not retried until
+its services and stands by. The new service box rebuilds the newest snapshot
+from the chunks it holds, restores it while keeping its own identity, and starts
+the company from it. What the old box held after that snapshot stays on the old
+box. While the company keeps no snapshot, the switch is refused, since the new
+box would have nothing to start from, and a box that cannot open the snapshots
+the company keeps stops with an error instead of starting the company empty. A
+take-over that fails is not retried until
 `systemctl reset-failed internkim-take-over` says to.
 
 A company can let its boxes do this by themselves. Every box is seen by the
@@ -182,12 +190,12 @@ seen for the lapse the administrator chose, five minutes at the shortest of the
 offered choices. One on another site goes before one on the lapsed box's site,
 and among those a box with more capacity is chosen more often. The record makes
 the change in one transaction, so two standby boxes never both serve, and it makes
-none while the company keeps no backup to take over from. The service box stops
+none while the company keeps no snapshot to take over from. The service box stops
 its own services once half the lapse passes without the hosted service seeing it,
 and starts them again when it is seen and still serves, so a box cut off from the
 internet and the box that took its place never serve at once. It is off
 until an administrator turns it on, since a lapse that was only a slow router
-costs what the old box held after the newest backup.
+costs what the old box held after the newest snapshot, up to fifteen minutes.
 
 Put the boxes where the power and the internet line are different, and give
 boxes that share both the same site in company setup. Two places keep the

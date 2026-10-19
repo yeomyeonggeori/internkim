@@ -72,6 +72,65 @@ func Backup(request BackupRequest, machine Machine, progress io.Writer) (BackupR
 	return backupWhileLocked(backing, request, machine, progress)
 }
 
+type Snapshot struct {
+	Manifest hostbackup.Manifest
+	Files    hostbackup.FilesReport
+}
+
+func SnapshotTo(sink hostbackup.MemberWriter, now time.Time, machine Machine, progress io.Writer) (Snapshot, error) {
+	platform, errorValue := ThisMachine()
+	if errorValue != nil {
+		return Snapshot{}, errorValue
+	}
+	backing, errorValue := backupPlatformOf(platform)
+	if errorValue != nil {
+		return Snapshot{}, errorValue
+	}
+	directoryPath, errorValue := prepareBackupDirectory("")
+	if errorValue != nil {
+		return Snapshot{}, errorValue
+	}
+	release, errorValue := holdTheBackupLock(directoryPath)
+	if errorValue != nil {
+		return Snapshot{}, errorValue
+	}
+	defer release()
+	return snapshotWhileLocked(backing, sink, directoryPath, now, machine, progress)
+}
+
+func snapshotWhileLocked(platform backupPlatform, sink hostbackup.MemberWriter, directoryPath string, now time.Time, machine Machine, progress io.Writer) (Snapshot, error) {
+	companyID, errorValue := installedCompanyID()
+	if errorValue != nil {
+		return Snapshot{}, errorValue
+	}
+	if companyID == "" {
+		return Snapshot{}, fmt.Errorf("this computer holds no company, so there is nothing to snapshot")
+	}
+	return writeTheMembers(platform, sink, directoryPath, companyID, now, machine, progress)
+}
+
+func writeTheMembers(platform backupPlatform, sink hostbackup.MemberWriter, directoryPath string, companyID string, now time.Time, machine Machine, progress io.Writer) (Snapshot, error) {
+	major, errorValue := platform.DatabaseMajor(machine)
+	if errorValue != nil {
+		return Snapshot{}, errorValue
+	}
+	roots := hostFileRoots(platform.Layout())
+	files, errorValue := writeBackupMembers(platform, sink, roots, directoryPath, machine, progress)
+	if errorValue != nil {
+		return Snapshot{}, errorValue
+	}
+	return Snapshot{
+		Manifest: hostbackup.Manifest{
+			CreatedAt:       now.UTC(),
+			PackageVersion:  PackageVersion,
+			CompanyID:       companyID,
+			PostgreSQLMajor: major,
+			FileRoots:       rootRoles(roots),
+		},
+		Files: files,
+	}, nil
+}
+
 func backupWhileLocked(platform backupPlatform, request BackupRequest, machine Machine, progress io.Writer) (BackupResult, error) {
 	companyID, errorValue := installedCompanyID()
 	if errorValue != nil {
@@ -96,28 +155,17 @@ func backupWhileLocked(platform backupPlatform, request BackupRequest, machine M
 }
 
 func writeTheArchive(platform backupPlatform, request BackupRequest, companyID string, archivePath string, machine Machine, progress io.Writer) (BackupResult, error) {
-	major, errorValue := platform.DatabaseMajor(machine)
-	if errorValue != nil {
-		return BackupResult{}, errorValue
-	}
 	partialPath := filepath.Join(request.DirectoryPath, "."+filepath.Base(archivePath)+backupPartialExtension)
 	writer, errorValue := hostbackup.Create(partialPath)
 	if errorValue != nil {
 		return BackupResult{}, errorValue
 	}
-	roots := hostFileRoots(platform.Layout())
-	files, errorValue := writeBackupMembers(platform, writer, roots, request.DirectoryPath, machine, progress)
+	written, errorValue := writeTheMembers(platform, writer, request.DirectoryPath, companyID, request.Now, machine, progress)
 	if errorValue != nil {
 		writer.Abandon()
 		return BackupResult{}, errorValue
 	}
-	manifest, errorValue := writer.Finish(hostbackup.Manifest{
-		CreatedAt:       request.Now.UTC(),
-		PackageVersion:  PackageVersion,
-		CompanyID:       companyID,
-		PostgreSQLMajor: major,
-		FileRoots:       rootRoles(roots),
-	})
+	manifest, errorValue := writer.Finish(written.Manifest)
 	if errorValue != nil {
 		writer.Abandon()
 		return BackupResult{}, errorValue
@@ -125,7 +173,7 @@ func writeTheArchive(platform backupPlatform, request BackupRequest, companyID s
 	if errorValue := os.Rename(partialPath, archivePath); errorValue != nil {
 		return BackupResult{}, errorValue
 	}
-	return BackupResult{ArchivePath: archivePath, Manifest: manifest, Files: files}, nil
+	return BackupResult{ArchivePath: archivePath, Manifest: manifest, Files: written.Files}, nil
 }
 
 func removeWhatAnInterruptedBackupLeft(directoryPath string) error {
@@ -146,7 +194,7 @@ func removeWhatAnInterruptedBackupLeft(directoryPath string) error {
 	return nil
 }
 
-func writeBackupMembers(platform backupPlatform, writer *hostbackup.Writer, roots []hostbackup.FileRoot, directoryPath string, machine Machine, progress io.Writer) (hostbackup.FilesReport, error) {
+func writeBackupMembers(platform backupPlatform, writer hostbackup.MemberWriter, roots []hostbackup.FileRoot, directoryPath string, machine Machine, progress io.Writer) (hostbackup.FilesReport, error) {
 	for _, database := range hostDatabases {
 		fmt.Fprintf(progress, "Dumping the %s database…\n", database)
 		if errorValue := writer.AddMember(hostbackup.DatabaseMemberName(database), func(output io.Writer) error {
@@ -162,7 +210,7 @@ func writeBackupMembers(platform backupPlatform, writer *hostbackup.Writer, root
 	return addTheFiles(writer, roots, directoryPath)
 }
 
-func addTheRoster(writer *hostbackup.Writer, rosterPath string, progress io.Writer) error {
+func addTheRoster(writer hostbackup.MemberWriter, rosterPath string, progress io.Writer) error {
 	roster, errorValue := os.Open(rosterPath)
 	if errors.Is(errorValue, fs.ErrNotExist) {
 		fmt.Fprintf(progress, "No roster at %s, so a restore will recreate no person's account until the agent syncs the roster again.\n", rosterPath)
@@ -178,7 +226,7 @@ func addTheRoster(writer *hostbackup.Writer, rosterPath string, progress io.Writ
 	})
 }
 
-func addTheFiles(writer *hostbackup.Writer, roots []hostbackup.FileRoot, directoryPath string) (hostbackup.FilesReport, error) {
+func addTheFiles(writer hostbackup.MemberWriter, roots []hostbackup.FileRoot, directoryPath string) (hostbackup.FilesReport, error) {
 	scratchPath, errorValue := os.MkdirTemp(directoryPath, backupScratchPattern)
 	if errorValue != nil {
 		return hostbackup.FilesReport{}, errorValue

@@ -45,6 +45,7 @@ type Daemon struct {
 	TakeOver          func(ctx context.Context, session Session, keyring Keyring) error
 	StandDown         func() error
 	StandUp           func() error
+	StartKeepingUp    func(ctx context.Context, session Session)
 	NameHost          func(ctx context.Context, companySlug string) error
 	GetOnline         func(ctx context.Context, boxPublicKey string) error
 	ChangeWifi        func(ctx context.Context, ssid, password string) error
@@ -150,7 +151,7 @@ func (daemon Daemon) serveClaimed(ctx context.Context, session Session, identity
 		return announceInterval, nil
 	}
 	if session.Role == RoleStandby {
-		return daemon.standBy(session)
+		return daemon.standBy(ctx, session)
 	}
 	if daemon.installedCompany() == session.Configuration.Company.ID {
 		return daemon.untilNextCheck(session.Session), daemon.keepServing(session, keyring)
@@ -221,7 +222,10 @@ func (daemon Daemon) handOnCompanyKey(ctx context.Context, keyring Keyring, sess
 	log.Printf("handed the company key to %d of %s's boxes", len(sealed), session.Configuration.Company.Name)
 }
 
-func (daemon Daemon) standBy(session Session) (time.Duration, error) {
+func (daemon Daemon) standBy(ctx context.Context, session Session) (time.Duration, error) {
+	if daemon.StartKeepingUp != nil {
+		daemon.StartKeepingUp(ctx, session)
+	}
 	if daemon.installedCompany() != session.Configuration.Company.ID {
 		return daemon.untilNextCheck(session.Session), nil
 	}

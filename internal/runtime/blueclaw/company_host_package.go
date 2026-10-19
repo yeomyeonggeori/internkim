@@ -74,6 +74,14 @@ const (
 	companyHostBackupRandomDelay    = "1h"
 	companyHostBackupDocumentation  = "https://docs.intern.kim/running-the-host/"
 
+	CompanyHostSnapshotServiceName    = "internkim-snapshot"
+	CompanyHostSnapshotsKeptSetting   = "SNAPSHOTS_KEPT"
+	CompanyHostSnapshotsKeptByDefault = "8"
+	CompanyHostSnapshotEvery          = "*:0/15"
+	CompanyHostStandbyChunksPath      = CompanyHostBackupsPath + "/standby-chunks"
+	companyHostSnapshotRandomDelay    = "2min"
+	companyHostSnapshotDocumentation  = "https://docs.intern.kim/kim-mini/#more-than-one-box"
+
 	// The state root has one mode and every writer takes it from here. It is
 	// 0700 root:root because a company's identity on the plane and the seed that
 	// signs a message under a person's own name sit under it, and because

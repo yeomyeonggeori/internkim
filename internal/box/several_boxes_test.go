@@ -8,16 +8,26 @@ import (
 	"time"
 )
 
-func TestAStandbyBoxHoldsTheCompanyKeyAndInstallsNothing(t *testing.T) {
+func TestAStandbyBoxHoldsTheCompanyKeyInstallsNothingAndKeepsUpWithTheServiceBox(t *testing.T) {
 	plane := &fakePlane{isClaimed: true, accessToken: "standby.session.token", role: RoleStandby}
 	recorded := &installs{}
 	daemon, places := daemonFor(t, plane, recorded)
 	plane.sealedModelKey = sealTo(t, identityOf(t, places), "sk-or-v1-sample")
+	keptUp := 0
+	daemon.StartKeepingUp = func(_ context.Context, session Session) {
+		if session.Session.AccessToken != "standby.session.token" {
+			t.Fatalf("kept up with %+v", session.Session)
+		}
+		keptUp++
+	}
 
-	runSteps(t, daemon, 1)
+	runSteps(t, daemon, 2)
 
 	if len(recorded.requests) != 0 {
 		t.Fatalf("a standby box installed the company's services: %+v", recorded.requests)
+	}
+	if keptUp != 2 {
+		t.Fatalf("a standby box kept up with the service box %d times in two checks", keptUp)
 	}
 }
 

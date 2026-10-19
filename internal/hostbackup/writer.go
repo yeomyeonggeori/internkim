@@ -20,6 +20,10 @@ const (
 	memberModifiedFloor = time.Second
 )
 
+type MemberWriter interface {
+	AddMember(name string, produce func(io.Writer) error) error
+}
+
 type Writer struct {
 	file    *os.File
 	members []Member

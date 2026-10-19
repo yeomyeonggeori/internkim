@@ -41,7 +41,7 @@ func runTheBackupScheduleInState(t *testing.T, enablement, systemState string) s
 }
 
 func TestThePostInstallSchedulesTheDailyBackup(t *testing.T) {
-	timer := blueclaw.CompanyPackageBackupUnits().Timer.FileName()
+	timer := dailyBackupUnits().Timer.FileName()
 	for _, enablement := range []string{"disabled", "enabled"} {
 		logged := runTheBackupSchedule(t, enablement)
 		if !strings.Contains(logged, "enable "+timer) || !strings.Contains(logged, "restart "+timer) {
@@ -51,7 +51,7 @@ func TestThePostInstallSchedulesTheDailyBackup(t *testing.T) {
 }
 
 func TestThePostInstallSchedulesTheBackupInAnImageWithoutStartingIt(t *testing.T) {
-	timer := blueclaw.CompanyPackageBackupUnits().Timer.FileName()
+	timer := dailyBackupUnits().Timer.FileName()
 	logged := runTheBackupScheduleInState(t, "disabled", "offline")
 	if !strings.Contains(logged, "enable "+timer) {
 		t.Errorf("an install into an image left the backup unscheduled:\n%s", logged)
@@ -76,19 +76,19 @@ func TestThePostInstallNeverUnmasksAUnit(t *testing.T) {
 }
 
 func TestTheBackupServiceIsNeitherEnabledNorRestartedByThePackage(t *testing.T) {
-	service := blueclaw.CompanyPackageBackupUnits().Service.FileName()
+	service := dailyBackupUnits().Service.FileName()
 	for name, names := range map[string]string{"enabled": unitFileNames(), "restarted": restartedUnitFileNames()} {
 		if strings.Contains(names, service) {
 			t.Errorf("%s is %s with the bundle, so installing the package would run a backup", service, name)
 		}
 	}
-	if strings.Contains(blueclaw.CompanyPackageBackupUnits().Service.Contents, "[Install]") {
+	if strings.Contains(dailyBackupUnits().Service.Contents, "[Install]") {
 		t.Errorf("%s has an [Install] section, so it could be started by something other than its timer", service)
 	}
 }
 
 func TestARemovalStopsTheBackupTimer(t *testing.T) {
-	timer := blueclaw.CompanyPackageBackupUnits().Timer.FileName()
+	timer := dailyBackupUnits().Timer.FileName()
 	for _, format := range linuxPackageFormats() {
 		removal := maintainerScript(format, preRemoveScript)
 		if !strings.Contains(removal, "stop "+timer) || !strings.Contains(removal, "disable "+timer) {
@@ -98,7 +98,7 @@ func TestARemovalStopsTheBackupTimer(t *testing.T) {
 }
 
 func TestTheOperatorsSettingsFileDecidesHowManyBackupsAreKept(t *testing.T) {
-	service := blueclaw.CompanyPackageBackupUnits().Service.Contents
+	service := dailyBackupUnits().Service.Contents
 	defaults := systemdEnvironment(t, service, map[string]string{})
 	if defaults[blueclaw.CompanyHostBackupsKeptSetting] != blueclaw.CompanyHostBackupsKeptByDefault {
 		t.Errorf("the unit keeps %q backups by default", defaults[blueclaw.CompanyHostBackupsKeptSetting])
@@ -120,7 +120,7 @@ func TestThePackageCarriesTheBackupTimerAndItsService(t *testing.T) {
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	backup := blueclaw.CompanyPackageBackupUnits()
+	backup := dailyBackupUnits()
 	wanted := map[string]bool{backup.Service.InstalledPath(): false, backup.Timer.InstalledPath(): false}
 	for _, file := range packaged {
 		if _, isWanted := wanted[file.Destination]; isWanted {
@@ -157,4 +157,20 @@ func systemdEnvironment(t *testing.T, unit string, files map[string]string) map[
 		}
 	}
 	return environment
+}
+
+func dailyBackupUnits() blueclaw.CompanyPackageTimedUnits {
+	return blueclaw.CompanyPackageTimedUnitSets()[0]
+}
+
+func TestEveryTimedUnitIsScheduledByTheTimerAloneAndStartsEveryUnit(t *testing.T) {
+	script := scheduleTheBackupUnlessMasked()
+	for _, timed := range blueclaw.CompanyPackageTimedUnitSets() {
+		if strings.Contains(timed.Service.Contents, "[Install]") {
+			t.Fatalf("%s is installed on its own instead of by its timer", timed.Service.FileName())
+		}
+		if !strings.Contains(script, "systemctl enable "+timed.Timer.FileName()) {
+			t.Fatalf("the package scripts never schedule %s", timed.Timer.FileName())
+		}
+	}
 }

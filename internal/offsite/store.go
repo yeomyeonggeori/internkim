@@ -22,7 +22,8 @@ type Store struct {
 }
 
 type StoredObject struct {
-	Name string `json:"name"`
+	Name      string    `json:"name"`
+	CreatedAt time.Time `json:"created_at"`
 }
 
 func (store Store) Put(ctx context.Context, path string, body []byte) error {

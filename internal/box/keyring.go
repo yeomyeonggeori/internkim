@@ -2,6 +2,8 @@ package box
 
 import (
 	"crypto/ecdh"
+	"crypto/hkdf"
+	"crypto/sha256"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -9,7 +11,11 @@ import (
 	"path/filepath"
 )
 
-const companyKeyFileName = "company-key.json"
+const (
+	companyKeyFileName         = "company-key.json"
+	chunkIdentityInformation   = "internkim backup chunk identity"
+	chunkIdentityKeyByteLength = 32
+)
 
 var ErrCompanyKeyNotHeld = errors.New("this box does not hold the company key yet")
 
@@ -43,6 +49,13 @@ func (keyring Keyring) SealingKey() (string, bool) {
 		return "", false
 	}
 	return encodedKey(keyring.companyKey.PublicKey().Bytes()), true
+}
+
+func (keyring Keyring) ChunkIdentityKey() ([]byte, error) {
+	if keyring.companyKey == nil {
+		return nil, ErrCompanyKeyNotHeld
+	}
+	return hkdf.Key(sha256.New, keyring.companyKey.Bytes(), nil, chunkIdentityInformation, chunkIdentityKeyByteLength)
 }
 
 func (keyring Keyring) OpenSecret(sealed SealedSecret, purpose SealPurpose) (string, error) {

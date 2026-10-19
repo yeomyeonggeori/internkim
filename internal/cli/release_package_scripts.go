@@ -178,20 +178,27 @@ func keptStateList() string {
 }
 
 func scheduleTheBackupUnlessMasked() string {
-	timer := blueclaw.CompanyPackageBackupUnits().Timer.FileName()
-	return strings.Join([]string{
-		`if [ "$(systemctl is-enabled ` + timer + ` 2>/dev/null)" != masked ]; then`,
-		`  systemctl enable ` + timer + ` >/dev/null 2>&1 || refuse "could not schedule the daily backup with ` + timer + `"`,
-		`  if [ "$(systemctl is-system-running 2>/dev/null)" != offline ]; then`,
-		`    systemctl restart ` + timer + ` >/dev/null 2>&1 || refuse "could not start the daily backup schedule ` + timer + `"`,
-		`  fi`,
-		`fi`,
-	}, "\n")
+	lines := []string{}
+	for _, timed := range blueclaw.CompanyPackageTimedUnitSets() {
+		timer := timed.Timer.FileName()
+		lines = append(lines,
+			`if [ "$(systemctl is-enabled `+timer+` 2>/dev/null)" != masked ]; then`,
+			`  systemctl enable `+timer+` >/dev/null 2>&1 || refuse "could not schedule `+timer+`"`,
+			`  if [ "$(systemctl is-system-running 2>/dev/null)" != offline ]; then`,
+			`    systemctl restart `+timer+` >/dev/null 2>&1 || refuse "could not start the schedule `+timer+`"`,
+			`  fi`,
+			`fi`,
+		)
+	}
+	return strings.Join(lines, "\n")
 }
 
 func backupUnitFileNames() string {
-	backup := blueclaw.CompanyPackageBackupUnits()
-	return backup.Timer.FileName() + " " + backup.Service.FileName()
+	names := []string{}
+	for _, timed := range blueclaw.CompanyPackageTimedUnitSets() {
+		names = append(names, timed.Timer.FileName(), timed.Service.FileName())
+	}
+	return strings.Join(names, " ")
 }
 
 func restartedUnitFileNames() string {
