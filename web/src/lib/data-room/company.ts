@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { comparePeriodsNewestFirst, periodSchema, periodSpanOf, type Period } from '$lib/period';
+import { compareMomentsNewestFirst, momentSchema, momentSpanOf, type Moment } from '$lib/moment';
 import { formatCompactMoney, formatMoney, moneySchema, type Money } from '$lib/money';
 import { companyActivitySchema, storedActivitySchema } from './activity';
 
@@ -11,7 +11,7 @@ const heldByKindSchema = z.array(z.object({ kind: holderKindSchema, shares: z.nu
 
 const recordSchema = z.object({
 	category: z.string(),
-	date: periodSchema.optional(),
+	date: momentSchema.optional(),
 	title: z.string(),
 	detail: z.string().optional(),
 	status: z.enum(['in_progress', 'completed']).optional(),
@@ -23,7 +23,7 @@ const recordSchema = z.object({
 const ownershipSchema = z.object({
 	asOf: z.string(),
 	kinds: heldByKindSchema,
-	rounds: z.array(z.object({ title: z.string(), date: periodSchema.optional(), kinds: heldByKindSchema }))
+	rounds: z.array(z.object({ title: z.string(), date: momentSchema.optional(), kinds: heldByKindSchema }))
 });
 
 export const dataRoomCompanySchema = z.object({
@@ -277,7 +277,7 @@ export function milestoneRecords(records: CompanyRecord[]): CompanyRecord[] {
 }
 
 export function newestFirst(left: CompanyRecord, right: CompanyRecord): number {
-	return comparePeriodsNewestFirst(left.date, right.date);
+	return compareMomentsNewestFirst(left.date, right.date);
 }
 
 export function formatMetricValue(metric: CompanyMetric, locale: string, number = metricNumber(metric)): string {
@@ -294,8 +294,8 @@ export function humanizedKey(key: string): string {
 		.replace(/^\w/, (character) => character.toUpperCase());
 }
 
-export function daysUntil(period: Period, today: Date): number {
-	const lastDay = periodSpanOf(period)?.end;
+export function daysUntil(moment: Moment, today: Date): number {
+	const lastDay = momentSpanOf(moment)?.end;
 	if (!lastDay) return 0;
 	return Math.ceil((Date.parse(`${lastDay}T23:59:59+09:00`) - today.getTime()) / 86_400_000);
 }

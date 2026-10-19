@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { periodLabel } from '$lib/period';
+	import { momentLabel } from '$lib/moment';
 	import { dataRoomCompanyText } from './company-text';
 	import { holderKinds, ownershipShares, totalShares, type CompanyOwnership, type HolderKind } from './company';
 
@@ -62,7 +62,7 @@
 							<tr>
 								<td class="px-5 py-2.5">
 									<span class="font-medium">{round.title}</span>
-									{#if round.date}<span class="text-muted-foreground ml-2 text-xs tabular-nums">{periodLabel(round.date, locale)}</span>{/if}
+									{#if round.date}<span class="text-muted-foreground ml-2 text-xs tabular-nums">{momentLabel(round.date, locale)}</span>{/if}
 								</td>
 								{#each shownKinds as kind (kind)}<td class="px-3 py-2.5 text-right tabular-nums">{percentIn(round.kinds, kind)}</td>{/each}
 							</tr>
