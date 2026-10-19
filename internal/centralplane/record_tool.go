@@ -8,6 +8,8 @@ import (
 	"io"
 	"net/http"
 	"strings"
+
+	"github.com/yeomyeonggeori/internkim/pkg/capabilityprotocol"
 )
 
 // A tool whose rows live in the record runs on the plane, as the person who
@@ -26,6 +28,16 @@ func (client *Client) InvokeRecordTool(
 	verb string,
 	input json.RawMessage,
 ) (RecordToolAnswer, error) {
+	return client.InvokeRecordToolCall(ctx, requesterEmail, toolName, verb, capabilityprotocol.RecordToolCall{Input: input})
+}
+
+func (client *Client) InvokeRecordToolCall(
+	ctx context.Context,
+	requesterEmail string,
+	toolName string,
+	verb string,
+	call capabilityprotocol.RecordToolCall,
+) (RecordToolAnswer, error) {
 	email := strings.ToLower(strings.TrimSpace(requesterEmail))
 	if email == "" {
 		return RecordToolAnswer{}, fmt.Errorf("%s runs as the person who asked, and this call named nobody", toolName)
@@ -36,7 +48,8 @@ func (client *Client) InvokeRecordTool(
 		return RecordToolAnswer{}, errorValue
 	}
 
-	payload, errorValue := json.Marshal(map[string]json.RawMessage{"input": inputOrEmptyObject(input)})
+	call.Input = inputOrEmptyObject(call.Input)
+	payload, errorValue := json.Marshal(call)
 	if errorValue != nil {
 		return RecordToolAnswer{}, errorValue
 	}

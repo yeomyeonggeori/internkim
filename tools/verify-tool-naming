@@ -38,6 +38,7 @@ VERBS_BY_EXCEPTION = {
     "person_password_reset": "a reset replaces a password with a temporary one, which no record-level verb describes",
     "dataroom_invitation_send": "send is the act, and the invitation is an email",
     "dataroom_invitation_accept": "accept is what a recipient does with an invitation",
+    "crm_record_import": "an import reads a whole file into many records at once, which no single-record verb describes",
     "leave_request": "request is the domain's word for asking for leave",
     "leave_decide": "decide is the domain's word for approving or refusing",
     "leave_balance": "answers a computed balance, not a stored record",

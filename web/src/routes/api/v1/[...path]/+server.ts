@@ -26,6 +26,7 @@ import {
 	sizeTheHeaderClaims,
 } from '$lib/server/public-api/files';
 import { previewToolOverTheRecord } from '$lib/server/public-api/record';
+import { workspaceFilesCarriedBy } from '$lib/server/public-api/carried-files';
 import {
 	apiRequestCapability,
 	descriptorTheTokenReaches,
@@ -98,7 +99,8 @@ async function previewHere(request: Request, member: CallingMember, name: string
 		member.memberID,
 		name,
 		input,
-		new Date()
+		new Date(),
+		workspaceFilesCarriedBy(payload)
 	);
 	return json(answered.body, { status: answered.status });
 }

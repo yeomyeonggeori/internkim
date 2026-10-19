@@ -7,12 +7,12 @@ import {
   crmRecordImportOutcomes,
   crmRecordImportProblems,
 } from '$lib/crm/crm-record-import';
+import { crmImportFieldsOfEveryKind } from '$lib/crm/crm-import-mapping';
 import { moneySchema } from '$lib/money';
 
 import {
   CapabilityAnsweredBy,
   CapabilityEstimatedLatency,
-  CapabilityModelVisibility,
   CapabilitySideEffect,
   ResourceEffectIdentity,
 } from './protocol';
@@ -231,11 +231,23 @@ const crmRecordImportRowSchema = z.strictObject({
   description: z.string().max(4096).optional(),
 });
 
+export const crmRecordImportRowsSchema = z.array(crmRecordImportRowSchema).min(1).max(20000);
+
+const crmRecordImportColumnsSchema = z.strictObject(Object.fromEntries(crmImportFieldsOfEveryKind.map((field) => [
+  field,
+  z.string().min(1).max(256).optional(),
+]))).describe('Which column of the file fills each field, by the column\'s header exactly as the file writes it; a column no field names is not imported. An organization needs name; a contact needs name and organizationName. types and tags split a cell on commas or semicolons, and status and importance read a key or its label.');
+
 export const crmRecordImportInputSchema = z.strictObject({
   kind: z.enum(crmRecordImportKinds),
-  rows: z.array(crmRecordImportRowSchema).min(1).max(20000),
+  attachments: z.array(z.string().min(1)).length(1).describe('The CSV to import, as its exact workspace path from the attachment catalog or a file tool result. It is read where it is, as the person asking, so its lines never go into rows.').optional(),
+  columns: crmRecordImportColumnsSchema.optional(),
+  onDuplicate: z.enum(crmRecordImportDuplicateChoices).describe('With attachments: what to do with each record whose name is already held. Defaults to skip.').optional(),
+  rows: crmRecordImportRowsSchema.describe('The records, for a caller that read the file itself. Leave it out when naming the file in attachments.').optional(),
   dryRun: z.boolean().describe('true checks every record and writes nothing.').optional(),
 });
+
+export const crmRecordImportInputIntentSchema = crmRecordImportInputSchema.partial();
 
 export const crmRecordImportResultSchema = z.strictObject({
   dryRun: z.boolean(),
@@ -684,11 +696,12 @@ export const crmToolDefinitions: CapabilityToolDefinition[] = [
     answeredBy: CapabilityAnsweredBy.Record,
     privacyClass: 'workspace_crm',
     policyResource: 'tool:crm_record_import',
-    description: 'Import many organization or contact records from one file in one write: every record is written, or none is. A record whose name is already held is skipped or updated as each one says, and an updated record keeps any field the file leaves empty. dryRun checks them all and writes nothing.',
-    version: '1',
+    description: 'Import many organization or contact records from one CSV in one write: every record is written, or none is. Name the file in attachments and say in columns which of its columns fills each field. A record whose name is already held is skipped or updated as onDuplicate says, and an updated record keeps any field the file leaves empty. The person asking approves the import after seeing how many records it creates and updates; a file with a line that cannot be imported is refused with each such line and why. dryRun checks them all and writes nothing.',
+    version: '2',
     estimatedLatency: CapabilityEstimatedLatency.High,
-    modelVisibility: CapabilityModelVisibility.Hidden,
+    requiresApproval: true,
     inputSchema: crmRecordImportInputSchema,
+    inputIntentSchema: crmRecordImportInputIntentSchema,
     result: { schema: crmRecordImportResultSchema, effects: [] },
     sideEffect: CapabilitySideEffect.WorkspaceWrite,
   },
@@ -714,7 +727,8 @@ export type CRMArchivedResult = z.infer<typeof crmArchivedResultSchema>;
 export type CRMVocabularySetInput = z.infer<typeof crmVocabularySetInputSchema>;
 export type CRMVocabularyResult = z.infer<typeof crmVocabularyResultSchema>;
 export type CRMRecordImportInput = z.infer<typeof crmRecordImportInputSchema>;
-export type CRMRecordImportRow = CRMRecordImportInput['rows'][number];
+export type CRMRecordImportRow = NonNullable<CRMRecordImportInput['rows']>[number];
+export type CRMRecordImportRecords = Pick<CRMRecordImportInput, 'kind' | 'dryRun'> & { rows: CRMRecordImportRow[] };
 export type CRMRecordImportResult = z.infer<typeof crmRecordImportResultSchema>;
 export type CRMActivityListInput = z.infer<typeof crmActivityListInputSchema>;
 export type CRMActivitySaveInput = z.infer<typeof crmActivitySaveInputSchema>;

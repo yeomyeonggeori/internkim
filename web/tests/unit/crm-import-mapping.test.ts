@@ -9,7 +9,7 @@ import {
 	suggestedMapping,
 	withField,
 	type CRMImportField
-} from '../../src/routes/crm/crm-import-mapping';
+} from '../../src/lib/crm/crm-import-mapping';
 
 const koreanNames: Partial<Record<CRMImportField, string>> = { name: '이름', address: '주소' };
 

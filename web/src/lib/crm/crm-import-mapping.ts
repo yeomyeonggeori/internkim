@@ -7,6 +7,10 @@ export const crmImportFields = {
 	contact: ['organizationName', 'name', 'email', 'phoneNumber', 'role', 'department', 'description']
 } as const;
 
+export const crmImportFieldsOfEveryKind = [
+	...new Set([...crmImportFields.organization, ...crmImportFields.contact])
+];
+
 export type CRMImportField =
 	| (typeof crmImportFields.organization)[number]
 	| (typeof crmImportFields.contact)[number];

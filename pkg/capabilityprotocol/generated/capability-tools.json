@@ -30934,17 +30934,99 @@
         "state": "ok"
       },
       "canonicalName": "crm_record_import",
-      "description": "Import many organization or contact records from one file in one write: every record is written, or none is. A record whose name is already held is skipped or updated as each one says, and an updated record keeps any field the file leaves empty. dryRun checks them all and writes nothing.",
+      "description": "Import many organization or contact records from one CSV in one write: every record is written, or none is. Name the file in attachments and say in columns which of its columns fills each field. A record whose name is already held is skipped or updated as onDuplicate says, and an updated record keeps any field the file leaves empty. The person asking approves the import after seeing how many records it creates and updates; a file with a line that cannot be imported is refused with each such line and why. dryRun checks them all and writes nothing.",
       "estimatedLatency": "high",
       "idempotency": {
         "required": false,
         "scope": "operation",
         "supported": false
       },
-      "inputSchema": {
+      "inputIntentSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
         "properties": {
+          "attachments": {
+            "description": "The CSV to import, as its exact workspace path from the attachment catalog or a file tool result. It is read where it is, as the person asking, so its lines never go into rows.",
+            "items": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "maxItems": 1,
+            "minItems": 1,
+            "type": "array"
+          },
+          "columns": {
+            "additionalProperties": false,
+            "description": "Which column of the file fills each field, by the column's header exactly as the file writes it; a column no field names is not imported. An organization needs name; a contact needs name and organizationName. types and tags split a cell on commas or semicolons, and status and importance read a key or its label.",
+            "properties": {
+              "address": {
+                "maxLength": 256,
+                "minLength": 1,
+                "type": "string"
+              },
+              "department": {
+                "maxLength": 256,
+                "minLength": 1,
+                "type": "string"
+              },
+              "description": {
+                "maxLength": 256,
+                "minLength": 1,
+                "type": "string"
+              },
+              "email": {
+                "maxLength": 256,
+                "minLength": 1,
+                "type": "string"
+              },
+              "importance": {
+                "maxLength": 256,
+                "minLength": 1,
+                "type": "string"
+              },
+              "name": {
+                "maxLength": 256,
+                "minLength": 1,
+                "type": "string"
+              },
+              "organizationName": {
+                "maxLength": 256,
+                "minLength": 1,
+                "type": "string"
+              },
+              "ownerPersonHint": {
+                "maxLength": 256,
+                "minLength": 1,
+                "type": "string"
+              },
+              "phoneNumber": {
+                "maxLength": 256,
+                "minLength": 1,
+                "type": "string"
+              },
+              "role": {
+                "maxLength": 256,
+                "minLength": 1,
+                "type": "string"
+              },
+              "status": {
+                "maxLength": 256,
+                "minLength": 1,
+                "type": "string"
+              },
+              "tags": {
+                "maxLength": 256,
+                "minLength": 1,
+                "type": "string"
+              },
+              "types": {
+                "maxLength": 256,
+                "minLength": 1,
+                "type": "string"
+              }
+            },
+            "type": "object"
+          },
           "dryRun": {
             "description": "true checks every record and writes nothing.",
             "type": "boolean"
@@ -30956,7 +31038,215 @@
             ],
             "type": "string"
           },
+          "onDuplicate": {
+            "description": "With attachments: what to do with each record whose name is already held. Defaults to skip.",
+            "enum": [
+              "skip",
+              "update"
+            ],
+            "type": "string"
+          },
           "rows": {
+            "description": "The records, for a caller that read the file itself. Leave it out when naming the file in attachments.",
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "address": {
+                  "maxLength": 512,
+                  "type": "string"
+                },
+                "department": {
+                  "maxLength": 128,
+                  "type": "string"
+                },
+                "description": {
+                  "maxLength": 4096,
+                  "type": "string"
+                },
+                "email": {
+                  "maxLength": 256,
+                  "type": "string"
+                },
+                "importance": {
+                  "description": "high, medium or low.",
+                  "maxLength": 32,
+                  "type": "string"
+                },
+                "line": {
+                  "description": "The line of the file this record came from, so a problem can be shown where it is.",
+                  "maximum": 9007199254740991,
+                  "minimum": 1,
+                  "type": "integer"
+                },
+                "name": {
+                  "maxLength": 256,
+                  "type": "string"
+                },
+                "onDuplicate": {
+                  "description": "What to do when a record with the same name is already held. Defaults to skip.",
+                  "enum": [
+                    "skip",
+                    "update"
+                  ],
+                  "type": "string"
+                },
+                "organizationName": {
+                  "description": "The exact name of the organization a contact works at.",
+                  "maxLength": 256,
+                  "type": "string"
+                },
+                "ownerPersonHint": {
+                  "description": "The colleague who owns it, by name or email.",
+                  "maxLength": 256,
+                  "type": "string"
+                },
+                "phoneNumber": {
+                  "maxLength": 64,
+                  "type": "string"
+                },
+                "role": {
+                  "maxLength": 128,
+                  "type": "string"
+                },
+                "status": {
+                  "description": "prospect, active or paused.",
+                  "maxLength": 32,
+                  "type": "string"
+                },
+                "tags": {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                "types": {
+                  "description": "Organization types, by key or name from crm_vocabulary_get.",
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                }
+              },
+              "required": [
+                "line",
+                "name"
+              ],
+              "type": "object"
+            },
+            "maxItems": 20000,
+            "minItems": 1,
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "attachments": {
+            "description": "The CSV to import, as its exact workspace path from the attachment catalog or a file tool result. It is read where it is, as the person asking, so its lines never go into rows.",
+            "items": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "maxItems": 1,
+            "minItems": 1,
+            "type": "array"
+          },
+          "columns": {
+            "additionalProperties": false,
+            "description": "Which column of the file fills each field, by the column's header exactly as the file writes it; a column no field names is not imported. An organization needs name; a contact needs name and organizationName. types and tags split a cell on commas or semicolons, and status and importance read a key or its label.",
+            "properties": {
+              "address": {
+                "maxLength": 256,
+                "minLength": 1,
+                "type": "string"
+              },
+              "department": {
+                "maxLength": 256,
+                "minLength": 1,
+                "type": "string"
+              },
+              "description": {
+                "maxLength": 256,
+                "minLength": 1,
+                "type": "string"
+              },
+              "email": {
+                "maxLength": 256,
+                "minLength": 1,
+                "type": "string"
+              },
+              "importance": {
+                "maxLength": 256,
+                "minLength": 1,
+                "type": "string"
+              },
+              "name": {
+                "maxLength": 256,
+                "minLength": 1,
+                "type": "string"
+              },
+              "organizationName": {
+                "maxLength": 256,
+                "minLength": 1,
+                "type": "string"
+              },
+              "ownerPersonHint": {
+                "maxLength": 256,
+                "minLength": 1,
+                "type": "string"
+              },
+              "phoneNumber": {
+                "maxLength": 256,
+                "minLength": 1,
+                "type": "string"
+              },
+              "role": {
+                "maxLength": 256,
+                "minLength": 1,
+                "type": "string"
+              },
+              "status": {
+                "maxLength": 256,
+                "minLength": 1,
+                "type": "string"
+              },
+              "tags": {
+                "maxLength": 256,
+                "minLength": 1,
+                "type": "string"
+              },
+              "types": {
+                "maxLength": 256,
+                "minLength": 1,
+                "type": "string"
+              }
+            },
+            "type": "object"
+          },
+          "dryRun": {
+            "description": "true checks every record and writes nothing.",
+            "type": "boolean"
+          },
+          "kind": {
+            "enum": [
+              "organization",
+              "contact"
+            ],
+            "type": "string"
+          },
+          "onDuplicate": {
+            "description": "With attachments: what to do with each record whose name is already held. Defaults to skip.",
+            "enum": [
+              "skip",
+              "update"
+            ],
+            "type": "string"
+          },
+          "rows": {
+            "description": "The records, for a caller that read the file itself. Leave it out when naming the file in attachments.",
             "items": {
               "additionalProperties": false,
               "properties": {
@@ -31048,15 +31338,14 @@
           }
         },
         "required": [
-          "kind",
-          "rows"
+          "kind"
         ],
         "type": "object"
       },
       "inputSchemaStrict": true,
       "modelName": "crm_record_import",
-      "modelVisibility": "hidden",
-      "modelVisible": false,
+      "modelVisibility": "visible",
+      "modelVisible": true,
       "name": "crm_record_import",
       "namespace": "crm",
       "namespaceSummary": "Organizations and contacts the company deals with, deals moving through a pipeline, and the work recorded against them.",
@@ -31163,6 +31452,7 @@
       "outputSchemaStrict": true,
       "policyResource": "tool:crm_record_import",
       "privacyClass": "workspace_crm",
+      "requiresApproval": true,
       "requiresUserPresence": false,
       "resultContract": {
         "effects": [],
@@ -31269,7 +31559,7 @@
       },
       "sideEffect": "workspace_write",
       "sideEffectClass": "workspace_write",
-      "version": "1",
+      "version": "2",
       "worksOffline": false
     },
     {

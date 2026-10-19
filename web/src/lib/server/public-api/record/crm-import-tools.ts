@@ -14,7 +14,7 @@ import { personOfHint } from './people';
 import { RecordRefusedTheWrite, statusOfPostgresCode } from './tasks';
 import type { RecordContext } from './company';
 import type {
-	CRMRecordImportInput,
+	CRMRecordImportRecords,
 	CRMRecordImportResult,
 	CRMRecordImportRow
 } from '../catalog/crm';
@@ -173,7 +173,7 @@ function contactKey(organizationID: unknown, name: string): string {
 }
 
 function checkedRows(
-	input: CRMRecordImportInput,
+	input: CRMRecordImportRecords,
 	changeOf: (row: CRMRecordImportRow, problems: CRMRecordImportProblem[]) => Change,
 	keyOf: (row: CRMRecordImportRow, change: Change) => string,
 	heldByKey: Map<string, HeldRecord[]>,
@@ -206,7 +206,7 @@ function checkedRows(
 	});
 }
 
-async function checkedOrganizations(context: RecordContext, input: CRMRecordImportInput): Promise<CheckedRow[]> {
+async function checkedOrganizations(context: RecordContext, input: CRMRecordImportRecords): Promise<CheckedRow[]> {
 	const [organizations, company] = await Promise.all([
 		organizationsOfCompany(context.caller),
 		crmCompanyRow(context.caller)
@@ -222,7 +222,7 @@ async function checkedOrganizations(context: RecordContext, input: CRMRecordImpo
 	);
 }
 
-async function checkedContacts(context: RecordContext, input: CRMRecordImportInput): Promise<CheckedRow[]> {
+async function checkedContacts(context: RecordContext, input: CRMRecordImportRecords): Promise<CheckedRow[]> {
 	const [organizations, contacts] = await Promise.all([
 		organizationsOfCompany(context.caller),
 		contactsOfCompany(context.caller)
@@ -266,7 +266,7 @@ function counted(checked: CheckedRow[], outcome: ImportedRowResult['outcome']): 
 
 export async function crmRecordImport(
 	context: RecordContext,
-	input: CRMRecordImportInput
+	input: CRMRecordImportRecords
 ): Promise<CRMRecordImportResult> {
 	const checked =
 		input.kind === 'organization'

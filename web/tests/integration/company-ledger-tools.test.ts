@@ -68,15 +68,15 @@ afterAll(async () => {
 }, networkHookTimeout);
 
 async function asSample(name: string, input: Record<string, unknown> = {}) {
-	return heldToTheContract(name, await runToolOverTheRecord(sample, client, sampleID, name, input, now, leavesTaskLabelsUndecided, place));
+	return heldToTheContract(name, await runToolOverTheRecord(sample, client, sampleID, name, input, now, leavesTaskLabelsUndecided, [], place));
 }
 
 async function asColleague(name: string, input: Record<string, unknown> = {}) {
-	return heldToTheContract(name, await runToolOverTheRecord(colleague, client, colleagueID, name, input, now, leavesTaskLabelsUndecided, place));
+	return heldToTheContract(name, await runToolOverTheRecord(colleague, client, colleagueID, name, input, now, leavesTaskLabelsUndecided, [], place));
 }
 
 async function asAdmin(name: string, input: Record<string, unknown> = {}) {
-	return heldToTheContract(name, await runToolOverTheRecord(admin, client, adminID, name, input, now, leavesTaskLabelsUndecided, place));
+	return heldToTheContract(name, await runToolOverTheRecord(admin, client, adminID, name, input, now, leavesTaskLabelsUndecided, [], place));
 }
 
 function resultOf(answer: { body: unknown }): Record<string, unknown> {

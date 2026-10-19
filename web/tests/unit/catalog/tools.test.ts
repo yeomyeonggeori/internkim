@@ -377,6 +377,7 @@ describe('canonical capability tools', () => {
       'crm_opportunity_archive',
       'crm_activity_save',
       'crm_vocabulary_set',
+      'crm_record_import',
       'company_settings_update',
       'company_holiday_add',
       'company_holiday_update',

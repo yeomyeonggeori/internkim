@@ -38,6 +38,8 @@ import {
 	crmVocabularySet
 } from './crm-tools';
 import { crmRecordImport } from './crm-import-tools';
+import { crmImportRecordsOf } from './crm-import-file';
+import type { CarriedWorkspaceFile } from '../carried-files';
 import { crmRecordImportInputSchema } from '../catalog/crm';
 import {
 	companyDocumentDownload,
@@ -102,7 +104,8 @@ import { readWithNullAsAbsent } from '../null-as-absent';
 import { sentencesOfSchemaRefusal } from '../schema-sentences';
 
 type ToolInput = Record<string, unknown>;
-type ToolRun = (context: RecordContext, input: ToolInput, place?: ToolPlace) => Promise<unknown> | unknown;
+type CallCarried = { files: CarriedWorkspaceFile[]; place?: ToolPlace };
+type ToolRun = (context: RecordContext, input: ToolInput, carried: CallCarried) => Promise<unknown> | unknown;
 
 function exactAttendancePersonIDs(name: string, input: ToolInput): string[] | undefined {
 	if (name !== 'attendance_list' && name !== 'leave_list') return;
@@ -199,7 +202,7 @@ const toolsOverTheRecord: Record<string, ToolRun> = {
 	dataroom_field_update: (context, input) => companyDataRoomFieldSet(context, input),
 	dataroom_share_add: (context, input) => companyDataRoomShareCreate(context, input),
 	dataroom_share_delete: (context, input) => companyDataRoomShareRevoke(context, input),
-	dataroom_invitation_send: (context, input, place) =>
+	dataroom_invitation_send: (context, input, { place }) =>
 		companyDataRoomInvitationSend(context, input, placeTheAppAnswersAt('dataroom_invitation_send', place)),
 	dataroom_invitation_accept: (context, input) => companyDataRoomInvitationAccept(context, input),
 	notification_settings_get: (context) => notificationSettingsGet(context),
@@ -221,7 +224,8 @@ const toolsOverTheRecord: Record<string, ToolRun> = {
 	crm_opportunity_archive: (context, input) => crmOpportunityArchive(context, input),
 	crm_vocabulary_get: (context) => crmVocabularyGet(context),
 	crm_vocabulary_set: (context, input) => crmVocabularySet(context, input),
-	crm_record_import: (context, input) => crmRecordImport(context, crmRecordImportInputSchema.parse(input)),
+	crm_record_import: async (context, input, { files }) =>
+		crmRecordImport(context, await crmImportRecordsOf(crmRecordImportInputSchema.parse(input), files)),
 	crm_activity_list: (context, input) => crmActivityList(context, input),
 	crm_activity_save: (context, input) => crmActivitySave(context, input)
 };
@@ -250,14 +254,15 @@ export async function previewToolOverTheRecord(
 	requesterID: string,
 	name: string,
 	input: ToolInput,
-	now: Date
+	now: Date,
+	files: CarriedWorkspaceFile[] = []
 ): Promise<ToolAnswer> {
 	const preview = previewOfTool(name);
 	if (!preview) return { status: 200, body: { tool: name, target: null } };
 
 	try {
 		const context = await recordContextOf(caller, accountDirectory, requesterID, now, leavesTaskLabelsUndecided);
-		return { status: 200, body: { tool: name, target: await preview(context, input) } };
+		return { status: 200, body: { tool: name, target: await preview(context, input, files) } };
 	} catch (refusal) {
 		return refusalAnswer(name, refusal);
 	}
@@ -271,6 +276,7 @@ export async function runToolOverTheRecord(
 	input: ToolInput,
 	now: Date,
 	decideTaskLabels: TaskLabelDecider,
+	files: CarriedWorkspaceFile[] = [],
 	place?: ToolPlace
 ): Promise<ToolAnswer> {
 	const run = toolsOverTheRecord[name];
@@ -284,7 +290,7 @@ export async function runToolOverTheRecord(
 			: name === 'attendance_team_dashboard_get'
 				? await teamAttendance(caller,input)
 				: await run(await recordContextOf(caller, accountDirectory, requesterID, now, decideTaskLabels,
-					!readsWithoutPeople.has(name) && !(name === 'person_list' && input.limit !== undefined) && !((name === 'attendance_list' || name === 'attendance_changes_page_get') && input.handWrittenOnly === true && input.pageOffset !== undefined && input.scope === 'all' && !input.personHints) && !((name === 'attendance_update' || name === 'attendance_delete') && input.undoOnly === true), exactAttendancePersonIDs(name, input)), input, place);
+					!readsWithoutPeople.has(name) && !(name === 'person_list' && input.limit !== undefined) && !((name === 'attendance_list' || name === 'attendance_changes_page_get') && input.handWrittenOnly === true && input.pageOffset !== undefined && input.scope === 'all' && !input.personHints) && !((name === 'attendance_update' || name === 'attendance_delete') && input.undoOnly === true), exactAttendancePersonIDs(name, input)), input, { files, place });
 		noteWhereTheAnswerLeftItsContract(name, result);
 		return { status: 200, body: { tool: name, result } };
 	} catch (refusal) {
