@@ -14,7 +14,7 @@ tauri-build = { version = "2", features = [] }
 tauri = { version = "2", features = [] }
 tauri-plugin-os = "2"
 
-[target.'cfg(target_os = "android")'.dependencies]
+[target.'cfg(any(target_os = "ios", target_os = "android"))'.dependencies]
 tauri-plugin-attendance-widget = { path = "../attendance-widget/tauri-plugin" }
 
 [profile.release]

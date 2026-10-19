@@ -59,11 +59,16 @@ targets:
           - UIInterfaceOrientationLandscapeRight
         CFBundleShortVersionString: 0.1.0
         CFBundleVersion: "0.1.0"
+        AppIdentifierPrefix: $(AppIdentifierPrefix)
     entitlements:
       path: internkim-tauri_iOS/internkim-tauri_iOS.entitlements
       properties:
         com.apple.developer.associated-domains:
           - webcredentials:intern.kim
+        com.apple.security.application-groups:
+          - group.app.intern.kim
+        keychain-access-groups:
+          - $(AppIdentifierPrefix)app.intern.kim
     scheme:
       environmentVariables:
         RUST_BACKTRACE: full
@@ -79,6 +84,8 @@ targets:
         EXCLUDED_ARCHS[sdk=iphoneos*]: x86_64
       groups: [app]
     dependencies:
+      - target: AttendanceWidget
+        embed: true
       - framework: libapp.a
         embed: false
       - sdk: CoreGraphics.framework
@@ -96,3 +103,39 @@ targets:
         outputFiles:
           - $(SRCROOT)/Externals/x86_64/${CONFIGURATION}/libapp.a
           - $(SRCROOT)/Externals/arm64/${CONFIGURATION}/libapp.a
+  AttendanceWidget:
+    type: app-extension
+    platform: iOS
+    deploymentTarget: "17.0"
+    sources:
+      - path: ../../../ios/App/AttendanceWidget
+        excludes: ["Info.plist", "*.entitlements"]
+      - path: ../../../ios/App/Shared
+    info:
+      path: AttendanceWidget/Info.plist
+      properties:
+        AppIdentifierPrefix: $(AppIdentifierPrefix)
+        CFBundleDisplayName: internkim
+        CFBundleShortVersionString: 0.1.0
+        CFBundleVersion: "0.1.0"
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.widgetkit-extension
+    entitlements:
+      path: AttendanceWidget/AttendanceWidget.entitlements
+      properties:
+        com.apple.security.application-groups:
+          - group.app.intern.kim
+        keychain-access-groups:
+          - $(AppIdentifierPrefix)app.intern.kim
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: app.intern.kim.attendancewidget
+        PRODUCT_NAME: AttendanceWidget
+        DEVELOPMENT_TEAM: 54YH9ZX7FX
+        SWIFT_VERSION: "5.0"
+        GENERATE_INFOPLIST_FILE: false
+        ARCHS: [arm64]
+        SKIP_INSTALL: true
+    dependencies:
+      - sdk: WidgetKit.framework
+      - sdk: SwiftUI.framework
