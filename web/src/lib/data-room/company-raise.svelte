@@ -4,6 +4,7 @@
 	import ArrowUpRightIcon from '@lucide/svelte/icons/arrow-up-right';
 	import { Button } from '$lib/components/ui/button';
 	import { formatCompactMoney } from '$lib/money';
+	import { periodLabel } from '$lib/company-period';
 	import { dataRoomCompanyText } from './company-text';
 	import { daysUntil, humanizedKey, recordAttributes, type CompanyRecord } from './company';
 
@@ -40,7 +41,7 @@
 		const leading = leadingTermKeys.filter((key) => attributes.has(key));
 		const remaining = [...attributes.keys()].filter((key) => !leadingTermKeys.includes(key));
 		const fromAttributes = [...leading, ...remaining].map((key) => ({ key, label: labelOf(key), value: attributes.get(key) ?? '' }));
-		const closing = round.date ? [{ key: 'closes', label: text.raise.closes, value: round.date.replaceAll('-', '.') }] : [];
+		const closing = round.date ? [{ key: 'closes', label: text.raise.closes, value: periodLabel(round.date, locale) }] : [];
 		return [...fromAttributes, ...closing];
 	}
 </script>
