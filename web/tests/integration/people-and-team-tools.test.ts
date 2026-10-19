@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, describe, expect, mock, test } from 'bun:test';
+import { createClient } from '@supabase/supabase-js';
 import { addMember, asMember, controlPlane, provisionCompany, sessionForMember } from '../../src/lib/server/control-plane';
 import { projectURL, publishableKey, serviceRoleKey, signingKey } from './supabase-environment';
 import { heldToTheContract } from './tool-answers';
@@ -258,5 +259,74 @@ describe('inviting somebody through the plane s own invite path', () => {
 			.eq('email', `${slug}-refused@example.test`)
 			.maybeSingle();
 		expect(held).toBeNull();
+	}, networkHookTimeout);
+});
+
+describe('withdrawing somebody through the same function as the members page', () => {
+	test('refuses a requester who does not administer, the way the page does', async () => {
+		const refusal = refusalOf(await asSample('person_withdraw', { personHint: '박예시' }));
+		expect(refusal.status).toBe(403);
+		expect(refusal.error).toBe('only an admin removes people');
+
+		const { data: kept } = await client.from('member').select('status').eq('id', exampleID).single();
+		expect(kept!.status).not.toBe('withdrawn');
+	}, networkHookTimeout);
+
+	test('refuses an administrator withdrawing themselves', async () => {
+		const refusal = refusalOf(await asAdmin('person_withdraw', { personHint: adminID }));
+		expect(refusal.status).toBe(400);
+		expect(refusal.errorCode).toBe('person_is_requester');
+	}, networkHookTimeout);
+
+	test('withdraws a colleague and keeps the row', async () => {
+		const leavingID = await addMember(client, companyID, `${slug}-leaving@example.test`);
+		await client.from('member').update({ name: '정견본' }).eq('id', leavingID);
+
+		const withdrawn = resultOf(await asAdmin('person_withdraw', { personHint: '정견본' }));
+		expect(withdrawn).toMatchObject({ personID: leavingID, email: `${slug}-leaving@example.test`, isDeleted: false });
+
+		const { data: row } = await client.from('member').select('status').eq('id', leavingID).single();
+		expect(row!.status).toBe('withdrawn');
+	}, networkHookTimeout);
+
+	test('deletes a mistaken address outright when asked to purge', async () => {
+		const mistakenID = await addMember(client, companyID, `${slug}-mistaken@example.test`);
+
+		const purged = resultOf(
+			await asAdmin('person_withdraw', { personHint: `${slug}-mistaken@example.test`, purge: true })
+		);
+		expect(purged).toMatchObject({ personID: mistakenID, isDeleted: true });
+
+		const { data: row } = await client.from('member').select('id').eq('id', mistakenID).maybeSingle();
+		expect(row).toBeNull();
+	}, networkHookTimeout);
+});
+
+describe('resetting a password through the same function as the members page', () => {
+	test('refuses a requester who does not administer, the way the page does', async () => {
+		const refusal = refusalOf(await asSample('person_password_reset', { personHint: '박예시' }));
+		expect(refusal.status).toBe(403);
+		expect(refusal.error).toBe('only an admin resets a password');
+	}, networkHookTimeout);
+
+	test("refuses another administrator's password", async () => {
+		const colleagueID = await addMember(client, companyID, `${slug}-colleague-admin@example.test`, { isAdmin: true });
+
+		const refusal = refusalOf(await asAdmin('person_password_reset', { personHint: colleagueID }));
+		expect(refusal.status).toBe(403);
+		expect(refusal.errorCode).toBe('administrator_password_reserved');
+	}, networkHookTimeout);
+
+	test('answers a temporary password the colleague can sign in with', async () => {
+		const reset = resultOf(await asAdmin('person_password_reset', { personHint: '이샘플' }));
+		expect(reset.personID).toBe(sampleID);
+		expect(reset.email).toBe(`${slug}-sample@example.test`);
+
+		const anonymous = createClient(projectURL, publishableKey, { auth: { persistSession: false, autoRefreshToken: false } });
+		const signedIn = await anonymous.auth.signInWithPassword({
+			email: `${slug}-sample@example.test`,
+			password: String(reset.temporaryPassword)
+		});
+		expect(signedIn.error).toBeNull();
 	}, networkHookTimeout);
 });

@@ -1241,6 +1241,36 @@ func gateCases() map[string]catalogGateCase {
 				expectResultHolds(t, answered, `"temporaryPassword":"one-time-password"`)
 			},
 		},
+		"person_withdraw": {
+			kind:    provesCarrying,
+			reaches: map[gateBackend]*standingIn{admindOverTheSocket: answering(`{"tool":"person_withdraw","result":{"personID":"person-2","name":"\ubc15\uc608\uc2dc","email":"departing@example.com","isDeleted":false}}`)},
+			input:   `{"personHint":"departing@example.com"}`,
+			expect: func(t *testing.T, answered capabilities.ToolInvokeResponse) {
+				expectSucceeded(t, answered)
+				expectResultHolds(t, answered, `"isDeleted":false`)
+			},
+		},
+		"person_password_reset": {
+			kind:    provesCarrying,
+			reaches: map[gateBackend]*standingIn{admindOverTheSocket: answering(`{"tool":"person_password_reset","result":{"personID":"person-2","email":"member2@example.com","name":"\ubc15\uc608\uc2dc","temporaryPassword":"one-time-password"}}`)},
+			input:   `{"personHint":"member2@example.com"}`,
+			expect: func(t *testing.T, answered capabilities.ToolInvokeResponse) {
+				expectSucceeded(t, answered)
+				expectResultHolds(t, answered, `"temporaryPassword":"one-time-password"`)
+			},
+		},
+		"person_message_delete": {
+			kind: provesBehaviour,
+			reaches: map[gateBackend]*standingIn{
+				admindOverHTTP:      answering(`{"people":[{"memberID":"person-2","email":"departing@example.com","name":"\ubc15\uc608\uc2dc"}]}`),
+				admindOverTheSocket: answering(`{"email":"departing@example.com","buzzDeleted":4,"mattermostDeleted":1}`),
+			},
+			input: `{"personHint":"\ubc15\uc608\uc2dc"}`,
+			expect: func(t *testing.T, answered capabilities.ToolInvokeResponse) {
+				expectSucceeded(t, answered)
+				expectResultHolds(t, answered, `"deletedCount":5`)
+			},
+		},
 		"team_list": {
 			kind:    provesCarrying,
 			reaches: map[gateBackend]*standingIn{admindOverTheSocket: answering(`{"tool":"team_list","result":{"count":2,"teams":[{"teamID":"team-1","name":"\ud3b8\uc9d1\ud300","parentTeamID":"","parentTeamName":"","position":0,"peopleCount":3},{"teamID":"team-2","name":"\uc601\uc5c5\ud300","parentTeamID":"","parentTeamName":"","position":1,"peopleCount":2}]}}`)},

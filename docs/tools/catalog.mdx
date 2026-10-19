@@ -43,6 +43,12 @@ step before a hint: a hint takes the fragment as it was written and the server
 resolves it, and this is what the agent reads when a hint comes back with
 candidates to choose between.
 
+Withdrawing a person and resetting a password run the same function as the
+members page in settings, `web/src/lib/server/member-administration.ts`, so the
+administrator check is the page's. Deleting what a person wrote in the
+messenger is answered by the company's host, which holds the key each message
+was signed with.
+
 ## Calendar [#calendar]
 
 <ToolCatalog namespace="calendar" />

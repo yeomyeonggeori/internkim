@@ -18,7 +18,7 @@ export const apiRequestCapability = 'person.api.request';
 
 const directoryChangedCapability = 'directory.changed';
 
-const objectTypesTheCompanyMirrors = new Set(['circle']);
+const objectTypesTheCompanyMirrors = new Set(['circle', 'person']);
 
 export function descriptorTheTokenReaches(name: string, member: Pick<CallingMember, 'permission'>): ToolDescriptor {
 	const descriptor = toolReachableBy(name, member.permission);

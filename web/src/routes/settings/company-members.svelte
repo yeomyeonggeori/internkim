@@ -121,10 +121,9 @@
 		if (!wiping) return;
 		busyMemberID = wiping.id;
 		try {
-			const wiped = await wipeMemberMessages(wiping.email);
-			const count = wiped.buzzDeleted + wiped.mattermostDeleted;
+			const wiped = await wipeMemberMessages(wiping.id);
 			wiping = null;
-			toast.success(text.wipeMessagesDone.replace('{count}', String(count)));
+			toast.success(text.wipeMessagesDone.replace('{count}', String(wiped.deletedCount)));
 		} catch (error) {
 			errorMessage = error instanceof Error ? error.message : text.wipeMessagesFailed;
 		} finally {

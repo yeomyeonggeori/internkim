@@ -145,3 +145,31 @@ func TestLocalCallersOnlyAnswersOnlyLocalCallers(t *testing.T) {
 		t.Fatal("a local caller was turned away from a local-only handler")
 	}
 }
+
+func onTheRequesterSocket(service *Service, request *http.Request) int {
+	response := httptest.NewRecorder()
+	markRequestsAsAssertedByTheListener(service.router()).ServeHTTP(response, request)
+	return response.Code
+}
+
+func TestTheMessageWipeAnswersTheAdministratorTheSocketAsserts(t *testing.T) {
+	service := tunneledRequestTestService(t)
+
+	asAdministrator := httptest.NewRequest(http.MethodPost, "/agent/api/buzz-admin-wipe", strings.NewReader(`{}`))
+	asAdministrator.Header.Set(requesterEmailHeader, tunneledAdminEmail)
+	if status := onTheRequesterSocket(service, asAdministrator); status != http.StatusBadRequest {
+		t.Errorf("the administrator capabilityd asserts got %d, want 400 from past the gate", status)
+	}
+
+	asMember := httptest.NewRequest(http.MethodPost, "/agent/api/buzz-admin-wipe", strings.NewReader(`{}`))
+	asMember.Header.Set(requesterEmailHeader, "member@example.com")
+	if status := onTheRequesterSocket(service, asMember); status != http.StatusForbidden {
+		t.Errorf("a member capabilityd asserts got %d, want 403", status)
+	}
+
+	assertedOffTheSocket := tunneledRequest(http.MethodPost, "/agent/api/buzz-admin-wipe", `{}`)
+	assertedOffTheSocket.Header.Set(requesterEmailHeader, tunneledAdminEmail)
+	if status := answeredStatus(service, assertedOffTheSocket); status != http.StatusForbidden {
+		t.Errorf("a requester asserted from the internet got %d, want 403", status)
+	}
+}

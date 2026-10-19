@@ -1,11 +1,6 @@
-import {
-	AddressBelongsToAnotherCompany,
-	adminCallerOf,
-	asMember,
-	controlPlane,
-	planeCredentialsOf,
-	resetMemberPassword
-} from '$lib/server/control-plane';
+import { asMember, controlPlane, planeCredentialsOf } from '$lib/server/control-plane';
+import { resetPasswordAsAdministrator } from '$lib/server/member-administration';
+import { RecordRefusedTheWrite } from '$lib/server/public-api/record/tasks';
 import { env } from '$env/dynamic/private';
 import { error, json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
@@ -16,31 +11,13 @@ export const POST: RequestHandler = async ({ request, platform }) => {
 	if (!plane) error(500, 'the central plane is not configured');
 
 	const accessToken = await signedInAccessTokenOf(request, plane);
-
-	const callerClient = asMember(plane, accessToken);
-	const caller = await adminCallerOf(callerClient);
-	if (!caller) error(403, 'only an admin resets a password');
-
 	const body = (await request.json().catch(() => ({}))) as { memberID?: unknown };
 	const memberID = typeof body.memberID === 'string' ? body.memberID.trim() : '';
-	if (!memberID) error(400, 'which member to reset');
-
-	const client = controlPlane(plane);
-	const { data: member } = await client
-		.from('member')
-		.select('id, is_admin')
-		.eq('company_id', caller.companyID)
-		.eq('id', memberID)
-		.maybeSingle();
-	if (!member) error(404, 'no such member in this company');
-	if (member.is_admin && member.id !== caller.memberID) {
-		error(403, 'an administrator does not reset the password of another administrator');
-	}
 
 	try {
-		return json(await resetMemberPassword(client, member.id));
+		return json(await resetPasswordAsAdministrator(asMember(plane, accessToken), controlPlane(plane), memberID));
 	} catch (refusal) {
-		if (refusal instanceof AddressBelongsToAnotherCompany) error(409, 'that address signs in to an account this member does not hold');
+		if (refusal instanceof RecordRefusedTheWrite) error(refusal.status, refusal.message);
 		throw refusal;
 	}
 };

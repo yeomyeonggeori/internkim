@@ -84,7 +84,7 @@ import {
 	leaveReturnEarly,
 	leaveUpdate
 } from './leave-tools';
-import { personInvite, personList, personUpdate } from './people-tools';
+import { personInvite, personList, personPasswordReset, personUpdate, personWithdraw } from './people-tools';
 import { companyDataRoomGet, companyDataRoomCategorySet, companyDataRoomFieldSet,
 	companyDataRoomShareCreate, companyDataRoomShareRevoke,
 	companyDataRoomLinksGet, companyDataRoomLinkCreate, companyDataRoomLinkRevoke } from './data-room';
@@ -129,6 +129,8 @@ const toolsOverTheRecord: Record<string, ToolRun> = {
 	person_list: (context,input) => personList(context,input),
 	person_update: (context, input) => personUpdate(context, input),
 	person_invite: (context, input) => personInvite(context, input),
+	person_withdraw: (context, input) => personWithdraw(context, input),
+	person_password_reset: (context, input) => personPasswordReset(context, input),
 	team_list: (context) => teamList(context),
 	team_add: (context, input) => teamAdd(context, input),
 	team_update: (context, input) => teamUpdate(context, input),
