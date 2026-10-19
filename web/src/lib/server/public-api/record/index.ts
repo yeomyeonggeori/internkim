@@ -65,6 +65,7 @@ import {
 	eventList,
 	eventUpdate
 } from './event-tools';
+import { calendarSubscriptionAdd, calendarSubscriptionDelete, calendarSubscriptionGet } from './calendar-subscription';
 import { HintRefused } from './hint-resolution';
 import {
 	conversationMute,
@@ -116,7 +117,8 @@ function exactAttendancePersonIDs(name: string, input: ToolInput): string[] | un
 
 const readsWithoutPeople = new Set([
 	'company_settings_get', 'company_holiday_list', 'crm_organization_list',
-	'crm_contact_list', 'crm_opportunity_list', 'crm_vocabulary_get'
+	'crm_contact_list', 'crm_opportunity_list', 'crm_vocabulary_get',
+	'calendar_subscription_get', 'calendar_subscription_add', 'calendar_subscription_delete'
 ]);
 
 function placeTheAppAnswersAt(name: string, place: ToolPlace | undefined): ToolPlace {
@@ -135,6 +137,10 @@ const toolsOverTheRecord: Record<string, ToolRun> = {
 	event_update: (context, input) => eventUpdate(context, input),
 	event_list: (context, input) => eventList(context, input),
 	event_delete: (context, input) => eventDelete(context, input),
+	calendar_subscription_get: (context) => calendarSubscriptionGet(context),
+	calendar_subscription_add: (context, _input, { place }) =>
+		calendarSubscriptionAdd(context, placeTheAppAnswersAt('calendar_subscription_add', place)),
+	calendar_subscription_delete: (context) => calendarSubscriptionDelete(context),
 	person_list: (context,input) => personList(context,input),
 	person_update: (context, input) => personUpdate(context, input),
 	person_invite: (context, input) => personInvite(context, input),

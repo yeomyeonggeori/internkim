@@ -68,6 +68,12 @@ description: 정본 카탈로그에서 생성되는, 네임스페이스별 능�
 `calendar_event_duplicate`와 부딪힌 일정의 id로 거절되니, 부르는 쪽은 그것을
 수정하면 됩니다. 두 번 만들 방법은 없습니다.
 
+`calendar_subscription_*` 도구는
+`web/src/lib/server/public-api/record/calendar-subscription.ts`가 답하고,
+캘린더 설정 시트도 같은 세 도구를 부릅니다. 회사는 구독 주소의 해시만
+보관하므로 `calendar_subscription_get`은 주소가 있는지만 알려 주고, 주소는
+`calendar_subscription_add`가 만들 때만 보입니다.
+
 ## 휴가 [#leave]
 
 <ToolCatalog namespace="leave" language="ko" />

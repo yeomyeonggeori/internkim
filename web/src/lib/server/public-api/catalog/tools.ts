@@ -16,6 +16,7 @@ import {
 import { browserControlToolDefinitions } from './browser';
 import { companyToolDefinitions } from './company';
 import { dataRoomToolDefinitions } from './data-room';
+import { calendarSubscriptionToolDefinitions } from './calendar-subscription';
 import { circleToolDefinitions } from './circle';
 import { hostToolDefinitions } from './host';
 import { channelToolDefinitions } from './channel';
@@ -2108,6 +2109,7 @@ const capabilityToolDefinitions: CapabilityToolDefinition[] = [
   ...taskToolDefinitions,
   ...peopleToolDefinitions,
   ...calendarToolDefinitions,
+  ...calendarSubscriptionToolDefinitions,
   ...leaveToolDefinitions,
   ...attendanceToolDefinitions,
   ...messageToolDefinitions,

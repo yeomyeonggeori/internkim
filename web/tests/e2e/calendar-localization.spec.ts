@@ -9,12 +9,8 @@ test.describe('calendar localization', () => {
 		await page.route('**/api/calendar/holidays?**', async (route) => {
 			await route.fulfill({ json: { holidays: [], degraded: false } });
 		});
-		await page.route('**/api/calendar/subscription', async (route) => {
-			if (route.request().method() === 'POST') {
-				await route.fulfill({ json: { address: 'https://calendar.example.test/calendar.ics' } });
-				return;
-			}
-			await route.fulfill({ json: { registered: true } });
+		await page.route('**/api/v1/tools/calendar_subscription_get/invoke', async (route) => {
+			await route.fulfill({ json: { tool: 'calendar_subscription_get', result: { registered: true } } });
 		});
 
 		await signInToCalendar(page);

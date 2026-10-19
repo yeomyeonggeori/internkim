@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, test } from 'bun:test';
+import { afterAll, beforeAll, describe, expect, mock, test } from 'bun:test';
 import {
 	addMember,
 	asMember,
@@ -8,13 +8,22 @@ import {
 } from '../../src/lib/server/control-plane';
 import { calendarFeedForToken } from '../../src/lib/server/calendar/feed';
 import { forgetFeedToken, issueFeedToken } from '../../src/lib/server/calendar/feed-token';
+import { leavesTaskLabelsUndecided } from '../../src/lib/server/public-api/record/task-labels';
+import { heldToTheContract } from './tool-answers';
 import { projectURL, publishableKey, serviceRoleKey, signingKey } from './supabase-environment';
+
+mock.module('$env/dynamic/private', () => ({
+	env: { SUPABASE_URL: projectURL, SUPABASE_SECRET_KEY: serviceRoleKey, SUPABASE_PUBLISHABLE_KEY: publishableKey, SUPABASE_JWT_SIGNING_KEY: signingKey }
+}));
+
+const { runToolOverTheRecord } = await import('../../src/lib/server/public-api/record');
 
 const networkHookTimeout = 60_000;
 const credentials = { projectURL, publishableKey, serviceRoleKey, signingKey };
 const record = controlPlane({ projectURL, serviceRoleKey });
 const stamp = Date.now();
 const now = new Date();
+const place = { environment: {}, appAddress: 'https://calendar.example.test' };
 
 type Company = {
 	companyID: string;
@@ -196,5 +205,53 @@ describe('the calendar belongs to the company', () => {
 
 		expect(seen.error).toBeNull();
 		expect(seen.data?.calendar.subscription?.tokenHash).toMatch(/^[0-9a-f]{64}$/);
+	});
+});
+
+describe('the calendar subscription tools', () => {
+	async function asAdmin(name: string) {
+		return heldToTheContract(name, await runToolOverTheRecord(
+			await clientForMember(mine.adminID), record, mine.adminID, name, {}, now, leavesTaskLabelsUndecided, [], place));
+	}
+
+	async function asSample(name: string) {
+		return heldToTheContract(name, await runToolOverTheRecord(
+			await clientForMember(mine.colleagueID), record, mine.colleagueID, name, {}, now, leavesTaskLabelsUndecided, [], place));
+	}
+
+	function tokenOf(address: unknown): string {
+		const match = String(address).match(/^https:\/\/calendar\.example\.test\/calendar\/feed\/([0-9a-f]{64})\.ics$/);
+		if (!match) throw new Error(`not a subscription address: ${String(address)}`);
+		return match[1];
+	}
+
+	test('tell anyone in the company that an address exists, never what it is', async () => {
+		const answered = await asSample('calendar_subscription_get');
+
+		expect(answered.status).toBe(200);
+		expect((answered.body as { result: unknown }).result).toEqual({ registered: true });
+	});
+
+	test('make a new address only for an administrator', async () => {
+		expect((await asSample('calendar_subscription_add')).status).toBe(403);
+		expect(await calendarFeedForToken(credentials, mine.token, now)).toContain('우리 회의');
+	});
+
+	test('make a new address on the app, and the one before it stops answering', async () => {
+		const answered = await asAdmin('calendar_subscription_add');
+		const made = tokenOf((answered.body as { result: { address: string } }).result.address);
+
+		expect(answered.status).toBe(200);
+		expect(await calendarFeedForToken(credentials, mine.token, now)).toBeNull();
+		expect(await calendarFeedForToken(credentials, made, now)).toContain('우리 회의');
+		mine.token = made;
+	});
+
+	test('revoke the address only for an administrator, and then nothing answers it', async () => {
+		expect((await asSample('calendar_subscription_delete')).status).toBe(403);
+		expect((await asAdmin('calendar_subscription_delete')).status).toBe(200);
+
+		expect(await calendarFeedForToken(credentials, mine.token, now)).toBeNull();
+		expect((await asAdmin('calendar_subscription_get')).body).toMatchObject({ result: { registered: false } });
 	});
 });

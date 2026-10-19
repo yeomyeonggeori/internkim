@@ -1,5 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { controlPlane, type ControlPlaneCredentials } from '$lib/server/control-plane';
+import { RecordRefusedTheWrite, statusOfPostgresCode } from '$lib/server/public-api/record/tasks';
 
 async function hashOf(secret: string): Promise<string> {
 	const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(secret));
@@ -30,18 +31,23 @@ export async function companyOfFeedToken(
 	return typeof data === 'string' && data ? data : null;
 }
 
+export function feedAddressOf(appAddress: string, token: string): string {
+	return `${appAddress}/calendar/feed/${token}.ics`;
+}
+
 export async function issueFeedToken(caller: SupabaseClient): Promise<string> {
 	const token = mintedToken();
-	const { error } = await caller.rpc('calendar_subscription_save', {
-		target_token_hash: await hashOf(token)
-	});
-	if (error) throw new Error(`calendar subscription: ${error.message}`);
+	await saveFeedTokenHash(caller, await hashOf(token));
 	return token;
 }
 
 export async function forgetFeedToken(caller: SupabaseClient): Promise<void> {
-	const { error } = await caller.rpc('calendar_subscription_save', { target_token_hash: null });
-	if (error) throw new Error(`calendar subscription: ${error.message}`);
+	await saveFeedTokenHash(caller, null);
+}
+
+async function saveFeedTokenHash(caller: SupabaseClient, tokenHash: string | null): Promise<void> {
+	const { error } = await caller.rpc('calendar_subscription_save', { target_token_hash: tokenHash });
+	if (error) throw new RecordRefusedTheWrite(`calendar subscription: ${error.message}`, statusOfPostgresCode(error.code));
 }
 
 export async function companyHasAFeedToken(caller: SupabaseClient, companyID: string): Promise<boolean> {

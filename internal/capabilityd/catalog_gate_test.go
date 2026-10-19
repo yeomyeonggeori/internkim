@@ -135,6 +135,24 @@ func gateCases() map[string]catalogGateCase {
 			input:   `{"id":"custom","name":"Custom","readableCategories":["FS"]}`,
 			expect:  func(t *testing.T, answered capabilities.ToolInvokeResponse) { expectSucceeded(t, answered) },
 		},
+		"calendar_subscription_get": {
+			kind:    provesCarrying,
+			reaches: map[gateBackend]*standingIn{admindOverTheSocket: answering(`{"tool":"calendar_subscription_get","result":{"registered":true}}`)},
+			input:   `{}`,
+			expect:  func(t *testing.T, answered capabilities.ToolInvokeResponse) { expectSucceeded(t, answered) },
+		},
+		"calendar_subscription_add": {
+			kind:    provesCarrying,
+			reaches: map[gateBackend]*standingIn{admindOverTheSocket: answering(`{"tool":"calendar_subscription_add","result":{"address":"https://calendar.example.test/calendar/feed/sample.ics"}}`)},
+			input:   `{}`,
+			expect:  func(t *testing.T, answered capabilities.ToolInvokeResponse) { expectSucceeded(t, answered) },
+		},
+		"calendar_subscription_delete": {
+			kind:    provesCarrying,
+			reaches: map[gateBackend]*standingIn{admindOverTheSocket: answering(`{"tool":"calendar_subscription_delete","result":{"deleted":true}}`)},
+			input:   `{}`,
+			expect:  func(t *testing.T, answered capabilities.ToolInvokeResponse) { expectSucceeded(t, answered) },
+		},
 		"dataroom_share_add": {
 			kind:    provesCarrying,
 			reaches: map[gateBackend]*standingIn{admindOverTheSocket: answering(`{"tool":"dataroom_share_add","result":{"shareID":"62000000-0000-4000-8000-000000000001"}}`)},
