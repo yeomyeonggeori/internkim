@@ -3,12 +3,12 @@ create extension if not exists pgtap with schema extensions;
 select plan(11);
 
 select ok(
-  not has_function_privilege('authenticated', 'public.claim_empty_box(uuid, text, text, timestamptz)', 'execute'),
+  not has_function_privilege('authenticated', 'public.claim_empty_box(uuid, text, text, timestamptz, boolean)', 'execute'),
   'a signed-in member cannot claim a box past the route that counts their guesses'
 );
 
 select ok(
-  not has_function_privilege('anon', 'public.claim_empty_box(uuid, text, text, timestamptz)', 'execute'),
+  not has_function_privilege('anon', 'public.claim_empty_box(uuid, text, text, timestamptz, boolean)', 'execute'),
   'nor can an anonymous caller'
 );
 
@@ -57,14 +57,14 @@ select is(
 
 select is(
   (select outcome from public.claim_empty_box('7a300000-0000-0000-0000-0000000000c1',
-     'PPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPP', repeat('a', 64), now() - interval '10 minutes')),
+     'PPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPP', repeat('a', 64), now() - interval '10 minutes', false)),
   'no_live_ticket',
   'the code itself no longer claims once it has been verified'
 );
 
 select is(
   (select outcome from public.claim_empty_box('7a300000-0000-0000-0000-0000000000c1',
-     'PPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPP', repeat('c', 64), now() - interval '10 minutes')),
+     'PPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPP', repeat('c', 64), now() - interval '10 minutes', false)),
   'claimed',
   'the ticket the verification issued claims it'
 );
