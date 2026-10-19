@@ -10,8 +10,6 @@ import android.os.Build;
 import androidx.annotation.Nullable;
 import androidx.core.app.NotificationCompat;
 import androidx.core.app.NotificationManagerCompat;
-import app.intern.kim.MainActivity;
-import app.intern.kim.R;
 
 final class AttendanceOngoingNotification {
 
@@ -91,7 +89,7 @@ final class AttendanceOngoingNotification {
     }
 
     private static PendingIntent openApp(Context context) {
-        Intent intent = new Intent(context, MainActivity.class).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+        Intent intent = AttendanceAppLaunch.openingIntent(context);
         return PendingIntent.getActivity(context, notificationID, intent, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
     }
 

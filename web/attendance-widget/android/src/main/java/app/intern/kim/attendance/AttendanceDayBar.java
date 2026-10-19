@@ -8,7 +8,6 @@ import android.graphics.Paint;
 import android.graphics.Path;
 import android.graphics.RectF;
 import androidx.annotation.Nullable;
-import app.intern.kim.R;
 import java.util.List;
 
 final class AttendanceDayBar {

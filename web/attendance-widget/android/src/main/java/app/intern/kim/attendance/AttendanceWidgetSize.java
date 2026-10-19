@@ -7,7 +7,6 @@ import android.util.SizeF;
 import android.util.TypedValue;
 import android.widget.RemoteViews;
 import androidx.annotation.RequiresApi;
-import app.intern.kim.R;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
