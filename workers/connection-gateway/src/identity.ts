@@ -10,6 +10,7 @@ export type TokenClaims = {
 	iss: string;
 	exp: number;
 	hostCompanyID?: string;
+	hostBoxKey?: string;
 };
 
 export const expectedAudience = 'authenticated';
@@ -57,7 +58,10 @@ function claimsOf(payload: unknown, expectedIssuer: string, nowSeconds: number):
 	if (isClaimRecord(appMetadata)) {
 		const companyID = appMetadata.company_id;
 		if (typeof companyID === 'string' && companyID.trim() !== '') {
-			return { sub, iss, exp, hostCompanyID: companyID };
+			const boxKey = appMetadata.fleet_id;
+			return typeof boxKey === 'string' && boxKey !== ''
+				? { sub, iss, exp, hostCompanyID: companyID, hostBoxKey: boxKey }
+				: { sub, iss, exp, hostCompanyID: companyID };
 		}
 	}
 	return { sub, iss, exp };

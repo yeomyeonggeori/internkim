@@ -213,6 +213,41 @@ describe('the public fetch handler', () => {
 		}
 	});
 
+	test('takes work only from a standby box, and hands it on only from the serving one', async () => {
+		const token = await signedHostToken({
+			sub: 'account-1',
+			iss: issuer, aud: 'authenticated',
+			exp: 4102444800,
+			app_metadata: { company_id: hostCompanyID, fleet_id: 'annex' }
+		});
+		const asWorker = () => worker.fetch(
+			new Request(`https://gateway/company/${hostCompanyID}/worker`, {
+				headers: { Upgrade: 'websocket', Authorization: `Bearer ${token}` }
+			}),
+			hostEnvironment(new ConnectionObject(newState()))
+		);
+		const handingOn = () => worker.fetch(
+			new Request(`https://gateway/company/${hostCompanyID}/worker-call`, {
+				method: 'POST',
+				headers: { Authorization: `Bearer ${token}` },
+				body: JSON.stringify({ boxKey: 'annex', requestID: 'work-1', work: {} })
+			}),
+			hostEnvironment(new ConnectionObject(newState()))
+		);
+		try {
+			roleTheRecordGrants = 'service';
+			expect((await asWorker()).status).toBe(409);
+			expect((await handingOn()).status).toBe(503);
+			roleTheRecordGrants = 'standby';
+			expect((await asWorker()).status).toBe(101);
+			expect((await handingOn()).status).toBe(409);
+			roleTheRecordGrants = null;
+			expect((await asWorker()).status).toBe(403);
+		} finally {
+			roleTheRecordGrants = 'service';
+		}
+	});
+
 	test('refuses a host token from a box that stands by, leaving the serving box connected', async () => {
 		const token = await signedHostToken({
 			sub: 'account-1',

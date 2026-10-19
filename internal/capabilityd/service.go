@@ -53,6 +53,8 @@ type Configuration struct {
 	FileReadPythonPath            string
 	ChatdEndpoint                 string
 	ChatdPlatform                 string
+	BrowserHomesPath              string
+	HostSessionPath               string
 }
 
 type Service struct {
@@ -97,6 +99,8 @@ func DefaultConfiguration() Configuration {
 		APIURLPath:                    "/root/.internkim/env/api-url",
 		BlueclawWorkspacePath:         "/root/.blueclaw/workspace",
 		FileReadPythonPath:            blueclaw.LinuxCompanyHostLayout().DocumentPythonPath(),
+		BrowserHomesPath:              blueclaw.CompanyHostBrowserHomesPath,
+		HostSessionPath:               blueclaw.CompanyHostAgentKeyPath,
 	}
 }
 
@@ -449,6 +453,12 @@ func (configuration Configuration) WithDefaults() Configuration {
 	}
 	if configuration.DeviceBrowserUserName == "" {
 		configuration.DeviceBrowserUserName = defaultConfiguration.DeviceBrowserUserName
+	}
+	if configuration.BrowserHomesPath == "" {
+		configuration.BrowserHomesPath = defaultConfiguration.BrowserHomesPath
+	}
+	if configuration.HostSessionPath == "" {
+		configuration.HostSessionPath = defaultConfiguration.HostSessionPath
 	}
 	if configuration.AttachmentFileDirectory == "" {
 		configuration.AttachmentFileDirectory = defaultConfiguration.AttachmentFileDirectory

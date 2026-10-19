@@ -5,7 +5,8 @@ import {
 	companyOfMessengerAddress,
 	resolveMember,
 	roleOfHost,
-	verifyToken
+	verifyToken,
+	type HostRole
 } from './identity';
 import type { OneShotAnswer, OneShotCall } from './routing';
 import {
@@ -15,7 +16,8 @@ import {
 	memberHeader,
 	streamAddressHeader,
 	streamHostHeader,
-	streamPathHeader
+	streamPathHeader,
+	workerBoxHeader
 } from './company-connection';
 import { answerMessengerRequest, isPageNavigation } from './messenger';
 import { MessengerAddresses } from './messenger-address';
@@ -46,6 +48,8 @@ async function route(request: Request, environment: WorkerEnvironment): Promise<
 	if (path[2] === 'server') return joinAsServer(request, environment, companyID);
 	if (path[2] === 'server-key') return storeServerKey(request, environment, companyID);
 	if (path[2] === 'call') return takeCompanyCall(request, environment, companyID);
+	if (path[2] === 'worker') return joinAsWorker(request, environment, companyID);
+	if (path[2] === 'worker-call') return callAWorker(request, environment, companyID);
 	return jsonResponse({ error: 'not found' }, 404);
 }
 
@@ -196,6 +200,50 @@ async function joinAsHost(
 		if (refusal instanceof TokenRefused) return jsonResponse({ error: refusal.message }, 401);
 		throw refusal;
 	}
+}
+
+type VerifiedBox = { boxKey: string; role: HostRole };
+
+async function verifiedBoxOf(request: Request, environment: WorkerEnvironment, companyID: string): Promise<VerifiedBox | Response> {
+	const token = bearerOf(request);
+	if (!token) return jsonResponse({ error: 'this call carried no token' }, 401);
+	try {
+		const claims = await verifyToken(token, keyCacheFor(environment), issuerOf(environment), Math.floor(Date.now() / 1000));
+		if (claims.hostCompanyID !== companyID || !claims.hostBoxKey) {
+			return jsonResponse({ error: 'this token is not one of the company\'s boxes' }, 403);
+		}
+		const role = await roleOfHost(environment.SUPABASE_URL, environment.SUPABASE_PUBLISHABLE_KEY, token);
+		if (!role) return jsonResponse({ error: 'this computer is no longer one of the company\'s boxes' }, 403);
+		return { boxKey: claims.hostBoxKey, role };
+	} catch (refusal) {
+		if (refusal instanceof TokenRefused) return jsonResponse({ error: refusal.message }, 401);
+		throw refusal;
+	}
+}
+
+async function joinAsWorker(request: Request, environment: WorkerEnvironment, companyID: string): Promise<Response> {
+	const verified = await verifiedBoxOf(request, environment, companyID);
+	if (verified instanceof Response) return verified;
+	if (verified.role !== 'standby') return jsonResponse({ error: 'the box that serves the company does its own work' }, 409);
+	return connectionFor(environment, companyID).fetch(
+		new Request(`https://connection-gateway/company/${encodeURIComponent(companyID)}/worker-session`, {
+			method: request.method,
+			headers: { ...headersOf(request), [workerBoxHeader]: verified.boxKey }
+		})
+	);
+}
+
+async function callAWorker(request: Request, environment: WorkerEnvironment, companyID: string): Promise<Response> {
+	const verified = await verifiedBoxOf(request, environment, companyID);
+	if (verified instanceof Response) return verified;
+	if (verified.role !== 'service') return jsonResponse({ error: 'only the box that serves the company hands work to the others' }, 409);
+	return connectionFor(environment, companyID).fetch(
+		new Request(`https://connection-gateway/company/${encodeURIComponent(companyID)}/worker-call`, {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json' },
+			body: await request.text()
+		})
+	);
 }
 
 async function holdsTheGatewayToken(request: Request, environment: WorkerEnvironment): Promise<boolean> {

@@ -543,6 +543,25 @@ describe('connecting an empty box', () => {
 		expect(await aimStandbyBoxesAt(client, first.publicKey, 'v0.0.2')).toEqual([]);
 	});
 
+	test('the service box learns which box runs each active member\'s browser once the company has two live boxes', async () => {
+		const browsing = await aCompany('browsing');
+		const first = await aBox();
+		const second = await aBox();
+		await claimWithCode(browsing.companyID, first.publicKey, await announcedCode(first));
+		await client.from('member').insert(
+			Array.from({ length: 24 }, (_, index) => ({ company_id: browsing.companyID, email: `browsing-${index}-${stamp}@example.test`, status: 'active' }))
+		);
+		expect((await boxSessionFor(credentials, first.publicKey, environment, appURL))?.browserHomes).toEqual([]);
+
+		await claimWithCode(browsing.companyID, second.publicKey, await announcedCode(second), 'add');
+		await boxSessionFor(credentials, second.publicKey, environment, appURL);
+		const homes = (await boxSessionFor(credentials, first.publicKey, environment, appURL))?.browserHomes ?? [];
+
+		expect(homes.length).toBeGreaterThanOrEqual(24);
+		expect(new Set(homes.map((home) => home.publicKey))).toEqual(new Set([first.publicKey, second.publicKey]));
+		expect((await boxSessionFor(credentials, second.publicKey, environment, appURL))?.browserHomes).toEqual([]);
+	});
+
 	test('the newest snapshot the boxes share is the newest readable one sealed to the company key', async () => {
 		const backingUp = await aCompany('backing-up');
 		const first = await aBox();

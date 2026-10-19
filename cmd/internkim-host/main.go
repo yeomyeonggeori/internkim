@@ -299,6 +299,7 @@ func boxDaemon(appURL string) box.Daemon {
 			PairingPageListenAddress:  blueclaw.CompanyHostBoxPairingPageListenAddress,
 			ConnectionFilePath:        companyhost.CurrentConnectionPath(),
 			CredentialPaths:           []string{blueclaw.CompanyHostAgentKeyPath, blueclaw.RelayAgentKeyPath},
+			BrowserHomesPath:          blueclaw.CompanyHostBrowserHomesPath,
 			ModelKeyPath:              blueclaw.CompanyHostModelKeyPath,
 			ResetRequestPath:          blueclaw.CompanyHostBoxResetRequestPath,
 			CompanyStateDirectoryPath: companyhost.DefaultStateDirectoryPath,
@@ -312,6 +313,7 @@ func boxDaemon(appURL string) box.Daemon {
 		StandUp:        standUp,
 		StartKeepingUp: startKeepingUpWithTheServiceBox,
 		FollowRelease:  followTheServiceBoxRelease,
+		StartWorking:   startWorkingForTheServiceBox,
 		PackageVersion: thisBoxRelease(),
 	}
 }

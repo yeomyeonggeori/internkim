@@ -20,6 +20,7 @@ import {
 	socketAttachmentOf,
 	streamTag,
 	streamTagOf,
+	workerTagOf,
 	type HostAttachment,
 	type StreamAttachment
 } from './socket-attachment';
@@ -44,6 +45,9 @@ export const memberHeader = 'x-internkim-member';
 export const streamHostHeader = 'x-internkim-stream-host';
 export const streamAddressHeader = 'x-internkim-stream-address';
 export const streamPathHeader = 'x-internkim-stream-path';
+export const workerBoxHeader = 'x-internkim-worker-box';
+export const workerCallsPerCompany = 64;
+export const workerCallBoundMilliseconds = 120_000;
 
 const bearerPrefix = 'Bearer ';
 const serverKeyDigestStorageKey = 'serverKeyDigest';
@@ -80,6 +84,7 @@ export class CompanyConnectionObject {
 	private readonly askedCalls: AskedCalls;
 	private readonly waitingCalls = new WaitingCalls();
 	private readonly messengerCalls = new WaitingCalls(messengerCallsPerCompany, messengerCallBoundMilliseconds);
+	private readonly workerCalls = new WaitingCalls(workerCallsPerCompany, workerCallBoundMilliseconds);
 
 	constructor(private readonly state: DurableObjectState) {
 		this.askedCalls = new AskedCalls(state.storage.sql);
@@ -92,10 +97,12 @@ export class CompanyConnectionObject {
 		if (url.pathname.endsWith('/server-key')) return this.keepServerKey(request);
 		if (url.pathname.endsWith('/call')) return this.takeOneShotCall(request, this.waitingCalls);
 		if (url.pathname.endsWith('/messenger-call')) return this.takeOneShotCall(request, this.messengerCalls);
+		if (url.pathname.endsWith('/worker-call')) return this.takeWorkerCall(request);
 		if (request.headers.get('Upgrade') !== 'websocket') {
 			return jsonResponse({ error: 'this endpoint speaks websocket' }, 426);
 		}
 		if (url.pathname.endsWith('/host-session')) return this.acceptConnectedServer();
+		if (url.pathname.endsWith('/worker-session')) return this.acceptWorker(request);
 		if (url.pathname.endsWith('/stream-session')) return this.acceptStream(request);
 		if (url.pathname.endsWith('/server')) return this.acceptServer(request);
 		return this.acceptClient(request);
@@ -106,6 +113,7 @@ export class CompanyConnectionObject {
 		if (attachment?.role === 'host') return this.onServerMessage(socket, attachment, message);
 		if (attachment?.role === 'client') return this.onClientMessage(attachment.memberID, socket, message);
 		if (attachment?.role === 'stream') return this.onAppFrame(socket, attachment, message);
+		if (attachment?.role === 'worker') return this.onWorkerMessage(message);
 	}
 
 	async webSocketClose(socket: WebSocket, code: number, reason: string): Promise<void> {
@@ -176,6 +184,38 @@ export class CompanyConnectionObject {
 		this.state.acceptWebSocket(server, [hostTag]);
 		server.serializeAttachment({ role: 'host', seenAt: Date.now(), isRetired: false } satisfies HostAttachment);
 		return new Response(null, { status: 101, webSocket: client });
+	}
+
+	private acceptWorker(request: Request): Response {
+		const boxKey = request.headers.get(workerBoxHeader);
+		if (!boxKey) return jsonResponse({ error: 'a worker names its box' }, 400);
+		for (const earlier of this.state.getWebSockets(workerTagOf(boxKey))) {
+			this.closeQuietly(earlier, streamCloseCode.normal, 'the same box connected again');
+		}
+		const { client, server } = newSocketPair();
+		this.state.acceptWebSocket(server, [workerTagOf(boxKey)]);
+		server.serializeAttachment({ role: 'worker', boxKey });
+		return new Response(null, { status: 101, webSocket: client });
+	}
+
+	private async takeWorkerCall(request: Request): Promise<Response> {
+		const call = parseWorkerCall(await readJSONBody(request));
+		if (!call) return jsonResponse({ error: 'a worker call names its box, a request identifier and its work' }, 400);
+		const worker = this.state.getWebSockets(workerTagOf(call.boxKey))[0];
+		if (!worker) return jsonResponse({ error: 'that box is not connected to take work' }, 503);
+		if (this.workerCalls.isFull) return answerResponse(tooManyWaitingCallsAnswer(call.requestID));
+		const waited = this.workerCalls.waitFor(call.requestID);
+		try {
+			worker.send(JSON.stringify({ kind: 'work', requestID: call.requestID, work: call.work }));
+		} catch {
+			return jsonResponse({ error: 'that box went away before it took the work' }, 503);
+		}
+		return answerResponse(await waited);
+	}
+
+	private onWorkerMessage(message: string | ArrayBuffer): void {
+		const parsed = parseServerMessage(readJSON(message));
+		if (parsed?.kind === 'result') this.workerCalls.settle(parsed);
 	}
 
 	private async acceptClient(request: Request): Promise<Response> {
@@ -408,6 +448,17 @@ async function readJSONBody(request: Request): Promise<unknown> {
 	} catch {
 		return null;
 	}
+}
+
+type WorkerCall = { boxKey: string; requestID: string; work: unknown };
+
+function parseWorkerCall(payload: unknown): WorkerCall | null {
+	if (typeof payload !== 'object' || payload === null) return null;
+	const { boxKey, requestID, work } = payload as Record<string, unknown>;
+	if (typeof boxKey !== 'string' || boxKey === '') return null;
+	if (typeof requestID !== 'string' || requestID === '') return null;
+	if (typeof work !== 'object' || work === null) return null;
+	return { boxKey, requestID, work };
 }
 
 function answerResponse(answer: ServerAnswer): Response {
