@@ -5,7 +5,7 @@ android {
     namespace = "app.intern.kim.attendance"
     compileSdk = project.ext.compileSdkVersion
     defaultConfig {
-        minSdkVersion project.ext.minSdkVersion
+        minSdk = project.ext.minSdkVersion
     }
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_21

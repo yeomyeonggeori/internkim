@@ -1,0 +1,13 @@
+# Automatically generated - DO NOT EDIT!
+
+"$schema" = "../../schemas/schema.json"
+
+[[permission]]
+identifier = "allow-supply"
+description = "Enables the supply command without any pre-configured scope."
+commands.allow = ["supply"]
+
+[[permission]]
+identifier = "deny-supply"
+description = "Denies the supply command without any pre-configured scope."
+commands.deny = ["supply"]
