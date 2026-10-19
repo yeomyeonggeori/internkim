@@ -1084,7 +1084,7 @@ const taskToolDefinitions: CapabilityToolDefinition[] = [
     answeredBy: CapabilityAnsweredBy.Record,
     privacyClass: 'workspace_task',
     policyResource: 'tool:task_vocabulary_set',
-    description: 'Set the task vocabulary: the business and task type labels this company files work under. Each list is written at once, so read registeredLabels from a task_list result first and send it back with what changes. A label a task still carries cannot be dropped. This is an administrator’s.',
+    description: 'Set the task vocabulary: the business and task type labels this company files work under. Each list sent is written at once, so read registeredLabels from a task_list result first and send it back with what changes; a list left out is kept. A label a task still carries cannot be dropped. This is an administrator’s.',
     version: '1',
     estimatedLatency: CapabilityEstimatedLatency.Medium,
     inputSchema: taskVocabularySetInputSchema,

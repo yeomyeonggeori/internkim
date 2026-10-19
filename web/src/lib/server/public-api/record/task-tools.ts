@@ -496,15 +496,21 @@ export async function taskVocabularySet(
 	input: TaskVocabularySetInput
 ): Promise<TaskLabelVocabulary> {
 	const { error } = await context.caller.rpc('task_vocabulary_save', {
-		target_vocabulary: {
-			businesses: input.businesses ?? [],
-			types: input.types ?? [],
-			...(input.etcBusinessColor ? { etcBusinessColor: input.etcBusinessColor } : {}),
-			...(input.etcTypeColor ? { etcTypeColor: input.etcTypeColor } : {})
-		}
+		target_vocabulary: vocabularyWritten(context.labels, input)
 	});
 	if (error) throw refusedVocabularyWrite(error.message, error.code);
 	return registeredLabelsOf(await labelsAfterTheWrite(context));
+}
+
+function vocabularyWritten(current: CompanyLabels, input: TaskVocabularySetInput): TaskVocabularySetInput {
+	const etcBusinessColor = input.etcBusinessColor ?? current.etcBusinessColor;
+	const etcTypeColor = input.etcTypeColor ?? current.etcTypeColor;
+	return {
+		businesses: input.businesses ?? current.businesses,
+		types: input.types ?? current.types,
+		...(etcBusinessColor ? { etcBusinessColor } : {}),
+		...(etcTypeColor ? { etcTypeColor } : {})
+	};
 }
 
 async function labelsAfterTheWrite(context: RecordContext): Promise<CompanyLabels> {
