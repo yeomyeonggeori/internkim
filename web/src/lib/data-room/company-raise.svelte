@@ -4,7 +4,7 @@
 	import ArrowUpRightIcon from '@lucide/svelte/icons/arrow-up-right';
 	import { Button } from '$lib/components/ui/button';
 	import { formatCompactMoney } from '$lib/money';
-	import { periodLabel } from '$lib/company-period';
+	import { periodLabel } from '$lib/period';
 	import { dataRoomCompanyText } from './company-text';
 	import { daysUntil, humanizedKey, recordAttributes, type CompanyRecord } from './company';
 

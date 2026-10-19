@@ -19120,6 +19120,7 @@
           },
           "date": {
             "description": "When it happened, as precisely as known: YYYY-MM-DD, YYYY-MM, YYYY-Q1 to YYYY-Q4 for a quarter, YYYY-H1 or YYYY-H2 for a half, or YYYY. Sorts the company timeline. For something still in progress, when it is expected to finish.",
+            "pattern": "^\\d{4}(-(H[12]|Q[1-4]|(0[1-9]|1[0-2])(-\\d{2})?))?$",
             "type": "string"
           },
           "detail": {
@@ -19175,6 +19176,7 @@
           },
           "date": {
             "description": "When it happened, as precisely as known: YYYY-MM-DD, YYYY-MM, YYYY-Q1 to YYYY-Q4 for a quarter, YYYY-H1 or YYYY-H2 for a half, or YYYY. Sorts the company timeline. For something still in progress, when it is expected to finish.",
+            "pattern": "^\\d{4}(-(H[12]|Q[1-4]|(0[1-9]|1[0-2])(-\\d{2})?))?$",
             "type": "string"
           },
           "detail": {
@@ -20034,6 +20036,7 @@
           },
           "date": {
             "description": "New date: YYYY-MM-DD, YYYY-MM, YYYY-Q1 to YYYY-Q4, YYYY-H1 or YYYY-H2, or YYYY. Omit to keep unchanged.",
+            "pattern": "^\\d{4}(-(H[12]|Q[1-4]|(0[1-9]|1[0-2])(-\\d{2})?))?$",
             "type": "string"
           },
           "detail": {
@@ -20089,6 +20092,7 @@
           },
           "date": {
             "description": "New date: YYYY-MM-DD, YYYY-MM, YYYY-Q1 to YYYY-Q4, YYYY-H1 or YYYY-H2, or YYYY. Omit to keep unchanged.",
+            "pattern": "^\\d{4}(-(H[12]|Q[1-4]|(0[1-9]|1[0-2])(-\\d{2})?))?$",
             "type": "string"
           },
           "detail": {

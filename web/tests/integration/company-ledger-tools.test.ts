@@ -5,6 +5,7 @@ import { projectURL, publishableKey, serviceRoleKey, signingKey } from './supaba
 import { heldToTheContract } from './tool-answers';
 import { leavesTaskLabelsUndecided } from '../../src/lib/server/public-api/record/task-labels';
 import { circleListResultSchema } from '../../src/lib/data-room/schemas';
+import { periodSchema, periodSpanOf } from '../../src/lib/period';
 
 mock.module('$env/dynamic/private', () => ({
 	env: { SUPABASE_URL: projectURL, SUPABASE_SECRET_KEY: serviceRoleKey, SUPABASE_PUBLISHABLE_KEY: publishableKey, SUPABASE_JWT_SIGNING_KEY: signingKey }
@@ -815,8 +816,19 @@ describe('when something happened, as precisely as the company knows it', () => 
 	test('refuses a date that names no period', async () => {
 		for (const period of ['2025-13', '2025-Q5', '2025-02-30', 'July 2025']) {
 			const refused = await asAdmin('company_record_add', { category: 'period-sample', date: period, title: `Never ${period}` });
-			expect(refused.status).toBeGreaterThanOrEqual(400);
-			expect(errorOf(refused)).toContain('company_record_date_names_a_period');
+			expect([400, 422]).toContain(refused.status);
 		}
+	});
+
+	test('is the same period to the web and to the database', async () => {
+		const candidates = ['2025', '2025-H1', '2025-H3', '2025-Q4', '2025-Q0', '2025-12', '2025-00', '2024-02-29', '2025-02-29', '2025-04-31', '25-07', '2025-7'];
+		for (const candidate of candidates) {
+			const { error } = await client
+				.from('company_record')
+				.insert({ company_id: companyID, category: 'period-conformance', record_date: candidate, title: candidate });
+			const isWebPeriod = periodSchema.safeParse(candidate).success && periodSpanOf(candidate) !== undefined;
+			expect({ candidate, isDatabasePeriod: !error }).toEqual({ candidate, isDatabasePeriod: isWebPeriod });
+		}
+		await client.from('company_record').delete().eq('company_id', companyID).eq('category', 'period-conformance');
 	});
 });
