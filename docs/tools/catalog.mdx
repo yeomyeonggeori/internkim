@@ -153,6 +153,18 @@ message stays untouched. `message_send` targets a direct message, a named
 channel, or the current conversation; only the current-conversation targets
 skip approval.
 
+## Channels [#channel]
+
+<ToolCatalog namespace="channel" />
+
+The handler lives in `internal/capabilityd/channel_tool.go`. Each call is made
+as the requester through the same chatd person capability their messenger
+screen uses (`chatd/src/personal/capabilities.ts`), so the relay and chatd
+refuse a non-owner here exactly as they do on the screen. `channelHint` is the
+exact channel ID or the channel's current name, and `personHint` names a
+company member; both climb the resolver ladder and ask when a name is
+ambiguous. Deleting a channel and handing it over wait for approval.
+
 ## Teams [#team]
 
 <ToolCatalog namespace="team" />

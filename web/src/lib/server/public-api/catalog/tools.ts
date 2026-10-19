@@ -18,6 +18,7 @@ import { companyToolDefinitions } from './company';
 import { dataRoomToolDefinitions } from './data-room';
 import { circleToolDefinitions } from './circle';
 import { hostToolDefinitions } from './host';
+import { channelToolDefinitions } from './channel';
 import { crmToolDefinitions } from './crm';
 import {
   taskLabelGetInputSchema,
@@ -2018,6 +2019,7 @@ const capabilityToolDefinitions: CapabilityToolDefinition[] = [
   ...leaveToolDefinitions,
   ...attendanceToolDefinitions,
   ...messageToolDefinitions,
+  ...channelToolDefinitions,
   ...webToolDefinitions,
   ...fileToolDefinitions,
   ...browserToolDefinitions,
