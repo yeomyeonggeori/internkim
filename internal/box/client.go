@@ -44,6 +44,13 @@ type Session struct {
 	BoxesAwaitingCompanyKey []AwaitingBox   `json:"boxesAwaitingCompanyKey"`
 	KeepsBackups            bool            `json:"keepsBackups"`
 	TakeOver                TakeOverPolicy  `json:"takeOver"`
+	TargetVersion           string          `json:"targetVersion"`
+}
+
+type BoxShortOfRelease struct {
+	PublicKey      string `json:"publicKey"`
+	HostName       string `json:"hostName"`
+	PackageVersion string `json:"packageVersion"`
 }
 
 type Client struct {
@@ -123,8 +130,12 @@ func (client Client) Claim(ctx context.Context, identity Identity, connectionKey
 	return nil
 }
 
-func (client Client) Session(ctx context.Context, identity Identity) (Session, bool, error) {
-	response, errorValue := client.post(ctx, identity, "/api/box/session", nil)
+func (client Client) Session(ctx context.Context, identity Identity, packageVersion string) (Session, bool, error) {
+	body, errorValue := json.Marshal(map[string]string{"packageVersion": packageVersion})
+	if errorValue != nil {
+		return Session{}, false, errorValue
+	}
+	response, errorValue := client.post(ctx, identity, "/api/box/session", body)
 	if errorValue != nil {
 		return Session{}, false, errorValue
 	}
@@ -140,6 +151,28 @@ func (client Client) Session(ctx context.Context, identity Identity) (Session, b
 		return Session{}, false, fmt.Errorf("asking for this box's session: %w", errorValue)
 	}
 	return session, true, nil
+}
+
+func (client Client) AimStandbyBoxesAt(ctx context.Context, identity Identity, targetVersion string) ([]BoxShortOfRelease, error) {
+	body, errorValue := json.Marshal(map[string]string{"targetVersion": targetVersion})
+	if errorValue != nil {
+		return nil, errorValue
+	}
+	response, errorValue := client.post(ctx, identity, "/api/box/release", body)
+	if errorValue != nil {
+		return nil, errorValue
+	}
+	defer response.Body.Close()
+	if response.StatusCode != http.StatusOK {
+		return nil, refusalOf(response, "aiming the standby boxes at "+targetVersion)
+	}
+	var answer struct {
+		StandbyBoxesShortOfIt []BoxShortOfRelease `json:"standbyBoxesShortOfIt"`
+	}
+	if errorValue := json.NewDecoder(response.Body).Decode(&answer); errorValue != nil {
+		return nil, fmt.Errorf("aiming the standby boxes at %s: %w", targetVersion, errorValue)
+	}
+	return answer.StandbyBoxesShortOfIt, nil
 }
 
 func (client Client) HandOnCompanyKey(ctx context.Context, identity Identity, sealed []SealedCompanyKey) error {

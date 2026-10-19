@@ -93,7 +93,7 @@ func scriptEnding(scriptError error, given *[]string) ScriptRunner {
 func TestTheUpdateRunsTheInstallerPinnedToTheStableReleaseAndRecordsItsSuccess(t *testing.T) {
 	notePath := pendingNote(t)
 	var given []string
-	if errorValue := Update(notePath, "v2", scriptEnding(nil, &given), time.Now); errorValue != nil {
+	if errorValue := Update(notePath, "v2", readyAtOnce, scriptEnding(nil, &given), time.Now); errorValue != nil {
 		t.Fatal(errorValue)
 	}
 	if !slices.Equal(given, []string{PackagedInstallScriptPath, "host", "--channel", "stable", "--version", "v2"}) {
@@ -108,7 +108,7 @@ func TestTheUpdateRunsTheInstallerPinnedToTheStableReleaseAndRecordsItsSuccess(t
 func TestAFailedUpdateRecordsTheErrorAndWhatTheInstallerSaid(t *testing.T) {
 	notePath := pendingNote(t)
 	var given []string
-	if Update(notePath, "v2", scriptEnding(errors.New("exit status 1"), &given), time.Now) == nil {
+	if Update(notePath, "v2", readyAtOnce, scriptEnding(errors.New("exit status 1"), &given), time.Now) == nil {
 		t.Fatal("a failed install.sh reported success")
 	}
 	note, _, _ := ReadNote(notePath)
@@ -136,5 +136,26 @@ func TestTheTagOfAPackageVersionDropsTheEpoch(t *testing.T) {
 func TestEveryDateVersionIsOlderThanEveryMilestone(t *testing.T) {
 	if !IsOlder("v2026.10.01.000000", "v0.0.1") || IsOlder("v0.0.1", "v2026.10.01.000000") {
 		t.Fatal("a date version outranked a milestone")
+	}
+}
+
+func readyAtOnce() error { return nil }
+
+func TestAnUpdateThatIsNotReadyInstallsNothingAndSaysWhy(t *testing.T) {
+	notePath := filepath.Join(t.TempDir(), "host-update.json")
+	if errorValue := WriteNote(notePath, Note{FromVersion: "v1", ToVersion: "v2", StartedAt: time.Now()}); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	ran := false
+	notReady := errors.New("the standby box annex did not take v2 within twenty minutes")
+
+	errorValue := Update(notePath, "v2", func() error { return notReady }, func([]string, io.Writer) error { ran = true; return nil }, time.Now)
+
+	if !errors.Is(errorValue, notReady) || ran {
+		t.Fatalf("an update that was not ready ran the install (%v): %v", ran, errorValue)
+	}
+	note, _, _ := ReadNote(notePath)
+	if note.Outcome == nil || note.Outcome.Succeeded || note.Outcome.Error != notReady.Error() {
+		t.Fatalf("the note says %+v", note.Outcome)
 	}
 }

@@ -46,6 +46,8 @@ type Daemon struct {
 	StandDown         func() error
 	StandUp           func() error
 	StartKeepingUp    func(ctx context.Context, session Session)
+	FollowRelease     func(targetVersion string) error
+	PackageVersion    string
 	NameHost          func(ctx context.Context, companySlug string) error
 	GetOnline         func(ctx context.Context, boxPublicKey string) error
 	ChangeWifi        func(ctx context.Context, ssid, password string) error
@@ -123,7 +125,7 @@ func (daemon Daemon) pairingPageFor(isClaimed bool, page *pairingPage, identity 
 }
 
 func (daemon Daemon) step(ctx context.Context, identity Identity, page *pairingPage) (time.Duration, bool, error) {
-	session, isClaimed, errorValue := daemon.Client.Session(ctx, identity)
+	session, isClaimed, errorValue := daemon.Client.Session(ctx, identity, daemon.PackageVersion)
 	if errorValue != nil {
 		daemon.standDownWhenTheLeaseRunsOut()
 		return 0, false, errorValue
@@ -223,6 +225,7 @@ func (daemon Daemon) handOnCompanyKey(ctx context.Context, keyring Keyring, sess
 }
 
 func (daemon Daemon) standBy(ctx context.Context, session Session) (time.Duration, error) {
+	daemon.followTheRelease(session)
 	if daemon.StartKeepingUp != nil {
 		daemon.StartKeepingUp(ctx, session)
 	}
@@ -239,6 +242,16 @@ func (daemon Daemon) standBy(ctx context.Context, session Session) (time.Duratio
 		return 0, errorValue
 	}
 	return daemon.untilNextCheck(session.Session), daemon.forgetServiceLease()
+}
+
+func (daemon Daemon) followTheRelease(session Session) {
+	if daemon.FollowRelease == nil || session.TargetVersion == "" || session.TargetVersion == daemon.PackageVersion {
+		return
+	}
+	log.Printf("%s's service box is updating to %s, so this standby box takes it first", session.Configuration.Company.Name, session.TargetVersion)
+	if errorValue := daemon.FollowRelease(session.TargetVersion); errorValue != nil {
+		log.Printf("taking %s: %v; the service box waits, and this box tries again at the next check", session.TargetVersion, errorValue)
+	}
 }
 
 func (daemon Daemon) announce(ctx context.Context, identity Identity, page LocalPage) error {
@@ -290,7 +303,7 @@ func (daemon Daemon) InstallWithConnectionFile(ctx context.Context, connectionKe
 	if errorValue := daemon.Client.Claim(ctx, identity, connectionKey); errorValue != nil {
 		return errorValue
 	}
-	session, isClaimed, errorValue := daemon.Client.Session(ctx, identity)
+	session, isClaimed, errorValue := daemon.Client.Session(ctx, identity, daemon.PackageVersion)
 	if errorValue != nil {
 		return errorValue
 	}

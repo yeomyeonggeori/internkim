@@ -2,8 +2,11 @@ package companyhost
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"io"
+	"io/fs"
+	"os"
 	"strconv"
 	"strings"
 
@@ -123,7 +126,20 @@ func StandDown(machine Machine, progress io.Writer) error {
 	if errorValue := machine.Run("systemctl", append([]string{"disable", "--now"}, linux.companyServiceUnits()...), nil, progress); errorValue != nil {
 		return fmt.Errorf("the company's services could not be stopped on this standby box: %w", errorValue)
 	}
-	return nil
+	return forgetTheCurrentCompany()
+}
+
+func forgetTheCurrentCompany() error {
+	errorValue := os.Remove(blueclaw.CompanyHostCurrentPath)
+	if errors.Is(errorValue, fs.ErrNotExist) {
+		return nil
+	}
+	return errorValue
+}
+
+func HoldsACompany() (bool, error) {
+	companyID, errorValue := installedCompanyID()
+	return companyID != "", errorValue
 }
 
 func StandUp(machine Machine, progress io.Writer) error {

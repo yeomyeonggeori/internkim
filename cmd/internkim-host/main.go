@@ -311,6 +311,8 @@ func boxDaemon(appURL string) box.Daemon {
 		StandDown:      standDown,
 		StandUp:        standUp,
 		StartKeepingUp: startKeepingUpWithTheServiceBox,
+		FollowRelease:  followTheServiceBoxRelease,
+		PackageVersion: thisBoxRelease(),
 	}
 }
 
@@ -361,7 +363,8 @@ func runUpdate(arguments []string) error {
 	if errorValue := companyhost.RequireAdministrator(); errorValue != nil {
 		return errorValue
 	}
-	return hostupdate.Update(hostupdate.NotePath, hostupdate.TagOf(*version), hostupdate.RunPackagedInstallScript, time.Now)
+	target := hostupdate.TagOf(*version)
+	return hostupdate.Update(hostupdate.NotePath, target, standbyBoxesTakeItFirst(target), hostupdate.RunPackagedInstallScript, time.Now)
 }
 
 func runInstall(arguments []string) error {

@@ -11,6 +11,7 @@ import {
 	boxKeyOfAssertion,
 	boxOfPublicKey,
 	BoxRefused,
+	aimStandbyBoxesAt,
 	boxSessionFor,
 	type ClaimIntent,
 	claimBox,
@@ -522,6 +523,24 @@ describe('connecting an empty box', () => {
 		expect((await boxSessionFor(credentials, first.publicKey, environment, appURL))?.role).toBe('standby');
 		expect((await companyBoxesOf(client, lapsing.companyID)).takeOver).toEqual({ isAutomatic: true, lapseSeconds: 300 });
 		await client.storage.from('box_backup').remove([keptManifest]);
+	});
+
+	test('a standby box is aimed at the release the service box is about to take, and the service box waits for it', async () => {
+		const releasing = await aCompany('releasing');
+		const first = await aBox();
+		const second = await aBox();
+		await claimWithCode(releasing.companyID, first.publicKey, await announcedCode(first));
+		await claimWithCode(releasing.companyID, second.publicKey, await announcedCode(second), 'add');
+		await boxSessionFor(credentials, first.publicKey, environment, appURL, 'v0.0.1');
+		expect((await boxSessionFor(credentials, second.publicKey, environment, appURL, 'v0.0.1'))?.targetVersion).toBeNull();
+
+		await expect(aimStandbyBoxesAt(client, second.publicKey, 'v0.0.2')).rejects.toMatchObject({ status: 409 });
+		expect((await aimStandbyBoxesAt(client, first.publicKey, 'v0.0.2')).map((short) => short.publicKey)).toEqual([second.publicKey]);
+		expect((await boxSessionFor(credentials, second.publicKey, environment, appURL, 'v0.0.1'))?.targetVersion).toBe('v0.0.2');
+		expect((await boxSessionFor(credentials, first.publicKey, environment, appURL, 'v0.0.1'))?.targetVersion).toBeNull();
+
+		await boxSessionFor(credentials, second.publicKey, environment, appURL, 'v0.0.2');
+		expect(await aimStandbyBoxesAt(client, first.publicKey, 'v0.0.2')).toEqual([]);
 	});
 
 	test('the newest snapshot the boxes share is the newest readable one sealed to the company key', async () => {
