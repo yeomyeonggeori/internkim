@@ -34,6 +34,10 @@ for (const viewport of [{ width: 320, height: 760 }, { width: 568, height: 320 }
 			await expect(page.getByRole('dialog', { name: '더보기' })).toBeHidden();
 			if (viewport.width === 320) {
 				await page.evaluate(() => {
+					const field = document.createElement('textarea');
+					field.style.cssText = 'position: fixed; top: 0; left: 0; opacity: 0';
+					document.body.appendChild(field);
+					field.focus({ preventScroll: true });
 					const viewport = window.visualViewport!;
 					Object.defineProperties(viewport, { height: { configurable: true, get: () => 440 }, offsetTop: { configurable: true, get: () => 24 } });
 					viewport.dispatchEvent(new Event('resize'));
