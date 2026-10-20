@@ -127,12 +127,13 @@ function keptAddress(digest: string): string {
 }
 
 describe('persona identity forwarding', () => {
-	test('allows identity reads and admin updates while removing soul writes', () => {
+	test('allows identity reads and admin updates and carries no soul route', () => {
 		const read = workspaceCallOf('person.persona.identity', {}, 'sample@example.test');
 		expect(read).toEqual({ method: 'GET', url: 'http://internkim/persona/api/identity', requester: 'sample@example.test' });
 		const write = workspaceCallOf('person.persona.identity.update', { identity: { names: ['이샘플'] }, actor: { role: 'admin' } }, 'sample@example.test');
 		expect(write).toMatchObject({ method: 'POST', url: 'http://internkim/persona/api/identity', requester: 'sample@example.test' });
 		expect(write?.body).toContain('이샘플');
+		expect(workspaceCallOf('person.persona.soul', {}, 'sample@example.test')).toBeNull();
 		expect(workspaceCallOf('person.persona.soul.update', {}, 'sample@example.test')).toBeNull();
 	});
 });

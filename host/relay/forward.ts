@@ -477,8 +477,7 @@ export const workspaceCapabilityPaths: Record<string, string> = {
 	'person.agent_learning.skills.get': '/agent-learning/api/skills',
 	'person.agent_learning.settings.get': '/agent-learning/api/settings',
 	'person.agent_learning.soul.get': '/agent-learning/api/soul',
-	'person.agent_learning.soul.history': '/agent-learning/api/soul/history',
-	'person.persona.soul': '/persona/api/soul'
+	'person.agent_learning.soul.history': '/agent-learning/api/soul/history'
 };
 
 export const workspaceWriteCapabilityPaths: Record<string, string> = {

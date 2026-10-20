@@ -1,8 +1,8 @@
 {
-  "aggregateHash": "93e2782efe52adfd18dfb063fefab4d0da974f20496409e93a5a1634a5265e96",
+  "aggregateHash": "6c82070735ed5061e8337c1086a5708655633cb62be8649f896e5848f3b0ab15",
   "capabilityToolCatalog": {
     "fileName": "capability-tools.json",
-    "hash": "4b70084cad3035401ca39a2b9e185cdf9869cb0cf07451a5aef770b1da901e70"
+    "hash": "b853368476fce7d772545869bec4a7a8cd832b914383d55d9b590252ee38458e"
   },
   "protocolVersion": "0.4.0",
   "schemas": [

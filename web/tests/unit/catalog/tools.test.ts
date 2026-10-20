@@ -207,6 +207,10 @@ describe('canonical capability tools', () => {
       'person_invite',
       'person_list',
       'person_update',
+      'persona_identity_get',
+      'persona_identity_update',
+      'persona_profile_get',
+      'persona_profile_update',
       'schedule_cancel',
       'schedule_create',
       'schedule_list',
@@ -377,6 +381,8 @@ describe('canonical capability tools', () => {
       'mail_message_move',
       'mail_message_send',
       'host_update',
+      'persona_identity_update',
+      'persona_profile_update',
     ]);
 
     for (const tool of stateChangingTools) {

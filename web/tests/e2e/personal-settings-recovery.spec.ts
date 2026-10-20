@@ -26,9 +26,6 @@ async function mockSettingsPage(page: Page, userResponse: (route: Route, request
 	await page.route('**/persona/api/identity', (route) =>
 		route.fulfill({ json: { schemaVersion: 1, names: ['Intern Kim'] } })
 	);
-	await page.route('**/persona/api/soul', (route) =>
-		route.fulfill({ json: { schemaVersion: 1, values: [], boundaries: [], workingStyle: [] } })
-	);
 	await page.goto('/settings/');
 }
 

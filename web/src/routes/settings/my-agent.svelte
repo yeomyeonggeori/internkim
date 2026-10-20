@@ -12,7 +12,7 @@
 	import { Spinner } from '$lib/components/ui/spinner';
 	import { onMount } from 'svelte';
 	import { toast } from 'svelte-sonner';
-	import { draftToUser, toneRegisters, toneTraitLimit, toneTraits, userToDraft, type UserDraft } from '$lib/persona/soul-draft';
+	import { draftToUser, toneRegisters, toneTraitLimit, toneTraits, userToDraft, type UserDraft } from '$lib/persona/user-draft';
 	import { defaultCallMe, replyLanguageOptions } from '$lib/persona/languages';
 	import { fetchMyAgentDocument, updateMyAgentDocument } from './persona-api';
 	import { companySettingsText } from './text';

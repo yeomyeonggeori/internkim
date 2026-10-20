@@ -36208,6 +36208,953 @@
       "sideEffectClass": "destructive",
       "version": "1",
       "worksOffline": false
+    },
+    {
+      "answeredBy": "company",
+      "availability": {
+        "state": "ok"
+      },
+      "canonicalName": "persona_identity_get",
+      "description": "Read the agent's persona identity: every name it answers to, the first being the one it introduces itself with, and its handle, role, creature, emoji and introduction. There is one for the whole company, and any member may read it.",
+      "estimatedLatency": "low",
+      "idempotency": {
+        "required": false,
+        "scope": "operation",
+        "supported": false
+      },
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {},
+        "type": "object"
+      },
+      "inputSchemaStrict": true,
+      "modelName": "persona_identity_get",
+      "modelVisibility": "visible",
+      "modelVisible": true,
+      "name": "persona_identity_get",
+      "namespace": "persona",
+      "namespaceSummary": "Who the agent is to the whole company, and how it works with the requester: what it calls them, their language and tone, and their morning briefing.",
+      "outputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "description": "Who the agent is: the names it answers to, what it is, and how it introduces itself. One document per workspace, written by the host and read by the runtime before every turn.",
+        "properties": {
+          "creature": {
+            "description": "What the agent is, when it has a form: a mascot, an animal, a character.",
+            "maxLength": 120,
+            "type": "string"
+          },
+          "emoji": {
+            "description": "The emoji that stands for the agent.",
+            "maxLength": 8,
+            "type": "string"
+          },
+          "handle": {
+            "description": "The machine handle people mention the agent by, on a messenger that has handles.",
+            "pattern": "^[a-z0-9][a-z0-9_.-]{0,31}$",
+            "type": "string"
+          },
+          "introduction": {
+            "description": "How the agent introduces itself when asked who it is.",
+            "maxLength": 400,
+            "type": "string"
+          },
+          "names": {
+            "description": "Every name the agent answers to, in any language or spelling. The first is the one it introduces itself with.",
+            "items": {
+              "maxLength": 64,
+              "minLength": 1,
+              "type": "string"
+            },
+            "maxItems": 8,
+            "minItems": 1,
+            "type": "array"
+          },
+          "role": {
+            "description": "One line on what the agent is for at this company.",
+            "maxLength": 120,
+            "type": "string"
+          },
+          "schemaVersion": {
+            "const": 1,
+            "type": "number"
+          }
+        },
+        "required": [
+          "schemaVersion",
+          "names"
+        ],
+        "type": "object"
+      },
+      "outputSchemaStrict": true,
+      "policyResource": "tool:persona_identity_get",
+      "privacyClass": "workspace_persona",
+      "requiresUserPresence": false,
+      "resultContract": {
+        "effects": [],
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "additionalProperties": false,
+          "description": "Who the agent is: the names it answers to, what it is, and how it introduces itself. One document per workspace, written by the host and read by the runtime before every turn.",
+          "properties": {
+            "creature": {
+              "description": "What the agent is, when it has a form: a mascot, an animal, a character.",
+              "maxLength": 120,
+              "type": "string"
+            },
+            "emoji": {
+              "description": "The emoji that stands for the agent.",
+              "maxLength": 8,
+              "type": "string"
+            },
+            "handle": {
+              "description": "The machine handle people mention the agent by, on a messenger that has handles.",
+              "pattern": "^[a-z0-9][a-z0-9_.-]{0,31}$",
+              "type": "string"
+            },
+            "introduction": {
+              "description": "How the agent introduces itself when asked who it is.",
+              "maxLength": 400,
+              "type": "string"
+            },
+            "names": {
+              "description": "Every name the agent answers to, in any language or spelling. The first is the one it introduces itself with.",
+              "items": {
+                "maxLength": 64,
+                "minLength": 1,
+                "type": "string"
+              },
+              "maxItems": 8,
+              "minItems": 1,
+              "type": "array"
+            },
+            "role": {
+              "description": "One line on what the agent is for at this company.",
+              "maxLength": 120,
+              "type": "string"
+            },
+            "schemaVersion": {
+              "const": 1,
+              "type": "number"
+            }
+          },
+          "required": [
+            "schemaVersion",
+            "names"
+          ],
+          "type": "object"
+        }
+      },
+      "sideEffect": "read",
+      "sideEffectClass": "read",
+      "version": "1",
+      "worksOffline": false
+    },
+    {
+      "answeredBy": "company",
+      "availability": {
+        "state": "ok"
+      },
+      "canonicalName": "persona_identity_update",
+      "description": "Change the agent's persona identity for the whole company. Only an administrator may. Only the fields the call names change, and names replaces the whole list. Every colleague meets the agent by these names, so put it to the requester before calling. The whole identity is answered back.",
+      "estimatedLatency": "medium",
+      "idempotency": {
+        "required": false,
+        "scope": "operation",
+        "supported": false
+      },
+      "inputIntentSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "creature": {
+            "description": "What the agent is, when it has a form: a mascot, an animal, a character.",
+            "maxLength": 120,
+            "type": "string"
+          },
+          "emoji": {
+            "description": "The emoji that stands for the agent.",
+            "maxLength": 8,
+            "type": "string"
+          },
+          "handle": {
+            "description": "The machine handle people mention the agent by, on a messenger that has handles.",
+            "pattern": "^[a-z0-9][a-z0-9_.-]{0,31}$",
+            "type": "string"
+          },
+          "introduction": {
+            "description": "How the agent introduces itself when asked who it is.",
+            "maxLength": 400,
+            "type": "string"
+          },
+          "names": {
+            "description": "Every name the agent answers to, in any language or spelling. The first is the one it introduces itself with.",
+            "items": {
+              "maxLength": 64,
+              "minLength": 1,
+              "type": "string"
+            },
+            "maxItems": 8,
+            "minItems": 1,
+            "type": "array"
+          },
+          "role": {
+            "description": "One line on what the agent is for at this company.",
+            "maxLength": 120,
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "creature": {
+            "description": "What the agent is, when it has a form: a mascot, an animal, a character.",
+            "maxLength": 120,
+            "type": "string"
+          },
+          "emoji": {
+            "description": "The emoji that stands for the agent.",
+            "maxLength": 8,
+            "type": "string"
+          },
+          "handle": {
+            "description": "The machine handle people mention the agent by, on a messenger that has handles.",
+            "pattern": "^[a-z0-9][a-z0-9_.-]{0,31}$",
+            "type": "string"
+          },
+          "introduction": {
+            "description": "How the agent introduces itself when asked who it is.",
+            "maxLength": 400,
+            "type": "string"
+          },
+          "names": {
+            "description": "Every name the agent answers to, in any language or spelling. The first is the one it introduces itself with.",
+            "items": {
+              "maxLength": 64,
+              "minLength": 1,
+              "type": "string"
+            },
+            "maxItems": 8,
+            "minItems": 1,
+            "type": "array"
+          },
+          "role": {
+            "description": "One line on what the agent is for at this company.",
+            "maxLength": 120,
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "inputSchemaStrict": true,
+      "modelName": "persona_identity_update",
+      "modelVisibility": "visible",
+      "modelVisible": true,
+      "name": "persona_identity_update",
+      "namespace": "persona",
+      "namespaceSummary": "Who the agent is to the whole company, and how it works with the requester: what it calls them, their language and tone, and their morning briefing.",
+      "outputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "description": "Who the agent is: the names it answers to, what it is, and how it introduces itself. One document per workspace, written by the host and read by the runtime before every turn.",
+        "properties": {
+          "creature": {
+            "description": "What the agent is, when it has a form: a mascot, an animal, a character.",
+            "maxLength": 120,
+            "type": "string"
+          },
+          "emoji": {
+            "description": "The emoji that stands for the agent.",
+            "maxLength": 8,
+            "type": "string"
+          },
+          "handle": {
+            "description": "The machine handle people mention the agent by, on a messenger that has handles.",
+            "pattern": "^[a-z0-9][a-z0-9_.-]{0,31}$",
+            "type": "string"
+          },
+          "introduction": {
+            "description": "How the agent introduces itself when asked who it is.",
+            "maxLength": 400,
+            "type": "string"
+          },
+          "names": {
+            "description": "Every name the agent answers to, in any language or spelling. The first is the one it introduces itself with.",
+            "items": {
+              "maxLength": 64,
+              "minLength": 1,
+              "type": "string"
+            },
+            "maxItems": 8,
+            "minItems": 1,
+            "type": "array"
+          },
+          "role": {
+            "description": "One line on what the agent is for at this company.",
+            "maxLength": 120,
+            "type": "string"
+          },
+          "schemaVersion": {
+            "const": 1,
+            "type": "number"
+          }
+        },
+        "required": [
+          "schemaVersion",
+          "names"
+        ],
+        "type": "object"
+      },
+      "outputSchemaStrict": true,
+      "policyResource": "tool:persona_identity_update",
+      "privacyClass": "workspace_persona",
+      "requiresApproval": true,
+      "requiresUserPresence": false,
+      "resultContract": {
+        "effects": [
+          {
+            "effect": "updated",
+            "effectIdentity": "singleton",
+            "objectType": "persona_identity"
+          }
+        ],
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "additionalProperties": false,
+          "description": "Who the agent is: the names it answers to, what it is, and how it introduces itself. One document per workspace, written by the host and read by the runtime before every turn.",
+          "properties": {
+            "creature": {
+              "description": "What the agent is, when it has a form: a mascot, an animal, a character.",
+              "maxLength": 120,
+              "type": "string"
+            },
+            "emoji": {
+              "description": "The emoji that stands for the agent.",
+              "maxLength": 8,
+              "type": "string"
+            },
+            "handle": {
+              "description": "The machine handle people mention the agent by, on a messenger that has handles.",
+              "pattern": "^[a-z0-9][a-z0-9_.-]{0,31}$",
+              "type": "string"
+            },
+            "introduction": {
+              "description": "How the agent introduces itself when asked who it is.",
+              "maxLength": 400,
+              "type": "string"
+            },
+            "names": {
+              "description": "Every name the agent answers to, in any language or spelling. The first is the one it introduces itself with.",
+              "items": {
+                "maxLength": 64,
+                "minLength": 1,
+                "type": "string"
+              },
+              "maxItems": 8,
+              "minItems": 1,
+              "type": "array"
+            },
+            "role": {
+              "description": "One line on what the agent is for at this company.",
+              "maxLength": 120,
+              "type": "string"
+            },
+            "schemaVersion": {
+              "const": 1,
+              "type": "number"
+            }
+          },
+          "required": [
+            "schemaVersion",
+            "names"
+          ],
+          "type": "object"
+        }
+      },
+      "sideEffect": "workspace_write",
+      "sideEffectClass": "workspace_write",
+      "version": "1",
+      "worksOffline": false
+    },
+    {
+      "answeredBy": "company",
+      "availability": {
+        "state": "ok"
+      },
+      "canonicalName": "persona_profile_get",
+      "description": "Read the requester's persona profile, which says how they want the agent to work with them: what to call them, what to know about them, their preferences, tone and reply language, and the daily morning briefing's time and whether it is on. It is always the requester's own.",
+      "estimatedLatency": "low",
+      "idempotency": {
+        "required": false,
+        "scope": "operation",
+        "supported": false
+      },
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {},
+        "type": "object"
+      },
+      "inputSchemaStrict": true,
+      "modelName": "persona_profile_get",
+      "modelVisibility": "visible",
+      "modelVisible": true,
+      "name": "persona_profile_get",
+      "namespace": "persona",
+      "namespaceSummary": "Who the agent is to the whole company, and how it works with the requester: what it calls them, their language and tone, and their morning briefing.",
+      "outputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "description": "How one person wants the agent to work with them. One document per person, written by the host from that person's own settings and read by the runtime when that person asks.",
+        "properties": {
+          "about": {
+            "description": "What the person wants the agent to know about them and their work.",
+            "maxLength": 400,
+            "type": "string"
+          },
+          "callMe": {
+            "description": "What the person wants to be called.",
+            "maxLength": 64,
+            "type": "string"
+          },
+          "language": {
+            "additionalProperties": false,
+            "properties": {
+              "default": {
+                "description": "The language the person wants answers in, as a BCP 47 tag.",
+                "pattern": "^[a-z]{2,3}(-[A-Za-z0-9]{2,8})*$",
+                "type": "string"
+              }
+            },
+            "type": "object"
+          },
+          "morningBriefing": {
+            "additionalProperties": false,
+            "properties": {
+              "enabled": {
+                "description": "Whether the morning briefing is enabled.",
+                "type": "boolean"
+              },
+              "time": {
+                "description": "The local company time for the briefing, in HH:MM format.",
+                "pattern": "^(?:[01][0-9]|2[0-3]):[0-5][0-9]$",
+                "type": "string"
+              }
+            },
+            "type": "object"
+          },
+          "preferences": {
+            "description": "How the person wants the agent to work with them, one sentence each.",
+            "items": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            },
+            "maxItems": 8,
+            "type": "array"
+          },
+          "schemaVersion": {
+            "const": 1,
+            "type": "number"
+          },
+          "tone": {
+            "additionalProperties": false,
+            "properties": {
+              "register": {
+                "description": "The level of formality the person wants.",
+                "enum": [
+                  "formal",
+                  "polite",
+                  "casual"
+                ],
+                "type": "string"
+              },
+              "traits": {
+                "description": "Adjectives for how the person wants the agent to sound.",
+                "items": {
+                  "maxLength": 40,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "maxItems": 6,
+                "type": "array"
+              }
+            },
+            "type": "object"
+          }
+        },
+        "required": [
+          "schemaVersion"
+        ],
+        "type": "object"
+      },
+      "outputSchemaStrict": true,
+      "policyResource": "tool:persona_profile_get",
+      "privacyClass": "workspace_persona",
+      "requiresUserPresence": false,
+      "resultContract": {
+        "effects": [],
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "additionalProperties": false,
+          "description": "How one person wants the agent to work with them. One document per person, written by the host from that person's own settings and read by the runtime when that person asks.",
+          "properties": {
+            "about": {
+              "description": "What the person wants the agent to know about them and their work.",
+              "maxLength": 400,
+              "type": "string"
+            },
+            "callMe": {
+              "description": "What the person wants to be called.",
+              "maxLength": 64,
+              "type": "string"
+            },
+            "language": {
+              "additionalProperties": false,
+              "properties": {
+                "default": {
+                  "description": "The language the person wants answers in, as a BCP 47 tag.",
+                  "pattern": "^[a-z]{2,3}(-[A-Za-z0-9]{2,8})*$",
+                  "type": "string"
+                }
+              },
+              "type": "object"
+            },
+            "morningBriefing": {
+              "additionalProperties": false,
+              "properties": {
+                "enabled": {
+                  "description": "Whether the morning briefing is enabled.",
+                  "type": "boolean"
+                },
+                "time": {
+                  "description": "The local company time for the briefing, in HH:MM format.",
+                  "pattern": "^(?:[01][0-9]|2[0-3]):[0-5][0-9]$",
+                  "type": "string"
+                }
+              },
+              "type": "object"
+            },
+            "preferences": {
+              "description": "How the person wants the agent to work with them, one sentence each.",
+              "items": {
+                "maxLength": 200,
+                "minLength": 1,
+                "type": "string"
+              },
+              "maxItems": 8,
+              "type": "array"
+            },
+            "schemaVersion": {
+              "const": 1,
+              "type": "number"
+            },
+            "tone": {
+              "additionalProperties": false,
+              "properties": {
+                "register": {
+                  "description": "The level of formality the person wants.",
+                  "enum": [
+                    "formal",
+                    "polite",
+                    "casual"
+                  ],
+                  "type": "string"
+                },
+                "traits": {
+                  "description": "Adjectives for how the person wants the agent to sound.",
+                  "items": {
+                    "maxLength": 40,
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  "maxItems": 6,
+                  "type": "array"
+                }
+              },
+              "type": "object"
+            }
+          },
+          "required": [
+            "schemaVersion"
+          ],
+          "type": "object"
+        }
+      },
+      "sideEffect": "read",
+      "sideEffectClass": "read",
+      "version": "1",
+      "worksOffline": false
+    },
+    {
+      "answeredBy": "company",
+      "availability": {
+        "state": "ok"
+      },
+      "canonicalName": "persona_profile_update",
+      "description": "Change the requester's persona profile, the only profile this ever changes. Only the fields the call names change, down to one nested field: morningBriefing with only enabled false turns the briefing off and keeps its time. A list such as preferences replaces the whole list. The whole profile is answered back.",
+      "estimatedLatency": "medium",
+      "idempotency": {
+        "required": false,
+        "scope": "operation",
+        "supported": false
+      },
+      "inputIntentSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "about": {
+            "description": "What the person wants the agent to know about them and their work.",
+            "maxLength": 400,
+            "type": "string"
+          },
+          "callMe": {
+            "description": "What the person wants to be called.",
+            "maxLength": 64,
+            "type": "string"
+          },
+          "language": {
+            "additionalProperties": false,
+            "properties": {
+              "default": {
+                "description": "The language the person wants answers in, as a BCP 47 tag.",
+                "pattern": "^[a-z]{2,3}(-[A-Za-z0-9]{2,8})*$",
+                "type": "string"
+              }
+            },
+            "type": "object"
+          },
+          "morningBriefing": {
+            "additionalProperties": false,
+            "properties": {
+              "enabled": {
+                "description": "Whether the morning briefing is enabled.",
+                "type": "boolean"
+              },
+              "time": {
+                "description": "The local company time for the briefing, in HH:MM format.",
+                "pattern": "^(?:[01][0-9]|2[0-3]):[0-5][0-9]$",
+                "type": "string"
+              }
+            },
+            "type": "object"
+          },
+          "preferences": {
+            "description": "How the person wants the agent to work with them, one sentence each.",
+            "items": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            },
+            "maxItems": 8,
+            "type": "array"
+          },
+          "tone": {
+            "additionalProperties": false,
+            "properties": {
+              "register": {
+                "description": "The level of formality the person wants.",
+                "enum": [
+                  "formal",
+                  "polite",
+                  "casual"
+                ],
+                "type": "string"
+              },
+              "traits": {
+                "description": "Adjectives for how the person wants the agent to sound.",
+                "items": {
+                  "maxLength": 40,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "maxItems": 6,
+                "type": "array"
+              }
+            },
+            "type": "object"
+          }
+        },
+        "type": "object"
+      },
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "about": {
+            "description": "What the person wants the agent to know about them and their work.",
+            "maxLength": 400,
+            "type": "string"
+          },
+          "callMe": {
+            "description": "What the person wants to be called.",
+            "maxLength": 64,
+            "type": "string"
+          },
+          "language": {
+            "additionalProperties": false,
+            "properties": {
+              "default": {
+                "description": "The language the person wants answers in, as a BCP 47 tag.",
+                "pattern": "^[a-z]{2,3}(-[A-Za-z0-9]{2,8})*$",
+                "type": "string"
+              }
+            },
+            "type": "object"
+          },
+          "morningBriefing": {
+            "additionalProperties": false,
+            "properties": {
+              "enabled": {
+                "description": "Whether the morning briefing is enabled.",
+                "type": "boolean"
+              },
+              "time": {
+                "description": "The local company time for the briefing, in HH:MM format.",
+                "pattern": "^(?:[01][0-9]|2[0-3]):[0-5][0-9]$",
+                "type": "string"
+              }
+            },
+            "type": "object"
+          },
+          "preferences": {
+            "description": "How the person wants the agent to work with them, one sentence each.",
+            "items": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            },
+            "maxItems": 8,
+            "type": "array"
+          },
+          "tone": {
+            "additionalProperties": false,
+            "properties": {
+              "register": {
+                "description": "The level of formality the person wants.",
+                "enum": [
+                  "formal",
+                  "polite",
+                  "casual"
+                ],
+                "type": "string"
+              },
+              "traits": {
+                "description": "Adjectives for how the person wants the agent to sound.",
+                "items": {
+                  "maxLength": 40,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "maxItems": 6,
+                "type": "array"
+              }
+            },
+            "type": "object"
+          }
+        },
+        "type": "object"
+      },
+      "inputSchemaStrict": true,
+      "modelName": "persona_profile_update",
+      "modelVisibility": "visible",
+      "modelVisible": true,
+      "name": "persona_profile_update",
+      "namespace": "persona",
+      "namespaceSummary": "Who the agent is to the whole company, and how it works with the requester: what it calls them, their language and tone, and their morning briefing.",
+      "outputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "description": "How one person wants the agent to work with them. One document per person, written by the host from that person's own settings and read by the runtime when that person asks.",
+        "properties": {
+          "about": {
+            "description": "What the person wants the agent to know about them and their work.",
+            "maxLength": 400,
+            "type": "string"
+          },
+          "callMe": {
+            "description": "What the person wants to be called.",
+            "maxLength": 64,
+            "type": "string"
+          },
+          "language": {
+            "additionalProperties": false,
+            "properties": {
+              "default": {
+                "description": "The language the person wants answers in, as a BCP 47 tag.",
+                "pattern": "^[a-z]{2,3}(-[A-Za-z0-9]{2,8})*$",
+                "type": "string"
+              }
+            },
+            "type": "object"
+          },
+          "morningBriefing": {
+            "additionalProperties": false,
+            "properties": {
+              "enabled": {
+                "description": "Whether the morning briefing is enabled.",
+                "type": "boolean"
+              },
+              "time": {
+                "description": "The local company time for the briefing, in HH:MM format.",
+                "pattern": "^(?:[01][0-9]|2[0-3]):[0-5][0-9]$",
+                "type": "string"
+              }
+            },
+            "type": "object"
+          },
+          "preferences": {
+            "description": "How the person wants the agent to work with them, one sentence each.",
+            "items": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            },
+            "maxItems": 8,
+            "type": "array"
+          },
+          "schemaVersion": {
+            "const": 1,
+            "type": "number"
+          },
+          "tone": {
+            "additionalProperties": false,
+            "properties": {
+              "register": {
+                "description": "The level of formality the person wants.",
+                "enum": [
+                  "formal",
+                  "polite",
+                  "casual"
+                ],
+                "type": "string"
+              },
+              "traits": {
+                "description": "Adjectives for how the person wants the agent to sound.",
+                "items": {
+                  "maxLength": 40,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "maxItems": 6,
+                "type": "array"
+              }
+            },
+            "type": "object"
+          }
+        },
+        "required": [
+          "schemaVersion"
+        ],
+        "type": "object"
+      },
+      "outputSchemaStrict": true,
+      "policyResource": "tool:persona_profile_update",
+      "privacyClass": "workspace_persona",
+      "requiresUserPresence": false,
+      "resultContract": {
+        "effects": [
+          {
+            "effect": "updated",
+            "effectIdentity": "singleton",
+            "objectType": "persona_profile"
+          }
+        ],
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "additionalProperties": false,
+          "description": "How one person wants the agent to work with them. One document per person, written by the host from that person's own settings and read by the runtime when that person asks.",
+          "properties": {
+            "about": {
+              "description": "What the person wants the agent to know about them and their work.",
+              "maxLength": 400,
+              "type": "string"
+            },
+            "callMe": {
+              "description": "What the person wants to be called.",
+              "maxLength": 64,
+              "type": "string"
+            },
+            "language": {
+              "additionalProperties": false,
+              "properties": {
+                "default": {
+                  "description": "The language the person wants answers in, as a BCP 47 tag.",
+                  "pattern": "^[a-z]{2,3}(-[A-Za-z0-9]{2,8})*$",
+                  "type": "string"
+                }
+              },
+              "type": "object"
+            },
+            "morningBriefing": {
+              "additionalProperties": false,
+              "properties": {
+                "enabled": {
+                  "description": "Whether the morning briefing is enabled.",
+                  "type": "boolean"
+                },
+                "time": {
+                  "description": "The local company time for the briefing, in HH:MM format.",
+                  "pattern": "^(?:[01][0-9]|2[0-3]):[0-5][0-9]$",
+                  "type": "string"
+                }
+              },
+              "type": "object"
+            },
+            "preferences": {
+              "description": "How the person wants the agent to work with them, one sentence each.",
+              "items": {
+                "maxLength": 200,
+                "minLength": 1,
+                "type": "string"
+              },
+              "maxItems": 8,
+              "type": "array"
+            },
+            "schemaVersion": {
+              "const": 1,
+              "type": "number"
+            },
+            "tone": {
+              "additionalProperties": false,
+              "properties": {
+                "register": {
+                  "description": "The level of formality the person wants.",
+                  "enum": [
+                    "formal",
+                    "polite",
+                    "casual"
+                  ],
+                  "type": "string"
+                },
+                "traits": {
+                  "description": "Adjectives for how the person wants the agent to sound.",
+                  "items": {
+                    "maxLength": 40,
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  "maxItems": 6,
+                  "type": "array"
+                }
+              },
+              "type": "object"
+            }
+          },
+          "required": [
+            "schemaVersion"
+          ],
+          "type": "object"
+        }
+      },
+      "sideEffect": "workspace_write",
+      "sideEffectClass": "workspace_write",
+      "version": "1",
+      "worksOffline": false
     }
   ]
 }

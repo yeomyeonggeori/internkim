@@ -70,11 +70,6 @@
 	],
 	"verbs": [
 		{
-			"tool": "persona_read",
-			"verb": "read",
-			"says": "get"
-		},
-		{
 			"tool": "skill_remove",
 			"verb": "remove",
 			"says": "delete"
