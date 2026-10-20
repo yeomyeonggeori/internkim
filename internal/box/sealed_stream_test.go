@@ -8,7 +8,7 @@ import (
 	"testing"
 )
 
-var backupPurpose = BackupPurpose(sampleCompanyID, "internkim-backup-20261019T000000Z.tar")
+var backupPurpose = BackupChunkPurpose(sampleCompanyID, "chunk-one")
 
 func sealedStreamOf(t *testing.T, recipient Identity, plaintext []byte) []byte {
 	t.Helper()
@@ -72,7 +72,7 @@ func TestABackupDoesNotOpenForAnotherBoxPurposeOrAfterTampering(t *testing.T) {
 	if _, errorValue := openedStream(Keyring{Identity: freshTestIdentity(t)}, sealed, backupPurpose); !errors.Is(errorValue, ErrCompanyKeyNotHeld) {
 		t.Fatalf("a box without the key opened it: %v", errorValue)
 	}
-	if _, errorValue := openedStream(Keyring{Identity: holder}, sealed, BackupPurpose(sampleCompanyID, "another-backup.tar")); errorValue == nil {
+	if _, errorValue := openedStream(Keyring{Identity: holder}, sealed, BackupChunkPurpose(sampleCompanyID, "chunk-two")); errorValue == nil {
 		t.Fatal("a backup opened under another archive's name")
 	}
 	altered := append([]byte{}, sealed...)

@@ -1,13 +1,29 @@
 {
-  "version": 1,
-  "archiveName": "internkim-backup-20261019T030000Z.tar",
+  "version": 2,
+  "name": "internkim-snapshot-20261019T030000Z.json",
   "sealingKey": "c2FtcGxlLXNlYWxpbmcta2V5LXNhbXBsZS1zZWFsaW4",
   "createdAt": "2026-10-19T03:00:00Z",
-  "parts": [
-    {
-      "name": "part-000001",
-      "size": 1024,
-      "sha256": "00"
-    }
-  ]
+  "archive": {
+    "format": "internkim-host-backup",
+    "formatVersion": 1,
+    "createdAt": "2026-10-19T03:00:00Z",
+    "packageVersion": "1:0.0.1",
+    "companyID": "00000000-0000-4000-8000-0000000000c1",
+    "postgresqlMajor": 17,
+    "fileRoots": [
+      "state"
+    ],
+    "members": [
+      {
+        "name": "roster.json",
+        "size": 2,
+        "sha256": "00"
+      }
+    ]
+  },
+  "chunks": {
+    "roster.json": [
+      "00"
+    ]
+  }
 }

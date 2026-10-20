@@ -26,10 +26,10 @@ type sealedStreamHeader struct {
 	Enc       string `json:"enc"`
 }
 
-func BackupPurpose(companyID, archiveName string) SealPurpose {
+func BackupChunkPurpose(companyID, chunkID string) SealPurpose {
 	return SealPurpose{
 		Information:    backupSealInformation,
-		AdditionalData: additionalDataOf(companyID, archiveName, "backup"),
+		AdditionalData: additionalDataOf(companyID, chunkID, "backup-chunk"),
 	}
 }
 

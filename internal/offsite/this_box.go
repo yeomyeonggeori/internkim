@@ -18,11 +18,12 @@ type ThisBox struct {
 }
 
 type Shipment struct {
-	Manifest Manifest
-	Pruned   []string
+	Manifest       Manifest
+	UploadedChunks int
+	Pruned         []string
 }
 
-func (place ThisBox) Destination() (Destination, box.Keyring, bool, error) {
+func (place ThisBox) destination() (Destination, box.Keyring, bool, error) {
 	connected, errorValue := box.LoadConnected(place.BoxStatePath)
 	if errorValue != nil {
 		return Destination{}, box.Keyring{}, false, nil
@@ -54,30 +55,23 @@ func (place ThisBox) readAccessToken() (string, error) {
 	return strings.TrimSpace(string(document)), nil
 }
 
-func (place ThisBox) Ship(ctx context.Context, archivePath string, keep int, now time.Time) (Shipment, bool, error) {
-	destination, _, isConnected, errorValue := place.Destination()
+func (place ThisBox) Ship(ctx context.Context, keep int, now time.Time, snapshotTo func(*Snapshot) (companyhost.Snapshot, error)) (Shipment, bool, error) {
+	destination, keyring, isConnected, errorValue := place.destination()
 	if errorValue != nil || !isConnected {
 		return Shipment{}, false, errorValue
 	}
-	manifest, errorValue := Ship(ctx, archivePath, destination, now)
+	snapshot, errorValue := StartSnapshot(ctx, destination, keyring)
 	if errorValue != nil {
 		return Shipment{}, true, errorValue
 	}
-	pruned, errorValue := Prune(ctx, destination, keep)
-	return Shipment{Manifest: manifest, Pruned: pruned}, true, errorValue
-}
-
-func (place ThisBox) FetchNewest(ctx context.Context, archivePath string) (Manifest, error) {
-	destination, keyring, isConnected, errorValue := place.Destination()
+	written, errorValue := snapshotTo(snapshot)
 	if errorValue != nil {
-		return Manifest{}, errorValue
+		return Shipment{}, true, errorValue
 	}
-	if !isConnected {
-		return Manifest{}, ErrNoBackup
-	}
-	manifest, errorValue := Newest(ctx, destination)
+	manifest, errorValue := snapshot.Finish(written.Manifest, now)
 	if errorValue != nil {
-		return Manifest{}, errorValue
+		return Shipment{}, true, errorValue
 	}
-	return manifest, Fetch(ctx, destination, manifest, keyring, archivePath)
+	pruned, errorValue := Prune(ctx, destination, keep, now)
+	return Shipment{Manifest: manifest, UploadedChunks: snapshot.UploadedChunks(), Pruned: pruned}, true, errorValue
 }

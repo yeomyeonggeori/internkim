@@ -36,9 +36,27 @@ func runBackup(arguments []string) error {
 		return errorValue
 	}
 	printBackup(os.Stdout, result)
-	shipment, isShipped, errorValue := thisBox().Ship(context.Background(), result.ArchivePath, *keep, time.Now())
+	return nil
+}
+
+func runSnapshot(arguments []string) error {
+	flags := flag.NewFlagSet("snapshot", flag.ContinueOnError)
+	keep := flags.Int("keep", 0, "keep only this many of the newest snapshots for the company's boxes")
+	if errorValue := flags.Parse(arguments); errorValue != nil {
+		return errorValue
+	}
+	if flags.NArg() != 0 {
+		return fmt.Errorf("snapshot takes no arguments, only --keep")
+	}
+	if errorValue := companyhost.RequireAdministrator(); errorValue != nil {
+		return errorValue
+	}
+	now := time.Now()
+	shipment, isShipped, errorValue := thisBox().Ship(context.Background(), *keep, now, func(snapshot *offsite.Snapshot) (companyhost.Snapshot, error) {
+		return companyhost.SnapshotTo(snapshot, now, thisComputer{}, os.Stdout)
+	})
 	if errorValue != nil {
-		return fmt.Errorf("the backup is on this computer, and keeping it with the company's boxes failed: %w", errorValue)
+		return errorValue
 	}
 	printShipment(os.Stdout, shipment, isShipped)
 	return nil
@@ -54,12 +72,12 @@ func thisBox() offsite.ThisBox {
 
 func printShipment(output io.Writer, shipment offsite.Shipment, isShipped bool) {
 	if !isShipped {
-		fmt.Fprintln(output, "This computer is not a box that holds the company key, so the backup stays here alone.")
+		fmt.Fprintln(output, "This computer is not a box serving its company with the company key, so it keeps no snapshot.")
 		return
 	}
-	fmt.Fprintf(output, "Kept it, sealed to the company key, where the company's other boxes can take over from it (%d parts).\n", len(shipment.Manifest.Parts))
+	fmt.Fprintf(output, "Kept %s for the company's boxes, sealed to the company key; %d chunks were new.\n", shipment.Manifest.Name, shipment.UploadedChunks)
 	for _, pruned := range shipment.Pruned {
-		fmt.Fprintf(output, "Removed the older kept backup %s.\n", pruned)
+		fmt.Fprintf(output, "Removed the older snapshot %s.\n", pruned)
 	}
 }
 

@@ -40,7 +40,7 @@ select is(
 );
 
 insert into storage.objects (bucket_id, name)
-values ('box_backup', '7f000000-0000-0000-0000-0000000000c1/kept/manifest.json');
+values ('box_backup', '7f000000-0000-0000-0000-0000000000c1/snapshots/internkim-snapshot-20261020T000000Z.json');
 
 select public.note_box_seen('head-office-spare');
 select public.note_box_seen('waiting');
