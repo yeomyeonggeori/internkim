@@ -2,11 +2,13 @@
 	import { page } from '$app/state';
 	import { createPageText } from '$lib/i18n/page-text.svelte';
 	import {
-		issueCalendarSubscriptionURL,
-		rotateCalendarSubscriptionURL
+		makeCalendarSubscriptionURL,
+		readCalendarSubscription,
+		revokeCalendarSubscriptionURL
 	} from './calendar-layout-api';
 	import { CalendarLayoutState } from './calendar-layout-state.svelte';
 	import CalendarLayoutSyncSheet from './calendar-layout-sync-sheet.svelte';
+	import type { CalendarSyncResponse } from './calendar-layout-types';
 	import { calendarText } from './text';
 	import { isEmbeddedCalendar } from '$lib/app-shell';
 	import { setCalendarSettings } from './calendar-settings-context';
@@ -18,29 +20,29 @@
 	const layoutState = new CalendarLayoutState();
 	setCalendarSettings(openSyncSheet);
 
-	async function loadSubscriptionURL() {
+	async function loadSubscription() {
 		try {
-			layoutState.syncInformation = await issueCalendarSubscriptionURL();
+			layoutState.syncInformation = await readCalendarSubscription();
 		} catch {
 			layoutState.syncInformation = null;
 		}
 	}
 
-	async function rotateSubscriptionURL() {
-		layoutState.isRotatingSync = true;
+	async function saveSubscription(change: () => Promise<CalendarSyncResponse>) {
+		layoutState.isSavingSubscription = true;
 		layoutState.syncError = '';
 		try {
-			layoutState.syncInformation = await rotateCalendarSubscriptionURL();
+			layoutState.syncInformation = await change();
 		} catch {
 			layoutState.syncError = text.saveError;
 		} finally {
-			layoutState.isRotatingSync = false;
+			layoutState.isSavingSubscription = false;
 		}
 	}
 
 	function openSyncSheet() {
 		layoutState.openSyncSheet();
-		loadSubscriptionURL();
+		loadSubscription();
 	}
 </script>
 
@@ -55,8 +57,9 @@
 		bind:isOpen={layoutState.isSyncSheetOpen}
 		{text}
 		syncInformation={layoutState.syncInformation}
-		isRotatingSync={layoutState.isRotatingSync}
+		isSavingSubscription={layoutState.isSavingSubscription}
 		syncError={layoutState.syncError}
-		{rotateSubscriptionURL}
+		makeSubscriptionURL={() => saveSubscription(makeCalendarSubscriptionURL)}
+		revokeSubscriptionURL={() => saveSubscription(revokeCalendarSubscriptionURL)}
 	/>
 {/if}

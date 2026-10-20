@@ -78,6 +78,12 @@ holds — same title, same time, same people — is refused with
 `calendar_event_duplicate` and the id of the event it clashed with, so the
 caller can update that one instead. There is no way to ask for it twice.
 
+The `calendar_subscription_*` tools answer from
+`web/src/lib/server/public-api/record/calendar-subscription.ts`, and the
+calendar settings sheet calls the same three. The company keeps only what its
+subscription address hashes to, so `calendar_subscription_get` says whether an
+address exists and only `calendar_subscription_add` ever shows one.
+
 ## Leave [#leave]
 
 <ToolCatalog namespace="leave" />

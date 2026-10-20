@@ -162,14 +162,28 @@ test.describe('calendar route shell', () => {
 
 	test('says nothing about a subscription there is none of', async ({ page }) => {
 		await routeCalendarHolidays(page);
-		await page.route('**/api/calendar/subscription', async (route) => {
-			await route.fulfill({ json: { registered: false } });
+		await page.route('**/api/v1/tools/calendar_subscription_get/invoke', async (route) => {
+			await route.fulfill({ json: { tool: 'calendar_subscription_get', result: { registered: false } } });
 		});
 		await signInToCalendar(page);
 
 		await openCalendarSettings(page);
 		await expect(page.getByText('구독 URL 준비됨')).toHaveCount(0);
 		await expect(page.getByRole('button', { name: 'Copy' })).toHaveCount(0);
+	});
+
+	test('makes a subscription address on request and revokes it', async ({ page }) => {
+		await routeCalendarHolidays(page);
+		await signInToCalendar(page);
+
+		await openCalendarSettings(page);
+		await page.getByRole('button', { name: '구독 URL 만들기' }).click();
+		await expect(page.locator('code').filter({ hasText: '/calendar/feed/' })).toBeVisible();
+		await expect(page.getByText('구독 URL 준비됨')).toBeVisible();
+
+		await page.getByRole('button', { name: '구독 URL 폐기' }).click();
+		await expect(page.locator('code').filter({ hasText: '/calendar/feed/' })).toHaveCount(0);
+		await expect(page.getByRole('button', { name: '구독 URL 만들기' })).toBeVisible();
 	});
 
 	test('does not create horizontal overflow on calendar routes', async ({ page }) => {

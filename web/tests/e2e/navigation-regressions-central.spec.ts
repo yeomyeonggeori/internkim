@@ -76,7 +76,8 @@ test('calendar search changes dates both inside the calendar and from another ro
 test('calendar keys do not mutate an event behind the settings sheet', async ({ page }) => {
 	await page.clock.setFixedTime(new Date('2026-06-15T12:00:00+09:00'));
 	await page.route('**/api/calendar/holidays?**', route => route.fulfill({ json: { holidays: [], degraded: false } }));
-	await page.route('**/api/calendar/subscription', route => route.fulfill({ json: { address: 'https://example.invalid/calendar.ics', registered: true } }));
+	await page.route('**/api/v1/tools/calendar_subscription_get/invoke', route => route.fulfill({ json: { tool: 'calendar_subscription_get', result: { registered: true } } }));
+	await page.route('**/api/v1/tools/calendar_subscription_add/invoke', route => route.fulfill({ json: { tool: 'calendar_subscription_add', result: { address: 'https://example.invalid/calendar.ics' } } }));
 	const [eventID] = await seedCalendarEvents([{ title: '설정 뒤에서 유지하는 일정', startISO: '2026-06-15T09:00:00+09:00', endISO: '2026-06-15T10:00:00+09:00' }]);
 	try {
 		await signInToCalendar(page);
@@ -84,7 +85,7 @@ test('calendar keys do not mutate an event behind the settings sheet', async ({ 
 		await page.getByRole('button', { name: '설정', exact: true }).click();
 		const dialog = page.getByRole('dialog').filter({ has: page.getByRole('heading', { name: '설정' }) });
 		await expect(dialog).toBeVisible();
-		await dialog.getByRole('button', { name: 'Copy', exact: true }).focus();
+		await dialog.getByRole('button', { name: '구독 URL 재발급' }).focus();
 		let mutations = 0;
 		page.on('request', request => { if (request.url().includes('/event_') && request.url().includes('/invoke') && !request.url().includes('/event_list/')) mutations++; });
 		for (const key of ['Delete', 'Backspace', 'Enter', 'Control+z', 'ArrowRight']) await page.keyboard.press(key);

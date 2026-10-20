@@ -25,7 +25,6 @@ const { POST: mintToken, DELETE: revokeToken } = await import('../../src/routes/
 const { fallback: reachTheAPI } = await import('../../src/routes/api/v1/[...path]/+server');
 const { POST: reachMCP } = await import('../../src/routes/api/v1/mcp/+server');
 const { POST: resetPassword } = await import('../../src/routes/api/member/password-reset/+server');
-const { POST: issueCalendarFeed } = await import('../../src/routes/api/calendar/subscription/+server');
 const { POST: removeMember } = await import('../../src/routes/api/member/remove/+server');
 const { POST: invitePerson } = await import('../../src/routes/api/member/invite/+server');
 const { GET: readDataRoom } = await import('../../src/routes/api/v1/data-room/[companyID]/+server');
@@ -1095,13 +1094,6 @@ function inviting(token: string, body: unknown): Promise<RouteAnswer> {
 	return answerOf(() => Promise.resolve(invitePerson(event as unknown as Parameters<typeof invitePerson>[0])));
 }
 
-function issuingTheFeed(token: string): Promise<RouteAnswer> {
-	const event = eventOf(posting('/api/calendar/subscription', token, {}));
-	return answerOf(() =>
-		Promise.resolve(issueCalendarFeed(event as unknown as Parameters<typeof issueCalendarFeed>[0]))
-	);
-}
-
 describe('a personal access token does not administer the company', () => {
 	test("an administrator's token resets nobody's password, whatever it may otherwise do", async () => {
 		const { data: administrator } = await client
@@ -1144,8 +1136,20 @@ describe('a personal access token does not administer the company', () => {
 			.single();
 		const readOnly = await issuePersonalAccessToken(client, administrator!.id, 'administrator-reads-calendar', 'read');
 
-		const answer = await issuingTheFeed(readOnly);
+		const answer = await invoke('calendar_subscription_add', readOnly, {});
 		expect(answer.status).toBe(403);
+	});
+});
+
+describe("the company's calendar subscription through the tools", () => {
+	test('answers an address on the app it was asked through, and stops answering it once revoked', async () => {
+		const made = await invoke('calendar_subscription_add', administratorsToken, {});
+		expect(made.status).toBe(200);
+		expect(String(resultOf(made).address)).toMatch(/^https:\/\/[^/]+\/calendar\/feed\/[0-9a-f]{64}\.ics$/);
+		expect(resultOf(await invoke('calendar_subscription_get', holdersToken, {}))).toEqual({ registered: true });
+
+		expect((await invoke('calendar_subscription_delete', administratorsToken, {})).status).toBe(200);
+		expect(resultOf(await invoke('calendar_subscription_get', holdersToken, {}))).toEqual({ registered: false });
 	});
 });
 

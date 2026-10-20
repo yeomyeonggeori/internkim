@@ -6090,6 +6090,224 @@
       "availability": {
         "state": "ok"
       },
+      "canonicalName": "calendar_subscription_get",
+      "description": "Whether the company calendar has a subscription address, the .ics feed a calendar app such as Google Calendar or Apple Calendar subscribes to. The address itself is shown only when it is made, so this answers only whether one exists.",
+      "estimatedLatency": "low",
+      "idempotency": {
+        "required": false,
+        "scope": "operation",
+        "supported": false
+      },
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {},
+        "type": "object"
+      },
+      "inputSchemaStrict": true,
+      "modelName": "calendar_subscription_get",
+      "modelVisibility": "visible",
+      "modelVisible": true,
+      "name": "calendar_subscription_get",
+      "namespace": "calendar",
+      "namespaceSummary": "The company calendar: events, and the approved leave that falls in a time window.",
+      "outputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "registered": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "registered"
+        ],
+        "type": "object"
+      },
+      "outputSchemaStrict": true,
+      "policyResource": "tool:calendar_subscription_get",
+      "privacyClass": "workspace_calendar",
+      "requiresUserPresence": false,
+      "resultContract": {
+        "effects": [],
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "additionalProperties": false,
+          "properties": {
+            "registered": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "registered"
+          ],
+          "type": "object"
+        }
+      },
+      "sideEffect": "read",
+      "sideEffectClass": "read",
+      "version": "1",
+      "worksOffline": false
+    },
+    {
+      "answeredBy": "record",
+      "availability": {
+        "state": "ok"
+      },
+      "canonicalName": "calendar_subscription_add",
+      "description": "Make a new subscription address for the company calendar and answer it. It is shown only this once. Any earlier address stops working at once, so every calendar app subscribed to it must subscribe again. Only a company administrator makes one. Requires approval.",
+      "estimatedLatency": "low",
+      "idempotency": {
+        "required": false,
+        "scope": "operation",
+        "supported": false
+      },
+      "inputIntentSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {},
+        "type": "object"
+      },
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {},
+        "type": "object"
+      },
+      "inputSchemaStrict": true,
+      "modelName": "calendar_subscription_add",
+      "modelVisibility": "visible",
+      "modelVisible": true,
+      "name": "calendar_subscription_add",
+      "namespace": "calendar",
+      "namespaceSummary": "The company calendar: events, and the approved leave that falls in a time window.",
+      "outputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "address": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "address"
+        ],
+        "type": "object"
+      },
+      "outputSchemaStrict": true,
+      "policyResource": "tool:calendar_subscription_add",
+      "privacyClass": "workspace_calendar",
+      "requiresApproval": true,
+      "requiresUserPresence": false,
+      "resultContract": {
+        "effects": [
+          {
+            "effect": "updated",
+            "effectIdentity": "singleton",
+            "objectType": "calendar_subscription"
+          }
+        ],
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "additionalProperties": false,
+          "properties": {
+            "address": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "address"
+          ],
+          "type": "object"
+        }
+      },
+      "sideEffect": "workspace_write",
+      "sideEffectClass": "workspace_write",
+      "version": "1",
+      "worksOffline": false
+    },
+    {
+      "answeredBy": "record",
+      "availability": {
+        "state": "ok"
+      },
+      "canonicalName": "calendar_subscription_delete",
+      "description": "Revoke the company calendar subscription address, so no calendar app can read it any longer. Only a company administrator revokes it. Requires approval; a revoked address never works again, and calendar_subscription_add makes a new one.",
+      "estimatedLatency": "low",
+      "idempotency": {
+        "required": false,
+        "scope": "operation",
+        "supported": false
+      },
+      "inputIntentSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {},
+        "type": "object"
+      },
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {},
+        "type": "object"
+      },
+      "inputSchemaStrict": true,
+      "modelName": "calendar_subscription_delete",
+      "modelVisibility": "visible",
+      "modelVisible": true,
+      "name": "calendar_subscription_delete",
+      "namespace": "calendar",
+      "namespaceSummary": "The company calendar: events, and the approved leave that falls in a time window.",
+      "outputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "deleted": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "deleted"
+        ],
+        "type": "object"
+      },
+      "outputSchemaStrict": true,
+      "policyResource": "tool:calendar_subscription_delete",
+      "privacyClass": "workspace_calendar",
+      "requiresApproval": true,
+      "requiresUserPresence": false,
+      "resultContract": {
+        "effects": [
+          {
+            "effect": "deleted",
+            "effectIdentity": "singleton",
+            "objectType": "calendar_subscription"
+          }
+        ],
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "additionalProperties": false,
+          "properties": {
+            "deleted": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "deleted"
+          ],
+          "type": "object"
+        }
+      },
+      "sideEffect": "destructive",
+      "sideEffectClass": "destructive",
+      "version": "1",
+      "worksOffline": false
+    },
+    {
+      "answeredBy": "record",
+      "availability": {
+        "state": "ok"
+      },
       "canonicalName": "leave_list",
       "description": "List leave in the record. Use this to answer 'when am I off', 'who is away next week', or 'what have I not had decided yet'. It reads the requester's own leave unless personHints names other people or scope is all. registeredKinds in the result names the leave types this company offers, which is what leave_request takes.",
       "estimatedLatency": "low",

@@ -14,23 +14,27 @@
 		| 'subscriptionReady'
 		| 'subscriptionShownOnce'
 		| 'ics'
+		| 'issue'
 		| 'rotate'
+		| 'revoke'
 	>;
 
 	let {
 		isOpen = $bindable(false),
 		text,
 		syncInformation,
-		isRotatingSync,
+		isSavingSubscription,
 		syncError,
-		rotateSubscriptionURL
+		makeSubscriptionURL,
+		revokeSubscriptionURL
 	}: {
 		isOpen: boolean;
 		text: CalendarSyncSheetText;
 		syncInformation: CalendarSyncResponse | null;
-		isRotatingSync: boolean;
+		isSavingSubscription: boolean;
 		syncError: string;
-		rotateSubscriptionURL: () => void;
+		makeSubscriptionURL: () => void;
+		revokeSubscriptionURL: () => void;
 	} = $props();
 
 	function hasSubscription(): boolean {
@@ -70,10 +74,16 @@
 				<p class="text-xs text-muted-foreground">{text.subscriptionShownOnce}</p>
 			{/if}
 
+			{#if syncInformation}
+				<Button variant="outline" class="w-full justify-center gap-2" onclick={makeSubscriptionURL} disabled={isSavingSubscription}>
+					<RotateCwIcon class={isSavingSubscription ? 'size-4 animate-spin' : 'size-4'} />
+					<span>{hasSubscription() ? text.rotate : text.issue}</span>
+				</Button>
+			{/if}
+
 			{#if hasSubscription()}
-				<Button variant="outline" class="w-full justify-center gap-2" onclick={rotateSubscriptionURL} disabled={isRotatingSync}>
-					<RotateCwIcon class={isRotatingSync ? 'size-4 animate-spin' : 'size-4'} />
-					<span>{text.rotate}</span>
+				<Button variant="ghost" class="w-full justify-center text-destructive" onclick={revokeSubscriptionURL} disabled={isSavingSubscription}>
+					{text.revoke}
 				</Button>
 			{/if}
 		</div>

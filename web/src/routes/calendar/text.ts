@@ -26,7 +26,9 @@ export type CalendarLocaleText = {
 	syncTitle: string;
 	syncDescription: string;
 	ics: string;
+	issue: string;
 	rotate: string;
+	revoke: string;
 	copy: string;
 	loading: string;
 	empty: string;
@@ -126,7 +128,9 @@ export const calendarText: Record<'ko' | 'en', CalendarLocaleText> = {
 		syncTitle: '설정',
 		syncDescription: '캘린더 앱에서 구독할 URL을 확인합니다.',
 		ics: 'ICS',
+		issue: '구독 URL 만들기',
 		rotate: '구독 URL 재발급',
+		revoke: '구독 URL 폐기',
 		copy: '복사',
 		loading: '일정을 불러오는 중...',
 		empty: '일정을 드래그하거나 더블클릭해서 새 일정을 만드세요.',
@@ -237,7 +241,9 @@ export const calendarText: Record<'ko' | 'en', CalendarLocaleText> = {
 		syncTitle: 'Settings',
 		syncDescription: 'Review the URL a calendar app subscribes to.',
 		ics: 'ICS',
+		issue: 'Make subscription URL',
 		rotate: 'Rotate subscription URL',
+		revoke: 'Revoke subscription URL',
 		copy: 'Copy',
 		loading: 'Loading calendar...',
 		empty: 'Drag or click the calendar to create an event.',
