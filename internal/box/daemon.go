@@ -165,6 +165,9 @@ func (daemon Daemon) serveClaimed(ctx context.Context, session Session, identity
 	if daemon.installedCompany() == session.Configuration.Company.ID {
 		return daemon.untilNextCheck(session.Session), daemon.keepServing(session, keyring)
 	}
+	if isTakingOver, errorValue := daemon.takeOver(ctx, session, keyring); errorValue != nil || isTakingOver {
+		return announceInterval, errorValue
+	}
 	if session.SealedModelKey == nil {
 		log.Printf("%s connected this box and has not given it a model key yet", session.Configuration.Company.Name)
 		return announceInterval, nil
@@ -172,9 +175,6 @@ func (daemon Daemon) serveClaimed(ctx context.Context, session Session, identity
 	modelKey, errorValue := keyring.OpenModelKey(*session.SealedModelKey, session.Configuration.Company.ID)
 	if errorValue != nil {
 		return 0, errorValue
-	}
-	if isTakingOver, errorValue := daemon.takeOver(ctx, session, keyring); errorValue != nil || isTakingOver {
-		return announceInterval, errorValue
 	}
 	if errorValue := daemon.installFor(session, modelKey); errorValue != nil {
 		return 0, errorValue
