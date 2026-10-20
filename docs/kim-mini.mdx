@@ -197,16 +197,15 @@ internet and the box that took its place never serve at once. It is off
 until an administrator turns it on, since a lapse that was only a slow router
 costs what the old box held after the newest snapshot, up to fifteen minutes.
 
-Standby boxes also share the work. Each person's browser runs on one of the
-company's live boxes, chosen per person by weighted rendezvous hashing, so a box
-of twice the capacity runs about twice the browsers and a box that joins or
-leaves moves only the browsers it wins or held. Every box runs at most four at
-once, so each box added is four more people browsing at the same time. The
-service box hands a browser call to its box through the gateway, which every
-standby box keeps a connection to, and runs the browser itself when that box is
-not connected. A person signed in to a site on one box signs in again when their
-browser moves. Commands, documents and files stay on the service box, where the
-people's workspaces are.
+Standby boxes also share the work. The service box runs a browser call itself
+while one of its four browsers is free. When all four are busy it puts the call
+in the company's queue on the gateway, and whichever connected box says it has
+room takes it. A box only reports its own free room, so no box knows how many
+others there are, and adding one is four more people browsing at once. A
+person's later calls go to the box that took their first one while it has room,
+so a sign-in on a site lasts as long as that box keeps their browser. When no box
+has room, the person hears the browser is busy, as on a single box. Commands,
+documents and files stay on the service box, where the people's workspaces are.
 
 Put the boxes where the power and the internet line are different, and give
 boxes that share both the same site in company setup. Two places keep the

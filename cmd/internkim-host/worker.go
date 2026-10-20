@@ -9,13 +9,14 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
+	"sync/atomic"
 
 	"github.com/coder/websocket"
 	"github.com/yeomyeonggeori/internkim/internal/box"
-	"github.com/yeomyeonggeori/internkim/internal/browserhome"
 	"github.com/yeomyeonggeori/internkim/internal/capabilities"
 	"github.com/yeomyeonggeori/internkim/internal/capabilityd"
 	"github.com/yeomyeonggeori/internkim/internal/runtime/blueclaw"
+	"github.com/yeomyeonggeori/internkim/internal/workqueue"
 )
 
 const largestWorkFrameBytes = 16 << 20
@@ -32,6 +33,11 @@ type handedWork struct {
 	Work      capabilities.ToolInvokeRequest `json:"work"`
 }
 
+type readyForWork struct {
+	Kind string `json:"kind"`
+	Free int    `json:"free"`
+}
+
 type workAnswer struct {
 	Kind      string                          `json:"kind"`
 	RequestID string                          `json:"requestID"`
@@ -43,7 +49,9 @@ func startWorkingForTheServiceBox(ctx context.Context, session box.Session) {
 	if !working.TryLock() {
 		return
 	}
-	startedBrowser.Do(func() { browserWorker = capabilityd.NewBrowserWorker(context.Background(), browserWorkerConfiguration()) })
+	startedBrowser.Do(func() {
+		browserWorker = capabilityd.NewBrowserWorker(context.Background(), browserWorkerConfiguration())
+	})
 	go func() {
 		defer working.Unlock()
 		if errorValue := workUntilTheGatewayLetsGo(ctx, session); errorValue != nil {
@@ -75,7 +83,7 @@ func programOnTheHostPath(layout blueclaw.CompanyHostLayout, programName string)
 }
 
 func workUntilTheGatewayLetsGo(ctx context.Context, session box.Session) error {
-	address := browserhome.SocketAddressOf(session.Configuration.GatewayURL) + "/company/" + session.Configuration.Company.ID + "/worker"
+	address := workqueue.SocketAddressOf(session.Configuration.GatewayURL) + "/company/" + session.Configuration.Company.ID + "/worker"
 	connection, _, errorValue := websocket.Dial(ctx, address, &websocket.DialOptions{
 		HTTPHeader: http.Header{"Authorization": []string{"Bearer " + session.Session.AccessToken}},
 	})
@@ -85,6 +93,10 @@ func workUntilTheGatewayLetsGo(ctx context.Context, session box.Session) error {
 	defer connection.CloseNow()
 	connection.SetReadLimit(largestWorkFrameBytes)
 	answers := &sync.Mutex{}
+	inFlight := &atomic.Int64{}
+	if errorValue := sayHowMuchRoomIsLeft(ctx, connection, answers, inFlight); errorValue != nil {
+		return errorValue
+	}
 	for {
 		_, frame, errorValue := connection.Read(ctx)
 		if errorValue != nil {
@@ -94,7 +106,14 @@ func workUntilTheGatewayLetsGo(ctx context.Context, session box.Session) error {
 		if json.Unmarshal(frame, &work) != nil || work.Kind != "work" || work.RequestID == "" {
 			continue
 		}
-		go answerTheWork(ctx, connection, answers, work)
+		inFlight.Add(1)
+		go func() {
+			answerTheWork(ctx, connection, answers, work)
+			inFlight.Add(-1)
+			if errorValue := sayHowMuchRoomIsLeft(ctx, connection, answers, inFlight); errorValue != nil {
+				log.Printf("telling the company queue how much room is left: %v", errorValue)
+			}
+		}()
 	}
 }
 
@@ -116,4 +135,15 @@ func answerTheWork(ctx context.Context, connection *websocket.Conn, answers *syn
 	if errorValue := connection.Write(ctx, websocket.MessageText, document); errorValue != nil {
 		log.Printf("answering browser work %s: %v", work.RequestID, errorValue)
 	}
+}
+
+func sayHowMuchRoomIsLeft(ctx context.Context, connection *websocket.Conn, answers *sync.Mutex, inFlight *atomic.Int64) error {
+	free := max(blueclaw.CompanyHostBrowserCapacity-int(inFlight.Load()), 0)
+	document, errorValue := json.Marshal(readyForWork{Kind: "ready", Free: free})
+	if errorValue != nil {
+		return errorValue
+	}
+	answers.Lock()
+	defer answers.Unlock()
+	return connection.Write(ctx, websocket.MessageText, document)
 }

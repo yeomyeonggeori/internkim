@@ -284,13 +284,17 @@ async function connectWorker(object: ConnectionObject, boxKey: string): Promise<
 	return heldSocket();
 }
 
-function callWorker(object: ConnectionObject, boxKey: string, requestID: string): Promise<Response> {
+function postWork(object: ConnectionObject, requestID: string, affinityKey = 'person-1'): Promise<Response> {
 	return object.fetch(
-		new Request(`https://connection-gateway/company/${companyID}/worker-call`, {
+		new Request(`https://connection-gateway/company/${companyID}/work`, {
 			method: 'POST',
-			body: JSON.stringify({ boxKey, requestID, work: { toolName: 'browser_open', input: { url: 'https://example.com' } } })
+			body: JSON.stringify({ requestID, affinityKey, work: { toolName: 'browser_open', input: { url: 'https://example.com' } } })
 		})
 	);
+}
+
+function sayFree(worker: TestSocket, free: number): void {
+	worker.receive(JSON.stringify({ kind: 'ready', free }));
 }
 
 async function untilWorkIsSent(worker: TestSocket): Promise<Record<string, unknown>> {
@@ -302,16 +306,15 @@ async function untilWorkIsSent(worker: TestSocket): Promise<Record<string, unkno
 	throw new Error('the worker was given no work');
 }
 
-describe('work handed to a standby box', () => {
-	test('reaches the box it names and comes back as its answer', async () => {
+describe('work taken from the company queue', () => {
+	test('goes to a box that said it has room and comes back as its answer', async () => {
 		const object = new ConnectionObject(new TestState());
 		const annex = await connectWorker(object, 'annex');
-		const other = await connectWorker(object, 'other');
+		sayFree(annex, 1);
 
-		const answered = callWorker(object, 'annex', 'work-1');
+		const answered = postWork(object, 'work-1');
 		const work = await untilWorkIsSent(annex);
 		expect(work).toEqual({ kind: 'work', requestID: 'work-1', work: { toolName: 'browser_open', input: { url: 'https://example.com' } } });
-		expect(other.documents()).toEqual([]);
 		annex.receive(JSON.stringify({ kind: 'result', requestID: 'work-1', status: 200, body: { outcome: 'succeeded' } }));
 
 		const response = await answered;
@@ -319,20 +322,32 @@ describe('work handed to a standby box', () => {
 		expect(await response.json()).toMatchObject({ requestID: 'work-1', status: 200, body: { outcome: 'succeeded' } });
 	});
 
-	test('is refused at once when that box is not connected, so the service box does it itself', async () => {
+	test('never names a box: work waits for whichever box frees up first', async () => {
 		const object = new ConnectionObject(new TestState());
-		expect((await callWorker(object, 'annex', 'work-1')).status).toBe(503);
+		const busy = await connectWorker(object, 'busy');
+		const idle = await connectWorker(object, 'idle');
+		sayFree(busy, 0);
+		void postWork(object, 'work-2');
+		sayFree(idle, 1);
+		expect((await untilWorkIsSent(idle)).requestID).toBe('work-2');
+		expect(busy.documents()).toEqual([]);
 	});
 
-	test('goes to the box that connected last when it connects twice', async () => {
+	test('is answered as refused when no box has room in time, so the asker does it itself', async () => {
 		const object = new ConnectionObject(new TestState());
-		const first = await connectWorker(object, 'annex');
-		const second = await connectWorker(object, 'annex');
-		expect(first.closedWith).not.toBeNull();
+		await connectWorker(object, 'annex');
+		const response = await postWork(object, 'work-3');
+		expect(await response.json()).toMatchObject({ requestID: 'work-3', status: 503 });
+	}, 10_000);
 
-		void callWorker(object, 'annex', 'work-2');
-		expect((await untilWorkIsSent(second)).requestID).toBe('work-2');
-	});
+	test('stops going to a box once its socket closes', async () => {
+		const object = new ConnectionObject(new TestState());
+		const annex = await connectWorker(object, 'annex');
+		sayFree(annex, 2);
+		await annex.drop();
+		const response = await postWork(object, 'work-4');
+		expect(await response.json()).toMatchObject({ requestID: 'work-4', status: 503 });
+	}, 10_000);
 
 	test('an answer from a worker never reaches a member as if the host had sent it', async () => {
 		const object = new ConnectionObject(new TestState());

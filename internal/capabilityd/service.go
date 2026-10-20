@@ -53,7 +53,7 @@ type Configuration struct {
 	FileReadPythonPath            string
 	ChatdEndpoint                 string
 	ChatdPlatform                 string
-	BrowserHomesPath              string
+	WorkQueuePath                 string
 	HostSessionPath               string
 }
 
@@ -65,6 +65,7 @@ type Service struct {
 	ProgressManager  *platformProgressManager
 	HealthState      *platformHealthState
 	DeviceBrowsers   *browserruntime.DeviceBrowsers
+	handedElsewhere  *handedElsewhere
 }
 
 type platformHealthState struct {
@@ -99,7 +100,7 @@ func DefaultConfiguration() Configuration {
 		APIURLPath:                    "/root/.internkim/env/api-url",
 		BlueclawWorkspacePath:         "/root/.blueclaw/workspace",
 		FileReadPythonPath:            blueclaw.LinuxCompanyHostLayout().DocumentPythonPath(),
-		BrowserHomesPath:              blueclaw.CompanyHostBrowserHomesPath,
+		WorkQueuePath:                 blueclaw.CompanyHostWorkQueuePath,
 		HostSessionPath:               blueclaw.CompanyHostAgentKeyPath,
 	}
 }
@@ -110,6 +111,9 @@ func (service Service) Run(ctx context.Context) error {
 	}
 	if service.DeviceBrowsers == nil {
 		service.DeviceBrowsers = service.Configuration.WithDefaults().newDeviceBrowsers()
+	}
+	if service.handedElsewhere == nil {
+		service.handedElsewhere = &handedElsewhere{}
 	}
 	go service.DeviceBrowsers.KeepTidy(ctx)
 	listener, errorValue := service.listen()
@@ -454,8 +458,8 @@ func (configuration Configuration) WithDefaults() Configuration {
 	if configuration.DeviceBrowserUserName == "" {
 		configuration.DeviceBrowserUserName = defaultConfiguration.DeviceBrowserUserName
 	}
-	if configuration.BrowserHomesPath == "" {
-		configuration.BrowserHomesPath = defaultConfiguration.BrowserHomesPath
+	if configuration.WorkQueuePath == "" {
+		configuration.WorkQueuePath = defaultConfiguration.WorkQueuePath
 	}
 	if configuration.HostSessionPath == "" {
 		configuration.HostSessionPath = defaultConfiguration.HostSessionPath

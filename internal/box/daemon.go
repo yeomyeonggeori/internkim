@@ -11,8 +11,8 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/yeomyeonggeori/internkim/internal/browserhome"
 	"github.com/yeomyeonggeori/internkim/internal/companyhost"
+	"github.com/yeomyeonggeori/internkim/internal/workqueue"
 )
 
 const (
@@ -34,7 +34,7 @@ type Places struct {
 	PairingPageListenAddress  string
 	ConnectionFilePath        string
 	CredentialPaths           []string
-	BrowserHomesPath          string
+	WorkQueuePath             string
 	ModelKeyPath              string
 	ResetRequestPath          string
 	CompanyStateDirectoryPath func(companyID string) string
@@ -158,7 +158,7 @@ func (daemon Daemon) serveClaimed(ctx context.Context, session Session, identity
 	if session.Role == RoleStandby {
 		return daemon.standBy(ctx, session)
 	}
-	daemon.placeTheBrowsers(session, identity)
+	daemon.keepTheQueueAddress(session)
 	if daemon.installedCompany() == session.Configuration.Company.ID {
 		return daemon.untilNextCheck(session.Session), daemon.keepServing(session, keyring)
 	}
@@ -240,6 +240,7 @@ func (daemon Daemon) standBy(ctx context.Context, session Session) (time.Duratio
 		return daemon.untilNextCheck(session.Session), nil
 	}
 	log.Printf("another box serves %s now, so this one stops its services and stands by", session.Configuration.Company.Name)
+	daemon.forgetTheQueueAddress()
 	if daemon.StandDown != nil {
 		if errorValue := daemon.StandDown(); errorValue != nil {
 			return 0, fmt.Errorf("standing down for %s: %w", session.Configuration.Company.Name, errorValue)
@@ -251,21 +252,22 @@ func (daemon Daemon) standBy(ctx context.Context, session Session) (time.Duratio
 	return daemon.untilNextCheck(session.Session), daemon.forgetServiceLease()
 }
 
-func (daemon Daemon) placeTheBrowsers(session Session, identity Identity) {
-	if daemon.Places.BrowserHomesPath == "" {
+func (daemon Daemon) keepTheQueueAddress(session Session) {
+	if daemon.Places.WorkQueuePath == "" {
 		return
 	}
-	homes := browserhome.Homes{
-		ThisBox:    identity.PublicKey(),
-		GatewayURL: session.Configuration.GatewayURL,
-		CompanyID:  session.Configuration.Company.ID,
-		Members:    map[string]string{},
+	address := workqueue.Address{GatewayURL: session.Configuration.GatewayURL, CompanyID: session.Configuration.Company.ID}
+	if errorValue := workqueue.Write(daemon.Places.WorkQueuePath, address); errorValue != nil {
+		log.Printf("writing the company's work queue address: %v; this box runs all its work itself until the next check", errorValue)
 	}
-	for _, home := range session.BrowserHomes {
-		homes.Members[strings.ToLower(home.MemberEmail)] = home.PublicKey
+}
+
+func (daemon Daemon) forgetTheQueueAddress() {
+	if daemon.Places.WorkQueuePath == "" {
+		return
 	}
-	if errorValue := browserhome.Write(daemon.Places.BrowserHomesPath, homes); errorValue != nil {
-		log.Printf("writing where each person's browser runs: %v; every browser runs on this box until the next check", errorValue)
+	if errorValue := workqueue.Forget(daemon.Places.WorkQueuePath); errorValue != nil {
+		log.Printf("forgetting the company's work queue address: %v", errorValue)
 	}
 }
 

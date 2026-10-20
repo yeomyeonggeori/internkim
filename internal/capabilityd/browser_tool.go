@@ -15,44 +15,52 @@ import (
 	"unicode"
 
 	browserruntime "github.com/yeomyeonggeori/internkim/internal/browser"
-	"github.com/yeomyeonggeori/internkim/internal/browserhome"
 	"github.com/yeomyeonggeori/internkim/internal/capabilities"
+	"github.com/yeomyeonggeori/internkim/internal/workqueue"
 )
 
 func (service Service) invokeDeviceBrowserTool(ctx context.Context, request capabilities.ToolInvokeRequest) (capabilities.ToolInvokeResponse, error) {
-	if answer, isHandedOn, errorValue := service.handBrowserWorkToItsBox(ctx, request); isHandedOn {
+	requester := strings.ToLower(request.Context.RequesterEmail)
+	if service.handedElsewhere.has(requester) {
+		if answer, isAnswered, errorValue := service.putInTheQueue(ctx, request, requester); isAnswered {
+			return answer, errorValue
+		}
+		service.handedElsewhere.forget(requester)
+	}
+	answer, errorValue := service.runBrowserToolHere(ctx, request)
+	if !errors.Is(errorValue, browserruntime.ErrDeviceBrowsersFull) {
 		return answer, errorValue
 	}
-	return service.InvokeLocalDeviceBrowserTool(ctx, request)
+	if queued, isAnswered, queueError := service.putInTheQueue(ctx, request, requester); isAnswered {
+		return queued, queueError
+	}
+	return service.deviceBrowsersFullResponse(request.ToolName), nil
 }
 
-func (service Service) handBrowserWorkToItsBox(ctx context.Context, request capabilities.ToolInvokeRequest) (capabilities.ToolInvokeResponse, bool, error) {
+func (service Service) putInTheQueue(ctx context.Context, request capabilities.ToolInvokeRequest, requester string) (capabilities.ToolInvokeResponse, bool, error) {
 	configuration := service.Configuration.WithDefaults()
-	homes, isPlaced := browserhome.Read(configuration.BrowserHomesPath)
-	if !isPlaced {
-		return capabilities.ToolInvokeResponse{}, false, nil
-	}
-	box, isElsewhere := homes.BoxOf(request.Context.RequesterEmail)
-	if !isElsewhere {
+	address, isServing := workqueue.Read(configuration.WorkQueuePath)
+	if !isServing {
 		return capabilities.ToolInvokeResponse{}, false, nil
 	}
 	work, errorValue := json.Marshal(request)
 	if errorValue != nil {
 		return capabilities.ToolInvokeResponse{}, true, errorValue
 	}
-	hand := browserhome.Hand{HTTPClient: service.HTTPClient, Token: func() (string, error) { return readTrimmedFile(configuration.HostSessionPath) }}
-	answer, errorValue := hand.Give(ctx, homes, box, newWorkID(), work)
-	if errors.Is(errorValue, browserhome.ErrBoxAway) {
-		log.Printf("tool.browser.box_away: box=%s; this box runs the browser itself", box)
+	queue := workqueue.Queue{HTTPClient: service.HTTPClient, Token: func() (string, error) { return readTrimmedFile(configuration.HostSessionPath) }}
+	answer, errorValue := queue.Post(ctx, address, newWorkID(), "browser:"+requester, work)
+	if errors.Is(errorValue, workqueue.ErrNoBoxHadRoom) {
 		return capabilities.ToolInvokeResponse{}, false, nil
 	}
 	if errorValue != nil {
-		return capabilities.ToolInvokeResponse{}, true, errorValue
+		log.Printf("tool.browser.queue_unreachable: %v; this box answers the browser call itself", errorValue)
+		return capabilities.ToolInvokeResponse{}, false, nil
 	}
 	var response capabilities.ToolInvokeResponse
 	if errorValue := json.Unmarshal(answer, &response); errorValue != nil {
-		return capabilities.ToolInvokeResponse{}, true, fmt.Errorf("the browser answer from box %s: %w", box, errorValue)
+		return capabilities.ToolInvokeResponse{}, true, fmt.Errorf("the browser answer from the company queue: %w", errorValue)
 	}
+	service.handedElsewhere.remember(requester)
 	return response, true, nil
 }
 
@@ -68,10 +76,15 @@ func newWorkID() string {
 }
 
 func (service Service) InvokeLocalDeviceBrowserTool(ctx context.Context, request capabilities.ToolInvokeRequest) (capabilities.ToolInvokeResponse, error) {
-	browserRuntime, errorValue := service.deviceBrowserRuntime(ctx, request.Context)
+	answer, errorValue := service.runBrowserToolHere(ctx, request)
 	if errors.Is(errorValue, browserruntime.ErrDeviceBrowsersFull) {
 		return service.deviceBrowsersFullResponse(request.ToolName), nil
 	}
+	return answer, errorValue
+}
+
+func (service Service) runBrowserToolHere(ctx context.Context, request capabilities.ToolInvokeRequest) (capabilities.ToolInvokeResponse, error) {
+	browserRuntime, errorValue := service.deviceBrowserRuntime(ctx, request.Context)
 	if errorValue != nil {
 		return capabilities.ToolInvokeResponse{}, errorValue
 	}

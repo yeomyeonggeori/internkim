@@ -49,7 +49,7 @@ async function route(request: Request, environment: WorkerEnvironment): Promise<
 	if (path[2] === 'server-key') return storeServerKey(request, environment, companyID);
 	if (path[2] === 'call') return takeCompanyCall(request, environment, companyID);
 	if (path[2] === 'worker') return joinAsWorker(request, environment, companyID);
-	if (path[2] === 'worker-call') return callAWorker(request, environment, companyID);
+	if (path[2] === 'work') return postWork(request, environment, companyID);
 	return jsonResponse({ error: 'not found' }, 404);
 }
 
@@ -224,7 +224,6 @@ async function verifiedBoxOf(request: Request, environment: WorkerEnvironment, c
 async function joinAsWorker(request: Request, environment: WorkerEnvironment, companyID: string): Promise<Response> {
 	const verified = await verifiedBoxOf(request, environment, companyID);
 	if (verified instanceof Response) return verified;
-	if (verified.role !== 'standby') return jsonResponse({ error: 'the box that serves the company does its own work' }, 409);
 	return connectionFor(environment, companyID).fetch(
 		new Request(`https://connection-gateway/company/${encodeURIComponent(companyID)}/worker-session`, {
 			method: request.method,
@@ -233,12 +232,12 @@ async function joinAsWorker(request: Request, environment: WorkerEnvironment, co
 	);
 }
 
-async function callAWorker(request: Request, environment: WorkerEnvironment, companyID: string): Promise<Response> {
+async function postWork(request: Request, environment: WorkerEnvironment, companyID: string): Promise<Response> {
 	const verified = await verifiedBoxOf(request, environment, companyID);
 	if (verified instanceof Response) return verified;
-	if (verified.role !== 'service') return jsonResponse({ error: 'only the box that serves the company hands work to the others' }, 409);
+	if (verified.role !== 'service') return jsonResponse({ error: 'only the box that serves the company puts work in its queue' }, 409);
 	return connectionFor(environment, companyID).fetch(
-		new Request(`https://connection-gateway/company/${encodeURIComponent(companyID)}/worker-call`, {
+		new Request(`https://connection-gateway/company/${encodeURIComponent(companyID)}/work`, {
 			method: 'POST',
 			headers: { 'Content-Type': 'application/json' },
 			body: await request.text()
