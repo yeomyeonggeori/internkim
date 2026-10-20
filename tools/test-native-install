@@ -98,6 +98,47 @@ LONGER_THAN_THE_RELAY_USED_TO_WAIT_SECONDS = 60
 
 TYPING_WAIT_SECONDS = 30
 
+BOX_STATE_DIRECTORY = "/var/lib/internkim/box"
+
+# The record knows a box by its signing key, and the box keeps only that key's
+# seed. OpenSSL takes a raw Ed25519 seed once it is wrapped in the PKCS#8
+# prefix RFC 8410 section 7 gives, and the last 32 bytes of the public key it
+# prints are the key itself.
+BOX_PUBLIC_KEY_COMMAND = r"""
+%(python)s -c "import base64, json, sys
+seed = json.load(open('%(state)s/identity.json'))['signingSeed']
+sys.stdout.buffer.write(bytes.fromhex('302e020100300506032b657004220420') + base64.urlsafe_b64decode(seed + '=' * (-len(seed) %% 4)))" \
+  | openssl pkey -inform DER -pubout -outform DER | tail -c 32 \
+  | %(python)s -c "import base64, sys; print(base64.urlsafe_b64encode(sys.stdin.buffer.read()).decode().rstrip('='))"
+"""
+
+POINT_THE_BOX_AT_THE_PLANE_COMMAND = r"""
+set -eu
+mkdir -p /etc/systemd/system/%(unit)s.d
+printf '[Service]\nExecStart=\nExecStart=%%s box --app-url %(app)s\n' "$(command -v %(package)s)" > /etc/systemd/system/%(unit)s.d/rig-plane.conf
+systemctl daemon-reload
+systemctl restart %(unit)s
+"""
+
+# A standby box holds no company of its own, so none of the units that need
+# one may be running; the box daemon is the only part of the package awake.
+STANDBY_UNITS_COMMAND = r"""
+for unit in %(units)s; do printf '%%s=%%s\n' "$unit" "$(systemctl is-active "$unit" 2>/dev/null)"; done
+printf 'box=%%s\n' "$(systemctl is-active %(box)s 2>/dev/null)"
+"""
+
+# The standby takes browser work over a socket of its own to the gateway; a
+# connection the box daemon holds open to the gateway's port is that socket.
+WORKER_SOCKET_COMMAND = r"""
+pid="$(systemctl show %(box)s -p MainPID --value 2>/dev/null)"
+printf 'sockets=%%s\n' "$(ss -tnpH state established "( dport = :%(port)s )" 2>/dev/null | grep -c "pid=${pid:-0}," || true)"
+journalctl -u %(box)s --no-pager -n 200 2>/dev/null | grep -i 'browser work' | tail -3
+"""
+
+KEPT_UP_COMMAND = r"""
+journalctl -u %(box)s --no-pager -n 400 2>/dev/null | grep -E 'this box holds|keeping up with' | tail -3
+"""
+
 # A host whose install has just returned on a release without the roster wait:
 # the agent has started on the roster the prepare step writes, which names no
 # people because none has been handed over, and admind
@@ -416,6 +457,12 @@ RESTORED_TASKS_QUERY = (
 )
 
 
+def is_standing_by(reading):
+    states = dict(line.split("=", 1) for line in reading.split() if "=" in line)
+    company_states = [state for unit, state in states.items() if unit != "box"]
+    return states.get("box") == "active" and bool(company_states) and "active" not in company_states
+
+
 def archived_mode(archive_path, file_path):
     """The mode the backup recorded for one file, read from files.tar inside the archive."""
     relative = str(file_path).removeprefix("/workspace/")
@@ -542,6 +589,7 @@ class Rig:
         self.archive_path = None
         self.source_ownership = ""
         self.restored_machine = None
+        self.second_machine = None
         self.sent_messages = []
         self.files_command = f"dpkg-query -L {PACKAGE_NAME}"
         self.is_an_upgrade = False
@@ -1536,6 +1584,195 @@ class Rig:
         self.upgrade_through_the_line(releases[1])
         self.observe_the_agent_stays_up(step)
 
+    def run_several_boxes(self):
+        """A second box joins the company, keeps up, and takes over when the first goes dark."""
+        step = self.step(13, "a second box joins the company, keeps up with it and takes over when the first goes dark")
+        self.start_the_plane()
+        self.give_the_guest_a_company(step, self.plane)
+        self.observe_running_services(step)
+        self.observe_the_host_holds_the_gateway_socket(step)
+        self.message_text = message_asking_for_an_answer("before a second box joins")
+        self.observe_the_member_round_trip(step, self.plane)
+        first, first_key = self.machine, self.box_key_of(self.machine)
+
+        second = self.start_a_second_machine()
+        second_key = self.join_as_an_added_box(step, second)
+        self.observe_the_roles(step, {first_key: "serving", second_key: "standby"}, "after the second box joined")
+        self.observe_a_standby(step, second)
+        self.observe_the_standby_takes_work(step, second)
+        self.keep_a_snapshot(step)
+        self.observe_the_standby_keeps_up(step, second)
+
+        first.power_off()
+        self.take_over_with(step, second, second_key)
+        with self.driving(second, self.files_command):
+            self.observe_running_services(step)
+            self.observe_the_message_came_across(step)
+            self.observe_the_host_holds_the_gateway_socket(step)
+            self.message_text = message_asking_for_an_answer("after the second box took over")
+            self.observe_the_member_round_trip(step, self.plane)
+
+        first.power_on()
+        self.plane.reach_the_record_from(first)
+        self.observe_the_roles(step, {first_key: "standby", second_key: "serving"}, "after the first box came back")
+        with self.driving(first, self.files_command):
+            self.observe_a_standby(step, first, timeout_seconds=600)
+
+    def box_key_of(self, machine):
+        reading = machine.checked_shell(
+            BOX_PUBLIC_KEY_COMMAND % {"python": HOST_PYTHON_PATH, "state": BOX_STATE_DIRECTORY}
+        )
+        return reading.stdout.strip()
+
+    def start_a_second_machine(self):
+        share = self.working_directory / "second-share"
+        (share / "scripts").mkdir(parents=True, exist_ok=True)
+        second = Machine(
+            self.options.name + "-second", share, kernel_image_path=self.options.kernel, distribution=self.options.distribution
+        )
+        second.preflight()
+        second.create()
+        self.second_machine = second
+        second.wait_until_running()
+        with self.driving(second, self.files_command):
+            self.install_declared_dependencies(self.package_under_test)
+        second.checked_shell(self.release.install_line(second.host_gateway()), timeout_seconds=2400)
+        self.plane.reach_the_record_from(second)
+        return second
+
+    def join_as_an_added_box(self, step, machine):
+        """What an administrator does with a box that shows a code: verify it, then add it."""
+        machine.checked_shell(
+            POINT_THE_BOX_AT_THE_PLANE_COMMAND
+            % {"unit": BOX_UNIT_NAME, "app": self.plane.application_url, "package": PACKAGE_NAME}
+        )
+        shown = self.wait_in_machine(machine, f"{PACKAGE_NAME} box code 2>&1", lambda said: "Enter it" in said)
+        code = shown.stdout.split("\n", 1)[0].strip()
+        public_key = self.box_key_of(machine)
+        verified_status, verified = self.plane.ask_as_administrator(
+            "POST", "/api/company/box/verification", {"publicKey": public_key, "pairingCode": code}
+        )
+        ticket = verified.get("ticket", "") if verified_status == 200 else ""
+        claimed_status, claimed = self.plane.ask_as_administrator(
+            "POST", "/api/company/box", {"publicKey": public_key, "ticket": ticket, "intent": "add"}
+        )
+        step.observe(
+            "an administrator adds a second box by the code it shows, and the company keeps the first",
+            "the answers of the setup page's verification and claim calls, made on the administrator's own "
+            "session with the code `internkim box code` printed on the second guest",
+            "the connection file always replaces the company's computer, so adding is only ever the code's path; "
+            "the record's answer is what the setup page shows the administrator",
+        ).record(
+            verified_status == 200 and claimed_status == 200,
+            f"code {code!r} for {public_key}\nverification {verified_status}: {str(verified)[:300]}\n"
+            f"claim {claimed_status}: {str(claimed)[:600]}",
+        )
+        return public_key
+
+    def boxes_in_the_record(self):
+        status, answer = self.plane.ask_as_administrator("GET", "/api/company/box")
+        return answer if status == 200 else {"boxes": [], "refused": f"{status} {answer!r}"[:300]}
+
+    def observe_the_roles(self, step, expected, occasion, timeout_seconds=600):
+        deadline = time.monotonic() + timeout_seconds
+        while True:
+            held = self.boxes_in_the_record()
+            roles = {box["publicKey"]: box["role"] for box in held.get("boxes", [])}
+            holds_key = all(box.get("holdsCompanyKey") for box in held.get("boxes", []))
+            if (roles == expected and holds_key) or time.monotonic() > deadline:
+                break
+            time.sleep(10)
+        step.observe(
+            f"the record names one serving box and the other standing by, both holding the company key, {occasion}",
+            "the role and holdsCompanyKey of each box the setup page lists for the company",
+            "a box that stands by without the company key cannot open a backup, so it would take over nothing",
+        ).record(roles == expected and holds_key, json.dumps(held)[:1200])
+
+    def observe_a_standby(self, step, machine, timeout_seconds=300):
+        company_units = " ".join((AGENT_UNIT_NAME, RELAY_UNIT_NAME, ADMIND_UNIT_NAME))
+        reading = self.wait_in_machine(
+            machine,
+            STANDBY_UNITS_COMMAND % {"units": company_units, "box": BOX_UNIT_NAME},
+            is_standing_by,
+            timeout_seconds,
+        )
+        said = reading.stdout
+        step.observe(
+            f"{machine.name} stands by: its box is awake and none of the company's services run",
+            f"`systemctl is-active` of {company_units} and {BOX_UNIT_NAME} on that guest",
+            "two boxes running the company's agent and messenger at once is the split the lease exists to prevent; "
+            "the record saying standby is the record's claim, the units are what the machine does",
+        ).record(is_standing_by(said), said.strip())
+
+    def observe_the_standby_takes_work(self, step, machine):
+        port = self.plane.gateway_port
+        reading = self.wait_in_machine(
+            machine,
+            WORKER_SOCKET_COMMAND % {"box": BOX_UNIT_NAME, "port": port},
+            lambda said: not said.startswith("sockets=0"),
+        )
+        step.observe(
+            "the standby box holds a socket of its own to the gateway, the one the company queue hands work over",
+            f"established TCP connections from the {BOX_UNIT_NAME} process to the gateway's port {port}, and what "
+            "it logged about browser work",
+            "the gateway gives work only to a box that holds this socket and has said how much room it has",
+        ).record(not reading.stdout.startswith("sockets=0"), reading.stdout.strip())
+
+    def keep_a_snapshot(self, step):
+        shipped = self.machine.shell(f"{PACKAGE_NAME} snapshot 2>&1", timeout_seconds=1800)
+        newest = self.boxes_in_the_record().get("newestBackupAt")
+        step.observe(
+            "the serving box keeps a snapshot sealed to the company key, off the box",
+            f"the exit status of `{PACKAGE_NAME} snapshot` on the serving box and the newest backup the setup page reports",
+            "a standby can only ever restore what reached the central plane; what the serving box wrote to its own "
+            "disk dies with it",
+        ).record(shipped.returncode == 0 and "Kept " in shipped.stdout and bool(newest), f"{shipped.stdout.strip()[-600:]}\nnewest {newest}")
+
+    def observe_the_standby_keeps_up(self, step, machine):
+        reading = self.wait_in_machine(
+            machine, KEPT_UP_COMMAND % {"box": BOX_UNIT_NAME}, lambda said: "this box holds" in said, 300
+        )
+        step.observe(
+            "the standby fetches the snapshot before anything goes wrong",
+            f"what {BOX_UNIT_NAME} on the standby logged about keeping up",
+            "fetching at take-over time puts the whole download inside the outage",
+        ).record("this box holds" in reading.stdout, reading.stdout.strip() or "it logged nothing about keeping up")
+
+    def take_over_with(self, step, machine, public_key):
+        status, answer = self.plane.ask_as_administrator("PATCH", "/api/company/box", {"publicKey": public_key})
+        started = time.monotonic()
+        with self.driving(machine, self.files_command):
+            connected = self.wait_in_the_guest(
+                HOST_SOCKET_COMMAND % {"unit": RELAY_UNIT_NAME, "company": self.company_id},
+                lambda reported: "connected=0" not in reported,
+                timeout_seconds=1800,
+            )
+        seconds = round(time.monotonic() - started)
+        step.observe(
+            "with the first box dark, the administrator makes the second serve and it brings the company up",
+            "the setup page's answer to making the standby serve, then the second guest's relay reporting the "
+            "gateway connected for the company",
+            "the record moving the role is a promise; the relay holding the company's socket is the company back",
+        ).record(
+            status == 200 and "connected=0" not in connected.stdout,
+            f"make serve answered {status}: {str(answer)[:300]}\nthe relay connected {seconds}s later\n{connected.stdout.strip()}",
+        )
+
+    def observe_the_message_came_across(self, step):
+        message_id, message_text = self.sent_messages[0] if self.sent_messages else ("", "")
+        stored = self.machine.shell(
+            MESSENGER_STORE_COMMAND % {"path": MESSENGER_DATABASE_PATH, "message": message_id or "no-message"}
+        )
+        step.observe(
+            "the message sent to the first box is in the second box's messenger",
+            f"the row the earlier message id names, read on the second guest through {MESSENGER_DATABASE_PATH}",
+            "a take-over that brings the services up on an empty messenger is a new company with the old name",
+        ).record(bool(message_id) and message_text in stored.stdout, stored.stdout.strip()[-300:])
+
+    def wait_in_machine(self, machine, script, is_ready, timeout_seconds=300):
+        with self.driving(machine, self.files_command):
+            return self.wait_in_the_guest(script, is_ready, timeout_seconds)
+
     def observe_people_hold_homes(self, step):
         people = self.machine.shell(LIST_PEOPLE_COMMAND).stdout.split()
         described = self.machine.shell(DESCRIBE_PEOPLE_COMMAND).stdout.strip()
@@ -2117,6 +2354,13 @@ def main():
         "(step 12 in place of every other step after the install)",
     )
     parser.add_argument(
+        "--several-boxes",
+        action="store_true",
+        help="judge only whether a second box joins the company by its code, keeps up with it, takes over when the "
+        "first goes dark, and leaves the first standing by when it comes back (step 13 in place of every other step "
+        "after the install)",
+    )
+    parser.add_argument(
         "--requests",
         help="a JSON list of {name, text, attachments, snippet, timeoutSeconds} the member sends once the host answers "
         "(attachments are paths relative to the file); for each, the replies, the task's event log, every delivered "
@@ -2179,12 +2423,14 @@ def main():
 
             if options.people_upgrade:
                 rig.run_people_upgrade(releases)
+            elif options.several_boxes:
+                rig.run_several_boxes()
             else:
                 run_every_step(rig, options, releases, baseline)
         except RigFailure as failure:
             print(f"✗ native install rig\n    {failure}", file=sys.stderr)
             if not options.keep:
-                for machine in (rig.machine, rig.restored_machine):
+                for machine in (rig.machine, rig.restored_machine, rig.second_machine):
                     if machine:
                         machine.destroy()
             return 2
@@ -2202,9 +2448,11 @@ def main():
             print(f"the guest is still up: container exec {options.name} bash")
             if rig.restored_machine:
                 print(f"the restored guest is still up: container exec {rig.restored_machine.name} bash")
+            if rig.second_machine:
+                print(f"the second box is still up: container exec {rig.second_machine.name} bash")
             print(f"its shared directory is {rig.working_directory}")
         else:
-            for machine in (rig.machine, rig.restored_machine):
+            for machine in (rig.machine, rig.restored_machine, rig.second_machine):
                 if machine:
                     machine.destroy()
 

@@ -686,6 +686,13 @@ class Machine:
         octets = [int(packed[index : index + 2], 16) for index in (6, 4, 2, 0)]
         return ".".join(str(octet) for octet in octets)
 
+    def power_off(self):
+        checked([self.container_binary, "stop", self.name])
+
+    def power_on(self):
+        checked([self.container_binary, "start", self.name])
+        self.wait_until_running()
+
     def destroy(self):
         if not self.created:
             return
@@ -1133,6 +1140,17 @@ class CompanyPlane:
                 "the local plane holds no company this rig can be given"
             )
         return json.loads(document)["access_token"]
+
+    def ask_as_administrator(self, method, path, body=None):
+        """What the company setup page sends for an administrator, on their own session."""
+        status, document = answered(
+            self.application_url + path,
+            {"Authorization": "Bearer " + self.administrator_session(), "Content-Type": "application/json"},
+            json.dumps(body).encode() if body is not None else None,
+            method,
+            timeout_seconds=60,
+        )
+        return status, json.loads(document) if status == 200 and document else document
 
     def connection_document(self):
         """What a person downloads from company setup, issued to this guest.
