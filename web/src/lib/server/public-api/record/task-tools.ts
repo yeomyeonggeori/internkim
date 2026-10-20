@@ -4,7 +4,9 @@ import { taskWeekCodeForDateISO } from '$lib/task/task-week-code';
 import {
 	WorkspaceTaskSize,
 	WorkspaceTaskStatus,
+	type TaskBoardInput,
 	type TaskLabelVocabulary,
+	type TaskListInput,
 	type TaskVocabularySetInput
 } from '../catalog/tools';
 import {
@@ -34,7 +36,7 @@ import {
 import { ownerNamedBy, whoseRecords, whoseRecordsHoldsAny } from './whose';
 import { labelsOfVocabulary, type CompanyLabels } from './labels';
 import { countUnfinishedTasks } from './unfinished-task-count';
-import { taskBoardWindow, tasksForBoard, taskChildProgressForBoard, type TaskCardRow } from './task-board';
+import { taskBoardWindow, tasksForBoard, taskChildProgressForBoard, type TaskBoardWindow, type TaskCardRow } from './task-board';
 
 type TaskWritten = {
 	title?: string;
@@ -407,35 +409,16 @@ function matchesQuery(context: RecordContext, row: TaskCardRow, query: string | 
 	return searched.some((value) => searchableText(value).includes(asked));
 }
 
-export type TaskListInput = {
-	query?: string;
-	personHints?: string[];
-	scope?: string;
-	weekFrom?: number;
-	weekTo?: number;
-	status?: string;
-	organizationHint?: string;
-	opportunityHint?: string;
-	everyWeek?: boolean;
-	boardWeek?: string;
-	limit?: number;
-};
-
 export async function taskList(context: RecordContext, input: TaskListInput) {
-	if (input.boardWeek !== undefined) throw new Error('use task_board_get to read a board week');
-	return readTaskList(context, input);
+	return readTaskList(context, input, undefined);
 }
 
-export async function taskBoard(context: RecordContext, input: TaskListInput) {
-	if (!input.boardWeek) throw new Error('task_board_get requires boardWeek');
-	return readTaskList(context, input);
+export async function taskBoard(context: RecordContext, input: TaskBoardInput) {
+	const { boardWeek, ...filters } = input;
+	return readTaskList(context, filters, taskBoardWindow(boardWeek, context.labels.timezone, context.now));
 }
 
-async function readTaskList(context: RecordContext, input: TaskListInput) {
-	if (input.boardWeek && (input.everyWeek !== undefined || input.weekFrom !== undefined || input.weekTo !== undefined)) {
-		throw new Error('boardWeek cannot be combined with everyWeek, weekFrom or weekTo');
-	}
-	const board = input.boardWeek ? taskBoardWindow(input.boardWeek, context.labels.timezone, context.now) : undefined;
+async function readTaskList(context: RecordContext, input: TaskListInput, board: TaskBoardWindow | undefined) {
 	const whose = whoseRecords(context.people, input.personHints, input.scope, context.requesterID);
 	const weeks = weeksAsked(context, input.weekFrom ?? 0, input.weekTo ?? input.weekFrom ?? 0);
 	const thisWeek = weekCodeOfOffset(context, 0);
