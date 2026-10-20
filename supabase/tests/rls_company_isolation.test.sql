@@ -900,8 +900,8 @@ begin
     ('00000000-0000-0000-0000-0000ffffff00', 'company app', 'hash-d'),
     ('00000000-0000-0000-0000-0000ffffff0e', 'company app', 'hash-e');
   insert into public.credential (company_id, kind, external_id, settings) values
-    ('00000000-0000-0000-0000-0000ffffff00', 'buzz', 'https://d.example', '{}'),
-    ('00000000-0000-0000-0000-0000ffffff0e', 'buzz', 'https://e.example', '{}');
+    ('00000000-0000-0000-0000-0000ffffff00', 'fleet', 'fleet-d', '{}'),
+    ('00000000-0000-0000-0000-0000ffffff0e', 'fleet', 'fleet-e', '{}');
 
   set local role authenticated;
   perform set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-0000ffff0001"}', true);
@@ -910,11 +910,11 @@ begin
   assert visible_agents = 0, 'agent keys are not for members to read, saw ' || visible_agents;
 
   select count(*) into visible_credentials from public.credential where company_id is not null;
-  assert visible_credentials = 0, 'an ordinary member must not read where the company connects, saw ' || visible_credentials;
+  assert visible_credentials = 0, 'an ordinary member must not read a company credential, saw ' || visible_credentials;
 
   perform set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-0000ffff0009"}', true);
   select count(*) into visible_credentials from public.credential where company_id is not null;
-  assert visible_credentials = 1, 'an admin reads their own company connections and no others, saw ' || visible_credentials;
+  assert visible_credentials = 1, 'an admin reads their own company credentials and no others, saw ' || visible_credentials;
 
   begin
     perform public.read_company_secret('00000000-0000-0000-0000-000000000000');
@@ -924,8 +924,9 @@ begin
   assert not secret_readable, 'nobody signed in may open the vault';
 
   reset role;
-  raise notice 'connections: only an admin sees where a company connects, and the vault stays shut';
-end $$$block$, 'connections: only an admin sees where a company connects, and the vault stays shut');
+  delete from public.credential where kind = 'fleet' and external_id in ('fleet-d', 'fleet-e');
+  raise notice 'company credentials: only an admin sees them, and the vault stays shut';
+end $$$block$, 'company credentials: only an admin sees them, and the vault stays shut');
 
 select lives_ok($block$do $$
 declare

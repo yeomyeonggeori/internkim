@@ -230,17 +230,9 @@ export const companySettingsText = {
 		baseCurrencyLoadFailed: '기준 통화를 불러오지 못했습니다.',
 		agent: '에이전트',
 		agentDescription: '에이전트가 이 회사의 컴퓨터에서 무엇을 갖추고 일하는지 봅니다.',
-		connections: '연결',
-		connectionsDescription: '메일과 캘린더는 회사 서버에 그대로 둡니다. 여기에는 접속 정보만 두고, 비밀번호는 암호화해 보관합니다.',
-		buzz: '메신저 (Buzz)',
-		buzzDescription: '회사 메신저가 어디에 있는지입니다. 계정은 각자 위에서 연결합니다.',
-		host: '주소',
-		port: '포트',
 		save: '저장',
-		forget: '삭제',
 		saved: '저장했습니다.',
 		saveFailed: '저장하지 못했습니다.',
-		loadFailed: '연결 정보를 불러오지 못했습니다.'
 	},
 	en: {
 		title: 'Settings',
@@ -473,16 +465,8 @@ export const companySettingsText = {
 		},
 		agent: 'Agent',
 		agentDescription: 'What the agent has to work with on this company\u2019s computer.',
-		connections: 'Connections',
-		connectionsDescription: 'Mail and calendar stay on your own servers. Only how to reach them is kept here, with the password encrypted.',
-		buzz: 'Messenger (Buzz)',
-		buzzDescription: 'Where your messenger lives. Accounts are connected above, one person at a time.',
-		host: 'Host',
-		port: 'Port',
 		save: 'Save',
-		forget: 'Remove',
 		saved: 'Saved.',
 		saveFailed: 'That did not save.',
-		loadFailed: 'The connections did not load.'
 	}
 };

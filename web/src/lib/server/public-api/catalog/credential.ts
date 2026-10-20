@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-import { messengerPlatformNames, type MessengerPlatform } from './protocol';
+import type { MessengerPlatform } from './protocol';
 
 export const messengerIdentityCredentialKind = 'buzz-secret';
 
@@ -12,18 +12,13 @@ export const connectedAppCredentialKind = 'oauth_client';
 
 export const messengerIdentityCredentialKinds = [messengerIdentityCredentialKind] as const;
 
-export const companyConnectionCredentialKinds = messengerPlatformNames;
-
 export const memberCredentialKinds = [
   personalAccessTokenCredentialKind,
   ...messengerIdentityCredentialKinds,
   mailAccountCredentialKind,
 ] as const;
 
-export const credentialKinds = [
-  ...memberCredentialKinds,
-  ...companyConnectionCredentialKinds,
-] as const;
+export const credentialKinds = memberCredentialKinds;
 
 export const messengerIdentityCredentialKindSchema = z.enum(messengerIdentityCredentialKinds);
 
