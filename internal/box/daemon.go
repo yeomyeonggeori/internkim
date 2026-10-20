@@ -11,6 +11,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/yeomyeonggeori/internkim/internal/browserhome"
 	"github.com/yeomyeonggeori/internkim/internal/companyhost"
 )
 
@@ -33,6 +34,7 @@ type Places struct {
 	PairingPageListenAddress  string
 	ConnectionFilePath        string
 	CredentialPaths           []string
+	BrowserHomesPath          string
 	ModelKeyPath              string
 	ResetRequestPath          string
 	CompanyStateDirectoryPath func(companyID string) string
@@ -47,6 +49,7 @@ type Daemon struct {
 	StandUp           func() error
 	StartKeepingUp    func(ctx context.Context, session Session)
 	FollowRelease     func(targetVersion string) error
+	StartWorking      func(ctx context.Context, session Session)
 	PackageVersion    string
 	NameHost          func(ctx context.Context, companySlug string) error
 	GetOnline         func(ctx context.Context, boxPublicKey string) error
@@ -155,6 +158,7 @@ func (daemon Daemon) serveClaimed(ctx context.Context, session Session, identity
 	if session.Role == RoleStandby {
 		return daemon.standBy(ctx, session)
 	}
+	daemon.placeTheBrowsers(session, identity)
 	if daemon.installedCompany() == session.Configuration.Company.ID {
 		return daemon.untilNextCheck(session.Session), daemon.keepServing(session, keyring)
 	}
@@ -226,6 +230,9 @@ func (daemon Daemon) handOnCompanyKey(ctx context.Context, keyring Keyring, sess
 
 func (daemon Daemon) standBy(ctx context.Context, session Session) (time.Duration, error) {
 	daemon.followTheRelease(session)
+	if daemon.StartWorking != nil {
+		daemon.StartWorking(ctx, session)
+	}
 	if daemon.StartKeepingUp != nil {
 		daemon.StartKeepingUp(ctx, session)
 	}
@@ -242,6 +249,24 @@ func (daemon Daemon) standBy(ctx context.Context, session Session) (time.Duratio
 		return 0, errorValue
 	}
 	return daemon.untilNextCheck(session.Session), daemon.forgetServiceLease()
+}
+
+func (daemon Daemon) placeTheBrowsers(session Session, identity Identity) {
+	if daemon.Places.BrowserHomesPath == "" {
+		return
+	}
+	homes := browserhome.Homes{
+		ThisBox:    identity.PublicKey(),
+		GatewayURL: session.Configuration.GatewayURL,
+		CompanyID:  session.Configuration.Company.ID,
+		Members:    map[string]string{},
+	}
+	for _, home := range session.BrowserHomes {
+		homes.Members[strings.ToLower(home.MemberEmail)] = home.PublicKey
+	}
+	if errorValue := browserhome.Write(daemon.Places.BrowserHomesPath, homes); errorValue != nil {
+		log.Printf("writing where each person's browser runs: %v; every browser runs on this box until the next check", errorValue)
+	}
 }
 
 func (daemon Daemon) followTheRelease(session Session) {

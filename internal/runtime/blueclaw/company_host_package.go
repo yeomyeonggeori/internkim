@@ -64,6 +64,7 @@ const (
 	CompanyHostLogPath                     = "/var/log/internkim"
 	CompanyHostBrowserStatePath            = browserruntime.DeviceBrowsersStateDirectory
 	CompanyHostRunPath                     = "/run/internkim"
+	CompanyHostBrowserHomesPath            = "/run/internkim/browser-homes.json"
 
 	CompanyHostConfigurationRoot = "/etc/internkim"
 
@@ -124,8 +125,8 @@ const (
 	AdmindRosterReadinessPath      = "/admin/api/health/roster"
 	CompanyHostChatdEndpoint       = "http://127.0.0.1:18090"
 	CompanyHostArrivalsInboundURL  = "http://127.0.0.1:18091/inbound"
-	CompanyHostBrowserFirstPort    = "9230"
-	CompanyHostBrowserCapacity     = "4"
+	CompanyHostBrowserFirstPort    = 9230
+	CompanyHostBrowserCapacity     = 4
 )
 
 // CompanyPackageUnit is one systemd unit the package installs.

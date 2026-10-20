@@ -4,8 +4,11 @@ import (
 	"context"
 	"errors"
 	"os"
+	"path/filepath"
 	"testing"
 	"time"
+
+	"github.com/yeomyeonggeori/internkim/internal/browserhome"
 )
 
 func TestAStandbyBoxHoldsTheCompanyKeyInstallsNothingAndKeepsUpWithTheServiceBox(t *testing.T) {
@@ -282,5 +285,49 @@ func TestAServiceBoxThatNoStandbyTakesOverFromKeepsServingWhileCutOff(t *testing
 
 	if switches.downs != 0 {
 		t.Fatal("a box no standby takes over from stopped serving while it was cut off")
+	}
+}
+
+func TestTheServiceBoxWritesDownWhereEachPersonsBrowserRuns(t *testing.T) {
+	plane := &fakePlane{isClaimed: true, accessToken: "service.session.token"}
+	plane.browserHomes = []BrowserHome{{MemberEmail: "Sample@Example.com", PublicKey: "annex"}}
+	recorded := &installs{}
+	daemon, places := daemonFor(t, plane, recorded)
+	daemon.Places.BrowserHomesPath = filepath.Join(t.TempDir(), "browser-homes.json")
+	plane.sealedModelKey = sealTo(t, identityOf(t, places), "sk-or-v1-sample")
+
+	runSteps(t, daemon, 1)
+
+	homes, isRead := browserhome.Read(daemon.Places.BrowserHomesPath)
+	if !isRead || homes.ThisBox != identityOf(t, places).PublicKey() || homes.CompanyID != sampleCompanyID || homes.GatewayURL != "wss://gateway.example.test" {
+		t.Fatalf("wrote %+v (%v)", homes, isRead)
+	}
+	if box, isElsewhere := homes.BoxOf("sample@example.com"); !isElsewhere || box != "annex" {
+		t.Fatalf("the sample person's browser runs on %q", box)
+	}
+
+	plane.browserHomes = nil
+	runSteps(t, daemon, 1)
+	if _, isRead := browserhome.Read(daemon.Places.BrowserHomesPath); isRead {
+		t.Fatal("a company whose browsers all run on its service box kept a placement")
+	}
+}
+
+func TestAStandbyBoxTakesWorkAndTakesTheReleaseItIsAimedAt(t *testing.T) {
+	plane := &fakePlane{isClaimed: true, accessToken: "standby.session.token", role: RoleStandby, targetVersion: "v0.0.2"}
+	recorded := &installs{}
+	daemon, places := daemonFor(t, plane, recorded)
+	plane.sealedModelKey = sealTo(t, identityOf(t, places), "sk-or-v1-sample")
+	daemon.PackageVersion = "v0.0.1"
+	working, followed := 0, []string{}
+	daemon.StartWorking = func(context.Context, Session) { working++ }
+	daemon.FollowRelease = func(targetVersion string) error { followed = append(followed, targetVersion); return nil }
+
+	runSteps(t, daemon, 1)
+	daemon.PackageVersion = "v0.0.2"
+	runSteps(t, daemon, 1)
+
+	if working != 2 || len(followed) != 1 || followed[0] != "v0.0.2" {
+		t.Fatalf("worked %d times and took %v", working, followed)
 	}
 }

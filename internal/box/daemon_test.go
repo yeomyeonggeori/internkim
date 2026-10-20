@@ -35,6 +35,8 @@ type fakePlane struct {
 	keepsBackups     bool
 	isAway           bool
 	takeOver         TakeOverPolicy
+	targetVersion    string
+	browserHomes     []BrowserHome
 }
 
 func (plane *fakePlane) sessionRole() Role {
@@ -103,6 +105,8 @@ func (plane *fakePlane) serve(t *testing.T) *httptest.Server {
 				BoxesAwaitingCompanyKey: plane.awaiting,
 				KeepsBackups:            plane.keepsBackups,
 				TakeOver:                plane.takeOver,
+				TargetVersion:           plane.targetVersion,
+				BrowserHomes:            plane.browserHomes,
 			})
 		case "/api/box/company-key":
 			var body struct {

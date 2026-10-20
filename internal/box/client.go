@@ -45,6 +45,12 @@ type Session struct {
 	KeepsBackups            bool            `json:"keepsBackups"`
 	TakeOver                TakeOverPolicy  `json:"takeOver"`
 	TargetVersion           string          `json:"targetVersion"`
+	BrowserHomes            []BrowserHome   `json:"browserHomes"`
+}
+
+type BrowserHome struct {
+	MemberEmail string `json:"memberEmail"`
+	PublicKey   string `json:"publicKey"`
 }
 
 type BoxShortOfRelease struct {

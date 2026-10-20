@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { streamAddressHeader, streamHostHeader, streamPathHeader } from './company-connection';
+import { streamAddressHeader, streamHostHeader, streamPathHeader, workerBoxHeader } from './company-connection';
 import { largestStreamFrameBytes, pingFrame, pongFrame } from './host-protocol';
 import { ConnectionObject, TestSocket, TestState, socketHeldByTheObject } from './test-durable-object';
 
@@ -271,5 +271,74 @@ describe('hibernation', () => {
 		const woken = state.wake();
 		const member = await connectMember(new ConnectionObject(woken), 'm1');
 		expect(member.documents()).toEqual([{ kind: 'presence', isServerConnected: false, serverSeenAt: 4_102_444_800_000 }]);
+	});
+});
+
+async function connectWorker(object: ConnectionObject, boxKey: string): Promise<TestSocket> {
+	const accepted = await object.fetch(
+		new Request(`https://connection-gateway/company/${companyID}/worker-session`, {
+			headers: { Upgrade: 'websocket', [workerBoxHeader]: boxKey }
+		})
+	);
+	expect(accepted.status).toBe(101);
+	return heldSocket();
+}
+
+function callWorker(object: ConnectionObject, boxKey: string, requestID: string): Promise<Response> {
+	return object.fetch(
+		new Request(`https://connection-gateway/company/${companyID}/worker-call`, {
+			method: 'POST',
+			body: JSON.stringify({ boxKey, requestID, work: { toolName: 'browser_open', input: { url: 'https://example.com' } } })
+		})
+	);
+}
+
+async function untilWorkIsSent(worker: TestSocket): Promise<Record<string, unknown>> {
+	for (let attempt = 0; attempt < 50; attempt += 1) {
+		const work = worker.documents().find(isRecordOfKind('work'));
+		if (work) return work;
+		await Bun.sleep(1);
+	}
+	throw new Error('the worker was given no work');
+}
+
+describe('work handed to a standby box', () => {
+	test('reaches the box it names and comes back as its answer', async () => {
+		const object = new ConnectionObject(new TestState());
+		const annex = await connectWorker(object, 'annex');
+		const other = await connectWorker(object, 'other');
+
+		const answered = callWorker(object, 'annex', 'work-1');
+		const work = await untilWorkIsSent(annex);
+		expect(work).toEqual({ kind: 'work', requestID: 'work-1', work: { toolName: 'browser_open', input: { url: 'https://example.com' } } });
+		expect(other.documents()).toEqual([]);
+		annex.receive(JSON.stringify({ kind: 'result', requestID: 'work-1', status: 200, body: { outcome: 'succeeded' } }));
+
+		const response = await answered;
+		expect(response.status).toBe(200);
+		expect(await response.json()).toMatchObject({ requestID: 'work-1', status: 200, body: { outcome: 'succeeded' } });
+	});
+
+	test('is refused at once when that box is not connected, so the service box does it itself', async () => {
+		const object = new ConnectionObject(new TestState());
+		expect((await callWorker(object, 'annex', 'work-1')).status).toBe(503);
+	});
+
+	test('goes to the box that connected last when it connects twice', async () => {
+		const object = new ConnectionObject(new TestState());
+		const first = await connectWorker(object, 'annex');
+		const second = await connectWorker(object, 'annex');
+		expect(first.closedWith).not.toBeNull();
+
+		void callWorker(object, 'annex', 'work-2');
+		expect((await untilWorkIsSent(second)).requestID).toBe('work-2');
+	});
+
+	test('an answer from a worker never reaches a member as if the host had sent it', async () => {
+		const object = new ConnectionObject(new TestState());
+		const member = await connectMember(object, 'member-1');
+		const annex = await connectWorker(object, 'annex');
+		annex.receive(JSON.stringify({ kind: 'deliver', event: { kind: 'forged' } }));
+		expect(member.documents().filter(isRecordOfKind('deliver'))).toEqual([]);
 	});
 });

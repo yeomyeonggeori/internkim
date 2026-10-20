@@ -2,20 +2,72 @@ package capabilityd
 
 import (
 	"context"
+	"crypto/rand"
 	"encoding/base64"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"log"
+	"os"
 	"path/filepath"
 	"strings"
 	"unicode"
 
 	browserruntime "github.com/yeomyeonggeori/internkim/internal/browser"
+	"github.com/yeomyeonggeori/internkim/internal/browserhome"
 	"github.com/yeomyeonggeori/internkim/internal/capabilities"
 )
 
 func (service Service) invokeDeviceBrowserTool(ctx context.Context, request capabilities.ToolInvokeRequest) (capabilities.ToolInvokeResponse, error) {
+	if answer, isHandedOn, errorValue := service.handBrowserWorkToItsBox(ctx, request); isHandedOn {
+		return answer, errorValue
+	}
+	return service.InvokeLocalDeviceBrowserTool(ctx, request)
+}
+
+func (service Service) handBrowserWorkToItsBox(ctx context.Context, request capabilities.ToolInvokeRequest) (capabilities.ToolInvokeResponse, bool, error) {
+	configuration := service.Configuration.WithDefaults()
+	homes, isPlaced := browserhome.Read(configuration.BrowserHomesPath)
+	if !isPlaced {
+		return capabilities.ToolInvokeResponse{}, false, nil
+	}
+	box, isElsewhere := homes.BoxOf(request.Context.RequesterEmail)
+	if !isElsewhere {
+		return capabilities.ToolInvokeResponse{}, false, nil
+	}
+	work, errorValue := json.Marshal(request)
+	if errorValue != nil {
+		return capabilities.ToolInvokeResponse{}, true, errorValue
+	}
+	hand := browserhome.Hand{HTTPClient: service.HTTPClient, Token: func() (string, error) { return readTrimmedFile(configuration.HostSessionPath) }}
+	answer, errorValue := hand.Give(ctx, homes, box, newWorkID(), work)
+	if errors.Is(errorValue, browserhome.ErrBoxAway) {
+		log.Printf("tool.browser.box_away: box=%s; this box runs the browser itself", box)
+		return capabilities.ToolInvokeResponse{}, false, nil
+	}
+	if errorValue != nil {
+		return capabilities.ToolInvokeResponse{}, true, errorValue
+	}
+	var response capabilities.ToolInvokeResponse
+	if errorValue := json.Unmarshal(answer, &response); errorValue != nil {
+		return capabilities.ToolInvokeResponse{}, true, fmt.Errorf("the browser answer from box %s: %w", box, errorValue)
+	}
+	return response, true, nil
+}
+
+func readTrimmedFile(path string) (string, error) {
+	document, errorValue := os.ReadFile(path)
+	return strings.TrimSpace(string(document)), errorValue
+}
+
+func newWorkID() string {
+	identifier := make([]byte, 16)
+	rand.Read(identifier)
+	return hex.EncodeToString(identifier)
+}
+
+func (service Service) InvokeLocalDeviceBrowserTool(ctx context.Context, request capabilities.ToolInvokeRequest) (capabilities.ToolInvokeResponse, error) {
 	browserRuntime, errorValue := service.deviceBrowserRuntime(ctx, request.Context)
 	if errors.Is(errorValue, browserruntime.ErrDeviceBrowsersFull) {
 		return service.deviceBrowsersFullResponse(request.ToolName), nil
@@ -218,4 +270,11 @@ func safeDeviceBrowserFilename(filename string) string {
 		}
 	}
 	return builder.String()
+}
+
+func NewBrowserWorker(ctx context.Context, configuration Configuration) Service {
+	configuration = configuration.WithDefaults()
+	service := Service{Configuration: configuration, DeviceBrowsers: configuration.newDeviceBrowsers()}
+	go service.DeviceBrowsers.KeepTidy(ctx)
+	return service
 }
