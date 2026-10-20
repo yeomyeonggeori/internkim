@@ -1,4 +1,5 @@
 <script lang="ts">
+	import RefreshButton from '$lib/components/refresh-button.svelte';
 	import * as AlertDialog from '$lib/components/ui/alert-dialog';
 	import { Badge } from '$lib/components/ui/badge';
 	import { Button, buttonVariants } from '$lib/components/ui/button';
@@ -13,7 +14,6 @@
 	import { currentLocale } from '$lib/i18n/locale.svelte';
 	import { createPageText } from '$lib/i18n/page-text.svelte';
 	import { displayPersonName } from '$lib/person-name.svelte';
-	import RefreshCwIcon from '@lucide/svelte/icons/refresh-cw';
 	import { milliDaysValue } from '../leave/leave-history-model';
 	import { attendanceText } from '../text';
 	import LeaveAdjustmentDialog from './leave-adjustment-dialog.svelte';
@@ -22,7 +22,6 @@
 	import PastLeaveDialog from './past-leave-dialog.svelte';
 	import AttendanceLoadingSkeleton from '../attendance-loading-skeleton.svelte';
 	import AttendanceListLoading from '../attendance-list-loading.svelte';
-	import { Spinner } from '$lib/components/ui/spinner';
 
 	const text = createPageText(attendanceText);
 	const management = getLeaveManagementState();
@@ -77,12 +76,9 @@
 			{#if !isUnlimited}<LeaveAdjustmentDialog />{/if}
 			<PastLeaveDialog />
 		{/if}
-		<Button variant={management.isLoading ? 'secondary' : 'ghost'} size="icon"
-			aria-label={text.management.refresh} aria-busy={management.isLoading}
-			onclick={() => management.load(showsEmployeeDetail ? requestedEmployeeEmail : management.selectedEmployeeEmail)}
-			disabled={management.isLoading} data-testid="leave-management-refresh">
-			{#if management.isLoading}<Spinner aria-label={text.loading} />{:else}<RefreshCwIcon />{/if}
-		</Button>
+		<RefreshButton variant="ghost" size="icon" label={text.management.refresh}
+			refresh={() => management.load(showsEmployeeDetail ? requestedEmployeeEmail : management.selectedEmployeeEmail)}
+			disabled={management.isLoading} data-testid="leave-management-refresh" />
 	</div>
 {/snippet}
 

@@ -11,7 +11,7 @@
 	import { createPageText } from '$lib/i18n/page-text.svelte';
 	import type { InboxEntry } from '$lib/messenger/channel-over-bridge';
 	import { cn } from '$lib/utils.js';
-	import MessengerListSkeleton from './messenger-list-skeleton.svelte';
+	import MessengerInboxSkeleton from './messenger-inbox-skeleton.svelte';
 	import type { MessengerInboxState } from './messenger-inbox-state.svelte';
 
 	let {
@@ -61,7 +61,7 @@
 			<Button variant="outline" size="sm" onclick={() => inbox.load()}>{text.retry}</Button>
 		</div>
 	{:else if !inbox.hasLoaded}
-		<MessengerListSkeleton label={text.loading} />
+		<MessengerInboxSkeleton label={text.loading} />
 	{:else if inbox.shown.length === 0}
 		<Empty.Root>
 			<Empty.Header>

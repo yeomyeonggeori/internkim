@@ -15,7 +15,6 @@
 	import AttendanceLoadingSkeleton from '../attendance-loading-skeleton.svelte';
 	import AttendanceCompanyMetrics from './attendance-company-metrics.svelte';
 	import AttendanceTeamCard from './attendance-team-card.svelte';
-	import { Spinner } from '$lib/components/ui/spinner';
 	import SearchIcon from '@lucide/svelte/icons/search';
 	import ArrowLeftIcon from '@lucide/svelte/icons/arrow-left';
 	import ArrowRightIcon from '@lucide/svelte/icons/arrow-right';
@@ -188,7 +187,7 @@
 				{/if}
 				<h2 class="text-xl font-semibold tracking-tight max-sm:text-lg">{selectedTeam ? teamName(selectedTeam) : text.teamTodayTitle}</h2>
 			</div>
-			<div class="flex items-center gap-3">{#if (teamState.isLoadingTeams && teamState.teams.length) || (teamState.isLoadingMembers && teamState.members.length)}<Spinner aria-label={text.refresh} />{/if}<span class="text-xs text-muted-foreground">{teamState.serverTime ? timeOf(teamState.serverTime) : '—'} 기준</span></div>
+			<div class="flex items-center gap-3"><span class="text-xs text-muted-foreground">{teamState.serverTime ? timeOf(teamState.serverTime) : '—'} 기준</span></div>
 		</div>
 
 		{#if !teamState.selectedTeamKey}

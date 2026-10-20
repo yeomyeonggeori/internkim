@@ -127,9 +127,8 @@ for (const width of [1280, 390]) {
 				await page.getByRole('button', { name: '새로고침', exact: true }).first().click();
 				await expect.poll(() => response.gate.reads).toBeGreaterThan(1);
 				await expect(page.getByTestId('calendar-filter-empty')).toBeVisible();
-				await expect(page.locator('[data-calendar-loading-status]')).toBeVisible();
-				response.gate.release();
 				await expect(page.locator('[data-calendar-loading-status]')).toHaveCount(0);
+				response.gate.release();
 			}
 			await page.getByRole('button', { name: '필터 해제', exact: true }).click();
 			await expect(page.getByRole('button', { name: /제품 점검/ }).first()).toBeVisible();

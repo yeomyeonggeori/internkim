@@ -99,23 +99,25 @@ for (const width of [1280, 390, 320]) {
 			const loading = page.locator(`[data-task-content-skeleton="${variant}"]`);
 			await expect(loading).toBeVisible();
 			await settle(page);
-			const pendingContent = width >= 640 ? loading.locator('table') : loading.locator(variant === 'list' ? '[data-task-list-row-skeleton]' : '[data-task-member-skeleton]').first();
+			const isTable = variant === 'list' || width >= 640;
+			const pendingContent = isTable ? loading.locator('table') : loading.locator('[data-task-member-skeleton]').first();
 			const pending = await box(pendingContent);
-			const pendingHeaders = width >= 640 ? await headings(loading) : [];
+			const pendingHeaders = isTable ? await headings(loading) : [];
 			await capture(page, `task-${variant}-${width}-loading`, pendingContent);
 			fixture.release('task_list');
 			await expect(loading).toHaveCount(0);
 			const readyPane = page.locator('main');
 			await settle(page);
-			const readyContent = width >= 640 ? readyPane.locator('table').filter({ visible: true }) : readyPane.locator(variant === 'list' ? '[role="tabpanel"][data-state="active"] ul > li' : '[data-slot="card-content"] ul > li').first();
+			const readyContent = isTable ? readyPane.locator('table').filter({ visible: true }) : readyPane.locator('[data-slot="card-content"] ul > li').first();
 			const ready = await box(readyContent);
 			await capture(page, `task-${variant}-${width}-ready`, readyContent);
 			expect(Math.abs(pending.x - ready.x)).toBeLessThanOrEqual(1);
 			expect(Math.abs(pending.y - ready.y)).toBeLessThanOrEqual(1);
-			if (width < 640) {
+			if (isTable) expect(pendingHeaders).toEqual(await headings(readyContent));
+			else {
 				expect(Math.abs(pending.width - ready.width)).toBeLessThanOrEqual(1);
 				expect(Math.abs(pending.height - ready.height)).toBeLessThanOrEqual(1);
-			} else expect(pendingHeaders).toEqual(await headings(readyContent));
+			}
 			expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
 		});
 	}

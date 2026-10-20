@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { Skeleton } from '$lib/components/ui/skeleton';
 	import { page } from '$app/state';
 	import * as Alert from '$lib/components/ui/alert';
 	import { Button } from '$lib/components/ui/button';
@@ -69,7 +70,10 @@
 				{#if !authorizationID}
 					<Card.Description>{text.missing}</Card.Description>
 				{:else if request === null}
-					<Card.Description role="status" class="flex items-center gap-2"><Spinner />{text.reading}</Card.Description>
+					<Card.Description role="status" aria-busy="true">
+						<span class="sr-only">{text.reading}</span>
+						<span aria-hidden="true" class="grid gap-1.5"><Skeleton class="h-3.5 w-full" /><Skeleton class="h-3.5 w-2/3" /></span>
+					</Card.Description>
 				{:else if request.kind === 'unreadable'}
 					<Card.Description>{text.unreadable}</Card.Description>
 				{:else if request.kind === 'decided'}

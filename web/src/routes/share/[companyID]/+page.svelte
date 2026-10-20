@@ -1,8 +1,10 @@
 <script lang="ts">
+	import { Skeleton } from '$lib/components/ui/skeleton';
+	import * as Tooltip from '$lib/components/ui/tooltip';
+	import RefreshButton from '$lib/components/refresh-button.svelte';
 	import { onMount } from 'svelte';
 	import { page } from '$app/state';
 	import { z } from 'zod';
-	import { Spinner } from '$lib/components/ui/spinner';
 	import GuestRoom from '$lib/data-room/guest-room.svelte';
 	import type { SharedRoom } from '$lib/data-room/guest-room';
 	import { dataRoomRequest, dataRoomDownload, dataRoomFile, sharedDataRoomSchema } from '$lib/data-room/guest';
@@ -47,7 +49,20 @@
 		onRefresh={load}
 	/>
 {:else if !failure}
-	<div role="status" aria-label={text.title} class="flex min-h-dvh items-center justify-center"><Spinner /></div>
+	<div role="status" aria-label={text.title} aria-busy="true" class="flex min-h-dvh flex-col">
+		<header aria-hidden="true" class="bg-background sticky top-0 z-10 border-b">
+			<div class="mx-auto flex w-full max-w-7xl items-center gap-3 px-4 py-3">
+				<Skeleton class="size-8 shrink-0" />
+				<div class="grid min-w-0 flex-1 gap-1"><Skeleton class="h-4 w-40" /><Skeleton class="h-3 w-56 max-w-full" /></div>
+				<Tooltip.Provider><RefreshButton label={text.refresh} variant="ghost" size="icon-sm" refresh={load} disabled /></Tooltip.Provider>
+			</div>
+		</header>
+		<div aria-hidden="true" class="mx-auto grid w-full max-w-5xl gap-6 px-4 py-6">
+			<Skeleton class="h-9 w-48" />
+			<Skeleton class="h-24 w-full" />
+			<div class="grid gap-4 sm:grid-cols-3">{#each [0, 1, 2] as tile (tile)}<Skeleton class="h-28 w-full" />{/each}</div>
+		</div>
+	</div>
 {/if}
 {#if failure}<p
 		role="alert"

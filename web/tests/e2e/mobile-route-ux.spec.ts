@@ -67,7 +67,6 @@ for (const width of [320, 390]) {
 	test(`files retain mobile root selection and shared preview after reader-role integration at ${width}px`, async ({ page }) => {
 		await page.setViewportSize({ width, height: 844 });
 		await page.goto('/files/');
-		await expect(page.getByRole('tab', { name: '데이터룸', exact: true })).toBeVisible();
 		const item = page.getByRole('button', { name: /주간-회고.md/ });
 		await expect(item).toBeVisible();
 		await expectTouchTarget(item);

@@ -8,7 +8,6 @@
 	import WorkStandardCapacityBar from './work-standard-capacity-bar.svelte';
 	import { calculateCalendarCapacitySeconds } from './work-standard-capacity';
 	import { Skeleton } from '$lib/components/ui/skeleton';
-	import { Spinner } from '$lib/components/ui/spinner';
 
 	const text = createPageText(attendanceText);
 	const workStatus = getWorkStatusState();
@@ -33,10 +32,10 @@
 <div class="mt-3 border-t pt-3" data-testid="personal-work-standard" aria-busy={workStatus.isLoading}>
 	<div class="mb-2 flex items-center justify-between gap-2">
 		<p class="text-[11px] font-medium">{text.workStatus.standard}</p>
-		{#if workStatus.isLoading}
-			<Spinner aria-label={text.loading} />
-		{:else if status}
+		{#if status}
 			<span class="text-xs font-medium">{text.workStatus[status.workMode]}</span>
+		{:else if workStatus.isLoading}
+			<Skeleton aria-hidden="true" class="h-4 w-12" />
 		{/if}
 	</div>
 

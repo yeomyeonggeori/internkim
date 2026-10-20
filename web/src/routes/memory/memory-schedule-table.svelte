@@ -118,9 +118,12 @@
 				<div class="grid min-w-0 gap-3 p-4">
 					<div class="flex h-5 items-center"><Skeleton class="h-4 w-4/5" /></div>
 					<div class="flex flex-wrap items-center gap-2"><Skeleton class="h-5 w-16" /><Skeleton class="h-4 w-24" /></div>
-					<div class="flex h-5 items-center"><Skeleton class="h-4 w-44" /></div>
-					<div class="flex flex-wrap items-center gap-2"><Skeleton class="h-11 w-20" /><Skeleton class="h-11 w-20" /></div>
-					<div class="flex h-11 items-center"><Skeleton class="h-4 w-24" /></div>
+					<p class="flex h-5 items-center gap-1 text-sm">{text.scheduleNextRun}: <Skeleton class="h-4 w-32" /></p>
+					<div class="flex flex-wrap items-center gap-2">
+						<Button variant="outline" disabled><PencilIcon />{text.scheduleEdit}</Button>
+						<Button variant="ghost" class="text-destructive" disabled><Trash2Icon />{text.scheduleDelete}</Button>
+					</div>
+					<div><Button variant="ghost" class="px-0 text-muted-foreground" disabled>{text.scheduleDetails}</Button></div>
 				</div>
 			{/each}
 		</div>
@@ -141,7 +144,10 @@
 							<Table.Cell class="px-3 py-3"><Skeleton class="h-4 w-28" /></Table.Cell>
 							<Table.Cell class="px-3 py-3"><Skeleton class="h-4 w-10" /></Table.Cell>
 							<Table.Cell class="px-3 py-3"><Skeleton class="h-5 w-10" /></Table.Cell>
-							<Table.Cell class="px-4 py-3"><div class="flex justify-end gap-1"><Skeleton class="size-7" /><Skeleton class="size-7" /></div></Table.Cell>
+							<Table.Cell class="px-4 py-3"><div class="flex justify-end gap-1">
+									<Button type="button" variant="ghost" size="icon-sm" disabled aria-label={text.scheduleEdit}><PencilIcon class="size-4" /></Button>
+									<Button type="button" variant="ghost" size="icon-sm" disabled aria-label={text.scheduleDelete} class="text-destructive"><Trash2Icon class="size-4" /></Button>
+								</div></Table.Cell>
 						</Table.Row>
 					{/each}
 				</Table.Body>

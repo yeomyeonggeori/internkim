@@ -2,7 +2,8 @@
 	import * as Card from '$lib/components/ui/card';
 	import { Skeleton } from '$lib/components/ui/skeleton';
 	import * as Table from '$lib/components/ui/table';
-	let { label, isAdmin = false }: { label: string; isAdmin?: boolean } = $props();
+	import type { TasksText } from './text';
+	let { label, isAdmin = false, text }: { label: string; isAdmin?: boolean; text: TasksText } = $props();
 </script>
 
 <Card.Root role="status" aria-label={label} aria-busy="true" class="min-w-0" data-testid="run-list-loading-skeleton">
@@ -19,7 +20,7 @@
 						</div>
 					<Skeleton class="h-5 w-16 shrink-0" />
 					</div>
-					<div class="flex h-11 items-center justify-between gap-3 sm:h-6"><Skeleton class="h-3 w-28" /><Skeleton class="h-3 w-12" /></div>
+					<div class="flex h-9 items-center justify-between gap-3 sm:h-6"><Skeleton class="h-3 w-28" /><Skeleton class="h-3 w-12" /></div>
 				</div>
 			{/each}
 		</div>
@@ -27,12 +28,12 @@
 			<Table.Root>
 				<Table.Header>
 					<Table.Row class="hover:bg-transparent">
-						<Table.Head><Skeleton class="h-4 w-24" /></Table.Head>
-						{#if isAdmin}<Table.Head class="w-44"><Skeleton class="h-4 w-20" /></Table.Head>{/if}
-						<Table.Head class="w-32"><Skeleton class="h-4 w-16" /></Table.Head>
-						<Table.Head class="w-28"><Skeleton class="ml-auto h-4 w-14" /></Table.Head>
-						<Table.Head class="w-44"><Skeleton class="ml-auto h-4 w-20" /></Table.Head>
-						<Table.Head class="w-12"></Table.Head>
+						<Table.Head>{text.columnRequest}</Table.Head>
+						{#if isAdmin}<Table.Head class="w-44">{text.columnRequester}</Table.Head>{/if}
+						<Table.Head class="w-32">{text.columnStatus}</Table.Head>
+						<Table.Head class="w-28 text-right">{text.columnCost}</Table.Head>
+						<Table.Head class="w-44 text-right">{text.columnUpdated}</Table.Head>
+						<Table.Head class="w-12 text-right"><span class="sr-only">{text.columnActions}</span></Table.Head>
 					</Table.Row>
 				</Table.Header>
 				<Table.Body>

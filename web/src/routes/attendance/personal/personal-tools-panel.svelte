@@ -1,6 +1,5 @@
 <script lang="ts">
-	import { Skeleton } from '$lib/components/ui/skeleton';
-	import { Spinner } from '$lib/components/ui/spinner';
+	import * as Card from '$lib/components/ui/card';
 	import { Button } from '$lib/components/ui/button';
 	import { companyDateOf } from '$lib/company-time';
 	import { myAttendanceToday } from '$lib/attendance/my-attendance-today.svelte';
@@ -11,10 +10,12 @@
 	import AttendanceLoadingSkeleton from '../attendance-loading-skeleton.svelte';
 	import DeferredSection from '$lib/components/deferred-section.svelte';
 	import LeaveBalanceSummary from '../leave/leave-balance-summary.svelte';
+	import LeaveBalanceSummaryLoading from '../leave/leave-balance-summary-loading.svelte';
 	import QuickActions from '../quick-actions.svelte';
 	import { todayDateInTimeZone } from '../shared/attendance-date';
 	import { formatHoursMinutes } from '../shared/attendance-format';
 	import WorkTimeChart from '../shared/work-time-chart.svelte';
+	import WorkTimeChartLoading from '../shared/work-time-chart-loading.svelte';
 	import { buildDailyWorkTimeValues, buildWorkTimeChartLocations } from '../shared/work-time-chart-data';
 	import { attendanceText } from '../text';
 	import WorkStandardSummary from './work-standard-summary.svelte';
@@ -148,7 +149,6 @@
 		{#if ownMonth}
 			<div class="flex items-center justify-end gap-2">
 				<AttendanceMonthPicker selectedMonth={ownMonth} onSelectMonth={(month) => (ownMonth = month)} density="compact" />
-				{#if ownHistoryLoading}<Spinner aria-label={text.loading} />{/if}
 			</div>
 		{/if}
 		{#if chartSummary}
@@ -170,17 +170,20 @@
 				{/snippet}
 			</WorkTimeChart>
 			{#snippet placeholder()}
-				<Skeleton class="h-40 w-full rounded-xl" />
+				<WorkTimeChartLoading title={text.myWorkTime} />
 			{/snippet}
 			</DeferredSection>
 		{:else if ownHistoryLoading}
-			<Skeleton class="h-40 w-full rounded-xl" />
+			<WorkTimeChartLoading title={text.myWorkTime} />
 		{/if}
 		{#if ownHistoryError}<p role="alert" class="text-xs text-destructive">{ownHistoryError} <Button variant="link" size="sm" onclick={() => (retryRevision += 1)}>{text.refresh}</Button></p>{/if}
 		<DeferredSection>
 			<LeaveBalanceSummary />
 			{#snippet placeholder()}
-				<Skeleton class="h-28 w-full rounded-xl" />
+				<Card.Root class="gap-2" aria-label={text.leave.summaryTitle}>
+					<Card.Header class="pb-0"><Card.Title class="text-sm">{text.leave.summaryTitle}</Card.Title></Card.Header>
+					<Card.Content class="space-y-2 px-3 pb-3 pt-1"><LeaveBalanceSummaryLoading /></Card.Content>
+				</Card.Root>
 			{/snippet}
 		</DeferredSection>
 	{/if}

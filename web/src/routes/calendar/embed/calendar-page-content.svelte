@@ -169,7 +169,6 @@
 	{/if}
 	<CalendarStage
 		loading={isInitialLoading}
-		busy={isLoading}
 		onVisibleEventsChange={(hasEvents) => { hasVisibleEvents = hasEvents; }}
 		showEmptyState={!loadErrorMessage}
 		{activeMobileEditorEventID}

@@ -1,4 +1,5 @@
 <script lang="ts">
+	import RefreshButton from '$lib/components/refresh-button.svelte';
 	import { page } from '$app/state';
 	import { taskListPathOf } from '$lib/app-shell';
 	import { displayPersonName } from '$lib/person-name.svelte';
@@ -10,12 +11,10 @@
 	import { CopyButton } from '$lib/components/ui/copy-button';
 	import { Input } from '$lib/components/ui/input';
 	import { Skeleton } from '$lib/components/ui/skeleton';
-	import { Spinner } from '$lib/components/ui/spinner';
 	import { isRunsAccessDenied } from '../runs-read-error';
 	import * as UnderlineTabs from '$lib/components/ui/underline-tabs';
 	import { createPageText } from '$lib/i18n/page-text.svelte';
 	import ArrowLeftIcon from '@lucide/svelte/icons/arrow-left';
-	import RefreshCwIcon from '@lucide/svelte/icons/refresh-cw';
 	import SearchIcon from '@lucide/svelte/icons/search';
 	import { onDestroy, untrack } from 'svelte';
 	import ApprovalDecision from '../approval-decision.svelte';
@@ -67,6 +66,14 @@
 	const story = $derived(buildTaskStory(detail?.taskEvents ?? []));
 	const runDuration = $derived(detail ? formatDuration(Date.parse(detail.taskRun.updatedAt ?? '') - Date.parse(detail.taskRun.createdAt ?? '')) : '');
 	const runFacts = $derived(factsOf(summary, runDuration));
+	const loadingFactLabels = $derived([
+		text.factDuration,
+		text.factModelCalls,
+		text.factModelLatency,
+		text.factTotalTokens,
+		text.factCost,
+		text.factToolCalls
+	]);
 	const pendingApproval = $derived(detail ? pendingApprovalOf(detail) : undefined);
 	const ledgerSections = $derived(detail ? filterLedger(groupLedger(detail.taskEvents), isEventShown) : []);
 	const taskShareText = $derived(detail ? taskDetailShareText(detail) : '');
@@ -206,7 +213,7 @@
 				<CopyButton text={taskShareText} />
 			</div>
 		{:else if !loadError}
-			<Skeleton aria-hidden="true" class="size-11 sm:size-8" />
+			<CopyButton text="" disabled />
 		{/if}
 	</div>
 
@@ -225,14 +232,14 @@
 							<div class="flex h-[1lh] items-center"><Skeleton class="h-4 w-full sm:w-3/4" /></div>
 							<div class="flex h-[1lh] items-center sm:hidden"><Skeleton class="h-4 w-2/3" /></div>
 						</div>
-						<div class="mt-2 grid grid-cols-2 overflow-hidden rounded-lg border bg-card sm:grid-cols-3 lg:grid-flow-col lg:grid-cols-none lg:auto-cols-fr">
-							{#each [0, 1, 2, 3, 4, 5] as fact (fact)}
+						<dl class="mt-2 grid grid-cols-2 overflow-hidden rounded-lg border bg-card sm:grid-cols-3 lg:grid-flow-col lg:grid-cols-none lg:auto-cols-fr">
+							{#each loadingFactLabels as label (label)}
 								<div class="-mr-px -mb-px flex min-w-0 flex-col gap-1 border-r border-b px-3 py-2.5 sm:px-4 sm:py-3">
-									<div class="flex h-4 items-center"><Skeleton class="h-3 w-16" /></div>
-									<div class="flex h-5 items-center sm:h-6"><Skeleton class="h-4 w-20 sm:h-5" /></div>
+									<dt class="text-xs text-muted-foreground">{label}</dt>
+									<dd class="flex h-5 items-center sm:h-6"><Skeleton class="h-4 w-20 sm:h-5" /></dd>
 								</div>
 							{/each}
-						</div>
+						</dl>
 					</div>
 					<div class="flex min-w-0 flex-col gap-2">
 						<UnderlineTabs.Root value="story">
@@ -335,10 +342,7 @@
 
 			<UnderlineTabs.Content value="logs" class="flex min-w-0 flex-col gap-3">
 				<div class="flex justify-end">
-					<Button onclick={loadServiceLogs} disabled={serviceLogsLoading} variant="outline" size="sm">
-						{#if serviceLogsLoading}<Spinner data-icon="inline-start" />{:else}<RefreshCwIcon data-icon="inline-start" />{/if}
-						{text.refresh}
-					</Button>
+					<RefreshButton refresh={loadServiceLogs} disabled={serviceLogsLoading} variant="outline" size="sm" showsLabel label={text.refresh} />
 				</div>
 					{#if serviceLogsError}
 						<p class="text-sm text-destructive">{serviceLogsError}</p>

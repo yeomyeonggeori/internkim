@@ -1,6 +1,11 @@
 <script lang="ts">
 	import { Skeleton } from '$lib/components/ui/skeleton';
 	import { Button } from '$lib/components/ui/button';
+	import * as ButtonGroup from '$lib/components/ui/button-group';
+	import Building2Icon from '@lucide/svelte/icons/building-2';
+	import ComponentIcon from '@lucide/svelte/icons/component';
+	import MailIcon from '@lucide/svelte/icons/mail';
+	import MessageSquareIcon from '@lucide/svelte/icons/message-square';
 	import * as Item from '$lib/components/ui/item';
 	import FilterCombobox from '$lib/components/filter-combobox.svelte';
 	import { IsMobile } from '$lib/hooks/is-mobile.svelte';
@@ -15,7 +20,7 @@
 
 <div class="grid h-full min-h-0 lg:grid-cols-[270px_minmax(0,1fr)]" data-testid="organization-skeleton" role="status" aria-label={label} aria-busy="true">
 	<div aria-hidden="true" class="hidden min-h-0 border-r px-2 pt-3 pb-4 lg:block">
-		<div class="flex h-9 items-center gap-1 pl-2"><Skeleton class="size-6 shrink-0" /><Skeleton class="h-4 w-20" /></div>
+		<div class="flex h-9 items-center gap-1 pl-2"><span class="text-muted-foreground grid size-6 shrink-0 place-items-center"><Building2Icon class="size-4" /></span><Skeleton class="h-4 w-20" /></div>
 		{#each Array.from({ length: organizationCount }) as _, organizationIndex (organizationIndex)}
 			<div class="relative flex h-9 items-center gap-1 pl-6 pr-2"><span class="absolute inset-y-0 left-5 w-px bg-border"></span><Skeleton class="size-6 shrink-0" /><Skeleton class="h-4" style="width: {45 + ((organizationIndex * 13) % 30)}%" /></div>
 		{/each}
@@ -31,16 +36,16 @@
 			<div class="grid pt-4 pb-6 max-sm:pt-1">
 				<section class="relative min-w-0 pb-3">
 					<span class="absolute top-9 bottom-3 left-5 w-px bg-border"></span>
-					<div class="flex h-9 items-center gap-1 pr-2 pl-2"><Skeleton class="size-6 shrink-0" /><Skeleton class="h-4 w-16" /><Skeleton class="h-5 w-9 rounded-full max-sm:ml-1 max-sm:h-3 max-sm:w-3 max-sm:rounded-sm" /></div>
+					<div class="flex h-9 items-center gap-1 pr-2 pl-2"><span class="text-muted-foreground grid size-6 shrink-0 place-items-center"><Building2Icon class="size-4" /></span><Skeleton class="h-4 w-16" /><Skeleton class="h-5 w-9 rounded-full max-sm:ml-1 max-sm:h-3 max-sm:w-3 max-sm:rounded-sm" /></div>
 					<section class="relative mt-4 min-w-0 pb-3">
 						<span class="absolute top-9 bottom-3 left-9 w-px bg-border"></span>
-						<div class="flex h-9 items-center gap-1 pr-2 pl-6"><Skeleton class="size-6 shrink-0" /><Skeleton class="h-4 w-24" /><Skeleton class="h-5 w-9 rounded-full max-sm:ml-1 max-sm:h-3 max-sm:w-3 max-sm:rounded-sm" /></div>
+						<div class="flex h-9 items-center gap-1 pr-2 pl-6"><span class="text-muted-foreground grid size-6 shrink-0 place-items-center"><ComponentIcon class="size-4" /></span><Skeleton class="h-4 w-24" /><Skeleton class="h-5 w-9 rounded-full max-sm:ml-1 max-sm:h-3 max-sm:w-3 max-sm:rounded-sm" /></div>
 						<Item.Group class="grid grid-cols-1 gap-2 pr-2 pl-[52px] max-sm:gap-0 sm:grid-cols-[repeat(auto-fill,minmax(11rem,1fr))]">
 							{#each Array.from({ length: personCount }) as _, personIndex (personIndex)}
 								<Item.Root variant={isPhone.current ? 'default' : 'outline'} class="relative gap-2 bg-card max-sm:flex-nowrap max-sm:px-2 max-sm:py-1.5 sm:flex-col sm:items-center sm:px-4 sm:pt-7 sm:pb-2">
 									<div class="absolute top-2 left-2 flex items-center gap-1 max-sm:hidden"><Skeleton class="h-5 w-14 rounded-full" /></div>
 									<div class="flex min-h-11 w-full min-w-0 items-center gap-3 max-sm:flex-1 sm:grid sm:justify-items-center sm:gap-2"><Skeleton class="size-10 shrink-0 rounded-full max-sm:size-9 sm:size-20" /><div class="grid min-w-0 w-full gap-0.5 sm:justify-items-center"><div class="flex h-[19.25px] items-center"><Skeleton class="h-3.5 w-20 max-w-full" /></div><div class="flex h-[18px] items-center"><Skeleton class="h-3 w-24 max-w-full" /></div></div></div>
-									<div class="flex shrink-0"><Skeleton class="size-11 rounded-lg sm:size-8" /><Skeleton class="size-11 rounded-lg sm:size-8" /></div>
+									<ButtonGroup.Root class="shrink-0"><Button variant="ghost" size="icon" disabled aria-label={text.sendEmail}><MailIcon /></Button><Button variant="ghost" size="icon" disabled aria-label={text.sendDirectMessage}><MessageSquareIcon /></Button></ButtonGroup.Root>
 								</Item.Root>
 							{/each}
 						</Item.Group>

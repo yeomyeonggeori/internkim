@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { Skeleton } from '$lib/components/ui/skeleton';
 	import * as AlertDialog from '$lib/components/ui/alert-dialog';
 	import { Button } from '$lib/components/ui/button';
 	import * as Card from '$lib/components/ui/card';
@@ -132,7 +133,15 @@
 			<p class="text-sm text-destructive" role="alert">{settingsState.loadError}</p>
 		{/if}
 		{#if (settingsState.isLoading || !settingsState.hasLoadedHolidays) && !settingsState.loadError && settingsState.holidays.length === 0}
-			<p class="text-sm text-muted-foreground">{text.companyHolidays.loading}</p>
+			<div role="status" aria-busy="true" class="grid gap-2">
+				<span class="sr-only">{text.companyHolidays.loading}</span>
+				{#each [0, 1, 2] as row (row)}
+					<div aria-hidden="true" class="flex items-center justify-between gap-4 rounded-lg border p-3">
+						<div class="flex min-w-0 items-center gap-3"><Skeleton class="size-2 shrink-0 rounded-full" /><div class="grid"><div class="flex h-6 items-center"><Skeleton class="h-4 w-28" /></div><div class="flex h-5 items-center"><Skeleton class="h-3.5 w-20" /></div></div></div>
+						<Button variant="outline" size="sm" disabled>{text.companyHolidays.edit}</Button>
+					</div>
+				{/each}
+			</div>
 		{:else if settingsState.hasLoadedHolidays && settingsState.holidays.length === 0 && !settingsState.draft && !settingsState.loadError}
 			<Empty.Root class="border">
 				<Empty.Header><Empty.Title>{text.companyHolidays.empty}</Empty.Title></Empty.Header>

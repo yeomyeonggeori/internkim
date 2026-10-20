@@ -6,6 +6,8 @@
 	import { Skeleton } from '$lib/components/ui/skeleton';
 	import { createPageText } from '$lib/i18n/page-text.svelte';
 	import ArrowLeftIcon from '@lucide/svelte/icons/arrow-left';
+	import CheckIcon from '@lucide/svelte/icons/check';
+	import XIcon from '@lucide/svelte/icons/x';
 	import HourglassIcon from '@lucide/svelte/icons/hourglass';
 	import RefreshCwIcon from '@lucide/svelte/icons/refresh-cw';
 	import { page } from '$app/state';
@@ -76,21 +78,25 @@
 				{#each [0, 1] as card (card)}
 					<Card.Root aria-hidden="true">
 						<Card.Header class="gap-3">
-							<div class="flex min-w-0 flex-wrap items-center gap-2"><Skeleton class="h-5 w-18" /><Skeleton class="h-3 w-32" /><Skeleton class="h-3 w-24" /></div>
+							<div class="flex min-w-0 flex-wrap items-center gap-2">
+								<Badge variant="outline"><HourglassIcon />{text.statusWaitingApproval}</Badge>
+								<span class="flex items-center gap-1 text-xs text-muted-foreground">{text.requesterLabel}: <Skeleton class="h-3 w-20" /></span>
+								<Skeleton class="h-3 w-24" />
+							</div>
 							<div class="flex h-6 items-center"><Skeleton class="h-5 w-3/4" /></div>
 						</Card.Header>
 						<Card.Content>
 							<div class="flex flex-col gap-3">
-								<div class="flex h-4 items-center"><Skeleton class="h-3 w-20" /></div>
+								<div class="flex flex-wrap items-center gap-2"><span class="text-xs text-muted-foreground">{text.approvalQuestionLabel}</span></div>
 								<div>
 									<div class="flex h-5 items-center"><Skeleton class="h-4 w-full sm:w-2/3" /></div>
 									<div class="flex h-5 items-center sm:hidden"><Skeleton class="h-4 w-2/3" /></div>
 								</div>
 								<div class="h-px bg-border"></div>
-								<div class="flex flex-wrap gap-2"><Skeleton class="h-11 w-22 sm:h-7" /><Skeleton class="h-11 w-14 sm:h-7" /></div>
+								<div class="flex flex-wrap gap-2"><Button size="sm" disabled><CheckIcon data-icon="inline-start" />{text.approveOnce}</Button><Button variant="outline" size="sm" disabled><XIcon data-icon="inline-start" />{text.rejectApproval}</Button></div>
 							</div>
 						</Card.Content>
-						<Card.Footer><div class="flex h-11 items-center px-2.5 sm:h-7"><Skeleton class="h-4 w-20" /></div></Card.Footer>
+						<Card.Footer><Button variant="ghost" size="sm" disabled>{text.openLedger}</Button></Card.Footer>
 					</Card.Root>
 				{/each}
 			</section>

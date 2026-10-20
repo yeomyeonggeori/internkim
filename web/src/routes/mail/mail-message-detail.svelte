@@ -4,7 +4,6 @@
 	import * as DropdownMenu from '$lib/components/ui/dropdown-menu';
 	import { Separator } from '$lib/components/ui/separator';
 	import { Skeleton } from '$lib/components/ui/skeleton';
-	import { Spinner } from '$lib/components/ui/spinner';
 	import ArchiveIcon from '@lucide/svelte/icons/archive';
 	import ArchiveXIcon from '@lucide/svelte/icons/archive-x';
 	import ArrowLeftIcon from '@lucide/svelte/icons/arrow-left';
@@ -152,9 +151,6 @@
 							<div aria-hidden="true" class="grid gap-3"><Skeleton class="h-4 w-4/5" /><Skeleton class="h-4 w-full" /><Skeleton class="h-4 w-11/12" /><Skeleton class="h-4 w-2/3" /><Skeleton class="mt-5 h-4 w-full" /><Skeleton class="h-4 w-3/4" /></div>
 						</div>
 				{:else}
-					{#if isLoadingMessage}
-							<p role="status" class="mb-3 flex items-center gap-2 text-xs text-muted-foreground"><Spinner />{text.loadingMessage}</p>
-					{/if}
 					{#if messageBodyHTML}
 						<iframe
 							title={text.messageBody}

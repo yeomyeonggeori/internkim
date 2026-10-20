@@ -61,7 +61,6 @@ test('a closed browser restores a scoped snapshot and preserves stale age on a w
 		await expect(page.locator('[data-task-progress="snapshot"]')).toBeVisible();
 		await expect(taskCard(page, id)).toBeVisible();
 		await expect(page.locator('[data-task-ready="false"]')).toBeVisible();
-		await expect(page.locator('[data-task-cache-status]')).toBeVisible();
 		await expect(page.getByRole('button', { name: '이전 주', exact: true })).toBeDisabled();
 		const previousWeek = taskWeekOfDate(new Date(Date.now() - 7 * 86400000)).code;
 		await page.goto(`/example-co/task?week=${previousWeek}`);
@@ -69,7 +68,6 @@ test('a closed browser restores a scoped snapshot and preserves stale age on a w
 		expect(await page.evaluate(key => JSON.parse(localStorage.getItem(key)!).savedAt, key)).toBe(before);
 		release();
 		await expect(page.locator('main')).toContainText('Temporarily unavailable');
-		await expect(page.locator('[data-task-cache-status]')).toBeVisible();
 		await expect(page.locator('[data-task-progress="snapshot"]')).toBeVisible();
 	} finally { release(); await context.close(); await rm(path, { recursive: true, force: true }); await removeTasks([id]); }
 });
@@ -96,7 +94,7 @@ test('first task visit shows structure then real cards before directory completi
 		releaseTasks();
 		await expect(taskCard(page, id)).toBeVisible();
 		await expect(page.locator('[data-task-ready="true"]')).toBeVisible();
-		await expect(page.getByRole('status').filter({ hasText: '구성원 정보를 준비' })).toBeVisible();
+		await expect(page.getByRole('status').filter({ hasText: '구성원 정보를 준비' })).toHaveCount(0);
 		await page.screenshot({ path: 'tests/performance/task-progressive-desktop.png' });
 		expect(await page.evaluate(() => localStorage.getItem('internkim:task-board-snapshots:v1'))).toBeNull();
 		await openTaskCard(page, id);

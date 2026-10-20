@@ -73,7 +73,7 @@
 	</Card.Header>
 	<Card.Content class="grid gap-4">
 		{#if isLoading}
-			<div role="status" aria-label={text.baseCurrency} aria-busy="true"><div aria-hidden="true" class="grid gap-4"><div class="grid gap-2"><Skeleton class="h-4 w-24" /><Skeleton class="h-9 w-full" /></div><Skeleton class="h-4 w-4/5" /><Skeleton class="h-9 w-full" /></div></div>
+			<div role="status" aria-label={text.baseCurrency} aria-busy="true"><div aria-hidden="true" class="grid gap-4"><div class="grid gap-2"><Label>{text.baseCurrency}</Label><Skeleton class="h-9 w-full" /></div><p class="text-sm text-muted-foreground">{text.baseCurrencySettledNote}</p><Button class="w-full" disabled>{text.save}</Button></div></div>
 		{:else}
 			<div class="grid gap-2">
 				<Label for="{fieldID}-currency">{text.baseCurrency}</Label>

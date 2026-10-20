@@ -7,7 +7,6 @@
 	import { attendanceText } from '../text';
 	import LeaveHistory from './leave-history.svelte';
 	import LeaveTypeBalances from './leave-type-balances.svelte';
-	import { Spinner } from '$lib/components/ui/spinner';
 
 	const text = createPageText(attendanceText);
 	const employeeLeave = getEmployeeLeaveState();
@@ -16,7 +15,7 @@
 
 
 <section class="mx-auto grid w-full min-w-0 max-w-5xl grid-cols-1 gap-5" data-testid="leave-history-view">
- <header class="flex items-center justify-between gap-3"><h1 class="text-2xl font-semibold tracking-tight">{text.navigation.mine}</h1>{#if employeeLeave.isLoading && employeeLeave.payload}<Spinner aria-label={text.loading} />{/if}<LeaveRequestDialog /></header>
+ <header class="flex items-center justify-between gap-3"><h1 class="text-2xl font-semibold tracking-tight">{text.navigation.mine}</h1><LeaveRequestDialog /></header>
  {#if employeeLeave.errorMessage}<p role="alert" class="rounded-md border border-destructive/40 p-3 text-sm text-destructive">{employeeLeave.errorMessage}</p>{/if}
  {#if employeeLeave.payload || !employeeLeave.errorMessage}
   <LeaveTypeBalances />

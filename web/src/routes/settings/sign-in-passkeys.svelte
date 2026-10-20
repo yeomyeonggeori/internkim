@@ -93,7 +93,7 @@
 		{#if !isSupported}
 			<p class="text-sm text-muted-foreground">{text.passkeysUnsupported}</p>
 		{:else if isLoading && passkeys.length === 0}
-			<SettingsListLoading label={text.passkeys} />
+			<SettingsListLoading label={text.passkeys} actionLabel={text.removePasskey} />
 		{:else}
 			{#if hasLoadError}<p role="alert" class="text-sm text-destructive">{text.passkeysLoadFailed}</p>{/if}
 			{#if passkeys.length === 0 && !isLoading && !hasLoadError}

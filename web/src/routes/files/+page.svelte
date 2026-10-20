@@ -1,17 +1,16 @@
 <script lang="ts">
+	import RefreshButton from '$lib/components/refresh-button.svelte';
 	import { onMount } from 'svelte';
 	import * as Breadcrumb from '$lib/components/ui/breadcrumb';
 	import * as FileDropZone from '$lib/components/ui/file-drop-zone';
 	import * as Select from '$lib/components/ui/select';
 	import { Button, buttonVariants } from '$lib/components/ui/button';
-	import TooltipIconButton from '$lib/components/tooltip-icon-button.svelte';
 	import { Spinner } from '$lib/components/ui/spinner';
 	import { Skeleton } from '$lib/components/ui/skeleton';
 	import FileBrowserList, { type FileBrowserEntry } from '$lib/components/file-browser-list.svelte';
 	import FileBrowserPreview from '$lib/components/file-browser-preview.svelte';
 	import { createPageText } from '$lib/i18n/page-text.svelte';
 	import { currentLocale } from '$lib/i18n/locale.svelte';
-	import RefreshCwIcon from '@lucide/svelte/icons/refresh-cw';
 	import UploadIcon from '@lucide/svelte/icons/upload';
 	import FileDetail from './file-detail.svelte';
 	import FilesSidebar from './files-sidebar.svelte';
@@ -116,12 +115,7 @@
 						</Breadcrumb.List>
 					</Breadcrumb.Root>
 					<div class="ml-auto flex shrink-0 items-center gap-2">
-						<TooltipIconButton
-							label={text.refresh}
-							variant="ghost"
-							size="icon-sm"
-							onclick={() => files.reload()}><RefreshCwIcon /></TooltipIconButton
-						>
+						<RefreshButton label={text.refresh} variant="ghost" size="icon-sm" refresh={() => files.reload()} />
 						<FileDropZone.Trigger class={buttonVariants({ size: 'sm' })}>
 							{#if files.isUploading}<Spinner />{:else}<UploadIcon />{/if}
 							{files.isUploading ? `${text.uploading} ${Math.floor(files.uploadedFraction * 100)}%` : text.upload}
