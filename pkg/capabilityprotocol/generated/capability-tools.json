@@ -3055,7 +3055,7 @@
         "mode": "success",
         "targetKind": "task_vocabulary"
       },
-      "description": "Set the task vocabulary: the business and task type labels this company files work under. Each list is written at once, so read registeredLabels from a task_list result first and send it back with what changes. A label a task still carries cannot be dropped. This is an administrator’s.",
+      "description": "Set the task vocabulary: the business and task type labels this company files work under. Each list sent is written at once, so read registeredLabels from a task_list result first and send it back with what changes; a list left out is kept. A label a task still carries cannot be dropped. This is an administrator’s.",
       "estimatedLatency": "medium",
       "idempotency": {
         "required": false,
@@ -3067,7 +3067,7 @@
         "additionalProperties": false,
         "properties": {
           "businesses": {
-            "description": "The business labels this company runs, replacing the whole list. Read registeredLabels from a task_list result first and send it back with what changes.",
+            "description": "The business labels this company runs, replacing the whole list. Read registeredLabels from a task_list result first and send it back with what changes. Omit it to keep the current list.",
             "items": {
               "additionalProperties": false,
               "properties": {
@@ -3091,17 +3091,17 @@
             "type": "array"
           },
           "etcBusinessColor": {
-            "description": "Colour for work carrying no business label.",
+            "description": "Colour for work carrying no business label. Omit it to keep the current one.",
             "maxLength": 64,
             "type": "string"
           },
           "etcTypeColor": {
-            "description": "Colour for work carrying no type label.",
+            "description": "Colour for work carrying no type label. Omit it to keep the current one.",
             "maxLength": 64,
             "type": "string"
           },
           "types": {
-            "description": "The task type labels this company runs, replacing the whole list.",
+            "description": "The task type labels this company runs, replacing the whole list. Omit it to keep the current list.",
             "items": {
               "additionalProperties": false,
               "properties": {
@@ -3132,7 +3132,7 @@
         "additionalProperties": false,
         "properties": {
           "businesses": {
-            "description": "The business labels this company runs, replacing the whole list. Read registeredLabels from a task_list result first and send it back with what changes.",
+            "description": "The business labels this company runs, replacing the whole list. Read registeredLabels from a task_list result first and send it back with what changes. Omit it to keep the current list.",
             "items": {
               "additionalProperties": false,
               "properties": {
@@ -3156,17 +3156,17 @@
             "type": "array"
           },
           "etcBusinessColor": {
-            "description": "Colour for work carrying no business label.",
+            "description": "Colour for work carrying no business label. Omit it to keep the current one.",
             "maxLength": 64,
             "type": "string"
           },
           "etcTypeColor": {
-            "description": "Colour for work carrying no type label.",
+            "description": "Colour for work carrying no type label. Omit it to keep the current one.",
             "maxLength": 64,
             "type": "string"
           },
           "types": {
-            "description": "The task type labels this company runs, replacing the whole list.",
+            "description": "The task type labels this company runs, replacing the whole list. Omit it to keep the current list.",
             "items": {
               "additionalProperties": false,
               "properties": {

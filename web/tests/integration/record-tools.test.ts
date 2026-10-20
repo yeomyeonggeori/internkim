@@ -1053,6 +1053,19 @@ describe('task_vocabulary_set', () => {
 		expect(labels.etcBusinessColor).toBe('#94a3b8');
 	});
 
+	test('keeps what a call leaves out', async () => {
+		await run('task_vocabulary_set', {
+			businesses: [{ name: '영업' }, { name: '개발' }, { name: '남겨 둘 사업' }],
+			types: [{ name: '문서' }],
+			etcBusinessColor: '#94a3b8'
+		});
+
+		const written = resultOf(await run('task_vocabulary_set', { types: [{ name: '문서' }, { name: '회의' }] }));
+		expect((written.businesses as { name: string }[]).map((label) => label.name)).toEqual(['영업', '개발', '남겨 둘 사업']);
+		expect((written.types as { name: string }[]).map((label) => label.name)).toEqual(['문서', '회의']);
+		expect(written.etcBusinessColor).toBe('#94a3b8');
+	});
+
 	test('refuses to drop a label a task is still filed under', async () => {
 		await run('task_add', { title: '개발로 남아 있을 일', business: '개발' });
 

@@ -22,13 +22,13 @@ const writtenLabelSchema = z.strictObject({
 
 export const taskVocabularySetInputSchema = z.strictObject({
   businesses: z.array(writtenLabelSchema)
-    .describe('The business labels this company runs, replacing the whole list. Read registeredLabels from a task_list result first and send it back with what changes.')
+    .describe('The business labels this company runs, replacing the whole list. Read registeredLabels from a task_list result first and send it back with what changes. Omit it to keep the current list.')
     .optional(),
   types: z.array(writtenLabelSchema)
-    .describe('The task type labels this company runs, replacing the whole list.')
+    .describe('The task type labels this company runs, replacing the whole list. Omit it to keep the current list.')
     .optional(),
-  etcBusinessColor: z.string().max(64).describe('Colour for work carrying no business label.').optional(),
-  etcTypeColor: z.string().max(64).describe('Colour for work carrying no type label.').optional(),
+  etcBusinessColor: z.string().max(64).describe('Colour for work carrying no business label. Omit it to keep the current one.').optional(),
+  etcTypeColor: z.string().max(64).describe('Colour for work carrying no type label. Omit it to keep the current one.').optional(),
 });
 
 export const taskVocabularySetInputIntentSchema = taskVocabularySetInputSchema.partial();
