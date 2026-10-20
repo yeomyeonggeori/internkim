@@ -21,6 +21,14 @@ export const dataRoomShareCreateInputSchema = z.strictObject({
 });
 export const dataRoomShareRevokeInputSchema = z.strictObject({ shareID: z.string().uuid() });
 const dataRoomShareCreatedSchema = z.strictObject({ shareID: z.string().uuid() });
+export const dataRoomInvitationSendInputSchema = z.strictObject({
+	shareID: z.string().uuid().describe('Exact shareID of an email share, from dataroom_share_add or dataroom_get.')
+});
+export const dataRoomInvitationAcceptInputSchema = z.strictObject({
+	shareID: z.string().uuid().describe('Exact shareID the invitation address names, the last segment of /share/invitations/<shareID>.')
+});
+export const dataRoomInvitationSentSchema = z.strictObject({ shareID: z.string().uuid(), sent: z.boolean() });
+export const dataRoomInvitationAcceptedSchema = z.strictObject({ shareID: z.string().uuid(), companyID: z.string().uuid() });
 export const recordSavedSchema = z.strictObject({ saved: z.boolean() });
 
 export function companyRecordTool(namespace: CapabilityNamespace, objectType: string, subject: string) {
@@ -67,6 +75,33 @@ export const dataRoomToolDefinitions: CapabilityToolDefinition[] = [
 	dataRoomTool('dataroom_share_add',
 		'Share live data room categories with someone outside the company by lending them what one circle reads: an external email or an explicitly public audience. Current and future documents in those categories become readable. Confirm the audience and scope first. Recipients must accept using their verified email; do not invite them as company members. Company members read through the circles they belong to, set with circle_member_update. Public publication is a distinct explicit request and never includes X.',
 		dataRoomShareCreateInputSchema, dataRoomShareCreatedSchema, true),
+	{
+		name: 'dataroom_invitation_send', namespace: 'dataroom', answeredBy: CapabilityAnsweredBy.Record,
+		privacyClass: 'workspace_company', policyResource: 'tool:dataroom_invitation_send', version: '1',
+		description: 'Company dataroom: send the invitation email of an email share, so its recipient can sign in with that address and accept it. Only a company administrator sends invitations; a revoked or expired share is refused. Requires approval; the email reaches someone outside the company.',
+		estimatedLatency: CapabilityEstimatedLatency.Medium,
+		inputSchema: dataRoomInvitationSendInputSchema,
+		inputIntentSchema: dataRoomInvitationSendInputSchema.partial(),
+		result: { schema: dataRoomInvitationSentSchema, effects: [{
+			objectType: 'data_room_share', effect: ResourceMutationEffect.Sent,
+			resultField: 'shareID', effectIdentity: ResourceEffectIdentity.ID
+		}] },
+		sideEffect: CapabilitySideEffect.ExternalSend,
+		requiresApproval: true
+	},
+	{
+		name: 'dataroom_invitation_accept', namespace: 'dataroom', answeredBy: CapabilityAnsweredBy.Record,
+		privacyClass: 'workspace_company', policyResource: 'tool:dataroom_invitation_accept', version: '1',
+		description: "Company dataroom: accept an invitation another company sent to the requester's own verified email, which opens the categories it shares to the requester. Answers the inviting company's ID. An invitation addressed to another email, revoked, expired, or accepted by someone else is refused.",
+		estimatedLatency: CapabilityEstimatedLatency.Low,
+		inputSchema: dataRoomInvitationAcceptInputSchema,
+		inputIntentSchema: dataRoomInvitationAcceptInputSchema.partial(),
+		result: { schema: dataRoomInvitationAcceptedSchema, effects: [{
+			objectType: 'data_room_share', effect: ResourceMutationEffect.Updated,
+			resultField: 'shareID', effectIdentity: ResourceEffectIdentity.ID
+		}] },
+		sideEffect: CapabilitySideEffect.WorkspaceWrite
+	},
 	dataRoomTool('dataroom_share_delete',
 		'Revoke a data room share by its exact shareID from dataroom_get. Other active grants still apply. Already downloaded files cannot be recalled; existing signed URLs expire within ten minutes.',
 		dataRoomShareRevokeInputSchema, recordSavedSchema, true)

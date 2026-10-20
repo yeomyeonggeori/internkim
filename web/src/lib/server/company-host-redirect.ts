@@ -15,6 +15,12 @@ export function theAppAddressOf(environment: { CLOUDFLARE_DOMAIN?: string }): st
 	return `https://${bareHost(environment.CLOUDFLARE_DOMAIN || defaultZone)}`;
 }
 
+const localHostnames = new Set(['localhost', '127.0.0.1']);
+
+export function theAppAddressAnswering(environment: { CLOUDFLARE_DOMAIN?: string }, asked: URL): string {
+	return localHostnames.has(asked.hostname) ? asked.origin : theAppAddressOf(environment);
+}
+
 // fetch drops Authorization across origins, and every attached hostname is the
 // same deployment, so these are answered where they land.
 function carriesACallerCredential(pathname: string): boolean {

@@ -36,6 +36,8 @@ VERBS_BY_EXCEPTION = {
     "person_invite": "sends an invitation, which no record-level verb describes",
     "person_withdraw": "withdrawing ends a membership and keeps the row, which is not a delete",
     "person_password_reset": "a reset replaces a password with a temporary one, which no record-level verb describes",
+    "dataroom_invitation_send": "send is the act, and the invitation is an email",
+    "dataroom_invitation_accept": "accept is what a recipient does with an invitation",
     "leave_request": "request is the domain's word for asking for leave",
     "leave_decide": "decide is the domain's word for approving or refusing",
     "leave_balance": "answers a computed balance, not a stored record",

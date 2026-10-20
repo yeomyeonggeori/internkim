@@ -8,6 +8,8 @@ import type { ToolDescriptor } from '$lib/server/public-api/catalog';
 import { toolAnswerOrRefusal } from '$lib/server/public-api/tool-call';
 import type { CallingMember } from '$lib/server/member-request';
 import type { Environment } from '$lib/server/agent-request';
+import { theAppAddressAnswering } from '$lib/server/company-host-redirect';
+import type { ToolPlace } from '$lib/server/public-api/record/company';
 import { filesAnsweredBy, type AnsweredFile } from '$lib/server/public-api/record/answered-files';
 
 export { capabilityDescriptorMetaKey as descriptorMetaKey } from './catalog/protocol';
@@ -65,7 +67,7 @@ function keepsAnsweredFiles(meta: Record<string, unknown> | undefined): boolean 
 	return meta?.[capabilityAnsweredFilesMetaKey] === 'kept';
 }
 
-function companyToolServer(environment: Environment, member: CallingMember): Server {
+function companyToolServer(place: ToolPlace, member: CallingMember): Server {
 	const server = new Server(
 		{ name: 'internkim', version: '1' },
 		{ capabilities: { tools: {} }, instructions: serverInstructions }
@@ -74,7 +76,7 @@ function companyToolServer(environment: Environment, member: CallingMember): Ser
 	server.setRequestHandler(ListToolsRequestSchema, () => ({ tools: toolsOfferedTo(member) }));
 
 	server.setRequestHandler(CallToolRequestSchema, (request) =>
-		answerToolCall(environment, member, request.params).catch((failure: unknown) =>
+		answerToolCall(place, member, request.params).catch((failure: unknown) =>
 			toolFailureOf(request.params.name, failure)
 		)
 	);
@@ -83,14 +85,14 @@ function companyToolServer(environment: Environment, member: CallingMember): Ser
 }
 
 async function answerToolCall(
-	environment: Environment,
+	place: ToolPlace,
 	member: CallingMember,
 	call: CallToolRequest['params']
 ): Promise<CallToolResult> {
 	if (!isSeenByAModel(call.name)) {
 		return toolResultOf(404, { message: `no tool here goes by ${call.name}` });
 	}
-	const answered = await toolAnswerOrRefusal(environment, member, call.name, { input: call.arguments ?? {} });
+	const answered = await toolAnswerOrRefusal(place, member, call.name, { input: call.arguments ?? {} });
 	if (answered.status >= 300 || !keepsAnsweredFiles(call._meta)) {
 		return toolResultOf(answered.status, answered.body);
 	}
@@ -114,7 +116,8 @@ export async function answerMCP(
 		sessionIdGenerator: undefined,
 		enableJsonResponse: true
 	});
-	const server = companyToolServer(environment, member);
+	const appAddress = theAppAddressAnswering(environment, new URL(request.url));
+	const server = companyToolServer({ environment, appAddress }, member);
 	await server.connect(transport);
 	try {
 		return await transport.handleRequest(request);

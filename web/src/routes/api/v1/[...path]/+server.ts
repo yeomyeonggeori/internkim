@@ -1,5 +1,6 @@
 import { environmentOf, type Environment } from '$lib/server/agent-request';
 import { callingMember, type CallingMember } from '$lib/server/member-request';
+import { theAppAddressAnswering } from '$lib/server/company-host-redirect';
 import { baseCatalogAnswer, liveParameter, toolReachableBy } from '$lib/server/public-api/catalog';
 import { callCompany } from '$lib/server/public-api/company-call';
 import {
@@ -112,7 +113,8 @@ async function runHere(
 	const payload = await payloadOf(request);
 	if (!payload) error(400, 'this call carried a body that is not a json object');
 
-	const answered = await toolCalledByMember(environment, member, name, payload, queryTheCompanySees(url));
+	const place = { environment, appAddress: theAppAddressAnswering(environment, url) };
+	const answered = await toolCalledByMember(place, member, name, payload, queryTheCompanySees(url));
 	return json(answered.body, { status: answered.status });
 }
 

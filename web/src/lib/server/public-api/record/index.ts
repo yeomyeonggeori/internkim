@@ -3,7 +3,7 @@ import { attendanceAdd, attendanceDelete, attendanceList, attendanceUpdate } fro
 import { currentAttendance } from './current-attendance';
 import { teamAttendance, legacyTeamAttendance } from './team-attendance';
 import { NoSuchAttendanceRecord } from './attendance';
-import { recordContextOf, type RecordContext } from './company';
+import { recordContextOf, type RecordContext, type ToolPlace } from './company';
 import {
 	attendanceLeavePolicyGet,
 	attendanceLeavePolicySet,
@@ -87,7 +87,8 @@ import {
 import { personInvite, personList, personPasswordReset, personUpdate, personWithdraw } from './people-tools';
 import { companyDataRoomGet, companyDataRoomCategorySet, companyDataRoomFieldSet,
 	companyDataRoomShareCreate, companyDataRoomShareRevoke,
-	companyDataRoomLinksGet, companyDataRoomLinkCreate, companyDataRoomLinkRevoke } from './data-room';
+	companyDataRoomLinksGet, companyDataRoomLinkCreate, companyDataRoomLinkRevoke,
+	companyDataRoomInvitationAccept, companyDataRoomInvitationSend } from './data-room';
 import {
 	companyCircleChannelAdd, companyCircleChannelDelete, companyCircleList, companyCircleMemberSet, companyCircleSet
 } from './circle';
@@ -101,7 +102,7 @@ import { readWithNullAsAbsent } from '../null-as-absent';
 import { sentencesOfSchemaRefusal } from '../schema-sentences';
 
 type ToolInput = Record<string, unknown>;
-type ToolRun = (context: RecordContext, input: ToolInput) => Promise<unknown> | unknown;
+type ToolRun = (context: RecordContext, input: ToolInput, place?: ToolPlace) => Promise<unknown> | unknown;
 
 function exactAttendancePersonIDs(name: string, input: ToolInput): string[] | undefined {
 	if (name !== 'attendance_list' && name !== 'leave_list') return;
@@ -114,6 +115,11 @@ const readsWithoutPeople = new Set([
 	'company_settings_get', 'company_holiday_list', 'crm_organization_list',
 	'crm_contact_list', 'crm_opportunity_list', 'crm_vocabulary_get'
 ]);
+
+function placeTheAppAnswersAt(name: string, place: ToolPlace | undefined): ToolPlace {
+	if (!place) throw new Error(`${name} names an address in the app, and this call did not say where the app answers`);
+	return place;
+}
 
 const toolsOverTheRecord: Record<string, ToolRun> = {
 	task_add: (context, input) => taskAdd(context, input),
@@ -193,6 +199,9 @@ const toolsOverTheRecord: Record<string, ToolRun> = {
 	dataroom_field_update: (context, input) => companyDataRoomFieldSet(context, input),
 	dataroom_share_add: (context, input) => companyDataRoomShareCreate(context, input),
 	dataroom_share_delete: (context, input) => companyDataRoomShareRevoke(context, input),
+	dataroom_invitation_send: (context, input, place) =>
+		companyDataRoomInvitationSend(context, input, placeTheAppAnswersAt('dataroom_invitation_send', place)),
+	dataroom_invitation_accept: (context, input) => companyDataRoomInvitationAccept(context, input),
 	notification_settings_get: (context) => notificationSettingsGet(context),
 	notification_settings_set: (context, input) => notificationSettingsSet(context, input),
 	conversation_mute: (context, input) => conversationMute(context, input),
@@ -261,7 +270,8 @@ export async function runToolOverTheRecord(
 	name: string,
 	input: ToolInput,
 	now: Date,
-	decideTaskLabels: TaskLabelDecider
+	decideTaskLabels: TaskLabelDecider,
+	place?: ToolPlace
 ): Promise<ToolAnswer> {
 	const run = toolsOverTheRecord[name];
 	if (!run) return { status: 404, body: { error: `no tool here goes by ${name}` } };
@@ -274,7 +284,7 @@ export async function runToolOverTheRecord(
 			: name === 'attendance_team_dashboard_get'
 				? await teamAttendance(caller,input)
 				: await run(await recordContextOf(caller, accountDirectory, requesterID, now, decideTaskLabels,
-					!readsWithoutPeople.has(name) && !(name === 'person_list' && input.limit !== undefined) && !((name === 'attendance_list' || name === 'attendance_changes_page_get') && input.handWrittenOnly === true && input.pageOffset !== undefined && input.scope === 'all' && !input.personHints) && !((name === 'attendance_update' || name === 'attendance_delete') && input.undoOnly === true), exactAttendancePersonIDs(name, input)), input);
+					!readsWithoutPeople.has(name) && !(name === 'person_list' && input.limit !== undefined) && !((name === 'attendance_list' || name === 'attendance_changes_page_get') && input.handWrittenOnly === true && input.pageOffset !== undefined && input.scope === 'all' && !input.personHints) && !((name === 'attendance_update' || name === 'attendance_delete') && input.undoOnly === true), exactAttendancePersonIDs(name, input)), input, place);
 		noteWhereTheAnswerLeftItsContract(name, result);
 		return { status: 200, body: { tool: name, result } };
 	} catch (refusal) {
