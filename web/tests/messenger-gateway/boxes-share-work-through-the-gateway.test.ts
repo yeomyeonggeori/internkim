@@ -72,7 +72,7 @@ async function aClaimedBox(intent: 'replace' | 'add', address: string): Promise<
 	if (!x) throw new Error('an Ed25519 key exports its public half as x');
 	const encryptionKey = base64URLOf(x25519.getPublicKey(x25519.utils.randomSecretKey()));
 	const announced = await announceBox(client, { publicKey: x, encryptionKey, publicAddress: address, wantsPairingCode: true });
-	if (!announced.pairingCode) throw new Error('an empty box that asks for a code is given one');
+	if (announced.isClaimed || !announced.pairingCode) throw new Error('an empty box that asks for a code is given one');
 	const { ticket } = await verifyBoxCode(client, companyID, x, announced.pairingCode);
 	await claimBox(client, companyID, x, ticket, intent);
 	return x;
