@@ -12319,6 +12319,1045 @@
       "availability": {
         "state": "ok"
       },
+      "canonicalName": "channel_add",
+      "description": "Create a group channel in the company messenger with the requester as its owner, and add the members named. It is done as the requester, exactly as their messenger screen does it, and refused for the same reasons.",
+      "estimatedLatency": "medium",
+      "idempotency": {
+        "required": false,
+        "scope": "operation",
+        "supported": false
+      },
+      "inputIntentSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "description": {
+            "description": "What the channel is for, shown under its name.",
+            "type": "string"
+          },
+          "name": {
+            "description": "The new channel's name.",
+            "minLength": 1,
+            "type": "string"
+          },
+          "personHints": {
+            "description": "Members to add besides the requester, who joins as its owner.",
+            "items": {
+              "description": "Name, @handle, or email of one company member.",
+              "minLength": 1,
+              "type": "string"
+            },
+            "maxItems": 50,
+            "minItems": 1,
+            "type": "array"
+          },
+          "visibility": {
+            "description": "open lets anyone in the company find and join it, and takes the assistant in; private holds only the people added.",
+            "enum": [
+              "open",
+              "private"
+            ],
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "description": {
+            "description": "What the channel is for, shown under its name.",
+            "type": "string"
+          },
+          "name": {
+            "description": "The new channel's name.",
+            "minLength": 1,
+            "type": "string"
+          },
+          "personHints": {
+            "description": "Members to add besides the requester, who joins as its owner.",
+            "items": {
+              "description": "Name, @handle, or email of one company member.",
+              "minLength": 1,
+              "type": "string"
+            },
+            "maxItems": 50,
+            "minItems": 1,
+            "type": "array"
+          },
+          "visibility": {
+            "description": "open lets anyone in the company find and join it, and takes the assistant in; private holds only the people added.",
+            "enum": [
+              "open",
+              "private"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "visibility"
+        ],
+        "type": "object"
+      },
+      "inputSchemaStrict": true,
+      "modelName": "channel_add",
+      "modelVisibility": "visible",
+      "modelVisible": true,
+      "name": "channel_add",
+      "namespace": "channel",
+      "namespaceSummary": "Channels in the company messenger: create, join, leave, delete, and who belongs to or owns one.",
+      "outputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "channelID": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "channelName": {
+            "type": "string"
+          },
+          "notAddedPersonHints": {
+            "description": "The people named who were not added; the messenger refused them.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "channelID",
+          "channelName"
+        ],
+        "type": "object"
+      },
+      "outputSchemaStrict": true,
+      "policyResource": "tool:channel_add",
+      "privacyClass": "platform_message",
+      "requiresApproval": false,
+      "requiresUserPresence": false,
+      "resultContract": {
+        "effects": [
+          {
+            "effect": "created",
+            "effectIdentity": "id",
+            "objectType": "channel",
+            "resultField": "channelID"
+          }
+        ],
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "additionalProperties": false,
+          "properties": {
+            "channelID": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "channelName": {
+              "type": "string"
+            },
+            "notAddedPersonHints": {
+              "description": "The people named who were not added; the messenger refused them.",
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            }
+          },
+          "required": [
+            "channelID",
+            "channelName"
+          ],
+          "type": "object"
+        }
+      },
+      "sideEffect": "external_write",
+      "sideEffectClass": "external_write",
+      "version": "1",
+      "worksOffline": false
+    },
+    {
+      "answeredBy": "company",
+      "availability": {
+        "state": "ok"
+      },
+      "canonicalName": "channel_join",
+      "description": "Join an open channel the requester is not in yet. It is done as the requester, exactly as their messenger screen does it, and refused for the same reasons.",
+      "estimatedLatency": "medium",
+      "idempotency": {
+        "required": false,
+        "scope": "operation",
+        "supported": false
+      },
+      "inputIntentSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "channelHint": {
+            "description": "The exact channel ID, or the channel's CURRENT name as the messenger shows it, with or without #. Never a new or intended name.",
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "channelHint": {
+            "description": "The exact channel ID, or the channel's CURRENT name as the messenger shows it, with or without #. Never a new or intended name.",
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "channelHint"
+        ],
+        "type": "object"
+      },
+      "inputSchemaStrict": true,
+      "modelName": "channel_join",
+      "modelVisibility": "visible",
+      "modelVisible": true,
+      "name": "channel_join",
+      "namespace": "channel",
+      "namespaceSummary": "Channels in the company messenger: create, join, leave, delete, and who belongs to or owns one.",
+      "outputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "channelID": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "channelName": {
+            "type": "string"
+          },
+          "notAddedPersonHints": {
+            "description": "The people named who were not added; the messenger refused them.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "channelID",
+          "channelName"
+        ],
+        "type": "object"
+      },
+      "outputSchemaStrict": true,
+      "policyResource": "tool:channel_join",
+      "privacyClass": "platform_message",
+      "requiresApproval": false,
+      "requiresUserPresence": false,
+      "resultContract": {
+        "effects": [
+          {
+            "effect": "updated",
+            "effectIdentity": "id",
+            "objectType": "channel",
+            "resultField": "channelID"
+          }
+        ],
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "additionalProperties": false,
+          "properties": {
+            "channelID": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "channelName": {
+              "type": "string"
+            },
+            "notAddedPersonHints": {
+              "description": "The people named who were not added; the messenger refused them.",
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            }
+          },
+          "required": [
+            "channelID",
+            "channelName"
+          ],
+          "type": "object"
+        }
+      },
+      "sideEffect": "external_write",
+      "sideEffectClass": "external_write",
+      "version": "1",
+      "worksOffline": false
+    },
+    {
+      "answeredBy": "company",
+      "availability": {
+        "state": "ok"
+      },
+      "canonicalName": "channel_leave",
+      "description": "Leave a channel the requester is in. The only owner cannot leave; hand the channel over first with channel_owner_update. It is done as the requester, exactly as their messenger screen does it, and refused for the same reasons.",
+      "estimatedLatency": "medium",
+      "idempotency": {
+        "required": false,
+        "scope": "operation",
+        "supported": false
+      },
+      "inputIntentSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "channelHint": {
+            "description": "The exact channel ID, or the channel's CURRENT name as the messenger shows it, with or without #. Never a new or intended name.",
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "channelHint": {
+            "description": "The exact channel ID, or the channel's CURRENT name as the messenger shows it, with or without #. Never a new or intended name.",
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "channelHint"
+        ],
+        "type": "object"
+      },
+      "inputSchemaStrict": true,
+      "modelName": "channel_leave",
+      "modelVisibility": "visible",
+      "modelVisible": true,
+      "name": "channel_leave",
+      "namespace": "channel",
+      "namespaceSummary": "Channels in the company messenger: create, join, leave, delete, and who belongs to or owns one.",
+      "outputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "channelID": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "channelName": {
+            "type": "string"
+          },
+          "notAddedPersonHints": {
+            "description": "The people named who were not added; the messenger refused them.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "channelID",
+          "channelName"
+        ],
+        "type": "object"
+      },
+      "outputSchemaStrict": true,
+      "policyResource": "tool:channel_leave",
+      "privacyClass": "platform_message",
+      "requiresApproval": false,
+      "requiresUserPresence": false,
+      "resultContract": {
+        "effects": [
+          {
+            "effect": "updated",
+            "effectIdentity": "id",
+            "objectType": "channel",
+            "resultField": "channelID"
+          }
+        ],
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "additionalProperties": false,
+          "properties": {
+            "channelID": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "channelName": {
+              "type": "string"
+            },
+            "notAddedPersonHints": {
+              "description": "The people named who were not added; the messenger refused them.",
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            }
+          },
+          "required": [
+            "channelID",
+            "channelName"
+          ],
+          "type": "object"
+        }
+      },
+      "sideEffect": "external_write",
+      "sideEffectClass": "external_write",
+      "version": "1",
+      "worksOffline": false
+    },
+    {
+      "answeredBy": "company",
+      "availability": {
+        "state": "ok"
+      },
+      "canonicalName": "channel_delete",
+      "description": "Permanently delete a channel for everyone in it. Only an owner of the channel may do this. It is done as the requester, exactly as their messenger screen does it, and refused for the same reasons. Requires approval; this action is irreversible.",
+      "estimatedLatency": "medium",
+      "idempotency": {
+        "required": false,
+        "scope": "operation",
+        "supported": false
+      },
+      "inputIntentSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "channelHint": {
+            "description": "The exact channel ID, or the channel's CURRENT name as the messenger shows it, with or without #. Never a new or intended name.",
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "channelHint": {
+            "description": "The exact channel ID, or the channel's CURRENT name as the messenger shows it, with or without #. Never a new or intended name.",
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "channelHint"
+        ],
+        "type": "object"
+      },
+      "inputSchemaStrict": true,
+      "modelName": "channel_delete",
+      "modelVisibility": "visible",
+      "modelVisible": true,
+      "name": "channel_delete",
+      "namespace": "channel",
+      "namespaceSummary": "Channels in the company messenger: create, join, leave, delete, and who belongs to or owns one.",
+      "outputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "channelID": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "channelName": {
+            "type": "string"
+          },
+          "notAddedPersonHints": {
+            "description": "The people named who were not added; the messenger refused them.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "channelID",
+          "channelName"
+        ],
+        "type": "object"
+      },
+      "outputSchemaStrict": true,
+      "policyResource": "tool:channel_delete",
+      "privacyClass": "platform_message",
+      "requiresApproval": true,
+      "requiresUserPresence": false,
+      "resultContract": {
+        "effects": [
+          {
+            "effect": "deleted",
+            "effectIdentity": "id",
+            "objectType": "channel",
+            "resultField": "channelID"
+          }
+        ],
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "additionalProperties": false,
+          "properties": {
+            "channelID": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "channelName": {
+              "type": "string"
+            },
+            "notAddedPersonHints": {
+              "description": "The people named who were not added; the messenger refused them.",
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            }
+          },
+          "required": [
+            "channelID",
+            "channelName"
+          ],
+          "type": "object"
+        }
+      },
+      "sideEffect": "destructive",
+      "sideEffectClass": "destructive",
+      "version": "1",
+      "worksOffline": false
+    },
+    {
+      "answeredBy": "company",
+      "availability": {
+        "state": "ok"
+      },
+      "canonicalName": "channel_member_add",
+      "description": "Add company members to a channel the requester is in. It is done as the requester, exactly as their messenger screen does it, and refused for the same reasons.",
+      "estimatedLatency": "medium",
+      "idempotency": {
+        "required": false,
+        "scope": "operation",
+        "supported": false
+      },
+      "inputIntentSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "channelHint": {
+            "description": "The exact channel ID, or the channel's CURRENT name as the messenger shows it, with or without #. Never a new or intended name.",
+            "minLength": 1,
+            "type": "string"
+          },
+          "personHints": {
+            "description": "The members to add.",
+            "items": {
+              "description": "Name, @handle, or email of one company member.",
+              "minLength": 1,
+              "type": "string"
+            },
+            "maxItems": 50,
+            "minItems": 1,
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "channelHint": {
+            "description": "The exact channel ID, or the channel's CURRENT name as the messenger shows it, with or without #. Never a new or intended name.",
+            "minLength": 1,
+            "type": "string"
+          },
+          "personHints": {
+            "description": "The members to add.",
+            "items": {
+              "description": "Name, @handle, or email of one company member.",
+              "minLength": 1,
+              "type": "string"
+            },
+            "maxItems": 50,
+            "minItems": 1,
+            "type": "array"
+          }
+        },
+        "required": [
+          "channelHint",
+          "personHints"
+        ],
+        "type": "object"
+      },
+      "inputSchemaStrict": true,
+      "modelName": "channel_member_add",
+      "modelVisibility": "visible",
+      "modelVisible": true,
+      "name": "channel_member_add",
+      "namespace": "channel",
+      "namespaceSummary": "Channels in the company messenger: create, join, leave, delete, and who belongs to or owns one.",
+      "outputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "channelID": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "channelName": {
+            "type": "string"
+          },
+          "notAddedPersonHints": {
+            "description": "The people named who were not added; the messenger refused them.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "channelID",
+          "channelName"
+        ],
+        "type": "object"
+      },
+      "outputSchemaStrict": true,
+      "policyResource": "tool:channel_member_add",
+      "privacyClass": "platform_message",
+      "requiresApproval": false,
+      "requiresUserPresence": false,
+      "resultContract": {
+        "effects": [
+          {
+            "effect": "updated",
+            "effectIdentity": "id",
+            "objectType": "channel",
+            "resultField": "channelID"
+          }
+        ],
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "additionalProperties": false,
+          "properties": {
+            "channelID": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "channelName": {
+              "type": "string"
+            },
+            "notAddedPersonHints": {
+              "description": "The people named who were not added; the messenger refused them.",
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            }
+          },
+          "required": [
+            "channelID",
+            "channelName"
+          ],
+          "type": "object"
+        }
+      },
+      "sideEffect": "external_write",
+      "sideEffectClass": "external_write",
+      "version": "1",
+      "worksOffline": false
+    },
+    {
+      "answeredBy": "company",
+      "availability": {
+        "state": "ok"
+      },
+      "canonicalName": "channel_member_delete",
+      "description": "Remove one member from a channel. Only an owner of the channel may do this. An owner cannot be removed. It is done as the requester, exactly as their messenger screen does it, and refused for the same reasons.",
+      "estimatedLatency": "medium",
+      "idempotency": {
+        "required": false,
+        "scope": "operation",
+        "supported": false
+      },
+      "inputIntentSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "channelHint": {
+            "description": "The exact channel ID, or the channel's CURRENT name as the messenger shows it, with or without #. Never a new or intended name.",
+            "minLength": 1,
+            "type": "string"
+          },
+          "personHint": {
+            "description": "Name, @handle, or email of one company member.",
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "channelHint": {
+            "description": "The exact channel ID, or the channel's CURRENT name as the messenger shows it, with or without #. Never a new or intended name.",
+            "minLength": 1,
+            "type": "string"
+          },
+          "personHint": {
+            "description": "Name, @handle, or email of one company member.",
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "channelHint",
+          "personHint"
+        ],
+        "type": "object"
+      },
+      "inputSchemaStrict": true,
+      "modelName": "channel_member_delete",
+      "modelVisibility": "visible",
+      "modelVisible": true,
+      "name": "channel_member_delete",
+      "namespace": "channel",
+      "namespaceSummary": "Channels in the company messenger: create, join, leave, delete, and who belongs to or owns one.",
+      "outputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "channelID": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "channelName": {
+            "type": "string"
+          },
+          "notAddedPersonHints": {
+            "description": "The people named who were not added; the messenger refused them.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "channelID",
+          "channelName"
+        ],
+        "type": "object"
+      },
+      "outputSchemaStrict": true,
+      "policyResource": "tool:channel_member_delete",
+      "privacyClass": "platform_message",
+      "requiresApproval": false,
+      "requiresUserPresence": false,
+      "resultContract": {
+        "effects": [
+          {
+            "effect": "updated",
+            "effectIdentity": "id",
+            "objectType": "channel",
+            "resultField": "channelID"
+          }
+        ],
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "additionalProperties": false,
+          "properties": {
+            "channelID": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "channelName": {
+              "type": "string"
+            },
+            "notAddedPersonHints": {
+              "description": "The people named who were not added; the messenger refused them.",
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            }
+          },
+          "required": [
+            "channelID",
+            "channelName"
+          ],
+          "type": "object"
+        }
+      },
+      "sideEffect": "external_write",
+      "sideEffectClass": "external_write",
+      "version": "1",
+      "worksOffline": false
+    },
+    {
+      "answeredBy": "company",
+      "availability": {
+        "state": "ok"
+      },
+      "canonicalName": "channel_owner_add",
+      "description": "Make a member of a channel a co-owner beside the requester. Only an owner of the channel may do this. It is done as the requester, exactly as their messenger screen does it, and refused for the same reasons.",
+      "estimatedLatency": "medium",
+      "idempotency": {
+        "required": false,
+        "scope": "operation",
+        "supported": false
+      },
+      "inputIntentSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "channelHint": {
+            "description": "The exact channel ID, or the channel's CURRENT name as the messenger shows it, with or without #. Never a new or intended name.",
+            "minLength": 1,
+            "type": "string"
+          },
+          "personHint": {
+            "description": "Name, @handle, or email of one company member.",
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "channelHint": {
+            "description": "The exact channel ID, or the channel's CURRENT name as the messenger shows it, with or without #. Never a new or intended name.",
+            "minLength": 1,
+            "type": "string"
+          },
+          "personHint": {
+            "description": "Name, @handle, or email of one company member.",
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "channelHint",
+          "personHint"
+        ],
+        "type": "object"
+      },
+      "inputSchemaStrict": true,
+      "modelName": "channel_owner_add",
+      "modelVisibility": "visible",
+      "modelVisible": true,
+      "name": "channel_owner_add",
+      "namespace": "channel",
+      "namespaceSummary": "Channels in the company messenger: create, join, leave, delete, and who belongs to or owns one.",
+      "outputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "channelID": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "channelName": {
+            "type": "string"
+          },
+          "notAddedPersonHints": {
+            "description": "The people named who were not added; the messenger refused them.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "channelID",
+          "channelName"
+        ],
+        "type": "object"
+      },
+      "outputSchemaStrict": true,
+      "policyResource": "tool:channel_owner_add",
+      "privacyClass": "platform_message",
+      "requiresApproval": false,
+      "requiresUserPresence": false,
+      "resultContract": {
+        "effects": [
+          {
+            "effect": "updated",
+            "effectIdentity": "id",
+            "objectType": "channel",
+            "resultField": "channelID"
+          }
+        ],
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "additionalProperties": false,
+          "properties": {
+            "channelID": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "channelName": {
+              "type": "string"
+            },
+            "notAddedPersonHints": {
+              "description": "The people named who were not added; the messenger refused them.",
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            }
+          },
+          "required": [
+            "channelID",
+            "channelName"
+          ],
+          "type": "object"
+        }
+      },
+      "sideEffect": "external_write",
+      "sideEffectClass": "external_write",
+      "version": "1",
+      "worksOffline": false
+    },
+    {
+      "answeredBy": "company",
+      "availability": {
+        "state": "ok"
+      },
+      "canonicalName": "channel_owner_update",
+      "description": "Hand a channel over: the person named becomes its owner and the requester stays as a plain member, which only another owner can undo. Only an owner of the channel may do this. It is done as the requester, exactly as their messenger screen does it, and refused for the same reasons. Requires approval.",
+      "estimatedLatency": "medium",
+      "idempotency": {
+        "required": false,
+        "scope": "operation",
+        "supported": false
+      },
+      "inputIntentSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "channelHint": {
+            "description": "The exact channel ID, or the channel's CURRENT name as the messenger shows it, with or without #. Never a new or intended name.",
+            "minLength": 1,
+            "type": "string"
+          },
+          "personHint": {
+            "description": "Name, @handle, or email of one company member.",
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "channelHint": {
+            "description": "The exact channel ID, or the channel's CURRENT name as the messenger shows it, with or without #. Never a new or intended name.",
+            "minLength": 1,
+            "type": "string"
+          },
+          "personHint": {
+            "description": "Name, @handle, or email of one company member.",
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "channelHint",
+          "personHint"
+        ],
+        "type": "object"
+      },
+      "inputSchemaStrict": true,
+      "modelName": "channel_owner_update",
+      "modelVisibility": "visible",
+      "modelVisible": true,
+      "name": "channel_owner_update",
+      "namespace": "channel",
+      "namespaceSummary": "Channels in the company messenger: create, join, leave, delete, and who belongs to or owns one.",
+      "outputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "channelID": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "channelName": {
+            "type": "string"
+          },
+          "notAddedPersonHints": {
+            "description": "The people named who were not added; the messenger refused them.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "channelID",
+          "channelName"
+        ],
+        "type": "object"
+      },
+      "outputSchemaStrict": true,
+      "policyResource": "tool:channel_owner_update",
+      "privacyClass": "platform_message",
+      "requiresApproval": true,
+      "requiresUserPresence": false,
+      "resultContract": {
+        "effects": [
+          {
+            "effect": "updated",
+            "effectIdentity": "id",
+            "objectType": "channel",
+            "resultField": "channelID"
+          }
+        ],
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "additionalProperties": false,
+          "properties": {
+            "channelID": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "channelName": {
+              "type": "string"
+            },
+            "notAddedPersonHints": {
+              "description": "The people named who were not added; the messenger refused them.",
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            }
+          },
+          "required": [
+            "channelID",
+            "channelName"
+          ],
+          "type": "object"
+        }
+      },
+      "sideEffect": "external_write",
+      "sideEffectClass": "external_write",
+      "version": "1",
+      "worksOffline": false
+    },
+    {
+      "answeredBy": "company",
+      "availability": {
+        "state": "ok"
+      },
       "canonicalName": "web_search",
       "description": "Search the public web and return ranked result snippets. Use this when you need current information, facts, or links that are not already in context. Do not use for workspace data, calendar, mail, or tasks — those have dedicated tools.",
       "estimatedLatency": "medium",

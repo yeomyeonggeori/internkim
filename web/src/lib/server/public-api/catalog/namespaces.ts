@@ -3,6 +3,7 @@ export const capabilityNamespaceSummaries = {
   attendance: 'Clock-ins and clock-outs, and the working hours and leave policy they are judged against.',
   browser: "Operate a web page step by step in the company computer's browser: open it, read it, click, fill, press keys, and screenshot.",
   calendar: 'The company calendar: events, and the approved leave that falls in a time window.',
+  channel: 'Channels in the company messenger: create, join, leave, delete, and who belongs to or owns one.',
   circle: 'Groups of people who share a workspace folder, a memory, and the data room categories they read.',
   company: "The company's own record: its profile and settings, holidays, metrics over time, milestones and assets, and a data room of registered documents searchable by question.",
   crm: 'Organizations and contacts the company deals with, deals moving through a pipeline, and the work recorded against them.',

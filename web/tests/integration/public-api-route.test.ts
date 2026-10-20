@@ -592,6 +592,27 @@ describe('a tool the company machine runs', () => {
 	});
 });
 
+describe('a channel changed in the messenger', () => {
+	test('is carried to the company machine as the requester, never answered here', async () => {
+		const answered = await invoke('channel_member_delete', holdersToken, {
+			channelHint: 'launch',
+			personHint: 'colleague@example.com'
+		});
+		expect(answered.status).toBe(503);
+	});
+
+	test('is refused a channel hint left out, before anything is carried', async () => {
+		const answered = await invoke('channel_member_add', holdersToken, { personHints: ['colleague@example.com'] });
+		expect(answered.status).toBe(400);
+		expect(messageOf(answered)).toContain('channelHint');
+	});
+
+	test('is refused deletion by a token that may only read', async () => {
+		const answered = await invoke('channel_delete', readersToken, { channelHint: 'launch' });
+		expect(answered.status).toBe(403);
+	});
+});
+
 describe('looking at what a destructive call would touch', () => {
 	test('answers no target for a tool that has nothing to look at', async () => {
 		const answered = await preview('task_list', holdersToken, {});

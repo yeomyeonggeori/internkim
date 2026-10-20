@@ -135,6 +135,18 @@ security가 정합니다. 수량은 숫자 `days`이고 종류는 회사가 등�
 하고 나머지는 그대로 남습니다. `message_send`는 DM, 이름 있는 채널, 현재
 대화를 겨냥하며, 현재 대화 대상만 승인을 건너뜁니다.
 
+## 채널 [#channel]
+
+<ToolCatalog namespace="channel" language="ko" />
+
+`internal/capabilityd/channel_tool.go`에 구현되어 있습니다. 모든 호출은
+요청자 본인으로서, 메신저 화면이 쓰는 것과 같은 chatd 개인 기능
+(`chatd/src/personal/capabilities.ts`)을 거칩니다. 그래서 소유자가 아닌
+사람의 변경은 화면에서와 똑같은 이유로 거절됩니다. `channelHint`는 채널의
+정확한 ID나 현재 이름이고, `personHint`는 회사 구성원을 가리킵니다. 둘 다
+해석 사다리를 타며, 이름이 모호하면 되묻습니다. 채널 삭제와 소유권 넘기기는
+승인을 기다립니다.
+
 ## 팀 [#team]
 
 <ToolCatalog namespace="team" language="ko" />

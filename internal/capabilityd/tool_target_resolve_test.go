@@ -234,8 +234,10 @@ func TestEveryToolThatResolvesATargetAheadNamesARequiredFieldOfItsOwnInputSchema
 // hint round-trip fixtures cannot exercise either; each one is proven by its
 // own resolver tests (message_delete:
 // TestMessageDeleteApprovalPreviewQuotesTheTargets and the route-path test
-// below; host_update: TestTheHostUpdateTargetCarriesAdmindsFactsAndChoices).
-var previewApprovalTargetRouteNames = []string{"message_delete", "message_send", "host_update"}
+// below; host_update: TestTheHostUpdateTargetCarriesAdmindsFactsAndChoices;
+// the channel changes resolve among the requester's own channels, which chatd
+// answers: TestAChannelChangeIsApprovedAgainstTheChannelTheHintNames).
+var previewApprovalTargetRouteNames = []string{"message_delete", "message_send", "host_update", "channel_delete", "channel_owner_update"}
 
 func TestEveryTargetRouteIsCoveredByAFixture(t *testing.T) {
 	if len(capabilityToolTargetRoutes) != len(previewApprovalTargetRouteNames) {

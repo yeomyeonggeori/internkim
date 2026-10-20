@@ -370,6 +370,78 @@ func gateCases() map[string]catalogGateCase {
 				expectResultHolds(t, answered, "post-1")
 			},
 		},
+		"channel_add": {
+			kind:    provesBehaviour,
+			reaches: reachingTheMessengerAsTheRequester(),
+			input:   `{"name":"launch","visibility":"private","personHints":["박예시"]}`,
+			expect: func(t *testing.T, answered capabilities.ToolInvokeResponse) {
+				expectSucceeded(t, answered)
+				expectResultHolds(t, answered, `"channelID":"channel-9"`)
+			},
+		},
+		"channel_join": {
+			kind:    provesBehaviour,
+			reaches: reachingTheMessengerAsTheRequester(),
+			input:   `{"channelHint":"#open-room"}`,
+			expect: func(t *testing.T, answered capabilities.ToolInvokeResponse) {
+				expectSucceeded(t, answered)
+				expectResultHolds(t, answered, `"channelID":"channel-2"`)
+			},
+		},
+		"channel_leave": {
+			kind:    provesBehaviour,
+			reaches: reachingTheMessengerAsTheRequester(),
+			input:   `{"channelHint":"전사-공지"}`,
+			expect: func(t *testing.T, answered capabilities.ToolInvokeResponse) {
+				expectSucceeded(t, answered)
+				expectResultHolds(t, answered, `"channelID":"channel-1"`)
+			},
+		},
+		"channel_delete": {
+			kind:    provesBehaviour,
+			reaches: reachingTheMessengerAsTheRequester(),
+			input:   `{"channelHint":"channel-1"}`,
+			expect: func(t *testing.T, answered capabilities.ToolInvokeResponse) {
+				expectSucceeded(t, answered)
+				expectResultHolds(t, answered, `"channelID":"channel-1"`)
+			},
+		},
+		"channel_member_add": {
+			kind:    provesBehaviour,
+			reaches: reachingTheMessengerAsTheRequester(),
+			input:   `{"channelHint":"전사-공지","personHints":["박예시"]}`,
+			expect: func(t *testing.T, answered capabilities.ToolInvokeResponse) {
+				expectSucceeded(t, answered)
+				expectResultHolds(t, answered, `"channelID":"channel-1"`)
+			},
+		},
+		"channel_member_delete": {
+			kind:    provesBehaviour,
+			reaches: reachingTheMessengerAsTheRequester(),
+			input:   `{"channelHint":"전사-공지","personHint":"박예시"}`,
+			expect: func(t *testing.T, answered capabilities.ToolInvokeResponse) {
+				expectSucceeded(t, answered)
+				expectResultHolds(t, answered, `"channelID":"channel-1"`)
+			},
+		},
+		"channel_owner_add": {
+			kind:    provesBehaviour,
+			reaches: reachingTheMessengerAsTheRequester(),
+			input:   `{"channelHint":"전사-공지","personHint":"박예시"}`,
+			expect: func(t *testing.T, answered capabilities.ToolInvokeResponse) {
+				expectSucceeded(t, answered)
+				expectResultHolds(t, answered, `"channelID":"channel-1"`)
+			},
+		},
+		"channel_owner_update": {
+			kind:    provesBehaviour,
+			reaches: reachingTheMessengerAsTheRequester(),
+			input:   `{"channelHint":"전사-공지","personHint":"박예시"}`,
+			expect: func(t *testing.T, answered capabilities.ToolInvokeResponse) {
+				expectSucceeded(t, answered)
+				expectResultHolds(t, answered, `"channelID":"channel-1"`)
+			},
+		},
 		"leave_list": {
 			kind:    provesCarrying,
 			reaches: map[gateBackend]*standingIn{admindOverTheSocket: answering(`{"tool":"leave_list","result":{"count":1,"scope":"person","personID":"p1","personName":"이샘플","statusFilter":"approved","registeredKinds":["연차"],"leave":[{"leaveID":"l1","personID":"p1","person":"이샘플","kindID":"annual","kind":"연차","days":2,"status":"approved","isPaid":true,"isDeducted":true,"startDate":"2026-09-01","endDate":"2026-09-02","startsAt":"2026-08-31T15:00:00Z","endsAt":"2026-09-02T15:00:00Z","note":null}]}}`)},
@@ -1282,6 +1354,40 @@ func reachingTheMessenger(chatd *standingIn) map[gateBackend]*standingIn {
 		chatdOverHTTP:    chatd,
 		blueclawOverHTTP: answering(memberPolicyFor("person-1", "member@example.com")),
 	}
+}
+
+// A channel is changed as the person who asked: admind names their messenger
+// key and the colleague a call names, and chatd answers as them.
+func reachingTheMessengerAsTheRequester() map[gateBackend]*standingIn {
+	return map[gateBackend]*standingIn{
+		chatdOverHTTP:    answeringPerCall(answeringChannelsAsTheRequester),
+		blueclawOverHTTP: answering(memberPolicyFor("person-1", "member@example.com")),
+		admindOverHTTP:   answeringPerCall(answeringTheDirectory),
+	}
+}
+
+func answeringChannelsAsTheRequester(request *http.Request) (int, string) {
+	switch {
+	case strings.HasSuffix(request.URL.Path, "/requester.conversations.list"):
+		return http.StatusOK, `{"conversations":[{"id":"channel-1","name":"전사-공지","kind":"group"},{"id":"dm-1","name":"박예시","kind":"dm"}]}`
+	case strings.HasSuffix(request.URL.Path, "/requester.channels.open.list"):
+		return http.StatusOK, `{"channels":[{"id":"channel-2","name":"open-room","kind":"group"}]}`
+	case strings.HasSuffix(request.URL.Path, "/requester.channel.create"):
+		return http.StatusOK, `{"id":"channel-9","name":"launch","kind":"group","uninvitedExternalIDs":[]}`
+	case strings.HasSuffix(request.URL.Path, "/requester.channel.members.add"):
+		return http.StatusOK, `{"uninvitedExternalIDs":[]}`
+	}
+	return http.StatusOK, `{}`
+}
+
+func answeringTheDirectory(request *http.Request) (int, string) {
+	if strings.HasSuffix(request.URL.Path, "/directory/people") {
+		return http.StatusOK, `{"people":[{"memberID":"person-2","email":"colleague@example.com","name":"박예시"}]}`
+	}
+	if strings.HasSuffix(request.URL.Path, "/directory/buzz-key") {
+		return http.StatusOK, `{"pubkeyHex":"` + strings.Repeat("a", 64) + `"}`
+	}
+	return http.StatusNotFound, `{}`
 }
 
 func inAChannel(arriving capabilities.ToolInvokeRequest) capabilities.ToolInvokeRequest {
