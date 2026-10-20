@@ -4,6 +4,7 @@
 	import { Checkbox } from '$lib/components/ui/checkbox';
 	import { confirmDelete } from '$lib/components/ui/confirm-delete-dialog';
 	import * as Field from '$lib/components/ui/field';
+	import DatePicker from '$lib/components/date-picker.svelte';
 	import { Input } from '$lib/components/ui/input';
 	import * as Select from '$lib/components/ui/select';
 	import * as Sheet from '$lib/components/ui/sheet';
@@ -183,8 +184,8 @@
 					<Field.Field><Field.Label for="crm-edit-organization-address">{text.address}</Field.Label><Input id="crm-edit-organization-address" bind:value={address} placeholder={text.addressPlaceholder} /></Field.Field>
 					<Field.Field><Field.Label for="crm-edit-organization-tags">{text.tags}</Field.Label><TagsInput id="crm-edit-organization-tags" bind:value={tags} placeholder={tags.length === 0 ? text.tagsPlaceholder : undefined} /></Field.Field>
 					<div class="grid gap-4 sm:grid-cols-2">
-						<Field.Field><Field.Label for="crm-edit-organization-last-contact">{text.lastContact}</Field.Label><Input id="crm-edit-organization-last-contact" type="date" bind:value={lastContactDate} disabled /></Field.Field>
-						<Field.Field><Field.Label for="crm-edit-organization-next-action">{text.nextContactDate}</Field.Label><Input id="crm-edit-organization-next-action" type="date" bind:value={nextActionDate} disabled /></Field.Field>
+						<Field.Field><Field.Label for="crm-edit-organization-last-contact">{text.lastContact}</Field.Label><DatePicker id="crm-edit-organization-last-contact" bind:value={lastContactDate} disabled /></Field.Field>
+						<Field.Field><Field.Label for="crm-edit-organization-next-action">{text.nextContactDate}</Field.Label><DatePicker id="crm-edit-organization-next-action" bind:value={nextActionDate} disabled /></Field.Field>
 					</div>
 					<Field.Field><Field.Label for="crm-edit-organization-details">{text.details}</Field.Label><Textarea id="crm-edit-organization-details" rows={6} bind:value={description} /></Field.Field>
 					{#if errorMessage}<p class="text-sm text-destructive">{errorMessage}</p>{/if}

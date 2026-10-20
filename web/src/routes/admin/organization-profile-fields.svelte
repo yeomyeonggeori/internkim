@@ -1,4 +1,5 @@
 <script lang="ts">
+	import DatePicker from '$lib/components/date-picker.svelte';
 	import { Input } from '$lib/components/ui/input';
 	import { Label } from '$lib/components/ui/label';
 	import * as Select from '$lib/components/ui/select';
@@ -81,7 +82,7 @@
 	</div>
 	<label class={fieldClass}>
 		<Label class="text-xs">{text.organization.hireDate}</Label>
-		<Input class={controlClass} type="date" bind:value={record.hireDate} disabled={isSaving} />
+		<DatePicker class={controlClass} bind:value={record.hireDate} disabled={isSaving} clearable />
 	</label>
 	<label class={fieldClass}>
 		<Label class="text-xs">{text.organization.phoneNumber}</Label>

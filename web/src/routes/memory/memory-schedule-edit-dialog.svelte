@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { Button } from '$lib/components/ui/button';
 	import * as Dialog from '$lib/components/ui/dialog';
+	import DateTimePicker from '$lib/components/date-time-picker.svelte';
 	import { Input } from '$lib/components/ui/input';
 	import { Label } from '$lib/components/ui/label';
 	import * as Select from '$lib/components/ui/select';
@@ -62,7 +63,7 @@
 				{#if scheduleDraft.kind === 'once'}
 					<div class="grid gap-2">
 						<Label for="schedule-run-at">{text.scheduleRunAtLabel}</Label>
-						<Input id="schedule-run-at" type="datetime-local" bind:value={scheduleDraft.runAt} />
+						<DateTimePicker id="schedule-run-at" bind:value={scheduleDraft.runAt} />
 					</div>
 				{:else if scheduleDraft.kind === 'interval'}
 					<div class="grid gap-2">
@@ -94,7 +95,7 @@
 					<div class="grid gap-2 sm:grid-cols-2">
 						<div class="grid gap-2">
 							<Label for="schedule-expires-at">{text.scheduleExpiresAt}</Label>
-							<Input id="schedule-expires-at" type="datetime-local" bind:value={scheduleDraft.expiresAt} />
+							<DateTimePicker id="schedule-expires-at" bind:value={scheduleDraft.expiresAt} clearable />
 						</div>
 						<div class="grid gap-2">
 							<Label for="schedule-max-run-count">{text.scheduleMaxRunCountLabel}</Label>

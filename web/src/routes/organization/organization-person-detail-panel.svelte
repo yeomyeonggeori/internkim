@@ -2,6 +2,7 @@
 	import PersonAvatar from '$lib/components/person-avatar.svelte';
 	import { displayPersonName } from '$lib/person-name.svelte';
 	import { Button } from '$lib/components/ui/button';
+	import DatePicker from '$lib/components/date-picker.svelte';
 	import { Input } from '$lib/components/ui/input';
 	import * as Item from '$lib/components/ui/item';
 	import { Label } from '$lib/components/ui/label';
@@ -90,11 +91,11 @@
 					</div>
 					<div class="grid gap-2">
 						<Label for={`organization-own-hire-date-${record.memberID}`} class="text-xs">{text.hireDate}</Label>
-						<Input
+						<DatePicker
 							id={`organization-own-hire-date-${record.memberID}`}
-							type="date"
 							bind:value={ownProfileDraft.hireDate}
 							disabled={isSavingOwnProfile}
+							clearable
 						/>
 					</div>
 				</div>

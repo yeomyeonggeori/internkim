@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
+import { pickDate } from './date-picker-test-utils';
 import { signInToTheCentralPlane } from './central-plane-sign-in';
 
 test.describe.configure({ mode: 'serial', timeout: 60_000 });
@@ -73,7 +74,7 @@ test('a company holiday an administrator adds survives a reload', async ({ page 
 	const holidays = page.getByTestId('company-holiday-settings');
 	await holidays.getByRole('button', { name: '휴일 추가' }).click();
 	await holidays.getByLabel('휴일명').fill(companyHolidayName);
-	await holidays.getByLabel('날짜').fill('2026-07-17');
+	await pickDate(page, holidays.getByLabel('날짜'), '2026-07-17');
 	await holidays.getByRole('button', { name: '저장', exact: true }).click();
 	await expect(holidays.getByText('회사 휴일을 저장했습니다.')).toBeVisible({ timeout: 20000 });
 

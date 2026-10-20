@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { Button } from '$lib/components/ui/button';
-	import { Input } from '$lib/components/ui/input';
+	import DatePicker from '$lib/components/date-picker.svelte';
 	import * as Select from '$lib/components/ui/select';
 	import { Textarea } from '$lib/components/ui/textarea';
 	import { localizedLeaveTypeName } from '$lib/i18n/leave-type-name';
@@ -191,25 +191,19 @@
 		<div class="grid gap-4 sm:grid-cols-2">
 			<label class="grid gap-1.5 text-sm font-medium" data-testid="leave-request-date-field">
 				<span>{draft.unit === 'fullDay' ? text.leave.startDateLabel : text.leave.dateLabel}</span>
-				<Input
-					type="date"
+				<DatePicker
 					value={draft.startDate}
 					min={today}
 					required
 					disabled={employeeLeave.isMutating}
-					oninput={(event) => {
-						if (event.currentTarget instanceof HTMLInputElement) {
-							draft.setStartDate(event.currentTarget.value);
-						}
-					}}
+					onValueChange={(startDate) => draft.setStartDate(startDate)}
 				/>
 			</label>
 
 			{#if draft.unit === 'fullDay'}
 				<label class="grid gap-1.5 text-sm font-medium">
 					<span>{text.leave.endDateLabel}</span>
-					<Input
-						type="date"
+					<DatePicker
 						bind:value={draft.endDate}
 						min={draft.startDate || today}
 						required

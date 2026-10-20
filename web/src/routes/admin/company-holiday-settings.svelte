@@ -4,6 +4,7 @@
 	import * as Card from '$lib/components/ui/card';
 	import * as Empty from '$lib/components/ui/empty';
 	import * as Field from '$lib/components/ui/field';
+	import DatePicker from '$lib/components/date-picker.svelte';
 	import { Input } from '$lib/components/ui/input';
 	import { Switch } from '$lib/components/ui/switch';
 	import { currentLocale } from '$lib/i18n/locale.svelte';
@@ -80,11 +81,10 @@
 					</Field.Field>
 					<Field.Field data-invalid={settingsState.validationAttempted && !settingsState.draft.date}>
 						<Field.Label for="company-holiday-date">{text.companyHolidays.date}</Field.Label>
-						<Input
+						<DatePicker
 							id="company-holiday-date"
-							type="date"
 							value={settingsState.draft.date}
-							oninput={(event) => settingsState.updateDraft({ date: event.currentTarget.value })}
+							onValueChange={(date) => settingsState.updateDraft({ date })}
 							disabled={settingsState.isSaving}
 							aria-invalid={settingsState.validationAttempted && !settingsState.draft.date}
 						/>
