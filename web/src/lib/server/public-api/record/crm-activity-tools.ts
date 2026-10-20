@@ -4,13 +4,7 @@ import { taskAdd, taskUpdate } from './task-tools';
 import { taskOfHint, tasksOfCompany, type TaskReadScope, type TaskRow } from './tasks';
 import { WorkspaceTaskSize, WorkspaceTaskStatus } from '../catalog/tools';
 import type { RecordContext } from './company';
-import type { CRMActivityListResult, CRMActivityResult, CRMActivitySaveResult } from '../catalog/crm';
-
-export type CRMActivityListInput = {
-	organizationHint?: string;
-	opportunityHint?: string;
-	query?: string;
-};
+import type { CRMActivityListInput, CRMActivityListResult, CRMActivityResult, CRMActivitySaveResult } from '../catalog/crm';
 
 export type CRMActivitySaveInput = {
 	activityHint?: string;
