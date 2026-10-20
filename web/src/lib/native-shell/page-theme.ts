@@ -1,4 +1,4 @@
-import { isInsideCapacitorShell, isInsideTauriShell, shellPlatform } from './shell';
+import { isInsideCapacitorShell, isInsideTauriPhoneShell, isInsideTauriShell } from './shell';
 import { tauriPageTheme } from './page-theme-tauri';
 
 export type PageTheme = {
@@ -22,10 +22,8 @@ function currentPageTheme(): PageTheme | null {
 	return { background, isDark: document.documentElement.classList.contains('dark') };
 }
 
-const mobilePlatforms = ['ios', 'android'];
-
 export async function pageThemeShell(): Promise<PageThemePlugin | null> {
-	if (isInsideTauriShell()) return mobilePlatforms.includes(shellPlatform()) ? tauriPageTheme() : null;
+	if (isInsideTauriShell()) return isInsideTauriPhoneShell() ? tauriPageTheme() : null;
 	if (!isInsideCapacitorShell()) return null;
 	const { registerPlugin } = await import('@capacitor/core');
 	return registerPlugin<PageThemePlugin>('PageTheme');

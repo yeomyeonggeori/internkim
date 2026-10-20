@@ -27,3 +27,9 @@ function tauriShellPlatform(): string {
 	if (!('__TAURI_OS_PLUGIN_INTERNALS__' in window)) return 'web';
 	return tauriPlatform();
 }
+
+const phonePlatforms = ['ios', 'android'];
+
+export function isInsideTauriPhoneShell(): boolean {
+	return isInsideTauriShell() && phonePlatforms.includes(shellPlatform());
+}
