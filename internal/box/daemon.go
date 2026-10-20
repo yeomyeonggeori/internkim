@@ -141,6 +141,9 @@ func (daemon Daemon) step(ctx context.Context, identity Identity, page *pairingP
 	if errorValue := forgetPairingCode(daemon.Places.StateDirectoryPath); errorValue != nil {
 		return 0, true, errorValue
 	}
+	if errorValue := rememberAppURL(daemon.Places.StateDirectoryPath, session.Configuration.AppURL); errorValue != nil {
+		return 0, true, errorValue
+	}
 	wait, errorValue := daemon.serveClaimed(ctx, session, identity)
 	return wait, true, errorValue
 }
@@ -336,6 +339,9 @@ func (daemon Daemon) InstallWithConnectionFile(ctx context.Context, connectionKe
 	}
 	if !isClaimed {
 		return fmt.Errorf("the central plane accepted the connection file and then gave this computer no company")
+	}
+	if errorValue := rememberAppURL(daemon.Places.StateDirectoryPath, session.Configuration.AppURL); errorValue != nil {
+		return errorValue
 	}
 	return daemon.installFor(session, modelKey)
 }
