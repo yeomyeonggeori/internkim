@@ -19,9 +19,9 @@
 	let decidingWith = $state<ApprovalDecision | undefined>(undefined);
 	let decisionError = $state('');
 
-	const decisionButtons: { decision: ApprovalDecision; label: string; icon: typeof CheckIcon; variant: 'default' | 'outline' | 'destructive' }[] = $derived([
+	const decisionButtons: { decision: ApprovalDecision; label: string; icon: typeof CheckIcon; variant: 'default' | 'outline' }[] = $derived([
 		{ decision: 'approve', label: text.approveOnce, icon: CheckIcon, variant: 'default' },
-		{ decision: 'reject', label: text.rejectApproval, icon: XIcon, variant: 'destructive' }
+		{ decision: 'reject', label: text.rejectApproval, icon: XIcon, variant: 'outline' }
 	]);
 
 	async function decide(decision: ApprovalDecision) {
