@@ -97,8 +97,8 @@
 
 <Button size="sm" variant="outline" onclick={open}>{text.preview}</Button>
 {#if isOpen}
-	<div role="dialog" aria-modal="true" aria-label={text.previewing} class="bg-background fixed inset-0 z-(--layer-panel) overflow-y-auto">
-		<div class="bg-primary text-primary-foreground flex flex-wrap items-center gap-x-4 gap-y-2 px-4 py-2 text-sm">
+	<div role="dialog" aria-modal="true" aria-label={text.previewing} class="bg-background fixed inset-0 z-(--layer-panel) flex flex-col overflow-y-auto overscroll-contain">
+		<div class="bg-primary text-primary-foreground flex shrink-0 flex-wrap items-center gap-x-4 gap-y-2 px-4 py-2 text-sm">
 			<p class="font-medium">{text.previewing}</p>
 			{#if circleItems.length}<Select.Root
 					type="single"
@@ -138,7 +138,7 @@
 			>
 		</div>
 		{#if errorMessage}<p role="alert" class="text-destructive p-4 text-sm">{errorMessage}</p>{/if}
-		{#if room}<GuestRoom {room} canDownload={room.canDownload} {signFile} onDownload={download} onRefresh={load} />
+		{#if room}<GuestRoom {room} canDownload={room.canDownload} {signFile} onDownload={download} onRefresh={load} fillsViewport={false} />
 		{:else if !isBusy && !circleItems.length && !errorMessage}<p class="text-muted-foreground p-4 text-sm">{text.noCircles}</p>{/if}
 	</div>
 {/if}

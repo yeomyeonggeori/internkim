@@ -37,7 +37,8 @@
 		signFile,
 		onDownload,
 		isDownloading = false,
-		onRefresh
+		onRefresh,
+		fillsViewport = true
 	}: {
 		room: SharedRoom;
 		canDownload?: boolean;
@@ -45,6 +46,7 @@
 		signFile: (documentID: string, derivedFileName?: string) => Promise<string>;
 		onDownload: (documentID: string, fileName: string) => void;
 		isDownloading?: boolean;
+		fillsViewport?: boolean;
 		onRefresh: () => void;
 	} = $props();
 
@@ -122,7 +124,7 @@
 </script>
 
 <Tooltip.Provider delayDuration={120}>
-<div class="bg-muted/40 flex min-h-dvh flex-col">
+<div class={cn('bg-muted/40 flex flex-1 flex-col', fillsViewport && 'min-h-dvh')}>
 	<header class="bg-background sticky top-0 z-10 border-b">
 		<div class="mx-auto flex w-full max-w-7xl items-center gap-3 px-4 py-3">
 			<img src={room.company.logo ?? '/favicon.svg'} alt="" class="size-8 shrink-0 object-contain" />
