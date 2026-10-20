@@ -2,6 +2,7 @@
 	import { appNavigation } from '$lib/components/app-navigation.svelte';
 	import AppRailContent from '$lib/components/app-rail-content.svelte';
 	import AppRailFooter from '$lib/components/app-rail-footer.svelte';
+	import { appRailMode } from '$lib/components/app-rail-mode.svelte';
 	import AppRailShell from '$lib/components/app-rail-shell.svelte';
 	import { myAttendanceToday } from '$lib/attendance/my-attendance-today.svelte';
 	import { useSidebar } from '$lib/components/ui/sidebar/index.js';
@@ -18,6 +19,11 @@
 
 	const text = createPageText(appShellText);
 	const sidebar = useSidebar();
+	let isPointerInside = $state(false);
+
+	$effect(() => {
+		appRailMode.setPeeking(isPointerInside || appRailMode.isMenuOpen || myAttendanceToday.isMenuOpen);
+	});
 
 	function mobileItems(paths: string[]): AppMobileNavigationItem[] {
 		return paths.flatMap(path => appNavigation.apps.filter(item => routePathOf(item.href).replace(/\/$/, '') === path));
@@ -65,7 +71,7 @@
 
 <svelte:window onkeydown={handleKeydown} />
 
-<AppRailShell>
+<AppRailShell onPointerInsideChange={(isInside) => (isPointerInside = isInside)}>
 	<AppRailContent
 		apps={appNavigation.apps}
 		appsLabel={text.apps}

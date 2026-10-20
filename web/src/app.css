@@ -274,6 +274,10 @@
   padding-top: env(safe-area-inset-top);
 }
 
+[data-slot='sidebar']:has(> [data-app-rail-mode='hover']) > [data-slot='sidebar-gap'] {
+  width: var(--sidebar-width-icon);
+}
+
 html.internkim-embedded [data-app-chrome] {
   display: none;
 }

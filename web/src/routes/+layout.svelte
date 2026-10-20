@@ -5,6 +5,7 @@
 	import { myAttendanceToday } from '$lib/attendance/my-attendance-today.svelte';
 	import { pageActions } from '$lib/components/app-page-actions.svelte';
 	import AppRail from '$lib/components/app-rail.svelte';
+	import { appRailMode } from '$lib/components/app-rail-mode.svelte';
 	import EffectErrorBoundary from '$lib/components/effect-error-boundary.svelte';
 	import { appSectionPathOf, usesAppShell, usesWebAuthGate } from '$lib/app-shell';
 	import { keepAppInVisualViewport } from '$lib/app-viewport';
@@ -58,7 +59,6 @@
 		if (isCommandPaletteOpen) hasRequestedCommandPalette = true;
 	});
 	let needsLegacyIdentity = $state(false);
-	let isAppSidebarOpen = $state(false);
 	let attendanceSessionKey = '';
 	let widgetSuppliedEmail = '';
 	$effect(() => setPersonNameCompanyLocale(data.companyLocale ?? ''));
@@ -212,7 +212,7 @@
 
 {#if usesAppShell(page.url.pathname)}
 	<Tooltip.Provider delayDuration={120}>
-		<Sidebar.Provider bind:open={isAppSidebarOpen} class="flex h-[min(var(--app-viewport-height,100dvh),100%)] min-h-0 w-full bg-background pt-[env(safe-area-inset-top)] text-foreground max-sm:relative max-sm:top-[var(--app-viewport-top,0px)]">
+		<Sidebar.Provider bind:open={() => appRailMode.isOpen, appRailMode.setOpen} style="--sidebar-width: 11rem;" class="flex h-[min(var(--app-viewport-height,100dvh),100%)] min-h-0 w-full bg-background pt-[env(safe-area-inset-top)] text-foreground max-sm:relative max-sm:top-[var(--app-viewport-top,0px)]">
 			{#if !isEmbeddedFrame()}
 				<EffectErrorBoundary region="app rail">
 					<AppRail session={data.session} {workspaceScope} onSearch={openCommandPalette} />
