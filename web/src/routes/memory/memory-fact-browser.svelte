@@ -171,7 +171,7 @@
 		{#if isLoading && !memory}
 			<div class="grid min-w-0 border-t xl:min-h-[28rem] xl:grid-cols-[minmax(0,0.85fr)_minmax(0,1fr)]" role="status" aria-label={text.loading} aria-busy="true" data-testid="memory-loading-skeleton">
 				<div aria-hidden="true"><div class="border-b bg-muted/30 px-4 py-2"><Skeleton class="h-4 w-24" /></div>{#each [0, 1, 2, 3] as row (row)}<div class="grid gap-3 border-b px-4 py-5"><div class="flex items-start gap-3"><div class="grid flex-1 gap-2"><Skeleton class="h-4 w-full" /><Skeleton class="h-4 w-4/5" /></div><Skeleton class="h-3 w-8" /></div><Skeleton class="h-3 w-28" /></div>{/each}</div>
-				<div aria-hidden="true" class="hidden min-h-[28rem] items-center justify-center border-l xl:flex"><Empty.Root class="min-h-[28rem]"><Empty.Header><Empty.Media variant="icon"><BookOpenIcon /></Empty.Media><Empty.Title>{text.memoryDetails}</Empty.Title><Empty.Description>{text.selectMemory}</Empty.Description></Empty.Header></Empty.Root></div>
+				<div aria-hidden="true" class="hidden min-h-[28rem] items-center justify-center border-l xl:flex"><div class="grid justify-items-center gap-3"><Skeleton class="size-10 rounded-full" /><Skeleton class="h-4 w-28" /><Skeleton class="h-3 w-44" /></div></div>
 			</div>
 	{:else if memory}
 		{#if visibleFacts.length > 0}
