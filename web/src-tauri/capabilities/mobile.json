@@ -4,5 +4,5 @@
   "platforms": ["iOS", "android"],
   "windows": ["main"],
   "remote": { "urls": ["https://intern.kim/*", "https://*.intern.kim/*"] },
-  "permissions": ["attendance-widget:default", "page-theme:default", "keyboard:default"]
+  "permissions": ["attendance-widget:default", "page-theme:default", "keyboard:default", "haptics:allow-impact-feedback", "haptics:allow-notification-feedback", "haptics:allow-selection-feedback"]
 }

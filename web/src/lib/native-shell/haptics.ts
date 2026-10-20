@@ -1,9 +1,14 @@
 import type { HapticsPlugin } from '@capacitor/haptics';
-import { isInsideCapacitorShell } from './shell';
+import { playTauriHaptic } from './haptics-tauri';
+import { isInsideCapacitorShell, isInsideTauriPhoneShell, isInsideTauriShell } from './shell';
 
 export type HapticKind = 'selection' | 'touch' | 'success' | 'failure';
 
 export function feelHaptic(kind: HapticKind): void {
+	if (isInsideTauriShell()) {
+		if (isInsideTauriPhoneShell()) void playTauriHaptic(kind);
+		return;
+	}
 	if (!isInsideCapacitorShell()) return;
 	void playHaptic(kind);
 }
