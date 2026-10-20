@@ -38,7 +38,8 @@
 		totalRaised,
 		yearsOperating,
 		type CompanyMetricSeries,
-		type DataRoomCompany
+		type DataRoomCompany,
+		companyInLanguage
 	} from './company';
 
 	type Folder = { code: string; name: string; documentCount: number };
@@ -56,14 +57,15 @@
 	const locale = $derived(currentLocale.value);
 	const text = $derived(dataRoomCompanyText[locale]);
 	const currency = $derived(displayCurrency.value);
-	const company = $derived(currency ? companyIn(recordedCompany, currency, exchangeRates) : recordedCompany);
+	const spokenCompany = $derived(companyInLanguage(recordedCompany, locale));
+	const company = $derived(currency ? companyIn(spokenCompany, currency, exchangeRates) : spokenCompany);
 	const conversionDate = $derived([...exchangeRates.values()].map((rate) => rate.asOf).toSorted().at(-1));
 	const conversionNotice = $derived(currency && conversionDate ? text.currency.converted(currency, conversionDate) : '');
 
 	$effect(() => {
 		if (!currency) return;
 		const target = currency;
-		void loadExchangeRates(recordedCurrencies(recordedCompany), target).then((rates) => {
+		void loadExchangeRates(recordedCurrencies(spokenCompany), target).then((rates) => {
 			if (displayCurrency.value === target) exchangeRates = rates;
 		});
 	});

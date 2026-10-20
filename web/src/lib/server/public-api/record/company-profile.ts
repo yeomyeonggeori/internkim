@@ -61,7 +61,7 @@ const plainFields = ['foundedDate', 'fiscalYearEnd', 'phone', 'fax', 'email', 'w
 
 const coreLocalizedFields = ['name', 'address', 'bankAccount'] as const;
 
-const defaultLanguage = 'ko';
+const defaultLanguage = 'en';
 
 export function languageAsked(offered: string | undefined): string {
 	return offered?.trim().toLowerCase() || defaultLanguage;
@@ -135,9 +135,9 @@ export function profileWithUpdate(
 	const written: CompanyProfileDocument = { ...profile };
 
 	for (const field of localizedFields) {
-		const offered = update[field]?.trim();
-		if (!offered) continue;
-		written[field] = { ...(written[field] ?? {}), [language]: offered };
+		const offered = update[field];
+		if (offered === undefined) continue;
+		written[field] = localizedWith(written[field], language, offered);
 	}
 
 	const labels = labelsOffered(update.legalAttributes);
@@ -149,8 +149,10 @@ export function profileWithUpdate(
 	}
 
 	for (const field of plainFields) {
-		const offered = update[field]?.trim();
-		if (offered) written[field] = offered;
+		const offered = update[field];
+		if (offered === undefined) continue;
+		if (offered.trim()) written[field] = offered.trim();
+		else delete written[field];
 	}
 	if (update.capital) written.capital = update.capital;
 	if (update.employeeCount !== undefined && update.employeeCount > 0) {
@@ -158,6 +160,13 @@ export function profileWithUpdate(
 	}
 
 	written.updatedAt = writtenAt.toISOString().replace(/\.\d{3}Z$/, 'Z');
+	return written;
+}
+
+function localizedWith(held: LocalizedText | undefined, language: string, offered: string): LocalizedText {
+	const written: LocalizedText = { ...(held ?? {}) };
+	if (offered.trim()) written[language] = offered.trim();
+	else delete written[language];
 	return written;
 }
 

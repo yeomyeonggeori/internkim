@@ -42,6 +42,7 @@ export type CompanyRecordAddInput = {
 	amount?: Money;
 	attributes?: string;
 	status?: CompanyRecordStatus;
+	language?: string;
 };
 
 export type CompanyRecordStatus = 'in_progress' | 'completed';
@@ -50,7 +51,7 @@ export type CompanyRecordUpdateInput = CompanyRecordAddInput & { recordHint?: st
 
 export type CompanyRecordDeleteInput = { recordHint?: string };
 
-export type CompanyRecordListInput = { category?: string; query?: string };
+export type CompanyRecordListInput = { category?: string; query?: string; language?: string };
 
 export type DataRoomDocumentInput = {
 	categoryCode?: string;
@@ -111,7 +112,7 @@ const inboxCategoryCode = 'X';
 
 const metricColumns =
 	'id, metric, year, quarter, month, value, currency_code, value_usd, unit, note, updated_at';
-const recordColumns = 'id, category, record_date, title, detail, status, amount, currency_code, attributes, updated_at';
+const recordColumns = 'id, category, record_date, title, detail, status, amount, currency_code, attributes, translations, updated_at';
 const documentColumns =
 	'id, document_number, kind, document_type, title, counterpart, language, file_path, summary, requester_id, created_at, updated_at, category_code, document_date, period, status, supersedes, sha256, tags, storage_path, size_bytes, published_from, published_at, published_by';
 
@@ -162,8 +163,21 @@ type RecordRow = {
 	amount: number | null;
 	currency_code: string | null;
 	attributes: Record<string, RecordAttributeValue> | null;
+	translations: Record<string, RecordTranslation> | null;
 	updated_at: string;
 };
+
+type RecordTranslation = {
+	title?: string;
+	detail?: string;
+	attributes?: Record<string, RecordAttributeValue>;
+};
+
+const baseLanguage = 'en';
+
+function languageOf(offered: string | undefined): string {
+	return offered?.trim().toLowerCase() || baseLanguage;
+}
 
 type DocumentRow = {
 	id: string;
@@ -208,16 +222,20 @@ function answeredMetric(row: MetricRow): CompanyMetricResult {
 	};
 }
 
-function answeredRecord(row: RecordRow): CompanyRecordResult {
+function answeredRecord(row: RecordRow, language = baseLanguage): CompanyRecordResult {
+	const translation = row.translations?.[language] ?? {};
 	return {
 		recordID: row.id,
 		category: row.category,
 		date: row.record_date,
-		title: row.title,
-		detail: row.detail,
+		title: translation.title ?? row.title,
+		detail: translation.detail ?? row.detail,
 		status: row.status,
 		amount: row.amount === null || row.currency_code === null ? null : { amount: Number(row.amount), currency: row.currency_code },
-		attributes: Object.entries(row.attributes ?? {}).map(([label, value]) => ({ label, value: attributeText(value) })),
+		attributes: Object.entries({ ...(row.attributes ?? {}), ...(translation.attributes ?? {}) }).map(([label, value]) => ({
+			label,
+			value: attributeText(value)
+		})),
 		updatedAt: row.updated_at
 	};
 }
@@ -408,7 +426,9 @@ export async function companyMetricList(
 const recordMatcher: HintMatcher<RecordRow> = {
 	identifiersOf: (row) => [row.id],
 	titleOf: (row) => row.title,
-	nearnessTo: (row, hint) => titleNearness(normalized(hint), normalized(row.title))
+	exactTitleAliasesOf: translatedTitlesOf,
+	nearnessTo: (row, hint) =>
+		Math.max(...[row.title, ...translatedTitlesOf(row)].map((title) => titleNearness(normalized(hint), normalized(title))))
 };
 
 async function recordRows(context: RecordContext): Promise<RecordRow[]> {
@@ -455,6 +475,9 @@ export async function companyRecordAdd(
 ): Promise<CompanyRecordResult> {
 	const category = textOf(input.category, 'a company record names the category it belongs to');
 	const title = textOf(input.title, 'a company record needs a title');
+	if (languageOf(input.language) !== baseLanguage) {
+		throw new RecordRefusedTheWrite('a company record is added in English first; add its translation with company_record_update and language', 422);
+	}
 
 	const { data, error } = await context.caller
 		.from('company_record')
@@ -481,15 +504,14 @@ export async function companyRecordUpdate(
 	input: CompanyRecordUpdateInput
 ): Promise<CompanyRecordResult> {
 	const held = await companyRecordOfHint(context, input.recordHint ?? '');
-	const attributes = decodedAttributes(input.attributes);
+	const language = languageOf(input.language);
 	const change: Record<string, unknown> = { updated_at: context.now.toISOString() };
 	if (orNull(input.category)) change.category = input.category?.trim();
 	if (orNull(input.date)) change.record_date = input.date?.trim();
-	if (orNull(input.title)) change.title = input.title?.trim();
-	if (orNull(input.detail)) change.detail = input.detail?.trim();
-	if (attributes) change.attributes = attributes;
 	if (input.status) change.status = input.status;
 	if (input.amount) Object.assign(change, { amount: input.amount.amount, currency_code: input.amount.currency });
+	if (language === baseLanguage) Object.assign(change, baseTextChange(input));
+	else change.translations = { ...(held.translations ?? {}), [language]: translationWith(held.translations?.[language] ?? {}, input) };
 
 	const { data, error } = await context.caller
 		.from('company_record')
@@ -500,7 +522,30 @@ export async function companyRecordUpdate(
 	if (error) throw refuseTheWrite(error, onlyAnAdministratorWritesRecords);
 	const written = (data ?? [])[0];
 	if (!written) throw new RecordRefusedTheWrite(onlyAnAdministratorWritesRecords, 403);
-	return answeredRecord(written);
+	return answeredRecord(written, language);
+}
+
+function baseTextChange(input: CompanyRecordUpdateInput): Record<string, unknown> {
+	const change: Record<string, unknown> = {};
+	const attributes = decodedAttributes(input.attributes);
+	if (orNull(input.title)) change.title = input.title?.trim();
+	if (input.detail !== undefined) change.detail = orNull(input.detail);
+	if (attributes) change.attributes = attributes;
+	return change;
+}
+
+function translationWith(held: RecordTranslation, input: CompanyRecordUpdateInput): RecordTranslation {
+	const written: RecordTranslation = { ...held };
+	const attributes = decodedAttributes(input.attributes);
+	const title = orNull(input.title);
+	if (title) written.title = title;
+	if (input.detail !== undefined) {
+		const detail = orNull(input.detail);
+		if (detail) written.detail = detail;
+		else delete written.detail;
+	}
+	if (attributes) written.attributes = attributes;
+	return written;
 }
 
 export async function companyRecordDelete(
@@ -528,15 +573,29 @@ export async function companyRecordList(
 ): Promise<CompanyRecordListResult> {
 	const category = orNull(input.category);
 	const keyword = orNull(input.query)?.toLowerCase();
+	const language = languageOf(input.language);
 	const kept = (await recordRows(context))
 		.filter((row) => !category || row.category === category)
 		.filter((row) => !keyword || recordHolds(row, keyword));
-	return { count: kept.length, records: kept.map(answeredRecord) };
+	return { count: kept.length, records: kept.map((row) => answeredRecord(row, language)) };
 }
 
 function recordHolds(row: RecordRow, keyword: string): boolean {
-	const written = [row.title, row.detail ?? '', ...Object.values(row.attributes ?? {}).map(attributeText)];
-	return written.some((value) => value.toLowerCase().includes(keyword));
+	return recordTextsOf(row).some((value) => value.toLowerCase().includes(keyword));
+}
+
+function recordTextsOf(row: RecordRow): string[] {
+	const base: RecordTranslation = { title: row.title, detail: row.detail ?? undefined, attributes: row.attributes ?? undefined };
+	const versions = [base, ...Object.values(row.translations ?? {})];
+	return versions.flatMap((version) => [
+		version.title ?? '',
+		version.detail ?? '',
+		...Object.values(version.attributes ?? {}).map(attributeText)
+	]);
+}
+
+function translatedTitlesOf(row: RecordRow): string[] {
+	return Object.values(row.translations ?? {}).flatMap((translation) => (translation.title ? [translation.title] : []));
 }
 
 const documentMatcher: HintMatcher<DocumentRow> = {

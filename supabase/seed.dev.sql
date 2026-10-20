@@ -265,21 +265,21 @@ insert into public.company_metric (id, company_id, metric, year, quarter, month,
   ('000000d1-0000-0000-0000-000000000015', '000000cc-0000-0000-0000-000000000001', 'mau', 2026, 0, 9, 15200, null, null, null)
 on conflict (id) do nothing;
 
-insert into public.company_record (id, company_id, category, record_date, title, detail, amount, currency_code, status, attributes) values
-  ('000000d2-0000-0000-0000-000000000001', '000000cc-0000-0000-0000-000000000001', 'history', '2021-03-15', '법인 설립', '공동 창업자 두 명이 서울에서 설립했습니다.', null, null, 'completed', '{}'),
-  ('000000d2-0000-0000-0000-000000000002', '000000cc-0000-0000-0000-000000000001', 'product', '2022-06-01', '업무 자동화 서비스 정식 출시', null, null, null, 'completed', '{}'),
-  ('000000d2-0000-0000-0000-000000000003', '000000cc-0000-0000-0000-000000000001', 'history', '2024-09-10', '싱가포르 법인 설립', '동남아시아 영업을 위한 현지 법인입니다.', null, null, 'completed', '{}'),
-  ('000000d2-0000-0000-0000-000000000004', '000000cc-0000-0000-0000-000000000001', 'product', '2025-04-01', '업무 자동화 2.0 출시', '문서 자동 분류와 일정 조율을 더했습니다.', null, null, 'completed', '{}'),
-  ('000000d2-0000-0000-0000-000000000011', '000000cc-0000-0000-0000-000000000001', 'funding', '2021-09-01', '시드', null, 300000000, 'KRW', 'completed', '{"leadInvestor": "예시 벤처스", "instrument": "보통주"}'),
-  ('000000d2-0000-0000-0000-000000000012', '000000cc-0000-0000-0000-000000000001', 'funding', '2023-05-20', '프리 A', null, 1200000000, 'KRW', 'completed', '{"leadInvestor": "샘플 캐피탈", "investors": "샘플 캐피탈, 견본 파트너스", "postMoney": {"amount": 12000000000, "currency": "KRW"}, "instrument": "상환전환우선주"}'),
-  ('000000d2-0000-0000-0000-000000000013', '000000cc-0000-0000-0000-000000000001', 'funding', '2026-12-31', '시리즈 A', '해외 영업과 제품 개발 인력을 늘립니다.', 3000000000, 'KRW', 'in_progress', '{"leadInvestor": "예시 벤처스", "preMoney": {"amount": 30000000000, "currency": "KRW"}, "instrument": "상환전환우선주"}'),
-  ('000000d2-0000-0000-0000-000000000021', '000000cc-0000-0000-0000-000000000001', 'grant', '2022-07-01', '초기창업패키지', null, 100000000, 'KRW', 'completed', '{}'),
-  ('000000d2-0000-0000-0000-000000000022', '000000cc-0000-0000-0000-000000000001', 'grant', '2024-04-01', '민간투자주도형 기술창업지원', null, 500000000, 'KRW', 'completed', '{}'),
-  ('000000d2-0000-0000-0000-000000000031', '000000cc-0000-0000-0000-000000000001', 'certification', '2022-11-01', '벤처기업 확인', null, null, null, 'completed', '{}'),
-  ('000000d2-0000-0000-0000-000000000032', '000000cc-0000-0000-0000-000000000001', 'certification', '2023-03-01', '기업부설연구소 인정', null, null, null, 'completed', '{}'),
-  ('000000d2-0000-0000-0000-000000000033', '000000cc-0000-0000-0000-000000000001', 'ip', '2023-08-01', '문서 자동 분류 방법 특허 등록', null, null, null, 'completed', '{"number": "10-0000000"}'),
-  ('000000d2-0000-0000-0000-000000000034', '000000cc-0000-0000-0000-000000000001', 'award', '2024-12-01', '예시 스타트업 어워드 대상', null, null, null, 'completed', '{}'),
-  ('000000d2-0000-0000-0000-000000000035', '000000cc-0000-0000-0000-000000000001', 'reference', '2025-06-01', '샘플 상사 전사 도입', '임직원 300명이 문서 업무에 씁니다.', null, null, 'completed', '{}')
+insert into public.company_record (id, company_id, category, record_date, title, detail, amount, currency_code, status, attributes, translations) values
+  ('000000d2-0000-0000-0000-000000000001', '000000cc-0000-0000-0000-000000000001', 'history', '2021-03-15', 'Company founded', 'Founded in Seoul by two co-founders.', null, null, 'completed', '{}', '{"ko": {"title": "법인 설립", "detail": "공동 창업자 두 명이 서울에서 설립했습니다."}}'),
+  ('000000d2-0000-0000-0000-000000000002', '000000cc-0000-0000-0000-000000000001', 'product', '2022-06-01', 'Workflow automation service launched', null, null, null, 'completed', '{}', '{"ko": {"title": "업무 자동화 서비스 정식 출시"}}'),
+  ('000000d2-0000-0000-0000-000000000003', '000000cc-0000-0000-0000-000000000001', 'history', '2024-09-10', 'Singapore subsidiary founded', 'A local entity for sales in Southeast Asia.', null, null, 'completed', '{}', '{"ko": {"title": "싱가포르 법인 설립", "detail": "동남아시아 영업을 위한 현지 법인입니다."}}'),
+  ('000000d2-0000-0000-0000-000000000004', '000000cc-0000-0000-0000-000000000001', 'product', '2025-04-01', 'Workflow automation 2.0 launched', 'Adds automatic document sorting and scheduling.', null, null, 'completed', '{}', '{"ko": {"title": "업무 자동화 2.0 출시", "detail": "문서 자동 분류와 일정 조율을 더했습니다."}}'),
+  ('000000d2-0000-0000-0000-000000000011', '000000cc-0000-0000-0000-000000000001', 'funding', '2021-09-01', 'Seed', null, 300000000, 'KRW', 'completed', '{"leadInvestor": "Example Ventures", "instrument": "Common shares"}', '{"ko": {"title": "시드", "attributes": {"leadInvestor": "예시 벤처스", "instrument": "보통주"}}}'),
+  ('000000d2-0000-0000-0000-000000000012', '000000cc-0000-0000-0000-000000000001', 'funding', '2023-05-20', 'Pre-A', null, 1200000000, 'KRW', 'completed', '{"leadInvestor": "Sample Capital", "investors": "Sample Capital, Specimen Partners", "postMoney": {"amount": 12000000000, "currency": "KRW"}, "instrument": "Redeemable convertible preferred shares"}', '{"ko": {"title": "프리 A", "attributes": {"leadInvestor": "샘플 캐피탈", "investors": "샘플 캐피탈, 견본 파트너스", "instrument": "상환전환우선주"}}}'),
+  ('000000d2-0000-0000-0000-000000000013', '000000cc-0000-0000-0000-000000000001', 'funding', '2026-12-31', 'Series A', 'Expanding overseas sales and the product team.', 3000000000, 'KRW', 'in_progress', '{"leadInvestor": "Example Ventures", "preMoney": {"amount": 30000000000, "currency": "KRW"}, "instrument": "Redeemable convertible preferred shares"}', '{"ko": {"title": "시리즈 A", "detail": "해외 영업과 제품 개발 인력을 늘립니다.", "attributes": {"leadInvestor": "예시 벤처스", "instrument": "상환전환우선주"}}}'),
+  ('000000d2-0000-0000-0000-000000000021', '000000cc-0000-0000-0000-000000000001', 'grant', '2022-07-01', 'Early-stage startup package', null, 100000000, 'KRW', 'completed', '{}', '{"ko": {"title": "초기창업패키지"}}'),
+  ('000000d2-0000-0000-0000-000000000022', '000000cc-0000-0000-0000-000000000001', 'grant', '2024-04-01', 'Private investment-led tech startup program', null, 500000000, 'KRW', 'completed', '{}', '{"ko": {"title": "민간투자주도형 기술창업지원"}}'),
+  ('000000d2-0000-0000-0000-000000000031', '000000cc-0000-0000-0000-000000000001', 'certification', '2022-11-01', 'Venture company certified', null, null, null, 'completed', '{}', '{"ko": {"title": "벤처기업 확인"}}'),
+  ('000000d2-0000-0000-0000-000000000032', '000000cc-0000-0000-0000-000000000001', 'certification', '2023-03-01', 'Corporate research lab recognized', null, null, null, 'completed', '{}', '{"ko": {"title": "기업부설연구소 인정"}}'),
+  ('000000d2-0000-0000-0000-000000000033', '000000cc-0000-0000-0000-000000000001', 'ip', '2023-08-01', 'Patent granted for automatic document sorting', null, null, null, 'completed', '{"number": "10-0000000"}', '{"ko": {"title": "문서 자동 분류 방법 특허 등록"}}'),
+  ('000000d2-0000-0000-0000-000000000034', '000000cc-0000-0000-0000-000000000001', 'award', '2024-12-01', 'Grand prize, Example Startup Award', null, null, null, 'completed', '{}', '{"ko": {"title": "예시 스타트업 어워드 대상"}}'),
+  ('000000d2-0000-0000-0000-000000000035', '000000cc-0000-0000-0000-000000000001', 'reference', '2025-06-01', 'Company-wide rollout at Sample Trading', '300 employees use it for their document work.', null, null, 'completed', '{}', '{"ko": {"title": "샘플 상사 전사 도입", "detail": "임직원 300명이 문서 업무에 씁니다."}}')
 on conflict (id) do nothing;
 
 insert into public.opportunity (

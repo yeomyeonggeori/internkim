@@ -82,7 +82,7 @@ const companyDocumentDownloadInputSchema = z.strictObject({
 });
 
 const companyInfoGetInputSchema = z.strictObject({
-  language: z.string().describe("Document language to resolve the profile for, e.g. 'ko' or 'en'. Defaults to 'ko'. The response's missingFields lists core fields still empty for this language.").optional(),
+  language: z.string().describe("Document language to resolve the profile for, e.g. 'ko' or 'en'. Defaults to 'en'. A field missing in that language falls back to English. The response's missingFields lists core fields still empty for this language.").optional(),
 });
 
 const serviceFileImageFields = Object.fromEntries(serviceFiles.map((file) => [
@@ -104,7 +104,7 @@ const companyInfoSetInputSchema = z.strictObject({
   fiscalYearEnd: z.string().describe("Fiscal year end month, e.g. 'December'.").optional(),
   foundedDate: z.string().describe("Founding date in YYYY-MM-DD format.").optional(),
   jurisdiction: z.string().describe("Jurisdiction of incorporation for contract preambles, e.g. 'the Republic of Korea' or 'the State of Delaware'.").optional(),
-  language: z.string().describe("Language slot the localized values belong to, e.g. 'ko' or 'en'."),
+  language: z.string().describe("Language slot the localized values belong to, e.g. 'en' or 'ko'. English is the base every other language falls back to, so write it first."),
   legalAttributes: z.string().describe("JSON object string of country-specific label-to-value pairs, e.g. {\"Business Registration Number\": \"123-45-67890\", \"Business Type\": \"Services\"}. Write each label in the language the country prints it in, because labels print on documents as-is.").optional(),
   name: z.string().describe("Legal company name as it is registered, including the form of incorporation.").optional(),
   officeAddress: z.string().describe("Working office address when it differs from the registered address.").optional(),
@@ -152,7 +152,8 @@ const companyRecordAddInputSchema = z.strictObject({
   attributes: z.string().describe("JSON object string of other structured details, e.g. {\"round\": \"Seed\", \"investors\": \"ABC Ventures\"}. The event's own money goes in amount; any other sum, such as a valuation, is money too: {\"preMoney\": {\"amount\": 30000000000, \"currency\": \"KRW\"}}.").optional(),
   category: z.string().describe("Record category: 'history', 'funding', 'product', 'certification', 'ip', 'award', 'reference', 'grant', or another short kebab-case label."),
   date: momentSchema.describe("When it happened, as precisely as known: YYYY-MM-DD, YYYY-MM, YYYY-Q1 to YYYY-Q4 for a quarter, YYYY-H1 or YYYY-H2 for a half, or YYYY. Sorts the company timeline. For something still in progress, when it is expected to finish.").optional(),
-  detail: z.string().describe("One-to-three sentence description.").optional(),
+  detail: z.string().describe("Only what the title and attributes do not already say, in one or two short sentences.").optional(),
+  language: z.string().describe("Language of title, detail and attribute values. Must be 'en' or omitted: add the English record first, then company_record_update with language for a translation.").optional(),
   status: companyRecordStatusSchema.optional(),
   title: z.string().describe("Short title, e.g. 'Seed round closed' or 'Product launched'."),
 });
@@ -167,6 +168,7 @@ const companyRecordDeleteInputIntentSchema = z.strictObject({});
 
 const companyRecordListInputSchema = z.strictObject({
   category: z.string().describe("Category to filter by, e.g. 'funding' or 'history'. Leave empty for all.").optional(),
+  language: z.string().describe("Language to answer title, detail and attributes in, falling back to English. Defaults to 'en'.").optional(),
   query: z.string().describe("Keyword filter matched against title, detail, and attributes.").optional(),
 });
 
@@ -175,7 +177,8 @@ const companyRecordUpdateInputSchema = z.strictObject({
   attributes: z.string().describe("JSON object string replacing the stored attributes. Omit to keep unchanged.").optional(),
   category: z.string().describe("New category. Omit to keep unchanged.").optional(),
   date: momentSchema.describe("New date: YYYY-MM-DD, YYYY-MM, YYYY-Q1 to YYYY-Q4, YYYY-H1 or YYYY-H2, or YYYY. Omit to keep unchanged.").optional(),
-  detail: z.string().describe("New detail text. Omit to keep unchanged.").optional(),
+  detail: z.string().describe("New detail text. Omit to keep unchanged; an empty string removes it.").optional(),
+  language: z.string().describe("Language of title, detail and attribute values, e.g. 'ko'. Defaults to 'en', the record's base; another language is kept as its translation.").optional(),
   recordHint: z.string().describe("The record to update: its id from a prior company_record_list result, or its exact CURRENT title. Never the new title this call is about to set."),
   status: companyRecordStatusSchema.describe("New status, e.g. 'completed' when a round closes. Omit to keep unchanged.").optional(),
   title: z.string().describe("New title. Omit to keep unchanged.").optional(),
@@ -460,7 +463,7 @@ export const companyToolDefinitions: CapabilityToolDefinition[] = [
     answeredBy: CapabilityAnsweredBy.Record,
     privacyClass: "workspace_company",
     policyResource: "tool:company_info_set",
-    description: `Save or update the company master profile. Partial update: only provided fields are written, into the given language's slot for localized fields. Use after the user supplies company details, or when they report one has changed. Put country-specific identifiers (a business registration number, a corporate registration number, an industry classification, an EIN …) into legalAttributes as a label-to-value JSON object string. A seal or logo image the user gives is kept with ${serviceFileImageFieldNames}, after company_image_upload.`,
+    description: `Save or update the company master profile. Partial update: only provided fields are written, into the given language's slot for localized fields; an empty string removes a field. Use after the user supplies company details, or when they report one has changed. Put country-specific identifiers (a business registration number, a corporate registration number, an industry classification, an EIN …) into legalAttributes as a label-to-value JSON object string. A seal or logo image the user gives is kept with ${serviceFileImageFieldNames}, after company_image_upload.`,
     version: "1",
     estimatedLatency: CapabilityEstimatedLatency.Low,
     inputSchema: companyInfoSetInputSchema,

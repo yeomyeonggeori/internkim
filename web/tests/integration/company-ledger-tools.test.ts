@@ -79,6 +79,10 @@ function resultOf(answer: { body: unknown }): Record<string, unknown> {
 	return (answer.body as { result: Record<string, unknown> }).result;
 }
 
+function listedTitleOf(answer: { body: unknown }, recordID: string): string | undefined {
+	return (resultOf(answer).records as { recordID: string; title: string }[]).find((record) => record.recordID === recordID)?.title;
+}
+
 function errorOf(answer: { body: unknown }): string {
 	return (answer.body as { error?: string }).error ?? '';
 }
@@ -284,6 +288,30 @@ describe('what happened to the company', () => {
 		expect(resultOf(written).recordID).toBe(seedRecordID);
 		expect(resultOf(written).title).toBe('Pre-seed round closed');
 		expect(resultOf(written).category).toBe('funding');
+	});
+
+	test('is added in English and keeps each further language as a translation', async () => {
+		const refused = await asAdmin('company_record_add', { category: 'award', title: '디자인상', language: 'ko' });
+		expect(refused.status).toBe(422);
+
+		const translated = await asAdmin('company_record_update', {
+			recordHint: seedRecordID,
+			language: 'ko',
+			title: '프리시드 투자 유치',
+			attributes: '{"investors": "샘플 벤처스"}'
+		});
+		expect(translated.status).toBe(200);
+		expect(resultOf(translated).title).toBe('프리시드 투자 유치');
+
+		const korean = await asSample('company_record_list', { category: 'funding', language: 'ko' });
+		const english = await asSample('company_record_list', { category: 'funding' });
+		expect(listedTitleOf(korean, seedRecordID)).toBe('프리시드 투자 유치');
+		expect(listedTitleOf(english, seedRecordID)).toBe('Pre-seed round closed');
+
+		const byKoreanTitle = await asAdmin('company_record_update', { recordHint: '프리시드 투자 유치', detail: 'A detail to remove.' });
+		expect(resultOf(byKoreanTitle).recordID).toBe(seedRecordID);
+		const removed = await asAdmin('company_record_update', { recordHint: seedRecordID, detail: '' });
+		expect(resultOf(removed).detail).toBeNull();
 	});
 
 	test('asks which one when a title names more than one', async () => {

@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 import {
 	changeFromPrevious,
+	companyInLanguage,
 	companyFactGroups,
 	dataRoomCompanySchema,
 	fiscalYearEndLabel,
@@ -35,6 +36,22 @@ describe('the company a data room shows', () => {
 		expect(localized({ ko: '샘플', en: 'Sample' }, 'ko')).toBe('샘플');
 		expect(localized({ ko: '샘플' }, 'en')).toBe('샘플');
 		expect(localized(undefined, 'ko')).toBe('');
+	});
+
+	test('shows each record in the reader language, keeping English wherever a translation is silent', () => {
+		const company = dataRoomCompanySchema.parse({
+			profile: {},
+			metrics: [],
+			records: [{
+				category: 'funding', title: 'Seed round', detail: 'Led by a sample fund.',
+				attributes: { round: 'Seed', investors: 'Sample Ventures' },
+				translations: { ko: { title: '시드 투자 유치', attributes: { investors: '샘플 벤처스' } } }
+			}]
+		});
+		const [korean] = companyInLanguage(company, 'ko').records;
+		const [english] = companyInLanguage(company, 'en').records;
+		expect(korean).toMatchObject({ title: '시드 투자 유치', detail: 'Led by a sample fund.', attributes: { round: 'Seed', investors: '샘플 벤처스' } });
+		expect(english).toMatchObject({ title: 'Seed round', attributes: { investors: 'Sample Ventures' } });
 	});
 
 	test('lists only the facts it was given, legal attributes under their own labels', () => {

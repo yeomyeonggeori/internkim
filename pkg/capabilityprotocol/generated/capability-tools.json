@@ -17498,7 +17498,7 @@
         "additionalProperties": false,
         "properties": {
           "language": {
-            "description": "Document language to resolve the profile for, e.g. 'ko' or 'en'. Defaults to 'ko'. The response's missingFields lists core fields still empty for this language.",
+            "description": "Document language to resolve the profile for, e.g. 'ko' or 'en'. Defaults to 'en'. A field missing in that language falls back to English. The response's missingFields lists core fields still empty for this language.",
             "type": "string"
           }
         },
@@ -17838,7 +17838,7 @@
         "mode": "success",
         "targetKind": "company"
       },
-      "description": "Save or update the company master profile. Partial update: only provided fields are written, into the given language's slot for localized fields. Use after the user supplies company details, or when they report one has changed. Put country-specific identifiers (a business registration number, a corporate registration number, an industry classification, an EIN …) into legalAttributes as a label-to-value JSON object string. A seal or logo image the user gives is kept with sealImage or logoImage, after company_image_upload.",
+      "description": "Save or update the company master profile. Partial update: only provided fields are written, into the given language's slot for localized fields; an empty string removes a field. Use after the user supplies company details, or when they report one has changed. Put country-specific identifiers (a business registration number, a corporate registration number, an industry classification, an EIN …) into legalAttributes as a label-to-value JSON object string. A seal or logo image the user gives is kept with sealImage or logoImage, after company_image_upload.",
       "estimatedLatency": "low",
       "idempotency": {
         "required": false,
@@ -17912,7 +17912,7 @@
             "type": "string"
           },
           "language": {
-            "description": "Language slot the localized values belong to, e.g. 'ko' or 'en'.",
+            "description": "Language slot the localized values belong to, e.g. 'en' or 'ko'. English is the base every other language falls back to, so write it first.",
             "type": "string"
           },
           "legalAttributes": {
@@ -18021,7 +18021,7 @@
             "type": "string"
           },
           "language": {
-            "description": "Language slot the localized values belong to, e.g. 'ko' or 'en'.",
+            "description": "Language slot the localized values belong to, e.g. 'en' or 'ko'. English is the base every other language falls back to, so write it first.",
             "type": "string"
           },
           "legalAttributes": {
@@ -19160,7 +19160,11 @@
             "type": "string"
           },
           "detail": {
-            "description": "One-to-three sentence description.",
+            "description": "Only what the title and attributes do not already say, in one or two short sentences.",
+            "type": "string"
+          },
+          "language": {
+            "description": "Language of title, detail and attribute values. Must be 'en' or omitted: add the English record first, then company_record_update with language for a translation.",
             "type": "string"
           },
           "status": {
@@ -19216,7 +19220,11 @@
             "type": "string"
           },
           "detail": {
-            "description": "One-to-three sentence description.",
+            "description": "Only what the title and attributes do not already say, in one or two short sentences.",
+            "type": "string"
+          },
+          "language": {
+            "description": "Language of title, detail and attribute values. Must be 'en' or omitted: add the English record first, then company_record_update with language for a translation.",
             "type": "string"
           },
           "status": {
@@ -19757,6 +19765,10 @@
             "description": "Category to filter by, e.g. 'funding' or 'history'. Leave empty for all.",
             "type": "string"
           },
+          "language": {
+            "description": "Language to answer title, detail and attributes in, falling back to English. Defaults to 'en'.",
+            "type": "string"
+          },
           "query": {
             "description": "Keyword filter matched against title, detail, and attributes.",
             "type": "string"
@@ -20076,7 +20088,11 @@
             "type": "string"
           },
           "detail": {
-            "description": "New detail text. Omit to keep unchanged.",
+            "description": "New detail text. Omit to keep unchanged; an empty string removes it.",
+            "type": "string"
+          },
+          "language": {
+            "description": "Language of title, detail and attribute values, e.g. 'ko'. Defaults to 'en', the record's base; another language is kept as its translation.",
             "type": "string"
           },
           "status": {
@@ -20132,7 +20148,11 @@
             "type": "string"
           },
           "detail": {
-            "description": "New detail text. Omit to keep unchanged.",
+            "description": "New detail text. Omit to keep unchanged; an empty string removes it.",
+            "type": "string"
+          },
+          "language": {
+            "description": "Language of title, detail and attribute values, e.g. 'ko'. Defaults to 'en', the record's base; another language is kept as its translation.",
             "type": "string"
           },
           "recordHint": {

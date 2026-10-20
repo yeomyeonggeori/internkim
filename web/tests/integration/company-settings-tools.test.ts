@@ -242,6 +242,19 @@ describe('the company master profile', () => {
 		expect(resultOf(answered).updatedAt).not.toBe('');
 	});
 
+	test('removes a field given an empty string, and answers in English when no language is asked', async () => {
+		await asAdmin('company_info_set', { language: 'en', name: 'Sample Inc.', brandName: 'Sample' });
+		await asAdmin('company_info_set', { language: 'ko', brandName: '샘플' });
+
+		const cleared = await asAdmin('company_info_set', { language: 'ko', brandName: '', fax: '' });
+		expect(resultOf(cleared).brandName).toBe('Sample');
+		expect(resultOf(cleared).fax).toBe('');
+
+		const unasked = await asAdmin('company_info_get', {});
+		expect(resultOf(unasked).language).toBe('en');
+		expect(resultOf(unasked).name).toBe('Sample Inc.');
+	});
+
 	test('is an administrator to write, and everyone here may read it', async () => {
 		const refused = await asSample('company_info_set', { language: 'ko', name: '내가 쓴 이름' });
 

@@ -10,6 +10,12 @@ export const holderKinds = ['founder', 'employee', 'investor', 'option_pool', 'o
 const holderKindSchema = z.enum(holderKinds);
 const heldByKindSchema = z.array(z.object({ kind: holderKindSchema, shares: z.number() }));
 
+const recordTranslationSchema = z.object({
+	title: z.string().optional(),
+	detail: z.string().optional(),
+	attributes: z.record(z.string(), z.unknown()).optional()
+});
+
 const recordSchema = z.object({
 	category: z.string(),
 	date: momentSchema.optional(),
@@ -18,7 +24,8 @@ const recordSchema = z.object({
 	status: z.enum(['in_progress', 'completed']).optional(),
 	amount: moneySchema.optional(),
 	committed: moneySchema.optional(),
-	attributes: z.record(z.string(), z.unknown())
+	attributes: z.record(z.string(), z.unknown()),
+	translations: z.record(z.string(), recordTranslationSchema).optional()
 });
 
 const ownershipSchema = z.object({
@@ -97,6 +104,21 @@ export const headcountMetric = 'employees';
 export function isEmptyCompany(company: DataRoomCompany): boolean {
 	return Object.keys(company.profile).length === 0 && company.metrics.length === 0 && company.records.length === 0
 		&& !company.activity && !company.ownership;
+}
+
+export function companyInLanguage(company: DataRoomCompany, locale: string): DataRoomCompany {
+	return { ...company, records: company.records.map((record) => recordInLanguage(record, locale)) };
+}
+
+function recordInLanguage(record: CompanyRecord, locale: string): CompanyRecord {
+	const translation = record.translations?.[locale];
+	if (!translation) return record;
+	return {
+		...record,
+		title: translation.title ?? record.title,
+		detail: translation.detail ?? record.detail,
+		attributes: { ...record.attributes, ...translation.attributes }
+	};
 }
 
 export function localized(text: Record<string, string> | undefined, locale: string): string {
