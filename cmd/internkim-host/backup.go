@@ -124,7 +124,11 @@ func runRestore(arguments []string) error {
 		Now:         time.Now(),
 	}
 	if *isTakingOver {
-		request.Replace, request.KeepsThisBox, request.BeforeStarting = true, true, markThisBoxInstalled
+		holdsACompany, errorValue := companyhost.HoldsACompany()
+		if errorValue != nil {
+			return errorValue
+		}
+		request.Replace, request.KeepsThisBox, request.BeforeStarting = holdsACompany, true, markThisBoxInstalled
 	}
 	result, errorValue := companyhost.Restore(request, thisComputer{}, os.Stdout)
 	if errorValue != nil {

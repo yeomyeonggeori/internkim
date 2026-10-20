@@ -103,6 +103,14 @@ task running at the restart is interrupted and resumed once when the agent is
 back; one that cannot be resumed is marked failed and its requester is told. A
 scheduled job due during the update runs once, late.
 
+A company on several boxes takes a release one box at a time, standby boxes
+first. The service box names the release in the hosted service, each standby
+box takes it at its next check, and the service box installs it only once every
+standby seen in the last ten minutes runs it. A standby box could not take over
+from a snapshot made by a newer release, which is why they go first. If a
+standby has not taken it within twenty minutes, the update stops there, names
+the box, and the service box stays on its release.
+
 A failed download or checksum installs nothing, and the host stays on its
 version. A release that installs but whose services do not come back is left
 installed and unconfigured, and the update names the silent service and how to

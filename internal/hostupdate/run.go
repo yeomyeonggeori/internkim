@@ -2,6 +2,7 @@ package hostupdate
 
 import (
 	"bytes"
+	"errors"
 	"io"
 	"os"
 	"os/exec"
@@ -22,7 +23,10 @@ func RunPackagedInstallScript(arguments []string, output io.Writer) error {
 	return command.Run()
 }
 
-func Update(notePath string, toVersion string, runScript ScriptRunner, now func() time.Time) error {
+func Update(notePath string, toVersion string, readyToInstall func() error, runScript ScriptRunner, now func() time.Time) error {
+	if errorValue := readyToInstall(); errorValue != nil {
+		return errors.Join(errorValue, recordOutcome(notePath, Outcome{FinishedAt: now().UTC(), Error: errorValue.Error()}))
+	}
 	captured := &bytes.Buffer{}
 	scriptError := runScript(InstallScriptArguments(toVersion), io.MultiWriter(os.Stdout, captured))
 	outcome := Outcome{FinishedAt: now().UTC(), Succeeded: scriptError == nil}

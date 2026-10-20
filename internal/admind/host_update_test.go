@@ -495,7 +495,7 @@ func TestEveryHostVersionAnswerIsOneTheCatalogDescribes(t *testing.T) {
 	answers := []string{rig.ask(t, hostVersionPath, hostUpdateMemberEmail, `{}`).Body.String()}
 	rig.ask(t, hostUpdateStartPath, hostUpdateAdminEmail, `{"isApproved":true,"input":{}}`)
 	answers = append(answers, rig.ask(t, hostVersionPath, hostUpdateMemberEmail, `{}`).Body.String())
-	hostupdate.Update(rig.notePath, "v2026.10.02.090000", func([]string, io.Writer) error { return errors.New("exit status 1") }, func() time.Time { return rig.now })
+	hostupdate.Update(rig.notePath, "v2026.10.02.090000", func() error { return nil }, func([]string, io.Writer) error { return errors.New("exit status 1") }, func() time.Time { return rig.now })
 	answers = append(answers, rig.ask(t, hostVersionPath, hostUpdateMemberEmail, `{}`).Body.String())
 	for _, answer := range answers {
 		check, errorValue := capabilityschema.ValidateResult(resultSchema, json.RawMessage(answer))

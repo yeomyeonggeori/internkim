@@ -163,7 +163,7 @@ func TestAnUnclaimedBoxHasNoSession(t *testing.T) {
 		t.Fatal(errorValue)
 	}
 
-	_, isClaimed, errorValue := Client{AppURL: server.URL}.Session(context.Background(), identity)
+	_, isClaimed, errorValue := Client{AppURL: server.URL}.Session(context.Background(), identity, "v0.0.1")
 	if errorValue != nil || isClaimed {
 		t.Fatalf("isClaimed = %v, error = %v", isClaimed, errorValue)
 	}

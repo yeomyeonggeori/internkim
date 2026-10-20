@@ -572,13 +572,15 @@ export type BoxSession = {
 	boxesAwaitingCompanyKey: AwaitingBox[];
 	keepsBackups: boolean;
 	takeOver: TakeOver;
+	targetVersion: string | null;
 };
 
 export async function boxSessionFor(
 	credentials: SigningCredentials,
 	publicKey: string,
 	environment: Environment,
-	appURL: string
+	appURL: string,
+	packageVersion: string | null = null
 ): Promise<BoxSession | null> {
 	const client = controlPlane(credentials);
 	const box = await boxOfPublicKey(client, publicKey);
@@ -586,7 +588,7 @@ export async function boxSessionFor(
 	const keyring = await keyringOf(client, box.companyID);
 	if (!keyring) throw new Error(`company ${box.companyID} has a box and no keyring`);
 
-	const role = await noteBoxSeen(client, box);
+	const role = await noteBoxSeen(client, box, packageVersion);
 	const holdsKey = holdsCompanyKey(box, keyring);
 	return {
 		configuration: await boxConfigurationOf(client, box.companyID, environment, appURL),
@@ -597,12 +599,39 @@ export async function boxSessionFor(
 		sealedModelKey: holdsKey ? keyring.sealedModelKey : null,
 		boxesAwaitingCompanyKey: holdsKey ? await boxesAwaitingCompanyKey(client, box.companyID) : [],
 		keepsBackups: await companyKeepsABackup(client, box.companyID),
-		takeOver: await takeOverOf(client, box.companyID)
+		takeOver: await takeOverOf(client, box.companyID),
+		targetVersion: role === 'standby' ? await targetVersionOf(client, box.companyID) : null
 	};
 }
 
-async function noteBoxSeen(client: SupabaseClient, box: BoxRow): Promise<BoxRole> {
-	const { data, error } = await client.rpc('note_box_seen', { box_key: box.publicKey });
+async function targetVersionOf(client: SupabaseClient, companyID: string): Promise<string | null> {
+	const { data, error } = await client.from('box_release').select('target_version').eq('company_id', companyID).maybeSingle();
+	if (error) throw new Error(`release of ${companyID}: ${error.message}`);
+	return data ? z.string().parse(data.target_version) : null;
+}
+
+export type BoxShortOfRelease = { publicKey: string; hostName: string | null; packageVersion: string | null };
+
+const boxShortOfReleaseSchema = z.object({
+	public_key: z.string(),
+	host_name: z.string().nullable(),
+	package_version: z.string().nullable()
+});
+
+export async function aimStandbyBoxesAt(client: SupabaseClient, servingKey: string, targetVersion: string): Promise<BoxShortOfRelease[]> {
+	const { data, error } = await client.rpc('aim_standby_boxes_at', { box_key: servingKey, target: targetVersion });
+	if (error?.code === insufficientPrivilege) throw new BoxRefused('only the box that serves the company aims its standby boxes at a release', 409);
+	if (error?.code === checkViolation) throw new BoxRefused(`the record refused this release: ${error.message}`, 400);
+	if (error) throw new Error(`aiming the standby boxes of ${servingKey} at ${targetVersion}: ${error.message}`);
+	return z.array(boxShortOfReleaseSchema).parse(data).map((short) => ({
+		publicKey: short.public_key,
+		hostName: short.host_name,
+		packageVersion: short.package_version
+	}));
+}
+
+async function noteBoxSeen(client: SupabaseClient, box: BoxRow, packageVersion: string | null): Promise<BoxRole> {
+	const { data, error } = await client.rpc('note_box_seen', { box_key: box.publicKey, seen_version: packageVersion });
 	if (error) throw new Error(`box ${box.publicKey}: ${error.message}`);
 	return boxRoleSchema.parse(data);
 }
@@ -624,6 +653,8 @@ export async function takeOverOf(client: SupabaseClient, companyID: string): Pro
 }
 
 const checkViolation = '23514';
+
+const insufficientPrivilege = '42501';
 
 export async function keepTakeOver(client: SupabaseClient, companyID: string, takeOver: TakeOver): Promise<void> {
 	const { error } = await client
