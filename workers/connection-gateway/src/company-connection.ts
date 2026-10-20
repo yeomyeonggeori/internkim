@@ -1,4 +1,5 @@
 import { AskedCalls } from './asked-calls';
+import { WorkQueue } from './work-queue';
 import {
 	CallLedger,
 	WaitingCalls,
@@ -48,6 +49,8 @@ export const streamPathHeader = 'x-internkim-stream-path';
 export const workerBoxHeader = 'x-internkim-worker-box';
 export const workerCallsPerCompany = 64;
 export const workerCallBoundMilliseconds = 120_000;
+export const workHoldMilliseconds = 3_000;
+export const noBoxTookTheWorkStatus = 503;
 
 const bearerPrefix = 'Bearer ';
 const serverKeyDigestStorageKey = 'serverKeyDigest';
@@ -85,6 +88,7 @@ export class CompanyConnectionObject {
 	private readonly waitingCalls = new WaitingCalls();
 	private readonly messengerCalls = new WaitingCalls(messengerCallsPerCompany, messengerCallBoundMilliseconds);
 	private readonly workerCalls = new WaitingCalls(workerCallsPerCompany, workerCallBoundMilliseconds);
+	private readonly workQueue = new WorkQueue();
 
 	constructor(private readonly state: DurableObjectState) {
 		this.askedCalls = new AskedCalls(state.storage.sql);
@@ -97,7 +101,7 @@ export class CompanyConnectionObject {
 		if (url.pathname.endsWith('/server-key')) return this.keepServerKey(request);
 		if (url.pathname.endsWith('/call')) return this.takeOneShotCall(request, this.waitingCalls);
 		if (url.pathname.endsWith('/messenger-call')) return this.takeOneShotCall(request, this.messengerCalls);
-		if (url.pathname.endsWith('/worker-call')) return this.takeWorkerCall(request);
+		if (url.pathname.endsWith('/work')) return this.takeWork(request);
 		if (request.headers.get('Upgrade') !== 'websocket') {
 			return jsonResponse({ error: 'this endpoint speaks websocket' }, 426);
 		}
@@ -113,7 +117,7 @@ export class CompanyConnectionObject {
 		if (attachment?.role === 'host') return this.onServerMessage(socket, attachment, message);
 		if (attachment?.role === 'client') return this.onClientMessage(attachment.memberID, socket, message);
 		if (attachment?.role === 'stream') return this.onAppFrame(socket, attachment, message);
-		if (attachment?.role === 'worker') return this.onWorkerMessage(message);
+		if (attachment?.role === 'worker') return this.onWorkerMessage(attachment.boxKey, message);
 	}
 
 	async webSocketClose(socket: WebSocket, code: number, reason: string): Promise<void> {
@@ -121,6 +125,7 @@ export class CompanyConnectionObject {
 		const attachment = socketAttachmentOf(socket);
 		if (attachment?.role === 'host') return this.onServerClose(socket, attachment);
 		if (attachment?.role === 'stream') this.onAppClose(attachment, code, reason);
+		if (attachment?.role === 'worker') this.workQueue.forget(attachment.boxKey);
 	}
 
 	webSocketError(socket: WebSocket): Promise<void> {
@@ -198,23 +203,50 @@ export class CompanyConnectionObject {
 		return new Response(null, { status: 101, webSocket: client });
 	}
 
-	private async takeWorkerCall(request: Request): Promise<Response> {
-		const call = parseWorkerCall(await readJSONBody(request));
-		if (!call) return jsonResponse({ error: 'a worker call names its box, a request identifier and its work' }, 400);
-		const worker = this.state.getWebSockets(workerTagOf(call.boxKey))[0];
-		if (!worker) return jsonResponse({ error: 'that box is not connected to take work' }, 503);
+	private async takeWork(request: Request): Promise<Response> {
+		const call = parseWork(await readJSONBody(request));
+		if (!call) return jsonResponse({ error: 'work names a request identifier, whose it is and what to do' }, 400);
 		if (this.workerCalls.isFull) return answerResponse(tooManyWaitingCallsAnswer(call.requestID));
 		const waited = this.workerCalls.waitFor(call.requestID);
-		try {
-			worker.send(JSON.stringify({ kind: 'work', requestID: call.requestID, work: call.work }));
-		} catch {
-			return jsonResponse({ error: 'that box went away before it took the work' }, 503);
-		}
+		const dispatched = this.workQueue.post({ ...call, deadline: Date.now() + workHoldMilliseconds });
+		if (dispatched) this.sendWork(dispatched.boxKey, call.requestID, call.work);
+		else this.letGoIfNoBoxTakesIt(call.requestID);
 		return answerResponse(await waited);
 	}
 
-	private onWorkerMessage(message: string | ArrayBuffer): void {
-		const parsed = parseServerMessage(readJSON(message));
+	private letGoIfNoBoxTakesIt(requestID: string): void {
+		setTimeout(() => {
+			if (!this.workQueue.withdraw(requestID)) return;
+			this.workerCalls.settle({ kind: 'result', requestID, status: noBoxTookTheWorkStatus, body: { error: 'no box had room for this work' } });
+		}, workHoldMilliseconds);
+	}
+
+	private sendWork(boxKey: string, requestID: string, work: unknown): void {
+		if (this.isSentTo(boxKey, JSON.stringify({ kind: 'work', requestID, work }))) return;
+		this.workerCalls.settle({ kind: 'result', requestID, status: noBoxTookTheWorkStatus, body: { error: 'the box went away before it took the work' } });
+	}
+
+	private isSentTo(boxKey: string, document: string): boolean {
+		const worker = this.state.getWebSockets(workerTagOf(boxKey))[0];
+		if (!worker) return false;
+		try {
+			worker.send(document);
+			return true;
+		} catch {
+			return false;
+		}
+	}
+
+	private onWorkerMessage(boxKey: string, message: string | ArrayBuffer): void {
+		const payload = readJSON(message);
+		const free = freeSlotsOf(payload);
+		if (free !== null) {
+			for (const dispatched of this.workQueue.setFree(boxKey, free)) {
+				this.sendWork(dispatched.boxKey, dispatched.item.requestID, dispatched.item.work);
+			}
+			return;
+		}
+		const parsed = parseServerMessage(payload);
 		if (parsed?.kind === 'result') this.workerCalls.settle(parsed);
 	}
 
@@ -450,15 +482,24 @@ async function readJSONBody(request: Request): Promise<unknown> {
 	}
 }
 
-type WorkerCall = { boxKey: string; requestID: string; work: unknown };
+type Work = { requestID: string; affinityKey: string; work: unknown };
 
-function parseWorkerCall(payload: unknown): WorkerCall | null {
+function parseWork(payload: unknown): Work | null {
 	if (typeof payload !== 'object' || payload === null) return null;
-	const { boxKey, requestID, work } = payload as Record<string, unknown>;
-	if (typeof boxKey !== 'string' || boxKey === '') return null;
+	const record: Record<string, unknown> = { ...payload };
+	const { requestID, affinityKey, work } = record;
 	if (typeof requestID !== 'string' || requestID === '') return null;
+	if (typeof affinityKey !== 'string' || affinityKey === '') return null;
 	if (typeof work !== 'object' || work === null) return null;
-	return { boxKey, requestID, work };
+	return { requestID, affinityKey, work };
+}
+
+function freeSlotsOf(payload: unknown): number | null {
+	if (typeof payload !== 'object' || payload === null) return null;
+	const record: Record<string, unknown> = { ...payload };
+	const { kind, free } = record;
+	if (kind !== 'ready' || typeof free !== 'number' || !Number.isFinite(free)) return null;
+	return free;
 }
 
 function answerResponse(answer: ServerAnswer): Response {

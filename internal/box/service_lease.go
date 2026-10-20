@@ -48,6 +48,7 @@ func (daemon Daemon) standDownWhenTheLeaseRunsOut() {
 		return
 	}
 	log.Printf("the central plane has not confirmed this box serves its company since %s, half the take-over lapse, so it stops its services before a standby box takes over", lease.ConfirmedAt.UTC().Format(time.RFC3339))
+	daemon.forgetTheQueueAddress()
 	if errorValue := daemon.StandDown(); errorValue != nil {
 		log.Printf("stopping the company's services: %v; trying again at the next check", errorValue)
 		return

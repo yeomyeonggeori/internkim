@@ -213,7 +213,7 @@ describe('the public fetch handler', () => {
 		}
 	});
 
-	test('takes work only from a standby box, and hands it on only from the serving one', async () => {
+	test('lets every box take work, and lets only the serving one put work in the queue', async () => {
 		const token = await signedHostToken({
 			sub: 'account-1',
 			iss: issuer, aud: 'authenticated',
@@ -227,17 +227,17 @@ describe('the public fetch handler', () => {
 			hostEnvironment(new ConnectionObject(newState()))
 		);
 		const handingOn = () => worker.fetch(
-			new Request(`https://gateway/company/${hostCompanyID}/worker-call`, {
+			new Request(`https://gateway/company/${hostCompanyID}/work`, {
 				method: 'POST',
 				headers: { Authorization: `Bearer ${token}` },
-				body: JSON.stringify({ boxKey: 'annex', requestID: 'work-1', work: {} })
+				body: JSON.stringify({ requestID: 'work-1', affinityKey: 'person-1', work: {} })
 			}),
 			hostEnvironment(new ConnectionObject(newState()))
 		);
 		try {
 			roleTheRecordGrants = 'service';
-			expect((await asWorker()).status).toBe(409);
-			expect((await handingOn()).status).toBe(503);
+			expect((await asWorker()).status).toBe(101);
+			expect((await handingOn()).status).toBe(200);
 			roleTheRecordGrants = 'standby';
 			expect((await asWorker()).status).toBe(101);
 			expect((await handingOn()).status).toBe(409);

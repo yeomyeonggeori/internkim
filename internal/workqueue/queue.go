@@ -1,4 +1,4 @@
-package browserhome
+package workqueue
 
 import (
 	"bytes"
@@ -15,28 +15,17 @@ import (
 	"time"
 )
 
-var ErrBoxAway = errors.New("the box that holds this person's browser is not connected")
+var ErrNoBoxHadRoom = errors.New("no box had room for this work")
 
-type Homes struct {
-	ThisBox    string            `json:"thisBox"`
-	GatewayURL string            `json:"gatewayURL"`
-	CompanyID  string            `json:"companyID"`
-	Members    map[string]string `json:"members"`
+const noBoxHadRoomStatus = http.StatusServiceUnavailable
+
+type Address struct {
+	GatewayURL string `json:"gatewayURL"`
+	CompanyID  string `json:"companyID"`
 }
 
-func (homes Homes) BoxOf(memberEmail string) (string, bool) {
-	box, isPlaced := homes.Members[strings.ToLower(strings.TrimSpace(memberEmail))]
-	if !isPlaced || box == homes.ThisBox {
-		return "", false
-	}
-	return box, true
-}
-
-func Write(path string, homes Homes) error {
-	if len(homes.Members) == 0 {
-		return Forget(path)
-	}
-	document, errorValue := json.Marshal(homes)
+func Write(path string, address Address) error {
+	document, errorValue := json.Marshal(address)
 	if errorValue != nil {
 		return errorValue
 	}
@@ -58,19 +47,19 @@ func Forget(path string) error {
 	return errorValue
 }
 
-func Read(path string) (Homes, bool) {
+func Read(path string) (Address, bool) {
 	document, errorValue := os.ReadFile(path)
 	if errorValue != nil {
-		return Homes{}, false
+		return Address{}, false
 	}
-	var homes Homes
-	if json.Unmarshal(document, &homes) != nil || homes.ThisBox == "" || homes.GatewayURL == "" || homes.CompanyID == "" {
-		return Homes{}, false
+	var address Address
+	if json.Unmarshal(document, &address) != nil || address.GatewayURL == "" || address.CompanyID == "" {
+		return Address{}, false
 	}
-	return homes, true
+	return address, true
 }
 
-type Hand struct {
+type Queue struct {
 	HTTPClient *http.Client
 	Token      func() (string, error)
 }
@@ -80,49 +69,48 @@ type answered struct {
 	Body   json.RawMessage `json:"body"`
 }
 
-func (hand Hand) Give(ctx context.Context, homes Homes, box string, requestID string, work json.RawMessage) (json.RawMessage, error) {
-	token, errorValue := hand.Token()
+func (queue Queue) Post(ctx context.Context, address Address, requestID string, affinityKey string, work json.RawMessage) (json.RawMessage, error) {
+	token, errorValue := queue.Token()
 	if errorValue != nil {
 		return nil, fmt.Errorf("reading this box's host session: %w", errorValue)
 	}
-	body, errorValue := json.Marshal(map[string]any{"boxKey": box, "requestID": requestID, "work": work})
+	body, errorValue := json.Marshal(map[string]any{"requestID": requestID, "affinityKey": affinityKey, "work": work})
 	if errorValue != nil {
 		return nil, errorValue
 	}
-	address := HTTPAddressOf(homes.GatewayURL) + "/company/" + homes.CompanyID + "/worker-call"
-	request, errorValue := http.NewRequestWithContext(ctx, http.MethodPost, address, bytes.NewReader(body))
+	request, errorValue := http.NewRequestWithContext(ctx, http.MethodPost, HTTPAddressOf(address.GatewayURL)+"/company/"+address.CompanyID+"/work", bytes.NewReader(body))
 	if errorValue != nil {
 		return nil, errorValue
 	}
 	request.Header.Set("Authorization", "Bearer "+token)
 	request.Header.Set("Content-Type", "application/json")
-	response, errorValue := hand.httpClient().Do(request)
+	response, errorValue := queue.httpClient().Do(request)
 	if errorValue != nil {
-		return nil, fmt.Errorf("handing work to box %s: %w", box, errorValue)
+		return nil, fmt.Errorf("putting work in the company queue: %w", errorValue)
 	}
 	defer response.Body.Close()
-	if response.StatusCode == http.StatusServiceUnavailable {
-		return nil, ErrBoxAway
-	}
 	if response.StatusCode != http.StatusOK {
 		detail, _ := io.ReadAll(io.LimitReader(response.Body, 1024))
-		return nil, fmt.Errorf("the gateway answered %d handing work to box %s: %s", response.StatusCode, box, strings.TrimSpace(string(detail)))
+		return nil, fmt.Errorf("the gateway answered %d to work put in the queue: %s", response.StatusCode, strings.TrimSpace(string(detail)))
 	}
 	var answer answered
 	if errorValue := json.NewDecoder(response.Body).Decode(&answer); errorValue != nil {
-		return nil, fmt.Errorf("the answer from box %s: %w", box, errorValue)
+		return nil, fmt.Errorf("the answer to queued work: %w", errorValue)
+	}
+	if answer.Status == noBoxHadRoomStatus {
+		return nil, ErrNoBoxHadRoom
 	}
 	if answer.Status != http.StatusOK {
-		return nil, fmt.Errorf("box %s took the work and answered %d: %s", box, answer.Status, answer.Body)
+		return nil, fmt.Errorf("the box that took the work answered %d: %s", answer.Status, answer.Body)
 	}
 	return answer.Body, nil
 }
 
-func (hand Hand) httpClient() *http.Client {
-	if hand.HTTPClient == nil {
+func (queue Queue) httpClient() *http.Client {
+	if queue.HTTPClient == nil {
 		return &http.Client{Timeout: 3 * time.Minute}
 	}
-	return hand.HTTPClient
+	return queue.HTTPClient
 }
 
 func HTTPAddressOf(gatewayURL string) string {

@@ -64,7 +64,7 @@ const (
 	CompanyHostLogPath                     = "/var/log/internkim"
 	CompanyHostBrowserStatePath            = browserruntime.DeviceBrowsersStateDirectory
 	CompanyHostRunPath                     = "/run/internkim"
-	CompanyHostBrowserHomesPath            = "/run/internkim/browser-homes.json"
+	CompanyHostWorkQueuePath               = "/run/internkim/work-queue.json"
 
 	CompanyHostConfigurationRoot = "/etc/internkim"
 

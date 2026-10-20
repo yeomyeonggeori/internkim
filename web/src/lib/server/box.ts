@@ -573,10 +573,7 @@ export type BoxSession = {
 	keepsBackups: boolean;
 	takeOver: TakeOver;
 	targetVersion: string | null;
-	browserHomes: BrowserHome[];
 };
-
-export type BrowserHome = { memberEmail: string; publicKey: string };
 
 export async function boxSessionFor(
 	credentials: SigningCredentials,
@@ -603,19 +600,8 @@ export async function boxSessionFor(
 		boxesAwaitingCompanyKey: holdsKey ? await boxesAwaitingCompanyKey(client, box.companyID) : [],
 		keepsBackups: await companyKeepsABackup(client, box.companyID),
 		takeOver: await takeOverOf(client, box.companyID),
-		targetVersion: role === 'standby' ? await targetVersionOf(client, box.companyID) : null,
-		browserHomes: role === 'service' ? await browserHomesOf(client, box.companyID) : []
+		targetVersion: role === 'standby' ? await targetVersionOf(client, box.companyID) : null
 	};
-}
-
-const browserHomeSchema = z.object({ member_email: z.string(), public_key: z.string() });
-
-async function browserHomesOf(client: SupabaseClient, companyID: string): Promise<BrowserHome[]> {
-	const { data, error } = await client.rpc('browser_homes', { placing_company: companyID });
-	if (error) throw new Error(`browser homes of ${companyID}: ${error.message}`);
-	const homes = z.array(browserHomeSchema).parse(data);
-	if (new Set(homes.map((home) => home.public_key)).size < 2) return [];
-	return homes.map((home) => ({ memberEmail: home.member_email, publicKey: home.public_key }));
 }
 
 async function targetVersionOf(client: SupabaseClient, companyID: string): Promise<string | null> {

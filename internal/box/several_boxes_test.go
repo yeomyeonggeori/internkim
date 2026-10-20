@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/yeomyeonggeori/internkim/internal/browserhome"
+	"github.com/yeomyeonggeori/internkim/internal/workqueue"
 )
 
 func TestAStandbyBoxHoldsTheCompanyKeyInstallsNothingAndKeepsUpWithTheServiceBox(t *testing.T) {
@@ -288,28 +288,24 @@ func TestAServiceBoxThatNoStandbyTakesOverFromKeepsServingWhileCutOff(t *testing
 	}
 }
 
-func TestTheServiceBoxWritesDownWhereEachPersonsBrowserRuns(t *testing.T) {
+func TestOnlyTheServiceBoxKeepsTheCompanyQueueAddress(t *testing.T) {
 	plane := &fakePlane{isClaimed: true, accessToken: "service.session.token"}
-	plane.browserHomes = []BrowserHome{{MemberEmail: "Sample@Example.com", PublicKey: "annex"}}
 	recorded := &installs{}
 	daemon, places := daemonFor(t, plane, recorded)
-	daemon.Places.BrowserHomesPath = filepath.Join(t.TempDir(), "browser-homes.json")
+	daemon.Places.WorkQueuePath = filepath.Join(t.TempDir(), "work-queue.json")
 	plane.sealedModelKey = sealTo(t, identityOf(t, places), "sk-or-v1-sample")
 
 	runSteps(t, daemon, 1)
 
-	homes, isRead := browserhome.Read(daemon.Places.BrowserHomesPath)
-	if !isRead || homes.ThisBox != identityOf(t, places).PublicKey() || homes.CompanyID != sampleCompanyID || homes.GatewayURL != "wss://gateway.example.test" {
-		t.Fatalf("wrote %+v (%v)", homes, isRead)
-	}
-	if box, isElsewhere := homes.BoxOf("sample@example.com"); !isElsewhere || box != "annex" {
-		t.Fatalf("the sample person's browser runs on %q", box)
+	address, isRead := workqueue.Read(daemon.Places.WorkQueuePath)
+	if !isRead || address.CompanyID != sampleCompanyID || address.GatewayURL != "wss://gateway.example.test" {
+		t.Fatalf("wrote %+v (%v)", address, isRead)
 	}
 
-	plane.browserHomes = nil
+	plane.role = RoleStandby
 	runSteps(t, daemon, 1)
-	if _, isRead := browserhome.Read(daemon.Places.BrowserHomesPath); isRead {
-		t.Fatal("a company whose browsers all run on its service box kept a placement")
+	if _, isRead := workqueue.Read(daemon.Places.WorkQueuePath); isRead {
+		t.Fatal("a box that stood by kept the queue address, so it would still put work in the queue")
 	}
 }
 
