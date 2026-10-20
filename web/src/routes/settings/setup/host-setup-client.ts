@@ -5,9 +5,11 @@ import {
 	emptyBoxSchema,
 	verifiedBoxSchema,
 	type BoxClaimIntent,
+	type BoxPlacement,
 	type CompanyBoxes,
 	type ConnectedBox,
 	type EmptyBox,
+	type TakeOver,
 	type VerifiedBoxAnswer
 } from '$lib/company/box';
 import { hostConfigurationSchema, hostSetupStatusSchema, type HostConfiguration } from '$lib/company/host-setup';
@@ -69,6 +71,14 @@ export async function disconnectBox(box: ConnectedBox): Promise<CompanyBoxes> {
 
 export async function makeBoxServe(box: ConnectedBox): Promise<CompanyBoxes> {
 	return companyBoxesSchema.parse(await askCompanyRoute('/api/company/box', 'PATCH', { publicKey: box.publicKey }));
+}
+
+export async function placeBox(box: ConnectedBox, placement: BoxPlacement): Promise<CompanyBoxes> {
+	return companyBoxesSchema.parse(await askCompanyRoute('/api/company/box', 'PUT', { publicKey: box.publicKey, ...placement }));
+}
+
+export async function keepTakeOver(takeOver: TakeOver): Promise<CompanyBoxes> {
+	return companyBoxesSchema.parse(await askCompanyRoute('/api/company/box/take-over', 'PUT', takeOver));
 }
 
 export async function giveModelKey(companyID: string, sealingKey: string, modelKey: string): Promise<CompanyBoxes> {

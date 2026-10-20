@@ -126,6 +126,21 @@ func StandDown(machine Machine, progress io.Writer) error {
 	return nil
 }
 
+func StandUp(machine Machine, progress io.Writer) error {
+	platform, errorValue := ThisMachine()
+	if errorValue != nil {
+		return errorValue
+	}
+	linux, isLinux := platform.(linuxPlatform)
+	if !isLinux {
+		return fmt.Errorf("a box stands up on a Linux host; on %s the company's services are Homebrew's", platform.Describe())
+	}
+	if errorValue := machine.Run("systemctl", append([]string{"enable", "--now"}, linux.companyServiceUnits()...), nil, progress); errorValue != nil {
+		return fmt.Errorf("the company's services could not be started again on this box: %w", errorValue)
+	}
+	return nil
+}
+
 func (linuxPlatform) StartTheBox(machine Machine, progress io.Writer) error {
 	return KeepTheBoxSessionFresh(machine, progress)
 }

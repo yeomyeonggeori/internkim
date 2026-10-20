@@ -14,7 +14,9 @@ import {
 	wifiOutcomeSchema,
 	type AwaitingBox,
 	type BoxConfiguration,
+	type BoxPlacement,
 	type BoxRole,
+	type TakeOver,
 	type CompanyBoxes,
 	type ConnectedBox,
 	type EmptyBox,
@@ -43,7 +45,7 @@ const boxColumns = 'public_key, company_id, encryption_key, role, host_name, sit
 export class BoxRefused extends Error {
 	constructor(
 		message: string,
-		readonly status: 404 | 409 | 429 = 409
+		readonly status: 400 | 404 | 409 | 429 = 409
 	) {
 		super(message);
 	}
@@ -445,7 +447,8 @@ export async function companyBoxesOf(client: SupabaseClient, companyID: string):
 		boxes: boxes.map((box) => connectedBoxOf(box, keyring)),
 		sealingKey: keyring?.sealingKey ?? null,
 		hasModelKey: Boolean(keyring?.sealedModelKey),
-		newestBackupAt: keyring ? await newestKeptBackupAt(client, companyID, keyring.sealingKey) : null
+		newestBackupAt: keyring ? await newestKeptBackupAt(client, companyID, keyring.sealingKey) : null,
+		takeOver: await takeOverOf(client, companyID)
 	};
 }
 
@@ -559,6 +562,7 @@ export type BoxSession = {
 	sealedModelKey: HeldModelKey | null;
 	boxesAwaitingCompanyKey: AwaitingBox[];
 	keepsBackups: boolean;
+	takeOver: TakeOver;
 };
 
 export async function boxSessionFor(
@@ -573,26 +577,63 @@ export async function boxSessionFor(
 	const keyring = await keyringOf(client, box.companyID);
 	if (!keyring) throw new Error(`company ${box.companyID} has a box and no keyring`);
 
-	await noteBoxSeen(client, box);
+	const role = await noteBoxSeen(client, box);
 	const holdsKey = holdsCompanyKey(box, keyring);
 	return {
 		configuration: await boxConfigurationOf(client, box.companyID, environment, appURL),
 		session: await hostSessionOfCompany(credentials, box.companyID, { fleetID: publicKey }),
-		role: box.role,
+		role,
 		sealingKey: keyring.sealingKey,
 		sealedCompanyKey: box.sealedCompanyKey,
 		sealedModelKey: holdsKey ? keyring.sealedModelKey : null,
 		boxesAwaitingCompanyKey: holdsKey ? await boxesAwaitingCompanyKey(client, box.companyID) : [],
-		keepsBackups: await companyKeepsABackup(client, box.companyID)
+		keepsBackups: await companyKeepsABackup(client, box.companyID),
+		takeOver: await takeOverOf(client, box.companyID)
 	};
 }
 
-async function noteBoxSeen(client: SupabaseClient, box: BoxRow): Promise<void> {
-	const { error } = await client
-		.from('box')
-		.update({ last_seen_at: new Date().toISOString() })
-		.eq('public_key', box.publicKey);
+async function noteBoxSeen(client: SupabaseClient, box: BoxRow): Promise<BoxRole> {
+	const { data, error } = await client.rpc('note_box_seen', { box_key: box.publicKey });
 	if (error) throw new Error(`box ${box.publicKey}: ${error.message}`);
+	return boxRoleSchema.parse(data);
+}
+
+const takeOverRecordSchema = z.object({ is_automatic: z.boolean(), lapse_seconds: z.number().int() });
+
+export const defaultTakeOver: TakeOver = { isAutomatic: false, lapseSeconds: 300 };
+
+export async function takeOverOf(client: SupabaseClient, companyID: string): Promise<TakeOver> {
+	const { data, error } = await client
+		.from('box_take_over')
+		.select('is_automatic, lapse_seconds')
+		.eq('company_id', companyID)
+		.maybeSingle();
+	if (error) throw new Error(`take-over of ${companyID}: ${error.message}`);
+	if (!data) return defaultTakeOver;
+	const record = takeOverRecordSchema.parse(data);
+	return { isAutomatic: record.is_automatic, lapseSeconds: record.lapse_seconds };
+}
+
+const checkViolation = '23514';
+
+export async function keepTakeOver(client: SupabaseClient, companyID: string, takeOver: TakeOver): Promise<void> {
+	const { error } = await client
+		.from('box_take_over')
+		.upsert({ company_id: companyID, is_automatic: takeOver.isAutomatic, lapse_seconds: takeOver.lapseSeconds });
+	if (error?.code === checkViolation) throw new BoxRefused(`the record refused this lapse: ${error.message}`, 400);
+	if (error) throw new Error(`take-over of ${companyID}: ${error.message}`);
+}
+
+export async function placeBox(client: SupabaseClient, companyID: string, publicKey: string, placement: BoxPlacement): Promise<boolean> {
+	const { data, error } = await client
+		.from('box')
+		.update({ site: placement.site, weight: placement.weight })
+		.eq('company_id', companyID)
+		.eq('public_key', publicKey)
+		.select('public_key');
+	if (error?.code === checkViolation) throw new BoxRefused(`the record refused this placement: ${error.message}`, 400);
+	if (error) throw new Error(`placing box ${publicKey} of ${companyID}: ${error.message}`);
+	return data.length === 1;
 }
 
 async function boxConfigurationOf(

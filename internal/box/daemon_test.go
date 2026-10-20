@@ -33,6 +33,8 @@ type fakePlane struct {
 	handedOn         [][]SealedCompanyKey
 	ownKey           func() string
 	keepsBackups     bool
+	isAway           bool
+	takeOver         TakeOverPolicy
 }
 
 func (plane *fakePlane) sessionRole() Role {
@@ -77,6 +79,10 @@ func (plane *fakePlane) serve(t *testing.T) *httptest.Server {
 			plane.isClaimed = true
 			writer.Write([]byte(`{"companyID":"` + sampleCompanyID + `"}`))
 		case "/api/box/session":
+			if plane.isAway {
+				http.Error(writer, "the central plane is out of reach", http.StatusServiceUnavailable)
+				return
+			}
 			if !plane.isClaimed {
 				http.Error(writer, "this box belongs to no company yet", http.StatusNotFound)
 				return
@@ -96,6 +102,7 @@ func (plane *fakePlane) serve(t *testing.T) *httptest.Server {
 				SealedModelKey:          plane.sealedModelKey,
 				BoxesAwaitingCompanyKey: plane.awaiting,
 				KeepsBackups:            plane.keepsBackups,
+				TakeOver:                plane.takeOver,
 			})
 		case "/api/box/company-key":
 			var body struct {
