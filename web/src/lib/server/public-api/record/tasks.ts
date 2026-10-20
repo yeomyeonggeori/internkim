@@ -78,24 +78,11 @@ export function statusOfPostgresCode(code: string | undefined): number {
 	return 422;
 }
 
-// Postgres answers 42501 without naming the policy that refused, so which rule
-// the caller broke has to come from what the write was trying to change.
-export function refusedWriteOf(reason: string, code: string | undefined, changesParticipants: boolean) {
+function refusedWriteOf(reason: string, code: string | undefined) {
 	const status = statusOfPostgresCode(code);
 	if (code === uniqueViolation) return new RecordRefusedTheWrite(reason, status, 'record_duplicate');
-	if (status !== 403) return new RecordRefusedTheWrite(reason, status);
-	if (changesParticipants) {
-		return new RecordRefusedTheWrite(
-			'only the people taking part in it, the member who asked for it, or an admin can change who takes part in it, and the one person on it stays on it while doing so',
-			403,
-			'task_assignment_forbidden'
-		);
-	}
-	return new RecordRefusedTheWrite(
-		'only the people taking part in it, the member who asked for it, or an admin can change it',
-		403,
-		'task_write_forbidden'
-	);
+	if (status === 403) return new RecordRefusedTheWrite(reason, status, 'task_write_forbidden');
+	return new RecordRefusedTheWrite(reason, status);
 }
 
 // PostgREST caps an unbounded select and says nothing about having done it, so
@@ -238,7 +225,7 @@ export async function saveTask(
 ): Promise<string> {
 	const { data, error } = await caller.rpc('task_save', argumentsOfSave);
 	if (error) {
-		throw refusedWriteOf(error.message, error.code, argumentsOfSave.target_participant_ids !== undefined);
+		throw refusedWriteOf(error.message, error.code);
 	}
 	if (typeof data !== 'string') throw new RecordRefusedTheWrite('the record named no task it saved', 502);
 	return data;
