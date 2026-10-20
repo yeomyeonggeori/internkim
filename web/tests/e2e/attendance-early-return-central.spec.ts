@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
+import { pickDate } from './date-picker-test-utils';
 import { signInToTheCentralPlane } from './central-plane-sign-in';
 
 test.describe.configure({ mode: 'serial', timeout: 120_000 });
@@ -40,7 +41,7 @@ async function requestLeaveCoveringNow(page: Page): Promise<void> {
 	await form.waitFor({ state: 'visible', timeout: 20000 });
 
 	await form.getByTestId('leave-request-unit-control').getByRole('button', { name: '반반차' }).click();
-	await form.getByTestId('leave-request-date-field').locator('input[type="date"]').fill(seoulParts().date);
+	await pickDate(page, form.getByTestId('leave-request-date-field').getByRole('button'), seoulParts().date);
 	await form
 		.getByTestId('leave-start-time-field')
 		.locator('input[type="time"]')

@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
+import { pickDate } from './date-picker-test-utils';
 import {
 	leaveRowsOf,
 	seoulDateToday,
@@ -103,7 +104,7 @@ test('leave_request writes the leave the form asked for', async ({ page }) => {
 	await form.waitFor({ state: 'visible', timeout: 20000 });
 	await form.getByTestId('leave-request-type-trigger').click();
 	await page.getByRole('option', { name: '연차', exact: true }).click();
-	await form.getByTestId('leave-request-date-field').locator('input[type="date"]').fill(requestedDate);
+	await pickDate(page, form.getByTestId('leave-request-date-field').getByRole('button'), requestedDate);
 	await form.getByRole('textbox').last().fill(requestedReason);
 	await form.getByRole('button', { name: '승인 요청' }).click();
 

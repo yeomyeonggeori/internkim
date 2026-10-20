@@ -1,4 +1,5 @@
 <script lang="ts">
+	import DatePicker from '$lib/components/date-picker.svelte';
 	import { Input } from '$lib/components/ui/input';
 	import * as Select from '$lib/components/ui/select';
 	import PersonChip from '$lib/components/person-chip.svelte';
@@ -137,10 +138,10 @@
 	</label>
 	<label class="grid gap-1 text-xs font-medium text-muted-foreground">
 		{text.startDate}
-		<Input type="date" bind:value={taskDraft.startDate} disabled={!canEditTask} />
+		<DatePicker bind:value={taskDraft.startDate} disabled={!canEditTask} clearable />
 	</label>
 	<label class="grid gap-1 text-xs font-medium text-muted-foreground">
 		{text.endDate}
-		<Input type="date" bind:value={taskDraft.endDate} disabled={!canEditTask} onchange={completeWhenEndDatePassed} />
+		<DatePicker bind:value={taskDraft.endDate} disabled={!canEditTask} onValueChange={completeWhenEndDatePassed} clearable />
 	</label>
 </div>

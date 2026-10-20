@@ -2,6 +2,7 @@
 	import { Button } from '$lib/components/ui/button';
 	import { displayPersonName } from '$lib/person-name.svelte';
 	import * as Dialog from '$lib/components/ui/dialog';
+	import DatePicker from '$lib/components/date-picker.svelte';
 	import { Input } from '$lib/components/ui/input';
 	import * as Select from '$lib/components/ui/select';
 	import ChangeReasonSelect from '../shared/change-reason-select.svelte';
@@ -77,7 +78,7 @@
 
 			<label class="grid gap-1 text-xs font-medium text-muted-foreground">
 				<span>{text.records.date}</span>
-				<Input type="date" bind:value={addition.localDate} disabled={addition.isSaving} />
+				<DatePicker bind:value={addition.localDate} disabled={addition.isSaving} />
 			</label>
 
 			<div class="grid grid-cols-2 gap-2">

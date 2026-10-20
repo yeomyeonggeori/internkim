@@ -2,6 +2,7 @@
  import PersonAvatar from '$lib/components/person-avatar.svelte';
 	import { Button, buttonVariants } from '$lib/components/ui/button';
 	import * as Dialog from '$lib/components/ui/dialog';
+	import DatePicker from '$lib/components/date-picker.svelte';
 	import { Input } from '$lib/components/ui/input';
 	import * as Select from '$lib/components/ui/select';
 	import { localizedLeaveTypeName } from '$lib/i18n/leave-type-name';
@@ -147,12 +148,12 @@
 			<div class="grid grid-cols-2 gap-3">
 				<label class="grid gap-1.5 text-sm font-medium">
 					{text.management.startDate}
-					<Input type="date" bind:value={startDate} max={today} />
+					<DatePicker bind:value={startDate} max={today} />
 				</label>
 				{#if unit === 'fullDay'}
 					<label class="grid gap-1.5 text-sm font-medium">
 						{text.management.endDate}
-						<Input type="date" bind:value={endDate} min={startDate} max={today} />
+						<DatePicker bind:value={endDate} min={startDate} max={today} />
 					</label>
 				{:else}
 					<label class="grid gap-1.5 text-sm font-medium">

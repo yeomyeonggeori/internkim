@@ -2,8 +2,8 @@
 	import ChevronDownIcon from '@lucide/svelte/icons/chevron-down';
 	import { CalendarDate, getLocalTimeZone, type DateValue } from '@internationalized/date';
 	import type { DateRange } from 'bits-ui';
+	import DatePicker from '$lib/components/date-picker.svelte';
 	import { Button } from '$lib/components/ui/button';
-	import { Calendar } from '$lib/components/ui/calendar';
 	import { RangeCalendar } from '$lib/components/ui/range-calendar';
 	import { Input } from '$lib/components/ui/input';
 	import { Label } from '$lib/components/ui/label';
@@ -86,8 +86,6 @@
 		});
 	}
 
-	let isStartDatePickerOpen = $state(false);
-	let isEndDatePickerOpen = $state(false);
 	let isRangePickerOpen = $state(false);
 
 	const startCalendarDate = $derived(calendarDateFromDateKey(popover.dateKey));
@@ -132,18 +130,6 @@
 			endDateKey: range.end ? dateKeyFromCalendarDate(range.end) : startKey
 		});
 		if (range.end) isRangePickerOpen = false;
-	}
-
-	function changeStartDate(value: DateValue | undefined): void {
-		if (!value) return;
-		changeStart({ startDateKey: dateKeyFromCalendarDate(value) });
-		isStartDatePickerOpen = false;
-	}
-
-	function changeEndDate(value: DateValue | undefined): void {
-		if (!value) return;
-		updatePopover({ endDateKey: dateKeyFromCalendarDate(value) });
-		isEndDatePickerOpen = false;
 	}
 
 	function saveOnEnter(event: KeyboardEvent): void {
@@ -244,29 +230,12 @@
 				</Popover.Root>
 			{:else}
 				<div class="flex gap-1">
-					<Popover.Root bind:open={isStartDatePickerOpen}>
-						<Popover.Trigger>
-							{#snippet child({ props })}
-								<Button
-									{...props}
-									variant="outline"
-									aria-label={text.startDate}
-									class="h-8 flex-1 justify-between px-2 text-sm font-normal"
-								>
-									{formatDateKey(popover.dateKey)}
-									<ChevronDownIcon class="size-3.5 opacity-50" />
-								</Button>
-							{/snippet}
-						</Popover.Trigger>
-						<Popover.Content class="w-auto overflow-hidden p-0" align="start">
-							<Calendar
-								type="single"
-								value={startCalendarDate}
-								onValueChange={changeStartDate}
-								captionLayout="dropdown"
-							/>
-						</Popover.Content>
-					</Popover.Root>
+					<DatePicker
+						value={popover.dateKey}
+						onValueChange={(startDateKey) => changeStart({ startDateKey })}
+						aria-label={text.startDate}
+						class="h-8 min-w-0 flex-1 px-2 text-sm"
+					/>
 					<Input
 						type="time"
 						aria-label={text.startTime}
@@ -277,29 +246,12 @@
 				</div>
 
 				<div class="flex gap-1">
-					<Popover.Root bind:open={isEndDatePickerOpen}>
-						<Popover.Trigger>
-							{#snippet child({ props })}
-								<Button
-									{...props}
-									variant="outline"
-									aria-label={text.endDate}
-									class="h-8 flex-1 justify-between px-2 text-sm font-normal"
-								>
-									{formatDateKey(popover.endDateKey)}
-									<ChevronDownIcon class="size-3.5 opacity-50" />
-								</Button>
-							{/snippet}
-						</Popover.Trigger>
-						<Popover.Content class="w-auto overflow-hidden p-0" align="start">
-							<Calendar
-								type="single"
-								value={endCalendarDate}
-								onValueChange={changeEndDate}
-								captionLayout="dropdown"
-							/>
-						</Popover.Content>
-					</Popover.Root>
+					<DatePicker
+						value={popover.endDateKey}
+						onValueChange={(endDateKey) => updatePopover({ endDateKey })}
+						aria-label={text.endDate}
+						class="h-8 min-w-0 flex-1 px-2 text-sm"
+					/>
 					<Input
 						type="time"
 						aria-label={text.endTime}
