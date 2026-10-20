@@ -4,7 +4,7 @@ import type {
 	CRMRecordImportProblem
 } from '$lib/crm/crm-record-import';
 import { callTool } from './crm-public-api';
-import type { CRMImportRow } from './crm-import-mapping';
+import type { CRMImportRow } from '$lib/crm/crm-import-mapping';
 
 export type CRMImportedRow = {
 	line: number;

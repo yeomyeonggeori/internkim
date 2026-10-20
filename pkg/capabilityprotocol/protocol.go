@@ -179,6 +179,11 @@ type ToolInvokeTransport struct {
 	WorkspaceFiles []WorkspaceFile `json:"workspaceFiles,omitempty"`
 }
 
+type RecordToolCall struct {
+	Input     json.RawMessage      `json:"input"`
+	Transport *ToolInvokeTransport `json:"transport,omitempty"`
+}
+
 type WorkspaceFile struct {
 	WorkspacePath string `json:"workspacePath"`
 	Filename      string `json:"filename,omitempty"`

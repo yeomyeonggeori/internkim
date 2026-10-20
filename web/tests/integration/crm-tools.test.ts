@@ -683,3 +683,123 @@ describe('records imported from a file', () => {
 		expect((await organizationNamed(importedName))?.description).not.toBe('다른 회사');
 	});
 });
+
+describe('records imported from a workspace file the call carries', () => {
+	const filePath = '/workspace/shared/inbox/clients.csv';
+	const fileName = '파일로가져온상사';
+	const heldName = '파일가져오기기존상사';
+
+	beforeAll(async () => {
+		await asSample('crm_organization_add', { name: heldName, address: '광주', description: '그대로 둘 설명' });
+	}, networkHookTimeout);
+
+	function carrying(content: string, path = filePath) {
+		return [{ workspacePath: path, filename: 'clients.csv', contentBase64: Buffer.from(content).toString('base64') }];
+	}
+
+	async function importedFrom(content: string, input: Record<string, unknown>) {
+		return heldToTheContract(
+			'crm_record_import',
+			await runToolOverTheRecord(sample, client, sampleID, 'crm_record_import', { kind: 'organization', attachments: [filePath], ...input }, now, leavesTaskLabelsUndecided, carrying(content))
+		);
+	}
+
+	async function previewedFrom(content: string, input: Record<string, unknown>) {
+		return previewToolOverTheRecord(sample, client, sampleID, 'crm_record_import', { kind: 'organization', attachments: [filePath], ...input }, now, carrying(content));
+	}
+
+	async function organizationNamed(name: string): Promise<Record<string, unknown> | undefined> {
+		return organizationsOf(await asSample('crm_organization_list', { query: name })).find(
+			(organization) => organization.name === name
+		);
+	}
+
+	const columns = { name: '회사명', status: '상태', address: '주소' };
+
+	test('show what the import would do before anyone approves it', async () => {
+		const previewed = await previewedFrom(`회사명,상태,주소\n${fileName},활성,"부산, ""해운대"""\n${heldName},,\n`, {
+			columns,
+			onDuplicate: 'update'
+		});
+
+		expect(previewed.status).toBe(200);
+		expect((previewed.body as { target: unknown }).target).toEqual({
+			inputField: 'attachments',
+			ids: [filePath],
+			title: 'clients.csv',
+			preview: 'creates 1, updates 1, skips 0 already held'
+		});
+		expect(await organizationNamed(fileName)).toBeUndefined();
+	});
+
+	test('refuse before the question a file with a line that cannot be imported, naming the line', async () => {
+		const previewed = await previewedFrom(`회사명,상태\n${fileName},활성\n,활성\n`, { columns: { name: '회사명', status: '상태' } });
+
+		expect(previewed.status).toBe(400);
+		expect(errorOf(previewed)).toContain('line 3: name_missing');
+	});
+
+	test('write nothing when one line of the file is refused', async () => {
+		const imported = await importedFrom(`회사명,상태\n${fileName},활성\n유령상사,없는상태\n`, { columns: { name: '회사명', status: '상태' } });
+
+		expect(resultOf(imported)).toMatchObject({ written: false, refused: 1 });
+		expect(await organizationNamed(fileName)).toBeUndefined();
+	});
+
+	test('write every line, reading a status by its label and keeping what the file leaves empty', async () => {
+		const held = await organizationNamed(heldName);
+		const imported = await importedFrom(`회사명,상태,주소\n${fileName},활성,"부산, ""해운대"""\n${heldName},,\n`, {
+			columns,
+			onDuplicate: 'update'
+		});
+
+		expect(resultOf(imported)).toMatchObject({ written: true, created: 1, updated: 1, refused: 0 });
+		expect(await organizationNamed(fileName)).toMatchObject({ status: 'active', address: '부산, "해운대"' });
+		expect(await organizationNamed(heldName)).toMatchObject({ address: held?.address, description: '그대로 둘 설명' });
+	});
+
+	test('refuse a column the file does not have, naming the ones it does', async () => {
+		const imported = await importedFrom('회사명\n샘플상사\n', { columns: { name: '상호' } });
+
+		expect(imported.status).toBe(400);
+		expect(errorOf(imported)).toContain('"상호"');
+		expect(errorOf(imported)).toContain('"회사명"');
+	});
+
+	test('refuse a contact file with no column for its organization', async () => {
+		const imported = await importedFrom('이름\n박예시\n', { kind: 'contact', columns: { name: '이름' } });
+
+		expect(imported.status).toBe(400);
+		expect(errorOf(imported)).toContain('organizationName');
+	});
+
+	test('refuse a file over 5 MB before reading it', async () => {
+		const imported = await importedFrom(`회사명\n${'가'.repeat(2 * 1024 * 1024)}\n`, { columns: { name: '회사명' } });
+
+		expect(imported.status).toBe(400);
+		expect(errorOf(imported)).toContain('at most 5 MB');
+	});
+
+	test('refuse a file the call did not carry', async () => {
+		const imported = heldToTheContract(
+			'crm_record_import',
+			await runToolOverTheRecord(sample, client, sampleID, 'crm_record_import', { kind: 'organization', attachments: [filePath], columns: { name: '회사명' } }, now, leavesTaskLabelsUndecided)
+		);
+
+		expect(imported.status).toBe(400);
+		expect(errorOf(imported)).toContain('carried none');
+	});
+
+	test('ask without a preview when the file did not come with the question', async () => {
+		const previewed = await previewToolOverTheRecord(sample, client, sampleID, 'crm_record_import', { kind: 'organization', attachments: [filePath], columns: { name: '회사명' } }, now);
+
+		expect(previewed).toEqual({ status: 200, body: { tool: 'crm_record_import', target: null } });
+	});
+
+	test('refuse a call that names a file and sends rows', async () => {
+		const imported = await importedFrom('회사명\n샘플상사\n', { columns: { name: '회사명' }, rows: [{ line: 2, name: '샘플상사' }] });
+
+		expect(imported.status).toBe(400);
+		expect(errorOf(imported)).toContain('not both');
+	});
+});

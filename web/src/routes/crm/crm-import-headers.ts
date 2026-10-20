@@ -1,5 +1,5 @@
 import type { CRMRecordImportKind } from '$lib/crm/crm-record-import';
-import type { CRMImportField } from './crm-import-mapping';
+import type { CRMImportField, CRMImportValueLabels } from '$lib/crm/crm-import-mapping';
 import { crmImportText } from './crm-import-text';
 import { crmText } from './text';
 
@@ -39,3 +39,8 @@ export function crmImportFieldNames(kind: CRMRecordImportKind): (field: CRMImpor
 		];
 	};
 }
+
+export const crmImportValueLabels: CRMImportValueLabels = {
+	status: [crmText.ko.organizationStatuses, crmText.en.organizationStatuses],
+	importance: [crmText.ko.importanceLabels, crmText.en.importanceLabels]
+};

@@ -11,10 +11,10 @@
 	import type { CRMRecordImportKind } from '$lib/crm/crm-record-import';
 	import { createPageText } from '$lib/i18n/page-text.svelte';
 	import { crmErrorMessage } from './crm-error-text';
-	import { crmImportMaxFileBytes } from './crm-import-csv';
-	import { crmImportFieldNames } from './crm-import-headers';
+	import { crmImportMaxFileBytes } from '$lib/crm/crm-import-csv';
+	import { crmImportFieldNames, crmImportValueLabels } from './crm-import-headers';
 	import { CRMImportFlow, crmImportFilters, type CRMImportPreviewRow } from './crm-import-flow.svelte';
-	import { crmImportRequiredFields, type CRMImportField } from './crm-import-mapping';
+	import { crmImportRequiredFields, type CRMImportField } from '$lib/crm/crm-import-mapping';
 	import { crmImportText } from './crm-import-text';
 	import { crmText } from './text';
 
@@ -46,10 +46,7 @@
 		return new CRMImportFlow({
 			kind,
 			fieldNames: crmImportFieldNames(kind),
-			valueLabels: {
-				status: [crmText.ko.organizationStatuses, crmText.en.organizationStatuses],
-				importance: [crmText.ko.importanceLabels, crmText.en.importanceLabels]
-			}
+			valueLabels: crmImportValueLabels
 		});
 	}
 

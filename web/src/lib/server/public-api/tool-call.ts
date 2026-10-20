@@ -10,6 +10,7 @@ import type { ToolPlace } from '$lib/server/public-api/record/company';
 import { taskLabelGetToolName } from '$lib/server/public-api/catalog/labels';
 import { decidedTaskLabelsOf, type TaskLabelDecider } from '$lib/server/public-api/record/task-labels';
 import { refusalOfToolInput, toolInputRecovered } from '$lib/server/public-api/tool-input';
+import { workspaceFilesCarriedBy } from '$lib/server/public-api/carried-files';
 import type { CallingMember } from '$lib/server/member-request';
 import type { Environment } from '$lib/server/agent-request';
 
@@ -87,6 +88,7 @@ export async function toolCalledByMember(
 		input,
 		new Date(),
 		taskLabelsDecidedByTheCompany(environment, member),
+		workspaceFilesCarriedBy(payload),
 		place
 	);
 	if (answered.status < 300) await tellTheCompanyWhatItMirrorsChanged(environment, member, name);

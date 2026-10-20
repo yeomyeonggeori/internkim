@@ -129,6 +129,16 @@ security가 정합니다. 수량은 숫자 `days`이고 종류는 회사가 등�
 `crm_activity_list`로도 다루는데, 이 둘은 모델에게 주지 않고 `task_add`와
 `event_add`가 쓰는 그 작성기를 그대로 거칩니다.
 
+`crm_record_import`는 관계처나 연락처 여러 건을 한 트랜잭션으로 씁니다. CRM
+화면의 가져오기가 쓰는 작성기,
+`web/src/lib/server/public-api/record/crm-import-tools.ts`를 그대로 거칩니다.
+화면은 브라우저에서 파일을 읽어 줄을 보냅니다. 에이전트는 작업 폴더의 CSV를
+`attachments`에 적고, 어느 열이 어느 칸을 채우는지 `columns`에 적습니다.
+Blueclaw가 요청자 권한으로 파일을 읽어 내용을 호출에 실어 보내므로, 줄 내용은
+모델 입력에 들어가지 않고 호출이 끝나면 파일은 어디에도 남지 않습니다. 승인
+질문은 그 파일로 미리 돌려 본 결과대로 몇 건을 새로 만들고 몇 건을 갱신하는지
+보여 주고, 가져올 수 없는 줄이 있는 파일은 묻기 전에 거절합니다.
+
 ## 메시지 [#message]
 
 <ToolCatalog namespace="message" language="ko" />

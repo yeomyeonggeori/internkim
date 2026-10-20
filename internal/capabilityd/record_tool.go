@@ -22,7 +22,7 @@ func (service Service) invokeRecordTool(ctx context.Context, request capabilitie
 		return capabilities.ToolInvokeResponse{}, fmt.Errorf("record tool is not configured: %s", toolName)
 	}
 
-	answer, status, errorValue := service.askTheRecord(ctx, toolName, "invoke", request.Input, request.Context.RequesterEmail)
+	answer, status, errorValue := service.askTheRecord(ctx, toolName, "invoke", request)
 	if errorValue != nil {
 		return capabilities.ToolInvokeResponse{}, errorValue
 	}
@@ -48,12 +48,11 @@ func (service Service) askTheRecord(
 	ctx context.Context,
 	toolName string,
 	verb string,
-	input json.RawMessage,
-	requesterEmail string,
+	request capabilities.ToolInvokeRequest,
 ) (json.RawMessage, int, error) {
-	body := input
-	if len(bytes.TrimSpace(body)) == 0 {
-		body = json.RawMessage("{}")
+	body, errorValue := json.Marshal(recordToolCallOf(request))
+	if errorValue != nil {
+		return nil, 0, errorValue
 	}
 	httpRequest, errorValue := http.NewRequestWithContext(ctx, http.MethodPost,
 		admindRequesterURL("/record/api/tools/"+toolName+"/"+verb), bytes.NewReader(body))
@@ -62,7 +61,7 @@ func (service Service) askTheRecord(
 	}
 	httpRequest.Header.Set("Content-Type", "application/json")
 
-	httpResponse, errorValue := service.askAdmindAsTheRequester(httpRequest, requesterEmail)
+	httpResponse, errorValue := service.askAdmindAsTheRequester(httpRequest, request.Context.RequesterEmail)
 	if errorValue != nil {
 		return nil, 0, errorValue
 	}
@@ -72,6 +71,17 @@ func (service Service) askTheRecord(
 		return nil, 0, errorValue
 	}
 	return json.RawMessage(answer), httpResponse.StatusCode, nil
+}
+
+func recordToolCallOf(request capabilities.ToolInvokeRequest) capabilityprotocol.RecordToolCall {
+	call := capabilityprotocol.RecordToolCall{Input: request.Input}
+	if len(bytes.TrimSpace(call.Input)) == 0 {
+		call.Input = json.RawMessage("{}")
+	}
+	if len(request.Transport.WorkspaceFiles) > 0 {
+		call.Transport = &capabilityprotocol.ToolInvokeTransport{WorkspaceFiles: request.Transport.WorkspaceFiles}
+	}
+	return call
 }
 
 func recordToolFailure(toolName string, status int, answer json.RawMessage) capabilities.ToolInvokeResponse {
@@ -150,7 +160,7 @@ func theRecordAnswers(toolName string) bool {
 
 func (service Service) previewRecordToolTarget(ctx context.Context, request capabilities.ToolInvokeRequest) (capabilities.ToolInvokeResponse, error) {
 	toolName := strings.TrimSpace(request.ToolName)
-	answer, status, errorValue := service.askTheRecord(ctx, toolName, "target", request.Input, request.Context.RequesterEmail)
+	answer, status, errorValue := service.askTheRecord(ctx, toolName, "target", request)
 	if errorValue != nil {
 		return capabilities.ToolInvokeResponse{}, errorValue
 	}

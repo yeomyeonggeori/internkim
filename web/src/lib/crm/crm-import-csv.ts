@@ -11,7 +11,7 @@ export type CRMImportSheet = {
 	lines: CRMImportLine[];
 };
 
-function decodedText(bytes: ArrayBuffer): string {
+function decodedText(bytes: AllowSharedBufferSource): string {
 	try {
 		return new TextDecoder('utf-8', { fatal: true }).decode(bytes);
 	} catch (error) {
@@ -29,8 +29,12 @@ function textCells(row: unknown[]): string[] {
 }
 
 export async function readCRMImportFile(file: File): Promise<CRMImportSheet> {
+	return readCRMImportBytes(file.name, await file.arrayBuffer());
+}
+
+export async function readCRMImportBytes(fileName: string, bytes: AllowSharedBufferSource): Promise<CRMImportSheet> {
 	const spreadsheet = await import('xlsx');
-	const workbook = spreadsheet.read(decodedText(await file.arrayBuffer()), {
+	const workbook = spreadsheet.read(decodedText(bytes), {
 		type: 'string',
 		raw: true,
 		dense: true
@@ -41,7 +45,7 @@ export async function readCRMImportFile(file: File): Promise<CRMImportSheet> {
 		.map(textCells);
 	const [headers = [], ...rows] = grid;
 	return {
-		fileName: file.name,
+		fileName,
 		headers: headers.map((header) => header.trim()),
 		lines: rows
 			.map((cells, index) => ({ line: index + 2, cells }))

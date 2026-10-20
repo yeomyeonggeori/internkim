@@ -6,16 +6,25 @@ import { eventOfHint } from './event-tools';
 import { personOfHint } from './people';
 import { taskRowOfHint } from './task-tools';
 import type { RecordContext } from './company';
+import type { CarriedWorkspaceFile } from '../carried-files';
+import { crmRecordImportInputSchema } from '../catalog/crm';
+import { crmRecordImportPreview } from './crm-import-file';
 import type { TaskRow } from './tasks';
 
 export type PreviewedTarget = {
 	inputField: string;
-	id: string;
+	id?: string;
+	ids?: string[];
 	title: string;
 	startsAt?: string;
+	preview?: string;
 };
 
-type Preview = (context: RecordContext, input: Record<string, unknown>) => Promise<PreviewedTarget>;
+type Preview = (
+	context: RecordContext,
+	input: Record<string, unknown>,
+	files: CarriedWorkspaceFile[]
+) => Promise<PreviewedTarget | null>;
 
 // inputField is what blueclaw's narrowedToolInput replaces with the identity
 // before it runs an approved call; without it the call replays the hint and
@@ -43,6 +52,8 @@ const previewsOverTheRecord: Record<string, Preview> = {
 	},
 	person_withdraw: (context, input) => personTargetOf(context, input),
 	person_password_reset: (context, input) => personTargetOf(context, input),
+	crm_record_import: (context, input, files) =>
+		crmRecordImportPreview(context, crmRecordImportInputSchema.parse(input), files),
 	crm_opportunity_archive: async (context, input) => {
 		const opportunity = await opportunityOfCRMHint(context, hintOf(input, 'opportunityHint'));
 		return { inputField: 'opportunityHint', id: opportunity.id, title: opportunity.name };

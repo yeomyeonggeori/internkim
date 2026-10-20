@@ -1,10 +1,13 @@
 package admind
 
 import (
+	"bytes"
 	"encoding/json"
 	"io"
 	"net/http"
 	"strings"
+
+	"github.com/yeomyeonggeori/internkim/pkg/capabilityprotocol"
 )
 
 const recordToolPathPrefix = "/record/api/tools/"
@@ -33,13 +36,18 @@ func (service *Service) handleRecordTool(responseWriter http.ResponseWriter, req
 		return
 	}
 
-	input, errorValue := io.ReadAll(http.MaxBytesReader(responseWriter, request.Body, recordToolInputCeiling))
+	body, errorValue := io.ReadAll(http.MaxBytesReader(responseWriter, request.Body, recordToolCallCeiling))
 	if errorValue != nil {
-		http.Error(responseWriter, "that input is larger than a tool call carries", http.StatusRequestEntityTooLarge)
+		http.Error(responseWriter, "that call is larger than a tool call carries", http.StatusRequestEntityTooLarge)
+		return
+	}
+	var call capabilityprotocol.RecordToolCall
+	if errorValue := json.Unmarshal(body, &call); len(bytes.TrimSpace(body)) > 0 && errorValue != nil {
+		http.Error(responseWriter, "a record tool call is a json object carrying its input", http.StatusBadRequest)
 		return
 	}
 
-	answer, errorValue := client.InvokeRecordTool(request.Context(), requesterEmail, toolName, verb, json.RawMessage(input))
+	answer, errorValue := client.InvokeRecordToolCall(request.Context(), requesterEmail, toolName, verb, call)
 	if errorValue != nil {
 		http.Error(responseWriter, errorValue.Error(), http.StatusBadGateway)
 		return
@@ -51,6 +59,8 @@ func (service *Service) handleRecordTool(responseWriter http.ResponseWriter, req
 }
 
 const recordToolInputCeiling = 1 << 20
+
+const recordToolCallCeiling = 24 << 20
 
 var recordToolVerbs = map[string]bool{"invoke": true, "target": true}
 

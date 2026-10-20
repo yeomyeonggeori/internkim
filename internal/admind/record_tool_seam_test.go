@@ -90,7 +90,11 @@ func serviceReachingThePlane(t *testing.T, plane *planeUnderTest) *Service {
 }
 
 func askedOnTheSocket(service *Service, toolName string, input string, requesterEmail string) *httptest.ResponseRecorder {
-	request := httptest.NewRequest(http.MethodPost, "/record/api/tools/"+toolName+"/invoke", strings.NewReader(input))
+	body := input
+	if body != "" {
+		body = `{"input":` + input + `}`
+	}
+	request := httptest.NewRequest(http.MethodPost, "/record/api/tools/"+toolName+"/invoke", strings.NewReader(body))
 	if requesterEmail != "" {
 		request.Header.Set(requesterEmailHeader, requesterEmail)
 	}
@@ -200,5 +204,21 @@ func TestAnEmptyBodyReachesThePlaneAsAnEmptyInput(t *testing.T) {
 
 	if len(plane.invoked) != 1 || plane.invoked[0].Body != `{"input":{}}` {
 		t.Fatalf("the plane was sent %v", plane.invoked)
+	}
+}
+
+func TestTheFilesACallCarriesReachThePlaneBesideItsInput(t *testing.T) {
+	plane := planeAnswering(t, func(string) (int, string) {
+		return http.StatusOK, `{"tool":"crm_record_import","result":{}}`
+	})
+	service := serviceReachingThePlane(t, plane)
+	call := `{"input":{"kind":"organization","attachments":["/workspace/clients.csv"]},"transport":{"workspaceFiles":[{"workspacePath":"/workspace/clients.csv","filename":"clients.csv","contentBase64":"bmFtZQ=="}]}}`
+	request := httptest.NewRequest(http.MethodPost, "/record/api/tools/crm_record_import/invoke", strings.NewReader(call))
+	request.Header.Set(requesterEmailHeader, "member@example.com")
+
+	markRequestsAsAssertedByTheListener(http.HandlerFunc(service.handleRecordTool)).ServeHTTP(httptest.NewRecorder(), request)
+
+	if len(plane.invoked) != 1 || !strings.Contains(plane.invoked[0].Body, `"transport":{"workspaceFiles":[{"workspacePath":"/workspace/clients.csv","filename":"clients.csv","contentBase64":"bmFtZQ=="}]}`) {
+		t.Fatalf("the plane cannot read the workspace, so the file has to reach it with the call: %v", plane.invoked)
 	}
 }

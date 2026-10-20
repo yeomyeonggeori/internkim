@@ -50,7 +50,7 @@ func TestRecordCallsReachTheRecordAsTheRequester(t *testing.T) {
 	if reachedRequester != "member@example.com" {
 		t.Fatalf("admind was asked as %q", reachedRequester)
 	}
-	if reachedBody != `{"year":2026}` {
+	if reachedBody != `{"input":{"year":2026}}` {
 		t.Fatalf("the input arrived as %q", reachedBody)
 	}
 	if answer.Outcome != capabilities.ToolOutcomeSucceeded || answer.SelectedBackend != "record" {
@@ -180,4 +180,29 @@ func admindOnLoopbackThatFailsTheTest(t *testing.T) string {
 	}))
 	t.Cleanup(server.Close)
 	return server.URL
+}
+
+func TestTheFilesARecordCallCarriesReachAdmindBesideItsInput(t *testing.T) {
+	var reachedBody string
+	socketPath := admindOnASocket(t, http.HandlerFunc(func(responseWriter http.ResponseWriter, request *http.Request) {
+		body, _ := io.ReadAll(request.Body)
+		reachedBody = string(body)
+		responseWriter.Header().Set("Content-Type", "application/json")
+		_, _ = responseWriter.Write([]byte(`{"tool":"crm_record_import","target":null}`))
+	}))
+	service := Service{Configuration: Configuration{
+		AdmindBaseURL:    admindOnLoopbackThatFailsTheTest(t),
+		AdmindSocketPath: socketPath,
+	}}
+	request := recordRequestOf("crm_record_import", `{"kind":"organization","attachments":["/workspace/clients.csv"]}`)
+	request.Transport.WorkspaceFiles = []capabilityprotocol.WorkspaceFile{{WorkspacePath: "/workspace/clients.csv", Filename: "clients.csv", ContentBase64: "bmFtZQ=="}}
+
+	if _, errorValue := service.previewRecordToolTarget(context.Background(), request); errorValue != nil {
+		t.Fatalf("crm_record_import: %v", errorValue)
+	}
+
+	expected := `{"input":{"kind":"organization","attachments":["/workspace/clients.csv"]},"transport":{"workspaceFiles":[{"workspacePath":"/workspace/clients.csv","filename":"clients.csv","contentBase64":"bmFtZQ=="}]}}`
+	if reachedBody != expected {
+		t.Fatalf("the record cannot read the workspace, so the file travels with the call, got %s", reachedBody)
+	}
 }

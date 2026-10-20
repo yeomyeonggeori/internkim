@@ -4,7 +4,7 @@ import type {
 	CRMRecordImportOutcome
 } from '$lib/crm/crm-record-import';
 import { importCRMRecords, type CRMImportedRow, type CRMImportResult } from './crm-import-api';
-import { readCRMImportFile, type CRMImportSheet } from './crm-import-csv';
+import { readCRMImportFile, type CRMImportSheet } from '$lib/crm/crm-import-csv';
 import {
 	crmImportFields,
 	importedRows,
@@ -15,7 +15,7 @@ import {
 	type CRMImportMapping,
 	type CRMImportRow,
 	type CRMImportValueLabels
-} from './crm-import-mapping';
+} from '$lib/crm/crm-import-mapping';
 
 export type CRMImportStep = 'upload' | 'mapping' | 'preview';
 export const crmImportFilters = ['all', 'refused', 'duplicate'] as const;

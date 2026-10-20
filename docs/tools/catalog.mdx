@@ -147,6 +147,17 @@ the company's ordinary work. The screens and the API reach the same rows through
 `crm_activity_save` and `crm_activity_list`, which are not offered to the model
 and which write through the writers `task_add` and `event_add` already use.
 
+`crm_record_import` writes many organizations or contacts in one transaction,
+through `web/src/lib/server/public-api/record/crm-import-tools.ts`, the writer
+the CRM screen's import uses. The screen reads the file in the browser and sends
+its rows. The agent names a workspace CSV in `attachments` and says in `columns`
+which column fills which field. Blueclaw reads the file as the person asking and
+carries its content with the call, so the lines never enter the model's input
+and nothing keeps the file once the call is answered. The approval question
+shows how many records the import creates and updates, worked out by a dry run
+of that file, and a file with a line that cannot be imported is refused before
+anyone is asked.
+
 ## Messages [#message]
 
 <ToolCatalog namespace="message" />
