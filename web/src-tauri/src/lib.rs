@@ -4,7 +4,8 @@ pub fn run() {
     #[cfg(mobile)]
     let builder = builder
         .plugin(tauri_plugin_attendance_widget::init())
-        .plugin(tauri_plugin_page_theme::init());
+        .plugin(tauri_plugin_page_theme::init())
+        .plugin(tauri_plugin_keyboard::init());
     builder
         .run(tauri::generate_context!())
         .expect("the internkim app could not start");
