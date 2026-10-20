@@ -184,7 +184,10 @@ test('the lightbox keeps attachment proportions while its image is pending', asy
 		if (!after) throw new Error('The loaded lightbox image has no frame');
 		expect(after.width).toBeCloseTo(before.width, 1);
 		expect(after.height).toBeCloseTo(before.height, 1);
-		await lightbox.getByRole('button', { name: '이미지 닫기' }).click({ position: { x: 5, y: 5 } });
+		const backdrop = lightbox.getByRole('button', { name: '닫기', exact: true }).first();
+		const backdropBox = await backdrop.boundingBox();
+		if (!backdropBox) throw new Error('The lightbox has no backdrop');
+		await backdrop.click({ position: { x: 5, y: backdropBox.height - 5 } });
 		await expect(lightbox).toHaveCount(0);
 	} finally {
 		pending.release();
