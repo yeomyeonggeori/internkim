@@ -107,13 +107,14 @@ for (const width of [320, 360, 390, 568, 1280]) {
 		await page.route('**/api/v1/tools/company_document_list/invoke', route => route.fulfill({ json: { result: { count: 0, documents: [] } } }));
 		await page.route('**/api/v1/tools/dataroom_links_get/invoke', route => route.fulfill({ json: { result: { links: [], shareableCircleIDs: dataRoomTemplate.circles.map(circle => circle.id), downloadableCircleIDs: [] } } }));
 		await page.route('**/api/v1/tools/circle_list/invoke', route => route.fulfill({ json: { result: { circles: dataRoomTemplate.circles.map(circle => ({ id: circle.id, name: circle.nameKO, isDefault: true, readableCategories: circle.readableCategories, memberIDs: [], channelName: null, channelID: null })) } } }));
-		await page.goto('/example-co/files/data-room');
+		await page.goto('/example-co/data-room');
+		await page.getByRole('tab', { name: '자료', exact: true }).click();
 		const browser = page.getByRole('region', { name: '데이터룸', exact: true });
 		await expect(browser.getByRole('button')).toHaveCount(topLevelFolders.length);
 		await fits(page, 'data-room');
 		await browser.getByRole('button', { name: folder.nameKO }).click();
 		await expect(browser.getByRole('button')).toHaveCount(subfolders.length);
-		await expect(page.getByRole('tabpanel', { name: '데이터룸' }).getByLabel('breadcrumb')).toContainText(folder.nameKO);
+		await expect(page.getByLabel('breadcrumb').filter({ hasText: folder.nameKO })).toBeVisible();
 		await fits(page, 'data-room-folder');
 		await page.getByRole('button', { name: '링크 공유', exact: true }).click();
 		await expect(page.getByRole('dialog')).toBeVisible();

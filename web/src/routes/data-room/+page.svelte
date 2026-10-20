@@ -36,7 +36,7 @@
 	let room = $state<z.infer<typeof dataRoomGetResultSchema> | null>(null);
 	let documents = $state<DataRoomDocument[]>([]);
 	let company = $state<DataRoomCompany | null>(null);
-	let view = $state('documents');
+	let view = $state('company');
 	let selectedCode = $state('');
 	let openID = $state<string | null>(null);
 	let isDownloading = $state(false);
@@ -167,8 +167,8 @@
 
 <svelte:head><title>{text.title}</title></svelte:head>
 
-<div class="flex h-full min-h-0">
-	<div class="min-w-0 flex-1 overflow-auto p-4 md:p-6">
+<div class="min-h-full w-full">
+	<div class="min-w-0 p-4 md:p-6">
 		{#if hasCompany}
 			<div class="mb-4 flex max-w-5xl items-center justify-between gap-3">
 				<Tabs.Root bind:value={view}>
