@@ -78,11 +78,11 @@
 	}
 
 	:global(pre.line-numbers .line::before) {
-		color: hsl(var(--muted-foreground));
+		color: var(--muted-foreground);
 	}
 
 	:global(pre .line.line--highlighted) {
-		background-color: hsl(var(--secondary));
+		background-color: var(--secondary);
 	}
 
 	:global(pre .line.line--highlighted span) {
