@@ -28,10 +28,11 @@ export type TaskRow = {
 	due_at: string | null;
 	requester_id: string | null;
 	task_participant: { member_id: string }[];
+	task_deletable: boolean;
 };
 
 export const taskSelection =
-	'id, parent_task_id, title, status, note, location, business, type, size, is_event, is_whole_day, is_open_to_company, notify_minutes_before, starts_at, ends_at, created_at, updated_at, organization_id, opportunity_id, contact_id, due_at, requester_id, task_participant (member_id)';
+	'id, parent_task_id, title, status, note, location, business, type, size, is_event, is_whole_day, is_open_to_company, notify_minutes_before, starts_at, ends_at, created_at, updated_at, organization_id, opportunity_id, contact_id, due_at, requester_id, task_participant (member_id), task_deletable';
 
 // Postgres says why it refused, and the three answers are different things: a
 // permission the caller does not hold, a row that moved under them, and a rule
@@ -84,13 +85,13 @@ export function refusedWriteOf(reason: string, code: string | undefined, changes
 	if (status !== 403) return new RecordRefusedTheWrite(reason, status);
 	if (changesParticipants) {
 		return new RecordRefusedTheWrite(
-			'only the owner of this task or an admin can change who takes part in it',
+			'only an admin, or the one person taking part in this task, can change who takes part in it',
 			403,
 			'task_assignment_forbidden'
 		);
 	}
 	return new RecordRefusedTheWrite(
-		'only the owner of this task, somebody taking part in it, or an admin can change it',
+		'only somebody taking part in this task, or an admin, can change it',
 		403,
 		'task_write_forbidden'
 	);
@@ -265,7 +266,7 @@ async function refusalForNothingDeleted(
 	const { data } = await caller.from('task').select('id').eq('id', taskID).returns<{ id: string }[]>();
 	if ((data ?? []).length > 0) {
 		return new RecordRefusedTheWrite(
-			'only the owner of this task, somebody taking part in it, or an admin can delete it',
+			'only an admin, the member who asked for it, or the people taking part in it can delete it, and work several people share is deleted by an admin or the member who asked for it',
 			403,
 			'task_write_forbidden'
 		);

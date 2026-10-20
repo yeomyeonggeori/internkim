@@ -113,10 +113,8 @@ export function canUpdateTask(summary: TaskSummary | null, task: Task): boolean 
 	return task.participantIDs.includes(member.id);
 }
 
-export function canDeleteTask(summary: TaskSummary | null, task: Task): boolean {
-	if (summary?.isAdmin) return true;
-	const member = currentTaskMember(summary);
-	return task.participantIDs.length === 1 && member?.id === task.participantIDs[0];
+export function canDeleteTask(task: Task): boolean {
+	return task.canDelete === true;
 }
 
 export function canManageTaskAssignment(summary: TaskSummary | null, task: Task): boolean {

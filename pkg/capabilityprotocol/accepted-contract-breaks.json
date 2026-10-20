@@ -943,5 +943,25 @@
 		"path": "crm_opportunity_update.result.fundingRecordID",
 		"reason": "An investment deal may name the funding round it is for, so a deal carries fundingRecordID, the round whose committed amount its won value counts toward.",
 		"release": "the release carrying this catalog reaches company hosts by ship-host before the web/API deploy, after the migration that adds company_record.status and opportunity.funding_record_id; a host still on the older catalog refuses these answers until it takes the catalog"
+	},
+	{
+		"path": "task_add.result.canDelete",
+		"reason": "A task says whether the caller may delete it, as canDelete, read from task_deletable, the function the delete policy itself calls, so the task screen offers delete exactly where the record allows it.",
+		"release": "the release carrying this catalog reaches company hosts by ship-host before the web/API deploy, after the migration that adds public.task_deletable; a host still on the older catalog refuses these answers until it takes the catalog"
+	},
+	{
+		"path": "task_update.result.canDelete",
+		"reason": "A task says whether the caller may delete it, as canDelete, read from task_deletable, the function the delete policy itself calls, so the task screen offers delete exactly where the record allows it.",
+		"release": "the release carrying this catalog reaches company hosts by ship-host before the web/API deploy, after the migration that adds public.task_deletable; a host still on the older catalog refuses these answers until it takes the catalog"
+	},
+	{
+		"path": "task_list.result.tasks[].canDelete",
+		"reason": "A task says whether the caller may delete it, as canDelete, read from task_deletable, the function the delete policy itself calls, so the task screen offers delete exactly where the record allows it.",
+		"release": "the release carrying this catalog reaches company hosts by ship-host before the web/API deploy, after the migration that adds public.task_deletable; a host still on the older catalog refuses these answers until it takes the catalog"
+	},
+	{
+		"path": "task_board_get.result.tasks[].canDelete",
+		"reason": "A task says whether the caller may delete it, as canDelete, read from task_deletable, the function the delete policy itself calls, so the task screen offers delete exactly where the record allows it.",
+		"release": "the release carrying this catalog reaches company hosts by ship-host before the web/API deploy, after the migration that adds public.task_deletable; a host still on the older catalog refuses these answers until it takes the catalog"
 	}
 ]

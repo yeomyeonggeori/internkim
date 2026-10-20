@@ -147,7 +147,7 @@ export class TaskEditorController {
 
 	isOwnTask = (task: Task): boolean => currentTaskMember(this.summary)?.id === task.ownerID;
 	canUpdateTask = (task: Task): boolean => canUpdateTask(this.summary, task);
-	canDeleteTask = (task: Task): boolean => canDeleteTask(this.summary, task);
+	canDeleteTask = (task: Task): boolean => canDeleteTask(task);
 	canManageTaskAssignment = (task: Task): boolean => Boolean(this.summary?.peopleReady) && canManageTaskAssignment(this.summary, task);
 	canRemoveParticipant = (task: Task, memberID: string): boolean => canRemoveTaskParticipant(task, memberID);
 

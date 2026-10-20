@@ -31,6 +31,7 @@ export type RecordTask = {
 	startDate?: string;
 	endDate?: string;
 	weekCode?: string;
+	canDelete?: boolean;
 };
 
 export type RecordTaskList = {

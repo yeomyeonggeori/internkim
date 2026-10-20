@@ -836,12 +836,39 @@ describe('deleting', () => {
 	});
 
 	test('refuses to take away a task that is somebody else’s', async () => {
-		const refused = await run('task_delete', { taskHint: '채용 공고 검토' });
+		const { data: task } = await client
+			.from('task')
+			.insert({ company_id: companyID, title: '남이 맡은 정리' })
+			.select('id')
+			.single();
+		await client.from('task_participant').insert({ task_id: task!.id, member_id: exampleID });
+		const refused = await run('task_delete', { taskHint: '남이 맡은 정리' });
 		expect(refused.status).toBe(403);
+	});
+
+	test('takes away work the caller asked of somebody else', async () => {
+		const gone = resultOf(await run('task_delete', { taskHint: '채용 공고 검토' }));
+		expect(gone.deleted).toBe(true);
 	});
 
 	test('takes an event away too', async () => {
 		const gone = resultOf(await run('event_delete', { eventHint: '전사 공지' }));
+		expect(gone.deleted).toBe(true);
+	});
+
+	test('says on each task whether the delete the record allows would go through', async () => {
+		await run('task_add', { title: '혼자 맡은 정리' });
+		await run('task_add', { title: '둘이 맡은 정리', participantPersonHints: ['이샘플', '박예시'] });
+		const listed = resultOf(await run('task_list', { scope: 'all', query: '맡은 정리' }));
+		const canDeleteOf = (content: string) =>
+			(listed.tasks as { content: string; canDelete: boolean }[]).find((task) => task.content === content)?.canDelete;
+
+		expect(canDeleteOf('둘이 맡은 정리')).toBe(false);
+		const refused = await run('task_delete', { taskHint: '둘이 맡은 정리' });
+		expect(refused.status).toBe(403);
+
+		expect(canDeleteOf('혼자 맡은 정리')).toBe(true);
+		const gone = resultOf(await run('task_delete', { taskHint: '혼자 맡은 정리' }));
 		expect(gone.deleted).toBe(true);
 	});
 

@@ -137,7 +137,8 @@ export function taskOf(record: RecordTask): Task {
 		startDate: record.startDate || undefined,
 		endDate: record.endDate || undefined,
 		createdAt: record.createdAt,
-		weekCode: record.weekCode ?? ''
+		weekCode: record.weekCode ?? '',
+		canDelete: record.canDelete ?? false
 	};
 }
 

@@ -122,7 +122,8 @@ notifications in the background. An `asked` response has no event.
     "status": "planned",
     "startDate": "",
     "endDate": "",
-    "weekCode": ""
+    "weekCode": "",
+    "canDelete": true
   }
 }
 ```
@@ -148,6 +149,9 @@ and the record answer is held to: nothing else may appear, and the record's
 answer is checked against it before it leaves. A task's title is `content`, and
 the people on it come three ways — `participantIDs` to act on,
 `participantNames` to print, and `participantPresentations` to address someone.
+`canDelete` is the record's answer to whether the caller may delete the task:
+an admin may, the member who asked for it may, and so may the one person on it
+when nobody else is.
 
 
 A tool carried to the company's computer answers the fuller shape below —
