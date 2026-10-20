@@ -12,6 +12,7 @@ import (
 )
 
 const requesterPubkeyHex = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+const colleaguePubkeyHex = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
 
 func channelToolCall(toolName string, input string) capabilities.ToolInvokeRequest {
 	return capabilities.ToolInvokeRequest{
@@ -55,7 +56,7 @@ func TestARemovalIsAskedOfChatdAsTheRequesterAgainstTheResolvedChannel(t *testin
 	}
 	var body map[string]string
 	_ = json.Unmarshal([]byte(removals[0].Body), &body)
-	if body["requesterPubkeyHex"] != requesterPubkeyHex || body["conversationID"] != "channel-1" || body["externalID"] != requesterPubkeyHex {
+	if body["requesterPubkeyHex"] != requesterPubkeyHex || body["conversationID"] != "channel-1" || body["externalID"] != colleaguePubkeyHex {
 		t.Fatalf("expected the requester's key, the channel's ID and the colleague's key, got %s", removals[0].Body)
 	}
 }

@@ -147,9 +147,12 @@ and which write through the writers `task_add` and `event_add` already use.
 
 The handler lives in `internal/capabilityd/platform_message_tool.go`. `message_search` has two modes: keyword `queries`
 return IDs with a preview around the match, and `messageIDs` returns those
-messages complete. `message_update` edits one exact span of the agent's own
-earlier message: `oldText` must occur exactly once, and the rest of the
-message stays untouched. `message_send` targets a direct message, a named
+messages complete. `message_update` changes a message the agent or the
+requester wrote: `oldText` with `newText` corrects one exact span, which must
+occur exactly once, and `text` replaces the whole message.
+`message_reaction_add`, `message_reaction_delete`, `conversation_hide` and
+`conversation_reveal` act as the requester through the same chatd person
+capabilities as the messenger screen. `message_send` targets a direct message, a named
 channel, or the current conversation; only the current-conversation targets
 skip approval.
 

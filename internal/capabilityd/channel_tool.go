@@ -39,12 +39,14 @@ type channelToolResult struct {
 }
 
 type requesterConversation struct {
-	ID   string `json:"id"`
-	Name string `json:"name"`
-	Kind string `json:"kind"`
+	ID                     string   `json:"id"`
+	Name                   string   `json:"name"`
+	Kind                   string   `json:"kind"`
+	IsHidden               bool     `json:"isHidden"`
+	ParticipantExternalIDs []string `json:"participantExternalIDs"`
 }
 
-type channelMember struct {
+type messengerPerson struct {
 	PersonHint string
 	PubkeyHex  string
 }
@@ -60,10 +62,9 @@ func (service Service) invokeChannelTool(ctx context.Context, request capabiliti
 	if errorValue != nil {
 		return platformToolErrorResponse(request.ToolName, platformToolStaticFailure("invalid_input", "input_decode", errorValue.Error())), nil
 	}
-	requesterPubkeyHex, errorValue := service.directoryBuzzKey(ctx, request.Context.RequesterEmail)
-	if errorValue != nil {
-		return platformToolErrorResponse(request.ToolName, platformToolStaticFailure("requester_not_addressable", "requester_resolve",
-			"this change was to be made as "+request.Context.RequesterEmail+" and could not: "+errorValue.Error())), nil
+	requesterPubkeyHex, response, isRefused := service.requesterMessengerKey(ctx, request)
+	if isRefused {
+		return response, nil
 	}
 	if request.ToolName == channelAddToolName {
 		return service.addChannel(ctx, request, requesterPubkeyHex, input)
@@ -76,7 +77,7 @@ func (service Service) invokeChannelTool(ctx context.Context, request capabiliti
 }
 
 func (service Service) addChannel(ctx context.Context, request capabilities.ToolInvokeRequest, requesterPubkeyHex string, input channelToolInput) (capabilities.ToolInvokeResponse, error) {
-	members, response, isRefused := service.channelMembers(ctx, request, input.PersonHints)
+	members, response, isRefused := service.messengerPeople(ctx, request, input.PersonHints)
 	if isRefused {
 		return response, nil
 	}
@@ -107,7 +108,7 @@ func (service Service) changeChannel(ctx context.Context, request capabilities.T
 	capability, status := channelCapabilityFor(request.ToolName)
 	switch request.ToolName {
 	case channelMemberAddToolName:
-		members, response, isRefused := service.channelMembers(ctx, request, input.PersonHints)
+		members, response, isRefused := service.messengerPeople(ctx, request, input.PersonHints)
 		if isRefused {
 			return response, nil
 		}
@@ -121,7 +122,7 @@ func (service Service) changeChannel(ctx context.Context, request capabilities.T
 		result.NotAddedPersonHints = personHintsOf(members, added.UninvitedExternalIDs)
 		return platformToolSuccessResponse(request.ToolName, status, result)
 	case channelMemberDeleteToolName, channelOwnerAddToolName, channelOwnerUpdateToolName:
-		members, response, isRefused := service.channelMembers(ctx, request, []string{input.PersonHint})
+		members, response, isRefused := service.messengerPeople(ctx, request, []string{input.PersonHint})
 		if isRefused {
 			return response, nil
 		}
@@ -193,8 +194,8 @@ func groupChannels(conversations []requesterConversation) []chatdChannel {
 	return channels
 }
 
-func (service Service) channelMembers(ctx context.Context, request capabilities.ToolInvokeRequest, personHints []string) ([]channelMember, capabilities.ToolInvokeResponse, bool) {
-	members := make([]channelMember, 0, len(personHints))
+func (service Service) messengerPeople(ctx context.Context, request capabilities.ToolInvokeRequest, personHints []string) ([]messengerPerson, capabilities.ToolInvokeResponse, bool) {
+	members := make([]messengerPerson, 0, len(personHints))
 	for _, personHint := range personHints {
 		person, response, isRefused := service.resolveMessageRecipient(ctx, request, personHint)
 		if isRefused {
@@ -204,9 +205,18 @@ func (service Service) channelMembers(ctx context.Context, request capabilities.
 		if errorValue != nil {
 			return nil, platformDMErrorResponse(request.ToolName, platformDMUnavailableFailure(errorValue)), true
 		}
-		members = append(members, channelMember{PersonHint: personHint, PubkeyHex: pubkeyHex})
+		members = append(members, messengerPerson{PersonHint: personHint, PubkeyHex: pubkeyHex})
 	}
 	return members, capabilities.ToolInvokeResponse{}, false
+}
+
+func (service Service) requesterMessengerKey(ctx context.Context, request capabilities.ToolInvokeRequest) (string, capabilities.ToolInvokeResponse, bool) {
+	pubkeyHex, errorValue := service.directoryBuzzKey(ctx, request.Context.RequesterEmail)
+	if errorValue != nil {
+		return "", platformToolErrorResponse(request.ToolName, platformToolStaticFailure("requester_not_addressable", "requester_resolve",
+			"this change was to be made as "+request.Context.RequesterEmail+" and could not: "+errorValue.Error())), true
+	}
+	return pubkeyHex, capabilities.ToolInvokeResponse{}, false
 }
 
 func (service Service) askChatdAsTheRequester(ctx context.Context, capability string, requesterPubkeyHex string, fields map[string]any, response any) error {
@@ -218,7 +228,7 @@ func channelChangeRefusedResponse(toolName string, errorValue error) capabilitie
 	return platformToolErrorResponse(toolName, platformToolFailureForError("channel_change", "channel_change_refused", errorValue))
 }
 
-func memberPubkeys(members []channelMember) []string {
+func memberPubkeys(members []messengerPerson) []string {
 	pubkeys := make([]string, 0, len(members))
 	for _, member := range members {
 		pubkeys = append(pubkeys, member.PubkeyHex)
@@ -226,7 +236,7 @@ func memberPubkeys(members []channelMember) []string {
 	return pubkeys
 }
 
-func personHintsOf(members []channelMember, pubkeys []string) []string {
+func personHintsOf(members []messengerPerson, pubkeys []string) []string {
 	personHints := []string{}
 	for _, member := range members {
 		for _, pubkeyHex := range pubkeys {
