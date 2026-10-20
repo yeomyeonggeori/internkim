@@ -52,7 +52,7 @@ import { displayNameForRequester, readInboundMessage } from './inbound-message';
 import { InboundQueue } from './inbound-queue';
 import { InboundTurns } from './inbound-turn';
 import { SessionBindingStore } from './session-binding-store';
-import { agentFilePoster, conversationEditor, conversationPoster } from './conversation-post';
+import { agentFilePoster, conversationDeleter, conversationEditor, conversationPoster } from './conversation-post';
 import { ArrivalWatchers, activeMemberIDsOf, arrivalsPath, keepWatchingArrivals } from './arrival-watchers';
 import { readTyping, typingPath, typingTeller } from './typing';
 import { readWithdrawal, withdrawalsPath, withdrawalTeller, WithdrawnMessages } from './withdrawn';
@@ -513,6 +513,10 @@ const editInConversation = conversationEditor({
 	askChatd: (capability, body) => dispatch.askChatd(capability, body)
 });
 
+const deleteInConversation = conversationDeleter({
+	askChatd: (capability, body) => dispatch.askChatd(capability, body)
+});
+
 const postFileToConversation = agentFilePoster({ keepForTheMessenger, postToConversation });
 
 const blueclawClient = new BlueclawACPClient({
@@ -522,6 +526,7 @@ const blueclawClient = new BlueclawACPClient({
 	postToConversation,
 	postFileToConversation,
 	editInConversation,
+	deleteInConversation,
 	sessions: new SessionBindingStore({
 		filePath: `${relayStateDirectory}/sessions.json`,
 		report: (line) => console.log(`sessions: ${line}`)

@@ -82,6 +82,8 @@ export type PostFileToConversation = (addressing: Addressing, requesterEmail: st
 
 export type EditInConversation = (addressing: Addressing, messageID: string, message: string) => Promise<void>;
 
+export type DeleteInConversation = (addressing: Addressing, messageID: string) => Promise<void>;
+
 export type ACPSessionSettings = {
 	socketPath: string;
 	workspaceRootPath: string;
@@ -89,6 +91,7 @@ export type ACPSessionSettings = {
 	postToConversation: PostToConversation;
 	postFileToConversation: PostFileToConversation;
 	editInConversation: EditInConversation;
+	deleteInConversation: DeleteInConversation;
 	sessions: SessionBindingStore;
 	approvalWasRequested: (conversationID: string) => void;
 	report?: (line: string) => void;
@@ -125,6 +128,7 @@ export class BlueclawACPClient {
 		this.toolProgress = new ToolProgress({
 			postToConversation: settings.postToConversation,
 			editInConversation: settings.editInConversation,
+			deleteInConversation: settings.deleteInConversation,
 			report: settings.report
 		});
 	}
@@ -271,7 +275,7 @@ export class BlueclawACPClient {
 	private readUpdate(notification: SessionNotification): void {
 		const update = notification.update;
 		if (update.sessionUpdate === 'agent_thought_chunk' && update.content.type === 'text') {
-			this.settings.report?.(`progress: ${update.content.text}`);
+			void this.showCheckpoint(notification.sessionId, update.content.text, deliveryOf(notification._meta));
 			return;
 		}
 		if (update.sessionUpdate === startedToolCallKind || update.sessionUpdate === updatedToolCallKind) {
@@ -295,6 +299,15 @@ export class BlueclawACPClient {
 		await this.toolProgress.showToolCall(delivery.deliveryID, addressedBy(binding, delivery), progressOfToolCall(call));
 	}
 
+	private async showCheckpoint(sessionID: string, checkpoint: string, delivery: Delivery): Promise<void> {
+		const binding = this.sessionBindingOf(sessionID);
+		if (!binding || !delivery.deliveryID) {
+			this.settings.report?.(`progress: ${checkpoint}`);
+			return;
+		}
+		await this.toolProgress.showCheckpoint(delivery.deliveryID, addressedBy(binding, delivery), checkpoint);
+	}
+
 	private async deliverChunk(sessionID: string, content: ContentBlock, delivery: Delivery): Promise<void> {
 		const binding = this.sessionBindingOf(sessionID);
 		const outcome = binding
@@ -309,15 +322,15 @@ export class BlueclawACPClient {
 		addressing: Addressing,
 		delivery: Delivery
 	): Promise<string> {
-		if (content.type === 'text') {
-			const progressMessageID =
-				delivery.isFinal && delivery.deliveryID
-					? await this.toolProgress.replaceWithReply(delivery.deliveryID, addressing, content.text)
-					: undefined;
-			return progressMessageID ?? this.settings.postToConversation(addressing, content.text);
-		}
+		const post = this.posterOf(content, requester, addressing);
+		if (!delivery.isFinal || !delivery.deliveryID) return post();
+		return this.toolProgress.postFinal(delivery.deliveryID, addressing, post);
+	}
+
+	private posterOf(content: ContentBlock, requester: Requester, addressing: Addressing): () => Promise<string> {
+		if (content.type === 'text') return () => this.settings.postToConversation(addressing, content.text);
 		if (content.type === 'resource_link') {
-			return this.settings.postFileToConversation(addressing, requester.email, workspaceFileOf(content));
+			return () => this.settings.postFileToConversation(addressing, requester.email, workspaceFileOf(content));
 		}
 		throw new Error(`this relay posts text and files, so a ${content.type} block did not reach the person`);
 	}

@@ -258,19 +258,38 @@ type Edited = { addressing: Addressing; messageID: string; message: string };
 function aConversation(refusal?: string) {
 	const posted: Posted[] = [];
 	const edited: Edited[] = [];
+	const deleted: string[] = [];
+	const thread: ThreadMessage[] = [];
+	const editsBehindANewerMessage: string[] = [];
 	return {
 		posted,
 		edited,
+		deleted,
+		editsBehindANewerMessage,
+		visible: () => thread.filter((message) => !message.isDeleted),
 		post: async (addressing: Addressing, message: string, attachments?: KeptAttachment[]): Promise<string> => {
 			if (refusal) throw new Error(refusal);
 			posted.push({ addressing, message, ...(attachments ? { attachments } : {}) });
-			return `posted-${posted.length}`;
+			const messageID = `posted-${posted.length}`;
+			thread.push({ messageID, text: message, isEdited: false, isDeleted: false });
+			return messageID;
 		},
 		edit: async (addressing: Addressing, messageID: string, message: string): Promise<void> => {
 			edited.push({ addressing, messageID, message });
+			const visible = thread.filter((shown) => !shown.isDeleted);
+			if (visible.at(-1)?.messageID !== messageID) editsBehindANewerMessage.push(messageID);
+			const target = thread.find((shown) => shown.messageID === messageID);
+			if (target) Object.assign(target, { text: message, isEdited: true });
+		},
+		delete: async (_addressing: Addressing, messageID: string): Promise<void> => {
+			deleted.push(messageID);
+			const target = thread.find((shown) => shown.messageID === messageID);
+			if (target) target.isDeleted = true;
 		}
 	};
 }
+
+type ThreadMessage = { messageID: string; text: string; isEdited: boolean; isDeleted: boolean };
 
 async function noFileExpected(): Promise<string> {
 	throw new Error('no file was expected in this conversation');
@@ -306,6 +325,7 @@ test('a session names the requester and the conversation it answers in', async (
 		postToConversation: aConversation().post,
 		postFileToConversation: noFileExpected,
 		editInConversation: async () => {},
+		deleteInConversation: async () => {},
 		sessions: aSessionStore(),
 		approvalWasRequested: () => {}
 	});
@@ -328,6 +348,7 @@ test('a second message in the same conversation reuses the session', async () =>
 		postToConversation: aConversation().post,
 		postFileToConversation: noFileExpected,
 		editInConversation: async () => {},
+		deleteInConversation: async () => {},
 		sessions: aSessionStore(),
 		approvalWasRequested: () => {}
 	});
@@ -501,7 +522,7 @@ const progressThread = 'buzz:conversation-1:message-7';
 const progressDelivery = { deliveryID: 'turn-1', replyTargetID: progressThread };
 const finalReplyDelivery = { ...progressDelivery, isFinal: true };
 
-test('tool progress is posted once, edited on each update, and replaced by the reply', async () => {
+test('tool progress is posted once, edited on each update, and taken down once the reply is posted after it', async () => {
 	const agent = anAgentOnASocket({});
 	const conversation = aConversation();
 	const client = aClientFor(agent.socketPath, conversation);
@@ -536,10 +557,11 @@ test('tool progress is posted once, edited on each update, and replaced by the r
 	await agent.speakWithNoTurnOpen('session-1', { type: 'text', text: '보냈습니다' }, finalReplyDelivery);
 	await waitUntil(() => agent.deliveryReports.length === 1, 'the relay to report the reply');
 
-	expect(conversation.posted).toHaveLength(1);
-	expect(conversation.edited.at(-1)).toEqual({ addressing: threadAddressing, messageID: 'posted-1', message: '보냈습니다' });
+	expect(conversation.posted.at(-1)).toEqual({ addressing: threadAddressing, message: '보냈습니다' });
+	expect(conversation.edited).toHaveLength(2);
+	expect(conversation.deleted).toEqual(['posted-1']);
 	expect(agent.deliveryReports).toEqual([
-		{ method: deliveredExtensionMethod, params: { deliveryID: 'turn-1', messageID: 'posted-1' } }
+		{ method: deliveredExtensionMethod, params: { deliveryID: 'turn-1', messageID: 'posted-2' } }
 	]);
 });
 
@@ -682,7 +704,7 @@ function aCatalogCall(address: URL): Request {
 	});
 }
 
-test('a reply that finds its progress message gone is posted as a new message and the failure is reported', async () => {
+test('a checkpoint that cannot be edited into the progress is posted after it and the progress is taken down', async () => {
 	const agent = anAgentOnASocket({});
 	const conversation = aConversation();
 	const reported: string[] = [];
@@ -698,14 +720,82 @@ test('a reply that finds its progress message gone is posted as a new message an
 		{ sessionUpdate: 'tool_call', toolCallId: 'call-1', title: '일정 읽기', status: 'in_progress' },
 		progressDelivery
 	);
-	await waitUntil(() => conversation.posted.length === 1, 'the progress message to be posted');
+	await agent.updateWithNoTurnOpen('session-1', aCheckpoint('일정을 읽었습니다'), progressDelivery);
+	await waitUntil(() => conversation.deleted.length === 1, 'the progress message to be taken down');
 
-	await agent.speakWithNoTurnOpen('session-1', { type: 'text', text: '보냈습니다' }, finalReplyDelivery);
-	await waitUntil(() => agent.deliveryReports.length === 1, 'the relay to report the reply');
-
-	expect(conversation.posted.map((posted) => posted.message)).toEqual(['◐ 일정 읽기', '보냈습니다']);
+	expect(conversation.posted.map((posted) => posted.message)).toEqual(['◐ 일정 읽기', '일정을 읽었습니다']);
+	expect(conversation.deleted).toEqual(['posted-1']);
 	expect(reported.some((line) => line.includes('with 503'))).toBe(true);
 });
+
+function aCheckpoint(text: string): SessionUpdate {
+	return { sessionUpdate: 'agent_thought_chunk', content: { type: 'text', text } };
+}
+
+function aToolCall(toolCallID: string, title: string): SessionUpdate[] {
+	return [
+		{ sessionUpdate: 'tool_call', toolCallId: toolCallID, title, status: 'in_progress' },
+		{ sessionUpdate: 'tool_call_update', toolCallId: toolCallID, status: 'completed' }
+	];
+}
+
+type TurnStep = { tool: string } | { checkpoint: string };
+
+const threadOrderCases: { name: string; steps: TurnStep[]; final: ContentBlock[]; thread: string[] }[] = [
+	{
+		name: 'checkpoints become the progress before them and the answer is posted last',
+		steps: [{ tool: '일정 읽기' }, { checkpoint: '일정을 읽었습니다' }, { tool: '메일 쓰기' }, { checkpoint: '메일을 썼습니다' }, { tool: '메일 보내기' }],
+		final: [{ type: 'text', text: '보냈습니다' }],
+		thread: ['일정을 읽었습니다', '메일을 썼습니다', '보냈습니다']
+	},
+	{
+		name: 'a turn without a checkpoint takes its progress down and posts the answer',
+		steps: [{ tool: '일정 읽기' }, { tool: '메일 보내기' }],
+		final: [{ type: 'text', text: '보냈습니다' }],
+		thread: ['보냈습니다']
+	},
+	{
+		name: 'two checkpoints in a row post the second one new',
+		steps: [{ tool: '일정 읽기' }, { checkpoint: '일정을 읽었습니다' }, { checkpoint: '조금 더 걸립니다' }],
+		final: [{ type: 'text', text: '보냈습니다' }],
+		thread: ['일정을 읽었습니다', '조금 더 걸립니다', '보냈습니다']
+	},
+	{
+		name: 'an answer that carries a file is posted after the checkpoints, the file before its words',
+		steps: [{ tool: '일정 읽기' }, { checkpoint: '일정을 읽었습니다' }, { tool: '보고서 쓰기' }],
+		final: [
+			{ type: 'resource_link', name: 'report.pdf', uri: 'file:///workspace/report.pdf' },
+			{ type: 'text', text: '보고서입니다' }
+		],
+		thread: ['일정을 읽었습니다', 'file report.pdf', '보고서입니다']
+	}
+];
+
+for (const threadOrderCase of threadOrderCases) {
+	test(`a turn reads in the order it happened: ${threadOrderCase.name}`, async () => {
+		const agent = anAgentOnASocket({});
+		const conversation = aConversation();
+		const client = aClientFor(agent.socketPath, conversation, {
+			postFileToConversation: (addressing, _requesterEmail, file) => conversation.post(addressing, `file ${file.filename}`)
+		});
+		await aSessionOpenedBy(client);
+
+		for (const [index, step] of threadOrderCase.steps.entries()) {
+			const updates = 'tool' in step ? aToolCall(`call-${index}`, step.tool) : [aCheckpoint(step.checkpoint)];
+			for (const update of updates) await agent.updateWithNoTurnOpen('session-1', update, progressDelivery);
+		}
+		for (const content of threadOrderCase.final) {
+			const reported = agent.deliveryReports.length;
+			await agent.speakWithNoTurnOpen('session-1', content, finalReplyDelivery);
+			await waitUntil(() => agent.deliveryReports.length === reported + 1, 'the relay to report the reply');
+		}
+
+		const visible = conversation.visible();
+		expect(visible.map((message) => message.text)).toEqual(threadOrderCase.thread);
+		expect(visible.at(-1)?.isEdited, 'the answer arrived as an edit, which tells nobody').toBe(false);
+		expect(conversation.editsBehindANewerMessage, 'a message was rewritten with something already after it').toEqual([]);
+	});
+}
 
 test('a reply is posted as it arrives, and the agent is told once which message it became', async () => {
 	const agent = anAgentOnASocket({ reply: '보냈습니다' });
@@ -717,6 +807,7 @@ test('a reply is posted as it arrives, and the agent is told once which message 
 		postToConversation: conversation.post,
 		postFileToConversation: noFileExpected,
 		editInConversation: async () => {},
+		deleteInConversation: async () => {},
 		sessions: aSessionStore(),
 		approvalWasRequested: () => {}
 	});
@@ -741,6 +832,7 @@ test('a reply the conversation refuses is reported undelivered with the reason, 
 		postToConversation: conversation.post,
 		postFileToConversation: noFileExpected,
 		editInConversation: async () => {},
+		deleteInConversation: async () => {},
 		sessions: aSessionStore(),
 		approvalWasRequested: () => {}
 	});
@@ -764,6 +856,7 @@ test('a reply that arrives with no turn open is posted in the thread it names an
 		postToConversation: conversation.post,
 		postFileToConversation: noFileExpected,
 		editInConversation: async () => {},
+		deleteInConversation: async () => {},
 		sessions: aSessionStore(),
 		approvalWasRequested: () => {}
 	});
@@ -804,6 +897,7 @@ function aClientPostingFilesThrough(socketPath: string, messenger: ReturnType<ty
 		postToConversation: conversation.post,
 		postFileToConversation: agentFilePoster({ keepForTheMessenger: messenger.keep, postToConversation: conversation.post }),
 		editInConversation: async () => {},
+		deleteInConversation: async () => {},
 		sessions: aSessionStore(),
 		approvalWasRequested: () => {}
 	});
@@ -882,6 +976,7 @@ test('what the relay cannot post is reported undelivered, never dropped', async 
 		postToConversation: conversation.post,
 		postFileToConversation: noFileExpected,
 		editInConversation: async () => {},
+		deleteInConversation: async () => {},
 		sessions: aSessionStore(),
 		approvalWasRequested: () => {}
 	});
@@ -919,6 +1014,7 @@ function aClientFor(
 		postToConversation: conversation.post,
 		postFileToConversation: noFileExpected,
 		editInConversation: conversation.edit,
+		deleteInConversation: conversation.delete,
 		sessions: aSessionStore(),
 		approvalWasRequested: () => {},
 		...overrides
