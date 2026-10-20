@@ -61,7 +61,7 @@ const scenes: Scene[] = [
 	{ name: 'settings-security', path: '/example-co/settings', gates: ['tokens'], ready: 'text=fixture-review-token', focus: async page => { await page.getByText('개인 액세스 토큰', { exact: true }).scrollIntoViewIfNeeded(); } },
 	{ name: 'settings-setup', path: '/example-co/settings/setup', gates: ['host-setup'], ready: 'text=예시 회사' },
 	{ name: 'settings-members', path: '/example-co/settings/setup', gates: ['person_list'], ready: 'text=member1@example.com', focus: async page => { await page.getByRole('button', { name: '구성원 초대', exact: true }).scrollIntoViewIfNeeded(); } },
-	{ name: 'data-room', path: '/example-co/files/data-room', gates: ['dataroom_get', 'company_document_list'], ready: 'button:has-text("회사 소개")' },
+	{ name: 'data-room', path: '/example-co/data-room', gates: ['dataroom_get', 'company_document_list'], ready: 'button:has-text("회사 소개")' },
 	{ name: 'public-data-room', path: `/share/${companyID}`, gates: ['public-data-room'], ready: 'tbody tr' },
 	{ name: 'file-preview', path: '/example-co/files', gates: ['person.files.download'], ready: 'article:has-text("Fixture preview")', action: async page => { await page.getByRole('button', { name: /주간-회고-1.md/ }).click(); } },
 	{ name: 'run-approvals', path: '/example-co/runs/approvals', gates: ['person.runs.list'], ready: 'button:has-text("이번만 승인")' },
@@ -152,7 +152,7 @@ for (const status of [401, 403]) for (const target of ['memory', 'files', 'mail'
 			await entry.click();
 			await expect(page.locator('article:has-text("Fixture preview")')).toBeVisible();
 			fixture.statuses.set('person.files.list', status);
-			await page.getByRole('tabpanel', { name: '워크스페이스' }).getByRole('button', { name: '새로고침', exact: true }).click();
+			await page.getByRole('region', { name: '파일', exact: true }).getByRole('button', { name: '새로고침', exact: true }).click();
 			await expect(page.getByRole('alert')).toBeVisible();
 			await expect(entry).toHaveCount(0);
 			await expect(page.locator('article:has-text("Fixture preview")')).toHaveCount(0);

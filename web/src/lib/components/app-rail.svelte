@@ -25,7 +25,7 @@
 	const mobilePrimaryItems = $derived(mobileItems(['/messenger', '/attendance', '/task', '/calendar']));
 
 	const mobileMoreItems = $derived<AppMobileNavigationItem[]>([
-		...mobileItems(['/mail', '/memory', '/crm', '/organization', '/files']),
+		...mobileItems(['/mail', '/memory', '/crm', '/organization', '/files', '/data-room']),
 		...appNavigation.workspace
 	]);
 

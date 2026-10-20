@@ -17,6 +17,7 @@ import CalendarIcon from '@lucide/svelte/icons/calendar';
 import CircleHelpIcon from '@lucide/svelte/icons/circle-help';
 import CogIcon from '@lucide/svelte/icons/cog';
 import FolderOpenIcon from '@lucide/svelte/icons/folder-open';
+import LibraryBigIcon from '@lucide/svelte/icons/library-big';
 import HeartHandshakeIcon from '@lucide/svelte/icons/heart-handshake';
 import SquareCheckBigIcon from '@lucide/svelte/icons/square-check-big';
 import MailIcon from '@lucide/svelte/icons/mail';
@@ -58,7 +59,8 @@ class AppNavigation {
 		{ href: this.link('/attendance/'), label: text.attendance, icon: FlameIcon },
 		{ href: this.link('/crm/'), label: text.crm, icon: HeartHandshakeIcon },
 		{ href: this.link('/organization/'), label: text.organization, icon: NetworkIcon },
-		{ href: this.link('/files/'), label: text.files, icon: FolderOpenIcon }
+		{ href: this.link('/files/'), label: text.files, icon: FolderOpenIcon },
+		{ href: this.link('/data-room/'), label: text.dataRoom, icon: LibraryBigIcon }
 	]);
 
 	workspace = $derived<AppRailItem[]>([

@@ -1,8 +1,6 @@
 export const filesText = {
 	ko: {
 		title: '파일',
-		workspace: '워크스페이스',
-		dataRoom: '데이터룸',
 		subtitle: '접근 가능한 워크스페이스',
 		refresh: '새로고침',
 		empty: '이 폴더는 비어 있습니다.',
@@ -24,8 +22,6 @@ export const filesText = {
 	},
 	en: {
 		title: 'Files',
-		workspace: 'Workspace',
-		dataRoom: 'Dataroom',
 		subtitle: 'Workspaces you can access',
 		refresh: 'Refresh',
 		empty: 'This folder is empty.',
