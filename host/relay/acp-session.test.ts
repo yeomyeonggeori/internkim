@@ -54,7 +54,7 @@ type AgentBehaviour = {
 	replyFor?: (prompt: string) => string;
 	holdPrompt?: { text: string; until: Promise<void> };
 	askApprovalAbout?: { toolCallID: string; question: string; onlyWhenAskedTo?: string };
-	approvalReplies?: { reply: string; optionID: string }[];
+	approvalReplies?: { reply: string; optionID: string; isInstruction?: boolean }[];
 	refuseSessionsWith?: string;
 	whenAReportArrives?: () => Promise<void>;
 };
@@ -182,7 +182,7 @@ function anAgentOnASocket(behaviour: AgentBehaviour): AnAgentThatRecords {
 				}
 				approvalRequestsRead.push(params);
 				const known = behaviour.approvalReplies?.find((answer) => answer.reply === params.reply);
-				return known ? { isAnswer: true, optionId: known.optionID } : { isAnswer: false };
+				return known ? { isAnswer: true, optionId: known.optionID, isInstruction: known.isInstruction === true } : { isAnswer: false };
 			}
 		};
 	}
@@ -352,7 +352,7 @@ test('a reply that arrives the moment the question is reported delivered still a
 	const agent = anAgentOnASocket({
 		approvalReplies: [{ reply: '응 보내줘', optionID: 'approve_once' }],
 		whenAReportArrives: async () => {
-			wasAnswer = await client.answerPendingApproval(questionThread, 'message-10', '응 보내줘');
+			wasAnswer = await client.answerPendingApproval(questionThread, 'message-10', '응 보내줘', sampleRequester);
 		}
 	});
 	const client = aClientFor(agent.socketPath, aConversation());
@@ -372,7 +372,7 @@ test('a reply blueclaw calls an answer resolves the approval with the option it 
 
 	const asking = agent.askWithNoTurnOpen('session-1', 'call-9', '박예시에게 보낼까요?', questionDelivery);
 	await waitUntil(() => agent.deliveryReports.length === 1, 'the relay to report the question');
-	const wasAnswer = await client.answerPendingApproval(questionThread, 'message-10', '응 보내줘');
+	const wasAnswer = await client.answerPendingApproval(questionThread, 'message-10', '응 보내줘', sampleRequester);
 
 	expect(wasAnswer).toBe(true);
 	expect((await asking).outcome).toEqual({ outcome: 'selected', optionId: 'approve_once' });
@@ -389,25 +389,31 @@ test('a reply blueclaw calls an answer resolves the approval with the option it 
 			reply: '응 보내줘',
 			messageId: 'message-10',
 			replyTargetId: questionThread.replyTargetID,
-			isThread: true
+			isThread: true,
+			replierEmail: sampleRequester.email
 		}
 	]);
 	expect(client.hasPendingApprovalIn('conversation-1')).toBe(false);
 });
 
-test('a reply blueclaw calls not an answer leaves the approval open for the one that is', async () => {
-	const agent = anAgentOnASocket({ approvalReplies: [{ reply: '응 보내줘', optionID: 'approve_once' }] });
+test('a reply blueclaw reads as the next instruction rejects the approval once and goes on as a prompt', async () => {
+	const agent = anAgentOnASocket({
+		approvalReplies: [
+			{ reply: '오늘 일정 알려줘', optionID: 'reject_once', isInstruction: true },
+			{ reply: '응 보내줘', optionID: 'approve_once' }
+		]
+	});
 	const client = aClientFor(agent.socketPath, aConversation());
 	await aSessionOpenedBy(client);
 	const asking = agent.askWithNoTurnOpen('session-1', 'call-9', '박예시에게 보낼까요?', questionDelivery);
 	await waitUntil(() => client.hasPendingApprovalIn('conversation-1'), 'the approval to be requested');
 
-	const wasAnswer = await client.answerPendingApproval(sampleAddressing, 'message-10', '오늘 일정 알려줘');
+	const wasConsumed = await client.answerPendingApproval(sampleAddressing, 'message-10', '오늘 일정 알려줘', sampleRequester);
 
-	expect(wasAnswer).toBe(false);
-	expect(client.hasPendingApprovalIn('conversation-1')).toBe(true);
-	expect(await client.answerPendingApproval(sampleAddressing, 'message-11', '응 보내줘')).toBe(true);
-	expect((await asking).outcome).toEqual({ outcome: 'selected', optionId: 'approve_once' });
+	expect(wasConsumed).toBe(false);
+	expect((await asking).outcome).toEqual({ outcome: 'selected', optionId: 'reject_once' });
+	expect(client.hasPendingApprovalIn('conversation-1')).toBe(false);
+	expect(await client.answerPendingApproval(sampleAddressing, 'message-11', '응 보내줘', sampleRequester)).toBe(false);
 });
 
 test('an approval blueclaw says it already posted is not posted again, and still waits for its answer', async () => {
@@ -421,7 +427,7 @@ test('an approval blueclaw says it already posted is not posted again, and still
 		isAlreadyPosted: true
 	});
 	await waitUntil(() => client.hasPendingApprovalIn('conversation-1'), 'the approval to be requested');
-	await client.answerPendingApproval(sampleAddressing, 'message-10', '응 보내줘');
+	await client.answerPendingApproval(sampleAddressing, 'message-10', '응 보내줘', sampleRequester);
 
 	expect((await asking).outcome).toEqual({ outcome: 'selected', optionId: 'approve_once' });
 	expect(conversation.posted).toEqual([]);
@@ -442,7 +448,7 @@ test('each reply is posted in the thread it names, even while another turn waits
 	const waiting = client.ask(sampleRequester, askingThread, '박예시한테 DM 보내줘', factsIn(askingThread, 'message-1'));
 	await waitUntil(() => client.hasPendingApprovalIn('conversation-1'), 'the first turn to ask its question');
 	await client.ask(sampleRequester, laterThread, '오늘 일정 알려줘', factsIn(laterThread, 'message-2'));
-	await client.answerPendingApproval(askingThread, 'message-3', '응 보내줘');
+	await client.answerPendingApproval(askingThread, 'message-3', '응 보내줘', sampleRequester);
 	await waiting;
 
 	expect(
@@ -597,7 +603,7 @@ test('a turn waiting on an approval is told apart from one that is not, also aft
 	expect(client.isWaitingOnApproval('conversation-1', 'message-1')).toBe(true);
 	expect(client.isWaitingOnApproval('conversation-1', 'message-2')).toBe(false);
 
-	await client.answerPendingApproval(sampleAddressing, 'message-3', '응 보내줘');
+	await client.answerPendingApproval(sampleAddressing, 'message-3', '응 보내줘', sampleRequester);
 	await waiting;
 	const reissued = agent.askWithNoTurnOpen('session-1', 'call-2', '다시 보낼까요?', { ...questionDelivery, isAlreadyPosted: true });
 	await waitUntil(() => client.hasPendingApprovalIn('conversation-1'), 'the approval to be reissued');
@@ -605,7 +611,7 @@ test('a turn waiting on an approval is told apart from one that is not, also aft
 	expect(client.isWaitingOnApproval('conversation-1', 'message-1')).toBe(false);
 	expect(client.isWaitingOnApproval('conversation-1', 'message-2'), 'a turn that was running when the approval was reissued was taken as waiting').toBe(false);
 
-	await client.answerPendingApproval(sampleAddressing, 'message-4', '응 보내줘');
+	await client.answerPendingApproval(sampleAddressing, 'message-4', '응 보내줘', sampleRequester);
 	await reissued;
 	release.resolve();
 	await running;
@@ -627,7 +633,7 @@ test('after a restart the session bindings are loaded, a reissued approval waits
 
 	expect(agent.sessionsLoaded[0].sessionId).toBe('session-1');
 	expect(agent.sessionsLoaded[0]._meta?.[sessionMetaKey]).toEqual({ requester: sampleRequester, addressing: sampleAddressing });
-	expect(await afterTheRestart.answerPendingApproval(sampleAddressing, 'message-10', '응 보내줘')).toBe(true);
+	expect(await afterTheRestart.answerPendingApproval(sampleAddressing, 'message-10', '응 보내줘', sampleRequester)).toBe(true);
 	expect((await asking).outcome).toEqual({ outcome: 'selected', optionId: 'approve_once' });
 	expect(conversation.posted).toEqual([]);
 	expect(agent.sessionsOpened).toHaveLength(1);

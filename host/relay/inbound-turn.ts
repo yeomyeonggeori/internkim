@@ -84,8 +84,8 @@ export class InboundTurns {
 	private async isConsumedAsApprovalAnswer(event: QueuedInboundEvent, inbound: InboundMessage): Promise<boolean> {
 		if (event.isPrompt) return false;
 		if (!this.settings.client.hasPendingApprovalIn(inbound.addressing.conversationID)) return false;
-		const { addressing, messageID, message } = inbound;
-		const isAnswer = await this.settings.client.answerPendingApproval(addressing, messageID, message);
+		const { addressing, messageID, message, requester } = inbound;
+		const isAnswer = await this.settings.client.answerPendingApproval(addressing, messageID, message, requester);
 		if (!isAnswer) {
 			await this.settings.queue.recordAsPrompt(event.key);
 			return false;
