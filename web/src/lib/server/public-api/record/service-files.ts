@@ -1,6 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { assetBucket } from '../asset-address';
-import { largestPictureACompanyCanHave } from '$lib/company/company-picture';
+import { companyPictureImage, largestPictureACompanyCanHave } from '$lib/company/company-picture';
 import { dataRoomFolder } from '$lib/data-room/storage-path';
 import {
 	imageFieldOf,
@@ -18,6 +18,7 @@ import { dayIn } from './days';
 import { RecordRefusedTheWrite, statusOfPostgresCode } from './tasks';
 import type { RecordContext } from './company';
 import type { CompanyImageUploadResult } from '../catalog/company';
+import { companyPictureUploadPlace } from '../company-picture-keep';
 
 export type CompanyImageUploadInput = { image?: string; fileName?: string; date?: string };
 
@@ -56,6 +57,9 @@ export async function companyImageUpload(
 	context: RecordContext,
 	input: CompanyImageUploadInput
 ): Promise<CompanyImageUploadResult> {
+	if (input.image?.trim() === companyPictureImage) {
+		return companyPictureUploadPlace(context.caller, context.companyID, imageExtensionOf(input.fileName));
+	}
 	const file = serviceFileOfInput(input.image);
 	const extension = imageExtensionOf(input.fileName);
 	const date = effectiveDateOf(input.date, context);
@@ -106,7 +110,7 @@ function serviceFileOf(name: ServiceFileName): ServiceFile {
 
 function serviceFileOfInput(offered: string | undefined): ServiceFile {
 	const file = serviceFileNamed(offered);
-	if (!file) throw new RecordRefusedTheWrite(`image is one of ${serviceFileNames.join(', ')}`, 400);
+	if (!file) throw new RecordRefusedTheWrite(`image is one of ${[...serviceFileNames, companyPictureImage].join(', ')}`, 400);
 	return file;
 }
 

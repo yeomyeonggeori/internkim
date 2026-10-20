@@ -16,6 +16,7 @@ import { ResourceMutationEffect, type CapabilityToolDefinition } from './definit
 import { imageFieldOf, serviceFileImageExtensions, serviceFileNames, serviceFiles } from '$lib/data-room/service-files';
 import { moneySchema } from '$lib/money';
 import { momentSchema } from '$lib/moment';
+import { companyPictureImage } from '$lib/company/company-picture';
 
 
 
@@ -119,9 +120,9 @@ const companyInfoSetInputSchema = z.strictObject({
 const companyInfoSetInputIntentSchema = companyInfoSetInputSchema.partial();
 
 const companyImageUploadInputSchema = z.strictObject({
-  image: z.enum(serviceFileNames).describe(`Which company image the file is: ${serviceFiles.map((file) => `'${file.name}' for ${file.purpose}`).join(', ')}.`),
+  image: z.enum([...serviceFileNames, companyPictureImage]).describe(`Which company image the file is: ${serviceFiles.map((file) => `'${file.name}' for ${file.purpose}`).join(', ')}, or '${companyPictureImage}' for the picture the app shows beside the company's name.`),
   fileName: z.string().describe(`The image file's own name with its extension: ${serviceFileImageExtensions.map((extension) => `.${extension}`).join(', ')}.`),
-  date: z.string().describe("The day the image took effect, in YYYY-MM-DD format. Defaults to today.").optional(),
+  date: z.string().describe(`The day the image took effect, in YYYY-MM-DD format. Defaults to today. A '${companyPictureImage}' has no versions, so it reads no date.`).optional(),
 });
 
 const companyImageUploadInputIntentSchema = companyImageUploadInputSchema.partial();
@@ -420,7 +421,7 @@ export const companyToolDefinitions: CapabilityToolDefinition[] = [
     answeredBy: CapabilityAnsweredBy.Record,
     privacyClass: "workspace_company",
     policyResource: "tool:company_image_upload",
-    description: `Ask for a place to keep a new version of a company image, such as the seal stamped on forms or the letterhead logo. Each version is a data room document of its own, dated the day it took effect, and every form prints the newest. Answers the storagePath and a signed URL to PUT the image's bytes to, good for two hours. Once the image is there, keep it with company_info_set, passing the storagePath as ${serviceFileImageFieldNames}. Only an administrator may keep a company image.`,
+    description: `Ask for a place to keep a new version of a company image, such as the seal stamped on forms or the letterhead logo. Each version is a data room document of its own, dated the day it took effect, and every form prints the newest. Answers the storagePath and a signed URL to PUT the image's bytes to, good for two hours. Once the image is there, keep it with company_info_set, passing the storagePath as ${serviceFileImageFieldNames}; keep a '${companyPictureImage}' with company_settings_update's profileImage instead, PUT with its image Content-Type. Only an administrator may keep a company image.`,
     version: "1",
     estimatedLatency: CapabilityEstimatedLatency.Low,
     inputSchema: companyImageUploadInputSchema,

@@ -10,7 +10,9 @@ import {
 	isCompanyPictureFormat,
 	refusalOfCompanyPictureSize
 } from '$lib/company/company-picture';
-import { assetBucket, attachmentKind, companyPictureKind } from '$lib/server/public-api/asset-address';
+import { attachmentKind, companyPictureKind } from '$lib/server/public-api/asset-address';
+import { companyPictureWritten } from '$lib/server/public-api/company-picture-keep';
+import { RecordRefusedTheWrite } from '$lib/server/public-api/record/tasks';
 import { memberPicturePath } from '$lib/profile/member-picture';
 import { keepTheMemberPicture } from '$lib/server/public-api/member-picture-keep';
 import {
@@ -38,7 +40,6 @@ import { clockAttendance } from '$lib/server/public-api/attendance-clock';
 import type { RequestHandler } from './$types';
 
 const filesPath = '/files';
-const readableForOneHour = 60 * 60;
 const catalogHeader = 'X-INTERNKIM-CATALOG';
 
 export const fallback: RequestHandler = async ({ request, url, params, platform }) => {
@@ -221,7 +222,7 @@ async function keepTheCompanyPicture(
 
 	const kept = await keptOrRefused(environment, member.companyID, companyPictureKind, bytes, contentType);
 	try {
-		return json({ profileImageURL: await companyPictureWritten(member, kept.path) }, { status: 200 });
+		return json({ profileImageURL: await companyPictureWrittenFor(member, kept.path) }, { status: 200 });
 	} catch (refusal) {
 		if (!kept.wasAlreadyKept) {
 			await dropFileFromTheBucket(assetStoreCredentialsOf(environment), kept.path).catch(() => undefined);
@@ -234,7 +235,7 @@ async function forgetTheCompanyPicture(member: CallingMember): Promise<Response>
 	if (member.permission === 'read') {
 		error(403, 'this token may only read, and taking the company picture down is a write');
 	}
-	return json({ profileImageURL: await companyPictureWritten(member, null) }, { status: 200 });
+	return json({ profileImageURL: await companyPictureWrittenFor(member, null) }, { status: 200 });
 }
 
 async function pictureOffered(request: Request): Promise<File> {
@@ -247,29 +248,16 @@ async function pictureOffered(request: Request): Promise<File> {
 	return offered;
 }
 
-async function companyPictureWritten(
+async function companyPictureWrittenFor(
 	member: CallingMember,
 	path: string | null
 ): Promise<string | null> {
-	const company = await member.caller.from('company').select('id').limit(1).single<{ id: string }>();
-	if (company.error) error(500, company.error.message);
-
-	const written = await member.caller
-		.from('company')
-		.update({ profile_image: path })
-		.eq('id', company.data.id)
-		.select('id');
-	if (written.error) error(422, written.error.message);
-	if ((written.data ?? []).length === 0) {
-		error(403, 'only an administrator can change the company picture');
+	try {
+		return await companyPictureWritten(member.caller, path);
+	} catch (refusal) {
+		if (refusal instanceof RecordRefusedTheWrite) error(refusal.status, refusal.message);
+		throw refusal;
 	}
-	if (!path) return null;
-
-	const signed = await member.caller.storage
-		.from(assetBucket)
-		.createSignedUrl(path, readableForOneHour);
-	if (signed.error) error(502, signed.error.message);
-	return signed.data?.signedUrl ?? null;
 }
 
 async function payloadOf(request: Request): Promise<Record<string, unknown> | null> {

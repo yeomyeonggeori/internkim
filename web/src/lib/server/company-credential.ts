@@ -1,4 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { companyConnectionKinds } from '$lib/company/connections';
 
 export type CompanyConnection = {
 	kind: string;
@@ -13,6 +14,7 @@ export async function companyConnections(client: SupabaseClient, companyID: stri
 		.from('credential')
 		.select('kind, external_id, settings')
 		.eq('company_id', companyID)
+		.in('kind', [...companyConnectionKinds])
 		.returns<CredentialRow[]>();
 	if (error) throw new Error(error.message);
 	return data.map((row) => ({

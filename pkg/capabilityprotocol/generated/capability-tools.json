@@ -19187,7 +19187,7 @@
         "state": "ok"
       },
       "canonicalName": "company_image_upload",
-      "description": "Ask for a place to keep a new version of a company image, such as the seal stamped on forms or the letterhead logo. Each version is a data room document of its own, dated the day it took effect, and every form prints the newest. Answers the storagePath and a signed URL to PUT the image's bytes to, good for two hours. Once the image is there, keep it with company_info_set, passing the storagePath as sealImage or logoImage. Only an administrator may keep a company image.",
+      "description": "Ask for a place to keep a new version of a company image, such as the seal stamped on forms or the letterhead logo. Each version is a data room document of its own, dated the day it took effect, and every form prints the newest. Answers the storagePath and a signed URL to PUT the image's bytes to, good for two hours. Once the image is there, keep it with company_info_set, passing the storagePath as sealImage or logoImage; keep a 'picture' with company_settings_update's profileImage instead, PUT with its image Content-Type. Only an administrator may keep a company image.",
       "estimatedLatency": "low",
       "idempotency": {
         "required": false,
@@ -19199,7 +19199,7 @@
         "additionalProperties": false,
         "properties": {
           "date": {
-            "description": "The day the image took effect, in YYYY-MM-DD format. Defaults to today.",
+            "description": "The day the image took effect, in YYYY-MM-DD format. Defaults to today. A 'picture' has no versions, so it reads no date.",
             "type": "string"
           },
           "fileName": {
@@ -19207,10 +19207,11 @@
             "type": "string"
           },
           "image": {
-            "description": "Which company image the file is: 'seal' for the seal stamped on forms, 'logo' for the logo printed on letterheads.",
+            "description": "Which company image the file is: 'seal' for the seal stamped on forms, 'logo' for the logo printed on letterheads, or 'picture' for the picture the app shows beside the company's name.",
             "enum": [
               "seal",
-              "logo"
+              "logo",
+              "picture"
             ],
             "type": "string"
           }
@@ -19222,7 +19223,7 @@
         "additionalProperties": false,
         "properties": {
           "date": {
-            "description": "The day the image took effect, in YYYY-MM-DD format. Defaults to today.",
+            "description": "The day the image took effect, in YYYY-MM-DD format. Defaults to today. A 'picture' has no versions, so it reads no date.",
             "type": "string"
           },
           "fileName": {
@@ -19230,10 +19231,11 @@
             "type": "string"
           },
           "image": {
-            "description": "Which company image the file is: 'seal' for the seal stamped on forms, 'logo' for the logo printed on letterheads.",
+            "description": "Which company image the file is: 'seal' for the seal stamped on forms, 'logo' for the logo printed on letterheads, or 'picture' for the picture the app shows beside the company's name.",
             "enum": [
               "seal",
-              "logo"
+              "logo",
+              "picture"
             ],
             "type": "string"
           }
@@ -31813,6 +31815,10 @@
             "minLength": 1,
             "type": "string"
           },
+          "profileImage": {
+            "description": "The picture the app shows beside the company's name: the storagePath company_image_upload answered for image 'picture', once the picture was PUT to its uploadURL. An empty string takes the picture down.",
+            "type": "string"
+          },
           "teamViewVisibleToAll": {
             "description": "Whether everybody sees the whole company's attendance, or only the administrators do.",
             "type": "boolean"
@@ -31874,6 +31880,10 @@
             "description": "The company's name as the app shows it. Not the legal name a document prints, which is company_info_set's.",
             "maxLength": 256,
             "minLength": 1,
+            "type": "string"
+          },
+          "profileImage": {
+            "description": "The picture the app shows beside the company's name: the storagePath company_image_upload answered for image 'picture', once the picture was PUT to its uploadURL. An empty string takes the picture down.",
             "type": "string"
           },
           "teamViewVisibleToAll": {

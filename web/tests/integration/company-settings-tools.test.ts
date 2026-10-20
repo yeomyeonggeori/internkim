@@ -355,6 +355,70 @@ describe('the company seal and logo', () => {
 	});
 });
 
+async function anUploadedPicture(contentType: string): Promise<string> {
+	const asked = await asAdmin('company_image_upload', { image: 'picture', fileName: 'picture.png' });
+	expect(asked.status).toBe(200);
+	const put = await fetch(String(resultOf(asked).uploadURL), {
+		method: 'PUT',
+		headers: { 'content-type': contentType },
+		body: aPixelPNG
+	});
+	expect(put.ok).toBe(true);
+	const storagePath = String(resultOf(asked).storagePath);
+	uploadedPaths.push(storagePath);
+	return storagePath;
+}
+
+async function keptPicturePath(): Promise<string | null> {
+	const { data } = await client.from('company').select('profile_image').eq('id', companyID).single<{ profile_image: string | null }>();
+	return data?.profile_image ?? null;
+}
+
+describe("the company's picture", () => {
+	afterAll(async () => {
+		await client.storage.from(assetBucket).remove(uploadedPaths);
+		await client.from('company').update({ profile_image: null }).eq('id', companyID);
+	}, networkHookTimeout);
+
+	test('is put where the app picture is kept, then kept by the settings, which answer it as an address', async () => {
+		const storagePath = await anUploadedPicture('image/png');
+		expect(storagePath).toMatch(new RegExp(`^${companyID}/shared/company/upload-${uuidPattern}\\.png$`));
+
+		const kept = await asAdmin('company_settings_update', { profileImage: storagePath });
+
+		expect(kept.status).toBe(200);
+		expect(String(resultOf(kept).profileImageURL)).toContain('/storage/v1/');
+		expect(await keptPicturePath()).toBe(storagePath);
+	});
+
+	test('is taken down by an empty profileImage', async () => {
+		const emptied = await asAdmin('company_settings_update', { profileImage: '' });
+
+		expect(emptied.status).toBe(200);
+		expect(resultOf(emptied).profileImageURL).toBeNull();
+		expect(await keptPicturePath()).toBeNull();
+	});
+
+	test('refuses a path outside the picture folder, one nothing was put at, and bytes not sent as a picture', async () => {
+		const seal = await anUploadedImage('seal', 'seal.png');
+		const asked = await asAdmin('company_image_upload', { image: 'picture', fileName: 'picture.png' });
+		const notAPicture = await anUploadedPicture('application/pdf');
+
+		expect((await asAdmin('company_settings_update', { profileImage: seal })).status).toBe(400);
+		expect((await asAdmin('company_settings_update', { profileImage: String(resultOf(asked).storagePath) })).status).toBe(409);
+		expect((await asAdmin('company_settings_update', { profileImage: notAPicture })).status).toBe(400);
+		expect(await keptPicturePath()).toBeNull();
+	});
+
+	test('is an administrator to put up or take down', async () => {
+		const asked = await asSample('company_image_upload', { image: 'picture', fileName: 'picture.png' });
+		const takenDown = await asSample('company_settings_update', { profileImage: '' });
+
+		expect(asked.status).toBe(403);
+		expect(takenDown.status).toBe(403);
+	});
+});
+
 describe('the days the company is closed', () => {
 	test('are added by name and date, and listed earliest first', async () => {
 		const added = await asAdmin('company_holiday_add', {

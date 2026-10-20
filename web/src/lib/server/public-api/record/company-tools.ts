@@ -4,6 +4,7 @@ import { defaultLeavePolicy, systemLeaveTypeKind } from '$lib/attendance/leave-p
 import { defaultWorkPolicy, initialWorkPolicyEffectiveDate } from '$lib/attendance/work-policy-defaults';
 import { storedWorkPolicyRevisions } from '$lib/attendance/stored-work-policy';
 import { assetBucket } from '../asset-address';
+import { companyPictureWritten, keepUploadedCompanyPicture } from '../company-picture-keep';
 import {
 	companyProfileView,
 	languageAsked,
@@ -35,6 +36,7 @@ export type CompanySettingsUpdateInput = {
 	workLocations?: { name?: string; color?: string }[];
 	leaveDays?: number;
 	teamViewVisibleToAll?: boolean;
+	profileImage?: string;
 };
 
 export type CompanyInfoGetInput = { language?: string };
@@ -164,15 +166,21 @@ export async function companySettingsUpdate(
 		const held = await companyRow(context.caller);
 		change.rules = { ...(held.rules ?? {}), teamViewVisibleToAll: input.teamViewVisibleToAll };
 	}
-	if (input.leaveDays === undefined && Object.keys(change).length === 0) {
+	if (input.leaveDays === undefined && input.profileImage === undefined && Object.keys(change).length === 0) {
 		throw new Error('a settings change names at least one setting to change');
 	}
 
+	if (input.profileImage !== undefined) await writeTheCompanyPicture(context, input.profileImage.trim());
 	if (Object.keys(change).length > 0) {
 		await writeTheCompany(context, change, 'only an administrator can change the company settings');
 	}
 	if (input.leaveDays !== undefined) await writeTheAnnualGrant(context, input.leaveDays);
 	return companySettingsGet(context);
+}
+
+async function writeTheCompanyPicture(context: RecordContext, storagePath: string): Promise<void> {
+	if (storagePath === '') await companyPictureWritten(context.caller, null);
+	else await keepUploadedCompanyPicture(context.caller, context.companyID, storagePath);
 }
 
 async function writeTheAnnualGrant(context: RecordContext, leaveDays: number): Promise<void> {
