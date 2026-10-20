@@ -11,10 +11,11 @@ export async function changeBoxWifiNetwork(
 ): Promise<{ requestID: string; status: WifiChangeStatus }> {
 	const requestID = crypto.randomUUID();
 	const sealed = await sealWifiNetwork(network, box, requestID);
-	const answer = statusAnswerSchema.parse(await askCompanyRoute('/api/company/box/wifi', 'PUT', { requestID, sealed }));
+	const answer = statusAnswerSchema.parse(await askCompanyRoute('/api/company/box/wifi', 'PUT', { publicKey: box.publicKey, requestID, sealed }));
 	return { requestID, status: answer.status };
 }
 
-export async function fetchWifiChangeStatus(): Promise<WifiChangeStatus> {
-	return statusAnswerSchema.parse(await askCompanyRoute('/api/company/box/wifi', 'GET')).status;
+export async function fetchWifiChangeStatus(box: ConnectedBox): Promise<WifiChangeStatus> {
+	const path = `/api/company/box/wifi?publicKey=${encodeURIComponent(box.publicKey)}`;
+	return statusAnswerSchema.parse(await askCompanyRoute(path, 'GET')).status;
 }

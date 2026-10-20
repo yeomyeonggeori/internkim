@@ -25,7 +25,7 @@ func (daemon Daemon) resetIfAsked(ctx context.Context, identity Identity) error 
 		return nil
 	}
 	log.Printf("%s asks for this box to be reset; releasing it from its company", daemon.Places.ResetRequestPath)
-	if errorValue := os.Remove(daemon.companyMarkerPath()); errorValue != nil && !errors.Is(errorValue, os.ErrNotExist) {
+	if errorValue := ForgetInstalledCompany(daemon.Places.StateDirectoryPath); errorValue != nil {
 		return errorValue
 	}
 	for {

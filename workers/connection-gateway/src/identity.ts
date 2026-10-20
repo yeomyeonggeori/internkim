@@ -167,19 +167,21 @@ export async function resolveMember(
 	};
 }
 
-export async function companyOfHost(
+export type HostRole = 'service' | 'standby';
+
+export async function roleOfHost(
 	supabaseURL: string,
 	apiKey: string,
 	token: string,
 	fetchDocument: FetchDocument = fetchThroughTheRuntime
-): Promise<string | null> {
-	const url = `${supabaseURL.replace(/\/+$/, '')}/rest/v1/rpc/my_app_company`;
+): Promise<HostRole | null> {
+	const url = `${supabaseURL.replace(/\/+$/, '')}/rest/v1/rpc/my_app_box_role`;
 	const response = await fetchDocument(url, {
 		headers: { apikey: apiKey, Authorization: `Bearer ${token}` }
 	});
 	if (!response.ok) throw new TokenRefused(`the record answered ${response.status} for this computer`);
-	const company = await response.json();
-	return typeof company === 'string' ? company : null;
+	const role = await response.json();
+	return role === 'service' || role === 'standby' ? role : null;
 }
 
 export async function companyOfMessengerAddress(

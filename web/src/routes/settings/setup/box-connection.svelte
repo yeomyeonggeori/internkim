@@ -8,32 +8,35 @@
 	import { Spinner } from '$lib/components/ui/spinner';
 	import { createPageText } from '$lib/i18n/page-text.svelte';
 	import { boxStepOf, shortBoxName } from './box-step';
-	import type { EmptyBox, VerifiedBoxAnswer } from '$lib/company/box';
+	import type { BoxClaimIntent, ConnectedBox, EmptyBox, VerifiedBoxAnswer } from '$lib/company/box';
 	import { confirmDelete } from '$lib/components/ui/confirm-delete-dialog';
 	import BoxAdminPassword from './box-admin-password.svelte';
 	import BoxWifiChange from './box-wifi-change.svelte';
 	import ConnectedComputer from './connected-computer.svelte';
-	import { connectBox, disconnectBox, fetchBoxes, giveBoxModelKey, verifyBoxCode, type Boxes } from './host-setup-client';
+	import { connectBox, disconnectBox, fetchBoxes, giveModelKey, makeBoxServe, verifyBoxCode, type Boxes } from './host-setup-client';
 	import { hostSetupText } from './text';
 
 	let { isCompanyComputerOnline }: { isCompanyComputerOnline: boolean } = $props();
 	const text = createPageText(hostSetupText);
 	const refreshMilliseconds = 5000;
-	let boxes = $state<Boxes>({ connected: null, empty: [] });
+	let boxes = $state<Boxes>({ boxes: [], sealingKey: null, hasModelKey: false, newestBackupAt: null, empty: [] });
 	let modelKey = $state('');
 	let isChangingModelKey = $state(false);
 	let connectingKey = $state('');
 	let pairingCodes = $state<Record<string, string>>({});
 	let verified = $state<VerifiedBoxAnswer | null>(null);
+	let takingOver = $state<ConnectedBox | null>(null);
 	let isSendingModelKey = $state(false);
 	let errorMessage = $state('');
 	let refreshTimer: ReturnType<typeof setInterval> | undefined;
 	const step = $derived(boxStepOf(boxes));
+	const hasBoxes = $derived(boxes.boxes.length > 0);
+	const hasSeveralBoxes = $derived(boxes.boxes.length > 1);
 
 	onMount(() => {
 		void refresh();
 		refreshTimer = setInterval(() => {
-			if (step !== 'connected') void refresh();
+			if (step !== 'connected' || boxes.boxes.some((box) => !box.holdsCompanyKey)) void refresh();
 		}, refreshMilliseconds);
 	});
 
@@ -52,6 +55,11 @@
 		return address ? text.pairingCodeAt.replace('{address}', address) : text.pairingCodeOnTheBox;
 	}
 
+	function roleOf(box: ConnectedBox): string {
+		if (!box.holdsCompanyKey) return text.boxAwaitingCompanyKey;
+		return box.role === 'service' ? text.boxRoleService : text.boxRoleStandby;
+	}
+
 	async function verify(event: SubmitEvent, publicKey: string) {
 		event.preventDefault();
 		const pairingCode = (pairingCodes[publicKey] ?? '').trim();
@@ -64,11 +72,11 @@
 		});
 	}
 
-	async function confirm() {
+	async function confirm(intent: BoxClaimIntent) {
 		if (!verified) return;
 		const confirmed = verified;
 		await whileConnecting(confirmed.publicKey, async () => {
-			boxes = { connected: await connectBox(confirmed.publicKey, confirmed.ticket), empty: [] };
+			boxes = { ...(await connectBox(confirmed.publicKey, confirmed.ticket, intent)), empty: [] };
 		});
 		verified = null;
 	}
@@ -85,22 +93,37 @@
 		}
 	}
 
-	function askToDisconnect() {
+	function askToDisconnect(box: ConnectedBox) {
 		confirmDelete({
 			title: text.disconnectTitle,
 			description: text.disconnectDescription,
 			confirm: { text: text.disconnect },
 			cancel: { text: text.cancel },
 			onConfirm: async () => {
-				await disconnectBox();
-				boxes = { connected: null, empty: [] };
+				boxes = { ...(await disconnectBox(box)), empty: boxes.empty };
 			}
 		});
 	}
 
+	function canServe(box: ConnectedBox): boolean {
+		return box.role === 'standby' && box.holdsCompanyKey && step === 'connected';
+	}
+
+	function backupMoment(isoTime: string): string {
+		return new Date(isoTime).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' });
+	}
+
+	async function serveFrom(box: ConnectedBox) {
+		await whileConnecting(box.publicKey, async () => {
+			boxes = { ...(await makeBoxServe(box)), empty: boxes.empty };
+		});
+		takingOver = null;
+	}
+
 	async function sendModelKey(event: SubmitEvent) {
 		event.preventDefault();
-		if (!boxes.connected) return;
+		const [anyBox] = boxes.boxes;
+		if (!anyBox || !boxes.sealingKey) return;
 		if (!modelKey.trim()) {
 			errorMessage = text.modelKeyMissing;
 			return;
@@ -108,7 +131,7 @@
 		isSendingModelKey = true;
 		errorMessage = '';
 		try {
-			boxes = { ...boxes, connected: await giveBoxModelKey(boxes.connected, modelKey) };
+			boxes = { ...(await giveModelKey(anyBox.companyID, boxes.sealingKey, modelKey)), empty: boxes.empty };
 			modelKey = '';
 			isChangingModelKey = false;
 		} catch (error) {
@@ -149,55 +172,95 @@
 {/snippet}
 
 <div class="grid min-w-0 gap-4">
-	{#if isCompanyComputerOnline && !boxes.connected}<ConnectedComputer />{/if}
-	{#if step === 'searching' && !isCompanyComputerOnline}
-		<div role="status" class="grid gap-1">
-			<p class="flex items-center gap-2 text-sm font-medium"><Spinner />{text.searching}</p>
-			<p class="text-sm text-muted-foreground">{text.searchingHint}</p>
-		</div>
-	{:else if step === 'choosing' && verified}
+	{#if isCompanyComputerOnline && !hasBoxes}<ConnectedComputer />{/if}
+
+	{#each boxes.boxes as box (box.publicKey)}
+		<Item.Root variant="outline">
+			<Item.Content>
+				<Item.Title>{box.hostName ?? text.foundBox}</Item.Title>
+				<Item.Description><span class="font-mono">{shortBoxName(box.publicKey)}</span> · {roleOf(box)}</Item.Description>
+			</Item.Content>
+			<Item.Actions>
+				{#if canServe(box)}
+					<Button variant="outline" onclick={() => (takingOver = box)} disabled={connectingKey !== ''}>{text.makeServe}</Button>
+				{/if}
+				<Button variant="ghost" onclick={() => askToDisconnect(box)}>{text.disconnect}</Button>
+			</Item.Actions>
+		</Item.Root>
+		{#if takingOver?.publicKey === box.publicKey}
+			<Item.Root variant="outline">
+				<Item.Content>
+					<Item.Title>{text.makeServeTitle.replace('{box}', box.hostName ?? shortBoxName(box.publicKey))}</Item.Title>
+					{#if boxes.newestBackupAt}
+						<Item.Description>{text.makeServeFromBackup.replace('{when}', backupMoment(boxes.newestBackupAt))}</Item.Description>
+						<Item.Description>{text.makeServeOld}</Item.Description>
+					{:else}
+						<Item.Description>{text.makeServeNeedsBackup}</Item.Description>
+					{/if}
+				</Item.Content>
+				<Item.Actions>
+					<Button variant="outline" onclick={() => (takingOver = null)} disabled={connectingKey !== ''}>{text.cancel}</Button>
+					<Button onclick={() => serveFrom(box)} disabled={connectingKey !== '' || !boxes.newestBackupAt}>
+						{connectingKey === box.publicKey ? text.makingServe : text.makeServe}
+					</Button>
+				</Item.Actions>
+			</Item.Root>
+		{/if}
+		{#if step === 'connected'}
+			<BoxAdminPassword {box} />
+			<BoxWifiChange {box} />
+		{/if}
+	{/each}
+
+	{#if hasBoxes}
+		<p role="status" class="text-sm">{step === 'connected' ? text.boxConnected : text.boxClaimed}</p>
+		{#if hasSeveralBoxes}
+			<p class="text-sm text-muted-foreground">
+				{boxes.newestBackupAt ? text.newestBackup.replace('{when}', backupMoment(boxes.newestBackupAt)) : text.noBackupYet}
+			</p>
+		{/if}
+		{#if step === 'connected' && !isChangingModelKey}
+			<Button variant="outline" class="justify-self-start" onclick={() => (isChangingModelKey = true)}>{text.changeModelKey}</Button>
+		{/if}
+	{/if}
+
+	{#if verified}
 		<Item.Root variant="outline">
 			<Item.Content>
 				<Item.Title>{text.confirmBox.replace('{company}', verified.companyName)}</Item.Title>
 				<Item.Description>{verified.hostName ?? text.foundBox} · <span class="font-mono">{shortBoxName(verified.publicKey)}</span></Item.Description>
 				<Item.Description>{text.confirmNetwork.replace('{address}', verified.publicAddress)}</Item.Description>
 				<Item.Description>{text.confirmMatch.replace('{fingerprint}', shortBoxName(verified.publicKey))}</Item.Description>
+				{#if hasBoxes}<Item.Description>{text.confirmAddOrReplace}</Item.Description>{/if}
 			</Item.Content>
 			<Item.Actions>
 				<Button variant="outline" onclick={() => (verified = null)} disabled={connectingKey !== ''}>{text.cancel}</Button>
-				<Button onclick={confirm} disabled={connectingKey !== ''}>
-					{connectingKey === verified.publicKey ? text.connecting : text.confirmConnect}
+				{#if hasBoxes}
+					<Button variant="outline" onclick={() => confirm('replace')} disabled={connectingKey !== ''}>{text.confirmReplace}</Button>
+				{/if}
+				<Button onclick={() => confirm('add')} disabled={connectingKey !== ''}>
+					{connectingKey === verified.publicKey ? text.connecting : hasBoxes ? text.confirmAdd : text.confirmConnect}
 				</Button>
 			</Item.Actions>
 		</Item.Root>
-	{:else if step === 'choosing' && isCompanyComputerOnline}
+	{:else if step === 'searching' && !isCompanyComputerOnline}
+		<div role="status" class="grid gap-1">
+			<p class="flex items-center gap-2 text-sm font-medium"><Spinner />{text.searching}</p>
+			<p class="text-sm text-muted-foreground">{text.searchingHint}</p>
+		</div>
+	{:else if boxes.empty.length > 0 && (hasBoxes || isCompanyComputerOnline)}
 		<Collapsible.Root class="grid gap-2">
 			<Collapsible.Trigger class="inline-flex min-h-11 items-center justify-self-start text-sm underline">
 				{text.showWaitingBoxes.replace('{count}', String(boxes.empty.length))}
 			</Collapsible.Trigger>
-			<Collapsible.Content>{@render waitingBoxes()}</Collapsible.Content>
+			<Collapsible.Content class="grid gap-2">
+				{#if hasBoxes}<p class="text-sm text-muted-foreground">{text.addBoxDescription}</p>{/if}
+				{@render waitingBoxes()}
+			</Collapsible.Content>
 		</Collapsible.Root>
-	{:else if step === 'choosing'}
+	{:else if boxes.empty.length > 0}
 		<p class="text-sm font-medium">{text.waitingBoxes}</p>
 		{@render waitingBoxes()}
-	{:else if boxes.connected}
-		<Item.Root variant="outline">
-			<Item.Content>
-				<Item.Title>{text.foundBox}</Item.Title>
-				<Item.Description class="font-mono">{shortBoxName(boxes.connected.publicKey)}</Item.Description>
-			</Item.Content>
-			<Item.Actions>
-				{#if step === 'connected' && !isChangingModelKey}
-					<Button variant="outline" onclick={() => (isChangingModelKey = true)}>{text.changeModelKey}</Button>
-				{/if}
-				<Button variant="ghost" onclick={askToDisconnect}>{text.disconnect}</Button>
-			</Item.Actions>
-		</Item.Root>
-		<p role="status" class="text-sm">{step === 'connected' ? text.boxConnected : text.boxClaimed}</p>
-		{#if step === 'connected'}
-			<BoxAdminPassword box={boxes.connected} />
-			<BoxWifiChange box={boxes.connected} />
-		{/if}
 	{/if}
 
 	{#if step === 'givingModelKey' || isChangingModelKey}

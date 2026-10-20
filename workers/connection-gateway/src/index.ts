@@ -2,9 +2,9 @@ import { WorkerEntrypoint } from 'cloudflare:workers';
 import {
 	JSONWebKeyCache,
 	TokenRefused,
-	companyOfHost,
 	companyOfMessengerAddress,
 	resolveMember,
+	roleOfHost,
 	verifyToken
 } from './identity';
 import type { OneShotAnswer, OneShotCall } from './routing';
@@ -183,9 +183,9 @@ async function joinAsHost(
 		if (claims.hostCompanyID !== companyID) {
 			return jsonResponse({ error: 'this token is not the company host' }, 403);
 		}
-		if ((await companyOfHost(environment.SUPABASE_URL, environment.SUPABASE_PUBLISHABLE_KEY, token)) !== companyID) {
-			return jsonResponse({ error: 'this computer is no longer the company host' }, 403);
-		}
+		const role = await roleOfHost(environment.SUPABASE_URL, environment.SUPABASE_PUBLISHABLE_KEY, token);
+		if (!role) return jsonResponse({ error: 'this computer is no longer the company host' }, 403);
+		if (role === 'standby') return jsonResponse({ error: 'this computer stands by for the company and does not serve it' }, 409);
 		return connectionFor(environment, companyID).fetch(
 			new Request(`https://connection-gateway/company/${encodeURIComponent(companyID)}/host-session`, {
 				method: request.method,

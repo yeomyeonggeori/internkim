@@ -304,6 +304,8 @@ func boxDaemon(appURL string) box.Daemon {
 			_, errorValue := companyhost.Install(request, thisComputer{}, os.Stdout)
 			return errorValue
 		},
+		TakeOver:  takeOverFromTheNewestBackup,
+		StandDown: standDown,
 	}
 }
 

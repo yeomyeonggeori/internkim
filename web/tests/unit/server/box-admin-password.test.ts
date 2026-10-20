@@ -15,19 +15,26 @@ function aBox(adminPassword?: { settingID: string; sealed: typeof sealed; reques
 	return {
 		companyID: 'company-a',
 		publicKey: sealed.recipient,
-		settings: { encryptionKey: sealed.recipient, hasAdminAccount: true, ...(adminPassword ? { adminPassword } : {}) }
+		encryptionKey: sealed.recipient,
+		role: 'service',
+		hostName: null,
+		site: '',
+		weight: 1,
+		settings: { hasAdminAccount: true, ...(adminPassword ? { adminPassword } : {}) },
+		sealedCompanyKey: null,
+		lastSeenAt: null
 	};
 }
 
 describe('the admin password a browser sends', () => {
 	test('is accepted with a setting id and a sealed password', () => {
-		expect(adminPasswordRequestSchema.safeParse({ settingID, sealed }).success).toBe(true);
+		expect(adminPasswordRequestSchema.safeParse({ publicKey: sealed.recipient, settingID, sealed }).success).toBe(true);
 	});
 
 	test('is refused without a setting id, with an invalid one, or with anything extra', () => {
 		expect(adminPasswordRequestSchema.safeParse({ sealed }).success).toBe(false);
-		expect(adminPasswordRequestSchema.safeParse({ settingID: 'not-a-uuid', sealed }).success).toBe(false);
-		expect(adminPasswordRequestSchema.safeParse({ settingID, sealed, password: 'plain' }).success).toBe(false);
+		expect(adminPasswordRequestSchema.safeParse({ publicKey: sealed.recipient, settingID: 'not-a-uuid', sealed }).success).toBe(false);
+		expect(adminPasswordRequestSchema.safeParse({ publicKey: sealed.recipient, settingID, sealed, password: 'plain' }).success).toBe(false);
 	});
 });
 

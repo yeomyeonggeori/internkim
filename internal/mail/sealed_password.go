@@ -45,5 +45,5 @@ func openedPassword(sealed *box.SealedSecret, held string, connected box.Connect
 	if sealed == nil {
 		return held, nil
 	}
-	return connected.Identity.OpenSecret(*sealed, purpose)
+	return connected.Keyring.OpenSecret(*sealed, purpose)
 }

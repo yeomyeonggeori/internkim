@@ -27,8 +27,8 @@ insert into public.member (id, company_id, email, user_id, status, team_id, is_a
     true
   );
 
-insert into public.credential (company_id, kind, external_id) values
-  ('43000000-0000-0000-0000-0000000000a0', 'fleet', 'asset-test-box');
+insert into public.box (public_key, company_id, encryption_key, role) values
+  ('asset-test-box', '43000000-0000-0000-0000-0000000000a0', repeat('e', 43), 'service');
 
 insert into public.member (id, company_id, email, user_id, status, team_id) values
   (

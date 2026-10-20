@@ -1,7 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { sealedSecretSchema, type SealedSecret } from '$lib/company/box';
 import { additionalDataOf, sealToBox, type SealPurpose } from '$lib/company/seal-to-box';
-import { connectedBoxOf } from './box';
+import { keyringOf } from './box';
 import { keepMemberCredential, memberCredential } from './member-credential';
 import { mailAccountCredentialKind } from './public-api/catalog/credential';
 
@@ -186,9 +186,9 @@ export async function keepMailAccount(
 	owner: MailAccountOwner,
 	account: MailAccount
 ): Promise<MailAccount> {
-	const box = await connectedBoxOf(client, owner.companyID);
-	const kept = box
-		? await sealedPasswords(account, passwordSealer(box.encryptionKey, owner))
+	const keyring = await keyringOf(client, owner.companyID);
+	const kept = keyring
+		? await sealedPasswords(account, passwordSealer(keyring.sealingKey, owner))
 		: unsealedOnTheFrozenDevicePath(owner, account);
 	await keepMemberCredential(client, owner.memberID, {
 		kind: mailAccountCredentialKind,
@@ -202,7 +202,7 @@ function unsealedOnTheFrozenDevicePath(owner: MailAccountOwner, account: MailAcc
 	console.error('mail_account.kept_unsealed', {
 		companyID: owner.companyID,
 		memberID: owner.memberID,
-		reason: 'the company has no box encryption key, so its mail password stays readable in Vault'
+		reason: 'the company has no sealing key, so its mail password stays readable in Vault'
 	});
 	return account;
 }

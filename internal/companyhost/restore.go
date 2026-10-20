@@ -16,9 +16,11 @@ import (
 )
 
 type RestoreRequest struct {
-	ArchivePath string
-	Replace     bool
-	Now         time.Time
+	ArchivePath    string
+	Replace        bool
+	KeepsThisBox   bool
+	BeforeStarting func(companyID string) error
+	Now            time.Time
 }
 
 type RestoreResult struct {
@@ -74,7 +76,7 @@ func restoreWhileLocked(platform backupPlatform, request RestoreRequest, backupD
 		return RestoreResult{}, errorValue
 	}
 	fmt.Fprintln(progress, "4/6 Restoring the files and the people's accounts…")
-	extracted, unresolved, errorValue := restoreTheFiles(platform, archive, machine)
+	extracted, unresolved, errorValue := restoreTheFiles(platform, archive, machine, request.KeepsThisBox)
 	if errorValue != nil {
 		return RestoreResult{}, errorValue
 	}
@@ -87,6 +89,11 @@ func restoreWhileLocked(platform backupPlatform, request RestoreRequest, backupD
 	fmt.Fprintln(progress, "5/6 Restoring the databases…")
 	if errorValue := restoreTheDatabases(platform, archive, machine, directoryPath, connection, progress); errorValue != nil {
 		return RestoreResult{}, errorValue
+	}
+	if request.BeforeStarting != nil {
+		if errorValue := request.BeforeStarting(connection.Company.ID); errorValue != nil {
+			return RestoreResult{}, errorValue
+		}
 	}
 	fmt.Fprintln(progress, "6/6 Starting the services and waiting for them to answer…")
 	return result, startTheRestoredHost(platform, machine, directoryPath, connection, progress)
@@ -224,23 +231,20 @@ func containsRole(roles []string, wanted string) bool {
 	return false
 }
 
-func restoreTheFiles(platform backupPlatform, archive hostbackup.Archive, machine Machine) (hostbackup.ExtractionReport, []hostbackup.Ownership, error) {
-	destinations := map[string]string{}
-	for _, root := range hostFileRoots(platform.Layout()) {
-		if !containsRole(archive.Manifest.FileRoots, root.Role) {
-			continue
-		}
-		if errorValue := emptyTheDirectory(root.Path); errorValue != nil {
-			return hostbackup.ExtractionReport{}, nil, errorValue
-		}
-		destinations[root.Role] = root.Path
-	}
+func restoreTheFiles(platform backupPlatform, archive hostbackup.Archive, machine Machine, keepsThisBox bool) (hostbackup.ExtractionReport, []hostbackup.Ownership, error) {
 	var extracted hostbackup.ExtractionReport
-	errorValue := archive.ReadMember(hostbackup.FilesMemberName, func(input io.Reader) error {
-		report, errorValue := hostbackup.ExtractFiles(input, destinations)
-		extracted = report
-		return errorValue
-	})
+	extract := func() error {
+		destinations, errorValue := emptiedDestinations(platform, archive)
+		if errorValue != nil {
+			return errorValue
+		}
+		return archive.ReadMember(hostbackup.FilesMemberName, func(input io.Reader) error {
+			report, errorValue := hostbackup.ExtractFiles(input, destinations)
+			extracted = report
+			return errorValue
+		})
+	}
+	errorValue := extractKeepingThisBoxIf(keepsThisBox, extract)
 	if errorValue != nil {
 		return hostbackup.ExtractionReport{}, nil, errorValue
 	}
@@ -249,6 +253,27 @@ func restoreTheFiles(platform backupPlatform, archive hostbackup.Archive, machin
 	}
 	unresolved, errorValue := ownWhatThePeopleOwn(extracted.Unresolved)
 	return extracted, unresolved, errorValue
+}
+
+func extractKeepingThisBoxIf(keepsThisBox bool, extract func() error) error {
+	if !keepsThisBox {
+		return extract()
+	}
+	return keepingThisBoxThrough(blueclaw.CompanyHostBoxStatePath, extract)
+}
+
+func emptiedDestinations(platform backupPlatform, archive hostbackup.Archive) (map[string]string, error) {
+	destinations := map[string]string{}
+	for _, root := range hostFileRoots(platform.Layout()) {
+		if !containsRole(archive.Manifest.FileRoots, root.Role) {
+			continue
+		}
+		if errorValue := emptyTheDirectory(root.Path); errorValue != nil {
+			return nil, errorValue
+		}
+		destinations[root.Role] = root.Path
+	}
+	return destinations, nil
 }
 
 func emptyTheDirectory(directoryPath string) error {

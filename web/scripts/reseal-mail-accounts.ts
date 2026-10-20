@@ -1,8 +1,8 @@
 //   bun run web/scripts/reseal-mail-accounts.ts --url http://127.0.0.1:54321 --key <service role key>
-// Seals each mail password still readable in Vault to its company's box key; a company without one is named and left.
+// Seals each mail password still readable in Vault to its company's sealing key; a company without one is named and left.
 
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
-import { connectedBoxOf } from '../src/lib/server/box';
+import { keyringOf } from '../src/lib/server/box';
 import { keepMailAccount, mailAccountOfMember, type MailAccountOwner } from '../src/lib/server/mail-account';
 import { mailAccountCredentialKind } from '../src/lib/server/public-api/catalog/credential';
 
@@ -21,7 +21,7 @@ export async function resealMailAccounts(client: SupabaseClient): Promise<Reseal
 			report.alreadySealed.push(owner);
 			continue;
 		}
-		if (!(await connectedBoxOf(client, owner.companyID))) {
+		if (!(await keyringOf(client, owner.companyID))) {
 			report.withoutABox.push(owner);
 			continue;
 		}

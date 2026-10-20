@@ -1,4 +1,5 @@
 import { error, json } from '@sveltejs/kit';
+import { boxKeySchema } from '$lib/company/box';
 import { environmentOfPlatform } from '$lib/server/agent-request';
 import { BoxRefused } from '$lib/server/box';
 import { requestWifiChange, wifiChangeRequestSchema, wifiChangeStatusFor } from '$lib/server/box-wifi';
@@ -11,7 +12,7 @@ export const PUT: RequestHandler = async ({ request, platform }) => {
 	if (!requested.success) error(400, 'a Wi-Fi network arrives sealed to the box encryption key, named by the request it answers');
 
 	try {
-		const status = await requestWifiChange(member.record, member.companyID, requested.data.requestID, requested.data.sealed);
+		const status = await requestWifiChange(member.record, member.companyID, requested.data.publicKey, requested.data.requestID, requested.data.sealed);
 		return json({ status }, { headers: { 'Cache-Control': 'no-store' } });
 	} catch (refusal) {
 		if (refusal instanceof BoxRefused) error(409, refusal.message);
@@ -19,10 +20,12 @@ export const PUT: RequestHandler = async ({ request, platform }) => {
 	}
 };
 
-export const GET: RequestHandler = async ({ request, platform }) => {
+export const GET: RequestHandler = async ({ request, platform, url }) => {
 	const member = await callingHostAdministrator(request, environmentOfPlatform(platform?.env));
+	const publicKey = boxKeySchema.safeParse(url.searchParams.get('publicKey'));
+	if (!publicKey.success) error(400, 'name the box by its public key');
 	try {
-		const status = await wifiChangeStatusFor(member.record, member.companyID);
+		const status = await wifiChangeStatusFor(member.record, member.companyID, publicKey.data);
 		return json({ status }, { headers: { 'Cache-Control': 'no-store' } });
 	} catch (refusal) {
 		if (refusal instanceof BoxRefused) error(409, refusal.message);

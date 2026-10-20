@@ -11,10 +11,11 @@ export async function setBoxAdminPassword(
 ): Promise<{ settingID: string; status: AdminPasswordStatus }> {
 	const settingID = crypto.randomUUID();
 	const sealed = await sealAdminPassword(password, box, settingID);
-	const answer = statusAnswerSchema.parse(await askCompanyRoute('/api/company/box/admin-password', 'PUT', { settingID, sealed }));
+	const answer = statusAnswerSchema.parse(await askCompanyRoute('/api/company/box/admin-password', 'PUT', { publicKey: box.publicKey, settingID, sealed }));
 	return { settingID, status: answer.status };
 }
 
-export async function fetchAdminPasswordStatus(): Promise<AdminPasswordStatus> {
-	return statusAnswerSchema.parse(await askCompanyRoute('/api/company/box/admin-password', 'GET')).status;
+export async function fetchAdminPasswordStatus(box: ConnectedBox): Promise<AdminPasswordStatus> {
+	const path = `/api/company/box/admin-password?publicKey=${encodeURIComponent(box.publicKey)}`;
+	return statusAnswerSchema.parse(await askCompanyRoute(path, 'GET')).status;
 }

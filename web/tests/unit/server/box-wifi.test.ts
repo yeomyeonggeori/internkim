@@ -15,19 +15,26 @@ function aBox(wifiChange?: { requestID: string; sealed: typeof sealed; requested
 	return {
 		companyID: 'company-a',
 		publicKey: sealed.recipient,
-		settings: { encryptionKey: sealed.recipient, ...(wifiChange ? { wifiChange } : {}) }
+		encryptionKey: sealed.recipient,
+		role: 'service',
+		hostName: null,
+		site: '',
+		weight: 1,
+		settings: { ...(wifiChange ? { wifiChange } : {}) },
+		sealedCompanyKey: null,
+		lastSeenAt: null
 	};
 }
 
 describe('the Wi-Fi change request a browser sends', () => {
 	test('is accepted with a request id and a sealed network', () => {
-		expect(wifiChangeRequestSchema.safeParse({ requestID, sealed }).success).toBe(true);
+		expect(wifiChangeRequestSchema.safeParse({ publicKey: sealed.recipient, requestID, sealed }).success).toBe(true);
 	});
 
 	test('is refused without a request id, with an invalid one, or with anything extra', () => {
 		expect(wifiChangeRequestSchema.safeParse({ sealed }).success).toBe(false);
-		expect(wifiChangeRequestSchema.safeParse({ requestID: 'not-a-uuid', sealed }).success).toBe(false);
-		expect(wifiChangeRequestSchema.safeParse({ requestID, sealed, extra: true }).success).toBe(false);
+		expect(wifiChangeRequestSchema.safeParse({ publicKey: sealed.recipient, requestID: 'not-a-uuid', sealed }).success).toBe(false);
+		expect(wifiChangeRequestSchema.safeParse({ publicKey: sealed.recipient, requestID, sealed, extra: true }).success).toBe(false);
 	});
 });
 

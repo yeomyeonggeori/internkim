@@ -126,8 +126,8 @@ func TestAConnectedBoxNamesItsCompany(t *testing.T) {
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	if connected.CompanyID != "company-a" || connected.Identity.EncryptionPublicKey() != identity.EncryptionPublicKey() {
-		t.Fatalf("loaded %s for %s", connected.Identity.EncryptionPublicKey(), connected.CompanyID)
+	if connected.CompanyID != "company-a" || connected.Keyring.Identity.EncryptionPublicKey() != identity.EncryptionPublicKey() {
+		t.Fatalf("loaded %s for %s", connected.Keyring.Identity.EncryptionPublicKey(), connected.CompanyID)
 	}
 }
 
@@ -257,7 +257,7 @@ func TestBoxOpensTheModelKeyTheBrowserSealed(t *testing.T) {
 	}
 
 	identity := identityWithEncryptionSeed(t, fixture.BoxSecretKey)
-	modelKey, errorValue := identity.OpenModelKey(fixture.Sealed, fixture.CompanyID)
+	modelKey, errorValue := Keyring{Identity: identity}.OpenModelKey(fixture.Sealed, fixture.CompanyID)
 
 	if errorValue != nil {
 		t.Fatal(errorValue)
@@ -265,10 +265,10 @@ func TestBoxOpensTheModelKeyTheBrowserSealed(t *testing.T) {
 	if modelKey != fixture.ModelKey {
 		t.Fatalf("opened %q, sealed %q", modelKey, fixture.ModelKey)
 	}
-	if _, errorValue := freshTestIdentity(t).OpenModelKey(fixture.Sealed, fixture.CompanyID); errorValue == nil {
+	if _, errorValue := (Keyring{Identity: freshTestIdentity(t)}).OpenModelKey(fixture.Sealed, fixture.CompanyID); errorValue == nil {
 		t.Fatal("a box the model key was not sealed to opened it")
 	}
-	if _, errorValue := identity.OpenModelKey(fixture.Sealed, sampleCompanyID); errorValue == nil {
+	if _, errorValue := (Keyring{Identity: identity}).OpenModelKey(fixture.Sealed, sampleCompanyID); errorValue == nil {
 		t.Fatal("a model key sealed for one company opened for another")
 	}
 }

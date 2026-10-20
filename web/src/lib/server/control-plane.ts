@@ -741,34 +741,6 @@ export async function connectedAppPermissionFor(
 	return connectedAppPermissionOf(data?.permission) ?? unchosenConnectedAppPermission;
 }
 
-export const fleetCredentialKind = 'fleet';
-
-export async function claimFleetForCompany(
-	client: SupabaseClient,
-	companyID: string,
-	fleetID: string,
-	settings: Record<string, unknown> = {},
-): Promise<void> {
-	const { error } = await client
-		.from('credential')
-		.upsert(
-			{ company_id: companyID, kind: fleetCredentialKind, external_id: fleetID, settings },
-			{ onConflict: 'company_id,kind' },
-		);
-	if (error) throw new Error(`fleet ${fleetID}: ${error.message}`);
-}
-
-export async function companyOfFleet(client: SupabaseClient, fleetID: string): Promise<string | null> {
-	const { data, error } = await client
-		.from('credential')
-		.select('company_id')
-		.eq('kind', fleetCredentialKind)
-		.eq('external_id', fleetID)
-		.maybeSingle();
-	if (error) throw new Error(`fleet ${fleetID}: ${error.message}`);
-	return data?.company_id ?? null;
-}
-
 export async function revokeAgent(client: SupabaseClient, agentID: string): Promise<void> {
 	const { error } = await client
 		.from('agent')

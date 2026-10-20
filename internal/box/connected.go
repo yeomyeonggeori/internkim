@@ -13,7 +13,7 @@ const identityFileName = "identity.json"
 var ErrNoBoxKey = errors.New("this computer holds no box key")
 
 type Connected struct {
-	Identity  Identity
+	Keyring   Keyring
 	CompanyID string
 }
 
@@ -29,7 +29,11 @@ func LoadConnected(stateDirectoryPath string) (Connected, error) {
 	if companyID == "" {
 		return Connected{}, fmt.Errorf("the box at %s has installed no company yet", stateDirectoryPath)
 	}
-	return Connected{Identity: identity, CompanyID: companyID}, nil
+	keyring, errorValue := LoadKeyring(identity, stateDirectoryPath, companyID)
+	if errorValue != nil {
+		return Connected{}, errorValue
+	}
+	return Connected{Keyring: keyring, CompanyID: companyID}, nil
 }
 
 func identityPathIn(stateDirectoryPath string) string {

@@ -1,6 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { z } from 'zod';
 import {
+	boxKeySchema,
 	nearbyNetworkListSchema,
 	sealedSecretSchema,
 	wifiOutcomeResultSchema,
@@ -9,9 +10,10 @@ import {
 	type WifiChangeStatus,
 	type WifiOutcomeResult
 } from '$lib/company/box';
-import { BoxRefused, boxOfCompany, writeBoxSettings, type BoxRow } from './box';
+import { BoxRefused, boxOfCompany, boxOfPublicKey, writeBoxSettings, type BoxRow } from './box';
 
 export const wifiChangeRequestSchema = z.object({
+	publicKey: boxKeySchema,
 	requestID: z.uuid(),
 	sealed: sealedSecretSchema
 }).strict();
@@ -30,11 +32,12 @@ export type PendingWifiChange = { requestID: string; sealed: SealedSecret } | nu
 export async function requestWifiChange(
 	client: SupabaseClient,
 	companyID: string,
+	publicKey: string,
 	requestID: string,
 	sealed: SealedSecret,
 	now: Date = new Date()
 ): Promise<WifiChangeStatus> {
-	const box = await boxOfCompany(client, companyID);
+	const box = await boxOfCompany(client, companyID, publicKey);
 	if (!box) throw new BoxRefused('connect the company computer before changing its Wi-Fi');
 	const { wifiOutcome, ...settingsWithoutOutcome } = box.settings;
 	const settings = { ...settingsWithoutOutcome, wifiChange: { requestID, sealed, requestedAt: now.toISOString() } };
@@ -42,8 +45,12 @@ export async function requestWifiChange(
 	return wifiChangeStatusOf(settings);
 }
 
-export async function wifiChangeStatusFor(client: SupabaseClient, companyID: string): Promise<WifiChangeStatus> {
-	const box = await boxOfCompany(client, companyID);
+export async function wifiChangeStatusFor(
+	client: SupabaseClient,
+	companyID: string,
+	publicKey: string
+): Promise<WifiChangeStatus> {
+	const box = await boxOfCompany(client, companyID, publicKey);
 	if (!box) throw new BoxRefused('connect the company computer before changing its Wi-Fi');
 	return wifiChangeStatusOf(box.settings);
 }
@@ -54,7 +61,7 @@ export async function recordNearbyNetworks(
 	networks: NearbyNetwork[],
 	now: Date = new Date()
 ): Promise<void> {
-	const latest = (await boxOfCompany(client, box.companyID)) ?? box;
+	const latest = (await boxOfPublicKey(client, box.publicKey)) ?? box;
 	const stored = latest.settings.nearbyNetworks;
 	if (stored && !nearbyNetworksDiffer(stored.networks, networks)) return;
 	await writeBoxSettings(client, latest, { ...latest.settings, nearbyNetworks: { networks, scannedAt: now.toISOString() } });
@@ -81,7 +88,7 @@ export async function reportWifiOutcome(
 	result: WifiOutcomeResult,
 	now: Date = new Date()
 ): Promise<void> {
-	const latest = (await boxOfCompany(client, box.companyID)) ?? box;
+	const latest = (await boxOfPublicKey(client, box.publicKey)) ?? box;
 	if (latest.settings.wifiChange?.requestID !== requestID) {
 		throw new BoxRefused(`no pending Wi-Fi change with request ${requestID}`);
 	}

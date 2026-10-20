@@ -19,13 +19,34 @@ import (
 const sampleCompanyID = "00000000-0000-4000-8000-000000000001"
 
 type fakePlane struct {
-	isClaimed      bool
-	accessToken    string
-	sealedModelKey *SealedModelKey
-	announcements  int
-	codesAskedFor  int
-	pageAddresses  []string
-	claimedWith    []string
+	isClaimed        bool
+	accessToken      string
+	sealedModelKey   *SealedModelKey
+	announcements    int
+	codesAskedFor    int
+	pageAddresses    []string
+	claimedWith      []string
+	role             Role
+	sealingKey       string
+	sealedCompanyKey *SealedSecret
+	awaiting         []AwaitingBox
+	handedOn         [][]SealedCompanyKey
+	ownKey           func() string
+	keepsBackups     bool
+}
+
+func (plane *fakePlane) sessionRole() Role {
+	if plane.role == "" {
+		return RoleService
+	}
+	return plane.role
+}
+
+func (plane *fakePlane) sessionSealingKey() string {
+	if plane.sealingKey == "" {
+		return plane.ownKey()
+	}
+	return plane.sealingKey
 }
 
 func (plane *fakePlane) serve(t *testing.T) *httptest.Server {
@@ -68,9 +89,22 @@ func (plane *fakePlane) serve(t *testing.T) *httptest.Server {
 					CentralPlane:  companyhost.CentralPlane{ProjectURL: "https://project.example.test", PublishableKey: "publishable"},
 					GatewayURL:    "wss://gateway.example.test",
 				},
-				Session:        HostSession{CompanyID: sampleCompanyID, AccessToken: plane.accessToken, ExpiresAt: time.Now().Add(time.Hour).Unix()},
-				SealedModelKey: plane.sealedModelKey,
+				Session:                 HostSession{CompanyID: sampleCompanyID, AccessToken: plane.accessToken, ExpiresAt: time.Now().Add(time.Hour).Unix()},
+				Role:                    plane.sessionRole(),
+				SealingKey:              plane.sessionSealingKey(),
+				SealedCompanyKey:        plane.sealedCompanyKey,
+				SealedModelKey:          plane.sealedModelKey,
+				BoxesAwaitingCompanyKey: plane.awaiting,
+				KeepsBackups:            plane.keepsBackups,
 			})
+		case "/api/box/company-key":
+			var body struct {
+				SealedKeys []SealedCompanyKey `json:"sealedKeys"`
+			}
+			json.NewDecoder(request.Body).Decode(&body)
+			plane.handedOn = append(plane.handedOn, body.SealedKeys)
+			plane.awaiting = nil
+			writer.Write([]byte(`{}`))
 		default:
 			t.Errorf("unexpected request to %s", request.URL.Path)
 		}
@@ -96,6 +130,7 @@ func daemonFor(t *testing.T, plane *fakePlane, recorded *installs) (Daemon, Plac
 		ModelKeyPath:              filepath.Join(root, "openrouter-key"),
 		CompanyStateDirectoryPath: func(companyID string) string { return filepath.Join(root, "companies", companyID) },
 	}
+	plane.ownKey = func() string { return identityOf(t, places).EncryptionPublicKey() }
 	return Daemon{Client: Client{AppURL: plane.serve(t).URL}, Places: places, Install: recorded.install}, places
 }
 
