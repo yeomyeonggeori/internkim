@@ -34,6 +34,8 @@
 	import { mentionPeopleOf, type MentionPerson } from '$lib/messenger/mention-candidates';
 	import { personProfileContext, type PersonProfileActions } from '$lib/messenger/person-profile';
 	import { createPageText } from '$lib/i18n/page-text.svelte';
+	import { messengerInboxText } from '$lib/i18n/messenger-inbox-text';
+	import InboxIcon from '@lucide/svelte/icons/inbox';
 	import {
 		ensureDirectMessage,
 		ensureAgentConversation,
@@ -55,7 +57,7 @@
 	import { buzzIdentity } from '$lib/stores/buzz-identity.svelte';
 	import { breadcrumbMeta } from '$lib/stores/breadcrumb-meta.svelte';
 	import { syncMattermostToBuzz } from '$lib/buzz-mm-sync';
-	import { loadChannelOrder, saveChannelOrder, orderChannels, moveChannel } from './channel-order';
+	import { loadChannelOrder, saveChannelOrder, orderChannels, orderDirectMessages, moveChannel } from './channel-order';
 	import { holdBackNotificationsFor } from '$lib/native-shell/open-conversation';
 	import { adoptRememberedMessengerScope, messengerCacheScope, messengerCacheKey, onMessengerCacheReset, requireCurrentMessengerScope, type MessengerCacheScope } from '$lib/messenger/cache-scope';
 	import { keepCachedConversations, readCachedConversations } from '$lib/messenger/conversation-list-cache';
@@ -80,6 +82,7 @@
 	}
 
 	const text = createPageText(channelText);
+	const inboxText = createPageText(messengerInboxText);
 
 	let conversations = $state<ChannelSummary[]>([]);
 	let isLoadingConversations = $state(true);
@@ -175,7 +178,7 @@
 	});
 
 	const isMobile = new IsMobile();
-	const isChannelCoveredByInbox = $derived(isInboxOpen && isMobile.current);
+	const isChannelCoveredByInbox = $derived(isInboxOpen && (isMobile.current || chosenInboxEntryID === undefined));
 
 	$effect(() => {
 		if (isMobile.current) return;
@@ -337,7 +340,7 @@
 		)
 	);
 	const directMessages = $derived(
-		shownConversations(conversations).filter((conversation) => conversation.kind === 'dm')
+		orderDirectMessages(shownConversations(conversations).filter((conversation) => conversation.kind === 'dm'))
 	);
 
 	async function hideDirectMessage(conversation: ChannelSummary) {
@@ -382,7 +385,7 @@
 	});
 
 	$effect(() => {
-		breadcrumbMeta.value = activeConversation?.name ?? '';
+		breadcrumbMeta.value = isInboxOpen ? inboxText.inbox : (activeConversation?.name ?? '');
 		return () => {
 			breadcrumbMeta.value = '';
 		};
@@ -609,19 +612,27 @@
 			/>
 			{#if isInboxOpen}
 				<div class="flex min-h-0 w-80 shrink-0 flex-col border-r max-sm:w-full max-sm:border-r-0">
-					<header class="flex h-12 shrink-0 items-center border-b px-2 sm:hidden">
-						{@render channelListTrigger()}
-					</header>
 					<MessengerInbox
 						class="min-h-0 flex-1"
 						{inbox}
 						{conversations}
 						chosenID={chosenInboxEntryID}
 						choose={chooseInboxEntry}
-					/>
+					>
+						{#snippet leading()}{@render channelListTrigger()}{/snippet}
+					</MessengerInbox>
 				</div>
 			{/if}
-			<div class={['flex min-h-0 min-w-0 flex-1 flex-col', isInboxOpen && 'max-sm:hidden']}>
+			{#if isInboxOpen && chosenInboxEntryID === undefined}
+				<Empty.Root class="min-w-0 flex-1 max-sm:hidden">
+					<Empty.Header>
+						<Empty.Media variant="icon"><InboxIcon /></Empty.Media>
+						<Empty.Title>{inboxText.chooseEntry}</Empty.Title>
+						<Empty.Description>{inboxText.chooseEntryDescription}</Empty.Description>
+					</Empty.Header>
+				</Empty.Root>
+			{/if}
+			<div class={['flex min-h-0 min-w-0 flex-1 flex-col', isInboxOpen && 'max-sm:hidden', isChannelCoveredByInbox && 'hidden']}>
 				<header class="flex h-12 shrink-0 items-center gap-2 border-b px-2 sm:h-14 sm:px-6">
 					{@render channelListTrigger()}
 					{#if activeConversation?.kind === 'dm'}

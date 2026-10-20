@@ -120,7 +120,7 @@ if (scenario === 'mail') {
 	await customEmoji.draw(['sample']);
 	console.log(JSON.stringify({ requests, secondResolvedEarly, image: customEmoji.nameToURL.get('sample') }));
 } else if (scenario === 'conversation') {
-	mock.module('$lib/messenger/cache-scope', () => ({ messengerCacheScope: async () => ({ key: 'scope', generation: 0 }), requireCurrentMessengerScope: async () => {} }));
+	mock.module('$lib/messenger/cache-scope', () => ({ messengerCacheScope: async () => ({ key: 'scope', generation: 0 }), requireCurrentMessengerScope: async () => {}, onMessengerCacheReset: () => () => {} }));
 	let releaseDirectory = () => {};
 	let releaseEmoji = () => {};
 	let postsStarted = false;
@@ -143,7 +143,7 @@ if (scenario === 'mail') {
 	mock.module('$lib/messenger/messenger-api', () => ({
 		addReaction: async () => {}, deletePost: async () => {}, editPost: async () => {},
 		fetchChannels: async () => ({}), fetchPeople: async () => [], openDirectChannel: async () => ({}),
-		removeReaction: async () => {}, searchPosts: async () => [], fetchInbox: async () => ({ items: [] }), writePost: async () => {}, keepAttachmentForSending: async () => ({}),
+		removeReaction: async () => {}, searchPosts: async () => [], fetchInbox: async () => [], writePost: async () => {}, keepAttachmentForSending: async () => ({}),
 		fetchPosts: async () => {
 			postsStarted = true;
 			return {
@@ -173,7 +173,7 @@ if (scenario === 'mail') {
 	const emoji = new Promise<{ dataURL: string }>((resolve) => { releaseEmoji = () => resolve({ dataURL: 'old-image' }); });
 	const avatar = new Promise<{ address: string }>((resolve) => { releaseAvatar = () => resolve({ address: 'old-avatar' }); });
 	const attachment = new Promise<{ address: string }>((resolve) => { releaseAttachment = () => resolve({ address: 'old-address' }); });
-	mock.module('$lib/messenger/cache-scope', () => ({ adoptRememberedMessengerScope: async () => null, messengerCacheKey: () => 'scope', onMessengerCacheReset: (reset: () => void) => { resets.push(reset); return () => {}; } }));
+	mock.module('$lib/messenger/cache-scope', () => ({ adoptRememberedMessengerScope: async () => null, messengerCacheKey: () => 'scope', messengerCacheScope: async () => ({ key: 'scope', generation: 0 }), requireCurrentMessengerScope: async () => {}, onMessengerCacheReset: (reset: () => void) => { resets.push(reset); return () => {}; } }));
 	mock.module('$lib/supabase', () => ({ isSupabaseConfigured: () => true, projectURL: () => 'https://project.example.com', supabase: () => ({ storage: { from: () => ({}) } }) }));
 	mock.module('$lib/messenger/messenger-api', () => ({
 		fetchCustomEmojiNames: async () => ['logo'], fetchCustomEmojiImage: () => useNewEmoji ? Promise.resolve({ dataURL: 'new-image' }) : emoji,

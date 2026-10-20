@@ -40,6 +40,13 @@ export function orderChannels(channels: ChannelSummary[], userOrder: string[]): 
 	});
 }
 
+export function orderDirectMessages(directMessages: ChannelSummary[]): ChannelSummary[] {
+	return [
+		...directMessages.filter((conversation) => conversation.isWithTheAgent === true),
+		...directMessages.filter((conversation) => conversation.isWithTheAgent !== true)
+	];
+}
+
 export function moveChannel(orderedIDs: string[], draggedID: string, targetID: string): string[] {
 	const fromIndex = orderedIDs.indexOf(draggedID);
 	const toIndex = orderedIDs.indexOf(targetID);

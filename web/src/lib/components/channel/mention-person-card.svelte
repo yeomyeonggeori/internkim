@@ -1,6 +1,7 @@
 <script lang="ts">
 	import MessageSquareIcon from '@lucide/svelte/icons/message-square';
 	import PersonAvatar from '$lib/components/person-avatar.svelte';
+	import MentionChip from './mention-chip.svelte';
 	import { Button } from '$lib/components/ui/button';
 	import * as HoverCard from '$lib/components/ui/hover-card';
 	import { channelText } from '$lib/i18n/channel-text';
@@ -16,12 +17,7 @@
 <HoverCard.Root openDelay={300} closeDelay={100}>
 	<HoverCard.Trigger>
 		{#snippet child({ props })}
-			<button
-				{...props}
-				type="button"
-				class="bg-primary/15 text-primary hover:bg-primary/25 cursor-pointer rounded px-1 font-medium"
-				onclick={() => actions.show(person)}>{text}</button
-			>
+			<MentionChip {...props} {text} onclick={() => actions.show(person)} />
 		{/snippet}
 	</HoverCard.Trigger>
 	<HoverCard.Content class="w-72 p-4" align="start">

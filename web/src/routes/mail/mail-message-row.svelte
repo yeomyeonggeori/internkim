@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { Skeleton } from '$lib/components/ui/skeleton';
+	import UnreadDot from '$lib/components/unread-dot.svelte';
 	import { mailMessageTimeLabel, mailSenderName } from './mail-message-utils';
 	import type { MailMessage } from './mail-types';
 	import type { mailText } from './text';
@@ -41,7 +42,7 @@
 				<div class="flex min-w-0 items-center gap-2">
 					<span class="truncate font-semibold">{mailSenderName(message.from) || text.unknownSender}</span>
 					{#if !message.isRead}
-						<span class="flex size-2 shrink-0 rounded-full bg-sky-500" aria-label={text.unread}></span>
+						<UnreadDot label={text.unread} />
 					{/if}
 				</div>
 				{#if timeLabel}

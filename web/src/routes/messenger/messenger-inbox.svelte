@@ -1,15 +1,18 @@
 <script lang="ts">
 	import InboxIcon from '@lucide/svelte/icons/inbox';
 	import PersonAvatar from '$lib/components/person-avatar.svelte';
+	import UnreadDot from '$lib/components/unread-dot.svelte';
 	import { Button } from '$lib/components/ui/button/index.js';
 	import * as Empty from '$lib/components/ui/empty/index.js';
 	import * as Item from '$lib/components/ui/item/index.js';
 	import * as Tabs from '$lib/components/ui/tabs/index.js';
+	import type { Snippet } from 'svelte';
 	import type { ChannelSummary } from '$lib/components/channel/channel-api';
 	import { relativeTime } from '$lib/components/channel/channel-time';
 	import { messengerInboxText } from '$lib/i18n/messenger-inbox-text';
 	import { createPageText } from '$lib/i18n/page-text.svelte';
 	import type { InboxEntry } from '$lib/messenger/channel-over-bridge';
+	import { messagePlainText } from '$lib/messenger/message-plain-text';
 	import { cn } from '$lib/utils.js';
 	import MessengerInboxSkeleton from './messenger-inbox-skeleton.svelte';
 	import type { MessengerInboxState } from './messenger-inbox-state.svelte';
@@ -19,12 +22,14 @@
 		conversations,
 		chosenID,
 		choose,
+		leading,
 		class: className = ''
 	}: {
 		inbox: MessengerInboxState;
 		conversations: ChannelSummary[];
 		chosenID: string | undefined;
 		choose: (entry: InboxEntry) => void;
+		leading?: Snippet;
 		class?: string;
 	} = $props();
 
@@ -46,15 +51,15 @@
 </script>
 
 <aside class={cn('flex min-h-0 flex-col', className)} aria-label={text.inbox}>
-	<div class="border-b px-4 pt-3 sm:pt-4">
-		<h2 class="font-semibold">{text.inbox}</h2>
-		<Tabs.Root value={inbox.filter} onValueChange={(value) => (inbox.filter = value === 'unread' ? 'unread' : 'all')} class="mt-2 pb-2">
-			<Tabs.List>
+	<header class="flex h-12 shrink-0 items-center gap-2 border-b px-2 sm:h-14 sm:px-4">
+		{@render leading?.()}
+		<Tabs.Root value={inbox.filter} onValueChange={(value) => (inbox.filter = value === 'unread' ? 'unread' : 'all')}>
+			<Tabs.List aria-label={text.inbox}>
 				<Tabs.Trigger value="all">{text.all}</Tabs.Trigger>
 				<Tabs.Trigger value="unread">{text.unread}</Tabs.Trigger>
 			</Tabs.List>
 		</Tabs.Root>
-	</div>
+	</header>
 	{#if inbox.error && !inbox.hasLoaded}
 		<div class="space-y-2 px-4 py-3">
 			<p role="alert" class="text-destructive text-sm">{text.loadFailed}</p>
@@ -90,14 +95,14 @@
 								<Item.Title class="w-full">
 									<span class={cn('truncate', entry.isUnread && 'font-semibold')}>{entry.sender.name || text.unknownAuthor}</span>
 									{#if entry.isUnread}
-										<span class="bg-primary size-2 shrink-0 rounded-full"><span class="sr-only">{text.unread}</span></span>
+										<UnreadDot label={text.unread} />
 									{/if}
 									<time class="text-muted-foreground ml-auto shrink-0 text-xs font-normal">{relativeTime(entry.sentAt)}</time>
 								</Item.Title>
 								<p class="text-muted-foreground truncate text-xs">
 									{place ? `${reasonLabel(entry)} · ${place}` : reasonLabel(entry)}
 								</p>
-								<Item.Description class={cn('line-clamp-2', entry.isUnread && 'text-foreground')}>{entry.text}</Item.Description>
+								<Item.Description class={cn('line-clamp-2', entry.isUnread && 'text-foreground')}>{messagePlainText(entry.text)}</Item.Description>
 							</Item.Content>
 						</button>
 					{/snippet}

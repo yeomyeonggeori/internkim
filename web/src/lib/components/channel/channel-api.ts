@@ -121,7 +121,7 @@ export function applyCustomEmoji(
 
 export type ChannelRole = 'owner' | 'admin' | 'member';
 
-export type ChannelMember = { memberID?: string; externalID?: string; name: string; role: ChannelRole };
+export type ChannelMember = { memberID?: string; externalID?: string; name: string; role: ChannelRole; isAgent?: boolean };
 
 export type ChannelSummary = {
 	id: string;

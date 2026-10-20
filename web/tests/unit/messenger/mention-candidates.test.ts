@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import {
+	everyoneKey,
 	everyoneLabel,
 	matchingMentions,
 	mentionCandidates,
@@ -71,5 +72,23 @@ describe('mentionPeopleOf', () => {
 	test('leaves out a member the messenger cannot address', () => {
 		const channel = { kind: 'group' as const, members: [{ name: '이샘플' }] };
 		expect(mentionPeopleOf(channel)).toEqual([]);
+	});
+});
+
+describe('the agent leads the mention list', () => {
+	test('in a channel the agent comes before everyone and the people', () => {
+		const people = [
+			{ externalID: 'pk-park', name: '박예시' },
+			{ externalID: 'pk-agent', name: '김인턴', isAgent: true }
+		];
+		expect(mentionCandidates(people, true).map((candidate) => candidate.key)).toEqual(['pk-agent', everyoneKey, 'pk-park']);
+	});
+
+	test('a query the agent and a person match equally keeps the agent first', () => {
+		const people = [
+			{ externalID: 'pk-kim', name: '김샘플' },
+			{ externalID: 'pk-agent', name: '김인턴', isAgent: true }
+		];
+		expect(matchingMentions(mentionCandidates(people, false), '김').map((candidate) => candidate.key)).toEqual(['pk-agent', 'pk-kim']);
 	});
 });

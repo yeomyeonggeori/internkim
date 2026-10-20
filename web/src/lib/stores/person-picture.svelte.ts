@@ -1,5 +1,6 @@
 import { isSupabaseConfigured, projectURL, supabase } from '$lib/supabase';
-import { fetchPeople, keepPersonPictureForReading } from '$lib/messenger/messenger-api';
+import { keepPersonPictureForReading } from '$lib/messenger/messenger-api';
+import { fetchMessengerAccounts } from '$lib/messenger/messenger-accounts';
 import { accountsHeldBy, fetchMessengerDirectory, type MessengerDirectory } from '$lib/messenger/messenger-directory';
 import { assetBucket, readableAddresses } from '$lib/messenger/kept-attachment';
 import { messengerCacheKey, onMessengerCacheReset } from '$lib/messenger/cache-scope';
@@ -223,10 +224,10 @@ class PersonPictureStore {
 	private knownAvatarURLs(): Promise<void> {
 		const generation = this.generation;
 		this.avatarURLs ??= Promise.resolve()
-			.then(() => fetchPeople())
-			.then((people) => {
+			.then(() => fetchMessengerAccounts())
+			.then((accounts) => {
 				if (generation !== this.generation) return;
-				for (const person of people) {
+				for (const person of accounts.people) {
 					this.avatarURLOfExternal.set(person.externalID, person.avatarURL ?? '');
 				}
 			})

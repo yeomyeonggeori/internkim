@@ -8,6 +8,7 @@ const askedWith: { externalID: string; avatarURL: string }[] = [];
 
 const centralPlane = { ...(await import('$lib/supabase')) };
 const messengerAPI = { ...(await import('$lib/messenger/messenger-api')) };
+const messengerAccounts = { ...(await import('$lib/messenger/messenger-accounts')) };
 const cacheScope = { ...(await import('$lib/messenger/cache-scope')) };
 
 function addressOf(name: string): string {
@@ -56,14 +57,20 @@ mock.module('$lib/messenger/cache-scope', () => ({
 	messengerCacheKey: () => scope
 }));
 
-mock.module('$lib/messenger/messenger-api', () => ({
-	...messengerAPI,
-	fetchPeople: () =>
-		Promise.resolve([
+mock.module('$lib/messenger/messenger-accounts', () => ({
+	fetchMessengerAccounts: () =>
+		Promise.resolve({
+			agentExternalID: '',
+			people: [
 			{ externalID: 'unchanged-account', name: 'unchanged-account', avatarURL: 'https://relay.example.com/media/same.png' },
 			{ externalID: 'changed-account', name: 'changed-account', avatarURL: 'https://relay.example.com/media/new.png' },
 			{ externalID: 'expired-account', name: 'expired-account', avatarURL: 'https://relay.example.com/media/kept.png' }
-		]),
+		]
+		})
+}));
+
+mock.module('$lib/messenger/messenger-api', () => ({
+	...messengerAPI,
 	keepPersonPictureForReading: (person: { externalID: string; avatarURL: string }) => {
 		askedWith.push(person);
 		return Promise.resolve({ address: addressOf(`${person.externalID}-latest.png`) });

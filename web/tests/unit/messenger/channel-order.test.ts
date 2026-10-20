@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { orderChannels, moveChannel } from '../../../src/routes/messenger/channel-order';
+import { orderChannels, orderDirectMessages, moveChannel } from '../../../src/routes/messenger/channel-order';
 
 const channel = (id: string, name: string) => ({ id, name, kind: 'group' as const });
 
@@ -39,5 +39,13 @@ describe('moveChannel', () => {
 	test('no-ops on unknown or identical ids', () => {
 		expect(moveChannel(['a', 'b'], 'a', 'a')).toEqual(['a', 'b']);
 		expect(moveChannel(['a', 'b'], 'x', 'a')).toEqual(['a', 'b']);
+	});
+});
+
+describe('orderDirectMessages', () => {
+	test('the conversation with the agent always leads and the rest keep their order', () => {
+		const person = (id: string) => ({ id, name: id, kind: 'dm' as const });
+		const agent = { id: 'agent', name: '김인턴', kind: 'dm' as const, isWithTheAgent: true };
+		expect(orderDirectMessages([person('b'), person('a'), agent]).map((conversation) => conversation.id)).toEqual(['agent', 'b', 'a']);
 	});
 });

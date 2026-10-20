@@ -94,6 +94,8 @@ test('the inbox opens first and gathers threads, mentions and direct messages ne
 	await expect(panel.locator('[data-inbox-entry]')).toHaveText([/박예시.*스레드 답장 · # 광장.*로그인 화면 고쳤어요/s, /최견본.*멘션 · # 광장/s, /박예시.*개인 메시지.*감사합니다/s]);
 	const inboxButton = page.getByRole('button', { name: '수신함', exact: true });
 	await expect(inboxButton).toHaveAttribute('data-active', 'true');
+	await expect(page.getByText('항목을 고르세요')).toBeVisible();
+	await expect(conversationHeader(page)).toBeHidden();
 	await expect(page.getByRole('listitem').filter({ has: inboxButton })).toContainText('2');
 
 	await panel.getByRole('tab', { name: '안 읽음' }).click();

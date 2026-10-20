@@ -27,12 +27,3 @@ export function channelName(
 	return asRecorded || channel.name;
 }
 
-export function authorName(
-	author: MessengerPerson,
-	people: MessengerDirectory,
-	locale: Locale,
-	agent: { externalID?: string; name: string }
-): string {
-	if (agent.externalID && author.externalID === agent.externalID) return agent.name;
-	return personLabel(author, people, locale);
-}

@@ -15,6 +15,7 @@ let signingFails = false;
 
 const centralPlane = { ...(await import('$lib/supabase')) };
 const messengerAPI = { ...(await import('$lib/messenger/messenger-api')) };
+const messengerAccounts = { ...(await import('$lib/messenger/messenger-accounts')) };
 
 function addressOf(name: string): string {
 	return `${projectURL}/storage/v1/object/asset/company-1/shared/person-picture/${name}`;
@@ -47,12 +48,16 @@ mock.module('$lib/supabase', () => ({
 	})
 }));
 
+mock.module('$lib/messenger/messenger-accounts', () => ({
+	fetchMessengerAccounts: () =>
+		Promise.resolve({
+			agentExternalID: '',
+			people: [...avatarURLOfExternal].map(([externalID, avatarURL]) => ({ externalID, name: externalID, avatarURL }))
+		})
+}));
+
 mock.module('$lib/messenger/messenger-api', () => ({
 	...messengerAPI,
-	fetchPeople: () =>
-		Promise.resolve(
-			[...avatarURLOfExternal].map(([externalID, avatarURL]) => ({ externalID, name: externalID, avatarURL }))
-		),
 	keepPersonPictureForReading: (person: { externalID: string; avatarURL: string }) => {
 		askedWith.push(person);
 		const answer = answers.get(person.externalID);
@@ -73,6 +78,7 @@ beforeAll(async () => {
 afterAll(() => {
 	mock.module('$lib/supabase', () => centralPlane);
 	mock.module('$lib/messenger/messenger-api', () => messengerAPI);
+	mock.module('$lib/messenger/messenger-accounts', () => messengerAccounts);
 	if (originalState === undefined) Reflect.deleteProperty(globalThis, '$state');
 	else Reflect.set(globalThis, '$state', originalState);
 });
