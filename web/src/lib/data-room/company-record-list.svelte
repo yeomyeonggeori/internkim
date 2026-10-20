@@ -42,7 +42,7 @@
 						</dl>
 					{/if}
 				</div>
-				<p class="text-right font-semibold tabular-nums">{record.amount ? formatCompactMoney(record.amount, locale) : ''}</p>
+				<p class="text-right font-semibold whitespace-nowrap tabular-nums">{record.amount ? formatCompactMoney(record.amount, locale) : ''}</p>
 			</li>
 		{/each}
 	</ol>
