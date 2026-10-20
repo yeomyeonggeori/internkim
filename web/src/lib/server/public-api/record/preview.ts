@@ -3,6 +3,7 @@ import { companyRecordOfHint } from './company-ledger-tools';
 import { contactOfCRMHint, opportunityOfCRMHint, organizationOfCRMHint } from './crm-tools';
 import { momentIn } from './days';
 import { eventOfHint } from './event-tools';
+import { personOfHint } from './people';
 import { taskRowOfHint } from './task-tools';
 import type { RecordContext } from './company';
 import type { TaskRow } from './tasks';
@@ -40,6 +41,8 @@ const previewsOverTheRecord: Record<string, Preview> = {
 		const contact = await contactOfCRMHint(context, hintOf(input, 'contactHint'));
 		return { inputField: 'contactHint', id: contact.id, title: contact.name };
 	},
+	person_withdraw: (context, input) => personTargetOf(context, input),
+	person_password_reset: (context, input) => personTargetOf(context, input),
 	crm_opportunity_archive: async (context, input) => {
 		const opportunity = await opportunityOfCRMHint(context, hintOf(input, 'opportunityHint'));
 		return { inputField: 'opportunityHint', id: opportunity.id, title: opportunity.name };
@@ -48,6 +51,11 @@ const previewsOverTheRecord: Record<string, Preview> = {
 
 export function previewOfTool(name: string): Preview | undefined {
 	return previewsOverTheRecord[name];
+}
+
+async function personTargetOf(context: RecordContext, input: Record<string, unknown>): Promise<PreviewedTarget> {
+	const person = personOfHint(context.people, hintOf(input, 'personHint'));
+	return { inputField: 'personHint', id: person.personID, title: `${person.name} <${person.email}>` };
 }
 
 function hintOf(input: Record<string, unknown>, field: string): string {

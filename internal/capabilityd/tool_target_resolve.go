@@ -22,6 +22,7 @@ var capabilityToolTargetRoutes = []capabilityToolTargetRoute{
 	{ToolName: channelDeleteToolName, Resolver: Service.resolveChannelChangeTarget},
 	{ToolName: channelOwnerUpdateToolName, Resolver: Service.resolveChannelChangeTarget},
 	{ToolName: hostUpdateToolName, Resolver: Service.resolveHostUpdateTarget},
+	{ToolName: personMessageDeleteToolName, Resolver: Service.resolvePersonMessageDeleteTarget},
 }
 
 func capabilityToolTargetRouteFor(toolName string) (capabilityToolTargetRoute, bool) {

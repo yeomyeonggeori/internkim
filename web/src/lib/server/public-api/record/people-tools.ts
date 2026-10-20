@@ -6,8 +6,14 @@ import {
 	settleSignInOfMember,
 	type Invitation
 } from '$lib/server/control-plane';
+import { removeMemberAsAdministrator, resetPasswordAsAdministrator } from '$lib/server/member-administration';
 import { personName } from '$lib/person-name';
-import type { DirectoryPerson, PersonInviteResult } from '../catalog/people';
+import type {
+	DirectoryPerson,
+	PersonInviteResult,
+	PersonPasswordResetResult,
+	PersonWithdrawResult
+} from '../catalog/people';
 import type { RecordContext } from './company';
 import {
 	handleOf,
@@ -210,6 +216,31 @@ async function writeTheOrganizationHomeOfANewPerson(
 		organization_changes: organization
 	});
 	if (error) throw new RecordRefusedTheWrite(error.message, statusOfPostgresCode(error.code));
+}
+
+export async function personWithdraw(
+	context: RecordContext,
+	input: { personHint?: string; purge?: boolean }
+): Promise<PersonWithdrawResult> {
+	const person = personOfHint(context.people, input.personHint ?? '');
+	const { wasRemoved } = await removeMemberAsAdministrator(context.caller, context.accountDirectory, person.personID, {
+		purge: input.purge === true
+	});
+	return { personID: person.personID, name: personName(person.name, context.locale), email: person.email, isDeleted: wasRemoved };
+}
+
+export async function personPasswordReset(
+	context: RecordContext,
+	input: { personHint?: string }
+): Promise<PersonPasswordResetResult> {
+	const person = personOfHint(context.people, input.personHint ?? '');
+	const invitation = await resetPasswordAsAdministrator(context.caller, context.accountDirectory, person.personID);
+	return {
+		personID: person.personID,
+		email: invitation.email,
+		name: personName(person.name, context.locale),
+		temporaryPassword: invitation.temporaryPassword
+	};
 }
 
 export function refuseUnlessTheRequesterAdministers(context: RecordContext, doing: string): void {

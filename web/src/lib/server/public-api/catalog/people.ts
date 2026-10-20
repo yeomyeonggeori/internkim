@@ -103,6 +103,46 @@ export const personInviteResultSchema = z.strictObject({
   temporaryPassword: z.string(),
 });
 
+export const personWithdrawInputSchema = z.strictObject({
+  personHint: personHintSchema,
+  purge: z.boolean()
+    .describe('True only when the requester asked for the person to be deleted outright, such as an address added by mistake. A person whose attendance, leave or tasks still refer to them is withdrawn instead, and isDeleted says which happened.')
+    .optional(),
+});
+
+export const personWithdrawInputIntentSchema = personWithdrawInputSchema.omit({ personHint: true });
+
+export const personWithdrawResultSchema = z.strictObject({
+  personID: resourceIDSchema,
+  name: z.string(),
+  email: z.string(),
+  isDeleted: z.boolean(),
+});
+
+export const personPasswordResetInputSchema = z.strictObject({
+  personHint: personHintSchema,
+});
+
+export const personPasswordResetInputIntentSchema = z.strictObject({});
+
+export const personPasswordResetResultSchema = z.strictObject({
+  personID: resourceIDSchema,
+  email: z.string(),
+  name: z.string(),
+  temporaryPassword: z.string(),
+});
+
+export const personMessageDeleteInputSchema = z.strictObject({
+  personHint: personHintSchema,
+});
+
+export const personMessageDeleteInputIntentSchema = z.strictObject({});
+
+export const personMessageDeleteResultSchema = z.strictObject({
+  email: z.string(),
+  deletedCount: z.number().int(),
+});
+
 const teamResultSchema = z.strictObject({
   teamID: resourceIDSchema,
   name: z.string(),
@@ -216,6 +256,74 @@ export const peopleToolDefinitions: CapabilityToolDefinition[] = [
     requiresApproval: true,
   },
   {
+    name: 'person_withdraw',
+    namespace: 'person',
+    answeredBy: CapabilityAnsweredBy.Record,
+    privacyClass: 'workspace_task',
+    policyResource: 'tool:person_withdraw',
+    description: 'Withdraw one person from the company: their membership ends, they can no longer sign in, they leave the company messenger, and every screen stops showing them, while the attendance, leave and tasks they left behind still read. Only an administrator withdraws people, and never themselves. With purge, the person is deleted outright instead when nothing refers to them. To delete what they wrote in the messenger, call person_message_delete first, while they are still in the directory. Requires approval; this action is irreversible.',
+    version: '1',
+    estimatedLatency: CapabilityEstimatedLatency.Medium,
+    inputSchema: personWithdrawInputSchema,
+    inputIntentSchema: personWithdrawInputIntentSchema,
+    result: {
+      schema: personWithdrawResultSchema,
+      effects: [{
+        objectType: 'person',
+        effect: ResourceMutationEffect.Deleted,
+        resultField: 'personID',
+        effectIdentity: ResourceEffectIdentity.ID,
+        when: { resultField: 'isDeleted', equals: true },
+      }, {
+        objectType: 'person',
+        effect: ResourceMutationEffect.Archived,
+        resultField: 'personID',
+        effectIdentity: ResourceEffectIdentity.ID,
+        when: { resultField: 'isDeleted', equals: false },
+      }],
+    },
+    sideEffect: CapabilitySideEffect.Destructive,
+    requiresApproval: true,
+  },
+  {
+    name: 'person_password_reset',
+    namespace: 'person',
+    answeredBy: CapabilityAnsweredBy.Record,
+    privacyClass: 'workspace_task',
+    policyResource: 'tool:person_password_reset',
+    description: "Reset one person's password: their old password stops working and they get a temporary password to sign in with once. Only an administrator resets a password, and an administrator's password only its owner resets. The answer carries the temporary password, which is the only time it is readable, so pass it to the person who asked. Requires approval; the old password cannot be brought back.",
+    version: '1',
+    estimatedLatency: CapabilityEstimatedLatency.Medium,
+    inputSchema: personPasswordResetInputSchema,
+    inputIntentSchema: personPasswordResetInputIntentSchema,
+    result: {
+      schema: personPasswordResetResultSchema,
+      effects: [{
+        objectType: 'person',
+        effect: ResourceMutationEffect.Updated,
+        resultField: 'personID',
+        effectIdentity: ResourceEffectIdentity.ID,
+      }],
+    },
+    sideEffect: CapabilitySideEffect.Destructive,
+    requiresApproval: true,
+  },
+  {
+    name: 'person_message_delete',
+    namespace: 'person',
+    answeredBy: CapabilityAnsweredBy.Company,
+    privacyClass: 'platform_message',
+    policyResource: 'tool:person_message_delete',
+    description: 'Delete every message one person has written in the company messenger, in every conversation, for somebody leaving or asking to be forgotten. Only an administrator may. It reaches only a person still in the directory, so call it before person_withdraw. The answer counts what was deleted. Requires approval; deleted messages cannot be brought back.',
+    version: '1',
+    estimatedLatency: CapabilityEstimatedLatency.High,
+    inputSchema: personMessageDeleteInputSchema,
+    inputIntentSchema: personMessageDeleteInputIntentSchema,
+    result: { schema: personMessageDeleteResultSchema, effects: [] },
+    sideEffect: CapabilitySideEffect.Destructive,
+    requiresApproval: true,
+  },
+  {
     name: 'team_list',
     namespace: 'team',
     answeredBy: CapabilityAnsweredBy.Record,
@@ -302,6 +410,8 @@ export type DirectoryPerson = z.infer<typeof directoryPersonSchema>;
 export type PersonUpdateInput = z.infer<typeof personUpdateObjectSchema>;
 export type PersonInviteInput = z.infer<typeof personInviteInputSchema>;
 export type PersonInviteResult = z.infer<typeof personInviteResultSchema>;
+export type PersonWithdrawResult = z.infer<typeof personWithdrawResultSchema>;
+export type PersonPasswordResetResult = z.infer<typeof personPasswordResetResultSchema>;
 export type TeamResult = z.infer<typeof teamResultSchema>;
 export type TeamListResult = z.infer<typeof teamListResultSchema>;
 export type TeamAddInput = z.infer<typeof teamAddInputSchema>;

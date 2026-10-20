@@ -34,6 +34,8 @@ VERBS_BY_EXCEPTION = {
     "message_send": "send is the act, and the domain's own word",
     "message_context": "answers the conversation around one message",
     "person_invite": "sends an invitation, which no record-level verb describes",
+    "person_withdraw": "withdrawing ends a membership and keeps the row, which is not a delete",
+    "person_password_reset": "a reset replaces a password with a temporary one, which no record-level verb describes",
     "leave_request": "request is the domain's word for asking for leave",
     "leave_decide": "decide is the domain's word for approving or refusing",
     "leave_balance": "answers a computed balance, not a stored record",

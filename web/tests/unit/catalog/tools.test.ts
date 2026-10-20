@@ -206,7 +206,10 @@ describe('canonical capability tools', () => {
       'notification_settings_set',
       'person_invite',
       'person_list',
+      'person_message_delete',
+      'person_password_reset',
       'person_update',
+      'person_withdraw',
       'persona_identity_get',
       'persona_identity_update',
       'persona_profile_get',
@@ -298,6 +301,9 @@ describe('canonical capability tools', () => {
       'task_vocabulary_set',
       'person_update',
       'person_invite',
+      'person_withdraw',
+      'person_password_reset',
+      'person_message_delete',
       'team_add',
       'team_update',
       'team_delete',
@@ -974,6 +980,7 @@ describe('canonical capability tools', () => {
       company_document_upload: 'it hands back an upload address; company_document_register records the document',
       company_image_upload: 'it hands back an upload address; company_info_set keeps the image',
       crm_record_import: 'it writes many records in one call and names each one in its rows, which an effect cannot list',
+      person_message_delete: 'it deletes every message one person wrote and answers how many, which an effect cannot list',
     };
     const catalog = buildCapabilityToolCatalog(protocolVersion);
     const writes = catalog.tools.filter(tool => tool.sideEffectClass !== CapabilitySideEffect.Read

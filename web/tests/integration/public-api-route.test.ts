@@ -1118,6 +1118,23 @@ describe('a personal access token does not administer the company', () => {
 		}
 	});
 
+	test("an administrator's write token withdraws nobody, resets no password and deletes no one's messages", async () => {
+		const { data: administrator } = await client
+			.from('member')
+			.select('id')
+			.eq('company_id', companyID)
+			.eq('is_admin', true)
+			.single();
+		const writes = await issuePersonalAccessToken(client, administrator!.id, 'administrator-writes', 'write');
+
+		for (const name of ['person_withdraw', 'person_password_reset', 'person_message_delete']) {
+			const answer = await invoke(name, writes, { personHint: memberID });
+			expect(answer.status).toBe(403);
+		}
+		const { data: member } = await client.from('member').select('status').eq('id', memberID).single();
+		expect(member!.status).not.toBe('withdrawn');
+	});
+
 	test("a read-only token does not issue the company's calendar feed", async () => {
 		const { data: administrator } = await client
 			.from('member')

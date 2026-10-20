@@ -53,6 +53,7 @@ var capabilityToolRoutes = []capabilityToolRoute{
 	{ToolName: "persona_identity_update", Handler: Service.invokePersonaUpdateTool},
 	{ToolName: "persona_profile_get", Handler: Service.invokePersonaGetTool},
 	{ToolName: "persona_profile_update", Handler: Service.invokePersonaUpdateTool},
+	{ToolName: personMessageDeleteToolName, Handler: Service.invokePersonMessageDeleteTool},
 	{ToolName: "message_context", Handler: Service.invokePlatformMessageTool},
 	{ToolName: "message_search", Handler: Service.invokePlatformMessageTool},
 	{ToolName: "message_send", Handler: Service.invokePlatformMessageTool},

@@ -230,14 +230,16 @@ func TestEveryToolThatResolvesATargetAheadNamesARequiredFieldOfItsOwnInputSchema
 }
 
 // A preview route answers words for the approval question instead of a
-// resolved identity, and host_update's target is resolved by admind, so the
-// hint round-trip fixtures cannot exercise either; each one is proven by its
-// own resolver tests (message_delete:
+// resolved identity, host_update's target is resolved by admind, and
+// person_message_delete resolves its person from the company directory rather
+// than from the record, so the hint round-trip fixtures cannot exercise any of
+// them; each one is proven by its own resolver tests (message_delete:
 // TestMessageDeleteApprovalPreviewQuotesTheTargets and the route-path test
 // below; host_update: TestTheHostUpdateTargetCarriesAdmindsFactsAndChoices;
 // the channel changes resolve among the requester's own channels, which chatd
-// answers: TestAChannelChangeIsApprovedAgainstTheChannelTheHintNames).
-var previewApprovalTargetRouteNames = []string{"message_delete", "message_send", "host_update", "channel_delete", "channel_owner_update"}
+// answers: TestAChannelChangeIsApprovedAgainstTheChannelTheHintNames;
+// person_message_delete: TestThePersonMessageDeleteTargetNamesWhoTheCallReaches).
+var previewApprovalTargetRouteNames = []string{"message_delete", "message_send", "host_update", "channel_delete", "channel_owner_update", "person_message_delete"}
 
 func TestEveryTargetRouteIsCoveredByAFixture(t *testing.T) {
 	if len(capabilityToolTargetRoutes) != len(previewApprovalTargetRouteNames) {

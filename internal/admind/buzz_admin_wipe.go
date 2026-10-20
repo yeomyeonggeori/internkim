@@ -36,11 +36,11 @@ func (service *Service) handleBuzzAdminWipe(responseWriter http.ResponseWriter, 
 		http.NotFound(responseWriter, request)
 		return
 	}
-	if !service.authorizeInternalOrWebMemberRequest(request) {
+	if !arrivedOnRequesterSocket(request) && !service.authorizeInternalOrWebMemberRequest(request) {
 		http.Error(responseWriter, "member access required", http.StatusForbidden)
 		return
 	}
-	callerEmail := service.webActorEmail(request)
+	callerEmail := service.actorEmailAllowingAssertedRequester(request)
 	if !service.isCurrentAdminEmail(request.Context(), callerEmail) && !service.isClaimedAdminEmail(callerEmail) {
 		http.Error(responseWriter, "admin access required", http.StatusForbidden)
 		return

@@ -1,5 +1,6 @@
 import { supabase } from '$lib/supabase';
 import { callCompanyApp } from '$lib/host-bridge';
+import { invokeTool } from '$lib/public-api-call';
 
 export type MemberInvitation = {
 	memberID: string;
@@ -38,9 +39,6 @@ export async function tellTheCompanyServerTheDirectoryChanged(): Promise<boolean
 	}
 }
 
-// A member removed here is a former colleague everywhere: the company server is
-// told so it can take back their seats in the rooms and their place in the
-// community, rather than waiting for the pass that runs once a day.
 export async function resetMemberPassword(memberID: string): Promise<MemberInvitation> {
 	const { data } = await supabase().auth.getSession();
 	const accessToken = data.session?.access_token;
@@ -57,19 +55,11 @@ export async function resetMemberPassword(memberID: string): Promise<MemberInvit
 
 export type WipedMemberMessages = {
 	email: string;
-	buzzDeleted: number;
-	mattermostDeleted: number;
+	deletedCount: number;
 };
 
-export async function wipeMemberMessages(email: string): Promise<WipedMemberMessages> {
-	const response = await fetch('/agent/api/buzz-admin-wipe', {
-		method: 'POST',
-		credentials: 'include',
-		headers: { 'Content-Type': 'application/json' },
-		body: JSON.stringify({ email })
-	});
-	if (!response.ok) throw new Error((await response.text()).trim() || `message wipe returned ${response.status}`);
-	return (await response.json()) as WipedMemberMessages;
+export function wipeMemberMessages(memberID: string): Promise<WipedMemberMessages> {
+	return invokeTool<WipedMemberMessages>('person_message_delete', { personHint: memberID });
 }
 
 export async function removeMemberFromCompany(memberID: string, purge = false): Promise<{ wasRemoved: boolean }> {
