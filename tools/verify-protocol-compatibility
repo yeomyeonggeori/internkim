@@ -103,8 +103,7 @@ def breaks_in_input(shipped, current, path, superseded):
     for name, shipped_field in properties_of(shipped).items():
         current_field = properties_of(current).get(name)
         if current_field is None:
-            replacement = superseded.get(name)
-            if replacement in properties_of(current):
+            if name in superseded and superseded[name] in (None, *properties_of(current)):
                 continue
             breaks.append(f"{path}.{name}: the shipped catalog asks with it, this one refuses it")
             continue

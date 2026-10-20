@@ -1,4 +1,6 @@
 [
 	{ "was": "participantPersonHint", "isNow": "personHints" },
-	{ "was": "personHint", "isNow": "personHints" }
+	{ "was": "personHint", "isNow": "personHints" },
+	{ "was": "representative", "isNow": "representativePersonHint" },
+	{ "was": "representativeTitle", "isNow": null }
 ]

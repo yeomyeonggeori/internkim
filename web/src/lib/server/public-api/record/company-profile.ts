@@ -1,5 +1,6 @@
 import type { CompanyProfileLegalAttribute, CompanyProfileResult } from '../catalog/company';
 import type { Money } from '$lib/money';
+import type { RecordPerson } from './people';
 
 export type LocalizedText = Record<string, string>;
 
@@ -8,8 +9,6 @@ export type CompanyProfileDocument = {
 	brandName?: LocalizedText;
 	slogan?: LocalizedText;
 	description?: LocalizedText;
-	representative?: LocalizedText;
-	representativeTitle?: LocalizedText;
 	address?: LocalizedText;
 	officeAddress?: LocalizedText;
 	jurisdiction?: LocalizedText;
@@ -31,8 +30,6 @@ export type CompanyProfileUpdate = {
 	brandName?: string;
 	slogan?: string;
 	description?: string;
-	representative?: string;
-	representativeTitle?: string;
 	address?: string;
 	officeAddress?: string;
 	jurisdiction?: string;
@@ -52,8 +49,6 @@ const localizedFields = [
 	'brandName',
 	'slogan',
 	'description',
-	'representative',
-	'representativeTitle',
 	'address',
 	'officeAddress',
 	'jurisdiction',
@@ -62,7 +57,7 @@ const localizedFields = [
 
 const plainFields = ['foundedDate', 'fiscalYearEnd', 'phone', 'fax', 'email', 'website'] as const;
 
-const coreLocalizedFields = ['name', 'representative', 'address', 'bankAccount'] as const;
+const coreLocalizedFields = ['name', 'address', 'bankAccount'] as const;
 
 const defaultLanguage = 'ko';
 
@@ -82,7 +77,8 @@ export function profileOf(stored: unknown): CompanyProfileDocument {
 export function companyProfileView(
 	profile: CompanyProfileDocument,
 	language: string,
-	headcount: number
+	headcount: number,
+	representative: RecordPerson | undefined
 ): CompanyProfileResult {
 	const missingFields: string[] = [];
 	const resolvedCore = (field: (typeof coreLocalizedFields)[number]): string => {
@@ -98,9 +94,9 @@ export function companyProfileView(
 		brandName: anyLocalized(profile.brandName, language),
 		slogan: anyLocalized(profile.slogan, language),
 		description: anyLocalized(profile.description, language),
-		representative: resolvedCore('representative'),
-		representativeTitle:
-			anyLocalized(profile.representativeTitle, language) || representativeTitleOf(language),
+		representative: representativeNamed(representative, missingFields),
+		representativeTitle: representative?.jobTitle.trim() || representativeTitleOf(language),
+		representativePersonID: representative?.personID ?? null,
 		address: resolvedCore('address'),
 		officeAddress: anyLocalized(profile.officeAddress, language),
 		jurisdiction: anyLocalized(profile.jurisdiction, language),
@@ -121,6 +117,12 @@ export function companyProfileView(
 	if (!view.phone.trim()) missingFields.push('phone');
 	if (!view.email.trim()) missingFields.push('email');
 	return view;
+}
+
+function representativeNamed(representative: RecordPerson | undefined, missingFields: string[]): string {
+	if (representative) return representative.name;
+	missingFields.push('representative');
+	return '';
 }
 
 export function profileWithUpdate(

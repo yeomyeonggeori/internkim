@@ -48,10 +48,19 @@ function callUnderTodaysFieldNames(name: string, input: Record<string, unknown>)
 	if (!shape) return input;
 	const asked = { ...input };
 	for (const { was, isNow } of supersededInputFields) {
-		if (!(was in asked) || was in shape || !(isNow in shape)) continue;
+		if (!(was in asked) || was in shape) continue;
+		if (isNow === null) {
+			delete asked[was];
+			continue;
+		}
+		if (!(isNow in shape)) continue;
 		const named = asked[was];
 		delete asked[was];
 		if (typeof named !== 'string' || named.trim() === '') continue;
+		if (shape[isNow].safeParse(named).success) {
+			asked[isNow] = named;
+			continue;
+		}
 		asked[isNow] = [named];
 		delete asked.scope;
 	}

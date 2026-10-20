@@ -18,7 +18,7 @@ const controllerFor = (scope: string) => new OrganizationDirectoryController('/a
 beforeEach(() => { forgetLastSeenDirectory(); read = async () => directory; role = async () => 'admin'; });
 
 test('only the same resolved company, member and role can reuse a directory snapshot', () => {
-	rememberDirectory('company-a/member-a/admin', { records: directory.records ?? [], groups: [] });
+	rememberDirectory('company-a/member-a/admin', { records: directory.records ?? [], groups: [], representativeID: '' });
 	expect(controllerFor('company-a/member-a/admin').records).toEqual(directory.records ?? []);
 	for (const scope of ['company-b/member-a/admin', 'company-a/member-b/admin', 'company-a/member-a/member', '']) {
 		const controller = controllerFor(scope);
