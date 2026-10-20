@@ -40,7 +40,7 @@
 			<Card.Root class="gap-0 py-0"><Card.Content class="py-3">
 				<div class="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3">
 					<div class="col-span-2 flex items-center gap-3 sm:col-span-1"><Skeleton class="size-9 rounded-full" /><div class="space-y-0.5 sm:space-y-1"><Skeleton class="h-5 w-24" /><Skeleton class="h-4 w-32 sm:h-5" /></div></div>
-					<Skeleton class="order-3 col-span-2 mt-3 h-11 w-full sm:order-none sm:col-span-1 sm:mt-0 sm:w-56" />
+					<Skeleton class="order-3 col-span-2 mt-3 h-9 w-full sm:order-none sm:col-span-1 sm:mt-0 sm:h-11 sm:w-56" />
 					<Skeleton class="order-2 col-span-2 mt-3 h-1.5 w-full rounded-full sm:order-3 sm:mt-3" />
 				</div>
 			</Card.Content></Card.Root>

@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(9);
+select plan(13);
 
 delete from public.company;
 
@@ -12,7 +12,7 @@ insert into public.company (id, name, slug, country, locale, timezone) values
   ('00000000-0000-0000-0000-0000000000a0', 'Company A', 'company-a', 'KR', 'ko', 'Asia/Seoul');
 
 insert into public.member (id, company_id, email, user_id, status, is_admin) values
-  ('000000aa-0000-0000-0000-000000000009', '00000000-0000-0000-0000-0000000000a0', 'admin@example.test', '00000000-0000-0000-0000-0000000000a9', 'active', true),
+  ('000000ab-0000-0000-0000-000000000001', '00000000-0000-0000-0000-0000000000a0', 'admin@example.test', '00000000-0000-0000-0000-0000000000a9', 'active', true),
   ('000000aa-0000-0000-0000-000000000001', '00000000-0000-0000-0000-0000000000a0', 'member@example.test', '00000000-0000-0000-0000-0000000000a1', 'active', false);
 
 select is(
@@ -28,7 +28,6 @@ begin
   update public.company
   set profile = jsonb_build_object(
     'name', jsonb_build_object('ko', '주식회사 예시', 'en', 'Example Inc.'),
-    'representative', jsonb_build_object('ko', '이샘플'),
     'legalAttributes', jsonb_build_object('ko', jsonb_build_object('사업자등록번호', '123-45-67890')),
     'employeeCount', 12,
     'email', 'hello@example.com'
@@ -102,6 +101,36 @@ select throws_ok(
   '23514',
   null,
   'a headcount that is not a number is refused'
+);
+
+insert into public.company (id, name, slug, country, locale, timezone) values
+  ('00000000-0000-0000-0000-0000000000b0', 'Company B', 'company-b', 'KR', 'ko', 'Asia/Seoul');
+insert into public.member (id, company_id, email, status, is_admin) values
+  ('000000bb-0000-0000-0000-000000000001', '00000000-0000-0000-0000-0000000000b0', 'elsewhere@example.test', 'active', false);
+
+select lives_ok(
+  $$update public.member set is_representative = true where id = '000000aa-0000-0000-0000-000000000001'$$,
+  'a company names one of its own people as its representative'
+);
+
+select throws_ok(
+  $$update public.member set is_representative = true where id = '000000ab-0000-0000-0000-000000000001'; set constraints all immediate$$,
+  '23P01',
+  null,
+  'a company has one representative at a time'
+);
+
+select lives_ok(
+  $$update public.member set is_representative = (id = '000000ab-0000-0000-0000-000000000001')
+    where id in ('000000aa-0000-0000-0000-000000000001', '000000ab-0000-0000-0000-000000000001');
+    set constraints all immediate$$,
+  'one statement hands the role from one person to another'
+);
+
+select is(
+  (select count(*)::int from public.member where company_id = (select id from public.company where slug = 'company-b') and is_representative),
+  0,
+  'naming a representative touches no other company'
 );
 
 select * from finish();

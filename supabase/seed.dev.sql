@@ -230,8 +230,6 @@ update public.company set profile = jsonb_build_object(
   'description', jsonb_build_object(
     'ko', '예시회사는 중소기업이 문서, 일정, 고객 응대를 적은 인원으로 처리하도록 업무 자동화 소프트웨어를 만듭니다.',
     'en', 'Example Co. builds workflow software that lets small companies handle documents, schedules and customers with a small team.'),
-  'representative', jsonb_build_object('ko', '이샘플', 'en', 'Sample Lee'),
-  'representativeTitle', jsonb_build_object('ko', '대표이사', 'en', 'CEO'),
   'address', jsonb_build_object('ko', '서울특별시 성동구 예시로 1, 2층', 'en', '2F, 1 Yesi-ro, Seongdong-gu, Seoul'),
   'jurisdiction', jsonb_build_object('ko', '대한민국', 'en', 'the Republic of Korea'),
   'legalAttributes', jsonb_build_object('ko', jsonb_build_object(
@@ -245,6 +243,9 @@ update public.company set profile = jsonb_build_object(
   'website', 'https://example.com'
 )
 where id = '000000cc-0000-0000-0000-000000000001' and profile = '{}'::jsonb;
+
+update public.member set is_representative = true
+where id = '000000ee-0000-0000-0000-000000000002';
 
 insert into public.company_metric (id, company_id, metric, year, quarter, month, value, currency_code, value_usd, unit) values
   ('000000d1-0000-0000-0000-000000000001', '000000cc-0000-0000-0000-000000000001', 'annualRevenue', 2023, 0, 0, 320000000, 'KRW', 232000, null),

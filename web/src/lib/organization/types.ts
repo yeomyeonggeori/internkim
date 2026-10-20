@@ -27,6 +27,7 @@ export type OrgGroup = {
 export type UsersResponse = {
 	records?: UserRecord[];
 	availableGroups?: OrgGroup[];
+	representativeID?: string;
 };
 
 export type OrgProfileUpdate = {

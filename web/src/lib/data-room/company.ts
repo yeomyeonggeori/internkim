@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { personName } from '$lib/person-name';
 import { compareMomentsNewestFirst, momentSchema, momentSpanOf, type Moment } from '$lib/moment';
 import { formatCompactMoney, formatMoney, moneySchema, type Money } from '$lib/money';
 import { companyActivitySchema, storedActivitySchema } from './activity';
@@ -32,8 +33,8 @@ export const dataRoomCompanySchema = z.object({
 		brandName: localizedTextSchema.optional(),
 		slogan: localizedTextSchema.optional(),
 		description: localizedTextSchema.optional(),
-		representative: localizedTextSchema.optional(),
-		representativeTitle: localizedTextSchema.optional(),
+		representative: z.string().optional(),
+		representativeTitle: z.string().optional(),
 		address: localizedTextSchema.optional(),
 		officeAddress: localizedTextSchema.optional(),
 		jurisdiction: localizedTextSchema.optional(),
@@ -104,7 +105,7 @@ export function localized(text: Record<string, string> | undefined, locale: stri
 }
 
 export function companyFactGroups(profile: CompanyProfile, locale: string): CompanyFactGroup[] {
-	const representative = [localized(profile.representativeTitle, locale), localized(profile.representative, locale)]
+	const representative = [profile.representativeTitle ?? '', personName(profile.representative ?? '', locale === 'ko' ? 'ko' : 'en')]
 		.filter(Boolean).join(' ');
 	const groups: CompanyFactGroup[] = [
 		{

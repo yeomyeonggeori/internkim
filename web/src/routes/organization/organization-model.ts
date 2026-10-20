@@ -9,7 +9,7 @@ export type OrganizationOrganizationSection = {
 	depth: number;
 	records: UserRecord[];
 	memberCount: number;
-	companyResponsibleUserID?: string;
+	representativeID?: string;
 	responsibleUserID?: string;
 };
 
@@ -19,7 +19,8 @@ export function organizationOrganizationSections(
 	rootName: string,
 	selectedOrganizationID = '',
 	countRecords: UserRecord[] = records,
-	locale: Locale = 'ko'
+	locale: Locale = 'ko',
+	representativeID = ''
 ): OrganizationOrganizationSection[] {
 	const orderedGroups = groups.map((group) => ({ ...group, isUnassigned: false })).sort(compareOrganizationGroups(countRecords, locale));
 	const tree = organizationOrganizationTree(orderedGroups, records, rootName);
@@ -28,15 +29,14 @@ export function organizationOrganizationSections(
 		['', countTree.root.memberCount],
 		...countTree.nodes.map((node) => [node.id, node.memberCount] as const)
 	]);
-	const companyResponsibleUserID = organizationCompanyResponsibleUserID(countTree.root.aggregateRecords);
 	const responsibleUserIDByOrganizationID = new Map([
 		['', undefined],
 		...countTree.nodes.map((node) => [node.id, organizationResponsibleUserID(node.directRecords)] as const)
 	]);
 	if (!selectedOrganizationID) {
 		return [
-			sectionFromNode(tree.root, 0, memberCountByOrganizationID, responsibleUserIDByOrganizationID, companyResponsibleUserID),
-			...tree.nodes.map((node) => sectionFromNode(node, node.depth + 1, memberCountByOrganizationID, responsibleUserIDByOrganizationID, companyResponsibleUserID))
+			sectionFromNode(tree.root, 0, memberCountByOrganizationID, responsibleUserIDByOrganizationID, representativeID),
+			...tree.nodes.map((node) => sectionFromNode(node, node.depth + 1, memberCountByOrganizationID, responsibleUserIDByOrganizationID, representativeID))
 		];
 	}
 	const selectedIndex = tree.nodes.findIndex((node) => node.id === selectedOrganizationID);
@@ -46,7 +46,7 @@ export function organizationOrganizationSections(
 	const resolvedSubtreeEndIndex = subtreeEndIndex < 0 ? tree.nodes.length : subtreeEndIndex;
 	return tree.nodes
 		.slice(selectedIndex, resolvedSubtreeEndIndex)
-		.map((node) => sectionFromNode(node, node.depth - selectedDepth, memberCountByOrganizationID, responsibleUserIDByOrganizationID, companyResponsibleUserID));
+		.map((node) => sectionFromNode(node, node.depth - selectedDepth, memberCountByOrganizationID, responsibleUserIDByOrganizationID, representativeID));
 }
 
 function sectionFromNode(
@@ -54,7 +54,7 @@ function sectionFromNode(
 	depth: number,
 	memberCountByOrganizationID: Map<string, number>,
 	responsibleUserIDByOrganizationID: Map<string, string | undefined>,
-	companyResponsibleUserID: string | undefined
+	representativeID: string
 ): OrganizationOrganizationSection {
 	return {
 		id: node.id,
@@ -62,14 +62,9 @@ function sectionFromNode(
 		depth,
 		records: node.directRecords,
 		memberCount: memberCountByOrganizationID.get(node.id) ?? 0,
-		companyResponsibleUserID,
+		...(representativeID ? { representativeID } : {}),
 		responsibleUserID: responsibleUserIDByOrganizationID.get(node.id)
 	};
-}
-
-function organizationCompanyResponsibleUserID(records: UserRecord[]): string | undefined {
-	const candidates = records.filter((record) => !(record.supervisorID?.trim() ?? ''));
-	return candidates.length === 1 ? candidates[0].memberID : undefined;
 }
 
 function organizationResponsibleUserID(records: UserRecord[]): string | undefined {

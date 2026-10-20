@@ -82,12 +82,15 @@
 		return displayPersonName(record.name || record.email);
 	}
 
-	function responsibility(record: UserRecord): { isCompanyWide: boolean; label: string; class: string } | undefined {
-		if (record.memberID === section.companyResponsibleUserID)
-			return { isCompanyWide: true, label: text.companyRepresentative, class: 'bg-blue-500 text-white dark:bg-blue-600' };
+	type Role = { isRepresentative: boolean; label: string; class: string };
+
+	function rolesOf(record: UserRecord): Role[] {
+		const roles: Role[] = [];
+		if (record.memberID === section.representativeID)
+			roles.push({ isRepresentative: true, label: text.companyRepresentative, class: 'bg-blue-500 text-white dark:bg-blue-600' });
 		if (record.memberID === section.responsibleUserID)
-			return { isCompanyWide: false, label: text.responsible, class: 'bg-emerald-500 text-white dark:bg-emerald-600' };
-		return undefined;
+			roles.push({ isRepresentative: false, label: text.responsible, class: 'bg-emerald-500 text-white dark:bg-emerald-600' });
+		return roles;
 	}
 </script>
 
@@ -142,7 +145,7 @@
 		data-testid={`organization-members-${section.id || 'root'}`}
 	>
 		{#each section.records as record (record.memberID)}
-			{@const leadership = responsibility(record)}
+			{@const roles = rolesOf(record)}
 			{@const tenure = tenureLabel(record.hireDate)}
 			<Item.Root
 				variant={isMobile.current ? 'default' : 'outline'}
@@ -154,16 +157,16 @@
 			>
 				{#if !isMobile.current}
 					<div class="absolute top-2 left-2 z-10 grid items-center justify-items-start gap-1">
-						{#if leadership}
-							<Badge variant="secondary" class={leadership.class}>
-								{#if leadership.isCompanyWide}
+						{#each roles as role (role.label)}
+							<Badge variant="secondary" class={role.class}>
+								{#if role.isRepresentative}
 									<CrownIcon />
 								{:else}
 									<FlagTriangleRightIcon />
 								{/if}
-								{leadership.label}
+								{role.label}
 							</Badge>
-						{/if}
+						{/each}
 						{#if tenure}
 							<Tooltip.Root>
 								<Tooltip.Trigger>
@@ -190,12 +193,12 @@
 						<span class="grid min-w-0 w-full gap-0.5 text-left">
 							<span class="flex min-w-0 items-center gap-2">
 								<span class="truncate text-sm leading-snug font-medium">{personLabel(record)}</span>
-								{#if leadership}
+								{#each roles as role (role.label)}
 									<Badge variant="secondary" class="font-normal">
-										{#if leadership.isCompanyWide}<CrownIcon />{:else}<FlagTriangleRightIcon />{/if}
-										{leadership.label}
+										{#if role.isRepresentative}<CrownIcon />{:else}<FlagTriangleRightIcon />{/if}
+										{role.label}
 									</Badge>
-								{/if}
+								{/each}
 							</span>
 							<span class="text-muted-foreground flex min-w-0 items-center gap-2 text-xs leading-normal">
 								<span class="truncate">{record.jobTitle || text.noTitle}</span>

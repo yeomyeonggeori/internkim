@@ -181,7 +181,7 @@ describe('the company master profile', () => {
 		const written = await asAdmin('company_info_set', {
 			language: 'ko',
 			name: '주식회사 예시',
-			representative: '이샘플',
+			representativePersonHint: '이샘플',
 			address: '서울특별시 예시구 예시로 1',
 			bankAccount: '예시은행 123-456-789 주식회사 예시',
 			phone: '02-000-0000',
@@ -193,6 +193,8 @@ describe('the company master profile', () => {
 		expect(written.status).toBe(200);
 		expect(resultOf(written).capital).toEqual({ amount: 500000000, currency: 'KRW' });
 		expect(resultOf(written).missingFields).toEqual([]);
+		expect(resultOf(written).representative).toBe('이샘플');
+		expect(resultOf(written).representativePersonID).toBe(sampleID);
 		expect(resultOf(written).legalAttributes).toEqual([
 			{ label: '사업자등록번호', value: '123-45-67890' }
 		]);
@@ -201,6 +203,34 @@ describe('the company master profile', () => {
 		expect(resultOf(english).name).toBe('주식회사 예시');
 		expect(resultOf(english).missingFields).toContain('name');
 		expect(resultOf(english).representativeTitle).toBe('CEO');
+	});
+
+	test('takes the representative title from their job title, and clears the representative on an empty hint', async () => {
+		await client.from('member').update({ job_title: '대표이사' }).eq('id', sampleID);
+		const titled = await asAdmin('company_info_get', { language: 'ko' });
+		expect(resultOf(titled).representativeTitle).toBe('대표이사');
+
+		const cleared = await asAdmin('company_info_set', { language: 'ko', representativePersonHint: '' });
+		expect(resultOf(cleared).representativePersonID).toBeNull();
+		expect(resultOf(cleared).missingFields).toContain('representative');
+
+		await asAdmin('company_info_set', { language: 'ko', representativePersonHint: sampleID });
+		await client.from('member').update({ job_title: null }).eq('id', sampleID);
+	});
+
+	test('reads an older host naming the representative in text as a person hint', async () => {
+		const answered = await asAdmin('company_info_set', { language: 'ko', representative: '이샘플', representativeTitle: '대표' });
+
+		expect(answered.status).toBe(200);
+		expect(resultOf(answered).representativePersonID).toBe(sampleID);
+	});
+
+	test('asks which person when nobody here answers to the representative named', async () => {
+		const answered = await asAdmin('company_info_set', { language: 'ko', representativePersonHint: '박없음' });
+
+		expect(answered.status).not.toBe(200);
+		const after = await asAdmin('company_info_get', { language: 'ko' });
+		expect(resultOf(after).representativePersonID).toBe(sampleID);
 	});
 
 	test('keeps the fields a later call does not name', async () => {

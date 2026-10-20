@@ -943,5 +943,15 @@
 		"path": "crm_opportunity_update.result.fundingRecordID",
 		"reason": "An investment deal may name the funding round it is for, so a deal carries fundingRecordID, the round whose committed amount its won value counts toward.",
 		"release": "the release carrying this catalog reaches company hosts by ship-host before the web/API deploy, after the migration that adds company_record.status and opportunity.funding_record_id; a host still on the older catalog refuses these answers until it takes the catalog"
+	},
+	{
+		"path": "company_info_get.result.representativePersonID",
+		"reason": "The representative is a member the company names, kept as company.representative_id with a foreign key, so the answer says which person it is beside the name and title it prints.",
+		"release": "v0.1.0 carries this catalog to company hosts before the web/API deployment that answers with it"
+	},
+	{
+		"path": "company_info_set.result.representativePersonID",
+		"reason": "The representative is a member the company names, kept as company.representative_id with a foreign key, so the answer says which person it is beside the name and title it prints.",
+		"release": "v0.1.0 carries this catalog to company hosts before the web/API deployment that answers with it"
 	}
 ]
