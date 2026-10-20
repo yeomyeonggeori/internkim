@@ -232,7 +232,7 @@
 		{#if dailyCostRows.length > 0}
 			<p class="text-xs text-muted-foreground">{text.dailyCostTitle} · {dailyCostScopeLabel(dailyCostScope)}</p>
 		{:else}
-			<div aria-hidden="true" class="flex h-4 items-center"><Skeleton class="h-3 w-40" /></div>
+			<p aria-hidden="true" class="flex h-4 items-center gap-1 text-xs text-muted-foreground">{text.dailyCostTitle} · <Skeleton class="h-3 w-20" /></p>
 		{/if}
 		<div class="grid w-full grid-cols-[minmax(0,1fr)_auto_auto_auto] gap-x-2 gap-y-2 text-sm tabular-nums sm:w-fit sm:grid-cols-[auto_auto_auto_auto] sm:gap-x-8 sm:gap-y-1">
 			<span class="text-xs text-muted-foreground">{text.dailyCostDateColumn}</span>
@@ -287,7 +287,7 @@
 		</Card.Root>
 		{/if}
 		{#if isLoading && taskRuns.length === 0}
-			<RunListLoadingSkeleton label={text.title} {isAdmin} />
+			<RunListLoadingSkeleton label={text.title} {isAdmin} {text} />
 		{:else if taskRuns.length === 0 && !isLoading && !loadError}
 		<Card.Root size="sm">
 			<Card.Content>

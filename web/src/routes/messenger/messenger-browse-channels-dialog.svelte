@@ -60,7 +60,7 @@
 			<Dialog.Title>{text.browseChannels}</Dialog.Title>
 		</Dialog.Header>
 		{#if isLoading}
-			<MessengerListSkeleton label={text.loadingChannels} action />
+			<MessengerListSkeleton label={text.loadingChannels} actionLabel={text.joinChannel} />
 		{:else if loadError}
 			<p role="alert" class="text-sm text-destructive">{loadError}</p>
 			<Button variant="outline" onclick={() => retryRevision += 1}>{text.retry}</Button>

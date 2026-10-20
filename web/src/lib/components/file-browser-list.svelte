@@ -19,7 +19,6 @@
 <script lang="ts">
 	import FolderIcon from '@lucide/svelte/icons/folder';
 	import FolderOpenIcon from '@lucide/svelte/icons/folder-open';
-	import { Spinner } from '$lib/components/ui/spinner';
 	import { Skeleton } from '$lib/components/ui/skeleton';
 	import { Badge, type BadgeVariant } from '$lib/components/ui/badge';
 	import CountBadge from '$lib/components/count-badge.svelte';
@@ -121,6 +120,5 @@
 				{/each}
 			</button>
 		{/each}
-		{#if isLoading}<div class="flex justify-center py-4" role="status" aria-label={title}><Spinner /></div>{/if}
 	{/if}
 </section>

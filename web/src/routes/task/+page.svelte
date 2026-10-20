@@ -379,7 +379,7 @@
 			{/if}
 			{#if activeTab === 'report'}
 				{#if paneError || historyError}<p role="alert" class="text-sm text-destructive">{paneError || historyError}</p><button class="mt-2 text-sm underline" onclick={() => selectTab('report')}>{text.retryHistory}</button>
-				{:else if !TaskReportView || summary?.completeness !== 'full' || summary.week.code !== selectedWeek}<TaskContentSkeleton variant="report" label={text.loadingHistory} />{/if}
+				{:else if !TaskReportView || summary?.completeness !== 'full' || summary.week.code !== selectedWeek}<TaskContentSkeleton variant="report" label={text.loadingHistory} {text} />{/if}
 			{/if}
 		</div>
 		<div class={activeTab === 'definitions' ? '' : 'hidden'}>
@@ -393,7 +393,7 @@
 			/>
 			{:else if activeTab === 'definitions'}
 				{#if paneError}<p role="alert" class="text-sm text-destructive">{paneError}</p><button class="mt-2 text-sm underline" onclick={() => selectTab('definitions')}>{text.retryHistory}</button>
-				{:else}<TaskContentSkeleton variant="definitions" label={text.loading} />{/if}
+				{:else}<TaskContentSkeleton variant="definitions" label={text.loading} {text} />{/if}
 			{/if}
 		</div>
 		<div class={activeTab === 'members' ? '' : 'hidden'}>

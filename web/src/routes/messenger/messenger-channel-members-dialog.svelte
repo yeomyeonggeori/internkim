@@ -142,7 +142,7 @@
 					{text.addChannelMembers}
 				</Button>
 			</div>
-			{#if isLoadingCandidates}<div role="status" aria-label={text.loadingPeople} class="flex justify-center"><Spinner /></div>{:else if candidateError}<p role="alert" class="text-sm text-destructive">{candidateError}</p>{/if}
+			{#if candidateError}<p role="alert" class="text-sm text-destructive">{candidateError}</p>{/if}
 		{/if}
 		<Command.Root>
 			<Command.Input placeholder={text.searchMembers} />

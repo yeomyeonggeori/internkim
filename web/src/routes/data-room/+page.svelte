@@ -1,4 +1,5 @@
 <script lang="ts">
+	import RefreshButton from '$lib/components/refresh-button.svelte';
 	import { onMount } from 'svelte';
 	import { toast } from 'svelte-sonner';
 	import { z } from 'zod';
@@ -6,8 +7,6 @@
 	import * as Breadcrumb from '$lib/components/ui/breadcrumb';
 	import * as Tabs from '$lib/components/ui/tabs';
 	import FileBrowserList, { type FileBrowserEntry } from '$lib/components/file-browser-list.svelte';
-	import TooltipIconButton from '$lib/components/tooltip-icon-button.svelte';
-	import RefreshCwIcon from '@lucide/svelte/icons/refresh-cw';
 	import { invokeTool } from '$lib/public-api-call';
 	import { createPageText } from '$lib/i18n/page-text.svelte';
 	import { currentLocale } from '$lib/i18n/locale.svelte';
@@ -196,9 +195,7 @@
 					></Breadcrumb.Root
 				>
 				<div class="flex items-center gap-2">
-					<TooltipIconButton label={text.refresh} variant="ghost" size="icon-sm" onclick={load}
-						><RefreshCwIcon /></TooltipIconButton
-					>
+					<RefreshButton label={text.refresh} variant="ghost" size="icon-sm" refresh={load} />
 					{#if room}<SharePreview /><ShareLinks />{/if}
 				</div>
 			</div>

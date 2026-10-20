@@ -101,7 +101,7 @@
 	</header>
 	<Card.Root
 		><Card.Content>
-			{#if isLoading && employees.length === 0}<div role="status" aria-label={text.circles} aria-busy="true"><div aria-hidden="true" class="divide-y">{#each [0, 1, 2] as row (row)}<div class="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_5rem] items-center gap-4 py-3"><div class="grid gap-2"><Skeleton class="h-4 w-3/4" /><Skeleton class="h-3 w-full" /></div><Skeleton class="h-4 w-3/4" /><Skeleton class="h-8 w-20" /></div>{/each}</div></div>
+			{#if isLoading && employees.length === 0}<div role="status" aria-label={text.circles} aria-busy="true"><div aria-hidden="true" class="divide-y">{#each [0, 1, 2] as row (row)}<div class="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_5rem] items-center gap-4 py-3"><div class="grid gap-2"><Skeleton class="h-4 w-3/4" /><Skeleton class="h-3 w-full" /></div><Skeleton class="h-4 w-3/4" /><Button variant="outline" size="sm" disabled>{text.chooseCircles}</Button></div>{/each}</div></div>
 			{:else}<Table.Root
 					><Table.Header
 						><Table.Row

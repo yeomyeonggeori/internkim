@@ -160,7 +160,7 @@
 		</Field.Field>
 
 		{#if isLoading && keys.length === 0}
-			<SettingsListLoading label={text.personalAccessTokens} />
+			<SettingsListLoading label={text.personalAccessTokens} actionLabel={text.revokePersonalAccessToken} />
 		{:else}
 			{#if hasLoadError}<p role="alert" class="text-sm text-destructive">{text.personalAccessTokensLoadFailed}</p>{/if}
 			{#if keys.length === 0 && !hasLoadError}

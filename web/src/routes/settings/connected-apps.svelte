@@ -51,7 +51,7 @@
 		<Card.Description>{text.connectedAppsDescription}</Card.Description>
 	</Card.Header>
 	{#if isLoading && apps.length === 0}
-		<Card.Content><SettingsListLoading label={text.connectedApps} /></Card.Content>
+		<Card.Content><SettingsListLoading label={text.connectedApps} actionLabel={text.disconnectApp} /></Card.Content>
 	{:else}
 		<Card.Content>
 			{#if hasLoadError}<p role="alert" class="text-sm text-destructive">{text.connectedAppsLoadFailed}</p>{/if}

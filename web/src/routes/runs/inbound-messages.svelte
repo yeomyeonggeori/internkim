@@ -100,7 +100,30 @@
 {:else if isLoading}
 	<div role="status" aria-label={text.viewInbound} aria-busy="true" class="min-w-0 overflow-hidden rounded-xl border bg-card" data-testid="inbound-loading-skeleton">
 		<div aria-hidden="true" class="divide-y md:hidden">{#each [0, 1, 2, 3, 4] as row (row)}<div class="grid gap-3 px-4 py-3"><div class="flex justify-between gap-3"><Skeleton class="h-3 w-24" /><Skeleton class="h-3 w-28" /></div><Skeleton class="h-4 w-full" /><div class="flex justify-between gap-3"><Skeleton class="h-5 w-20 rounded-full" /><Skeleton class="h-4 w-16" /></div></div>{/each}</div>
-		<div aria-hidden="true" class="hidden md:block"><div class="grid grid-cols-[9rem_8rem_minmax(0,1fr)_6rem_11rem] gap-3 border-b p-3">{#each [0, 1, 2, 3, 4] as column (column)}<Skeleton class="h-4 w-16" />{/each}</div>{#each [0, 1, 2, 3, 4, 5] as row (row)}<div class="grid grid-cols-[9rem_8rem_minmax(0,1fr)_6rem_11rem] items-center gap-3 border-b p-3 last:border-b-0"><Skeleton class="h-3 w-28" /><Skeleton class="h-4 w-20" /><Skeleton class="h-4 w-4/5" /><Skeleton class="h-5 w-20 rounded-full" /><Skeleton class="ml-auto h-3 w-24" /></div>{/each}</div>
+		<div aria-hidden="true" class="hidden md:block">
+			<Table.Root>
+				<Table.Header>
+					<Table.Row>
+						<Table.Head class="w-36">{text.columnReceived}</Table.Head>
+						<Table.Head class="w-32">{text.columnSender}</Table.Head>
+						<Table.Head>{text.columnMessage}</Table.Head>
+						<Table.Head class="w-24">{text.columnOutcome}</Table.Head>
+						<Table.Head class="w-44 text-right">{text.columnReaction}</Table.Head>
+					</Table.Row>
+				</Table.Header>
+				<Table.Body>
+					{#each [0, 1, 2, 3, 4, 5] as row (row)}
+						<Table.Row class="hover:bg-transparent">
+							<Table.Cell><Skeleton class="h-3 w-28" /></Table.Cell>
+							<Table.Cell><Skeleton class="h-4 w-20" /></Table.Cell>
+							<Table.Cell><Skeleton class="h-4 w-4/5" /></Table.Cell>
+							<Table.Cell><Skeleton class="h-5 w-20 rounded-full" /></Table.Cell>
+							<Table.Cell><Skeleton class="ml-auto h-3 w-24" /></Table.Cell>
+						</Table.Row>
+					{/each}
+				</Table.Body>
+			</Table.Root>
+		</div>
 	</div>
 {:else if inboundMessages.length === 0}
 	<Card.Root size="sm">

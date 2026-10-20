@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { Skeleton } from '$lib/components/ui/skeleton';
 	import { z } from 'zod';
 	import * as Dialog from '$lib/components/ui/dialog';
 	import * as Empty from '$lib/components/ui/empty';
@@ -137,7 +138,12 @@
 				>{text.description}</Dialog.Description
 			></Dialog.Header
 		>
-		{#if isBusy && !circleItems.length && !links.length}<div role="status" aria-label={text.title} aria-busy="true" class="flex justify-center p-4"><Spinner /></div>{/if}
+		{#if isBusy && !circleItems.length && !links.length}<div role="status" aria-label={text.title} aria-busy="true" class="grid gap-4">
+				<div aria-hidden="true" class="grid gap-5">
+					{#each [text.label, text.circle, text.lifetime] as fieldLabel (fieldLabel)}<div class="grid gap-2"><div class="flex h-3.5 items-center text-sm font-medium">{fieldLabel}</div><Skeleton class="h-9 w-full" /></div>{/each}
+				</div>
+				<div aria-hidden="true" class="flex justify-end"><Button type="submit" disabled>{text.create}</Button></div>
+			</div>{/if}
 		{#if circleItems.length}<form onsubmit={create} class="grid gap-4">
 				<Field.Group>
 					<Field.Field

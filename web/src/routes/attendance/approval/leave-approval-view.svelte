@@ -1,13 +1,12 @@
 <script lang="ts">
+	import RefreshButton from '$lib/components/refresh-button.svelte';
 	import { Button } from '$lib/components/ui/button';
 	import * as Empty from '$lib/components/ui/empty';
 	import { createPageText } from '$lib/i18n/page-text.svelte';
-	import RefreshCwIcon from '@lucide/svelte/icons/refresh-cw';
 	import { attendanceText } from '../text';
 	import LeaveApprovalCard from './leave-approval-card.svelte';
 	import { getLeaveApprovalState } from './leave-approval-state.svelte';
 	import AttendanceListLoading from '../attendance-list-loading.svelte';
-	import { Spinner } from '$lib/components/ui/spinner';
 
 	const text = createPageText(attendanceText);
 	const approval = getLeaveApprovalState();
@@ -19,15 +18,7 @@
 			<h1 class="text-2xl font-semibold tracking-tight">{text.approval.title}</h1>
 			<p class="mt-1 text-sm text-muted-foreground">{text.approval.description}</p>
 		</div>
-		<Button
-			variant="outline"
-			size="sm"
-			onclick={() => void approval.load()}
-			disabled={approval.isLoading}
-		>
-			{#if approval.isLoading}<Spinner aria-label={text.loading} />{:else}<RefreshCwIcon />{/if}
-			{text.approval.refresh}
-		</Button>
+		<RefreshButton variant="outline" size="sm" showsLabel label={text.approval.refresh} refresh={() => approval.load()} disabled={approval.isLoading} />
 	</header>
 
 	{#if approval.errorMessage}

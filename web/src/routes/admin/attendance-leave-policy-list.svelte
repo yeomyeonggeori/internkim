@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { Skeleton } from '$lib/components/ui/skeleton';
 	import { tick } from 'svelte';
 	import { Badge } from '$lib/components/ui/badge';
 	import { Button } from '$lib/components/ui/button';
@@ -82,7 +83,12 @@
 	</Card.Header>
 	<Card.Content class="flex min-h-0 flex-1 flex-col gap-4">
 		{#if isLoading}
-			<p class="text-sm text-muted-foreground">{text.attendanceSettings.loading}</p>
+			<div role="status" aria-busy="true" class="grid gap-2">
+				<span class="sr-only">{text.attendanceSettings.loading}</span>
+				{#each [0, 1, 2, 3] as row (row)}
+					<div aria-hidden="true" class="grid rounded-md border p-3"><div class="flex h-6 items-center"><Skeleton class="h-4 w-24" /></div><div class="flex h-4 items-center"><Skeleton class="h-3 w-36" /></div></div>
+				{/each}
+			</div>
 		{:else if policy}
 			<div class="relative min-h-0 lg:flex-1">
 				<div

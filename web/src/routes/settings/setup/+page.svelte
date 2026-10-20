@@ -96,7 +96,22 @@
 		</header>
 		{#if errorMessage}<p role="alert" class="text-sm text-destructive">{errorMessage}</p>{/if}
 		{#if isLoading}
-				<div role="status" aria-label={text.loading} aria-busy="true" class="grid gap-6"><Skeleton aria-hidden="true" class="h-4 w-48" /><div aria-hidden="true" class="grid gap-6 rounded-xl border p-6"><div class="grid gap-2"><Skeleton class="h-5 w-32" /><Skeleton class="h-4 w-4/5" /></div><div class="grid gap-3 rounded-lg border p-4"><Skeleton class="h-5 w-36" /><Skeleton class="h-4 w-2/3" /></div><Skeleton class="h-4 w-40" /><Skeleton class="h-9 w-28" /></div></div>
+			<div role="status" aria-label={text.loading} aria-busy="true" class="grid gap-6">
+				<p aria-hidden="true" class="flex items-center gap-1 text-sm"><Skeleton class="h-4 w-24" /> · {text.accountReady}</p>
+				<Card.Root aria-hidden="true">
+					<Card.Header>
+						<Card.Title>{text.computer}</Card.Title>
+						<Card.Description>{text.computerDescription}</Card.Description>
+					</Card.Header>
+					<Card.Content class="grid min-w-0 gap-6">
+						<Skeleton class="h-16 w-full rounded-lg" />
+						<span class="inline-flex min-h-11 items-center justify-self-start text-sm underline">{text.otherComputer}</span>
+					</Card.Content>
+					<Card.Footer class="flex-col items-start gap-3">
+						<Button variant="outline" disabled>{text.check}</Button>
+					</Card.Footer>
+				</Card.Root>
+			</div>
 		{:else if status}
 			<p class="text-sm">{status.company.name} · {text.accountReady}</p>
 			<Card.Root>

@@ -1,8 +1,8 @@
 <script lang="ts">
+	import RefreshButton from '$lib/components/refresh-button.svelte';
  import ListPaginationFooter from "$lib/components/list-pagination-footer.svelte";
 	import { onMount } from 'svelte';
 	import AttendanceListLoading from '../attendance-list-loading.svelte';
-	import { Spinner } from '$lib/components/ui/spinner';
 	import { invokeTool } from '$lib/public-api-call';
 	import FilterCombobox from '$lib/components/filter-combobox.svelte';
 	import * as Select from '$lib/components/ui/select';
@@ -26,7 +26,6 @@
 	import * as Table from '$lib/components/ui/table';
 	import { MediaQuery } from 'svelte/reactivity';
 	import { createPageText } from '$lib/i18n/page-text.svelte';
-	import RefreshCwIcon from '@lucide/svelte/icons/refresh-cw';
 	import type { AttendanceKind } from '../attendance-context.svelte';
 	import { attendanceText } from '../text';
 	import { getHandWrittenState } from './hand-written-state.svelte';
@@ -176,17 +175,7 @@
 				{handWritten.appliedDayRange.from} — {handWritten.appliedDayRange.to}
 			</p>
 		</div>
-		<Button
-			variant={handWritten.isLoading ? 'secondary' : 'ghost'}
-			size="icon"
-			aria-label={text.handWritten.refresh}
-			aria-busy={handWritten.isLoading}
-			onclick={() => void handWritten.load()}
-			disabled={handWritten.isLoading}
-			data-testid="hand-written-refresh"
-		>
-			{#if handWritten.isLoading}<Spinner aria-label={text.loading} />{:else}<RefreshCwIcon />{/if}
-		</Button>
+		<RefreshButton variant="ghost" size="icon" label={text.handWritten.refresh} refresh={() => handWritten.load()} disabled={handWritten.isLoading} data-testid="hand-written-refresh" />
 	</header>
 
 	{#if handWritten.errorMessage}

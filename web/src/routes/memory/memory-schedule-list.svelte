@@ -1,4 +1,5 @@
 <script lang="ts">
+	import RefreshButton from '$lib/components/refresh-button.svelte';
 	import ListPaginationFooter from '$lib/components/list-pagination-footer.svelte';
 	import { Button } from '$lib/components/ui/button';
 	import { confirmDelete } from '$lib/components/ui/confirm-delete-dialog';
@@ -6,8 +7,6 @@
 	import * as Field from '$lib/components/ui/field';
 	import { Label } from '$lib/components/ui/label';
 	import { Switch } from '$lib/components/ui/switch';
-	import { Spinner } from '$lib/components/ui/spinner';
-	import RefreshCwIcon from '@lucide/svelte/icons/refresh-cw';
 	import { onMount } from 'svelte';
 	import {
 		deleteSchedule as deleteMemorySchedule,
@@ -150,9 +149,7 @@
 					{text.scheduleIncludeExpired}
 				</Label>
 			</div>
-			<Button type="button" variant="ghost" size="icon-sm" disabled={isLoading} onclick={refreshSchedules} aria-label={text.refresh} title={text.refresh}>
-				{#if isLoading}<Spinner />{:else}<RefreshCwIcon />{/if}
-			</Button>
+			<RefreshButton type="button" variant="ghost" size="icon-sm" disabled={isLoading} refresh={refreshSchedules} label={text.refresh} />
 		</Card.Action>
 	</Card.Header>
 	<Card.Content class="grid min-w-0 gap-4 px-0">

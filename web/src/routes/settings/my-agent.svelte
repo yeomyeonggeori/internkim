@@ -111,7 +111,16 @@
 		<Card.Content class="grid gap-5">
 			{#if !hasLoaded}
 				{#if isLoading || !errorMessage}
-					<div role="status" aria-label={text.persona.loading} aria-busy="true" class="grid gap-5" data-testid="personal-settings-loading-skeleton"><div aria-hidden="true" class="grid gap-5"><div class="grid gap-5 md:grid-cols-2">{#each [0, 1] as field (field)}<div class="grid gap-2"><Skeleton class="h-4 w-24" /><Skeleton class="h-9 w-full" /></div>{/each}</div><div class="grid gap-2"><Skeleton class="h-4 w-24" /><Skeleton class="h-20 w-full" /></div><div class="grid gap-2"><Skeleton class="h-4 w-32" /><Skeleton class="h-28 w-full" /></div><div class="grid gap-5 md:grid-cols-2">{#each [0, 1] as field (field)}<div class="grid gap-2"><Skeleton class="h-4 w-24" /><Skeleton class="h-9 w-full" /></div>{/each}</div></div></div>
+					<div role="status" aria-label={text.persona.loading} aria-busy="true" class="grid gap-5" data-testid="personal-settings-loading-skeleton"><div aria-hidden="true" class="grid gap-5">
+						<Field.Group class="grid gap-5 md:grid-cols-2">
+							{#each [text.persona.callMeLabel, text.persona.userLanguageLabel] as label (label)}<Field.Field><Field.Label>{label}</Field.Label><Skeleton class="h-9 w-full" /></Field.Field>{/each}
+						</Field.Group>
+						<Field.Field><Field.Label>{text.persona.aboutLabel}</Field.Label><Skeleton class="h-20 w-full" /></Field.Field>
+						<Field.Field><Field.Label>{text.persona.preferencesLabel}</Field.Label><Skeleton class="h-28 w-full" /></Field.Field>
+						<Field.Group class="grid gap-5 md:grid-cols-2">
+							{#each [text.persona.toneRegisterLabel, text.persona.traitsLabel] as label (label)}<Field.Field><Field.Label>{label}</Field.Label><Skeleton class="h-9 w-full" /></Field.Field>{/each}
+						</Field.Group>
+					</div></div>
 				{:else if errorMessage}
 					<Alert.Root variant="destructive">
 						<Alert.Title>{errorMessage}</Alert.Title>

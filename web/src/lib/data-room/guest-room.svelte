@@ -1,12 +1,11 @@
 <script lang="ts">
-	import RefreshCwIcon from '@lucide/svelte/icons/refresh-cw';
+	import RefreshButton from '$lib/components/refresh-button.svelte';
 	import SearchIcon from '@lucide/svelte/icons/search';
 	import * as InputGroup from '$lib/components/ui/input-group';
 	import * as Select from '$lib/components/ui/select';
 	import * as Table from '$lib/components/ui/table';
 	import * as Tabs from '$lib/components/ui/tabs';
 	import * as Tooltip from '$lib/components/ui/tooltip';
-	import TooltipIconButton from '$lib/components/tooltip-icon-button.svelte';
 	import { fileVisual } from '$lib/files/view';
 	import CurrencySwitcher from '$lib/components/currency-switcher.svelte';
 	import { LanguageSwitcher } from '$lib/components/ui/language-switcher';
@@ -132,9 +131,7 @@
 				<h1 class="truncate text-base leading-tight font-semibold">{roomTitle}</h1>
 				{#if accessLine}<p class="text-muted-foreground mt-0.5 truncate text-xs">{accessLine}</p>{/if}
 			</div>
-			<TooltipIconButton label={text.refresh} variant="ghost" size="icon-sm" onclick={onRefresh}
-				><RefreshCwIcon /></TooltipIconButton
-			>
+			<RefreshButton label={text.refresh} variant="ghost" size="icon-sm" refresh={onRefresh} />
 			<LanguageSwitcher
 				variant="ghost"
 				languages={localeOptions.map((option) => ({ code: option.value, label: option.label }))}

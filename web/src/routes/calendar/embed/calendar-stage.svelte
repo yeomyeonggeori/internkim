@@ -45,7 +45,6 @@
 
 	type CalendarStageProps = {
 		loading?: boolean;
-		busy?: boolean;
 		showEmptyState?: boolean;
 		onVisibleEventsChange?: (hasEvents: boolean) => void;
 		activeMobileEditorEventID: string | null;
@@ -84,7 +83,6 @@
 
 	let {
 		loading = false,
-		busy = false,
 		showEmptyState = true,
 		onVisibleEventsChange = () => {},
 		activeMobileEditorEventID,
@@ -317,10 +315,10 @@
 							/>
 						</div>
 					{/if}
-					{#if busy}
+					{#if loading}
 						<div role="status" data-calendar-loading-status class="pointer-events-none absolute bottom-4 left-1/2 z-10 flex max-w-[calc(100%_-_2rem)] -translate-x-1/2 items-center gap-2 rounded-full border bg-background/95 px-3 py-2 text-xs text-muted-foreground shadow-sm max-sm:bottom-[calc(var(--app-mobile-nav-bottom)+var(--app-mobile-nav-height)+1rem)]">
 							<Spinner class="size-3.5 shrink-0" aria-hidden="true" />
-							<span class:sr-only={!loading}>{text.loading}</span>
+							<span>{text.loading}</span>
 						</div>
 					{/if}
 					<CalendarMonthRangePreview segments={monthRangePreviewSegments} title={monthRangePreviewTitle} />

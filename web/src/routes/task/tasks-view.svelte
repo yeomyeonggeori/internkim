@@ -7,7 +7,6 @@
 	import TaskBoard from './task-board.svelte';
 	import TaskBoardSkeleton from './task-board-skeleton.svelte';
 	import TaskContentSkeleton from './task-content-skeleton.svelte';
-	import { Spinner } from '$lib/components/ui/spinner';
 	import { taskBoardWeekPosition } from './task-board-week-position';
 	import * as Tabs from '$lib/components/ui/tabs';
 	import { untrack } from 'svelte';
@@ -144,7 +143,6 @@
 		<Tabs.Content value="list" class="min-h-[36rem]">
 			{#if historyError}<p role="alert" class="text-sm text-destructive">{historyError}</p><button class="mt-2 text-sm underline" onclick={ensureFullState}>{text.retryHistory}</button>{/if}
 			{#if summary?.completeness === 'full' && hasShownWeek}
-			{#if isPendingRead}<p role="status" class="mb-3 flex items-center gap-2 text-sm text-muted-foreground"><Spinner class="size-4" /><span class="sr-only">{text.loadingHistory}</span></p>{/if}
 			<TaskListView
 				emptyLabel={page.tasks().length > 0 ? text.task.empty : text.task.noTasks}
 				showEmpty={!isPendingRead && !isLoading && !loadError && !historyError}

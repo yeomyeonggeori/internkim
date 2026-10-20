@@ -1,6 +1,9 @@
 <script lang="ts">
 	import { Skeleton } from '$lib/components/ui/skeleton';
 	import * as Card from '$lib/components/ui/card';
+	import { Button } from '$lib/components/ui/button';
+	import ColorMarker from '$lib/components/color-marker.svelte';
+	import ArrowRightIcon from '@lucide/svelte/icons/arrow-right';
 	import AttendanceCompanyMetrics from './team/attendance-company-metrics.svelte';
 	import { createPageText } from '$lib/i18n/page-text.svelte';
 	import { attendanceText } from './text';
@@ -9,6 +12,12 @@
 		rowCount?: number;
 	} = $props();
 	const text = createPageText(attendanceText);
+	const legend = $derived([
+		{ label: text.working, color: 'var(--color-success)' },
+		{ label: text.finished, color: 'var(--color-muted-foreground)' },
+		{ label: text.onLeave, color: 'var(--color-warning)' },
+		{ label: text.teamNotStarted, color: 'var(--color-muted)' }
+	]);
 </script>
 
 {#snippet metrics()}
@@ -24,11 +33,11 @@
 					<Skeleton class="h-3 w-full rounded-full max-sm:h-1.5" />
 				</Card.Header>
 				<Card.Content class="flex flex-col gap-4 px-4 pb-4">
-					<div class="grid grid-cols-2 gap-x-6 gap-y-2">{#each Array.from({ length: 4 }) as _, metric (metric)}<Skeleton class="h-4 w-full" />{/each}</div>
-					<div class="border-t border-border/70 pt-3"><Skeleton class="h-4 w-3/4" /></div>
+					<div class="grid grid-cols-2 gap-x-6 gap-y-2 text-xs text-muted-foreground">{#each legend as item (item.label)}<span class="flex items-center justify-between gap-4"><span class="inline-flex items-center gap-1.5"><ColorMarker color={item.color} /><span>{item.label}</span></span><Skeleton class="h-4 w-4" /></span>{/each}</div>
+					<div class="flex flex-wrap items-center gap-x-2 gap-y-1 border-t border-border/70 pt-3 text-xs text-muted-foreground"><span>{text.teamRecordedLocations}</span><Skeleton class="h-4 w-16" /></div>
 					<div class="flex flex-col gap-3 border-t border-border/70 pt-3 max-sm:grid max-sm:grid-cols-2 max-sm:gap-4">{#each [0, 1] as row (row)}<div class="flex h-8 items-center justify-between max-sm:h-auto max-sm:flex-col max-sm:items-start max-sm:gap-1.5"><Skeleton class="h-4 w-20" /><div class="flex -space-x-2">{#each [0, 1, 2] as avatar (avatar)}<Skeleton class="size-8 rounded-full ring-2 ring-card" />{/each}</div></div>{/each}</div>
 				</Card.Content>
-				<Card.Footer class="h-11 border-t border-border/70 px-4"><Skeleton class="h-4 w-24" /></Card.Footer>
+				<Card.Footer class="h-11 border-t border-border/70 px-4"><Button variant="ghost" class="h-11 w-full justify-between rounded-none px-4 text-sm font-medium" disabled>{text.teamEmployeesView}<ArrowRightIcon class="size-4" /></Button></Card.Footer>
 			</Card.Root>
 		{/each}
 	</div>
@@ -45,7 +54,7 @@
 				</div>
 			</Card.Content></Card.Root>
 			{@render metrics()}
-			<div class="flex items-end justify-between gap-3"><Skeleton class="h-7 w-32" /><Skeleton class="h-4 w-20" /></div>
+			<div class="flex items-end justify-between gap-3"><h2 class="text-xl font-semibold tracking-tight max-sm:text-lg">{text.teamTodayTitle}</h2><Skeleton class="h-4 w-20" /></div>
 			{@render teams()}
 		{:else if kind === 'metrics'}
 			{@render metrics()}

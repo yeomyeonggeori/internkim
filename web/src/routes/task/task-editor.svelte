@@ -1,5 +1,5 @@
 <script lang="ts">
-	import TaskContentSkeleton from './task-content-skeleton.svelte';
+	import TaskRelationshipsSkeleton from './task-relationships-skeleton.svelte';
 	import { Spinner } from '$lib/components/ui/spinner';
 	import { Button } from '$lib/components/ui/button';
 	import { confirmDelete } from '$lib/components/ui/confirm-delete-dialog';
@@ -141,9 +141,8 @@
 		{#if requestedRelationshipTaskID !== taskDraft.id}
 			<Button variant="outline" onclick={requestRelationships}>{text.relationships.title}</Button>
 		{:else if hasRelationshipData}
-				{#if !relationshipsReady}
-					{#if relationshipsError}<p role="status" class="text-sm text-destructive">{relationshipsError}</p><Button variant="outline" onclick={loadRelationships}>{relationshipsRetryLabel}</Button>
-					{:else}<p role="status" class="flex items-center gap-2 text-sm text-muted-foreground"><Spinner class="size-4" /><span class="sr-only">{relationshipsLoadingLabel}</span></p>{/if}
+				{#if !relationshipsReady && relationshipsError}
+					<p role="status" class="text-sm text-destructive">{relationshipsError}</p><Button variant="outline" onclick={loadRelationships}>{relationshipsRetryLabel}</Button>
 			{/if}
 			<TaskRelationshipsSection
 				task={taskDraft}
@@ -163,7 +162,7 @@
 			/>
 			{:else}
 				{#if relationshipsError}<p role="status" class="text-sm text-destructive">{relationshipsError}</p><Button variant="outline" onclick={loadRelationships}>{relationshipsRetryLabel}</Button>
-				{:else}<TaskContentSkeleton variant="relationships" label={relationshipsLoadingLabel} />{/if}
+				{:else}<TaskRelationshipsSkeleton label={relationshipsLoadingLabel} title={text.relationships.title} />{/if}
 		{/if}
 	{/if}
 {/snippet}

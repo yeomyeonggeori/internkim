@@ -1,10 +1,10 @@
 <script lang="ts">
+	import RefreshButton from '$lib/components/refresh-button.svelte';
 	import { onMount, tick, type Snippet } from 'svelte';
 	import { MediaQuery } from 'svelte/reactivity';
 	import { currentLocale } from '$lib/i18n/locale.svelte';
 	import { Badge } from '$lib/components/ui/badge';
 	import SearchIcon from '@lucide/svelte/icons/search';
-	import RefreshIcon from '@lucide/svelte/icons/refresh-cw';
 	import BookOpenIcon from '@lucide/svelte/icons/book-open';
 	import ArrowLeftIcon from '@lucide/svelte/icons/arrow-left';
 	import XIcon from '@lucide/svelte/icons/x';
@@ -14,7 +14,6 @@
 	import * as Field from '$lib/components/ui/field';
 	import * as InputGroup from '$lib/components/ui/input-group';
 	import { Skeleton } from '$lib/components/ui/skeleton';
-	import { Spinner } from '$lib/components/ui/spinner';
 	import * as Empty from '$lib/components/ui/empty';
 	import { cn } from '$lib/utils';
 	import MemoryFactDetail from './memory-fact-detail.svelte';
@@ -102,8 +101,26 @@
 		{#if memory}
 			<MemoryLayerStack layers={memory.layers} selectedKey={selectedLayerKey} {countOf} labelOf={scopeLabel} onSelect={(key) => { selectedLayerKey = key; selectedFactID = ''; }} {text} />
 		{:else if isLoading}
-			<div aria-hidden="true" class="flex min-h-12 items-center gap-6 border-b px-3 sm:hidden">{#each [0, 1, 2] as layer (layer)}<Skeleton class="h-4 w-14" />{/each}</div>
-			<div aria-hidden="true" class="grid gap-3 max-sm:hidden"><Skeleton class="h-4 w-24" /><Skeleton class="h-3 w-4/5" />{#each [0, 1, 2, 3] as layer (layer)}<Skeleton class="h-10 w-full" />{/each}<Skeleton class="h-16 w-full" /></div>
+			<div aria-hidden="true" class="flex min-h-12 items-center gap-6 border-b px-3 sm:hidden">
+				<span class="flex items-center gap-1 text-sm font-medium">{text.allLayers}<Skeleton class="h-3 w-4" /></span>
+				{#each [0, 1] as layer (layer)}<Skeleton class="h-4 w-14" />{/each}
+			</div>
+			<section aria-hidden="true" class="flex flex-col gap-3 max-sm:hidden">
+				<div class="flex flex-col gap-1">
+					<h2 class="text-sm font-semibold">{text.layersTitle}</h2>
+					<p class="text-xs text-muted-foreground">{text.layersRule}</p>
+				</div>
+				<div class="flex flex-col gap-1.5">
+					<div class="flex w-full min-w-0 items-center gap-2.5 rounded-md border px-3 py-2">
+						<span class="min-w-0 flex-1 truncate text-sm font-medium">{text.allLayers}</span>
+						<Skeleton class="h-3 w-5 shrink-0" />
+					</div>
+					<div class="flex flex-col">{#each [0, 1, 2, 3] as layer (layer)}<div class="py-0.75"><Skeleton class="h-10 w-full" /></div>{/each}</div>
+					<div class="flex flex-col gap-0.5 rounded-md border border-dashed px-3 py-2.5 text-xs text-muted-foreground">
+						<span class="text-sm font-medium text-foreground">{text.recordFloor}</span>{text.recordFloorDescription}
+					</div>
+				</div>
+			</section>
 		{/if}
 </aside>
 <div class="flex min-w-0 flex-col rounded-xl border bg-background max-sm:-mx-4 max-sm:rounded-none max-sm:border-0">
@@ -129,13 +146,13 @@
 	</div>
 
 	<div class={cn('flex flex-wrap items-center justify-between gap-3', !memory && 'max-sm:hidden')}>
-			<p class="flex min-w-0 items-center gap-2 text-sm text-muted-foreground" aria-live="polite">{#if isLoading}<Spinner />{text.loading}{:else if memory}{isSearching ? text.searchResults : text.currentMemories} · {text.visibleCountTemplate.replace('{count}', String(visibleFacts.length))}{/if}</p>
+			<p class="flex min-w-0 items-center gap-2 text-sm text-muted-foreground" aria-live="polite">{#if memory}{isSearching ? text.searchResults : text.currentMemories} · {text.visibleCountTemplate.replace('{count}', String(visibleFacts.length))}{:else if isLoading}{text.currentMemories} · <Skeleton aria-hidden="true" class="h-4 w-12" />{/if}</p>
 		<div class="flex shrink-0 items-center gap-3">
 			<Field.Field orientation="horizontal" class="w-auto">
 				<Checkbox id="memory-include-previous" bind:checked={includesPrevious} />
 				<Field.Content><Field.Label for="memory-include-previous">{text.showPrevious}</Field.Label></Field.Content>
 			</Field.Field>
-			<Button variant="ghost" size="icon-sm" disabled={isLoading} onclick={loadMemory} aria-label={text.refresh}><RefreshIcon /></Button>
+			<RefreshButton variant="ghost" size="icon-sm" disabled={isLoading} refresh={loadMemory} label={text.refresh} />
 		</div>
 	</div>
 	</div>
@@ -154,7 +171,7 @@
 		{#if isLoading && !memory}
 			<div class="grid min-w-0 border-t xl:min-h-[28rem] xl:grid-cols-[minmax(0,0.85fr)_minmax(0,1fr)]" role="status" aria-label={text.loading} aria-busy="true" data-testid="memory-loading-skeleton">
 				<div aria-hidden="true"><div class="border-b bg-muted/30 px-4 py-2"><Skeleton class="h-4 w-24" /></div>{#each [0, 1, 2, 3] as row (row)}<div class="grid gap-3 border-b px-4 py-5"><div class="flex items-start gap-3"><div class="grid flex-1 gap-2"><Skeleton class="h-4 w-full" /><Skeleton class="h-4 w-4/5" /></div><Skeleton class="h-3 w-8" /></div><Skeleton class="h-3 w-28" /></div>{/each}</div>
-				<div aria-hidden="true" class="hidden min-h-[28rem] items-center justify-center border-l xl:flex"><div class="grid justify-items-center gap-3"><Skeleton class="size-10 rounded-full" /><Skeleton class="h-4 w-28" /><Skeleton class="h-3 w-44" /></div></div>
+				<div aria-hidden="true" class="hidden min-h-[28rem] items-center justify-center border-l xl:flex"><Empty.Root class="min-h-[28rem]"><Empty.Header><Empty.Media variant="icon"><BookOpenIcon /></Empty.Media><Empty.Title>{text.memoryDetails}</Empty.Title><Empty.Description>{text.selectMemory}</Empty.Description></Empty.Header></Empty.Root></div>
 			</div>
 	{:else if memory}
 		{#if visibleFacts.length > 0}

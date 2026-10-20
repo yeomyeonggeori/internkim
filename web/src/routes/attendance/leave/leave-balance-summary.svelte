@@ -6,7 +6,7 @@
 	import { getEmployeeLeaveState } from './employee-leave-state.svelte';
 	import { milliDaysValue } from './leave-history-model';
 	import { leaveBalanceSegments } from './leave-balance-segments';
-	import { Skeleton } from '$lib/components/ui/skeleton';
+	import LeaveBalanceSummaryLoading from './leave-balance-summary-loading.svelte';
 
 	const text = createPageText(attendanceText);
 	const employeeLeave = getEmployeeLeaveState();
@@ -35,7 +35,7 @@
 	</Card.Header>
 	<Card.Content class="space-y-2 px-3 pb-3 pt-1">
 		{#if !summary && !employeeLeave.errorMessage}
-			<div role="status" aria-label={text.loading}><div aria-hidden="true" class="space-y-2"><div class="grid grid-cols-3 gap-2">{#each [0, 1, 2] as column (column)}<div class="space-y-2"><Skeleton class="h-3 w-16 max-w-full" /><Skeleton class="h-5 w-12" /></div>{/each}</div><Skeleton class="h-2 w-full rounded-full" /></div></div>
+			<LeaveBalanceSummaryLoading />
 		{:else if summary}
 		<div class="grid grid-cols-[1fr_1fr_auto] gap-2" data-testid="leave-balance-summary-columns">
 			<div>

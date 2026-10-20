@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { Spinner } from '$lib/components/ui/spinner';
+	import { Skeleton } from '$lib/components/ui/skeleton';
 	import type { AttendanceText } from '../text';
 	import type { EmployeeLeavePreview } from './employee-leave-types';
 	import { milliDaysValue } from './leave-history-model';
@@ -28,9 +28,10 @@
 	<p class="text-sm font-medium">{text.previewTitle}</p>
 	<div class="rounded-lg border bg-muted/20 p-4">
 		{#if isLoading}
-			<div class="flex min-h-20 items-center justify-center gap-2 text-sm text-muted-foreground">
-				<Spinner class="size-4" />
-				{text.previewLoading}
+			<div role="status" aria-busy="true" class="grid gap-3">
+				<span class="sr-only">{text.previewLoading}</span>
+				<div aria-hidden="true" class="flex h-5 items-center justify-between gap-4"><Skeleton class="h-3.5 w-20" /><Skeleton class="h-3.5 w-28" /></div>
+				<div aria-hidden="true" class="flex items-center justify-between border-t pt-3 text-sm"><span class="font-medium">{text.totalDeduction}</span><Skeleton class="h-3.5 w-12" /></div>
 			</div>
 		{:else if errorMessage}
 			<p class="py-4 text-sm text-destructive">{errorMessage}</p>

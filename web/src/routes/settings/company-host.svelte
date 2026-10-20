@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { Skeleton } from '$lib/components/ui/skeleton';
 	import SvelteMarkdown from '@humanspeak/svelte-markdown';
 	import { onMount } from 'svelte';
 	import * as Alert from '$lib/components/ui/alert';
@@ -131,7 +132,15 @@
 	<Card.Content class="grid gap-4">
 		{#if !version}
 			{#if isReading}
-				<p role="status" class="flex items-center gap-2 text-sm text-muted-foreground"><Spinner />{hostText.checking}</p>
+				<div role="status" aria-busy="true">
+					<span class="sr-only">{hostText.checking}</span>
+					<dl aria-hidden="true" class="grid grid-cols-[auto_minmax(0,1fr)] gap-x-6 gap-y-2 text-sm">
+						{#each [hostText.installed, hostText.latest, hostText.channel] as label (label)}
+							<dt class="text-muted-foreground">{label}</dt>
+							<dd class="flex h-5 items-center"><Skeleton class="h-3.5 w-40 max-w-full" /></dd>
+						{/each}
+					</dl>
+				</div>
 			{:else}
 				<div class="flex flex-wrap items-center justify-between gap-3">
 					<p class="text-sm text-muted-foreground">{hostText.unreachable}</p>

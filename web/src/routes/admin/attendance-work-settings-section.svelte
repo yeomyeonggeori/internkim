@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { Skeleton } from '$lib/components/ui/skeleton';
 	import { Button } from '$lib/components/ui/button';
 	import * as Card from '$lib/components/ui/card';
 	import { apiErrorMessage } from './admin-api';
@@ -32,6 +33,12 @@
 	let isSaving = $state(false);
 	let currentMonth = $state('');
 	let holidayDates = $state<string[]>([]);
+	const previewLabels = $derived([
+		text.workSettings.workMode,
+		text.workSettings.dailyTarget,
+		text.workSettings.weeklyTargetPreview,
+		text.workSettings.monthlyTarget
+	]);
 	const hasChanges = $derived(
 		Boolean(
 			draft && policy && !sameAttendanceWorkPolicyRevision(draft, currentAttendanceWorkPolicyRevision(policy))
@@ -116,7 +123,46 @@
 	</div>
 
 	{#if isLoading && !draft}
-		<p class="text-sm text-muted-foreground">{text.workSettings.loading}</p>
+		<div role="status" aria-busy="true" class="grid min-w-0 gap-5 @5xl:grid-cols-[minmax(0,1fr)_20rem]">
+			<span class="sr-only">{text.workSettings.loading}</span>
+			<div aria-hidden="true" class="space-y-5">
+				<Card.Root>
+					<Card.Header>
+						<Card.Title>{text.workSettings.workMode}</Card.Title>
+						<Card.Description>{text.workSettings.workModeDescription}</Card.Description>
+						<Card.Action>
+							<Button disabled>{text.workSettings.save}</Button>
+						</Card.Action>
+					</Card.Header>
+					<Card.Content class="space-y-4">
+						{#each [0, 1, 2] as field (field)}<Skeleton class="h-9 w-full" />{/each}
+					</Card.Content>
+				</Card.Root>
+				<Card.Root>
+					<Card.Header>
+						<Skeleton class="h-5 w-32" />
+						<Skeleton class="h-4 w-48" />
+					</Card.Header>
+					<Card.Content class="space-y-4">
+						{#each [0, 1, 2] as field (field)}<Skeleton class="h-9 w-full" />{/each}
+					</Card.Content>
+				</Card.Root>
+			</div>
+			<Card.Root aria-hidden="true" class="h-fit">
+				<Card.Header>
+					<Card.Title>{text.workSettings.preview}</Card.Title>
+					<Card.Description>{text.workSettings.previewDescription}</Card.Description>
+				</Card.Header>
+				<Card.Content class="grid gap-4 text-sm">
+					{#each previewLabels as label (label)}
+						<div class="flex items-center justify-between border-b pb-3">
+							<span class="text-muted-foreground">{label}</span>
+							<Skeleton class="h-5 w-16" />
+						</div>
+					{/each}
+				</Card.Content>
+			</Card.Root>
+		</div>
 	{:else if draft}
 		<div class="grid min-w-0 gap-5 @5xl:grid-cols-[minmax(0,1fr)_20rem]">
 			<div class="space-y-5">

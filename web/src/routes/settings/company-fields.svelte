@@ -114,8 +114,28 @@
 	</Card.Header>
 	<Card.Content class="grid gap-3">
 		{#if !room && !errorMessage}
-			<div role="status" aria-label={text.settings.title} aria-busy="true" class="grid gap-3">
-				{#each [0, 1, 2] as row (row)}<Skeleton class="h-9 w-full" />{/each}
+			<div role="status" aria-label={text.settings.title} aria-busy="true">
+				<Table.Root aria-hidden="true" class="table-fixed">
+					<Table.Header>
+						<Table.Row>
+							<Table.Head class="md:w-48">{text.settings.field}</Table.Head>
+							<Table.Head class="w-68 max-md:hidden">{text.settings.category}</Table.Head>
+							<Table.Head class="max-md:hidden">{text.settings.readers}</Table.Head>
+						</Table.Row>
+					</Table.Header>
+					<Table.Body>
+						{#each [0, 1, 2] as row (row)}
+							<Table.Row class="hover:bg-transparent">
+								<Table.Cell>
+									<div class="flex h-6 items-center"><Skeleton class="h-4 w-24" /></div>
+									<div class="flex h-4 items-center"><Skeleton class="h-3 w-32" /></div>
+								</Table.Cell>
+								<Table.Cell class="max-md:hidden"><Skeleton class="h-9 w-full" /></Table.Cell>
+								<Table.Cell class="max-md:hidden"><Skeleton class="h-4 w-40" /></Table.Cell>
+							</Table.Row>
+						{/each}
+					</Table.Body>
+				</Table.Root>
 			</div>
 		{:else if room}
 			<Table.Root class="table-fixed">

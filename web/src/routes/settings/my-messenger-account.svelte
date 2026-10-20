@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { Spinner } from '$lib/components/ui/spinner';
+	import { Skeleton } from '$lib/components/ui/skeleton';
 	import { Button } from '$lib/components/ui/button';
 	import * as Card from '$lib/components/ui/card';
 	import { Input } from '$lib/components/ui/input';
@@ -70,7 +70,14 @@
 	</Card.Header>
 	<Card.Content class="grid gap-4">
 		{#if isLoading}
-			<p role="status" class="flex items-center gap-2 text-sm text-muted-foreground"><Spinner />{text.messengerLoading}</p>
+			<div role="status" aria-busy="true" class="grid gap-4">
+				<span class="sr-only">{text.messengerLoading}</span>
+				<div class="flex h-5 items-center" aria-hidden="true"><Skeleton class="h-3.5 w-48 max-w-full" /></div>
+				{#each [0, 1] as field (field)}
+					<div class="grid gap-2" aria-hidden="true"><div class="flex h-3.5 items-center"><Skeleton class="h-3.5 w-20" /></div><Skeleton class="h-9 w-full" /></div>
+				{/each}
+				<div aria-hidden="true"><Skeleton class="h-9 w-24 sm:h-8" /></div>
+			</div>
 		{:else if !requirement}
 			<p class="text-sm text-muted-foreground">{text.messengerUnavailable}</p>
 		{:else}

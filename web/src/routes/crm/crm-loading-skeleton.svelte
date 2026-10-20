@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { Skeleton } from '$lib/components/ui/skeleton';
 	import { Button } from '$lib/components/ui/button';
+	import ListPaginationLoading from '$lib/components/list-pagination-loading.svelte';
 	import FilterCombobox from '$lib/components/filter-combobox.svelte';
 	import * as Card from '$lib/components/ui/card';
 	import * as Table from '$lib/components/ui/table';
@@ -12,6 +13,12 @@
 	import { isViewCurrencyAvailable } from './crm-view-currency.svelte';
 	import type { CRMText } from './text';
 	let { text, tabs }: { text: CRMText; tabs: { value: string; label: string }[] } = $props();
+	const kpiCards = $derived([
+		{ title: text.kpiOpenValue, segmentLabels: [text.kpiMoving, text.kpiStalled, text.kpiOnHold] },
+		{ title: text.kpiRelationships, segmentLabels: [text.kpiRecentlyContacted, text.kpiStable, text.kpiNeedsAttention] },
+		{ title: text.kpiOpenActions, segmentLabels: [text.kpiScheduled, text.kpiDueSoon, text.kpiOverdue] },
+		{ title: text.kpiOpenProgress, segmentLabels: ['', '', ''] }
+	]);
 </script>
 
 {#snippet sortableHeading(label: string)}
@@ -22,10 +29,17 @@
 	<div class="min-w-0">
 		<button disabled class="flex min-h-11 w-full items-center gap-1 text-sm font-medium sm:hidden">{text.metricsOverview}<ChevronDownIcon class="size-4 text-muted-foreground" aria-hidden="true" /></button>
 		<Card.Root aria-hidden="true" class="hidden min-w-0 grid-cols-2 gap-px bg-border py-0 sm:grid lg:grid-cols-4">
-			{#each [0, 1, 2, 3] as column (column)}
+			{#each kpiCards as card (card.title)}
 				<div class="flex min-w-0 flex-col gap-3 bg-card p-4">
-					<Skeleton class="h-4 w-24" /><Skeleton class="h-8 w-28" /><Skeleton class="h-1.5 w-full" />
-					<div class="grid gap-1.5">{#each [0, 1, 2] as row (row)}<div class="flex h-4 items-center justify-between gap-3"><Skeleton class="h-3 w-20" /><Skeleton class="h-3 w-8" /></div>{/each}</div>
+					<h2 class="text-xs font-medium text-muted-foreground">{card.title}</h2><Skeleton class="h-8 w-28" /><Skeleton class="h-1.5 w-full" />
+					<div class="grid gap-1.5">
+						{#each card.segmentLabels as segmentLabel, row (row)}
+							<div class="flex h-4 items-center justify-between gap-3">
+								{#if segmentLabel}<span class="text-xs text-muted-foreground">{segmentLabel}</span>{:else}<Skeleton class="h-3 w-20" />{/if}
+								<Skeleton class="h-3 w-8" />
+							</div>
+						{/each}
+					</div>
 				</div>
 			{/each}
 		</Card.Root>
@@ -71,7 +85,7 @@
 						{/each}
 					</Table.Body>
 				</Table.Root>
-				<div class="flex flex-wrap items-center justify-between gap-2 border-t bg-card px-3 py-3"><Skeleton class="h-3 w-24" /><Skeleton class="h-11 w-36 sm:h-8" /></div>
+				<div class="border-t bg-card px-3 py-3"><ListPaginationLoading previousLabel={text.paginationPrevious} nextLabel={text.paginationNext} /></div>
 			</div>
 		</UnderlineTabs.Content>
 	</UnderlineTabs.Root>
