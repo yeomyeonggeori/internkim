@@ -215,9 +215,9 @@
 
 <style>
 	:global(.task-board-card-dragging) {
-		background: hsl(var(--card)) !important;
-		border-color: hsl(var(--border)) !important;
-		box-shadow: 0 8px 16px hsl(var(--foreground) / 0.12) !important;
+		background: var(--card) !important;
+		border-color: var(--border) !important;
+		box-shadow: 0 8px 16px color-mix(in oklab, var(--foreground) 12%, transparent) !important;
 		opacity: 0.96;
 	}
 </style>

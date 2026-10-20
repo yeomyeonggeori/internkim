@@ -10,7 +10,7 @@ const modes: Mode[] = [
 
 function backgroundTokenOf(css: string, selector: string): string {
 	const block = css.slice(css.indexOf(`${selector} {`));
-	const match = block.match(/--background:\s*([\d.]+)\s+([\d.]+)%\s+([\d.]+)%/);
+	const match = block.match(/--background:\s*hsl\(([\d.]+)\s+([\d.]+)%\s+([\d.]+)%\)/);
 	if (!match) throw new Error(`no --background token under ${selector}`);
 	return hslToHex(Number(match[1]), Number(match[2]) / 100, Number(match[3]) / 100);
 }

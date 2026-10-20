@@ -7,7 +7,7 @@
 <Badge
  {...restProps}
  variant="outline"
- class={cn(color && 'border-[color-mix(in_oklch,var(--badge-color)_45%,hsl(var(--border)))] text-[color-mix(in_oklch,var(--badge-color)_45%,hsl(var(--foreground)))]', className)}
+ class={cn(color && 'border-[color-mix(in_oklch,var(--badge-color)_45%,var(--border))] text-[color-mix(in_oklch,var(--badge-color)_45%,var(--foreground))]', className)}
  style={color ? `--badge-color: ${color}; ${style ?? ''}` : style}
 >
  {@render children?.()}

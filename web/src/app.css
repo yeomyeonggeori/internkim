@@ -229,8 +229,8 @@
     flex-shrink: 0;
     align-items: center;
     gap: 8px;
-    border-bottom: 1px solid hsl(var(--border));
-    background: hsl(var(--background) / 0.95);
+    border-bottom: 1px solid var(--border);
+    background: color-mix(in oklab, var(--background) 95%, transparent);
     padding: 0 12px;
     backdrop-filter: blur(8px);
   }
@@ -246,7 +246,7 @@
 
   .internkim-app-crumbs a,
   .internkim-app-crumbs span {
-    color: hsl(var(--muted-foreground));
+    color: var(--muted-foreground);
   }
 
   .internkim-app-crumbs a {
@@ -255,13 +255,13 @@
   }
 
   .internkim-app-crumbs a:hover {
-    color: hsl(var(--foreground));
+    color: var(--foreground);
   }
 
   .internkim-app-crumbs strong {
     min-width: 0;
     overflow: hidden;
-    color: hsl(var(--foreground));
+    color: var(--foreground);
     font-weight: 500;
     text-overflow: ellipsis;
     white-space: nowrap;
