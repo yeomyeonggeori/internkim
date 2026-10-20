@@ -94,7 +94,7 @@ test('first task visit shows structure then real cards before directory completi
 		releaseTasks();
 		await expect(taskCard(page, id)).toBeVisible();
 		await expect(page.locator('[data-task-ready="true"]')).toBeVisible();
-		await expect(page.getByRole('status').filter({ hasText: '구성원 정보를 준비' })).toBeVisible();
+		await expect(page.getByRole('status').filter({ hasText: '구성원 정보를 준비' })).toHaveCount(0);
 		await page.screenshot({ path: 'tests/performance/task-progressive-desktop.png' });
 		expect(await page.evaluate(() => localStorage.getItem('internkim:task-board-snapshots:v1'))).toBeNull();
 		await openTaskCard(page, id);

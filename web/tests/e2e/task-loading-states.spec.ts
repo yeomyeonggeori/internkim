@@ -230,7 +230,7 @@ test('partial board stops its directory loading status after directory failure',
 	await installFixture(page, fixture);
 	await page.goto('/example-co/task');
 	await expect(page.locator('[data-task-board-card]').filter({ hasText: taskTitle })).toBeVisible();
-	await expect(page.getByRole('status').filter({ hasText: '구성원 정보를 준비' })).toBeVisible();
+	await expect(page.getByRole('status').filter({ hasText: '구성원 정보를 준비' })).toHaveCount(0);
 	pending.release();
 	await expect(page.locator('main').filter({ hasText: 'Directory read unavailable' }).last()).toBeVisible();
 	await expect(page.getByRole('status').filter({ hasText: '구성원 정보를 준비' })).toHaveCount(0);
