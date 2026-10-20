@@ -119,8 +119,8 @@
 					<div class="flex h-5 items-center"><Skeleton class="h-4 w-4/5" /></div>
 					<div class="flex flex-wrap items-center gap-2"><Skeleton class="h-5 w-16" /><Skeleton class="h-4 w-24" /></div>
 					<div class="flex h-5 items-center"><Skeleton class="h-4 w-44" /></div>
-					<div class="flex flex-wrap items-center gap-2"><Skeleton class="h-11 w-20" /><Skeleton class="h-11 w-20" /></div>
-					<div class="flex h-11 items-center"><Skeleton class="h-4 w-24" /></div>
+					<div class="flex flex-wrap items-center gap-2"><Skeleton class="h-9 w-20" /><Skeleton class="h-9 w-20" /></div>
+					<div class="flex h-9 items-center"><Skeleton class="h-4 w-24" /></div>
 				</div>
 			{/each}
 		</div>

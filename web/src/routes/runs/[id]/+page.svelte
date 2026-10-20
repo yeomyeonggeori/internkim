@@ -206,7 +206,7 @@
 				<CopyButton text={taskShareText} />
 			</div>
 		{:else if !loadError}
-			<Skeleton aria-hidden="true" class="size-11 sm:size-8" />
+			<Skeleton aria-hidden="true" class="size-9 sm:size-8" />
 		{/if}
 	</div>
 

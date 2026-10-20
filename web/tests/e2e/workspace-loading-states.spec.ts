@@ -82,7 +82,7 @@ test('workspace refresh retains entries while its read is pending and failed', a
 	const first = page.getByRole('button', { name: /주간-회고-1.md/ });
 	await expect(first).toBeVisible();
 	fixture.hold('person.files.list');
-	await page.getByRole('tabpanel', { name: '워크스페이스' }).getByRole('button', { name: '새로고침', exact: true }).click();
+	await page.getByRole('region', { name: '파일', exact: true }).getByRole('button', { name: '새로고침', exact: true }).click();
 	await expect.poll(() => fixture.requested.has('person.files.list')).toBe(true);
 	await expect(first).toBeVisible();
 	await expect(page.getByTestId('file-list-loading-skeleton')).toHaveCount(0);

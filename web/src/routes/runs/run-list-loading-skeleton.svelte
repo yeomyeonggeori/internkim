@@ -19,7 +19,7 @@
 						</div>
 					<Skeleton class="h-5 w-16 shrink-0" />
 					</div>
-					<div class="flex h-11 items-center justify-between gap-3 sm:h-6"><Skeleton class="h-3 w-28" /><Skeleton class="h-3 w-12" /></div>
+					<div class="flex h-9 items-center justify-between gap-3 sm:h-6"><Skeleton class="h-3 w-28" /><Skeleton class="h-3 w-12" /></div>
 				</div>
 			{/each}
 		</div>

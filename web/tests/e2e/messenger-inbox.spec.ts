@@ -1,4 +1,4 @@
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Locator, type Page } from '@playwright/test';
 import { WorkspaceLoadingFixture, prepareWorkspaceLoading } from './workspace-loading-fixture';
 
 test.use({ locale: 'ko-KR', colorScheme: 'light', contextOptions: { reducedMotion: 'reduce' } });
@@ -154,3 +154,44 @@ test('a long inbox stays inside its panel instead of lengthening the page', asyn
 	expect(documentBox.scrollHeight).toBe(documentBox.clientHeight);
 	expect(documentBox.scrollTop).toBe(0);
 });
+
+async function boxOf(locator: Locator) {
+	await expect(locator).toBeVisible();
+	const box = await locator.boundingBox();
+	if (!box) throw new Error('a visible inbox row has no box');
+	return box;
+}
+
+async function captureInbox(page: Page, name: string) {
+	const directory = process.env.LOADING_CAPTURE_DIR;
+	if (!directory) return;
+	await page.evaluate(() => document.fonts.ready);
+	await page.screenshot({ path: `${directory}/${name}.png`, animations: 'disabled' });
+}
+
+for (const width of [1280, 390]) {
+	test(`the inbox skeleton holds the rows the inbox settles into at ${width}px`, async ({ page }) => {
+		const fixture = new MessengerInboxFixture();
+		fixture.hold('person.inbox.list');
+		await openMessenger(page, width, fixture);
+		await expect.poll(() => fixture.requested.has('person.inbox.list')).toBe(true);
+		await expect(inboxPanel(page).getByRole('status')).toBeVisible();
+		await captureInbox(page, `inbox-${width}-pending`);
+		const skeleton = inboxPanel(page).locator('[data-inbox-skeleton-row]');
+		const pendingFirst = await boxOf(skeleton.first());
+		const pendingSecond = await boxOf(skeleton.nth(1));
+
+		fixture.release('person.inbox.list');
+		const entries = inboxPanel(page).locator('[data-inbox-entry]');
+		await expect(entries.first()).toBeVisible();
+		await captureInbox(page, `inbox-${width}-ready`);
+		const readyFirst = await boxOf(entries.first());
+		const readySecond = await boxOf(entries.nth(1));
+
+		for (const [pending, ready] of [[pendingFirst, readyFirst], [pendingSecond, readySecond]]) {
+			expect(Math.abs(pending.y - ready.y)).toBeLessThanOrEqual(1);
+			expect(Math.abs(pending.height - ready.height)).toBeLessThanOrEqual(1);
+			expect(Math.abs(pending.x - ready.x)).toBeLessThanOrEqual(1);
+		}
+	});
+}

@@ -87,10 +87,10 @@
 									<div class="flex h-5 items-center sm:hidden"><Skeleton class="h-4 w-2/3" /></div>
 								</div>
 								<div class="h-px bg-border"></div>
-								<div class="flex flex-wrap gap-2"><Skeleton class="h-11 w-22 sm:h-7" /><Skeleton class="h-11 w-14 sm:h-7" /></div>
+								<div class="flex flex-wrap gap-2"><Skeleton class="h-9 w-22 sm:h-7" /><Skeleton class="h-9 w-14 sm:h-7" /></div>
 							</div>
 						</Card.Content>
-						<Card.Footer><div class="flex h-11 items-center px-2.5 sm:h-7"><Skeleton class="h-4 w-20" /></div></Card.Footer>
+						<Card.Footer><div class="flex h-9 items-center px-2.5 sm:h-7"><Skeleton class="h-4 w-20" /></div></Card.Footer>
 					</Card.Root>
 				{/each}
 			</section>

@@ -171,7 +171,7 @@ test('files keep loaded records through a failed refresh instead of switching to
 	const file = page.getByRole('button', { name: /주간-회고-1.md/ });
 	await expect(file).toBeVisible();
 	fixture.hold('person.files.list');
-	await page.getByRole('tabpanel', { name: '워크스페이스' }).getByRole('button', { name: '새로고침', exact: true }).click();
+	await page.getByRole('region', { name: '파일', exact: true }).getByRole('button', { name: '새로고침', exact: true }).click();
 	await expect.poll(() => fixture.requested.has('person.files.list')).toBe(true);
 	await expect(file).toBeVisible();
 	await expect(page.locator('[data-slot="empty"]:visible')).toHaveCount(0);

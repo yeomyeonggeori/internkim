@@ -7,7 +7,6 @@
 	import TaskTabRow from './task-tab-row.svelte';
 	import TasksView from './tasks-view.svelte';
 	import TaskContentSkeleton from './task-content-skeleton.svelte';
-	import { Spinner } from '$lib/components/ui/spinner';
 	import { taskWeeklySummaryOf, mergeTaskSummary, fetchTaskState, forgetTaskStateRead } from './task-api';
 	import { taskWeekForCode } from '$lib/task/task-week-code';
 	import { taskBoardState } from '$lib/task/task-state';
@@ -345,12 +344,6 @@
 		{/if}
 
 		<TaskTabRow activeTab={activeTab} labels={text.tabs} disabled={isLoading || !isStateFresh} onSelectTab={selectTab} />
-		{#if summary && !summary.peopleReady && isRefreshing}
-			<p role="status" class="flex items-center gap-2 text-sm text-muted-foreground"><Spinner class="size-4" /><span class="sr-only">{text.preparingPeople}</span></p>
-		{/if}
-		{#if cacheSavedAt && (isRefreshing || errorMessage)}
-			<p role="status" data-task-cache-status class="flex items-center gap-2 text-sm text-muted-foreground">{#if isRefreshing}<Spinner class="size-4" />{/if}{errorMessage ? text.cachedUnavailable : text.cachedRefreshing}</p>
-		{/if}
 		{#if pendingTaskID && historyError}
 			<p role="status" class="text-sm text-destructive">{historyError}</p>
 			<button class="text-left text-sm underline" onclick={ensureFullState}>{text.retryHistory}</button>
