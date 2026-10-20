@@ -26,9 +26,12 @@ class FakeRoot {
 const originalWindow = globalThis.window;
 const originalDocument = globalThis.document;
 
-function installPhone(watchNativeKeyboard?: NativeKeyboardWatcher): { viewport: FakeViewport; root: FakeRoot; stop: () => void } {
+const composer = { matches: (selector: string) => selector.includes('contenteditable') };
+
+function installPhone(watchNativeKeyboard?: NativeKeyboardWatcher): { viewport: FakeViewport; root: FakeRoot; fakeDocument: { activeElement: typeof composer | null }; stop: () => void } {
 	const viewport = new FakeViewport();
 	const root = new FakeRoot();
+	const fakeDocument: { documentElement: FakeRoot; activeElement: typeof composer | null } = { documentElement: root, activeElement: composer };
 	const fakeWindow = Object.assign(new EventTarget(), {
 		innerWidth: 390,
 		innerHeight: 844,
@@ -38,8 +41,8 @@ function installPhone(watchNativeKeyboard?: NativeKeyboardWatcher): { viewport: 
 			fakeWindow.scrollY = top;
 		}
 	});
-	Object.assign(globalThis, { window: fakeWindow, document: { documentElement: root } });
-	return { viewport, root, stop: keepAppInVisualViewport(watchNativeKeyboard) };
+	Object.assign(globalThis, { window: fakeWindow, document: fakeDocument });
+	return { viewport, root, fakeDocument, stop: keepAppInVisualViewport(watchNativeKeyboard) };
 }
 
 afterEach(() => {
@@ -71,6 +74,43 @@ describe('keepAppInVisualViewport', () => {
 		expect([...root.properties.keys()]).toEqual([]);
 		expect(root.attributes.size).toBe(0);
 		expect(window.scrollY).toBe(0);
+		stop();
+	});
+
+	test('keeps the keyboard open when WebKit briefly reports the window as tall as the keyboard leaves it', () => {
+		const { viewport, root, stop } = installPhone();
+		viewport.height = 448;
+		viewport.dispatchEvent(new Event('resize'));
+		window.innerHeight = 448;
+		viewport.dispatchEvent(new Event('scroll'));
+		expect(root.attributes.has('data-mobile-keyboard-open')).toBe(true);
+		window.innerHeight = 844;
+		viewport.height = 844;
+		viewport.dispatchEvent(new Event('resize'));
+		expect(root.attributes.size).toBe(0);
+		stop();
+	});
+
+	test('notices the keyboard when Safari shrinks the window and scrolls the page above it', () => {
+		const { viewport, root, stop } = installPhone();
+		window.innerHeight = 448;
+		window.scrollY = 396;
+		viewport.height = 448;
+		viewport.offsetTop = 396;
+		viewport.dispatchEvent(new Event('resize'));
+		expect(root.attributes.has('data-mobile-keyboard-open')).toBe(true);
+		expect(root.properties.get('--app-viewport-top')).toBe('396px');
+		expect(root.properties.get('--app-viewport-bottom')).toBe('0px');
+		stop();
+	});
+
+	test('leaves the chrome alone when the window gets shorter while nobody is typing', () => {
+		const { viewport, root, fakeDocument, stop } = installPhone();
+		fakeDocument.activeElement = null;
+		window.innerHeight = 500;
+		viewport.height = 500;
+		viewport.dispatchEvent(new Event('resize'));
+		expect(root.attributes.size).toBe(0);
 		stop();
 	});
 

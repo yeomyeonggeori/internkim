@@ -3,6 +3,11 @@ import { followNativeKeyboard, type NativeKeyboardWatcher } from './native-shell
 const MOBILE_KEYBOARD_MIN_HEIGHT = 120;
 const MOBILE_KEYBOARD_OPEN_ATTRIBUTE = 'data-mobile-keyboard-open';
 const VIEWPORT_PROPERTIES = ['--app-viewport-height', '--app-viewport-bottom', '--app-viewport-top', '--app-viewport-safe-bottom'];
+const TYPING_TARGETS = 'input, textarea, [contenteditable]:not([contenteditable="false"])';
+
+function isTyping(): boolean {
+	return document.activeElement?.matches(TYPING_TARGETS) === true;
+}
 
 function forgetVisualViewport(root: HTMLElement): void {
 	for (const property of VIEWPORT_PROPERTIES) root.style.removeProperty(property);
@@ -27,10 +32,17 @@ export function keepAppInVisualViewport(watchNativeKeyboard: NativeKeyboardWatch
 	const root = document.documentElement;
 	let wasKeyboardOpen = false;
 	let isNativeKeyboardOpen = false;
+	let unobstructedWidth = window.innerWidth;
+	let unobstructedHeight = viewport.height;
 	const updateViewport = () => {
+		if (window.innerWidth !== unobstructedWidth) {
+			unobstructedWidth = window.innerWidth;
+			unobstructedHeight = viewport.height;
+		}
+		if (viewport.scale === 1) unobstructedHeight = Math.max(unobstructedHeight, viewport.height);
 		const keyboardHeight = Math.max(0, window.innerHeight - viewport.height - viewport.offsetTop);
 		const isPhone = window.innerWidth < 640;
-		const coversVisualViewport = isPhone && viewport.scale === 1 && keyboardHeight >= MOBILE_KEYBOARD_MIN_HEIGHT;
+		const coversVisualViewport = isPhone && viewport.scale === 1 && isTyping() && unobstructedHeight - viewport.height >= MOBILE_KEYBOARD_MIN_HEIGHT;
 		const isKeyboardOpen = coversVisualViewport || (isPhone && isNativeKeyboardOpen);
 		if (coversVisualViewport) followVisualViewport(root, viewport, keyboardHeight);
 		else forgetVisualViewport(root);
