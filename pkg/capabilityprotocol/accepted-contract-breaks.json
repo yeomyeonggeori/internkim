@@ -963,5 +963,25 @@
 		"path": "task_board_get.result.tasks[].canDelete",
 		"reason": "A task says whether the caller may delete it, as canDelete, read from task_deletable, the function the delete policy itself calls, so the task screen offers delete exactly where the record allows it.",
 		"release": "the release carrying this catalog reaches company hosts by ship-host before the web/API deploy, after the migration that adds public.task_deletable; a host still on the older catalog refuses these answers until it takes the catalog"
+	},
+	{
+		"path": "task_add.result.canUpdate",
+		"reason": "A task says whether the caller may change it or who takes part in it, as canUpdate, read from task_updatable, the function the update policy and task_save both call, so the task screen offers changes exactly where the record allows them.",
+		"release": "the release carrying this catalog reaches company hosts by ship-host before the web/API deploy, after the migration that adds public.task_updatable; a host still on the older catalog refuses these answers until it takes the catalog"
+	},
+	{
+		"path": "task_update.result.canUpdate",
+		"reason": "A task says whether the caller may change it or who takes part in it, as canUpdate, read from task_updatable, the function the update policy and task_save both call, so the task screen offers changes exactly where the record allows them.",
+		"release": "the release carrying this catalog reaches company hosts by ship-host before the web/API deploy, after the migration that adds public.task_updatable; a host still on the older catalog refuses these answers until it takes the catalog"
+	},
+	{
+		"path": "task_list.result.tasks[].canUpdate",
+		"reason": "A task says whether the caller may change it or who takes part in it, as canUpdate, read from task_updatable, the function the update policy and task_save both call, so the task screen offers changes exactly where the record allows them.",
+		"release": "the release carrying this catalog reaches company hosts by ship-host before the web/API deploy, after the migration that adds public.task_updatable; a host still on the older catalog refuses these answers until it takes the catalog"
+	},
+	{
+		"path": "task_board_get.result.tasks[].canUpdate",
+		"reason": "A task says whether the caller may change it or who takes part in it, as canUpdate, read from task_updatable, the function the update policy and task_save both call, so the task screen offers changes exactly where the record allows them.",
+		"release": "the release carrying this catalog reaches company hosts by ship-host before the web/API deploy, after the migration that adds public.task_updatable; a host still on the older catalog refuses these answers until it takes the catalog"
 	}
 ]

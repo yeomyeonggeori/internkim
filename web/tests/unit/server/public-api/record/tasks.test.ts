@@ -40,6 +40,7 @@ function row(overrides: Partial<TaskRow> = {}): TaskRow {
 		requester_id: null,
 		task_participant: [{ member_id: 'm1' }, { member_id: 'm2' }],
 		task_deletable: false,
+		task_updatable: false,
 		...overrides
 	};
 }

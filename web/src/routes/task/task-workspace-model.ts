@@ -105,22 +105,13 @@ export function taskDefinitionValueFromOption(value: string): string | null {
 	return value;
 }
 
-export function canUpdateTask(summary: TaskSummary | null, task: Task): boolean {
-	if (summary?.isAdmin) return true;
-	const member = currentTaskMember(summary);
-	if (!member) return false;
-	if (!task.id && task.requesterID === member.id) return true;
-	return task.participantIDs.includes(member.id);
+export function canUpdateTask(task: Task): boolean {
+	if (!task.id) return true;
+	return task.canUpdate === true;
 }
 
 export function canDeleteTask(task: Task): boolean {
 	return task.canDelete === true;
-}
-
-export function canManageTaskAssignment(summary: TaskSummary | null, task: Task): boolean {
-	if (summary?.isAdmin) return true;
-	const member = currentTaskMember(summary);
-	return task.participantIDs.length === 1 && member?.id === task.participantIDs[0];
 }
 
 export function canRemoveTaskParticipant(task: Task, memberID: string): boolean {

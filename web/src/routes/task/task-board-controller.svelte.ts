@@ -53,7 +53,7 @@ export class TaskBoardController {
 		const summary = this.getSummary();
 		if (!summary || this.pendingTaskIDs.length > 0) return;
 		const task = summary.tasks.find((candidate) => candidate.id === request.taskID);
-		if (!task || !canUpdateTask(summary, task)) return;
+		if (!task || !canUpdateTask(task)) return;
 		const move = createTaskBoardMove(summary.tasks, request);
 		if (!move) return;
 

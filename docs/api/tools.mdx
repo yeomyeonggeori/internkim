@@ -123,7 +123,8 @@ notifications in the background. An `asked` response has no event.
     "startDate": "",
     "endDate": "",
     "weekCode": "",
-    "canDelete": true
+    "canDelete": true,
+    "canUpdate": true
   }
 }
 ```
@@ -151,7 +152,8 @@ the people on it come three ways — `participantIDs` to act on,
 `participantNames` to print, and `participantPresentations` to address someone.
 `canDelete` is the record's answer to whether the caller may delete the task:
 an admin may, the member who asked for it may, and so may the one person on it
-when nobody else is.
+when nobody else is. `canUpdate` answers whether the caller may change the task
+or who is on it, which anybody on it may do as well.
 
 
 A tool carried to the company's computer answers the fuller shape below —

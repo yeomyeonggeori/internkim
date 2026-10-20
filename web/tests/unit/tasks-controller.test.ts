@@ -9,7 +9,7 @@ describe('flow tasks controller', () => {
 		try {
 			const { createTasksController } = await import('../../src/routes/task/tasks-controller.svelte');
 			const controller = createTasksController();
-			const task = taskOf({ id: 'task', participantIDs: ['viewer', 'other'], participantNames: ['이샘플', '박예시'] });
+			const task = taskOf({ id: 'task', participantIDs: ['viewer', 'other'], participantNames: ['이샘플', '박예시'], canUpdate: true });
 			const preview = taskSummary({ completeness: 'board', peopleReady: false, currentUserEmail: 'viewer@example.com', members: [taskMember({ id: 'viewer', email: 'viewer@example.com' })], tasks: [task] });
 			const sync = (summary: TaskSummary | null) => controller.sync({ summary, text: taskText.ko, loadTask: async () => true, setPageErrorMessage: () => {} });
 			sync(preview);

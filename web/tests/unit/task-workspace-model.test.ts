@@ -7,7 +7,6 @@ import {
 	buildMemberFilterOptions,
 	canDeleteTask,
 	canRemoveTaskParticipant,
-	canManageTaskAssignment,
 	canUpdateTask,
 	defaultParticipantFilterIDs,
 	filterTasks,
@@ -116,54 +115,18 @@ describe('flow task workspace model', () => {
 		]);
 	});
 
-	test('grants the sole participant task and assignment authority', () => {
-		const summary = taskSummary({
-			currentUserEmail: 'member1@example.com',
-			isAdmin: false,
-			members: [
-				taskMember({ id: 'participant', email: 'member1@example.com' }),
-				taskMember({ id: 'viewer', email: 'viewer@example.com' })
-			]
-		});
-		const task = taskOf({ ownerID: 'participant', participantIDs: ['participant'] });
+	test('offers changes where the record answered so, and on work not yet saved', () => {
+		const savedTask = taskOf({ ownerID: 'participant', participantIDs: ['participant', 'other'] });
 
-		expect(canUpdateTask(summary, task)).toBe(true);
-		expect(canManageTaskAssignment(summary, task)).toBe(true);
-		expect(canRemoveTaskParticipant(task, 'participant')).toBe(false);
+		expect(canUpdateTask({ ...savedTask, canUpdate: true })).toBe(true);
+		expect(canUpdateTask({ ...savedTask, canUpdate: false })).toBe(false);
+		expect(canUpdateTask(savedTask)).toBe(false);
+		expect(canUpdateTask({ ...savedTask, id: '' })).toBe(true);
 	});
 
-	test('lets every participant update shared tasks without order-based authority', () => {
-		const summary = taskSummary({
-			currentUserEmail: 'member1@example.com',
-			isAdmin: false,
-			members: [
-				taskMember({ id: 'owner', email: 'owner@example.com' }),
-				taskMember({ id: 'participant', email: 'member1@example.com' })
-			]
-		});
-		const task = taskOf({
-			ownerID: '',
-			participantIDs: ['owner', 'participant']
-		});
-
-		expect(canUpdateTask(summary, task)).toBe(true);
-		expect(canManageTaskAssignment(summary, task)).toBe(false);
-		expect(canUpdateTask({ ...summary, currentUserEmail: 'owner@example.com' }, task)).toBe(true);
-		expect(canManageTaskAssignment({ ...summary, currentUserEmail: 'owner@example.com' }, task)).toBe(false);
-		expect(canManageTaskAssignment({ ...summary, isAdmin: true }, task)).toBe(true);
-	});
-
-	test('does not grant task authority without participation', () => {
-		const summary = taskSummary({
-			currentUserEmail: 'member1@example.com',
-			isAdmin: false,
-			members: [taskMember({ id: 'viewer', email: 'member1@example.com' })]
-		});
-		const task = taskOf({ ownerID: '', participantIDs: [], participantNames: [] });
-
-		expect(canUpdateTask(summary, task)).toBe(false);
-		expect(canManageTaskAssignment(summary, task)).toBe(false);
-		expect(canRemoveTaskParticipant(task, 'viewer')).toBe(false);
+	test('keeps the last participant on the work', () => {
+		expect(canRemoveTaskParticipant(taskOf({ participantIDs: ['participant'] }), 'participant')).toBe(false);
+		expect(canRemoveTaskParticipant(taskOf({ participantIDs: [] }), 'viewer')).toBe(false);
 	});
 
 	test('offers delete only where the record answered that the viewer may delete', () => {
@@ -172,21 +135,6 @@ describe('flow task workspace model', () => {
 		expect(canDeleteTask({ ...soleParticipantTask, canDelete: true })).toBe(true);
 		expect(canDeleteTask({ ...soleParticipantTask, canDelete: false })).toBe(false);
 		expect(canDeleteTask(soleParticipantTask)).toBe(false);
-	});
-
-	test('lets a requester edit their unsaved request draft without becoming a participant', () => {
-		const summary = taskSummary({
-			currentUserEmail: 'requester@example.com',
-			members: [taskMember({ id: 'requester', email: 'requester@example.com' })]
-		});
-		const draft = taskOf({
-			id: '',
-			ownerID: 'target',
-			requesterID: 'requester',
-			participantIDs: ['target']
-		});
-
-		expect(canUpdateTask(summary, draft)).toBe(true);
 	});
 
 	test('allows participant removal only when another participant remains', () => {
