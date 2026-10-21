@@ -5,7 +5,10 @@ plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
     id("rust")
+    id("com.google.gms.google-services")
 }
+
+apply(from = file("../../../../android/variables.gradle"))
 
 val tauriProperties = Properties().apply {
     val propFile = file("tauri.properties")
@@ -76,6 +79,8 @@ dependencies {
     implementation("com.google.android.material:material:1.12.0")
     implementation("androidx.lifecycle:lifecycle-process:2.10.0")
     implementation(project(":attendance-widget"))
+    implementation(project(":sender-notification"))
+    implementation("com.google.firebase:firebase-messaging:${project.extra["firebaseMessagingVersion"]}")
     testImplementation("junit:junit:4.13.2")
     androidTestImplementation("androidx.test.ext:junit:1.1.4")
     androidTestImplementation("androidx.test.espresso:espresso-core:3.5.0")

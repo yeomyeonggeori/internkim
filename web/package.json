@@ -82,6 +82,7 @@
 		"@capacitor/ios": "^8.5.1",
 		"@capacitor/keyboard": "^8.0.6",
 		"@capacitor/push-notifications": "^8.1.2",
+		"@choochmeque/tauri-plugin-notifications-api": "0.5.0-rc.14",
 		"@hpke/core": "1.9.0",
 		"@hpke/dhkem-x25519": "1.8.0",
 		"@humanspeak/svelte-markdown": "^1.6.0",
