@@ -238,7 +238,8 @@ describe('a task written through the record', () => {
 			await run('task_add', { title: '지난주 회의', status: 'completed', participantPersonHints: ['이샘플', '박예시'] })
 		);
 		expect(made.status).toBe('completed');
-		expect([...made.participantNames].sort()).toEqual(['박예시', '이샘플'].sort());
+		expect(made.participantNames).toHaveLength(2);
+		expect(made.participantNames).toEqual(expect.arrayContaining(['이샘플', '박예시']));
 	});
 
 	test('keeps an omitted estimate valid for the caller’s task', async () => {
