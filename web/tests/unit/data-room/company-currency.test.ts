@@ -4,7 +4,7 @@ import type { DataRoomCompany } from '../../../src/lib/data-room/company';
 
 const company: DataRoomCompany = {
 	profile: { capital: { amount: 150_000_000, currency: 'KRW' } },
-	metrics: [{ metric: 'annualRevenue', year: 2025, amount: { amount: 1_000_000_000, currency: 'KRW' } }, { metric: 'mau', year: 2026, value: 15_200 }],
+	metrics: [{ metric: 'annualRevenue', period: '2025', amount: { amount: 1_000_000_000, currency: 'KRW' } }, { metric: 'mau', period: '2026', value: 15_200 }],
 	records: [
 		{
 			category: 'funding',
@@ -39,6 +39,6 @@ describe('company in a display currency', () => {
 	});
 
 	test('leaves values that are not money alone', () => {
-		expect(companyIn(company, 'USD', rates).metrics[1]).toEqual({ metric: 'mau', year: 2026, value: 15_200 });
+		expect(companyIn(company, 'USD', rates).metrics[1]).toEqual({ metric: 'mau', period: '2026', value: 15_200 });
 	});
 });

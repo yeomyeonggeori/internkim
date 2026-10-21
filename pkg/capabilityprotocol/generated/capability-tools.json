@@ -20560,11 +20560,6 @@
                 "metricID": {
                   "type": "string"
                 },
-                "month": {
-                  "maximum": 9007199254740991,
-                  "minimum": -9007199254740991,
-                  "type": "integer"
-                },
                 "note": {
                   "anyOf": [
                     {
@@ -20575,10 +20570,10 @@
                     }
                   ]
                 },
-                "quarter": {
-                  "maximum": 9007199254740991,
-                  "minimum": -9007199254740991,
-                  "type": "integer"
+                "period": {
+                  "description": "When something happened, as precisely as known: YYYY, YYYY-H1, YYYY-Q3, YYYY-MM or YYYY-MM-DD.",
+                  "pattern": "^\\d{4}(-(H[12]|Q[1-4]|(0[1-9]|1[0-2])(-\\d{2})?))?$",
+                  "type": "string"
                 },
                 "unit": {
                   "anyOf": [
@@ -20612,19 +20607,12 @@
                       "type": "null"
                     }
                   ]
-                },
-                "year": {
-                  "maximum": 9007199254740991,
-                  "minimum": -9007199254740991,
-                  "type": "integer"
                 }
               },
               "required": [
                 "metricID",
                 "metric",
-                "year",
-                "quarter",
-                "month",
+                "period",
                 "amount",
                 "usdEquivalent",
                 "value",
@@ -20694,11 +20682,6 @@
                   "metricID": {
                     "type": "string"
                   },
-                  "month": {
-                    "maximum": 9007199254740991,
-                    "minimum": -9007199254740991,
-                    "type": "integer"
-                  },
                   "note": {
                     "anyOf": [
                       {
@@ -20709,10 +20692,10 @@
                       }
                     ]
                   },
-                  "quarter": {
-                    "maximum": 9007199254740991,
-                    "minimum": -9007199254740991,
-                    "type": "integer"
+                  "period": {
+                    "description": "When something happened, as precisely as known: YYYY, YYYY-H1, YYYY-Q3, YYYY-MM or YYYY-MM-DD.",
+                    "pattern": "^\\d{4}(-(H[12]|Q[1-4]|(0[1-9]|1[0-2])(-\\d{2})?))?$",
+                    "type": "string"
                   },
                   "unit": {
                     "anyOf": [
@@ -20746,19 +20729,12 @@
                         "type": "null"
                       }
                     ]
-                  },
-                  "year": {
-                    "maximum": 9007199254740991,
-                    "minimum": -9007199254740991,
-                    "type": "integer"
                   }
                 },
                 "required": [
                   "metricID",
                   "metric",
-                  "year",
-                  "quarter",
-                  "month",
+                  "period",
                   "amount",
                   "usdEquivalent",
                   "value",
@@ -20794,7 +20770,7 @@
         "mode": "success",
         "targetKind": "company"
       },
-      "description": "Record or correct one company metric value for a period — annual revenue, operating profit, MAU, employee count, GMV and similar time-series numbers. Money goes in amount with its USD equivalent; anything else goes in value with a unit. Add quarter (1-4) OR month (1-12) for sub-annual periods, never both. Same call overwrites the same period.",
+      "description": "Record or correct one company metric value for a period — annual revenue, operating profit, MAU, employee count, GMV and similar time-series numbers. Money goes in amount with its USD equivalent; anything else goes in value with a unit. The period is a year, half, quarter, month or day. Same call overwrites the same period.",
       "estimatedLatency": "low",
       "idempotency": {
         "required": false,
@@ -20829,21 +20805,14 @@
             "description": "Metric key in lowerCamelCase, e.g. 'annualRevenue', 'operatingProfit', 'mau', 'employees'. Reuse the same key across periods.",
             "type": "string"
           },
-          "month": {
-            "description": "Month 1-12 for a monthly value. Leave out for annual or quarterly values; never combine with quarter.",
-            "maximum": 9007199254740991,
-            "minimum": -9007199254740991,
-            "type": "integer"
-          },
           "note": {
             "description": "Source or context note, e.g. 'from the audited financial statements'.",
             "type": "string"
           },
-          "quarter": {
-            "description": "Quarter 1-4 for a quarterly value. Leave out for annual or monthly values; never combine with month.",
-            "maximum": 9007199254740991,
-            "minimum": -9007199254740991,
-            "type": "integer"
+          "period": {
+            "description": "The period the value covers: YYYY for a year, YYYY-H1 or YYYY-H2 for a half, YYYY-Q1 to YYYY-Q4 for a quarter, YYYY-MM for a month, YYYY-MM-DD for a count taken on one day such as headcount. A value recorded before its period ends is read as what the company expects for it; recording again once the period is over replaces it with the result.",
+            "pattern": "^\\d{4}(-(H[12]|Q[1-4]|(0[1-9]|1[0-2])(-\\d{2})?))?$",
+            "type": "string"
           },
           "unit": {
             "description": "Unit of a value that is not money, e.g. 'people', 'orders', 'sites'.",
@@ -20856,12 +20825,6 @@
           "value": {
             "description": "The value when the metric is not money, e.g. 26400 for MAU. Use the raw number, not a formatted string.",
             "type": "number"
-          },
-          "year": {
-            "description": "Four-digit year the value belongs to, e.g. 2025.",
-            "maximum": 9007199254740991,
-            "minimum": -9007199254740991,
-            "type": "integer"
           }
         },
         "type": "object"
@@ -20894,21 +20857,14 @@
             "description": "Metric key in lowerCamelCase, e.g. 'annualRevenue', 'operatingProfit', 'mau', 'employees'. Reuse the same key across periods.",
             "type": "string"
           },
-          "month": {
-            "description": "Month 1-12 for a monthly value. Leave out for annual or quarterly values; never combine with quarter.",
-            "maximum": 9007199254740991,
-            "minimum": -9007199254740991,
-            "type": "integer"
-          },
           "note": {
             "description": "Source or context note, e.g. 'from the audited financial statements'.",
             "type": "string"
           },
-          "quarter": {
-            "description": "Quarter 1-4 for a quarterly value. Leave out for annual or monthly values; never combine with month.",
-            "maximum": 9007199254740991,
-            "minimum": -9007199254740991,
-            "type": "integer"
+          "period": {
+            "description": "The period the value covers: YYYY for a year, YYYY-H1 or YYYY-H2 for a half, YYYY-Q1 to YYYY-Q4 for a quarter, YYYY-MM for a month, YYYY-MM-DD for a count taken on one day such as headcount. A value recorded before its period ends is read as what the company expects for it; recording again once the period is over replaces it with the result.",
+            "pattern": "^\\d{4}(-(H[12]|Q[1-4]|(0[1-9]|1[0-2])(-\\d{2})?))?$",
+            "type": "string"
           },
           "unit": {
             "description": "Unit of a value that is not money, e.g. 'people', 'orders', 'sites'.",
@@ -20921,17 +20877,11 @@
           "value": {
             "description": "The value when the metric is not money, e.g. 26400 for MAU. Use the raw number, not a formatted string.",
             "type": "number"
-          },
-          "year": {
-            "description": "Four-digit year the value belongs to, e.g. 2025.",
-            "maximum": 9007199254740991,
-            "minimum": -9007199254740991,
-            "type": "integer"
           }
         },
         "required": [
           "metric",
-          "year"
+          "period"
         ],
         "type": "object"
       },
@@ -20978,11 +20928,6 @@
           "metricID": {
             "type": "string"
           },
-          "month": {
-            "maximum": 9007199254740991,
-            "minimum": -9007199254740991,
-            "type": "integer"
-          },
           "note": {
             "anyOf": [
               {
@@ -20993,10 +20938,10 @@
               }
             ]
           },
-          "quarter": {
-            "maximum": 9007199254740991,
-            "minimum": -9007199254740991,
-            "type": "integer"
+          "period": {
+            "description": "When something happened, as precisely as known: YYYY, YYYY-H1, YYYY-Q3, YYYY-MM or YYYY-MM-DD.",
+            "pattern": "^\\d{4}(-(H[12]|Q[1-4]|(0[1-9]|1[0-2])(-\\d{2})?))?$",
+            "type": "string"
           },
           "unit": {
             "anyOf": [
@@ -21030,19 +20975,12 @@
                 "type": "null"
               }
             ]
-          },
-          "year": {
-            "maximum": 9007199254740991,
-            "minimum": -9007199254740991,
-            "type": "integer"
           }
         },
         "required": [
           "metricID",
           "metric",
-          "year",
-          "quarter",
-          "month",
+          "period",
           "amount",
           "usdEquivalent",
           "value",
@@ -21101,11 +21039,6 @@
             "metricID": {
               "type": "string"
             },
-            "month": {
-              "maximum": 9007199254740991,
-              "minimum": -9007199254740991,
-              "type": "integer"
-            },
             "note": {
               "anyOf": [
                 {
@@ -21116,10 +21049,10 @@
                 }
               ]
             },
-            "quarter": {
-              "maximum": 9007199254740991,
-              "minimum": -9007199254740991,
-              "type": "integer"
+            "period": {
+              "description": "When something happened, as precisely as known: YYYY, YYYY-H1, YYYY-Q3, YYYY-MM or YYYY-MM-DD.",
+              "pattern": "^\\d{4}(-(H[12]|Q[1-4]|(0[1-9]|1[0-2])(-\\d{2})?))?$",
+              "type": "string"
             },
             "unit": {
               "anyOf": [
@@ -21153,19 +21086,12 @@
                   "type": "null"
                 }
               ]
-            },
-            "year": {
-              "maximum": 9007199254740991,
-              "minimum": -9007199254740991,
-              "type": "integer"
             }
           },
           "required": [
             "metricID",
             "metric",
-            "year",
-            "quarter",
-            "month",
+            "period",
             "amount",
             "usdEquivalent",
             "value",

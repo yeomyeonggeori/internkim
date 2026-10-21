@@ -1,5 +1,5 @@
 import { assetBucket } from '../asset-address';
-import { compareMomentsNewestFirst } from '$lib/moment';
+import { compareMomentsNewestFirst, momentSpanOf } from '$lib/moment';
 import { dataRoomFolder, derivedPath, originalPath } from '$lib/data-room/storage-path';
 import { titleNearness } from './hint-nearness';
 import { HintRefused, normalized, resolveHint, type HintMatcher } from './hint-resolution';
@@ -22,9 +22,7 @@ import type {
 
 export type CompanyMetricRecordInput = {
 	metric?: string;
-	year?: number;
-	quarter?: number;
-	month?: number;
+	period?: string;
 	amount?: Money;
 	usdEquivalent?: number;
 	value?: number;
@@ -100,7 +98,6 @@ export type CompanyDocumentRecallInput = {
 	limit?: number;
 };
 
-const earliestMetricYear = 1900;
 const documentSearchDefaultLimit = 5;
 const documentSearchLimit = 50;
 const documentRecallMinimumRelevance = 0.5;
@@ -110,7 +107,7 @@ const sha256Pattern = /^[0-9a-f]{64}$/;
 const inboxCategoryCode = 'X';
 
 const metricColumns =
-	'id, metric, year, quarter, month, value, currency_code, value_usd, unit, note, updated_at';
+	'id, metric, period, value, currency_code, value_usd, unit, note, updated_at';
 const recordColumns = 'id, category, record_date, title, detail, status, amount, currency_code, attributes, updated_at';
 const documentColumns =
 	'id, document_number, kind, document_type, title, counterpart, language, file_path, summary, requester_id, created_at, updated_at, category_code, document_date, period, status, supersedes, sha256, tags, storage_path, size_bytes, published_from, published_at, published_by';
@@ -141,9 +138,7 @@ const documentKinds = ['issued', 'received', 'internal'];
 type MetricRow = {
 	id: string;
 	metric: string;
-	year: number;
-	quarter: number;
-	month: number;
+	period: string;
 	value: number;
 	currency_code: string | null;
 	value_usd: number | null;
@@ -196,9 +191,7 @@ function answeredMetric(row: MetricRow): CompanyMetricResult {
 	return {
 		metricID: row.id,
 		metric: row.metric,
-		year: row.year,
-		quarter: row.quarter,
-		month: row.month,
+		period: row.period,
 		amount: row.currency_code === null ? null : { amount: Number(row.value), currency: row.currency_code },
 		usdEquivalent: row.value_usd === null ? null : Number(row.value_usd),
 		value: row.currency_code === null ? Number(row.value) : null,
@@ -334,27 +327,12 @@ function storedMetricAmountOf(amount: Money, input: CompanyMetricRecordInput): S
 	return { value: amount.amount, currencyCode: amount.currency, valueUSD, unit: null };
 }
 
-function periodOfMetric(input: CompanyMetricRecordInput): { quarter: number; month: number } {
-	const quarter = input.quarter ?? 0;
-	const month = input.month ?? 0;
-	if (quarter !== 0 && month !== 0) {
-		throw new Error(
-			'a metric is annual, quarterly or monthly: give a quarter or a month, never both'
-		);
-	}
-	if (quarter < 0 || quarter > 4) throw new Error('a quarter is 1 to 4');
-	if (month < 0 || month > 12) throw new Error('a month is 1 to 12');
-	return { quarter, month };
-}
-
 export async function companyMetricRecord(
 	context: RecordContext,
 	input: CompanyMetricRecordInput
 ): Promise<CompanyMetricResult> {
 	const metric = textOf(input.metric, 'a metric call names the metric it records');
-	const year = input.year ?? 0;
-	if (year < earliestMetricYear) throw new Error('a metric names the four-digit year it belongs to');
-	const { quarter, month } = periodOfMetric(input);
+	const period = textOf(input.period, 'a metric names the period it covers, such as 2025, 2026-H1 or 2026-Q3');
 	const stored = storedMetricValueOf(input);
 
 	const { data, error } = await context.caller
@@ -363,9 +341,7 @@ export async function companyMetricRecord(
 			{
 				company_id: context.companyID,
 				metric,
-				year,
-				quarter,
-				month,
+				period,
 				value: stored.value,
 				currency_code: stored.currencyCode,
 				value_usd: stored.valueUSD,
@@ -373,12 +349,18 @@ export async function companyMetricRecord(
 				note: orNull(input.note),
 				updated_at: context.now.toISOString()
 			},
-			{ onConflict: 'company_id,metric,year,quarter,month' }
+			{ onConflict: 'company_id,metric,period' }
 		)
 		.select(metricColumns)
 		.single<MetricRow>();
 	if (error) throw refuseTheWrite(error, onlyAnAdministratorWritesMetrics);
 	return answeredMetric(data);
+}
+
+function byMetricThenPeriod(left: MetricRow, right: MetricRow): number {
+	if (left.metric !== right.metric) return left.metric < right.metric ? -1 : 1;
+	return (momentSpanOf(left.period)?.start ?? '').localeCompare(momentSpanOf(right.period)?.start ?? '')
+		|| left.period.localeCompare(right.period);
 }
 
 export async function companyMetricList(
@@ -391,17 +373,12 @@ export async function companyMetricList(
 		.eq('company_id', context.companyID);
 	const metric = orNull(input.metric);
 	if (metric) query = query.eq('metric', metric);
-	if (input.fromYear !== undefined) query = query.gte('year', input.fromYear);
-	if (input.toYear !== undefined) query = query.lte('year', input.toYear);
+	if (input.fromYear !== undefined) query = query.gte('period', String(input.fromYear));
+	if (input.toYear !== undefined) query = query.lt('period', String(input.toYear + 1));
 
-	const { data, error } = await query
-		.order('metric')
-		.order('year')
-		.order('quarter')
-		.order('month')
-		.returns<MetricRow[]>();
+	const { data, error } = await query.order('metric').returns<MetricRow[]>();
 	if (error) throw new Error(error.message);
-	const metrics = (data ?? []).map(answeredMetric);
+	const metrics = (data ?? []).toSorted(byMetricThenPeriod).map(answeredMetric);
 	return { count: metrics.length, metrics };
 }
 

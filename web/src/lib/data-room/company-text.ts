@@ -30,6 +30,8 @@ type CompanyText = {
 	documents: (count: number) => string;
 	people: (count: number) => string;
 	change: (percent: string, kind: PeriodKind) => string;
+	projected: string;
+	soFar: (year: number) => string;
 	turnedPositive: string;
 	turnedNegative: string;
 	date: string;
@@ -105,7 +107,9 @@ export const dataRoomCompanyText: Record<Locale, CompanyText> = {
 		rounds: (count) => `${count}개 라운드`,
 		documents: (count) => `자료 ${count}건`,
 		people: (count) => `${new Intl.NumberFormat('ko').format(count)}명`,
-		change: (percent, kind) => `${{ year: '전년 대비', quarter: '전 분기 대비', month: '전월 대비' }[kind]} ${percent}`,
+		change: (percent, kind) => `${{ year: '전년 대비', half: '전 반기 대비', quarter: '전 분기 대비', month: '전월 대비', day: '직전 대비' }[kind]} ${percent}`,
+		projected: '전망',
+		soFar: (year) => `${year}년 실적`,
 		turnedPositive: '흑자 전환',
 		turnedNegative: '적자 전환',
 		date: '날짜',
@@ -216,7 +220,9 @@ export const dataRoomCompanyText: Record<Locale, CompanyText> = {
 		rounds: (count) => `${count} ${count === 1 ? 'round' : 'rounds'}`,
 		documents: (count) => `${count} ${count === 1 ? 'document' : 'documents'}`,
 		people: (count) => new Intl.NumberFormat('en').format(count),
-		change: (percent, kind) => `${percent} ${{ year: 'YoY', quarter: 'QoQ', month: 'MoM' }[kind]}`,
+		change: (percent, kind) => `${percent} ${{ year: 'YoY', half: 'HoH', quarter: 'QoQ', month: 'MoM', day: 'vs previous' }[kind]}`,
+		projected: 'projected',
+		soFar: (year) => `${year} so far`,
 		turnedPositive: 'Turned positive',
 		turnedNegative: 'Turned negative',
 		date: 'Date',

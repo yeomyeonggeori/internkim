@@ -8,6 +8,11 @@
 	const chart = $derived(metricBars(series, shownPeriods, locale));
 	const smallestVisibleBar = '4px';
 
+	function barTone(bar: MetricBar): string {
+		if (bar.isProjected) return 'border-foreground/40 border border-dashed';
+		return bar.isLatest ? 'bg-foreground' : 'bg-foreground/15';
+	}
+
 	function barHeight(bar: MetricBar): string {
 		if (bar.value === 0) return '0';
 		return `max(${smallestVisibleBar}, ${bar.share * 100}%)`;
@@ -24,13 +29,13 @@
 				<div class="grid h-20" style:grid-template-rows={`${chart.positiveShare}fr ${chart.negativeShare}fr`}>
 					<div class="flex items-end">
 						{#if bar.value > 0}
-							<span class={cn('w-full rounded-t-[3px]', bar.isLatest ? 'bg-foreground' : 'bg-foreground/15')} style:height={barHeight(bar)}></span>
+							<span class={cn('w-full rounded-t-[3px]', barTone(bar))} style:height={barHeight(bar)}></span>
 						{/if}
 					</div>
 					{#if chart.negativeShare > 0}
 						<div class="border-foreground/25 flex items-start border-t">
 							{#if bar.value < 0}
-								<span class={cn('w-full rounded-b-[3px]', bar.isLatest ? 'bg-foreground' : 'bg-foreground/15')} style:height={barHeight(bar)}></span>
+								<span class={cn('w-full rounded-b-[3px]', barTone(bar))} style:height={barHeight(bar)}></span>
 							{/if}
 						</div>
 					{/if}

@@ -128,7 +128,7 @@ describe('what the company states about itself', () => {
 	test('is an administrator to record, and the record says so to anybody else', async () => {
 		const refused = await asSample('company_metric_record', {
 			metric: 'annualRevenue',
-			year: 2025,
+			period: '2025',
 			amount: { amount: 1_200_000_000, currency: 'KRW' },
 			usdEquivalent: 870_000
 		});
@@ -140,7 +140,7 @@ describe('what the company states about itself', () => {
 	test('records money with the USD equivalent a reader can compare', async () => {
 		const written = await asAdmin('company_metric_record', {
 			metric: 'annualRevenue',
-			year: 2025,
+			period: '2025',
 			amount: { amount: 1_200_000_000, currency: 'KRW' },
 			usdEquivalent: 870_000
 		});
@@ -149,13 +149,13 @@ describe('what the company states about itself', () => {
 		expect(resultOf(written).amount).toEqual({ amount: 1_200_000_000, currency: 'KRW' });
 		expect(resultOf(written).usdEquivalent).toBe(870_000);
 		expect(resultOf(written).value).toBeNull();
-		expect(resultOf(written).quarter).toBe(0);
+		expect(resultOf(written).period).toBe('2025');
 	});
 
 	test('takes money in any ISO currency', async () => {
 		const written = await asAdmin('company_metric_record', {
 			metric: 'vietnamRevenue',
-			year: 2023,
+			period: '2023',
 			amount: { amount: 25_000_000_000, currency: 'VND' },
 			usdEquivalent: 1_000_000
 		});
@@ -167,7 +167,7 @@ describe('what the company states about itself', () => {
 	test('refuses money whose USD equivalent nobody gave', async () => {
 		const refused = await asAdmin('company_metric_record', {
 			metric: 'operatingProfit',
-			year: 2025,
+			period: '2025',
 			amount: { amount: 1_000, currency: 'KRW' }
 		});
 
@@ -175,23 +175,28 @@ describe('what the company states about itself', () => {
 		expect(errorOf(refused)).toContain('USD equivalent');
 	});
 
-	test('refuses a period that is quarterly and monthly at once', async () => {
+	test('refuses a period that is not a moment', async () => {
 		const refused = await asAdmin('company_metric_record', {
 			metric: 'mau',
-			year: 2025,
-			quarter: 2,
-			month: 3,
+			period: '2025-Q5',
 			value: 9_000
 		});
 
-		expect(refused.status).toBe(400);
-		expect(errorOf(refused)).toContain('never both');
+		expect(refused.status).toBe(422);
+	});
+
+	test('records a half, and lists each period by when it began', async () => {
+		await asAdmin('company_metric_record', { metric: 'halfRevenue', period: '2026-H2', value: 2 });
+		await asAdmin('company_metric_record', { metric: 'halfRevenue', period: '2026-H1', value: 1 });
+		const listed = await asAdmin('company_metric_list', { metric: 'halfRevenue' });
+
+		expect((resultOf(listed).metrics as { period: string }[]).map((metric) => metric.period)).toEqual(['2026-H1', '2026-H2']);
 	});
 
 	test('writes the same period again rather than a second row', async () => {
 		await asAdmin('company_metric_record', {
 			metric: 'annualRevenue',
-			year: 2025,
+			period: '2025',
 			amount: { amount: 1_300_000_000, currency: 'USD' }
 		});
 		const listed = await asAdmin('company_metric_list', { metric: 'annualRevenue' });
@@ -202,14 +207,14 @@ describe('what the company states about itself', () => {
 	});
 
 	test('is read by anybody who works here, and filtered by year', async () => {
-		await asAdmin('company_metric_record', { metric: 'mau', year: 2024, month: 12, value: 9_000, unit: 'people' });
+		await asAdmin('company_metric_record', { metric: 'mau', period: '2024-12', value: 9_000, unit: 'people' });
 
 		const everything = await asSample('company_metric_list');
 		const recent = await asSample('company_metric_list', { fromYear: 2025 });
 
-		expect(resultOf(everything).count).toBe(3);
-		expect(resultOf(recent).count).toBe(1);
-		expect((resultOf(recent).metrics as { metric: string }[])[0].metric).toBe('annualRevenue');
+		expect(resultOf(everything).count).toBe(5);
+		expect(resultOf(recent).count).toBe(3);
+		expect((resultOf(recent).metrics as { metric: string }[]).map((metric) => metric.metric)).toEqual(['annualRevenue', 'halfRevenue', 'halfRevenue']);
 	});
 });
 

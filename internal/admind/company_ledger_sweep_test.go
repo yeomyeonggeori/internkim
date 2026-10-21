@@ -179,6 +179,9 @@ func TestCompanyLedgerCarryKeepsWhatTheDeviceWroteRatherThanMintingItAgain(t *te
 			if row.Body["value_usd"] != float64(870000) || row.Body["currency_code"] != "KRW" {
 				t.Fatalf("the amount and its USD equivalent were not kept together: %#v", row.Body)
 			}
+			if row.Body["period"] != "2025" {
+				t.Fatalf("the year the device kept is not the period the record names: %#v", row.Body)
+			}
 		case "company_record":
 			attributes, isObject := row.Body["attributes"].(map[string]any)
 			if !isObject || attributes["round"] != "Seed" {

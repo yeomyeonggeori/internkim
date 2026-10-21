@@ -11,9 +11,9 @@ insert into public.company (id, name, slug, country, locale, timezone, profile)
 insert into public.member (id, company_id, user_id, email, status, is_admin) values
   ('65000000-0000-0000-0000-000000000011', '65000000-0000-0000-0000-000000000010', '65000000-0000-0000-0000-000000000001', 'company-admin@example.com', 'active', true),
   ('65000000-0000-0000-0000-000000000012', '65000000-0000-0000-0000-000000000010', '65000000-0000-0000-0000-000000000002', 'company-employee@example.com', 'active', false);
-insert into public.company_metric (company_id, metric, year, value, currency_code, value_usd) values
-  ('65000000-0000-0000-0000-000000000010', 'annualRevenue', 2025, 1200000000, 'KRW', 900000),
-  ('65000000-0000-0000-0000-000000000010', 'burnRate', 2025, 50000000, 'KRW', 37000);
+insert into public.company_metric (company_id, metric, period, value, currency_code, value_usd) values
+  ('65000000-0000-0000-0000-000000000010', 'annualRevenue', '2025', 1200000000, 'KRW', 900000),
+  ('65000000-0000-0000-0000-000000000010', 'burnRate', '2025', 50000000, 'KRW', 37000);
 insert into public.company_record (company_id, category, record_date, title) values
   ('65000000-0000-0000-0000-000000000010', 'funding', '2025-03-01', 'Seed round closed'),
   ('65000000-0000-0000-0000-000000000010', 'history', '2024-01-02', 'Company founded');

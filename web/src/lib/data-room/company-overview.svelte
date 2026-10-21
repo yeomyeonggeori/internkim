@@ -18,6 +18,7 @@
 	import { dataRoomCompanyText } from './company-text';
 	import {
 		changeFromPrevious,
+		projectedChange,
 		completedRecords,
 		roundBeingRaised,
 		companyFactGroups,
@@ -38,6 +39,7 @@
 		totalRaised,
 		yearsOperating,
 		type CompanyMetricSeries,
+		type MetricChange,
 		type DataRoomCompany
 	} from './company';
 
@@ -101,14 +103,13 @@
 				? { key: 'raised', label: text.highlights.raised, value: formatCompactMoney(raised, locale), note: text.rounds(completedRecords(recordsIn(company.records, ['funding'])).length) }
 				: undefined,
 			revenue
-				? { key: 'revenue', label: `${text.highlights.revenue} · ${periodLabel(revenue.latest, locale)}`, value: formatMetricValue(revenue.latest, locale), note: changeNote(revenue) }
+				? { key: 'revenue', label: `${text.highlights.revenue} · ${periodLabel(revenue.latest, locale)}`, value: formatMetricValue(revenue.latest, locale), note: changeNote(changeFromPrevious(revenue), revenue) }
 				: undefined
 		];
 		return candidates.filter((highlight) => highlight !== undefined);
 	}
 
-	function changeNote(series: CompanyMetricSeries): string {
-		const change = changeFromPrevious(series);
+	function changeNote(change: MetricChange | undefined, series: CompanyMetricSeries): string {
 		if (!change) return '';
 		if (change.kind === 'turnedPositive') return text.turnedPositive;
 		if (change.kind === 'turnedNegative') return text.turnedNegative;
@@ -172,7 +173,8 @@
 						<CompanyMetricCard
 							{series}
 							{locale}
-							note={changeNote(series)}
+							note={changeNote(changeFromPrevious(series), series)}
+							projectionNote={changeNote(projectedChange(series), series)}
 							span={index === metrics.length - 1 ? lastRowSpan(metrics.length, metricColumns) : 1}
 						/>
 					{/each}

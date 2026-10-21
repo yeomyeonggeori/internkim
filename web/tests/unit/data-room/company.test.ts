@@ -1,6 +1,8 @@
 import { describe, expect, test } from 'bun:test';
 import {
 	changeFromPrevious,
+	isProjected,
+	projectedChange,
 	companyFactGroups,
 	dataRoomCompanySchema,
 	fiscalYearEndLabel,
@@ -22,8 +24,9 @@ import {
 , type CompanyFactGroup } from '../../../src/lib/data-room/company';
 
 const metric = (year: number, value: number, quarter?: number): CompanyMetric => ({
-	metric: 'annualRevenue', year, amount: { amount: value, currency: 'KRW' }, ...(quarter ? { quarter } : {})
+	metric: 'annualRevenue', period: quarter ? `${year}-Q${quarter}` : String(year), amount: { amount: value, currency: 'KRW' }
 });
+const forecast = (year: number, value: number): CompanyMetric => ({ ...metric(year, value), recordedAt: `${year}-10-21T01:00:00Z` });
 
 describe('the company a data room shows', () => {
 	test('reads what the database answers, nothing shown included', () => {
@@ -63,6 +66,38 @@ describe('the company a data room shows', () => {
 		const [series] = metricSeries([metric(2025, 150), metric(2024, 100), metric(2025, 120, 1)]);
 		expect(series.points.map((point) => periodLabel(point, 'en'))).toEqual(['2024', '2025']);
 		expect(changeFromPrevious(series)).toEqual({ kind: 'percent', percent: 50 });
+	});
+
+	test('keeps a projection beside the last reported year and lists what this year has reported so far', () => {
+		const projected = forecast(2026, 320);
+		const [series] = metricSeries([metric(2024, 100), metric(2025, 200), metric(2026, 60, 1), metric(2026, 80, 2), projected]);
+		expect(periodLabel(series.latest, 'en')).toBe('2025');
+		expect(series.projection).toBe(projected);
+		expect(series.interim.map((point) => periodLabel(point, 'en'))).toEqual(['Q1 2026', 'Q2 2026']);
+		expect(changeFromPrevious(series)).toEqual({ kind: 'percent', percent: 100 });
+		expect(projectedChange(series)).toEqual({ kind: 'percent', percent: 60 });
+		expect(metricBars(series, 5, 'en').bars.map((bar) => [bar.period, bar.isProjected])).toEqual([['2024', false], ['2025', false], ['2026', true]]);
+	});
+
+	test('reads a value recorded before its period ends as a projection, on the company clock', () => {
+		const recorded = (period: string, recordedAt: string): CompanyMetric => ({ metric: 'annualRevenue', period, value: 1, recordedAt });
+		expect(isProjected(recorded('2026-H2', '2026-10-21T01:00:00Z'))).toBe(true);
+		expect(isProjected(recorded('2026-H1', '2026-07-02T01:00:00Z'))).toBe(false);
+		expect(isProjected(recorded('2026-10-21', '2026-10-21T01:00:00Z'))).toBe(false);
+		expect(isProjected(recorded('2026-06', '2026-06-29T16:00:00Z'))).toBe(false);
+		expect(isProjected(recorded('2026-06', '2026-06-29T14:00:00Z'))).toBe(true);
+	});
+
+	test('shows a projection as the headline when nothing has been reported for the metric', () => {
+		const [series] = metricSeries([forecast(2026, 450)]);
+		expect(isProjected(series.latest)).toBe(true);
+		expect(series.projection).toBeUndefined();
+	});
+
+	test('drops a projection once the reported value for a later period exists', () => {
+		const [series] = metricSeries([forecast(2025, 300), metric(2026, 280)]);
+		expect(series.points.map((point) => periodLabel(point, 'en'))).toEqual(['2026']);
+		expect(series.projection).toBeUndefined();
 	});
 
 	test('names a loss turning into a profit instead of a percentage across zero', () => {
@@ -109,7 +144,7 @@ describe('the company a data room shows', () => {
 	});
 
 	test('counts people from the profile first, then from the latest headcount metric', () => {
-		const employees = (year: number, value: number): CompanyMetric => ({ metric: 'employees', year, value });
+		const employees = (year: number, value: number): CompanyMetric => ({ metric: 'employees', period: String(year), value });
 		expect(headcount({ profile: { employeeCount: 9 }, metrics: [employees(2026, 30)], records: [] })).toBe(9);
 		expect(headcount({ profile: {}, metrics: [employees(2025, 20), employees(2026, 30)], records: [] })).toBe(30);
 		expect(headcount({ profile: {}, metrics: [], records: [] })).toBeUndefined();
