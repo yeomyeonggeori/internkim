@@ -237,6 +237,28 @@ func TestConnectionsNamedByAnSSIDCarryTheIdKeyword(t *testing.T) {
 	}
 }
 
+func TestIsOnANetworkCountsAConnectedWifiOrEthernetDeviceOnly(t *testing.T) {
+	cases := []struct {
+		devices      string
+		commandError error
+		want         bool
+	}{
+		{"wifi:connected\nethernet:unavailable\nloopback:connected (externally)\n", nil, true},
+		{"wifi:disconnected\nethernet:connected\n", nil, true},
+		{"wifi:disconnected\nwifi-p2p:disconnected\nethernet:unavailable\nloopback:connected (externally)\n", nil, false},
+		{"wifi:connecting (getting IP configuration)\n", nil, false},
+		{"", errors.New("exit status 8"), true},
+	}
+	for _, testCase := range cases {
+		radio := NetworkManagerRadio{Run: func(ctx context.Context, name string, arguments ...string) ([]byte, error) {
+			return []byte(testCase.devices), testCase.commandError
+		}}
+		if got := radio.IsOnANetwork(context.Background()); got != testCase.want {
+			t.Fatalf("devices %q, command error %v: IsOnANetwork = %t, want %t", testCase.devices, testCase.commandError, got, testCase.want)
+		}
+	}
+}
+
 func TestIsOnlineTrustsFullAndOtherwiseAsksThePlane(t *testing.T) {
 	reachable := func(context.Context) bool { return true }
 	unreachable := func(context.Context) bool { return false }

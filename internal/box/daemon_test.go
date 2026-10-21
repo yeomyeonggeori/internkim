@@ -482,7 +482,8 @@ func TestAClaimedBoxIsNamedForItsCompany(t *testing.T) {
 	}
 }
 
-func TestABoxThatHasACompanyLeavesItsNetworkAlone(t *testing.T) {
+func offlineBoxWithACompany(t *testing.T, isOnANetwork bool) (Daemon, *int) {
+	t.Helper()
 	plane := &fakePlane{}
 	recorded := &installs{}
 	daemon, places := daemonFor(t, plane, recorded)
@@ -492,11 +493,30 @@ func TestABoxThatHasACompanyLeavesItsNetworkAlone(t *testing.T) {
 	if errorValue := os.WriteFile(filepath.Join(places.StateDirectoryPath, companyMarkerFileName), []byte(sampleCompanyID+"\n"), 0o600); errorValue != nil {
 		t.Fatal(errorValue)
 	}
+	daemon.Client = Client{AppURL: "http://127.0.0.1:1"}
+	daemon.IsOnANetwork = func(context.Context) bool { return isOnANetwork }
+	attempts := 0
 	daemon.GetOnline = func(context.Context, string) error {
-		t.Fatal("a box that belongs to a company must not reopen its setup network")
+		attempts++
 		return nil
 	}
-	runSteps(t, daemon, 1)
+	return daemon, &attempts
+}
+
+func TestABoxThatHasACompanyGetsOnlineWhereItKnowsNoNetwork(t *testing.T) {
+	daemon, attempts := offlineBoxWithACompany(t, false)
+	runSteps(t, daemon, 2)
+	if *attempts < 2 {
+		t.Fatalf("a box with a company and no network tried to get online %d times, want once at start and again after the plane was unreachable", *attempts)
+	}
+}
+
+func TestABoxThatHasACompanyKeepsItsNetworkWhileTheInternetIsDown(t *testing.T) {
+	daemon, attempts := offlineBoxWithACompany(t, true)
+	runSteps(t, daemon, 2)
+	if *attempts != 0 {
+		t.Fatalf("a box with a company still on its network opened the setup network %d times, want never", *attempts)
+	}
 }
 
 func TestAnEmptyBoxThatLosesItsNetworkTriesToGetOnlineAgain(t *testing.T) {

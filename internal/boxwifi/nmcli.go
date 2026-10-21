@@ -50,6 +50,23 @@ func (radio NetworkManagerRadio) IsOnline(ctx context.Context) bool {
 	return radio.ReachesPlane != nil && radio.ReachesPlane(ctx)
 }
 
+func (radio NetworkManagerRadio) IsOnANetwork(ctx context.Context) bool {
+	output, errorValue := radio.run(ctx, "-t", "-f", "TYPE,STATE", "device")
+	if errorValue != nil {
+		return true
+	}
+	for _, line := range strings.Split(strings.TrimRight(string(output), "\n"), "\n") {
+		fields := splitTerseFields(line)
+		if len(fields) < 2 || fields[1] != "connected" {
+			continue
+		}
+		if fields[0] == "wifi" || fields[0] == "ethernet" {
+			return true
+		}
+	}
+	return false
+}
+
 func (radio NetworkManagerRadio) rescanMode() string {
 	if radio.RescanMode != "" {
 		return radio.RescanMode

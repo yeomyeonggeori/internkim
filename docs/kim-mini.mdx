@@ -30,10 +30,12 @@ it has.
 
 ## Getting online
 
-A box that has no company installed and is offline, and was started with
-`--wifi-setup`, opens its own Wi-Fi network named `kimmini-` plus the day the box
-was made as `YYMMDD`, for example `kimmini-261002`. The network appears only in
-that state and closes once the box is online. Boxes made on the same day share a
+A box started with `--wifi-setup` that is offline opens its own Wi-Fi network
+named `kimmini-` plus the day the box was made as `YYMMDD`, for example
+`kimmini-261002`. A box that already has a company opens it only when it is joined
+to no network at all, so one carried to another office can be given that office's
+network while an internet outage leaves it on the network it has. The network appears only
+while the box is offline and closes once it is online. Boxes made on the same day share a
 name, and a phone joins one of them; once that box is online its network closes
 and the next one is the only one left. Its password is `intern-kim`, the same on every box.
 
@@ -56,7 +58,9 @@ The shared password carries two risks. When the box falls back from WPA3 to
 WPA2, someone nearby who has the published password and captures a handshake can
 decrypt the plain-HTTP setup page and read the office network's password. And
 anyone can broadcast a look-alike network with the same name and password to
-collect the office password.
+collect the office password. A box that already has a company carries the same
+risks while it is on no network, and whoever joins its setup network can point it
+at another network.
 
 ## Making a box
 

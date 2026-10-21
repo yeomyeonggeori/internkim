@@ -34,7 +34,7 @@ func (daemon Daemon) resetIfAsked(ctx context.Context, identity Identity) error 
 			break
 		}
 		log.Printf("releasing this box: %v; trying again in %s", errorValue, announceInterval)
-		daemon.getOnlineWhileEmpty(ctx, identity)
+		daemon.getOnlineWhenOffline(ctx, identity)
 		if errorValue := daemon.sleep(ctx, announceInterval); errorValue != nil {
 			return errorValue
 		}
