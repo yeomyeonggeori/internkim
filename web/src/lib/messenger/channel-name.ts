@@ -26,3 +26,13 @@ export function channelName(
 	const asRecorded = others.map((person) => personLabel(person, people, locale)).filter(Boolean).join(', ');
 	return asRecorded || channel.name;
 }
+
+export function authorName(
+	author: MessengerPerson,
+	people: MessengerDirectory,
+	locale: Locale,
+	agent: { externalID?: string; name: string }
+): string {
+	if (agent.externalID && author.externalID === agent.externalID) return agent.name;
+	return personLabel(author, people, locale);
+}

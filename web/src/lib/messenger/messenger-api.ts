@@ -322,15 +322,21 @@ export type MessengerInboxItem = {
 	message: MessengerSearchMatch;
 };
 
-export async function fetchInbox(): Promise<MessengerInboxItem[]> {
+export type MessengerInbox = { items: MessengerInboxItem[]; agentExternalID?: string };
+
+export async function fetchInbox(): Promise<MessengerInbox> {
 	const answer = await ask<{
 		items: { reason: MessengerInboxReason; isUnread: boolean; message: PersonalMessageMatch }[];
+		agentExternalID?: string;
 	}>('person.inbox.list');
-	return answer.items.map((item) => ({
-		reason: item.reason,
-		isUnread: item.isUnread,
-		message: asSearchMatch(item.message)
-	}));
+	return {
+		items: answer.items.map((item) => ({
+			reason: item.reason,
+			isUnread: item.isUnread,
+			message: asSearchMatch(item.message)
+		})),
+		agentExternalID: answer.agentExternalID
+	};
 }
 
 export async function markThreadRead(channelID: string, threadRootID: string, readAt: string): Promise<void> {

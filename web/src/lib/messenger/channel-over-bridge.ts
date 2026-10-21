@@ -1,4 +1,4 @@
-import { channelName } from './channel-name';
+import { authorName, channelName } from './channel-name';
 import { currentLocale } from '$lib/i18n/locale.svelte';
 import { currentPersonNameLocale } from '$lib/person-name.svelte';
 import { channelText } from '$lib/i18n/channel-text';
@@ -354,15 +354,19 @@ export type InboxEntry = {
 };
 
 export async function bridgeInbox(): Promise<InboxEntry[]> {
-	const [people, items] = await Promise.all([fetchMessengerDirectory(), fetchInbox()]);
-	void personPicture.rememberExternals(items.map((item) => externalIDOf(item.message.author, people)));
-	return items.map(({ reason, isUnread, message }) => ({
+	const [people, inbox] = await Promise.all([fetchMessengerDirectory(), fetchInbox()]);
+	const agent = { externalID: inbox.agentExternalID, name: channelText[currentLocale.value].title };
+	void personPicture.rememberExternals(inbox.items.map((item) => externalIDOf(item.message.author, people)));
+	return inbox.items.map(({ reason, isUnread, message }) => ({
 		id: message.id,
 		conversationID: message.channelID,
 		threadRootId: message.parentID,
 		reason,
 		isUnread,
-		sender: participantOf(message.author, people),
+		sender: {
+			...participantOf(message.author, people),
+			name: authorName(message.author, people, currentPersonNameLocale(), agent)
+		},
 		text: emojifyText(message.body),
 		sentAt: message.postedAt
 	}));
