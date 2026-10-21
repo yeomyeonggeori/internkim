@@ -15377,7 +15377,6 @@
     },
     {
       "answeredBy": "local",
-      "approvalScope": "browser",
       "availability": {
         "state": "ok"
       },
@@ -15521,7 +15520,6 @@
     },
     {
       "answeredBy": "local",
-      "approvalScope": "browser",
       "availability": {
         "state": "ok"
       },
@@ -15640,7 +15638,6 @@
     },
     {
       "answeredBy": "local",
-      "approvalScope": "browser",
       "availability": {
         "state": "ok"
       },
@@ -15801,7 +15798,6 @@
     },
     {
       "answeredBy": "local",
-      "approvalScope": "browser",
       "availability": {
         "state": "ok"
       },
@@ -15941,7 +15937,6 @@
     },
     {
       "answeredBy": "local",
-      "approvalScope": "browser",
       "availability": {
         "state": "ok"
       },
@@ -16077,7 +16072,6 @@
     },
     {
       "answeredBy": "local",
-      "approvalScope": "browser",
       "availability": {
         "state": "ok"
       },
@@ -16183,7 +16177,6 @@
     },
     {
       "answeredBy": "local",
-      "approvalScope": "browser",
       "availability": {
         "state": "ok"
       },
@@ -16319,7 +16312,6 @@
     },
     {
       "answeredBy": "local",
-      "approvalScope": "browser",
       "availability": {
         "state": "ok"
       },
@@ -23389,7 +23381,6 @@
     },
     {
       "answeredBy": "record",
-      "approvalScope": "company",
       "availability": {
         "state": "ok"
       },
@@ -23539,7 +23530,6 @@
     },
     {
       "answeredBy": "record",
-      "approvalScope": "company",
       "availability": {
         "state": "ok"
       },
@@ -24061,7 +24051,6 @@
     },
     {
       "answeredBy": "record",
-      "approvalScope": "company",
       "availability": {
         "state": "ok"
       },
@@ -24231,7 +24220,6 @@
     },
     {
       "answeredBy": "record",
-      "approvalScope": "company",
       "availability": {
         "state": "ok"
       },
@@ -24334,7 +24322,6 @@
     },
     {
       "answeredBy": "record",
-      "approvalScope": "company",
       "availability": {
         "state": "ok"
       },
@@ -24679,7 +24666,6 @@
     },
     {
       "answeredBy": "record",
-      "approvalScope": "company",
       "availability": {
         "state": "ok"
       },
@@ -24960,7 +24946,6 @@
     },
     {
       "answeredBy": "record",
-      "approvalScope": "company",
       "availability": {
         "state": "ok"
       },
@@ -25076,7 +25061,6 @@
     },
     {
       "answeredBy": "record",
-      "approvalScope": "company",
       "availability": {
         "state": "ok"
       },
@@ -25182,7 +25166,6 @@
     },
     {
       "answeredBy": "record",
-      "approvalScope": "company",
       "availability": {
         "state": "ok"
       },
@@ -25284,7 +25267,6 @@
     },
     {
       "answeredBy": "record",
-      "approvalScope": "company",
       "availability": {
         "state": "ok"
       },

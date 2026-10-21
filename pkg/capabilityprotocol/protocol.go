@@ -80,7 +80,6 @@ type Descriptor struct {
 	PrivacyClass         string                        `json:"privacyClass"`
 	EstimatedLatency     string                        `json:"estimatedLatency"`
 	RequiresUserPresence bool                          `json:"requiresUserPresence"`
-	ApprovalScope        string                        `json:"approvalScope,omitempty"`
 	WorksOffline         bool                          `json:"worksOffline"`
 	RecallSource         bool                          `json:"recallSource,omitempty"`
 	InputSchema          json.RawMessage               `json:"inputSchema,omitempty"`

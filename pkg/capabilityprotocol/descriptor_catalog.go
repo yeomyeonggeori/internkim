@@ -1,11 +1,5 @@
 package capabilityprotocol
 
-const (
-	BrowserApprovalScope   = "browser"
-	FileApprovalScope      = "file"
-	UserInputApprovalScope = "user_input"
-)
-
 var browserToolNames = []string{
 	"browser_open",
 	"browser_snapshot",

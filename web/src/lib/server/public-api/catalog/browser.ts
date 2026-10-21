@@ -84,7 +84,6 @@ export const browserControlToolDefinitions: CapabilityToolDefinition[] = [
     inputIntentSchema: browserFillInputIntentSchema,
     result: { schema: browserFillResultSchema, effects: [] },
     sideEffect: CapabilitySideEffect.ExternalWrite,
-    approvalScope: "browser",
   },
   {
     name: "browser_press",
@@ -99,7 +98,6 @@ export const browserControlToolDefinitions: CapabilityToolDefinition[] = [
     inputIntentSchema: browserPressInputIntentSchema,
     result: { schema: browserPressResultSchema, effects: [] },
     sideEffect: CapabilitySideEffect.ExternalWrite,
-    approvalScope: "browser",
   },
   {
     name: "browser_select",
@@ -114,7 +112,6 @@ export const browserControlToolDefinitions: CapabilityToolDefinition[] = [
     inputIntentSchema: browserSelectInputIntentSchema,
     result: { schema: browserSelectResultSchema, effects: [] },
     sideEffect: CapabilitySideEffect.ExternalWrite,
-    approvalScope: "browser",
   },
   {
     name: "browser_wait",
@@ -128,6 +125,5 @@ export const browserControlToolDefinitions: CapabilityToolDefinition[] = [
     inputSchema: browserWaitInputSchema,
     result: { schema: browserWaitResultSchema, effects: [] },
     sideEffect: CapabilitySideEffect.Read,
-    approvalScope: "browser",
   },
 ];

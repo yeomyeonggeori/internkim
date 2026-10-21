@@ -1,5 +1,4 @@
 <script lang="ts">
-	import { Badge } from '$lib/components/ui/badge';
 	import { Button } from '$lib/components/ui/button';
 	import { Separator } from '$lib/components/ui/separator';
 	import CheckIcon from '@lucide/svelte/icons/check';
@@ -41,12 +40,7 @@
 </script>
 
 <div class="flex flex-col gap-3">
-	<div class="flex flex-wrap items-center gap-2">
-		<span class="text-xs text-muted-foreground">{text.approvalQuestionLabel}</span>
-		{#if approval.scope}
-			<Badge variant="secondary">{approval.scope}</Badge>
-		{/if}
-	</div>
+	<span class="text-xs text-muted-foreground">{text.approvalQuestionLabel}</span>
 	<p class="text-sm whitespace-pre-wrap">{approval.question || text.approvalQuestionMissing}</p>
 	<Separator />
 	<div class="flex flex-wrap gap-2">
