@@ -689,7 +689,15 @@ class Machine:
         return ".".join(str(octet) for octet in octets)
 
     def power_off(self):
-        checked([self.container_binary, "stop", self.name])
+        """The power goes, as it does when a building loses it: no shutdown runs first."""
+        checked([self.container_binary, "kill", "--signal", "KILL", self.name])
+        deadline = time.monotonic() + 120
+        while time.monotonic() < deadline:
+            listed = run([self.container_binary, "ls", "--all"]).stdout.splitlines()
+            if any(line.split()[:1] == [self.name] and " stopped " in f" {line} " for line in listed):
+                return
+            time.sleep(2)
+        raise RigFailure(f"{self.name} did not stop after its power was cut")
 
     def power_on(self):
         checked([self.container_binary, "start", self.name])
