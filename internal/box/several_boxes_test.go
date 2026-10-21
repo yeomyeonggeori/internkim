@@ -167,6 +167,23 @@ func TestABoxMadeTheServiceBoxTakesOverFromTheNewestBackupInsteadOfStartingFresh
 	}
 }
 
+func TestABoxTakesOverFromABackupWithoutTheModelKeyAFreshInstallNeeds(t *testing.T) {
+	plane := &fakePlane{isClaimed: true, accessToken: "promoted.session.token"}
+	recorded := &installs{}
+	daemon, _ := daemonFor(t, plane, recorded)
+	tookOver := 0
+	daemon.TakeOver = func(context.Context, Session, Keyring) error {
+		tookOver++
+		return ErrTakeOverUnderway
+	}
+
+	runSteps(t, daemon, 1)
+
+	if tookOver != 1 || len(recorded.requests) != 0 {
+		t.Fatalf("took over %d times and installed %+v", tookOver, recorded.requests)
+	}
+}
+
 func TestABoxWithNoBackupToTakeOverFromStartsTheCompanyFresh(t *testing.T) {
 	plane := &fakePlane{isClaimed: true, accessToken: "first.session.token"}
 	recorded := &installs{}
