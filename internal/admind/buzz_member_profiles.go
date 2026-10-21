@@ -35,6 +35,18 @@ func (service *Service) nameMembersTheRelayCannotName(ctx context.Context, relay
 	log.Printf("buzz profiles: named %d member(s), and the directory names %d of them nothing", named, unnamed)
 }
 
+func (service *Service) nameEveryoneTheDirectoryNames(ctx context.Context) {
+	if !service.canWriteToBuzzRelay() {
+		return
+	}
+	relay, errorValue := service.buzzDatabase()
+	if errorValue != nil {
+		log.Printf("buzz profiles: nobody is named this pass, %v", errorValue)
+		return
+	}
+	service.nameMembersTheRelayCannotName(ctx, relay)
+}
+
 // The person an admin just added is in the company now, and the company's rooms
 // are where that shows. Their own sign-in and the daily pass would both get
 // there eventually; neither is soon enough to keep them from appearing as a key.
