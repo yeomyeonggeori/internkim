@@ -222,6 +222,7 @@ func withWifiSetup(daemon box.Daemon, appURL string, madeOn time.Time) box.Daemo
 		setup := boxwifi.Setup{Radio: radio, NetworkName: boxwifi.SetupNetworkNameFor(madeOn)}
 		return setup.Run(ctx)
 	}
+	daemon.IsOnANetwork = radio.IsOnANetwork
 	daemon.ChangeWifi = radio.Switch
 	daemon.ScanWifi = func(ctx context.Context) ([]box.NearbyNetwork, error) {
 		return scanNearbyNetworks(ctx, watcherRadio)

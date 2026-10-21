@@ -53,6 +53,7 @@ type Daemon struct {
 	PackageVersion    string
 	NameHost          func(ctx context.Context, companySlug string) error
 	GetOnline         func(ctx context.Context, boxPublicKey string) error
+	IsOnANetwork      func(ctx context.Context) bool
 	ChangeWifi        func(ctx context.Context, ssid, password string) error
 	ScanWifi          func(ctx context.Context) ([]NearbyNetwork, error)
 	SetAdminPassword  func(ctx context.Context, password string) error
@@ -74,7 +75,7 @@ func (daemon Daemon) Run(ctx context.Context) error {
 	if errorValue := daemon.resetIfAsked(ctx, identity); errorValue != nil {
 		return errorValue
 	}
-	daemon.getOnlineWhileEmpty(ctx, identity)
+	daemon.getOnlineWhenOffline(ctx, identity)
 	if daemon.ChangeWifi != nil {
 		watcherContext, stopWatcher := context.WithCancel(ctx)
 		watcherDone := make(chan struct{})
@@ -108,7 +109,7 @@ func (daemon Daemon) Run(ctx context.Context) error {
 		if errorValue != nil {
 			log.Printf("%v; trying again in %s", errorValue, announceInterval)
 			wait = announceInterval
-			daemon.getOnlineWhileEmpty(ctx, identity)
+			daemon.getOnlineWhenOffline(ctx, identity)
 		}
 		if errorValue := daemon.sleep(ctx, wait); errorValue != nil {
 			return nil
@@ -397,13 +398,20 @@ func (daemon Daemon) nameHost(ctx context.Context, companySlug string) {
 	}
 }
 
-func (daemon Daemon) getOnlineWhileEmpty(ctx context.Context, identity Identity) {
-	if daemon.GetOnline == nil || daemon.installedCompany() != "" {
+func (daemon Daemon) getOnlineWhenOffline(ctx context.Context, identity Identity) {
+	if daemon.GetOnline == nil {
+		return
+	}
+	if daemon.installedCompany() != "" && !daemon.isOffEveryNetwork(ctx) {
 		return
 	}
 	if errorValue := daemon.GetOnline(ctx, identity.PublicKey()); errorValue != nil {
 		log.Printf("getting this box online: %v; it announces itself once a network is there", errorValue)
 	}
+}
+
+func (daemon Daemon) isOffEveryNetwork(ctx context.Context) bool {
+	return daemon.IsOnANetwork != nil && !daemon.IsOnANetwork(ctx)
 }
 
 func (daemon Daemon) connectedByFile() bool {
