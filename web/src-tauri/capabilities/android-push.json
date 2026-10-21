@@ -1,0 +1,16 @@
+{
+  "$schema": "../gen/schemas/mobile-schema.json",
+  "identifier": "android-push",
+  "platforms": ["android"],
+  "windows": ["main"],
+  "remote": { "urls": ["https://intern.kim/*", "https://*.intern.kim/*"] },
+  "permissions": [
+    "notifications:allow-is-permission-granted",
+    "notifications:allow-request-permission",
+    "notifications:allow-register-for-push-notifications",
+    "notifications:allow-unregister-for-push-notifications",
+    "notifications:allow-register-listener",
+    "notifications:allow-remove-listener",
+    "notifications:allow-set-click-listener-active"
+  ]
+}

@@ -1,8 +1,8 @@
 import { isSupabaseConfigured, vapidPublicKey } from '$lib/supabase';
 import { decodeBase64URL, encodeBase64URL } from './base64url';
 import { askPushReachability, claimPushDevice, releasePushDevice } from './push-device';
-import { isInsideCapacitorShell } from '$lib/native-shell/shell';
 import {
+	hasNativePush,
 	nativeReachability,
 	startBeingNativelyReached,
 	stopBeingNativelyReached
@@ -63,7 +63,7 @@ export function stale(subscription: PushSubscription | null, serverKey: ServerKe
 }
 
 export async function reachability(): Promise<Reachability> {
-	if (isInsideCapacitorShell()) return nativeReachability();
+	if (hasNativePush()) return nativeReachability();
 	if (!isSupported()) return 'unsupported';
 	const serverKey = await applicationServerKey();
 	if (!serverKey.key) return 'unconfigured';
@@ -73,7 +73,7 @@ export async function reachability(): Promise<Reachability> {
 }
 
 export async function startBeingReached(): Promise<Reachability> {
-	if (isInsideCapacitorShell()) return startBeingNativelyReached();
+	if (hasNativePush()) return startBeingNativelyReached();
 	if (!isSupported()) return 'unsupported';
 	const serverKey = await applicationServerKey();
 	if (!serverKey.key) return 'unconfigured';
@@ -98,7 +98,7 @@ export async function startBeingReached(): Promise<Reachability> {
 }
 
 export async function stopBeingReached(): Promise<Reachability> {
-	if (isInsideCapacitorShell()) return stopBeingNativelyReached();
+	if (hasNativePush()) return stopBeingNativelyReached();
 	if (!isSupported()) return 'unsupported';
 	const subscription = await heldSubscription();
 	if (!subscription) return 'off';
