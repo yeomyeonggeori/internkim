@@ -6,6 +6,7 @@ import {
 	draftPopoverStartDateTimeChanges,
 	draftPopoverStateFromEvent,
 	hasDraftPopoverEventChanges,
+	isDraftPopoverKeptOnDismiss,
 	isDraftPopoverValid,
 	type DraftPopoverState
 } from '../../../src/routes/calendar/embed/calendar-draft-popover-state';
@@ -144,4 +145,22 @@ test('calendar draft popover reports a reminder that was set, changed, or taken 
 	expect(hasDraftPopoverEventChanges({ ...popover, reminderMinutesBefore: 60 }, event)).toBe(true);
 	expect(hasDraftPopoverEventChanges({ ...popover, reminderMinutesBefore: null }, event)).toBe(true);
 	expect(draftPopoverChanges({ ...popover, reminderMinutesBefore: null }).meta.reminderMinutesBefore).toBeNull();
+});
+
+test('dismissing an untitled new event discards it, while a titled one or an edit is kept', () => {
+	const event = createEvent({
+		id: 'dismissed-draft',
+		title: '',
+		start: new Date(2026, 10, 23, 9),
+		end: new Date(2026, 10, 23, 10),
+		allDay: false,
+		calendarId: 'internkim'
+	});
+	const created = draftPopoverStateFromEvent(event, 'create', null, null);
+
+	expect(isDraftPopoverKeptOnDismiss(created)).toBe(false);
+	expect(isDraftPopoverKeptOnDismiss({ ...created, title: '   ' })).toBe(false);
+	expect(isDraftPopoverKeptOnDismiss({ ...created, title: '주간 회의' })).toBe(true);
+	expect(isDraftPopoverKeptOnDismiss({ ...created, mode: 'edit' })).toBe(true);
+	expect(isDraftPopoverKeptOnDismiss({ ...created, title: '주간 회의', endTime: '08:00' })).toBe(false);
 });

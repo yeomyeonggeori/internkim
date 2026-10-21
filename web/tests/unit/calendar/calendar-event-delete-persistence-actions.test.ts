@@ -125,6 +125,28 @@ test('a second delete closes the first undo window, so only one is ever open', a
 	expect(scenario.actions.undoLastDelete()).toBe(false);
 });
 
+test('a second delete sends the first to the record instead of dropping it', async () => {
+	const first = calendarTestEvent('chained-first-delete', 'First');
+	const second = calendarTestEvent('chained-second-delete', 'Second');
+	const deleted: string[] = [];
+	const scenario = createPersistenceScenario([first, second], () => [], {
+		deleteEvent: async (eventID: string) => {
+			deleted.push(eventID);
+		}
+	});
+
+	await scenario.actions.deleteEvent(first.id);
+	await scenario.actions.deleteEvent(second.id);
+	await waitForQueuedPersistence();
+
+	expect(deleted).toEqual([first.id]);
+
+	await scenario.actions.flushPendingDelete();
+	await waitForQueuedPersistence();
+
+	expect(deleted).toEqual([first.id, second.id]);
+});
+
 async function waitForQueuedPersistence(): Promise<void> {
 	await new Promise<void>((resolve) => setTimeout(resolve, 0));
 }

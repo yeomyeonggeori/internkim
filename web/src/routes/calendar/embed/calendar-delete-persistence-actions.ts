@@ -38,7 +38,9 @@ export function createCalendarDeletePersistenceActions(
 	let pendingDelete: PendingCalendarDelete | null = null;
 
 	async function deleteEvent(eventID: string): Promise<void> {
+		const previousDelete = pendingDelete;
 		finalizePendingDelete(false);
+		if (previousDelete) void persistDelete(previousDelete);
 		const event = options.context.getCalendarEvents().find((candidate) => candidate.id === eventID);
 		if (!event) return;
 		options.context.invalidatePendingEventLoad();
@@ -76,6 +78,10 @@ export function createCalendarDeletePersistenceActions(
 		const deleteAction = pendingDelete;
 		finalizePendingDelete(true);
 		if (!deleteAction) return;
+		await persistDelete(deleteAction);
+	}
+
+	async function persistDelete(deleteAction: PendingCalendarDelete): Promise<void> {
 		options.beginPersistence();
 		try {
 			await options.persistedEvents.deleteEvent(
