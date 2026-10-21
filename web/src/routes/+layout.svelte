@@ -6,6 +6,7 @@
 	import { pageActions } from '$lib/components/app-page-actions.svelte';
 	import AppRail from '$lib/components/app-rail.svelte';
 	import { appRailMode } from '$lib/components/app-rail-mode.svelte';
+	import AppRailModeMenu from '$lib/components/app-rail-mode-menu.svelte';
 	import EffectErrorBoundary from '$lib/components/effect-error-boundary.svelte';
 	import { appSectionPathOf, usesAppShell, usesWebAuthGate } from '$lib/app-shell';
 	import { keepAppInVisualViewport } from '$lib/app-viewport';
@@ -221,17 +222,7 @@
 			<div class="flex min-w-0 flex-1 flex-col">
 				{#if !isEmbeddedFrame()}
 					<header data-app-chrome class="internkim-app-header" class:max-sm:hidden={routePathOf(page.url.pathname).split('/')[1] === 'messenger'}>
-						<Tooltip.Root>
-							<Tooltip.Trigger>
-								{#snippet child({ props })}
-									<Sidebar.Trigger {...props} class="-ml-1 max-sm:hidden" />
-								{/snippet}
-							</Tooltip.Trigger>
-							<Tooltip.Content side="bottom">
-								{text.sidebar}
-								<Kbd>,</Kbd>
-							</Tooltip.Content>
-						</Tooltip.Root>
+						<AppRailModeMenu class="-ml-1 max-sm:hidden" />
 						<Separator orientation="vertical" class="mr-2 !h-4 max-sm:hidden" />
 						<div class="internkim-app-crumbs flex-1">
 							<Breadcrumb.Root>
