@@ -19,7 +19,6 @@ function aBox(adminPassword?: { settingID: string; sealed: typeof sealed; reques
 		role: 'service',
 		hostName: null,
 		site: '',
-		weight: 1,
 		settings: { hasAdminAccount: true, ...(adminPassword ? { adminPassword } : {}) },
 		sealedCompanyKey: null,
 		lastSeenAt: null

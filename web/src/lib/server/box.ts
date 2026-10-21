@@ -40,7 +40,7 @@ const emptyBoxesListed = 10;
 const pairingCodeAlphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 const pairingCodeLength = 8;
 const pairingCodeLifetimeMilliseconds = 15 * 60 * 1000;
-const boxColumns = 'public_key, company_id, encryption_key, role, host_name, site, weight, settings, sealed_company_key, last_seen_at';
+const boxColumns = 'public_key, company_id, encryption_key, role, host_name, site, settings, sealed_company_key, last_seen_at';
 
 export class BoxRefused extends Error {
 	constructor(
@@ -350,7 +350,6 @@ const boxRecordSchema = z.object({
 	role: boxRoleSchema,
 	host_name: z.string().nullable(),
 	site: z.string(),
-	weight: z.number().int(),
 	settings: boxSettingsSchema,
 	sealed_company_key: sealedSecretSchema.nullable(),
 	last_seen_at: z.string().nullable()
@@ -365,7 +364,6 @@ export type BoxRow = {
 	role: BoxRole;
 	hostName: string | null;
 	site: string;
-	weight: number;
 	settings: BoxSettings;
 	sealedCompanyKey: SealedSecret | null;
 	lastSeenAt: string | null;
@@ -379,7 +377,6 @@ function boxRowOf(record: BoxRecord): BoxRow {
 		role: record.role,
 		hostName: record.host_name,
 		site: record.site,
-		weight: record.weight,
 		settings: record.settings,
 		sealedCompanyKey: record.sealed_company_key,
 		lastSeenAt: record.last_seen_at
@@ -506,7 +503,6 @@ function connectedBoxOf(box: BoxRow, keyring: Keyring | null): ConnectedBox {
 		role: box.role,
 		hostName: box.hostName,
 		site: box.site,
-		weight: box.weight,
 		lastSeenAt: box.lastSeenAt,
 		holdsCompanyKey: holdsCompanyKey(box, keyring),
 		hasAdminAccount: box.settings.hasAdminAccount ?? false
@@ -667,7 +663,7 @@ export async function keepTakeOver(client: SupabaseClient, companyID: string, ta
 export async function placeBox(client: SupabaseClient, companyID: string, publicKey: string, placement: BoxPlacement): Promise<boolean> {
 	const { data, error } = await client
 		.from('box')
-		.update({ site: placement.site, weight: placement.weight })
+		.update({ site: placement.site })
 		.eq('company_id', companyID)
 		.eq('public_key', publicKey)
 		.select('public_key');

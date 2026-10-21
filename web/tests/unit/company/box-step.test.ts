@@ -9,7 +9,6 @@ const connected = {
 	role: 'service' as const,
 	hostName: null,
 	site: '',
-	weight: 1,
 	lastSeenAt: null,
 	holdsCompanyKey: true,
 	hasAdminAccount: false

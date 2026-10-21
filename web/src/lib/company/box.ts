@@ -47,8 +47,7 @@ export const boxReleaseSchema = z.object({ publicKey: boxKeySchema }).strict();
 export const boxServeSchema = z.object({ publicKey: boxKeySchema }).strict();
 
 export const boxPlacementSchema = z.object({
-	site: z.string().trim(),
-	weight: z.number().int()
+	site: z.string().trim()
 }).strict();
 
 export type BoxPlacement = z.infer<typeof boxPlacementSchema>;
@@ -107,7 +106,6 @@ export const connectedBoxSchema = z.object({
 	role: boxRoleSchema,
 	hostName: z.string().nullable(),
 	site: z.string(),
-	weight: z.number().int(),
 	lastSeenAt: z.string().nullable(),
 	holdsCompanyKey: z.boolean(),
 	hasAdminAccount: z.boolean()
