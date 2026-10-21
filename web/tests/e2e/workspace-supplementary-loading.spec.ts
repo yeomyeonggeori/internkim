@@ -130,6 +130,26 @@ for (const width of [1280, 390]) for (const scene of scenes) {
 	});
 }
 
+test('data room shows its view switcher and a company skeleton before the company answers', async ({ page }) => {
+	test.skip(phase === 'before', 'The original screen opened on the documents list until the company answered');
+	const fixture = new SupplementaryFixture();
+	fixture.hold('data-room-company');
+	await prepare(page, fixture);
+	await page.route('**/api/v1/data-room/company', async route => {
+		await fixture.waitFor('data-room-company');
+		await route.fulfill({ json: { profile: { slogan: { ko: '예시 슬로건' } }, metrics: [], records: [] } });
+	});
+	await page.goto('/example-co/data-room');
+	await expect.poll(() => fixture.requested.has('data-room-company')).toBe(true);
+	await expect(page.getByRole('tab', { name: '회사 소개', selected: true })).toBeVisible();
+	await expect(page.getByRole('tab', { name: '자료', exact: true })).toBeVisible();
+	await expect(page.locator('[aria-busy="true"] [data-slot="skeleton"]').first()).toBeVisible();
+	await expect(page.locator('tbody tr')).toHaveCount(0);
+	fixture.release('data-room-company');
+	await expect(page.getByText('예시 슬로건')).toBeVisible();
+	await expect(page.getByRole('tab', { name: '회사 소개', selected: true })).toBeVisible();
+});
+
 for (const status of [401, 403]) for (const target of ['memory', 'files', 'mail', 'runs', 'run-detail']) {
 	test(`${target} removes retained records after current ${status} read denial`, async ({ page }) => {
 		test.skip(phase === 'before', 'The original screen did not safely distinguish authorization denial');

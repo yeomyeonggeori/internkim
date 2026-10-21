@@ -24,6 +24,7 @@
 	import { dataRoomCompanyText } from '$lib/data-room/company-text';
 	import CurrencySwitcher from '$lib/components/currency-switcher.svelte';
 	import CompanyOverview from '$lib/data-room/company-overview.svelte';
+	import CompanyOverviewSkeleton from '$lib/data-room/company-overview-skeleton.svelte';
 	import { dataRoomRequest } from '$lib/data-room/guest';
 	import DocumentViewer from '$lib/data-room/document-viewer.svelte';
 	import { previewSourceOf, type ViewerDocument } from '$lib/data-room/viewer';
@@ -45,6 +46,7 @@
 	const categories = $derived(room?.categories ?? []);
 	const companyText = $derived(dataRoomCompanyText[currentLocale.value]);
 	const hasCompany = $derived(company !== null && !isEmptyCompany(company));
+	const isCompanyPending = $derived(company === null && isLoading);
 	const selectedCategory = $derived(categories.find((category) => category.code === selectedCode));
 	const parentCategory = $derived(
 		categories.find((category) => category.code === selectedCategory?.parent)
@@ -168,7 +170,7 @@
 
 <div class="min-h-full w-full">
 	<div class="min-w-0 p-4 md:p-6">
-		{#if hasCompany}
+		{#if hasCompany || isCompanyPending}
 			<div class="mb-4 flex max-w-5xl items-center justify-between gap-3">
 				<Tabs.Root bind:value={view}>
 					<Tabs.List>
@@ -179,7 +181,9 @@
 				{#if view === 'company'}<CurrencySwitcher label={companyText.currency.label} asRecorded={companyText.currency.asRecorded} />{/if}
 			</div>
 		{/if}
-		{#if company && hasCompany && view === 'company'}
+		{#if isCompanyPending && view === 'company'}
+			<div class="max-w-5xl"><CompanyOverviewSkeleton /></div>
+		{:else if company && hasCompany && view === 'company'}
 			<div class="max-w-5xl"><CompanyOverview {company} folders={companyFolders} onOpenFolder={openCompanyFolder} /></div>
 		{:else}
 			<div class="mb-4 flex items-center justify-between gap-3">
