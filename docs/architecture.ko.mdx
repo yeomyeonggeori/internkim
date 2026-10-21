@@ -43,7 +43,7 @@ flowchart TB
     relay -->|"앱마다 스트림 하나, 루프백으로"| messenger
     connector <-->|"봇으로 붙음"| messenger
     connector -->|"메시지마다 /inbound로"| relay
-    relay -->|"ACP, 대화마다 세션 하나"| agent
+    relay -->|"ACP, 대화 속 사람마다 세션 하나"| agent
     agent -->|"MCP로 카탈로그 호출"| relay
     relay -->|"요청자로서 도구 호출"| api
     relay -->|"멤버 세션 요청"| control
@@ -428,9 +428,11 @@ blueclaw는 프로세스 하나이고, 저마다 한 가지 일을 하는 별개
    릴레이는 그것을 `RELAY_STATE_DIR` 아래에 쓰고, 디스크에 남은 뒤에야
    `202`로 답합니다. chatd는 그 답을 받을 때까지 다시 보내므로, 어느 쪽
    프로세스가 재시작해도 메시지는 살아남습니다.
-2. 릴레이는 `/run/internkim/acp/blueclaw-acp.sock`으로 대화마다 ACP 세션 하나를
-   열고 메시지를 프롬프트로 보냅니다. 세션은 누가 묻는지와 어디로 답할지를
-   밝히고, 에이전트의 도구 서버로 릴레이 자신의 `/mcp/<ticket>`을 지목합니다.
+2. 릴레이는 `/run/internkim/acp/blueclaw-acp.sock`으로 대화에서 말하는
+   사람마다 ACP 세션을 하나씩 열고, 메시지를 보낸 사람의 세션에 프롬프트로
+   보냅니다. 세션은 누가 묻는지와 어디로 답할지를 밝히고, 에이전트의 도구
+   서버로 릴레이 자신의 `/mcp/<ticket>`을 지목하므로, 채널의 두 번째 사람이
+   첫 번째 사람으로 실행되는 일은 없습니다.
 3. blueclaw가 턴을 돌립니다. 그 주소로 오는 도구 호출을 릴레이는 요청자를
    위해 발급받은 멤버 세션을 붙여 앱의 `/api/v1/mcp`로 전달하므로, 에이전트는
    베어러 토큰을 쥐지 않습니다.

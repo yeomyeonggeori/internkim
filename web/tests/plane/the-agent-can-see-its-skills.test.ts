@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test';
 import { readdirSync } from 'node:fs';
-import { aCompanyPlane } from './a-company-plane';
+import { aCompanyPlane, hostServiceHeaders } from './a-company-plane';
 
 type SkillInventory = {
 	skills: { name: string; path: string }[];
@@ -23,7 +23,7 @@ function theSkillsTheBoxCarries(): string[] {
 test('the agent on the plane can see every skill it can run, and no other', async () => {
 	const plane = await aCompanyPlane();
 	try {
-		const answer = await fetch(`${plane.blueclawURL}/admin/api/skills`);
+		const answer = await fetch(`${plane.blueclawURL}/admin/api/skills`, { headers: hostServiceHeaders(plane.serviceToken) });
 		expect(answer.ok).toBe(true);
 		const inventory = (await answer.json()) as SkillInventory;
 		const names = inventory.skills.map((skill) => skill.name);

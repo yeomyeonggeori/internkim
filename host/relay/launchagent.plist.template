@@ -37,6 +37,8 @@
         <string>GATEWAY_SERVER_KEY_VALUE</string>
         <key>GATEWAY_URL</key>
         <string>GATEWAY_URL_VALUE</string>
+        <key>HOST_SERVICE_TOKEN_PATH</key>
+        <string>HOST_SERVICE_TOKEN_PATH_VALUE</string>
         <key>INTERNKIM_APP_URL</key>
         <string>INTERNKIM_APP_URL_VALUE</string>
         <key>MAILD_BASE_URL</key>

@@ -50,6 +50,7 @@ const (
 	CompanyHostAgentKeyPath                = "/var/lib/internkim/current/secrets/agent-key"
 	CompanyHostModelKeyPath                = "/var/lib/internkim/current/secrets/openrouter-key"
 	CompanyHostAssertionKeyPath            = "/var/lib/internkim/current/secrets/blueclaw-assertion-key"
+	CompanyHostServiceTokenPath            = "/var/lib/internkim/current/secrets/service-token"
 	CompanyHostIdentitySeedPath            = "/var/lib/internkim/current/secrets/buzz-key-seed"
 	CompanyHostBuzzDatabasePath            = "/var/lib/internkim/current/secrets/buzz-database.env"
 	CompanyHostBuzzRelayKeyPath            = "/var/lib/internkim/current/secrets/buzz-relay.env"
@@ -369,6 +370,9 @@ install -d -o root -g %[3]s -m 0750 %[5]s
 [ -s %[25]s ] || od -An -tx1 -N32 /dev/urandom | tr -d ' \n' > %[25]s
 install -o root -g %[3]s -m 0440 %[25]s %[6]s
 [ ! -r %[7]s ] || install -o root -g %[3]s -m 0440 %[7]s %[8]s
+[ -s %[31]s ] || od -An -tx1 -N32 /dev/urandom | tr -d ' \n' > %[31]s
+install -o root -g %[3]s -m 0440 %[31]s %[32]s
+install -o root -g %[27]s -m 0440 %[31]s %[33]s
 install -d -o %[3]s -g %[3]s -m 0750 %[9]s
 install -d -o %[3]s -g %[3]s -m 0750 %[10]s
 install -d -o root -g root -m %[24]s %[11]s
@@ -386,6 +390,7 @@ else
   LOG_DIRECTORY_PATH=%[9]s \
   MODEL_API_KEY_PATH=%[8]s \
   ADMIN_ASSERTION_KEY_PATH=%[6]s \
+  SERVICE_TOKEN_PATH=%[32]s \
   POSIX_HELPER_PATH=%[23]s \
   MIGRATION_DIRECTORY_PATH=%[30]s \
     %[18]s --template %[19]s --capabilityd %[20]s --out %[14]s --work %[4]s
@@ -430,5 +435,8 @@ fi
 		RelayUserName,
 		fmt.Sprintf("%04o", CompanyHostACPSocketDirectoryMode),
 		layout.ACPSocketDirectoryPath(),
-		layout.MigrationPath)
+		layout.MigrationPath,
+		CompanyHostServiceTokenPath,
+		layout.RunServiceTokenPath(),
+		layout.RelayServiceTokenPath())
 }

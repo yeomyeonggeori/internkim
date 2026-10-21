@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, expect, test } from 'bun:test';
 import { addMember, claimMemberFor } from '../../src/lib/server/control-plane';
-import { aCompanyPlane, type ACompanyPlane } from './a-company-plane';
+import { aCompanyPlane, type ACompanyPlane, hostServiceHeaders } from './a-company-plane';
 
 // Somebody is invited and asks the agent something in the same minute. The
 // roster is what decides who may act at all, and the plane reads it again when
@@ -18,7 +18,7 @@ afterAll(async () => {
 });
 
 async function peopleTheDeviceKnows(): Promise<string[]> {
-	const answer = await fetch(`${plane.blueclawURL}/admin/api/policy`);
+	const answer = await fetch(`${plane.blueclawURL}/admin/api/policy`, { headers: hostServiceHeaders(plane.serviceToken) });
 	const policy = (await answer.json()) as { people?: { emails?: string[] }[] };
 	return (policy.people ?? []).flatMap((person) => person.emails ?? []);
 }
@@ -37,7 +37,7 @@ test('somebody invited after the plane is up reaches it when the company says so
 	if (account.error) throw new Error(account.error.message);
 	await claimMemberFor(plane.admin, account.data.user.id, newcomerEmail);
 
-	const told = await fetch(`${plane.admindURL}/admin/api/directory/changed`, { method: 'POST' });
+	const told = await fetch(`${plane.admindURL}/admin/api/directory/changed`, { method: 'POST', headers: hostServiceHeaders(plane.serviceToken) });
 	expect(told.status).toBe(202);
 
 	// One read, no polling: the door is synchronous, and a door that answers 202

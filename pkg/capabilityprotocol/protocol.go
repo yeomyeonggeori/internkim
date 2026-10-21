@@ -204,6 +204,7 @@ type ToolInvokeContext struct {
 	TaskSource              string                 `json:"taskSource,omitempty"`
 	IsScheduledRun          bool                   `json:"isScheduledRun,omitempty"`
 	HoldID                  string                 `json:"holdID,omitempty"`
+	TaskRunID               string                 `json:"taskRunID,omitempty"`
 	ScheduledApprovedCall   *ScheduledApprovedCall `json:"scheduledApprovedCall,omitempty"`
 	ConversationID          string                 `json:"conversationID,omitempty"`
 	ConversationType        string                 `json:"conversationType,omitempty"`

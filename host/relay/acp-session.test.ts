@@ -127,7 +127,7 @@ function anAgentOnASocket(behaviour: AgentBehaviour): AnAgentThatRecords {
 				if (behaviour.refuseSessionsWith) {
 					throw new RequestError(-32603, 'Internal error', { error: behaviour.refuseSessionsWith });
 				}
-				return { sessionId: 'session-1' };
+				return { sessionId: `session-${sessionsOpened.length}` };
 			},
 			loadSession: async (request: LoadSessionRequest) => {
 				sessionsLoaded.push(request);
@@ -368,6 +368,51 @@ async function aSessionOpenedBy(client: BlueclawACPClient): Promise<void> {
 	await client.ask(sampleRequester, sampleAddressing, '안녕하세요');
 }
 
+const secondSpeaker = { email: 'second@example.test', name: '박예시' };
+
+function sessionRequesterOf(opened: NewSessionRequest): unknown {
+	const carried = opened._meta?.[sessionMetaKey];
+	return typeof carried === 'object' && carried !== null && 'requester' in carried ? carried.requester : undefined;
+}
+
+test('a second person in the same conversation is answered in a session of their own, as themselves', async () => {
+	const agent = anAgentOnASocket({ reply: '네' });
+	const catalogsAskedFor: string[] = [];
+	const client = aClientFor(agent.socketPath, aConversation(), {
+		catalogFor: (requesterEmail) => {
+			catalogsAskedFor.push(requesterEmail);
+			return [];
+		}
+	});
+
+	await client.ask(sampleRequester, sampleAddressing, '첫 번째');
+	await client.ask(secondSpeaker, sampleAddressing, '두 번째');
+	await client.ask(sampleRequester, sampleAddressing, '세 번째');
+
+	expect(agent.sessionsOpened.map(sessionRequesterOf)).toEqual([sampleRequester, secondSpeaker]);
+	expect(agent.promptsTaken.map((prompt) => prompt.sessionId)).toEqual(['session-1', 'session-2', 'session-1']);
+	expect(catalogsAskedFor).toEqual([sampleRequester.email, secondSpeaker.email]);
+});
+
+test('another person speaking while the requester is asked to approve is neither read as the answer nor run as the requester', async () => {
+	const agent = anAgentOnASocket({ approvalReplies: [{ reply: '응 보내줘', optionID: 'approve_once' }] });
+	const client = aClientFor(agent.socketPath, aConversation());
+	await aSessionOpenedBy(client);
+	const asking = agent.askWithNoTurnOpen('session-1', 'call-9', '박예시에게 보낼까요?', questionDelivery);
+	await waitUntil(() => client.hasPendingApprovalIn('conversation-1', sampleRequester.email), 'the approval to be requested');
+
+	expect(client.hasPendingApprovalIn('conversation-1', secondSpeaker.email)).toBe(false);
+	expect(await client.answerPendingApproval(questionThread, 'message-10', '응 보내줘', secondSpeaker)).toBe(false);
+	await client.ask(secondSpeaker, sampleAddressing, '응 보내줘');
+
+	expect(agent.approvalRequestsRead).toEqual([]);
+	expect(agent.promptsTaken.at(-1)?.sessionId).toBe('session-2');
+	expect(sessionRequesterOf(agent.sessionsOpened[1])).toEqual(secondSpeaker);
+	expect(await client.answerPendingApproval(questionThread, 'message-11', '응 보내줘', sampleRequester)).toBe(true);
+	expect((await asking).outcome).toEqual({ outcome: 'selected', optionId: 'approve_once' });
+});
+
+
 test('a reply that arrives the moment the question is reported delivered still answers it', async () => {
 	let wasAnswer: boolean | undefined;
 	const agent = anAgentOnASocket({
@@ -414,7 +459,7 @@ test('a reply blueclaw calls an answer resolves the approval with the option it 
 			replierEmail: sampleRequester.email
 		}
 	]);
-	expect(client.hasPendingApprovalIn('conversation-1')).toBe(false);
+	expect(client.hasPendingApprovalIn('conversation-1', sampleRequester.email)).toBe(false);
 });
 
 test('a reply blueclaw reads as the next instruction rejects the approval once and goes on as a prompt', async () => {
@@ -427,13 +472,13 @@ test('a reply blueclaw reads as the next instruction rejects the approval once a
 	const client = aClientFor(agent.socketPath, aConversation());
 	await aSessionOpenedBy(client);
 	const asking = agent.askWithNoTurnOpen('session-1', 'call-9', '박예시에게 보낼까요?', questionDelivery);
-	await waitUntil(() => client.hasPendingApprovalIn('conversation-1'), 'the approval to be requested');
+	await waitUntil(() => client.hasPendingApprovalIn('conversation-1', sampleRequester.email), 'the approval to be requested');
 
 	const wasConsumed = await client.answerPendingApproval(sampleAddressing, 'message-10', '오늘 일정 알려줘', sampleRequester);
 
 	expect(wasConsumed).toBe(false);
 	expect((await asking).outcome).toEqual({ outcome: 'selected', optionId: 'reject_once' });
-	expect(client.hasPendingApprovalIn('conversation-1')).toBe(false);
+	expect(client.hasPendingApprovalIn('conversation-1', sampleRequester.email)).toBe(false);
 	expect(await client.answerPendingApproval(sampleAddressing, 'message-11', '응 보내줘', sampleRequester)).toBe(false);
 });
 
@@ -447,7 +492,7 @@ test('an approval blueclaw says it already posted is not posted again, and still
 		...questionDelivery,
 		isAlreadyPosted: true
 	});
-	await waitUntil(() => client.hasPendingApprovalIn('conversation-1'), 'the approval to be requested');
+	await waitUntil(() => client.hasPendingApprovalIn('conversation-1', sampleRequester.email), 'the approval to be requested');
 	await client.answerPendingApproval(sampleAddressing, 'message-10', '응 보내줘', sampleRequester);
 
 	expect((await asking).outcome).toEqual({ outcome: 'selected', optionId: 'approve_once' });
@@ -467,7 +512,7 @@ test('each reply is posted in the thread it names, even while another turn waits
 	const laterThread = { ...sampleAddressing, replyTargetID: 'buzz:conversation-1:message-2' };
 
 	const waiting = client.ask(sampleRequester, askingThread, '박예시한테 DM 보내줘', factsIn(askingThread, 'message-1'));
-	await waitUntil(() => client.hasPendingApprovalIn('conversation-1'), 'the first turn to ask its question');
+	await waitUntil(() => client.hasPendingApprovalIn('conversation-1', sampleRequester.email), 'the first turn to ask its question');
 	await client.ask(sampleRequester, laterThread, '오늘 일정 알려줘', factsIn(laterThread, 'message-2'));
 	await client.answerPendingApproval(askingThread, 'message-3', '응 보내줘', sampleRequester);
 	await waiting;
@@ -492,7 +537,7 @@ test('a question the conversation refuses cancels the approval and is reported u
 	expect(answered.outcome).toEqual({ outcome: 'cancelled' });
 	expect(agent.deliveryReports.map((report) => report.method)).toEqual([undeliveredExtensionMethod]);
 	expect(String(agent.deliveryReports[0].params.reason)).toContain('with 503');
-	expect(client.hasPendingApprovalIn('conversation-1')).toBe(false);
+	expect(client.hasPendingApprovalIn('conversation-1', sampleRequester.email)).toBe(false);
 });
 
 test('an approval asked in a session this relay has no binding for is cancelled and reported undelivered with the reason', async () => {
@@ -514,7 +559,7 @@ test('an approval that blueclaw leaves the socket without hearing an answer for 
 	await aSessionOpenedBy(client);
 	const asking = agent.askWithNoTurnOpen('session-1', 'call-9', '박예시에게 보낼까요?', questionDelivery);
 	asking.catch(() => {});
-	await waitUntil(() => client.hasPendingApprovalIn('conversation-1'), 'the approval to be requested');
+	await waitUntil(() => client.hasPendingApprovalIn('conversation-1', sampleRequester.email), 'the approval to be requested');
 
 	client.close();
 
@@ -618,7 +663,7 @@ test('a turn waiting on an approval is told apart from one that is not, also aft
 	});
 	const client = aClientFor(agent.socketPath, aConversation());
 	const waiting = client.ask(sampleRequester, sampleAddressing, '박예시한테 DM 보내줘', factsIn(sampleAddressing, 'message-1'));
-	await waitUntil(() => client.hasPendingApprovalIn('conversation-1'), 'the first turn to wait');
+	await waitUntil(() => client.hasPendingApprovalIn('conversation-1', sampleRequester.email), 'the first turn to wait');
 	const running = client.ask(sampleRequester, sampleAddressing, '오늘 일정 알려줘', factsIn(sampleAddressing, 'message-2'));
 	await waitUntil(() => agent.promptsTaken.length === 2, 'the second turn to start');
 
@@ -628,7 +673,7 @@ test('a turn waiting on an approval is told apart from one that is not, also aft
 	await client.answerPendingApproval(sampleAddressing, 'message-3', '응 보내줘', sampleRequester);
 	await waiting;
 	const reissued = agent.askWithNoTurnOpen('session-1', 'call-2', '다시 보낼까요?', { ...questionDelivery, isAlreadyPosted: true });
-	await waitUntil(() => client.hasPendingApprovalIn('conversation-1'), 'the approval to be reissued');
+	await waitUntil(() => client.hasPendingApprovalIn('conversation-1', sampleRequester.email), 'the approval to be reissued');
 
 	expect(client.isWaitingOnApproval('conversation-1', 'message-1')).toBe(false);
 	expect(client.isWaitingOnApproval('conversation-1', 'message-2'), 'a turn that was running when the approval was reissued was taken as waiting').toBe(false);
@@ -651,7 +696,7 @@ test('after a restart the session bindings are loaded, a reissued approval waits
 	await afterTheRestart.restoreSessionBindings();
 	await waitUntil(() => agent.sessionsLoaded.length === 1, 'the session binding to be loaded');
 	const asking = agent.askWithNoTurnOpen('session-1', 'call-9', '박예시에게 보낼까요?', { ...questionDelivery, isAlreadyPosted: true });
-	await waitUntil(() => afterTheRestart.hasPendingApprovalIn('conversation-1'), 'the approval to be waited on');
+	await waitUntil(() => afterTheRestart.hasPendingApprovalIn('conversation-1', sampleRequester.email), 'the approval to be waited on');
 
 	expect(agent.sessionsLoaded[0].sessionId).toBe('session-1');
 	expect(agent.sessionsLoaded[0]._meta?.[sessionMetaKey]).toEqual({ requester: sampleRequester, addressing: sampleAddressing });

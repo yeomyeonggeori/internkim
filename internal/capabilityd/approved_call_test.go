@@ -3,6 +3,7 @@ package capabilityd
 import (
 	"context"
 	"encoding/json"
+	"net/http"
 	"testing"
 
 	"github.com/yeomyeonggeori/internkim/internal/capabilities"
@@ -70,10 +71,24 @@ func TestAnApprovedCallOnARunThatIsNotScheduledIsRefused(t *testing.T) {
 	assertCallIsRefused(t, toolContext)
 }
 
-func TestACallNamingTheApprovalItSpendsRuns(t *testing.T) {
-	assertCallIsAllowed(t,
-		capabilities.ToolInvokeContext{RequesterPersonID: "person-sample", HoldID: "held-4f2a91c0"},
-		"a call approved inside its own turn names the held call it spends")
+func TestACallNamingAnApprovalRunsOnlyWhenTheLedgerRedeemsIt(t *testing.T) {
+	for _, testCase := range []struct {
+		ledgerStatus int
+		isDenied     bool
+	}{
+		{http.StatusOK, false},
+		{http.StatusConflict, true},
+	} {
+		ledger := &blueclawLedgerAnswering{status: testCase.ledgerStatus}
+		service := Service{Configuration: Configuration{BlueclawBaseURL: ledger.serve(t)}}
+		request := aCallToApprove(capabilities.ToolInvokeContext{RequesterPersonID: "person-sample", HoldID: "held-4f2a91c0", TaskRunID: "run-1"})
+
+		_, isDenied := service.capabilityToolApprovalDeniedResponse(context.Background(), request, descriptorForCapabilityToolTest(t, request.ToolName))
+
+		if isDenied != testCase.isDenied {
+			t.Fatalf("with the ledger answering %d, the call was denied=%v", testCase.ledgerStatus, isDenied)
+		}
+	}
 }
 
 func assertCallIsRefused(t *testing.T, toolContext capabilities.ToolInvokeContext) {

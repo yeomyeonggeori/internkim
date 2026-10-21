@@ -29,6 +29,7 @@ func main() {
 	flag.StringVar(&configuration.AdmindSocketPath, "admind-socket", defaultConfiguration.AdmindSocketPath, "admind requester socket, the only door that honours an asserted requester")
 	flag.StringVar(&configuration.ChatdEndpoint, "chatd-endpoint", defaultConfiguration.ChatdEndpoint, "chatd base URL for platform message delivery")
 	flag.StringVar(&configuration.ChatdPlatform, "chatd-platform", defaultConfiguration.ChatdPlatform, "platform name chatd serves for message delivery")
+	flag.StringVar(&configuration.ServiceTokenPath, "service-token", defaultConfiguration.ServiceTokenPath, "file holding the token chatd asks of every host service")
 	flag.StringVar(&configuration.FileReadPythonPath, "file-read-python", defaultConfiguration.FileReadPythonPath, "Python executable for file_read conversions")
 	flag.StringVar(&configuration.AgentBrowserPath, "agent-browser", defaultConfiguration.AgentBrowserPath, "agent-browser executable path")
 	flag.StringVar(&configuration.DeviceBrowserExecutablePath, "device-browser", defaultConfiguration.DeviceBrowserExecutablePath, "moli executable each requester's device browser runs")

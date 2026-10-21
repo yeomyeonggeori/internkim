@@ -81,8 +81,10 @@ func TestInvokeCapabilityToolRejectsInputOutsideDescriptorSchema(t *testing.T) {
 		{toolName: "task_delete", input: `{"taskHint":"task-1","confirm":"DELETE"}`},
 		{toolName: "task_delete", input: `{"taskHint":"task-1","userConfirmed":true}`},
 	}
+	ledger := &blueclawLedgerAnswering{status: http.StatusOK}
+	service := Service{Configuration: Configuration{BlueclawBaseURL: ledger.serve(t)}}
 	for _, testCase := range testCases {
-		response, errorValue := (Service{}).invokeCapabilityTool(
+		response, errorValue := service.invokeCapabilityTool(
 			context.Background(),
 			testCase.toolName,
 			strings.NewReader(`{"context":{"requesterPersonID":"person-1","holdID":"held-test"},"input":`+testCase.input+`}`),

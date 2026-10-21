@@ -25,6 +25,7 @@ CHATD_ENDPOINT = "http://127.0.0.1:18090"
 AGENT_IDENTITY_NAME = "__agent__"
 IDENTITY_SEED_PATH = "/var/lib/internkim/current/secrets/buzz-key-seed"
 AGENT_DATABASE_PATH = "/var/lib/internkim/current/host.env"
+SERVICE_TOKEN_PATH = "/run/internkim/secrets/service-token"
 ADMIND_SOCKET_PATH = "/run/internkim/admind.sock"
 AGENT_UNIT_NAME = "blueclaw.service"
 PLATFORM_ROUTE = "/v1/platform/buzz/"
@@ -92,9 +93,12 @@ def is_a_hex_identifier(text):
     return bool(re.fullmatch(r"[0-9a-f]{8,128}", text or ""))
 
 
-def post_json(url, document):
+def post_json(url, document, headers=None):
     request = urllib.request.Request(
-        url, data=json.dumps(document).encode(), headers={"Content-Type": "application/json"}, method="POST"
+        url,
+        data=json.dumps(document).encode(),
+        headers={"Content-Type": "application/json", **(headers or {})},
+        method="POST",
     )
     try:
         with urllib.request.urlopen(request, timeout=60) as response:
@@ -104,7 +108,8 @@ def post_json(url, document):
 
 
 def ask_chatd(route, document):
-    return post_json(CHATD_ENDPOINT + PLATFORM_ROUTE + route, document)
+    service_token = read_text(SERVICE_TOKEN_PATH)
+    return post_json(CHATD_ENDPOINT + PLATFORM_ROUTE + route, document, {"Authorization": f"Bearer {service_token}"})
 
 
 def read_text(path):

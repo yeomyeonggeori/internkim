@@ -21,6 +21,7 @@ import (
 	"github.com/yeomyeonggeori/internkim/internal/buzzimport/mattermostadmin"
 	"github.com/yeomyeonggeori/internkim/internal/centralplane"
 	blueclawruntime "github.com/yeomyeonggeori/internkim/internal/runtime/blueclaw"
+	"github.com/yeomyeonggeori/internkim/internal/servicetoken"
 )
 
 var BuildID = "unknown"
@@ -83,7 +84,7 @@ func (service *Service) Run(ctx context.Context) error {
 	handler := service.router()
 	server := &http.Server{
 		Addr:    service.Configuration.ListenAddress,
-		Handler: handler,
+		Handler: service.answeringOnlyTheHostServices(handler),
 	}
 	socketServer := &http.Server{Handler: markRequestsAsAssertedByTheListener(handler)}
 	listener, errorValue := net.Listen("tcp", server.Addr)
@@ -159,10 +160,11 @@ func (service *Service) startRequesterSocketListener(socketServer *http.Server) 
 }
 
 func (service *Service) httpClient() *http.Client {
+	base := admindHTTPClient
 	if service.HTTPClient != nil {
-		return service.HTTPClient
+		base = service.HTTPClient
 	}
-	return admindHTTPClient
+	return servicetoken.Client(base, service.Configuration.ServiceTokenPath, service.Configuration.BlueclawBaseURL, service.Configuration.ChatdEndpoint)
 }
 
 var admindHTTPClient = &http.Client{Transport: newAdmindHTTPTransport()}

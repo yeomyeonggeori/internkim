@@ -306,3 +306,38 @@ func TestTheRelayLogsTheMediaFailuresItAnswersWithAnInternalError(t *testing.T) 
 		}
 	}
 }
+
+func TestTheServiceTokenIsMadeOnceAndStagedOnlyForTheServiceAccounts(t *testing.T) {
+	layout := LinuxCompanyHostLayout()
+	script := CompanyHostPrepareScript()
+	for _, expected := range []string{
+		"[ -s " + CompanyHostServiceTokenPath + " ] || od -An -tx1 -N32 /dev/urandom | tr -d ' \\n' > " + CompanyHostServiceTokenPath,
+		"install -o root -g " + BlueclawUser + " -m 0440 " + CompanyHostServiceTokenPath + " " + layout.RunServiceTokenPath(),
+		"install -o root -g " + RelayUserName + " -m 0440 " + CompanyHostServiceTokenPath + " " + layout.RelayServiceTokenPath(),
+	} {
+		if !strings.Contains(script, expected) {
+			t.Fatalf("the prepare script does not run %q:\n%s", expected, script)
+		}
+	}
+}
+
+func TestEveryHostServiceIsHandedTheServiceToken(t *testing.T) {
+	layout := LinuxCompanyHostLayout()
+	units := map[string]string{}
+	for _, unit := range CompanyHostSystemdUnits(layout) {
+		units[unit.Name] = unit.Contents
+	}
+	for unitName, expected := range map[string]string{
+		ChatdServiceName:       "CHATD_SERVICE_TOKEN_PATH=" + layout.RunServiceTokenPath(),
+		CapabilitydServiceName: "--service-token " + layout.RunServiceTokenPath(),
+		AdmindServiceName:      "-service-token " + layout.RunServiceTokenPath(),
+		RelayServiceName:       "HOST_SERVICE_TOKEN_PATH=" + layout.RelayServiceTokenPath(),
+	} {
+		if !strings.Contains(units[unitName], expected) {
+			t.Fatalf("%s is not handed the service token as %q:\n%s", unitName, expected, units[unitName])
+		}
+	}
+	if !strings.Contains(CompanyHostPrepareScript(), "SERVICE_TOKEN_PATH="+layout.RunServiceTokenPath()) {
+		t.Fatal("the runtime document is rendered without the path blueclaw reads the service token from")
+	}
+}
