@@ -1,0 +1,8 @@
+{
+  "bundle": {
+    "macOS": {
+      "entitlements": "macos.entitlements",
+      "files": { "embedded.provisionprofile": "signing/embedded.provisionprofile" }
+    }
+  }
+}

@@ -17,7 +17,7 @@ export type NativePushDevice = {
 	whenTapped(onTapped: (tapped: unknown) => void): Promise<() => void>;
 };
 
-const tauriPushPlatforms = ['android', 'ios'];
+const tauriPushPlatforms = ['android', 'ios', 'macos'];
 
 export function hasNativePush(): boolean {
 	if (isInsideTauriShell()) return tauriPushPlatforms.includes(shellPlatform());
