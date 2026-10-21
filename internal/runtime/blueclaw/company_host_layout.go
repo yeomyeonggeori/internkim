@@ -241,6 +241,18 @@ func (layout CompanyHostLayout) RunAssertionKeyPath() string {
 	return layout.RunSecretsPath() + "/blueclaw-assertion-key"
 }
 
+// RunServiceTokenPath is the credential chatd asks of every caller, staged
+// for root and the blueclaw group. A requester's identity is in neither.
+func (layout CompanyHostLayout) RunServiceTokenPath() string {
+	return layout.RunSecretsPath() + "/service-token"
+}
+
+// RelayServiceTokenPath is the same credential staged for the relay's own
+// account, which is never put in the blueclaw group.
+func (layout CompanyHostLayout) RelayServiceTokenPath() string {
+	return layout.RunPath + "/relay-service-token"
+}
+
 func (layout CompanyHostLayout) RunModelKeyPath() string {
 	return layout.RunSecretsPath() + "/openrouter-key"
 }

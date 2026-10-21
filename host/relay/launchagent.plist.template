@@ -33,6 +33,8 @@
         <string>BLUECLAW_ACP_SOCKET_PATH_VALUE</string>
         <key>CHATD_BASE_URL</key>
         <string>CHATD_BASE_URL_VALUE</string>
+        <key>CHATD_SERVICE_TOKEN_PATH</key>
+        <string>CHATD_SERVICE_TOKEN_PATH_VALUE</string>
         <key>GATEWAY_SERVER_KEY</key>
         <string>GATEWAY_SERVER_KEY_VALUE</string>
         <key>GATEWAY_URL</key>

@@ -117,6 +117,7 @@ read, whether required or optional, in one table:
 | `ARRIVALS_PORT` | relay | the loopback port the relay listens on for the messenger connector's arrival notifications; defaults to 18091 |
 | `BLUECLAW_ACP_SOCKET_PATH` | relay | the Unix socket blueclaw serves its ACP agent on, which the relay opens sessions over; defaults to /run/internkim/acp/blueclaw-acp.sock |
 | `CHATD_BASE_URL` | relay | chatd's base URL the relay calls; defaults to http://127.0.0.1:18090 |
+| `CHATD_SERVICE_TOKEN_PATH` | relay | the file holding the token chatd asks of every host service; the relay sends it with each chatd call, and chatd answers 401 without it |
 | `DATABASE_URL` | host | the host's own Postgres connection string, which internkim install writes to the host's environment file; the host's prepare script refuses to run without it, and tools/render-company-runtime renders it into the runtime document |
 | `GATEWAY_SERVER_KEY` | relay | the key the relay authenticates with when it connects out to the Cloudflare gateway worker; unset means no gateway connection |
 | `GATEWAY_URL` | relay | the Cloudflare gateway worker's URL a company's relay and the web app's public-API caller reach it through; unset means no gateway |

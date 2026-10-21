@@ -70,6 +70,7 @@ type CapabilitydPlaneArguments = {
 	admindURL: string;
 	chatdEndpoint: string;
 	chatdPlatform: string;
+	serviceTokenPath: string;
 	deviceBrowserPath: string;
 	deviceBrowserStateDirectory: string;
 	fileReadPythonPath: string;
@@ -89,6 +90,7 @@ type AdmindPlaneArguments = {
 	capabilitySocketPath: string;
 	chatdEndpoint: string;
 	chatdPlatform: string;
+	serviceTokenPath: string;
 	blueclawURL: string;
 	blueclawPolicyPath: string;
 	buzzKeySeedPath: string;
@@ -122,6 +124,7 @@ export function capabilitydArgumentsForPlane(argumentsForPlane: CapabilitydPlane
 			'--admind-socket': argumentsForPlane.admindSocketPath,
 			'--chatd-endpoint': argumentsForPlane.chatdEndpoint,
 			'--chatd-platform': argumentsForPlane.chatdPlatform,
+			'--service-token': argumentsForPlane.serviceTokenPath,
 			'--device-browser': argumentsForPlane.deviceBrowserPath,
 			'--device-browser-state-dir': argumentsForPlane.deviceBrowserStateDirectory,
 			'--device-browser-first-port': '9230',
@@ -157,6 +160,7 @@ export function admindArgumentsForPlane(argumentsForPlane: AdmindPlaneArguments)
 			'-capability-socket': argumentsForPlane.capabilitySocketPath,
 			'-chatd-endpoint': argumentsForPlane.chatdEndpoint,
 			'-chatd-platform': argumentsForPlane.chatdPlatform,
+			'-service-token': argumentsForPlane.serviceTokenPath,
 			'-blueclaw-url': argumentsForPlane.blueclawURL,
 			'-blueclaw-workspace': argumentsForPlane.blueclawWorkspacePath,
 			'-blueclaw-policy': argumentsForPlane.blueclawPolicyPath,
@@ -334,7 +338,8 @@ export async function aCompanyPlane(request: PlaneRequest = {}): Promise<ACompan
 		auth: { autoRefreshToken: false, persistSession: false }
 	});
 
-	const connector = aConnectorNobodyRuns();
+	const serviceToken = `${crypto.randomUUID()}${crypto.randomUUID()}`;
+	const connector = aConnectorNobodyRuns(serviceToken);
 	const messenger = aMessengerNobodyRuns();
 	let model: AModelNobodyPaysFor | undefined;
 	const started: Bun.Subprocess[] = [];
@@ -405,6 +410,8 @@ export async function aCompanyPlane(request: PlaneRequest = {}): Promise<ACompan
 		});
 		const blueclawAssertionKeyPath = join(runDirectory, 'secrets', 'blueclaw-assertion-key');
 		writeFileSync(blueclawAssertionKeyPath, `${crypto.randomUUID()}\n`, { mode: 0o600 });
+		const serviceTokenPath = join(runDirectory, 'secrets', 'service-token');
+		writeFileSync(serviceTokenPath, `${serviceToken}\n`, { mode: 0o600 });
 		const openRouterKeyPath = join(runDirectory, 'secrets', 'openrouter-key');
 		writeFileSync(openRouterKeyPath, 'the-model-stand-in-takes-any-key\n', { mode: 0o600 });
 		const ownership = Bun.spawnSync(['chown', '-R', 'blueclaw:blueclaw', runDirectory, socketDirectory]);
@@ -455,6 +462,7 @@ export async function aCompanyPlane(request: PlaneRequest = {}): Promise<ACompan
 						embeddingServerURL,
 						admindURL,
 						chatdEndpoint: connector.url,
+						serviceTokenPath,
 						chatdPlatform: capabilitydPlatform,
 						deviceBrowserPath: join(binaryDirectory, 'moli'),
 						deviceBrowserStateDirectory: join(runDirectory, 'state', 'device-browsers'),
@@ -510,6 +518,7 @@ export async function aCompanyPlane(request: PlaneRequest = {}): Promise<ACompan
 					MODEL_ENDPOINT: standInModel.url,
 					MODEL_API_KEY_PATH: openRouterKeyPath,
 					ADMIN_ASSERTION_KEY_PATH: blueclawAssertionKeyPath,
+					SERVICE_TOKEN_PATH: serviceTokenPath,
 					WORKSPACE_ROOT_PATH: join(runDirectory, 'workspace'),
 					MIGRATION_DIRECTORY_PATH: join(repositoryRoot, '.dependency', 'blueclaw', 'migrations'),
 					LOG_DIRECTORY_PATH: join(runDirectory, 'logs')
@@ -569,6 +578,7 @@ export async function aCompanyPlane(request: PlaneRequest = {}): Promise<ACompan
 						blueclawWorkspacePath: join(runDirectory, 'workspace'),
 						capabilitySocketPath,
 						chatdEndpoint: connector.url,
+						serviceTokenPath,
 						chatdPlatform: admindPlatform,
 						blueclawURL,
 						blueclawPolicyPath: policyPath,
@@ -624,6 +634,7 @@ export async function aCompanyPlane(request: PlaneRequest = {}): Promise<ACompan
 					MESSENGER_PLATFORM: messengerPlatform,
 					AGENT_API_KEY_PATH: agentKeyPath,
 					CHATD_BASE_URL: connector.url,
+					CHATD_SERVICE_TOKEN_PATH: serviceTokenPath,
 					ADMIND_SOCKET_PATH: requesterSocketPath,
 					ADMIND_BASE_URL: admindURL,
 					BLUECLAW_ACP_SOCKET_PATH: blueclawACPSocketPath,

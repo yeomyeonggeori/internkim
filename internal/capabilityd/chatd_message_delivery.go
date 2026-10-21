@@ -13,6 +13,7 @@ import (
 
 	"github.com/yeomyeonggeori/internkim/internal/capabilities"
 	"github.com/yeomyeonggeori/internkim/internal/runtime/blueclaw"
+	"github.com/yeomyeonggeori/internkim/internal/servicetoken"
 )
 
 type chatdMessagePostAttachment struct {
@@ -172,6 +173,9 @@ func (service Service) chatdRequest(ctx context.Context, capabilityName string, 
 		return errorValue
 	}
 	httpRequest.Header.Set("Content-Type", "application/json")
+	if errorValue := servicetoken.Authorize(httpRequest, service.Configuration.ServiceTokenPath); errorValue != nil {
+		return errorValue
+	}
 	client := service.HTTPClient
 	if client == nil {
 		client = http.DefaultClient

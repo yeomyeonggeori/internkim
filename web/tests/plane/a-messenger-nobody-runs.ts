@@ -4,6 +4,7 @@
 // somewhere real and looks like a success.
 
 import { MalformedRequest, parsePersonRequest, requireMediaSource } from '../../../.dependency/blueclaw/chatd/src/personal/parse';
+import { carriesServiceToken } from '../../../.dependency/blueclaw/chatd/src/service-credential';
 import type { CredentialRequirement, KeptMedia } from '../../../.dependency/blueclaw/chatd/src/personal/gateway';
 import { messengerIdentityCredentialKind } from '../../src/lib/server/public-api/catalog/credential';
 import { parseDirectMessagePostRequest, parseDirectMessageSendRequest, parseMessagePostRequest } from '../../../.dependency/blueclaw/chatd/src/outbound-parse';
@@ -71,7 +72,7 @@ async function keepUploadedMedia(body: unknown, connectorURL: string, media: Map
 	}
 }
 
-export function aConnectorNobodyRuns(): ARecordingMessenger {
+export function aConnectorNobodyRuns(serviceToken: string): ARecordingMessenger {
 	const calls: RecordedCall[] = [];
 	const media = new Map<string, RecordedMedia>();
 	const server = Bun.serve({
@@ -81,6 +82,9 @@ export function aConnectorNobodyRuns(): ARecordingMessenger {
 			const body = await bodyOf(request);
 			calls.push({ path, body });
 			if (path === '/health' || path === '/healthz') return new Response('ok');
+			if (path.startsWith('/v1/platform/') && !carriesServiceToken(request, serviceToken)) {
+				return Response.json({ error: 'chatd answers only the host services that hold its service token' }, { status: 401 });
+			}
 			const kept = media.get(path);
 			if (kept) return new Response(kept.bytes, { headers: { 'Content-Type': kept.contentType } });
 			const capability = path.split('/')[4] ?? '';

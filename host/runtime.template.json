@@ -22,6 +22,7 @@
   "connectors": {
     "chatd": {
       "endpoint": "${CHATD_ENDPOINT}",
+      "serviceTokenPath": "${SERVICE_TOKEN_PATH}",
       "enabledPlatforms": ["${MESSENGER_PLATFORM}"],
       "timeoutSecond": 30
     }

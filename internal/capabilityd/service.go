@@ -53,6 +53,7 @@ type Configuration struct {
 	FileReadPythonPath            string
 	ChatdEndpoint                 string
 	ChatdPlatform                 string
+	ServiceTokenPath              string
 	WorkQueuePath                 string
 	HostSessionPath               string
 }
