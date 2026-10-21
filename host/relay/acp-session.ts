@@ -115,7 +115,7 @@ export class BlueclawACPClient {
 	private connecting: Promise<ClientSideConnection> | null = null;
 	private closeSocket: (() => void) | null = null;
 	private isClosed = false;
-	private readonly bindingByConversation = new Map<string, SessionBinding>();
+	private readonly bindingBySpeaker = new Map<string, SessionBinding>();
 	private readonly pendingApprovals = new Map<string, PendingApproval>();
 	private readonly sessionOfPromptInFlight = new Map<string, string>();
 	private readonly toolProgress: ToolProgress;
@@ -139,13 +139,13 @@ export class BlueclawACPClient {
 		this.closeSocket = null;
 		this.connection = null;
 		this.connecting = null;
-		this.bindingByConversation.clear();
+		this.bindingBySpeaker.clear();
 		this.pendingApprovals.clear();
 	}
 
 	async restoreSessionBindings(): Promise<void> {
 		for (const binding of await this.settings.sessions.list()) {
-			this.bindingByConversation.set(binding.addressing.conversationID, binding);
+			this.bindingBySpeaker.set(speakerKeyOf(binding), binding);
 			this.catalogOf(binding);
 		}
 		void this.agent().catch(() => this.reconnectUntilItComesBack());
@@ -227,7 +227,7 @@ export class BlueclawACPClient {
 	}
 
 	private async loadSessionBindings(connection: ClientSideConnection): Promise<void> {
-		for (const binding of [...this.bindingByConversation.values()]) {
+		for (const binding of [...this.bindingBySpeaker.values()]) {
 			await connection
 				.loadSession({
 					sessionId: binding.sessionID,
@@ -237,7 +237,7 @@ export class BlueclawACPClient {
 				})
 				.catch((failure) => {
 					this.settings.report?.(`session ${binding.sessionID} would not load: ${String(failure)}`);
-					this.bindingByConversation.delete(binding.addressing.conversationID);
+					this.bindingBySpeaker.delete(speakerKeyOf(binding));
 				});
 		}
 	}
@@ -247,7 +247,7 @@ export class BlueclawACPClient {
 		requester: Requester,
 		addressing: Addressing
 	): Promise<string> {
-		const binding = this.bindingByConversation.get(addressing.conversationID);
+		const binding = this.bindingBySpeaker.get(speakerKey(addressing.conversationID, requester.email));
 		if (binding) return binding.sessionID;
 		const catalogTicket = randomUUID();
 		const opened = await agent.newSession({
@@ -256,7 +256,7 @@ export class BlueclawACPClient {
 			_meta: { [sessionMetaKey]: { requester, addressing } }
 		});
 		const sessionBinding: SessionBinding = { sessionID: opened.sessionId, requester, addressing, catalogTicket };
-		this.bindingByConversation.set(addressing.conversationID, sessionBinding);
+		this.bindingBySpeaker.set(speakerKeyOf(sessionBinding), sessionBinding);
 		await this.settings.sessions.save(sessionBinding);
 		return opened.sessionId;
 	}
@@ -337,18 +337,23 @@ export class BlueclawACPClient {
 		}
 	}
 
-	hasPendingApprovalIn(conversationID: string): boolean {
-		const binding = this.bindingByConversation.get(conversationID);
+	hasPendingApprovalIn(conversationID: string, requesterEmail: string): boolean {
+		const binding = this.bindingBySpeaker.get(speakerKey(conversationID, requesterEmail));
 		return binding !== undefined && this.pendingApprovals.has(binding.sessionID);
 	}
 
 	isWaitingOnApproval(conversationID: string, messageID: string): boolean {
-		const binding = this.bindingByConversation.get(conversationID);
-		return binding !== undefined && this.pendingApprovals.get(binding.sessionID)?.waitingMessageIDs.has(messageID) === true;
+		return this.bindingsIn(conversationID).some(
+			(binding) => this.pendingApprovals.get(binding.sessionID)?.waitingMessageIDs.has(messageID) === true
+		);
+	}
+
+	private bindingsIn(conversationID: string): SessionBinding[] {
+		return [...this.bindingBySpeaker.values()].filter((binding) => binding.addressing.conversationID === conversationID);
 	}
 
 	async answerPendingApproval(addressing: Addressing, messageID: string, reply: string, replier: Requester): Promise<boolean> {
-		const binding = this.bindingByConversation.get(addressing.conversationID);
+		const binding = this.bindingBySpeaker.get(speakerKey(addressing.conversationID, replier.email));
 		const pending = binding && this.pendingApprovals.get(binding.sessionID);
 		if (!binding || !pending) return false;
 		const reading = await this.readApprovalReply(
@@ -426,11 +431,19 @@ export class BlueclawACPClient {
 	}
 
 	private sessionBindingOf(sessionID: string): SessionBinding | undefined {
-		return [...this.bindingByConversation.values()].find((binding) => binding.sessionID === sessionID);
+		return [...this.bindingBySpeaker.values()].find((binding) => binding.sessionID === sessionID);
 	}
 }
 
 const cancelled: RequestPermissionResponse = { outcome: { outcome: 'cancelled' } };
+
+export function speakerKey(conversationID: string, requesterEmail: string): string {
+	return JSON.stringify([conversationID, requesterEmail.trim().toLowerCase()]);
+}
+
+export function speakerKeyOf(binding: Pick<SessionBinding, 'requester' | 'addressing'>): string {
+	return speakerKey(binding.addressing.conversationID, binding.requester.email);
+}
 
 async function attemptPost(post: () => Promise<string>): Promise<PostOutcome> {
 	try {
