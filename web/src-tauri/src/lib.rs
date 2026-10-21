@@ -7,7 +7,7 @@ pub fn run() {
         .plugin(tauri_plugin_page_theme::init())
         .plugin(tauri_plugin_keyboard::init())
         .plugin(tauri_plugin_haptics::init());
-    #[cfg(target_os = "android")]
+    #[cfg(any(target_os = "android", target_os = "ios"))]
     let builder = builder.plugin(tauri_plugin_notifications::init());
     builder
         .run(tauri::generate_context!())

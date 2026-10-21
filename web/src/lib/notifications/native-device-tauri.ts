@@ -6,10 +6,16 @@ function permissionStateOf(answer: NotificationPermission): PermissionState {
 	return 'prompt';
 }
 
+function permissionStateOfGranted(granted: boolean | null): PermissionState {
+	if (granted === true) return 'granted';
+	if (granted === false) return 'denied';
+	return 'prompt';
+}
+
 export const tauriPushDevice: NativePushDevice = {
 	permission: async () => {
 		const { isPermissionGranted } = await import('@choochmeque/tauri-plugin-notifications-api');
-		return (await isPermissionGranted()) ? 'granted' : 'prompt';
+		return permissionStateOfGranted(await isPermissionGranted());
 	},
 	askPermission: async () => {
 		const { isPermissionGranted, requestPermission } = await import('@choochmeque/tauri-plugin-notifications-api');
