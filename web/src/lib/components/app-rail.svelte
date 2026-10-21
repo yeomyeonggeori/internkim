@@ -10,6 +10,7 @@
 	import { ConfirmDeleteDialog, confirmDelete } from '$lib/components/ui/confirm-delete-dialog';
 	import AppMobileNavigation from '$lib/components/app-mobile-navigation.svelte';
 	import type { AppMobileNavigationItem } from '$lib/components/app-mobile-navigation.svelte';
+	import HostUpdateConfirmDialog from '$lib/host/host-update-confirm-dialog.svelte';
 	import { appShellText } from '$lib/i18n/app-shell-text';
 	import { createPageText } from '$lib/i18n/page-text.svelte';
 	import { routePathOf } from '$lib/company-path';
@@ -41,6 +42,8 @@
 		activeWorkspace: text.activeWorkspace,
 		buzzConnect: text.buzzConnect
 	});
+
+	const hostUpdateLabels = $derived({ label: text.hostUpdate, updatingLabel: text.hostUpdating });
 
 	let appliedSessionKey = '';
 
@@ -81,6 +84,7 @@
 	/>
 	<AppRailFooter
 		contactItem={appNavigation.contactItem}
+		{hostUpdateLabels}
 		displayUserName={appNavigation.displayUserName}
 		userEmail={appNavigation.userEmail}
 		userImage={appNavigation.userImage}
@@ -104,3 +108,4 @@
 />
 
 <ConfirmDeleteDialog />
+<HostUpdateConfirmDialog />

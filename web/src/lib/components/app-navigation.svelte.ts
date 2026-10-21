@@ -10,6 +10,7 @@ import { createPageText } from '$lib/i18n/page-text.svelte';
 import { isSupabaseConfigured, signOutOfSupabase, supabaseMember } from '$lib/supabase-session';
 import { companyPathOf, routePathOf } from '$lib/company-path';
 import { homePath } from '$lib/home-path';
+import { hostUpdate } from '$lib/host/host-update.svelte';
 import type { UserRole } from '$lib/types';
 import type { WebAuthSession } from '$lib/web-auth-session';
 import ActivityIcon from '@lucide/svelte/icons/activity';
@@ -95,6 +96,7 @@ class AppNavigation {
 			this.userName = member.name || this.userName;
 			this.adminRole = member.role;
 			this.companySlug = member.companySlug;
+			if (member.role === 'admin') void hostUpdate.read();
 			return;
 		}
 		void appBadgeCounts.load(session.email);
@@ -142,6 +144,7 @@ class AppNavigation {
 	};
 
 	private clearSession() {
+		hostUpdate.forget();
 		this.userEmail = '';
 		this.userName = '';
 		this.userImage = '';
