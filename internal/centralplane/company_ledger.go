@@ -3,17 +3,15 @@ package centralplane
 import "context"
 
 type CompanyMetric struct {
-	MetricID  string   `json:"metricID"`
-	Metric    string   `json:"metric"`
-	Year      int      `json:"year"`
-	Quarter   int      `json:"quarter"`
-	Month     int      `json:"month"`
+	MetricID      string   `json:"metricID"`
+	Metric        string   `json:"metric"`
+	Period        string   `json:"period"`
 	Amount        *Money   `json:"amount"`
 	USDEquivalent *float64 `json:"usdEquivalent"`
 	Value         *float64 `json:"value"`
 	Unit          string   `json:"unit"`
-	Note      string   `json:"note"`
-	UpdatedAt string   `json:"updatedAt"`
+	Note          string   `json:"note"`
+	UpdatedAt     string   `json:"updatedAt"`
 }
 
 type CompanyRecordAttribute struct {

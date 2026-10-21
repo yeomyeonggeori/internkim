@@ -136,13 +136,11 @@ const companyMetricListInputSchema = z.strictObject({
 const companyMetricRecordInputSchema = z.strictObject({
   amount: moneySchema.describe("The value when the metric is money, e.g. {\"amount\": 1200000000, \"currency\": \"KRW\"}. Give amount or value, never both.").optional(),
   metric: z.string().describe("Metric key in lowerCamelCase, e.g. 'annualRevenue', 'operatingProfit', 'mau', 'employees'. Reuse the same key across periods."),
-  month: z.int().describe("Month 1-12 for a monthly value. Leave out for annual or quarterly values; never combine with quarter.").optional(),
   note: z.string().describe("Source or context note, e.g. 'from the audited financial statements'.").optional(),
-  quarter: z.int().describe("Quarter 1-4 for a quarterly value. Leave out for annual or monthly values; never combine with month.").optional(),
   unit: z.string().describe("Unit of a value that is not money, e.g. 'people', 'orders', 'sites'.").optional(),
   usdEquivalent: z.number().describe("The amount in US dollars at the time it is recorded, kept so metrics compare across currencies. Required when amount is not in USD.").optional(),
   value: z.number().describe("The value when the metric is not money, e.g. 26400 for MAU. Use the raw number, not a formatted string.").optional(),
-  year: z.int().describe("Four-digit year the value belongs to, e.g. 2025."),
+  period: momentSchema.describe("The period the value covers: YYYY for a year, YYYY-H1 or YYYY-H2 for a half, YYYY-Q1 to YYYY-Q4 for a quarter, YYYY-MM for a month, YYYY-MM-DD for a count taken on one day such as headcount. A value recorded before its period ends is read as what the company expects for it; recording again once the period is over replaces it with the result."),
 });
 
 const companyMetricRecordInputIntentSchema = companyMetricRecordInputSchema.partial();
@@ -218,9 +216,7 @@ export const companyProfileResultSchema = z.strictObject({
 export const companyMetricResultSchema = z.strictObject({
   metricID: z.string(),
   metric: z.string(),
-  year: z.number().int(),
-  quarter: z.number().int(),
-  month: z.number().int(),
+  period: momentSchema,
   amount: moneySchema.nullable(),
   usdEquivalent: z.number().nullable(),
   value: z.number().nullable(),
@@ -489,7 +485,7 @@ export const companyToolDefinitions: CapabilityToolDefinition[] = [
     answeredBy: CapabilityAnsweredBy.Record,
     privacyClass: "workspace_company",
     policyResource: "tool:company_metric_record",
-    description: "Record or correct one company metric value for a period — annual revenue, operating profit, MAU, employee count, GMV and similar time-series numbers. Money goes in amount with its USD equivalent; anything else goes in value with a unit. Add quarter (1-4) OR month (1-12) for sub-annual periods, never both. Same call overwrites the same period.",
+    description: "Record or correct one company metric value for a period — annual revenue, operating profit, MAU, employee count, GMV and similar time-series numbers. Money goes in amount with its USD equivalent; anything else goes in value with a unit. The period is a year, half, quarter, month or day. Same call overwrites the same period.",
     version: "1",
     estimatedLatency: CapabilityEstimatedLatency.Low,
     inputSchema: companyMetricRecordInputSchema,

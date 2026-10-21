@@ -109,6 +109,16 @@ type heldCompanyDocument struct {
 	IssuedAt       string
 }
 
+func legacyMetricPeriod(year int, quarter int, month int) string {
+	if month != 0 {
+		return fmt.Sprintf("%04d-%02d", year, month)
+	}
+	if quarter != 0 {
+		return fmt.Sprintf("%04d-Q%d", year, quarter)
+	}
+	return fmt.Sprintf("%04d", year)
+}
+
 func (metric heldCompanyMetric) periodKey() string {
 	return strings.Join([]string{
 		metric.Metric,
@@ -224,9 +234,7 @@ func carriedCompanyMetricOf(metric heldCompanyMetric) (centralplane.CarriedCompa
 	}
 	return centralplane.CarriedCompanyMetric{
 		Metric:       metric.Metric,
-		Year:         metric.Year,
-		Quarter:      metric.Quarter,
-		Month:        metric.Month,
+		Period:       legacyMetricPeriod(metric.Year, metric.Quarter, metric.Month),
 		Value:        metric.Value,
 		CurrencyCode: currencyCode,
 		ValueUSD:     metric.ValueUSD,

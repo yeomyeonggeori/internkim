@@ -13,9 +13,9 @@ describe('the company fields an administrator places', () => {
 		const rows = companyFieldRows(categories, {
 			profile: { brandName: { ko: '샘플' } },
 			metrics: [
-				{ metric: 'annualRevenue', year: 2024, value: 1 },
-				{ metric: 'annualRevenue', year: 2025, value: 2 },
-				{ metric: 'burnRate', year: 2025, value: 3 }
+				{ metric: 'annualRevenue', period: '2024', value: 1 },
+				{ metric: 'annualRevenue', period: '2025', value: 2 },
+				{ metric: 'burnRate', period: '2025', value: 3 }
 			],
 			records: [{ category: 'history', title: '설립', attributes: {} }]
 		});

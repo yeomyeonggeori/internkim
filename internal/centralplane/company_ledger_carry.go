@@ -14,9 +14,7 @@ import (
 // mint: a metric its period, a document its number and the day it was issued.
 type CarriedCompanyMetric struct {
 	Metric       string
-	Year         int
-	Quarter      int
-	Month        int
+	Period       string
 	Value        float64
 	CurrencyCode string
 	ValueUSD     *float64
@@ -59,9 +57,7 @@ func (client *Client) CarryCompanyMetric(
 	body := map[string]any{
 		"company_id": companyID,
 		"metric":     metric.Metric,
-		"year":       metric.Year,
-		"quarter":    metric.Quarter,
-		"month":      metric.Month,
+		"period":     metric.Period,
 		"value":      metric.Value,
 		"updated_at": metric.UpdatedAt.UTC().Format(time.RFC3339Nano),
 	}

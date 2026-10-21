@@ -19,8 +19,8 @@ do $$
 begin
   set local role authenticated;
   perform set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-0000000000c9","role":"authenticated"}', true);
-  insert into public.company_metric (company_id, metric, year, value, currency_code, value_usd)
-  values ('00000000-0000-0000-0000-0000000000c0', 'annualRevenue', 2025, 1200000000, 'KRW', 870000);
+  insert into public.company_metric (company_id, metric, period, value, currency_code, value_usd)
+  values ('00000000-0000-0000-0000-0000000000c0', 'annualRevenue', '2025', 1200000000, 'KRW', 870000);
   insert into public.company_record (company_id, category, record_date, title, attributes)
   values ('00000000-0000-0000-0000-0000000000c0', 'funding', '2025-12-01', 'Seed round closed', '{"round":"Seed"}');
 end;
@@ -38,8 +38,8 @@ select throws_ok($block$do $$
 begin
   set local role authenticated;
   perform set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-0000000000c9","role":"authenticated"}', true);
-  insert into public.company_metric (company_id, metric, year, value)
-  values ('00000000-0000-0000-0000-0000000000c0', 'annualRevenue', 2025, 99);
+  insert into public.company_metric (company_id, metric, period, value)
+  values ('00000000-0000-0000-0000-0000000000c0', 'annualRevenue', '2025', 99);
   reset role;
 end $$;$block$, '23505', null, 'one company states one number per metric and period');
 
@@ -47,17 +47,17 @@ select throws_ok($block$do $$
 begin
   set local role authenticated;
   perform set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-0000000000c9","role":"authenticated"}', true);
-  insert into public.company_metric (company_id, metric, year, quarter, month, value)
-  values ('00000000-0000-0000-0000-0000000000c0', 'mau', 2025, 2, 3, 99);
+  insert into public.company_metric (company_id, metric, period, value)
+  values ('00000000-0000-0000-0000-0000000000c0', 'mau', '2025-Q5', 99);
   reset role;
-end $$;$block$, '23514', null, 'a metric is annual, quarterly or monthly, never a quarter and a month at once');
+end $$;$block$, '23514', null, 'a metric covers a period that is a moment');
 
 select throws_ok($block$do $$
 begin
   set local role authenticated;
   perform set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-0000000000c9","role":"authenticated"}', true);
-  insert into public.company_metric (company_id, metric, year, value, currency_code)
-  values ('00000000-0000-0000-0000-0000000000c0', 'operatingProfit', 2025, 99, 'KRW');
+  insert into public.company_metric (company_id, metric, period, value, currency_code)
+  values ('00000000-0000-0000-0000-0000000000c0', 'operatingProfit', '2025', 99, 'KRW');
   reset role;
 end $$;$block$, '23514', null, 'money carries the USD equivalent a reader can compare');
 
@@ -65,8 +65,8 @@ select throws_ok($block$do $$
 begin
   set local role authenticated;
   perform set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-0000000000c1","role":"authenticated"}', true);
-  insert into public.company_metric (company_id, metric, year, value)
-  values ('00000000-0000-0000-0000-0000000000c0', 'mau', 2025, 9000);
+  insert into public.company_metric (company_id, metric, period, value)
+  values ('00000000-0000-0000-0000-0000000000c0', 'mau', '2025', 9000);
   reset role;
 end $$;$block$, '42501', null, 'a colleague who is not an administrator records no metric');
 

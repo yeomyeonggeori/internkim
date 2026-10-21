@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { compareMomentsNewestFirst, momentSchema, momentSpanOf, type Moment } from '$lib/moment';
+import { compareMomentsNewestFirst, momentLabel, momentSchema, momentSpanOf, type Moment, type MomentPrecision, type MomentSpan } from '$lib/moment';
 import { formatCompactMoney, formatMoney, moneySchema, type Money } from '$lib/money';
 import { companyActivitySchema, storedActivitySchema } from './activity';
 
@@ -50,14 +50,13 @@ export const dataRoomCompanySchema = z.object({
 	}),
 	metrics: z.array(z.object({
 		metric: z.string(),
-		year: z.number().int(),
-		quarter: z.number().int().optional(),
-		month: z.number().int().optional(),
+		period: momentSchema,
 		amount: moneySchema.optional(),
 		usdEquivalent: z.number().optional(),
 		value: z.number().optional(),
 		unit: z.string().optional(),
-		note: z.string().optional()
+		note: z.string().optional(),
+		recordedAt: z.string().optional()
 	})),
 	records: z.array(recordSchema),
 	activity: companyActivitySchema.optional(),
@@ -80,12 +79,18 @@ export type CompanyMetric = DataRoomCompany['metrics'][number];
 export type CompanyRecord = DataRoomCompany['records'][number];
 export type CompanyOwnership = NonNullable<DataRoomCompany['ownership']>;
 export type HolderKind = (typeof holderKinds)[number];
-export type CompanyMetricSeries = { metric: string; latest: CompanyMetric; points: CompanyMetric[] };
+export type CompanyMetricSeries = {
+	metric: string;
+	latest: CompanyMetric;
+	points: CompanyMetric[];
+	projection?: CompanyMetric;
+	interim: CompanyMetric[];
+};
 export type CompanyFact = { field: string; value: string };
 export type CompanyFactGroupName = 'company' | 'entity' | 'registration';
 export type CompanyFactGroup = { group: CompanyFactGroupName; facts: CompanyFact[] };
 export type MetricChange = { kind: 'percent'; percent: number } | { kind: 'turnedPositive' } | { kind: 'turnedNegative' };
-export type PeriodKind = 'year' | 'quarter' | 'month';
+export type PeriodKind = MomentPrecision;
 export type RecordGroup = { category: string; records: CompanyRecord[] };
 
 export const fundingCategories = ['funding', 'grant'];
@@ -149,34 +154,65 @@ function legalAttributesIn(profile: CompanyProfile, locale: string): Record<stri
 
 export function metricSeries(metrics: CompanyMetric[]): CompanyMetricSeries[] {
 	const byName = Map.groupBy(metrics, (metric) => metric.metric);
-	return [...byName].map(([metric, points]) => {
-		const ordered = points.toSorted((left, right) => periodOrder(left) - periodOrder(right));
-		const latest = ordered[ordered.length - 1];
-		return { metric, latest, points: ordered.filter((point) => periodKind(point) === periodKind(latest)) };
-	});
+	return [...byName].flatMap(([metric, points]) => seriesOf(metric, points));
+}
+
+function seriesOf(metric: string, points: CompanyMetric[]): CompanyMetricSeries[] {
+	const ordered = points.toSorted((left, right) => compareMomentsNewestFirst(right.period, left.period));
+	const kind = ordered.some((point) => periodKind(point) === 'year') ? 'year' : periodKind(ordered[ordered.length - 1]);
+	const reported = ordered.filter((point) => !isProjected(point));
+	const reportedOfKind = reported.filter((point) => periodKind(point) === kind);
+	const lastReported = reportedOfKind.at(-1);
+	const projection = ordered.findLast((point) => isProjected(point) && periodKind(point) === kind
+		&& (!lastReported || compareMomentsNewestFirst(point.period, lastReported.period) < 0));
+	const latest = lastReported ?? projection;
+	if (!latest) return [];
+	return [{
+		metric,
+		latest,
+		points: lastReported ? reportedOfKind : [latest],
+		projection: lastReported ? projection : undefined,
+		interim: kind === 'year' ? interimPoints(reported, spanOf(latest).year) : []
+	}];
+}
+
+function interimPoints(reported: CompanyMetric[], closedYear: number): CompanyMetric[] {
+	const open = reported.filter((point) => periodKind(point) !== 'year' && spanOf(point).year > closedYear);
+	const finest = open.at(-1);
+	if (!finest) return [];
+	return open.filter((point) => spanOf(point).year === spanOf(finest).year && periodKind(point) === periodKind(finest));
+}
+
+function spanOf(metric: CompanyMetric): MomentSpan {
+	return momentSpanOf(metric.period) ?? { precision: 'year', year: 0, part: 1, start: '', end: '' };
+}
+
+const companyClockOffsetHours = 9;
+
+export function isProjected(metric: CompanyMetric): boolean {
+	if (!metric.recordedAt) return false;
+	const recordedDay = new Date(Date.parse(metric.recordedAt) + companyClockOffsetHours * 3_600_000).toISOString().slice(0, 10);
+	return recordedDay < spanOf(metric).end;
+}
+
+export function periodYear(metric: CompanyMetric): number {
+	return spanOf(metric).year;
 }
 
 export function periodKind(metric: CompanyMetric): PeriodKind {
-	if (metric.month) return 'month';
-	if (metric.quarter) return 'quarter';
-	return 'year';
-}
-
-export function periodOrder(metric: CompanyMetric): number {
-	return metric.year * 100 + (metric.month ?? (metric.quarter ? metric.quarter * 3 : 12));
+	return spanOf(metric).precision;
 }
 
 export function periodLabel(metric: CompanyMetric, locale: string): string {
-	if (metric.month) return `${metric.year}.${String(metric.month).padStart(2, '0')}`;
-	if (metric.quarter) return locale === 'ko' ? `${metric.year}년 ${metric.quarter}분기` : `${metric.year} Q${metric.quarter}`;
-	return String(metric.year);
+	return momentLabel(metric.period, locale);
 }
 
-export type MetricBar = { period: string; value: number; share: number; isLatest: boolean };
+export type MetricBar = { period: string; value: number; share: number; isLatest: boolean; isProjected: boolean };
 export type MetricBarChart = { bars: MetricBar[]; positiveShare: number; negativeShare: number };
 
 export function metricBars(series: CompanyMetricSeries, periodCount: number, locale: string): MetricBarChart {
-	const points = series.points.slice(-periodCount);
+	const reported = series.points.slice(series.projection ? 1 - periodCount : -periodCount);
+	const points = series.projection ? [...reported, series.projection] : reported;
 	const values = points.map(metricNumber);
 	const highest = Math.max(0, ...values);
 	const lowest = Math.min(0, ...values);
@@ -185,17 +221,30 @@ export function metricBars(series: CompanyMetricSeries, periodCount: number, loc
 		period: shortPeriodLabel(point, locale),
 		value: values[index],
 		share: values[index] > 0 ? values[index] / highest : values[index] < 0 ? values[index] / lowest : 0,
-		isLatest: index === points.length - 1
+		isLatest: points[index] === series.latest,
+		isProjected: isProjected(points[index])
 	}));
 	if (range === 0) return { bars, positiveShare: 1, negativeShare: 0 };
 	return { bars, positiveShare: highest / range, negativeShare: -lowest / range };
 }
 
+export function subPeriodLabel(metric: CompanyMetric, locale: string): string {
+	const span = spanOf(metric);
+	const isKorean = locale.startsWith('ko');
+	if (span.precision === 'half') return isKorean ? (span.part === 1 ? '상반기' : '하반기') : `H${span.part}`;
+	if (span.precision === 'quarter') return isKorean ? `${span.part}분기` : `Q${span.part}`;
+	if (span.precision === 'month') return new Intl.DateTimeFormat(locale, { month: 'short', timeZone: 'UTC' }).format(Date.parse(span.start));
+	return span.start.slice(5).replace('-', '.');
+}
+
 export function shortPeriodLabel(metric: CompanyMetric, locale: string): string {
-	const shortYear = String(metric.year).slice(-2);
-	if (metric.month) return `${shortYear}.${String(metric.month).padStart(2, '0')}`;
-	if (metric.quarter) return locale === 'ko' ? `${shortYear}년 ${metric.quarter}분기` : `Q${metric.quarter} '${shortYear}`;
-	return String(metric.year);
+	const span = spanOf(metric);
+	const shortYear = String(span.year).slice(-2);
+	if (span.precision === 'year') return String(span.year);
+	if (span.precision === 'month') return `${shortYear}.${span.start.slice(5, 7)}`;
+	if (span.precision === 'day') return span.start.slice(5).replace('-', '.');
+	const isKorean = locale.startsWith('ko');
+	return isKorean ? `${shortYear}년 ${subPeriodLabel(metric, locale)}` : `${subPeriodLabel(metric, locale)} '${shortYear}`;
 }
 
 export function metricNumber(metric: CompanyMetric): number {
@@ -204,8 +253,16 @@ export function metricNumber(metric: CompanyMetric): number {
 
 export function changeFromPrevious(series: CompanyMetricSeries): MetricChange | undefined {
 	const previous = series.points.at(-2);
-	if (!previous || metricNumber(previous) === 0) return undefined;
-	const [before, after] = [metricNumber(previous), metricNumber(series.latest)];
+	return previous ? changeBetween(previous, series.latest) : undefined;
+}
+
+export function projectedChange(series: CompanyMetricSeries): MetricChange | undefined {
+	return series.projection ? changeBetween(series.latest, series.projection) : undefined;
+}
+
+function changeBetween(earlier: CompanyMetric, later: CompanyMetric): MetricChange | undefined {
+	if (metricNumber(earlier) === 0) return undefined;
+	const [before, after] = [metricNumber(earlier), metricNumber(later)];
 	if (before < 0 && after >= 0) return { kind: 'turnedPositive' };
 	if (before > 0 && after < 0) return { kind: 'turnedNegative' };
 	return { kind: 'percent', percent: (after - before) / Math.abs(before) * 100 };
