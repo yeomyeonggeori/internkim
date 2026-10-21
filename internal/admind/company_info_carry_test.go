@@ -110,8 +110,11 @@ func TestTheProfileCarryWritesOneLanguageSlotAtATime(t *testing.T) {
 		t.Fatalf("a slot nothing was written in carries nothing: %+v", english)
 	}
 	for _, written := range company.written {
-		if written["phone"] != "02-1234-5678" || written["employeeCount"] != float64(12) {
+		if written["phone"] != "02-1234-5678" {
 			t.Fatalf("what is not localized goes into every slot: %+v", written)
+		}
+		if _, carried := written["employeeCount"]; carried {
+			t.Fatalf("the headcount is counted from the organization, never carried as a typed number: %+v", written)
 		}
 	}
 }

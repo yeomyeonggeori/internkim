@@ -18,7 +18,6 @@ export type CompanyProfileDocument = {
 	foundedDate?: string;
 	capital?: Money;
 	fiscalYearEnd?: string;
-	employeeCount?: number;
 	phone?: string;
 	fax?: string;
 	email?: string;
@@ -42,7 +41,6 @@ export type CompanyProfileUpdate = {
 	foundedDate?: string;
 	capital?: Money;
 	fiscalYearEnd?: string;
-	employeeCount?: number;
 	phone?: string;
 	fax?: string;
 	email?: string;
@@ -83,7 +81,8 @@ export function profileOf(stored: unknown): CompanyProfileDocument {
 
 export function companyProfileView(
 	profile: CompanyProfileDocument,
-	language: string
+	language: string,
+	headcount: number
 ): CompanyProfileResult {
 	const missingFields: string[] = [];
 	const resolvedCore = (field: (typeof coreLocalizedFields)[number]): string => {
@@ -110,7 +109,7 @@ export function companyProfileView(
 		foundedDate: profile.foundedDate ?? '',
 		capital: profile.capital ?? null,
 		fiscalYearEnd: profile.fiscalYearEnd ?? '',
-		employeeCount: profile.employeeCount ?? 0,
+		employeeCount: headcount,
 		phone: profile.phone ?? '',
 		fax: profile.fax ?? '',
 		email: profile.email ?? '',
@@ -151,9 +150,6 @@ export function profileWithUpdate(
 		if (offered) written[field] = offered;
 	}
 	if (update.capital) written.capital = update.capital;
-	if (update.employeeCount !== undefined && update.employeeCount > 0) {
-		written.employeeCount = update.employeeCount;
-	}
 
 	written.updatedAt = writtenAt.toISOString().replace(/\.\d{3}Z$/, 'Z');
 	return written;

@@ -8,6 +8,7 @@ type AnsweredPerson = {
 	email: string;
 	handle?: string;
 	isAdmin?: boolean;
+	kind?: string;
 	jobTitle?: string;
 	teamID?: string;
 	supervisorID?: string;
@@ -32,7 +33,7 @@ export async function supabaseOrganizationDirectory(): Promise<UsersResponse> {
 		invokeTool<AnsweredTeams>('team_list', {})
 	]);
 	return {
-		records: people.people.map(recordOf),
+		records: people.people.filter((person) => person.kind === 'human').map(recordOf),
 		availableGroups: teams.teams.map(groupOf)
 	};
 }

@@ -29,8 +29,8 @@ select throws_ok($$update public.data_room_category set fields = array['capital'
 set local role authenticated;
 select set_config('request.jwt.claims', '{"sub":"65000000-0000-0000-0000-000000000002"}', true);
 select is(public.data_room_company('65000000-0000-0000-0000-000000000010'),
-  '{"profile": {"brandName": {"ko": "샘플"}}, "metrics": [], "records": [{"category": "history", "date": "2024-01-02", "title": "Company founded", "status": "completed", "attributes": {}}]}'::jsonb,
-  'a member sees what the member circle reads');
+  '{"profile": {"brandName": {"ko": "샘플"}, "employeeCount": 2}, "metrics": [], "records": [{"category": "history", "date": "2024-01-02", "title": "Company founded", "status": "completed", "attributes": {}}]}'::jsonb,
+  'a member sees what the member circle reads, with the headcount counted from the organization');
 
 select set_config('request.jwt.claims', '{"sub":"65000000-0000-0000-0000-000000000001"}', true);
 select is(jsonb_array_length(public.data_room_company('65000000-0000-0000-0000-000000000010') -> 'metrics'), 2,
@@ -73,7 +73,7 @@ select set_config('request.jwt.claims', '{"sub":"65000000-0000-0000-0000-0000000
 select public.data_room_field_set('65000000-0000-0000-0000-000000000010', 'capital', 'GP');
 select public.data_room_field_set('65000000-0000-0000-0000-000000000010', 'burnRate', 'FS');
 select is(jsonb_path_query_array(public.data_room_circle_company('65000000-0000-0000-0000-000000000010', 'member'), '$.profile.keyvalue().key'),
-  '["capital", "brandName"]'::jsonb,
+  '["capital", "brandName", "employeeCount"]'::jsonb,
   'an administrator moves a field into a category the member circle reads');
 select ok(public.data_room_circle_company('65000000-0000-0000-0000-000000000010', 'investor') -> 'metrics' @> '[{"metric": "burnRate"}]',
   'a field named by no category becomes visible once one names it');
