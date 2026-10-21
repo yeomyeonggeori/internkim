@@ -36,6 +36,7 @@ func (service *Service) startMemberChannelMembershipSync(ctx context.Context) {
 
 func (service *Service) runMembershipPass(ctx context.Context) time.Duration {
 	service.withinASweepBudget(ctx, service.ensureMemberChannelMembership)
+	service.withinASweepBudget(ctx, service.nameEveryoneTheDirectoryNames)
 	return service.intervalUntilTheNextMembershipPass(ctx)
 }
 
@@ -533,7 +534,6 @@ func (service *Service) ensureMemberChannelMembership(ctx context.Context) {
 	log.Printf("buzz member membership: granted %d, failed %d, already in %d", granted, failed, alreadyIn)
 	service.seatTheAgentInOpenRooms(ctx, relay, connections, seed)
 	service.retireBootstrapFromRemainingRooms(ctx, relay, connections, seed)
-	service.nameMembersTheRelayCannotName(ctx, relay)
 	service.removeSeatsNobodyAccountsFor(ctx, relay, channelIDs, seed)
 	retirePrivateRoomsNobodyIsIn(ctx, relay)
 }
