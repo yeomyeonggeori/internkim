@@ -80,7 +80,6 @@ type DescriptorMetadata struct {
 	PrivacyClass         string
 	EstimatedLatency     string
 	RequiresUserPresence bool
-	ApprovalScope        string
 	WorksOffline         bool
 	InputSchema          json.RawMessage
 	InputIntentSchema    json.RawMessage
@@ -113,7 +112,6 @@ func NewDescriptor(definition DescriptorDefinition) Descriptor {
 		PrivacyClass:         definition.Metadata.PrivacyClass,
 		EstimatedLatency:     definition.Metadata.EstimatedLatency,
 		RequiresUserPresence: definition.Metadata.RequiresUserPresence,
-		ApprovalScope:        definition.Metadata.ApprovalScope,
 		WorksOffline:         definition.Metadata.WorksOffline,
 		InputSchema:          strictSchema(definition.Metadata.InputSchema),
 		InputIntentSchema:    strictSchema(definition.Metadata.InputIntentSchema),

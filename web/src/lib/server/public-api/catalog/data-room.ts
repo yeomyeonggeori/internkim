@@ -44,7 +44,7 @@ export function companyRecordTool(namespace: CapabilityNamespace, objectType: st
 			effectIdentity: ResourceEffectIdentity.Singleton
 		}] : [] },
 		sideEffect: isWrite ? CapabilitySideEffect.WorkspaceWrite : CapabilitySideEffect.Read,
-		...(isWrite ? { requiresApproval: true, approvalScope: 'company', inputIntentSchema: inputSchema.partial() } : {})
+		...(isWrite ? { requiresApproval: true, inputIntentSchema: inputSchema.partial() } : {})
 	});
 }
 

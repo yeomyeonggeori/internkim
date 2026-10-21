@@ -138,7 +138,6 @@ export type ApprovalOutcome = {
 export type PendingApproval = {
 	taskRun: TaskRunSummary;
 	question: string;
-	scope: string;
 };
 
 export function approvalDecisionRequestOf(taskRunID: string, decision: ApprovalDecision): ApprovalDecisionRequest {
@@ -149,8 +148,7 @@ export function pendingApprovalOf(detail: TaskDetail): PendingApproval | undefin
 	if (detail.taskRun.status !== waitingApprovalStatus) return undefined;
 	return {
 		taskRun: detail.taskRun,
-		question: lastEventField(detail.taskEvents, confirmationRequestedEventName, 'userFacingMessage'),
-		scope: lastEventField(detail.taskEvents, askRequestedEventName, 'approvalScope')
+		question: lastEventField(detail.taskEvents, confirmationRequestedEventName, 'userFacingMessage')
 	};
 }
 

@@ -1704,7 +1704,6 @@ const fileToolDefinitions: CapabilityToolDefinition[] = [
 const browserToolDefinitions: CapabilityToolDefinition[] = [
   {
     name: BrowserToolName.Open,
-    approvalScope: 'browser',
     namespace: 'browser',
     answeredBy: CapabilityAnsweredBy.Local,
     privacyClass: 'device_browser',
@@ -1719,7 +1718,6 @@ const browserToolDefinitions: CapabilityToolDefinition[] = [
   },
   {
     name: BrowserToolName.Snapshot,
-    approvalScope: 'browser',
     namespace: 'browser',
     answeredBy: CapabilityAnsweredBy.Local,
     privacyClass: 'device_browser',
@@ -1733,7 +1731,6 @@ const browserToolDefinitions: CapabilityToolDefinition[] = [
   },
   {
     name: BrowserToolName.Screenshot,
-    approvalScope: 'browser',
     namespace: 'browser',
     answeredBy: CapabilityAnsweredBy.Local,
     privacyClass: 'device_browser',
@@ -1747,7 +1744,6 @@ const browserToolDefinitions: CapabilityToolDefinition[] = [
   },
   {
     name: BrowserToolName.Click,
-    approvalScope: 'browser',
     namespace: 'browser',
     answeredBy: CapabilityAnsweredBy.Local,
     privacyClass: 'device_browser',

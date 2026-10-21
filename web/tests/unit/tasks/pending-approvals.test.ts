@@ -22,7 +22,6 @@ function relayAnswerForARunWaitingOnApproval(): TaskDetail {
 		},
 		taskEvents: [
 			{ name: 'agent.goal.waiting_approval', body: '{}' },
-			{ name: askRequestedEventName, body: JSON.stringify({ approvalScope: 'calendar' }) },
 			{
 				name: confirmationRequestedEventName,
 				body: JSON.stringify({ userFacingMessage: 'Book the room for 30 people?' })
@@ -32,12 +31,11 @@ function relayAnswerForARunWaitingOnApproval(): TaskDetail {
 }
 
 describe('a run waiting on approval, read out of a relay answer', () => {
-	test('carries the question and the scope the agent asked for', () => {
+	test('carries the question the agent asked', () => {
 		const approval = pendingApprovalOf(relayAnswerForARunWaitingOnApproval());
 
 		expect(approval?.taskRun.taskRunID).toBe('run-77');
 		expect(approval?.question).toBe('Book the room for 30 people?');
-		expect(approval?.scope).toBe('calendar');
 	});
 
 	test('the latest question wins when the agent asked more than once', () => {
@@ -61,7 +59,7 @@ describe('a run waiting on approval, read out of a relay answer', () => {
 		const detail = relayAnswerForARunWaitingOnApproval();
 		detail.taskEvents = [{ name: confirmationRequestedEventName, body: 'not json' }];
 
-		expect(pendingApprovalOf(detail)).toEqual({ taskRun: detail.taskRun, question: '', scope: '' });
+		expect(pendingApprovalOf(detail)).toEqual({ taskRun: detail.taskRun, question: '' });
 	});
 });
 

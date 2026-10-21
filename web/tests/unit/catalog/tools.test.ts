@@ -275,7 +275,7 @@ describe('canonical capability tools', () => {
     expect(catalog.tools.filter(tool => tool.answeredBy === CapabilityAnsweredBy.Local).length).toBeGreaterThan(0);
   });
 
-  test('runs every browser tool in the company browser under one grant', () => {
+  test('runs every browser tool in the company browser', () => {
     const catalog = buildCapabilityToolCatalog(protocolVersion);
     const browserTools = catalog.tools.filter(tool => tool.namespace === 'browser');
 
@@ -284,7 +284,6 @@ describe('canonical capability tools', () => {
       expect(tool.answeredBy).toBe(CapabilityAnsweredBy.Local);
       expect(tool.privacyClass).toBe('device_browser');
       expect(tool.requiresUserPresence).toBe(false);
-      expect(tool.approvalScope).toBe('browser');
     }
   });
 
