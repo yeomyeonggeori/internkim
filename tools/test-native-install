@@ -34,6 +34,7 @@ from native_install_rig import (  # noqa: E402
     ARCHITECTURE,
     BACKUP_TIMER_NAME,
     BACKUP_UNIT_NAME,
+    TIMED_UNIT_NAMES,
     BACKUPS_DIRECTORY,
     DATA_SERVICE_PATH,
     DATABASE_DATA_DIRECTORY,
@@ -131,9 +132,19 @@ printf 'box=%%s\n' "$(systemctl is-active %(box)s 2>/dev/null)"
 # connection the box daemon holds open to the gateway's port is that socket.
 WORKER_SOCKET_COMMAND = r"""
 pid="$(systemctl show %(box)s -p MainPID --value 2>/dev/null)"
-printf 'sockets=%%s\n' "$(ss -tnpH state established "( dport = :%(port)s )" 2>/dev/null | grep -c "pid=${pid:-0}," || true)"
+port_hex="$(printf '%%04X' %(port)s)"
+held="$(ls -l /proc/${pid:-0}/fd 2>/dev/null | sed -n 's/.*socket:\[\([0-9]*\)\].*/\1/p')"
+count=0
+for inode in $held; do
+    if awk -v port="$port_hex" -v inode="$inode" 'NR > 1 && $4 == "01" && $10 == inode && $3 ~ (":" port "$") { found = 1 } END { exit !found }' /proc/net/tcp /proc/net/tcp6; then
+        count=$((count + 1))
+    fi
+done
+printf 'sockets=%%s\n' "$count"
 journalctl -u %(box)s --no-pager -n 200 2>/dev/null | grep -i 'browser work' | tail -3
 """
+
+RELAY_JOURNAL_COMMAND = "journalctl -u %(unit)s --no-pager -n 25 2>/dev/null"
 
 KEPT_UP_COMMAND = r"""
 journalctl -u %(box)s --no-pager -n 400 2>/dev/null | grep -E 'this box holds|keeping up with' | tail -3
@@ -1059,7 +1070,7 @@ class Rig:
         )
 
     def observe_running_services(self, step):
-        unit_names = [name for name in self.units() if name != BACKUP_UNIT_NAME]
+        unit_names = [name for name in self.units() if name not in TIMED_UNIT_NAMES]
         states = dict(
             line.split("=", 1)
             for line in self.machine.shell(UNIT_STATE_COMMAND % " ".join(unit_names)).stdout.split()
@@ -1205,16 +1216,18 @@ class Rig:
             + ("" if has_landed else "\n" + self.membership_evidence(roster.stdout)),
         )
 
+        is_answered = sent.get("status") == 200 and bool(message_id)
         step.observe(
             "the answer comes back through the same socket to the member",
             "the result frame the member's websocket received for the call that posted the message",
             "a message the company stored and never answered for is a person watching a spinner; "
             "the frame is what tells them it landed",
         ).record(
-            sent.get("status") == 200 and bool(message_id),
+            is_answered,
             f"the messenger knows this member as {messenger_identity or 'nobody'}; "
             f"{roster.stdout.strip()}; {bridge.stdout.strip()}\n"
-            + json.dumps({"status": sent.get("status"), "messageID": message_id, "body": sent.get("body")})[:500],
+            + json.dumps({"status": sent.get("status"), "messageID": message_id, "body": sent.get("body")})[:500]
+            + ("" if is_answered else "\n" + self.machine.shell(RELAY_JOURNAL_COMMAND % {"unit": RELAY_UNIT_NAME}).stdout.strip()[-1500:]),
         )
         if is_watching_for_typing:
             self.observe_the_agent_typing(step, session, messenger_identity)
@@ -1597,7 +1610,7 @@ class Rig:
 
         second = self.start_a_second_machine()
         second_key = self.join_as_an_added_box(step, second)
-        self.observe_the_roles(step, {first_key: "serving", second_key: "standby"}, "after the second box joined")
+        self.observe_the_roles(step, {first_key: "service", second_key: "standby"}, "after the second box joined")
         self.observe_a_standby(step, second)
         self.observe_the_standby_takes_work(step, second)
         self.keep_a_snapshot(step)
@@ -1614,7 +1627,7 @@ class Rig:
 
         first.power_on()
         self.plane.reach_the_record_from(first)
-        self.observe_the_roles(step, {first_key: "standby", second_key: "serving"}, "after the first box came back")
+        self.observe_the_roles(step, {first_key: "standby", second_key: "service"}, "after the first box came back")
         with self.driving(first, self.files_command):
             self.observe_a_standby(step, first, timeout_seconds=600)
 
