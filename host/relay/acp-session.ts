@@ -360,23 +360,23 @@ export class BlueclawACPClient {
 		return binding !== undefined && this.pendingApprovals.get(binding.sessionID)?.waitingMessageIDs.has(messageID) === true;
 	}
 
-	async answerPendingApproval(addressing: Addressing, messageID: string, reply: string): Promise<boolean> {
+	async answerPendingApproval(addressing: Addressing, messageID: string, reply: string, replier: Requester): Promise<boolean> {
 		const binding = this.bindingByConversation.get(addressing.conversationID);
 		const pending = binding && this.pendingApprovals.get(binding.sessionID);
 		if (!binding || !pending) return false;
-		const optionID = await this.readApprovalReply(
-			approvalReplyRequest(binding.sessionID, pending.toolCallID, reply, messageID, addressing)
+		const reading = await this.readApprovalReply(
+			approvalReplyRequest(binding.sessionID, pending.toolCallID, reply, messageID, addressing, replier.email)
 		);
-		if (optionID === undefined) return false;
+		if (reading === undefined) return false;
 		this.pendingApprovals.delete(binding.sessionID);
-		pending.select(optionID);
-		return true;
+		pending.select(reading.optionID);
+		return !reading.isInstruction;
 	}
 
-	private async readApprovalReply(request: Record<string, unknown>): Promise<string | undefined> {
+	private async readApprovalReply(request: Record<string, unknown>): Promise<ApprovalReplyReading | undefined> {
 		try {
 			const agent = await this.agent();
-			return optionChosenIn(await agent.request<Record<string, unknown>>(approvalReplyExtensionMethod, request));
+			return readingOf(await agent.request<Record<string, unknown>>(approvalReplyExtensionMethod, request));
 		} catch (failure) {
 			this.settings.report?.(`blueclaw could not say whether a message answers the pending approval: ${String(failure)}`);
 			return undefined;
@@ -484,7 +484,8 @@ export function approvalReplyRequest(
 	toolCallID: string,
 	reply: string,
 	messageID: string,
-	addressing: Addressing
+	addressing: Addressing,
+	replierEmail: string
 ): Record<string, unknown> {
 	return {
 		sessionId: sessionID,
@@ -492,15 +493,18 @@ export function approvalReplyRequest(
 		reply,
 		messageId: messageID,
 		replyTargetId: addressing.replyTargetID,
-		isThread: addressing.isThread
+		isThread: addressing.isThread,
+		replierEmail
 	};
 }
 
-export function optionChosenIn(answer: Record<string, unknown>): string | undefined {
+export type ApprovalReplyReading = { optionID: string; isInstruction: boolean };
+
+export function readingOf(answer: Record<string, unknown>): ApprovalReplyReading | undefined {
 	if (answer.isAnswer !== true) return undefined;
 	const optionID = answer.optionId;
 	if (typeof optionID !== 'string') throw new Error(`blueclaw read the reply as an answer to no option: ${JSON.stringify(answer)}`);
-	return optionID;
+	return { optionID, isInstruction: answer.isInstruction === true };
 }
 
 function addressedBy(binding: SessionBinding, delivery: Delivery): Addressing {

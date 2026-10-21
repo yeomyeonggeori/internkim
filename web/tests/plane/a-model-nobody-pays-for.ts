@@ -21,7 +21,6 @@ export type TurnDecision = {
 	responseLanguage?: string;
 	initialToolNames?: string[];
 	expectedToolCount?: 'none' | 'one' | 'several';
-	isExternalSendRequested?: boolean;
 	approval?: 'approve' | 'approve_task' | 'reject' | 'unclear';
 };
 
@@ -79,8 +78,7 @@ export function aTurnStartingWork(message: string, toolNames: string[]): TurnOut
 			taskShape: 'maintenance_task',
 			level: 'low',
 			responseLanguage: 'ko',
-			initialToolNames: toolNames,
-			isExternalSendRequested: toolNames.includes('message_send')
+			initialToolNames: toolNames
 		}
 	};
 }
