@@ -5,7 +5,6 @@
 	import { appRailMode } from '$lib/components/app-rail-mode.svelte';
 	import AppRailShell from '$lib/components/app-rail-shell.svelte';
 	import { myAttendanceToday } from '$lib/attendance/my-attendance-today.svelte';
-	import { useSidebar } from '$lib/components/ui/sidebar/index.js';
 	import { isPlainShortcut } from '$lib/keyboard-shortcut';
 	import { ConfirmDeleteDialog, confirmDelete } from '$lib/components/ui/confirm-delete-dialog';
 	import AppMobileNavigation from '$lib/components/app-mobile-navigation.svelte';
@@ -19,7 +18,6 @@
 	let { session, onSearch, workspaceScope = '' }: { session: WebAuthSession | null; onSearch?: () => void; workspaceScope?: string } = $props();
 
 	const text = createPageText(appShellText);
-	const sidebar = useSidebar();
 	let isPointerInside = $state(false);
 
 	$effect(() => {
@@ -58,7 +56,7 @@
 		myAttendanceToday.handleShortcut(event);
 		if (!isPlainShortcut(event, 'Comma')) return;
 		event.preventDefault();
-		sidebar.toggle();
+		appRailMode.cycle();
 	}
 
 	function requestLogOut() {

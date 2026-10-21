@@ -28,6 +28,11 @@ class AppRailModeState {
 		if (browser) localStorage.setItem(storageKey, mode);
 	};
 
+	cycle = () => {
+		const nextIndex = (appRailModes.indexOf(this.mode) + 1) % appRailModes.length;
+		this.select(appRailModes[nextIndex]);
+	};
+
 	setOpen = (open: boolean) => {
 		this.select(open ? 'expanded' : 'collapsed');
 	};
