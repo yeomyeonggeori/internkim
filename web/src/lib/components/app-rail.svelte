@@ -5,11 +5,11 @@
 	import { appRailMode } from '$lib/components/app-rail-mode.svelte';
 	import AppRailShell from '$lib/components/app-rail-shell.svelte';
 	import { myAttendanceToday } from '$lib/attendance/my-attendance-today.svelte';
-	import { useSidebar } from '$lib/components/ui/sidebar/index.js';
 	import { isPlainShortcut } from '$lib/keyboard-shortcut';
 	import { ConfirmDeleteDialog, confirmDelete } from '$lib/components/ui/confirm-delete-dialog';
 	import AppMobileNavigation from '$lib/components/app-mobile-navigation.svelte';
 	import type { AppMobileNavigationItem } from '$lib/components/app-mobile-navigation.svelte';
+	import HostUpdateConfirmDialog from '$lib/host/host-update-confirm-dialog.svelte';
 	import { appShellText } from '$lib/i18n/app-shell-text';
 	import { createPageText } from '$lib/i18n/page-text.svelte';
 	import { routePathOf } from '$lib/company-path';
@@ -18,7 +18,6 @@
 	let { session, onSearch, workspaceScope = '' }: { session: WebAuthSession | null; onSearch?: () => void; workspaceScope?: string } = $props();
 
 	const text = createPageText(appShellText);
-	const sidebar = useSidebar();
 	let isPointerInside = $state(false);
 
 	$effect(() => {
@@ -42,6 +41,8 @@
 		buzzConnect: text.buzzConnect
 	});
 
+	const hostUpdateLabels = $derived({ label: text.hostUpdate, updatingLabel: text.hostUpdating });
+
 	let appliedSessionKey = '';
 
 	$effect(() => {
@@ -55,7 +56,7 @@
 		myAttendanceToday.handleShortcut(event);
 		if (!isPlainShortcut(event, 'Comma')) return;
 		event.preventDefault();
-		sidebar.toggle();
+		appRailMode.cycle();
 	}
 
 	function requestLogOut() {
@@ -81,6 +82,7 @@
 	/>
 	<AppRailFooter
 		contactItem={appNavigation.contactItem}
+		{hostUpdateLabels}
 		displayUserName={appNavigation.displayUserName}
 		userEmail={appNavigation.userEmail}
 		userImage={appNavigation.userImage}
@@ -104,3 +106,4 @@
 />
 
 <ConfirmDeleteDialog />
+<HostUpdateConfirmDialog />
