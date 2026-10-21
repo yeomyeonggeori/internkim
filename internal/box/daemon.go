@@ -141,6 +141,9 @@ func (daemon Daemon) step(ctx context.Context, identity Identity, page *pairingP
 	if errorValue := forgetPairingCode(daemon.Places.StateDirectoryPath); errorValue != nil {
 		return 0, true, errorValue
 	}
+	if errorValue := rememberAppURL(daemon.Places.StateDirectoryPath, session.Configuration.AppURL); errorValue != nil {
+		return 0, true, errorValue
+	}
 	wait, errorValue := daemon.serveClaimed(ctx, session, identity)
 	return wait, true, errorValue
 }
@@ -162,6 +165,9 @@ func (daemon Daemon) serveClaimed(ctx context.Context, session Session, identity
 	if daemon.installedCompany() == session.Configuration.Company.ID {
 		return daemon.untilNextCheck(session.Session), daemon.keepServing(session, keyring)
 	}
+	if isTakingOver, errorValue := daemon.takeOver(ctx, session, keyring); errorValue != nil || isTakingOver {
+		return announceInterval, errorValue
+	}
 	if session.SealedModelKey == nil {
 		log.Printf("%s connected this box and has not given it a model key yet", session.Configuration.Company.Name)
 		return announceInterval, nil
@@ -169,9 +175,6 @@ func (daemon Daemon) serveClaimed(ctx context.Context, session Session, identity
 	modelKey, errorValue := keyring.OpenModelKey(*session.SealedModelKey, session.Configuration.Company.ID)
 	if errorValue != nil {
 		return 0, errorValue
-	}
-	if isTakingOver, errorValue := daemon.takeOver(ctx, session, keyring); errorValue != nil || isTakingOver {
-		return announceInterval, errorValue
 	}
 	if errorValue := daemon.installFor(session, modelKey); errorValue != nil {
 		return 0, errorValue
@@ -336,6 +339,9 @@ func (daemon Daemon) InstallWithConnectionFile(ctx context.Context, connectionKe
 	}
 	if !isClaimed {
 		return fmt.Errorf("the central plane accepted the connection file and then gave this computer no company")
+	}
+	if errorValue := rememberAppURL(daemon.Places.StateDirectoryPath, session.Configuration.AppURL); errorValue != nil {
+		return errorValue
 	}
 	return daemon.installFor(session, modelKey)
 }

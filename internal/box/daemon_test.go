@@ -388,6 +388,27 @@ func TestAConnectionFileClaimsThisComputerAndInstallsFromItsSession(t *testing.T
 	}
 }
 
+func TestABoxRemembersTheAppOfTheCompanyThatClaimedIt(t *testing.T) {
+	claimedByCode := &fakePlane{isClaimed: true, accessToken: "header.claims.signature"}
+	daemon, places := daemonFor(t, claimedByCode, &installs{})
+	if RememberedAppURL(places.StateDirectoryPath) != "" {
+		t.Fatal("an unclaimed box remembers an app")
+	}
+	runSteps(t, daemon, 1)
+	if remembered := RememberedAppURL(places.StateDirectoryPath); remembered != "https://intern.example.test" {
+		t.Fatalf("a box claimed by its code remembers %q", remembered)
+	}
+
+	claimedByFile := &fakePlane{accessToken: "file.session.token"}
+	daemon, places = daemonFor(t, claimedByFile, &installs{})
+	if errorValue := daemon.InstallWithConnectionFile(context.Background(), "connection-file-key", "sk-or-v1-typed"); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if remembered := RememberedAppURL(places.StateDirectoryPath); remembered != "https://intern.example.test" {
+		t.Fatalf("a computer connected by a file remembers %q", remembered)
+	}
+}
+
 func TestAComputerInstalledFromAFileKeepsRenewingWithNoSealedModelKey(t *testing.T) {
 	plane := &fakePlane{accessToken: "file.session.token"}
 	recorded := &installs{}

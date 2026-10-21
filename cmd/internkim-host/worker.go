@@ -91,6 +91,7 @@ func workUntilTheGatewayLetsGo(ctx context.Context, session box.Session) error {
 		return fmt.Errorf("connecting to %s: %w", address, errorValue)
 	}
 	defer connection.CloseNow()
+	log.Printf("taking browser work from %s's queue", session.Configuration.Company.Name)
 	connection.SetReadLimit(largestWorkFrameBytes)
 	answers := &sync.Mutex{}
 	inFlight := &atomic.Int64{}

@@ -419,6 +419,7 @@ class WhatThePackageCarriesHasOneSpelling(unittest.TestCase):
 
     def test_the_backup_the_rig_reads_is_the_one_the_package_schedules(self):
         self.assertEqual(rig.BACKUP_SERVICE_NAME, self.declared("company_host_package.go", "CompanyHostBackupServiceName"))
+        self.assertEqual(rig.SNAPSHOT_SERVICE_NAME, self.declared("company_host_package.go", "CompanyHostSnapshotServiceName"))
         self.assertEqual(rig.BACKUPS_DIRECTORY, self.declared("company_host_package.go", "CompanyHostBackupsPath"))
         self.assertEqual(rig.DATABASE_USER, self.declared("company_host_data_services.go", "CompanyHostDatabaseUser"))
         self.assertEqual(rig.expected_enablement(rig.BACKUP_UNIT_NAME), "static")

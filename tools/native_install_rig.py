@@ -95,6 +95,8 @@ MESSENGER_BRIDGE = (18090, "/healthz")
 BACKUP_SERVICE_NAME = "internkim-backup"
 BACKUP_UNIT_NAME = BACKUP_SERVICE_NAME + ".service"
 BACKUP_TIMER_NAME = BACKUP_SERVICE_NAME + ".timer"
+SNAPSHOT_SERVICE_NAME = "internkim-snapshot"
+TIMED_UNIT_NAMES = (BACKUP_UNIT_NAME, SNAPSHOT_SERVICE_NAME + ".service")
 BACKUPS_DIRECTORY = "/var/lib/internkim-backups"
 DATABASE_USER = "internkim-postgres"
 DATA_SERVICE_PATH = "/usr/lib/internkim/data-service"
@@ -111,7 +113,7 @@ RETIRED_MEMORY_STORE_COMMAND = (
 
 
 def expected_enablement(unit_name):
-    return "static" if unit_name == BACKUP_UNIT_NAME else "enabled"
+    return "static" if unit_name in TIMED_UNIT_NAMES else "enabled"
 
 
 # The package's one configuration file dpkg protects, and the file every unit
@@ -686,6 +688,21 @@ class Machine:
         octets = [int(packed[index : index + 2], 16) for index in (6, 4, 2, 0)]
         return ".".join(str(octet) for octet in octets)
 
+    def power_off(self):
+        """The power goes, as it does when a building loses it: no shutdown runs first."""
+        checked([self.container_binary, "kill", "--signal", "KILL", self.name])
+        deadline = time.monotonic() + 120
+        while time.monotonic() < deadline:
+            listed = run([self.container_binary, "ls", "--all"]).stdout.splitlines()
+            if any(line.split()[:1] == [self.name] and " stopped " in f" {line} " for line in listed):
+                return
+            time.sleep(2)
+        raise RigFailure(f"{self.name} did not stop after its power was cut")
+
+    def power_on(self):
+        checked([self.container_binary, "start", self.name])
+        self.wait_until_running()
+
     def destroy(self):
         if not self.created:
             return
@@ -1133,6 +1150,17 @@ class CompanyPlane:
                 "the local plane holds no company this rig can be given"
             )
         return json.loads(document)["access_token"]
+
+    def ask_as_administrator(self, method, path, body=None):
+        """What the company setup page sends for an administrator, on their own session."""
+        status, document = answered(
+            self.application_url + path,
+            {"Authorization": "Bearer " + self.administrator_session(), "Content-Type": "application/json"},
+            json.dumps(body).encode() if body is not None else None,
+            method,
+            timeout_seconds=60,
+        )
+        return status, json.loads(document) if status == 200 and document else document
 
     def connection_document(self):
         """What a person downloads from company setup, issued to this guest.
