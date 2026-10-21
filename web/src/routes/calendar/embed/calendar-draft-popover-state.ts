@@ -145,6 +145,11 @@ export function isDraftPopoverValid(popover: DraftPopoverState): boolean {
 	return popover.allDay ? endTime >= startTime : endTime > startTime;
 }
 
+export function isDraftPopoverKeptOnDismiss(popover: DraftPopoverState): boolean {
+	if (!isDraftPopoverValid(popover)) return false;
+	return popover.mode === 'edit' || popover.title.trim() !== '';
+}
+
 export function draftPopoverStartDate(popover: DraftPopoverState): Date {
 	return draftPopoverDateTime(popover.dateKey, popover.allDay ? '00:00' : popover.startTime);
 }

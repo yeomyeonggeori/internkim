@@ -1,4 +1,4 @@
-import { isDraftPopoverValid } from './calendar-draft-popover-state';
+import { isDraftPopoverKeptOnDismiss } from './calendar-draft-popover-state';
 import type { DraftPopoverState } from './calendar-draft-popover-state';
 
 export type CalendarDraftPopoverDismissOptions = {
@@ -13,7 +13,7 @@ export function installCalendarDraftPopoverDismiss(options: CalendarDraftPopover
 	let shouldSuppressNextClick = false;
 
 	const dismissPopover = (popover: DraftPopoverState): void => {
-		const dismissAction = isDraftPopoverValid(popover) ? options.saveDraftPopover : options.cancelDraftPopover;
+		const dismissAction = isDraftPopoverKeptOnDismiss(popover) ? options.saveDraftPopover : options.cancelDraftPopover;
 		void dismissAction();
 	};
 
