@@ -3,120 +3,38 @@
 	import SvelteMarkdown from '@humanspeak/svelte-markdown';
 	import { onMount } from 'svelte';
 	import * as Alert from '$lib/components/ui/alert';
-	import * as AlertDialog from '$lib/components/ui/alert-dialog';
 	import * as Card from '$lib/components/ui/card';
 	import { Button } from '$lib/components/ui/button';
 	import { CopyButton } from '$lib/components/ui/copy-button';
 	import { Spinner } from '$lib/components/ui/spinner';
-	import { ToolRefused } from '$lib/public-api-call';
-	import type { HostRelease, HostVersion } from '$lib/host/host-version';
-	import {
-		hostActionsFor,
-		isSettled,
-		refusalMessageOf,
-		stageOfTheUpdate,
-		updateCheckMilliseconds,
-		updatePatienceMilliseconds,
-		watchOfTheRunningUpdate,
-		type UpdateStage,
-		type UpdateWatch
-	} from '$lib/host/host-update-model';
-	import { readHostVersion, readHostWhileItMayBeAway, startHostUpdate } from './host-update-client';
+	import { updatePatienceMilliseconds } from '$lib/host/host-update-model';
+	import { hostUpdate } from '$lib/host/host-update.svelte';
+	import { filledText as filled } from '$lib/host/host-update-text';
 	import { companySettingsText } from './text';
 	import { createPageText } from '$lib/i18n/page-text.svelte';
 	import { currentLocale } from '$lib/i18n/locale.svelte';
 
 	let { isAdmin }: { isAdmin: boolean } = $props();
 
-	type Confirmation = { release: HostRelease; isGoingBack: boolean };
-
 	const text = createPageText(companySettingsText);
 	const hostText = text.companyHost;
 
-	let version = $state<HostVersion | null>(null);
-	let isReading = $state(true);
-	let confirmation = $state<Confirmation | null>(null);
-	let isStarting = $state(false);
-	let refusal = $state('');
-	let watch = $state.raw<UpdateWatch | null>(null);
-	let stage = $state<UpdateStage | null>(null);
-	let settled = $state.raw<{ watch: UpdateWatch; stage: UpdateStage } | null>(null);
-	let isMounted = true;
+	let hasRead = $state(false);
+	const version = $derived(hostUpdate.version);
+	const isReading = $derived(hostUpdate.isReading || !hasRead);
+	const actions = $derived(hostUpdate.actions);
+	const watch = $derived(hostUpdate.watch);
+	const stage = $derived(hostUpdate.stage);
+	const settled = $derived(hostUpdate.settled);
+	const refusal = $derived(hostUpdate.confirmation ? '' : hostUpdate.refusal);
 
-	const actions = $derived(version ? hostActionsFor(version) : null);
-
-	onMount(() => {
-		void read();
-		return () => {
-			isMounted = false;
-		};
+	onMount(async () => {
+		await hostUpdate.read();
+		hasRead = true;
 	});
-
-	async function read() {
-		isReading = true;
-		try {
-			version = await readHostVersion();
-			const running = watchOfTheRunningUpdate(version);
-			if (running && !watch) void follow(running);
-		} catch (unanswered) {
-			if (!(unanswered instanceof ToolRefused)) throw unanswered;
-			version = null;
-		} finally {
-			isReading = false;
-		}
-	}
-
-	async function start() {
-		if (!confirmation) return;
-		const target = confirmation.release.version;
-		isStarting = true;
-		refusal = '';
-		try {
-			const started = await startHostUpdate(target);
-			confirmation = null;
-			void follow({ fromVersion: started.fromVersion, toVersion: started.toVersion, startedAt: Date.parse(started.startedAt) });
-		} catch (failure) {
-			confirmation = null;
-			refusal = refusalOf(failure);
-			await read();
-		} finally {
-			isStarting = false;
-		}
-	}
-
-	function refusalOf(failure: unknown): string {
-		if (failure instanceof ToolRefused) return refusalMessageOf(failure.errorCode, hostText.refusals, failure.message);
-		return failure instanceof Error && failure.message ? failure.message : hostText.startFailed;
-	}
-
-	async function follow(following: UpdateWatch) {
-		watch = following;
-		settled = null;
-		stage = { kind: 'installing' };
-		while (isMounted && watch === following) {
-			const reading = await readHostWhileItMayBeAway();
-			if (reading.isAnswered) version = reading.version;
-			stage = stageOfTheUpdate(following, reading, Date.now());
-			if (isSettled(stage)) {
-				settled = { watch: following, stage };
-				watch = null;
-				return;
-			}
-			await new Promise((resolve) => setTimeout(resolve, updateCheckMilliseconds));
-		}
-	}
 
 	function dateOf(moment: string): string {
 		return new Date(moment).toLocaleDateString(currentLocale.value);
-	}
-
-	function filled(template: string, values: Record<string, string>): string {
-		return Object.entries(values).reduce((written, [name, value]) => written.replaceAll(`{${name}}`, value), template);
-	}
-
-	function confirm(release: HostRelease, isGoingBack: boolean) {
-		refusal = '';
-		confirmation = { release, isGoingBack };
 	}
 </script>
 
@@ -144,7 +62,7 @@
 			{:else}
 				<div class="flex flex-wrap items-center justify-between gap-3">
 					<p class="text-sm text-muted-foreground">{hostText.unreachable}</p>
-					<Button variant="outline" size="sm" onclick={read}>{hostText.checkAgain}</Button>
+					<Button variant="outline" size="sm" onclick={hostUpdate.read}>{hostText.checkAgain}</Button>
 				</div>
 			{/if}
 		{:else}
@@ -234,13 +152,13 @@
 					<div class="flex flex-wrap justify-end gap-2 border-t pt-4">
 						{#if actions.goBack}
 							{@const goBack = actions.goBack}
-							<Button variant="outline" onclick={() => confirm(goBack, true)}>
+							<Button variant="outline" onclick={() => hostUpdate.confirm(goBack, true)}>
 								{hostText.goBack}
 							</Button>
 						{/if}
 						{#if actions.update}
 							{@const update = actions.update}
-							<Button onclick={() => confirm(update, false)}>{hostText.updateNow}</Button>
+							<Button onclick={() => hostUpdate.confirm(update, false)}>{hostText.updateNow}</Button>
 						{/if}
 					</div>
 				{/if}
@@ -248,28 +166,3 @@
 		{/if}
 	</Card.Content>
 </Card.Root>
-
-<AlertDialog.Root open={confirmation !== null} onOpenChange={(open) => !open && !isStarting && (confirmation = null)}>
-	<AlertDialog.Content>
-		{#if confirmation}
-			<AlertDialog.Header>
-				<AlertDialog.Title>
-					{filled(confirmation.isGoingBack ? hostText.confirmGoBackTitle : hostText.confirmUpdateTitle, { version: confirmation.release.version })}
-				</AlertDialog.Title>
-				<AlertDialog.Description>
-					{hostText.confirmDescription}
-					{#if version?.expectedDowntimeSeconds}
-						{filled(hostText.confirmDuration, { seconds: String(version.expectedDowntimeSeconds) })}
-					{/if}
-				</AlertDialog.Description>
-			</AlertDialog.Header>
-			<AlertDialog.Footer>
-				<AlertDialog.Cancel type="button" disabled={isStarting}>{hostText.cancel}</AlertDialog.Cancel>
-				<AlertDialog.Action type="button" disabled={isStarting} onclick={start}>
-					{#if isStarting}<Spinner data-icon="inline-start" />{/if}
-					{confirmation.isGoingBack ? hostText.confirmGoBack : hostText.confirmUpdate}
-				</AlertDialog.Action>
-			</AlertDialog.Footer>
-		{/if}
-	</AlertDialog.Content>
-</AlertDialog.Root>
