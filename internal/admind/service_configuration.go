@@ -18,6 +18,7 @@ type Configuration struct {
 	MattermostBaseURL              string
 	ChatdEndpoint                  string
 	ChatdPlatform                  string
+	ServiceTokenPath               string
 	MattermostTeamName             string
 	BotUsername                    string
 	TaskPublicURL                  string

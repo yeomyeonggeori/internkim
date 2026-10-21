@@ -32,6 +32,7 @@ own:
   LOG_DIRECTORY_PATH        /var/log/internkim
   MODEL_API_KEY_PATH        /root/.internkim/secrets/openrouter-key
   ADMIN_ASSERTION_KEY_PATH  /root/.internkim/secrets/agent-key
+  SERVICE_TOKEN_PATH        /run/internkim/secrets/service-token
   POSIX_HELPER_PATH         /usr/local/bin/blueclaw-posix-helper
   MODEL_ENDPOINT            the ladder's own endpoint
 USAGE
@@ -70,6 +71,7 @@ fi
 : "${LOG_DIRECTORY_PATH:=/var/log/internkim}"
 : "${MODEL_API_KEY_PATH:=/root/.internkim/secrets/openrouter-key}"
 : "${ADMIN_ASSERTION_KEY_PATH:=/root/.internkim/secrets/agent-key}"
+: "${SERVICE_TOKEN_PATH:=/run/internkim/secrets/service-token}"
 : "${POSIX_HELPER_PATH:=/usr/local/bin/blueclaw-posix-helper}"
 
 if [ -z "${workDirectory}" ]; then
@@ -92,6 +94,7 @@ jq \
   --arg MIGRATION_DIRECTORY_PATH "${MIGRATION_DIRECTORY_PATH}" \
   --arg LOG_DIRECTORY_PATH "${LOG_DIRECTORY_PATH}" \
   --arg ADMIN_ASSERTION_KEY_PATH "${ADMIN_ASSERTION_KEY_PATH}" \
+  --arg SERVICE_TOKEN_PATH "${SERVICE_TOKEN_PATH}" \
   --arg POSIX_HELPER_PATH "${POSIX_HELPER_PATH}" \
   'walk(if type == "string" then
     gsub("\\$\\{DATABASE_URL\\}"; $DATABASE_URL)
@@ -103,6 +106,7 @@ jq \
     | gsub("\\$\\{MIGRATION_DIRECTORY_PATH\\}"; $MIGRATION_DIRECTORY_PATH)
     | gsub("\\$\\{LOG_DIRECTORY_PATH\\}"; $LOG_DIRECTORY_PATH)
     | gsub("\\$\\{ADMIN_ASSERTION_KEY_PATH\\}"; $ADMIN_ASSERTION_KEY_PATH)
+    | gsub("\\$\\{SERVICE_TOKEN_PATH\\}"; $SERVICE_TOKEN_PATH)
     | gsub("\\$\\{POSIX_HELPER_PATH\\}"; $POSIX_HELPER_PATH)
   else . end)' \
   "${templatePath}" > "${renderedPath}"

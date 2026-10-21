@@ -1,4 +1,4 @@
-import type { Addressing, EditInConversation, PostFileToConversation, PostToConversation } from './acp-session';
+import type { Addressing, DeleteInConversation, EditInConversation, PostFileToConversation, PostToConversation } from './acp-session';
 import type { KeptAttachment, WorkspaceFile } from './file-transfer';
 
 export type ChatdAnswer = { status: number; body: unknown };
@@ -39,6 +39,18 @@ export function conversationEditor(settings: Pick<ConversationPostSettings, 'ask
 		if (edited.status >= 300) {
 			throw new Error(
 				`chatd refused the edit of ${messageID} in ${threadID} with ${edited.status}: ${JSON.stringify(edited.body)}`
+			);
+		}
+	};
+}
+
+export function conversationDeleter(settings: Pick<ConversationPostSettings, 'askChatd'>): DeleteInConversation {
+	return async (addressing, messageID) => {
+		const threadID = replyThreadOf(addressing);
+		const deleted = await settings.askChatd('message_delete', { replyTargetID: threadID, messageID });
+		if (deleted.status >= 300) {
+			throw new Error(
+				`chatd refused the deletion of ${messageID} in ${threadID} with ${deleted.status}: ${JSON.stringify(deleted.body)}`
 			);
 		}
 	};

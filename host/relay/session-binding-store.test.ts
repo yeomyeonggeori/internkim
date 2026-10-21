@@ -13,7 +13,7 @@ const sampleRequester = { email: 'sample@example.test', name: '이샘플' };
 const firstConversation = { platform: 'buzz', conversationID: 'conversation-1', replyTargetID: 'thread-1', isThread: false };
 const secondConversation = { platform: 'buzz', conversationID: 'conversation-2' };
 
-test('the sessions a relay bound come back after a restart, one per conversation', async () => {
+test('the sessions a relay bound come back after a restart, one per person in a conversation', async () => {
 	const filePath = join(root, 'kept', 'sessions.json');
 	const store = new SessionBindingStore({ filePath });
 	await store.save({ sessionID: 'session-1', requester: sampleRequester, addressing: firstConversation, catalogTicket: 'ticket-1' });
@@ -26,6 +26,21 @@ test('the sessions a relay bound come back after a restart, one per conversation
 	expect(afterTheRestart[1].addressing).toEqual(firstConversation);
 	expect(afterTheRestart[1].requester).toEqual(sampleRequester);
 	expect(afterTheRestart[1].catalogTicket).toBe('ticket-3');
+});
+
+test('two people in one conversation keep a session each across a restart', async () => {
+	const filePath = join(root, 'two-speakers.json');
+	const store = new SessionBindingStore({ filePath });
+	const secondSpeaker = { email: 'Second@example.test', name: '박예시' };
+	await store.save({ sessionID: 'session-1', requester: sampleRequester, addressing: firstConversation, catalogTicket: 'ticket-1' });
+	await store.save({ sessionID: 'session-2', requester: secondSpeaker, addressing: firstConversation, catalogTicket: 'ticket-2' });
+
+	const afterTheRestart = await new SessionBindingStore({ filePath }).list();
+
+	expect(afterTheRestart.map((binding) => [binding.sessionID, binding.requester.email])).toEqual([
+		['session-1', sampleRequester.email],
+		['session-2', secondSpeaker.email]
+	]);
 });
 
 test('a binding kept before catalog tickets existed is given one, and keeps it across restarts', async () => {

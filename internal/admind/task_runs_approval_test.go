@@ -92,11 +92,11 @@ func TestApprovalAsksBlueclawWhetherTheViewerMaySeeTheRunFirst(t *testing.T) {
 	if len(recorded.approveBodies) != 1 {
 		t.Fatalf("Blueclaw was asked to decide %d times, want 1", len(recorded.approveBodies))
 	}
-	var forwarded taskApprovalRequest
+	var forwarded trustedTaskApprovalRequest
 	if errorValue := json.Unmarshal([]byte(recorded.approveBodies[0]), &forwarded); errorValue != nil {
 		t.Fatalf("the forwarded decision was unreadable: %v", errorValue)
 	}
-	if forwarded.TaskRunID != "run-1" || forwarded.Decision != "approve" {
+	if forwarded != (trustedTaskApprovalRequest{TaskRunID: "run-1", Decision: "approve", ApproverEmail: "member@example.com"}) {
 		t.Fatalf("the forwarded decision was %+v", forwarded)
 	}
 }
@@ -110,7 +110,7 @@ func TestApprovalCarriesNothingTheCallerDidNotName(t *testing.T) {
 	recorder := httptest.NewRecorder()
 	service.proxyScopedTaskApproval(
 		recorder,
-		approvalRequest(`{"taskRunID":"run-1","decision":"reject","viewerIsAdmin":true,"viewerEmail":"admin@example.com"}`),
+		approvalRequest(`{"taskRunID":"run-1","decision":"reject","viewerIsAdmin":true,"viewerEmail":"admin@example.com","approverEmail":"admin@example.com"}`),
 		"member@example.com",
 		false,
 	)
@@ -166,5 +166,43 @@ func TestApprovalPathIsRoutedToTheTaskRunHandler(t *testing.T) {
 
 	if recorder.Code != http.StatusUnauthorized {
 		t.Fatalf("an unauthenticated decision answered %d; it is 401", recorder.Code)
+	}
+}
+
+func blueclawRefusingTheDecision(recorded *recordedBlueclaw) *httptest.Server {
+	return httptest.NewServer(http.HandlerFunc(func(responseWriter http.ResponseWriter, request *http.Request) {
+		switch request.URL.Path {
+		case "/admin/api/run/detail":
+			responseWriter.Header().Set("Content-Type", "application/json")
+			_, _ = responseWriter.Write([]byte(`{"taskRun":{"taskRunID":"run-1","status":"waiting_approval"},"taskEvents":[]}`))
+		case "/admin/api/run/approve":
+			body, _ := io.ReadAll(request.Body)
+			recorded.approveBodies = append(recorded.approveBodies, strings.TrimSpace(string(body)))
+			responseWriter.Header().Set("Content-Type", "application/json")
+			responseWriter.WriteHeader(http.StatusForbidden)
+			_, _ = responseWriter.Write([]byte(`{"error":"only the person who asked for this call may approve or reject it"}`))
+		default:
+			http.NotFound(responseWriter, request)
+		}
+	}))
+}
+
+func TestAnAdminDecidingSomeoneElsesHeldCallIsToldItIsNotTheirsToDecide(t *testing.T) {
+	recorded := &recordedBlueclaw{}
+	blueclaw := blueclawRefusingTheDecision(recorded)
+	defer blueclaw.Close()
+	service := NewService(Configuration{BlueclawBaseURL: blueclaw.URL})
+
+	recorder := httptest.NewRecorder()
+	service.proxyScopedTaskApproval(recorder, approvalRequest(`{"taskRunID":"run-1","decision":"approve"}`), "admin@example.com", true)
+
+	if recorder.Code != http.StatusForbidden {
+		t.Fatalf("a decision Blueclaw refused as not the requester's answered %d, want 403", recorder.Code)
+	}
+	if !strings.Contains(recorder.Body.String(), "only the person who asked") {
+		t.Fatalf("the refusal lost its reason: %s", recorder.Body.String())
+	}
+	if !strings.Contains(recorded.approveBodies[0], `"approverEmail":"admin@example.com"`) {
+		t.Fatalf("the decision did not say who made it: %s", recorded.approveBodies[0])
 	}
 }

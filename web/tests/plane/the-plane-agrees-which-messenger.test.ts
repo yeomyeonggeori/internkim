@@ -20,13 +20,15 @@ test('the plane starts every daemon with the current company-box contract', () =
 		deviceBrowserPath: '/usr/bin/moli',
 		deviceBrowserStateDirectory: '/tmp/device-browsers',
 		fileReadPythonPath: 'python3',
-		admindSocketPath: '/tmp/admind.sock'
+		admindSocketPath: '/tmp/admind.sock',
+		serviceTokenPath: '/tmp/service-token'
 	});
 
 	expect(argumentsForCapabilityd).toContain('--device-browser');
 	expect(argumentsForCapabilityd).toContain('--file-read-python');
 	expect(argumentsForCapabilityd).toContain('--embedding-url');
 	expect(argumentsForCapabilityd).not.toContain('--device-browser-cdp');
+	expect(argumentsForCapabilityd).toContain('--service-token');
 
 	const argumentsForBlueclaw = blueclawArgumentsForPlane({
 		runtimeConfigurationPath: '/tmp/runtime.json',
@@ -58,6 +60,7 @@ test('the plane starts every daemon with the current company-box contract', () =
 		centralPlanePublishableKey: 'publishable-key',
 		listenSocketPath: '/tmp/admind.sock',
 		stateDirectory: '/tmp/state',
+		serviceTokenPath: '/tmp/service-token',
 		databasePath: '/tmp/internkim.sqlite',
 		agentProfilePicturePath: '/tmp/agent-picture.png'
 	});
@@ -68,6 +71,7 @@ test('the plane starts every daemon with the current company-box contract', () =
 	expect(argumentsForAdmind).toContain('-blueclaw-assertion-key');
 	expect(argumentsForAdmind).toContain('-agent-profile-picture');
 	expect(argumentsForAdmind).toContain('/tmp/agent-picture.png');
+	expect(argumentsForAdmind).toContain('-service-token');
 });
 
 test('the plane starts the embedding server the way the package does, on its own model and port', () => {

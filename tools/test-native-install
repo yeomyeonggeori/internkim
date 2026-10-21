@@ -332,6 +332,35 @@ BRIDGE_COMMAND = (
     "\"$(curl -s -o /dev/null -w '%%{http_code}' --max-time 10 http://127.0.0.1:%(port)s%(path)s)\""
 )
 
+UNPRIVILEGED_POST_COMMAND = r"""
+person="$(getent passwd | cut -d: -f1 | grep '^bc_person_' | head -n 1)"
+person="${person:-nobody}"
+token_file="/run/internkim/secrets/service-token"
+as_the_person() { runuser -u "$person" -- curl -s -o /dev/null -w '%{http_code}' --max-time 10 -X POST -H 'Content-Type: application/json' "$@"; }
+printf 'identity=%s\n' "$person"
+printf 'reads-token=%s\n' "$(runuser -u "$person" -- cat "$token_file" >/dev/null 2>&1 && echo yes || echo no)"
+printf 'chatd-post=%s\n' "$(as_the_person -d '{"replyTargetID":"buzz:nowhere","message":"posted around the approval gate"}' http://127.0.0.1:18090/v1/platform/buzz/message.post)"
+printf 'blueclaw-approve=%s\n' "$(as_the_person -d '{"taskRunID":"nowhere","decision":"approve"}' http://127.0.0.1:8080/admin/api/run/approve)"
+printf 'admind-approve=%s\n' "$(as_the_person -H 'X-Forwarded-Email: nobody@example.com' -d '{"taskRunID":"nowhere","decision":"approve"}' http://127.0.0.1:18080/runs/api/approve)"
+printf 'admind-signing-secret=%s\n' "$(as_the_person -d '{"pubkeyHex":"2222222222222222222222222222222222222222222222222222222222222222"}' http://127.0.0.1:18080/admin/api/buzz/signing-secret)"
+printf 'relay-inbound=%s\n' "$(as_the_person -d '{}' http://127.0.0.1:18091/inbound)"
+printf 'service-post=%s\n' "$(curl -s -o /dev/null -w '%{http_code}' --max-time 10 \
+  -X POST -H 'Content-Type: application/json' -H "Authorization: Bearer $(cat "$token_file")" \
+  -d '{}' http://127.0.0.1:18090/v1/platform/buzz/identity.self)"
+"""
+
+REFUSED_DOORS = ("chatd-post", "blueclaw-approve", "admind-approve", "admind-signing-secret", "relay-inbound")
+
+
+def an_unprivileged_post_was_refused(reading):
+    lines = dict(line.split("=", 1) for line in reading.split() if "=" in line)
+    return (
+        lines.get("reads-token") == "no"
+        and all(lines.get(door) == "401" for door in REFUSED_DOORS)
+        and lines.get("service-post") == "200"
+    )
+
+
 SNAPSHOT_COMMAND = r"""
 find / -xdev \
   \( -path /proc -o -path /sys -o -path /dev -o -path /run -o -path /tmp -o -path /var/tmp \
@@ -1097,6 +1126,17 @@ class Rig:
             "systemd reports active for a process that answers a socket while refusing all work, "
             "so a green service table says nothing about whether work is being taken",
         ).record(every_probe_answered(answers.stdout), answers.stdout.strip() or "nothing answered")
+
+    def observe_the_bridge_refuses_a_requester(self, step):
+        reading = self.machine.shell(UNPRIVILEGED_POST_COMMAND).stdout.strip()
+        step.observe(
+            "a person's own identity cannot act as the agent or as anyone else through a loopback door",
+            "as the first projected bc_person_ account (or nobody): read the staged service token, POST "
+            "message.post to chatd, run/approve to blueclaw, runs/api/approve with a forwarded email and "
+            "buzz/signing-secret to admind, and an arrival to the relay; then chatd asked by root with the token",
+            "bash runs as the requester with the network allowed, and loopback is open to every "
+            "process, so only a credential the requester cannot read keeps a send behind approval",
+        ).record(an_unprivileged_post_was_refused(reading), reading or "nothing answered")
 
     def build_identity_the_guest_reports(self):
         return build_identity_reported(self.machine)
@@ -2286,6 +2326,7 @@ def run_every_step(rig, options, releases, baseline):
         observe_a_real_conversion(rig.machine, step_five)
         rig.observe_the_host_holds_the_gateway_socket(step_five)
         rig.observe_the_member_round_trip(step_five, rig.plane, is_watching_for_typing=not is_an_upgrade)
+        rig.observe_the_bridge_refuses_a_requester(step_five)
         rig.observe_the_agent_answered(step_five)
         if options.requests:
             Deliveries(rig, rig.plane, options.deliveries).deliver_all(load_requests(options.requests))

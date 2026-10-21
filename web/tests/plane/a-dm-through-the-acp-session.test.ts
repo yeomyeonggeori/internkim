@@ -1,8 +1,7 @@
 import { afterAll, afterEach, beforeAll, expect, test } from 'bun:test';
 import { z } from 'zod';
-import { aCompanyPlane, type ACompanyPlane } from './a-company-plane';
+import { aCompanyPlane, type ACompanyPlane, hostServiceHeaders } from './a-company-plane';
 import {
-	aPlanThatNeedsNoClarification,
 	aTurnApprovingTheHeldCall,
 	aTurnStartingWork,
 	changingNothingTheCheckCanRead,
@@ -58,7 +57,6 @@ test('a message the relay carries becomes a turn, an approval, and a message in 
 	await plane.model.decideTurn(aTurnStartingWork(request, ['message_send']));
 	await plane.model.decideTurn(aTurnApprovingTheHeldCall(answer));
 	await plane.model.answerNext(turnRouterSchemaName, turnWordsOwingOnlyTheReply);
-	await plane.model.answerNext('bluecollar_execution_plan', aPlanThatNeedsNoClarification(recipient.name));
 	await plane.model.answerNext(expectedChangesSchemaName, changingNothingTheCheckCanRead);
 	await plane.model.callNext('message_send', sendingTheMessage(recipient.name));
 	await plane.model.callNext('reply', replyingAndFinishing('보냈습니다'));
@@ -174,7 +172,7 @@ test('a native workspace file is delivered as one attachment with the final repl
 test('the connector event route refuses a turn while the acp session admits them', async () => {
 	const answer = await fetch(`${plane.blueclawURL}/connectors/api/events`, {
 		method: 'POST',
-		headers: { 'Content-Type': 'application/json' },
+		headers: hostServiceHeaders(plane.serviceToken, { 'Content-Type': 'application/json' }),
 		body: JSON.stringify({})
 	});
 	expect(answer.status, await answer.clone().text()).toBe(409);
@@ -198,7 +196,7 @@ async function untilTheQuestionIsAsked(): Promise<void> {
 // A status and a tool name send the reader to a log they no longer have; the
 // run's own ledger says which step the turn stopped on.
 async function theLedger(): Promise<string> {
-	const listing = await fetch(`${plane.blueclawURL}/admin/api/run`).catch(
+	const listing = await fetch(`${plane.blueclawURL}/admin/api/run`, { headers: hostServiceHeaders(plane.serviceToken) }).catch(
 		(unreachable) => new Response(String(unreachable), { status: 599 })
 	);
 	if (!listing.ok) return `the run list answered ${listing.status}: ${await listing.text()}`;
@@ -207,7 +205,8 @@ async function theLedger(): Promise<string> {
 	const lines: string[] = [];
 	for (const taskRun of taskRuns) {
 		const detail = await fetch(
-			`${plane.blueclawURL}/admin/api/run/detail?taskRunID=${encodeURIComponent(taskRun.taskRunID)}`
+			`${plane.blueclawURL}/admin/api/run/detail?taskRunID=${encodeURIComponent(taskRun.taskRunID)}`,
+			{ headers: hostServiceHeaders(plane.serviceToken) }
 		).catch(() => null);
 		const document = detail?.ok
 			? ((await detail.json()) as { taskEvents?: { name: string; body: string }[] })

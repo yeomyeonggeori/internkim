@@ -53,11 +53,12 @@ import { displayNameForRequester, readInboundMessage } from './inbound-message';
 import { InboundQueue } from './inbound-queue';
 import { InboundTurns } from './inbound-turn';
 import { SessionBindingStore } from './session-binding-store';
-import { agentFilePoster, conversationEditor, conversationPoster } from './conversation-post';
+import { agentFilePoster, conversationDeleter, conversationEditor, conversationPoster } from './conversation-post';
 import { ArrivalWatchers, activeMemberIDsOf, arrivalsPath, keepWatchingArrivals } from './arrival-watchers';
 import { readTyping, typingPath, typingTeller } from './typing';
 import { readWithdrawal, withdrawalsPath, withdrawalTeller, WithdrawnMessages } from './withdrawn';
 import { fetchWhenChatdListens } from './chatd-reach';
+import { asAHostService, carriesTheHostServiceToken } from './host-service-token';
 
 
 const projectURL = required('SUPABASE_URL');
@@ -514,6 +515,10 @@ const editInConversation = conversationEditor({
 	askChatd: (capability, body) => dispatch.askChatd(capability, body)
 });
 
+const deleteInConversation = conversationDeleter({
+	askChatd: (capability, body) => dispatch.askChatd(capability, body)
+});
+
 const postFileToConversation = agentFilePoster({ keepForTheMessenger, postToConversation });
 
 const blueclawClient = new BlueclawACPClient({
@@ -523,6 +528,7 @@ const blueclawClient = new BlueclawACPClient({
 	postToConversation,
 	postFileToConversation,
 	editInConversation,
+	deleteInConversation,
 	sessions: new SessionBindingStore({
 		filePath: `${relayStateDirectory}/sessions.json`,
 		report: (line) => console.log(`sessions: ${line}`)
@@ -559,6 +565,9 @@ Bun.serve({
 		const pathname = new URL(request.url).pathname;
 		const catalogTicket = ticketOf(pathname);
 		if (catalogTicket) return recordCatalogs.serve(request, catalogTicket);
+		if (!(await carriesTheHostServiceToken(request))) {
+			return new Response('this door answers only the host services that hold their shared token', { status: 401 });
+		}
 		const offered = await request.json().catch(() => null);
 		if (pathname === '/inbound') return keepInboundMessage(offered);
 		if (pathname === typingPath) return tellTyping(offered);
@@ -657,7 +666,7 @@ async function keepGoing(what: string, work: () => Promise<void>): Promise<void>
 }
 
 async function tellAdmindTheDirectoryChanged(): Promise<{ status: number; body: unknown }> {
-	const response = await fetch(`${admindBaseURL}/admin/api/directory/changed`, { method: 'POST' });
+	const response = await fetch(`${admindBaseURL}/admin/api/directory/changed`, await asAHostService({ method: 'POST' }));
 	// The machine records a credential for whoever was just invited before it
 	// answers, so the projection on the member rows is healed right behind it.
 	isProjectionHealed = false;

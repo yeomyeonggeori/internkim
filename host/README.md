@@ -120,6 +120,7 @@ read, whether required or optional, in one table:
 | `DATABASE_URL` | host | the host's own Postgres connection string, which internkim install writes to the host's environment file; the host's prepare script refuses to run without it, and tools/render-company-runtime renders it into the runtime document |
 | `GATEWAY_SERVER_KEY` | relay | the key the relay authenticates with when it connects out to the Cloudflare gateway worker; unset means no gateway connection |
 | `GATEWAY_URL` | relay | the Cloudflare gateway worker's URL a company's relay and the web app's public-API caller reach it through; unset means no gateway |
+| `HOST_SERVICE_TOKEN_PATH` | relay | the file holding the token the host services ask of each other on loopback; the relay sends it to chatd and admind, and refuses an arrival on its inbound port that does not carry it |
 | `INTERNKIM_APP_URL` | relay + host | where everyone signs in (https://<zone> unless the company serves the app itself); required by the relay, and handed to the host's admind from its environment file |
 | `MAILD_BASE_URL` | relay | maild's base URL the relay calls to answer mail; defaults to http://127.0.0.1:18092 |
 | `MESSENGER_PLATFORM` | relay + host | which messenger the company runs (buzz or mattermost); the relay and the host's prepare script refuse to start without it, and the host's capabilityd and admind are handed it from its environment file |

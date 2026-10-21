@@ -38,6 +38,7 @@ func main() {
 	flag.StringVar(&configuration.CapabilitySocketPath, "capability-socket", configuration.CapabilitySocketPath, "capabilityd unix socket path")
 	flag.StringVar(&configuration.ChatdEndpoint, "chatd-endpoint", configuration.ChatdEndpoint, "chatd platform capability endpoint")
 	flag.StringVar(&configuration.ChatdPlatform, "chatd-platform", configuration.ChatdPlatform, "chatd platform name")
+	flag.StringVar(&configuration.ServiceTokenPath, "service-token", configuration.ServiceTokenPath, "file holding the token chatd asks of every host service")
 	flag.StringVar(&configuration.MattermostTeamName, "mattermost-team", configuration.MattermostTeamName, "Mattermost team name this admind manages")
 	flag.StringVar(&configuration.BotUsername, "bot-username", configuration.BotUsername, "Mattermost bot username this admind manages")
 	flag.StringVar(&configuration.TaskPublicURL, "flow-public-url", configuration.TaskPublicURL, "public Flow web URL for channel open links (defaults to the Mattermost flow base URL)")

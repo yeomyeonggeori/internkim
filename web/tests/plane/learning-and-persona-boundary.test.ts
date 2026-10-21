@@ -33,7 +33,7 @@ test('company learning and persona routes enforce the requester boundary', async
 	const spoofed = await fetch(`${plane.admindURL}/agent-learning/api/skills`, {
 		headers: { 'X-INTERNKIM-REQUESTER-EMAIL': plane.people[0].email }
 	});
-	expect(spoofed.status).toBe(403);
+	expect(spoofed.status).toBe(401);
 
 	const skills = await requestAsMember('/agent-learning/api/skills?includeRetired=true');
 	expect(skills.status, await skills.clone().text()).toBe(200);
@@ -75,7 +75,7 @@ test('company memory facts are readable through the requester socket', async () 
 	const spoofed = await fetch(`${plane.admindURL}/memory/api/facts`, {
 		headers: { 'X-INTERNKIM-REQUESTER-EMAIL': plane.people[0].email }
 	});
-	expect(spoofed.status).toBe(403);
+	expect(spoofed.status).toBe(401);
 	for (const memberIndex of [0, 1]) {
 		const response = await requestAsMember('/memory/api/facts', memberIndex);
 		expect(response.status, await response.clone().text()).toBe(200);

@@ -176,7 +176,7 @@ func (service Service) chatdRequest(ctx context.Context, capabilityName string, 
 	if client == nil {
 		client = http.DefaultClient
 	}
-	response, errorValue := client.Do(httpRequest)
+	response, errorValue := service.asAHostService(client).Do(httpRequest)
 	if errorValue != nil {
 		return errorValue
 	}

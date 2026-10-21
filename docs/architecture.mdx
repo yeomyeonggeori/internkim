@@ -43,7 +43,7 @@ flowchart TB
     relay -->|"each app's stream, on loopback"| messenger
     connector <-->|"attached as the bot"| messenger
     connector -->|"each message, to /inbound"| relay
-    relay -->|"ACP, one session per conversation"| agent
+    relay -->|"ACP, one session per person in a conversation"| agent
     agent -->|"the catalog, over MCP"| relay
     relay -->|"tool calls, as the requester"| api
     relay -->|"asks for a member session"| control
@@ -454,10 +454,12 @@ message. From there the relay carries it:
    relay writes it under `RELAY_STATE_DIR` and answers `202` only once it is on
    disk; chatd retries until it gets that answer, so a message survives either
    process restarting.
-2. The relay opens one ACP session per conversation on
-   `/run/internkim/acp/blueclaw-acp.sock` and sends the message as a prompt. The
-   session names who is asking and where to reply, and it names the relay's
-   own `/mcp/<ticket>` as the agent's tool server.
+2. The relay opens one ACP session for each person who speaks in a
+   conversation, on `/run/internkim/acp/blueclaw-acp.sock`, and sends the
+   message as a prompt in the sender's own session. The session names who is
+   asking and where to reply, and it names the relay's own `/mcp/<ticket>` as
+   the agent's tool server, so a second person in a channel never runs as the
+   first.
 3. blueclaw runs the turn. Every tool call it makes to that address, the relay
    forwards to the app's `/api/v1/mcp` as the requester, with a member session
    it minted for them, so the agent never holds the bearer.

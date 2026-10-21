@@ -258,14 +258,28 @@ func (service Service) capabilityToolApprovalDeniedResponse(ctx context.Context,
 	if !descriptor.RequiresApproval {
 		return capabilities.ToolInvokeResponse{}, false
 	}
-	if requesterApprovedThisCall(request) {
+	if isApprovedWithoutAHold(request) {
 		return capabilities.ToolInvokeResponse{}, false
+	}
+	if isCarriedOutOnAHold(request) {
+		return service.refusalUnlessTheLedgerRedeems(ctx, request)
 	}
 	if sendsIntoTheAnsweredConversation(request) {
 		return capabilities.ToolInvokeResponse{}, false
 	}
-	toolName := strings.TrimSpace(request.ToolName)
-	message := toolName + " requires approval before execution"
+	return approvalRequiredResponse(request.ToolName, strings.TrimSpace(request.ToolName)+" requires approval before execution"), true
+}
+
+func (service Service) refusalUnlessTheLedgerRedeems(ctx context.Context, request capabilities.ToolInvokeRequest) (capabilities.ToolInvokeResponse, bool) {
+	errorValue := service.redeemHeldCall(ctx, request)
+	if errorValue == nil {
+		return capabilities.ToolInvokeResponse{}, false
+	}
+	return approvalRequiredResponse(request.ToolName, strings.TrimSpace(request.ToolName)+" was not carried out: "+errorValue.Error()), true
+}
+
+func approvalRequiredResponse(requestedToolName string, message string) capabilities.ToolInvokeResponse {
+	toolName := strings.TrimSpace(requestedToolName)
 	result, _ := json.Marshal(capabilityApprovalFailure{
 		ErrorCode:    "approval_required",
 		FailureStage: "authorization",
@@ -283,7 +297,7 @@ func (service Service) capabilityToolApprovalDeniedResponse(ctx context.Context,
 		ErrorCode:       "approval_required",
 		FailureStage:    "authorization",
 		Result:          result,
-	}, true
+	}
 }
 
 func sendsIntoTheAnsweredConversation(request capabilities.ToolInvokeRequest) bool {
@@ -406,11 +420,16 @@ func capabilityUnavailableResponse(toolName string, code string) capabilities.To
 }
 
 func requesterApprovedThisCall(request capabilities.ToolInvokeRequest) bool {
-	toolContext := request.Context
-	if strings.TrimSpace(toolContext.HoldID) != "" {
-		return true
-	}
-	if toolContext.TaskSource == capabilities.TaskSourcePublicAPI || toolContext.TaskSource == capabilities.TaskSourcePlaneTelling {
+	return isCarriedOutOnAHold(request) || isApprovedWithoutAHold(request)
+}
+
+func isCarriedOutOnAHold(request capabilities.ToolInvokeRequest) bool {
+	return strings.TrimSpace(request.Context.HoldID) != ""
+}
+
+func isApprovedWithoutAHold(request capabilities.ToolInvokeRequest) bool {
+	taskSource := request.Context.TaskSource
+	if taskSource == capabilities.TaskSourcePublicAPI || taskSource == capabilities.TaskSourcePlaneTelling {
 		return true
 	}
 	return isScheduledRunOfExactlyThisCall(request)

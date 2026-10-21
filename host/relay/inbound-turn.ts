@@ -83,9 +83,9 @@ export class InboundTurns {
 
 	private async isConsumedAsApprovalAnswer(event: QueuedInboundEvent, inbound: InboundMessage): Promise<boolean> {
 		if (event.isPrompt) return false;
-		if (!this.settings.client.hasPendingApprovalIn(inbound.addressing.conversationID)) return false;
-		const { addressing, messageID, message } = inbound;
-		const isAnswer = await this.settings.client.answerPendingApproval(addressing, messageID, message);
+		if (!this.settings.client.hasPendingApprovalIn(inbound.addressing.conversationID, inbound.requester.email)) return false;
+		const { addressing, messageID, message, requester } = inbound;
+		const isAnswer = await this.settings.client.answerPendingApproval(addressing, messageID, message, requester);
 		if (!isAnswer) {
 			await this.settings.queue.recordAsPrompt(event.key);
 			return false;
@@ -146,7 +146,8 @@ export class InboundTurns {
 	}
 
 	private async isAnsweredOnceTheAgentIsBack(event: QueuedInboundEvent, inbound: InboundMessage): Promise<boolean> {
-		const wasJudgedAlready = event.isPrompt || this.settings.client.hasPendingApprovalIn(inbound.addressing.conversationID);
+		const wasJudgedAlready =
+			event.isPrompt || this.settings.client.hasPendingApprovalIn(inbound.addressing.conversationID, inbound.requester.email);
 		await this.settings.client.connect().catch(() => undefined);
 		if (wasJudgedAlready) return false;
 		return this.isConsumedAsApprovalAnswer(event, inbound);

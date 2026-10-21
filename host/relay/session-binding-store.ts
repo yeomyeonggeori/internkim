@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { mkdir, readFile } from 'node:fs/promises';
 import { dirname } from 'node:path';
-import type { SessionBinding } from './acp-session';
+import { speakerKeyOf, type SessionBinding } from './acp-session';
 import { writeDurably } from './durable-write';
 
 export type SessionBindingStoreSettings = {
@@ -45,7 +45,7 @@ export class SessionBindingStore {
 
 	private async saveToDisk(binding: SessionBinding): Promise<void> {
 		const known = (await this.readFromDisk())
-			.filter((other) => other.addressing.conversationID !== binding.addressing.conversationID)
+			.filter((other) => speakerKeyOf(other) !== speakerKeyOf(binding))
 			.map(withCatalogTicket);
 		await this.writeToDisk([...known, binding]);
 	}

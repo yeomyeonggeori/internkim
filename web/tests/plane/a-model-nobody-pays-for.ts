@@ -21,7 +21,6 @@ export type TurnDecision = {
 	responseLanguage?: string;
 	initialToolNames?: string[];
 	expectedToolCount?: 'none' | 'one' | 'several';
-	isExternalSendRequested?: boolean;
 	approval?: 'approve' | 'approve_task' | 'reject' | 'unclear';
 };
 
@@ -79,8 +78,7 @@ export function aTurnStartingWork(message: string, toolNames: string[]): TurnOut
 			taskShape: 'maintenance_task',
 			level: 'low',
 			responseLanguage: 'ko',
-			initialToolNames: toolNames,
-			isExternalSendRequested: toolNames.includes('message_send')
+			initialToolNames: toolNames
 		}
 	};
 }
@@ -98,28 +96,6 @@ export function aTurnApprovingTheHeldCall(message: string): TurnOutcome {
 			expectedToolCount: 'none',
 			approval: 'approve'
 		}
-	};
-}
-
-export function aPlanThatNeedsNoClarification(recipientName: string): Record<string, unknown> {
-	return {
-		summary: `${recipientName}에게 메시지를 보낸다`,
-		targets: [recipientName],
-		schedule: '',
-		startAt: '',
-		endAt: '',
-		cadence: '',
-		externalSend: true,
-		thirdPartyExternalSend: false,
-		repeated: false,
-		highFrequency: false,
-		destructive: false,
-		permissionChange: false,
-		publicDeploy: false,
-		paidAction: false,
-		requesterAuthorization: 'explicit',
-		missingInformation: [],
-		continuationInstruction: ''
 	};
 }
 

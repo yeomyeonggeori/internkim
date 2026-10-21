@@ -17,7 +17,7 @@ import {
 	deliveryMetaKey,
 	deliveryOf,
 	messageMetaKey,
-	optionChosenIn,
+	readingOf,
 	sessionMetaKey,
 	undeliveredExtensionMethod,
 	undeliveredReport
@@ -52,7 +52,7 @@ function valueOfDeliveryField(name: string): string | boolean {
 function fieldsReadFromAnApprovalReplyAnswer(): string[] {
 	const read = new Set<string>();
 	const answer = new Proxy<Record<string, unknown>>(
-		{ isAnswer: true, optionId: 'approve_once' },
+		{ isAnswer: true, optionId: 'approve_once', isInstruction: false },
 		{
 			get: (target, name) => {
 				read.add(String(name));
@@ -60,7 +60,7 @@ function fieldsReadFromAnApprovalReplyAnswer(): string[] {
 			}
 		}
 	);
-	optionChosenIn(answer);
+	readingOf(answer);
 	return [...read];
 }
 
@@ -111,7 +111,7 @@ describe('the relay speaks the ACP extension blueclaw declares', () => {
 			delivered: Object.keys(deliveredReport('delivery', 'message')),
 			undelivered: Object.keys(undeliveredReport('delivery', 'reason')),
 			approvalReply: Object.keys(
-				approvalReplyRequest('session', 'tool call', 'reply', 'message', { platform: 'buzz', conversationID: 'conversation' })
+				approvalReplyRequest('session', 'tool call', 'reply', 'message', { platform: 'buzz', conversationID: 'conversation' }, 'sample@example.com')
 			),
 			approvalReplyAnswer: fieldsReadFromAnApprovalReplyAnswer()
 		};

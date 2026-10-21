@@ -1,4 +1,5 @@
 import { reasonOf } from './failure';
+import { asAHostService } from './host-service-token';
 export const chatdRestartWaitMilliseconds = 30_000;
 
 const firstPauseMilliseconds = 250;
@@ -12,9 +13,10 @@ export async function fetchWhenChatdListens(
 ): Promise<Response> {
 	const giveUpAt = Date.now() + waitMilliseconds;
 	let pauseMilliseconds = firstPauseMilliseconds;
+	const asAService = await asAHostService(init);
 	for (;;) {
 		try {
-			return await fetch(url, init);
+			return await fetch(url, asAService);
 		} catch (failure) {
 			if (!wasRefused(failure)) throw failure;
 			const remainingMilliseconds = giveUpAt - Date.now();

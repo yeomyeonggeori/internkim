@@ -230,6 +230,15 @@ describe('a task written through the record', () => {
 	test('refuses a member recording work only someone else holds as already done', async () => {
 		const refused = await run('task_add', { title: '지난주 납품 확인', status: 'completed', participantPersonHints: ['박예시'] });
 		expect(refused.status).toBe(403);
+		expect((refused.body as { error: string }).error).toContain('added as a request');
+	});
+
+	test('records the requester’s own finished work with the people who shared it', async () => {
+		const made = resultOf(
+			await run('task_add', { title: '지난주 회의', status: 'completed', participantPersonHints: ['이샘플', '박예시'] })
+		);
+		expect(made.status).toBe('completed');
+		expect([...made.participantNames].sort()).toEqual(['박예시', '이샘플'].sort());
 	});
 
 	test('keeps an omitted estimate valid for the caller’s task', async () => {
