@@ -1089,7 +1089,7 @@ class Rig:
             "\n".join(f"{name}={state}" for name, state in sorted(states.items())),
         )
 
-        answers = self.machine.shell(READINESS_COMMAND)
+        answers = self.wait_in_the_guest(READINESS_COMMAND, every_probe_answered, timeout_seconds=180)
         step.observe(
             "the services answer their readiness endpoints",
             "an HTTP GET inside the guest to "
