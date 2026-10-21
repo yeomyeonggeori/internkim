@@ -8,17 +8,17 @@ import (
 	"strings"
 )
 
-var ErrNoMilestone = errors.New("no milestone release is tagged yet; the first is made with tools/ship-host --version 0.0.1")
+var ErrNoRelease = errors.New("no vMAJOR.MINOR.PATCH release is tagged yet; the first is made with tools/ship-host --release")
 
-func LatestMilestone(repositoryPath string, revision string) (Version, error) {
+func Latest(repositoryPath string, revision string) (Version, error) {
 	output, errorValue := git(repositoryPath, "tag", "--merged", revision)
 	if errorValue != nil {
 		return Version{}, errorValue
 	}
-	latest, isFound := Version{}, false
+	latest, isFound := Version{Kind: Semantic}, false
 	for _, tag := range strings.Fields(output) {
-		version, errorValue := ParseMilestone(tag)
-		if errorValue != nil || !strings.HasPrefix(tag, "v") {
+		version, errorValue := ParseReleaseTag(tag)
+		if errorValue != nil || version.Kind != Semantic {
 			continue
 		}
 		if !isFound || Compare(version, latest) > 0 {
@@ -26,13 +26,21 @@ func LatestMilestone(repositoryPath string, revision string) (Version, error) {
 		}
 	}
 	if !isFound {
-		return Version{}, ErrNoMilestone
+		return latest, ErrNoRelease
 	}
 	return latest, nil
 }
 
+func NextForRevision(repositoryPath string, revision string, bump Bump) (Version, error) {
+	latest, errorValue := Latest(repositoryPath, revision)
+	if errorValue != nil && !errors.Is(errorValue, ErrNoRelease) {
+		return Version{}, errorValue
+	}
+	return latest.Next(bump), nil
+}
+
 func ForRevision(repositoryPath string, revision string) (Version, error) {
-	latest, errorValue := LatestMilestone(repositoryPath, revision)
+	latest, errorValue := Latest(repositoryPath, revision)
 	if errorValue != nil {
 		return Version{}, errorValue
 	}

@@ -110,15 +110,15 @@ func rpmEpoch(t *testing.T, contents []byte) (uint32, bool) {
 	return 0, false
 }
 
-func TestEveryFormatCarriesTheMilestoneEpochInItsOwnMetadata(t *testing.T) {
-	const version = "0.0.1+37"
-	if control := debControlFile(t, writtenPackage(t, debianPackageFormat, version)); !strings.Contains(control, "\nVersion: 1:0.0.1+37\n") {
+func TestEveryFormatCarriesTheSemanticEpochInItsOwnMetadata(t *testing.T) {
+	const version = "0.0.2+3"
+	if control := debControlFile(t, writtenPackage(t, debianPackageFormat, version)); !strings.Contains(control, "\nVersion: 1:0.0.2+3\n") {
 		t.Errorf("the deb control file says %q", control)
 	}
 	if epoch, isRecorded := rpmEpoch(t, writtenPackage(t, rpmPackageFormat, version)); !isRecorded || epoch != 1 {
 		t.Errorf("the rpm header records epoch %d (present: %v)", epoch, isRecorded)
 	}
-	if information := archPackageInformation(t, writtenPackage(t, archlinuxPackageFormat, version)); !strings.Contains(information, "\npkgver = 1:0.0.1+37-1\n") {
+	if information := archPackageInformation(t, writtenPackage(t, archlinuxPackageFormat, version)); !strings.Contains(information, "\npkgver = 1:0.0.2+3-1\n") {
 		t.Errorf("the pacman package says %q", information)
 	}
 }
@@ -131,8 +131,8 @@ func TestEveryFormatNamesTheEpochOnTheInformationItIsGiven(t *testing.T) {
 	}
 }
 
-func TestAPackageIsBuiltOnlyAsAMilestoneOrABuildOfOne(t *testing.T) {
-	for _, accepted := range []string{"0.0.1", "v0.0.1", "0.0.1+37", "1:0.0.1"} {
+func TestAPackageIsBuiltAsAReleaseOrABuildOfOne(t *testing.T) {
+	for _, accepted := range []string{"0.0.1", "v0.0.1", "0.0.2+3", "1:0.0.1"} {
 		if _, errorValue := chosenPackageVersion(accepted, t.TempDir()); errorValue != nil {
 			t.Errorf("%q was refused: %v", accepted, errorValue)
 		}

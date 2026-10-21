@@ -466,8 +466,10 @@ class InstallScriptTests(unittest.TestCase):
             ("1:0.0.1", "1:0.0.2", "downgrade"),
             ("1:0.0.2", "1:0.0.1", "install"),
             ("1:0.0.1", "1:0.0.1", "install"),
-            ("1:0.0.1", "1:0.0.1+37", "downgrade"),
-            ("1:0.0.1+37", "1:0.0.1", "install"),
+            ("1:0.0.1", "1:0.0.1+194", "downgrade"),
+            ("1:0.0.1+194", "1:0.0.1", "install"),
+            ("1:0.0.2", "1:0.0.1+194", "install"),
+            ("1:0.0.1+194", "1:0.0.2", "downgrade"),
             (date_version, "1:0.0.1", "downgrade"),
             ("1:0.0.1", date_version, "install"),
             (date_version, "(none):2026.10.02.000000", "downgrade"),
@@ -487,7 +489,7 @@ class InstallScriptTests(unittest.TestCase):
     def test_a_pinned_version_that_is_not_a_tag_is_refused_before_anything_is_fetched(self):
         shims = self.linux_machine("apt-get")
         github = self.github()
-        for arguments in [("--version", "latest"), ("--version",), ("--version", "2026.10.01"), ("--version", "v7"), ("--version", "0.0.1"), ("--version", "v0.0.1+37"), ("--version", "v1:0.0.1")]:
+        for arguments in [("--version", "latest"), ("--version",), ("--version", "2026.10.01"), ("--version", "v7"), ("--version", "0.0.1"), ("--version", "v0.0.1+194"), ("--version", "v1:0.0.1")]:
             with self.subTest(arguments=arguments):
                 completed = self.run_host_install(shims, arguments=arguments, first=[github])
                 self.assertEqual(completed.returncode, 1, completed.stdout)

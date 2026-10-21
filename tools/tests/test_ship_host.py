@@ -13,8 +13,11 @@ repository_root = Path(__file__).resolve().parents[2]
 
 NEW_TAG = "v0.0.2"
 PREVIOUS_TAG = "v0.0.1"
-HOST_TAG = "v0.0.1+9"
-HOST_ONLY_TAG = "v0.0.2+37"
+HOST_TAG = "v0.0.1+194"
+HOST_ONLY_TAG = "v0.0.2+3"
+
+
+NEXT_VERSIONS = {"patch": "0.0.2", "minor": "0.1.0", "major": "1.0.0"}
 
 
 def package_line(tag):
@@ -83,6 +86,8 @@ class ScriptedCommands:
     def read_version(self, arguments):
         if "--of" in arguments:
             return arguments[-1].split(":")[-1].lstrip("v") + "\n"
+        if "--bump" in arguments:
+            return NEXT_VERSIONS[arguments[arguments.index("--bump") + 1]] + "\n"
         return HOST_ONLY_TAG.lstrip("v") + "\n"
 
     def write_download(self, arguments):
@@ -129,7 +134,7 @@ def shipment_with(commands, options=None, directory="."):
 
 
 HOST_ONLY = ship_host.Options(skip_host=False, is_plan=False, is_host_only=True)
-FULL_RELEASE = ship_host.Options(skip_host=False, is_plan=False, version=NEW_TAG.lstrip("v"))
+FULL_RELEASE = ship_host.Options(skip_host=False, is_plan=False)
 
 
 def ship_quietly(shipment):
@@ -144,23 +149,35 @@ class ArgumentTest(unittest.TestCase):
         with contextlib.redirect_stderr(io.StringIO()), self.assertRaises(SystemExit):
             ship_host.parse_arguments(arguments)
 
-    def test_a_full_release_without_a_version_is_refused(self):
+    def test_a_deploy_that_names_neither_our_host_nor_a_release_is_refused(self):
         self.refused([])
         self.refused(["--skip-host"])
         self.refused(["--plan"])
+        self.refused(["--minor"])
 
-    def test_a_full_release_names_its_milestone(self):
-        self.assertEqual(ship_host.parse_arguments(["--version", "0.0.1"]), ship_host.Options(skip_host=False, is_plan=False, version="0.0.1"))
+    def test_a_release_raises_patch_unless_told_otherwise(self):
+        self.assertEqual(ship_host.parse_arguments(["--release"]), FULL_RELEASE)
+        self.assertEqual(ship_host.parse_arguments(["--release", "--minor"]).bump, "minor")
+        self.assertEqual(ship_host.parse_arguments(["--release", "--major"]).bump, "major")
 
     def test_skip_host_and_plan(self):
-        options = ship_host.parse_arguments(["--version", "0.0.1", "--skip-host", "--plan"])
-        self.assertEqual(options, ship_host.Options(skip_host=True, is_plan=True, version="0.0.1"))
+        options = ship_host.parse_arguments(["--release", "--skip-host", "--plan"])
+        self.assertEqual(options, ship_host.Options(skip_host=True, is_plan=True))
 
     def test_host_only(self):
         self.assertEqual(ship_host.parse_arguments(["--host-only"]), HOST_ONLY)
 
-    def test_host_only_never_takes_a_version(self):
-        self.refused(["--host-only", "--version", "0.0.1"])
+    def test_a_number_is_never_typed(self):
+        self.refused(["--host-only", "--version", "0.0.2"])
+        self.refused(["--release", "--version", "0.0.2"])
+
+    def test_host_only_never_changes_the_number(self):
+        self.refused(["--host-only", "--minor"])
+        self.refused(["--host-only", "--major"])
+
+    def test_one_bump_and_one_mode(self):
+        self.refused(["--release", "--minor", "--major"])
+        self.refused(["--host-only", "--release"])
 
     def test_host_only_and_skip_host_are_one_or_the_other(self):
         self.refused(["--host-only", "--skip-host"])
@@ -182,28 +199,45 @@ class TagTest(unittest.TestCase):
         with self.assertRaises(ship_host.ShipFailure):
             ship_host.tag_from_release_output(f"released {PREVIOUS_TAG} on testing: https://example.com\n", NEW_TAG)
 
-    def test_the_version_the_person_chose_is_the_tag_and_is_asked_of_release_host(self):
+    def test_the_bump_the_person_chose_is_asked_of_release_host(self):
         commands = ScriptedCommands()
         with tempfile.TemporaryDirectory() as directory:
             ship_quietly(shipment_with(commands, directory=directory))
         cut = commands.calls[commands.matching("--channel testing")[0]]
-        self.assertEqual(cut[cut.index("--milestone") + 1], NEW_TAG.lstrip("v"))
+        self.assertEqual(cut[cut.index("--bump") + 1], "patch")
+
+    def test_the_next_tag_is_read_after_the_tags_are_fetched_and_internkim_is_built(self):
+        commands = ScriptedCommands()
+        with tempfile.TemporaryDirectory() as directory:
+            ship_quietly(shipment_with(commands, directory=directory))
+        self.assertLess(commands.matching("fetch --quiet --tags")[0], commands.matching("release version --bump")[0])
+        self.assertLess(commands.matching("make build")[0], commands.matching("release version --bump")[0])
 
 
 class PlanTest(unittest.TestCase):
     def test_plan_names_the_tags_and_changes_nothing(self):
         commands = ScriptedCommands()
-        options = ship_host.Options(skip_host=False, is_plan=True, version=NEW_TAG.lstrip("v"))
+        options = ship_host.Options(skip_host=False, is_plan=True)
         output = ship_quietly(shipment_with(commands, options))
         self.assertIn(NEW_TAG, output)
         self.assertIn(PREVIOUS_TAG, output)
         self.assertEqual(len([line for line in output.splitlines() if line[:1].isdigit()]), 7)
         self.assertEqual(
-            [call[1:3] for call in commands.calls], [["release", "view"], ["release", "version"]]
+            [call[1:3] for call in commands.calls], [["release", "view"], ["fetch", "--quiet"], ["release", "version"]]
         )
 
+    def test_a_minor_plan_names_the_minor_tag(self):
+        options = ship_host.Options(skip_host=False, is_plan=True, bump="minor")
+        self.assertIn("tag       v0.1.0", ship_quietly(shipment_with(ScriptedCommands(), options)))
+
+    def test_a_host_only_plan_names_the_latest_release_and_the_commits_since_it(self):
+        options = ship_host.Options(skip_host=False, is_plan=True, is_host_only=True)
+        commands = host_only_commands()
+        self.assertIn(f"tag       {HOST_ONLY_TAG}", ship_quietly(shipment_with(commands, options)))
+        self.assertFalse(commands.matching("--bump"))
+
     def test_skip_host_plans_no_host_step(self):
-        options = ship_host.Options(skip_host=True, is_plan=True, version=NEW_TAG.lstrip("v"))
+        options = ship_host.Options(skip_host=True, is_plan=True)
         output = ship_quietly(shipment_with(ScriptedCommands(), options))
         self.assertNotIn("our own host", output)
         self.assertEqual(len([line for line in output.splitlines() if line[:1].isdigit()]), 6)
@@ -234,7 +268,7 @@ class OrderTest(unittest.TestCase):
 
     def test_skip_host_stops_after_promotion(self):
         commands = ScriptedCommands()
-        options = ship_host.Options(skip_host=True, is_plan=False, version=NEW_TAG.lstrip("v"))
+        options = ship_host.Options(skip_host=True, is_plan=False)
         with tempfile.TemporaryDirectory() as directory:
             ship_quietly(shipment_with(commands, options, directory))
         self.assertTrue(commands.matching("--channel stable"))
@@ -405,7 +439,7 @@ class HostOnlyTest(unittest.TestCase):
             commands.matching("apt-get install")[0],
         ]
         self.assertEqual(positions, sorted(positions))
-        for published in ("release host", "release create", "release edit", "release download", "--channel", "install.sh", "test-native-install"):
+        for published in ("refs/tags/", "git push", "release host", "release create", "release edit", "release download", "--channel", "install.sh", "test-native-install"):
             self.assertFalse(commands.matching(published), published)
 
     def test_a_tree_that_is_not_origin_main_builds_nothing(self):
@@ -579,7 +613,7 @@ if __name__ == "__main__":
     unittest.main()
 
 
-class HostOnlyVersionTest(unittest.TestCase):
+class NextVersionTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         directory = Path(tempfile.mkdtemp())
@@ -593,39 +627,48 @@ class HostOnlyVersionTest(unittest.TestCase):
             check=True, capture_output=True,
         )
 
-    def repository(self, commits_after_milestone):
+    def repository(self, *tags):
         directory = Path(self.enterContext(tempfile.TemporaryDirectory()))
         (directory / "go.mod").write_text("module example.test/sample\n")
         self.git(directory, "init", "-q")
         self.git(directory, "add", "go.mod")
         self.git(directory, "commit", "-q", "-m", "first")
-        self.git(directory, "tag", "v2026.10.07.120000")
-        self.git(directory, "commit", "-q", "--allow-empty", "-m", "milestone")
-        self.git(directory, "tag", "v0.0.1")
-        for _ in range(commits_after_milestone):
+        for tag in tags:
+            self.git(directory, "tag", tag)
             self.git(directory, "commit", "-q", "--allow-empty", "-m", "work")
+        self.git(directory, "update-ref", "refs/remotes/origin/main", "HEAD")
         return directory
 
     def read(self, directory, *arguments):
         return subprocess.run([str(self.binary), "release", "version", *arguments], cwd=directory, capture_output=True, text=True)
 
-    def test_a_host_only_build_is_the_last_milestone_and_the_commits_since_it(self):
-        completed = self.read(self.repository(37))
-        self.assertEqual((completed.returncode, completed.stdout), (0, "0.0.1+37\n"), completed.stderr)
+    def test_the_next_deploy_raises_patch_from_the_highest_tag_on_origin_main(self):
+        directory = self.repository("v2026.10.07.120000", "v0.0.1")
+        completed = self.read(directory, "--bump", "patch")
+        self.assertEqual((completed.returncode, completed.stdout), (0, "0.0.2\n"), completed.stderr)
+        self.assertEqual(self.read(directory, "--bump", "minor").stdout, "0.1.0\n")
+        self.assertEqual(self.read(directory, "--bump", "major").stdout, "1.0.0\n")
 
-    def test_a_build_at_the_milestone_is_the_milestone(self):
-        self.assertEqual(self.read(self.repository(0)).stdout, "0.0.1\n")
+    def test_a_host_only_build_is_the_latest_release_and_the_commits_since_it(self):
+        directory = self.repository("v0.0.1", "v0.0.2")
+        for _ in range(2):
+            self.git(directory, "commit", "-q", "--allow-empty", "-m", "work")
+        self.git(directory, "update-ref", "refs/remotes/origin/main", "HEAD")
+        completed = self.read(directory)
+        self.assertEqual((completed.returncode, completed.stdout), (0, "0.0.2+3\n"), completed.stderr)
+
+    def test_a_tag_off_origin_main_is_not_counted(self):
+        directory = self.repository("v0.0.1")
+        self.git(directory, "commit", "-q", "--allow-empty", "-m", "unpushed")
+        self.git(directory, "tag", "v0.0.9")
+        self.assertEqual(self.read(directory, "--bump", "patch").stdout, "0.0.2\n")
 
     def test_a_package_version_is_read_back_without_its_epoch(self):
-        self.assertEqual(self.read(self.repository(0), "--of", "1:0.0.1+37").stdout, "0.0.1+37\n")
+        self.assertEqual(self.read(self.repository(), "--of", "1:0.0.1+194").stdout, "0.0.1+194\n")
 
-    def test_before_the_first_milestone_there_is_no_version_to_invent(self):
-        directory = Path(self.enterContext(tempfile.TemporaryDirectory()))
-        (directory / "go.mod").write_text("module example.test/sample\n")
-        self.git(directory, "init", "-q")
-        self.git(directory, "add", "go.mod")
-        self.git(directory, "commit", "-q", "-m", "first")
-        self.git(directory, "tag", "v2026.10.07.120000")
+    def test_before_the_first_tag_the_next_release_is_the_first_and_a_host_only_build_is_refused(self):
+        directory = self.repository("v2026.10.07.120000")
+        self.assertEqual(self.read(directory, "--bump", "patch").stdout, "0.0.1\n")
         completed = self.read(directory)
         self.assertNotEqual(completed.returncode, 0)
-        self.assertIn("no milestone", completed.stderr)
+        self.assertIn("no vMAJOR.MINOR.PATCH release", completed.stderr)

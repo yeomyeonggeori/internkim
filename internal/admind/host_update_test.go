@@ -517,22 +517,43 @@ func servingReleases(t *testing.T, listing string) *httptest.Server {
 	return server
 }
 
-func TestADateVersionHostIsOfferedAMilestoneAndCanGoBackToTheDateRelease(t *testing.T) {
+func TestADateVersionHostIsOfferedASemanticReleaseAndCanGoBackToTheDateRelease(t *testing.T) {
 	rig := newHostUpdateRig(t)
 	rig.releaseServer = servingReleases(t, `[{"tag_name":"v2026.10.02.090000"},{"tag_name":"v0.0.1"},{"tag_name":"v2026.10.01.000000"}]`)
 	answer := rig.readVersion(t)
 	if answer.LatestStable == nil || answer.LatestStable.Version != "v0.0.1" || !answer.IsUpdateAvailable {
-		t.Fatalf("a date version host was not offered the milestone: %+v", answer)
+		t.Fatalf("a date version host was not offered v0.0.1: %+v", answer)
 	}
 	rig = newHostUpdateRig(t)
-	rig.installed = "0.0.1+37"
+	rig.installed = "0.0.1+194"
 	rig.releaseServer = servingReleases(t, `[{"tag_name":"v2026.10.02.090000"},{"tag_name":"v0.0.1"},{"tag_name":"v2026.10.01.000000"}]`)
 	answer = rig.readVersion(t)
-	if answer.IsUpdateAvailable || answer.InstalledVersion != "v0.0.1+37" || answer.PreviousStable == nil || answer.PreviousStable.Version != "v0.0.1" {
-		t.Fatalf("a milestone host was offered an update or no way back: %+v", answer)
+	if answer.IsUpdateAvailable || answer.InstalledVersion != "v0.0.1+194" || answer.PreviousStable == nil || answer.PreviousStable.Version != "v0.0.1" {
+		t.Fatalf("a host past v0.0.1 was offered an update or no way back: %+v", answer)
 	}
 	response := rig.ask(t, hostUpdateStartPath, hostUpdateAdminEmail, `{"isApproved":true,"input":{"targetVersion":"v2026.10.02.090000"}}`)
 	if response.Code != http.StatusOK || !strings.HasSuffix(rig.started[0], "--version v2026.10.02.090000") {
 		t.Fatalf("a rollback to a date release answered %d %s", response.Code, response.Body.String())
+	}
+}
+
+func TestTheHostProductionRunsIsOfferedTheNextPatchAndCanComeBack(t *testing.T) {
+	rig := newHostUpdateRig(t)
+	rig.installed = "1:0.0.1+194"
+	rig.releaseServer = servingReleases(t, `[{"tag_name":"v0.0.2"},{"tag_name":"v0.0.1"}]`)
+	answer := rig.readVersion(t)
+	if !answer.IsUpdateAvailable || answer.LatestStable == nil || answer.LatestStable.Version != "v0.0.2" {
+		t.Fatalf("0.0.1+194 was not offered v0.0.2: %+v", answer)
+	}
+	rig = newHostUpdateRig(t)
+	rig.installed = "1:0.0.2"
+	rig.releaseServer = servingReleases(t, `[{"tag_name":"v0.0.2"},{"tag_name":"v0.0.1"}]`)
+	response := rig.ask(t, hostUpdatePlanPath, hostUpdateAdminEmail, `{"input":{"targetVersion":"v0.0.1"}}`)
+	var target hostUpdateTargetForTest
+	json.Unmarshal(response.Body.Bytes(), &target)
+	var consequences map[string]any
+	json.Unmarshal([]byte(target.Preview), &consequences)
+	if response.Code != http.StatusOK || consequences["isRollback"] != true {
+		t.Fatalf("going back from v0.0.2 to v0.0.1 was planned as %d %s", response.Code, response.Body.String())
 	}
 }

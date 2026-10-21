@@ -1,20 +1,22 @@
 #!/usr/bin/env python3
-"""Take a host release from origin/main to stable and onto our own host.
-
-Every step prints one line and a failing step stops the run. A failure after
-the host was touched puts the host and stable back on the previous stable
-release and marks the failed one a prerelease.
-
-A full release is a milestone and a person names its number, as in
---version 0.0.1. Without one it refuses.
+"""Take origin/main onto our own host, or to stable and onto our own host.
 
 --host-only builds our host's package from origin/main here and installs it on
-our host, publishing nothing: the everyday deploy between milestone releases.
-Its version is the last milestone and the commits since it, such as 0.0.1+37,
-and it never bumps the number. A failure puts the host back on the version it ran.
+our host, publishing nothing and tagging nothing: the everyday deploy. Its
+version is the latest vX.Y.Z tag on origin/main and the commits since it, such
+as 0.0.2+3, which sorts above 0.0.2 and below 0.0.3. A failure puts the host
+back on the version it ran.
 
-    tools/ship-host --version MAJOR.MINOR.PATCH [--skip-host] [--plan]
+--release cuts a new X.Y.Z from the latest tag: PATCH raised, or MINOR or MAJOR
+with --minor or --major. Nobody types the number. Its GitHub release on testing
+creates the tag; it runs the rigs, promotes the release to stable and upgrades
+our host. A failure after the host was touched puts the host and stable back on
+the previous stable release and marks the failed one a prerelease.
+
+Every step prints one line and a failing step stops the run.
+
     tools/ship-host --host-only [--plan]
+    tools/ship-host --release [--minor | --major] [--skip-host] [--plan]
 """
 
 import argparse
@@ -75,7 +77,7 @@ class Options:
     skip_host: bool
     is_plan: bool
     is_host_only: bool = False
-    version: str = ""
+    bump: str = "patch"
 
 
 @dataclass
@@ -96,18 +98,20 @@ class Shipment:
 
 def parse_arguments(arguments):
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("--skip-host", action="store_true", help="stop after stable is promoted")
-    parser.add_argument("--host-only", action="store_true", dest="is_host_only", help="build our host's package here and install it on our host, publishing no release")
-    parser.add_argument("--version", default="", help="the milestone a full release carries, MAJOR.MINOR.PATCH; a person chooses it")
+    mode = parser.add_mutually_exclusive_group(required=True)
+    mode.add_argument("--host-only", action="store_true", dest="is_host_only", help="build our host's package here and install it on our host, publishing no release")
+    mode.add_argument("--release", action="store_true", dest="is_release", help="publish a release to testing, test it, promote it to stable and upgrade our host")
+    bump = parser.add_mutually_exclusive_group()
+    bump.add_argument("--minor", action="store_const", const="minor", dest="bump", help="with --release, raise MINOR and reset PATCH")
+    bump.add_argument("--major", action="store_const", const="major", dest="bump", help="with --release, raise MAJOR and reset MINOR and PATCH")
+    parser.add_argument("--skip-host", action="store_true", help="with --release, stop after stable is promoted")
     parser.add_argument("--plan", action="store_true", dest="is_plan", help="print the steps and the tags, change nothing")
     parsed = parser.parse_args(arguments)
     if parsed.skip_host and parsed.is_host_only:
         parser.error("--skip-host releases without touching our host and --host-only touches only our host; name one")
-    if parsed.is_host_only and parsed.version:
-        parser.error("--host-only never changes the version number; it is the last milestone and the commits since it")
-    if not parsed.is_host_only and not parsed.version:
-        parser.error("a full release is a milestone and needs --version MAJOR.MINOR.PATCH; use --host-only for the everyday deploy")
-    return Options(skip_host=parsed.skip_host, is_plan=parsed.is_plan, is_host_only=parsed.is_host_only, version=parsed.version)
+    if parsed.bump and parsed.is_host_only:
+        parser.error("--host-only never changes the number; it is the latest release and the commits since it, and --minor or --major belong to --release")
+    return Options(skip_host=parsed.skip_host, is_plan=parsed.is_plan, is_host_only=parsed.is_host_only, bump=parsed.bump or "patch")
 
 
 def tag_from_release_output(output, expected_tag):
@@ -245,11 +249,13 @@ def read_previous_stable_tag(run):
     return run(["gh", "release", "view", "--repo", RELEASE_REPOSITORY, "--json", "tagName", "--jq", ".tagName"]).strip()
 
 
-def read_host_only_tag(run):
-    return "v" + run([INTERNKIM, "release", "version"]).strip()
+def read_next_tag(shipment):
+    if shipment.options.is_host_only:
+        return "v" + shipment.run([INTERNKIM, "release", "version"]).strip()
+    return "v" + shipment.run([INTERNKIM, "release", "version", "--bump", shipment.options.bump]).strip()
 
 
-def milestone_tag(run, version):
+def tag_of_package_version(run, version):
     return "v" + run([INTERNKIM, "release", "version", "--of", version]).strip()
 
 
@@ -261,13 +267,13 @@ def refuse_unless_origin_main(shipment):
         raise ShipFailure("check the tree", f"HEAD is {head[:12]} and origin/main is {origin[:12]}")
     shipment.run(["make", "build"])
     shipment.run([INTERNKIM, "verify", "release-tree"])
-    if shipment.options.is_host_only:
-        shipment.tag = read_host_only_tag(shipment.run)
+    shipment.tag = read_next_tag(shipment)
 
 
 def cut_testing_release(shipment):
-    output = shipment.run([INTERNKIM, "release", "host", "--channel", "testing", "--milestone", shipment.options.version])
+    output = shipment.run([INTERNKIM, "release", "host", "--channel", "testing", "--bump", shipment.options.bump])
     tag_from_release_output(output, shipment.tag)
+
 
 
 def download_release(shipment, tag, assets):
@@ -318,7 +324,7 @@ def read_host_architecture(shipment):
 
 def read_host_tag(shipment):
     version = last_line(run_on_host(shipment, f"dpkg-query -W -f '${{Version}}\\n' {PACKAGE_NAME} || true"))
-    return milestone_tag(shipment.run, version) if version else ""
+    return tag_of_package_version(shipment.run, version) if version else ""
 
 
 def check_host_runs(shipment, tag):
@@ -444,7 +450,7 @@ def planned_steps(options):
         return host_only_steps()
     steps = [
         (lambda shipment: "refuse unless the checkout is clean and HEAD is origin/main, then build internkim from it", refuse_unless_origin_main),
-        (lambda shipment: "cut the testing release", cut_testing_release),
+        (lambda shipment: f"cut the testing release {shipment.tag}, whose GitHub release tags the commit it was built from", cut_testing_release),
         (lambda shipment: f"download {shipment.tag} and {shipment.previous_tag} and verify their checksums", download_and_verify),
         (lambda shipment: f"run the {RIG_DISTRIBUTION} install and upgrade rig, {shipment.previous_tag} to {shipment.tag}", run_install_rig),
         (lambda shipment: f"upgrade a host that already has people, {shipment.previous_tag} to {shipment.tag}", run_people_upgrade_rig),
@@ -457,14 +463,9 @@ def planned_steps(options):
     ]
 
 
-def planned_tag(shipment):
-    if shipment.options.is_host_only:
-        return read_host_only_tag(shipment.run)
-    return milestone_tag(shipment.run, shipment.options.version)
-
-
 def print_plan(shipment):
-    shipment.tag = planned_tag(shipment)
+    shipment.run(["git", "fetch", "--quiet", "--tags", "origin"])
+    shipment.tag = read_next_tag(shipment)
     print(f"tag       {shipment.tag}")
     print(f"previous  {shipment.previous_tag}")
     for number, (describe, _) in enumerate(planned_steps(shipment.options), 1):
@@ -476,7 +477,6 @@ def ship(shipment):
     if shipment.options.is_plan:
         print_plan(shipment)
         return
-    shipment.tag = planned_tag(shipment)
     for number, (describe, step) in enumerate(planned_steps(shipment.options), 1):
         print(f"{number}. {describe(shipment)}", flush=True)
         step(shipment)

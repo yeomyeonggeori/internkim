@@ -1,10 +1,10 @@
 import { z } from 'zod';
 
-const milestoneNumber = '(?:0|[1-9]\\d{0,8})';
+const versionPart = '(?:0|[1-9]\\d{0,8})';
 const dateVersion = '\\d{4}\\.\\d{2}\\.\\d{2}\\.\\d{6}';
-const milestoneVersion = `${milestoneNumber}\\.${milestoneNumber}\\.${milestoneNumber}`;
+const semanticVersion = `${versionPart}\\.${versionPart}\\.${versionPart}`;
 
-export const releaseTagSchema = z.string().regex(new RegExp(`^v(?:${dateVersion}|${milestoneVersion})$`));
+export const releaseTagSchema = z.string().regex(new RegExp(`^v(?:${dateVersion}|${semanticVersion})$`));
 
 export const hostReleaseSchema = z.strictObject({
 	version: z.string().min(1),

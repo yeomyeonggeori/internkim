@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"os"
 	"os/exec"
-	"strconv"
 	"testing"
 )
 
@@ -69,9 +68,9 @@ func TestEveryVersionSortsAboveTheOnesBeforeItInTheList(t *testing.T) {
 	}
 }
 
-func TestAnyDateVersionIsOlderThanAnyMilestonePackage(t *testing.T) {
+func TestAnyDateVersionIsOlderThanAnySemanticPackage(t *testing.T) {
 	if !IsOlder("v2099.12.31.235959", "1:0.0.1") || !IsOlder("2099.12.31.235959", "v0.0.1") {
-		t.Fatal("a date version sorted above a milestone")
+		t.Fatal("a date version sorted above MAJOR.MINOR.PATCH")
 	}
 }
 
@@ -81,15 +80,31 @@ func TestAnUnreadableVersionIsOlderThanEveryReadableOne(t *testing.T) {
 	}
 }
 
-func TestParseMilestoneTakesOnlyThePlainNumber(t *testing.T) {
-	for _, accepted := range []string{"0.0.1", "v0.0.1"} {
-		if _, errorValue := ParseMilestone(accepted); errorValue != nil {
-			t.Fatalf("%q refused: %v", accepted, errorValue)
+func TestEachBumpRaisesItsPartAndResetsTheOnesBelow(t *testing.T) {
+	installed, _ := Parse("1:1.4.7")
+	for bump, want := range map[Bump]string{Patch: "1.4.8", Minor: "1.5.0", Major: "2.0.0"} {
+		if got := installed.Next(bump).Release(); got != want {
+			t.Errorf("%s of 1.4.7 is %s, want %s", bump, got, want)
 		}
 	}
-	for _, refused := range []string{"", "0.0.1+3", "1:0.0.1", "2026.10.07.120000", "latest"} {
-		if _, errorValue := ParseMilestone(refused); errorValue == nil {
-			t.Fatalf("%q was taken as a milestone", refused)
+}
+
+func TestABuildCountedFromATagIsBumpedFromTheTag(t *testing.T) {
+	build, _ := Parse("0.0.1+194")
+	if got := build.Next(Patch).Release(); got != "0.0.2" {
+		t.Fatalf("the patch after 0.0.1+194 is %s", got)
+	}
+}
+
+func TestNoBumpNamedIsAPatch(t *testing.T) {
+	for text, want := range map[string]Bump{"": Patch, "patch": Patch, "minor": Minor, "major": Major} {
+		if bump, errorValue := ParseBump(text); errorValue != nil || bump != want {
+			t.Errorf("%q is %q (%v)", text, bump, errorValue)
+		}
+	}
+	for _, refused := range []string{"0.0.2", "Patch", "build"} {
+		if _, errorValue := ParseBump(refused); errorValue == nil {
+			t.Errorf("%q was taken as a bump", refused)
 		}
 	}
 }
@@ -118,54 +133,85 @@ func repositoryWithTags(t *testing.T) string {
 	return directory
 }
 
-func TestForRevisionIsTheLastMilestoneAndTheCommitsSinceIt(t *testing.T) {
-	directory := repositoryWithTags(t)
-	atTag, errorValue := ForRevision(directory, "HEAD")
-	if errorValue != nil || atTag.Package() != "1:0.0.1" {
-		t.Fatalf("at the tag: %v, %v", atTag, errorValue)
-	}
-	for range 37 {
-		commit(t, directory)
-	}
-	version, errorValue := ForRevision(directory, "HEAD")
-	if errorValue != nil || version.Release() != "0.0.1+37" || version.Package() != "1:0.0.1+37" {
-		t.Fatalf("37 commits on: %v, %v", version, errorValue)
-	}
-}
-
-func TestForRevisionChoosesTheHighestMilestoneNotTheNewestTag(t *testing.T) {
+func TestTheNextVersionRaisesTheHighestTagNotTheNewest(t *testing.T) {
 	directory := repositoryWithTags(t)
 	commit(t, directory)
 	run(t, directory, "tag", "v0.0.10")
 	commit(t, directory)
 	run(t, directory, "tag", "v0.0.2")
 	commit(t, directory)
-	version, errorValue := ForRevision(directory, "HEAD")
-	if errorValue != nil || version.Release() != "0.0.10+2" {
+	version, errorValue := NextForRevision(directory, "HEAD", Patch)
+	if errorValue != nil || version.Package() != "1:0.0.11" {
 		t.Fatalf("got %v, %v", version, errorValue)
 	}
 }
 
-func TestForRevisionRefusesBeforeTheFirstMilestone(t *testing.T) {
+func TestTheNextVersionOfARevisionAlreadyTaggedIsStillANewNumber(t *testing.T) {
+	version, errorValue := NextForRevision(repositoryWithTags(t), "HEAD", Patch)
+	if errorValue != nil || version.Release() != "0.0.2" {
+		t.Fatalf("got %v, %v", version, errorValue)
+	}
+}
+
+func TestBeforeTheFirstTagTheNextVersionIsTheFirst(t *testing.T) {
 	directory := t.TempDir()
 	run(t, directory, "init", "-q")
 	commit(t, directory)
 	run(t, directory, "tag", "v2026.10.07.120000")
-	if _, errorValue := ForRevision(directory, "HEAD"); errorValue != ErrNoMilestone {
+	version, errorValue := NextForRevision(directory, "HEAD", Patch)
+	if errorValue != nil || version.Release() != "0.0.1" {
+		t.Fatalf("got %v, %v", version, errorValue)
+	}
+}
+
+func TestAHostOnlyBuildIsTheLatestReleaseAndTheCommitsSinceIt(t *testing.T) {
+	directory := repositoryWithTags(t)
+	atTag, errorValue := ForRevision(directory, "HEAD")
+	if errorValue != nil || atTag.Package() != "1:0.0.1" {
+		t.Fatalf("at the tag: %v, %v", atTag, errorValue)
+	}
+	for range 194 {
+		commit(t, directory)
+	}
+	version, errorValue := ForRevision(directory, "HEAD")
+	if errorValue != nil || version.Release() != "0.0.1+194" || version.Package() != "1:0.0.1+194" {
+		t.Fatalf("194 commits on: %v, %v", version, errorValue)
+	}
+}
+
+func TestAHostOnlyBuildBeforeTheFirstReleaseIsRefused(t *testing.T) {
+	directory := t.TempDir()
+	run(t, directory, "init", "-q")
+	commit(t, directory)
+	run(t, directory, "tag", "v2026.10.07.120000")
+	if _, errorValue := ForRevision(directory, "HEAD"); errorValue != ErrNoRelease {
 		t.Fatalf("got %v", errorValue)
 	}
 }
 
-func TestAHostOnlyBuildSortsBetweenItsMilestoneAndTheNext(t *testing.T) {
-	for commits := 1; commits < 1000; commits *= 10 {
-		build := "0.0.1+" + strconv.Itoa(commits)
-		if !IsOlder("1:0.0.1", build) || !IsOlder(build, "1:0.0.2") {
-			t.Fatalf("%s is not between 0.0.1 and 0.0.2", build)
+func TestHostOnlyBuildsAndReleasesSortInTheOrderTheyWereMade(t *testing.T) {
+	chain := []string{"0.0.1+194", "0.0.1+200", "0.0.2", "0.0.2+3", "0.1.0"}
+	for earlier := range chain {
+		for later := earlier + 1; later < len(chain); later++ {
+			if !IsOlder("1:"+chain[earlier], "1:"+chain[later]) || IsOlder(chain[later], chain[earlier]) {
+				t.Fatalf("%s should sort below %s", chain[earlier], chain[later])
+			}
 		}
 	}
 }
 
-func TestAReleaseTagIsTheVPrefixedDateOrMilestone(t *testing.T) {
+func TestTheVersionProductionRunsSortsBelowTheNextRelease(t *testing.T) {
+	for _, pair := range [][2]string{{"0.0.1+194", "0.0.2"}, {"1:0.0.1+194", "1:0.0.2"}, {"v0.0.1+194", "v0.0.2"}} {
+		if !IsOlder(pair[0], pair[1]) || IsOlder(pair[1], pair[0]) {
+			t.Fatalf("%s does not sort below %s", pair[0], pair[1])
+		}
+	}
+	if !IsOlder("0.0.1", "0.0.1+194") {
+		t.Fatal("0.0.1+194 sorts below the tag it was counted from")
+	}
+}
+
+func TestAReleaseTagIsTheVPrefixedDateOrMajorMinorPatch(t *testing.T) {
 	tags := loadFixture(t).ReleaseTags
 	for _, accepted := range tags.Accepted {
 		if _, errorValue := ParseReleaseTag(accepted); errorValue != nil {

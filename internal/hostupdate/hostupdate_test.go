@@ -126,16 +126,16 @@ func TestTheUpdateUnitIsATransientUnitOfItsOwn(t *testing.T) {
 }
 
 func TestTheTagOfAPackageVersionDropsTheEpoch(t *testing.T) {
-	for version, tag := range map[string]string{"1:0.0.1": "v0.0.1", "0.0.1+37": "v0.0.1+37", "2026.10.01.000000": "v2026.10.01.000000", "": "", "v0.0.1": "v0.0.1"} {
+	for version, tag := range map[string]string{"1:0.0.1": "v0.0.1", "1:0.0.1+194": "v0.0.1+194", "2026.10.01.000000": "v2026.10.01.000000", "": "", "v0.0.1": "v0.0.1"} {
 		if got := TagOf(version); got != tag {
 			t.Errorf("TagOf(%q) = %q, want %q", version, got, tag)
 		}
 	}
 }
 
-func TestEveryDateVersionIsOlderThanEveryMilestone(t *testing.T) {
+func TestEveryDateVersionIsOlderThanEverySemanticVersion(t *testing.T) {
 	if !IsOlder("v2026.10.01.000000", "v0.0.1") || IsOlder("v0.0.1", "v2026.10.01.000000") {
-		t.Fatal("a date version outranked a milestone")
+		t.Fatal("a date version outranked v0.0.1")
 	}
 }
 
@@ -157,5 +157,11 @@ func TestAnUpdateThatIsNotReadyInstallsNothingAndSaysWhy(t *testing.T) {
 	note, _, _ := ReadNote(notePath)
 	if note.Outcome == nil || note.Outcome.Succeeded || note.Outcome.Error != notReady.Error() {
 		t.Fatalf("the note says %+v", note.Outcome)
+	}
+}
+
+func TestTheVersionProductionRunsIsOlderThanTheNextPatch(t *testing.T) {
+	if !IsOlder("1:0.0.1+194", "v0.0.2") || IsOlder("v0.0.2", "1:0.0.1+194") {
+		t.Fatal("0.0.1+194 did not sort below v0.0.2")
 	}
 }
