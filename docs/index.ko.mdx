@@ -1,47 +1,103 @@
 ---
 title: 김인턴 소개
-description: 호스트를 설정하고 시스템 구조를 이해하거나 공개 API로 연동하세요.
+description: 회사에 한 명 더 들어오는 인턴. 말로 부탁하면 근태, 일정, 문서, 메일을 대신 처리합니다.
 icon: Compass
 ---
 
 <div className="internkim-overview">
   <div className="internkim-overview__intro">
-    김인턴은 회사가 관리하는 컴퓨터에서 실행됩니다. 구성원은 웹 앱이나 회사
-    메신저로 김인턴을 부르고, 모든 요청은 보낸 사람의 신원과 권한을 따릅니다.
+    김인턴은 회사에 한 명 더 들어오는 인턴입니다. 동료에게 메시지를 보내듯
+    부탁하면 휴가를 올리고, 회의를 잡고, 견적서를 만들고, 메일을 정리합니다.
+    부탁한 사람의 권한으로만 일하고, 회사 데이터는 회사가 둔 컴퓨터에
+    남습니다.
   </div>
 
-  <h2 className="internkim-overview__section-title">필요한 안내를 고르세요</h2>
+  <h2 className="internkim-overview__section-title">이렇게 부탁하세요</h2>
+
+  <div className="internkim-overview__examples">
+    <div className="internkim-overview__example">
+      <span className="internkim-overview__example-ask">“다음 주 금요일 반차 올려 줘”</span>
+      <span className="internkim-overview__example-result">휴가를 신청하고 남은 연차를 알려 줍니다.</span>
+    </div>
+    <div className="internkim-overview__example">
+      <span className="internkim-overview__example-ask">“박예시님이랑 목요일 오후에 30분 잡아 줘”</span>
+      <span className="internkim-overview__example-result">회사 캘린더에 일정을 넣습니다.</span>
+    </div>
+    <div className="internkim-overview__example">
+      <span className="internkim-overview__example-ask">“이 엑셀로 견적서 PDF 만들어 줘”</span>
+      <span className="internkim-overview__example-result">회사 양식에 맞춘 문서를 만들어 대화에 붙입니다.</span>
+    </div>
+    <div className="internkim-overview__example">
+      <span className="internkim-overview__example-ask">“오늘 온 메일 중에 답해야 할 것만 추려 줘”</span>
+      <span className="internkim-overview__example-result">받은편지함을 읽고 할 일을 정리합니다.</span>
+    </div>
+    <div className="internkim-overview__example">
+      <span className="internkim-overview__example-ask">“투자사에 보낼 자료 링크 만들어 줘”</span>
+      <span className="internkim-overview__example-result">데이터룸에서 문서를 골라 기한이 있는 공유 링크를 만듭니다.</span>
+    </div>
+    <div className="internkim-overview__example">
+      <span className="internkim-overview__example-ask">“매주 월요일 9시에 지난주 업무 정리해서 보내 줘”</span>
+      <span className="internkim-overview__example-result">정해 둔 시간마다 알아서 정리해 보냅니다.</span>
+    </div>
+  </div>
+
+  <h2 className="internkim-overview__section-title">믿고 맡길 수 있는 이유</h2>
+
+  <div className="internkim-overview__reasons">
+    <div className="internkim-overview__reason">
+      <span className="internkim-overview__path-title">시킨 사람의 권한으로만</span>
+      <span className="internkim-overview__path-description">
+        부탁한 사람이 볼 수 있는 것만 보고 할 수 있는 것만 합니다. 남긴 기록에는
+        시킨 사람의 이름이 붙습니다.
+      </span>
+    </div>
+    <div className="internkim-overview__reason">
+      <span className="internkim-overview__path-title">중요한 일은 먼저 묻기</span>
+      <span className="internkim-overview__path-description">
+        되돌리기 어려운 일은 하기 전에 부탁한 사람에게 확인을 받습니다.
+      </span>
+    </div>
+    <div className="internkim-overview__reason">
+      <span className="internkim-overview__path-title">회사 데이터는 회사에</span>
+      <span className="internkim-overview__path-description">
+        김인턴은 회사가 둔 컴퓨터에서 돕니다. 대화와 파일은 그 컴퓨터에 남고,
+        컴퓨터를 바꿔도 회사 기록은 그대로입니다.
+      </span>
+    </div>
+  </div>
+
+  <h2 className="internkim-overview__section-title">어디서부터 볼까요</h2>
 
   <div className="internkim-overview__paths">
-    <a className="internkim-overview__path" href="/ko/quickstart">
-      <span className="internkim-overview__audience">회사 관리자</span>
-      <span className="internkim-overview__path-title">회사 설정하기</span>
+    <a className="internkim-overview__path" href="/ko/using">
+      <span className="internkim-overview__audience">구성원</span>
+      <span className="internkim-overview__path-title">김인턴에게 일 맡기기</span>
       <div className="internkim-overview__path-description">
-        회사를 만들고 늘 켜 둘 컴퓨터를 연결한 뒤 첫 구성원을 초대합니다.
+        어디서 어떻게 부탁하는지, 무엇을 맡길 수 있는지 알아봅니다.
       </div>
-      <span className="internkim-overview__path-action">빠른 시작 열기</span>
+      <span className="internkim-overview__path-action">사용 안내 열기</span>
     </a>
 
-    <a className="internkim-overview__path" href="/ko/architecture">
-      <span className="internkim-overview__audience">시스템 구조</span>
-      <span className="internkim-overview__path-title">동작 방식 이해하기</span>
+    <a className="internkim-overview__path" href="/ko/quickstart">
+      <span className="internkim-overview__audience">회사 관리자</span>
+      <span className="internkim-overview__path-title">회사 시작하기</span>
       <div className="internkim-overview__path-description">
-        웹 앱, 회사 컴퓨터, 에이전트가 어떻게 연결되는지 살펴봅니다.
+        회사를 만들고 늘 켜 둘 컴퓨터를 연결한 뒤 동료를 초대합니다.
       </div>
-      <span className="internkim-overview__path-action">구조 살펴보기</span>
+      <span className="internkim-overview__path-action">빠른 시작 열기</span>
     </a>
 
     <a className="internkim-overview__path" href="/ko/api">
       <span className="internkim-overview__audience">개발자</span>
       <span className="internkim-overview__path-title">연동 만들기</span>
       <div className="internkim-overview__path-description">
-        API 토큰과 에이전트 도구를 사용하고, 실행 기록을 확인합니다.
+        API 토큰과 도구로 다른 서비스에서 김인턴의 기능을 씁니다.
       </div>
       <span className="internkim-overview__path-action">API 문서 열기</span>
     </a>
   </div>
 
   <div className="internkim-overview__operator-link">
-    이미 운영 중인가요? <a href="/ko/running-the-host">호스트 운영 안내를 보세요.</a>
+    어떻게 만들어졌는지 궁금하다면 <a href="/ko/introduction">구조 한눈에 보기</a>부터 읽으세요.
   </div>
 </div>

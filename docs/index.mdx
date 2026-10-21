@@ -1,50 +1,103 @@
 ---
 title: Overview
-description: Set up the host, understand how InternKim works, or build with the public API.
+description: One more intern for your company. Ask in plain words and it handles attendance, the calendar, documents and mail.
 icon: Compass
 ---
 
 <div className="internkim-overview">
   <div className="internkim-overview__intro">
-    InternKim runs on a computer your company controls. People reach it through
-    the web app or the company messenger, and each request keeps the sender's
-    identity and permissions.
+    InternKim is one more intern for your company. Ask it the way you would
+    message a colleague, and it books your leave, sets up the meeting, drafts the
+    quote and sorts your mail. It works only with the permissions of whoever
+    asked, and your company's data stays on a computer your company keeps.
   </div>
 
-  <h2 className="internkim-overview__section-title">Choose where to start</h2>
+  <h2 className="internkim-overview__section-title">Things to ask</h2>
+
+  <div className="internkim-overview__examples">
+    <div className="internkim-overview__example">
+      <span className="internkim-overview__example-ask">“Take next Friday afternoon off for me”</span>
+      <span className="internkim-overview__example-result">Requests the leave and tells you what you have left.</span>
+    </div>
+    <div className="internkim-overview__example">
+      <span className="internkim-overview__example-ask">“Find 30 minutes with Park Example on Thursday afternoon”</span>
+      <span className="internkim-overview__example-result">Puts the meeting on the company calendar.</span>
+    </div>
+    <div className="internkim-overview__example">
+      <span className="internkim-overview__example-ask">“Turn this spreadsheet into a quote PDF”</span>
+      <span className="internkim-overview__example-result">Builds it on the company letterhead and attaches it to the chat.</span>
+    </div>
+    <div className="internkim-overview__example">
+      <span className="internkim-overview__example-ask">“Which of today's emails need a reply?”</span>
+      <span className="internkim-overview__example-result">Reads the inbox and lists what needs doing.</span>
+    </div>
+    <div className="internkim-overview__example">
+      <span className="internkim-overview__example-ask">“Make a link with the documents for the investor”</span>
+      <span className="internkim-overview__example-result">Picks them from the data room and shares them behind a link that expires.</span>
+    </div>
+    <div className="internkim-overview__example">
+      <span className="internkim-overview__example-ask">“Every Monday at 9, send me a summary of last week's work”</span>
+      <span className="internkim-overview__example-result">Writes and sends it at that time, every week.</span>
+    </div>
+  </div>
+
+  <h2 className="internkim-overview__section-title">Why you can hand it work</h2>
+
+  <div className="internkim-overview__reasons">
+    <div className="internkim-overview__reason">
+      <span className="internkim-overview__path-title">Only what the asker may do</span>
+      <span className="internkim-overview__path-description">
+        It sees what the person who asked can see and does what they can do. What
+        it leaves behind carries their name.
+      </span>
+    </div>
+    <div className="internkim-overview__reason">
+      <span className="internkim-overview__path-title">It asks before the big things</span>
+      <span className="internkim-overview__path-description">
+        Before anything hard to undo, it checks with the person who asked.
+      </span>
+    </div>
+    <div className="internkim-overview__reason">
+      <span className="internkim-overview__path-title">Your data stays yours</span>
+      <span className="internkim-overview__path-description">
+        It runs on a computer your company keeps. Conversations and files stay
+        there, and the company's records outlive any one machine.
+      </span>
+    </div>
+  </div>
+
+  <h2 className="internkim-overview__section-title">Where to start</h2>
 
   <div className="internkim-overview__paths">
-    <a className="internkim-overview__path" href="/quickstart">
-      <span className="internkim-overview__audience">Company admin</span>
-      <span className="internkim-overview__path-title">Set up a company</span>
+    <a className="internkim-overview__path" href="/using">
+      <span className="internkim-overview__audience">Members</span>
+      <span className="internkim-overview__path-title">Hand InternKim work</span>
       <div className="internkim-overview__path-description">
-        Create the company, connect its always-on computer, and invite the first
-        people.
+        Where and how to ask, and what it can take off your hands.
       </div>
-      <span className="internkim-overview__path-action">Open quickstart</span>
+      <span className="internkim-overview__path-action">Open the guide</span>
     </a>
 
-    <a className="internkim-overview__path" href="/architecture">
-      <span className="internkim-overview__audience">System overview</span>
-      <span className="internkim-overview__path-title">Understand the system</span>
+    <a className="internkim-overview__path" href="/quickstart">
+      <span className="internkim-overview__audience">Company admins</span>
+      <span className="internkim-overview__path-title">Start your company</span>
       <div className="internkim-overview__path-description">
-        See how the web app, company computer, and agent fit together.
+        Create the company, connect a computer that stays on, and invite your colleagues.
       </div>
-      <span className="internkim-overview__path-action">Read the architecture</span>
+      <span className="internkim-overview__path-action">Open the quickstart</span>
     </a>
 
     <a className="internkim-overview__path" href="/api">
-      <span className="internkim-overview__audience">Developer</span>
+      <span className="internkim-overview__audience">Developers</span>
       <span className="internkim-overview__path-title">Build an integration</span>
       <div className="internkim-overview__path-description">
-        Use API tokens, call agent tools, and read the records those calls
-        create.
+        Use API tokens and tools to reach InternKim from other services.
       </div>
-      <span className="internkim-overview__path-action">Explore the API</span>
+      <span className="internkim-overview__path-action">Open the API docs</span>
     </a>
   </div>
 
   <div className="internkim-overview__operator-link">
-    Already running InternKim? <a href="/running-the-host">Read the host operations guide.</a>
+    Curious how it is built? Start with <a href="/introduction">how it fits together</a>.
   </div>
 </div>
