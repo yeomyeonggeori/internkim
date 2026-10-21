@@ -145,6 +145,20 @@ html > body[data-scroll-locked] {
   margin: 0 0 2.25rem;
 }
 
+.internkim-overview__reasons--pair {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.internkim-overview__prose {
+  max-width: 48rem;
+  margin: 0 0 2.25rem;
+  line-height: 1.75;
+}
+
+.internkim-overview__prose > p {
+  margin: 0 0 0.9rem;
+}
+
 .internkim-overview__example,
 .internkim-overview__reason {
   display: flex;
