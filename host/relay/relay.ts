@@ -27,6 +27,7 @@ import { Transfers } from './transfers';
 import { PersonPictures, type PictureRequest } from './person-picture';
 import { defaultAnswerByteCeiling, largestRawBytesThatFit } from './answer-size';
 import { positiveNumberSetting } from './settings';
+import { keepHostSession, type HostSession } from './host-session';
 import {
 	answerBodyOf,
 	askAdmind,
@@ -98,11 +99,11 @@ async function hostCredential(): Promise<string> {
 	return kept;
 }
 
-let hostSession = await askForHostSession();
+const hostSession = await keepHostSession({ credential: hostCredential, exchange: askForHostSession });
 const client = createClient(projectURL, publishableKey, {
-	accessToken: async () => hostSession.accessToken
+	accessToken: async () => hostSession.current().accessToken
 });
-const companyID = hostSession.companyID;
+const companyID = hostSession.current().companyID;
 console.log(`acting as the host of company ${companyID}`);
 
 setInterval(() => void keepGoing('session', keepSessionFresh), 60_000);
@@ -126,7 +127,7 @@ function openGatewayConnection(): GatewayConnection | null {
 
 async function freshHostAccessToken(): Promise<string> {
 	await keepSessionFresh();
-	return hostSession.accessToken;
+	return hostSession.current().accessToken;
 }
 
 let gateway: GatewayConnection | null = null;
@@ -626,13 +627,13 @@ async function askForMemberSession(
 	return (await response.json()) as { accessToken: string; expiresAt: number };
 }
 
-async function askForHostSession(): Promise<{ companyID: string; accessToken: string; expiresAt: number }> {
+async function askForHostSession(credential: string): Promise<HostSession> {
 	const response = await fetch(`${appURL}/api/agent/host-session`, {
 		method: 'POST',
-		headers: { Authorization: `Bearer ${await hostCredential()}` }
+		headers: { Authorization: `Bearer ${credential}` }
 	});
 	if (!response.ok) throw new Error(`the central plane refused this company computer credential (${response.status})`);
-	return (await response.json()) as { companyID: string; accessToken: string; expiresAt: number };
+	return (await response.json()) as HostSession;
 }
 
 async function letExpiredCopiesGo(): Promise<void> {
@@ -644,10 +645,7 @@ async function letExpiredCopiesGo(): Promise<void> {
 }
 
 async function keepSessionFresh(): Promise<void> {
-	const secondsLeft = hostSession.expiresAt - Math.floor(Date.now() / 1000);
-	if (secondsLeft > 300) return;
-	hostSession = await askForHostSession();
-	console.log('session renewed');
+	if (await hostSession.keepFresh()) console.log('session renewed');
 }
 
 async function keepGoing(what: string, work: () => Promise<void>): Promise<void> {
