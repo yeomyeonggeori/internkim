@@ -76,7 +76,11 @@ func (service *Service) proxyScopedTaskRetry(responseWriter http.ResponseWriter,
 		ViewerEmail:   viewerEmail,
 		ViewerIsAdmin: isViewerAdmin,
 	}
-	status, responseBody, contentType, errorValue := service.blueclawTaskRetryRequest(request.Context(), blueclawRequest)
+	service.answerAsBlueclawDid(request.Context(), responseWriter, "/admin/api/run/retry", blueclawRequest)
+}
+
+func (service *Service) answerAsBlueclawDid(ctx context.Context, responseWriter http.ResponseWriter, blueclawPath string, body any) {
+	status, responseBody, contentType, errorValue := service.blueclawPassThroughRequest(ctx, blueclawPath, body)
 	if errorValue != nil {
 		http.Error(responseWriter, errorValue.Error(), http.StatusServiceUnavailable)
 		return
@@ -88,12 +92,12 @@ func (service *Service) proxyScopedTaskRetry(responseWriter http.ResponseWriter,
 	_, _ = responseWriter.Write(responseBody)
 }
 
-func (service *Service) blueclawTaskRetryRequest(ctx context.Context, body trustedTaskRetryRequest) (int, []byte, string, error) {
+func (service *Service) blueclawPassThroughRequest(ctx context.Context, blueclawPath string, body any) (int, []byte, string, error) {
 	document, errorValue := json.Marshal(body)
 	if errorValue != nil {
 		return 0, nil, "", errorValue
 	}
-	requestURL := strings.TrimRight(service.Configuration.BlueclawBaseURL, "/") + "/admin/api/run/retry"
+	requestURL := strings.TrimRight(service.Configuration.BlueclawBaseURL, "/") + blueclawPath
 	blueclawRequest, errorValue := http.NewRequestWithContext(ctx, http.MethodPost, requestURL, strings.NewReader(string(document)))
 	if errorValue != nil {
 		return 0, nil, "", errorValue
@@ -101,12 +105,12 @@ func (service *Service) blueclawTaskRetryRequest(ctx context.Context, body trust
 	blueclawRequest.Header.Set("Content-Type", "application/json")
 	response, errorValue := service.httpClient().Do(blueclawRequest)
 	if errorValue != nil {
-		return 0, nil, "", fmt.Errorf("Blueclaw retry unavailable: %w", errorValue)
+		return 0, nil, "", fmt.Errorf("Blueclaw %s unavailable: %w", blueclawPath, errorValue)
 	}
 	defer response.Body.Close()
 	responseBody, errorValue := io.ReadAll(io.LimitReader(response.Body, 1<<20))
 	if errorValue != nil {
-		return 0, nil, "", fmt.Errorf("reading Blueclaw retry response: %w", errorValue)
+		return 0, nil, "", fmt.Errorf("reading Blueclaw %s response: %w", blueclawPath, errorValue)
 	}
 	return response.StatusCode, responseBody, response.Header.Get("Content-Type"), nil
 }
@@ -201,6 +205,12 @@ type taskApprovalRequest struct {
 	Decision  string `json:"decision"`
 }
 
+type trustedTaskApprovalRequest struct {
+	TaskRunID     string `json:"taskRunID"`
+	Decision      string `json:"decision"`
+	ApproverEmail string `json:"approverEmail"`
+}
+
 func (service *Service) proxyScopedTaskApproval(responseWriter http.ResponseWriter, request *http.Request, viewerEmail string, isViewerAdmin bool) {
 	if request.Method != http.MethodPost {
 		http.NotFound(responseWriter, request)
@@ -220,13 +230,11 @@ func (service *Service) proxyScopedTaskApproval(responseWriter http.ResponseWrit
 		http.Error(responseWriter, "task run not found", http.StatusNotFound)
 		return
 	}
-	blueclawRequest := taskApprovalRequest{TaskRunID: taskRunID, Decision: strings.TrimSpace(approvalRequest.Decision)}
-	var approvalResponse any
-	if errorValue := service.blueclawJSONRequest(request.Context(), http.MethodPost, "/admin/api/run/approve", blueclawRequest, &approvalResponse); errorValue != nil {
-		http.Error(responseWriter, errorValue.Error(), http.StatusBadGateway)
-		return
-	}
-	service.writeJSON(responseWriter, approvalResponse)
+	service.answerAsBlueclawDid(request.Context(), responseWriter, "/admin/api/run/approve", trustedTaskApprovalRequest{
+		TaskRunID:     taskRunID,
+		Decision:      strings.TrimSpace(approvalRequest.Decision),
+		ApproverEmail: viewerEmail,
+	})
 }
 
 func (service *Service) taskRunIsVisibleToViewer(ctx context.Context, taskRunID string, viewerEmail string, isViewerAdmin bool) bool {
