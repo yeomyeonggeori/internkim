@@ -17,6 +17,7 @@ mock.module('../../../src/lib/host-bridge', () => ({
 		return {
 			status: 200,
 			body: {
+				agentExternalID: 'bot-1',
 				items: [
 					{
 						reason: 'thread_reply',
@@ -39,13 +40,14 @@ mock.module('../../../src/lib/host-bridge', () => ({
 const { fetchInbox, markThreadRead } = await import('../../../src/lib/messenger/messenger-api');
 
 describe('the inbox over the company bridge', () => {
-	test('asks person.inbox.list and keeps why each message is there and whether it is unread', async () => {
+	test('asks person.inbox.list and keeps why each message is there, whether it is unread, and which account is the agent', async () => {
 		asked.length = 0;
 
-		const items = await fetchInbox();
+		const inbox = await fetchInbox();
 
 		expect(asked).toEqual([{ capability: 'person.inbox.list', body: undefined }]);
-		expect(items).toEqual([
+		expect(inbox.agentExternalID).toBe('bot-1');
+		expect(inbox.items).toEqual([
 			{
 				reason: 'thread_reply',
 				isUnread: true,
