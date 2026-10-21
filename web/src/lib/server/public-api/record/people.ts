@@ -1,4 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
+import type { MemberKind } from '$lib/server/public-api/catalog/people';
 import { handleFromEmail } from '$lib/server/member-directory';
 import { personName } from '$lib/person-name';
 import { emailNearness, typoNearness } from './hint-nearness';
@@ -16,12 +17,14 @@ export type RecordPerson = {
 	name: string;
 	email: string;
 	isAdmin: boolean;
+	kind: MemberKind;
 	employmentStatus: string;
 	jobTitle: string;
 	teamID: string;
 	supervisorID: string;
 	phoneNumber: string;
 	hireDate: string;
+	departureDate: string;
 	timeZone: string;
 };
 
@@ -30,17 +33,19 @@ type MemberRow = {
 	name: string | null;
 	email: string | null;
 	is_admin: boolean;
+	kind: MemberKind;
 	status: string;
 	job_title: string | null;
 	team_id: string | null;
 	supervisor_id: string | null;
 	phone_number: string | null;
 	joined_at: string | null;
+	departed_on: string | null;
 	timezone: string | null;
 };
 
 const directoryColumns =
-	'id, name, email, is_admin, status, job_title, team_id, supervisor_id, phone_number, joined_at, timezone';
+	'id, name, email, is_admin, kind, status, job_title, team_id, supervisor_id, phone_number, joined_at, departed_on, timezone';
 
 export function displayNameOf(member: { name: string | null; email: string | null }): string {
 	return member.name?.trim() || (member.email ?? '').split('@')[0];
@@ -84,12 +89,14 @@ function recordPersonOf(member: MemberRow): RecordPerson {
 		name: displayNameOf(member),
 		email: member.email ?? '',
 		isAdmin: member.is_admin,
+		kind: member.kind,
 		employmentStatus: member.status,
 		jobTitle: member.job_title ?? '',
 		teamID: member.team_id ?? '',
 		supervisorID: member.supervisor_id ?? '',
 		phoneNumber: member.phone_number ?? '',
 		hireDate: member.joined_at ? String(member.joined_at).slice(0, 10) : '',
+		departureDate: member.departed_on ?? '',
 		timeZone: member.timezone ?? ''
 	};
 }

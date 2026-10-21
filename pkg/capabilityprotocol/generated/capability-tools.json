@@ -3545,6 +3545,9 @@
             "items": {
               "additionalProperties": false,
               "properties": {
+                "departureDate": {
+                  "type": "string"
+                },
                 "email": {
                   "type": "string"
                 },
@@ -3561,6 +3564,13 @@
                   "type": "boolean"
                 },
                 "jobTitle": {
+                  "type": "string"
+                },
+                "kind": {
+                  "enum": [
+                    "human",
+                    "other"
+                  ],
                   "type": "string"
                 },
                 "mention": {
@@ -3628,6 +3638,9 @@
               "items": {
                 "additionalProperties": false,
                 "properties": {
+                  "departureDate": {
+                    "type": "string"
+                  },
                   "email": {
                     "type": "string"
                   },
@@ -3644,6 +3657,13 @@
                     "type": "boolean"
                   },
                   "jobTitle": {
+                    "type": "string"
+                  },
+                  "kind": {
+                    "enum": [
+                      "human",
+                      "other"
+                    ],
                     "type": "string"
                   },
                   "mention": {
@@ -3706,7 +3726,7 @@
         "state": "ok"
       },
       "canonicalName": "person_update",
-      "description": "Change what the company directory holds about one person: their name, their job title, their organization, who they report to, their phone number, the day they started, whether they administer the company, and whether they still work here. Only the fields the call names change. A person may correct their own phone number and start date; every other field, and anybody else's, is an administrator's. Ask the requester first before raising or lowering administrator rights or marking somebody departed; both are wide changes somebody has to mean.",
+      "description": "Change what the company directory holds about one person: their name, their job title, their organization, who they report to, their phone number, the day they started, their last day, whether they administer the company, whether they still work here, and whether the account is a person at all. Only the fields the call names change. A person may correct their own phone number and start date; every other field, and anybody else's, is an administrator's. Ask the requester first before raising or lowering administrator rights or marking somebody departed; both are wide changes somebody has to mean.",
       "estimatedLatency": "medium",
       "idempotency": {
         "required": false,
@@ -3717,6 +3737,11 @@
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
         "properties": {
+          "departureDate": {
+            "description": "Their last working day, in YYYY-MM-DD format, which may be ahead. After it passes they are no longer counted in the headcount. An empty string clears it. Only an administrator sets it.",
+            "maxLength": 32,
+            "type": "string"
+          },
           "employmentStatus": {
             "description": "Whether they still work here. Only an administrator may mark somebody departed or bring them back.",
             "enum": [
@@ -3737,6 +3762,14 @@
           "jobTitle": {
             "description": "Their job title, e.g. 'editor in chief'. An empty string clears it.",
             "maxLength": 256,
+            "type": "string"
+          },
+          "kind": {
+            "description": "What the account stands for: 'human' for somebody who works here, 'other' for anything else such as a test account. Only a human is counted in the headcount or drawn on the organization chart. Only an administrator changes this.",
+            "enum": [
+              "human",
+              "other"
+            ],
             "type": "string"
           },
           "name": {
@@ -3767,6 +3800,11 @@
         "additionalProperties": false,
         "minProperties": 2,
         "properties": {
+          "departureDate": {
+            "description": "Their last working day, in YYYY-MM-DD format, which may be ahead. After it passes they are no longer counted in the headcount. An empty string clears it. Only an administrator sets it.",
+            "maxLength": 32,
+            "type": "string"
+          },
           "employmentStatus": {
             "description": "Whether they still work here. Only an administrator may mark somebody departed or bring them back.",
             "enum": [
@@ -3787,6 +3825,14 @@
           "jobTitle": {
             "description": "Their job title, e.g. 'editor in chief'. An empty string clears it.",
             "maxLength": 256,
+            "type": "string"
+          },
+          "kind": {
+            "description": "What the account stands for: 'human' for somebody who works here, 'other' for anything else such as a test account. Only a human is counted in the headcount or drawn on the organization chart. Only an administrator changes this.",
+            "enum": [
+              "human",
+              "other"
+            ],
             "type": "string"
           },
           "name": {
@@ -3832,6 +3878,9 @@
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
         "properties": {
+          "departureDate": {
+            "type": "string"
+          },
           "email": {
             "type": "string"
           },
@@ -3848,6 +3897,13 @@
             "type": "boolean"
           },
           "jobTitle": {
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "human",
+              "other"
+            ],
             "type": "string"
           },
           "mention": {
@@ -3902,6 +3958,9 @@
           "$schema": "https://json-schema.org/draft/2020-12/schema",
           "additionalProperties": false,
           "properties": {
+            "departureDate": {
+              "type": "string"
+            },
             "email": {
               "type": "string"
             },
@@ -3918,6 +3977,13 @@
               "type": "boolean"
             },
             "jobTitle": {
+              "type": "string"
+            },
+            "kind": {
+              "enum": [
+                "human",
+                "other"
+              ],
               "type": "string"
             },
             "mention": {
@@ -19670,6 +19736,7 @@
             "type": "string"
           },
           "employeeCount": {
+            "description": "How many people work here now, counted from the organization: active human members whose hire date has come. Nobody writes it.",
             "maximum": 9007199254740991,
             "minimum": -9007199254740991,
             "type": "integer"
@@ -19817,6 +19884,7 @@
               "type": "string"
             },
             "employeeCount": {
+              "description": "How many people work here now, counted from the organization: active human members whose hire date has come. Nobody writes it.",
               "maximum": 9007199254740991,
               "minimum": -9007199254740991,
               "type": "integer"
@@ -19980,12 +20048,6 @@
             "description": "Main company email address.",
             "type": "string"
           },
-          "employeeCount": {
-            "description": "Official employee headcount. Independent of platform member count.",
-            "maximum": 9007199254740991,
-            "minimum": -9007199254740991,
-            "type": "integer"
-          },
           "fax": {
             "description": "Fax number.",
             "type": "string"
@@ -20092,12 +20154,6 @@
           "email": {
             "description": "Main company email address.",
             "type": "string"
-          },
-          "employeeCount": {
-            "description": "Official employee headcount. Independent of platform member count.",
-            "maximum": 9007199254740991,
-            "minimum": -9007199254740991,
-            "type": "integer"
           },
           "fax": {
             "description": "Fax number.",
@@ -20218,6 +20274,7 @@
             "type": "string"
           },
           "employeeCount": {
+            "description": "How many people work here now, counted from the organization: active human members whose hire date has come. Nobody writes it.",
             "maximum": 9007199254740991,
             "minimum": -9007199254740991,
             "type": "integer"
@@ -20371,6 +20428,7 @@
               "type": "string"
             },
             "employeeCount": {
+              "description": "How many people work here now, counted from the organization: active human members whose hire date has come. Nobody writes it.",
               "maximum": 9007199254740991,
               "minimum": -9007199254740991,
               "type": "integer"

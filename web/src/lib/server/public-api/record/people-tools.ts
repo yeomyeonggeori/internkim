@@ -29,11 +29,13 @@ export type PersonUpdateInput = {
 	personHint?: string;
 	name?: string;
 	isAdmin?: boolean;
+	kind?: string;
 	jobTitle?: string;
 	teamHint?: string;
 	supervisorHint?: string;
 	phoneNumber?: string;
 	hireDate?: string;
+	departureDate?: string;
 	employmentStatus?: string;
 };
 
@@ -56,6 +58,7 @@ export function homesOfPersonUpdate(
 	const account: Record<string, string | boolean> = {};
 	if (input.name !== undefined) account.name = input.name;
 	if (input.isAdmin !== undefined) account.isAdmin = input.isAdmin;
+	if (input.kind !== undefined) account.kind = input.kind;
 
 	const organization: Record<string, string> = {};
 	if (input.jobTitle !== undefined) organization.jobTitle = input.jobTitle;
@@ -63,6 +66,7 @@ export function homesOfPersonUpdate(
 	if (resolved.supervisorID !== undefined) organization.supervisorID = resolved.supervisorID;
 	if (input.phoneNumber !== undefined) organization.phoneNumber = input.phoneNumber;
 	if (input.hireDate !== undefined) organization.hireDate = input.hireDate;
+	if (input.departureDate !== undefined) organization.departureDate = input.departureDate;
 	if (input.employmentStatus !== undefined) organization.employmentStatus = input.employmentStatus;
 
 	return { account, organization };
@@ -84,6 +88,7 @@ export function answeredPerson(
 		name: displayName,
 		email: person.email,
 		isAdmin: person.isAdmin,
+		kind: person.kind,
 		employmentStatus: person.employmentStatus,
 		...(mention ? { mention } : {}),
 		...(handle ? { handle } : {}),
@@ -94,6 +99,7 @@ export function answeredPerson(
 		...(supervisor ? { supervisorName: personName(supervisor.name, locale) } : {}),
 		...(person.phoneNumber ? { phoneNumber: person.phoneNumber } : {}),
 		...(person.hireDate ? { hireDate: person.hireDate } : {}),
+		...(person.departureDate ? { departureDate: person.departureDate } : {}),
 		...(person.timeZone ? { timeZone: person.timeZone } : {})
 	};
 }

@@ -196,12 +196,18 @@ async function writeTheAnnualGrant(context: RecordContext, leaveDays: number): P
 	});
 }
 
+async function headcountOf(context: RecordContext): Promise<number> {
+	const { data, error } = await context.caller.rpc('my_company_headcount');
+	if (error) throw new Error(`the company headcount could not be counted: ${error.message}`);
+	return Number(data);
+}
+
 export async function companyInfoGet(
 	context: RecordContext,
 	input: CompanyInfoGetInput
 ): Promise<CompanyProfileResult> {
 	const row = await companyRow(context.caller);
-	return companyProfileView(profileOf(row.profile), languageAsked(input.language));
+	return companyProfileView(profileOf(row.profile), languageAsked(input.language), await headcountOf(context));
 }
 
 export async function companyInfoSet(
@@ -218,7 +224,7 @@ export async function companyInfoSet(
 		{ profile: written },
 		'only an administrator can change the company master profile'
 	);
-	return companyProfileView(written, language);
+	return companyProfileView(written, language, await headcountOf(context));
 }
 
 function holidaysHeld(rules: Record<string, unknown> | null): StoredHoliday[] {

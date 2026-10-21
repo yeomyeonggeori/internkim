@@ -18,6 +18,11 @@ export enum WorkspaceEmploymentStatus {
   Departed = 'departed',
 }
 
+export enum MemberKind {
+  Human = 'human',
+  Other = 'other',
+}
+
 const personHintSchema = z.string().min(1).max(256).describe(
   'Identifies the person to act on: their exact person ID, their exact email address, their @handle, or their name as a person_list result shows it. A name only one colleague carries resolves; a name several carry fails with the candidates to choose between.',
 );
@@ -49,6 +54,7 @@ const directoryPersonSchema = z.strictObject({
   mention: z.string().optional(),
   handle: z.string().optional(),
   isAdmin: z.boolean().optional(),
+  kind: z.enum(MemberKind).optional(),
   employmentStatus: z.string().optional(),
   jobTitle: z.string().optional(),
   teamID: z.string().optional(),
@@ -57,6 +63,7 @@ const directoryPersonSchema = z.strictObject({
   supervisorName: z.string().optional(),
   phoneNumber: z.string().optional(),
   hireDate: z.string().optional(),
+  departureDate: z.string().optional(),
   timeZone: z.string().optional(),
 });
 
@@ -70,11 +77,13 @@ const personUpdateObjectSchema = z.strictObject({
   personHint: personHintSchema,
   name: z.string().max(256).describe('The name every screen and every mention shows for them.').optional(),
   isAdmin: z.boolean().describe('Whether they administer the company. Only an administrator may raise or lower this.').optional(),
+  kind: z.enum(MemberKind).describe("What the account stands for: 'human' for somebody who works here, 'other' for anything else such as a test account. Only a human is counted in the headcount or drawn on the organization chart. Only an administrator changes this.").optional(),
   jobTitle: z.string().max(256).describe("Their job title, e.g. 'editor in chief'. An empty string clears it.").optional(),
   teamHint: teamMembershipHintSchema.optional(),
   supervisorHint: supervisorHintSchema.optional(),
   phoneNumber: z.string().max(64).describe('Their phone number as they write it. An empty string clears it.').optional(),
   hireDate: z.string().max(32).describe('The day they started, in YYYY-MM-DD format. An empty string clears it.').optional(),
+  departureDate: z.string().max(32).describe('Their last working day, in YYYY-MM-DD format, which may be ahead. After it passes they are no longer counted in the headcount. An empty string clears it. Only an administrator sets it.').optional(),
   employmentStatus: z.enum(WorkspaceEmploymentStatus)
     .describe('Whether they still work here. Only an administrator may mark somebody departed or bring them back.')
     .optional(),
@@ -216,7 +225,7 @@ export const peopleToolDefinitions: CapabilityToolDefinition[] = [
     answeredBy: CapabilityAnsweredBy.Record,
     privacyClass: 'workspace_task',
     policyResource: 'tool:person_update',
-    description: "Change what the company directory holds about one person: their name, their job title, their organization, who they report to, their phone number, the day they started, whether they administer the company, and whether they still work here. Only the fields the call names change. A person may correct their own phone number and start date; every other field, and anybody else's, is an administrator's. Ask the requester first before raising or lowering administrator rights or marking somebody departed; both are wide changes somebody has to mean.",
+    description: "Change what the company directory holds about one person: their name, their job title, their organization, who they report to, their phone number, the day they started, their last day, whether they administer the company, whether they still work here, and whether the account is a person at all. Only the fields the call names change. A person may correct their own phone number and start date; every other field, and anybody else's, is an administrator's. Ask the requester first before raising or lowering administrator rights or marking somebody departed; both are wide changes somebody has to mean.",
     version: '2',
     estimatedLatency: CapabilityEstimatedLatency.Medium,
     inputSchema: personUpdateInputSchema,

@@ -109,9 +109,6 @@ func (held heldCompanyProfile) changeForLanguage(language string) map[string]any
 	if capital := strings.TrimSpace(held.Capital); capital != "" {
 		change["capital"] = capitalAsMoney(capital)
 	}
-	if held.EmployeeCount > 0 {
-		change["employeeCount"] = held.EmployeeCount
-	}
 	if labels := held.LegalAttributes[language]; len(labels) > 0 {
 		change["legalAttributes"] = legalAttributesDocument(labels)
 	}

@@ -7,7 +7,7 @@ const memberID = '10000000-0000-4000-8000-000000000001';
 const companyID = '20000000-0000-4000-8000-000000000001';
 const email = 'member@example.com';
 const date = '2026-10-06T03:00:00Z';
-const people = Array.from({ length: 8 }, (_, index) => ({ personID: index ? `person-${index}` : memberID, name: ['이샘플', '박예시', '최견본'][index % 3], email: `member${index}@example.com`, isAdmin: index === 0, jobTitle: index % 2 ? '프로덕트 디자이너' : '소프트웨어 엔지니어', teamID: 'team-product', hireDate: '2024-01-01' }));
+const people = Array.from({ length: 8 }, (_, index) => ({ personID: index ? `person-${index}` : memberID, name: ['이샘플', '박예시', '최견본'][index % 3], email: `member${index}@example.com`, isAdmin: index === 0, kind: 'human', jobTitle: index % 2 ? '프로덕트 디자이너' : '소프트웨어 엔지니어', teamID: 'team-product', hireDate: '2024-01-01' }));
 const audit = { createdAt: date, createdByPersonID: memberID, updatedAt: date, updatedByPersonID: memberID, archivedAt: null, archivedByPersonID: '' };
 const organizations = Array.from({ length: 6 }, (_, index) => ({ organizationID: `organization-${index}`, name: `예시 파트너 ${index + 1}`, status: 'active', types: [], tags: [], importance: 'medium', ownerPersonID: memberID, address: '', description: '제품 협력과 고객 경험을 함께 준비합니다.', audit }));
 const files = Array.from({ length: 7 }, (_, index) => ({ name: `${['주간-회고', '프로젝트-계획', '제품-요구사항'][index % 3]}-${index + 1}.md`, agentPath: `/workspace/private/sample/document-${index + 1}.md`, isDirectory: false, size: 2048 * (index + 1), modifiedAt: date }));

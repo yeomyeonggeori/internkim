@@ -177,6 +177,20 @@ describe('a directory entry written through the two homes it lives in', () => {
 		expect(resultOf(await asAdmin('person_list')).requesterID).toBe(adminID);
 	}, networkHookTimeout);
 
+	test('keeps an account that is not a person out of the headcount, and only an administrator says so', async () => {
+		const countedBefore = resultOf(await asAdmin('company_info_get')).employeeCount;
+		const refusal = refusalOf(await asSample('person_update', { personHint: sampleID, kind: 'other' }));
+		expect(refusal.error).toContain('administrator');
+
+		expect(resultOf(await asAdmin('person_update', { personHint: sampleID, kind: 'other' })).kind).toBe('other');
+		const listed = resultOf(await asAdmin('person_list')).people as { personID: string; kind?: string }[];
+		expect(listed.find((person) => person.personID === sampleID)?.kind).toBe('other');
+		expect(resultOf(await asAdmin('company_info_get')).employeeCount).toBe(Number(countedBefore) - 1);
+
+		await asAdmin('person_update', { personHint: sampleID, kind: 'human' });
+		expect(resultOf(await asAdmin('company_info_get')).employeeCount).toBe(countedBefore);
+	}, networkHookTimeout);
+
 	test('lets a person correct their own phone number and start date', async () => {
 		const written = resultOf(
 			await asSample('person_update', { personHint: sampleID, phoneNumber: '010-1111-2222', hireDate: '2026-04-01' })

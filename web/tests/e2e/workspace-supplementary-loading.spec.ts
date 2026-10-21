@@ -233,7 +233,7 @@ for (const changed of ['company', 'role', 'account']) {
 			const requestedPhase = directoryPhase;
 			const requestNumber = ++reads;
 			const name = requestedPhase === 0 ? '이샘플' : '박예시';
-			const person = { personID: identity.memberID, name, email: identity.email, isAdmin: identity.isAdmin, teamID: 'team-product', jobTitle: '프로덕트 디자이너' };
+			const person = { personID: identity.memberID, name, email: identity.email, isAdmin: identity.isAdmin, kind: 'human', teamID: 'team-product', jobTitle: '프로덕트 디자이너' };
 			await fixture.waitFor(`directory-${requestedPhase}`);
 			await route.fulfill({ json: { result: { people: [person], count: 1 } } });
 			if (requestedPhase === 0 && requestNumber > 1) oldRefreshReturned = true;

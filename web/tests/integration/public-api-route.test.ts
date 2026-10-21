@@ -1279,7 +1279,7 @@ describe('the company a data room shows', () => {
 		const member = companyOf((await companyAs(sessionToken)).body);
 		const investor = companyOf(z.object({ company: z.unknown() }).parse((await previewAs(administratorSession, 'investor')).body).company);
 
-		expect(Object.keys(member.profile)).toEqual(['brandName']);
+		expect(Object.keys(member.profile)).toEqual(['brandName', 'employeeCount']);
 		expect(member.metrics).toEqual([]);
 		expect(Object.keys(investor.profile).sort()).toEqual(['brandName', 'capital']);
 		expect(investor.metrics.map((metric) => metric.metric)).toEqual(['annualRevenue']);

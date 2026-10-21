@@ -1043,5 +1043,30 @@
 		"path": "company_metric_record.result.year",
 		"reason": "A metric names the period it covers as a moment (YYYY, YYYY-H1, YYYY-Q3, YYYY-MM or YYYY-MM-DD), the same grammar a company record is dated by. This replaces year, quarter and month, which could not say a half or a day.",
 		"release": "the web/API deployment that applies the company_metric period migration, with the host release that carries the updated catalog"
+	},
+	{
+		"path": "person_list.result.people[].kind",
+		"reason": "A person names what their account stands for, human or other, so a test account is kept out of the headcount and the organization chart.",
+		"release": "the web/API deployment that applies the member kind migration, with the host release that carries the updated catalog"
+	},
+	{
+		"path": "person_update.result.kind",
+		"reason": "A person names what their account stands for, human or other, so a test account is kept out of the headcount and the organization chart.",
+		"release": "the web/API deployment that applies the member kind migration, with the host release that carries the updated catalog"
+	},
+	{
+		"path": "company_info_set.input.employeeCount",
+		"reason": "The headcount is counted from the organization, active human members whose hire date has come, so nobody types it; company_info_get still answers employeeCount.",
+		"release": "the web/API deployment that applies the member kind migration, with the host release that carries the updated catalog"
+	},
+	{
+		"path": "person_list.result.people[].departureDate",
+		"reason": "A person names their last working day, so the headcount stops counting them once it has passed.",
+		"release": "the web/API deployment that applies the member kind migration, with the host release that carries the updated catalog"
+	},
+	{
+		"path": "person_update.result.departureDate",
+		"reason": "A person names their last working day, so the headcount stops counting them once it has passed.",
+		"release": "the web/API deployment that applies the member kind migration, with the host release that carries the updated catalog"
 	}
 ]

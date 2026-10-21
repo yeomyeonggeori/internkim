@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import { answeredPerson } from '../../src/lib/server/public-api/record/people-tools';
+import { MemberKind } from '../../src/lib/server/public-api/catalog/people';
 import type { RecordPerson } from '../../src/lib/server/public-api/record/people';
 
 function person(personID: string, name: string, supervisorID = ''): RecordPerson {
@@ -8,12 +9,14 @@ function person(personID: string, name: string, supervisorID = ''): RecordPerson
 		name,
 		email: `${personID}@example.com`,
 		isAdmin: false,
+		kind: MemberKind.Human,
 		employmentStatus: 'active',
 		jobTitle: '',
 		teamID: '',
 		supervisorID,
 		phoneNumber: '',
 		hireDate: '',
+		departureDate: '',
 		timeZone: ''
 	};
 }
