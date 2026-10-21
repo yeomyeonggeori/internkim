@@ -1,4 +1,4 @@
-package app.intern.kim;
+package app.intern.kim.notification;
 
 import android.content.Context;
 import android.graphics.Bitmap;
@@ -14,7 +14,7 @@ import java.io.InputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
 
-final class SenderPicture {
+public final class SenderPicture {
 
     private static final String logTag = "SenderPicture";
     private static final int sidePixels = 256;
@@ -22,7 +22,7 @@ final class SenderPicture {
 
     private SenderPicture() {}
 
-    static Bitmap of(Context context, String pictureURL) {
+    public static Bitmap of(Context context, String pictureURL) {
         Bitmap fetched = fetched(pictureURL);
         Bitmap square = fetched != null ? fetched : BitmapFactory.decodeResource(context.getResources(), R.drawable.sender_default);
         return circled(square);

@@ -1,4 +1,4 @@
-package app.intern.kim;
+package app.intern.kim.notification;
 
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
@@ -15,18 +15,20 @@ import androidx.core.content.pm.ShortcutManagerCompat;
 import androidx.core.graphics.drawable.IconCompat;
 import java.util.Map;
 
-final class SenderNotificationPoster {
+public final class SenderNotificationPoster {
 
     private static final String channelID = "internkim";
     private static final String tapKey = "google.message_id";
 
     private final Context context;
+    private final Intent opening;
 
-    SenderNotificationPoster(Context context) {
+    public SenderNotificationPoster(Context context, Intent opening) {
         this.context = context;
+        this.opening = opening;
     }
 
-    void post(SentNotification sent, Bitmap picture) {
+    public void post(SentNotification sent, Bitmap picture) {
         ensureChannel();
         IconCompat icon = IconCompat.createWithBitmap(picture);
         String senderKey = sent.senderKey();
@@ -40,7 +42,7 @@ final class SenderNotificationPoster {
                 .setShortLabel(sent.nameShown())
                 .setIcon(icon)
                 .setPerson(sender)
-                .setIntent(new Intent(Intent.ACTION_VIEW, null, context, MainActivity.class))
+                .setIntent(new Intent(opening).setAction(Intent.ACTION_VIEW))
                 .build()
         );
 
@@ -51,7 +53,7 @@ final class SenderNotificationPoster {
         );
 
         NotificationCompat.Builder builder = new NotificationCompat.Builder(context, channelID)
-            .setSmallIcon(R.mipmap.ic_launcher)
+            .setSmallIcon(context.getApplicationInfo().icon)
             .setContentTitle(sent.nameShown())
             .setContentText(sent.textShown())
             .setStyle(style)
@@ -67,15 +69,15 @@ final class SenderNotificationPoster {
     }
 
     private PendingIntent tapIntent(SentNotification sent, String standingTag) {
-        Intent opening = new Intent(context, MainActivity.class).addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP | Intent.FLAG_ACTIVITY_CLEAR_TOP);
-        opening.putExtra(tapKey, sent.messageID);
+        Intent tapped = new Intent(opening).addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP | Intent.FLAG_ACTIVITY_CLEAR_TOP);
+        tapped.putExtra(tapKey, sent.messageID);
         for (Map.Entry<String, String> entry : sent.data.entrySet()) {
-            opening.putExtra(entry.getKey(), entry.getValue());
+            tapped.putExtra(entry.getKey(), entry.getValue());
         }
         return PendingIntent.getActivity(
             context,
             standingTag.hashCode(),
-            opening,
+            tapped,
             PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE
         );
     }

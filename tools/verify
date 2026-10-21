@@ -228,8 +228,8 @@ GROUPS = [
         lane="web",
     ),
     Group(
-        "android-widget",
-        ["web/attendance-widget/android/*", "web/android/*"],
+        "android",
+        ["web/attendance-widget/android/*", "web/sender-notification/android/*", "web/android/*"],
         [
             BUN_INSTALL,
             ["bunx", "cap", "sync", "android"],

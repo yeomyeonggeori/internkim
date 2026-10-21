@@ -1,4 +1,4 @@
-package app.intern.kim;
+package app.intern.kim.notification;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
@@ -7,16 +7,16 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
-final class SentNotification {
+public final class SentNotification {
 
-    final String messageID;
-    final String title;
-    final String body;
-    final String tag;
-    final String senderID;
-    final String senderName;
-    final String pictureURL;
-    final Map<String, String> data;
+    public final String messageID;
+    public final String title;
+    public final String body;
+    public final String tag;
+    public final String senderID;
+    public final String senderName;
+    public final String pictureURL;
+    public final Map<String, String> data;
 
     private SentNotification(String messageID, Map<String, String> data) {
         this.messageID = messageID;
@@ -30,7 +30,7 @@ final class SentNotification {
     }
 
     @Nullable
-    static SentNotification from(@NonNull RemoteMessage remoteMessage) {
+    public static SentNotification from(@NonNull RemoteMessage remoteMessage) {
         if (remoteMessage.getNotification() != null) return null;
         Map<String, String> data = remoteMessage.getData();
         if (valueOf(data, "title").isEmpty()) return null;
