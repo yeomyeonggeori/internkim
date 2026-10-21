@@ -1,26 +1,26 @@
 {
   "pages": [
     "index",
+    "using",
     "quickstart",
-    "---이해하기---",
+    "---사용하기---",
+    "data-room",
+    "office",
+    "notifications",
+    "---운영하기---",
+    "running-the-host",
+    "self-hosting",
+    "kim-mini",
+    "---구조---",
     "introduction",
     "architecture",
     "what-lives-where",
     "boundaries",
     "glossary",
-    "---운영하기---",
-    "running-the-host",
-    "self-hosting",
-    "---사용하기---",
-    "data-room",
-    "office",
-    "notifications",
-    "plugin",
     "---연동하기---",
     "api",
     "tools",
     "record",
-    "---참고---",
-    "kim-mini"
+    "plugin"
   ]
 }

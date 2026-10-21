@@ -137,8 +137,41 @@ html > body[data-scroll-locked] {
   margin: 0;
 }
 
+.internkim-overview__examples,
+.internkim-overview__reasons {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.75rem;
+  margin: 0 0 2.25rem;
+}
+
+.internkim-overview__example,
+.internkim-overview__reason {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  padding: 1rem;
+  border: 1px solid var(--color-fd-border);
+  border-radius: 0.625rem;
+  background: var(--color-fd-card);
+}
+
+.internkim-overview__example-ask {
+  font-size: 1rem;
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+.internkim-overview__example-result {
+  color: var(--color-fd-muted-foreground);
+  font-size: 0.92rem;
+  line-height: 1.5;
+}
+
 @media (max-width: 1100px) {
-  .internkim-overview__paths {
+  .internkim-overview__paths,
+  .internkim-overview__examples,
+  .internkim-overview__reasons {
     grid-template-columns: 1fr;
   }
 

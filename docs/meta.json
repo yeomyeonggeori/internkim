@@ -1,26 +1,26 @@
 {
   "pages": [
     "index",
+    "using",
     "quickstart",
-    "---Understand---",
+    "---Use---",
+    "data-room",
+    "office",
+    "notifications",
+    "---Operate---",
+    "running-the-host",
+    "self-hosting",
+    "kim-mini",
+    "---How it works---",
     "introduction",
     "architecture",
     "what-lives-where",
     "boundaries",
     "glossary",
-    "---Operate---",
-    "running-the-host",
-    "self-hosting",
-    "---Use---",
-    "data-room",
-    "office",
-    "notifications",
-    "plugin",
     "---Build---",
     "api",
     "tools",
     "record",
-    "---Reference---",
-    "kim-mini"
+    "plugin"
   ]
 }
