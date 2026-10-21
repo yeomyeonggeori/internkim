@@ -19,7 +19,6 @@ function aBox(wifiChange?: { requestID: string; sealed: typeof sealed; requested
 		role: 'service',
 		hostName: null,
 		site: '',
-		weight: 1,
 		settings: { ...(wifiChange ? { wifiChange } : {}) },
 		sealedCompanyKey: null,
 		lastSeenAt: null

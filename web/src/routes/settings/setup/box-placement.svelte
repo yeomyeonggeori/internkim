@@ -13,7 +13,6 @@
 
 	const text = createPageText(hostSetupText);
 	let site = $state(untrack(() => box.site));
-	let weight = $state(untrack(() => box.weight));
 	let isSaving = $state(false);
 	let errorMessage = $state('');
 	const fieldID = $derived(`box-placement-${box.publicKey}`);
@@ -23,7 +22,7 @@
 		isSaving = true;
 		errorMessage = '';
 		try {
-			onPlaced(await placeBox(box, { site, weight: Number(weight) }));
+			onPlaced(await placeBox(box, { site }));
 		} catch (error) {
 			errorMessage = error instanceof Error ? error.message : text.boxFailed;
 		} finally {
@@ -40,11 +39,6 @@
 				<Field.Label for="{fieldID}-site">{text.site}</Field.Label>
 				<Input id="{fieldID}-site" class="w-full min-w-0 sm:max-w-64" bind:value={site} autocomplete="off" />
 				<Field.Description>{text.siteDescription}</Field.Description>
-			</Field.Field>
-			<Field.Field>
-				<Field.Label for="{fieldID}-weight">{text.weight}</Field.Label>
-				<Input id="{fieldID}-weight" class="w-24" type="number" inputmode="numeric" bind:value={weight} />
-				<Field.Description>{text.weightDescription}</Field.Description>
 			</Field.Field>
 			<Button type="submit" class="justify-self-start" disabled={isSaving}>{isSaving ? text.savingPlacement : text.savePlacement}</Button>
 			{#if errorMessage}<Field.Error>{errorMessage}</Field.Error>{/if}

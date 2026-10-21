@@ -51,7 +51,7 @@ export const PATCH: RequestHandler = async ({ request, platform }) => {
 	const outcome = await makeBoxServe(member.record, member.companyID, serve.data.publicKey);
 	if (outcome === 'not_its_box') error(404, 'this company has no such box connected');
 	if (outcome === 'no_backup') {
-		error(409, 'the company keeps no backup yet for this box to take over from; the box that serves keeps one each day');
+		error(409, 'the company keeps no backup yet for this box to take over from; the box that serves keeps one every fifteen minutes');
 	}
 	return json(await companyBoxesOf(member.record, member.companyID), { headers: privateHeaders });
 };
@@ -59,7 +59,7 @@ export const PATCH: RequestHandler = async ({ request, platform }) => {
 export const PUT: RequestHandler = async ({ request, platform }) => {
 	const member = await callingHostAdministrator(request, environmentOfPlatform(platform?.env));
 	const placement = boxPlacementChangeSchema.safeParse(await request.json().catch(() => null));
-	if (!placement.success) error(400, 'name the box by its public key with its site and its weight');
+	if (!placement.success) error(400, 'name the box by its public key with its site');
 	const { publicKey, ...where } = placement.data;
 	try {
 		if (!(await placeBox(member.record, member.companyID, publicKey, where))) error(404, 'this company has no such box connected');
