@@ -99,28 +99,6 @@ export function aTurnApprovingTheHeldCall(message: string): TurnOutcome {
 	};
 }
 
-export function aPlanThatNeedsNoClarification(recipientName: string): Record<string, unknown> {
-	return {
-		summary: `${recipientName}에게 메시지를 보낸다`,
-		targets: [recipientName],
-		schedule: '',
-		startAt: '',
-		endAt: '',
-		cadence: '',
-		externalSend: true,
-		thirdPartyExternalSend: false,
-		repeated: false,
-		highFrequency: false,
-		destructive: false,
-		permissionChange: false,
-		publicDeploy: false,
-		paidAction: false,
-		requesterAuthorization: 'explicit',
-		missingInformation: [],
-		continuationInstruction: ''
-	};
-}
-
 export function replyingAndFinishing(message: string): Record<string, unknown> {
 	return { message, final: true, goalStatus: 'satisfied', goalSatisfied: true, completionEvidenceIDs: [] };
 }

@@ -1,7 +1,6 @@
 import { afterAll, afterEach, beforeAll, expect, test } from 'bun:test';
 import { aCompanyPlane, type ACompanyPlane, hostServiceHeaders } from './a-company-plane';
 import {
-	aPlanThatNeedsNoClarification,
 	aTurnApprovingTheHeldCall,
 	aTurnStartingWork,
 	changingNothingTheCheckCanRead,
@@ -56,7 +55,6 @@ test('a question held across a blueclaw restart is asked once and answered once'
 	await plane.model.decideTurn(aTurnStartingWork(request, ['message_send']));
 	await plane.model.decideTurn(aTurnApprovingTheHeldCall(answer));
 	await plane.model.answerNext(turnRouterSchemaName, turnWordsOwingOnlyTheReply);
-	await plane.model.answerNext('bluecollar_execution_plan', aPlanThatNeedsNoClarification(recipient.name));
 	await plane.model.answerNext(expectedChangesSchemaName, changingNothingTheCheckCanRead);
 	await plane.model.answerNext(expectedChangesSchemaName, changingNothingTheCheckCanRead);
 	await plane.model.callNext('message_send', sendingTheMessage(recipient.name));
