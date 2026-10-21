@@ -503,9 +503,8 @@ describe('connecting an empty box', () => {
 		if (!holder) throw new Error('a claimed box is found by its public key');
 		const sealed = { version: 1 as const, recipient: second.encryptionKey, enc: second.encryptionKey, ciphertext: 'a2V5' };
 		await keepSealedCompanyKeys(client, holder, [{ publicKey: second.publicKey, sealed }]);
-		expect(await placeBox(client, lapsing.companyID, first.publicKey, { site: 'Head office', weight: 1 })).toBe(true);
-		expect(await placeBox(client, lapsing.companyID, second.publicKey, { site: 'Annex', weight: 2 })).toBe(true);
-		await expect(placeBox(client, lapsing.companyID, second.publicKey, { site: 'Annex', weight: 0 })).rejects.toMatchObject({ status: 400 });
+		expect(await placeBox(client, lapsing.companyID, first.publicKey, { site: 'Head office' })).toBe(true);
+		expect(await placeBox(client, lapsing.companyID, second.publicKey, { site: 'Annex' })).toBe(true);
 		await client.from('box').update({ last_seen_at: new Date(Date.now() - 3_600_000).toISOString() }).eq('public_key', first.publicKey);
 
 		expect((await boxSessionFor(credentials, second.publicKey, environment, appURL))?.role).toBe('standby');
