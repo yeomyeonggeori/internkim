@@ -1,4 +1,4 @@
-import type { ACompanyPlane } from './a-company-plane';
+import { type ACompanyPlane, hostServiceHeaders } from './a-company-plane';
 import type { NormalizedInboundEvent } from '../../../.dependency/blueclaw/chatd/src/relay-inbound';
 
 export type AnInboundMessage = {
@@ -63,7 +63,7 @@ export async function handToTheRelay(
 ): Promise<Response> {
 	return fetch(plane.relayInboundURL, {
 		method: 'POST',
-		headers: { 'Content-Type': 'application/json' },
+		headers: hostServiceHeaders(plane.serviceToken, { 'Content-Type': 'application/json' }),
 		body: JSON.stringify(aChatdInboundEvent(plane, message))
 	});
 }

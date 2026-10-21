@@ -1,7 +1,7 @@
 import { expect, test } from 'bun:test';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { aCompanyPlane } from './a-company-plane';
+import { aCompanyPlane, hostServiceHeaders } from './a-company-plane';
 
 type ToolInventory = {
 	tools: string[];
@@ -33,7 +33,7 @@ function theToolsTheRecordAndTheCompanyAnswer(): string[] {
 test('the agent on the plane registered every tool the catalog says the record or the company answers', async () => {
 	const plane = await aCompanyPlane();
 	try {
-		const answer = await fetch(`${plane.blueclawURL}/admin/api/tools`);
+		const answer = await fetch(`${plane.blueclawURL}/admin/api/tools`, { headers: hostServiceHeaders(plane.serviceToken) });
 		expect(answer.ok).toBe(true);
 		const inventory = (await answer.json()) as ToolInventory;
 		const registeredToolNames = new Set(inventory.tools);

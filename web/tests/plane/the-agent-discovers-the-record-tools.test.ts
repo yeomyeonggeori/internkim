@@ -1,6 +1,6 @@
 import { afterAll, afterEach, beforeAll, expect, test } from 'bun:test';
 import { readFile } from 'node:fs/promises';
-import { aCompanyPlane, type ACompanyPlane } from './a-company-plane';
+import { aCompanyPlane, type ACompanyPlane, hostServiceHeaders } from './a-company-plane';
 import {
 	aTurnStartingWork,
 	changingNothingTheCheckCanRead,
@@ -40,7 +40,8 @@ type ToolInventory = {
 
 async function theToolsOfTheSessionFor(email: string): Promise<ToolInventory> {
 	const answer = await fetch(
-		`${plane.blueclawURL}/admin/api/tools?requester=${encodeURIComponent(email)}`
+		`${plane.blueclawURL}/admin/api/tools?requester=${encodeURIComponent(email)}`,
+		{ headers: hostServiceHeaders(plane.serviceToken) }
 	);
 	expect(answer.ok).toBe(true);
 	return (await answer.json()) as ToolInventory;

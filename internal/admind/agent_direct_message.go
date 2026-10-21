@@ -10,8 +10,6 @@ import (
 	"sort"
 	"strconv"
 	"strings"
-
-	"github.com/yeomyeonggeori/internkim/internal/servicetoken"
 )
 
 type channelParticipant struct {
@@ -320,9 +318,6 @@ func (service *Service) chatdPlatformRequest(ctx context.Context, capabilityName
 		return errorValue
 	}
 	httpRequest.Header.Set("Content-Type", "application/json")
-	if errorValue := servicetoken.Authorize(httpRequest, service.Configuration.ServiceTokenPath); errorValue != nil {
-		return errorValue
-	}
 	response, errorValue := service.httpClient().Do(httpRequest)
 	if errorValue != nil {
 		return errorValue

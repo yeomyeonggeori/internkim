@@ -21,6 +21,7 @@ import (
 	"github.com/yeomyeonggeori/internkim/internal/llmbackend"
 	"github.com/yeomyeonggeori/internkim/internal/modelladder"
 	"github.com/yeomyeonggeori/internkim/internal/runtime/blueclaw"
+	"github.com/yeomyeonggeori/internkim/internal/servicetoken"
 	"github.com/yeomyeonggeori/internkim/pkg/capabilityprotocol"
 )
 
@@ -293,10 +294,16 @@ func (service Service) listen() (net.Listener, error) {
 }
 
 func (service Service) httpClient() *http.Client {
-	if service.HTTPClient != nil {
-		return service.HTTPClient
+	base := service.HTTPClient
+	if base == nil {
+		base = &http.Client{Timeout: service.httpClientTimeout()}
 	}
-	return &http.Client{Timeout: service.httpClientTimeout()}
+	return service.asAHostService(base)
+}
+
+func (service Service) asAHostService(base *http.Client) *http.Client {
+	configuration := service.Configuration.WithDefaults()
+	return servicetoken.Client(base, configuration.ServiceTokenPath, configuration.BlueclawBaseURL, configuration.AdmindBaseURL, configuration.ChatdEndpoint)
 }
 
 func (service Service) providerHTTPClient() *http.Client {

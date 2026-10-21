@@ -58,7 +58,7 @@ func (service Service) askAdmindAboutPerson(ctx context.Context, payload directo
 		return false, errorValue
 	}
 	request.Header.Set("Content-Type", "application/json")
-	response, errorValue := http.DefaultClient.Do(request)
+	response, errorValue := service.asAHostService(http.DefaultClient).Do(request)
 	if errorValue != nil {
 		return false, errorValue
 	}

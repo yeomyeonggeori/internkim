@@ -321,7 +321,7 @@ func TestTheServiceTokenIsMadeOnceAndStagedOnlyForTheServiceAccounts(t *testing.
 	}
 }
 
-func TestEveryCallerOfChatdIsHandedTheServiceToken(t *testing.T) {
+func TestEveryHostServiceIsHandedTheServiceToken(t *testing.T) {
 	layout := LinuxCompanyHostLayout()
 	units := map[string]string{}
 	for _, unit := range CompanyHostSystemdUnits(layout) {
@@ -331,7 +331,7 @@ func TestEveryCallerOfChatdIsHandedTheServiceToken(t *testing.T) {
 		ChatdServiceName:       "CHATD_SERVICE_TOKEN_PATH=" + layout.RunServiceTokenPath(),
 		CapabilitydServiceName: "--service-token " + layout.RunServiceTokenPath(),
 		AdmindServiceName:      "-service-token " + layout.RunServiceTokenPath(),
-		RelayServiceName:       "CHATD_SERVICE_TOKEN_PATH=" + layout.RelayServiceTokenPath(),
+		RelayServiceName:       "HOST_SERVICE_TOKEN_PATH=" + layout.RelayServiceTokenPath(),
 	} {
 		if !strings.Contains(units[unitName], expected) {
 			t.Fatalf("%s is not handed the service token as %q:\n%s", unitName, expected, units[unitName])

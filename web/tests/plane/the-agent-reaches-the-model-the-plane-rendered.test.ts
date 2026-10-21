@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test';
 import { readFileSync } from 'node:fs';
-import { aCompanyPlane, type ACompanyPlane } from './a-company-plane';
+import { aCompanyPlane, type ACompanyPlane, hostServiceHeaders } from './a-company-plane';
 import {
 	aTurnStartingWork,
 	changingNothingTheCheckCanRead,
@@ -104,7 +104,7 @@ test('the agent asks that endpoint for a model its ladder names', async () => {
 		await plane.model.callNext('reply', replyingAndFinishing('안녕하세요'));
 		const started = await fetch(`${plane.blueclawURL}/admin/api/run/start`, {
 			method: 'POST',
-			headers: { 'content-type': 'application/json' },
+			headers: hostServiceHeaders(plane.serviceToken, { 'content-type': 'application/json' }),
 			body: JSON.stringify({
 				requesterPersonID: plane.people[0].memberID,
 				prompt: request

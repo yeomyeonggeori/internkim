@@ -2,7 +2,7 @@ import { afterEach, describe, expect, test } from 'bun:test';
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { withChatdServiceToken } from './chatd-reach';
+import { asAHostService } from './host-service-token';
 import { forwardToChatd } from './forward';
 
 type Stoppable = { stop: (closeActiveConnections?: boolean) => void };
@@ -99,11 +99,11 @@ describe('a call to chatd as the relay', () => {
 			}
 		});
 		started.push(chatd);
-		process.env.CHATD_SERVICE_TOKEN_PATH = keptAt;
+		process.env.HOST_SERVICE_TOKEN_PATH = keptAt;
 		try {
 			await forwardToChatd(`http://127.0.0.1:${chatd.port}`, 'buzz', 'message.post', { message: 'hello' }, 1024);
 		} finally {
-			delete process.env.CHATD_SERVICE_TOKEN_PATH;
+			delete process.env.HOST_SERVICE_TOKEN_PATH;
 			rmSync(directory, { recursive: true, force: true });
 		}
 
@@ -111,7 +111,7 @@ describe('a call to chatd as the relay', () => {
 	});
 
 	test('is not sent when the token cannot be read', async () => {
-		const failure = await withChatdServiceToken({ method: 'POST' }, join(tmpdir(), 'no-such-relay-credential')).catch(
+		const failure = await asAHostService({ method: 'POST' }, join(tmpdir(), 'no-such-relay-credential')).catch(
 			(caught: unknown) => caught
 		);
 

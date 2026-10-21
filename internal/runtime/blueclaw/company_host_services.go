@@ -166,7 +166,7 @@ func companyHostRelaySettings(layout CompanyHostLayout) []EnvironmentSetting {
 		setting("RUST_LOG", "buzz_relay=info,buzz_media=info"),
 		setting("AGENT_API_KEY_PATH", RelayAgentKeyPath),
 		setting("CHATD_BASE_URL", CompanyHostChatdEndpoint),
-		setting("CHATD_SERVICE_TOKEN_PATH", layout.RelayServiceTokenPath()),
+		setting("HOST_SERVICE_TOKEN_PATH", layout.RelayServiceTokenPath()),
 		setting("MESSENGER_RELAY_URL", BuzzRelayLocalURL),
 		setting("ADMIND_BASE_URL", "http://"+CompanyHostAdmindListenAddress),
 		setting("ADMIND_SOCKET_PATH", layout.AdmindSocketPath()),

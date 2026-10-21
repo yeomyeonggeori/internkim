@@ -1,4 +1,5 @@
 import { reasonOf } from './failure';
+import { asAHostService } from './host-service-token';
 export const chatdRestartWaitMilliseconds = 30_000;
 
 const firstPauseMilliseconds = 250;
@@ -12,7 +13,7 @@ export async function fetchWhenChatdListens(
 ): Promise<Response> {
 	const giveUpAt = Date.now() + waitMilliseconds;
 	let pauseMilliseconds = firstPauseMilliseconds;
-	const asAService = await withChatdServiceToken(init, process.env.CHATD_SERVICE_TOKEN_PATH);
+	const asAService = await asAHostService(init);
 	for (;;) {
 		try {
 			return await fetch(url, asAService);
@@ -32,17 +33,4 @@ function wasRefused(failure: unknown): boolean {
 
 function failureAfterWaiting(failure: unknown, waitMilliseconds: number): Error {
 	return new Error(`nothing listened for ${waitMilliseconds / 1000} s: ${reasonOf(failure)}`);
-}
-
-export async function withChatdServiceToken(init: RequestInit, tokenPath: string | undefined): Promise<RequestInit> {
-	const keptAt = tokenPath?.trim();
-	if (!keptAt) return init;
-	const kept = await Bun.file(keptAt)
-		.text()
-		.catch((failure: unknown) => {
-			throw new Error(`the token chatd asks of the host services could not be read at ${keptAt}: ${reasonOf(failure)}`);
-		});
-	const headers = new Headers(init.headers);
-	headers.set('Authorization', `Bearer ${kept.trim()}`);
-	return { ...init, headers };
 }

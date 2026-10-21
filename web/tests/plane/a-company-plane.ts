@@ -33,6 +33,7 @@ export type ACompanyPlane = {
 	admin: SupabaseClient;
 	people: { email: string; name: string; memberID: string }[];
 	agentAPIKey: string;
+	serviceToken: string;
 	admindURL: string;
 	blueclawURL: string;
 	blueclawDatabaseURL: string;
@@ -110,6 +111,10 @@ type AdmindPlaneArguments = {
 	databasePath: string;
 	agentProfilePicturePath: string;
 };
+
+export function hostServiceHeaders(serviceToken: string, headers: Record<string, string> = {}): Record<string, string> {
+	return { ...headers, Authorization: `Bearer ${serviceToken}` };
+}
 
 export function capabilitydArgumentsForPlane(argumentsForPlane: CapabilitydPlaneArguments): string[] {
 	return theArgumentsThatStart(
@@ -612,7 +617,7 @@ export async function aCompanyPlane(request: PlaneRequest = {}): Promise<ACompan
 		// why it starts after it. Nobody here is written by hand: they arrive the way
 		// they arrive on a real box.
 		await untilReady('the company roster on blueclaw', async () => {
-			const policy = await fetch(`${blueclawURL}/admin/api/policy`)
+			const policy = await fetch(`${blueclawURL}/admin/api/policy`, { headers: hostServiceHeaders(serviceToken) })
 				.then((answer) => (answer.ok ? (answer.json() as Promise<{ people?: unknown[] }>) : null))
 				.catch(() => null);
 			return (policy?.people?.length ?? 0) >= 2;
@@ -634,7 +639,7 @@ export async function aCompanyPlane(request: PlaneRequest = {}): Promise<ACompan
 					MESSENGER_PLATFORM: messengerPlatform,
 					AGENT_API_KEY_PATH: agentKeyPath,
 					CHATD_BASE_URL: connector.url,
-					CHATD_SERVICE_TOKEN_PATH: serviceTokenPath,
+					HOST_SERVICE_TOKEN_PATH: serviceTokenPath,
 					ADMIND_SOCKET_PATH: requesterSocketPath,
 					ADMIND_BASE_URL: admindURL,
 					BLUECLAW_ACP_SOCKET_PATH: blueclawACPSocketPath,
@@ -666,7 +671,7 @@ export async function aCompanyPlane(request: PlaneRequest = {}): Promise<ACompan
 		// A plane is not up when its processes are: it is up when it can say who works
 		// here.
 		await untilReady('the company directory', async () => {
-			const answer = await fetch(`${admindURL}/admin/api/directory/people`).catch(() => null);
+			const answer = await fetch(`${admindURL}/admin/api/directory/people`, { headers: hostServiceHeaders(serviceToken) }).catch(() => null);
 			if (!answer?.ok) return false;
 			const document = (await answer.json()) as { people?: unknown[] };
 			return (document.people?.length ?? 0) >= 2;
@@ -682,6 +687,7 @@ export async function aCompanyPlane(request: PlaneRequest = {}): Promise<ACompan
 				{ email: colleagueEmail, name: '박예시', memberID: colleagueID }
 			],
 			agentAPIKey: agent.apiKey,
+			serviceToken,
 			admindURL,
 			blueclawURL,
 			blueclawDatabaseURL,
