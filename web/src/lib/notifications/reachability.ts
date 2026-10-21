@@ -11,7 +11,7 @@ export type PushReachability = {
 };
 
 export function pushDeviceKindOfPlatform(platform: string): PushDeviceKind {
-	if (platform === 'ios') return 'apns';
+	if (platform === 'ios' || platform === 'macos') return 'apns';
 	if (platform === 'android') return 'fcm';
 	return 'web-push';
 }

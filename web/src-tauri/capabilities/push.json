@@ -1,7 +1,7 @@
 {
   "$schema": "../gen/schemas/mobile-schema.json",
-  "identifier": "phone-push",
-  "platforms": ["iOS", "android"],
+  "identifier": "push",
+  "platforms": ["iOS", "android", "macOS"],
   "windows": ["main"],
   "remote": { "urls": ["https://intern.kim/*", "https://*.intern.kim/*"] },
   "permissions": [

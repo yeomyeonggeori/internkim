@@ -48,6 +48,7 @@ describe('every copy of the device kinds says what the record does', () => {
 	test('each platform a shell runs on claims a kind the record stores', () => {
 		expect(recorded).toContain(pushDeviceKindOfPlatform('ios'));
 		expect(recorded).toContain(pushDeviceKindOfPlatform('android'));
+		expect(pushDeviceKindOfPlatform('macos')).toBe(pushDeviceKindOfPlatform('ios'));
 		expect(pushDeviceKindOfPlatform('web')).toBe('web-push');
 	});
 });
