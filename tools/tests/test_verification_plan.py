@@ -39,14 +39,15 @@ class VerificationPlanTests(unittest.TestCase):
         generator = next(group for group in groups if group.name == "generated-protocol")
         self.assertEqual({group.lane for group in [generator, *web_groups]}, {"web"})
 
-    def test_android_widget_changes_run_its_unit_tests(self):
+    def test_android_changes_run_the_android_group(self):
         groups = verification_module().GROUPS
         for changed_path in [
             "web/attendance-widget/android/src/main/java/app/intern/kim/attendance/AttendanceWidgetStore.java",
             "web/android/app/src/main/java/app/intern/kim/attendance/AttendanceWidgetPlugin.java",
+            "web/sender-notification/android/src/main/java/app/intern/kim/notification/SentNotification.java",
         ]:
             selected = {group.name for group in groups if group.is_touched_by([changed_path])}
-            self.assertIn("android-widget", selected)
+            self.assertIn("android", selected)
 
     def test_rubric_changes_verify_every_generated_consumer(self):
         groups = verification_module().GROUPS

@@ -1,0 +1,19 @@
+apply plugin: 'com.android.library'
+apply from: "${projectDir}/../../android/variables.gradle"
+
+android {
+    namespace = "app.intern.kim.notification"
+    compileSdk = project.ext.compileSdkVersion
+    defaultConfig {
+        minSdk = project.ext.minSdkVersion
+    }
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_21
+        targetCompatibility JavaVersion.VERSION_21
+    }
+}
+
+dependencies {
+    implementation "androidx.core:core:$androidxCoreVersion"
+    implementation "com.google.firebase:firebase-messaging:$firebaseMessagingVersion"
+}
