@@ -60,9 +60,11 @@ targets:
         CFBundleShortVersionString: 0.1.0
         CFBundleVersion: "0.1.0"
         AppIdentifierPrefix: $(AppIdentifierPrefix)
+        UIBackgroundModes: [remote-notification]
     entitlements:
       path: internkim-tauri_iOS/internkim-tauri_iOS.entitlements
       properties:
+        aps-environment: development
         com.apple.developer.associated-domains:
           - webcredentials:intern.kim
         com.apple.security.application-groups:

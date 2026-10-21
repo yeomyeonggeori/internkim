@@ -31,11 +31,13 @@ afterEach(() => {
 });
 
 describe('the Tauri push device', () => {
-	test('reads a granted permission, and treats anything else as still to ask', async () => {
+	test('reads granted, refused, and not yet decided, which the plugin answers as null', async () => {
 		const invocations: Invocation[] = [];
 		insideTauri({ 'plugin:notifications|is_permission_granted': true }, invocations, []);
 		expect(await tauriPushDevice.permission()).toBe('granted');
 		insideTauri({ 'plugin:notifications|is_permission_granted': false }, invocations, []);
+		expect(await tauriPushDevice.permission()).toBe('denied');
+		insideTauri({ 'plugin:notifications|is_permission_granted': null }, invocations, []);
 		expect(await tauriPushDevice.permission()).toBe('prompt');
 	});
 
