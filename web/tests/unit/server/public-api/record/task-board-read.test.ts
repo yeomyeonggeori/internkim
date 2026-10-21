@@ -16,7 +16,7 @@ import { personInTheDirectory } from './directory-fixture';
 function row(id: string, fields: Partial<TaskCardRow> = {}): TaskCardRow {
 	return {
 		id, parent_task_id: null, title: id, status: 'completed', business: null, type: null,
-		size: 'M', starts_at: null, ends_at: '2020-01-01T00:00:00Z',
+		size: 'M', starts_at: null, ends_at: '2020-01-01T00:00:00Z', task_last_day: '2020-01-01',
 		created_at: '2020-01-01T00:00:00Z', updated_at: '2020-01-01T00:00:00Z', requester_id: null,
 		task_participant: [{ member_id: 'member-1' }], task_deletable: true, task_updatable: true, ...fields
 	};
@@ -27,7 +27,7 @@ function taskOf(row: TaskCardRow, timeZone = 'UTC'): Task {
 		id: row.id, parentTaskID: row.parent_task_id ?? undefined, content: row.title,
 		ownerID: '', ownerName: '', participantIDs: row.task_participant.map(person => person.member_id),
 		participantNames: [], business: row.business, type: row.type, size: row.size ?? '', status: row.status,
-		startDate: dayOfInstant(timeZone, row.starts_at), endDate: dayOfInstant(timeZone, row.ends_at), weekCode: ''
+		startDate: dayOfInstant(timeZone, row.starts_at), endDate: row.task_last_day ?? '', weekCode: ''
 	};
 }
 
@@ -50,14 +50,17 @@ function matches(expression: string, row: TaskCardRow): boolean {
 	if (expression.startsWith('or(')) return clauses(expression.slice(3, -1)).some(clause => matches(clause, row));
 	const [field, operator, ...parts] = expression.split('.');
 	const expected = parts.join('.');
-	const value = field === 'status' ? row.status : field === 'ends_at' ? row.ends_at : field === 'starts_at' ? row.starts_at : undefined;
+	const value = field === 'status' ? row.status : field === 'ends_at' ? row.ends_at : field === 'starts_at' ? row.starts_at
+		: field === 'task_last_day' ? row.task_last_day : undefined;
 	if (value === undefined) throw new Error(`unhandled field ${field}`);
 	if (operator === 'eq') return value === expected;
 	if (operator === 'in') return expected.slice(1, -1).split(',').includes(value ?? '');
 	if (operator === 'is') return value === null && expected === 'null';
 	if (value === null) return false;
 	if (operator === 'gte') return Date.parse(value) >= Date.parse(expected);
+	if (operator === 'gt') return Date.parse(value) > Date.parse(expected);
 	if (operator === 'lt') return Date.parse(value) < Date.parse(expected);
+	if (operator === 'lte') return Date.parse(value) <= Date.parse(expected);
 	throw new Error(`unhandled operator ${operator}`);
 }
 
@@ -69,8 +72,7 @@ function record(rows: TaskCardRow[], fail = false) {
 		queries.push(url);
 		if (fail) return Response.json({ message: 'permission denied', code: '42501' }, { status: 403 });
 		let matching = rows;
-		const predicate = url.searchParams.get('or');
-		if (predicate) matching = matching.filter(row => matches(`or${predicate}`, row));
+		for (const predicate of url.searchParams.getAll('or')) matching = matching.filter(row => matches(`or${predicate}`, row));
 		const parent = url.searchParams.get('parent_task_id');
 		if (parent) {
 			const parents = parent.slice(4, -1).split(',');
@@ -97,9 +99,14 @@ describe('scoped task board query', () => {
 	for (const timeZone of ['UTC', 'Asia/Seoul', 'America/New_York']) {
 		for (const week of ['2026-09-21', '2026-09-28', '2026-10-05']) {
 			test(`${timeZone} ${week}: SQL scope matches the existing board for every status/date fallback`, () => {
-				const dates = [null, ...['2026-09-20', '2026-09-28', '2026-10-04', '2026-10-05'].map(day => instantOfDay(timeZone, day))];
+				const days = [null, '2026-09-20', '2026-09-28', '2026-10-04', '2026-10-05'];
 				const window = taskBoardWindow(week, timeZone, now);
-				const rows = statuses.flatMap(status => dates.flatMap(starts_at => dates.map(ends_at => row(`${status}-${starts_at}-${ends_at}`, { status, starts_at, ends_at }))));
+				const rows = statuses.flatMap(status => days.flatMap(startDay => days.map(endDay => row(`${status}-${startDay}-${endDay}`, {
+					status,
+					starts_at: startDay ? instantOfDay(timeZone, startDay) : null,
+					ends_at: endDay ? instantOfDay(timeZone, endDay) : null,
+					task_last_day: endDay
+				}))));
 				const expected = rows.filter(row => matchesTaskBoardWeek(taskOf(row, timeZone), window.options)).map(row => row.id).sort();
 				const requested = rows.filter(row => matches(`or(${taskBoardDatePredicate(window)})`, row)).map(row => row.id).sort();
 				expect(requested).toEqual(expected);
@@ -122,8 +129,8 @@ describe('scoped task board query', () => {
 		const window = taskBoardWindow('2026-10-26', 'America/New_York', new Date('2026-10-30T12:00:00Z'));
 		expect(window.from).toBe('2026-10-26T04:00:00.000Z');
 		expect(window.until).toBe('2026-11-02T05:00:00.000Z');
-		expect(matches(`or(${taskBoardDatePredicate(window)})`, row('last-minute', { ends_at: '2026-11-02T04:59:59Z' }))).toBe(true);
-		expect(matches(`or(${taskBoardDatePredicate(window)})`, row('next-week', { ends_at: '2026-11-02T05:00:00Z' }))).toBe(false);
+		expect(matches(`or(${taskBoardDatePredicate(window)})`, row('last-minute', { ends_at: '2026-11-02T04:59:59Z', task_last_day: '2026-11-01' }))).toBe(true);
+		expect(matches(`or(${taskBoardDatePredicate(window)})`, row('next-week', { ends_at: '2026-11-02T05:00:00Z', task_last_day: '2026-11-02' }))).toBe(false);
 	});
 
 	for (const historyCount of [100, 1501]) {
@@ -158,7 +165,7 @@ describe('scoped task board query', () => {
 		expect(progress.parent).toEqual(expectedProgress);
 		expect(progress.parent).toEqual({ completed: 501, total: 502, percent: 100 });
 		expect(queries).toHaveLength(2);
-		expect(queries.every(query => !query.searchParams.has('or'))).toBe(true);
+		expect(queries.every(query => !query.searchParams.has('or') && query.searchParams.get('task_is_work') === 'eq.true')).toBe(true);
 	});
 
 	test('empty and denied boards cannot manufacture progress or data', async () => {
@@ -171,7 +178,7 @@ describe('scoped task board query', () => {
 
 	test('task_board preserves multi-participant scope and rejects conflicting history options', async () => {
 		const { caller } = record([
-			row('shared', { status: 'planned', ends_at: null, task_participant: [{ member_id: 'member-2' }, { member_id: 'member-1' }] }),
+			row('shared', { status: 'planned', ends_at: null, task_last_day: null, task_participant: [{ member_id: 'member-2' }, { member_id: 'member-1' }] }),
 			row('other', { status: 'requested', task_participant: [{ member_id: 'member-2' }] })
 		]);
 		const context: RecordContext = {

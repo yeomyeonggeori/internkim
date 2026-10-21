@@ -317,7 +317,7 @@ VALUES ('activity-1', 'account-1', 'opportunity-1', 'stage_change', 'waiting →
 			t.Fatalf("a carried move does not read the way one recorded here does: %#v", row.Body)
 		}
 		if row.Body["type"] != "stage_change" || row.Body["status"] != "completed" ||
-			row.Body["due_at"] != "2026-01-05T00:00:00Z" {
+			row.Body["starts_at"] != "2026-01-05T00:00:00Z" || row.Body["ends_at"] != "2026-01-05T00:00:00Z" {
 			t.Fatalf("a carried move is not shaped the way the trigger shapes one: %#v", row.Body)
 		}
 	}

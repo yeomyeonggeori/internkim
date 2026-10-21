@@ -3,6 +3,7 @@ import { centralStatusFromWord, compatibilityOwnerOf } from '$lib/task/central-t
 import { titleNearness } from './hint-nearness';
 import { HintRefused, normalized, resolveHint, type HintMatcher, type HintSubject } from './hint-resolution';
 import { peopleOfHints, personOfHint, type RecordPerson } from './people';
+import type { CRMLinks } from './crm-tools';
 
 export type TaskRow = {
 	id: string;
@@ -25,15 +26,15 @@ export type TaskRow = {
 	organization_id: string | null;
 	opportunity_id: string | null;
 	contact_id: string | null;
-	due_at: string | null;
 	requester_id: string | null;
 	task_participant: { member_id: string }[];
 	task_deletable: boolean;
 	task_updatable: boolean;
+	task_last_day: string | null;
 };
 
 export const taskSelection =
-	'id, parent_task_id, title, status, note, location, business, type, size, is_event, is_whole_day, is_open_to_company, notify_minutes_before, starts_at, ends_at, created_at, updated_at, organization_id, opportunity_id, contact_id, due_at, requester_id, task_participant (member_id), task_deletable, task_updatable';
+	'id, parent_task_id, title, status, note, location, business, type, size, is_event, is_whole_day, is_open_to_company, notify_minutes_before, starts_at, ends_at, created_at, updated_at, organization_id, opportunity_id, contact_id, requester_id, task_participant (member_id), task_deletable, task_updatable, task_last_day';
 
 // Postgres says why it refused, and the three answers are different things: a
 // permission the caller does not hold, a row that moved under them, and a rule
@@ -98,13 +99,19 @@ export type TaskReadScope = {
 	status?: string;
 };
 
+export const workColumn = 'task_is_work';
+
+function kindColumn(areEvents: boolean): string {
+	return areEvents ? 'is_event' : workColumn;
+}
+
 export async function tasksOfCompany(caller: SupabaseClient, areEvents: boolean, scope: TaskReadScope = {}): Promise<TaskRow[]> {
 	const rows: TaskRow[] = [];
 	for (let from = 0; ; from += rowsPerPage) {
 		let query = caller
 			.from('task')
 			.select(taskSelection)
-			.eq('is_event', areEvents);
+			.eq(kindColumn(areEvents), true);
 		if (scope.linkedToOrganization && !scope.organizationID) query = query.not('organization_id', 'is', null);
 		if (scope.organizationID) query = query.eq('organization_id', scope.organizationID);
 		if (scope.opportunityID) query = query.eq('opportunity_id', scope.opportunityID);
@@ -123,7 +130,7 @@ export async function tasksOfCompany(caller: SupabaseClient, areEvents: boolean,
 
 async function taskWithID(caller: SupabaseClient, taskID: string, areEvents: boolean): Promise<TaskRow | null> {
 	const { data, error } = await caller.from('task').select(taskSelection)
-		.eq('id', taskID).eq('is_event', areEvents).maybeSingle<TaskRow>();
+		.eq('id', taskID).eq(kindColumn(areEvents), true).maybeSingle<TaskRow>();
 	if (error) throw new Error(error.message);
 	return data;
 }
@@ -193,8 +200,13 @@ export function taskWriteArguments(
 		size?: string | null;
 		startsAt?: string | null;
 		endsAt?: string | null;
+		isEvent?: boolean;
+		isWholeDay?: boolean;
+		location?: { name: string } | null;
+		notifyMinutesBefore?: number | null;
 		participantIDs?: string[];
 		parentTaskID?: string | null;
+		links?: CRMLinks | null;
 	}
 ): Record<string, unknown> {
 	const held = (name: keyof TaskRow) => (row ? row[name] : null);
@@ -210,12 +222,22 @@ export function taskWriteArguments(
 		target_starts_at: written.startsAt !== undefined ? written.startsAt : row?.starts_at ?? null,
 		target_ends_at: written.endsAt !== undefined ? written.endsAt : row?.ends_at ?? null,
 		target_write_dates: writesDates,
-		target_is_event: row?.is_event ?? false,
-		target_location: row?.location ?? null,
-		target_is_whole_day: row?.is_whole_day ?? false,
-		target_notify_minutes_before: row?.notify_minutes_before ?? null,
+		target_is_event: written.isEvent ?? row?.is_event ?? false,
+		target_location: written.location !== undefined ? written.location : row?.location ?? null,
+		target_is_whole_day: written.isWholeDay ?? row?.is_whole_day ?? false,
+		target_notify_minutes_before:
+			written.notifyMinutesBefore !== undefined ? written.notifyMinutesBefore : row?.notify_minutes_before ?? null,
 		target_participant_ids: written.participantIDs ?? row?.task_participant.map((one) => one.member_id) ?? [],
-		...(row ? { target_expected_updated_at: row.updated_at } : { target_parent_task_id: written.parentTaskID ?? null })
+		...(row ? { target_expected_updated_at: row.updated_at } : newRowArguments(written))
+	};
+}
+
+function newRowArguments(written: { parentTaskID?: string | null; links?: CRMLinks | null }): Record<string, unknown> {
+	return {
+		target_parent_task_id: written.parentTaskID ?? null,
+		target_organization_id: written.links?.organization_id ?? null,
+		target_opportunity_id: written.links?.opportunity_id ?? null,
+		target_contact_id: written.links?.contact_id ?? null
 	};
 }
 

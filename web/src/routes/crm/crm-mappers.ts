@@ -16,6 +16,7 @@ import { centralStatusFromWord, taskStatus } from '$lib/task/central-task';
 import { isTaskStatusFinished } from '../task/task-status';
 import { crmStages } from './crm-stages';
 import { sumOpportunityMoney } from './crm-money';
+import { activityDatesWritten } from './crm-activity-dates';
 import type {
 	CRMOrganization,
 	CRMActivity,
@@ -198,14 +199,13 @@ export function activityPayload(activity: CRMActivity): CRMActivityPayload {
 		business: activity.business,
 		kind: activity.kind,
 		title: activity.title,
-		occurredAt: activity.occurredAt,
 		content: activity.summary,
 		taskStatus: activity.taskStatus || taskStatus.planned,
 		participantIDs: activity.participantIDs,
 		isEvent: Boolean(activity.calendarEventID),
 		isWholeDay: activity.isWholeDay ?? false,
-		startsAt: activity.calendarEventDate ?? '',
-		endsAt: activity.calendarEndsAt ?? activity.calendarEventDate ?? '',
+		startsAt: activity.startsAt ?? '',
+		endsAt: activity.endsAt ?? activity.startsAt ?? '',
 		notifyMinutesBefore: null,
 		location: activity.calendarLocation ?? ''
 	};
@@ -219,16 +219,13 @@ export function activityPayloadFromDraft(draft: Extract<CRMCreateDraft, { kind: 
 		business: draft.business,
 		kind: draft.activityKind === 'stage_change' ? 'event' : draft.activityKind,
 		title: draft.title,
-		occurredAt: new Date(draft.occurredAt).toISOString(),
 		content: draft.summary,
 		taskStatus: draft.taskStatus || taskStatus.planned,
 		participantIDs: draft.participantPersonIDs,
-		isEvent: draft.calendar.isRequested,
-		isWholeDay: draft.calendar.isAllDay,
-		startsAt: draft.calendar.isRequested ? new Date(draft.calendar.startTime || draft.occurredAt).toISOString() : '',
-		endsAt: draft.calendar.isRequested ? new Date(draft.calendar.endTime || draft.calendar.startTime || draft.occurredAt).toISOString() : '',
+		isEvent: draft.isEvent,
+		...activityDatesWritten(draft),
 		notifyMinutesBefore: null,
-		location: draft.calendar.location
+		location: draft.location
 	};
 }
 
@@ -401,9 +398,9 @@ function mapActivity(activity: CRMActivityResponse, people: UserRecord[]): CRMAc
 		participantIDs,
 		participantNames: participantIDs.map((memberID) => memberNameOf(people, memberID)),
 		calendarEventID: activity.isEvent ? activity.id : undefined,
-		calendarEventDate: activity.startsAt,
 		isWholeDay: activity.isWholeDay,
-		calendarEndsAt: activity.endsAt,
+		startsAt: activity.startsAt,
+		endsAt: activity.endsAt,
 		calendarLocation: activity.location,
 		calendarRegistrationState: activity.isEvent ? 'registered' : undefined
 	};

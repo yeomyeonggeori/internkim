@@ -130,8 +130,8 @@ describe('CRM service mappers', () => {
 		expect(activityPayload(activity).kind).toBe('stage_change');
 		expect(activityPayloadFromDraft({
 			kind: 'activity', organizationID: 'organization-1', opportunityID: 'opportunity-1', business: 'general',
-			activityKind: 'stage_change', title: '직접 생성 불가', occurredAt: '2026-08-03T15:30', summary: '',
-			participantPersonIDs: [], taskStatus: '', calendar: { isRequested: false, isAllDay: true, startTime: '', endTime: '', location: '' }
+			activityKind: 'stage_change', title: '직접 생성 불가', summary: '',
+			participantPersonIDs: [], taskStatus: '', isEvent: false, isWholeDay: true, startsAt: '2026-08-03', endsAt: '2026-08-03', location: ''
 		}).kind).toBe('event');
 	});
 

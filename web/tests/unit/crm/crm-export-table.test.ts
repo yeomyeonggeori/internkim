@@ -61,6 +61,9 @@ const activity: CRMActivity = {
 	kind: 'meeting',
 	title: '계약 조건 미팅',
 	occurredAt: '2026-10-08T05:00:00.000Z',
+	isWholeDay: false,
+	startsAt: '2026-10-08T05:00:00.000Z',
+	endsAt: '2026-10-08T06:00:00.000Z',
 	summary: '',
 	taskID: 'task-1',
 	taskStatus: 'completed',
@@ -109,7 +112,8 @@ describe('crmExportTable', () => {
 	test('lists every participant of an activity in one cell, at local time', () => {
 		const table = crmExportTable('activities', sourceWith());
 		expect(cellOf(table, 0, crmText.ko.assignee)).toBe('이샘플, 최견본');
-		expect(cellOf(table, 0, crmText.ko.occurredAt)).toBe('2026-10-08 14:00');
+		expect(cellOf(table, 0, crmText.ko.columnStartDate)).toBe('2026-10-08 14:00');
+		expect(cellOf(table, 0, crmText.ko.columnEndDate)).toBe('2026-10-08 15:00');
 		expect(cellOf(table, 0, crmText.ko.relatedProgress)).toBe('해외 법인 도입');
 		expect(cellOf(table, 0, crmText.ko.registerCalendar)).toBe('');
 	});

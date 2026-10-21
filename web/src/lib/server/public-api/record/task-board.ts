@@ -3,14 +3,14 @@ import { taskWeekDateFromISO, taskWeekOfDate } from '$lib/task/task-week-code';
 import { matchesTaskBoardWeek, type TaskBoardOptions, type TaskBoardWeekPosition } from '../../../../routes/task/task-board-model';
 import type { TaskChildProgress } from '../../../../routes/task/task-relationships';
 import { dayOfInstant, dayShifted, instantOfDay } from './days';
-import type { TaskRow } from './tasks';
+import { workColumn, type TaskRow } from './tasks';
 
 export type TaskCardRow = Pick<TaskRow,
 	'id' | 'parent_task_id' | 'title' | 'status' | 'business' | 'type' | 'size' |
-	'starts_at' | 'ends_at' | 'created_at' | 'updated_at' | 'requester_id' | 'task_participant' | 'task_deletable' | 'task_updatable'
+	'starts_at' | 'ends_at' | 'task_last_day' | 'created_at' | 'updated_at' | 'requester_id' | 'task_participant' | 'task_deletable' | 'task_updatable'
 > & Partial<Pick<TaskRow, 'organization_id' | 'opportunity_id'>>;
 
-const cardColumns = 'id, parent_task_id, title, status, business, type, size, starts_at, ends_at, created_at, updated_at, requester_id, task_participant (member_id), task_deletable, task_updatable';
+const cardColumns = 'id, parent_task_id, title, status, business, type, size, starts_at, ends_at, task_last_day, created_at, updated_at, requester_id, task_participant (member_id), task_deletable, task_updatable';
 const rowsPerPage = 500;
 const parentIDsPerQuery = 100;
 
@@ -37,16 +37,17 @@ export function taskBoardWindow(week: string, timeZone: string, now: Date): Task
 }
 
 export function taskBoardDatePredicate(window: TaskBoardWindow): string {
+	const { weekStartISO, weekEndISO } = window.options;
 	const clauses = [
 		'status.in.(requested,paused)',
-		`and(status.eq.completed,ends_at.gte.${window.from},ends_at.lt.${window.until})`
+		`and(status.eq.completed,task_last_day.gte.${weekStartISO},task_last_day.lte.${weekEndISO})`
 	];
 	if (window.position === 'current') {
 		clauses.push('status.eq.in_progress');
-		clauses.push(`and(status.eq.planned,or(ends_at.lt.${window.until},and(ends_at.is.null,or(starts_at.lt.${window.until},starts_at.is.null))))`);
+		clauses.push(`and(status.eq.planned,or(task_last_day.lte.${weekEndISO},and(ends_at.is.null,or(starts_at.lt.${window.until},starts_at.is.null))))`);
 	}
 	if (window.position === 'future') {
-		clauses.push(`and(status.eq.planned,or(and(ends_at.gte.${window.from},ends_at.lt.${window.until}),and(ends_at.is.null,starts_at.gte.${window.from},starts_at.lt.${window.until})))`);
+		clauses.push(`and(status.eq.planned,or(and(task_last_day.gte.${weekStartISO},task_last_day.lte.${weekEndISO}),and(ends_at.is.null,starts_at.gte.${window.from},starts_at.lt.${window.until})))`);
 	}
 	return clauses.join(',');
 }
@@ -55,7 +56,7 @@ export function rowMatchesTaskBoard(row: TaskCardRow, window: TaskBoardWindow): 
 	return matchesTaskBoardWeek({
 		status: row.status,
 		startDate: dayOfInstant(window.timeZone, row.starts_at),
-		endDate: dayOfInstant(window.timeZone, row.ends_at)
+		endDate: row.task_last_day ?? ''
 	}, window.options);
 }
 
@@ -66,7 +67,7 @@ export async function tasksForBoard(
 ): Promise<TaskCardRow[]> {
 	const rows: TaskCardRow[] = [];
 	for (let from = 0; ; from += rowsPerPage) {
-		let query = caller.from('task').select(cardColumns).eq('is_event', false)
+		let query = caller.from('task').select(cardColumns).eq(workColumn, true)
 			.or(taskBoardDatePredicate(window));
 		if (links.organizationID) query = query.eq('organization_id', links.organizationID);
 		if (links.opportunityID) query = query.eq('opportunity_id', links.opportunityID);
@@ -85,7 +86,7 @@ export async function taskChildProgressForBoard(caller: SupabaseClient, taskIDs:
 		const parentIDs = parents.slice(offset, offset + parentIDsPerQuery);
 		for (let from = 0; ; from += rowsPerPage) {
 			const { data, error } = await caller.from('task').select('id, parent_task_id, status')
-				.eq('is_event', false).in('parent_task_id', parentIDs).neq('status', 'stopped')
+				.eq(workColumn, true).in('parent_task_id', parentIDs).neq('status', 'stopped')
 				.order('id').range(from, from + rowsPerPage - 1)
 				.returns<{ id: string; parent_task_id: string; status: string }[]>();
 			if (error) throw new Error(error.message);

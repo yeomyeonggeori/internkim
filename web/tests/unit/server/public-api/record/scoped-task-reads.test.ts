@@ -9,9 +9,15 @@ function task(index: number, organizationID: string | null = null): TaskRow {
 		status: 'planned', note: null, location: null, business: null, type: null, size: null,
 		is_event: false, is_whole_day: false, is_open_to_company: false, notify_minutes_before: null, starts_at: null,
 		ends_at: null, created_at: '2026-01-01T00:00:00Z', updated_at: '2026-01-01T00:00:00Z',
-		organization_id: organizationID, opportunity_id: null, contact_id: null, due_at: null,
-		requester_id: null, task_participant: [], task_deletable: false, task_updatable: false
+		organization_id: organizationID, opportunity_id: null, contact_id: null,
+		requester_id: null, task_participant: [], task_deletable: false, task_updatable: false, task_last_day: null
 	};
+}
+
+function isOfKind(row: TaskRow, url: URL): boolean {
+	if (url.searchParams.get('is_event') === 'eq.true') return row.is_event;
+	if (url.searchParams.get('task_is_work') === 'eq.true') return !row.is_event || row.organization_id !== null;
+	throw new Error(`unhandled kind ${url.search}`);
 }
 
 function record(rows: TaskRow[], denied = false) {
@@ -20,7 +26,7 @@ function record(rows: TaskRow[], denied = false) {
 		const url = new URL(typeof input === 'string' ? input : input instanceof URL ? input.href : input.url);
 		queries.push(url);
 		if (denied) return Response.json({ message: 'permission denied', code: '42501' }, { status: 403 });
-		let matching = rows.filter(row => String(row.is_event) === url.searchParams.get('is_event')?.slice(3));
+		let matching = rows.filter(row => isOfKind(row, url));
 		const organization = url.searchParams.get('organization_id');
 		if (organization === 'not.is.null') matching = matching.filter(row => row.organization_id !== null);
 		if (organization?.startsWith('eq.')) matching = matching.filter(row => row.organization_id === organization.slice(3));
@@ -61,6 +67,14 @@ describe('task query scope before pagination', () => {
 		expect(await tasksOfCompany(caller, false)).toHaveLength(2);
 	});
 
+	test('a CRM activity on the calendar answers as work and as an event', async () => {
+		const calendarActivity = { ...task(2, 'customer'), is_event: true };
+		const ordinaryEvent = { ...task(3), is_event: true };
+		const { caller } = record([task(1), calendarActivity, ordinaryEvent]);
+		expect((await tasksOfCompany(caller, false)).map(row => row.id).sort()).toEqual(['000001', '000002']);
+		expect((await tasksOfCompany(caller, true)).map(row => row.id).sort()).toEqual(['000002', '000003']);
+	});
+
 	test('a requested-task count does not read completed history', async () => {
 		const requested = { ...task(1600), status: 'requested' };
 		const { caller, queries } = record([...Array.from({ length: 1501 }, (_, index) => ({ ...task(index), status: 'completed' })), requested]);
@@ -91,7 +105,7 @@ describe('caller-scoped task and event hint resolution', () => {
 			expect(await taskFromHint(caller, ` ${identifier.toUpperCase()} `, areEvents)).toEqual(wanted);
 			expect(queries).toHaveLength(1);
 			expect(queries[0].searchParams.get('id')).toBe(`eq.${identifier}`);
-			expect(queries[0].searchParams.get('is_event')).toBe(`eq.${areEvents}`);
+			expect(queries[0].searchParams.get(areEvents ? 'is_event' : 'task_is_work')).toBe('eq.true');
 			expect(queries[0].searchParams.has('limit')).toBe(false);
 		});
 	}

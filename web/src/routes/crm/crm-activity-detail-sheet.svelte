@@ -3,7 +3,6 @@
 	import { Button } from '$lib/components/ui/button';
 	import { Checkbox } from '$lib/components/ui/checkbox';
 	import * as Field from '$lib/components/ui/field';
-	import DateTimePicker from '$lib/components/date-time-picker.svelte';
 	import { Input } from '$lib/components/ui/input';
 	import * as Select from '$lib/components/ui/select';
 	import * as Sheet from '$lib/components/ui/sheet';
@@ -16,6 +15,8 @@
 	import CRMOwnerSelect from './crm-owner-select.svelte';
 	import PersonMultiSelect from '$lib/components/person-multi-select.svelte';
 	import CRMContactSelect from './crm-contact-select.svelte';
+	import CRMActivityDateFields from './crm-activity-date-fields.svelte';
+	import { activityDatesAreOrdered, activityDatesOf } from './crm-activity-dates';
 	import type { CRMOrganization, CRMActivity, CRMActivityEditDraft, CRMActivityKind, CRMContact, CRMOpportunity } from './crm-types';
 	import { findOrganizationByID } from './crm-view-model';
 	import type { CRMText } from './text';
@@ -45,7 +46,6 @@
 	let business = $state('');
 	let title = $state('');
 	let kind = $state<CRMActivityKind>('note');
-	let occurredAt = $state('');
 	let summary = $state('');
 	let participantPersonIDs = $state<string[]>([]);
 
@@ -70,7 +70,7 @@
 
 	let activityStatus = $state<string>(taskStatus.planned);
 	let isEvent = $state(false);
-	let isWholeDay = $state(false);
+	let isWholeDay = $state(true);
 	let startsAt = $state('');
 	let endsAt = $state('');
 	let location = $state('');
@@ -86,14 +86,11 @@
 		business = selectedActivity.business;
 		title = selectedActivity.title;
 		kind = selectedActivity.kind;
-		occurredAt = dateTimeLocalValue(selectedActivity.occurredAt);
 		summary = selectedActivity.summary;
 		participantPersonIDs = [...selectedActivity.participantIDs];
 		activityStatus = selectedActivity.taskStatus;
 		isEvent = Boolean(selectedActivity.calendarEventID);
-		isWholeDay = selectedActivity.isWholeDay ?? false;
-		startsAt = dateTimeLocalValue(selectedActivity.calendarEventDate ?? selectedActivity.occurredAt);
-		endsAt = dateTimeLocalValue(selectedActivity.calendarEndsAt ?? selectedActivity.calendarEventDate ?? selectedActivity.occurredAt);
+		({ isWholeDay, startsAt, endsAt } = activityDatesOf(selectedActivity));
 		location = selectedActivity.calendarLocation ?? '';
 		isSaving = false;
 		errorMessage = '';
@@ -128,7 +125,7 @@
 	async function save(event: SubmitEvent): Promise<void> {
 		event.preventDefault();
 		if (!activity || !title.trim()) return;
-		if (isEvent && startsAt && endsAt && endsAt < startsAt) {
+		if (!activityDatesAreOrdered({ isWholeDay, startsAt, endsAt })) {
 			errorMessage = text.endTimeAfterStart;
 			return;
 		}
@@ -142,7 +139,6 @@
 				business,
 				kind,
 				title: title.trim(),
-				occurredAt,
 				summary: summary.trim(),
 				participantPersonIDs,
 				taskStatus: activityStatus,
@@ -165,12 +161,6 @@
 		const selectedID = editedRecordID;
 		if (selectedID) untrack(() => { if (activity) resetForm(activity); });
 	});
-
-	function dateTimeLocalValue(value: string): string {
-		const date = new Date(value);
-		if (Number.isNaN(date.getTime())) return '';
-		return new Date(date.getTime() - date.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
-	}
 </script>
 
 <Sheet.Root bind:open>
@@ -181,12 +171,13 @@
 						<Field.Field><Field.Label for="crm-activity-organization">{text.organizationName}</Field.Label><Select.Root type="single" value={organizationID} onValueChange={selectOrganization}><Select.Trigger id="crm-activity-organization" class="w-full">{findOrganizationByID(organizations, organizationID)?.name ?? text.selectRelationship}</Select.Trigger><Select.Content><Select.Group>{#each organizations as organization (organization.id)}<Select.Item value={organization.id} label={organization.name}>{organization.name}</Select.Item>{/each}</Select.Group></Select.Content></Select.Root></Field.Field>
 						<Field.Field><Field.Label for="crm-activity-opportunity">{text.relatedProgress}</Field.Label><Select.Root type="single" value={opportunityID} onValueChange={selectOpportunity}><Select.Trigger id="crm-activity-opportunity" class="w-full">{relatedOpportunities.find((opportunity) => opportunity.id === opportunityID)?.name ?? text.noRelatedProgress}</Select.Trigger><Select.Content><Select.Group><Select.Item value={unlinkedOpportunityValue} label={text.noRelatedProgress}>{text.noRelatedProgress}</Select.Item>{#each relatedOpportunities as opportunity (opportunity.id)}<Select.Item value={opportunity.id} label={opportunity.name}>{opportunity.name}</Select.Item>{/each}</Select.Group></Select.Content></Select.Root></Field.Field>
 					<Field.Field><Field.Label for="crm-activity-title">{text.activityTitle}</Field.Label><Input id="crm-activity-title" bind:value={title} required /></Field.Field>
-					<div class="grid gap-4 sm:grid-cols-2"><Field.Field><Field.Label>{text.activityKind}</Field.Label><Select.Root type="single" value={kind} onValueChange={(value) => (kind = value as Exclude<CRMActivityKind, 'stage_change'>)}><Select.Trigger class="w-full">{crmLabel(text.activityKinds, kind)}</Select.Trigger><Select.Content><Select.Group>{#each activityKinds as option (option)}<Select.Item value={option} label={crmLabel(text.activityKinds, option)}>{crmLabel(text.activityKinds, option)}</Select.Item>{/each}</Select.Group></Select.Content></Select.Root></Field.Field><Field.Field><Field.Label for="crm-activity-occurred">{text.occurredAt}</Field.Label><DateTimePicker id="crm-activity-occurred" bind:value={occurredAt} /></Field.Field></div>
+					<Field.Field><Field.Label>{text.activityKind}</Field.Label><Select.Root type="single" value={kind} onValueChange={(value) => (kind = value as Exclude<CRMActivityKind, 'stage_change'>)}><Select.Trigger class="w-full">{crmLabel(text.activityKinds, kind)}</Select.Trigger><Select.Content><Select.Group>{#each activityKinds as option (option)}<Select.Item value={option} label={crmLabel(text.activityKinds, option)}>{crmLabel(text.activityKinds, option)}</Select.Item>{/each}</Select.Group></Select.Content></Select.Root></Field.Field>
+					<CRMActivityDateFields idPrefix="crm-activity" bind:isWholeDay bind:startsAt bind:endsAt {text} />
 						<Field.Field><Field.Label for="crm-activity-business">{text.business}</Field.Label><Select.Root type="single" bind:value={business} disabled={opportunityID !== unlinkedOpportunityValue}><Select.Trigger id="crm-activity-business" class="w-full">{business}</Select.Trigger><Select.Content><Select.Group>{#each businessOptions as option (option)}<Select.Item value={option} label={option}>{option}</Select.Item>{/each}</Select.Group></Select.Content></Select.Root></Field.Field>
 						<Field.Field><Field.Label for="crm-activity-contact">{text.externalContact}</Field.Label><CRMContactSelect id="crm-activity-contact" bind:value={contactID} contacts={organizationContacts} {text} /></Field.Field>
 						<div class="grid gap-4 sm:grid-cols-2"><Field.Field><Field.Label for="crm-activity-owner">{text.assignee}</Field.Label><PersonMultiSelect disabled={!isDirectoryReady} selectedName={(memberID) => memberID} id="crm-activity-owner" selectedIDs={participantPersonIDs} people={selectablePeople} label={text.assignee} placeholder={text.selectInternalOwner} onToggle={toggleParticipant} onRemove={removeParticipant} /></Field.Field><Field.Field><Field.Label>{text.activityStatus}</Field.Label><Select.Root type="single" bind:value={activityStatus}><Select.Trigger class="w-full">{taskStatusLabelFrom(text.taskStatuses, activityStatus)}</Select.Trigger><Select.Content><Select.Group>{#each centralTaskStatusOptions as option (option)}<Select.Item value={option} label={taskStatusLabelFrom(text.taskStatuses, option)}>{taskStatusLabelFrom(text.taskStatuses, option)}</Select.Item>{/each}</Select.Group></Select.Content></Select.Root></Field.Field></div>
 						<Field.Field orientation="horizontal"><Checkbox id="crm-activity-calendar" bind:checked={isEvent} /><Field.Content><Field.Label for="crm-activity-calendar">{text.registerCalendar}</Field.Label><Field.Description>{text.registerCalendarDescription}</Field.Description></Field.Content></Field.Field>
-						{#if isEvent}<Field.Field orientation="horizontal"><Checkbox id="crm-activity-all-day" bind:checked={isWholeDay} /><Field.Content><Field.Label for="crm-activity-all-day">{text.allDay}</Field.Label></Field.Content></Field.Field><div class="grid gap-4 sm:grid-cols-2"><Field.Field><Field.Label for="crm-activity-start">{text.startTime}</Field.Label><DateTimePicker id="crm-activity-start" bind:value={startsAt} /></Field.Field><Field.Field><Field.Label for="crm-activity-end">{text.endTime}</Field.Label><DateTimePicker id="crm-activity-end" bind:value={endsAt} /></Field.Field></div><Field.Field><Field.Label for="crm-activity-location">{text.location}</Field.Label><Input id="crm-activity-location" bind:value={location} /></Field.Field>{/if}
+						{#if isEvent}<Field.Field><Field.Label for="crm-activity-location">{text.location}</Field.Label><Input id="crm-activity-location" bind:value={location} /></Field.Field>{/if}
 					<Field.Field><Field.Label for="crm-activity-summary">{text.details}</Field.Label><Textarea id="crm-activity-summary" rows={8} bind:value={summary} /></Field.Field>
 				{#if errorMessage}<p class="text-sm text-destructive">{errorMessage}</p>{/if}
 			</Field.Group></div>

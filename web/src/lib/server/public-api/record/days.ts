@@ -89,7 +89,7 @@ export function instantOfDay(timezone: string, day: string, endOfDay = false): s
 	return new Date(wall - offsetMilliseconds(timezone, guessed)).toISOString();
 }
 
-function isADay(written: string): boolean {
+export function isADay(written: string): boolean {
 	return /^\d{4}-\d{2}-\d{2}$/.test(written);
 }
 
@@ -103,10 +103,25 @@ export function instantWritten(timezone: string, written: string, endOfDay = fal
 	return moment.toISOString();
 }
 
-export function instantAfterWrittenDay(timezone: string, written: string): string {
+function dayWritten(timezone: string, written: string): string {
 	const asked = written.trim();
-	if (isADay(asked)) return instantOfDay(timezone, dayShifted(asked, 1));
-	return instantWritten(timezone, asked);
+	return isADay(asked) ? asked : dayIn(timezone, new Date(instantWritten(timezone, asked)));
+}
+
+export function startWritten(timezone: string, written: string, isWholeDay: boolean): string {
+	if (!isWholeDay) return instantWritten(timezone, written);
+	return instantOfDay(timezone, dayWritten(timezone, written));
+}
+
+function isAMidnight(timezone: string, instant: string): boolean {
+	return instant === instantOfDay(timezone, dayIn(timezone, new Date(instant)));
+}
+
+export function endWritten(timezone: string, written: string, isWholeDay: boolean): string {
+	if (!isWholeDay) return instantWritten(timezone, written, true);
+	const instant = isADay(written.trim()) ? '' : instantWritten(timezone, written);
+	if (instant && isAMidnight(timezone, instant)) return instant;
+	return instantOfDay(timezone, dayShifted(dayWritten(timezone, written), 1));
 }
 
 // instantWritten answers `…Z` and PostgREST answers `…+00:00` for the same

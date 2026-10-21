@@ -3,6 +3,7 @@ import { addMember, asMember, controlPlane, provisionCompany, sessionForMember }
 import { projectURL, publishableKey, serviceRoleKey, signingKey } from './supabase-environment';
 import { heldToTheContract } from './tool-answers';
 import { leavesTaskLabelsUndecided } from '../../src/lib/server/public-api/record/task-labels';
+import { dayIn, dayShifted, weekWindow } from '../../src/lib/server/public-api/record/days';
 
 mock.module('$env/dynamic/private', () => ({
 	env: { SUPABASE_URL: projectURL, SUPABASE_SECRET_KEY: serviceRoleKey, SUPABASE_PUBLISHABLE_KEY: publishableKey, SUPABASE_JWT_SIGNING_KEY: signingKey }
@@ -443,16 +444,19 @@ describe('the activities recorded against a deal', () => {
 			kind: 'meeting',
 			business: '영업',
 			note: '요구사항을 들었다',
-			occurredAt: '2026-09-02T09:00:00+09:00'
+			startsAt: '2026-09-02T09:00:00+09:00'
 		});
 
 		expect(recorded.status).toBe(200);
 		expect(resultOf(recorded).content).toBe('요구사항을 들었다');
 		expect(resultOf(recorded).kind).toBe('meeting');
 		expect(resultOf(recorded).isEvent).toBe(false);
+		expect(resultOf(recorded).isWholeDay).toBe(false);
 		expect(new Date(resultOf(recorded).occurredAt as string).toISOString()).toBe(
 			'2026-09-02T00:00:00.000Z'
 		);
+		expect(resultOf(recorded).startsAt).toBe('2026-09-02T09:00:00+09:00');
+		expect(resultOf(recorded).endsAt).toBe('2026-09-02T09:00:00+09:00');
 
 		const listed = await asSample('task_list', { opportunityHint: 'ABC상사 도입', scope: 'all' });
 		expect((resultOf(listed).tasks as { content: string }[]).map((task) => task.content)).toContain(
@@ -500,12 +504,13 @@ describe('the activities recorded against a deal', () => {
 		const changed = await asSample('crm_activity_save', {
 			activityHint: '킥오프 미팅',
 			note: '예산까지 들었다',
-			status: 'in_progress'
+			status: 'completed'
 		});
 
 		expect(changed.status).toBe(200);
 		expect(resultOf(changed).content).toBe('예산까지 들었다');
-		expect(resultOf(changed).taskStatus).toBe('in_progress');
+		expect(resultOf(changed).taskStatus).toBe('completed');
+		expect(resultOf(changed).startsAt).toBe('2026-09-02T09:00:00+09:00');
 		expect(resultOf(changed).opportunityID).not.toBe('');
 	});
 
@@ -539,6 +544,135 @@ describe('the activities recorded against a deal', () => {
 		});
 		expect(invented.status).toBe(400);
 		expect(errorOf(invented)).toContain('moving the deal');
+	});
+
+	test('start and end today, all day, when they name no dates', async () => {
+		const today = dayIn('Asia/Seoul', new Date());
+		const recorded = await asSample('crm_activity_save', {
+			organizationHint: 'ABC상사',
+			title: '날짜 없이 남긴 메모',
+			kind: 'meeting'
+		});
+
+		expect(recorded.status).toBe(200);
+		expect(resultOf(recorded).isWholeDay).toBe(true);
+		expect(resultOf(recorded).startsAt).toBe(today);
+		expect(resultOf(recorded).endsAt).toBe(today);
+	});
+
+	test('completed with last week\'s date show on last week\'s board and not on this one', async () => {
+		const lastMonday = weekWindow('Asia/Seoul', new Date(), -1, -1).from;
+		const thisMonday = dayShifted(lastMonday, 7);
+		const recorded = await asSample('crm_activity_save', {
+			organizationHint: 'ABC상사',
+			title: '지난주에 끝낸 미팅',
+			kind: 'meeting',
+			status: 'completed',
+			startsAt: dayShifted(lastMonday, 1),
+			endsAt: dayShifted(lastMonday, 1)
+		});
+		expect(recorded.status).toBe(200);
+		const activityID = String(resultOf(recorded).activityID);
+
+		const lastWeek = await asSample('task_board_get', { boardWeek: lastMonday, scope: 'all' });
+		const thisWeek = await asSample('task_board_get', { boardWeek: thisMonday, scope: 'all' });
+
+		const onLastWeek = (resultOf(lastWeek).tasks as { taskID: string; endDate: string }[]).find((task) => task.taskID === activityID);
+		expect(onLastWeek?.endDate).toBe(dayShifted(lastMonday, 1));
+		expect((resultOf(thisWeek).tasks as { taskID: string }[]).map((task) => task.taskID)).not.toContain(activityID);
+	});
+
+	test('on the calendar stay on the board as the same row, which the board can edit', async () => {
+		const today = dayIn('Asia/Seoul', new Date());
+		const thisMonday = weekWindow('Asia/Seoul', new Date(), 0, 0).from;
+		const recorded = await asSample('crm_activity_save', {
+			organizationHint: 'ABC상사',
+			title: '캘린더에 올린 방문',
+			kind: 'meeting',
+			isEvent: true,
+			startsAt: today,
+			endsAt: today
+		});
+		expect(recorded.status).toBe(200);
+		expect(resultOf(recorded).isEvent).toBe(true);
+		const activityID = String(resultOf(recorded).activityID);
+		const ordinary = await asSample('event_add', { title: 'CRM 아닌 일정', startsAt: today, endsAt: today, isWholeDay: true });
+		expect(ordinary.status).toBe(200);
+
+		const board = await asSample('task_board_get', { boardWeek: thisMonday, scope: 'all' });
+		const boardIDs = (resultOf(board).tasks as { taskID: string }[]).map((task) => task.taskID);
+		expect(boardIDs).toContain(activityID);
+		expect(boardIDs).not.toContain(String(resultOf(ordinary).eventID));
+		const card = (resultOf(board).tasks as { taskID: string; startDate: string; endDate: string }[]).find((task) => task.taskID === activityID);
+		expect([card?.startDate, card?.endDate]).toEqual([today, today]);
+
+		const calendar = await asSample('event_list', { weekFrom: 0, scope: 'all' });
+		expect((resultOf(calendar).events as { eventID: string }[]).map((event) => event.eventID)).toContain(activityID);
+
+		const edited = await asSample('task_update', { taskHint: activityID, note: '보드에서 고쳤다' });
+		expect(edited.status).toBe(200);
+		const listed = activitiesOf(await asSample('crm_activity_list', { organizationHint: 'ABC상사' }));
+		const held = listed.find((activity) => activity.activityID === activityID);
+		expect(held?.content).toBe('보드에서 고쳤다');
+		expect(held?.isEvent).toBe(true);
+	});
+
+	test('created on the calendar as completed end today, the way a task does', async () => {
+		const today = dayIn('Asia/Seoul', new Date());
+		const recorded = await asSample('crm_activity_save', {
+			organizationHint: 'ABC상사',
+			title: '미리 끝낸 방문',
+			kind: 'meeting',
+			status: 'completed',
+			isEvent: true,
+			startsAt: dayShifted(today, -1),
+			endsAt: dayShifted(today, 3)
+		});
+
+		expect(recorded.status).toBe(200);
+		expect(resultOf(recorded).isEvent).toBe(true);
+		expect(resultOf(recorded).endsAt).toBe(today);
+	});
+
+	test('keep the size the board gave them when the calendar edits them', async () => {
+		const today = dayIn('Asia/Seoul', new Date());
+		const recorded = await asSample('crm_activity_save', {
+			organizationHint: 'ABC상사',
+			title: '캘린더에서 고친 방문',
+			kind: 'meeting',
+			isEvent: true,
+			startsAt: today,
+			endsAt: today
+		});
+		const activityID = String(resultOf(recorded).activityID);
+		expect((await asSample('task_update', { taskHint: activityID, size: 'L' })).status).toBe(200);
+
+		const moved = await asSample('event_update', { eventHint: activityID, title: '캘린더에서 고친 방문 (변경)' });
+		expect(moved.status).toBe(200);
+
+		const held = activitiesOf(await asSample('crm_activity_list', { organizationHint: 'ABC상사' }))
+			.find((activity) => activity.activityID === activityID);
+		expect(held?.title).toBe('캘린더에서 고친 방문 (변경)');
+		expect(held?.size).toBe('L');
+	});
+
+	test('go on and off the calendar as the one row they are', async () => {
+		const recorded = await asSample('crm_activity_save', {
+			organizationHint: 'ABC상사',
+			title: '나중에 캘린더에 올린 통화',
+			kind: 'meeting'
+		});
+		const activityID = String(resultOf(recorded).activityID);
+
+		const ticked = await asSample('crm_activity_save', { activityHint: activityID, isEvent: true });
+		expect(ticked.status).toBe(200);
+		expect(resultOf(ticked).activityID).toBe(activityID);
+		expect(resultOf(ticked).isEvent).toBe(true);
+
+		const unticked = await asSample('crm_activity_save', { activityHint: activityID, isEvent: false });
+		expect(unticked.status).toBe(200);
+		expect(resultOf(unticked).activityID).toBe(activityID);
+		expect(resultOf(unticked).isEvent).toBe(false);
 	});
 });
 

@@ -22,18 +22,19 @@ type BoardTask struct {
 	Status           string
 	StartsAt         string
 	EndsAt           string
-	DueAt            string
+	LastDay          string
 	CreatedAt        string
 	UpdatedAt        string
 	RequesterMail    string
 	ParticipantMails []string
 }
 
-const boardTaskSelection = "id,parent_task_id,title,note,business,type,size,status,starts_at,ends_at,due_at,created_at,updated_at,requester:requester_id(email),task_participant(member(email))"
+const WorkColumn = "task_is_work"
+
+const boardTaskSelection = "id,parent_task_id,title,note,business,type,size,status,starts_at,ends_at,task_last_day,created_at,updated_at,requester:requester_id(email),task_participant(member(email))"
 
 // BoardTasks answers the company's tasks, read as the person who asked so row
-// level security decides what comes back. Events live in the same table and are
-// left out, since a board is not a calendar.
+// level security decides what comes back.
 func (client *Client) BoardTasks(ctx context.Context, platform string, externalID string) ([]BoardTask, error) {
 	session, errorValue := client.sessionFor(ctx, platform, externalID)
 	if errorValue != nil {
@@ -42,7 +43,7 @@ func (client *Client) BoardTasks(ctx context.Context, platform string, externalI
 	query := url.Values{}
 	query.Set("select", boardTaskSelection)
 	query.Set("order", "created_at.asc")
-	query.Set("is_event", "eq.false")
+	query.Set(WorkColumn, "is.true")
 	return client.boardTasksMatching(ctx, session, query)
 }
 
@@ -74,7 +75,7 @@ func (client *Client) boardTasksMatching(ctx context.Context, session memberSess
 		Status    string `json:"status"`
 		StartsAt  any    `json:"starts_at"`
 		EndsAt    any    `json:"ends_at"`
-		DueAt     any    `json:"due_at"`
+		LastDay   any    `json:"task_last_day"`
 		CreatedAt string `json:"created_at"`
 		UpdatedAt string `json:"updated_at"`
 		Requester struct {
@@ -103,7 +104,7 @@ func (client *Client) boardTasksMatching(ctx context.Context, session memberSess
 			Status:        row.Status,
 			StartsAt:      textOf(row.StartsAt),
 			EndsAt:        textOf(row.EndsAt),
-			DueAt:         textOf(row.DueAt),
+			LastDay:       textOf(row.LastDay),
 			CreatedAt:     row.CreatedAt,
 			UpdatedAt:     row.UpdatedAt,
 			RequesterMail: strings.TrimSpace(row.Requester.Email),

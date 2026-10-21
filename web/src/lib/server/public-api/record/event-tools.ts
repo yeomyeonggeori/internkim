@@ -10,11 +10,12 @@ import {
 import { crmColumnsWritten, writeCRMColumns } from './crm-tools';
 import {
 	dayIn,
-	instantAfterWrittenDay,
+	endWritten,
 	instantOfDay,
 	instantWritten,
 	isTheSameMoment,
 	momentIn,
+	startWritten,
 	weekWindow
 } from './days';
 import { labelOf } from './labels';
@@ -102,11 +103,6 @@ function refuseAVersionThatMovedOn(current: string, expectedUpdatedAt: string | 
 	throw new CalendarEventVersionConflict(current);
 }
 
-export function eventEndInstant(timezone: string, written: string, isWholeDay: boolean): string {
-	if (isWholeDay) return instantAfterWrittenDay(timezone, written);
-	return instantWritten(timezone, written, true);
-}
-
 export function sizeOfEvent(startsAt: string, endsAt: string, isWholeDay: boolean): string {
 	const hours = (new Date(endsAt).getTime() - new Date(startsAt).getTime()) / millisecondsPerHour;
 	if (!isWholeDay) return sizeOfHours(hours);
@@ -183,10 +179,10 @@ function eventWriteArguments(
 	const timezone = context.labels.timezone;
 	const isWholeDay = written.isWholeDay ?? row?.is_whole_day ?? false;
 	const startsAt =
-		written.startsAt !== undefined ? instantWritten(timezone, written.startsAt) : row?.starts_at ?? '';
+		written.startsAt !== undefined ? startWritten(timezone, written.startsAt, isWholeDay) : row?.starts_at ?? '';
 	const endsAt =
 		written.endsAt !== undefined
-			? eventEndInstant(timezone, written.endsAt, isWholeDay)
+			? endWritten(timezone, written.endsAt, isWholeDay)
 			: row?.ends_at ?? '';
 	if (!startsAt || !endsAt) throw new Error('an event runs from a moment to a moment');
 	if (endsAt <= startsAt) throw new Error('an event ends after it starts');
@@ -206,7 +202,7 @@ function eventWriteArguments(
 						? 'requested'
 						: 'planned'
 				}),
-		target_size: sizeOfEvent(startsAt, endsAt, isWholeDay),
+		target_size: row?.organization_id ? row.size : sizeOfEvent(startsAt, endsAt, isWholeDay),
 		target_title: written.title ?? row?.title ?? '',
 		target_note: written.note !== undefined ? written.note || null : row?.note ?? null,
 		target_business: business,

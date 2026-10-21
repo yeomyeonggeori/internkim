@@ -140,7 +140,6 @@ export type CRMActivityPayload = {
 	business: string;
 	kind: CRMActivityKind;
 	title: string;
-	occurredAt: string;
 	content: string;
 	taskStatus: string;
 	participantIDs: string[];

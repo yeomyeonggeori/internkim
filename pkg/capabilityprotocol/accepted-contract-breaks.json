@@ -345,6 +345,11 @@
 		"release": "the release cut after the change declaring every write tool's effect merges, deployed to the fleet before the plane returns isNew"
 	},
 	{
+		"path": "crm_activity_save.input.occurredAt",
+		"reason": "A CRM activity now runs from startsAt to endsAt like every task, and task.due_at, the one column occurredAt was written to, is gone. crm_activity_save is not offered to the model and is answered by the plane, so its callers are the web screens and the public API, which deploy with the plane; a device on an older release holds the field in its descriptor but has nothing that sends it.",
+		"release": "the release cut after the change moving CRM activities to start and end dates merges"
+	},
+	{
 		"path": "computer_task",
 		"reason": "The companion leaves internkim, and computer_task was the companion's tool: the device's own capabilityd answered it only by refusing it as not connected, and the plane never answered it. Blueclaw never offered it to the model, because it requires the requester's own device. A device on an older release keeps the descriptor its own build embeds and its own capabilityd keeps refusing it until it takes this release, when both go together.",
 		"release": "the release cut after the change removing the companion merges"

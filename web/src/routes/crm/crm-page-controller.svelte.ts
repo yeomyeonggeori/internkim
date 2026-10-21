@@ -9,6 +9,7 @@ import { loadCRMOrganizationDirectory } from './crm-data-source';
 import { forgetCRMData, rememberCRMData, rememberedCRMData, type CRMDataSnapshot } from './crm-data-cache';
 import type { CRMReadPart } from './crm-data-source';
 import type { CRMDataResponse } from './crm-api-types';
+import { activityDatesWritten } from './crm-activity-dates';
 import {
 	CRMApiError,
 	archiveCRMOrganization,
@@ -387,12 +388,9 @@ export class CRMPageController {
 			business: draft.business,
 			kind: draft.kind,
 			title: draft.title,
-			occurredAt: new Date(draft.occurredAt).toISOString(),
 			summary: draft.summary,
 			calendarEventID: draft.isEvent ? activity.id : undefined,
-			calendarEventDate: draft.isEvent ? new Date(draft.startsAt).toISOString() : undefined,
-			calendarEndsAt: draft.isEvent ? new Date(draft.endsAt || draft.startsAt).toISOString() : undefined,
-			isWholeDay: draft.isWholeDay,
+			...activityDatesWritten(draft),
 			calendarLocation: draft.location
 		};
 		await this.mutate(() => updateCRMActivity(activity.id, {

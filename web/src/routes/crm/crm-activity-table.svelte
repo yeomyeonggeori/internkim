@@ -46,8 +46,8 @@
 		business: (activity) => activity.business,
 		size: (activity) => activity.size,
 		organization: (activity) => findOrganizationByID(organizations, activity.organizationID)?.name ?? '',
-		endsAt: (activity) => activity.calendarEndsAt ?? '',
-		occurredAt: (activity) => activity.occurredAt,
+		endsAt: (activity) => activity.endsAt ?? '',
+		startsAt: (activity) => activity.startsAt || activity.occurredAt,
 		owner: (activity) => activity.participantNames[0] ?? '',
 		status: (activity) => taskStatusRank(activity.taskStatus)
 	};
@@ -104,7 +104,7 @@
 					<Table.Head class="hidden whitespace-nowrap xl:table-cell" aria-sort={ariaSort('size')}><CRMTableColumnHeader label={text.columnSize} sortKey="size" {sort} onSort={toggleSort} /></Table.Head>
 					<Table.Head class="hidden whitespace-nowrap sm:table-cell" aria-sort={ariaSort('organization')}><CRMTableColumnHeader label={text.organizationName} sortKey="organization" {sort} onSort={toggleSort} /></Table.Head>
 					<Table.Head class="hidden whitespace-nowrap xl:table-cell">{text.opportunity}</Table.Head>
-					<Table.Head class="hidden whitespace-nowrap text-right tabular-nums md:table-cell" aria-sort={ariaSort('occurredAt')}><CRMTableColumnHeader label={text.columnStartDate} sortKey="occurredAt" {sort} onSort={toggleSort} /></Table.Head>
+					<Table.Head class="hidden whitespace-nowrap text-right tabular-nums md:table-cell" aria-sort={ariaSort('startsAt')}><CRMTableColumnHeader label={text.columnStartDate} sortKey="startsAt" {sort} onSort={toggleSort} /></Table.Head>
 					<Table.Head class="hidden whitespace-nowrap text-right tabular-nums xl:table-cell" aria-sort={ariaSort('endsAt')}><CRMTableColumnHeader label={text.columnEndDate} sortKey="endsAt" {sort} onSort={toggleSort} /></Table.Head>
 					<Table.Head class="hidden whitespace-nowrap lg:table-cell" aria-sort={ariaSort('owner')}><CRMTableColumnHeader label={text.assignee} sortKey="owner" {sort} onSort={toggleSort} /></Table.Head>
 					<Table.Head class="whitespace-nowrap pr-6" aria-sort={ariaSort('status')}><CRMTableColumnHeader label={text.status} sortKey="status" {sort} onSort={toggleSort} /></Table.Head>
@@ -148,8 +148,8 @@
 						</Table.Cell>
 						<Table.Cell class="hidden whitespace-nowrap text-muted-foreground sm:table-cell"><p class="truncate">{organization?.name ?? text.none}</p></Table.Cell>
 						<Table.Cell class="hidden whitespace-nowrap text-muted-foreground xl:table-cell"><p class="truncate">{opportunity?.name ?? text.none}</p></Table.Cell>
-						<Table.Cell class="hidden whitespace-nowrap text-right tabular-nums text-muted-foreground md:table-cell">{formatCRMDate(activity.occurredAt.slice(0, 10), currentLocale.value)}</Table.Cell>
-						<Table.Cell class="hidden whitespace-nowrap text-right tabular-nums text-muted-foreground xl:table-cell">{activity.calendarEndsAt ? formatCRMDate(activity.calendarEndsAt.slice(0, 10), currentLocale.value) : text.none}</Table.Cell>
+						<Table.Cell class="hidden whitespace-nowrap text-right tabular-nums text-muted-foreground md:table-cell">{activity.startsAt ? formatCRMDate(activity.startsAt.slice(0, 10), currentLocale.value) : text.none}</Table.Cell>
+						<Table.Cell class="hidden whitespace-nowrap text-right tabular-nums text-muted-foreground xl:table-cell">{activity.endsAt ? formatCRMDate(activity.endsAt.slice(0, 10), currentLocale.value) : text.none}</Table.Cell>
 						<Table.Cell class="hidden whitespace-nowrap lg:table-cell">
 							{#if activity.participantNames.length > 0}
 								<PersonChipList names={activity.participantNames} memberIDs={activity.participantIDs} memberEmail={emailOf} />
