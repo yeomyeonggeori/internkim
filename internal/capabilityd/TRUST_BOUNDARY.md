@@ -13,8 +13,16 @@ Blueclaw POSIX helper. Those identities use a requester primary group plus
 service group and should not be able to open the host capability socket
 directly.
 
-`RequesterPersonID`, `IsScheduledRun`, `HoldID`, and `ScheduledApprovedCall` are
+`RequesterPersonID`, `IsScheduledRun`, and `ScheduledApprovedCall` are
 therefore trusted at the Blueclaw runtime boundary, not at the model/tool-code
 boundary. `capabilityd` still rejects malformed requester IDs at decode time,
 and requires a requester ID when the scheduled-run flag is present, as defense in
 depth.
+
+`HoldID` is not taken on trust. A call that needs approval and names a hold is
+carried out only after Blueclaw's ledger redeems it at
+`POST /admin/api/held-call/redeem`, with the `TaskRunID`, requester, tool and
+input the call carries. The ledger refuses a hold that run does not hold, one
+another person asked for, one its requester did not approve, one approved for a
+different call, and one already redeemed. A refusal, or a ledger that cannot be
+reached, answers `approval_required`.
