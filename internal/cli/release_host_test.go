@@ -11,7 +11,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/yeomyeonggeori/internkim/internal/hostversion"
 	"github.com/yeomyeonggeori/internkim/internal/runtime/blueclaw"
 )
 
@@ -404,12 +403,12 @@ func TestANamedReleaseThatIsNotAVersionIsRefusedBeforeGitHubIsAsked(t *testing.T
 	}
 }
 
-func TestAFullReleaseRefusesWithoutAMilestoneBeforeAnythingIsChecked(t *testing.T) {
+func TestAFullReleaseRefusesABumpItDoesNotKnowBeforeAnythingIsChecked(t *testing.T) {
 	original := checkReleaseTree
-	checkReleaseTree = func(string) error { t.Fatal("the tree was checked before the milestone"); return nil }
+	checkReleaseTree = func(string) error { t.Fatal("the tree was checked before the bump"); return nil }
 	t.Cleanup(func() { checkReleaseTree = original })
 	calls := recordGitHubCommands(t, func([]string) (string, error) { return "", nil })
-	for _, arguments := range [][]string{{"--channel", "testing"}, {"--channel", "stable", "--milestone", "2026.10.07.120000"}, {"--channel", "stable", "--milestone", "0.0.1+3"}} {
+	for _, arguments := range [][]string{{"--channel", "testing", "--bump", "0.0.2"}, {"--channel", "stable", "--bump", "build"}} {
 		if runReleaseHost(arguments) == nil {
 			t.Errorf("%v was released", arguments)
 		}
@@ -419,13 +418,17 @@ func TestAFullReleaseRefusesWithoutAMilestoneBeforeAnythingIsChecked(t *testing.
 	}
 }
 
-func TestAMilestoneBelowTheLatestIsRefused(t *testing.T) {
+func TestTheNextVersionRaisesTheHighestTagOnOriginMain(t *testing.T) {
 	tree := newShippableTree(t)
-	gitInDirectory(t, tree.root, "tag", "v0.0.2")
-	for milestone, isRefused := range map[string]bool{"0.0.1": true, "0.0.2": false, "0.0.3": false} {
-		parsed, _ := hostversion.ParseMilestone(milestone)
-		if errorValue := refuseAMilestoneBelowTheLatest(tree.root, parsed); (errorValue != nil) != isRefused {
-			t.Errorf("%s: %v", milestone, errorValue)
+	for _, tag := range []string{"v2026.10.07.120000", "v0.0.10", "v0.0.2"} {
+		gitInDirectory(t, tree.root, "tag", tag)
+	}
+	commitFile(t, tree.root, "unpushed.txt", "not on main")
+	gitInDirectory(t, tree.root, "tag", "v0.9.0")
+	for bump, want := range map[string]string{"": "0.0.11", "patch": "0.0.11", "minor": "0.1.0", "major": "1.0.0"} {
+		version, errorValue := nextReleaseVersion(tree.root, bump)
+		if errorValue != nil || version.Release() != want {
+			t.Errorf("--bump %q gave %s (%v); want %s", bump, version.Release(), errorValue, want)
 		}
 	}
 }

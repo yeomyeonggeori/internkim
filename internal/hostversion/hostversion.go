@@ -7,18 +7,26 @@ import (
 	"strings"
 )
 
-const MilestoneEpoch = 1
+const SemanticEpoch = 1
 
 var (
-	datePattern      = regexp.MustCompile(`^(\d{4})\.(\d{2})\.(\d{2})\.(\d{6})$`)
-	milestonePattern = regexp.MustCompile(`^(0|[1-9]\d{0,8})\.(0|[1-9]\d{0,8})\.(0|[1-9]\d{0,8})(?:\+([1-9]\d{0,8}))?$`)
+	datePattern     = regexp.MustCompile(`^(\d{4})\.(\d{2})\.(\d{2})\.(\d{6})$`)
+	semanticPattern = regexp.MustCompile(`^(0|[1-9]\d{0,8})\.(0|[1-9]\d{0,8})\.(0|[1-9]\d{0,8})(?:\+([1-9]\d{0,8}))?$`)
 )
 
 type Kind int
 
 const (
 	Date Kind = iota
-	Milestone
+	Semantic
+)
+
+type Bump string
+
+const (
+	Patch Bump = "patch"
+	Minor Bump = "minor"
+	Major Bump = "major"
 )
 
 type Version struct {
@@ -46,17 +54,6 @@ func Parse(text string) (Version, error) {
 	return version, nil
 }
 
-func ParseMilestone(text string) (Version, error) {
-	version, errorValue := Parse(text)
-	if errorValue != nil {
-		return Version{}, errorValue
-	}
-	if version.Kind != Milestone || version.Commits != 0 || strings.Contains(text, ":") {
-		return Version{}, fmt.Errorf("%q is not a milestone version; a milestone is MAJOR.MINOR.PATCH, such as 0.0.1", text)
-	}
-	return version, nil
-}
-
 func ParseReleaseTag(text string) (Version, error) {
 	version, errorValue := Parse(text)
 	if errorValue != nil {
@@ -72,8 +69,8 @@ func parseRelease(release string) (Version, error) {
 	if found := datePattern.FindStringSubmatch(release); found != nil {
 		return Version{Kind: Date, Date: strings.Join(found[1:], ".")}, nil
 	}
-	if found := milestonePattern.FindStringSubmatch(release); found != nil {
-		return Version{Kind: Milestone, Major: number(found[1]), Minor: number(found[2]), Patch: number(found[3]), Commits: number(found[4])}, nil
+	if found := semanticPattern.FindStringSubmatch(release); found != nil {
+		return Version{Kind: Semantic, Major: number(found[1]), Minor: number(found[2]), Patch: number(found[3]), Commits: number(found[4])}, nil
 	}
 	return Version{}, fmt.Errorf("expected MAJOR.MINOR.PATCH, MAJOR.MINOR.PATCH+COMMITS or YYYY.MM.DD.HHMMSS")
 }
@@ -84,15 +81,15 @@ func number(digits string) int {
 }
 
 func (version Version) Epoch() int {
-	if version.Kind == Milestone {
-		return MilestoneEpoch
+	if version.Kind == Semantic {
+		return SemanticEpoch
 	}
 	return 0
 }
 
 func (version Version) kindName() string {
-	if version.Kind == Milestone {
-		return "milestone"
+	if version.Kind == Semantic {
+		return "MAJOR.MINOR.PATCH"
 	}
 	return "date"
 }
@@ -119,14 +116,29 @@ func (version Version) Package() string {
 	return fmt.Sprintf("%d:%s", version.Epoch(), version.Release())
 }
 
-func (version Version) Base() Version {
-	version.Commits = 0
-	return version
+func (version Version) Next(bump Bump) Version {
+	switch bump {
+	case Major:
+		return Version{Kind: Semantic, Major: version.Major + 1}
+	case Minor:
+		return Version{Kind: Semantic, Major: version.Major, Minor: version.Minor + 1}
+	}
+	return Version{Kind: Semantic, Major: version.Major, Minor: version.Minor, Patch: version.Patch + 1}
 }
 
 func (version Version) WithCommits(commits int) Version {
 	version.Commits = commits
 	return version
+}
+
+func ParseBump(text string) (Bump, error) {
+	switch bump := Bump(text); bump {
+	case Patch, Minor, Major:
+		return bump, nil
+	case "":
+		return Patch, nil
+	}
+	return "", fmt.Errorf("%q is not a version bump; it is %s, %s or %s", text, Patch, Minor, Major)
 }
 
 func Compare(left Version, right Version) int {

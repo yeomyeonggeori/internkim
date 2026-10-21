@@ -6,26 +6,36 @@ import (
 	"github.com/yeomyeonggeori/internkim/internal/hostversion"
 )
 
-func packageVersionFromRepository(repositoryRootPath string) (string, error) {
-	version, errorValue := hostversion.ForRevision(repositoryRootPath, "HEAD")
+const releasedRevision = "origin/main"
+
+func nextReleaseVersion(repositoryRootPath string, requestedBump string) (hostversion.Version, error) {
+	bump, errorValue := hostversion.ParseBump(requestedBump)
 	if errorValue != nil {
-		return "", errorValue
+		return hostversion.Version{}, errorValue
 	}
-	return version.Release(), nil
+	return hostversion.NextForRevision(repositoryRootPath, releasedRevision, bump)
 }
 
 func chosenPackageVersion(requested string, repositoryRootPath string) (string, error) {
 	if requested == "" {
-		return packageVersionFromRepository(repositoryRootPath)
+		version, errorValue := hostversion.ForRevision(repositoryRootPath, releasedRevision)
+		return version.Release(), errorValue
 	}
 	version, errorValue := hostversion.Parse(requested)
 	if errorValue != nil {
 		return "", errorValue
 	}
-	if version.Kind != hostversion.Milestone {
-		return "", fmt.Errorf("%s is a date version, and packages are built as milestones: MAJOR.MINOR.PATCH or MAJOR.MINOR.PATCH+COMMITS", requested)
+	if version.Kind != hostversion.Semantic {
+		return "", fmt.Errorf("%s is a date version, and packages are built as MAJOR.MINOR.PATCH or MAJOR.MINOR.PATCH+COMMITS", requested)
 	}
 	return version.Release(), nil
+}
+
+func releaseVersionToPrint(repositoryRootPath string, arguments []string) (hostversion.Version, error) {
+	if bump := commandArgumentValue(arguments, "--bump", ""); bump != "" {
+		return nextReleaseVersion(repositoryRootPath, bump)
+	}
+	return hostversion.ForRevision(repositoryRootPath, releasedRevision)
 }
 
 func runReleaseVersion(arguments []string) error {
@@ -41,10 +51,10 @@ func runReleaseVersion(arguments []string) error {
 	if errorValue != nil {
 		return errorValue
 	}
-	version, errorValue := packageVersionFromRepository(repositoryRootPath)
+	version, errorValue := releaseVersionToPrint(repositoryRootPath, arguments)
 	if errorValue != nil {
 		return errorValue
 	}
-	fmt.Println(version)
+	fmt.Println(version.Release())
 	return nil
 }

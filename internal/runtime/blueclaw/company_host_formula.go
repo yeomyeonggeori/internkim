@@ -115,7 +115,7 @@ func HomebrewFormula(request HomebrewFormulaRequest) (string, error) {
 	formula.WriteString("  sha256 " + rubyString(request.SourceSHA256) + "\n")
 	formula.WriteString("  license " + rubyString(companyPackageLicense) + "\n")
 	formula.WriteString("  version " + rubyString(request.Version) + "\n")
-	formula.WriteString(fmt.Sprintf("  version_scheme %d\n\n", hostversion.MilestoneEpoch))
+	formula.WriteString(fmt.Sprintf("  version_scheme %d\n\n", hostversion.SemanticEpoch))
 	writeHomebrewBottleBlock(formula, request.BottleRootURL, request.Bottles)
 	writeHomebrewDependencies(formula)
 	writeHomebrewInstallBlock(formula)

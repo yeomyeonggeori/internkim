@@ -619,8 +619,8 @@ class ReleaseVersionOfTests(unittest.TestCase):
     def test_a_package_version_is_read_without_its_epoch(self):
         for package_version, release_version in [
             ("1:0.0.1", "0.0.1"),
-            ("1:0.0.1+37", "0.0.1+37"),
-            ("0.0.1+2", "0.0.1+2"),
+            ("1:0.0.2", "0.0.2"),
+            ("1:0.0.1+194", "0.0.1+194"),
             ("2026.10.01.090507", "2026.10.01.090507"),
         ]:
             with self.subTest(package_version=package_version):

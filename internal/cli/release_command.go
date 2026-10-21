@@ -16,8 +16,8 @@ type releaseSubcommand struct {
 
 var releaseSubcommands = []releaseSubcommand{
 	{name: "packages", summary: "Build the release directory without publishing it: deb, rpm and archlinux packages, the Homebrew bottle and formula, and their SHA256SUMS", flags: []string{"--format", "--architecture", "--out", "--version"}, run: runReleasePackages},
-	{name: "version", summary: "Print the version a build of HEAD carries, as the last milestone and the commits since it (0.0.1+37); --of <version> prints a version the way a person reads it, without its epoch", flags: []string{"--of"}, run: runReleaseVersion},
-	{name: "host", summary: "Build the company host for Linux and Apple-silicon Macs and publish it as a GitHub Release on the stable or testing channel; stable also gives the Homebrew tap its formula; --milestone MAJOR.MINOR.PATCH names the version a new release carries; --channel stable --version <tag> promotes a tested release without building", flags: []string{"--channel", "--version", "--milestone"}, run: runReleaseHost},
+	{name: "version", summary: "Print the version a host-only build of origin/main carries, the latest vMAJOR.MINOR.PATCH tag on it and the commits since (0.0.2+3); --bump patch|minor|major prints the release that would come next instead; --of <version> prints a version the way a person reads it, without its epoch", flags: []string{"--of", "--bump"}, run: runReleaseVersion},
+	{name: "host", summary: "Build the company host for Linux and Apple-silicon Macs and publish it as a GitHub Release on the stable or testing channel; stable also gives the Homebrew tap its formula; a new release carries the next version of origin/main, PATCH raised unless --bump minor|major says otherwise; --channel stable --version <tag> promotes a tested release without building", flags: []string{"--channel", "--version", "--bump"}, run: runReleaseHost},
 }
 
 func runRelease() {

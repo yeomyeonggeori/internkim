@@ -153,7 +153,7 @@ func linuxPackageInformation(format linuxPackageFormat, target packageTarget, ve
 		Platform:      "linux",
 		Version:       version,
 		VersionSchema: "none",
-		Epoch:         strconv.Itoa(hostversion.MilestoneEpoch),
+		Epoch:         strconv.Itoa(hostversion.SemanticEpoch),
 		Section:       blueclaw.CompanyPackageSection,
 		Priority:      "optional",
 		Maintainer:    blueclaw.CompanyPackageMaintainer,

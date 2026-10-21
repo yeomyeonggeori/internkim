@@ -3,7 +3,6 @@ package cli
 import (
 	"encoding/base64"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -52,7 +51,7 @@ func runReleaseHost(arguments []string) error {
 	if tag := commandArgumentValue(arguments, "--version", ""); tag != "" {
 		return promoteNamedHostRelease(tag, channel, os.Stdout)
 	}
-	milestone, errorValue := chosenMilestone(commandArgumentValue(arguments, "--milestone", ""))
+	bump, errorValue := hostversion.ParseBump(commandArgumentValue(arguments, "--bump", ""))
 	if errorValue != nil {
 		return errorValue
 	}
@@ -63,10 +62,11 @@ func runReleaseHost(arguments []string) error {
 	if errorValue := checkReleaseTree(repositoryRootPath); errorValue != nil {
 		return errorValue
 	}
-	if errorValue := refuseAMilestoneBelowTheLatest(repositoryRootPath, milestone); errorValue != nil {
+	next, errorValue := hostversion.NextForRevision(repositoryRootPath, releasedRevision, bump)
+	if errorValue != nil {
 		return errorValue
 	}
-	version := milestone.Release()
+	version := next.Release()
 	existing, isPublished, errorValue := publishedHostRelease(hostReleaseTag(version))
 	if errorValue != nil {
 		return errorValue
@@ -83,27 +83,6 @@ func runReleaseHost(arguments []string) error {
 		return errorValue
 	}
 	return createHostRelease(version, gitRevision(repositoryRootPath), channel, directory, os.Stdout)
-}
-
-func chosenMilestone(requested string) (hostversion.Version, error) {
-	if requested == "" {
-		return hostversion.Version{}, errors.New("release host needs the milestone it releases, as --milestone MAJOR.MINOR.PATCH, because a person chooses that number and a release does not invent one")
-	}
-	return hostversion.ParseMilestone(requested)
-}
-
-func refuseAMilestoneBelowTheLatest(repositoryRootPath string, milestone hostversion.Version) error {
-	latest, errorValue := hostversion.LatestMilestone(repositoryRootPath, "HEAD")
-	if errors.Is(errorValue, hostversion.ErrNoMilestone) {
-		return nil
-	}
-	if errorValue != nil {
-		return errorValue
-	}
-	if hostversion.Compare(milestone, latest) < 0 {
-		return fmt.Errorf("release host refuses %s: %s is already released, and hosts only update to a higher milestone", milestone.Tag(), latest.Tag())
-	}
-	return nil
 }
 
 func hostReleaseTag(version string) string {
