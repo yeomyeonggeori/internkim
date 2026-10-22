@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { getContext } from 'svelte';
+	import MentionChip from './mention-chip.svelte';
 	import MentionPersonCard from './mention-person-card.svelte';
 	import { mentionLabelsContext, mentionPieces, type MentionLabel } from '$lib/messenger/mention-text';
 	import { personProfileContext, type PersonProfileActions } from '$lib/messenger/person-profile';
@@ -15,6 +16,4 @@
 			text={piece.text}
 			person={{ externalID: piece.externalID, name: piece.text.slice(1) }}
 			actions={profile}
-		/>{:else if piece.isMention}<span class="bg-primary/15 text-primary rounded px-1 font-medium"
-			>{piece.text}</span
-		>{:else}{piece.text}{/if}{/each}
+		/>{:else if piece.isMention}<MentionChip text={piece.text} />{:else}{piece.text}{/if}{/each}

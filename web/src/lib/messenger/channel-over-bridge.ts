@@ -1,7 +1,5 @@
-import { authorName, channelName } from './channel-name';
-import { currentLocale } from '$lib/i18n/locale.svelte';
+import { channelName } from './channel-name';
 import { currentPersonNameLocale } from '$lib/person-name.svelte';
-import { channelText } from '$lib/i18n/channel-text';
 import { supabaseMember } from '$lib/supabase-session';
 import { customEmoji } from '$lib/stores/custom-emoji.svelte';
 import { personPicture } from '$lib/stores/person-picture.svelte';
@@ -16,7 +14,6 @@ import {
 	editPost,
 	fetchChannels,
 	fetchInbox,
-	fetchPeople,
 	fetchPosts,
 	keepAttachmentForSending,
 	openDirectChannel,
@@ -33,11 +30,10 @@ import {
 } from './messenger-api';
 import {
 	externalIDsOfMember,
-	fetchMessengerDirectory,
 	personKey,
-	personLabel,
 	type MessengerDirectory
 } from './messenger-directory';
+import { agentName, fetchMessengerPeople, isTheAgent, messengerPersonLabel, type MessengerPeople } from './messenger-people';
 
 type ChannelSummary = {
 	id: string;
@@ -121,15 +117,15 @@ function canonicalKey(person: MessengerPerson, people: MessengerDirectory): stri
 // The screen tells the reader's own messages apart by comparing this id against
 // currentUserID, so one of theirs carries the id this app knows them by whatever
 // the messenger called its author.
-function senderOf(person: MessengerPerson, people: MessengerDirectory, viewer: Viewer): Participant {
+function senderOf(person: MessengerPerson, people: MessengerPeople, viewer: Viewer): Participant {
 	const sender = participantOf(person, people);
 	return isViewer(person, people, viewer) ? { ...sender, id: viewer.key } : sender;
 }
 
-function participantOf(person: MessengerPerson, people: MessengerDirectory): Participant {
+function participantOf(person: MessengerPerson, people: MessengerPeople): Participant {
 	return {
 		id: canonicalKey(person, people),
-		name: personLabel(person, people, currentPersonNameLocale()),
+		name: messengerPersonLabel(person, people),
 		...placementOf(person, people)
 	};
 }
@@ -142,9 +138,8 @@ function placementOf(person: MessengerPerson, people: MessengerDirectory): Messe
 
 export async function bridgeConversations(): Promise<ChannelSummary[]> {
 	const scope = await messengerCacheScope();
-	const [answer, people] = await Promise.all([fetchChannels(), fetchMessengerDirectory()]);
-	const { channels, agentExternalID } = answer;
-	const [viewer, messengerNames] = await Promise.all([whoIsReading(people), messengerNamesOf(channels, people)]);
+	const [channels, people] = await Promise.all([fetchChannels(), fetchMessengerPeople()]);
+	const viewer = await whoIsReading(people);
 	await requireCurrentMessengerScope(scope);
 	void personPicture.rememberExternals(channels.flatMap((channel) => channel.participants.map((person) => externalIDOf(person, people))));
 	return [...channels]
@@ -156,7 +151,7 @@ export async function bridgeConversations(): Promise<ChannelSummary[]> {
 				people,
 				(person) => isViewer(person, people, viewer),
 				currentPersonNameLocale(),
-				channelText[currentLocale.value].title
+				agentName()
 			),
 			kind: channel.isDirect ? ('dm' as const) : ('group' as const),
 			isHidden: channel.isHidden === true,
@@ -164,7 +159,7 @@ export async function bridgeConversations(): Promise<ChannelSummary[]> {
 			counterpart: channel.isDirect ? counterpartOf(channel, people, viewer) : undefined,
 			members: channel.isDirect
 				? undefined
-				: membersOf(channel, people, messengerNames, agentExternalID),
+				: membersOf(channel, people),
 			myRole: channel.isDirect ? undefined : roleOfViewer(channel, people, viewer),
 			isWithTheAgent: channel.isWithTheAgent === true,
 			description: channel.description,
@@ -189,43 +184,20 @@ function roleOf(channel: MessengerChannel, externalID: string): ChannelRole {
 	return role === 'owner' || role === 'admin' ? role : 'member';
 }
 
-function membersOf(
-	channel: MessengerChannel,
-	people: MessengerDirectory,
-	messengerNames: Map<string, string>,
-	agentExternalID?: string
-): ChannelMember[] {
+function membersOf(channel: MessengerChannel, people: MessengerPeople): ChannelMember[] {
 	return channel.participants.map((person) => {
-		const externalID = externalIDOf(person, people);
-		const name =
-			personLabel(person, people, currentPersonNameLocale()) ||
-			(externalID && externalID === agentExternalID ? channelText[currentLocale.value].title : '') ||
-			messengerNames.get(externalID) ||
-			'';
-		return { ...placementOf(person, people), name, role: roleOf(channel, externalID) };
+		const placement = placementOf(person, people);
+		return {
+			...placement,
+			name: messengerPersonLabel(person, people),
+			role: roleOf(channel, placement.externalID ?? ''),
+			isAgent: isTheAgent(placement, people.accounts)
+		};
 	});
-}
-
-async function messengerNamesOf(
-	channels: MessengerChannel[],
-	people: MessengerDirectory
-): Promise<Map<string, string>> {
-	const unknown = channels
-		.filter((channel) => !channel.isDirect)
-		.flatMap((channel) => channel.participants)
-		.filter((person) => !personLabel(person, people, currentPersonNameLocale()))
-		.map((person) => externalIDOf(person, people))
-		.filter(Boolean);
-	if (unknown.length === 0) return new Map();
-	const known = await fetchPeople().catch((failure: unknown) => {
-		console.warn('the messenger did not answer with its people', failure);
-		return [];
-	});
-	return new Map(known.map((person) => [person.externalID, person.name]));
 }
 
 export async function bridgePeople(): Promise<Person[]> {
-	const people = await fetchMessengerDirectory();
+	const people = await fetchMessengerPeople();
 	void personPicture.rememberEveryone();
 	return [...people.nameOfMember]
 		.map(([memberID, name]) => ({ id: memberID, name }))
@@ -235,7 +207,7 @@ export async function bridgePeople(): Promise<Person[]> {
 }
 
 export async function bridgeDirectMessage(personID: string): Promise<string> {
-	const people = await fetchMessengerDirectory();
+	const people = await fetchMessengerPeople();
 	const externalID = externalIDsOfMember(people, personID)[0] ?? personID;
 	const channel = await openDirectChannel([externalID]);
 	return channel.id;
@@ -248,7 +220,7 @@ export async function bridgeAgentConversation(): Promise<string> {
 export async function bridgeConversation(channelID?: string, before?: string): Promise<Conversation> {
 	const scope = await messengerCacheScope();
 	const [people, page] = await Promise.all([
-		fetchMessengerDirectory(),
+		fetchMessengerPeople(),
 		channelID ? fetchPosts(channelID, before) : Promise.resolve(null)
 	]);
 	const viewer = await whoIsReading(people);
@@ -266,7 +238,7 @@ export async function bridgeConversation(channelID?: string, before?: string): P
 }
 
 export async function bridgeConversationRecord(channelID: string, before?: string): Promise<Conversation> {
-	const [people, page] = await Promise.all([fetchMessengerDirectory(), fetchPosts(channelID, before)]);
+	const [people, page] = await Promise.all([fetchMessengerPeople(), fetchPosts(channelID, before)]);
 	const viewer = await whoIsReading(people);
 	return conversationPageOf(channelID, page, people, viewer);
 }
@@ -274,7 +246,7 @@ export async function bridgeConversationRecord(channelID: string, before?: strin
 function conversationPageOf(
 	channelID: string,
 	{ posts, hasMoreBefore }: MessengerPostPage,
-	people: MessengerDirectory,
+	people: MessengerPeople,
 	viewer: Viewer
 ): Conversation {
 	return {
@@ -286,7 +258,7 @@ function conversationPageOf(
 	};
 }
 
-function messageOf(post: MessengerPost, people: MessengerDirectory, viewer: Viewer): Message {
+function messageOf(post: MessengerPost, people: MessengerPeople, viewer: Viewer): Message {
 	return {
 		id: post.id,
 		threadRootId: post.parentID,
@@ -325,13 +297,13 @@ export type ConversationSearchMatch = {
 };
 
 export async function bridgeSearchConversation(channelID: string, query: string): Promise<ConversationSearchMatch[]> {
-	const [people, matches] = await Promise.all([fetchMessengerDirectory(), searchPosts(channelID, query)]);
+	const [people, matches] = await Promise.all([fetchMessengerPeople(), searchPosts(channelID, query)]);
 	const viewer = await whoIsReading(people);
 	void personPicture.rememberExternals(matches.map((match) => externalIDOf(match.author, people)));
 	return matches.map((match) => searchMatchOf(match, people, viewer));
 }
 
-function searchMatchOf(match: MessengerSearchMatch, people: MessengerDirectory, viewer: Viewer): ConversationSearchMatch {
+function searchMatchOf(match: MessengerSearchMatch, people: MessengerPeople, viewer: Viewer): ConversationSearchMatch {
 	return {
 		id: match.id,
 		threadRootId: match.parentID,
@@ -354,19 +326,15 @@ export type InboxEntry = {
 };
 
 export async function bridgeInbox(): Promise<InboxEntry[]> {
-	const [people, inbox] = await Promise.all([fetchMessengerDirectory(), fetchInbox()]);
-	const agent = { externalID: inbox.agentExternalID, name: channelText[currentLocale.value].title };
-	void personPicture.rememberExternals(inbox.items.map((item) => externalIDOf(item.message.author, people)));
-	return inbox.items.map(({ reason, isUnread, message }) => ({
+	const [people, items] = await Promise.all([fetchMessengerPeople(), fetchInbox()]);
+	void personPicture.rememberExternals(items.map((item) => externalIDOf(item.message.author, people)));
+	return items.map(({ reason, isUnread, message }) => ({
 		id: message.id,
 		conversationID: message.channelID,
 		threadRootId: message.parentID,
 		reason,
 		isUnread,
-		sender: {
-			...participantOf(message.author, people),
-			name: authorName(message.author, people, currentPersonNameLocale(), agent)
-		},
+		sender: participantOf(message.author, people),
 		text: emojifyText(message.body),
 		sentAt: message.postedAt
 	}));

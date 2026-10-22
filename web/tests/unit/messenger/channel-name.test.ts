@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { authorName, channelName } from '$lib/messenger/channel-name';
+import { channelName } from '$lib/messenger/channel-name';
 import { personKey, type MessengerDirectory } from '$lib/messenger/messenger-directory';
 import type { MessengerChannel, MessengerPerson } from '$lib/messenger/messenger-api';
 
@@ -69,23 +69,3 @@ describe('channelName', () => {
 	});
 });
 
-describe('authorName', () => {
-	const agent = { externalID: 'bot-1', name: '김인턴' };
-
-	test('calls a message what the company calls the person who wrote it', () => {
-		expect(authorName({ externalID: 'external-1' }, directory, 'ko', agent)).toBe('김예시');
-	});
-
-	test('calls a message from the agent account by the name the product goes by', () => {
-		expect(authorName({ externalID: 'bot-1' }, directory, 'ko', agent)).toBe('김인턴');
-		expect(authorName({ externalID: 'bot-1' }, directory, 'en', { externalID: 'bot-1', name: 'internkim' })).toBe('internkim');
-	});
-
-	test('leaves a message from an account nobody recorded unnamed', () => {
-		expect(authorName({ externalID: 'stranger' }, directory, 'ko', agent)).toBe('');
-	});
-
-	test('does not take an account for the agent when the host did not say which that is', () => {
-		expect(authorName({ externalID: 'bot-1' }, directory, 'ko', { name: '김인턴' })).toBe('Intern Kim');
-	});
-});

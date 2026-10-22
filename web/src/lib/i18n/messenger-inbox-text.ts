@@ -12,6 +12,8 @@ export const messengerInboxText = {
 		empty: '새로 온 소식이 없어요',
 		emptyUnread: '안 읽은 소식이 없어요',
 		unknownAuthor: '알 수 없는 사람',
+		chooseEntry: '항목을 고르세요',
+		chooseEntryDescription: '고른 메시지가 있는 대화를 여기에 엽니다.',
 	},
 	en: {
 		inbox: 'Inbox',
@@ -25,6 +27,8 @@ export const messengerInboxText = {
 		retry: 'Try again',
 		empty: 'Nothing new here',
 		emptyUnread: 'Nothing unread',
-		unknownAuthor: 'Someone',
+		unknownAuthor: 'Unknown person',
+		chooseEntry: 'Choose an item',
+		chooseEntryDescription: 'The conversation it came from opens here.',
 	}
 };

@@ -1,15 +1,16 @@
 import type { SelectablePerson } from '$lib/components/person-multi-select.svelte';
-import { fetchChannels, fetchPeople, type MessengerDirectoryPerson } from './messenger-api';
+import type { MessengerDirectoryPerson } from './messenger-api';
 import { fetchMessengerDirectory, type MessengerDirectory } from './messenger-directory';
+import { fetchMessengerAccounts } from './messenger-accounts';
 
 export type ChannelCandidate = SelectablePerson & { externalID: string };
 
 export type ChannelAgent = { externalID: string; name: string };
 
 export async function fetchChannelCandidates(agentName: string): Promise<ChannelCandidate[]> {
-	const [people, directory, channels] = await Promise.all([fetchPeople(), fetchMessengerDirectory(), fetchChannels()]);
-	const agent = channels.agentExternalID ? { externalID: channels.agentExternalID, name: agentName } : undefined;
-	return channelCandidatesOf(people, directory, agent);
+	const [accounts, directory] = await Promise.all([fetchMessengerAccounts(), fetchMessengerDirectory()]);
+	const agent = accounts.agentExternalID ? { externalID: accounts.agentExternalID, name: agentName } : undefined;
+	return channelCandidatesOf(accounts.people, directory, agent);
 }
 
 export function channelCandidatesOf(

@@ -3,6 +3,7 @@ export type MentionPerson = {
 	memberID?: string;
 	name: string;
 	avatarURL?: string;
+	isAgent?: boolean;
 };
 
 export type MentionCandidate = {
@@ -19,8 +20,10 @@ export function mentionCandidates(people: MentionPerson[], isGroup: boolean): Me
 	const named = people
 		.filter((person) => person.externalID && person.name.trim() !== '')
 		.map((person) => ({ key: person.externalID, label: person.name, person, isEveryone: false }));
-	if (!isGroup) return named;
-	return [{ key: everyoneKey, label: everyoneLabel, isEveryone: true }, ...named];
+	const agents = named.filter((candidate) => candidate.person.isAgent === true);
+	const others = named.filter((candidate) => candidate.person.isAgent !== true);
+	if (!isGroup) return [...agents, ...others];
+	return [...agents, { key: everyoneKey, label: everyoneLabel, isEveryone: true }, ...others];
 }
 
 export function matchingMentions(
@@ -45,10 +48,10 @@ function rankOf(label: string, wanted: string): number {
 }
 
 export function mentionPeopleOf(
-	channel: { kind: 'dm' | 'group'; members?: { externalID?: string; name: string }[] } | undefined
+	channel: { kind: 'dm' | 'group'; members?: { externalID?: string; name: string; isAgent?: boolean }[] } | undefined
 ): MentionPerson[] {
 	if (!channel || channel.kind !== 'group') return [];
 	return (channel.members ?? [])
 		.filter((member) => member.externalID !== undefined && member.externalID !== '')
-		.map((member) => ({ externalID: member.externalID as string, name: member.name }));
+		.map((member) => ({ externalID: member.externalID as string, name: member.name, isAgent: member.isAgent }));
 }

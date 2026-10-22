@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { messagePlainText } from '$lib/messenger/message-plain-text';
 	import SearchIcon from '@lucide/svelte/icons/search';
 	import SearchXIcon from '@lucide/svelte/icons/search-x';
 	import XIcon from '@lucide/svelte/icons/x';
@@ -125,7 +126,7 @@
 	{:else if !failed}
 		<Item.Group class="min-h-0 flex-1 gap-1 overflow-y-auto px-2 pb-2">
 			{#each matches as match (match.id)}
-				{@const excerpt = searchExcerpt(match.text, searchedQuery)}
+				{@const excerpt = searchExcerpt(messagePlainText(match.text), searchedQuery)}
 				<Item.Root size="sm" class={cn('hover:bg-muted text-left', match.id === chosenID && 'bg-muted')}>
 					{#snippet child({ props })}
 						<button {...props} type="button" onclick={() => chooseMatch(match)}>

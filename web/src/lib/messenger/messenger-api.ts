@@ -209,13 +209,9 @@ function asPost(message: PersonalMessage): MessengerPost {
 	};
 }
 
-export type MessengerChannels = { channels: MessengerChannel[]; agentExternalID?: string };
-
-export async function fetchChannels(): Promise<MessengerChannels> {
-	const answer = await ask<{ conversations: PersonalConversation[]; agentExternalID?: string }>(
-		'person.conversations.list'
-	);
-	return { channels: answer.conversations.map(asChannel), agentExternalID: answer.agentExternalID };
+export async function fetchChannels(): Promise<MessengerChannel[]> {
+	const answer = await ask<{ conversations: PersonalConversation[] }>('person.conversations.list');
+	return answer.conversations.map(asChannel);
 }
 
 export async function markChannelRead(channelID: string, readAt: string): Promise<void> {
@@ -228,9 +224,11 @@ export async function announceTyping(channelID: string): Promise<void> {
 
 export type MessengerDirectoryPerson = { externalID: string; name: string; avatarURL?: string };
 
-export async function fetchPeople(): Promise<MessengerDirectoryPerson[]> {
-	const answer = await ask<{ people: MessengerDirectoryPerson[] }>('person.people.list');
-	return answer.people;
+export type MessengerPeopleList = { people: MessengerDirectoryPerson[]; agentExternalID: string };
+
+export async function fetchPeople(): Promise<MessengerPeopleList> {
+	const answer = await ask<{ people: MessengerDirectoryPerson[]; agentExternalID?: string }>('person.people.list');
+	return { people: answer.people, agentExternalID: answer.agentExternalID ?? '' };
 }
 
 export async function openDirectChannel(externalIDs: string[]): Promise<MessengerChannel> {
@@ -322,21 +320,15 @@ export type MessengerInboxItem = {
 	message: MessengerSearchMatch;
 };
 
-export type MessengerInbox = { items: MessengerInboxItem[]; agentExternalID?: string };
-
-export async function fetchInbox(): Promise<MessengerInbox> {
+export async function fetchInbox(): Promise<MessengerInboxItem[]> {
 	const answer = await ask<{
 		items: { reason: MessengerInboxReason; isUnread: boolean; message: PersonalMessageMatch }[];
-		agentExternalID?: string;
 	}>('person.inbox.list');
-	return {
-		items: answer.items.map((item) => ({
-			reason: item.reason,
-			isUnread: item.isUnread,
-			message: asSearchMatch(item.message)
-		})),
-		agentExternalID: answer.agentExternalID
-	};
+	return answer.items.map((item) => ({
+		reason: item.reason,
+		isUnread: item.isUnread,
+		message: asSearchMatch(item.message)
+	}));
 }
 
 export async function markThreadRead(channelID: string, threadRootID: string, readAt: string): Promise<void> {
