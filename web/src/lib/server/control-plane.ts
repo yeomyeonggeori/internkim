@@ -415,6 +415,7 @@ async function issueTemporaryPassword(
 			email_confirm: true,
 		});
 		if (error) throw new Error(`password for ${member.email}: ${error.message}`);
+		if (!member.user_id) await bindMemberToAccount(client, member.id, account.id);
 	} else {
 		const { error } = await client.auth.admin.createUser({
 			email: member.email,
@@ -435,6 +436,11 @@ async function isAccountOpenTo(
 	if (account.app_metadata?.company_id) return false;
 	if (member.user_id) return member.user_id === account.id;
 	return (await memberHeldByAccount(client, account.id)) === null;
+}
+
+async function bindMemberToAccount(client: SupabaseClient, memberID: string, accountID: string): Promise<void> {
+	const { error } = await client.from('member').update({ user_id: accountID }).eq('id', memberID).is('user_id', null);
+	if (error) throw new Error(`binding member ${memberID} to its account: ${error.message}`);
 }
 
 export async function accountOfAddress(client: SupabaseClient, address: string): Promise<User | null> {

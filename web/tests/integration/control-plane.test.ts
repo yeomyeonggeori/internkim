@@ -323,6 +323,20 @@ describe('somebody who leaves stops signing in', () => {
 		expect(await canSignIn(email, reinvited.temporaryPassword)).toBe(true);
 	});
 
+	test('somebody whose member row was purged can sign in again once added back and invited', async () => {
+		const email = `${slug}-purged@example.test`;
+		const memberID = await addMember(client, companyID, email);
+		const { temporaryPassword } = await inviteMember(client, memberID);
+		await signedInAs(email, temporaryPassword);
+
+		await removeMember(client, companyID, memberID, { purge: true });
+		expect(await canSignIn(email, temporaryPassword)).toBe(false);
+
+		const returningID = await addMember(client, companyID, email);
+		const invited = await inviteMember(client, returningID);
+		expect(await canSignIn(email, invited.temporaryPassword)).toBe(true);
+	});
+
 	test('a departure written to the record closes the account, and a return opens it', async () => {
 		const email = `${slug}-departed@example.test`;
 		const memberID = await addMember(client, companyID, email);
