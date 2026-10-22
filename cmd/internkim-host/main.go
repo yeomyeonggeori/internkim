@@ -172,7 +172,7 @@ func runBox(arguments []string) {
 	}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
-	announcedTo := announcedAppURL(flags, *appURL)
+	announcedTo := announcedAppURL(flags, *appURL, blueclaw.CompanyHostBoxStatePath, companyhost.CurrentConnectionPath())
 	daemon := boxDaemon(announcedTo)
 	if *setsUpWifi {
 		daemon = withWifiSetup(daemon, announcedTo, madeOnFrom(*madeOnPath))
@@ -194,14 +194,17 @@ func runBox(arguments []string) {
 	}
 }
 
-func announcedAppURL(flags *flag.FlagSet, flagged string) string {
+func announcedAppURL(flags *flag.FlagSet, flagged string, boxStatePath string, connectionPath string) string {
 	isGiven := false
 	flags.Visit(func(given *flag.Flag) { isGiven = isGiven || given.Name == "app-url" })
 	if isGiven {
 		return flagged
 	}
-	if remembered := box.RememberedAppURL(blueclaw.CompanyHostBoxStatePath); remembered != "" {
+	if remembered := box.RememberedAppURL(boxStatePath); remembered != "" {
 		return remembered
+	}
+	if connection, errorValue := companyhost.ReadConnection(connectionPath); errorValue == nil && connection.AppURL != "" {
+		return connection.AppURL
 	}
 	return flagged
 }
