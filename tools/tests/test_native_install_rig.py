@@ -702,3 +702,17 @@ class MessengerRigTests(unittest.TestCase):
                 self.assertEqual(response.headers["Content-Type"], "image/png")
         finally:
             server.shutdown()
+
+
+class UnprivilegedPostTests(unittest.TestCase):
+    refused = (
+        "identity=bc_person_sample token-staged=yes reads-token=no chatd-post=401 blueclaw-approve=401 "
+        "admind-approve=401 admind-signing-secret=401 relay-inbound=401 service-post=200"
+    )
+
+    def test_every_door_refusing_a_staged_token_it_cannot_read_passes(self):
+        self.assertTrue(load_driver().an_unprivileged_post_was_refused(self.refused))
+
+    def test_a_host_with_no_staged_token_proves_nothing(self):
+        reading = self.refused.replace("token-staged=yes", "token-staged=no")
+        self.assertFalse(load_driver().an_unprivileged_post_was_refused(reading))

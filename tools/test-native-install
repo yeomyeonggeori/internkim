@@ -338,6 +338,7 @@ person="${person:-nobody}"
 token_file="/run/internkim/secrets/service-token"
 as_the_person() { runuser -u "$person" -- curl -s -o /dev/null -w '%{http_code}' --max-time 10 -X POST -H 'Content-Type: application/json' "$@"; }
 printf 'identity=%s\n' "$person"
+printf 'token-staged=%s\n' "$(test -s "$token_file" && echo yes || echo no)"
 printf 'reads-token=%s\n' "$(runuser -u "$person" -- cat "$token_file" >/dev/null 2>&1 && echo yes || echo no)"
 printf 'chatd-post=%s\n' "$(as_the_person -d '{"replyTargetID":"buzz:nowhere","message":"posted around the approval gate"}' http://127.0.0.1:18090/v1/platform/buzz/message.post)"
 printf 'blueclaw-approve=%s\n' "$(as_the_person -d '{"taskRunID":"nowhere","decision":"approve"}' http://127.0.0.1:8080/admin/api/run/approve)"
@@ -355,7 +356,8 @@ REFUSED_DOORS = ("chatd-post", "blueclaw-approve", "admind-approve", "admind-sig
 def an_unprivileged_post_was_refused(reading):
     lines = dict(line.split("=", 1) for line in reading.split() if "=" in line)
     return (
-        lines.get("reads-token") == "no"
+        lines.get("token-staged") == "yes"
+        and lines.get("reads-token") == "no"
         and all(lines.get(door) == "401" for door in REFUSED_DOORS)
         and lines.get("service-post") == "200"
     )
@@ -733,7 +735,7 @@ class Rig:
         )
         return False
 
-    def run_step_two(self, step, baseline):
+    def run_step_two(self, step, baseline, is_an_upgrade):
         status = self.machine.shell(
             f"dpkg-query -W -f '${{Package}} ${{Version}} ${{Status}}' {PACKAGE_NAME}"
         )
@@ -746,13 +748,8 @@ class Rig:
             "package that apt can upgrade and remove",
         ).record("install ok installed" in recorded, recorded)
 
-        verified = self.machine.shell(f"dpkg --verify {PACKAGE_NAME}")
-        step.observe(
-            "every file the package shipped is present and unmodified",
-            f"`dpkg --verify {PACKAGE_NAME}`, which re-hashes each shipped file against dpkg's md5sums",
-            "listing the files in dpkg's manifest would prove only that the manifest exists; this "
-            "reads the files on disk",
-        ).record(verified.returncode == 0 and not verified.stdout.strip(), verified.stdout.strip() or "no differences")
+        if not is_an_upgrade:
+            self.observe_the_shipped_files_are_unmodified(step)
 
         left = self.machine.shell(
             "ls /etc/apt/sources.list.d /etc/apt/keyrings /usr/share/keyrings /etc/apt/trusted.gpg.d 2>/dev/null "
@@ -1126,6 +1123,16 @@ class Rig:
             "systemd reports active for a process that answers a socket while refusing all work, "
             "so a green service table says nothing about whether work is being taken",
         ).record(every_probe_answered(answers.stdout), answers.stdout.strip() or "nothing answered")
+
+    def observe_the_shipped_files_are_unmodified(self, step):
+        verified = self.machine.shell(f"dpkg --verify {PACKAGE_NAME}")
+        step.observe(
+            "every file the release under test shipped is present and unmodified",
+            f"`dpkg --verify {PACKAGE_NAME}`, which re-hashes each shipped file against dpkg's md5sums, "
+            "once the guest runs the release under test",
+            "listing the files in dpkg's manifest would prove only that the manifest exists; this "
+            "reads the files on disk",
+        ).record(verified.returncode == 0 and not verified.stdout.strip(), verified.stdout.strip() or "no differences")
 
     def observe_the_bridge_refuses_a_requester(self, step):
         reading = self.machine.shell(UNPRIVILEGED_POST_COMMAND).stdout.strip()
@@ -2291,7 +2298,8 @@ def kept_or_temporary_directory(is_kept):
     yield tempfile.mkdtemp(prefix="internkim-install-rig-")
 
 
-def judge_what_the_release_under_test_does(rig):
+def judge_what_the_release_under_test_does(rig, step_five):
+    rig.observe_the_bridge_refuses_a_requester(step_five)
     step_eleven = rig.step(11, "a person who asks for a PDF receives the file in their conversation")
     if rig_model_key() == RIG_MODEL_KEY:
         step_eleven.block("not run: no model key, so no agent can make a file; run under `monkeys run @test`")
@@ -2304,14 +2312,14 @@ def judge_what_the_release_under_test_does(rig):
 
 
 def run_every_step(rig, options, releases, baseline):
+    is_an_upgrade = len(releases) > 1
     step_two = rig.step(2, "the machine is in the state the package manager would have left it")
-    rig.run_step_two(step_two, baseline)
+    rig.run_step_two(step_two, baseline, is_an_upgrade)
 
     rig.plant_state()
 
     step_five = rig.step(5, "a person signs in and exchanges a message")
     revision_before = {}
-    is_an_upgrade = len(releases) > 1
     if options.stand_in or options.without_company:
         step_five.block(
             "not run against a stand-in: the package under test carries none of the "
@@ -2326,14 +2334,13 @@ def run_every_step(rig, options, releases, baseline):
         observe_a_real_conversion(rig.machine, step_five)
         rig.observe_the_host_holds_the_gateway_socket(step_five)
         rig.observe_the_member_round_trip(step_five, rig.plane, is_watching_for_typing=not is_an_upgrade)
-        rig.observe_the_bridge_refuses_a_requester(step_five)
         rig.observe_the_agent_answered(step_five)
         if options.requests:
             Deliveries(rig, rig.plane, options.deliveries).deliver_all(load_requests(options.requests))
             return
         revision_before = rig.build_identity_the_guest_reports()
         if not is_an_upgrade:
-            judge_what_the_release_under_test_does(rig)
+            judge_what_the_release_under_test_does(rig, step_five)
 
     is_an_agent_update = options.agent_update and rig.plane and is_an_upgrade
     if is_an_agent_update:
@@ -2342,6 +2349,8 @@ def run_every_step(rig, options, releases, baseline):
     else:
         step_three = rig.step(3, "running the line again moves it to a newer release")
         rig.run_step_three(step_three, releases)
+    if is_an_upgrade:
+        rig.observe_the_shipped_files_are_unmodified(step_two)
 
     if not options.stand_in and not options.without_company:
         if is_an_upgrade and not is_an_agent_update:
@@ -2351,7 +2360,7 @@ def run_every_step(rig, options, releases, baseline):
                 step_seven, revision_before, rig.build_identity_the_guest_reports()
             )
         if is_an_upgrade:
-            judge_what_the_release_under_test_does(rig)
+            judge_what_the_release_under_test_does(rig, step_five)
         step_six = rig.step(6, f"a backup brings the company back on a fresh {options.restore_family} machine")
         rig.take_a_backup(step_six)
 
