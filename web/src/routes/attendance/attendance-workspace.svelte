@@ -3,6 +3,7 @@
 	import { attendanceSummaryRecords } from '$lib/attendance/attendance-summary-records';
 	import { pageActions } from '$lib/components/app-page-actions.svelte';
 	import { createPageText } from '$lib/i18n/page-text.svelte';
+	import { revalidateOnReturn } from '$lib/revalidate-on-return';
 	import { onMount, untrack } from 'svelte';
 	import { AttendanceState, setAttendanceState } from './attendance-context.svelte';
 	import AttendanceSidebar from './attendance-sidebar.svelte';
@@ -37,6 +38,7 @@
 
 	let { children, cacheScope }: { children: import('svelte').Snippet; cacheScope: string } = $props();
 	let isDisposed = false;
+	const returnRetryDelayMilliseconds = 1500;
 
 	const text = createPageText(attendanceText);
 	const attendance = untrack(() => new AttendanceState(text.loadFailed, cacheScope, myAttendanceToday.refresh));
@@ -114,15 +116,19 @@
 		await reading;
 	}
 
-	function refreshServerClock(): void {
-		void myAttendanceToday.load(true);
-		if (attendance.summary) void attendance.refreshServerClock();
-		void teamState.refresh();
+	async function refreshServerClock(): Promise<void> {
+		await Promise.all([
+			myAttendanceToday.load(true),
+			attendance.summary ? attendance.refreshServerClock() : Promise.resolve(),
+			teamState.refresh()
+		]);
 	}
 
-	function refreshVisibleServerClock(): void {
-		if (document.visibilityState !== 'visible') return;
-		refreshServerClock();
+	async function refreshOnReturn(): Promise<void> {
+		await refreshServerClock();
+		if (isDisposed || !(myAttendanceToday.loadFailure || teamState.error)) return;
+		await new Promise((resolve) => setTimeout(resolve, returnRetryDelayMilliseconds));
+		if (!isDisposed) await refreshServerClock();
 	}
 
 	async function refreshSelectedAdminView(selectedView: AttendanceWorkspaceView = attendanceView.selected): Promise<void> {
@@ -139,9 +145,7 @@
 		const releaseRefresh = pageActions.setRefresh(async () => {
 			await Promise.all([myAttendanceToday.load(true), refreshLoadedSummary(), teamState.refresh(), employeeLeave.load(), refreshSelectedAdminView()]);
 		});
-		window.addEventListener('focus', refreshServerClock);
-		window.addEventListener('pageshow', refreshServerClock);
-		document.addEventListener('visibilitychange', refreshVisibleServerClock);
+		const stopRefreshingOnReturn = revalidateOnReturn(window, document, () => void refreshOnReturn());
 		return () => {
 			isDisposed = true;
 			attendance.dispose();
@@ -149,9 +153,7 @@
 			teamState.dispose();
 			myAttendanceToday.setClockEventHandler(undefined);
 			myAttendanceToday.setClockMutationHandler(undefined);
-			window.removeEventListener('focus', refreshServerClock);
-			window.removeEventListener('pageshow', refreshServerClock);
-			document.removeEventListener('visibilitychange', refreshVisibleServerClock);
+			stopRefreshingOnReturn();
 			releaseRefresh();
 		};
 	});
