@@ -30074,7 +30074,7 @@
         "mode": "success",
         "targetKind": "crm_activity"
       },
-      "description": "Record work against an organization or a deal, or change work already recorded. An activity is a task, so this writes what task_add and task_update write, plus the calendar entry when the work goes in the calendar.",
+      "description": "Record work against an organization or a deal, or change work already recorded. An activity is a task, so this writes what task_add and task_update write, and it stays on the task board when isEvent also shows it on the calendar.",
       "estimatedLatency": "medium",
       "idempotency": {
         "required": false,
@@ -30097,15 +30097,15 @@
             "type": "string"
           },
           "endsAt": {
-            "description": "When the calendar entry ends. ISO 8601 with a time zone for a moment, or yyyy-mm-dd for a whole day.",
+            "description": "When the work ends. ISO 8601 with a time zone for a moment, or yyyy-mm-dd for a whole day. A new activity without one ends when it starts.",
             "type": "string"
           },
           "isEvent": {
-            "description": "Set true for work that goes in the calendar, which then needs startsAt and endsAt.",
+            "description": "Also show the activity on the calendar. False takes it off; it stays on the task board either way.",
             "type": "boolean"
           },
           "isWholeDay": {
-            "description": "Whether the calendar entry takes the whole day.",
+            "description": "Whether startsAt and endsAt name whole days. Omitted on a new activity, days and no dates take whole days and a moment does not.",
             "type": "boolean"
           },
           "kind": {
@@ -30128,10 +30128,6 @@
             "maximum": 9007199254740991,
             "minimum": 0,
             "type": "integer"
-          },
-          "occurredAt": {
-            "description": "When it happened. ISO 8601 with a time zone for a moment, or yyyy-mm-dd for a whole day.",
-            "type": "string"
           },
           "opportunityHint": {
             "description": "The deal the work belongs to.",
@@ -30159,7 +30155,7 @@
             "type": "array"
           },
           "startsAt": {
-            "description": "When the calendar entry starts. ISO 8601 with a time zone for a moment, or yyyy-mm-dd for a whole day.",
+            "description": "When the work starts. ISO 8601 with a time zone for a moment, or yyyy-mm-dd for a whole day. A new activity without one starts today.",
             "type": "string"
           },
           "status": {
@@ -30206,15 +30202,15 @@
             "type": "string"
           },
           "endsAt": {
-            "description": "When the calendar entry ends. ISO 8601 with a time zone for a moment, or yyyy-mm-dd for a whole day.",
+            "description": "When the work ends. ISO 8601 with a time zone for a moment, or yyyy-mm-dd for a whole day. A new activity without one ends when it starts.",
             "type": "string"
           },
           "isEvent": {
-            "description": "Set true for work that goes in the calendar, which then needs startsAt and endsAt.",
+            "description": "Also show the activity on the calendar. False takes it off; it stays on the task board either way.",
             "type": "boolean"
           },
           "isWholeDay": {
-            "description": "Whether the calendar entry takes the whole day.",
+            "description": "Whether startsAt and endsAt name whole days. Omitted on a new activity, days and no dates take whole days and a moment does not.",
             "type": "boolean"
           },
           "kind": {
@@ -30237,10 +30233,6 @@
             "maximum": 9007199254740991,
             "minimum": 0,
             "type": "integer"
-          },
-          "occurredAt": {
-            "description": "When it happened. ISO 8601 with a time zone for a moment, or yyyy-mm-dd for a whole day.",
-            "type": "string"
           },
           "opportunityHint": {
             "description": "The deal the work belongs to.",
@@ -30268,7 +30260,7 @@
             "type": "array"
           },
           "startsAt": {
-            "description": "When the calendar entry starts. ISO 8601 with a time zone for a moment, or yyyy-mm-dd for a whole day.",
+            "description": "When the work starts. ISO 8601 with a time zone for a moment, or yyyy-mm-dd for a whole day. A new activity without one starts today.",
             "type": "string"
           },
           "status": {

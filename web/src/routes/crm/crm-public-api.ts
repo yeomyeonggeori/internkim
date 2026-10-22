@@ -219,14 +219,11 @@ function activityInput(payload: CRMActivityPayload): Record<string, unknown> {
 		business: payload.business ?? '',
 		note: payload.content ?? '',
 		status: payload.taskStatus || taskStatus.planned,
-		occurredAt: payload.occurredAt,
 		participantPersonHints: payload.participantIDs,
 		isEvent: payload.isEvent,
-		isWholeDay: payload.isEvent && payload.isWholeDay,
-		...(payload.isEvent ? { startsAt: payload.startsAt || payload.occurredAt } : {}),
-		...(payload.isEvent
-			? { endsAt: payload.endsAt || payload.startsAt || payload.occurredAt }
-			: {}),
+		isWholeDay: payload.isWholeDay,
+		...(payload.startsAt ? { startsAt: payload.startsAt } : {}),
+		...(payload.endsAt || payload.startsAt ? { endsAt: payload.endsAt || payload.startsAt } : {}),
 		...(payload.isEvent && payload.location ? { location: payload.location } : {}),
 		...(payload.isEvent && payload.notifyMinutesBefore !== null
 			? { notifyMinutesBefore: payload.notifyMinutesBefore }

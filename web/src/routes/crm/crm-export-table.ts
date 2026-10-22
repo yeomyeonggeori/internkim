@@ -152,15 +152,14 @@ function activityTable(source: CRMExportSource): CRMExportTable {
 			text.organizationName,
 			text.relatedProgress,
 			text.activityKind,
-			text.occurredAt,
+			text.columnStartDate,
+			text.columnEndDate,
 			text.business,
 			text.externalContact,
 			text.assignee,
 			text.activityStatus,
 			text.columnSize,
 			text.registerCalendar,
-			text.startTime,
-			text.endTime,
 			text.location,
 			text.details
 		],
@@ -172,15 +171,14 @@ function activityTable(source: CRMExportSource): CRMExportTable {
 				organizationName(source, activity.organizationID),
 				opportunityName(source, activity.opportunityID),
 				crmLabel(text.activityKinds, activity.kind),
-				localDateTime(activity.occurredAt, source.timeZone),
+				activityTime(activity.startsAt, activity, source.timeZone),
+				activityTime(activity.endsAt, activity, source.timeZone),
 				activity.business,
 				activity.contactID ? contactName(source, activity.contactID) : '',
 				activity.participantNames.join(listSeparator),
 				taskStatusLabelFrom(text.taskStatuses, activity.taskStatus),
 				activity.size,
 				activity.calendarEventID ? text.calendarRegistered : '',
-				calendarTime(activity.calendarEventDate, activity, source.timeZone),
-				calendarTime(activity.calendarEndsAt, activity, source.timeZone),
 				activity.calendarLocation ?? '',
 				activity.summary
 			]
@@ -210,10 +208,9 @@ function amountText(money: Money | undefined): string {
 	return money === undefined ? '' : String(money.amount);
 }
 
-function calendarTime(dateTime: string | undefined, activity: CRMActivity, timeZone: string): string {
-	if (!activity.calendarEventID || !dateTime) return '';
-	const local = localDateTime(dateTime, timeZone);
-	return activity.isWholeDay ? local.slice(0, 10) : local;
+function activityTime(dateTime: string | undefined, activity: CRMActivity, timeZone: string): string {
+	if (!dateTime) return '';
+	return activity.isWholeDay ? dateTime.slice(0, 10) : localDateTime(dateTime, timeZone);
 }
 
 function localDateTime(dateTime: string, timeZone: string): string {

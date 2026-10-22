@@ -285,7 +285,6 @@ export const crmActivitySaveInputSchema = z.strictObject({
   business: z.string().max(128).describe('Business label, from registeredLabels.businesses.').optional(),
   note: z.string().max(8192).describe('What was said or decided.').optional(),
   status: z.enum(WorkspaceTaskStatus).describe('The status the task stands at.').optional(),
-  occurredAt: z.string().describe(`When it happened. ${momentDescription}`).optional(),
   participantPersonHints: z
     .array(z.string().max(256))
     .describe('Names, @handles or emails of the colleagues taking part. A task has participants, not one assignee.')
@@ -295,10 +294,10 @@ export const crmActivitySaveInputSchema = z.strictObject({
     .max(256)
     .describe('Deprecated alias for a single entry in participantPersonHints.')
     .optional(),
-  isEvent: z.boolean().describe('Set true for work that goes in the calendar, which then needs startsAt and endsAt.').optional(),
-  isWholeDay: z.boolean().describe('Whether the calendar entry takes the whole day.').optional(),
-  startsAt: z.string().describe(`When the calendar entry starts. ${momentDescription}`).optional(),
-  endsAt: z.string().describe(`When the calendar entry ends. ${momentDescription}`).optional(),
+  isEvent: z.boolean().describe('Also show the activity on the calendar. False takes it off; it stays on the task board either way.').optional(),
+  isWholeDay: z.boolean().describe('Whether startsAt and endsAt name whole days. Omitted on a new activity, days and no dates take whole days and a moment does not.').optional(),
+  startsAt: z.string().describe(`When the work starts. ${momentDescription} A new activity without one starts today.`).optional(),
+  endsAt: z.string().describe(`When the work ends. ${momentDescription} A new activity without one ends when it starts.`).optional(),
   location: z.string().max(256).describe('Where it happens.').optional(),
   notifyMinutesBefore: z.number().int().min(0).describe('Minutes before the start to remind the people in it.').optional(),
 });
@@ -653,7 +652,7 @@ export const crmToolDefinitions: CapabilityToolDefinition[] = [
     answeredBy: CapabilityAnsweredBy.Record,
     privacyClass: 'workspace_crm',
     policyResource: 'tool:crm_activity_save',
-    description: 'Record work against an organization or a deal, or change work already recorded. An activity is a task, so this writes what task_add and task_update write, plus the calendar entry when the work goes in the calendar.',
+    description: 'Record work against an organization or a deal, or change work already recorded. An activity is a task, so this writes what task_add and task_update write, and it stays on the task board when isEvent also shows it on the calendar.',
     version: '1',
     estimatedLatency: CapabilityEstimatedLatency.Medium,
     inputSchema: crmActivitySaveInputSchema,

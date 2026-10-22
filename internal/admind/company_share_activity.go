@@ -298,7 +298,7 @@ func companyShareWorkRowOfBoardTask(task centralplane.BoardTask, location *time.
 		Size:      task.Size,
 		Status:    task.Status,
 		StartDate: taskDayOfInstant(task.StartsAt, location),
-		EndDate:   taskDayOfInstant(firstFilled(task.EndsAt, task.DueAt), location),
+		EndDate:   task.LastDay,
 		Date:      taskDayOfInstant(task.UpdatedAt, location),
 	}
 }

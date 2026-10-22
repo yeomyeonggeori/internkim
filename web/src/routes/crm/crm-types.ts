@@ -149,11 +149,14 @@ export type CRMActivityCreateDraft = {
 	business: string;
 	activityKind: CRMActivityKind;
 	title: string;
-	occurredAt: string;
 	summary: string;
 	participantPersonIDs: string[];
 	taskStatus: string;
-	calendar: CRMCalendarRegistrationDraft;
+	isEvent: boolean;
+	isWholeDay: boolean;
+	startsAt: string;
+	endsAt: string;
+	location: string;
 };
 
 export type CRMActivityEditDraft = {
@@ -163,7 +166,6 @@ export type CRMActivityEditDraft = {
 	business: string;
 	kind: CRMActivityKind;
 	title: string;
-	occurredAt: string;
 	summary: string;
 	participantPersonIDs: string[];
 	taskStatus: string;
@@ -202,9 +204,9 @@ export type CRMActivity = {
 	participantIDs: string[];
 	participantNames: string[];
 	calendarEventID?: string;
-	calendarEventDate?: string;
 	isWholeDay?: boolean;
-	calendarEndsAt?: string;
+	startsAt?: string;
+	endsAt?: string;
 	calendarLocation?: string;
 	calendarRegistrationState?: CRMCalendarRegistrationState;
 };

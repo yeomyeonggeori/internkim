@@ -91,7 +91,7 @@ async function recordActivity(page: Page, title: string, registersOnTheCalendar:
 	await expect(page.getByRole('row', { name: new RegExp(title) })).toBeVisible();
 }
 
-test('an activity registered on the calendar stays off the task board, and one without it lands on it', async ({ page }) => {
+test('every activity lands on the task board, and one registered on the calendar also shows on the calendar', async ({ page }) => {
 	await signIn(page);
 	await page.getByRole('tab', { name: '활동', exact: true }).click();
 	await recordActivity(page, calendarActivityTitle, true);
@@ -105,7 +105,7 @@ test('an activity registered on the calendar stays off the task board, and one w
 	await page.goto('/example-co/flow');
 	await page.locator('[data-task-ready="true"]').waitFor({ state: 'visible', timeout: 20000 });
 	await expect(page.getByText(boardActivityTitle).first()).toBeVisible({ timeout: 20000 });
-	await expect(page.getByText(calendarActivityTitle)).toHaveCount(0);
+	await expect(page.getByText(calendarActivityTitle).first()).toBeVisible({ timeout: 20000 });
 });
 
 test('stage change records an automatic activity and editing it keeps the stage', async ({ page }) => {

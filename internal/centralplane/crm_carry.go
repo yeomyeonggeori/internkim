@@ -183,7 +183,8 @@ func (client *Client) CarryCRMActivity(
 	addWhenWritten(body, "contact_id", activity.ContactID)
 	addWhenWritten(body, "note", activity.Note)
 	addWhenWritten(body, "business", activity.Business)
-	addWhenWritten(body, "due_at", activity.OccurredAt)
+	addWhenWritten(body, "starts_at", activity.OccurredAt)
+	addWhenWritten(body, "ends_at", activity.OccurredAt)
 	return client.carryCRMRow(ctx, administratorEmail, "task", body)
 }
 

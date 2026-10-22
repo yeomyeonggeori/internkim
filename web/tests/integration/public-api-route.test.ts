@@ -821,7 +821,7 @@ describe('the CRM this company keeps', () => {
 			title: '킥오프 미팅',
 			kind: 'meeting',
 			note: '요구사항을 들었다',
-			occurredAt: '2026-09-02T09:00:00+09:00'
+			startsAt: '2026-09-02T09:00:00+09:00'
 		});
 		expect(recorded.status).toBe(200);
 		expect(resultOf(recorded).content).toBe('요구사항을 들었다');

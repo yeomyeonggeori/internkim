@@ -50,7 +50,12 @@ export type CRMColumnsWritten = {
 	organizationHint?: string;
 	opportunityHint?: string;
 	contactHint?: string;
-	dueAt?: string;
+};
+
+export type CRMLinks = {
+	organization_id: string | null;
+	opportunity_id: string | null;
+	contact_id: string | null;
 };
 
 export type CRMColumnHolder = {
@@ -694,27 +699,20 @@ export async function crmColumnsWritten(
 	context: RecordContext,
 	input: CRMColumnsWritten,
 	row: CRMColumnHolder | null
-): Promise<Record<string, unknown> | null> {
+): Promise<CRMLinks | null> {
 	const namesNothing =
 		input.organizationHint === undefined &&
 		input.opportunityHint === undefined &&
 		input.contactHint === undefined;
-	if (namesNothing && input.dueAt === undefined) return null;
-
-	const dueAt =
-		input.dueAt === undefined
-			? {}
-			: { due_at: input.dueAt.trim() ? instantWritten(context.labels.timezone, input.dueAt) : null };
-	if (namesNothing) return dueAt;
-
-	return { ...(await linksWritten(context, input, row)), ...dueAt };
+	if (namesNothing) return null;
+	return linksWritten(context, input, row);
 }
 
 async function linksWritten(
 	context: RecordContext,
 	input: CRMColumnsWritten,
 	row: CRMColumnHolder | null
-): Promise<Record<string, unknown>> {
+): Promise<CRMLinks> {
 	if (input.organizationHint !== undefined && !input.organizationHint.trim()) {
 		return { organization_id: null, opportunity_id: null, contact_id: null };
 	}
@@ -742,7 +740,7 @@ async function linksWritten(
 export async function writeCRMColumns(
 	context: RecordContext,
 	taskID: string,
-	columns: Record<string, unknown> | null
+	columns: CRMLinks | null
 ): Promise<void> {
 	if (!columns) return;
 	const { data, error } = await context.caller

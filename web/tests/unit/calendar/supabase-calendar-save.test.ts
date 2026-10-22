@@ -2,8 +2,8 @@ import { describe, expect, test } from 'bun:test';
 import { calendarEventWritten } from '../../../src/lib/calendar/supabase-calendar';
 import { createCalendarModelEvent } from '../../../src/routes/calendar/embed/calendar-event-model';
 import { calendarEventPayloadFromDayTaskEvent } from '../../../src/routes/calendar/embed/calendar-event-mapping';
-import { eventEndInstant, sizeOfEvent } from '../../../src/lib/server/public-api/record/event-tools';
-import { instantWritten } from '../../../src/lib/server/public-api/record/days';
+import { sizeOfEvent } from '../../../src/lib/server/public-api/record/event-tools';
+import { endWritten, instantWritten } from '../../../src/lib/server/public-api/record/days';
 import type { CalendarEventPayload } from '../../../src/routes/calendar/embed/calendar-event-persistence';
 
 function eventWith(fields: Partial<CalendarEventPayload> = {}): CalendarEventPayload {
@@ -91,11 +91,22 @@ describe('what the calendar sends the record', () => {
 describe('what the record makes of a whole day it is sent', () => {
 	test('covers the company day the viewer picked, from its midnight to the next', () => {
 		expect(instantWritten('Asia/Seoul', '2026-09-02')).toBe('2026-09-01T15:00:00.000Z');
-		expect(eventEndInstant('Asia/Seoul', '2026-09-02', true)).toBe('2026-09-02T15:00:00.000Z');
+		expect(endWritten('Asia/Seoul', '2026-09-02', true)).toBe('2026-09-02T15:00:00.000Z');
+	});
+
+	test('takes back the end it answered for a whole day unchanged', () => {
+		const answered = endWritten('Asia/Seoul', '2026-10-13', true);
+		expect(answered).toBe('2026-10-13T15:00:00.000Z');
+		expect(endWritten('Asia/Seoul', '2026-10-14T00:00:00+09:00', true)).toBe(answered);
+		expect(endWritten('America/New_York', '2026-11-02T00:00:00-05:00', true)).toBe('2026-11-02T05:00:00.000Z');
+	});
+
+	test('reads a whole-day moment inside a day as ending after that day', () => {
+		expect(endWritten('Asia/Seoul', '2026-10-13T15:30:00+09:00', true)).toBe('2026-10-13T15:00:00.000Z');
 	});
 
 	test('leaves a timed end where the caller wrote it', () => {
-		expect(eventEndInstant('Asia/Seoul', '2026-09-02T11:00:00+09:00', false)).toBe('2026-09-02T02:00:00.000Z');
+		expect(endWritten('Asia/Seoul', '2026-09-02T11:00:00+09:00', false)).toBe('2026-09-02T02:00:00.000Z');
 	});
 });
 

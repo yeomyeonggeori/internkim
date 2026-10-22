@@ -15,7 +15,7 @@ import {
 	organizationOfCRMHint,
 	writeCRMColumns
 } from './crm-tools';
-import { dayOfInstant, instantWritten, isTheSameMoment, weekWindow } from './days';
+import { dayOfInstant, endWritten, isTheSameMoment, startWritten, weekWindow } from './days';
 import { labelOf } from './labels';
 import { displayNameOf, mentionOf, personOfHint, type RecordPerson } from './people';
 import type { RecordContext } from './company';
@@ -51,8 +51,11 @@ type TaskWritten = {
 	organizationHint?: string;
 	opportunityHint?: string;
 	contactHint?: string;
-	dueAt?: string;
 	parentTaskHint?: string;
+	isEvent?: boolean;
+	isWholeDay?: boolean;
+	location?: string;
+	notifyMinutesBefore?: number;
 };
 
 export type AnsweredPerson = {
@@ -119,7 +122,7 @@ function ownerOf(context: RecordContext, row: TaskCardRow, personOf = peopleByID
 function answeredTask(context: RecordContext, row: TaskCardRow, people = peopleByID(context)): AnsweredTask {
 	const participants = participantsOf(context, row, people);
 	const owner = ownerOf(context, row, people);
-	const endDate = dayOfInstant(context.labels.timezone, row.ends_at);
+	const endDate = row.task_last_day ?? '';
 	const requesterID = row.requester_id ?? '';
 	return {
 		taskID: row.id,
@@ -149,9 +152,19 @@ function answeredTask(context: RecordContext, row: TaskCardRow, people = peopleB
 
 type WrittenTaskFields = ReturnType<typeof writtenFields>;
 
-function instantOrNothing(timezone: string, written: string | undefined, endOfDay = false): string | null | undefined {
+function instantOrNothing(written: string | undefined, instantOf: (written: string) => string): string | null | undefined {
 	if (written === undefined) return undefined;
-	return written.trim() ? instantWritten(timezone, written, endOfDay) : null;
+	return written.trim() ? instantOf(written) : null;
+}
+
+function locationWritten(written: string | undefined): { name: string } | null | undefined {
+	if (written === undefined) return undefined;
+	return written.trim() ? { name: written.trim() } : null;
+}
+
+function reminderWritten(written: number | undefined): number | null | undefined {
+	if (written === undefined) return undefined;
+	return written > 0 ? written : null;
 }
 
 export async function taskRowOfHint(context: RecordContext, hint: string): Promise<TaskRow> {
@@ -163,6 +176,8 @@ async function taskByID(context: RecordContext, taskID: string): Promise<TaskRow
 }
 
 function writtenFields(context: RecordContext, written: TaskWritten, row: TaskRow | null) {
+	const timezone = context.labels.timezone;
+	const isWholeDay = written.isWholeDay ?? row?.is_whole_day ?? false;
 	return {
 		title: written.title,
 		status: written.status,
@@ -170,8 +185,12 @@ function writtenFields(context: RecordContext, written: TaskWritten, row: TaskRo
 		note: written.note,
 		business: labelOf(context.labels.businesses, written.business, row ? row.business : null),
 		type: labelOf(context.labels.types, written.type, row ? row.type : null),
-		startsAt: instantOrNothing(context.labels.timezone, written.startsAt),
-		endsAt: instantOrNothing(context.labels.timezone, written.endsAt, true),
+		startsAt: instantOrNothing(written.startsAt, (edge) => startWritten(timezone, edge, isWholeDay)),
+		endsAt: instantOrNothing(written.endsAt, (edge) => endWritten(timezone, edge, isWholeDay)),
+		isEvent: written.isEvent,
+		isWholeDay: written.isWholeDay,
+		location: locationWritten(written.location),
+		notifyMinutesBefore: reminderWritten(written.notifyMinutesBefore),
 		participantIDs: participantsOfHints(
 			context.people,
 			written.participantPersonHints,
@@ -192,11 +211,12 @@ export async function taskAdd(context: RecordContext, asked: TaskWritten): Promi
 	const tasks = await tasksOfCompany(context.caller, false);
 	const parentTaskID = input.parentTaskHint?.trim() ? taskOfHint(tasks, input.parentTaskHint, 'task').id : null;
 	const duplicate = duplicateJustAdded(context, tasks, participantIDs, asked.title.trim());
+	const links = await crmColumnsWritten(context, input, duplicate ?? null);
 	const saved = duplicate
 		? (await mergedIntoDuplicate(context, duplicate, input)).id
-		: await saveTask(context.caller, taskWriteArguments(null, { ...written, status, participantIDs, parentTaskID }));
+		: await saveTask(context.caller, taskWriteArguments(null, { ...written, status, participantIDs, parentTaskID, links }));
 
-	await writeCRMColumns(context, saved, await crmColumnsWritten(context, input, duplicate ?? null));
+	if (duplicate) await writeCRMColumns(context, saved, links);
 	return answeredTask(context, await taskByID(context, saved));
 }
 
@@ -375,7 +395,7 @@ function weekCodeOfDay(context: RecordContext, instant: string | null): string {
 
 function weekCodeOfTask(context: RecordContext, row: TaskCardRow, thisWeek: string): string {
 	const startWeek = weekCodeOfDay(context, row.starts_at);
-	const endWeek = weekCodeOfDay(context, row.ends_at);
+	const endWeek = row.task_last_day ? taskWeekCodeForDateISO(row.task_last_day) : '';
 	if (row.status === 'paused') return thisWeek;
 	if (rollsForwardToTheWeekRead.has(row.status)) {
 		if (!startWeek || isCurrentOrEarlier(startWeek, thisWeek)) return thisWeek;

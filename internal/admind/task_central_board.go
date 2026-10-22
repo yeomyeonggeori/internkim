@@ -75,7 +75,7 @@ func taskOfBoardTask(task centralplane.BoardTask, memberByEmail map[string]taskM
 		Size:      task.Size,
 		Status:    cleanTaskStatus(task.Status),
 		StartDate: taskDayOfInstant(task.StartsAt, location),
-		EndDate:   taskDayOfInstant(firstFilled(task.EndsAt, task.DueAt), location),
+		EndDate:   task.LastDay,
 		CreatedAt: task.CreatedAt,
 	}
 	for _, email := range task.ParticipantMails {

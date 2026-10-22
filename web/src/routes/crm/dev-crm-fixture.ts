@@ -1013,8 +1013,8 @@ const crmActivityFixtures: Array<Omit<CRMActivity, 'business' | 'opportunityID'>
 		title: '장학 후원 성사 처리',
 		occurredAt: '2026-09-19T16:40:00+09:00',
 		size: 'S',
-		calendarEventDate: '2026-09-19T16:40:00+09:00',
-		calendarEndsAt: '2026-09-19T18:00:00+09:00',
+		startsAt: '2026-09-19T16:40:00+09:00',
+		endsAt: '2026-09-19T18:00:00+09:00',
 		summary: '장학 후원 1,000만 원과 멘토 4명 추천이 확정되었습니다.'
 	},
 	{
@@ -1028,8 +1028,8 @@ const crmActivityFixtures: Array<Omit<CRMActivity, 'business' | 'opportunityID'>
 		title: '다중 조직 권한 구조 협의',
 		occurredAt: '2026-09-08T13:20:00+09:00',
 		size: 'M',
-		calendarEventDate: '2026-09-08T13:20:00+09:00',
-		calendarEndsAt: '2026-09-08T18:00:00+09:00',
+		startsAt: '2026-09-08T13:20:00+09:00',
+		endsAt: '2026-09-08T18:00:00+09:00',
 		summary: '교육기관별 관리자 권한과 리포트 공개 범위를 분리해야 한다는 요구가 확인되었습니다.'
 	},
 	{
@@ -1043,8 +1043,8 @@ const crmActivityFixtures: Array<Omit<CRMActivity, 'business' | 'opportunityID'>
 		title: '보안 체크리스트 수신',
 		occurredAt: '2026-09-07T10:10:00+09:00',
 		size: 'M',
-		calendarEventDate: '2026-09-07T10:10:00+09:00',
-		calendarEndsAt: '2026-09-07T18:00:00+09:00',
+		startsAt: '2026-09-07T10:10:00+09:00',
+		endsAt: '2026-09-07T18:00:00+09:00',
 		summary: 'SSO, 데이터 보관 기간, 관리자 감사 로그 항목을 포함한 체크리스트를 받았습니다.'
 	},
 	{
@@ -1058,8 +1058,8 @@ const crmActivityFixtures: Array<Omit<CRMActivity, 'business' | 'opportunityID'>
 		title: '멘토링 운영 범위 협의',
 		occurredAt: '2026-09-14T14:30:00+09:00',
 		size: 'L',
-		calendarEventDate: '2026-09-14T14:30:00+09:00',
-		calendarEndsAt: '2026-09-14T18:00:00+09:00',
+		startsAt: '2026-09-14T14:30:00+09:00',
+		endsAt: '2026-09-14T18:00:00+09:00',
 		summary: '멘토 12명 기준 운영안으로 좁히고 계약서 수정본을 보내기로 했습니다.'
 	},
 	{
@@ -1073,8 +1073,8 @@ const crmActivityFixtures: Array<Omit<CRMActivity, 'business' | 'opportunityID'>
 		title: '행사 공간 가능 일정 확인',
 		occurredAt: '2026-09-01T11:00:00+09:00',
 		size: 'S',
-		calendarEventDate: '2026-09-01T11:00:00+09:00',
-		calendarEndsAt: '2026-09-01T18:00:00+09:00',
+		startsAt: '2026-09-01T11:00:00+09:00',
+		endsAt: '2026-09-01T18:00:00+09:00',
 		summary: '8월 2주차 평일 저녁은 가능하지만 주말은 대기 상태입니다.'
 	},
 	{
@@ -1088,8 +1088,8 @@ const crmActivityFixtures: Array<Omit<CRMActivity, 'business' | 'opportunityID'>
 		title: '파일럿 제안서 발송',
 		occurredAt: '2026-07-16T10:15:00+09:00',
 		size: 'M',
-		calendarEventDate: '2026-07-16T10:15:00+09:00',
-		calendarEndsAt: '2026-07-16T18:00:00+09:00',
+		startsAt: '2026-07-16T10:15:00+09:00',
+		endsAt: '2026-07-16T18:00:00+09:00',
 		summary: '출결, 일정, 업무 리포트를 묶은 4주 파일럿 제안서를 보냈습니다.'
 	},
 	{
@@ -1103,8 +1103,8 @@ const crmActivityFixtures: Array<Omit<CRMActivity, 'business' | 'opportunityID'>
 		title: '투자자 업데이트 초안 업로드',
 		occurredAt: '2026-07-15T17:40:00+09:00',
 		size: 'S',
-		calendarEventDate: '2026-07-15T17:40:00+09:00',
-		calendarEndsAt: '2026-07-15T18:00:00+09:00',
+		startsAt: '2026-07-15T17:40:00+09:00',
+		endsAt: '2026-07-15T18:00:00+09:00',
 		summary: '6월 활동 수, 참여자 유지율, 후원 전환율을 포함한 초안 파일을 정리했습니다.'
 	},
 	{
@@ -1118,8 +1118,8 @@ const crmActivityFixtures: Array<Omit<CRMActivity, 'business' | 'opportunityID'>
 		title: '공동 홍보 문구 수정 요청',
 		occurredAt: '2026-07-14T15:35:00+09:00',
 		size: 'XS',
-		calendarEventDate: '2026-07-14T15:35:00+09:00',
-		calendarEndsAt: '2026-07-14T18:00:00+09:00',
+		startsAt: '2026-07-14T15:35:00+09:00',
+		endsAt: '2026-07-14T18:00:00+09:00',
 		summary: '후원사 로고 노출 위치와 학생 인터뷰 문구를 조금 더 보수적으로 조정하기로 했습니다.'
 	},
 	{
@@ -1133,8 +1133,8 @@ const crmActivityFixtures: Array<Omit<CRMActivity, 'business' | 'opportunityID'>
 		title: '촬영 구성안 업로드',
 		occurredAt: '2026-07-13T18:05:00+09:00',
 		size: 'L',
-		calendarEventDate: '2026-07-13T18:05:00+09:00',
-		calendarEndsAt: '2026-07-13T18:00:00+09:00',
+		startsAt: '2026-07-13T18:05:00+09:00',
+		endsAt: '2026-07-13T19:00:00+09:00',
 		summary: '행사 전후 인터뷰 컷과 현장 스케치 컷을 나누는 촬영 구성안이 업로드되었습니다.'
 	},
 	{
@@ -1148,8 +1148,8 @@ const crmActivityFixtures: Array<Omit<CRMActivity, 'business' | 'opportunityID'>
 		title: '단가표와 메뉴 후보 수신',
 		occurredAt: '2026-07-12T09:30:00+09:00',
 		size: 'M',
-		calendarEventDate: '2026-07-12T09:30:00+09:00',
-		calendarEndsAt: '2026-07-12T18:00:00+09:00',
+		startsAt: '2026-07-12T09:30:00+09:00',
+		endsAt: '2026-07-12T18:00:00+09:00',
 		summary: '기본 도시락, 핑거푸드, 음료 패키지 단가표와 최소 주문 수량 조건을 받았습니다.'
 	},
 	{
@@ -1163,8 +1163,8 @@ const crmActivityFixtures: Array<Omit<CRMActivity, 'business' | 'opportunityID'>
 		title: '입력 자동화 데모 진행',
 		occurredAt: '2026-07-11T16:10:00+09:00',
 		size: 'S',
-		calendarEventDate: '2026-07-11T16:10:00+09:00',
-		calendarEndsAt: '2026-07-11T18:00:00+09:00',
+		startsAt: '2026-07-11T16:10:00+09:00',
+		endsAt: '2026-07-11T18:00:00+09:00',
 		summary: '메일과 첨부파일에서 관계처, 금액, 다음 액션을 추출하는 흐름을 시연했습니다.'
 	},
 	{
@@ -1178,8 +1178,8 @@ const crmActivityFixtures: Array<Omit<CRMActivity, 'business' | 'opportunityID'>
 		title: '데이터룸 권한 요청',
 		occurredAt: '2026-07-10T12:50:00+09:00',
 		size: 'M',
-		calendarEventDate: '2026-07-10T12:50:00+09:00',
-		calendarEndsAt: '2026-07-10T18:00:00+09:00',
+		startsAt: '2026-07-10T12:50:00+09:00',
+		endsAt: '2026-07-10T18:00:00+09:00',
 		summary: '투자심사역 2명에게 데이터룸 권한을 열어달라는 요청을 받았습니다.'
 	},
 	{
@@ -1193,8 +1193,8 @@ const crmActivityFixtures: Array<Omit<CRMActivity, 'business' | 'opportunityID'>
 		title: '봉사자 교육 일정 조율',
 		occurredAt: '2026-07-09T14:00:00+09:00',
 		size: 'XS',
-		calendarEventDate: '2026-07-09T14:00:00+09:00',
-		calendarEndsAt: '2026-07-09T18:00:00+09:00',
+		startsAt: '2026-07-09T14:00:00+09:00',
+		endsAt: '2026-07-09T18:00:00+09:00',
 		summary: '봉사자 사전 교육을 온라인 1회와 현장 리허설 1회로 나누는 안을 공유했습니다.'
 	},
 	{
@@ -1208,8 +1208,8 @@ const crmActivityFixtures: Array<Omit<CRMActivity, 'business' | 'opportunityID'>
 		title: '객실 블록 가능 여부 확인',
 		occurredAt: '2026-07-08T11:25:00+09:00',
 		size: 'S',
-		calendarEventDate: '2026-07-08T11:25:00+09:00',
-		calendarEndsAt: '2026-07-08T18:00:00+09:00',
+		startsAt: '2026-07-08T11:25:00+09:00',
+		endsAt: '2026-07-08T18:00:00+09:00',
 		summary: '트윈룸 12실과 조식 포함 조건은 가능하지만 취소 기한이 짧다는 점을 확인했습니다.'
 	},
 	{
@@ -1223,8 +1223,8 @@ const crmActivityFixtures: Array<Omit<CRMActivity, 'business' | 'opportunityID'>
 		title: '임팩트 지표 검토 미팅',
 		occurredAt: '2026-07-06T15:00:00+09:00',
 		size: 'M',
-		calendarEventDate: '2026-07-06T15:00:00+09:00',
-		calendarEndsAt: '2026-07-06T18:00:00+09:00',
+		startsAt: '2026-07-06T15:00:00+09:00',
+		endsAt: '2026-07-06T18:00:00+09:00',
 		summary: '참여자 유지율, 후원 전환율, 멘토 참여 시간을 핵심 지표 후보로 정리했습니다.'
 	},
 	{
@@ -1238,8 +1238,8 @@ const crmActivityFixtures: Array<Omit<CRMActivity, 'business' | 'opportunityID'>
 		title: '후원 검토 일시 보류',
 		occurredAt: '2026-07-03T16:20:00+09:00',
 		size: 'L',
-		calendarEventDate: '2026-07-03T16:20:00+09:00',
-		calendarEndsAt: '2026-07-03T18:00:00+09:00',
+		startsAt: '2026-07-03T16:20:00+09:00',
+		endsAt: '2026-07-03T18:00:00+09:00',
 		summary: '예산 심사 일정 때문에 7월 말까지 결정이 밀릴 가능성이 있습니다.'
 	},
 	{
@@ -1253,8 +1253,8 @@ const crmActivityFixtures: Array<Omit<CRMActivity, 'business' | 'opportunityID'>
 		title: '공공기관 제안 범위 협의',
 		occurredAt: '2026-06-29T10:30:00+09:00',
 		size: 'S',
-		calendarEventDate: '2026-06-29T10:30:00+09:00',
-		calendarEndsAt: '2026-06-29T18:00:00+09:00',
+		startsAt: '2026-06-29T10:30:00+09:00',
+		endsAt: '2026-06-29T18:00:00+09:00',
 		summary: '청년정책과 내부 심의 후 제안서 양식과 개인정보 처리 항목을 다시 확인하기로 했습니다.'
 	},
 	{
@@ -1268,8 +1268,8 @@ const crmActivityFixtures: Array<Omit<CRMActivity, 'business' | 'opportunityID'>
 		title: '장비 견적 보류',
 		occurredAt: '2026-06-25T13:45:00+09:00',
 		size: 'M',
-		calendarEventDate: '2026-06-25T13:45:00+09:00',
-		calendarEndsAt: '2026-06-25T18:00:00+09:00',
+		startsAt: '2026-06-25T13:45:00+09:00',
+		endsAt: '2026-06-25T18:00:00+09:00',
 		summary: '참석자 규모가 확정되지 않아 기본 장비안과 확장 장비안을 모두 받아두기로 했습니다.'
 	},
 	{
@@ -1283,8 +1283,8 @@ const crmActivityFixtures: Array<Omit<CRMActivity, 'business' | 'opportunityID'>
 		title: '이번 라운드 참여 보류',
 		occurredAt: '2026-06-18T17:10:00+09:00',
 		size: 'S',
-		calendarEventDate: '2026-06-18T17:10:00+09:00',
-		calendarEndsAt: '2026-06-18T18:00:00+09:00',
+		startsAt: '2026-06-18T17:10:00+09:00',
+		endsAt: '2026-06-18T18:00:00+09:00',
 		summary: '현재 투자 기준에는 맞지 않지만 분기 업데이트는 계속 받겠다고 답변했습니다.'
 	},
 	{
@@ -1298,8 +1298,8 @@ const crmActivityFixtures: Array<Omit<CRMActivity, 'business' | 'opportunityID'>
 		title: '재접촉 후보로 표시',
 		occurredAt: '2026-05-28T09:20:00+09:00',
 		size: 'XS',
-		calendarEventDate: '2026-05-28T09:20:00+09:00',
-		calendarEndsAt: '2026-05-28T18:00:00+09:00',
+		startsAt: '2026-05-28T09:20:00+09:00',
+		endsAt: '2026-05-28T18:00:00+09:00',
 		summary: '하반기 브랜딩 예산이 확정되면 다시 견적을 요청하기로 했습니다.'
 	}
 ];
