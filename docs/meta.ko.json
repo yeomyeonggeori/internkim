@@ -21,6 +21,7 @@
     "api",
     "tools",
     "record",
-    "plugin"
+    "plugin",
+    "testing"
   ]
 }
