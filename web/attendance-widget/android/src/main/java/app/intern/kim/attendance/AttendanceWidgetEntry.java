@@ -34,8 +34,8 @@ final class AttendanceWidgetEntry {
         this.isStale = isStale;
     }
 
-    static AttendanceWidgetEntry failed(long date, String failure) {
-        return new AttendanceWidgetEntry(date, AttendanceToday.nothing(), new ArrayList<>(), TimeZone.getDefault(), failure, false);
+    static AttendanceWidgetEntry failed(long date, String failure, boolean isRetriedSoon) {
+        return new AttendanceWidgetEntry(date, AttendanceToday.nothing(), new ArrayList<>(), TimeZone.getDefault(), failure, isRetriedSoon);
     }
 
     String currentTime() {
