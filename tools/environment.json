@@ -152,6 +152,10 @@
     "process": "docs site",
     "description": "Vite's own build-mode flag (import.meta.env.DEV, true outside a production build), not a deployment setting"
   },
+  "E2E_SERVER_PORTS": {
+    "process": "web e2e tests",
+    "description": "the three dev server ports web/playwright.config.ts picks on its first load and hands to its workers, as central,fixture,standalone; set it to choose them yourself"
+  },
   "EMPTY_CAPTURE_DIR": {
     "process": "web fixture tests",
     "description": "optional output directory for settled-empty, filtered-empty and error-state screenshot evidence"
@@ -259,10 +263,6 @@
   "INTERNKIM_MM_ADMIN_PASSWORD_PATH": {
     "process": "tools/mirror-local",
     "description": "path to the local Mattermost admin password file, passed to admind's -mattermost-admin-password flag"
-  },
-  "INTERNKIM_PUBLIC_URL": {
-    "process": "web e2e tests",
-    "description": "the public URL tests/e2e/public-url.spec.ts checks"
   },
   "INTERNKIM_REAL_CHROME_BROWSER_TEST": {
     "process": "internal/browser tests",
@@ -437,22 +437,6 @@
   "SKELETON_FIDELITY_DIRECTORY": {
     "process": "web fixture tests",
     "description": "optional output directory for matched CRM, organization and task loading-to-ready geometry evidence"
-  },
-  "PLAYWRIGHT_BASE_URL": {
-    "process": "web e2e tests",
-    "description": "the base URL web/playwright.config.ts points its browser at; defaults to http://127.0.0.1:5174"
-  },
-  "PLAYWRIGHT_CENTRAL_PLANE": {
-    "process": "web e2e tests",
-    "description": "when \"1\", web/playwright.config.ts runs against a real local central plane instead of the mocked device path"
-  },
-  "PLAYWRIGHT_CHANNEL": {
-    "process": "web e2e tests",
-    "description": "the browser channel (e.g. chrome) web/playwright.config.ts launches, when set"
-  },
-  "PLAYWRIGHT_START_WEB_SERVER": {
-    "process": "web e2e tests",
-    "description": "when \"1\", web/playwright.config.ts starts its own dev server instead of expecting one already running"
   },
   "POSIX_HELPER_PATH": {
     "process": "tools/render-company-runtime",

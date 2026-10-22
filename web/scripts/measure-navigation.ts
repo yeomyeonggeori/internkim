@@ -5,7 +5,7 @@ import { cpus, loadavg } from 'node:os';
 import { createClient } from '@supabase/supabase-js';
 import { taskWeekCodeForDateISO } from '../src/lib/task/task-week-code.ts';
 
-const [baselineURL, candidateURL, output = 'tests/performance/navigation-results.json', roundsText = '12', profile = 'desktop', baselineBuild = 'unspecified', candidateBuild = 'unspecified'] = process.argv.slice(2);
+const [baselineURL, candidateURL, output = 'test-results/navigation-results.json', roundsText = '12', profile = 'desktop', baselineBuild = 'unspecified', candidateBuild = 'unspecified'] = process.argv.slice(2);
 if (!baselineURL || !candidateURL) throw new Error('Usage: bun scripts/measure-navigation.ts BASELINE_URL CANDIDATE_URL OUTPUT [ROUNDS] [desktop|mobile]');
 const databaseURL = process.env.SUPABASE_URL ?? '';
 if (!['localhost', '127.0.0.1', '[::1]'].includes(new URL(databaseURL).hostname)) throw new Error('Benchmarks only seed a loopback Supabase project');
