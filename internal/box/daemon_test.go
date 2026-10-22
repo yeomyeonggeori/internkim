@@ -436,7 +436,7 @@ func TestAnEmptyBoxGetsOnlineBeforeItAnnounces(t *testing.T) {
 	recorded := &installs{}
 	daemon, _ := daemonFor(t, plane, recorded)
 	announcementsWhenAsked := -1
-	daemon.GetOnline = func(context.Context, string) error {
+	daemon.GetOnline = func(context.Context, string, bool) error {
 		announcementsWhenAsked = plane.announcements
 		return nil
 	}
@@ -496,7 +496,7 @@ func offlineBoxWithACompany(t *testing.T, isOnANetwork bool) (Daemon, *int) {
 	daemon.Client = Client{AppURL: "http://127.0.0.1:1"}
 	daemon.IsOnANetwork = func(context.Context) bool { return isOnANetwork }
 	attempts := 0
-	daemon.GetOnline = func(context.Context, string) error {
+	daemon.GetOnline = func(context.Context, string, bool) error {
 		attempts++
 		return nil
 	}
@@ -525,7 +525,7 @@ func TestAnEmptyBoxThatLosesItsNetworkTriesToGetOnlineAgain(t *testing.T) {
 	daemon, _ := daemonFor(t, plane, recorded)
 	daemon.Client = Client{AppURL: "http://127.0.0.1:1"}
 	attempts := 0
-	daemon.GetOnline = func(context.Context, string) error {
+	daemon.GetOnline = func(context.Context, string, bool) error {
 		attempts++
 		return nil
 	}

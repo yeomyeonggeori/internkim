@@ -52,7 +52,7 @@ type Daemon struct {
 	StartWorking      func(ctx context.Context, session Session)
 	PackageVersion    string
 	NameHost          func(ctx context.Context, companySlug string) error
-	GetOnline         func(ctx context.Context, boxPublicKey string) error
+	GetOnline         func(ctx context.Context, boxPublicKey string, hasCompany bool) error
 	IsOnANetwork      func(ctx context.Context) bool
 	ChangeWifi        func(ctx context.Context, ssid, password string) error
 	ScanWifi          func(ctx context.Context) ([]NearbyNetwork, error)
@@ -405,7 +405,7 @@ func (daemon Daemon) getOnlineWhenOffline(ctx context.Context, identity Identity
 	if daemon.installedCompany() != "" && !daemon.isOffEveryNetwork(ctx) {
 		return
 	}
-	if errorValue := daemon.GetOnline(ctx, identity.PublicKey()); errorValue != nil {
+	if errorValue := daemon.GetOnline(ctx, identity.PublicKey(), daemon.installedCompany() != ""); errorValue != nil {
 		log.Printf("getting this box online: %v; it announces itself once a network is there", errorValue)
 	}
 }

@@ -375,3 +375,40 @@ func (radio *slowProbeRadio) IsOnline(ctx context.Context) bool {
 	radio.advance()
 	return false
 }
+
+func TestABoxWithACompanyOnANetworkWithoutTheInternetKeepsTheSetupNetworkClosed(t *testing.T) {
+	radio := &fakeRadio{address: "10.0.0.5"}
+	setup := withFakeClock(Setup{Radio: radio, Listen: testListener(make(chan net.Listener, 4)), IsOnANetwork: func(context.Context) bool { return true }})
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+
+	if errorValue := setup.Run(ctx); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if radio.scanCalls != 0 || radio.openCalls != 0 {
+		t.Fatalf("a box still on its network opened the setup network: scanCalls = %d, openCalls = %d", radio.scanCalls, radio.openCalls)
+	}
+}
+
+func TestABoxWithACompanyOnNoNetworkOpensTheSetupNetwork(t *testing.T) {
+	radio := &fakeRadio{address: "10.0.0.5", onlineAfterJoin: true, networks: []Network{{SSID: "Office", SignalPercent: 80}}}
+	listenerReady := make(chan net.Listener, 4)
+	setup := withFakeClock(Setup{Radio: radio, Listen: testListener(listenerReady), IsOnANetwork: func(context.Context) bool { return false }})
+	runErrors := make(chan error, 1)
+	go func() { runErrors <- setup.Run(context.Background()) }()
+
+	listener := <-listenerReady
+	submitJoin(t, "http://"+listener.Addr().String(), "Office", "office-secret").Body.Close()
+
+	select {
+	case errorValue := <-runErrors:
+		if errorValue != nil {
+			t.Fatal(errorValue)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("Run did not return after joining")
+	}
+	if radio.openCalls != 1 {
+		t.Fatalf("a box with a company on no network opened the setup network %d times, want once", radio.openCalls)
+	}
+}
