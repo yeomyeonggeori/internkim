@@ -337,6 +337,24 @@ describe('somebody who leaves stops signing in', () => {
 		expect(await canSignIn(email, invited.temporaryPassword)).toBe(true);
 	});
 
+	test('a password reset opens the account of someone working here, and keeps a leaver shut out', async () => {
+		const email = `${slug}-reset@example.test`;
+		const memberID = await addMember(client, companyID, email);
+		const { temporaryPassword } = await inviteMember(client, memberID);
+		await signedInAs(email, temporaryPassword);
+		await removeMember(client, companyID, memberID, { purge: true });
+
+		const returningID = await addMember(client, companyID, email);
+		await client.from('member').update({ status: 'active' }).eq('id', returningID);
+		const reset = await resetMemberPassword(client, returningID);
+		expect(await canSignIn(email, reset.temporaryPassword)).toBe(true);
+
+		await client.from('member').update({ status: 'departed' }).eq('id', returningID);
+		await settleSignInOfMember(client, returningID);
+		const resetAfterLeaving = await resetMemberPassword(client, returningID);
+		expect(await canSignIn(email, resetAfterLeaving.temporaryPassword)).toBe(false);
+	});
+
 	test('a departure written to the record closes the account, and a return opens it', async () => {
 		const email = `${slug}-departed@example.test`;
 		const memberID = await addMember(client, companyID, email);

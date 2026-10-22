@@ -388,7 +388,9 @@ export async function resetMemberPassword(
 	client: SupabaseClient,
 	memberID: string,
 ): Promise<Invitation> {
-	return issueTemporaryPassword(client, memberID);
+	const invitation = await issueTemporaryPassword(client, memberID);
+	await settleSignInOfMember(client, memberID);
+	return invitation;
 }
 
 async function issueTemporaryPassword(
