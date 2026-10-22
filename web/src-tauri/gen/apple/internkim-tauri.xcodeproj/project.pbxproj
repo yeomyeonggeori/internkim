@@ -24,13 +24,16 @@
 		7E4032AA876343F525818F73 /* assets in Resources */ = {isa = PBXBuildFile; fileRef = AE1BE971F44960095D933BA1 /* assets */; };
 		80A8474BBDDFEB29DDC75F2C /* AttendanceWidgetView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7EE4D917B118424DC7723D25 /* AttendanceWidgetView.swift */; };
 		813F9A26B522045706AD0EF8 /* Metal.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 76FBE6AF846DFF84B64B5F7A /* Metal.framework */; };
+		83B48083D4D1E45E9709CDAA /* Intents.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 0785B9E385E7B8DB98691144 /* Intents.framework */; };
 		87CBAEFE935690D0C38821A8 /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 680756E17A3BE4A1B5F7F28F /* LaunchScreen.storyboard */; };
 		A32275073ED58AAD0B54DBA2 /* Security.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 24DA84C388F8E8474DE3E1CD /* Security.framework */; };
+		AA7E2C741FC2F91D53E4E79B /* UserNotifications.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = E2DC0456172FD0E3F76FAE87 /* UserNotifications.framework */; };
 		B95F16F9888162A929DBA5C6 /* Localizable.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = 3F963FEDCA5E8E9D7471FC99 /* Localizable.xcstrings */; };
 		BC1D26021E524FA9535C0CC9 /* AttendanceWidget.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 2739763D54579EB68F9D27C8 /* AttendanceWidget.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		C21645D3D25E65757ABE0151 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 63834ADC8C560B1674187FF3 /* Assets.xcassets */; };
 		C67580B64678D16DAA7F90F0 /* UIKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 13CEE45D8593A433B26B2C19 /* UIKit.framework */; };
 		D13C4459971629663AAE6D80 /* AttendanceWidgetBundle.swift in Sources */ = {isa = PBXBuildFile; fileRef = D42B44F0777E2E17AB6A8B91 /* AttendanceWidgetBundle.swift */; };
+		D13ED66BB157C36B95BE34E0 /* NotificationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7D528E9AEDABF1A97F66BD0D /* NotificationService.swift */; };
 		D1883B968A63536E91B980A7 /* QuartzCore.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 5C048222785783C365B3D264 /* QuartzCore.framework */; };
 		D3E3D84E79E67E71A37897B5 /* AttendanceRefusal.swift in Sources */ = {isa = PBXBuildFile; fileRef = FFE1EC2A0BFCB4CCBECCFD94 /* AttendanceRefusal.swift */; };
 		D6A02C9A7CC87DF6BBA076D6 /* AttendanceDefaultWorkplace.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9306B9FF08D516686260B52 /* AttendanceDefaultWorkplace.swift */; };
@@ -40,9 +43,17 @@
 		DEB048B45283502F6D070870 /* AttendanceWidgetStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = E05D905ADA03C94AA2AA0BCA /* AttendanceWidgetStore.swift */; };
 		E7581FD51064028604D8DC77 /* WidgetKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 5F2C6C4A81EDAA6EEE78B65D /* WidgetKit.framework */; };
 		E7BB04A50EAD94764E5298E3 /* AttendanceLocationPicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6A64F756C3EC2BBDB350500A /* AttendanceLocationPicker.swift */; };
+		FCD3666AA632C8425D1959F8 /* NotificationService.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 1E325EE50A373F150EBC7D45 /* NotificationService.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
+		2F404C39C1E499E7DE9CF30F /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = D3D1D29699A5ACD7E635CC74 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = E0A6DE12744EE108D0983143;
+			remoteInfo = NotificationService;
+		};
 		345B74EAB80CCC6EB92610CB /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = D3D1D29699A5ACD7E635CC74 /* Project object */;
@@ -60,6 +71,7 @@
 			dstSubfolderSpec = 13;
 			files = (
 				BC1D26021E524FA9535C0CC9 /* AttendanceWidget.appex in Embed Foundation Extensions */,
+				FCD3666AA632C8425D1959F8 /* NotificationService.appex in Embed Foundation Extensions */,
 			);
 			name = "Embed Foundation Extensions";
 			runOnlyForDeploymentPostprocessing = 0;
@@ -69,9 +81,11 @@
 /* Begin PBXFileReference section */
 		02583448A6F103D7B5716F67 /* lib.rs */ = {isa = PBXFileReference; path = lib.rs; sourceTree = "<group>"; };
 		02714EF8DBC559D0184884AC /* CoreGraphics.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreGraphics.framework; path = System/Library/Frameworks/CoreGraphics.framework; sourceTree = SDKROOT; };
+		0785B9E385E7B8DB98691144 /* Intents.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Intents.framework; path = System/Library/Frameworks/Intents.framework; sourceTree = SDKROOT; };
 		13CEE45D8593A433B26B2C19 /* UIKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = UIKit.framework; path = System/Library/Frameworks/UIKit.framework; sourceTree = SDKROOT; };
 		16330B6ABF52AF8265733E88 /* AttendanceWorkplaceEntity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AttendanceWorkplaceEntity.swift; sourceTree = "<group>"; };
 		16E78634EFE7CAE87F5FB3B8 /* bindings.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = bindings.h; sourceTree = "<group>"; };
+		1E325EE50A373F150EBC7D45 /* NotificationService.appex */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = "wrapper.app-extension"; path = NotificationService.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		24DA84C388F8E8474DE3E1CD /* Security.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Security.framework; path = System/Library/Frameworks/Security.framework; sourceTree = SDKROOT; };
 		2739763D54579EB68F9D27C8 /* AttendanceWidget.appex */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = "wrapper.app-extension"; path = AttendanceWidget.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		2D6CFC6167511DD1F9B8752D /* AttendanceLockScreenCards.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AttendanceLockScreenCards.swift; sourceTree = "<group>"; };
@@ -88,6 +102,7 @@
 		680756E17A3BE4A1B5F7F28F /* LaunchScreen.storyboard */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; path = LaunchScreen.storyboard; sourceTree = "<group>"; };
 		6A64F756C3EC2BBDB350500A /* AttendanceLocationPicker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AttendanceLocationPicker.swift; sourceTree = "<group>"; };
 		76FBE6AF846DFF84B64B5F7A /* Metal.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Metal.framework; path = System/Library/Frameworks/Metal.framework; sourceTree = SDKROOT; };
+		7D528E9AEDABF1A97F66BD0D /* NotificationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationService.swift; sourceTree = "<group>"; };
 		7EE4D917B118424DC7723D25 /* AttendanceWidgetView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AttendanceWidgetView.swift; sourceTree = "<group>"; };
 		83BB1D1F7EE29037073F1E0E /* AttendanceActivityAttributes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AttendanceActivityAttributes.swift; sourceTree = "<group>"; };
 		8E99BC8CB140A74D40622C69 /* main.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = main.mm; sourceTree = "<group>"; };
@@ -102,6 +117,7 @@
 		D42B44F0777E2E17AB6A8B91 /* AttendanceWidgetBundle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AttendanceWidgetBundle.swift; sourceTree = "<group>"; };
 		D481BF43F95B7003D364D049 /* AttendanceToday.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AttendanceToday.swift; sourceTree = "<group>"; };
 		E05D905ADA03C94AA2AA0BCA /* AttendanceWidgetStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AttendanceWidgetStore.swift; sourceTree = "<group>"; };
+		E2DC0456172FD0E3F76FAE87 /* UserNotifications.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = UserNotifications.framework; path = System/Library/Frameworks/UserNotifications.framework; sourceTree = SDKROOT; };
 		E4AEDB3AF7259E6B29428FA4 /* AttendanceClockPress.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AttendanceClockPress.swift; sourceTree = "<group>"; };
 		E7FD9A3D7271F2750A23D987 /* WebKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = WebKit.framework; path = System/Library/Frameworks/WebKit.framework; sourceTree = SDKROOT; };
 		ED838B20913A4CD916A7810B /* AttendanceWidgetProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AttendanceWidgetProvider.swift; sourceTree = "<group>"; };
@@ -121,6 +137,15 @@
 				A32275073ED58AAD0B54DBA2 /* Security.framework in Frameworks */,
 				C67580B64678D16DAA7F90F0 /* UIKit.framework in Frameworks */,
 				05598313CDC0FE73A37178A4 /* WebKit.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		56AFD722DC47C4A252842ADD /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				83B48083D4D1E45E9709CDAA /* Intents.framework in Frameworks */,
+				AA7E2C741FC2F91D53E4E79B /* UserNotifications.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -158,6 +183,7 @@
 			children = (
 				2739763D54579EB68F9D27C8 /* AttendanceWidget.appex */,
 				B7EC58ACD058C7CE44462FE0 /* internkim-tauri_iOS.app */,
+				1E325EE50A373F150EBC7D45 /* NotificationService.appex */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -174,6 +200,7 @@
 			isa = PBXGroup;
 			children = (
 				02714EF8DBC559D0184884AC /* CoreGraphics.framework */,
+				0785B9E385E7B8DB98691144 /* Intents.framework */,
 				CB4FE126647C061D32EA997C /* libapp.a */,
 				76FBE6AF846DFF84B64B5F7A /* Metal.framework */,
 				B36E8F0B233963C71A861996 /* MetalKit.framework */,
@@ -181,6 +208,7 @@
 				24DA84C388F8E8474DE3E1CD /* Security.framework */,
 				2E9EBBE39CDCB7926A50CD38 /* SwiftUI.framework */,
 				13CEE45D8593A433B26B2C19 /* UIKit.framework */,
+				E2DC0456172FD0E3F76FAE87 /* UserNotifications.framework */,
 				E7FD9A3D7271F2750A23D987 /* WebKit.framework */,
 				5F2C6C4A81EDAA6EEE78B65D /* WidgetKit.framework */,
 			);
@@ -211,6 +239,7 @@
 				A4026F21C368532E3319005B /* AttendanceWidget */,
 				EBDC55F09AC1B3B30E0960AE /* Externals */,
 				01B77D2169733A20789A7881 /* internkim-tauri_iOS */,
+				B9E332A6D01992BC64826A89 /* NotificationService */,
 				93947585A5F71D0752EEAB13 /* Shared */,
 				54B8E9F7E57D938061A40174 /* Sources */,
 				A4B38A0D2E5087FC2F33A86C /* src */,
@@ -257,6 +286,15 @@
 			path = ../../src;
 			sourceTree = "<group>";
 		};
+		B9E332A6D01992BC64826A89 /* NotificationService */ = {
+			isa = PBXGroup;
+			children = (
+				7D528E9AEDABF1A97F66BD0D /* NotificationService.swift */,
+			);
+			name = NotificationService;
+			path = ../../../ios/App/NotificationService;
+			sourceTree = "<group>";
+		};
 		EBDC55F09AC1B3B30E0960AE /* Externals */ = {
 			isa = PBXGroup;
 			children = (
@@ -300,6 +338,7 @@
 			);
 			dependencies = (
 				059E6968DB7A465F1F2F92FF /* PBXTargetDependency */,
+				6E7A3D176BE0E26A7BCA29CC /* PBXTargetDependency */,
 			);
 			name = "internkim-tauri_iOS";
 			packageProductDependencies = (
@@ -307,6 +346,24 @@
 			productName = "internkim-tauri_iOS";
 			productReference = B7EC58ACD058C7CE44462FE0 /* internkim-tauri_iOS.app */;
 			productType = "com.apple.product-type.application";
+		};
+		E0A6DE12744EE108D0983143 /* NotificationService */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 829C6F717DDECAF23FD6BF58 /* Build configuration list for PBXNativeTarget "NotificationService" */;
+			buildPhases = (
+				EF6AB5A8636B06F4BEEBACB4 /* Sources */,
+				56AFD722DC47C4A252842ADD /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = NotificationService;
+			packageProductDependencies = (
+			);
+			productName = NotificationService;
+			productReference = 1E325EE50A373F150EBC7D45 /* NotificationService.appex */;
+			productType = "com.apple.product-type.app-extension";
 		};
 /* End PBXNativeTarget section */
 
@@ -321,6 +378,9 @@
 						DevelopmentTeam = 54YH9ZX7FX;
 					};
 					7449EC7589BD8141CD7115A1 = {
+						DevelopmentTeam = 54YH9ZX7FX;
+					};
+					E0A6DE12744EE108D0983143 = {
 						DevelopmentTeam = 54YH9ZX7FX;
 					};
 				};
@@ -342,6 +402,7 @@
 			targets = (
 				7449EC7589BD8141CD7115A1 /* internkim-tauri_iOS */,
 				213E995F25A2BF4D7B2C82E6 /* AttendanceWidget */,
+				E0A6DE12744EE108D0983143 /* NotificationService */,
 			);
 		};
 /* End PBXProject section */
@@ -424,6 +485,14 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		EF6AB5A8636B06F4BEEBACB4 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				D13ED66BB157C36B95BE34E0 /* NotificationService.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
@@ -431,6 +500,11 @@
 			isa = PBXTargetDependency;
 			target = 213E995F25A2BF4D7B2C82E6 /* AttendanceWidget */;
 			targetProxy = 345B74EAB80CCC6EB92610CB /* PBXContainerItemProxy */;
+		};
+		6E7A3D176BE0E26A7BCA29CC /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = E0A6DE12744EE108D0983143 /* NotificationService */;
+			targetProxy = 2F404C39C1E499E7DE9CF30F /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
 
@@ -516,6 +590,30 @@
 			};
 			name = release;
 		};
+		50740259CB5B68A3FE5A77BA /* release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ARCHS = (
+					arm64,
+				);
+				DEVELOPMENT_TEAM = 54YH9ZX7FX;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = NotificationService/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = app.intern.kim.NotificationService;
+				PRODUCT_NAME = NotificationService;
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = release;
+		};
 		9268B81A818D31345B41585A /* debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -534,6 +632,30 @@
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = app.intern.kim.attendancewidget;
 				PRODUCT_NAME = AttendanceWidget;
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = debug;
+		};
+		A55A21B344C4B272ABFD9997 /* debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ARCHS = (
+					arm64,
+				);
+				DEVELOPMENT_TEAM = 54YH9ZX7FX;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = NotificationService/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = app.intern.kim.NotificationService;
+				PRODUCT_NAME = NotificationService;
 				SDKROOT = iphoneos;
 				SKIP_INSTALL = YES;
 				SWIFT_VERSION = 5.0;
@@ -676,6 +798,15 @@
 			buildConfigurations = (
 				D38AE52926F74C46B43E9C7A /* debug */,
 				36DB0542154273D6EEAC7A5A /* release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = debug;
+		};
+		829C6F717DDECAF23FD6BF58 /* Build configuration list for PBXNativeTarget "NotificationService" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				A55A21B344C4B272ABFD9997 /* debug */,
+				50740259CB5B68A3FE5A77BA /* release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = debug;
