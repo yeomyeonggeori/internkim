@@ -353,6 +353,14 @@ printf 'service-post=%s\n' "$(curl -s -o /dev/null -w '%{http_code}' --max-time 
 REFUSED_DOORS = ("chatd-post", "blueclaw-approve", "admind-approve", "admind-signing-secret", "relay-inbound")
 
 
+def shipped_files_dpkg_found_changed(verification):
+    return [
+        line
+        for line in verification.splitlines()
+        if line.strip() and not (len(line.split()) == 3 and line.split()[1] == "c")
+    ]
+
+
 def an_unprivileged_post_was_refused(reading):
     lines = dict(line.split("=", 1) for line in reading.split() if "=" in line)
     return (
@@ -1126,13 +1134,15 @@ class Rig:
 
     def observe_the_shipped_files_are_unmodified(self, step):
         verified = self.machine.shell(f"dpkg --verify {PACKAGE_NAME}")
+        changed = shipped_files_dpkg_found_changed(verified.stdout)
         step.observe(
-            "every file the release under test shipped is present and unmodified",
+            "every file the release under test shipped is present and unmodified, its configuration files aside",
             f"`dpkg --verify {PACKAGE_NAME}`, which re-hashes each shipped file against dpkg's md5sums, "
             "once the guest runs the release under test",
             "listing the files in dpkg's manifest would prove only that the manifest exists; this "
-            "reads the files on disk",
-        ).record(verified.returncode == 0 and not verified.stdout.strip(), verified.stdout.strip() or "no differences")
+            "reads the files on disk. A configuration file is the administrator's to edit, and step 3 "
+            "edits one on purpose",
+        ).record(not changed, "\n".join(changed) or verified.stdout.strip() or "no differences")
 
     def observe_the_bridge_refuses_a_requester(self, step):
         reading = self.machine.shell(UNPRIVILEGED_POST_COMMAND).stdout.strip()
