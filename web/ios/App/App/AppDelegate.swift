@@ -1,7 +1,5 @@
 import UIKit
-import UserNotifications
 import Capacitor
-import WidgetKit
 
 @UIApplicationMain
 class AppDelegate: UIResponder, UIApplicationDelegate {
@@ -48,23 +46,8 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         didReceiveRemoteNotification userInfo: [AnyHashable: Any],
         fetchCompletionHandler completionHandler: @escaping (UIBackgroundFetchResult) -> Void
     ) {
-        if let withdrawn = userInfo["withdrawnMessageIDs"] as? [String] {
-            UNUserNotificationCenter.current().removeDeliveredNotifications(withIdentifiers: withdrawn)
-            completionHandler(.newData)
-            return
-        }
-        guard userInfo["widget"] as? String == "attendance" else {
-            completionHandler(.noData)
-            return
-        }
-        WidgetCenter.shared.reloadAllTimelines()
-        guard userInfo["clock"] as? String == "clock_out" else {
-            completionHandler(.newData)
-            return
-        }
         Task {
-            await AttendanceLockScreenCards.close()
-            completionHandler(.newData)
+            completionHandler(await SilentPush.handle(userInfo))
         }
     }
 
