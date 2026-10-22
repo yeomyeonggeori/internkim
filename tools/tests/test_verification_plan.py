@@ -1,6 +1,8 @@
 import importlib.machinery
 import importlib.util
 import io
+import json
+import re
 import sys
 import tempfile
 import time
@@ -20,18 +22,49 @@ def verification_module():
 
 
 class VerificationPlanTests(unittest.TestCase):
-    def test_currency_changes_run_the_mocked_recovery_browser_regression(self):
-        groups = verification_module().GROUPS
-        group = next(group for group in groups if group.name == "crm-currency-ui")
-        for path in [
-            "web/src/routes/crm/crm-view-currency.svelte.ts",
-            "web/src/routes/crm/crm-view-currency-select.svelte",
-            "web/src/lib/currency/converted-amount.ts",
-            "web/src/lib/server/exchange-rates.ts",
-            "web/tests/e2e/crm-currency-recovery.spec.ts",
-        ]:
-            self.assertTrue(group.is_touched_by([path]))
-        self.assertEqual(group.commands, [["bun", "run", "test:e2e:crm:currency:fixture"]])
+    def test_a_change_inside_one_area_runs_only_that_area_end_to_end(self):
+        module = verification_module()
+        group = next(group for group in module.GROUPS if group.name == "e2e")
+        changed = ["web/src/routes/crm/crm-view-currency.svelte.ts", "web/src/lib/task/task-board.ts", "web/tests/e2e/crm/crm-central.spec.ts"]
+        with patch.object(module, "end_to_end_areas", return_value=["crm", "shell", "task"]):
+            self.assertTrue(group.is_touched_by(changed))
+            self.assertEqual(group.narrowed_to(changed).commands, [["scripts/e2e.sh", "tests/e2e/crm", "tests/e2e/task"]])
+
+    def test_a_shared_change_runs_every_area_end_to_end(self):
+        module = verification_module()
+        group = next(group for group in module.GROUPS if group.name == "e2e")
+        with patch.object(module, "end_to_end_areas", return_value=["crm", "shell", "task"]):
+            for shared in ["web/src/app.css", "web/src/lib/components/ui/button/button.svelte", "web/src/routes/+layout.svelte", "web/tests/e2e/support/central-test-utils.ts", "supabase/migrations/20990101000000_example.sql"]:
+                self.assertEqual(group.narrowed_to(["web/src/routes/crm/text.ts", shared]).commands, [["scripts/e2e.sh"]], shared)
+
+    def test_every_spec_sits_in_an_area_named_after_a_route_or_the_shell(self):
+        module = verification_module()
+        routes = {path.name for path in (module.REPOSITORY_ROOT / "web" / "src" / "routes").iterdir() if path.is_dir()}
+        self.assertEqual(sorted(module.END_TO_END_DIRECTORY.glob("*.spec.ts")), [])
+        self.assertEqual(set(module.end_to_end_areas()) - routes, {"shell"})
+
+    def test_every_python_test_under_tools_is_run_by_a_group(self):
+        module = verification_module()
+        commands = [" ".join(command) for group in module.GROUPS for command in group.commands]
+        for test_file in sorted((module.REPOSITORY_ROOT / "tools" / "tests").glob("test_*.py")):
+            self.assertTrue(any(test_file.name in command for command in commands), f"no group runs tools/tests/{test_file.name}")
+
+    def test_every_web_test_directory_is_run_by_a_group_or_named_as_run_elsewhere(self):
+        module = verification_module()
+        run_elsewhere = {
+            "plane": "./internkim dev plane runs it in a disposable Linux VM",
+            "pilot": "a model pilot harness run by `bun run pilot`, not a test suite",
+            "support": "helpers the suites import",
+            "fixtures": "data the suites read",
+        }
+        commands = [" ".join(command) for group in module.GROUPS for command in group.commands]
+        scripts = json.loads((module.REPOSITORY_ROOT / "web" / "package.json").read_text())["scripts"]
+        named_scripts = {name for command in commands for name in re.findall(r"bun run ([\w:-]+)", command)}
+        expanded = commands + [scripts[name] for name in named_scripts if name in scripts]
+        for directory in sorted(path.name for path in (module.REPOSITORY_ROOT / "web" / "tests").iterdir() if path.is_dir()):
+            if directory in run_elsewhere or directory == "e2e":
+                continue
+            self.assertTrue(any(f"tests/{directory}" in command for command in expanded), f"no group runs web/tests/{directory}")
 
     def test_web_installers_and_consumers_share_a_serial_lane(self):
         groups = verification_module().GROUPS
@@ -71,7 +104,7 @@ class VerificationPlanTests(unittest.TestCase):
             [
                 ["python3", "-m", "unittest", "discover", "-s", "tools/tests", "-p", "test_verify_agent_plugin.py"],
                 ["tools/verify-agent-plugin"],
-                ["python3", ".dependency/internkim-plugin/tests/test_data_room.py"],
+                [".dependency/internkim-plugin/tests/run"],
             ],
         )
 

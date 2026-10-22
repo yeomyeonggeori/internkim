@@ -33,11 +33,42 @@ class Group:
         self.lane = lane or name
 
     def is_touched_by(self, changed_paths):
-        return any(
-            fnmatch.fnmatch(path, pattern)
-            for path in changed_paths
-            for pattern in self.patterns
-        )
+        return any(self.matches(path) for path in changed_paths)
+
+    def matches(self, path):
+        return any(fnmatch.fnmatch(path, pattern) for pattern in self.patterns)
+
+    def narrowed_to(self, changed_paths):
+        return self
+
+
+END_TO_END_DIRECTORY = REPOSITORY_ROOT / "web" / "tests" / "e2e"
+AREA_ROOTS = ("web/src/routes/", "web/src/lib/", "web/tests/e2e/")
+
+
+def end_to_end_areas():
+    return sorted(path.name for path in END_TO_END_DIRECTORY.iterdir() if path.is_dir() and path.name != "support")
+
+
+def end_to_end_area_of(path, areas):
+    root = next((root for root in AREA_ROOTS if path.startswith(root)), None)
+    if root is None:
+        return None
+    area = path[len(root):].split("/", 1)[0]
+    return area if area in areas else None
+
+
+class EndToEndGroup(Group):
+    def __init__(self, name, patterns, lane):
+        super().__init__(name, patterns, [["scripts/e2e.sh"]], working_directory="web", lane=lane)
+
+    def narrowed_to(self, changed_paths):
+        known_areas = end_to_end_areas()
+        areas = {end_to_end_area_of(path, known_areas) for path in changed_paths if self.matches(path)}
+        if None in areas:
+            return self
+        directories = [f"tests/e2e/{area}" for area in sorted(areas)]
+        return Group(self.name, self.patterns, [["scripts/e2e.sh", *directories]], self.working_directory, self.lane)
 
 
 BUN_INSTALL = ["bun", "install", "--frozen-lockfile"]
@@ -78,7 +109,7 @@ GROUPS = [
         [
             ["python3", "-m", "unittest", "discover", "-s", "tools/tests", "-p", "test_verify_agent_plugin.py"],
             ["tools/verify-agent-plugin"],
-            ["python3", ".dependency/internkim-plugin/tests/test_data_room.py"],
+            [".dependency/internkim-plugin/tests/run"],
         ],
     ),
     Group(
@@ -264,108 +295,21 @@ GROUPS = [
         working_directory="web",
         lane="web",
     ),
-    Group(
-        "memory-ui",
-        ["web/src/routes/memory/*", "web/tests/e2e/memory*"],
-        [["bun", "run", "test:e2e:memory"]],
-        working_directory="web",
-        lane="web",
-    ),
-    Group(
-        "messenger-ui",
+    EndToEndGroup(
+        "e2e",
         [
-            "web/src/routes/messenger/*",
-            "web/src/lib/components/channel/*",
-            "web/src/lib/components/ui/context-menu/*",
-            "web/src/lib/components/ui/sheet/*",
-            "web/tests/e2e/messenger*",
-            "web/tests/e2e/mobile-route-ux.spec.ts",
-            "web/src/lib/components/ui/sonner/*",
-            "web/src/lib/app-viewport.ts",
-            "web/src/app.css",
+            "web/src/*",
+            "web/static/*",
+            "web/tests/e2e/*",
+            "web/playwright.config.ts",
+            "web/vite.config.ts",
+            "web/svelte.config.js",
+            "web/package.json",
             "web/bun.lock",
+            "web/scripts/e2e.sh",
+            "supabase/migrations/*",
+            "supabase/seed.dev.sql",
         ],
-        [
-            ["bun", "run", "test:e2e:messenger"],
-            ["bun", "run", "test:e2e:messenger:inbox:fixture"],
-            ["bun", "run", "test:e2e:messenger:central:fixture"],
-            ["bun", "run", "test:e2e:mobile:fixture"],
-        ],
-        working_directory="web",
-        lane="web",
-    ),
-    Group(
-        "web-e2e",
-        [
-            "web/src/routes/calendar/*",
-            "web/tests/e2e/calendar*",
-            "web/src/routes/attendance/*",
-            "web/src/lib/attendance/*",
-            "web/src/routes/admin/attendance-*",
-            "web/tests/e2e/attendance*",
-            "web/src/routes/task/*",
-            "web/src/lib/task/*",
-            "web/tests/e2e/task*",
-            "web/tests/e2e/mobile-workspace-central.spec.ts",
-            "web/src/lib/app-viewport.ts",
-            "web/src/app.css",
-            "web/src/routes/crm/*",
-            "web/src/lib/server/public-api/record/crm*",
-            "web/tests/e2e/crm-*",
-            "web/tests/e2e/central-test-utils.ts",
-            "web/tests/e2e/central-plane-sign-in.ts",
-            "web/scripts/e2e-central.sh",
-        ],
-        [
-            holding_the_local_plane(["bun", "run", "test:e2e:calendar:central"]),
-            holding_the_local_plane(["bun", "run", "test:e2e:attendance:central"]),
-            holding_the_local_plane(["bun", "run", "test:e2e:task:central"]),
-            holding_the_local_plane(["bun", "run", "test:e2e:crm:central"]),
-        ],
-        working_directory="web",
-        lane="web",
-    ),
-    Group(
-        "crm-currency-ui",
-        [
-            "web/src/routes/crm/crm-view-currency*",
-            "web/src/routes/crm/text.ts",
-            "web/src/lib/currency/converted-amount.ts",
-            "web/src/lib/server/exchange-rates.ts",
-            "web/tests/e2e/crm-currency-recovery.spec.ts",
-        ],
-        [["bun", "run", "test:e2e:crm:currency:fixture"]],
-        working_directory="web",
-        lane="web",
-    ),
-    Group(
-        "avatar-ui",
-        [
-            "web/src/lib/components/person-avatar-stack.svelte",
-            "web/src/lib/components/channel/channel-threads.ts",
-            "web/src/routes/attendance/stack-preview/*",
-            "web/tests/e2e/person-avatar-stack.spec.ts",
-        ],
-        [["bun", "run", "test:e2e:avatars:fixture"]],
-        working_directory="web",
-        lane="web",
-    ),
-    Group(
-        "web-loading-fixture",
-        [
-            "web/tests/e2e/*loading*",
-            "web/tests/e2e/*empty*",
-            "web/tests/e2e/*skeleton*",
-            "web/src/routes/*",
-            "web/src/lib/components/*",
-            "web/src/lib/data-room/*",
-            "web/src/lib/*.svelte",
-            "web/src/lib/*.svelte.ts",
-            "web/src/lib/workspace-identity.ts",
-            "web/src/app.css",
-        ],
-        [["bun", "run", "test:e2e:loading:fixture"]],
-        working_directory="web",
         lane="web",
     ),
     Group(
@@ -593,7 +537,7 @@ def groups_to_run(arguments):
     if arguments.all:
         return GROUPS
     changed = changed_paths_against(arguments.base)
-    return [group for group in GROUPS if group.is_touched_by(changed)]
+    return [group.narrowed_to(changed) for group in GROUPS if group.is_touched_by(changed)]
 
 
 def print_plan(groups):
