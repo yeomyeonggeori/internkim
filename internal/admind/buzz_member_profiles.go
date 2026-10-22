@@ -79,18 +79,7 @@ func (service *Service) nameMemberFromTheDirectory(
 	recordedName string,
 	language string,
 ) bool {
-	if personname.Render(recordedName, language) == "" {
-		return false
-	}
-	secretHex := service.buzzSecretForEmail(ctx, email)
-	if secretHex == "" {
-		return false
-	}
-	pubkey, errorValue := buzzPublicKey(secretHex)
-	if errorValue != nil {
-		return false
-	}
-	displayName := buzzProfileNameToWrite(profiles[pubkey], recordedName, language)
+	secretHex, displayName := service.buzzProfileOwed(ctx, profiles, email, recordedName, language)
 	if displayName == "" {
 		return false
 	}
@@ -100,6 +89,46 @@ func (service *Service) nameMemberFromTheDirectory(
 	}
 	log.Printf("buzz profiles: %s is %s", email, displayName)
 	return true
+}
+
+func (service *Service) buzzProfileOwed(
+	ctx context.Context,
+	profiles map[string]buzzProfileContent,
+	email string,
+	recordedName string,
+	language string,
+) (string, string) {
+	if personname.Render(recordedName, language) == "" {
+		return "", ""
+	}
+	secretHex := service.buzzSecretForEmail(ctx, email)
+	if secretHex == "" {
+		return "", ""
+	}
+	pubkey, errorValue := buzzPublicKey(secretHex)
+	if errorValue != nil {
+		return "", ""
+	}
+	return secretHex, buzzProfileNameToWrite(profiles[pubkey], recordedName, language)
+}
+
+func (service *Service) anyoneTheRelayCannotNameYet(ctx context.Context) bool {
+	relay, errorValue := service.buzzDatabase()
+	if errorValue != nil {
+		return false
+	}
+	profiles, errorValue := latestProfilesByPubkey(ctx, relay)
+	if errorValue != nil {
+		return false
+	}
+	recordedNames := service.recordedNamesByEmail(ctx)
+	language := service.workspaceLanguage(ctx)
+	for _, email := range service.everyAddressThisDeviceKnows(ctx) {
+		if _, displayName := service.buzzProfileOwed(ctx, profiles, email, recordedNames[email], language); displayName != "" {
+			return true
+		}
+	}
+	return false
 }
 
 func (service *Service) publishBuzzProfile(ctx context.Context, secretHex string, displayName string, pictureURL string) error {
