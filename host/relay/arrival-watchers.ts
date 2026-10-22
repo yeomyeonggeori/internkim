@@ -31,17 +31,25 @@ export class ArrivalWatchers {
 
 	async renewEveryone(): Promise<ArrivalWatchRenewal> {
 		const renewal: ArrivalWatchRenewal = { watched: 0, withoutCredential: 0, refusals: [] };
-		for (const memberID of await this.dependencies.activeMemberIDs()) {
-			const actor = await this.dependencies.credentialOf(memberID);
-			if (!actor) {
-				renewal.withoutCredential += 1;
-				continue;
-			}
-			const refusal = await this.watch(memberID, actor);
-			if (refusal) renewal.refusals.push(refusal);
+		const outcomes = await Promise.all(
+			(await this.dependencies.activeMemberIDs()).map((memberID) => this.renewOne(memberID))
+		);
+		for (const outcome of outcomes) {
+			if (outcome === null) renewal.withoutCredential += 1;
+			else if (outcome) renewal.refusals.push(outcome);
 			else renewal.watched += 1;
 		}
 		return renewal;
+	}
+
+	private async renewOne(memberID: string): Promise<string | null> {
+		try {
+			const actor = await this.dependencies.credentialOf(memberID);
+			if (!actor) return null;
+			return (await this.watch(memberID, actor)) ?? '';
+		} catch (error) {
+			return `member ${memberID} not watched: ${reasonOf(error)}`;
+		}
 	}
 
 	watchOnceTheyAct(memberID: string, actor: ActorCredential): Promise<void> {

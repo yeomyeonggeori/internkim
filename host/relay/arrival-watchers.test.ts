@@ -76,12 +76,64 @@ describe('renewing arrival watches', () => {
 	});
 });
 
+describe('one member chatd cannot watch', () => {
+	test('does not keep the members after them from being watched', async () => {
+		const asked: Asked[] = [];
+		const watchers = new ArrivalWatchers(
+			dependencies({
+				activeMemberIDs: async () => ['member-1', 'member-2', 'member-3'],
+				askChatd: async (capability, body) => {
+					const actor = body.actor as { secret: string };
+					if (actor.secret === 'secret-of-member-1') throw new Error('The operation timed out.');
+					asked.push({ capability, body });
+					return { status: 200, body: {} };
+				}
+			})
+		);
+
+		const renewal = await watchers.renewEveryone();
+
+		expect(watchedSecrets(asked).sort()).toEqual(['secret-of-member-2', 'secret-of-member-3']);
+		expect(renewal).toEqual({
+			watched: 2,
+			withoutCredential: 0,
+			refusals: ['member member-1 not watched: The operation timed out.']
+		});
+	});
+
+	test('does not hold the others back while chatd takes its time over them', async () => {
+		const asked: string[] = [];
+		let answerMemberOne = () => {};
+		const watchers = new ArrivalWatchers(
+			dependencies({
+				activeMemberIDs: async () => ['member-1', 'member-2'],
+				askChatd: (_capability, body) => {
+					const secret = (body.actor as { secret: string }).secret;
+					asked.push(secret);
+					if (secret !== 'secret-of-member-1') return Promise.resolve({ status: 200, body: {} });
+					return new Promise((resolve) => {
+						answerMemberOne = () => resolve({ status: 200, body: {} });
+					});
+				}
+			})
+		);
+
+		const renewing = watchers.renewEveryone();
+		await Promise.resolve();
+		await Promise.resolve();
+		await Promise.resolve();
+		expect(asked).toEqual(['secret-of-member-1', 'secret-of-member-2']);
+		answerMemberOne();
+		expect((await renewing).watched).toBe(2);
+	});
+});
+
 describe('a member is watched from the moment the relay acts for them', () => {
 	test('a member a renewal could not watch is watched at once, not at the next renewal', async () => {
 		const asked: Asked[] = [];
 		let isChatdUp = false;
 		const watchers = new ArrivalWatchers(dependencies({ askChatd: chatdThatIsUpWhen(() => isChatdUp, asked) }));
-		await expect(watchers.renewEveryone()).rejects.toThrow();
+		expect((await watchers.renewEveryone()).watched).toBe(0);
 
 		isChatdUp = true;
 		await watchers.watchOnceTheyAct('member-1', credentialOf('member-1'));
