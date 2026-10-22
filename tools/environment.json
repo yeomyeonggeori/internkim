@@ -291,7 +291,7 @@
   },
   "INTERNKIM_TEST_MOLI": {
     "process": "go tests",
-    "description": "the moli executable internal/browser/device_browsers_test.go launches to prove a device browser serves the DevTools Protocol and stops; unset skips that test"
+    "description": "the moli executable internal/browser/device_browsers_test.go and device_browser_network_test.go launch to prove a device browser serves the DevTools Protocol, stops, and keeps its pages off the host's own network; unset skips those tests"
   },
   "INTERNKIM_TEST_SANDBOX": {
     "process": "cli tests",

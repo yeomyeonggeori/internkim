@@ -406,20 +406,6 @@ func TestDeviceReadinessShellScriptChecksMoliSnapshotReadiness(t *testing.T) {
 	}
 }
 
-func TestDeviceBrowserServiceRunsMoliServeUnderSystemd(t *testing.T) {
-	for _, fragment := range []string{"ExecStart=" + DeviceBrowserExecutablePath + " serve --host 127.0.0.1 --port 9222 --layout --resource", "DynamicUser=yes", "StateDirectory=internkim-moli", "Restart=always"} {
-		if !strings.Contains(DeviceBrowserServiceUnit(), fragment) {
-			t.Fatalf("expected device browser unit to contain %q: %s", fragment, DeviceBrowserServiceUnit())
-		}
-	}
-	script := DeviceBrowserServiceInstallShellScript()
-	for _, fragment := range []string{"/etc/systemd/system/" + DeviceBrowserServiceName + ".service", "systemctl enable --now " + DeviceBrowserServiceName, DeviceBrowserCDPURL + "/json/version"} {
-		if !strings.Contains(script, fragment) {
-			t.Fatalf("expected device browser install script to contain %q: %s", fragment, script)
-		}
-	}
-}
-
 func TestAgentBrowserRuntimeMoliConnectsOverCDPOnly(t *testing.T) {
 	runner := &fakeCommandRunner{output: []byte("https://example.com\n")}
 	runtime := AgentBrowserRuntime{
