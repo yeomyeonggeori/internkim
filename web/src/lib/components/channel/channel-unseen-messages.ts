@@ -14,8 +14,7 @@ export function unseenMessageCount<Message extends ReadableMessage>(
 	const seenThroughMilliseconds = Date.parse(seenThroughSentAt);
 	if (Number.isNaN(seenThroughMilliseconds)) return 0;
 	return messages.filter(
-		(message) =>
-			!message.threadRootId && !isMine(message) && Date.parse(message.sentAt) > seenThroughMilliseconds
+		(message) => !isMine(message) && Date.parse(message.sentAt) > seenThroughMilliseconds
 	).length;
 }
 

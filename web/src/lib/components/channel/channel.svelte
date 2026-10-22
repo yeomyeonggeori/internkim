@@ -71,7 +71,9 @@
 		setCachedReaderID
 	} from './channel-message-cache';
 	import { groupConsecutiveMessages } from './channel-message-groups';
-	import { jumpToLatestLabel, unseenMessageCount } from './channel-unseen-messages';
+	import { jumpToLatestLabel } from './channel-unseen-messages';
+	import { createLatestAnchor } from './latest-anchor.svelte';
+	import JumpToLatestButton from './jump-to-latest-button.svelte';
 	import { leaveOpenedThreadThroughHistory, rememberOpenedThread, threadRootIDInHistory } from './thread-history';
 	import CornerDownRightIcon from '@lucide/svelte/icons/corner-down-right';
 	import FileIcon from '@lucide/svelte/icons/file';
@@ -81,7 +83,6 @@
 	import MessageSquareIcon from '@lucide/svelte/icons/message-square';
 	import MessageCircleDashedIcon from '@lucide/svelte/icons/message-circle-dashed';
 	import XIcon from '@lucide/svelte/icons/x';
-	import ArrowDownIcon from '@lucide/svelte/icons/arrow-down';
 	import ChannelLoadingSkeleton from './channel-loading-skeleton.svelte';
 	import { Spinner } from '$lib/components/ui/spinner/index.js';
 	import { customEmoji } from '$lib/stores/custom-emoji.svelte';
@@ -334,19 +335,21 @@
 	// math and nothing for an autoscroll to fight.
 	let scrollContainer = $state<HTMLDivElement | null>(null);
 	let threadScroller = $state<HTMLDivElement | null>(null);
-	let showScrollToBottom = $state(false);
 	const reversedTimeline = $derived(timeline.slice().reverse());
+	const reversedThreadReplyGroups = $derived(threadReplyGroups.slice().reverse());
 	let isPageVisible = $state(typeof document === 'undefined' || document.visibilityState === 'visible');
 	const latestSettledSentAt = $derived(latestSentAtOf(messages));
-	let seenThroughSentAt = $state('');
-	const unseenCount = $derived(showScrollToBottom ? unseenMessageCount(messages, seenThroughSentAt, isMine) : 0);
-
-	$effect(() => {
-		if (!showScrollToBottom) seenThroughSentAt = latestSettledSentAt;
+	const conversationAnchor = createLatestAnchor({
+		settledMessages: () => messages.filter((message) => !message.threadRootId),
+		isMine
+	});
+	const threadAnchor = createLatestAnchor({
+		settledMessages: () => messages.filter((message) => openThreadRoot !== null && message.threadRootId === openThreadRoot.id),
+		isMine
 	});
 
 	$effect(() => {
-		if (!onReadThrough || !isPageVisible || showScrollToBottom || !latestSettledSentAt) return;
+		if (!onReadThrough || !isPageVisible || conversationAnchor.isAwayFromLatest || !latestSettledSentAt) return;
 		onReadThrough(latestSettledSentAt);
 	});
 
@@ -402,12 +405,20 @@
 	function handleViewportScroll() {
 		const container = scrollContainer;
 		if (!container) return;
-		showScrollToBottom = Math.abs(container.scrollTop) > 200;
+		conversationAnchor.follow(container);
 		prefetchOlderIfNearTop();
 	}
 
 	function scrollToBottom() {
 		scrollContainer?.scrollTo({ top: 0, behavior: 'smooth' });
+	}
+
+	function handleThreadScroll() {
+		if (threadScroller) threadAnchor.follow(threadScroller);
+	}
+
+	function scrollThreadToBottom() {
+		threadScroller?.scrollTo({ top: 0, behavior: 'smooth' });
 	}
 
 	export async function revealMessage(messageID: string, threadRootID?: string): Promise<boolean> {
@@ -460,11 +471,15 @@
 	function openThread(rootMessage: ChannelMessage) {
 		rememberOpenedThread(rootMessage.id);
 		openThreadRoot = rootMessage;
+		threadAnchor.reset();
+		threadScroller?.scrollTo({ top: 0 });
 	}
 
 	async function sendThreadReply(draft: OutgoingMessage) {
 		if (!openThreadRoot) return;
-		await outgoing.send(draft, channelId, openThreadRoot.id);
+		const sending = outgoing.send(draft, channelId, openThreadRoot.id);
+		threadScroller?.scrollTo({ top: 0 });
+		await sending;
 	}
 
 	function scheduleRefresh() {
@@ -932,18 +947,29 @@
 {/snippet}
 
 {#snippet threadBody()}
-	<div bind:this={threadScroller} class="@container/conversation min-h-0 flex-1 overflow-y-auto">
-		<div class="flex flex-col gap-4 px-4 py-8">
+	<div class="relative flex min-h-0 flex-1 flex-col">
+		<div
+			bind:this={threadScroller}
+			onscroll={handleThreadScroll}
+			class="@container/conversation flex min-h-0 flex-1 flex-col-reverse gap-4 overflow-y-auto px-4 py-8"
+		>
 			{#if openThreadRoot}
-				{@render messageRow(openThreadRoot, true, false)}
-				{#each threadReplyGroups as group (group.id)}
+				{#each reversedThreadReplyGroups as group (group.id)}
 					<Message.Group class="gap-0">
 						{#each group.items as reply, index (reply.id)}
 							{@render messageRow(reply, index === 0, false)}
 						{/each}
 					</Message.Group>
 				{/each}
+				{@render messageRow(openThreadRoot, true, false)}
 			{/if}
+		</div>
+		<div class="pointer-events-none absolute inset-x-0 bottom-3 z-10 flex justify-center">
+			<JumpToLatestButton
+				isVisible={threadAnchor.isAwayFromLatest}
+				label={jumpToLatestLabel(threadAnchor.unseenCount, text)}
+				onclick={scrollThreadToBottom}
+			/>
 		</div>
 	</div>
 	{#key cacheGeneration}<ChannelComposer
@@ -1017,16 +1043,11 @@
 				{/if}
 				{#if !capture.isCapturing}
 					<div class="pointer-events-none absolute inset-x-0 bottom-(--dock-height) z-10 flex justify-center">
-						<Button
-							variant="outline"
-							size="icon"
+						<JumpToLatestButton
+							isVisible={conversationAnchor.isAwayFromLatest}
+							label={jumpToLatestLabel(conversationAnchor.unseenCount, text)}
 							onclick={scrollToBottom}
-							aria-label={jumpToLatestLabel(unseenCount, text)}
-							data-visible={showScrollToBottom}
-							class="jump-to-latest frosted-surface pointer-events-auto size-9 rounded-full"
-						>
-							<ArrowDownIcon />
-						</Button>
+						/>
 					</div>
 				{/if}
 			</div>
@@ -1115,26 +1136,6 @@
 {/if}
 
 <style>
-	:global(.jump-to-latest) {
-		transition:
-			opacity 180ms var(--ease-out-strong),
-			transform 180ms var(--ease-out-strong),
-			visibility 0s;
-	}
-	:global(.jump-to-latest[data-visible='false']) {
-		visibility: hidden;
-		opacity: 0;
-		transform: translateY(8px) scale(0.96);
-		transition:
-			opacity 180ms var(--ease-out-strong),
-			transform 180ms var(--ease-out-strong),
-			visibility 0s linear 180ms;
-	}
-	@media (prefers-reduced-motion: reduce) {
-		:global(.jump-to-latest[data-visible='false']) {
-			transform: none;
-		}
-	}
 	.chat-markdown {
 		overflow-wrap: anywhere;
 	}
