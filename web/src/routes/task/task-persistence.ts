@@ -49,7 +49,7 @@ export async function saveTaskDraft(input: SaveTaskDraftInput): Promise<TaskSave
 	if (!input.task || !input.canUpdateTask(input.task)) return { status: 'ignored' };
 	try {
 		await saveTask(input.task, input.statusBefore, input.originalTask);
-		await input.loadTask(input.weekCode);
+		void input.loadTask(input.weekCode);
 		return { status: 'saved' };
 	} catch (error) {
 		return { status: 'failed', errorMessage: errorMessageFrom(error, input.saveErrorMessage) };
@@ -60,7 +60,7 @@ export async function deleteTaskDraft(input: DeleteTaskInput): Promise<TaskDelet
 	if (!input.task.id || !input.canDeleteTask(input.task)) return { status: 'ignored' };
 	try {
 		await deleteTask(input.task.id);
-		await input.loadTask(input.weekCode);
+		void input.loadTask(input.weekCode);
 		return { status: 'deleted' };
 	} catch (error) {
 		return { status: 'failed', errorMessage: errorMessageFrom(error, input.deleteErrorMessage) };
