@@ -12,17 +12,23 @@ const resourceIDSchema = z.string()
   .min(1)
   .regex(/^\S(?:.*\S)?$/, 'Resource identity must not have leading or trailing whitespace.');
 
+export const browserWithheldRequestSchema = z.string()
+  .describe('Leave unset. The runtime sets it when the requester approves a request the page tried to send.')
+  .optional();
+
 const browserFillInputSchema = z.strictObject({
   ref: z.string().optional(),
   selector: z.string().optional(),
   target: z.string().optional(),
   text: z.string(),
+  withheldRequest: browserWithheldRequestSchema,
 });
 
 const browserFillInputIntentSchema = browserFillInputSchema.partial();
 
 const browserPressInputSchema = z.strictObject({
   key: z.string(),
+  withheldRequest: browserWithheldRequestSchema,
 });
 
 const browserPressInputIntentSchema = browserPressInputSchema.partial();
@@ -32,6 +38,7 @@ const browserSelectInputSchema = z.strictObject({
   selector: z.string().optional(),
   target: z.string().optional(),
   value: z.string(),
+  withheldRequest: browserWithheldRequestSchema,
 });
 
 const browserSelectInputIntentSchema = browserSelectInputSchema.partial();

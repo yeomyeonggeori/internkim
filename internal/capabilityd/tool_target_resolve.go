@@ -30,6 +30,9 @@ func capabilityToolTargetRouteFor(toolName string) (capabilityToolTargetRoute, b
 	if theRecordAnswers(trimmedToolName) {
 		return capabilityToolTargetRoute{ToolName: trimmedToolName, Resolver: Service.previewRecordToolTarget}, true
 	}
+	if _, isGuarded := guardedBrowserActions[trimmedToolName]; isGuarded {
+		return capabilityToolTargetRoute{ToolName: trimmedToolName, Resolver: Service.resolveWithheldBrowserRequests}, true
+	}
 	for _, route := range capabilityToolTargetRoutes {
 		if route.ToolName == trimmedToolName {
 			return route, true

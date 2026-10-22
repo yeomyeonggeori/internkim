@@ -412,7 +412,7 @@ func (runtime AgentBrowserRuntime) Screenshot(ctx context.Context, request Scree
 }
 
 func (runtime AgentBrowserRuntime) Click(ctx context.Context, request ClickRequest) (ActionResult, error) {
-	target, errorValue := browserTarget(request.Selector, request.Ref, request.Target)
+	target, errorValue := ActionTarget(request.Selector, request.Ref, request.Target)
 	if errorValue != nil {
 		return ActionResult{}, errorValue
 	}
@@ -423,7 +423,7 @@ func (runtime AgentBrowserRuntime) Click(ctx context.Context, request ClickReque
 }
 
 func (runtime AgentBrowserRuntime) Fill(ctx context.Context, request FillRequest) (ActionResult, error) {
-	target, errorValue := browserTarget(request.Selector, request.Ref, request.Target)
+	target, errorValue := ActionTarget(request.Selector, request.Ref, request.Target)
 	if errorValue != nil {
 		return ActionResult{}, errorValue
 	}
@@ -437,7 +437,7 @@ func (runtime AgentBrowserRuntime) Fill(ctx context.Context, request FillRequest
 }
 
 func (runtime AgentBrowserRuntime) Select(ctx context.Context, request SelectRequest) (ActionResult, error) {
-	target, errorValue := browserTarget(request.Selector, request.Ref, request.Target)
+	target, errorValue := ActionTarget(request.Selector, request.Ref, request.Target)
 	if errorValue != nil {
 		return ActionResult{}, errorValue
 	}
@@ -763,7 +763,7 @@ func (OSCommandRunner) Run(ctx context.Context, commandPath string, arguments []
 	return command.CombinedOutput()
 }
 
-func browserTarget(values ...string) (string, error) {
+func ActionTarget(values ...string) (string, error) {
 	target := strings.TrimSpace(firstNonEmpty(values...))
 	if target == "" {
 		return "", errors.New("browser target is required")

@@ -76,6 +76,17 @@ answering does not need a second yes. That is `currentThread` and
 conversation. A direct message to anyone else, or to the requester from a
 channel, still asks.
 
+Browser actions ask by what the page sends. While `browser_click`,
+`browser_fill`, `browser_select` or `browser_press` runs, and for a second
+after, every request the page makes with a method other than GET, HEAD,
+OPTIONS or TRACE (the safe methods of RFC 9110) is stopped before it leaves.
+The question shows each one's method, address and form fields as the browser
+would have sent them. Approving sends exactly those, once, from the same
+browser with its cookies. Declining sends nothing. Beacons
+(`navigator.sendBeacon`) caught in that second are dropped without a question,
+and a browser that cannot stop requests does not act at all. GET requests, and
+requests a page makes on its own outside that second, are not asked about.
+
 <Callout>
 A held call is persisted to the task ledger as `approval.hold_opened`, so an
 approval survives a daemon restart. Approving replays the recorded call

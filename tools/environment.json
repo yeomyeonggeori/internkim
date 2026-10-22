@@ -287,11 +287,11 @@
   },
   "INTERNKIM_TEST_CDP_BROWSER": {
     "process": "go tests",
-    "description": "a Chromium-family executable internal/capabilityd/company_browser_test.go starts headless, with --password-store=basic and --use-mock-keychain, to stand in for Moli while browser_fill, browser_select, browser_press and browser_wait drive a real page; unset skips that test"
+    "description": "a Chromium-family executable internal/capabilityd/company_browser_test.go starts headless, with --password-store=basic and --use-mock-keychain, to stand in for Moli while browser_fill, browser_select, browser_press and browser_wait drive a real page, and browser_write_approval_test.go uses when INTERNKIM_TEST_MOLI is unset; unset skips those tests"
   },
   "INTERNKIM_TEST_MOLI": {
     "process": "go tests",
-    "description": "the moli executable internal/browser/device_browsers_test.go and device_browser_network_test.go launch to prove a device browser serves the DevTools Protocol, stops, and keeps its pages off the host's own network; unset skips those tests"
+    "description": "the moli executable internal/browser/device_browsers_test.go and device_browser_network_test.go launch to prove a device browser serves the DevTools Protocol, stops, and keeps its pages off the host's own network, and internal/capabilityd/browser_write_approval_test.go drives to prove a page's writes wait for approval; unset skips those tests"
   },
   "INTERNKIM_TEST_SANDBOX": {
     "process": "cli tests",

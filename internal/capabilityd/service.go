@@ -68,6 +68,8 @@ type Service struct {
 	HealthState      *platformHealthState
 	DeviceBrowsers   *browserruntime.DeviceBrowsers
 	handedElsewhere  *handedElsewhere
+
+	withheldBrowserRequests *withheldBrowserRequests
 }
 
 type platformHealthState struct {
@@ -116,6 +118,9 @@ func (service Service) Run(ctx context.Context) error {
 	}
 	if service.handedElsewhere == nil {
 		service.handedElsewhere = &handedElsewhere{}
+	}
+	if service.withheldBrowserRequests == nil {
+		service.withheldBrowserRequests = &withheldBrowserRequests{}
 	}
 	go service.DeviceBrowsers.KeepTidy(ctx)
 	listener, errorValue := service.listen()
