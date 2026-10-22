@@ -10,6 +10,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+
+	"github.com/yeomyeonggeori/internkim/internal/durablefile"
 )
 
 const seedLength = 32
@@ -98,31 +100,7 @@ func storeIdentity(path string, identity Identity) error {
 	if errorValue := os.MkdirAll(filepath.Dir(path), 0o700); errorValue != nil {
 		return errorValue
 	}
-	return writeFileAtomically(path, document, 0o600)
-}
-
-func writeFileAtomically(path string, document []byte, mode os.FileMode) error {
-	temporary, errorValue := os.CreateTemp(filepath.Dir(path), "."+filepath.Base(path)+".*")
-	if errorValue != nil {
-		return errorValue
-	}
-	defer os.Remove(temporary.Name())
-	if errorValue := temporary.Chmod(mode); errorValue != nil {
-		temporary.Close()
-		return errorValue
-	}
-	if _, errorValue := temporary.Write(document); errorValue != nil {
-		temporary.Close()
-		return errorValue
-	}
-	if errorValue := temporary.Sync(); errorValue != nil {
-		temporary.Close()
-		return errorValue
-	}
-	if errorValue := temporary.Close(); errorValue != nil {
-		return errorValue
-	}
-	return os.Rename(temporary.Name(), path)
+	return durablefile.Write(path, document, 0o600)
 }
 
 func encodedKey(key []byte) string {

@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/yeomyeonggeori/internkim/internal/buzzidentity"
+	"github.com/yeomyeonggeori/internkim/internal/durablefile"
 )
 
 const identityTestSeed = "3c" + "00000000000000000000000000000000000000000000000000000000000000"
@@ -19,7 +20,7 @@ func serviceHoldingTheSeed(t *testing.T) *Service {
 	service.Configuration.StateDirectory = t.TempDir()
 	service.Configuration.BlueclawBaseURL = "http://127.0.0.1:8080"
 	seedPath := filepath.Join(service.Configuration.StateDirectory, "buzz-key-seed")
-	if errorValue := writeFileAtomically(seedPath, []byte(identityTestSeed), 0o600); errorValue != nil {
+	if errorValue := durablefile.Write(seedPath, []byte(identityTestSeed), 0o600); errorValue != nil {
 		t.Fatalf("write seed: %v", errorValue)
 	}
 	service.Configuration.BuzzKeySeedPath = seedPath

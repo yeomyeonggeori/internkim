@@ -36,6 +36,7 @@ type fakePlane struct {
 	isAway           bool
 	takeOver         TakeOverPolicy
 	targetVersion    string
+	releases         int
 }
 
 func (plane *fakePlane) sessionRole() Role {
@@ -106,6 +107,10 @@ func (plane *fakePlane) serve(t *testing.T) *httptest.Server {
 				TakeOver:                plane.takeOver,
 				TargetVersion:           plane.targetVersion,
 			})
+		case "/api/box/release":
+			plane.releases++
+			plane.isClaimed = false
+			writer.Write([]byte(`{"wasClaimed":true}`))
 		case "/api/box/company-key":
 			var body struct {
 				SealedKeys []SealedCompanyKey `json:"sealedKeys"`
@@ -357,12 +362,7 @@ func TestAComputerConnectedWithAFileIsNotAnnouncedAsEmpty(t *testing.T) {
 	plane := &fakePlane{}
 	recorded := &installs{}
 	daemon, places := daemonFor(t, plane, recorded)
-	if errorValue := os.MkdirAll(filepath.Dir(places.ConnectionFilePath), 0o700); errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	if errorValue := os.WriteFile(places.ConnectionFilePath, []byte("{}"), 0o600); errorValue != nil {
-		t.Fatal(errorValue)
-	}
+	writeConnectionFile(t, places.ConnectionFilePath, sampleConnectionDocument(t))
 
 	errorValue := daemon.Run(context.Background())
 

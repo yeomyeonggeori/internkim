@@ -7,6 +7,8 @@ import (
 	"os"
 	"path/filepath"
 	"time"
+
+	"github.com/yeomyeonggeori/internkim/internal/durablefile"
 )
 
 const pairingCodeFileName = "pairing-code.json"
@@ -43,7 +45,7 @@ func showPairingCode(stateDirectoryPath string, code PairingCode) error {
 	if errorValue := os.MkdirAll(stateDirectoryPath, 0o700); errorValue != nil {
 		return errorValue
 	}
-	return writeFileAtomically(filepath.Join(stateDirectoryPath, pairingCodeFileName), document, 0o600)
+	return durablefile.Write(filepath.Join(stateDirectoryPath, pairingCodeFileName), document, 0o600)
 }
 
 func forgetPairingCode(stateDirectoryPath string) error {

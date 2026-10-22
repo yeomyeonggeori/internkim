@@ -4,6 +4,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/yeomyeonggeori/internkim/internal/durablefile"
 )
 
 const appAddressFileName = "app-url"
@@ -23,5 +25,5 @@ func rememberAppURL(stateDirectoryPath string, appURL string) error {
 	if errorValue := os.MkdirAll(stateDirectoryPath, 0o700); errorValue != nil {
 		return errorValue
 	}
-	return writeFileAtomically(filepath.Join(stateDirectoryPath, appAddressFileName), []byte(appURL+"\n"), 0o600)
+	return durablefile.Write(filepath.Join(stateDirectoryPath, appAddressFileName), []byte(appURL+"\n"), 0o600)
 }

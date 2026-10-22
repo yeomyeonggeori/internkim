@@ -5,6 +5,8 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+
+	"github.com/yeomyeonggeori/internkim/internal/durablefile"
 )
 
 const buzzIdentityVersionDirectoryName = "buzz-identity-version"
@@ -43,7 +45,7 @@ func (service *Service) bumpBuzzIdentityVersion(personSubject string) (int, erro
 	if errorValue := os.MkdirAll(filepath.Dir(path), 0o700); errorValue != nil {
 		return 0, errorValue
 	}
-	if errorValue := writeFileAtomically(path, []byte(strconv.Itoa(next)), 0o600); errorValue != nil {
+	if errorValue := durablefile.Write(path, []byte(strconv.Itoa(next)), 0o600); errorValue != nil {
 		return 0, errorValue
 	}
 	return next, nil

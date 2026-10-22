@@ -9,6 +9,8 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+
+	"github.com/yeomyeonggeori/internkim/internal/durablefile"
 )
 
 const secretEncryptionKeyByteSize = 32
@@ -31,7 +33,7 @@ func loadOrCreateSecretEncryptionKey(keyPath string) ([]byte, error) {
 	if _, errorValue := io.ReadFull(rand.Reader, generated); errorValue != nil {
 		return nil, errorValue
 	}
-	if errorValue := writeFileAtomically(keyPath, generated, 0o600); errorValue != nil {
+	if errorValue := durablefile.Write(keyPath, generated, 0o600); errorValue != nil {
 		return nil, errorValue
 	}
 	return generated, nil

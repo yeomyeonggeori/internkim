@@ -7,6 +7,8 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+
+	"github.com/yeomyeonggeori/internkim/internal/durablefile"
 )
 
 func (service *Service) machineStatePath(name string) string {
@@ -42,5 +44,5 @@ func (service *Service) writeMachineState(name string, value any) error {
 	if errorValue := os.MkdirAll(filepath.Dir(path), 0o700); errorValue != nil {
 		return errorValue
 	}
-	return writeFileAtomically(path, document, 0o600)
+	return durablefile.Write(path, document, 0o600)
 }
