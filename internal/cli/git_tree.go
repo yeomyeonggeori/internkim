@@ -2,7 +2,9 @@ package cli
 
 import (
 	"fmt"
+	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 
 	"github.com/yeomyeonggeori/internkim/internal/runtime/blueclaw"
@@ -66,4 +68,33 @@ func gitIsAncestor(repositoryPath string, ancestor string, descendant string) (b
 		return false, nil
 	}
 	return false, errorValue
+}
+
+func copyTrackedTree(sourcePath string, destinationPath string) error {
+	trackedPaths, errorValue := trackedFilesUnder(sourcePath)
+	if errorValue != nil {
+		return errorValue
+	}
+	if len(trackedPaths) == 0 {
+		return fmt.Errorf("git tracks no file under %s", sourcePath)
+	}
+	for _, relativePath := range trackedPaths {
+		source := filepath.Join(sourcePath, relativePath)
+		information, errorValue := os.Stat(source)
+		if errorValue != nil {
+			return errorValue
+		}
+		if errorValue := copyFile(source, filepath.Join(destinationPath, relativePath), information.Mode().Perm()); errorValue != nil {
+			return errorValue
+		}
+	}
+	return nil
+}
+
+func trackedFilesUnder(directoryPath string) ([]string, error) {
+	output, errorValue := exec.Command("git", "-C", directoryPath, "ls-files", "-z").Output()
+	if errorValue != nil {
+		return nil, fmt.Errorf("listing the files git tracks under %s: %w", directoryPath, errorValue)
+	}
+	return strings.FieldsFunc(string(output), func(character rune) bool { return character == 0 }), nil
 }

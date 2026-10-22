@@ -85,18 +85,17 @@ func TestTheKegCarriesThePrepareScriptAndMigrationsTheRuntimeDocumentNames(t *te
 	for _, file := range carriedLibraryFiles(layout) {
 		sources = append(sources, file.SourcePath)
 	}
+	gitInDirectory(t, repository, "init", "-q")
 	for _, source := range sources {
-		path := filepath.Join(repository, source)
-		if errorValue := os.MkdirAll(filepath.Dir(path), 0o755); errorValue != nil {
-			t.Fatal(errorValue)
-		}
-		if errorValue := os.WriteFile(path, []byte("x"), 0o644); errorValue != nil {
-			t.Fatal(errorValue)
-		}
+		commitFile(t, repository, source, "x")
 	}
+	writeFileForTest(t, filepath.Join(repository, ".dependency/internkim-plugin/skills/scripts/.venv/bin/python"), "built on the release machine")
 	libraryPath := t.TempDir()
 	if errorValue := copyBrewCarriedTrees(repository, libraryPath); errorValue != nil {
 		t.Fatal(errorValue)
+	}
+	if _, errorValue := os.Stat(filepath.Join(libraryPath, "skills", "scripts", ".venv")); errorValue == nil {
+		t.Errorf("the keg carries a file git does not track")
 	}
 	script, errorValue := os.ReadFile(filepath.Join(libraryPath, "prepare-company-host"))
 	if errorValue != nil {

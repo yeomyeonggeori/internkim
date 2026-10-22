@@ -450,3 +450,30 @@ func TestTheEmbeddingServerIsNotAProgramInTheBinaryRoot(t *testing.T) {
 		}
 	}
 }
+
+func TestThePackageCarriesOnlyTheFilesGitTracks(t *testing.T) {
+	repository := t.TempDir()
+	gitInDirectory(t, repository, "init", "-q")
+	for _, tree := range carriedTreeSources(packageLayout) {
+		commitFile(t, repository, filepath.Join(tree.SourcePath, "tracked.txt"), "x")
+	}
+	for _, file := range carriedLibraryFiles(packageLayout) {
+		writeFileForTest(t, filepath.Join(repository, file.SourcePath), "x")
+	}
+	writeFileForTest(t, filepath.Join(repository, ".dependency/internkim-plugin/skills/scripts/.venv/bin/python"), "built on the release machine")
+	carried, errorValue := carriedTrees(repository, t.TempDir())
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	for _, file := range carried {
+		if !file.IsDirectoryTree {
+			continue
+		}
+		if _, errorValue := os.Stat(filepath.Join(file.SourcePath, "tracked.txt")); errorValue != nil {
+			t.Errorf("%s does not carry its tracked file: %v", file.Destination, errorValue)
+		}
+		if _, errorValue := os.Stat(filepath.Join(file.SourcePath, "scripts", ".venv")); errorValue == nil {
+			t.Errorf("%s carries a file git does not track", file.Destination)
+		}
+	}
+}

@@ -100,7 +100,7 @@ func packageContents(repositoryRootPath string, target packageTarget, version st
 		return nil, errorValue
 	}
 	packaged = append(packaged, rendered...)
-	carried, errorValue := carriedTrees(repositoryRootPath)
+	carried, errorValue := carriedTrees(repositoryRootPath, stagingPath)
 	if errorValue != nil {
 		return nil, errorValue
 	}
@@ -703,31 +703,31 @@ func writeRenderedFiles(stagingPath string) ([]packagedFile, error) {
 
 // carriedTrees are the files the package carries unchanged. A missing one is a
 // refusal: a box whose skills directory is empty answers and does nothing.
-func carriedTrees(repositoryRootPath string) ([]packagedFile, error) {
-	carried := []packagedFile{
-		{
-			SourcePath:      filepath.Join(repositoryRootPath, ".dependency/internkim-plugin/skills"),
-			Destination:     packageLayout.SkillsPath(),
-			Mode:            0o755,
-			IsDirectoryTree: true,
-		},
-		{
-			SourcePath:      filepath.Join(repositoryRootPath, blueclaw.BlueclawSubmodulePath, "migrations"),
-			Destination:     packageLayout.MigrationPath,
-			Mode:            0o755,
-			IsDirectoryTree: true,
-		},
+func carriedTrees(repositoryRootPath string, stagingPath string) ([]packagedFile, error) {
+	carried := []packagedFile{}
+	for _, tree := range carriedTreeSources(packageLayout) {
+		stagedPath := filepath.Join(stagingPath, "carried", filepath.Base(tree.Destination))
+		if errorValue := copyTrackedTree(filepath.Join(repositoryRootPath, tree.SourcePath), stagedPath); errorValue != nil {
+			return nil, fmt.Errorf("the package carries %s: %w", tree.Destination, errorValue)
+		}
+		tree.SourcePath = stagedPath
+		carried = append(carried, tree)
 	}
 	for _, file := range carriedLibraryFiles(packageLayout) {
 		file.SourcePath = filepath.Join(repositoryRootPath, file.SourcePath)
-		carried = append(carried, file)
-	}
-	for _, file := range carried {
 		if _, errorValue := os.Stat(file.SourcePath); errorValue != nil {
 			return nil, fmt.Errorf("the package carries %s and it is not at %s: %w", file.Destination, file.SourcePath, errorValue)
 		}
+		carried = append(carried, file)
 	}
 	return carried, nil
+}
+
+func carriedTreeSources(layout blueclaw.CompanyHostLayout) []packagedFile {
+	return []packagedFile{
+		{SourcePath: ".dependency/internkim-plugin/skills", Destination: layout.SkillsPath(), Mode: 0o755, IsDirectoryTree: true},
+		{SourcePath: blueclaw.BlueclawSubmodulePath + "/migrations", Destination: layout.MigrationPath, Mode: 0o755, IsDirectoryTree: true},
+	}
 }
 
 const agentProfilePictureSourcePath = "assets/internkim.square.png"
