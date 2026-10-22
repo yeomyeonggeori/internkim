@@ -716,3 +716,20 @@ class UnprivilegedPostTests(unittest.TestCase):
     def test_a_host_with_no_staged_token_proves_nothing(self):
         reading = self.refused.replace("token-staged=yes", "token-staged=no")
         self.assertFalse(load_driver().an_unprivileged_post_was_refused(reading))
+
+
+class ShippedFileVerificationTests(unittest.TestCase):
+    def test_an_edited_configuration_file_is_the_administrators(self):
+        verification = "??5?????? c /etc/internkim/company-host.env\n"
+        self.assertEqual(load_driver().shipped_files_dpkg_found_changed(verification), [])
+
+    def test_a_changed_or_missing_shipped_file_is_reported(self):
+        verification = (
+            "??5?????? c /etc/internkim/company-host.env\n"
+            "??5??????   /opt/internkim/skills/office/SKILL.md\n"
+            "missing     /opt/internkim/skills/office/scripts/office\n"
+        )
+        self.assertEqual(
+            load_driver().shipped_files_dpkg_found_changed(verification),
+            ["??5??????   /opt/internkim/skills/office/SKILL.md", "missing     /opt/internkim/skills/office/scripts/office"],
+        )
