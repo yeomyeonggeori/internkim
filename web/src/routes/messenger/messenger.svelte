@@ -5,6 +5,8 @@
 	import MessengerChannelList from './messenger-channel-list.svelte';
 	import MessengerInbox from './messenger-inbox.svelte';
 	import { MessengerInboxState } from './messenger-inbox-state.svelte';
+	import { inboxPlaceOf, inboxThreadRootOf } from './messenger-inbox-place';
+	import MessengerInboxPlaceLink from './messenger-inbox-place-link.svelte';
 	import type { InboxEntry } from '$lib/messenger/channel-over-bridge';
 	import MessengerListSkeleton from './messenger-list-skeleton.svelte';
 	import MessengerBrowseChannelsDialog from './messenger-browse-channels-dialog.svelte';
@@ -122,7 +124,20 @@
 			bringBackHiddenConversation(entry.conversationID);
 		}
 		await tick();
-		await channelView?.revealMessage(entry.id, entry.threadRootId);
+		await channelView?.revealMessage(entry.id, inboxThreadRootOf(entry, conversationOf(entry.conversationID)));
+	}
+
+	async function leaveInboxForChosenPlace() {
+		const entry = chosenInboxEntry;
+		if (!entry) return;
+		isInboxOpen = false;
+		chosenInboxEntryID = undefined;
+		await tick();
+		await channelView?.revealMessage(entry.id, inboxThreadRootOf(entry, conversationOf(entry.conversationID)));
+	}
+
+	function conversationOf(conversationID: string): ChannelSummary | undefined {
+		return conversations.find((conversation) => conversation.id === conversationID);
 	}
 
 	async function revealSearchMatch(match: ConversationSearchMatch): Promise<boolean> {
@@ -371,6 +386,8 @@
 	const activeConversation = $derived(
 		conversations.find((conversation) => conversation.id === activeID)
 	);
+	const chosenInboxEntry = $derived(isInboxOpen ? inbox.entries.find((entry) => entry.id === chosenInboxEntryID) : undefined);
+	const chosenInboxPlace = $derived(chosenInboxEntry && inboxPlaceOf(chosenInboxEntry, conversationOf(chosenInboxEntry.conversationID)));
 
 	function platformLabel(platform: string): string {
 		return platform.charAt(0).toUpperCase() + platform.slice(1);
@@ -616,6 +633,7 @@
 						class="min-h-0 flex-1"
 						{inbox}
 						{conversations}
+						{hasLoadedConversations}
 						chosenID={chosenInboxEntryID}
 						choose={chooseInboxEntry}
 					>
@@ -635,7 +653,9 @@
 			<div class={['flex min-h-0 min-w-0 flex-1 flex-col', isInboxOpen && 'max-sm:hidden', isChannelCoveredByInbox && 'hidden']}>
 				<header class="flex h-12 shrink-0 items-center gap-2 border-b px-2 sm:h-14 sm:px-6">
 					{@render channelListTrigger()}
-					{#if activeConversation?.kind === 'dm'}
+					{#if chosenInboxPlace}
+						<MessengerInboxPlaceLink place={chosenInboxPlace} go={leaveInboxForChosenPlace} />
+					{:else if activeConversation?.kind === 'dm'}
 						{@const conversation = activeConversation}
 						<button
 							type="button"
@@ -699,6 +719,7 @@
 						showSenderNames={activeConversation?.kind === 'group'}
 						canModerate={activeConversation?.myRole === 'owner' || activeConversation?.myRole === 'admin'}
 						isWithTheAgent={activeConversation?.isWithTheAgent === true}
+						threadLayout={isInboxOpen ? 'focus' : 'sheet'}
 						onReadThrough={isChannelCoveredByInbox ? undefined : (sentAt) => readThrough(activeID, sentAt)}
 					/>
 				{/key}

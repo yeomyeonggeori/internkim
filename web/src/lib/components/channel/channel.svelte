@@ -106,7 +106,7 @@
 		onReadThrough
 	}: {
 		isActive?: boolean;
-		threadLayout?: 'sheet' | 'inline';
+		threadLayout?: 'sheet' | 'inline' | 'focus';
 		channelId?: string;
 		showSenderNames?: boolean;
 		canModerate?: boolean;
@@ -984,7 +984,7 @@
 {/snippet}
 
 <div class="flex min-h-0 flex-1">
-<div class="relative flex min-h-0 min-w-0 flex-1 flex-col" style:--dock-height="{dockHeight}px" use:receivesFileDrag={fileDrag}>
+<div class={['relative flex min-h-0 min-w-0 flex-1 flex-col', threadLayout === 'focus' && openThreadRoot && 'hidden']} style:--dock-height="{dockHeight}px" use:receivesFileDrag={fileDrag}>
 	<ConversationFileDropOverlay visible={fileDrag.isOver} title={text.dropFilesTitle} description={text.dropFilesDescription} />
 	<div class="min-h-0 min-w-0 flex-1 overflow-hidden">
 			{#if !hasLoadedOnce}
@@ -1080,6 +1080,11 @@
 		</div>
 	</ConversationDock>
 </div>
+{#if threadLayout === 'focus' && openThreadRoot}
+	<section class="flex min-h-0 min-w-0 flex-1 flex-col" aria-label={text.threadTitle}>
+		{@render threadBody()}
+	</section>
+{/if}
 {#if threadLayout === 'inline' && openThreadRoot}
 	<aside class="flex min-h-0 w-full max-w-md flex-col border-l">
 		<header class="flex items-center justify-between gap-2 border-b p-3">
