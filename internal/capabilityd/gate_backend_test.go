@@ -13,7 +13,6 @@ import (
 	"strings"
 	"sync"
 	"testing"
-	"time"
 
 	browserruntime "github.com/yeomyeonggeori/internkim/internal/browser"
 )
@@ -120,7 +119,7 @@ func serviceReaching(t *testing.T, reaches map[gateBackend]*standingIn) Service 
 		case browserAsACommand:
 			configuration.AgentBrowserPath = "/usr/local/bin/agent-browser"
 			runsACommand = standIn
-			deviceBrowsers = fakeDeviceBrowsers(1, time.Now())
+			deviceBrowsers = fakeDeviceBrowsersWithEmptyDevtools(t)
 		case converterAsACommand:
 			runsACommand = standIn
 		case workspaceOnDisk:

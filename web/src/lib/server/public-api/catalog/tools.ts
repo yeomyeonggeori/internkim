@@ -13,7 +13,7 @@ import {
   ResourceEffectIdentity,
 } from './protocol';
 
-import { browserControlToolDefinitions } from './browser';
+import { browserControlToolDefinitions, browserWithheldRequestSchema } from './browser';
 import { companyToolDefinitions } from './company';
 import { dataRoomToolDefinitions } from './data-room';
 import { calendarSubscriptionToolDefinitions } from './calendar-subscription';
@@ -893,6 +893,7 @@ const browserClickObjectSchema = z.strictObject({
   target: resourceIDSchema.optional(),
   ref: resourceIDSchema.optional(),
   selector: resourceIDSchema.optional(),
+  withheldRequest: browserWithheldRequestSchema,
 });
 
 export const browserClickInputSchema = browserClickObjectSchema

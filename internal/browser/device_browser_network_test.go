@@ -11,8 +11,6 @@ import (
 	"path/filepath"
 	"testing"
 	"time"
-
-	"github.com/coder/websocket"
 )
 
 func TestADeviceBrowserPageCannotReachTheHostsOwnNetwork(t *testing.T) {
@@ -27,7 +25,10 @@ func TestADeviceBrowserPageCannotReachTheHostsOwnNetwork(t *testing.T) {
 	t.Cleanup(hostService.Close)
 	requesterBrowserPort := launchTestDeviceBrowser(t, executablePath, "requester")
 	otherPersonsBrowserPort := launchTestDeviceBrowser(t, executablePath, "other-person")
-	otherPersonsDevtools := devtoolsBrowserSocketURL(t, otherPersonsBrowserPort)
+	otherPersonsDevtools, errorValue := devtoolsBrowserSocketURL(context.Background(), fmt.Sprintf("http://127.0.0.1:%d", otherPersonsBrowserPort))
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
 
 	cases := map[string]string{
 		"another person's browser": fmt.Sprintf(`new Promise(resolve => {
@@ -76,91 +77,62 @@ func freeTestPort(t *testing.T) int {
 	return listener.Addr().(*net.TCPAddr).Port
 }
 
-func devtoolsBrowserSocketURL(t *testing.T, port int) string {
-	t.Helper()
-	response, errorValue := http.Get(fmt.Sprintf("http://127.0.0.1:%d/json/version", port))
-	if errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	defer response.Body.Close()
-	var version struct {
-		WebSocketDebuggerURL string `json:"webSocketDebuggerUrl"`
-	}
-	if errorValue := json.NewDecoder(response.Body).Decode(&version); errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	return version.WebSocketDebuggerURL
-}
-
 func evaluateInDeviceBrowserPage(t *testing.T, port int, script string) string {
 	t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
-	socket, _, errorValue := websocket.Dial(ctx, devtoolsBrowserSocketURL(t, port), nil)
+	connection, errorValue := dialDevtools(ctx, fmt.Sprintf("http://127.0.0.1:%d", port))
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	defer socket.CloseNow()
-	targets := sendTestDevtoolsCommand(t, ctx, socket, "", "Target.getTargets", map[string]any{})
+	defer connection.close()
+	sessionID := attachToFirstPage(t, ctx, connection)
+	evaluated, errorValue := connection.call(ctx, sessionID, "Runtime.evaluate", map[string]any{"expression": script, "awaitPromise": true, "returnByValue": true})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	var outcome struct {
+		Result struct {
+			Value string `json:"value"`
+		} `json:"result"`
+	}
+	if errorValue := json.Unmarshal(evaluated, &outcome); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	return outcome.Result.Value
+}
+
+func attachToFirstPage(t *testing.T, ctx context.Context, connection *devtoolsConnection) string {
+	t.Helper()
+	targets, errorValue := connection.call(ctx, "", "Target.getTargets", map[string]any{})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
 	var targetList struct {
 		TargetInfos []struct {
 			TargetID string `json:"targetId"`
 			Type     string `json:"type"`
 		} `json:"targetInfos"`
 	}
-	json.Unmarshal(targets, &targetList)
-	pageTargetID := ""
-	for _, target := range targetList.TargetInfos {
-		if target.Type == "page" {
-			pageTargetID = target.TargetID
-		}
-	}
-	attached := sendTestDevtoolsCommand(t, ctx, socket, "", "Target.attachToTarget", map[string]any{"targetId": pageTargetID, "flatten": true})
-	var session struct {
-		SessionID string `json:"sessionId"`
-	}
-	json.Unmarshal(attached, &session)
-	evaluated := sendTestDevtoolsCommand(t, ctx, socket, session.SessionID, "Runtime.evaluate", map[string]any{"expression": script, "awaitPromise": true, "returnByValue": true})
-	var outcome struct {
-		Result struct {
-			Value string `json:"value"`
-		} `json:"result"`
-	}
-	json.Unmarshal(evaluated, &outcome)
-	return outcome.Result.Value
-}
-
-var testDevtoolsCommandID int
-
-func sendTestDevtoolsCommand(t *testing.T, ctx context.Context, socket *websocket.Conn, sessionID string, method string, parameters map[string]any) json.RawMessage {
-	t.Helper()
-	testDevtoolsCommandID++
-	commandID := testDevtoolsCommandID
-	command := map[string]any{"id": commandID, "method": method, "params": parameters}
-	if sessionID != "" {
-		command["sessionId"] = sessionID
-	}
-	document, _ := json.Marshal(command)
-	if errorValue := socket.Write(ctx, websocket.MessageText, document); errorValue != nil {
+	if errorValue := json.Unmarshal(targets, &targetList); errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	for {
-		_, message, errorValue := socket.Read(ctx)
-		if errorValue != nil {
-			t.Fatalf("%s: %v", method, errorValue)
-		}
-		var answer struct {
-			ID     int             `json:"id"`
-			Result json.RawMessage `json:"result"`
-			Error  json.RawMessage `json:"error"`
-		}
-		json.Unmarshal(message, &answer)
-		if answer.ID != commandID {
+	for _, target := range targetList.TargetInfos {
+		if target.Type != "page" {
 			continue
 		}
-		if len(answer.Error) > 0 {
-			t.Fatalf("%s: %s", method, answer.Error)
+		attached, errorValue := connection.call(ctx, "", "Target.attachToTarget", map[string]any{"targetId": target.TargetID, "flatten": true})
+		if errorValue != nil {
+			t.Fatal(errorValue)
 		}
-		return answer.Result
+		var session struct {
+			SessionID string `json:"sessionId"`
+		}
+		if errorValue := json.Unmarshal(attached, &session); errorValue != nil {
+			t.Fatal(errorValue)
+		}
+		return session.SessionID
 	}
+	t.Fatal("the device browser has no page")
+	return ""
 }

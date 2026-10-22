@@ -20,6 +20,9 @@ import (
 )
 
 func (service Service) invokeDeviceBrowserTool(ctx context.Context, request capabilities.ToolInvokeRequest) (capabilities.ToolInvokeResponse, error) {
+	if refusal, isRefused := service.refusalOfAnUnapprovedResend(ctx, request); isRefused {
+		return refusal, nil
+	}
 	requester := strings.ToLower(request.Context.RequesterEmail)
 	if service.handedElsewhere.has(requester) {
 		if answer, isAnswered, errorValue := service.putInTheQueue(ctx, request, requester); isAnswered {
@@ -61,6 +64,7 @@ func (service Service) putInTheQueue(ctx context.Context, request capabilities.T
 		return capabilities.ToolInvokeResponse{}, true, fmt.Errorf("the browser answer from the company queue: %w", errorValue)
 	}
 	service.handedElsewhere.remember(requester)
+	service.keepWithheldCallOfAnswer(request, response)
 	return response, true, nil
 }
 
@@ -88,7 +92,18 @@ func (service Service) runBrowserToolHere(ctx context.Context, request capabilit
 	if errorValue != nil {
 		return capabilities.ToolInvokeResponse{}, errorValue
 	}
+	if withheldRequestIDOf(request.Input) != "" {
+		return service.resendWithheldRequests(ctx, browserRuntime, request)
+	}
+	if _, isGuarded := guardedBrowserActions[request.ToolName]; isGuarded {
+		return service.runGuardedBrowserAction(ctx, browserRuntime, request)
+	}
+	return service.runBrowserAction(ctx, browserRuntime, request)
+}
+
+func (service Service) runBrowserAction(ctx context.Context, browserRuntime browserruntime.AgentBrowserRuntime, request capabilities.ToolInvokeRequest) (capabilities.ToolInvokeResponse, error) {
 	var result any
+	var errorValue error
 
 	switch request.ToolName {
 	case "browser_open":
@@ -287,7 +302,7 @@ func safeDeviceBrowserFilename(filename string) string {
 
 func NewBrowserWorker(ctx context.Context, configuration Configuration) Service {
 	configuration = configuration.WithDefaults()
-	service := Service{Configuration: configuration, DeviceBrowsers: configuration.newDeviceBrowsers()}
+	service := Service{Configuration: configuration, DeviceBrowsers: configuration.newDeviceBrowsers(), withheldBrowserRequests: &withheldBrowserRequests{}}
 	go service.DeviceBrowsers.KeepTidy(ctx)
 	return service
 }

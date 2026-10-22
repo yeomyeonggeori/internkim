@@ -15893,6 +15893,10 @@
             "minLength": 1,
             "pattern": "^\\S(?:.*\\S)?$",
             "type": "string"
+          },
+          "withheldRequest": {
+            "description": "Leave unset. The runtime sets it when the requester approves a request the page tried to send.",
+            "type": "string"
           }
         },
         "type": "object"
@@ -15915,6 +15919,10 @@
           "target": {
             "minLength": 1,
             "pattern": "^\\S(?:.*\\S)?$",
+            "type": "string"
+          },
+          "withheldRequest": {
+            "description": "Leave unset. The runtime sets it when the requester approves a request the page tried to send.",
             "type": "string"
           }
         },
@@ -16029,6 +16037,10 @@
           },
           "text": {
             "type": "string"
+          },
+          "withheldRequest": {
+            "description": "Leave unset. The runtime sets it when the requester approves a request the page tried to send.",
+            "type": "string"
           }
         },
         "type": "object"
@@ -16047,6 +16059,10 @@
             "type": "string"
           },
           "text": {
+            "type": "string"
+          },
+          "withheldRequest": {
+            "description": "Leave unset. The runtime sets it when the requester approves a request the page tried to send.",
             "type": "string"
           }
         },
@@ -16155,6 +16171,10 @@
         "properties": {
           "key": {
             "type": "string"
+          },
+          "withheldRequest": {
+            "description": "Leave unset. The runtime sets it when the requester approves a request the page tried to send.",
+            "type": "string"
           }
         },
         "type": "object"
@@ -16164,6 +16184,10 @@
         "additionalProperties": false,
         "properties": {
           "key": {
+            "type": "string"
+          },
+          "withheldRequest": {
+            "description": "Leave unset. The runtime sets it when the requester approves a request the page tried to send.",
             "type": "string"
           }
         },
@@ -16269,6 +16293,10 @@
           },
           "value": {
             "type": "string"
+          },
+          "withheldRequest": {
+            "description": "Leave unset. The runtime sets it when the requester approves a request the page tried to send.",
+            "type": "string"
           }
         },
         "type": "object"
@@ -16287,6 +16315,10 @@
             "type": "string"
           },
           "value": {
+            "type": "string"
+          },
+          "withheldRequest": {
+            "description": "Leave unset. The runtime sets it when the requester approves a request the page tried to send.",
             "type": "string"
           }
         },
