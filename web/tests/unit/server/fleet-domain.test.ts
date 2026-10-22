@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import { defaultZone, docsHost } from '../../../src/lib/server/fleet-domain';
-import { declaredZone } from '../fleet-domain-declaration';
+import { declaredZone } from '../../support/fleet-domain-declaration';
 
 describe('the web zone declaration matches companyzone', () => {
 	test('defaultZone is the same string internal/companyzone/companyzone.go declares', () => {

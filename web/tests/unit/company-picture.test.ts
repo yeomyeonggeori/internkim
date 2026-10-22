@@ -10,7 +10,7 @@ import {
 // Where a picture is kept, that the row refuses a colleague who is not an
 // administrator, and that what comes back is a signed address rather than a
 // path, are the endpoint's now and are covered by the company-picture cases in
-// tests/integration/public-api-route.test.ts. What is left here is the pair of
+// tests/api/public-api-route.test.ts. What is left here is the pair of
 // rules the browser applies before it sends anything, which are pure.
 describe('a picture the bucket should not be asked to take', () => {
 	test('is refused with its own size, and one that fits is not', () => {

@@ -11,7 +11,7 @@
 //
 //   bun run scripts/build-emoji-glyphs.ts
 //
-// tests/unit/messenger/emoji-glyphs-current.test.ts fails when what is
+// tests/conventions/messenger/emoji-glyphs-current.test.ts fails when what is
 // committed no longer matches what this writes.
 
 import { fileURLToPath } from 'node:url';

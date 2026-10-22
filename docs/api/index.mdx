@@ -243,6 +243,6 @@ The API is part of the web app, so a company that hosts the app hosts the API.
 | Agent endpoints | `internal/admind/agent_drive.go`, forwarding to Blueclaw through `blueclawJSONRequest` |
 | Wire types | `pkg/capabilityprotocol/protocol.go` |
 | Tool catalog | `pkg/capabilityprotocol/generated/capability-tools.json` |
-| The contract, stated as tests | `web/tests/integration/public-api-route.test.ts`, `internal/admind/public_tool_gateway_test.go` |
+| The contract, stated as tests | `web/tests/api/public-api-route.test.ts`, `internal/admind/public_tool_gateway_test.go` |
 | MCP authorization: the resource metadata and the `401` challenge, then consent | `web/src/lib/server/public-api/protected-resource.ts`, `web/src/routes/oauth/consent/`, `[auth.oauth_server]` in `supabase/config.toml` |
 | OpenAPI document and the `/api-docs` redirect | `docs/web/app/lib/openapi.ts`, `web/src/lib/server/api-reference-redirect.ts` |

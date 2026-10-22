@@ -184,10 +184,6 @@
     "process": "cli",
     "description": "where Homebrew is installed, taken instead of asking `brew --prefix`; /opt/homebrew on Apple silicon, /usr/local on Intel, and anything at all in a prefix somebody chose"
   },
-  "INTEGRATION_TESTS": {
-    "process": "web scripts",
-    "description": "the directory web/scripts/test-integration.sh runs against the local plane; defaults to tests/integration, and test:messenger-gateway names tests/messenger-gateway"
-  },
   "INTERNKIM_AGENT_BROWSER_PATH": {
     "process": "internal/browser and internal/capabilityd tests",
     "description": "path to an agent-browser binary for internal/browser's real-Chrome test, which is skipped when unset, and for internal/capabilityd/company_browser_test.go, which otherwise finds agent-browser on PATH"

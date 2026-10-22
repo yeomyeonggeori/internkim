@@ -217,8 +217,8 @@ GROUPS = [
             # resolve zod.
             ["bun", "install", "--frozen-lockfile", "--cwd", "../.dependency/blueclaw/protocol"],
             ["bun", "run", "check"],
-            ["bun", "test", "tests/unit"],
-            holding_the_local_plane(["bun", "run", "test:integration"]),
+            ["bun", "run", "test"],
+            holding_the_local_plane(["bun", "run", "test:api"]),
             # Only the Cloudflare build reads what a route exports, and a route that
             # exports a helper is refused there and nowhere else. build:board uses the
             # static adapter, which never looks.
@@ -370,8 +370,11 @@ GROUPS = [
     ),
     Group(
         "host",
-        ["host/*", "tools/render-company-runtime"],
-        [["bun", "test", "tests/unit/host"]],
+        ["host/*", "tools/render-company-runtime", "tools/tests/test_company_runtime.py"],
+        [
+            ["bun", "test", "tests/unit/host"],
+            ["python3", "-m", "unittest", "discover", "-s", "../tools/tests", "-p", "test_company_runtime.py"],
+        ],
         working_directory="web",
         lane="web",
     ),

@@ -1,0 +1,346 @@
+import { afterAll, beforeAll, describe, expect, mock, test } from 'bun:test';
+import { createClient } from '@supabase/supabase-js';
+import { addMember, asMember, controlPlane, provisionCompany, sessionForMember } from '../../src/lib/server/control-plane';
+import { projectURL, publishableKey, serviceRoleKey, signingKey } from '../support/supabase-environment';
+import { heldToTheContract } from './tool-answers';
+import { leavesTaskLabelsUndecided } from '../../src/lib/server/public-api/record/task-labels';
+
+mock.module('$env/dynamic/private', () => ({
+	env: { SUPABASE_URL: projectURL, SUPABASE_SECRET_KEY: serviceRoleKey, SUPABASE_PUBLISHABLE_KEY: publishableKey, SUPABASE_JWT_SIGNING_KEY: signingKey }
+}));
+
+const { runToolOverTheRecord } = await import('../../src/lib/server/public-api/record');
+
+const networkHookTimeout = 60_000;
+const client = controlPlane({ projectURL, serviceRoleKey });
+const slug = `people-tools-${Date.now()}`;
+const now = new Date('2026-09-03T03:00:00.000Z');
+
+let companyID = '';
+let adminID = '';
+let sampleID = '';
+let exampleID = '';
+let admin: ReturnType<typeof asMember>;
+let sample: ReturnType<typeof asMember>;
+
+async function signedInMember(memberID: string, email: string): Promise<ReturnType<typeof asMember>> {
+	const { data: account } = await client.auth.admin.createUser({ email, email_confirm: true });
+	await client.from('member').update({ user_id: account.user!.id, status: 'active' }).eq('id', memberID);
+	const session = await sessionForMember({ projectURL, serviceRoleKey, signingKey }, memberID);
+	return asMember({ projectURL, publishableKey }, session.accessToken);
+}
+
+beforeAll(async () => {
+	const provisioned = await provisionCompany(
+		client,
+		{ name: 'People Tools Test', slug, country: 'KR', locale: 'ko', timezone: 'Asia/Seoul' },
+		`${slug}-admin@example.test`
+	);
+	companyID = provisioned.companyID;
+	adminID = provisioned.adminMemberID;
+
+	sampleID = await addMember(client, companyID, `${slug}-sample@example.test`);
+	exampleID = await addMember(client, companyID, `${slug}-example@example.test`);
+	await client.from('member').update({ name: '최견본' }).eq('id', adminID);
+	await client.from('member').update({ name: '이샘플' }).eq('id', sampleID);
+	await client.from('member').update({ name: '박예시' }).eq('id', exampleID);
+
+	admin = await signedInMember(adminID, `${slug}-admin@example.test`);
+	sample = await signedInMember(sampleID, `${slug}-sample@example.test`);
+}, networkHookTimeout);
+
+afterAll(async () => {
+	if (!companyID) return;
+	const { data: members } = await client.from('member').select('user_id').eq('company_id', companyID);
+	await client.from('company').delete().eq('id', companyID);
+	for (const member of members ?? []) {
+		if (member.user_id) await client.auth.admin.deleteUser(member.user_id);
+	}
+}, networkHookTimeout);
+
+async function asAdmin(name: string, input: Record<string, unknown> = {}) {
+	return heldToTheContract(name, await runToolOverTheRecord(admin, client, adminID, name, input, now, leavesTaskLabelsUndecided));
+}
+
+async function asSample(name: string, input: Record<string, unknown> = {}) {
+	return heldToTheContract(name, await runToolOverTheRecord(sample, client, sampleID, name, input, now, leavesTaskLabelsUndecided));
+}
+
+function resultOf(answer: { status: number; body: unknown }): Record<string, unknown> {
+	expect(answer.status).toBe(200);
+	return (answer.body as { result: Record<string, unknown> }).result;
+}
+
+function refusalOf(answer: { status: number; body: unknown }): { status: number; error: string; errorCode?: string } {
+	const body = answer.body as { error: string; errorCode?: string };
+	return { status: answer.status, error: body.error, errorCode: body.errorCode };
+}
+
+describe('the organization chart written one organization at a time', () => {
+	test('adds, nests, renames and lists', async () => {
+		const made = resultOf(await asAdmin('team_add', { name: '개발팀' }));
+		expect(made.name).toBe('개발팀');
+		expect(made.parentTeamID).toBe('');
+
+		const child = resultOf(await asAdmin('team_add', { name: '플랫폼', parentHint: '개발팀', position: 1 }));
+		expect(child.parentTeamID).toBe(made.teamID);
+		expect(child.parentTeamName).toBe('개발팀');
+		expect(child.position).toBe(1);
+
+		const renamed = resultOf(await asAdmin('team_update', { teamHint: '플랫폼', name: '플랫폼실' }));
+		expect(renamed.name).toBe('플랫폼실');
+		expect(renamed.parentTeamID).toBe(made.teamID);
+
+		const listed = resultOf(await asAdmin('team_list'));
+		expect((listed.teams as { name: string }[]).map((team) => team.name)).toEqual(['개발팀', '플랫폼실']);
+	}, networkHookTimeout);
+
+	test('asks which organization when a name reaches more than one', async () => {
+		await asAdmin('team_add', { name: '영업 1팀' });
+		await asAdmin('team_add', { name: '영업 2팀' });
+		const refusal = refusalOf(await asAdmin('team_update', { teamHint: '영업', name: '영업본부' }));
+		expect(refusal.status).toBe(409);
+		expect(refusal.errorCode).toBe('interaction_required');
+
+		await asAdmin('team_delete', { teamHint: '영업 1팀' });
+		await asAdmin('team_delete', { teamHint: '영업 2팀' });
+	}, networkHookTimeout);
+
+	test('leaves the people of a removed organization with no organization', async () => {
+		await asAdmin('person_update', { personHint: '박예시', teamHint: '플랫폼실' });
+		const removed = resultOf(await asAdmin('team_delete', { teamHint: '플랫폼실' }));
+		expect(removed.deleted).toBe(true);
+		expect(removed.peopleLeftWithNoOrganization).toBe(1);
+
+		const listed = resultOf(await asAdmin('person_list'));
+		const example = (listed.people as { personID: string; teamID?: string }[]).find(
+			(person) => person.personID === exampleID
+		);
+		expect(example?.teamID).toBeUndefined();
+	}, networkHookTimeout);
+
+	test('refuses to remove an organization that has organizations under it', async () => {
+		await asAdmin('team_add', { name: '연구소', parentHint: '개발팀' });
+		const refusal = refusalOf(await asAdmin('team_delete', { teamHint: '개발팀' }));
+		expect(refusal.status).toBe(422);
+		expect(refusal.error).toContain('organizations under it');
+		await asAdmin('team_delete', { teamHint: '연구소' });
+	}, networkHookTimeout);
+
+	test('refuses an organization written by somebody who does not administer', async () => {
+		const refusal = refusalOf(await asSample('team_add', { name: '몰래 만든 팀' }));
+		expect(refusal.status).toBe(403);
+	}, networkHookTimeout);
+});
+
+describe('a directory entry written through the two homes it lives in', () => {
+	test('writes the account fields and the organization fields in one call', async () => {
+		const written = resultOf(
+			await asAdmin('person_update', {
+				personHint: '이샘플',
+				name: '이샘플',
+				jobTitle: '편집장',
+				teamHint: '개발팀',
+				supervisorHint: '최견본',
+				phoneNumber: '010-0000-0000',
+				hireDate: '2026-03-12'
+			})
+		);
+		expect(written.personID).toBe(sampleID);
+		expect(written.jobTitle).toBe('편집장');
+		expect(written.teamName).toBe('개발팀');
+		expect(written.supervisorName).toBe('최견본');
+		expect(written.phoneNumber).toBe('010-0000-0000');
+		expect(written.hireDate).toBe('2026-03-12');
+		expect(written.isAdmin).toBe(false);
+	}, networkHookTimeout);
+
+	test('leaves the fields the call did not name alone, and clears the ones it emptied', async () => {
+		const written = resultOf(await asAdmin('person_update', { personHint: '이샘플', phoneNumber: '' }));
+		expect(written.phoneNumber).toBeUndefined();
+		expect(written.jobTitle).toBe('편집장');
+		expect(written.teamName).toBe('개발팀');
+	}, networkHookTimeout);
+
+	test('answers person_list with what both homes hold', async () => {
+		const listed = resultOf(await asSample('person_list'));
+		const written = (listed.people as { personID: string; jobTitle?: string; teamName?: string; handle?: string }[]).find(
+			(person) => person.personID === sampleID
+		);
+		expect(written?.jobTitle).toBe('편집장');
+		expect(written?.teamName).toBe('개발팀');
+		expect(written?.handle).toBe(`@${slug}-sample`);
+	}, networkHookTimeout);
+
+	test('names which of them is asking', async () => {
+		expect(resultOf(await asSample('person_list')).requesterID).toBe(sampleID);
+		expect(resultOf(await asAdmin('person_list')).requesterID).toBe(adminID);
+	}, networkHookTimeout);
+
+	test('keeps an account that is not a person out of the headcount, and only an administrator says so', async () => {
+		const countedBefore = resultOf(await asAdmin('company_info_get')).employeeCount;
+		const refusal = refusalOf(await asSample('person_update', { personHint: sampleID, kind: 'other' }));
+		expect(refusal.error).toContain('administrator');
+
+		expect(resultOf(await asAdmin('person_update', { personHint: sampleID, kind: 'other' })).kind).toBe('other');
+		const listed = resultOf(await asAdmin('person_list')).people as { personID: string; kind?: string }[];
+		expect(listed.find((person) => person.personID === sampleID)?.kind).toBe('other');
+		expect(resultOf(await asAdmin('company_info_get')).employeeCount).toBe(Number(countedBefore) - 1);
+
+		await asAdmin('person_update', { personHint: sampleID, kind: 'human' });
+		expect(resultOf(await asAdmin('company_info_get')).employeeCount).toBe(countedBefore);
+	}, networkHookTimeout);
+
+	test('lets a person correct their own phone number and start date', async () => {
+		const written = resultOf(
+			await asSample('person_update', { personHint: sampleID, phoneNumber: '010-1111-2222', hireDate: '2026-04-01' })
+		);
+		expect(written.phoneNumber).toBe('010-1111-2222');
+		expect(written.hireDate).toBe('2026-04-01');
+	}, networkHookTimeout);
+
+	test('refuses a field of their own that is not theirs to write, and names it', async () => {
+		const refusal = refusalOf(await asSample('person_update', { personHint: sampleID, jobTitle: '대표' }));
+		expect(refusal.status).toBe(403);
+		expect(refusal.error).toContain('jobTitle');
+	}, networkHookTimeout);
+
+	test("refuses a colleague's organization fields, and names them", async () => {
+		const refusal = refusalOf(await asSample('person_update', { personHint: '박예시', phoneNumber: '010-3333-4444' }));
+		expect(refusal.status).toBe(403);
+		expect(refusal.error).toContain('phoneNumber');
+	}, networkHookTimeout);
+
+	test('refuses somebody raising themselves to administer the company', async () => {
+		const refusal = refusalOf(await asSample('person_update', { personHint: sampleID, isAdmin: true }));
+		expect(refusal.status).toBe(403);
+		expect(refusal.error).toContain('isAdmin');
+	}, networkHookTimeout);
+
+	test('asks which person when a name reaches more than one', async () => {
+		const doubled = await addMember(client, companyID, `${slug}-twin@example.test`);
+		await client.from('member').update({ name: '이샘플' }).eq('id', doubled);
+
+		const refusal = refusalOf(await asAdmin('person_update', { personHint: '이샘플', jobTitle: '편집장' }));
+		expect(refusal.status).toBe(409);
+		expect(refusal.errorCode).toBe('interaction_required');
+
+		await client.from('member').delete().eq('id', doubled);
+	}, networkHookTimeout);
+
+	test('asks who was meant when no name is near', async () => {
+		const refusal = refusalOf(await asAdmin('person_update', { personHint: '없는사람', jobTitle: '편집장' }));
+		expect(refusal.status).toBe(409);
+		expect(refusal.errorCode).toBe('person_not_found');
+	}, networkHookTimeout);
+});
+
+describe('inviting somebody through the plane s own invite path', () => {
+	test('creates the account, the sign-in, and the directory entry', async () => {
+		const invited = resultOf(
+			await asAdmin('person_invite', {
+				email: `${slug}-new@example.test`,
+				name: '새사람',
+				jobTitle: '인턴',
+				teamHint: '개발팀'
+			})
+		);
+		expect(invited.email).toBe(`${slug}-new@example.test`);
+		expect(invited.employmentStatus).toBe('invited');
+		expect(String(invited.temporaryPassword).length).toBeGreaterThan(0);
+
+		const { data: account } = await client.auth.admin.listUsers();
+		expect(account.users.some((user) => user.email === `${slug}-new@example.test`)).toBe(true);
+
+		const listed = resultOf(await asAdmin('person_list'));
+		const written = (listed.people as { personID: string; jobTitle?: string; teamName?: string }[]).find(
+			(person) => person.personID === invited.personID
+		);
+		expect(written?.jobTitle).toBe('인턴');
+		expect(written?.teamName).toBe('개발팀');
+	}, networkHookTimeout);
+
+	test('refuses an invitation from somebody who does not administer', async () => {
+		const refusal = refusalOf(
+			await asSample('person_invite', { email: `${slug}-refused@example.test`, name: '거절된사람' })
+		);
+		expect(refusal.status).toBe(403);
+		expect(refusal.errorCode).toBe('administrator_only');
+
+		const { data: held } = await client
+			.from('member')
+			.select('id')
+			.eq('email', `${slug}-refused@example.test`)
+			.maybeSingle();
+		expect(held).toBeNull();
+	}, networkHookTimeout);
+});
+
+describe('withdrawing somebody through the same function as the members page', () => {
+	test('refuses a requester who does not administer, the way the page does', async () => {
+		const refusal = refusalOf(await asSample('person_withdraw', { personHint: '박예시' }));
+		expect(refusal.status).toBe(403);
+		expect(refusal.error).toBe('only an admin removes people');
+
+		const { data: kept } = await client.from('member').select('status').eq('id', exampleID).single();
+		expect(kept!.status).not.toBe('withdrawn');
+	}, networkHookTimeout);
+
+	test('refuses an administrator withdrawing themselves', async () => {
+		const refusal = refusalOf(await asAdmin('person_withdraw', { personHint: adminID }));
+		expect(refusal.status).toBe(400);
+		expect(refusal.errorCode).toBe('person_is_requester');
+	}, networkHookTimeout);
+
+	test('withdraws a colleague and keeps the row', async () => {
+		const leavingID = await addMember(client, companyID, `${slug}-leaving@example.test`);
+		await client.from('member').update({ name: '정견본' }).eq('id', leavingID);
+
+		const withdrawn = resultOf(await asAdmin('person_withdraw', { personHint: '정견본' }));
+		expect(withdrawn).toMatchObject({ personID: leavingID, email: `${slug}-leaving@example.test`, isDeleted: false });
+
+		const { data: row } = await client.from('member').select('status').eq('id', leavingID).single();
+		expect(row!.status).toBe('withdrawn');
+	}, networkHookTimeout);
+
+	test('deletes a mistaken address outright when asked to purge', async () => {
+		const mistakenID = await addMember(client, companyID, `${slug}-mistaken@example.test`);
+
+		const purged = resultOf(
+			await asAdmin('person_withdraw', { personHint: `${slug}-mistaken@example.test`, purge: true })
+		);
+		expect(purged).toMatchObject({ personID: mistakenID, isDeleted: true });
+
+		const { data: row } = await client.from('member').select('id').eq('id', mistakenID).maybeSingle();
+		expect(row).toBeNull();
+	}, networkHookTimeout);
+});
+
+describe('resetting a password through the same function as the members page', () => {
+	test('refuses a requester who does not administer, the way the page does', async () => {
+		const refusal = refusalOf(await asSample('person_password_reset', { personHint: '박예시' }));
+		expect(refusal.status).toBe(403);
+		expect(refusal.error).toBe('only an admin resets a password');
+	}, networkHookTimeout);
+
+	test("refuses another administrator's password", async () => {
+		const colleagueID = await addMember(client, companyID, `${slug}-colleague-admin@example.test`, { isAdmin: true });
+
+		const refusal = refusalOf(await asAdmin('person_password_reset', { personHint: colleagueID }));
+		expect(refusal.status).toBe(403);
+		expect(refusal.errorCode).toBe('administrator_password_reserved');
+	}, networkHookTimeout);
+
+	test('answers a temporary password the colleague can sign in with', async () => {
+		const reset = resultOf(await asAdmin('person_password_reset', { personHint: '이샘플' }));
+		expect(reset.personID).toBe(sampleID);
+		expect(reset.email).toBe(`${slug}-sample@example.test`);
+
+		const anonymous = createClient(projectURL, publishableKey, { auth: { persistSession: false, autoRefreshToken: false } });
+		const signedIn = await anonymous.auth.signInWithPassword({
+			email: `${slug}-sample@example.test`,
+			password: String(reset.temporaryPassword)
+		});
+		expect(signedIn.error).toBeNull();
+	}, networkHookTimeout);
+});

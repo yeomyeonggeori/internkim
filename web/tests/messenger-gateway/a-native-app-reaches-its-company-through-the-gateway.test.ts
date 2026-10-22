@@ -10,7 +10,7 @@ import { connectToGateway, type GatewayConnection } from '../../../host/relay/ga
 import type { Dispatch } from '../../../host/relay/forward';
 import { MessengerRelay } from '../../../host/relay/messenger-calls';
 import { messengerStoreOf } from '../../../host/relay/messenger-store';
-import { projectURL, publishableKey, serviceRoleKey, signingKey } from '../integration/supabase-environment';
+import { projectURL, publishableKey, serviceRoleKey, signingKey } from '../support/supabase-environment';
 
 const repositoryRoot = resolve(import.meta.dir, '../../..');
 const gatewayDirectory = join(repositoryRoot, 'workers/connection-gateway');
