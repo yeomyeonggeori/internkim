@@ -14,7 +14,7 @@ public class AttendanceWidgetPlugin: CAPPlugin, CAPBridgedPlugin {
     @objc func install(_ call: CAPPluginCall) {
         call.resolve([
             "installID": AttendanceWidgetStore.installID(),
-            "tokenName": AttendanceWidgetStore.heldTokenName()
+            "tokenName": AttendanceWidgetStore.credential()?.tokenName ?? ""
         ])
     }
 

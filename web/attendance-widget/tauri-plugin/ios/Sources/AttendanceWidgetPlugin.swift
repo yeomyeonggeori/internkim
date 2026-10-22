@@ -11,7 +11,7 @@ class AttendanceWidgetPlugin: Plugin {
     @objc public func install(_ invoke: Invoke) {
         invoke.resolve([
             "installID": AttendanceWidgetStore.installID(),
-            "tokenName": AttendanceWidgetStore.heldTokenName()
+            "tokenName": AttendanceWidgetStore.credential()?.tokenName ?? ""
         ])
     }
 

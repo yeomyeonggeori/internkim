@@ -10,13 +10,13 @@ enum AttendanceWidgetStore {
     static let appGroup = "group.app.intern.kim"
     private static let keychainService = "app.intern.kim.widget"
     private static let tokenAccount = "public-api-token"
+    private static let tokenNameAccount = "public-api-token-name"
     private static let installAccount = "install-id"
-    private static let tokenNameKey = "widget.tokenName"
     private static let originKey = "widget.origin"
 
     private static var accessGroup: String? {
         guard let prefix = Bundle.main.object(forInfoDictionaryKey: "AppIdentifierPrefix") as? String,
-              !prefix.hasPrefix("$(") else { return nil }
+              !prefix.isEmpty, !prefix.hasPrefix("$(") else { return nil }
         return "\(prefix)app.intern.kim"
     }
 
@@ -31,25 +31,22 @@ enum AttendanceWidgetStore {
         return made
     }
 
-    static func heldTokenName() -> String {
-        sharedDefaults?.string(forKey: tokenNameKey) ?? ""
-    }
-
     static func credential() -> AttendanceWidgetCredential? {
         guard let token = read(account: tokenAccount),
+              let tokenName = read(account: tokenNameAccount),
               let origin = sharedDefaults?.string(forKey: originKey), !origin.isEmpty else { return nil }
-        return AttendanceWidgetCredential(token: token, tokenName: heldTokenName(), origin: origin)
+        return AttendanceWidgetCredential(token: token, tokenName: tokenName, origin: origin)
     }
 
     static func keep(_ credential: AttendanceWidgetCredential) {
         write(account: tokenAccount, value: credential.token)
-        sharedDefaults?.set(credential.tokenName, forKey: tokenNameKey)
+        write(account: tokenNameAccount, value: credential.tokenName)
         sharedDefaults?.set(credential.origin, forKey: originKey)
     }
 
     static func forget() {
         delete(account: tokenAccount)
-        sharedDefaults?.removeObject(forKey: tokenNameKey)
+        delete(account: tokenNameAccount)
         sharedDefaults?.removeObject(forKey: originKey)
     }
 

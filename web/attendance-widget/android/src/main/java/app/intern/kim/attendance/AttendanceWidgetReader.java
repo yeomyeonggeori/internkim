@@ -1,6 +1,7 @@
 package app.intern.kim.attendance;
 
 import android.content.Context;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.TimeZone;
@@ -57,7 +58,7 @@ final class AttendanceWidgetReader {
             AttendanceToday today = AttendanceToday.of(rows, CompanyClock.day(now, zone), now);
             return new AttendanceWidgetEntry(now, today, settings.workLocations, zone, null, isStale);
         } catch (AttendanceAPI.Failure failure) {
-            return AttendanceWidgetEntry.failed(now, failure.getMessage());
+            return AttendanceWidgetEntry.failed(now, failure.getMessage(), failure.getCause() instanceof IOException);
         }
     }
 

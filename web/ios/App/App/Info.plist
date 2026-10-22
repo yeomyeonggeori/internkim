@@ -9,7 +9,7 @@
 	<key>NSSupportsLiveActivities</key>
 	<true/>
 	<key>AppIdentifierPrefix</key>
-	<string>$(AppIdentifierPrefix)</string>
+	<string>$(TeamIdentifierPrefix)</string>
   <key>CAPACITOR_DEBUG</key>
 	<string>$(CAPACITOR_DEBUG)</string>
 	<key>CFBundleDevelopmentRegion</key>
