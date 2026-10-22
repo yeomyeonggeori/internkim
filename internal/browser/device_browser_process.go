@@ -87,7 +87,7 @@ func startDeviceBrowserProcess(launch DeviceBrowserLaunch, owner *deviceBrowserO
 		return nil, errorValue
 	}
 	command := exec.Command(launch.ExecutablePath, "serve",
-		"--host", "127.0.0.1", "--port", strconv.Itoa(launch.Port), "--layout", "--resource",
+		"--host", "127.0.0.1", "--port", strconv.Itoa(launch.Port), "--layout", "--resource", "--block-private-networks",
 		"--profile-dir", launch.ProfileDirectory, "--http-cache-dir", launch.CacheDirectory)
 	command.Env = append(os.Environ(), "HOME="+launch.MemberDirectory)
 	command.Stdout = logFile

@@ -30,7 +30,7 @@ type HostPayloadDownload struct {
 }
 
 const (
-	deviceBrowserVersion = "1.1.5"
+	deviceBrowserVersion = "1.1.12"
 	agentBrowserVersion  = "0.32.3"
 	bunVersion           = "1.4.2"
 	uvVersion            = "0.11.11"
@@ -71,21 +71,21 @@ var hostPayloadMachineByTarget = map[string]string{
 
 var hostPayloadDownloadsByTarget = map[string][]HostPayloadDownload{
 	HostPayloadLinuxArm64: {
-		deviceBrowserPayload("aarch64-unknown-linux-gnu", "76abe24ad32a42e190dd09d3a475f57b91cda66cd8cbf547f602f3aa28963a7b"),
+		deviceBrowserPayload("aarch64-unknown-linux-gnu", "ab4db54ad3d98d0f6ab81b0a2680df0c506da24fddb069cdc8b7f1cff9216228"),
 		agentBrowserPayload("agent-browser-linux-arm64", "87fd2efb67995fc433569f0383260bfee44a785d6d45ca07c77179c45b70de18"),
 		mediaServerPayload("Linux", "arm64", "b34051d33f5a9c457f790896acb7bd7d7e15ad8d92efb70616b924f37e401910"),
 		bunPayload("linux-aarch64", "54328bbc2d9c8e0c9f892c544d66c57a83b84139e34909e5ee81758f1ac8fda7"),
 		packageResolverPayload("aarch64-unknown-linux-gnu", "155fe4d3b3cb4bfce118ab4b1380f71515ae874d13d9858171b4f9c26e16684d"),
 	},
 	HostPayloadLinuxAmd64: {
-		deviceBrowserPayload("x86_64-unknown-linux-gnu", "7128ca9b9f7e7bb5ab58b1c6cbf0910a2e22008f4662ea87bd6b8ab8493e3181"),
+		deviceBrowserPayload("x86_64-unknown-linux-gnu", "c003600e22a450914ff804cd980eeac6d37495c9e88f8786bf75d00d010171d0"),
 		agentBrowserPayload("agent-browser-linux-x64", "243f6e01c4b7dea53ad07d9754df99033c614582d5c685c529a1cb81cafc3ab1"),
 		mediaServerPayload("Linux", "x86_64", "2ba2c734d10d2c4e651d03182cb4b246656bc735a2f282db7b0b73fba6073467"),
 		bunPayload("linux-x64", "36368faef7527875d5ffa52e53cd48021741f2a83eb6208a8dd64068d422a913"),
 		packageResolverPayload("x86_64-unknown-linux-gnu", "a767848254391855c96df271e9ca8b7f72dd172d310460447853d25d907b9ae0"),
 	},
 	HostPayloadDarwinArm64: {
-		deviceBrowserPayload("aarch64-apple-darwin", "8ce3bff3d003b4e04b366908ad14656456e1bf347b2be251b734cf1d60d654a6"),
+		deviceBrowserPayload("aarch64-apple-darwin", "635d2610510a63ad544c9c55e4b221822f56df956e36bb466e743f0e76b962f2"),
 		agentBrowserPayload("agent-browser-darwin-arm64", "b639605f496b629ebb2cdab30f1e070e004efd945b9cd0baf1981acfab64a151"),
 		mediaServerPayload("Darwin", "arm64", "4953096f65a9c0d62ab184fb6b2ba7c2435229205cf00a56cb62cd4bf6b216ca"),
 		bunPayload("darwin-aarch64", "90987a3a16d7db556d886ac3d551e7b6d3edf0a1cf43acaed622e8676be1d12f"),

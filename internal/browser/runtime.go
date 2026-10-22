@@ -144,27 +144,7 @@ const BrowserEngineMoli = "moli"
 
 const DeviceBrowserCDPURL = "http://127.0.0.1:9222"
 const DeviceBrowserExecutablePath = "/usr/local/bin/moli"
-const DeviceBrowserServiceName = "moli"
 const DeviceBrowserStateDirectory = "/var/lib/internkim-moli"
-
-func DeviceBrowserServiceUnit() string {
-	endpoint, _ := url.Parse(DeviceBrowserCDPURL)
-	return `[Unit]
-Description=Moli device browser
-After=network-online.target
-Wants=network-online.target
-
-[Service]
-ExecStart=` + DeviceBrowserExecutablePath + ` serve --host ` + endpoint.Hostname() + ` --port ` + endpoint.Port() + ` --layout --resource --profile-dir ` + DeviceBrowserStateDirectory + `/profile --http-cache-dir ` + DeviceBrowserStateDirectory + `/cache
-DynamicUser=yes
-StateDirectory=` + filepath.Base(DeviceBrowserStateDirectory) + `
-Restart=always
-RestartSec=5
-
-[Install]
-WantedBy=multi-user.target
-`
-}
 
 func (request *SessionStartRequest) UnmarshalJSON(document []byte) error {
 	value, isString := decodeStringDocument(document)
@@ -555,21 +535,6 @@ func isExecutablePath(path string) bool {
 	}
 	information, errorValue := os.Stat(trimmedPath)
 	return errorValue == nil && !information.IsDir() && information.Mode()&0o111 != 0
-}
-
-func DeviceBrowserServiceInstallShellScript() string {
-	return `cat > /etc/systemd/system/` + DeviceBrowserServiceName + `.service <<'MOLISERVICEEOF'
-` + DeviceBrowserServiceUnit() + `MOLISERVICEEOF
-systemctl daemon-reload
-systemctl enable --now ` + DeviceBrowserServiceName + `
-for attempt in $(seq 1 30); do
-  if curl -fsS "` + DeviceBrowserCDPURL + `/json/version" >/tmp/internkim-device-browser-version.log 2>&1; then
-    break
-  fi
-  sleep 1
-done
-curl -fsS "` + DeviceBrowserCDPURL + `/json/version" >/tmp/internkim-device-browser-version.log 2>&1
-`
 }
 
 func DeviceReadinessShellScript() string {
