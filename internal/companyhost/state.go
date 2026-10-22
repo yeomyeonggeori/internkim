@@ -8,6 +8,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/yeomyeonggeori/internkim/internal/durablefile"
 )
 
 const (
@@ -17,19 +19,6 @@ const (
 	modelKeyFileName     = "openrouter-key"
 	identitySeedFileName = "buzz-key-seed"
 )
-
-func writePrivateFile(path string, content []byte) error {
-	file, errorValue := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o600)
-	if errorValue != nil {
-		return errorValue
-	}
-	defer file.Close()
-	if errorValue := file.Chmod(0o600); errorValue != nil {
-		return errorValue
-	}
-	_, errorValue = file.Write(content)
-	return errorValue
-}
 
 func PrepareStateDirectory(directoryPath string, connection Connection) (string, error) {
 	if errorValue := os.MkdirAll(directoryPath, 0o700); errorValue != nil {
@@ -49,10 +38,10 @@ func PrepareStateDirectory(directoryPath string, connection Connection) (string,
 	if errorValue != nil {
 		return "", errorValue
 	}
-	if errorValue := writePrivateFile(filepath.Join(directoryPath, connectionFileName), append(document, '\n')); errorValue != nil {
+	if errorValue := durablefile.Write(filepath.Join(directoryPath, connectionFileName), append(document, '\n'), 0o600); errorValue != nil {
 		return "", errorValue
 	}
-	if errorValue := writePrivateFile(filepath.Join(secretDirectoryPath, agentKeyFileName), []byte(connection.AgentKey+"\n")); errorValue != nil {
+	if errorValue := durablefile.Write(filepath.Join(secretDirectoryPath, agentKeyFileName), []byte(connection.AgentKey+"\n"), 0o600); errorValue != nil {
 		return "", errorValue
 	}
 	return secretDirectoryPath, nil
@@ -61,26 +50,30 @@ func PrepareStateDirectory(directoryPath string, connection Connection) (string,
 func KeepSecret(secretDirectoryPath, name string) (string, error) {
 	path := filepath.Join(secretDirectoryPath, name)
 	existing, errorValue := os.ReadFile(path)
-	if errorValue == nil {
-		if chmodError := os.Chmod(path, 0o600); chmodError != nil {
-			return "", chmodError
-		}
-		value := strings.TrimSpace(string(existing))
-		if !secretPattern.MatchString(value) {
-			return "", fmt.Errorf("saved %s is invalid. Restore it from backup; it will not be replaced", name)
-		}
-		return value, nil
-	}
-	if !os.IsNotExist(errorValue) {
+	if errorValue != nil && !os.IsNotExist(errorValue) {
 		return "", errorValue
+	}
+	if errorValue == nil && strings.TrimSpace(string(existing)) != "" {
+		return savedSecret(path, name, existing)
 	}
 	generated := make([]byte, 32)
 	if _, errorValue := rand.Read(generated); errorValue != nil {
 		return "", errorValue
 	}
 	value := hex.EncodeToString(generated)
-	if errorValue := writePrivateFile(path, []byte(value+"\n")); errorValue != nil {
+	if errorValue := durablefile.Write(path, []byte(value+"\n"), 0o600); errorValue != nil {
 		return "", errorValue
+	}
+	return value, nil
+}
+
+func savedSecret(path, name string, existing []byte) (string, error) {
+	if errorValue := os.Chmod(path, 0o600); errorValue != nil {
+		return "", errorValue
+	}
+	value := strings.TrimSpace(string(existing))
+	if !secretPattern.MatchString(value) {
+		return "", fmt.Errorf("saved %s is invalid. Restore it from backup; it will not be replaced", name)
 	}
 	return value, nil
 }
@@ -112,5 +105,5 @@ func writeModelKey(path, value string) error {
 	if value == "" || strings.ContainsAny(value, " \t\r\n") {
 		return fmt.Errorf("enter the OpenRouter API key from your account's Keys page")
 	}
-	return writePrivateFile(path, []byte(value+"\n"))
+	return durablefile.Write(path, []byte(value+"\n"), 0o600)
 }

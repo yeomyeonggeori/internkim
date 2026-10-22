@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/yeomyeonggeori/internkim/internal/companyhost"
+	"github.com/yeomyeonggeori/internkim/internal/durablefile"
 	"github.com/yeomyeonggeori/internkim/internal/workqueue"
 )
 
@@ -64,11 +65,14 @@ type Daemon struct {
 }
 
 func (daemon Daemon) Run(ctx context.Context) error {
-	if daemon.connectedByFile() {
+	if daemon.connectedByFile() && !daemon.isResetAsked() {
 		return ErrConnectedByFile
 	}
 	identity, errorValue := LoadOrCreateIdentity(identityPathIn(daemon.Places.StateDirectoryPath))
 	if errorValue != nil {
+		return errorValue
+	}
+	if errorValue := rememberThisComputerIsABox(daemon.Places.StateDirectoryPath); errorValue != nil {
 		return errorValue
 	}
 	log.Printf("this box is %s", identity.PublicKey())
@@ -362,7 +366,7 @@ func (daemon Daemon) installFor(session Session, modelKey string) error {
 }
 
 func MarkInstalledCompany(stateDirectoryPath, companyID string) error {
-	return writeFileAtomically(filepath.Join(stateDirectoryPath, companyMarkerFileName), []byte(companyID+"\n"), 0o600)
+	return durablefile.Write(filepath.Join(stateDirectoryPath, companyMarkerFileName), []byte(companyID+"\n"), 0o600)
 }
 
 func ForgetInstalledCompany(stateDirectoryPath string) error {
@@ -412,14 +416,6 @@ func (daemon Daemon) getOnlineWhenOffline(ctx context.Context, identity Identity
 
 func (daemon Daemon) isOffEveryNetwork(ctx context.Context) bool {
 	return daemon.IsOnANetwork != nil && !daemon.IsOnANetwork(ctx)
-}
-
-func (daemon Daemon) connectedByFile() bool {
-	if daemon.installedCompany() != "" {
-		return false
-	}
-	_, errorValue := os.Stat(daemon.Places.ConnectionFilePath)
-	return errorValue == nil
 }
 
 func (daemon Daemon) installedCompany() string {

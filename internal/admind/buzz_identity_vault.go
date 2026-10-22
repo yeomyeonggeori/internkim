@@ -9,6 +9,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/yeomyeonggeori/internkim/internal/durablefile"
 )
 
 const (
@@ -60,7 +62,7 @@ func (service *Service) storeBuzzIdentitySecret(subject string, secretHex string
 	if errorValue != nil {
 		return errorValue
 	}
-	return writeFileAtomically(service.buzzIdentitySecretPath(encryptionKey, normalizedSubject), sealed, 0o600)
+	return durablefile.Write(service.buzzIdentitySecretPath(encryptionKey, normalizedSubject), sealed, 0o600)
 }
 
 func (service *Service) readBuzzIdentitySecret(subject string) (string, error) {

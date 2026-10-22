@@ -23,6 +23,7 @@ import (
 	"time"
 
 	"github.com/yeomyeonggeori/internkim/internal/centralplane"
+	"github.com/yeomyeonggeori/internkim/internal/durablefile"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -762,7 +763,7 @@ func (service *Service) companyShareSigningKey() ([]byte, error) {
 	if errorValue := os.MkdirAll(filepath.Dir(path), 0o700); errorValue != nil {
 		return nil, errorValue
 	}
-	if errorValue := writeFileAtomically(path, []byte(hex.EncodeToString(key)), 0o600); errorValue != nil {
+	if errorValue := durablefile.Write(path, []byte(hex.EncodeToString(key)), 0o600); errorValue != nil {
 		return nil, errorValue
 	}
 	return key, nil
@@ -915,7 +916,7 @@ func writeCompanyShareJSON(path string, value any, directoryMode os.FileMode, fi
 	if errorValue := os.Chmod(directoryPath, directoryMode); errorValue != nil {
 		return errorValue
 	}
-	return writeFileAtomically(path, append(document, '\n'), fileMode)
+	return durablefile.Write(path, append(document, '\n'), fileMode)
 }
 
 func (service *Service) companyShareSettingsPath() string {

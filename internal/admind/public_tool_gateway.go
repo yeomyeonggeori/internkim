@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"github.com/yeomyeonggeori/internkim/internal/capabilities"
+	"github.com/yeomyeonggeori/internkim/internal/durablefile"
 	"github.com/yeomyeonggeori/internkim/pkg/capabilityprotocol"
 )
 
@@ -571,7 +572,7 @@ func (service *Service) writePublicAPITokenRecords(ctx context.Context, records 
 	if errorValue := os.MkdirAll(filepath.Dir(path), 0o700); errorValue != nil {
 		return errorValue
 	}
-	return writeFileAtomically(path, append(document, '\n'), 0o600)
+	return durablefile.Write(path, append(document, '\n'), 0o600)
 }
 
 func (service *Service) publicAPITokenStorePath() string {

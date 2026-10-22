@@ -9,6 +9,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+
+	"github.com/yeomyeonggeori/internkim/internal/durablefile"
 )
 
 const (
@@ -182,5 +184,5 @@ func storeCompanyKey(stateDirectoryPath, companyID string, privateKey *ecdh.Priv
 	if errorValue := os.MkdirAll(stateDirectoryPath, 0o700); errorValue != nil {
 		return errorValue
 	}
-	return writeFileAtomically(companyKeyPathIn(stateDirectoryPath), document, 0o600)
+	return durablefile.Write(companyKeyPathIn(stateDirectoryPath), document, 0o600)
 }

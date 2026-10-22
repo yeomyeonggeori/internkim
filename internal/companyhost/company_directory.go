@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/yeomyeonggeori/internkim/internal/durablefile"
 	"github.com/yeomyeonggeori/internkim/internal/runtime/blueclaw"
 )
 
@@ -247,10 +248,7 @@ func environmentFileText(entries []EnvironmentEntry) (string, error) {
 }
 
 func writeCompanyFile(machine Machine, file companyFile) error {
-	if errorValue := os.WriteFile(file.Path, []byte(file.Contents), file.Mode); errorValue != nil {
-		return errorValue
-	}
-	if errorValue := os.Chmod(file.Path, file.Mode); errorValue != nil {
+	if errorValue := durablefile.Write(file.Path, []byte(file.Contents), file.Mode); errorValue != nil {
 		return errorValue
 	}
 	if file.Owner == "" {
@@ -270,12 +268,7 @@ func pointTheUnitsAtThisCompany(directoryPath string) error {
 	if errorValue == nil && existing == directoryPath {
 		return nil
 	}
-	if errorValue == nil {
-		if errorValue := os.Remove(blueclaw.CompanyHostCurrentPath); errorValue != nil {
-			return errorValue
-		}
-	}
-	return os.Symlink(directoryPath, blueclaw.CompanyHostCurrentPath)
+	return durablefile.ReplaceLink(blueclaw.CompanyHostCurrentPath, directoryPath)
 }
 
 func makePrivateDirectory(path string) error {

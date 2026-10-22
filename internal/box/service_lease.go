@@ -7,6 +7,8 @@ import (
 	"os"
 	"path/filepath"
 	"time"
+
+	"github.com/yeomyeonggeori/internkim/internal/durablefile"
 )
 
 const (
@@ -36,7 +38,7 @@ func (daemon Daemon) keepServiceLease(policy TakeOverPolicy) error {
 	if errorValue != nil {
 		return errorValue
 	}
-	return writeFileAtomically(daemon.statePath(serviceLeaseFileName), document, 0o600)
+	return durablefile.Write(daemon.statePath(serviceLeaseFileName), document, 0o600)
 }
 
 func (daemon Daemon) standDownWhenTheLeaseRunsOut() {
@@ -53,7 +55,7 @@ func (daemon Daemon) standDownWhenTheLeaseRunsOut() {
 		log.Printf("stopping the company's services: %v; trying again at the next check", errorValue)
 		return
 	}
-	if errorValue := writeFileAtomically(daemon.statePath(stoodDownFileName), []byte(lease.ConfirmedAt.UTC().Format(time.RFC3339)+"\n"), 0o600); errorValue != nil {
+	if errorValue := durablefile.Write(daemon.statePath(stoodDownFileName), []byte(lease.ConfirmedAt.UTC().Format(time.RFC3339)+"\n"), 0o600); errorValue != nil {
 		log.Printf("noting that this box stood down: %v", errorValue)
 	}
 }

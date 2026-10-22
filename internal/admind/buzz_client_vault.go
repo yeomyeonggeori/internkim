@@ -8,6 +8,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/yeomyeonggeori/internkim/internal/durablefile"
 )
 
 const buzzClientVaultDirectoryName = "buzz-client-vault"
@@ -40,7 +42,7 @@ func (service *Service) storeBuzzClientVault(subject string, blob []byte) error 
 	if errorValue := os.MkdirAll(filepath.Dir(path), 0o700); errorValue != nil {
 		return errorValue
 	}
-	return writeFileAtomically(path, blob, 0o600)
+	return durablefile.Write(path, blob, 0o600)
 }
 
 func (service *Service) readBuzzClientVault(subject string) ([]byte, bool, error) {
