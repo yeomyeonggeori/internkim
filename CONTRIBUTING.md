@@ -27,10 +27,11 @@ the web app against it. Anything that uses that stack runs under
 tools/verify
 ```
 
-`make check` is the same command. It reads what your diff touches and runs only
-the groups that diff can break. `--all` runs every group and `--only <names>`
-runs the ones you name. No workflow runs it after you push, so a pull request
-that skipped it has not been checked.
+It reads what your diff touches and runs only the groups that diff can break.
+`--plan` prints them without running them, `--all` runs every group (which is
+what `make check` does) and `--only <names>` runs the ones you name. No workflow
+runs it after you push, so a pull request that skipped it has not been checked.
+[Testing](https://docs.intern.kim/testing) says where a new test goes.
 
 ## Branches
 
