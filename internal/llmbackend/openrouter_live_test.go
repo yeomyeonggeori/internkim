@@ -247,12 +247,9 @@ func TestOpenRouterLiveApprovalReplyDecisionFromEnv(t *testing.T) {
 
 func liveOpenRouterBackendFromEnv(t *testing.T) (OpenRouterBackend, string) {
 	t.Helper()
-	if os.Getenv("INTERNKIM_LIVE_LLM_TEST") != "1" {
-		t.Skip("set INTERNKIM_LIVE_LLM_TEST=1 to run live OpenRouter schema compatibility test")
-	}
 	apiKey := strings.TrimSpace(os.Getenv("OPENROUTER_API_KEY"))
 	if apiKey == "" {
-		t.Skip("OPENROUTER_API_KEY is required for the live OpenRouter test, and the vault holds it: " +
+		t.Fatal("OPENROUTER_API_KEY is required for the live OpenRouter test, and the vault holds it: " +
 			"monkeys run go test ./internal/llmbackend -run LiveOpenRouter")
 	}
 	keyPath := filepath.Join(t.TempDir(), "openrouter-api-key")

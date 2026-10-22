@@ -15,9 +15,6 @@ import (
 )
 
 func TestDataRoomClassificationLiveSemanticGroups(t *testing.T) {
-	if os.Getenv("INTERNKIM_LIVE_LLM_TEST") != "1" {
-		t.Skip("requires explicit live evaluation")
-	}
 	key := os.Getenv("OPENROUTER_API_KEY")
 	if key == "" {
 		t.Fatal("OPENROUTER_API_KEY is required")

@@ -24,7 +24,7 @@ func TestOpenRouterLiveSyntheticTruncationUsesActualFallback(t *testing.T) {
 	backend.FallbackModelNames = []string{fallbackModel}
 	evidenceDirectory := strings.TrimSpace(os.Getenv("INTERNKIM_LIVE_ARTIFACT_DIR"))
 	if evidenceDirectory == "" {
-		t.Skip("INTERNKIM_LIVE_ARTIFACT_DIR is required for live truncation evidence")
+		t.Fatal("INTERNKIM_LIVE_ARTIFACT_DIR is required for live truncation evidence")
 	}
 
 	baseTransport := backend.HTTPClient.Transport

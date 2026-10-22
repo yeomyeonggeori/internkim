@@ -36,7 +36,7 @@ func cosineSimilarity(left []float64, right []float64) float64 {
 func TestLiveEmbeddingGemmaServerEmbedsWithThePromptsAndWidthTheHostExpects(t *testing.T) {
 	serverURL := testEnvValue("INTERNKIM_EMBEDDING_SERVER_URL", "")
 	if serverURL == "" {
-		t.Skip("INTERNKIM_EMBEDDING_SERVER_URL names no running llama-server")
+		t.Fatal("INTERNKIM_EMBEDDING_SERVER_URL names no running llama-server")
 	}
 	transport := &recordingTransport{}
 	backend := LlamaCppEmbeddingBackend{BaseURL: serverURL, ModelName: DefaultEmbeddingModelName, HTTPClient: &http.Client{Transport: transport}}
