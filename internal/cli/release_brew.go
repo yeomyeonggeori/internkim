@@ -334,17 +334,14 @@ func fetchBrewVendoredPrograms(repositoryRootPath string, libraryPath string, ou
 }
 
 func copyBrewCarriedTrees(repositoryRootPath string, libraryPath string) error {
-	for _, carried := range []struct{ source, destination string }{
-		{".dependency/internkim-plugin/skills", "skills"},
-		{blueclaw.BlueclawSubmodulePath + "/migrations", "migrations"},
-	} {
-		if errorValue := copyTree(
-			filepath.Join(repositoryRootPath, carried.source),
-			filepath.Join(libraryPath, carried.destination)); errorValue != nil {
-			return fmt.Errorf("the keg carries %s: %w", carried.destination, errorValue)
+	layout := blueclaw.MacCompanyHostLayout("")
+	for _, carried := range carriedTreeSources(layout) {
+		if errorValue := copyTrackedTree(
+			filepath.Join(repositoryRootPath, carried.SourcePath),
+			filepath.Join(libraryPath, strings.TrimPrefix(carried.Destination, layout.LibraryRoot))); errorValue != nil {
+			return fmt.Errorf("the keg carries %s: %w", carried.Destination, errorValue)
 		}
 	}
-	layout := blueclaw.MacCompanyHostLayout("")
 	for _, carried := range carriedLibraryFiles(layout) {
 		destinationPath := filepath.Join(libraryPath, strings.TrimPrefix(carried.Destination, layout.LibraryRoot))
 		if errorValue := os.MkdirAll(filepath.Dir(destinationPath), 0o755); errorValue != nil {
@@ -448,24 +445,4 @@ func copyFile(sourcePath string, destinationPath string, mode fs.FileMode) error
 	defer destination.Close()
 	_, errorValue = io.Copy(destination, source)
 	return errorValue
-}
-
-func copyTree(sourcePath string, destinationPath string) error {
-	return filepath.Walk(sourcePath, func(path string, information fs.FileInfo, walkError error) error {
-		if walkError != nil {
-			return walkError
-		}
-		relative, errorValue := filepath.Rel(sourcePath, path)
-		if errorValue != nil {
-			return errorValue
-		}
-		destination := filepath.Join(destinationPath, relative)
-		if information.IsDir() {
-			return os.MkdirAll(destination, 0o755)
-		}
-		if information.Mode()&fs.ModeSymlink != 0 {
-			return nil
-		}
-		return copyFile(path, destination, information.Mode().Perm())
-	})
 }
