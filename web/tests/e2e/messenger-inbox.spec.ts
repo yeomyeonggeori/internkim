@@ -91,7 +91,7 @@ test('the inbox opens first and gathers threads, mentions and direct messages ne
 	await openMessenger(page, 1280);
 
 	const panel = inboxPanel(page);
-	await expect(panel.locator('[data-inbox-entry]')).toHaveText([/박예시.*스레드 답장 · # 광장.*로그인 화면 고쳤어요/s, /최견본.*멘션 · # 광장/s, /박예시.*개인 메시지.*감사합니다/s]);
+	await expect(panel.locator('[data-inbox-entry]')).toHaveText([/박예시.*Thread in # 광장.*로그인 화면 고쳤어요/s, /최견본.*Thread in # 광장/s, /박예시.*DM from 박예시.*감사합니다/s]);
 	const inboxButton = page.getByRole('button', { name: '수신함', exact: true });
 	await expect(inboxButton).toHaveAttribute('data-active', 'true');
 	await expect(page.getByText('항목을 고르세요')).toBeVisible();
@@ -102,15 +102,63 @@ test('the inbox opens first and gathers threads, mentions and direct messages ne
 	await expect(panel.locator('[data-inbox-entry]')).toHaveCount(2);
 });
 
-test('choosing a thread reply opens its conversation and marks only that thread read', async ({ page }) => {
+test('choosing a thread reply shows only that thread beside the inbox and marks only that thread read', async ({ page }) => {
 	const fixture = await openMessenger(page, 1280);
 
 	await inboxPanel(page).locator('[data-inbox-entry="reply-1"]').click();
 
-	await expect(conversationHeader(page)).toBeVisible();
+	await expect(page.getByRole('button', { name: 'Thread in #광장', exact: true })).toBeVisible();
+	const thread = page.getByRole('region', { name: '글타래' });
+	await expect(thread.getByText('로그인 화면 고쳤어요')).toBeVisible();
+	await expect(page.getByText('@이샘플 확인 부탁드려요').filter({ visible: true })).toHaveCount(1);
+	await expect(inboxPanel(page)).toBeVisible();
 	await expect.poll(() => fixture.marks).toContainEqual({ conversationID: 'channel-1', parentID: 'root-1', readAt: postedAt });
 	const inboxButton = page.getByRole('button', { name: '수신함', exact: true });
 	await expect(page.getByRole('listitem').filter({ has: inboxButton })).toContainText('1');
+});
+
+test('the thread title leaves the inbox for the channel with that thread open', async ({ page }) => {
+	await openMessenger(page, 1280);
+	await inboxPanel(page).locator('[data-inbox-entry="reply-1"]').click();
+
+	await page.getByRole('button', { name: 'Thread in #광장', exact: true }).click();
+
+	await expect(inboxPanel(page)).toBeHidden();
+	await expect(conversationHeader(page)).toBeVisible();
+	await expect(page.getByRole('dialog').getByText('로그인 화면 고쳤어요')).toBeVisible();
+});
+
+test('a mention in a channel opens as its own thread', async ({ page }) => {
+	await openMessenger(page, 1280);
+
+	await inboxPanel(page).locator('[data-inbox-entry="mention-1"]').click();
+
+	await expect(page.getByRole('region', { name: '글타래' }).getByText('@이샘플 확인 부탁드려요')).toBeVisible();
+	await expect(page.getByText('배포 일정 공유드려요')).toBeHidden();
+});
+
+test('the direct message title leaves the inbox for that conversation', async ({ page }) => {
+	await openMessenger(page, 1280);
+	await inboxPanel(page).locator('[data-inbox-entry="direct-1"]').click();
+	await expect(page.getByText('감사합니다').last()).toBeVisible();
+
+	await page.getByRole('button', { name: 'DM from 박예시', exact: true }).click();
+
+	await expect(inboxPanel(page)).toBeHidden();
+	await expect(page.getByRole('button', { name: 'DM from 박예시', exact: true })).toBeHidden();
+});
+
+test('the inbox waits for the channel list so every entry names its place', async ({ page }) => {
+	const fixture = new MessengerInboxFixture();
+	fixture.hold('person.conversations.list');
+	await openMessenger(page, 1280, fixture);
+	await expect.poll(() => fixture.requested.has('person.inbox.list')).toBe(true);
+	await expect(inboxPanel(page).getByRole('status')).toBeVisible();
+	await expect(inboxPanel(page).locator('[data-inbox-entry]')).toHaveCount(0);
+
+	fixture.release('person.conversations.list');
+
+	await expect(inboxPanel(page).locator('[data-inbox-entry]')).toHaveText([/Thread in # 광장/, /Thread in # 광장/, /DM from 박예시/]);
 });
 
 test('choosing a channel from the sidebar leaves the inbox', async ({ page }) => {

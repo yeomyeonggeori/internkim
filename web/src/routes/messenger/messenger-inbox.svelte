@@ -1,6 +1,7 @@
 <script lang="ts">
 	import InboxIcon from '@lucide/svelte/icons/inbox';
 	import PersonAvatar from '$lib/components/person-avatar.svelte';
+	import { Badge } from '$lib/components/ui/badge/index.js';
 	import UnreadDot from '$lib/components/unread-dot.svelte';
 	import { Button } from '$lib/components/ui/button/index.js';
 	import * as Empty from '$lib/components/ui/empty/index.js';
@@ -14,12 +15,14 @@
 	import type { InboxEntry } from '$lib/messenger/channel-over-bridge';
 	import { messagePlainText } from '$lib/messenger/message-plain-text';
 	import { cn } from '$lib/utils.js';
+	import { inboxPlaceOf } from './messenger-inbox-place';
 	import MessengerInboxSkeleton from './messenger-inbox-skeleton.svelte';
 	import type { MessengerInboxState } from './messenger-inbox-state.svelte';
 
 	let {
 		inbox,
 		conversations,
+		hasLoadedConversations,
 		chosenID,
 		choose,
 		leading,
@@ -27,6 +30,7 @@
 	}: {
 		inbox: MessengerInboxState;
 		conversations: ChannelSummary[];
+		hasLoadedConversations: boolean;
 		chosenID: string | undefined;
 		choose: (entry: InboxEntry) => void;
 		leading?: Snippet;
@@ -36,18 +40,6 @@
 	const text = createPageText(messengerInboxText);
 
 	const conversationOf = $derived(new Map(conversations.map((conversation) => [conversation.id, conversation])));
-
-	function reasonLabel(entry: InboxEntry): string {
-		if (entry.reason === 'direct') return text.direct;
-		if (entry.reason === 'mention') return text.mention;
-		return text.threadReply;
-	}
-
-	function placeLabel(entry: InboxEntry): string {
-		const conversation = conversationOf.get(entry.conversationID);
-		if (!conversation || conversation.kind === 'dm') return '';
-		return `# ${conversation.name}`;
-	}
 </script>
 
 <aside class={cn('flex min-h-0 flex-col', className)} aria-label={text.inbox}>
@@ -65,7 +57,7 @@
 			<p role="alert" class="text-destructive text-sm">{text.loadFailed}</p>
 			<Button variant="outline" size="sm" onclick={() => inbox.load()}>{text.retry}</Button>
 		</div>
-	{:else if !inbox.hasLoaded}
+	{:else if !inbox.hasLoaded || !hasLoadedConversations}
 		<MessengerInboxSkeleton label={text.loading} />
 	{:else if inbox.shown.length === 0}
 		<Empty.Root>
@@ -77,7 +69,7 @@
 	{:else}
 		<Item.Group class="relative min-h-0 flex-1 gap-1 overflow-y-auto p-2">
 			{#each inbox.shown as entry (entry.id)}
-				{@const place = placeLabel(entry)}
+				{@const place = inboxPlaceOf(entry, conversationOf.get(entry.conversationID))}
 				<Item.Root size="sm" class={cn('hover:bg-muted text-left', entry.id === chosenID && 'bg-muted')}>
 					{#snippet child({ props })}
 						<button {...props} type="button" data-inbox-entry={entry.id} onclick={() => choose(entry)}>
@@ -99,9 +91,14 @@
 									{/if}
 									<time class="text-muted-foreground ml-auto shrink-0 text-xs font-normal">{relativeTime(entry.sentAt)}</time>
 								</Item.Title>
-								<p class="text-muted-foreground truncate text-xs">
-									{place ? `${reasonLabel(entry)} · ${place}` : reasonLabel(entry)}
-								</p>
+								{#if place?.kind === 'direct'}
+									<p class="text-muted-foreground truncate text-xs">{text.directFrom} {place.personName}</p>
+								{:else if place?.kind === 'thread'}
+									<p class="text-muted-foreground flex min-w-0 items-center gap-1 text-xs">
+										{text.threadIn}
+										<Badge variant="secondary" class="h-4 min-w-0 truncate px-1.5 py-0"># {place.channelName}</Badge>
+									</p>
+								{/if}
 								<Item.Description class={cn('line-clamp-2', entry.isUnread && 'text-foreground')}>{messagePlainText(entry.text)}</Item.Description>
 							</Item.Content>
 						</button>
