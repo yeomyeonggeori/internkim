@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"flag"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -174,5 +175,27 @@ func TestReachesURLTreatsAnyHTTPResponseAsReachable(t *testing.T) {
 	server.Close()
 	if reachesURL(context.Background(), address) {
 		t.Fatal("a closed server was judged reachable")
+	}
+}
+
+func TestABoxInstalledFromAConnectionAnnouncesToTheAppThatIssuedIt(t *testing.T) {
+	connectionPath := filepath.Join(t.TempDir(), "connection.json")
+	document := `{"schemaVersion":1,"appURL":"https://company.example.com",` +
+		`"company":{"id":"00000000-0000-4000-8000-000000000001","name":"Example Co","slug":"example"},` +
+		`"centralPlane":{"projectURL":"https://project.supabase.co","publishableKey":"publishable"},` +
+		`"gatewayURL":"wss://gateway.example.com","agentKey":"` + strings.Repeat("a", 64) + `"}`
+	if errorValue := os.WriteFile(connectionPath, []byte(document), 0o600); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	flags := flag.NewFlagSet("box", flag.ContinueOnError)
+	appURL := flags.String("app-url", "https://intern.example.test", "")
+	if errorValue := flags.Parse(nil); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if announced := announcedAppURL(flags, *appURL, t.TempDir(), connectionPath); announced != "https://company.example.com" {
+		t.Errorf("a box with no remembered address announced to %s instead of the app its connection names", announced)
+	}
+	if announced := announcedAppURL(flags, *appURL, t.TempDir(), filepath.Join(t.TempDir(), "absent.json")); announced != "https://intern.example.test" {
+		t.Errorf("a box with no connection announced to %s instead of the default", announced)
 	}
 }
