@@ -1,0 +1,87 @@
+---
+title: 테스트
+description: 테스트는 세 가지이고, 언제 무엇이 도는지는 규칙 하나가 정하며, 명령 하나로 돌립니다.
+icon: FlaskConical
+---
+
+모든 변경은 세 가지 테스트로 확인합니다. 테스트마다 답하는 질문이 하나라서, 새
+테스트가 들어갈 곳도 하나로 정해집니다.
+
+| 종류 | 질문 | 위치 |
+| --- | --- | --- |
+| 유닛 | 로직이 맞는가 | `web/tests/unit/`, 소스 옆의 Go `_test.go`, `.dependency/internkim-plugin/tests/` |
+| API | 라우트가 실제 데이터베이스에서 맞게 답하고, 막아야 할 것을 막는가 | `web/tests/api/` |
+| UI | 사람이 화면에서 일을 끝까지 할 수 있는가 | `web/tests/e2e/<영역>/` |
+
+에이전트 루프도 유닛 테스트로 확인합니다. 시나리오가 모델 대신 대본을 쓰기 때문에
+매번 같은 결정을 내리고 몇 초 안에 끝납니다.
+
+## 새 테스트는 어디에
+
+함수로 부를 수 있는 로직은 유닛 테스트입니다. 로직이 Svelte 컴포넌트 안에 있으면
+먼저 함수로 꺼내고 그 함수를 테스트합니다.
+
+라우트, 도구, 권한은 API 테스트입니다. API 테스트는 시드된 구성원으로 로그인해
+브라우저가 부르는 방식 그대로 라우트를 부릅니다. 그래서 답을 확인하는 호출이 행
+수준 보안도 함께 확인합니다.
+
+화면은 그 라우트 이름의 폴더에 두는 UI 테스트입니다. `/crm`이면
+`web/tests/e2e/crm/`입니다. 내비게이션 레일이나 작업 공간의 로딩 상태처럼 한
+라우트에 속하지 않는 화면은 `web/tests/e2e/shell/`에 둡니다. 사람이 실제로 만나는
+상태를 빠짐없이 확인합니다. 로딩, 빈 화면, 오류, 권한 없음, 휴대폰 폭입니다.
+
+화면이 어떤 plane에 붙는지는 파일 이름이 정합니다.
+
+| 이름 끝 | 앱이 대화하는 곳 | 이럴 때 씁니다 |
+| --- | --- | --- |
+| `-central.spec.ts` | `supabase/seed.dev.sql`로 초기화한 로컬 Supabase | 화면이 기록을 읽거나 씁니다 |
+| `-fixture.spec.ts` | 테스트가 `page.route`로 직접 답하는 주소 | 응답을 붙잡아 두거나 정확한 모양으로 줘야 합니다 |
+| `-mocked.spec.ts` | 개발 서버의 샘플 데이터(`VITE_MOCK_*`) | 호스트가 답하는 화면이고 샘플 데이터로 충분합니다 |
+| `.spec.ts` | central plane 없음 | 메신저처럼 plane 없이도 동작하는 화면입니다 |
+
+`-central` 스펙은 모두 데이터베이스 하나를 같이 씁니다. 그래서 회사 상태를 바꾼
+테스트는 `afterAll`에서 되돌립니다.
+
+같은 사실이 두 곳에 적혀 있을 때 둘이 어긋나지 않게 하거나 저장소 전체 규칙을
+지키려고 소스 파일을 읽는 테스트는 가드입니다.
+`web/tests/conventions/`에 두고 유닛 테스트와 함께 돌립니다.
+
+## 언제 무엇이 도는가
+
+`tools/verify`가 변경이 건드린 곳을 읽고, 그 변경이 깨뜨릴 수 있는 것을 돌립니다.
+
+- 유닛과 API 테스트는 그 테스트가 다루는 코드가 바뀌면 전부 돕니다.
+- UI 테스트는 변경이 건드린 영역만 돕니다. `web/src/routes/crm/`,
+  `web/src/lib/crm/`, `web/tests/e2e/crm/` 아래가 바뀌면
+  `web/tests/e2e/crm/`이 돕니다. 컴포넌트, 스타일시트, 레이아웃, 마이그레이션처럼
+  여러 화면이 같이 쓰는 것이 바뀌면 모든 영역이 돕니다.
+
+`tools/verify --plan`은 돌리지 않고 무엇을 돌릴지만 보여 주고,
+`tools/verify --all`은 전부 돌립니다.
+
+## 직접 돌리기
+
+```bash
+cd web
+bun run test                       # 유닛과 conventions
+bun run test:api                   # API, 로컬 plane에 대고
+bun run test:e2e                   # UI 전부
+bun run test:e2e tests/e2e/crm     # 한 영역
+go test ./...                      # Go, 저장소 루트에서
+.dependency/internkim-plugin/tests/run
+```
+
+API 테스트와 `-central` UI 테스트는 `tools/with-local-plane`으로 로컬 plane을
+잡습니다. plane이 꺼져 있으면 켜고, 다른 체크아웃이 쓰고 있으면 차례를 기다립니다.
+
+## 모델 평가
+
+실제 모델에 묻는 테스트는 평가입니다. 품질을 재고, 돈이 들고, 릴리스 전에
+돌립니다. 그래서 어떤 변경도 평가 때문에 머지를 기다리지 않습니다.
+`llmeval` 태그로만 빌드되며, 태그를 켜고 빌드하는 것이 곧 돌리라는 요청입니다.
+그래서 키나 서버가 없으면 건너뛰지 않고 실패합니다. 돌릴 평가는 `-run`으로
+고릅니다.
+
+```bash
+monkeys run @test go test -tags llmeval -run OpenRouterLive ./internal/llmbackend
+```

@@ -358,26 +358,18 @@ and delete the duplicates.
 
 ## Web Test Hygiene
 
+- `docs/testing.mdx` says what the three kinds of test are, where a new one
+  goes, and when each runs. Read it before adding a test.
 - Write Bun unit tests with `test`, `expect`, and `describe` from `bun:test`.
-- Do not write top-level assertion scripts in `*.test.ts` files; Bun must report
-  real test counts.
-- Keep web unit tests under `web/tests/unit/**`. A test that reads source to
-  hold two copies of one truth, or a repository rule, together goes under
-  `web/tests/conventions/**`. `cd web && bun run test` runs both.
-- Add or update a `web/package.json` script when adding a new test category, and
-  wire important regression tests into the normal verification path.
-- The calendar, attendance and task screens read the central plane only (no
-  mockable `/calendar/api/*`, `/attendance/api/*` or `/task/api/*`), so their
-  Playwright specs run against a real local Supabase: sign in for real and seed
-  fixtures straight into `task`, `task_participant`, `attendance` and `leave`.
-  What the suites share is `web/tests/e2e/central-test-utils.ts`; the rest is
-  `calendar-`, `attendance-` and `task-central-test-utils.ts`.
-  `tools/verify`'s `web-e2e` group names which `test:e2e:*:central` scripts
-  run, each of which resets the database itself; a suite nothing runs is not a
-  gate. It is its own group and lane, never pulled in by `--only web`: a group
-  that resets the shared local database is opted into by name or by touching
-  its code. Playwright orders spec files alphabetically, so a spec that
-  changes shared company state gets a database of its own.
+  Do not write top-level assertion scripts in `*.test.ts` files; Bun must
+  report real test counts.
+- Never add a `web/package.json` script or a `tools/verify` group for one
+  screen. A spec's directory names its area and its file name (`-central`,
+  `-fixture`, `-mocked`) names its plane.
+  `tools/tests/test_verification_plan.py` fails when a test directory or a
+  `tools/tests` file is run by nothing.
+- Every `-central` spec shares one reset database, so a spec that changes
+  company state restores it in `afterAll`.
 - When the user asks to run a local web page for them to inspect, prefer the
   central plane: the local loop below, and hand over a real
   sign-in. A mock flag (`VITE_MOCK_TASKS=1` or `VITE_MOCK_ADMIN=1`, with an
@@ -448,8 +440,8 @@ and delete the duplicates.
 - One machine has one local stack, so anything using it, dev servers too, runs
   under `tools/with-local-plane <command>`. It queues a second worktree behind
   the first, starts the stack, and stops it after fifteen idle minutes.
-  `tools/verify`'s stack groups, `test:api`, the `test:e2e:*:central`
-  scripts, `./internkim dev plane` and `dev fleet run` already do.
+  `tools/verify`'s stack groups, `test:api`, `test:e2e`, `./internkim dev plane`
+  and `dev fleet run` already do.
 - `supabase/seed.dev.sql` is the only place local fixtures live, wired through
   `[db.seed]` in `config.toml`. Do not write a second seeding script; a reset
   wipes anything the file does not carry.
