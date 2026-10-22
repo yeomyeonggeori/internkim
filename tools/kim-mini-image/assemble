@@ -6,7 +6,7 @@ releaseTag="$2"
 outputImage="$3"
 wifiCountry="$4"
 timeZone="$5"
-growBy="3G"
+growBy="8G"
 root=/mnt/kim-mini
 baseImage="$(dirname "$outputImage")/$(basename "$baseImageURL")"
 
