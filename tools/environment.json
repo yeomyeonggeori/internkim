@@ -256,10 +256,6 @@
     "process": "llmbackend live tests",
     "description": "the directory internal/llmbackend's live OpenRouter truncation test writes its request and response evidence into; the test skips when it is unset"
   },
-  "INTERNKIM_LIVE_LLM_TEST": {
-    "process": "llmbackend live tests",
-    "description": "when \"1\", internal/llmbackend/openrouter_live_test.go makes a real OpenRouter call instead of skipping"
-  },
   "INTERNKIM_MM_ADMIN_PASSWORD_PATH": {
     "process": "tools/mirror-local",
     "description": "path to the local Mattermost admin password file, passed to admind's -mattermost-admin-password flag"
