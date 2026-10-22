@@ -34,10 +34,15 @@ type Setup struct {
 	SavedNetworkWaitAtBoot time.Duration
 	SetupWindow            time.Duration
 	Logf                   func(string, ...any)
+	IsOnANetwork           func(ctx context.Context) bool
 }
 
 func (setup Setup) Run(ctx context.Context) error {
 	if setup.waitUntilOnline(ctx, setup.savedNetworkWaitAtBoot()) {
+		return nil
+	}
+	if setup.IsOnANetwork != nil && setup.IsOnANetwork(ctx) {
+		setup.logf("joined a network that does not reach the internet, so %s stays closed", setup.networkName())
 		return nil
 	}
 	hasJoinFailed := false

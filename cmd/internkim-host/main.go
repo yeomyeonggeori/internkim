@@ -221,8 +221,11 @@ func withWifiSetup(daemon box.Daemon, appURL string, madeOn time.Time) box.Daemo
 	radio := boxwifi.NetworkManagerRadio{ReachesPlane: func(ctx context.Context) bool { return reachesURL(ctx, appURL) }}
 	watcherRadio := radio
 	watcherRadio.RescanMode = passiveRescanMode
-	daemon.GetOnline = func(ctx context.Context, boxPublicKey string) error {
+	daemon.GetOnline = func(ctx context.Context, boxPublicKey string, hasCompany bool) error {
 		setup := boxwifi.Setup{Radio: radio, NetworkName: boxwifi.SetupNetworkNameFor(madeOn)}
+		if hasCompany {
+			setup.IsOnANetwork = radio.IsOnANetwork
+		}
 		return setup.Run(ctx)
 	}
 	daemon.IsOnANetwork = radio.IsOnANetwork
