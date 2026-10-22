@@ -45,10 +45,10 @@ the codebase. Keep it short, concrete, and updated when workflows change.
 Nothing lands on `main` by direct push. Branch, run
 `tools/verify`, open a pull request, merge.
 
-`tools/verify` is the whole check, and `make check` is that command. It reads
-what your diff touches and runs only the groups that diff can break, at once;
-the groups, and what each one runs, are declared at the top of the file. `--all`
-runs every group and `--only <names>` runs the ones you name. Nothing runs it
+`tools/verify` is the whole check. It reads what your diff touches and runs
+only the groups that diff can break, at once; the groups, and what each one
+runs, are declared at the top of the file. `--all` runs every group, as
+`make check` does, and `--only <names>` runs the ones you name. Nothing runs it
 for you after you push: a private repository on the free plan cannot require a
 GitHub Actions check, so there are no workflows and a push that skipped
 `verify` is a push nobody checked.
