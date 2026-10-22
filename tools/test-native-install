@@ -490,7 +490,7 @@ done
 home="$(getent passwd "$person" | cut -d: -f6)"
 printf '%%s' %(phrase)s > "$home/rig-backup.md"
 chown "$person:$person" "$home/rig-backup.md"
-chmod 0640 "$home/rig-backup.md"
+chmod 0700 "$home/rig-backup.md"
 printf '%%s\n' "$home/rig-backup.md"
 """
 
@@ -2236,7 +2236,7 @@ class Rig:
             "tar restores numeric owners by default, and on a machine whose accounts were made in a different "
             "order that hands one person's files to someone else",
         ).record(
-            bool(source_owner) and owned.startswith(source_owner + " 640 ") and self.persons_phrase in owned
+            bool(source_owner) and owned.startswith(source_owner + " 700 ") and self.persons_phrase in owned
             and "workspace=blueclaw:blueclaw " in self.source_ownership and "workspace=blueclaw:blueclaw " in owned,
             f"before: {self.source_ownership.strip()}\n"
             f"archived: {archived_mode(self.archive_path, self.persons_file) if self.persons_file else 'no file'}\n"
