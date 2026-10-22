@@ -18,7 +18,7 @@
 </script>
 
 <Sidebar.MenuItem>
-	<Sidebar.MenuButton isActive={!isExternal && isActive} tooltipContent={item.label}>
+	<Sidebar.MenuButton isActive={!isExternal && isActive}>
 		{#snippet child({ props })}
 			{#if isExternal}
 				<a href={item.href} aria-label={item.label} target="_blank" rel="noopener noreferrer" {...props}>

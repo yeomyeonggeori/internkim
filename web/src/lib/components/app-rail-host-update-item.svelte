@@ -15,7 +15,6 @@
 {#if release || watch}
 	<Sidebar.MenuItem>
 		<Sidebar.MenuButton
-			tooltipContent={`${shownLabel} ${version}`}
 			aria-label={`${shownLabel} ${version}`}
 			aria-disabled={watch !== null}
 			onclick={() => release && !watch && hostUpdate.confirm(release, false)}
