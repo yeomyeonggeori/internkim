@@ -1,6 +1,6 @@
 <script lang="ts">
 	import '../app.css';
-	import { goto, invalidate } from '$app/navigation';
+	import { goto, refreshAll } from '$app/navigation';
 	import { page } from '$app/state';
 	import { myAttendanceToday } from '$lib/attendance/my-attendance-today.svelte';
 	import { pageActions } from '$lib/components/app-page-actions.svelte';
@@ -33,7 +33,6 @@
 	import { isAppShortcutMessage } from '$lib/app-shortcut-message';
 	import { isPlainShortcut } from '$lib/keyboard-shortcut';
 	import { goWhereNotificationsPoint } from '$lib/notifications/opened-notification';
-	import { webAuthSessionDependency } from '$lib/web-auth-session';
 	import { forgetSignedInAccount } from '$lib/signed-in-account-memo';
 	import { keepShellStatusBarOnPageTheme } from '$lib/native-shell/page-theme';
 	import { goWhereNativeNotificationsPoint, keepNativeDeviceClaimed } from '$lib/notifications/native-device';
@@ -118,7 +117,7 @@
 
 		const stopRevalidatingSession = revalidateOnReturn(window, document, () => {
 			forgetSignedInAccount();
-			void invalidate(webAuthSessionDependency);
+			void refreshAll();
 			invalidateCentralBuzzIdentity();
 		});
 		const stopFollowingNotifications = goWhereNotificationsPoint((path) => void goto(path));

@@ -7,7 +7,7 @@ import { projectURL } from '$lib/supabase';
 import { workspaceIdentityKey } from '$lib/workspace-identity';
 import { companyPathOf, wantsCompanyPrefix } from '$lib/company-path';
 import { withReturnPath } from '$lib/return-path';
-import { signedOutSession, webAuthSessionDependency, webAuthSessionFrom, type WebAuthSession } from '$lib/web-auth-session';
+import { signedOutSession, webAuthSessionFrom, type WebAuthSession } from '$lib/web-auth-session';
 import type { LayoutLoad } from './$types';
 
 const isBoard = import.meta.env.VITE_BUILD_TARGET === 'board';
@@ -15,8 +15,7 @@ const isBoard = import.meta.env.VITE_BUILD_TARGET === 'board';
 export const prerender = isBoard;
 export const ssr = !isBoard;
 
-export const load: LayoutLoad<{ session: WebAuthSession | null; companyLocale?: string; workspaceScope?: string }> = async ({ fetch, depends, url }) => {
-	depends(webAuthSessionDependency);
+export const load: LayoutLoad<{ session: WebAuthSession | null; companyLocale?: string; workspaceScope?: string }> = async ({ fetch, url }) => {
 	if (attendancePreviewEnabled()) return { session: { authenticated: true, email: 'sample001@example.com', image: '', canViewTasks: true, cloudflareLoginURL: '', isUnavailable: false }, companyLocale: 'ko' };
 	if (typeof window === 'undefined' || isEmbeddedFrame()) return { session: null };
 	const returnPath = url.pathname + url.search;
