@@ -39,7 +39,7 @@ describe('shared startup boundaries', () => {
 	});
 
 	test('clears the account memo for each actual return before reloading session permissions', () => {
-		expect(layout).toMatch(/revalidateOnReturn\(window, document, \(\) => \{\s*forgetSignedInAccount\(\);\s*void invalidate\(webAuthSessionDependency\);/);
+		expect(layout).toMatch(/revalidateOnReturn\(window, document, \(\) => \{\s*forgetSignedInAccount\(\);\s*void refreshAll\(\);/);
 		expect(layout).toContain('stopRevalidatingSession();');
 	});
 

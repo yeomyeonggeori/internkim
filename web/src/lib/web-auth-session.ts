@@ -1,7 +1,5 @@
 import { withReturnPath } from '$lib/return-path';
 
-export const webAuthSessionDependency = 'app:session';
-
 export type WebAuthSession = {
 	authenticated: boolean;
 	email: string;

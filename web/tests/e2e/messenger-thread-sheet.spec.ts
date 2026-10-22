@@ -112,6 +112,24 @@ test.describe('messenger thread sheet', () => {
 		await expect(page.getByText(unansweredText)).toBeVisible();
 	});
 
+	test('stays open after leaving for another program and coming back', async ({ page }) => {
+		await page.setViewportSize({ width: 1280, height: 800 });
+		await page.goto(`/messenger?channel=${channelID}`);
+		await page.getByRole('button', { name: /1개 답글/ }).click();
+		const threadSheet = page.getByRole('dialog', { name: '글타래' });
+		await expect(threadSheet).toBeVisible();
+
+		const sessionRevalidated = page.waitForResponse((response) => new URL(response.url()).pathname === '/auth/session');
+		await page.evaluate(() => {
+			window.dispatchEvent(new Event('blur'));
+			window.dispatchEvent(new Event('focus'));
+		});
+		await sessionRevalidated;
+
+		await expect(threadSheet).toBeVisible();
+		await expect(threadSheet.getByText(replyText)).toBeVisible();
+	});
+
 	test('closing the thread leaves no extra step for going back', async ({ page }) => {
 		await page.setViewportSize({ width: 1280, height: 800 });
 		await page.goto(`/messenger?channel=${channelID}`);
