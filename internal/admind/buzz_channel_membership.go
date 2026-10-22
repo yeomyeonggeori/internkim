@@ -68,6 +68,9 @@ func (service *Service) intervalUntilTheNextMembershipPass(ctx context.Context) 
 	if service.agentProfileLacksAPicture(ctx) {
 		return memberChannelFirstPassInterval
 	}
+	if service.anyoneTheRelayCannotNameYet(ctx) {
+		return memberChannelFirstPassInterval
+	}
 	return memberChannelSyncInterval
 }
 
