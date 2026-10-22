@@ -1,4 +1,5 @@
-import { isInsideCapacitorShell } from './shell';
+import { holdBackTauriNotifications } from './open-conversation-tauri';
+import { isInsideCapacitorShell, isInsideTauriShell, shellPlatform } from './shell';
 
 type ForegroundNotificationsPlugin = {
 	holdBack(options: { tag: string }): Promise<void>;
@@ -18,7 +19,12 @@ async function foregroundNotifications(): Promise<{ shell: ForegroundNotificatio
 }
 
 export async function holdBackNotificationsFor(conversationID: string | undefined): Promise<void> {
+	const tag = conversationID ? messageNotificationTag(conversationID) : '';
+	if (isInsideTauriShell()) {
+		if (shellPlatform() === 'ios') await holdBackTauriNotifications(tag);
+		return;
+	}
 	if (!isInsideCapacitorShell()) return;
 	const { shell } = await foregroundNotifications();
-	await shell.holdBack({ tag: conversationID ? messageNotificationTag(conversationID) : '' });
+	await shell.holdBack({ tag });
 }
