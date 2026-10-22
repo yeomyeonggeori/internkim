@@ -172,6 +172,7 @@
     --app-floating-action-gap: 0.75rem;
     --app-floating-action-size: 3.5rem;
 
+    --layer-app-rail: 49;
     --layer-overlay: 50;
     --layer-panel: 51;
     --layer-panel-popout: 52;
@@ -276,6 +277,10 @@
 
 [data-slot='sidebar']:has(> [data-app-rail-mode='hover']) > [data-slot='sidebar-gap'] {
   width: var(--sidebar-width-icon);
+}
+
+[data-app-rail-mode='hover'][data-slot='sidebar-container'] {
+  z-index: var(--layer-app-rail);
 }
 
 html.internkim-embedded [data-app-chrome] {
