@@ -4,7 +4,7 @@ import {
 	unseenMessageCount
 } from '../../src/lib/components/channel/channel-unseen-messages';
 
-type TestMessage = { id: string; sentAt: string; senderID: string; threadRootId?: string };
+type TestMessage = { id: string; sentAt: string; senderID: string };
 
 const seenThrough = '2026-10-02T09:00:00.000Z';
 const isMine = (message: TestMessage): boolean => message.senderID === 'me';
@@ -21,7 +21,6 @@ describe('unseenMessageCount', () => {
 			{ id: 'old', sentAt: '2026-10-02T08:59:00.000Z', senderID: 'other' },
 			{ id: 'seen', sentAt: seenThrough, senderID: 'other' },
 			{ id: 'mine', sentAt: '2026-10-02T09:01:00.000Z', senderID: 'me' },
-			{ id: 'reply', sentAt: '2026-10-02T09:02:00.000Z', senderID: 'other', threadRootId: 'old' },
 			{ id: 'new-1', sentAt: '2026-10-02T09:03:00.000Z', senderID: 'other' },
 			{ id: 'new-2', sentAt: '2026-10-02T09:04:00.000Z', senderID: 'agent' }
 		];

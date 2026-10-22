@@ -26,10 +26,15 @@ export type ReadableMessage = { id: string; sentAt: string; threadRootId?: strin
 const pendingMessagePrefix = 'pending-';
 
 export function latestSentAtOf(messages: ReadableMessage[]): string {
+	return latestSentAt(
+		messages.filter((message) => !message.threadRootId && !message.id.startsWith(pendingMessagePrefix))
+	);
+}
+
+export function latestSentAt(messages: ReadableMessage[]): string {
 	let latest = '';
 	let latestMilliseconds = Number.NEGATIVE_INFINITY;
 	for (const message of messages) {
-		if (message.threadRootId || message.id.startsWith(pendingMessagePrefix)) continue;
 		const sentAtMilliseconds = Date.parse(message.sentAt);
 		if (sentAtMilliseconds > latestMilliseconds) {
 			latest = message.sentAt;
