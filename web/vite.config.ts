@@ -57,6 +57,10 @@ export default defineConfig(({ mode }) => {
 			entries: ['src/**/*.svelte']
 		},
 		server: {
+			warmup: {
+				clientFiles: ['./src/routes/**/+layout.svelte', './src/routes/**/+page.svelte'],
+				ssrFiles: ['./src/routes/**/+layout.svelte', './src/routes/**/+page.svelte']
+			},
 			allowedHosts: env.VITE_ALLOWED_HOSTS ? env.VITE_ALLOWED_HOSTS.split(',') : undefined,
 			proxy: {
 				'/admin/api': admindProxy(admindTarget),
