@@ -61,10 +61,12 @@ targets:
         CFBundleVersion: "0.1.0"
         AppIdentifierPrefix: $(AppIdentifierPrefix)
         UIBackgroundModes: [remote-notification]
+        NSUserActivityTypes: [INSendMessageIntent]
     entitlements:
       path: internkim-tauri_iOS/internkim-tauri_iOS.entitlements
       properties:
         aps-environment: development
+        com.apple.developer.usernotifications.communication: true
         com.apple.developer.associated-domains:
           - webcredentials:intern.kim
         com.apple.security.application-groups:
@@ -87,6 +89,8 @@ targets:
       groups: [app]
     dependencies:
       - target: AttendanceWidget
+        embed: true
+      - target: NotificationService
         embed: true
       - framework: libapp.a
         embed: false
@@ -141,3 +145,31 @@ targets:
     dependencies:
       - sdk: WidgetKit.framework
       - sdk: SwiftUI.framework
+  NotificationService:
+    type: app-extension
+    platform: iOS
+    deploymentTarget: "15.0"
+    sources:
+      - path: ../../../ios/App/NotificationService
+        excludes: ["Info.plist"]
+    info:
+      path: NotificationService/Info.plist
+      properties:
+        CFBundleDisplayName: NotificationService
+        CFBundleShortVersionString: 0.1.0
+        CFBundleVersion: "0.1.0"
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.usernotifications.service
+          NSExtensionPrincipalClass: $(PRODUCT_MODULE_NAME).NotificationService
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: app.intern.kim.NotificationService
+        PRODUCT_NAME: NotificationService
+        DEVELOPMENT_TEAM: 54YH9ZX7FX
+        SWIFT_VERSION: "5.0"
+        GENERATE_INFOPLIST_FILE: false
+        ARCHS: [arm64]
+        SKIP_INSTALL: true
+    dependencies:
+      - sdk: Intents.framework
+      - sdk: UserNotifications.framework
