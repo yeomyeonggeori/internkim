@@ -26,7 +26,7 @@ go test ./internal/capabilityd/ -run 'Catalog|Gate|Uncovered|Carrying' -count=1
 
 echo
 echo "== the central plane half"
-(cd web && ./scripts/test-integration.sh tests/integration)
+(cd web && ./scripts/test-against-local-plane.sh tests/api)
 
 onTheDevice="$(python3 - <<'PYTHON'
 import re, pathlib

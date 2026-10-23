@@ -361,8 +361,9 @@ and delete the duplicates.
 - Write Bun unit tests with `test`, `expect`, and `describe` from `bun:test`.
 - Do not write top-level assertion scripts in `*.test.ts` files; Bun must report
   real test counts.
-- Keep web unit tests under `web/tests/unit/**` and make them runnable through
-  `cd web && bun test tests/unit`.
+- Keep web unit tests under `web/tests/unit/**`. A test that reads source to
+  hold two copies of one truth, or a repository rule, together goes under
+  `web/tests/conventions/**`. `cd web && bun run test` runs both.
 - Add or update a `web/package.json` script when adding a new test category, and
   wire important regression tests into the normal verification path.
 - The calendar, attendance and task screens read the central plane only (no
@@ -395,21 +396,21 @@ and delete the duplicates.
 - The OpenAPI document is that API's contract, generated in
   `docs/web/app/lib/openapi.ts` and served to both the reference site and the
   docs build. Tool paths come from the catalog; the rest are written by hand,
-  so `web/tests/integration/public-api-route.test.ts` holds the routes and the
+  so `web/tests/api/public-api-route.test.ts` holds the routes and the
   document to each other. An endpoint added to one is added to the other.
-- That integration suite is also the API's smoke check. `cd web && bun run
-  test:integration` runs the route handlers against the local control plane, so
-  it costs nothing: no model, no messenger, no host. It covers refusals, the
-  catalog, the token lifecycle, and that an invocation is refused rather than
-  answered here when no gateway is configured. Add a case there when an
-  endpoint is added, and run it before deploying the web app.
+- That API suite is also the smoke check. `cd web && bun run test:api` runs
+  the route handlers against the local control plane, so it costs nothing: no
+  model, no messenger, no host. It covers refusals, the catalog, the token
+  lifecycle, and that an invocation is refused rather than answered here when
+  no gateway is configured. Add a case there when an endpoint is
+  added, and run it before deploying the web app.
 - **The web UI reaches the record through that API, never through Supabase
   itself.** A browser `.rpc()` or `.from(...).insert()` is a second
   implementation of something the API already answers, and the two drift. Call
   `invokeTool` in `web/src/lib/public-api-call.ts`.
   Where the browser's behaviour is the better one, move that behaviour into the
   API and retire the browser copy; do not weaken the screen to fit a thinner
-  tool. `web/tests/unit/browser-supabase-call-sites.json` is the inventory of
+  tool. `web/tests/conventions/browser-supabase-call-sites.json` is the inventory of
   what has not migrated, by file and call, split into `record` (still needs a
   tool) and `allowed` (kept on purpose, grouped by a declared reason: `auth`
   resolves the session, `realtime` names a channel or subscription, `storage`
@@ -447,7 +448,7 @@ and delete the duplicates.
 - One machine has one local stack, so anything using it, dev servers too, runs
   under `tools/with-local-plane <command>`. It queues a second worktree behind
   the first, starts the stack, and stops it after fifteen idle minutes.
-  `tools/verify`'s stack groups, `test:integration`, the `test:e2e:*:central`
+  `tools/verify`'s stack groups, `test:api`, the `test:e2e:*:central`
   scripts, `./internkim dev plane` and `dev fleet run` already do.
 - `supabase/seed.dev.sql` is the only place local fixtures live, wired through
   `[db.seed]` in `config.toml`. Do not write a second seeding script; a reset
@@ -511,8 +512,8 @@ and delete the duplicates.
   Registry components style their states through those variants while bits-ui
   emits `data-state="..."`, so a missing declaration silently disables every
   active/open/checked style with no error anywhere. `bun test
-  tests/unit/components/shadcn-setup.test.ts` guards this; when the CLI adds a
-  variant, copy the canonical block instead of writing a shorter one by hand.
+  tests/conventions/components/shadcn-setup.test.ts` guards this; when the CLI
+  adds a variant, copy the canonical block instead of writing a shorter one by hand.
   Read it from the CLI package itself (`npm pack shadcn-svelte@<version>`, then
   `package/dist/tailwind.css`) rather than reconstructing it.
 - When a registry component looks wrong, first prove where the difference is:

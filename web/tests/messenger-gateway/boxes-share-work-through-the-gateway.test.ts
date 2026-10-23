@@ -7,7 +7,7 @@ import { x25519 } from '@noble/curves/ed25519.js';
 import { base64URLOf } from '../../src/lib/company/seal-to-box';
 import { announceBox, boxSessionFor, claimBox, makeBoxServe, verifyBoxCode } from '../../src/lib/server/box';
 import { controlPlane, provisionCompany } from '../../src/lib/server/control-plane';
-import { projectURL, publishableKey, serviceRoleKey, signingKey } from '../integration/supabase-environment';
+import { projectURL, publishableKey, serviceRoleKey, signingKey } from '../support/supabase-environment';
 
 const repositoryRoot = resolve(import.meta.dir, '../../..');
 const gatewayDirectory = join(repositoryRoot, 'workers/connection-gateway');

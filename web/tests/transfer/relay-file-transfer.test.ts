@@ -16,7 +16,7 @@ import {
 import type { CompanyEvent } from '../../src/lib/company-event';
 import { transferThroughTheHost, type HostConnection } from '../../src/lib/transfer/host-transfer';
 import { uploadToStore } from '../../src/lib/transfer/store-upload';
-import { projectURL, publishableKey, serviceRoleKey, signingKey } from '../integration/supabase-environment';
+import { projectURL, publishableKey, serviceRoleKey, signingKey } from '../support/supabase-environment';
 
 const mebibyte = 1024 * 1024;
 const fileBytes = 320 * mebibyte;

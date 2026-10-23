@@ -1,5 +1,4 @@
 import { expect, test } from 'bun:test';
-import { readFileSync } from 'node:fs';
 
 test('central identity verifies scope, persists only the tab key, and rejects late or revoked claims', async () => {
 	const fixture = new URL('./central-buzz-identity.fixture.ts', import.meta.url).pathname;
@@ -27,15 +26,4 @@ test('central identity verifies scope, persists only the tab key, and rejects la
 	expect(result.getUserCalls).toBeGreaterThan(6);
 	expect(result.memberCalls).toBeGreaterThan(5);
 	expect(result.owners[0]).toMatchObject({ accountID: 'account-a', companyID: 'company-a', accessToken: 'sample-token-a' });
-});
-
-test('sign-in completes without a host claim while messenger and Buzz connect request identity on demand', () => {
-	const read = (path: string) => readFileSync(new URL(`../../src/${path}`, import.meta.url), 'utf8');
-	const gate = read('lib/components/web-auth-gate.svelte');
-	expect(gate).not.toContain('claimCentralBuzzSecret');
-	expect(gate).toContain('location.reload();');
-	expect(gate).toContain("await import('$lib/buzz-key-login')");
-	expect(read('routes/messenger/messenger.svelte')).toContain('onMount(keepCentralBuzzIdentity);');
-	expect(read('lib/components/buzz/buzz-connect-dialog.svelte')).toContain('await ensureCentralBuzzIdentity();');
-	expect(read('lib/supabase-session.ts')).toContain('forgetCentralBuzzIdentity();');
 });

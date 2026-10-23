@@ -1,5 +1,4 @@
 import { describe, expect, test } from 'bun:test';
-import { readFileSync } from 'node:fs';
 
 interface ShellOutcome {
 	gateText: string | null;
@@ -25,18 +24,5 @@ describe('an effect that throws inside the app rail', () => {
 	test('freezes the gate when nothing contains it', async () => {
 		const { uncontained } = await mountShellInBrowserEnvironment();
 		expect(uncontained.gateText).not.toBe('signed-in-check-resolved');
-	});
-});
-
-describe('the root layout', () => {
-	const layout = readFileSync(new URL('../../../src/routes/+layout.svelte', import.meta.url), 'utf8');
-
-	test('contains the app rail in an effect error boundary', () => {
-		expect(layout).toMatch(/<EffectErrorBoundary region="app rail">\s*<AppRail[^>]*\/>\s*<\/EffectErrorBoundary>/);
-	});
-
-	test('renders the page through a boundary everywhere it renders children', () => {
-		expect(layout.match(/\{@render children\(\)\}/g)?.length).toBe(1);
-		expect(layout).toMatch(/\{#snippet contained\(\)\}\s*\{#key workspaceScope\}\s*<EffectErrorBoundary region="page">\s*\{@render children\(\)\}\s*<\/EffectErrorBoundary>\s*\{\/key\}/);
 	});
 });
