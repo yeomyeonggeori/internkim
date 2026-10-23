@@ -1,0 +1,89 @@
+---
+title: Testing
+description: Three kinds of test, one rule for when each runs, and the command that runs them.
+icon: FlaskConical
+---
+
+Every change is checked by three kinds of test. Each answers one question, so a
+new test belongs to exactly one of them.
+
+| Kind | Question | Where it lives |
+| --- | --- | --- |
+| Unit | Is the logic right? | `web/tests/unit/`, Go `_test.go` files beside their source, `.dependency/internkim-plugin/tests/` |
+| API | Does a route answer correctly against a real database, and refuse what it must? | `web/tests/api/` |
+| UI | Can a person finish the job on screen? | `web/tests/e2e/<area>/` |
+
+The agent loop is unit tested too. Its scenarios replace the model with a script,
+so they decide the same way every run and finish in seconds.
+
+## Where a new test goes
+
+Logic that can be called as a function is a unit test. When the logic sits inside
+a Svelte component, move it into a function first and test that.
+
+A route, a tool or a permission is an API test. API tests sign in as a seeded
+member and call the route the way the browser would, so row level security is
+checked by the same call that checks the answer.
+
+A screen is a UI test in the directory named after its route, such as
+`web/tests/e2e/crm/` for `/crm`. Screens that belong to no single route, like the
+navigation rail or the workspace loading states, live in `web/tests/e2e/shell/`.
+Cover the states a person actually meets: loading, empty, an error, a missing
+permission and a phone-width screen.
+
+The file name says which plane the screen runs against:
+
+| Name ends in | The app talks to | Use it when |
+| --- | --- | --- |
+| `-central.spec.ts` | the local Supabase stack, reset to `supabase/seed.dev.sql` | the screen reads or writes the record |
+| `-fixture.spec.ts` | an address the test answers itself with `page.route` | the test must hold a response back or shape it exactly |
+| `-mocked.spec.ts` | the dev server's sample data (`VITE_MOCK_*`) | the screen is host-backed and the sample data is enough |
+| `.spec.ts` | no central plane | the screen works without one, like the messenger against a stubbed relay |
+
+A test that changes company state puts it back in `afterAll`, because every
+`-central` spec shares one database.
+
+Tests that read source files to keep two copies of one fact in step, or to hold a
+repository-wide rule, are guards. They live in
+`web/tests/conventions/` and run with the unit tests.
+
+## When each runs
+
+`tools/verify` reads what a change touches and runs what it can break:
+
+- Unit and API tests run in full for any change to the code they cover.
+- UI tests run for the areas a change touches. A change under
+  `web/src/routes/crm/`, `web/src/lib/crm/` or `web/tests/e2e/crm/` runs
+  `web/tests/e2e/crm/`. A change to anything shared, such as a component, a
+  stylesheet, the layout or a migration, runs every area.
+
+`tools/verify --plan` prints what a change would run without running it, and
+`tools/verify --all` runs everything.
+
+## Running them yourself
+
+```bash
+cd web
+bun run test                       # unit and conventions
+bun run test:api                   # API, against the local plane
+bun run test:e2e                   # every UI test
+bun run test:e2e tests/e2e/crm     # one area
+go test ./...                      # Go, from the repository root
+.dependency/internkim-plugin/tests/run
+```
+
+The API and `-central` UI tests take the local plane with
+`tools/with-local-plane`, which starts it if it is stopped and makes a second
+checkout wait its turn.
+
+## Model evaluations
+
+Tests that ask a real model are evaluations. They measure quality, cost money,
+and run before a release, so no change waits on them to merge. They build only
+with the `llmeval` tag. Building with the tag is the request to run them, so a
+missing key or server fails instead of skipping. Name the evaluation with
+`-run`:
+
+```bash
+monkeys run @test go test -tags llmeval -run OpenRouterLive ./internal/llmbackend
+```
