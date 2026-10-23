@@ -463,7 +463,7 @@ export async function companyRecordUpdate(
 	if (orNull(input.category)) change.category = input.category?.trim();
 	if (orNull(input.date)) change.record_date = input.date?.trim();
 	if (orNull(input.title)) change.title = input.title?.trim();
-	if (orNull(input.detail)) change.detail = input.detail?.trim();
+	if (input.detail !== undefined) change.detail = orNull(input.detail);
 	if (attributes) change.attributes = attributes;
 	if (input.status) change.status = input.status;
 	if (input.amount) Object.assign(change, { amount: input.amount.amount, currency_code: input.amount.currency });

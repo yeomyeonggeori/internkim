@@ -174,7 +174,7 @@ const companyRecordUpdateInputSchema = z.strictObject({
   attributes: z.string().describe("JSON object string replacing the stored attributes. Omit to keep unchanged.").optional(),
   category: z.string().describe("New category. Omit to keep unchanged.").optional(),
   date: momentSchema.describe("New date: YYYY-MM-DD, YYYY-MM, YYYY-Q1 to YYYY-Q4, YYYY-H1 or YYYY-H2, or YYYY. Omit to keep unchanged.").optional(),
-  detail: z.string().describe("New detail text. Omit to keep unchanged.").optional(),
+  detail: z.string().describe("New detail text. An empty string clears it. Omit to keep unchanged.").optional(),
   recordHint: z.string().describe("The record to update: its id from a prior company_record_list result, or its exact CURRENT title. Never the new title this call is about to set."),
   status: companyRecordStatusSchema.describe("New status, e.g. 'completed' when a round closes. Omit to keep unchanged.").optional(),
   title: z.string().describe("New title. Omit to keep unchanged.").optional(),

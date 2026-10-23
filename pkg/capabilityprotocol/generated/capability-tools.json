@@ -22169,7 +22169,7 @@
             "type": "string"
           },
           "detail": {
-            "description": "New detail text. Omit to keep unchanged.",
+            "description": "New detail text. An empty string clears it. Omit to keep unchanged.",
             "type": "string"
           },
           "status": {
@@ -22225,7 +22225,7 @@
             "type": "string"
           },
           "detail": {
-            "description": "New detail text. Omit to keep unchanged.",
+            "description": "New detail text. An empty string clears it. Omit to keep unchanged.",
             "type": "string"
           },
           "recordHint": {

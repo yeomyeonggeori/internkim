@@ -295,6 +295,17 @@ describe('what happened to the company', () => {
 		expect(resultOf(written).category).toBe('funding');
 	});
 
+	test('clears a detail given as an empty string and keeps one left out', async () => {
+		const described = await asAdmin('company_record_update', { recordHint: seedRecordID, detail: 'Led by a sample fund' });
+		const kept = await asAdmin('company_record_update', { recordHint: seedRecordID, status: 'completed' });
+		const cleared = await asAdmin('company_record_update', { recordHint: seedRecordID, detail: '' });
+
+		expect(resultOf(described).detail).toBe('Led by a sample fund');
+		expect(resultOf(kept).detail).toBe('Led by a sample fund');
+		expect(cleared.status).toBe(200);
+		expect(resultOf(cleared).detail).toBeNull();
+	});
+
 	test('asks which one when a title names more than one', async () => {
 		await asAdmin('company_record_add', { category: 'product', title: 'Design award 2026' });
 
