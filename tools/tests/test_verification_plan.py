@@ -34,8 +34,26 @@ class VerificationPlanTests(unittest.TestCase):
         module = verification_module()
         group = next(group for group in module.GROUPS if group.name == "e2e")
         with patch.object(module, "end_to_end_areas", return_value=["crm", "shell", "task"]):
-            for shared in ["web/src/app.css", "web/src/lib/components/ui/button/button.svelte", "web/src/routes/+layout.svelte", "web/tests/e2e/support/central-test-utils.ts", "supabase/migrations/20990101000000_example.sql"]:
+            for shared in ["web/src/app.css", "web/src/lib/components/ui/button/button.svelte", "web/src/routes/+layout.svelte", "web/tests/e2e/support/central-test-utils.ts", "web/src/lib/server/public-api/record/company-tools.ts"]:
                 self.assertEqual(group.narrowed_to(["web/src/routes/crm/text.ts", shared]).commands, [["scripts/e2e.sh"]], shared)
+
+    def test_a_database_change_runs_only_the_specs_on_the_local_plane(self):
+        module = verification_module()
+        group = next(group for group in module.GROUPS if group.name == "e2e")
+        with patch.object(module, "end_to_end_areas", return_value=["crm", "shell", "task"]):
+            for database in ["supabase/migrations/20990101000000_example.sql", "supabase/seed.dev.sql"]:
+                self.assertTrue(group.is_touched_by([database]), database)
+                self.assertEqual(group.narrowed_to([database]).commands, [["scripts/e2e.sh", "--project=central"]], database)
+
+    def test_a_database_change_beside_one_area_runs_that_area_on_the_other_planes(self):
+        module = verification_module()
+        group = next(group for group in module.GROUPS if group.name == "e2e")
+        changed = ["supabase/migrations/20990101000000_example.sql", "web/src/routes/crm/text.ts"]
+        with patch.object(module, "end_to_end_areas", return_value=["crm", "shell", "task"]):
+            self.assertEqual(group.narrowed_to(changed).commands, [
+                ["scripts/e2e.sh", "--project=central"],
+                ["scripts/e2e.sh", "--project=fixture", "--project=mocked", "--project=standalone", "tests/e2e/crm"],
+            ])
 
     def test_every_spec_sits_in_an_area_named_after_a_route_or_the_shell(self):
         module = verification_module()

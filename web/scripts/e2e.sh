@@ -6,8 +6,8 @@ cd "$repository/web"
 
 selects_central_specs() {
   local listed
-  listed="$(bunx playwright test --list --project=central "$@" 2>/dev/null || true)"
-  grep -q -- '-central\.spec\.ts' <<<"$listed"
+  listed="$(bunx playwright test --list "$@" 2>/dev/null || true)"
+  grep -q -- '\[central\]' <<<"$listed"
 }
 
 if [ -z "${LOCAL_PLANE_LOCK_HOLDER:-}" ] && selects_central_specs "$@"; then
