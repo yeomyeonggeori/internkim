@@ -314,8 +314,11 @@ and delete the duplicates.
   (`internal/localfleet/service.go`), which its own `--help` prints.
 - Use scripted virtual sessions only for deterministic runtime invariants such
   as state transitions, approval, cancellation, effects, and evidence.
-- Keep default tests deterministic. Model evaluations require `llmeval`; preserve
-  live request, response, routing, tool, timing, and artifact evidence.
+- Keep default tests deterministic. Model evaluations build only with the
+  `llmeval` tag, and building with it is the request to run them: a missing
+  key, server or input fails and names itself, never skips. No environment
+  switch stands beside the tag. Preserve live request, response, routing, tool,
+  timing, and artifact evidence.
 - Each gate answers one question, and naming which keeps the slow one from
   becoming a ritual nobody runs:
 
@@ -370,6 +373,11 @@ and delete the duplicates.
   `tools/tests` file is run by nothing.
 - Every `-central` spec shares one reset database, so a spec that changes
   company state restores it in `afterAll`.
+- Test what a person or a caller sees, never the text of the source. A test
+  that reads a `.svelte` file to find a class name or a call passes when the
+  screen is broken and fails when it is rewritten correctly. Reading source is
+  allowed only under `web/tests/conventions/`, to hold two copies of one fact
+  together or to enforce a repository rule.
 - When the user asks to run a local web page for them to inspect, prefer the
   central plane: the local loop below, and hand over a real
   sign-in. A mock flag (`VITE_MOCK_TASKS=1` or `VITE_MOCK_ADMIN=1`, with an
