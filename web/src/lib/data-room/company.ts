@@ -96,7 +96,6 @@ export type RecordGroup = { category: string; records: CompanyRecord[] };
 export const fundingCategories = ['funding', 'grant'];
 export const proofCategories = ['certification', 'ip', 'award', 'reference'];
 const headlineMetric = 'annualRevenue';
-export const headcountMetric = 'employees';
 
 export function isEmptyCompany(company: DataRoomCompany): boolean {
 	return Object.keys(company.profile).length === 0 && company.metrics.length === 0 && company.records.length === 0
@@ -271,12 +270,6 @@ function changeBetween(earlier: CompanyMetric, later: CompanyMetric): MetricChan
 export function headlineSeries(series: CompanyMetricSeries[]): CompanyMetricSeries | undefined {
 	return series.find((candidate) => candidate.metric === headlineMetric)
 		?? series.find((candidate) => candidate.latest.amount !== undefined);
-}
-
-export function headcount(company: DataRoomCompany): number | undefined {
-	if (company.profile.employeeCount !== undefined) return company.profile.employeeCount;
-	const series = metricSeries(company.metrics).find((candidate) => candidate.metric === headcountMetric);
-	return series ? metricNumber(series.latest) : undefined;
 }
 
 export function yearsOperating(foundedDate: string | undefined, today: Date): number | undefined {
