@@ -24,8 +24,6 @@
 		companyFactGroups,
 		formatMetricValue,
 		fundingCategories,
-		headcount,
-		headcountMetric,
 		headlineSeries,
 		isEmptyCompany,
 		localized,
@@ -73,10 +71,9 @@
 	const slogan = $derived(localized(profile.slogan, locale));
 	const description = $derived(localized(profile.description, locale));
 	const factGroups = $derived(companyFactGroups(profile, locale));
-	const people = $derived(headcount(company));
+	const people = $derived(profile.employeeCount);
 	const metrics = $derived(
 		metricSeries(company.metrics)
-			.filter((series) => people === undefined || series.metric !== headcountMetric)
 			.toSorted((left, right) => Number(right.latest.amount !== undefined) - Number(left.latest.amount !== undefined))
 	);
 	const metricColumns = $derived(metrics.length % 3 === 0 || metrics.length > 4 ? 3 : Math.min(metrics.length, 2));

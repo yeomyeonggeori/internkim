@@ -6,7 +6,6 @@ import {
 	companyFactGroups,
 	dataRoomCompanySchema,
 	fiscalYearEndLabel,
-	headcount,
 	isEmptyCompany,
 	localized,
 	metricBars,
@@ -143,12 +142,6 @@ describe('the company a data room shows', () => {
 		expect(milestoneRecords(records).map((entry) => entry.title)).toEqual(['Tokyo office', 'Founded', 'Undated note']);
 	});
 
-	test('counts people from the profile first, then from the latest headcount metric', () => {
-		const employees = (year: number, value: number): CompanyMetric => ({ metric: 'employees', period: String(year), value });
-		expect(headcount({ profile: { employeeCount: 9 }, metrics: [employees(2026, 30)], records: [] })).toBe(9);
-		expect(headcount({ profile: {}, metrics: [employees(2025, 20), employees(2026, 30)], records: [] })).toBe(30);
-		expect(headcount({ profile: {}, metrics: [], records: [] })).toBeUndefined();
-	});
 
 	test('says how long the company has been running and names its fiscal year end month', () => {
 		expect(yearsOperating('2021-03-15', new Date('2026-10-16'))).toBe(6);
