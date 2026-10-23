@@ -1073,5 +1073,15 @@
 		"path": "person_update.result.departureDate",
 		"reason": "A person names their last working day, so the headcount stops counting them once it has passed.",
 		"release": "the web/API deployment that applies the member kind migration, with the host release that carries the updated catalog"
+	},
+	{
+		"path": "company_info_get.result.representativePersonID",
+		"reason": "The representative is a member of the company, marked by member.is_representative and held to one per company, so the answer says which person it is beside the name and title it prints.",
+		"release": "the release carrying this catalog reaches company hosts by ship-host before the web/API deploy, after the migration that adds member.is_representative; a host still on the older catalog refuses these answers until it takes the catalog"
+	},
+	{
+		"path": "company_info_set.result.representativePersonID",
+		"reason": "The representative is a member of the company, marked by member.is_representative and held to one per company, so the answer says which person it is beside the name and title it prints.",
+		"release": "the release carrying this catalog reaches company hosts by ship-host before the web/API deploy, after the migration that adds member.is_representative; a host still on the older catalog refuses these answers until it takes the catalog"
 	}
 ]

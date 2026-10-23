@@ -1,6 +1,6 @@
 import type { OrgGroup, UserRecord } from '$lib/organization/types';
 
-type LastSeenDirectory = { records: UserRecord[]; groups: OrgGroup[] };
+type LastSeenDirectory = { records: UserRecord[]; groups: OrgGroup[]; representativeID: string };
 
 let held: { scope: string; directory: LastSeenDirectory } | null = null;
 

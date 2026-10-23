@@ -1,0 +1,106 @@
+alter table public.member add column is_representative boolean not null default false;
+
+alter table public.member
+  add constraint member_one_representative_per_company
+  exclude (company_id with =) where (is_representative)
+  deferrable initially deferred;
+
+comment on column public.member.is_representative is
+  'this member represents the company in law; their name is the member''s and their title is their job title';
+
+grant select (is_representative) on public.member to anon, authenticated;
+
+create function public.company_representative_set(representative uuid)
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  own_company uuid := internal.company_of_member(public.my_member());
+begin
+  if not public.is_company_admin() then
+    raise insufficient_privilege using message = 'only an administrator names the company''s representative';
+  end if;
+  if representative is not null and internal.company_of_member(representative) is distinct from own_company then
+    raise exception 'that person belongs to another company';
+  end if;
+  if representative is not null and not exists (
+    select from public.member where id = representative and kind = 'human'
+  ) then
+    raise exception 'only a person can represent the company';
+  end if;
+  update public.member
+  set is_representative = (representative is not null and id = representative)
+  where company_id = own_company and (is_representative or id = representative);
+end;
+$$;
+
+revoke execute on function public.company_representative_set(uuid) from public, anon;
+grant execute on function public.company_representative_set(uuid) to authenticated;
+
+update public.company set profile = profile - 'representative' - 'representativeTitle';
+
+create or replace function internal.data_room_company_shown(target_company uuid, shown_categories text[])
+returns jsonb language sql stable security definer set search_path = ''
+as $$
+  select jsonb_build_object(
+    'profile', (
+      select coalesce(jsonb_object_agg(entry.key, entry.value), '{}')
+      from public.company company, jsonb_each(company.profile) entry
+      where company.id = target_company
+        and internal.data_room_field_category(target_company, entry.key) = any(shown_categories)
+    ) || case when internal.data_room_field_category(target_company, 'employeeCount') = any(shown_categories)
+      then jsonb_build_object('employeeCount', internal.company_headcount(target_company))
+      else '{}'::jsonb end || coalesce((
+      select jsonb_strip_nulls(jsonb_build_object(
+        'representative', representative.name,
+        'representativeTitle', nullif(btrim(representative.job_title), '')))
+      from public.member representative
+      where representative.company_id = target_company and representative.is_representative
+        and internal.data_room_field_category(target_company, 'representative') = any(shown_categories)
+    ), '{}'),
+    'metrics', (
+      select coalesce(jsonb_agg(jsonb_strip_nulls(jsonb_build_object(
+        'metric', metric.metric, 'period', metric.period,
+        'amount', case when metric.currency_code is not null
+          then jsonb_build_object('amount', metric.value, 'currency', metric.currency_code) end,
+        'usdEquivalent', metric.value_usd,
+        'value', case when metric.currency_code is null then metric.value end,
+        'unit', metric.unit, 'note', metric.note, 'recordedAt', metric.updated_at
+      )) order by metric.metric, internal.moment_start(metric.period), metric.period), '[]')
+      from public.company_metric metric
+      where metric.company_id = target_company
+        and internal.data_room_field_category(target_company, metric.metric) = any(shown_categories)
+    ),
+    'records', (
+      select coalesce(jsonb_agg(jsonb_strip_nulls(jsonb_build_object(
+        'category', record.category, 'date', record.record_date, 'title', record.title,
+        'detail', record.detail, 'status', record.status,
+        'amount', case when record.currency_code is not null
+          then jsonb_build_object('amount', record.amount, 'currency', record.currency_code) end,
+        'committedMinor', case when record.status = 'in_progress' and record.currency_code is not null then (
+          select jsonb_build_object('amountMinor', coalesce(sum(case
+              when deal.base_currency_code = record.currency_code then deal.base_amount_minor
+              when deal.currency_code = record.currency_code then deal.amount_minor end), 0),
+            'currency', record.currency_code)
+          from public.opportunity deal
+          where deal.funding_record_id = record.id and deal.stage_id = 'done' and deal.archived_at is null) end,
+        'attributes', record.attributes
+      )) order by internal.moment_start(record.record_date) desc nulls last, record.title), '[]')
+      from public.company_record record
+      where record.company_id = target_company
+        and internal.data_room_field_category(target_company, record.category) = any(shown_categories)
+    )
+  ) || case when internal.data_room_field_category(target_company, 'activity') = any(shown_categories)
+      and internal.data_room_activity(target_company) is not null
+    then jsonb_build_object('activity', internal.data_room_activity(target_company))
+    else '{}'::jsonb end
+    || case when internal.data_room_field_category(target_company, 'ownership') = any(shown_categories)
+      and internal.data_room_ownership(target_company) is not null
+    then jsonb_build_object('ownership', internal.data_room_ownership(target_company))
+    else '{}'::jsonb end
+    || coalesce((select jsonb_build_object('logoPath', company.profile_image)
+      from public.company company
+      where company.id = target_company and company.profile_image is not null), '{}'::jsonb);
+$$;

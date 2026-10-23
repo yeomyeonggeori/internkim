@@ -43,6 +43,7 @@ type OrganizationDirectoryPageText = PageText<typeof organizationDirectoryText>;
 export class OrganizationDirectoryController {
 	records = $state<UserRecord[]>([]);
 	groups = $state<OrgGroup[]>([]);
+	representativeID = $state('');
 	query = $state('');
 	groupID = $state('');
 	selectedUserID = $state('');
@@ -86,6 +87,7 @@ export class OrganizationDirectoryController {
 		const cached = lastSeenDirectory(workspaceScope);
 		this.records = cached?.records ?? [];
 		this.groups = cached?.groups ?? [];
+		this.representativeID = cached?.representativeID ?? '';
 		this.isLoading = !cached;
 	}
 
@@ -96,8 +98,8 @@ export class OrganizationDirectoryController {
 
 	get organizationSections(): OrganizationOrganizationSection[] {
 		const records = filterOrganizationRecords(this.records, { query: this.query, groupID: this.groupID === unassignedGroupID ? unassignedGroupID : '' });
-		if (this.groupID === unassignedGroupID) return organizationOrganizationSections(records, [], this.text.unassignedTeam);
-		return organizationOrganizationSections(records, this.activeGroups, this.text.allOrganizations, this.groupID, this.records, this.resolveLocale());
+		if (this.groupID === unassignedGroupID) return organizationOrganizationSections(records, [], this.text.unassignedTeam, '', records, this.resolveLocale(), this.representativeID);
+		return organizationOrganizationSections(records, this.activeGroups, this.text.allOrganizations, this.groupID, this.records, this.resolveLocale(), this.representativeID);
 	}
 
 	get activeGroups(): OrgGroup[] {
@@ -128,7 +130,8 @@ export class OrganizationDirectoryController {
 			const response = await fetchOrganizationDirectory();
 			if (this.isDisposed || generation !== this.loadGeneration) return;
 			this.applyUsersResponse(response);
-			rememberDirectory(this.workspaceScope, { records: this.records, groups: this.groups });
+			this.representativeID = response.representativeID ?? '';
+			rememberDirectory(this.workspaceScope, { records: this.records, groups: this.groups, representativeID: this.representativeID });
 			this.clearSelection();
 		} catch (error) {
 			if (this.isDisposed || generation !== this.loadGeneration) return;

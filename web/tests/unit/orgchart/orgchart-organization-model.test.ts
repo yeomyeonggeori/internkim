@@ -101,46 +101,29 @@ describe('organization organization model', () => {
 		expect(productSection?.responsibleUserID).toBe('leader');
 	});
 
-	test('carries company responsibility into the organization containing the company leader', () => {
-		const companyLeader = record('company-leader', 'leadership');
-		const productLeader = { ...record('product-leader', 'product'), supervisorID: 'company-leader' };
+	test('marks the representative the company names in every organization, beside each team head', () => {
+		const representative = record('representative', 'leadership');
+		const productLeader = { ...record('product-leader', 'product'), supervisorID: 'representative' };
 		const employee = { ...record('employee', 'product'), supervisorID: 'product-leader' };
 		const groups: OrgGroup[] = [
 			{ id: 'leadership', name: '경영' },
 			{ id: 'product', name: '제품팀' }
 		];
 
-		const sections = organizationOrganizationSections([companyLeader, productLeader, employee], groups, '전체 조직');
+		const sections = organizationOrganizationSections([representative, productLeader, employee], groups, '전체 조직', '', undefined, 'ko', 'representative');
 		const leadershipSection = sections.find((section) => section.id === 'leadership');
 		const productSection = sections.find((section) => section.id === 'product');
 
-		expect(leadershipSection?.companyResponsibleUserID).toBe('company-leader');
-		expect(productSection?.companyResponsibleUserID).toBe('company-leader');
-		expect(leadershipSection?.responsibleUserID).toBe('company-leader');
+		expect(leadershipSection?.representativeID).toBe('representative');
+		expect(productSection?.representativeID).toBe('representative');
+		expect(leadershipSection?.responsibleUserID).toBe('representative');
 		expect(productSection?.responsibleUserID).toBe('product-leader');
 	});
 
-	test('keeps the company representative when someone reports to a person outside the directory', () => {
-		const companyLeader = record('company-leader', 'leadership');
-		const hiddenReport = { ...record('hidden-report', 'product'), supervisorID: 'resigned-leader' };
-		const groups: OrgGroup[] = [
-			{ id: 'leadership', name: '경영' },
-			{ id: 'product', name: '제품팀' }
-		];
+	test('names no representative the company has not named, whoever lacks a supervisor', () => {
+		const sections = organizationOrganizationSections([record('only-root', 'product')], [{ id: 'product', name: '제품팀' }], '전체 조직');
 
-		const sections = organizationOrganizationSections([companyLeader, hiddenReport], groups, '전체 조직');
-
-		expect(sections[0]?.companyResponsibleUserID).toBe('company-leader');
-	});
-
-	test('does not name a company representative when nobody or several people lack a supervisor', () => {
-		const groups: OrgGroup[] = [{ id: 'product', name: '제품팀' }];
-		const firstLeader = record('first-leader', 'product');
-		const secondLeader = record('second-leader', 'product');
-
-		const sections = organizationOrganizationSections([firstLeader, secondLeader], groups, '전체 조직');
-
-		expect(sections[0]?.companyResponsibleUserID).toBe(undefined);
+		expect(sections[0]?.representativeID).toBe(undefined);
 	});
 
 	test('does not assign responsibility when an organization has multiple hierarchy roots', () => {

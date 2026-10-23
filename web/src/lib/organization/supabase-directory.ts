@@ -17,6 +17,7 @@ type AnsweredPerson = {
 };
 
 type AnsweredPeople = { count: number; people: AnsweredPerson[] };
+type AnsweredCompany = { representativePersonID: string | null };
 
 type AnsweredTeam = {
 	teamID: string;
@@ -28,13 +29,15 @@ type AnsweredTeam = {
 type AnsweredTeams = { count: number; teams: AnsweredTeam[] };
 
 export async function supabaseOrganizationDirectory(): Promise<UsersResponse> {
-	const [people, teams] = await Promise.all([
+	const [people, teams, company] = await Promise.all([
 		invokeTool<AnsweredPeople>('person_list', {}),
-		invokeTool<AnsweredTeams>('team_list', {})
+		invokeTool<AnsweredTeams>('team_list', {}),
+		invokeTool<AnsweredCompany>('company_info_get', {})
 	]);
 	return {
 		records: people.people.filter((person) => person.kind === 'human').map(recordOf),
-		availableGroups: teams.teams.map(groupOf)
+		availableGroups: teams.teams.map(groupOf),
+		...(company.representativePersonID ? { representativeID: company.representativePersonID } : {})
 	};
 }
 

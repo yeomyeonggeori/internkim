@@ -19825,6 +19825,16 @@
           "representative": {
             "type": "string"
           },
+          "representativePersonID": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "representativeTitle": {
             "type": "string"
           },
@@ -19846,6 +19856,7 @@
           "description",
           "representative",
           "representativeTitle",
+          "representativePersonID",
           "address",
           "officeAddress",
           "jurisdiction",
@@ -19973,6 +19984,16 @@
             "representative": {
               "type": "string"
             },
+            "representativePersonID": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
             "representativeTitle": {
               "type": "string"
             },
@@ -19994,6 +20015,7 @@
             "description",
             "representative",
             "representativeTitle",
+            "representativePersonID",
             "address",
             "officeAddress",
             "jurisdiction",
@@ -20120,12 +20142,8 @@
             "description": "Main company phone number.",
             "type": "string"
           },
-          "representative": {
-            "description": "Representative's name; use the romanized name for the 'en' slot.",
-            "type": "string"
-          },
-          "representativeTitle": {
-            "description": "Representative's title. Defaults to the one customary in the language asked for.",
+          "representativePersonHint": {
+            "description": "The person who represents the company in law: their personID from person_list, or their name or email as written. Their directory name and job title print as the representative. An empty string clears it.",
             "type": "string"
           },
           "sealImage": {
@@ -20227,12 +20245,8 @@
             "description": "Main company phone number.",
             "type": "string"
           },
-          "representative": {
-            "description": "Representative's name; use the romanized name for the 'en' slot.",
-            "type": "string"
-          },
-          "representativeTitle": {
-            "description": "Representative's title. Defaults to the one customary in the language asked for.",
+          "representativePersonHint": {
+            "description": "The person who represents the company in law: their personID from person_list, or their name or email as written. Their directory name and job title print as the representative. An empty string clears it.",
             "type": "string"
           },
           "sealImage": {
@@ -20363,6 +20377,16 @@
           "representative": {
             "type": "string"
           },
+          "representativePersonID": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "representativeTitle": {
             "type": "string"
           },
@@ -20384,6 +20408,7 @@
           "description",
           "representative",
           "representativeTitle",
+          "representativePersonID",
           "address",
           "officeAddress",
           "jurisdiction",
@@ -20517,6 +20542,16 @@
             "representative": {
               "type": "string"
             },
+            "representativePersonID": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
             "representativeTitle": {
               "type": "string"
             },
@@ -20538,6 +20573,7 @@
             "description",
             "representative",
             "representativeTitle",
+            "representativePersonID",
             "address",
             "officeAddress",
             "jurisdiction",

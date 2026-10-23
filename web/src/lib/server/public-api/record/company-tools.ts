@@ -13,6 +13,7 @@ import {
 	type CompanyProfileUpdate
 } from './company-profile';
 import { titleNearness } from './hint-nearness';
+import { personOfHint, type RecordPerson } from './people';
 import { HintRefused, normalized, resolveHint, type HintMatcher } from './hint-resolution';
 import { RecordRefusedTheWrite, statusOfPostgresCode } from './tasks';
 import type { RecordContext } from './company';
@@ -41,7 +42,7 @@ export type CompanySettingsUpdateInput = {
 
 export type CompanyInfoGetInput = { language?: string };
 
-export type CompanyInfoSetInput = CompanyProfileUpdate & Partial<Record<ServiceFileImageField, string>>;
+export type CompanyInfoSetInput = CompanyProfileUpdate & { representativePersonHint?: string } & Partial<Record<ServiceFileImageField, string>>;
 
 export type CompanyHolidayListInput = { year?: number };
 
@@ -206,8 +207,8 @@ export async function companyInfoGet(
 	context: RecordContext,
 	input: CompanyInfoGetInput
 ): Promise<CompanyProfileResult> {
-	const row = await companyRow(context.caller);
-	return companyProfileView(profileOf(row.profile), languageAsked(input.language), await headcountOf(context));
+	const [row, representativeID, headcount] = await Promise.all([companyRow(context.caller), representativeIDHeld(context), headcountOf(context)]);
+	return companyProfileView(profileOf(row.profile), languageAsked(input.language), headcount, representativeOf(context, representativeID));
 }
 
 export async function companyInfoSet(
@@ -217,14 +218,39 @@ export async function companyInfoSet(
 	const language = languageAsked(input.language);
 	const row = await companyRow(context.caller);
 	const written = profileWithUpdate(profileOf(row.profile), input, language, context.now);
+	const held = await representativeIDHeld(context);
+	const representativeID = representativeIDAsked(context, input.representativePersonHint, held);
 
 	await keepUploadedImages(context, input);
-	await writeTheCompany(
-		context,
-		{ profile: written },
-		'only an administrator can change the company master profile'
-	);
-	return companyProfileView(written, language, await headcountOf(context));
+	await writeTheCompany(context, { profile: written }, 'only an administrator can change the company master profile');
+	if (representativeID !== held) await nameTheRepresentative(context, representativeID);
+	return companyProfileView(written, language, await headcountOf(context), representativeOf(context, representativeID));
+}
+
+async function representativeIDHeld(context: RecordContext): Promise<string | null> {
+	const { data, error } = await context.caller
+		.from('member')
+		.select('id')
+		.eq('company_id', context.companyID)
+		.eq('is_representative', true)
+		.maybeSingle<{ id: string }>();
+	if (error) throw new Error(error.message);
+	return data?.id ?? null;
+}
+
+async function nameTheRepresentative(context: RecordContext, representativeID: string | null): Promise<void> {
+	const { error } = await context.caller.rpc('company_representative_set', { representative: representativeID });
+	if (error) throw new RecordRefusedTheWrite(error.message, statusOfPostgresCode(error.code));
+}
+
+function representativeIDAsked(context: RecordContext, hint: string | undefined, held: string | null): string | null {
+	if (hint === undefined) return held;
+	if (!hint.trim()) return null;
+	return personOfHint(context.people, hint).personID;
+}
+
+function representativeOf(context: RecordContext, representativeID: string | null): RecordPerson | undefined {
+	return context.people.find((person) => person.personID === representativeID);
 }
 
 function holidaysHeld(rules: Record<string, unknown> | null): StoredHoliday[] {

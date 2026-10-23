@@ -42,8 +42,8 @@ describe('the company a data room shows', () => {
 	test('lists only the facts it was given, legal attributes under their own labels', () => {
 		const groups = companyFactGroups({
 			capital: { amount: 500000000, currency: 'KRW' },
-			representative: { ko: '이샘플' },
-			representativeTitle: { ko: '대표이사' },
+			representative: '샘플 이',
+			representativeTitle: '대표이사',
 			phone: '02-0000-0000',
 			legalAttributes: { ko: { '사업자등록번호': '123-45-67890' } }
 		}, 'ko');
