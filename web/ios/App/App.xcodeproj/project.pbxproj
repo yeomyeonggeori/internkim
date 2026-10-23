@@ -41,6 +41,7 @@
 		7A11C0DE0000000000000115 /* AttendanceActivityAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A11C0DE000000000000010E /* AttendanceActivityAttributes.swift */; };
 		7A11C0DE000000000000012A /* AttendanceActivityAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A11C0DE000000000000010E /* AttendanceActivityAttributes.swift */; };
 		7A11C0DE0000000000000118 /* AttendanceLockScreenCards.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A11C0DE0000000000000112 /* AttendanceLockScreenCards.swift */; };
+		7A11C0DE0000000000000902 /* SilentPush.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A11C0DE0000000000000901 /* SilentPush.swift */; };
 		7A11C0DE000000000000012C /* AttendanceLockScreenCards.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A11C0DE0000000000000112 /* AttendanceLockScreenCards.swift */; };
 		7A11C0DE000000000000012B /* AttendanceLiveActivity.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A11C0DE000000000000010F /* AttendanceLiveActivity.swift */; };
 		7A11C0DE0000000000000116 /* AttendanceActivityPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A11C0DE0000000000000110 /* AttendanceActivityPlugin.swift */; };
@@ -137,6 +138,7 @@
 		7A11C0DE0000000000000119 /* AttendanceLocationPicker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AttendanceLocationPicker.swift; sourceTree = "<group>"; };
 		7A11C0DE000000000000010E /* AttendanceActivityAttributes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AttendanceActivityAttributes.swift; sourceTree = "<group>"; };
 		7A11C0DE0000000000000112 /* AttendanceLockScreenCards.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AttendanceLockScreenCards.swift; sourceTree = "<group>"; };
+		7A11C0DE0000000000000901 /* SilentPush.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SilentPush.swift; sourceTree = "<group>"; };
 		7A11C0DE000000000000010F /* AttendanceLiveActivity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AttendanceLiveActivity.swift; sourceTree = "<group>"; };
 		7A11C0DE0000000000000110 /* AttendanceActivityPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AttendanceActivityPlugin.swift; sourceTree = "<group>"; };
 		7A11C0DE0000000000000201 /* AttendanceTodayCasesTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AttendanceTodayCasesTests.swift; sourceTree = "<group>"; };
@@ -265,6 +267,7 @@
 				7A11C0DE0000000000000103 /* AttendanceToday.swift */,
 				7A11C0DE000000000000010E /* AttendanceActivityAttributes.swift */,
 				7A11C0DE0000000000000112 /* AttendanceLockScreenCards.swift */,
+				7A11C0DE0000000000000901 /* SilentPush.swift */,
 				7A11C0DE000000000000011B /* AttendanceDefaultWorkplace.swift */,
 				7A11C0DE0000000000000301 /* AttendanceWidgetCache.swift */,
 			);
@@ -482,6 +485,7 @@
 				7A11C0DE0000000000000114 /* AttendanceWidgetPlugin.swift in Sources */,
 				7A11C0DE0000000000000115 /* AttendanceActivityAttributes.swift in Sources */,
 				7A11C0DE0000000000000118 /* AttendanceLockScreenCards.swift in Sources */,
+				7A11C0DE0000000000000902 /* SilentPush.swift in Sources */,
 				7A11C0DE0000000000000116 /* AttendanceActivityPlugin.swift in Sources */,
 				7A11C0DE0000000000000401 /* AttendanceAPI.swift in Sources */,
 				7A11C0DE0000000000000402 /* AttendanceToday.swift in Sources */,

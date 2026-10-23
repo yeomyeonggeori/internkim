@@ -1,0 +1,3 @@
+[default]
+description = "Handles the pushes the app acts on without showing them"
+permissions = []
