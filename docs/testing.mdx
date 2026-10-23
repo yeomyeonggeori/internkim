@@ -55,7 +55,8 @@ repository-wide rule, are guards. They live in
 - UI tests run for the areas a change touches. A change under
   `web/src/routes/crm/`, `web/src/lib/crm/` or `web/tests/e2e/crm/` runs
   `web/tests/e2e/crm/`. A change to anything shared, such as a component, a
-  stylesheet, the layout or a migration, runs every area.
+  stylesheet or the layout, runs every area. A migration or the seed reaches
+  only the specs on the local plane, so it runs every `-central` spec.
 
 `tools/verify --plan` prints what a change would run without running it, and
 `tools/verify --all` runs everything.

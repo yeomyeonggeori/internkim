@@ -44,6 +44,8 @@ class Group:
 
 END_TO_END_DIRECTORY = REPOSITORY_ROOT / "web" / "tests" / "e2e"
 AREA_ROOTS = ("web/src/routes/", "web/src/lib/", "web/tests/e2e/")
+DATABASE_PATTERNS = ("supabase/migrations/*", "supabase/seed.dev.sql")
+PLANES_WITHOUT_THE_DATABASE = ("fixture", "mocked", "standalone")
 
 
 def end_to_end_areas():
@@ -63,12 +65,21 @@ class EndToEndGroup(Group):
         super().__init__(name, patterns, [["scripts/e2e.sh"]], working_directory="web", lane=lane)
 
     def narrowed_to(self, changed_paths):
+        touched = [path for path in changed_paths if self.matches(path)]
+        database_paths = [path for path in touched if reaches_only_the_database(path)]
         known_areas = end_to_end_areas()
-        areas = {end_to_end_area_of(path, known_areas) for path in changed_paths if self.matches(path)}
+        areas = {end_to_end_area_of(path, known_areas) for path in touched if path not in database_paths}
         if None in areas:
             return self
-        directories = [f"tests/e2e/{area}" for area in sorted(areas)]
-        return Group(self.name, self.patterns, [["scripts/e2e.sh", *directories]], self.working_directory, self.lane)
+        commands = [["scripts/e2e.sh", "--project=central"]] if database_paths else []
+        if areas:
+            planes = [f"--project={plane}" for plane in PLANES_WITHOUT_THE_DATABASE] if database_paths else []
+            commands.append(["scripts/e2e.sh", *planes, *(f"tests/e2e/{area}" for area in sorted(areas))])
+        return Group(self.name, self.patterns, commands, self.working_directory, self.lane)
+
+
+def reaches_only_the_database(path):
+    return any(fnmatch.fnmatch(path, pattern) for pattern in DATABASE_PATTERNS)
 
 
 BUN_INSTALL = ["bun", "install", "--frozen-lockfile"]
