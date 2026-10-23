@@ -201,6 +201,15 @@ stackIsServing() {
   [ -n "$(servingStackIdentifier)" ]
 }
 
+servingStackHasSleepingServices() {
+  (cd "$repositoryRoot" && supabase status --output-format json 2>/dev/null) \
+    | python3 -c '
+import json, sys
+services = json.load(sys.stdin).get("services", [])
+sys.exit(0 if any(service["state"] == "sleeping" for service in services) else 1)
+' 2>/dev/null
+}
+
 currentBranchContext() {
   git -C "$repositoryRoot" symbolic-ref -q HEAD 2>/dev/null || true
 }
@@ -267,14 +276,24 @@ destroyOwnStacksOnAnotherRuntime() {
   done
 }
 
+stopOwnStackWhenAsleep() {
+  local stackIdentifier
+  stackIdentifier="$(servingStackIdentifier)"
+  if [ -z "$stackIdentifier" ] || ! servingStackHasSleepingServices; then
+    return 0
+  fi
+  stopStack "$stackIdentifier" "started without --eager, so a service sleeps until a request wakes it"
+}
+
 startStackWhenDown() {
   destroyOwnStacksOnAnotherRuntime
+  stopOwnStackWhenAsleep
   if stackIsServing; then
     return 0
   fi
   freePortsFromOtherCheckouts
   printf 'starting the local plane\n' >&2
-  (cd "$repositoryRoot" && runQuietlyUnlessItFails supabase start --runtime "$stackRuntime" --output-format text)
+  (cd "$repositoryRoot" && runQuietlyUnlessItFails supabase start --runtime "$stackRuntime" --eager --output-format text)
 }
 
 scheduleStopWhenIdle() {
