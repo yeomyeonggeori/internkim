@@ -108,3 +108,27 @@ func answerDevtoolsWithNoPages(writer http.ResponseWriter, request *http.Request
 		}
 	}
 }
+
+type guardHoldingNothing struct{}
+
+func (guardHoldingNothing) IsGuarding(context.Context, string) bool { return true }
+
+func (guardHoldingNothing) Settle(context.Context) {}
+
+func (guardHoldingNothing) NotePasswordInputs(context.Context) {}
+
+func (guardHoldingNothing) TakeWithheld() browserruntime.GuardedRequests {
+	return browserruntime.GuardedRequests{}
+}
+
+func (guardHoldingNothing) Resend(context.Context, browserruntime.WithheldRequest, string, func() error) error {
+	return nil
+}
+
+func (guardHoldingNothing) Close() {}
+
+func guardsHoldingNothing() *browserRequestGuards {
+	return &browserRequestGuards{attach: func(context.Context, string) (pageRequestGuard, error) {
+		return guardHoldingNothing{}, nil
+	}}
+}

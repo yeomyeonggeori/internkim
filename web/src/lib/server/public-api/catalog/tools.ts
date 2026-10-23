@@ -856,6 +856,7 @@ export const imageReadResultSchema = z.strictObject({
 
 export const browserOpenInputSchema = z.strictObject({
   url: resourceIDSchema.describe('Absolute HTTP or HTTPS URL to open.'),
+  withheldRequest: browserWithheldRequestSchema,
 });
 
 export const browserOpenInputIntentSchema = browserOpenInputSchema.partial();
@@ -869,7 +870,9 @@ export const browserOpenResultSchema = z.strictObject({
   capturedAt: resourceIDSchema,
 });
 
-export const browserSnapshotInputSchema = z.strictObject({});
+export const browserSnapshotInputSchema = z.strictObject({
+  withheldRequest: browserWithheldRequestSchema,
+});
 
 export const browserSnapshotResultSchema = z.strictObject({
   url: resourceIDSchema.optional(),
@@ -880,7 +883,9 @@ export const browserSnapshotResultSchema = z.strictObject({
   capturedAt: resourceIDSchema,
 });
 
-export const browserScreenshotInputSchema = z.strictObject({});
+export const browserScreenshotInputSchema = z.strictObject({
+  withheldRequest: browserWithheldRequestSchema,
+});
 
 export const browserScreenshotResultSchema = z.strictObject({
   ok: z.literal(true),

@@ -17,8 +17,9 @@ func browserSnapshotFrom(requesterEmail string) string {
 func TestEachRequesterDrivesTheirOwnDeviceBrowser(t *testing.T) {
 	var argumentsByCall [][]string
 	service := Service{
-		Configuration:  Configuration{AgentBrowserPath: "agent-browser-test"},
-		DeviceBrowsers: fakeDeviceBrowsers(4, time.Now()),
+		Configuration:        Configuration{AgentBrowserPath: "agent-browser-test"},
+		DeviceBrowsers:       fakeDeviceBrowsers(4, time.Now()),
+		browserRequestGuards: guardsHoldingNothing(),
 		RunCommand: func(_ context.Context, _ string, commandArguments []string, _ []byte) ([]byte, error) {
 			argumentsByCall = append(argumentsByCall, append([]string{}, commandArguments...))
 			return []byte(`{"success":true,"data":{"snapshot":"","refs":{}}}`), nil
@@ -48,8 +49,9 @@ func TestEachRequesterDrivesTheirOwnDeviceBrowser(t *testing.T) {
 func TestABusyDeviceTellsTheAgentTheBrowserIsTaken(t *testing.T) {
 	browsers, launchStarted, finishLaunch := deviceBrowsersWhoseLaunchWaits(1)
 	service := Service{
-		Configuration:  Configuration{AgentBrowserPath: "agent-browser-test", DeviceBrowserCapacity: 1},
-		DeviceBrowsers: browsers,
+		Configuration:        Configuration{AgentBrowserPath: "agent-browser-test", DeviceBrowserCapacity: 1},
+		DeviceBrowsers:       browsers,
+		browserRequestGuards: guardsHoldingNothing(),
 		RunCommand: func(context.Context, string, []string, []byte) ([]byte, error) {
 			return []byte(`{"success":true,"data":{"snapshot":"","refs":{}}}`), nil
 		},
@@ -82,8 +84,9 @@ func TestDeviceBrowserToolRunsThroughMoliRuntime(t *testing.T) {
 	}
 	var calls []commandCall
 	service := Service{
-		Configuration:  Configuration{AgentBrowserPath: "agent-browser-test"},
-		DeviceBrowsers: fakeDeviceBrowsers(4, time.Now()),
+		Configuration:        Configuration{AgentBrowserPath: "agent-browser-test"},
+		DeviceBrowsers:       fakeDeviceBrowsers(4, time.Now()),
+		browserRequestGuards: guardsHoldingNothing(),
 		RunCommand: func(_ context.Context, path string, commandArguments []string, _ []byte) ([]byte, error) {
 			calls = append(calls, commandCall{path: path, arguments: append([]string{}, commandArguments...)})
 			if slices.Contains(commandArguments, "get") && slices.Contains(commandArguments, "url") {

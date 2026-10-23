@@ -76,16 +76,25 @@ answering does not need a second yes. That is `currentThread` and
 conversation. A direct message to anyone else, or to the requester from a
 channel, still asks.
 
-Browser actions ask by what the page sends. While `browser_click`,
-`browser_fill`, `browser_select` or `browser_press` runs, and for a second
-after, every request the page makes with a method other than GET, HEAD,
-OPTIONS or TRACE (the safe methods of RFC 9110) is stopped before it leaves.
-The question shows each one's method, address and form fields as the browser
-would have sent them. Approving sends exactly those, once, from the same
-browser with its cookies. Declining sends nothing. Beacons
-(`navigator.sendBeacon`) caught in that second are dropped without a question,
-and a browser that cannot stop requests does not act at all. GET requests, and
-requests a page makes on its own outside that second, are not asked about.
+Browser calls ask by what the page would send in your name. While the agent's
+browser runs, a request with a method other than GET, HEAD, OPTIONS or TRACE
+(the safe methods of RFC 9110) is stopped before it leaves when the browser
+holds cookies for its address, or when it is a form carrying a field the page
+marks as a password. The browser's own cookie jar decides, so a search form on
+a site that never set a cookie goes out unasked. A request stopped during a
+browser call makes that call ask. One a page sends later by itself, such as a
+delayed send, is put to you on the next browser call, which waits for your
+answer before it runs. The question shows each request's method, address and
+form fields, with password values hidden. Approving sends exactly those, once,
+from the same browser with its cookies. Declining sends nothing. Beacons
+(`navigator.sendBeacon`) that would carry cookies are dropped without a
+question, and a browser that cannot stop requests does not act at all. GET
+requests are not asked about.
+
+The approved request is kept in the hold, so it survives a restart. A password
+is the exception: it stays only in the browser service's memory, and if that
+service restarted before you approved, nothing is sent and the agent asks
+again.
 
 <Callout>
 A held call is persisted to the task ledger as `approval.hold_opened`, so an

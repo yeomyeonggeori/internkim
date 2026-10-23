@@ -40,11 +40,7 @@ type devtoolsConnection struct {
 	readDone chan struct{}
 }
 
-func dialDevtools(ctx context.Context, devtoolsURL string) (*devtoolsConnection, error) {
-	socketURL, errorValue := devtoolsBrowserSocketURL(ctx, devtoolsURL)
-	if errorValue != nil {
-		return nil, errorValue
-	}
+func dialDevtoolsSocket(ctx context.Context, socketURL string) (*devtoolsConnection, error) {
 	socket, _, errorValue := websocket.Dial(ctx, socketURL, nil)
 	if errorValue != nil {
 		return nil, fmt.Errorf("the device browser's DevTools socket could not be opened: %w", errorValue)

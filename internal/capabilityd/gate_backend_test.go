@@ -128,7 +128,7 @@ func serviceReaching(t *testing.T, reaches map[gateBackend]*standingIn) Service 
 			t.Fatalf("no stand-in knows how to be %s", backend)
 		}
 	}
-	service := Service{Configuration: configuration, DeviceBrowsers: deviceBrowsers}
+	service := Service{Configuration: configuration, DeviceBrowsers: deviceBrowsers, browserRequestGuards: &browserRequestGuards{}}
 	if runsACommand != nil {
 		service.RunCommand = func(_ context.Context, executablePath string, arguments []string, _ []byte) ([]byte, error) {
 			runsACommand.mutex.Lock()
