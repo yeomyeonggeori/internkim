@@ -46,13 +46,15 @@ cat > "$fakeBinaries/supabase" <<FAKE
 [ -n "\${SUPABASE_AUTH_SIGNING_KEYS_PATH:-}" ] && echo "SUPABASE_AUTH_SIGNING_KEYS_PATH=\$SUPABASE_AUTH_SIGNING_KEYS_PATH" >> "$fakeState/calls"
 owner=unavailable
 [ -e "$fakeState/stack" ] && owner=reachable
+storage=running
+[ -e "$fakeState/asleep" ] && storage=sleeping
 case "\$1 \${2:-}" in
   "--version "*) cat "$fakeState/version" 2>/dev/null || echo 2.119.0 ;;
-  "status "*) printf '{"identity":{"id":"fake-stack"},"owner":"%s"}\n' "\$owner" ;;
-  "start "*) touch "$fakeState/stack" ;;
+  "status "*) printf '{"identity":{"id":"fake-stack"},"owner":"%s","services":[{"service":"storage","state":"%s"}]}\n' "\$owner" "\$storage" ;;
+  "start "*) touch "$fakeState/stack"; [[ " \$* " == *" --eager "* ]] || touch "$fakeState/asleep" ;;
   "gen signing-key") echo '{"kty":"EC","kid":"fake"}' ;;
   "stack list") cat "$fakeState/stacks.json" 2>/dev/null || echo '{"stacks":[]}' ;;
-  "stack stop") rm -f "$fakeState/stack" ;;
+  "stack stop") rm -f "$fakeState/stack" "$fakeState/asleep" ;;
   "stack destroy") rm -f "$fakeState/stack" ;;
 esac
 FAKE
@@ -188,7 +190,7 @@ fi
 signingKeysPath="$checkoutRoot/supabase/.temp/local-signing-keys.json"
 resetFakes
 "$withLocalPlane" sh -c "[ -e '$fakeState/stack' ]" 2> /dev/null || fail "a command under the lock ran before the stopped plane was started"
-if ! called "supabase start --runtime native --output-format text"; then
+if ! called "supabase start --runtime native --eager --output-format text"; then
   fail "the lock found the plane down and did not start it on the native runtime"
 fi
 if [ "$(python3 -c 'import json, sys; print(json.load(open(sys.argv[1]))[0]["kid"])' "$signingKeysPath" 2>/dev/null)" != "fake" ]; then
@@ -245,8 +247,23 @@ STACKS
 if ! called "supabase stack destroy --stack-id own-on-docker --yes --output-format text"; then
   fail "the lock reused a stack of its own checkout recorded on a runtime other than native"
 fi
-if ! called "supabase start --runtime native --output-format text"; then
+if ! called "supabase start --runtime native --eager --output-format text"; then
   fail "the lock destroyed a stack on another runtime and did not start a native one"
+fi
+
+resetFakes stack asleep
+"$withLocalPlane" true 2> /dev/null
+if ! called "supabase stack stop --stack-id fake-stack --output-format text"; then
+  fail "the lock ran a command on a plane whose services sleep until a request wakes them"
+fi
+if ! called "supabase start --runtime native --eager --output-format text"; then
+  fail "the lock stopped a sleeping plane and did not start it with every service awake"
+fi
+
+resetFakes stack
+"$withLocalPlane" true 2> /dev/null
+if called "supabase stack stop --stack-id fake-stack --output-format text"; then
+  fail "the lock restarted a plane whose services were all awake"
 fi
 
 resetFakes stack
@@ -286,4 +303,4 @@ if [ "$failures" -ne 0 ]; then
   exit 1
 fi
 
-echo "the local plane lock queues concurrent commands, starts the native stack and stops it when idle"
+echo "the local plane lock queues concurrent commands, starts the native stack with every service awake and stops it when idle"
