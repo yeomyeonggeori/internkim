@@ -15463,6 +15463,10 @@
             "minLength": 1,
             "pattern": "^\\S(?:.*\\S)?$",
             "type": "string"
+          },
+          "withheldRequest": {
+            "description": "Leave unset. The runtime sets it when the requester approves a request the page tried to send.",
+            "type": "string"
           }
         },
         "type": "object"
@@ -15475,6 +15479,10 @@
             "description": "Absolute HTTP or HTTPS URL to open.",
             "minLength": 1,
             "pattern": "^\\S(?:.*\\S)?$",
+            "type": "string"
+          },
+          "withheldRequest": {
+            "description": "Leave unset. The runtime sets it when the requester approves a request the page tried to send.",
             "type": "string"
           }
         },
@@ -15600,7 +15608,12 @@
       "inputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
-        "properties": {},
+        "properties": {
+          "withheldRequest": {
+            "description": "Leave unset. The runtime sets it when the requester approves a request the page tried to send.",
+            "type": "string"
+          }
+        },
         "type": "object"
       },
       "inputSchemaStrict": true,
@@ -15718,7 +15731,12 @@
       "inputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
-        "properties": {},
+        "properties": {
+          "withheldRequest": {
+            "description": "Leave unset. The runtime sets it when the requester approves a request the page tried to send.",
+            "type": "string"
+          }
+        },
         "type": "object"
       },
       "inputSchemaStrict": true,
@@ -16437,6 +16455,10 @@
             "type": "string"
           },
           "target": {
+            "type": "string"
+          },
+          "withheldRequest": {
+            "description": "Leave unset. The runtime sets it when the requester approves a request the page tried to send.",
             "type": "string"
           }
         },

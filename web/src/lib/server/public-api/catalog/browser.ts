@@ -48,6 +48,7 @@ const browserWaitInputSchema = z.strictObject({
   ref: z.string().optional(),
   selector: z.string().optional(),
   target: z.string().optional(),
+  withheldRequest: browserWithheldRequestSchema,
 });
 
 const browserFillResultSchema = z.strictObject({

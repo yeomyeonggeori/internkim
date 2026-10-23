@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"log"
 	"net/http"
 	"strings"
 	"sync"
@@ -25,30 +26,48 @@ var safeRequestMethods = map[string]bool{
 	http.MethodTrace:   true,
 }
 
+var documentTargetTypes = map[string]bool{"page": true, "iframe": true}
+
 type WithheldRequest struct {
 	Method        string            `json:"method"`
 	URL           string            `json:"url"`
 	Headers       map[string]string `json:"headers,omitempty"`
-	Body          string            `json:"body,omitempty"`
 	IsBodyMissing bool              `json:"isBodyMissing,omitempty"`
 	ResourceType  string            `json:"resourceType"`
 }
 
+type HeldRequest struct {
+	Request        WithheldRequest
+	Body           string
+	PasswordFields []string
+}
+
 type GuardedRequests struct {
-	Withheld        []WithheldRequest
+	Held            []HeldRequest
 	WithheldBeacons int
-	IsResent        bool
+}
+
+type pendingResend struct {
+	request   WithheldRequest
+	body      string
+	isClaimed bool
 }
 
 type RequestGuard struct {
-	connection *devtoolsConnection
-	resend     *WithheldRequest
-	mutex      sync.Mutex
-	watched    map[string]bool
-	attachment error
-	outcome    GuardedRequests
-	processed  atomic.Int64
-	handled    chan struct{}
+	connection   *devtoolsConnection
+	socketURL    string
+	mutex        sync.Mutex
+	watched      map[string]bool
+	sessionTypes map[string]string
+	attachment   error
+	withheld     GuardedRequests
+	passwords    map[string]bool
+	resend       *pendingResend
+	resending    sync.Mutex
+	processed    atomic.Int64
+	answering    map[int64]chan struct{}
+	nextAnswer   int64
+	handled      chan struct{}
 }
 
 type attachedTarget struct {
@@ -59,15 +78,22 @@ type attachedTarget struct {
 	} `json:"targetInfo"`
 }
 
+type detachedTarget struct {
+	SessionID string `json:"sessionId"`
+}
+
 type pausedRequest struct {
 	RequestID    string `json:"requestId"`
 	ResourceType string `json:"resourceType"`
 	Request      struct {
-		URL         string            `json:"url"`
-		Method      string            `json:"method"`
-		Headers     map[string]string `json:"headers"`
-		PostData    string            `json:"postData"`
-		HasPostData bool              `json:"hasPostData"`
+		URL             string            `json:"url"`
+		Method          string            `json:"method"`
+		Headers         map[string]string `json:"headers"`
+		PostData        string            `json:"postData"`
+		HasPostData     bool              `json:"hasPostData"`
+		PostDataEntries []struct {
+			Bytes string `json:"bytes"`
+		} `json:"postDataEntries"`
 	} `json:"request"`
 }
 
@@ -77,31 +103,45 @@ type devtoolsHeader struct {
 }
 
 func GuardRequests(ctx context.Context, devtoolsURL string) (*RequestGuard, error) {
-	return startRequestGuard(ctx, devtoolsURL, nil)
+	setupContext, cancel := context.WithTimeout(ctx, requestGuardSetupTimeout)
+	defer cancel()
+	socketURL, errorValue := devtoolsBrowserSocketURL(setupContext, devtoolsURL)
+	if errorValue != nil {
+		return nil, errorValue
+	}
+	connection, errorValue := dialDevtoolsSocket(setupContext, socketURL)
+	if errorValue != nil {
+		return nil, errorValue
+	}
+	guard := &RequestGuard{
+		connection:   connection,
+		socketURL:    socketURL,
+		watched:      map[string]bool{},
+		sessionTypes: map[string]string{},
+		passwords:    map[string]bool{},
+		answering:    map[int64]chan struct{}{},
+		handled:      make(chan struct{}),
+	}
+	go guard.handleEvents()
+	if errorValue := guard.watchEveryPage(setupContext); errorValue != nil {
+		guard.Close()
+		return nil, errorValue
+	}
+	return guard, nil
 }
 
-func GuardResending(ctx context.Context, devtoolsURL string, request WithheldRequest) (*RequestGuard, error) {
-	return startRequestGuard(ctx, devtoolsURL, &request)
+func (guard *RequestGuard) IsGuarding(ctx context.Context, devtoolsURL string) bool {
+	select {
+	case <-guard.handled:
+		return false
+	default:
+	}
+	socketURL, errorValue := devtoolsBrowserSocketURL(ctx, devtoolsURL)
+	return errorValue == nil && socketURL == guard.socketURL
 }
 
 func isSafeRequestMethod(method string) bool {
 	return safeRequestMethods[strings.ToUpper(strings.TrimSpace(method))]
-}
-
-func startRequestGuard(ctx context.Context, devtoolsURL string, resend *WithheldRequest) (*RequestGuard, error) {
-	setupContext, cancel := context.WithTimeout(ctx, requestGuardSetupTimeout)
-	defer cancel()
-	connection, errorValue := dialDevtools(setupContext, devtoolsURL)
-	if errorValue != nil {
-		return nil, errorValue
-	}
-	guard := &RequestGuard{connection: connection, resend: resend, watched: map[string]bool{}, handled: make(chan struct{})}
-	go guard.handleEvents()
-	if errorValue := guard.watchEveryPage(setupContext); errorValue != nil {
-		guard.Release()
-		return nil, errorValue
-	}
-	return guard, nil
 }
 
 func (guard *RequestGuard) watchEveryPage(ctx context.Context) error {
@@ -118,7 +158,7 @@ func (guard *RequestGuard) watchEveryPage(ctx context.Context) error {
 		}
 		select {
 		case <-ctx.Done():
-			return errors.New("the device browser's pages could not all be watched for requests before the action")
+			return errors.New("the device browser's pages could not all be watched for requests")
 		case <-time.After(10 * time.Millisecond):
 		}
 	}
@@ -171,8 +211,10 @@ func (guard *RequestGuard) handleEvents() {
 		switch message.Method {
 		case "Target.attachedToTarget":
 			guard.watchAttachedTarget(message.Params)
+		case "Target.detachedFromTarget":
+			guard.forgetDetachedTarget(message.Params)
 		case "Fetch.requestPaused":
-			guard.answerPausedRequest(message.SessionID, message.Params)
+			go guard.answerPausedRequest(message.SessionID, message.Params, guard.startAnswering())
 		}
 		guard.processed.Add(1)
 	}
@@ -195,81 +237,203 @@ func (guard *RequestGuard) watchAttachedTarget(parameters json.RawMessage) {
 		return
 	}
 	guard.watched[target.TargetInfo.TargetID] = fetchError == nil
+	guard.sessionTypes[target.SessionID] = target.TargetInfo.Type
 }
 
-func (guard *RequestGuard) answerPausedRequest(sessionID string, parameters json.RawMessage) {
+func (guard *RequestGuard) forgetDetachedTarget(parameters json.RawMessage) {
+	var target detachedTarget
+	if json.Unmarshal(parameters, &target) != nil {
+		return
+	}
+	guard.mutex.Lock()
+	defer guard.mutex.Unlock()
+	delete(guard.sessionTypes, target.SessionID)
+}
+
+func (guard *RequestGuard) startAnswering() func() {
+	guard.mutex.Lock()
+	defer guard.mutex.Unlock()
+	guard.nextAnswer++
+	identifier, answered := guard.nextAnswer, make(chan struct{})
+	guard.answering[identifier] = answered
+	return func() {
+		guard.mutex.Lock()
+		defer guard.mutex.Unlock()
+		delete(guard.answering, identifier)
+		close(answered)
+	}
+}
+
+func (guard *RequestGuard) stillAnswering() []chan struct{} {
+	guard.mutex.Lock()
+	defer guard.mutex.Unlock()
+	answering := make([]chan struct{}, 0, len(guard.answering))
+	for _, answered := range guard.answering {
+		answering = append(answering, answered)
+	}
+	return answering
+}
+
+func (guard *RequestGuard) answerPausedRequest(sessionID string, parameters json.RawMessage, finish func()) {
+	defer finish()
 	var paused pausedRequest
 	if json.Unmarshal(parameters, &paused) != nil {
 		return
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), requestGuardAnswerTimeout)
 	defer cancel()
-	if guard.claimsResend(paused) {
-		_, _ = guard.connection.call(ctx, sessionID, "Fetch.continueRequest", resentRequestParameters(paused.RequestID, *guard.resend))
+	if resend, isClaimed := guard.claimResend(paused); isClaimed {
+		_, _ = guard.connection.call(ctx, sessionID, "Fetch.continueRequest", resentRequestParameters(paused.RequestID, resend))
 		return
 	}
 	if isSafeRequestMethod(paused.Request.Method) {
-		_, _ = guard.connection.call(ctx, sessionID, "Fetch.continueRequest", map[string]any{"requestId": paused.RequestID})
+		guard.continueRequest(ctx, sessionID, paused.RequestID)
+		return
+	}
+	body := bodyOf(paused)
+	passwordFields := guard.passwordFieldsIn(paused.Request.Headers, body)
+	if len(passwordFields) == 0 && !guard.carriesCookies(ctx, sessionID, paused.Request.URL) {
+		guard.continueRequest(ctx, sessionID, paused.RequestID)
 		return
 	}
 	_, _ = guard.connection.call(ctx, sessionID, "Fetch.failRequest", map[string]any{"requestId": paused.RequestID, "errorReason": "BlockedByClient"})
-	guard.recordWithheld(paused)
+	guard.recordWithheld(paused, body, passwordFields)
 }
 
-func (guard *RequestGuard) claimsResend(paused pausedRequest) bool {
+func (guard *RequestGuard) continueRequest(ctx context.Context, sessionID string, requestID string) {
+	_, _ = guard.connection.call(ctx, sessionID, "Fetch.continueRequest", map[string]any{"requestId": requestID})
+}
+
+func bodyOf(paused pausedRequest) string {
+	if paused.Request.PostData != "" || len(paused.Request.PostDataEntries) == 0 {
+		return paused.Request.PostData
+	}
+	builder := strings.Builder{}
+	for _, entry := range paused.Request.PostDataEntries {
+		decoded, errorValue := base64.StdEncoding.DecodeString(entry.Bytes)
+		if errorValue != nil {
+			return ""
+		}
+		builder.Write(decoded)
+	}
+	return builder.String()
+}
+
+func (guard *RequestGuard) carriesCookies(ctx context.Context, sessionID string, address string) bool {
+	answer, errorValue := guard.connection.call(ctx, sessionID, "Network.getCookies", map[string]any{"urls": []string{address}})
+	if errorValue != nil {
+		log.Printf("tool.browser.cookie_jar_unreadable: %v; the request is held as if it carried cookies", errorValue)
+		return true
+	}
+	var jar struct {
+		Cookies []json.RawMessage `json:"cookies"`
+	}
+	if json.Unmarshal(answer, &jar) != nil {
+		return true
+	}
+	return len(jar.Cookies) > 0
+}
+
+func (guard *RequestGuard) passwordFieldsIn(headers map[string]string, body string) []string {
 	guard.mutex.Lock()
 	defer guard.mutex.Unlock()
-	if guard.resend == nil || guard.outcome.IsResent {
-		return false
+	passwordFields := []string{}
+	for _, field := range FormFields(ContentTypeOf(headers), body) {
+		if guard.passwords[field.Name] {
+			passwordFields = append(passwordFields, field.Name)
+		}
 	}
-	isTheNavigation := paused.ResourceType == documentResourceType && paused.Request.Method == http.MethodGet && paused.Request.URL == guard.resend.URL
-	guard.outcome.IsResent = isTheNavigation
-	return isTheNavigation
+	return passwordFields
 }
 
-func resentRequestParameters(requestID string, request WithheldRequest) map[string]any {
-	headers := []devtoolsHeader{}
-	for name, value := range request.Headers {
-		if !strings.EqualFold(name, "Cookie") {
-			headers = append(headers, devtoolsHeader{Name: name, Value: value})
+func (guard *RequestGuard) NotePasswordInputs(ctx context.Context) {
+	ctx, cancel := context.WithTimeout(ctx, requestGuardAnswerTimeout)
+	defer cancel()
+	names := map[string]bool{}
+	for _, sessionID := range guard.documentSessions() {
+		answer, errorValue := guard.connection.call(ctx, sessionID, "DOM.getDocument", map[string]any{"depth": -1, "pierce": true})
+		_, _ = guard.connection.call(ctx, sessionID, "DOM.disable", map[string]any{})
+		if errorValue != nil {
+			log.Printf("tool.browser.document_unreadable: %v", errorValue)
+			continue
 		}
+		var document struct {
+			Root domNode `json:"root"`
+		}
+		if json.Unmarshal(answer, &document) == nil {
+			document.Root.collectPasswordInputNames(names)
+		}
+	}
+	guard.mutex.Lock()
+	defer guard.mutex.Unlock()
+	guard.passwords = names
+}
+
+func (guard *RequestGuard) documentSessions() []string {
+	guard.mutex.Lock()
+	defer guard.mutex.Unlock()
+	sessions := []string{}
+	for sessionID, targetType := range guard.sessionTypes {
+		if documentTargetTypes[targetType] {
+			sessions = append(sessions, sessionID)
+		}
+	}
+	return sessions
+}
+
+func (guard *RequestGuard) claimResend(paused pausedRequest) (pendingResend, bool) {
+	guard.mutex.Lock()
+	defer guard.mutex.Unlock()
+	if guard.resend == nil || guard.resend.isClaimed {
+		return pendingResend{}, false
+	}
+	isTheNavigation := paused.ResourceType == documentResourceType && paused.Request.Method == http.MethodGet && paused.Request.URL == guard.resend.request.URL
+	guard.resend.isClaimed = isTheNavigation
+	return *guard.resend, isTheNavigation
+}
+
+func resentRequestParameters(requestID string, resend pendingResend) map[string]any {
+	headers := []devtoolsHeader{}
+	for name, value := range resend.request.Headers {
+		headers = append(headers, devtoolsHeader{Name: name, Value: value})
 	}
 	return map[string]any{
 		"requestId": requestID,
-		"method":    request.Method,
-		"postData":  base64.StdEncoding.EncodeToString([]byte(request.Body)),
+		"method":    resend.request.Method,
+		"postData":  base64.StdEncoding.EncodeToString([]byte(resend.body)),
 		"headers":   headers,
 	}
 }
 
-func (guard *RequestGuard) recordWithheld(paused pausedRequest) {
+func (guard *RequestGuard) recordWithheld(paused pausedRequest, body string, passwordFields []string) {
 	guard.mutex.Lock()
 	defer guard.mutex.Unlock()
 	if paused.ResourceType == beaconResourceType {
-		guard.outcome.WithheldBeacons++
+		guard.withheld.WithheldBeacons++
 		return
 	}
-	guard.outcome.Withheld = append(guard.outcome.Withheld, WithheldRequest{
+	request := WithheldRequest{
 		Method:        strings.ToUpper(paused.Request.Method),
 		URL:           paused.Request.URL,
-		Headers:       paused.Request.Headers,
-		Body:          paused.Request.PostData,
-		IsBodyMissing: paused.Request.HasPostData && paused.Request.PostData == "",
+		Headers:       headersWithoutCookies(paused.Request.Headers),
+		IsBodyMissing: paused.Request.HasPostData && body == "",
 		ResourceType:  paused.ResourceType,
-	})
+	}
+	guard.withheld.Held = append(guard.withheld.Held, HeldRequest{Request: request, Body: body, PasswordFields: passwordFields})
 }
 
-func (guard *RequestGuard) Release() GuardedRequests {
-	guard.answerEverythingAlreadyPaused()
-	guard.connection.close()
-	<-guard.handled
-	guard.mutex.Lock()
-	defer guard.mutex.Unlock()
-	return guard.outcome
+func headersWithoutCookies(headers map[string]string) map[string]string {
+	kept := map[string]string{}
+	for name, value := range headers {
+		if !strings.EqualFold(name, "Cookie") {
+			kept[name] = value
+		}
+	}
+	return kept
 }
 
-func (guard *RequestGuard) answerEverythingAlreadyPaused() {
-	ctx, cancel := context.WithTimeout(context.Background(), requestGuardAnswerTimeout)
+func (guard *RequestGuard) Settle(ctx context.Context) {
+	ctx, cancel := context.WithTimeout(ctx, requestGuardAnswerTimeout)
 	defer cancel()
 	if _, errorValue := guard.connection.call(ctx, "", "Target.getTargets", map[string]any{}); errorValue != nil {
 		return
@@ -279,7 +443,79 @@ func (guard *RequestGuard) answerEverythingAlreadyPaused() {
 		select {
 		case <-ctx.Done():
 			return
+		case <-guard.handled:
+			return
 		case <-time.After(5 * time.Millisecond):
 		}
 	}
+	for _, answered := range guard.stillAnswering() {
+		select {
+		case <-answered:
+		case <-ctx.Done():
+			return
+		}
+	}
+}
+
+func (guard *RequestGuard) TakeWithheld() GuardedRequests {
+	guard.mutex.Lock()
+	defer guard.mutex.Unlock()
+	taken := guard.withheld
+	guard.withheld = GuardedRequests{}
+	return taken
+}
+
+func (guard *RequestGuard) Resend(ctx context.Context, request WithheldRequest, body string, navigate func() error) error {
+	guard.resending.Lock()
+	defer guard.resending.Unlock()
+	guard.mutex.Lock()
+	guard.resend = &pendingResend{request: request, body: body}
+	guard.mutex.Unlock()
+	navigateError := navigate()
+	guard.Settle(ctx)
+	guard.mutex.Lock()
+	defer guard.mutex.Unlock()
+	isResent := guard.resend.isClaimed
+	guard.resend = nil
+	if !isResent {
+		return errors.Join(errors.New("the browser never made the request again"), navigateError)
+	}
+	return nil
+}
+
+func (guard *RequestGuard) Close() {
+	guard.connection.close()
+	<-guard.handled
+}
+
+type domNode struct {
+	LocalName       string    `json:"localName"`
+	Attributes      []string  `json:"attributes"`
+	Children        []domNode `json:"children"`
+	ShadowRoots     []domNode `json:"shadowRoots"`
+	ContentDocument *domNode  `json:"contentDocument"`
+}
+
+func (node domNode) collectPasswordInputNames(names map[string]bool) {
+	if node.LocalName == "input" && strings.EqualFold(node.attribute("type"), "password") && node.attribute("name") != "" {
+		names[node.attribute("name")] = true
+	}
+	for _, child := range node.Children {
+		child.collectPasswordInputNames(names)
+	}
+	for _, shadowRoot := range node.ShadowRoots {
+		shadowRoot.collectPasswordInputNames(names)
+	}
+	if node.ContentDocument != nil {
+		node.ContentDocument.collectPasswordInputNames(names)
+	}
+}
+
+func (node domNode) attribute(name string) string {
+	for index := 0; index+1 < len(node.Attributes); index += 2 {
+		if node.Attributes[index] == name {
+			return node.Attributes[index+1]
+		}
+	}
+	return ""
 }

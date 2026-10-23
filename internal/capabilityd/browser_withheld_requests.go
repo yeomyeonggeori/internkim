@@ -2,11 +2,11 @@ package capabilityd
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"log"
-	"mime"
 	"net/url"
 	"strings"
 	"sync"
@@ -17,130 +17,146 @@ import (
 )
 
 const withheldRequestInputField = "withheldRequest"
-const browserActionSettle = time.Second
-const withheldRequestLifetime = 24 * time.Hour
 const shownBodyLimit = 4000
+const hiddenPassword = "●●●● (hidden)"
+const ledgerBodyLimit = 64 << 10
+const keptBodiesLimit = 64
 
-var guardedBrowserActions = map[string]string{
+var browserActions = map[string]string{
 	"browser_click":  "click",
 	"browser_fill":   "fill",
 	"browser_select": "select",
 	"browser_press":  "press",
 }
 
-type withheldBrowserCall struct {
-	ID         string                           `json:"withheldRequestID"`
-	Requests   []browserruntime.WithheldRequest `json:"withheldRequests"`
-	requester  string
-	toolName   string
-	input      string
-	withheldAt time.Time
+type withheldCall struct {
+	Requests     []withheldRequestRecord `json:"requests"`
+	IsActionDone bool                    `json:"isActionDone"`
 }
 
-type withheldBrowserRequests struct {
-	mutex sync.Mutex
-	calls map[string]withheldBrowserCall
+type withheldRequestRecord struct {
+	browserruntime.WithheldRequest
+	BodyBase64 string `json:"bodyBase64,omitempty"`
+	KeptBodyID string `json:"keptBodyID,omitempty"`
 }
 
-func (store *withheldBrowserRequests) keep(call withheldBrowserCall) {
-	if store == nil {
-		return
+type keptBody struct {
+	requester string
+	body      string
+}
+
+type keptRequestBodies struct {
+	mutex  sync.Mutex
+	bodies map[string]keptBody
+	order  []string
+}
+
+func (kept *keptRequestBodies) keep(requester string, body string) string {
+	kept.mutex.Lock()
+	defer kept.mutex.Unlock()
+	if kept.bodies == nil {
+		kept.bodies = map[string]keptBody{}
 	}
-	store.mutex.Lock()
-	defer store.mutex.Unlock()
-	if store.calls == nil {
-		store.calls = map[string]withheldBrowserCall{}
+	for len(kept.order) >= keptBodiesLimit {
+		delete(kept.bodies, kept.order[0])
+		kept.order = kept.order[1:]
 	}
-	for identifier, kept := range store.calls {
-		if time.Since(kept.withheldAt) > withheldRequestLifetime {
-			delete(store.calls, identifier)
+	identifier := newWorkID()
+	kept.bodies[identifier] = keptBody{requester: requester, body: body}
+	kept.order = append(kept.order, identifier)
+	return identifier
+}
+
+func (kept *keptRequestBodies) take(requester string, identifier string) (string, bool) {
+	kept.mutex.Lock()
+	defer kept.mutex.Unlock()
+	found, isKept := kept.bodies[identifier]
+	if !isKept || found.requester != requester {
+		return "", false
+	}
+	delete(kept.bodies, identifier)
+	return found.body, true
+}
+
+type pageRequestGuard interface {
+	IsGuarding(context.Context, string) bool
+	Settle(context.Context)
+	NotePasswordInputs(context.Context)
+	TakeWithheld() browserruntime.GuardedRequests
+	Resend(context.Context, browserruntime.WithheldRequest, string, func() error) error
+	Close()
+}
+
+type browserRequestGuards struct {
+	attach func(context.Context, string) (pageRequestGuard, error)
+	mutex  sync.Mutex
+	guards map[string]pageRequestGuard
+}
+
+func attachRequestGuard(ctx context.Context, devtoolsURL string) (pageRequestGuard, error) {
+	guard, errorValue := browserruntime.GuardRequests(ctx, devtoolsURL)
+	if errorValue != nil {
+		return nil, errorValue
+	}
+	return guard, nil
+}
+
+func (guards *browserRequestGuards) guardFor(ctx context.Context, devtoolsURL string) (pageRequestGuard, error) {
+	guards.mutex.Lock()
+	defer guards.mutex.Unlock()
+	if guard, isKnown := guards.guards[devtoolsURL]; isKnown {
+		if guard.IsGuarding(ctx, devtoolsURL) {
+			return guard, nil
 		}
+		delete(guards.guards, devtoolsURL)
+		go guard.Close()
 	}
-	store.calls[call.ID] = call
+	attach := guards.attach
+	if attach == nil {
+		attach = attachRequestGuard
+	}
+	guard, errorValue := attach(ctx, devtoolsURL)
+	if errorValue != nil {
+		return nil, errorValue
+	}
+	if guards.guards == nil {
+		guards.guards = map[string]pageRequestGuard{}
+	}
+	guards.guards[devtoolsURL] = guard
+	return guard, nil
 }
 
-func (store *withheldBrowserRequests) latestFor(requester string, toolName string, input string) (withheldBrowserCall, bool) {
-	if store == nil {
-		return withheldBrowserCall{}, false
-	}
-	store.mutex.Lock()
-	defer store.mutex.Unlock()
-	latest, isFound := withheldBrowserCall{}, false
-	for _, call := range store.calls {
-		if call.requester != requester || call.toolName != toolName || call.input != input {
-			continue
-		}
-		if !isFound || call.withheldAt.After(latest.withheldAt) {
-			latest, isFound = call, true
-		}
-	}
-	return latest, isFound
-}
-
-func (store *withheldBrowserRequests) take(identifier string, requester string) (withheldBrowserCall, bool) {
-	if store == nil {
-		return withheldBrowserCall{}, false
-	}
-	store.mutex.Lock()
-	defer store.mutex.Unlock()
-	call, isFound := store.calls[identifier]
-	if !isFound || call.requester != requester {
-		return withheldBrowserCall{}, false
-	}
-	delete(store.calls, identifier)
-	return call, true
-}
-
-func (service Service) runGuardedBrowserAction(ctx context.Context, browserRuntime browserruntime.AgentBrowserRuntime, request capabilities.ToolInvokeRequest) (capabilities.ToolInvokeResponse, error) {
-	guard, errorValue := browserruntime.GuardRequests(ctx, browserRuntime.CDPURL)
+func (service Service) runGuardedBrowserCall(ctx context.Context, browserRuntime browserruntime.AgentBrowserRuntime, request capabilities.ToolInvokeRequest) (capabilities.ToolInvokeResponse, error) {
+	guard, errorValue := service.browserRequestGuards.guardFor(ctx, browserRuntime.CDPURL)
 	if errorValue != nil {
 		log.Printf("tool.browser.request_guard_unavailable: tool=%s: %v", request.ToolName, errorValue)
-		return deviceBrowserFailedResponse(request.ToolName, "the device browser could not hold this action's requests for the requester's approval, so the action was not done: "+errorValue.Error()), nil
+		return deviceBrowserFailedResponse(request.ToolName, "the device browser could not hold its pages' requests for the requester's approval, so this call was not done: "+errorValue.Error()), nil
 	}
+	if withheldRequestOf(request.Input) != "" {
+		return service.resendWithheldRequests(ctx, browserRuntime, guard, request)
+	}
+	if earlier := takeWithheld(guard, request.ToolName); len(earlier.Held) > 0 {
+		return service.withheldRequestsResponse(request, earlier, false), nil
+	}
+	guard.NotePasswordInputs(ctx)
 	response, actionError := service.runBrowserAction(ctx, browserRuntime, request)
-	waitForTheActionToSettle(ctx)
-	guarded := guard.Release()
+	guard.Settle(ctx)
+	if caused := takeWithheld(guard, request.ToolName); len(caused.Held) > 0 {
+		_, isAction := browserActions[request.ToolName]
+		return service.withheldRequestsResponse(request, caused, isAction), nil
+	}
+	return response, actionError
+}
+
+func takeWithheld(guard pageRequestGuard, toolName string) browserruntime.GuardedRequests {
+	guarded := guard.TakeWithheld()
 	if guarded.WithheldBeacons > 0 {
-		log.Printf("tool.browser.beacons_withheld: tool=%s count=%d", request.ToolName, guarded.WithheldBeacons)
+		log.Printf("tool.browser.beacons_withheld: tool=%s count=%d", toolName, guarded.WithheldBeacons)
 	}
-	if len(guarded.Withheld) == 0 {
-		return response, actionError
-	}
-	call := withheldBrowserCall{
-		ID:         newWorkID(),
-		Requests:   guarded.Withheld,
-		requester:  requesterKeyOf(request.Context),
-		toolName:   request.ToolName,
-		input:      canonicalBrowserActionInput(request.Input),
-		withheldAt: time.Now(),
-	}
-	service.withheldBrowserRequests.keep(call)
-	log.Printf("tool.browser.requests_withheld: tool=%s id=%s requests=%s", request.ToolName, call.ID, withheldRequestTitles(call.Requests))
-	return withheldRequestsResponse(request.ToolName, call), nil
+	return guarded
 }
 
-func waitForTheActionToSettle(ctx context.Context) {
-	select {
-	case <-ctx.Done():
-	case <-time.After(browserActionSettle):
-	}
-}
-
-func requesterKeyOf(toolContext capabilities.ToolInvokeContext) string {
-	return strings.ToLower(strings.TrimSpace(toolContext.RequesterEmail))
-}
-
-func canonicalBrowserActionInput(input json.RawMessage) string {
-	document := map[string]any{}
-	if json.Unmarshal(input, &document) != nil {
-		return strings.TrimSpace(string(input))
-	}
-	delete(document, withheldRequestInputField)
-	canonical, _ := json.Marshal(document)
-	return string(canonical)
-}
-
-func withheldRequestIDOf(input json.RawMessage) string {
+func withheldRequestOf(input json.RawMessage) string {
 	var document struct {
 		WithheldRequest string `json:"withheldRequest"`
 	}
@@ -150,14 +166,22 @@ func withheldRequestIDOf(input json.RawMessage) string {
 	return strings.TrimSpace(document.WithheldRequest)
 }
 
-func withheldRequestsResponse(toolName string, call withheldBrowserCall) capabilities.ToolInvokeResponse {
-	message := fmt.Sprintf("This action made the page send %s, which changes data. Nothing was sent: it goes out only if the requester approves exactly this.", withheldRequestTitles(call.Requests))
+func (service Service) withheldRequestsResponse(request capabilities.ToolInvokeRequest, guarded browserruntime.GuardedRequests, isActionDone bool) capabilities.ToolInvokeResponse {
+	toolName := request.ToolName
+	titles := withheldRequestTitles(guarded.Held)
+	message := fmt.Sprintf("This call made the page send %s, which would carry this browser's cookies for that site or a password typed into the page. Nothing was sent: it goes out only if the requester approves exactly this.", titles)
+	if !isActionDone {
+		message = fmt.Sprintf("Since the last browser call, the page tried to send %s on its own, which would carry this browser's cookies for that site or a password typed into the page. Nothing was sent, and %s was not run: the request goes out only if the requester approves exactly this, and %s runs after it.", titles, toolName, toolName)
+	}
+	log.Printf("tool.browser.requests_withheld: tool=%s requests=%s", toolName, titles)
+	keepBody := func(body string) string { return service.keptRequestBodies.keep(requesterKeyOf(request.Context), body) }
+	target := approvalTargetOf(guarded.Held, isActionDone, keepBody)
 	result, _ := json.Marshal(struct {
-		ErrorCode    string `json:"errorCode"`
-		FailureStage string `json:"failureStage"`
-		Message      string `json:"message"`
-		withheldBrowserCall
-	}{ErrorCode: "approval_required", FailureStage: "authorization", Message: message, withheldBrowserCall: shownCall(call)})
+		ErrorCode      string                      `json:"errorCode"`
+		FailureStage   string                      `json:"failureStage"`
+		Message        string                      `json:"message"`
+		ApprovalTarget capabilities.ApprovalTarget `json:"approvalTarget"`
+	}{ErrorCode: "approval_required", FailureStage: "authorization", Message: message, ApprovalTarget: target})
 	return capabilities.ToolInvokeResponse{
 		Provider:        "device",
 		SelectedBackend: capabilities.LLMBackendDevice,
@@ -173,64 +197,40 @@ func withheldRequestsResponse(toolName string, call withheldBrowserCall) capabil
 	}
 }
 
-func shownCall(call withheldBrowserCall) withheldBrowserCall {
-	shown := withheldBrowserCall{ID: call.ID}
-	for _, request := range call.Requests {
-		request.Headers = shownHeaders(request.Headers)
-		shown.Requests = append(shown.Requests, request)
-	}
-	return shown
-}
-
-func shownHeaders(headers map[string]string) map[string]string {
-	for name, value := range headers {
-		if strings.EqualFold(name, "Content-Type") {
-			return map[string]string{"Content-Type": value}
-		}
-	}
-	return nil
-}
-
-func (service Service) keepWithheldCallOfAnswer(request capabilities.ToolInvokeRequest, answer capabilities.ToolInvokeResponse) {
-	if answer.ErrorCode != "approval_required" {
-		return
-	}
-	var call withheldBrowserCall
-	if json.Unmarshal(answer.Result, &call) != nil || call.ID == "" || len(call.Requests) == 0 {
-		return
-	}
-	call.requester = requesterKeyOf(request.Context)
-	call.toolName = request.ToolName
-	call.input = canonicalBrowserActionInput(request.Input)
-	call.withheldAt = time.Now()
-	service.withheldBrowserRequests.keep(call)
-}
-
-func (service Service) resolveWithheldBrowserRequests(_ context.Context, request capabilities.ToolInvokeRequest) (capabilities.ToolInvokeResponse, error) {
-	call, isFound := service.withheldBrowserRequests.latestFor(requesterKeyOf(request.Context), request.ToolName, canonicalBrowserActionInput(request.Input))
-	if !isFound {
-		return deviceBrowserFailedResponse(request.ToolName, "this browser holds no request withheld from this call, so there is nothing to approve; nothing was sent"), nil
-	}
-	return capabilityToolTargetResponse(request.ToolName, approvalTargetOf(call)), nil
-}
-
-func approvalTargetOf(call withheldBrowserCall) capabilities.ApprovalTarget {
-	blocks := make([]string, 0, len(call.Requests))
-	for _, request := range call.Requests {
+func approvalTargetOf(held []browserruntime.HeldRequest, isActionDone bool, keepBody func(string) string) capabilities.ApprovalTarget {
+	call := withheldCall{IsActionDone: isActionDone}
+	blocks := make([]string, 0, len(held))
+	for _, request := range held {
+		call.Requests = append(call.Requests, recordOf(request, keepBody))
 		blocks = append(blocks, shownRequestBlock(request))
 	}
+	identity, _ := json.Marshal(call)
 	return capabilities.ApprovalTarget{
 		InputField: withheldRequestInputField,
-		ID:         call.ID,
-		Title:      withheldRequestTitles(call.Requests),
+		ID:         string(identity),
+		Title:      withheldRequestTitles(held),
 		Preview:    strings.Join(blocks, "\n\n"),
 	}
 }
 
-func withheldRequestTitles(requests []browserruntime.WithheldRequest) string {
-	titles := make([]string, 0, len(requests))
-	for _, request := range requests {
-		titles = append(titles, request.Method+" "+originOf(request.URL))
+func recordOf(held browserruntime.HeldRequest, keepBody func(string) string) withheldRequestRecord {
+	record := withheldRequestRecord{WithheldRequest: held.Request}
+	if len(held.PasswordFields) > 0 || len(held.Body) > ledgerBodyLimit {
+		record.KeptBodyID = keepBody(held.Body)
+		return record
+	}
+	record.BodyBase64 = base64.StdEncoding.EncodeToString([]byte(held.Body))
+	return record
+}
+
+func requesterKeyOf(toolContext capabilities.ToolInvokeContext) string {
+	return strings.ToLower(strings.TrimSpace(toolContext.RequesterEmail))
+}
+
+func withheldRequestTitles(held []browserruntime.HeldRequest) string {
+	titles := make([]string, 0, len(held))
+	for _, request := range held {
+		titles = append(titles, request.Request.Method+" "+originOf(request.Request.URL))
 	}
 	return strings.Join(titles, ", ")
 }
@@ -243,44 +243,41 @@ func originOf(address string) string {
 	return parsed.Scheme + "://" + parsed.Host
 }
 
-func shownRequestBlock(request browserruntime.WithheldRequest) string {
-	lines := append([]string{request.Method + " " + request.URL}, shownBodyLines(request)...)
+func shownRequestBlock(held browserruntime.HeldRequest) string {
+	lines := append([]string{held.Request.Method + " " + held.Request.URL}, shownBodyLines(held)...)
 	return strings.Join(lines, "\n")
 }
 
-func shownBodyLines(request browserruntime.WithheldRequest) []string {
-	if request.IsBodyMissing {
+func shownBodyLines(held browserruntime.HeldRequest) []string {
+	if held.Request.IsBodyMissing {
 		return []string{"(the browser did not report what this request carries)"}
 	}
-	if request.Body == "" {
+	if held.Body == "" {
 		return nil
 	}
-	if isFormEncoded(shownHeaders(request.Headers)["Content-Type"]) {
-		return formFieldLines(request.Body)
+	if fields := browserruntime.FormFields(browserruntime.ContentTypeOf(held.Request.Headers), held.Body); len(fields) > 0 {
+		return formFieldLines(fields, held.PasswordFields)
 	}
-	return []string{shownRawBody(request.Body)}
+	return []string{shownRawBody(held.Body)}
 }
 
-func isFormEncoded(contentType string) bool {
-	mediaType, _, errorValue := mime.ParseMediaType(contentType)
-	return errorValue == nil && mediaType == "application/x-www-form-urlencoded"
-}
-
-func formFieldLines(body string) []string {
+func formFieldLines(fields []browserruntime.FormField, passwordFields []string) []string {
+	isPassword := map[string]bool{}
+	for _, name := range passwordFields {
+		isPassword[name] = true
+	}
 	lines := []string{}
-	for _, field := range strings.Split(body, "&") {
-		name, value, _ := strings.Cut(field, "=")
-		lines = append(lines, formComponent(name)+": "+formComponent(value))
+	for _, field := range fields {
+		switch {
+		case isPassword[field.Name]:
+			lines = append(lines, field.Name+": "+hiddenPassword)
+		case field.Filename != "":
+			lines = append(lines, fmt.Sprintf("%s: (file %s, %d bytes)", field.Name, field.Filename, len(field.Value)))
+		default:
+			lines = append(lines, field.Name+": "+shownRawBody(field.Value))
+		}
 	}
 	return lines
-}
-
-func formComponent(component string) string {
-	decoded, errorValue := url.QueryUnescape(component)
-	if errorValue != nil {
-		return component
-	}
-	return decoded
 }
 
 func shownRawBody(body string) string {
@@ -291,53 +288,86 @@ func shownRawBody(body string) string {
 }
 
 func (service Service) refusalOfAnUnapprovedResend(ctx context.Context, request capabilities.ToolInvokeRequest) (capabilities.ToolInvokeResponse, bool) {
-	if withheldRequestIDOf(request.Input) == "" {
+	if withheldRequestOf(request.Input) == "" {
 		return capabilities.ToolInvokeResponse{}, false
 	}
 	if !isCarriedOutOnAHold(request) {
-		return deviceBrowserFailedResponse(request.ToolName, withheldRequestInputField+" is set only by the requester's approval of a withheld request; call the action without it"), true
+		return deviceBrowserFailedResponse(request.ToolName, withheldRequestInputField+" is set only by the requester's approval of a withheld request; call the tool without it"), true
 	}
 	return service.refusalUnlessTheLedgerRedeems(ctx, request)
 }
 
-func (service Service) resendWithheldRequests(ctx context.Context, browserRuntime browserruntime.AgentBrowserRuntime, request capabilities.ToolInvokeRequest) (capabilities.ToolInvokeResponse, error) {
-	call, isHeld := service.withheldBrowserRequests.take(withheldRequestIDOf(request.Input), requesterKeyOf(request.Context))
-	if !isHeld {
-		return deviceBrowserFailedResponse(request.ToolName, "the approved request is no longer held by this browser (it was sent already, or the browser service restarted); nothing was sent"), nil
+func (service Service) resendWithheldRequests(ctx context.Context, browserRuntime browserruntime.AgentBrowserRuntime, guard pageRequestGuard, request capabilities.ToolInvokeRequest) (capabilities.ToolInvokeResponse, error) {
+	var call withheldCall
+	if errorValue := json.Unmarshal([]byte(withheldRequestOf(request.Input)), &call); errorValue != nil || len(call.Requests) == 0 {
+		return deviceBrowserFailedResponse(request.ToolName, "the approved withheld request is not one this browser recorded; nothing was sent"), nil
+	}
+	bodies, errorValue := service.approvedBodies(requesterKeyOf(request.Context), call.Requests)
+	if errorValue != nil {
+		return deviceBrowserFailedResponse(request.ToolName, errorValue.Error()), nil
 	}
 	sent := []string{}
-	for _, withheld := range call.Requests {
-		if errorValue := resendWithheldRequest(ctx, browserRuntime, withheld); errorValue != nil {
-			log.Printf("tool.browser.resend_failed: id=%s request=%s %s: %v", call.ID, withheld.Method, withheld.URL, errorValue)
+	for index, withheld := range call.Requests {
+		navigate := func() error {
+			_, navigateError := browserRuntime.Navigate(ctx, browserruntime.NavigateRequest{URL: withheld.URL})
+			return navigateError
+		}
+		if errorValue := guard.Resend(ctx, withheld.WithheldRequest, bodies[index], navigate); errorValue != nil {
+			log.Printf("tool.browser.resend_failed: request=%s %s: %v", withheld.Method, withheld.URL, errorValue)
 			return deviceBrowserFailedResponse(request.ToolName, fmt.Sprintf("the approved %s %s was not sent: %v; sent before it: %s", withheld.Method, withheld.URL, errorValue, strings.Join(sent, ", "))), nil
 		}
 		sent = append(sent, withheld.Method+" "+withheld.URL)
 	}
-	log.Printf("tool.browser.requests_resent: tool=%s id=%s", request.ToolName, call.ID)
-	return resentActionResponse(request, sent)
+	log.Printf("tool.browser.requests_resent: tool=%s requests=%s", request.ToolName, strings.Join(sent, ", "))
+	sentNote := "The requester approved, and the browser sent: " + strings.Join(sent, ", ") + "."
+	if call.IsActionDone {
+		return resentActionResponse(request, sentNote)
+	}
+	return service.callAfterTheApprovedRequests(ctx, browserRuntime, request, sentNote)
 }
 
-func resendWithheldRequest(ctx context.Context, browserRuntime browserruntime.AgentBrowserRuntime, withheld browserruntime.WithheldRequest) error {
-	if withheld.IsBodyMissing {
-		return errors.New("the browser never reported what it carries")
+func (service Service) approvedBodies(requester string, requests []withheldRequestRecord) ([]string, error) {
+	bodies := make([]string, 0, len(requests))
+	for _, withheld := range requests {
+		if withheld.IsBodyMissing {
+			return nil, fmt.Errorf("the approved %s %s was not sent: the browser never reported what it carries", withheld.Method, withheld.URL)
+		}
+		if withheld.KeptBodyID == "" {
+			decoded, errorValue := base64.StdEncoding.DecodeString(withheld.BodyBase64)
+			if errorValue != nil {
+				return nil, fmt.Errorf("the approved %s %s carries a body this browser cannot read; nothing was sent", withheld.Method, withheld.URL)
+			}
+			bodies = append(bodies, string(decoded))
+			continue
+		}
+		body, isKept := service.keptRequestBodies.take(requester, withheld.KeptBodyID)
+		if !isKept {
+			return nil, fmt.Errorf("the approved %s %s carried a password or a large body, which only this browser service's memory kept, and the service has restarted since or sent it already; nothing was sent, so repeat the action to ask the requester again", withheld.Method, withheld.URL)
+		}
+		bodies = append(bodies, body)
 	}
-	guard, errorValue := browserruntime.GuardResending(ctx, browserRuntime.CDPURL, withheld)
-	if errorValue != nil {
-		return errorValue
-	}
-	_, navigateError := browserRuntime.Navigate(ctx, browserruntime.NavigateRequest{URL: withheld.URL})
-	waitForTheActionToSettle(ctx)
-	outcome := guard.Release()
-	if len(outcome.Withheld) > 0 {
-		log.Printf("tool.browser.requests_withheld_after_resend: requests=%s", withheldRequestTitles(outcome.Withheld))
-	}
-	if !outcome.IsResent {
-		return fmt.Errorf("the browser never made the request again (%v)", navigateError)
-	}
-	return nil
+	return bodies, nil
 }
 
-func resentActionResponse(request capabilities.ToolInvokeRequest, sent []string) (capabilities.ToolInvokeResponse, error) {
+func (service Service) callAfterTheApprovedRequests(ctx context.Context, browserRuntime browserruntime.AgentBrowserRuntime, request capabilities.ToolInvokeRequest, sentNote string) (capabilities.ToolInvokeResponse, error) {
+	var input map[string]json.RawMessage
+	if errorValue := json.Unmarshal(request.Input, &input); errorValue != nil {
+		return capabilities.ToolInvokeResponse{}, errorValue
+	}
+	delete(input, withheldRequestInputField)
+	request.Input, _ = json.Marshal(input)
+	response, errorValue := service.runGuardedBrowserCall(ctx, browserRuntime, request)
+	if errorValue != nil || response.IsError {
+		return response, errorValue
+	}
+	response.Content = strings.TrimSpace(sentNote + "\n\n" + firstNonEmpty(response.Content, string(response.Result)))
+	return response, nil
+}
+
+func resentActionResponse(request capabilities.ToolInvokeRequest, sentNote string) (capabilities.ToolInvokeResponse, error) {
+	if _, isAction := browserActions[request.ToolName]; !isAction {
+		return capabilities.ToolInvokeResponse{}, errors.New("an approved request withheld after " + request.ToolName + " ran has no action to report")
+	}
 	var input struct {
 		Selector string `json:"selector"`
 		Ref      string `json:"ref"`
@@ -347,7 +377,7 @@ func resentActionResponse(request capabilities.ToolInvokeRequest, sent []string)
 	target, _ := browserruntime.ActionTarget(input.Selector, input.Ref, input.Target)
 	document, errorValue := json.Marshal(browserruntime.ActionResult{
 		OK:         true,
-		Action:     guardedBrowserActions[request.ToolName],
+		Action:     browserActions[request.ToolName],
 		Target:     target,
 		CapturedAt: time.Now().UTC().Format(time.RFC3339),
 	})
@@ -357,6 +387,6 @@ func resentActionResponse(request capabilities.ToolInvokeRequest, sent []string)
 	return capabilitySuccessResponseFrom(request.ToolName, "ok", document, capabilityResponseOrigin{
 		Provider:        "device",
 		SelectedBackend: capabilities.LLMBackendDevice,
-		Content:         "The requester approved, and the browser sent: " + strings.Join(sent, ", ") + ". Read the page to see what the site answered.",
+		Content:         sentNote + " Read the page to see what the site answered.",
 	})
 }

@@ -32,6 +32,8 @@ func serviceWithAFullBrowser(t *testing.T, gateway http.HandlerFunc) Service {
 		Configuration:   Configuration{WorkQueuePath: queuePath, HostSessionPath: sessionPath},
 		DeviceBrowsers:  oneBrowserInUseBySomeoneElse(t),
 		handedElsewhere: &handedElsewhere{},
+
+		browserRequestGuards: guardsHoldingNothing(),
 	}
 }
 

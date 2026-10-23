@@ -81,7 +81,11 @@ func evaluateInDeviceBrowserPage(t *testing.T, port int, script string) string {
 	t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
-	connection, errorValue := dialDevtools(ctx, fmt.Sprintf("http://127.0.0.1:%d", port))
+	socketURL, errorValue := devtoolsBrowserSocketURL(ctx, fmt.Sprintf("http://127.0.0.1:%d", port))
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	connection, errorValue := dialDevtoolsSocket(ctx, socketURL)
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
