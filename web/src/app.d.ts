@@ -1,3 +1,4 @@
+/// <reference lib="dom.asynciterable" />
 declare global {
 	namespace App {
 		interface PageState {
