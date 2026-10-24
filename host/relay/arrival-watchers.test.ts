@@ -21,6 +21,7 @@ function dependencies(overrides: Partial<ArrivalWatchersDependencies> = {}): Arr
 	return {
 		activeMemberIDs: async () => ['member-1'],
 		credentialOf: async (memberID) => credentialOf(memberID),
+		forgetRefusedCredential: () => {},
 		askChatd: async () => ({ status: 200, body: {} }),
 		arrivalsURL,
 		typingURL,
@@ -46,6 +47,21 @@ function chatdThatIsUpWhen(isUp: () => boolean, asked: Asked[] = []): ArrivalWat
 }
 
 describe('renewing arrival watches', () => {
+	test('forgets a credential chatd says the messenger refused, so the next renewal reads the record again', async () => {
+		const forgotten: string[] = [];
+		const watchers = new ArrivalWatchers(
+			dependencies({
+				forgetRefusedCredential: (memberID) => void forgotten.push(memberID),
+				askChatd: async () => ({ status: 401, body: { error: 'refused the login', reason: 'login-refused' } })
+			})
+		);
+
+		const renewal = await watchers.renewEveryone();
+
+		expect(forgotten).toEqual(['member-1']);
+		expect(renewal.refusals).toHaveLength(1);
+	});
+
 	test('asks chatd to watch every active member who holds a credential, telling it where to post', async () => {
 		const asked: Asked[] = [];
 		const watchers = new ArrivalWatchers(

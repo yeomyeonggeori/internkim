@@ -24,6 +24,7 @@ function dispatchAnswering(answer: unknown, seen: { capability?: string } = {}):
 		tellAdmindTheDirectoryChanged: async () => ({ status: 202, body: null }),
 		emailOfMember: async () => 'someone@example.com',
 		messengerCredentialOf: async () => ({ kind: 'buzz-secret', secret: 'a-held-secret' }),
+		forgetRefusedMessengerCredential: () => {},
 		connectMessengerAccount: async () => {}
 	} as unknown as Dispatch;
 }

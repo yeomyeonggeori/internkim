@@ -1,4 +1,5 @@
 import hashlib
+import http.server
 import importlib.machinery
 import importlib.util
 import io
@@ -8,6 +9,7 @@ import tarfile
 import re
 import subprocess
 import tempfile
+import threading
 import unittest
 import urllib.request
 from pathlib import Path
@@ -722,6 +724,54 @@ class MessengerRigTests(unittest.TestCase):
                 self.assertEqual(response.headers["Content-Type"], "image/png")
         finally:
             server.shutdown()
+
+
+class PlaneStandIn(http.server.BaseHTTPRequestHandler):
+    members = []
+    seen = []
+
+    def do_GET(self):
+        self.seen.append(("GET", self.path))
+        body = json.dumps([{"id": member} for member in self.members]).encode()
+        self.send_response(200)
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
+    def do_DELETE(self):
+        self.seen.append(("DELETE", self.path))
+        self.send_response(204)
+        self.end_headers()
+
+    def log_message(self, *arguments):
+        pass
+
+
+class MessengerCredentialsLeftOnThePlaneTests(unittest.TestCase):
+    def forget_on_a_plane_holding(self, members):
+        PlaneStandIn.members = members
+        PlaneStandIn.seen = []
+        server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), PlaneStandIn)
+        threading.Thread(target=server.serve_forever, daemon=True).start()
+        plane = object.__new__(rig.CompanyPlane)
+        plane.settings = {"API_URL": f"http://127.0.0.1:{server.server_port}", "SECRET_KEY": "service"}
+        try:
+            plane.forget_the_messenger_credentials("company-1")
+        finally:
+            server.shutdown()
+        return PlaneStandIn.seen
+
+    def test_every_member_of_the_rig_company_loses_the_key_an_earlier_guest_recorded(self):
+        seen = self.forget_on_a_plane_holding(["member-a", "member-b"])
+
+        kind = rig.messenger_credential_kind()
+        self.assertEqual(seen[0], ("GET", "/rest/v1/member?select=id&company_id=eq.company-1"))
+        self.assertEqual(seen[1], ("DELETE", f"/rest/v1/credential?kind=eq.{kind}&member_id=in.(member-a,member-b)"))
+
+    def test_a_company_with_no_members_deletes_nothing(self):
+        seen = self.forget_on_a_plane_holding([])
+
+        self.assertEqual([method for method, _ in seen], ["GET"])
 
 
 class UnprivilegedPostTests(unittest.TestCase):

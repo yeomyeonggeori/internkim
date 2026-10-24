@@ -203,11 +203,20 @@ export type Dispatch = {
 	connectMessengerAccount: (memberID: string, account: ConnectedAccount) => Promise<void>;
 	messengerCredentialOf: (memberID: string) => Promise<ActorCredential | null>;
 	serveBrowserHandoff: (capability: string, body: Record<string, unknown>, memberID: string) => Promise<{ status: number; body: unknown }>;
+	forgetRefusedMessengerCredential: (memberID: string) => void;
 };
 
 export type ConnectedAccount = { kind: string; externalID: string; name: string; secret: string };
 
 export type ActorCredential = { kind: string; secret: string };
+
+export const loginRefusedReason = 'login-refused';
+
+export function isLoginRefusal(answer: Answered): boolean {
+	if (answer.status !== 401) return false;
+	const body = answer.body;
+	return typeof body === 'object' && body !== null && 'reason' in body && body.reason === loginRefusedReason;
+}
 
 export type FileTransfer = {
 	prepareMedia: (memberID: string, actor: ActorCredential, body: Record<string, unknown>) => Promise<Answered>;
@@ -260,28 +269,43 @@ async function serveForMember(
 	// The company's own server resolves it; the browser used to carry it, and
 	// that is the whole reason it had to be handed one in the clear.
 	const actor = await dispatch.messengerCredentialOf(replyTo);
-	if (!actor) {
-		return { status: 409, body: { error: 'this member has connected no messenger account' }, replyTo };
-	}
+	if (!actor) return { ...noMessengerAccount(), replyTo };
+	const answered = await serveAsActor(dispatch, capability, body, replyTo, actor);
+	if (!isLoginRefusal(answered)) return { ...answered, replyTo };
+
+	dispatch.forgetRefusedMessengerCredential(replyTo);
+	const reread = await dispatch.messengerCredentialOf(replyTo);
+	if (!reread) return { ...noMessengerAccount(), replyTo };
+	if (reread.secret === actor.secret) return { ...answered, replyTo };
+	return { ...(await serveAsActor(dispatch, capability, body, replyTo, reread)), replyTo };
+}
+
+function noMessengerAccount(): Answered {
+	return { status: 409, body: { error: 'this member has connected no messenger account' } };
+}
+
+async function serveAsActor(
+	dispatch: Dispatch,
+	capability: string,
+	body: Record<string, unknown>,
+	memberID: string,
+	actor: ActorCredential
+): Promise<Answered> {
 	if (capability === sendCapability) {
 		const sent = await dispatch.askChatd(sendCapability, { ...body, actor });
 		if (sent.status < 300) {
 			dispatch.messageArrived(String(body.conversationID ?? ''), messageIDOf(sent.body));
 		}
-		return { ...sent, replyTo };
+		return sent;
 	}
-	if (capability === prepareMediaCapability) {
-		return { ...(await dispatch.transfer.prepareMedia(replyTo, actor, body)), replyTo };
-	}
+	if (capability === prepareMediaCapability) return dispatch.transfer.prepareMedia(memberID, actor, body);
 	if (capability === uploadMediaCapability) {
-		const requesterEmail = await dispatch.emailOfMember(replyTo);
-		if (!requesterEmail) return { ...noAddressRefusal(), replyTo };
-		return { ...(await dispatch.transfer.takeUploadIntoMessenger(replyTo, actor, requesterEmail, body)), replyTo };
+		const requesterEmail = await dispatch.emailOfMember(memberID);
+		if (!requesterEmail) return noAddressRefusal();
+		return dispatch.transfer.takeUploadIntoMessenger(memberID, actor, requesterEmail, body);
 	}
-	if (capability === pictureCapability) {
-		return { ...(await keptPictureForReading(dispatch, body, actor)), replyTo };
-	}
-	return { ...(await dispatch.askChatd(capability, { ...body, actor })), replyTo };
+	if (capability === pictureCapability) return keptPictureForReading(dispatch, body, actor);
+	return dispatch.askChatd(capability, { ...body, actor });
 }
 
 // A face is answered the way a file is: an address in the company's bucket
