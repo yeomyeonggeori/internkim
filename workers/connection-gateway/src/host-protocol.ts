@@ -9,6 +9,9 @@ export const messengerHTTPCapability = 'messenger.http';
 export const messengerMediaReadCapability = 'messenger.media.read';
 export const messengerMediaStageCapability = 'messenger.media.stage';
 export const messengerMediaWriteCapability = 'messenger.media.write';
+export const messengerMediaStreamCapability = 'messenger.media.stream';
+
+export const hostSupportsHeader = 'x-internkim-host-supports';
 
 export const streamCloseCode = {
 	normal: 1000,
@@ -126,4 +129,98 @@ function sendableCloseCode(code: number): number {
 	if (code === 1000 || (code >= 3000 && code <= 4999)) return code;
 	if (code >= 1001 && code <= 1014 && code !== 1004 && code !== 1006) return code;
 	return streamCloseCode.relayFailed;
+}
+
+export const mediaCreditWindowBytes = 512 * 1024;
+
+export type MediaOpen = {
+	kind: 'media.open';
+	streamID: string;
+	method: string;
+	path: string;
+	host: string;
+	headers: Record<string, string>;
+	creditBytes: number;
+};
+
+export type MediaCredit = { kind: 'media.credit'; streamID: string; bytes: number };
+export type MediaStop = { kind: 'media.stop'; streamID: string; reason: string };
+export type MediaHead = { kind: 'media.head'; streamID: string; status: number; headers: Record<string, string> };
+export type MediaBody = { kind: 'media.body'; streamID: string; data: string };
+export type MediaEnd = { kind: 'media.end'; streamID: string };
+export type MediaFail = { kind: 'media.fail'; streamID: string; reason: string };
+
+export type GatewayMediaMessage = MediaOpen | MediaCredit | MediaStop;
+export type HostMediaMessage = MediaHead | MediaBody | MediaEnd | MediaFail;
+export type MediaMessage = GatewayMediaMessage | HostMediaMessage;
+
+const mediaKinds = new Set(['media.open', 'media.credit', 'media.stop', 'media.head', 'media.body', 'media.end', 'media.fail']);
+
+export function isMediaKind(kind: unknown): boolean {
+	return typeof kind === 'string' && mediaKinds.has(kind);
+}
+
+export function parseHostMediaMessage(payload: unknown): HostMediaMessage | null {
+	const message = parseMediaMessage(payload);
+	if (message?.kind === 'media.open' || message?.kind === 'media.credit' || message?.kind === 'media.stop') return null;
+	return message;
+}
+
+export function parseGatewayMediaMessage(payload: unknown): GatewayMediaMessage | null {
+	const message = parseMediaMessage(payload);
+	if (message?.kind === 'media.open' || message?.kind === 'media.credit' || message?.kind === 'media.stop') return message;
+	return null;
+}
+
+function parseMediaMessage(payload: unknown): MediaMessage | null {
+	if (typeof payload !== 'object' || payload === null) return null;
+	const record: Record<string, unknown> = { ...payload };
+	const streamID = record.streamID;
+	if (typeof streamID !== 'string' || streamID === '') return null;
+	if (record.kind === 'media.open') return parseMediaOpen(streamID, record);
+	if (record.kind === 'media.credit') return parseMediaCredit(streamID, record);
+	if (record.kind === 'media.head') return parseMediaHead(streamID, record);
+	if (record.kind === 'media.body') return typeof record.data === 'string' ? { kind: 'media.body', streamID, data: record.data } : null;
+	if (record.kind === 'media.end') return { kind: 'media.end', streamID };
+	if (record.kind === 'media.stop' || record.kind === 'media.fail') return { kind: record.kind, streamID, reason: stringOr(record.reason, '') };
+	return null;
+}
+
+function parseMediaOpen(streamID: string, record: Record<string, unknown>): MediaOpen | null {
+	const { method, path, host, creditBytes } = record;
+	if (typeof method !== 'string' || method === '') return null;
+	if (typeof path !== 'string' || !path.startsWith('/')) return null;
+	if (typeof host !== 'string' || host === '') return null;
+	if (!isPositiveByteCount(creditBytes)) return null;
+	return { kind: 'media.open', streamID, method, path, host, headers: stringRecordOf(record.headers), creditBytes };
+}
+
+function parseMediaCredit(streamID: string, record: Record<string, unknown>): MediaCredit | null {
+	return isPositiveByteCount(record.bytes) ? { kind: 'media.credit', streamID, bytes: record.bytes } : null;
+}
+
+function parseMediaHead(streamID: string, record: Record<string, unknown>): MediaHead | null {
+	if (typeof record.status !== 'number' || !Number.isInteger(record.status)) return null;
+	return { kind: 'media.head', streamID, status: record.status, headers: stringRecordOf(record.headers) };
+}
+
+function isPositiveByteCount(value: unknown): value is number {
+	return typeof value === 'number' && Number.isInteger(value) && value > 0;
+}
+
+function stringOr(value: unknown, fallback: string): string {
+	return typeof value === 'string' ? value : fallback;
+}
+
+function stringRecordOf(value: unknown): Record<string, string> {
+	if (typeof value !== 'object' || value === null) return {};
+	return Object.fromEntries(Object.entries(value).filter((entry): entry is [string, string] => typeof entry[1] === 'string'));
+}
+
+export function mediaMessage(message: MediaMessage): string {
+	return JSON.stringify(message);
+}
+
+export function mediaBody(streamID: string, bytes: Uint8Array): string {
+	return mediaMessage({ kind: 'media.body', streamID, data: base64Of(bytes) });
 }

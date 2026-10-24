@@ -5,12 +5,18 @@ import {
 	messengerMediaStageCapability,
 	messengerMediaWriteCapability
 } from './host-protocol';
+import { relayContentLengthHeader } from './media-reads';
 import type { OneShotAnswer } from './routing';
-
 
 export const largestMessengerRequestBytes = 1024 * 1024;
 
 export type MessengerCall = (capability: string, body: Record<string, unknown>) => Promise<OneShotAnswer>;
+
+export type MediaAsk = { method: string; path: string; host: string; headers: Record<string, string> };
+
+export type MediaStreamer = (asked: MediaAsk) => Promise<Response | null>;
+
+export type MessengerReach = { call: MessengerCall; streamMedia: MediaStreamer };
 
 export type RelayResponse = {
 	status: number;
@@ -42,7 +48,8 @@ const responseHeadersLeftBehind = new Set([
 	'content-length',
 	'keep-alive',
 	'trailer',
-	'transfer-encoding'
+	'transfer-encoding',
+	relayContentLengthHeader
 ]);
 
 const mediaBlobPath = /^\/media\/[0-9a-f]{64}(\.[a-z0-9.]+)?$/;
@@ -113,13 +120,13 @@ function stringRecordOf(value: unknown): Record<string, string> {
 export async function answerMessengerRequest(
 	request: Request,
 	publicHost: string,
-	call: MessengerCall
+	messenger: MessengerReach
 ): Promise<Response> {
 	const url = new URL(request.url);
 	const target = { method: request.method, path: `${url.pathname}${url.search}`, host: publicHost };
-	if (isMediaRead(request.method, url.pathname)) return readMedia(request, target, call);
-	if (isMediaWrite(request.method, url.pathname)) return writeMedia(request, target, call);
-	return relayHTTP(request, target, call);
+	if (isMediaRead(request.method, url.pathname)) return readMedia(request, target, messenger);
+	if (isMediaWrite(request.method, url.pathname)) return writeMedia(request, target, messenger.call);
+	return relayHTTP(request, target, messenger.call);
 }
 
 type Target = { method: string; path: string; host: string };
@@ -140,11 +147,22 @@ async function relayHTTP(request: Request, target: Target, call: MessengerCall):
 	return responseOf(answer);
 }
 
-async function readMedia(request: Request, target: Target, call: MessengerCall): Promise<Response> {
-	const answer = await call(messengerMediaReadCapability, {
-		...target,
-		headers: forwardedRequestHeadersOf(request.headers)
-	});
+async function readMedia(request: Request, target: Target, messenger: MessengerReach): Promise<Response> {
+	const headers = forwardedRequestHeadersOf(request.headers);
+	const streamed = await messenger.streamMedia({ ...target, headers });
+	if (streamed) return streamedMediaResponseOf(streamed);
+	return readMediaByCall(request, { ...target, headers }, messenger.call);
+}
+
+function streamedMediaResponseOf(streamed: Response): Response {
+	const headers = answeredHeadersOf(Object.fromEntries(streamed.headers.entries()));
+	const length = streamed.headers.get(relayContentLengthHeader);
+	if (length) headers.set('content-length', length);
+	return new Response(streamed.body, { status: streamed.status, headers });
+}
+
+async function readMediaByCall(request: Request, asked: MediaAsk, call: MessengerCall): Promise<Response> {
+	const answer = await call(messengerMediaReadCapability, asked);
 	const relayed = relayResponseOf(answer);
 	if (relayed && request.method === 'HEAD') return headResponseOf(relayed);
 	if (!relayed?.objectURL) return responseOf(answer);
