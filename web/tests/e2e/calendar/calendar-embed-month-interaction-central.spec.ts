@@ -5,7 +5,7 @@ import {
 	seedCalendarEvents,
 	signInToCalendar
 } from './calendar-central-test-utils';
-import { waitForClientHydration } from './calendar-draft-popover-test-utils';
+import { waitForHydration } from '../support/hydration';
 
 test.describe('embedded calendar month interactions', () => {
 	test.use({ locale: 'ko-KR' });
@@ -162,7 +162,7 @@ async function openMonthView(page: Page, dateKey: string): Promise<void> {
 	await page.reload();
 	await expect(page.locator('.calendar-stage')).toHaveClass(/calendar-stage-month/);
 	await expect(page.locator(`[data-calendar-date="${dateKey}"]`)).toBeVisible();
-	await waitForClientHydration(page);
+	await waitForHydration(page);
 }
 
 async function selectedMonthDateKey(page: Page): Promise<string> {

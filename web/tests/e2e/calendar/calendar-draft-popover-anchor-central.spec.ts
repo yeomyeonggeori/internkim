@@ -5,9 +5,9 @@ import {
 	routeCalendarHolidays,
 	routeEventUpdate,
 	scrollMonthViewBy,
-	startDragBetweenCells,
-	waitForClientHydration
+	startDragBetweenCells
 } from './calendar-draft-popover-test-utils';
+import { waitForHydration } from '../support/hydration';
 
 test.describe('calendar draft popover anchors', () => {
 	test.use({ locale: 'ko-KR' });
@@ -25,7 +25,7 @@ test.describe('calendar draft popover anchors', () => {
 		]);
 		try {
 			await page.goto(calendarEmbedPath);
-			await waitForClientHydration(page);
+			await waitForHydration(page);
 			const chip = page.locator(`[data-calendar-event-id="${eventID}"]`).first();
 			await expect(chip).toBeVisible();
 			await chip.click();
@@ -48,7 +48,7 @@ test.describe('calendar draft popover anchors', () => {
 		]);
 		try {
 			await page.goto(calendarEmbedPath);
-			await waitForClientHydration(page);
+			await waitForHydration(page);
 			const chip = page.locator(`[data-calendar-event-id="${eventID}"]`);
 			await expect(chip).toBeVisible();
 			await chip.click();
@@ -68,7 +68,7 @@ test.describe('calendar draft popover anchors', () => {
 
 	test('cancels a dragged month range on pointer cancel without opening a draft', async ({ page }) => {
 		await page.goto(calendarEmbedPath);
-		await waitForClientHydration(page);
+		await waitForHydration(page);
 
 		await startDragBetweenCells(page, '2026-06-10', '2026-06-12');
 		await expect(page.locator('[data-calendar-event-id="calendar-draft-preview"]')).toBeVisible();

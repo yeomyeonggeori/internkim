@@ -6,6 +6,7 @@ import {
 	signInToCalendar
 } from './calendar-central-test-utils';
 import { cleanupLeave, member1ID, member2ID, seedLeave } from '../support/central-test-utils';
+import { waitForHydration } from '../support/hydration';
 
 async function routeCalendarHolidays(page: Page): Promise<void> {
 	await page.route('**/api/calendar/holidays?**', async (route) => {
@@ -213,19 +214,9 @@ async function expectRouteCalendarToFillContent(page: Page): Promise<void> {
 }
 
 async function openCalendarSettings(page: Page): Promise<void> {
-	const calendarFrame = page;
-	await expect(calendarFrame.locator('.calendar-toolbar-title')).toBeVisible();
-	const settingsButton = calendarFrame.getByRole('button', { name: '설정' });
-	const settingsHeading = page.getByRole('heading', { name: '설정' });
-	await expect
-		.poll(async () => {
-			if ((await settingsHeading.count()) > 0) return true;
-			await settingsButton.click();
-			await page.waitForTimeout(100);
-			return (await settingsHeading.count()) > 0;
-		})
-		.toBe(true);
-	await expect(settingsHeading).toBeVisible();
+	await waitForHydration(page);
+	await page.getByRole('button', { name: '설정' }).click();
+	await expect(page.getByRole('heading', { name: '설정' })).toBeVisible();
 }
 
 async function expectHorizontalOverflow(page: Page, expected: boolean): Promise<void> {

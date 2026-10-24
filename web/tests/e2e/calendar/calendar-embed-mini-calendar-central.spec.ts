@@ -1,5 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
 import { calendarEmbedPath, cleanupCalendarEvents, seedCalendarEvents, signInToCalendar } from './calendar-central-test-utils';
+import { waitForHydration } from '../support/hydration';
 
 test.describe('embedded calendar day-view mini calendar', () => {
 	test.use({ locale: 'ko-KR' });
@@ -85,5 +86,5 @@ async function openDesktopDayView(page: Page): Promise<void> {
 	await page.evaluate(() => window.localStorage.setItem('internkim.calendar.view', 'day'));
 	await page.reload();
 	await expect(page.locator('.calendar-stage')).toHaveClass(/calendar-stage-day/);
-	await page.waitForTimeout(1000);
+	await waitForHydration(page);
 }

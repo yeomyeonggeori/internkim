@@ -68,16 +68,6 @@ export async function routeEventDelete(page: Page): Promise<CalendarToolInvokeIn
 	return payloads;
 }
 
-export async function waitForClientHydration(page: Page): Promise<void> {
-	await page.locator('.calendar-toolbar-title').waitFor({ state: 'visible' });
-	await page.waitForTimeout(1_500);
-	await page.evaluate(
-		() =>
-			new Promise<void>((resolve) => {
-				requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
-			})
-	);
-}
 
 export async function clickOutsideDraftPopover(page: Page): Promise<void> {
 	const clickPoint = await page.evaluate(() => {
