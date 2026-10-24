@@ -24,6 +24,9 @@ func (service Service) invokeDeviceBrowserTool(ctx context.Context, request capa
 		return refusal, nil
 	}
 	requester := strings.ToLower(request.Context.RequesterEmail)
+	if service.browserHandoffs.isHandedOver(requester) {
+		return service.handedOverResponse(request.ToolName, requester), nil
+	}
 	if service.handedElsewhere.has(requester) {
 		if answer, isAnswered, errorValue := service.putInTheQueue(ctx, request, requester); isAnswered {
 			return answer, errorValue
@@ -295,7 +298,7 @@ func safeDeviceBrowserFilename(filename string) string {
 
 func NewBrowserWorker(ctx context.Context, configuration Configuration) Service {
 	configuration = configuration.WithDefaults()
-	service := Service{Configuration: configuration, DeviceBrowsers: configuration.newDeviceBrowsers(), browserRequestGuards: &browserRequestGuards{}, keptRequestBodies: &keptRequestBodies{}}
+	service := Service{Configuration: configuration, DeviceBrowsers: configuration.newDeviceBrowsers(), browserRequestGuards: &browserRequestGuards{}, keptRequestBodies: &keptRequestBodies{}, browserHandoffs: &browserHandoffs{}}
 	go service.DeviceBrowsers.KeepTidy(ctx)
 	return service
 }

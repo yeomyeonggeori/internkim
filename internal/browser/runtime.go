@@ -268,7 +268,7 @@ func (runtime AgentBrowserRuntime) Navigate(ctx context.Context, request Navigat
 	openArguments := runtime.sessionStartArguments()
 	openArguments = append(openArguments, "open", trimmedURL)
 	openError := runtime.runOpenCommand(ctx, openArguments)
-	actualURL, currentURLError := runtime.currentURL(ctx)
+	actualURL, currentURLError := runtime.CurrentURL(ctx)
 	observation, observationError := runtime.observeCurrentPage(ctx)
 	if openError != nil && currentURLError != nil && observationError != nil {
 		return NavigateResult{}, openError
@@ -314,12 +314,20 @@ func isOpenSettleTimeout(errorValue error) bool {
 	return errors.Is(errorValue, context.DeadlineExceeded)
 }
 
-func (runtime AgentBrowserRuntime) currentURL(ctx context.Context) (string, error) {
-	output, errorValue := runtime.run(ctx, append(runtime.sessionCommandArguments(), "get", "url")...)
+func (runtime AgentBrowserRuntime) CurrentURL(ctx context.Context) (string, error) {
+	output, errorValue := runtime.run(ctx, append(runtime.sessionCommandArguments(), "get", "url", "--json")...)
 	if errorValue != nil {
 		return "", errorValue
 	}
-	currentURL := strings.TrimSpace(string(output))
+	var answer struct {
+		Data struct {
+			URL string `json:"url"`
+		} `json:"data"`
+	}
+	if errorValue := json.Unmarshal(lastJSONLineOf(output), &answer); errorValue != nil {
+		return "", errors.New("agent-browser answered get url with something other than json")
+	}
+	currentURL := strings.TrimSpace(answer.Data.URL)
 	if currentURL == "" {
 		return "", errors.New("browser current URL is empty")
 	}

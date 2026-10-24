@@ -1351,6 +1351,7 @@ const (
 )
 
 var toolsWithNoGateCaseYet = map[string]string{
+	"browser_handoff":        "it waits on the relay, which this gate has no stand-in for; browser_handoff_tool_test.go drives it against one",
 	"event_add":              implementedOnThePlaneToo,
 	"event_delete":           implementedOnThePlaneToo,
 	"event_list":             implementedOnThePlaneToo,

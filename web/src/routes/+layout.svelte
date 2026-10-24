@@ -8,7 +8,7 @@
 	import { appRailMode } from '$lib/components/app-rail-mode.svelte';
 	import AppRailModeMenu from '$lib/components/app-rail-mode-menu.svelte';
 	import EffectErrorBoundary from '$lib/components/effect-error-boundary.svelte';
-	import { appSectionPathOf, usesAppShell, usesWebAuthGate } from '$lib/app-shell';
+	import { appSectionPathOf, isFullScreenApp, usesAppShell, usesWebAuthGate } from '$lib/app-shell';
 	import { keepAppInVisualViewport } from '$lib/app-viewport';
 	import { routePathOf } from '$lib/company-path';
 	import { isSupabaseConfigured } from '$lib/supabase-session';
@@ -308,6 +308,12 @@
 			</EffectErrorBoundary>
 		{/if}
 	</Tooltip.Provider>
+{:else if isFullScreenApp(page.url.pathname)}
+	<div class="flex h-svh w-full bg-background text-foreground">
+		<WebAuthGate session={data.session} returnPath={currentReturnPath()}>
+			{@render contained()}
+		</WebAuthGate>
+	</div>
 {:else}
 	{@render contained()}
 {/if}

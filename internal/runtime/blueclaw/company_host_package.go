@@ -125,7 +125,8 @@ const (
 	CompanyHostAdmindListenAddress = "127.0.0.1:18080"
 	AdmindRosterReadinessPath      = "/admin/api/health/roster"
 	CompanyHostChatdEndpoint       = "http://127.0.0.1:18090"
-	CompanyHostArrivalsInboundURL  = "http://127.0.0.1:18091/inbound"
+	CompanyHostRelayLocalURL       = "http://127.0.0.1:18091"
+	CompanyHostArrivalsInboundURL  = CompanyHostRelayLocalURL + "/inbound"
 	CompanyHostBrowserFirstPort    = 9230
 	CompanyHostBrowserCapacity     = 4
 )

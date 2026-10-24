@@ -16032,6 +16032,123 @@
       "availability": {
         "state": "ok"
       },
+      "canonicalName": "browser_handoff",
+      "description": "Hand the browser to the requester so they do one step in it themselves, such as signing in or entering a one-time code. Open the page that needs them first. Never type a password or code yourself and never ask for one in the conversation. The call waits while they work and answers how it ended and where the browser is; nothing they see or type there reaches you.",
+      "estimatedLatency": "interactive",
+      "idempotency": {
+        "required": false,
+        "scope": "operation",
+        "supported": false
+      },
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "handoff": {
+            "description": "Leave unset. The runtime sets it when the requester takes the browser.",
+            "type": "string"
+          },
+          "step": {
+            "description": "What the requester does in the browser themselves, in a few plain words: \"sign in to the vendor portal\", \"enter the code sent to their phone\".",
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "step"
+        ],
+        "type": "object"
+      },
+      "inputSchemaStrict": true,
+      "modelName": "browser_handoff",
+      "modelVisibility": "visible",
+      "modelVisible": true,
+      "name": "browser_handoff",
+      "namespace": "browser",
+      "namespaceSummary": "Operate a web page step by step in the company computer's browser: open it, read it, click, fill, press keys, and screenshot.",
+      "outputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "ended": {
+            "description": "done: the requester handed the browser back as finished. abandoned: they handed it back without finishing. expired: nobody handed it back in time.",
+            "enum": [
+              "done",
+              "abandoned",
+              "expired"
+            ],
+            "type": "string"
+          },
+          "origin": {
+            "description": "The origin of the page the browser shows now.",
+            "type": "string"
+          },
+          "signInCookiesChanged": {
+            "description": "Whether this browser's cookies for signInOrigin changed while the requester had it. Absent when that could not be compared.",
+            "type": "boolean"
+          },
+          "signInOrigin": {
+            "description": "The origin of the page that was handed over.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "ended",
+          "origin",
+          "signInOrigin"
+        ],
+        "type": "object"
+      },
+      "outputSchemaStrict": true,
+      "policyResource": "tool:browser_handoff",
+      "privacyClass": "device_browser",
+      "requiresUserPresence": false,
+      "resultContract": {
+        "effects": [],
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "additionalProperties": false,
+          "properties": {
+            "ended": {
+              "description": "done: the requester handed the browser back as finished. abandoned: they handed it back without finishing. expired: nobody handed it back in time.",
+              "enum": [
+                "done",
+                "abandoned",
+                "expired"
+              ],
+              "type": "string"
+            },
+            "origin": {
+              "description": "The origin of the page the browser shows now.",
+              "type": "string"
+            },
+            "signInCookiesChanged": {
+              "description": "Whether this browser's cookies for signInOrigin changed while the requester had it. Absent when that could not be compared.",
+              "type": "boolean"
+            },
+            "signInOrigin": {
+              "description": "The origin of the page that was handed over.",
+              "type": "string"
+            }
+          },
+          "required": [
+            "ended",
+            "origin",
+            "signInOrigin"
+          ],
+          "type": "object"
+        }
+      },
+      "sideEffect": "read",
+      "sideEffectClass": "read",
+      "version": "1",
+      "worksOffline": false
+    },
+    {
+      "answeredBy": "local",
+      "availability": {
+        "state": "ok"
+      },
       "canonicalName": "browser_fill",
       "description": "Fill text into a target on the current browser page.",
       "estimatedLatency": "interactive",

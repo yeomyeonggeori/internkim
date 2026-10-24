@@ -37,6 +37,7 @@ func main() {
 	flag.IntVar(&configuration.DeviceBrowserFirstPort, "device-browser-first-port", defaultConfiguration.DeviceBrowserFirstPort, "first loopback port a device browser answers the Chrome DevTools Protocol on")
 	flag.IntVar(&configuration.DeviceBrowserCapacity, "device-browser-capacity", defaultConfiguration.DeviceBrowserCapacity, "most device browsers running at once")
 	flag.StringVar(&configuration.DeviceBrowserUserName, "device-browser-user", defaultConfiguration.DeviceBrowserUserName, "user a device browser runs as when capabilityd runs as root")
+	flag.StringVar(&configuration.RelayBaseURL, "relay-url", defaultConfiguration.RelayBaseURL, "URL the relay takes local calls on, where a browser hand-over is put to the requester")
 	flag.BoolVar(&configuration.LocalOnly, "local-only", defaultConfiguration.LocalOnly, "disable remote LLM fallback")
 	flag.String("companion-url", "", "ignored; device units written before 2026-10-01 still pass it, and an undefined flag stops the daemon")
 	flag.Bool("prefer-companion-llm", false, "ignored; device units written in May 2026 still pass it, and an undefined flag stops the daemon")

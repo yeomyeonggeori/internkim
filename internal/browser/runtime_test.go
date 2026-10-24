@@ -46,7 +46,7 @@ func (runner *fakeCommandRunner) Run(ctx context.Context, commandPath string, ar
 }
 
 func TestAgentBrowserRuntimeNavigatesThroughCommandRunner(t *testing.T) {
-	runner := &fakeCommandRunner{output: []byte("https://example.com\n")}
+	runner := &fakeCommandRunner{output: currentURLAnswer("https://example.com")}
 	runtime := AgentBrowserRuntime{
 		CommandPath: "agent-browser-test",
 		ProfilePath: "/profile",
@@ -63,7 +63,7 @@ func TestAgentBrowserRuntimeNavigatesThroughCommandRunner(t *testing.T) {
 		t.Fatalf("unexpected navigate result: %+v", result)
 	}
 	expectedOpenArguments := []string{"--session", "internkim-test", "--headed", "true", "--profile", "/profile", "--session-name", "internkim-test", "open", "https://example.com"}
-	expectedURLArguments := []string{"--session", "internkim-test", "--session-name", "internkim-test", "get", "url"}
+	expectedURLArguments := []string{"--session", "internkim-test", "--session-name", "internkim-test", "get", "url", "--json"}
 	expectedSnapshotArguments := []string{"--session", "internkim-test", "--session-name", "internkim-test", "snapshot", "-i", "--compact", "--json"}
 	if len(runner.calls) != 3 {
 		t.Fatalf("expected 3 command calls (open + url check + snapshot), got %d: %+v", len(runner.calls), runner.calls)
@@ -80,7 +80,7 @@ func TestAgentBrowserRuntimeNavigatesThroughCommandRunner(t *testing.T) {
 }
 
 func TestAgentBrowserRuntimeAcceptsLoginRedirect(t *testing.T) {
-	runner := &fakeCommandRunner{output: []byte("https://accounts.google.com/signin/v2/identifier\n")}
+	runner := &fakeCommandRunner{output: currentURLAnswer("https://accounts.google.com/signin/v2/identifier")}
 	runtime := AgentBrowserRuntime{
 		CommandPath:        "agent-browser-test",
 		SessionName:        "internkim-test",
@@ -153,7 +153,7 @@ func TestAgentBrowserRuntimeNavigateRecordsCaptureTimeWithoutSnapshot(t *testing
 	capturedAt := time.Date(2026, 7, 19, 1, 2, 3, 0, time.UTC)
 	runner := &sequenceCommandRunner{results: []commandResult{
 		{output: []byte("ok\n")},
-		{output: []byte("https://example.com/dashboard\n")},
+		{output: currentURLAnswer("https://example.com/dashboard")},
 		{errorValue: errors.New("snapshot failed")},
 	}}
 	runtime := AgentBrowserRuntime{
@@ -229,7 +229,7 @@ func TestAgentBrowserRuntimeOpenReturnsObservedRedirectSnapshot(t *testing.T) {
 }
 
 func TestAgentBrowserRuntimeChromeEngineUsesHeadedProfile(t *testing.T) {
-	runner := &fakeCommandRunner{output: []byte("https://example.com\n")}
+	runner := &fakeCommandRunner{output: currentURLAnswer("https://example.com")}
 	runtime := AgentBrowserRuntime{
 		CommandPath:        "agent-browser-test",
 		Engine:             BrowserEngineChrome,
@@ -277,7 +277,7 @@ func TestAgentBrowserRuntimeSessionWithoutExtensionOmitsExtensionArguments(t *te
 }
 
 func TestAgentBrowserRuntimePacesHeadedChromeCommands(t *testing.T) {
-	runner := &fakeCommandRunner{output: []byte("https://example.com\n")}
+	runner := &fakeCommandRunner{output: currentURLAnswer("https://example.com")}
 	delays := []time.Duration{}
 	runtime := AgentBrowserRuntime{
 		Engine:      BrowserEngineChrome,
@@ -321,7 +321,7 @@ func TestAgentBrowserRuntimeFailsWhenBrowserDoesNotNavigate(t *testing.T) {
 }
 
 func TestAgentBrowserRuntimeDoesNotPaceMoliCommands(t *testing.T) {
-	runner := &fakeCommandRunner{output: []byte("https://example.com\n")}
+	runner := &fakeCommandRunner{output: currentURLAnswer("https://example.com")}
 	sleepWasCalled := false
 	runtime := AgentBrowserRuntime{
 		Engine: BrowserEngineMoli,
@@ -407,7 +407,7 @@ func TestDeviceReadinessShellScriptChecksMoliSnapshotReadiness(t *testing.T) {
 }
 
 func TestAgentBrowserRuntimeMoliConnectsOverCDPOnly(t *testing.T) {
-	runner := &fakeCommandRunner{output: []byte("https://example.com\n")}
+	runner := &fakeCommandRunner{output: currentURLAnswer("https://example.com")}
 	runtime := AgentBrowserRuntime{
 		CommandPath:          "agent-browser-test",
 		Engine:               BrowserEngineMoli,
@@ -683,4 +683,8 @@ func (runner *sequenceCommandRunner) Run(ctx context.Context, commandPath string
 	result := runner.results[0]
 	runner.results = runner.results[1:]
 	return result.output, result.errorValue
+}
+
+func currentURLAnswer(address string) []byte {
+	return []byte("[agent-browser] restore: missing\n" + `{"success":true,"data":{"url":"` + address + `"},"error":null}` + "\n")
 }

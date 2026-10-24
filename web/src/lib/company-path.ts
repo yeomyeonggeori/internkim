@@ -9,6 +9,7 @@ export const reservedFirstSegments = [
 	'data-room',
 	'files',
 	'flow',
+	'handoff',
 	'task',
 	'mail',
 	'manifest-apple.webmanifest',

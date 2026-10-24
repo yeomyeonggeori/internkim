@@ -27,6 +27,8 @@ import {
 	type ACPSessionSettings,
 	type Addressing,
 	type Delivery,
+	type HandoffClaim,
+	type HandoffsForQuestions,
 	type MessageFacts
 } from './acp-session';
 import { SessionBindingStore } from './session-binding-store';
@@ -1092,4 +1094,79 @@ test('a refusal the agent answers with stays a refusal', async () => {
 
 	expect(failure).toBeInstanceOf(RequestError);
 	expect(failure).not.toBeInstanceOf(AgentUnreachable);
+});
+
+function handoffsFor(claimant: string, claimOfTheClaimant: HandoffClaim = 'open') {
+	const claims: string[] = [];
+	const answeredInThread: { handoffID: string; isDone: boolean }[] = [];
+	let settle: () => void = () => {};
+	const handoffs: HandoffsForQuestions = {
+		claim: async (handoffID, requesterEmail, settleTheQuestion) => {
+			claims.push(handoffID);
+			settle = settleTheQuestion;
+			return requesterEmail === claimant ? claimOfTheClaimant : 'refused';
+		},
+		linkOf: (handoffID) => `https://intern.example.com/handoff/${handoffID}`,
+		answeredInTheThread: async (handoffID, isDone) => {
+			answeredInThread.push({ handoffID, isDone });
+		}
+	};
+	return { handoffs, claims, answeredInThread, handBack: () => settle() };
+}
+
+test('a hand-over is posted with its link and answered when the requester hands the browser back', async () => {
+	const agent = anAgentOnASocket({});
+	const conversation = aConversation();
+	const handover = handoffsFor(sampleRequester.email);
+	const client = aClientFor(agent.socketPath, conversation, { handoffs: handover.handoffs });
+	await aSessionOpenedBy(client);
+
+	const asking = agent.askWithNoTurnOpen('session-1', 'hold-1', '아래 링크에서 직접 로그인해 주세요.', { ...questionDelivery, handoffID: 'handoff-1' });
+	await waitUntil(() => conversation.posted.length === 1, 'the hand-over to be posted');
+	handover.handBack();
+
+	expect((await asking).outcome).toEqual({ outcome: 'selected', optionId: 'approve_once' });
+	expect(handover.claims).toEqual(['handoff-1']);
+	expect(conversation.posted[0]?.message).toBe('아래 링크에서 직접 로그인해 주세요.\n\nhttps://intern.example.com/handoff/handoff-1');
+	expect(client.hasPendingApprovalIn('conversation-1', sampleRequester.email)).toBe(false);
+});
+
+test('a hand-over the session’s requester cannot claim is never posted', async () => {
+	const agent = anAgentOnASocket({});
+	const conversation = aConversation();
+	const client = aClientFor(agent.socketPath, conversation, { handoffs: handoffsFor('other@example.test').handoffs });
+	await aSessionOpenedBy(client);
+
+	const asking = agent.askWithNoTurnOpen('session-1', 'hold-1', '로그인해 주세요.', { ...questionDelivery, handoffID: 'handoff-1' });
+
+	expect((await asking).outcome).toEqual({ outcome: 'cancelled' });
+	expect(conversation.posted).toEqual([]);
+});
+
+test('a hand-over that ended while nobody held its question answers at once and posts nothing', async () => {
+	const agent = anAgentOnASocket({});
+	const conversation = aConversation();
+	const client = aClientFor(agent.socketPath, conversation, { handoffs: handoffsFor(sampleRequester.email, 'ended').handoffs });
+	await aSessionOpenedBy(client);
+
+	const asking = agent.askWithNoTurnOpen('session-1', 'hold-1', '로그인해 주세요.', { ...questionDelivery, handoffID: 'handoff-1' });
+
+	expect((await asking).outcome).toEqual({ outcome: 'selected', optionId: 'approve_once' });
+	expect(conversation.posted).toEqual([]);
+	expect(client.hasPendingApprovalIn('conversation-1', sampleRequester.email)).toBe(false);
+});
+
+test('declining a hand-over in the thread ends it as abandoned', async () => {
+	const agent = anAgentOnASocket({ approvalReplies: [{ reply: '안 할래', optionID: 'reject_once' }] });
+	const conversation = aConversation();
+	const handover = handoffsFor(sampleRequester.email);
+	const client = aClientFor(agent.socketPath, conversation, { handoffs: handover.handoffs });
+	await aSessionOpenedBy(client);
+	const asking = agent.askWithNoTurnOpen('session-1', 'hold-1', '로그인해 주세요.', { ...questionDelivery, handoffID: 'handoff-1' });
+	await waitUntil(() => client.hasPendingApprovalIn('conversation-1', sampleRequester.email), 'the hand-over to be asked');
+
+	await client.answerPendingApproval(questionThread, 'message-10', '안 할래', sampleRequester);
+
+	expect((await asking).outcome).toEqual({ outcome: 'selected', optionId: 'reject_once' });
+	expect(handover.answeredInThread).toEqual([{ handoffID: 'handoff-1', isDone: false }]);
 });

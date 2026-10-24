@@ -2,11 +2,14 @@ package browser
 
 import (
 	"context"
+	"crypto/sha256"
 	"encoding/base64"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"log"
 	"net/http"
+	"sort"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -65,6 +68,7 @@ type RequestGuard struct {
 	resend       *pendingResend
 	resending    sync.Mutex
 	processed    atomic.Int64
+	isHandedOver atomic.Bool
 	answering    map[int64]chan struct{}
 	nextAnswer   int64
 	handled      chan struct{}
@@ -282,6 +286,10 @@ func (guard *RequestGuard) answerPausedRequest(sessionID string, parameters json
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), requestGuardAnswerTimeout)
 	defer cancel()
+	if guard.isHandedOver.Load() {
+		guard.continueRequest(ctx, sessionID, paused.RequestID)
+		return
+	}
 	if resend, isClaimed := guard.claimResend(paused); isClaimed {
 		_, _ = guard.connection.call(ctx, sessionID, "Fetch.continueRequest", resentRequestParameters(paused.RequestID, resend))
 		return
@@ -332,6 +340,54 @@ func (guard *RequestGuard) carriesCookies(ctx context.Context, sessionID string,
 		return true
 	}
 	return len(jar.Cookies) > 0
+}
+
+func (guard *RequestGuard) HandOver() {
+	guard.isHandedOver.Store(true)
+}
+
+func (guard *RequestGuard) TakeBack() {
+	guard.isHandedOver.Store(false)
+}
+
+func (guard *RequestGuard) CookieJarDigest(ctx context.Context, address string) (string, error) {
+	sessionID, isWatching := guard.aPageSession()
+	if !isWatching {
+		return "", errors.New("the device browser has no page to read its cookies through")
+	}
+	answer, errorValue := guard.connection.call(ctx, sessionID, "Network.getCookies", map[string]any{"urls": []string{address}})
+	if errorValue != nil {
+		return "", errorValue
+	}
+	var jar struct {
+		Cookies []struct {
+			Name   string `json:"name"`
+			Value  string `json:"value"`
+			Domain string `json:"domain"`
+			Path   string `json:"path"`
+		} `json:"cookies"`
+	}
+	if errorValue := json.Unmarshal(answer, &jar); errorValue != nil {
+		return "", errors.New("the device browser listed its cookies in a shape it never uses")
+	}
+	lines := make([]string, 0, len(jar.Cookies))
+	for _, cookie := range jar.Cookies {
+		lines = append(lines, strings.Join([]string{cookie.Domain, cookie.Path, cookie.Name, cookie.Value}, "\x00"))
+	}
+	sort.Strings(lines)
+	digest := sha256.Sum256([]byte(strings.Join(lines, "\n")))
+	return hex.EncodeToString(digest[:]), nil
+}
+
+func (guard *RequestGuard) aPageSession() (string, bool) {
+	guard.mutex.Lock()
+	defer guard.mutex.Unlock()
+	for sessionID, targetType := range guard.sessionTypes {
+		if targetType == "page" {
+			return sessionID, true
+		}
+	}
+	return "", false
 }
 
 func (guard *RequestGuard) passwordFieldsIn(headers map[string]string, body string) []string {

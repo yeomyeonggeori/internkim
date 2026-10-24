@@ -90,7 +90,7 @@ func TestDeviceBrowserToolRunsThroughMoliRuntime(t *testing.T) {
 		RunCommand: func(_ context.Context, path string, commandArguments []string, _ []byte) ([]byte, error) {
 			calls = append(calls, commandCall{path: path, arguments: append([]string{}, commandArguments...)})
 			if slices.Contains(commandArguments, "get") && slices.Contains(commandArguments, "url") {
-				return []byte("https://example.com\n"), nil
+				return []byte(`{"success":true,"data":{"url":"https://example.com"}}`), nil
 			}
 			return nil, nil
 		},
@@ -113,7 +113,7 @@ func TestDeviceBrowserToolRunsThroughMoliRuntime(t *testing.T) {
 	if !slices.Equal(calls[0].arguments, expectedOpenArguments) {
 		t.Fatalf("unexpected open arguments: %+v", calls[0].arguments)
 	}
-	if calls[1].arguments[len(calls[1].arguments)-2] != "get" || calls[1].arguments[len(calls[1].arguments)-1] != "url" {
+	if !slices.Equal(calls[1].arguments[len(calls[1].arguments)-3:], []string{"get", "url", "--json"}) {
 		t.Fatalf("expected second call to be url check, got %+v", calls[1].arguments)
 	}
 	if calls[2].arguments[len(calls[2].arguments)-4] != "snapshot" ||

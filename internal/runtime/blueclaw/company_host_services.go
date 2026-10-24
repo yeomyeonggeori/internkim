@@ -283,6 +283,7 @@ func companyHostCapabilityService(layout CompanyHostLayout) CompanyHostService {
 			"--device-browser-capacity", strconv.Itoa(CompanyHostBrowserCapacity),
 			"--device-browser-user", BlueclawUser,
 			"--file-read-python", layout.DocumentPythonPath(),
+			"--relay-url", CompanyHostRelayLocalURL,
 		},
 		Environment:           companyHostCommonEnvironment(),
 		RestartAfterSeconds:   5,

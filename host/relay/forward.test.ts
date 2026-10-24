@@ -117,6 +117,10 @@ function dispatchThatKnows(externalIDs: Record<string, string>) {
 			askAdmindAsRequester: async (call: AdmindCall) => {
 				admindCalls.push(call);
 				return { status: 200, body: { served: call.url } };
+			},
+			serveBrowserHandoff: async (capability: string, body: Record<string, unknown>, memberID: string) => {
+				asked.push({ capability, body: { ...body, memberID } });
+				return { status: 200, body: { handedTo: memberID } };
 			}
 		}
 	};
@@ -149,6 +153,14 @@ describe('isPersonCapability', () => {
 });
 
 describe('serveCallForMember', () => {
+	test('a browser hand-over call is served by the hand-overs as the member the gateway named', async () => {
+		const { dispatch } = dispatchThatKnows({});
+
+		const served = await serveCallForMember(dispatch, { callID: 'c1', capability: 'person.browser.handoff.watch', body: { handoffID: 'handoff-1' } }, 'member-without-messenger');
+
+		expect(served).toEqual({ status: 200, body: { handedTo: 'member-without-messenger' }, replyTo: 'member-without-messenger' });
+	});
+
 	const callFromTheBrowser = {
 		callID: 'c1',
 		capability: 'person.conversations.list',

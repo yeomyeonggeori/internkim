@@ -1,6 +1,7 @@
 import { gatewayURL, supabase } from '$lib/supabase';
 import { supabaseMember } from '$lib/supabase-session';
 import { companyEventOf, type CompanyEvent } from '$lib/company-event';
+import { handoffEventOf, type HandoffEvent } from '$lib/browser-handoff/handoff-event';
 import { HostUnreachableError, readyWithPresence, type Frame } from '$lib/host-presence';
 import { createRepeatedArrivalFilter } from '$lib/repeated-arrivals';
 
@@ -30,10 +31,11 @@ let isServerConnected = false;
 let redialsInARow = 0;
 const waiting = new Map<string, (answer: HostAnswer | null) => void>();
 const listeners = new Set<(event: CompanyEvent) => void>();
+const handoffListeners = new Set<(event: HandoffEvent) => void>();
 const isRepeatedArrival = createRepeatedArrivalFilter(1_000);
 
 function isAnyoneListening(): boolean {
-	return listeners.size > 0;
+	return listeners.size > 0 || handoffListeners.size > 0;
 }
 
 async function companyWire(expectedOwner?: CompanyAppOwner): Promise<WebSocket> {
@@ -125,6 +127,11 @@ function receive(payload: Frame): void {
 		return;
 	}
 	if (payload.kind === 'deliver') {
+		const handoffEvent = handoffEventOf(payload.event);
+		if (handoffEvent) {
+			for (const listener of handoffListeners) listener(handoffEvent);
+			return;
+		}
 		const event = companyEventOf(payload.event);
 		if (event) announceCompanyEvent(event);
 		return;
@@ -142,6 +149,14 @@ export function onCompanyEvent(listener: (event: CompanyEvent) => void): () => v
 	void companyWire().catch(() => undefined);
 	return () => {
 		listeners.delete(listener);
+	};
+}
+
+export function onHandoffEvent(listener: (event: HandoffEvent) => void): () => void {
+	handoffListeners.add(listener);
+	void companyWire().catch(() => undefined);
+	return () => {
+		handoffListeners.delete(listener);
 	};
 }
 

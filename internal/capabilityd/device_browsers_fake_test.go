@@ -125,6 +125,14 @@ func (guardHoldingNothing) Resend(context.Context, browserruntime.WithheldReques
 	return nil
 }
 
+func (guardHoldingNothing) HandOver() {}
+
+func (guardHoldingNothing) TakeBack() {}
+
+func (guardHoldingNothing) CookieJarDigest(context.Context, string) (string, error) {
+	return "", nil
+}
+
 func (guardHoldingNothing) Close() {}
 
 func guardsHoldingNothing() *browserRequestGuards {
