@@ -18,7 +18,6 @@ import (
 
 const withheldRequestInputField = "withheldRequest"
 const shownBodyLimit = 4000
-const hiddenPassword = "●●●● (hidden)"
 const ledgerBodyLimit = 64 << 10
 const keptBodiesLimit = 64
 
@@ -81,7 +80,6 @@ func (kept *keptRequestBodies) take(requester string, identifier string) (string
 type pageRequestGuard interface {
 	IsGuarding(context.Context, string) bool
 	Settle(context.Context)
-	NotePasswordInputs(context.Context)
 	TakeWithheld() browserruntime.GuardedRequests
 	Resend(context.Context, browserruntime.WithheldRequest, string, func() error) error
 	HandOver()
@@ -141,7 +139,6 @@ func (service Service) runGuardedBrowserCall(ctx context.Context, browserRuntime
 	if earlier := takeWithheld(guard, request.ToolName); len(earlier.Held) > 0 {
 		return service.withheldRequestsResponse(request, earlier, false), nil
 	}
-	guard.NotePasswordInputs(ctx)
 	response, actionError := service.runBrowserAction(ctx, browserRuntime, request)
 	guard.Settle(ctx)
 	if caused := takeWithheld(guard, request.ToolName); len(caused.Held) > 0 {
@@ -172,9 +169,9 @@ func withheldRequestOf(input json.RawMessage) string {
 func (service Service) withheldRequestsResponse(request capabilities.ToolInvokeRequest, guarded browserruntime.GuardedRequests, isActionDone bool) capabilities.ToolInvokeResponse {
 	toolName := request.ToolName
 	titles := withheldRequestTitles(guarded.Held)
-	message := fmt.Sprintf("This call made the page send %s, which would carry this browser's cookies for that site or a password typed into the page. Nothing was sent: it goes out only if the requester approves exactly this.", titles)
+	message := fmt.Sprintf("This call made the page send %s, which would carry this browser's cookies for that site. Nothing was sent: it goes out only if the requester approves exactly this.", titles)
 	if !isActionDone {
-		message = fmt.Sprintf("Since the last browser call, the page tried to send %s on its own, which would carry this browser's cookies for that site or a password typed into the page. Nothing was sent, and %s was not run: the request goes out only if the requester approves exactly this, and %s runs after it.", titles, toolName, toolName)
+		message = fmt.Sprintf("Since the last browser call, the page tried to send %s on its own, which would carry this browser's cookies for that site. Nothing was sent, and %s was not run: the request goes out only if the requester approves exactly this, and %s runs after it.", titles, toolName, toolName)
 	}
 	log.Printf("tool.browser.requests_withheld: tool=%s requests=%s", toolName, titles)
 	keepBody := func(body string) string { return service.keptRequestBodies.keep(requesterKeyOf(request.Context), body) }
@@ -218,7 +215,7 @@ func approvalTargetOf(held []browserruntime.HeldRequest, isActionDone bool, keep
 
 func recordOf(held browserruntime.HeldRequest, keepBody func(string) string) withheldRequestRecord {
 	record := withheldRequestRecord{WithheldRequest: held.Request}
-	if len(held.PasswordFields) > 0 || len(held.Body) > ledgerBodyLimit {
+	if len(held.Body) > ledgerBodyLimit {
 		record.KeptBodyID = keepBody(held.Body)
 		return record
 	}
@@ -259,26 +256,19 @@ func shownBodyLines(held browserruntime.HeldRequest) []string {
 		return nil
 	}
 	if fields := browserruntime.FormFields(browserruntime.ContentTypeOf(held.Request.Headers), held.Body); len(fields) > 0 {
-		return formFieldLines(fields, held.PasswordFields)
+		return formFieldLines(fields)
 	}
 	return []string{shownRawBody(held.Body)}
 }
 
-func formFieldLines(fields []browserruntime.FormField, passwordFields []string) []string {
-	isPassword := map[string]bool{}
-	for _, name := range passwordFields {
-		isPassword[name] = true
-	}
+func formFieldLines(fields []browserruntime.FormField) []string {
 	lines := []string{}
 	for _, field := range fields {
-		switch {
-		case isPassword[field.Name]:
-			lines = append(lines, field.Name+": "+hiddenPassword)
-		case field.Filename != "":
+		if field.Filename != "" {
 			lines = append(lines, fmt.Sprintf("%s: (file %s, %d bytes)", field.Name, field.Filename, len(field.Value)))
-		default:
-			lines = append(lines, field.Name+": "+shownRawBody(field.Value))
+			continue
 		}
+		lines = append(lines, field.Name+": "+shownRawBody(field.Value))
 	}
 	return lines
 }
@@ -345,7 +335,7 @@ func (service Service) approvedBodies(requester string, requests []withheldReque
 		}
 		body, isKept := service.keptRequestBodies.take(requester, withheld.KeptBodyID)
 		if !isKept {
-			return nil, fmt.Errorf("the approved %s %s carried a password or a large body, which only this browser service's memory kept, and the service has restarted since or sent it already; nothing was sent, so repeat the action to ask the requester again", withheld.Method, withheld.URL)
+			return nil, fmt.Errorf("the approved %s %s carried a body too large for the ledger, which only this browser service's memory kept, and the service has restarted since or sent it already; nothing was sent, so repeat the action to ask the requester again", withheld.Method, withheld.URL)
 		}
 		bodies = append(bodies, body)
 	}

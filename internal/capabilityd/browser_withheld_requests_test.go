@@ -42,28 +42,26 @@ func TestTheApprovalShowsEachWithheldRequestAsTheBrowserWouldSendIt(t *testing.T
 	}
 }
 
-func TestAPasswordIsShownHiddenAndNeverCarriedByTheApproval(t *testing.T) {
-	signIn := browserruntime.WithheldRequest{Method: "POST", URL: "https://login.example/session", Headers: map[string]string{"Content-Type": "application/x-www-form-urlencoded"}}
+func TestABodyTooLargeForTheLedgerIsKeptOnlyInMemory(t *testing.T) {
+	upload := browserruntime.WithheldRequest{Method: "PUT", URL: "https://files.example/upload"}
+	body := strings.Repeat("x", ledgerBodyLimit+1)
 	kept := &keptRequestBodies{}
 	keepBody := func(body string) string { return kept.keep("sample@example.com", body) }
-	target := approvalTargetOf([]browserruntime.HeldRequest{{Request: signIn, Body: "user=sample%40example.com&pass=hunter2", PasswordFields: []string{"pass"}}}, true, keepBody)
+	target := approvalTargetOf([]browserruntime.HeldRequest{{Request: upload, Body: body}}, true, keepBody)
 
-	if !strings.Contains(target.Preview, "user: sample@example.com\npass: ●●●● (hidden)") {
-		t.Fatalf("preview = %q", target.Preview)
-	}
-	if strings.Contains(target.Preview+target.ID, "hunter2") {
-		t.Fatalf("the password reached the approval: %+v", target)
-	}
 	var carried withheldCall
 	_ = json.Unmarshal([]byte(target.ID), &carried)
-	if body, isKept := kept.take("sample@example.com", carried.Requests[0].KeptBodyID); !isKept || body != "user=sample%40example.com&pass=hunter2" {
-		t.Fatalf("the body with the password is not kept for the resend: %q %v", body, isKept)
+	if carried.Requests[0].BodyBase64 != "" {
+		t.Fatalf("a body over the ledger's limit went into the approval: %d bytes", len(target.ID))
+	}
+	if keptBody, isKept := kept.take("sample@example.com", carried.Requests[0].KeptBodyID); !isKept || keptBody != body {
+		t.Fatalf("the large body is not kept for the resend: %v", isKept)
 	}
 }
 
 func TestAKeptBodyIsTakenOnceOnlyByItsRequesterAndOnlyTheLatestAreKept(t *testing.T) {
 	kept := &keptRequestBodies{}
-	identifier := kept.keep("sample@example.com", "pass=hunter2")
+	identifier := kept.keep("sample@example.com", "to=example")
 
 	if _, isTaken := kept.take("other@example.com", identifier); isTaken {
 		t.Fatal("another person took the requester's kept body")
@@ -146,7 +144,7 @@ func TestABrowserThatCannotHoldRequestsDoesNotAct(t *testing.T) {
 
 func keepingNothing(t *testing.T) func(string) string {
 	return func(string) string {
-		t.Fatal("a body with no password and within the ledger's limit was kept in memory")
+		t.Fatal("a body within the ledger's limit was kept in memory")
 		return ""
 	}
 }
