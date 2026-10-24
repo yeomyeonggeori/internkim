@@ -3,7 +3,7 @@ set -euo pipefail
 
 repository_root="$(cd "$(dirname "$0")/.." && pwd)"
 
-pinned_revision="7a2fb3cc2d401e91e67d9819741d9025278cbec0"
+pinned_revision="f87c10895ea35a9a2cea629fef1d7532a3fecbc5"
 source_repository="https://github.com/block/buzz"
 
 # rust-s3 puts the endpoint's path in the Host header, so an S3 endpoint that
