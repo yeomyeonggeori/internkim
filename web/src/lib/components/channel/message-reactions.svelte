@@ -8,6 +8,7 @@
 	import type { ChannelMessageReaction } from './channel-api';
 	import { customEmoji } from '$lib/stores/custom-emoji.svelte';
 	import LoadingImage from '$lib/components/loading-image.svelte';
+	import { Skeleton } from '$lib/components/ui/skeleton';
 	import SmilePlusIcon from '@lucide/svelte/icons/smile-plus';
 
 	let {
@@ -32,6 +33,10 @@
 	function reactionImage(reaction: ChannelMessageReaction): string | undefined {
 		return customEmoji.nameToURL.get(reaction.value) || reaction.imageURL;
 	}
+
+	function isReactionImageDrawing(reaction: ChannelMessageReaction): boolean {
+		return Boolean(reaction.imageURL) && customEmoji.isDrawing(reaction.value);
+	}
 </script>
 
 <div class="message-reactions flex flex-wrap gap-1.5 group-data-[align=end]/message:justify-end">
@@ -54,7 +59,9 @@
 						aria-label={imageURL ? `${shortcode} ${reaction.count}` : undefined}
 						onclick={() => toggleWhenJoinable(reaction)}
 					>
-						{#if imageURL}
+						{#if isReactionImageDrawing(reaction)}
+							<Skeleton class="size-4 shrink-0 rounded-none" />
+						{:else if imageURL}
 							<LoadingImage src={imageURL} alt={shortcode} fallbackText={shortcode} fill loading="eager" class="size-4 shrink-0 rounded-none" />
 						{:else}
 							<span class="text-sm leading-none">{reaction.emoji}</span>
@@ -66,7 +73,9 @@
 			<Tooltip.Content>
 				<div class="flex flex-col gap-0.5">
 					<div class="flex items-center gap-1">
-						{#if imageURL}
+						{#if isReactionImageDrawing(reaction)}
+							<Skeleton class="size-4 shrink-0 rounded-none" />
+						{:else if imageURL}
 							<LoadingImage src={imageURL} alt={shortcode} fallbackText={shortcode} fill loading="eager" class="size-4 shrink-0 rounded-none" />
 						{:else}
 							<span>{reaction.emoji}</span>
