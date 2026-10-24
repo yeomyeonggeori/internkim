@@ -292,19 +292,39 @@ closes with `1012` and the apps dial again. The relay sends streams out in
 turn, one frame each, so one busy subscription cannot hold the connection.
 
 The rest of what an app sends is HTTP. NIP-98 queries, invitations and the
-relay's information document travel as calls on the same connection. A blob
-the app asks for comes back as one streamed HTTP response. The gateway sends
-`media.open` with the app's headers as they arrived, range and token included,
-and the host asks its relay with exactly those, so the relay checks the token
-once, at the start. The host sends back the status and headers, the body in
-frames of at most 512 KiB, and `media.end`. It sends only bytes the gateway has
-granted, and the gateway grants them as the app reads, so the Durable Object
-holds at most 512 KiB of any one blob and at most 32 blobs at once. A host
-that does not name `messenger.media.stream` in its handshake is asked the older
-way, which copies the blob into the transfer store first.
+relay's information document travel as calls on the same connection.
+
+The relay decides who may read a blob, and the company's copy of it in the
+bucket supplies the bytes. The gateway first calls `messenger.media.head` with
+the app's headers as they arrived, token and range included, and the host asks
+its relay for a HEAD with exactly those. A refusal goes back to the app as the
+relay gave it, with no body. When the relay allows the read and the bucket
+holds the copy at `<company>/shared/transfer/<digest>`, the host answers with
+an address for it, signed for a minute. The gateway reads the copy with the
+app's range and answers with the relay's headers and the copy's length and
+range, so the bytes cross neither the Durable Object nor the host's connection.
+
+When there is no copy yet, the gateway sends `media.open` and the host streams
+its relay's answer: the status and headers, the body in binary frames of at
+most 512 KiB, and `media.end`. It sends only bytes the gateway has granted, and
+the gateway grants them as the app reads, so the Durable Object holds at most
+512 KiB of any one blob and at most 32 blobs at once. Meanwhile the host fills
+the copy, once per digest however many apps ask. It reads the whole blob
+through the connector as the requester, with the key the company holds for
+them, which is how a browser's read is made too. A fill that fails logs one
+line naming the digest and the reason.
+
 An upload is staged in the bucket and the host hands it to its relay from
-there. A redirect would be simpler, but the desktop app refuses one when it
-saves or copies a file.
+there. When the relay accepts it and names the digest the staged bytes hash
+to, the staged object is moved to that digest's copy, so a file sent from an
+app is read from the copy from the start. A redirect would be simpler than
+staging, but the desktop app refuses one when it saves or copies a file.
+
+A host names what it can do in its handshake. One that does not name
+`messenger.media.head` is never asked for a head and streams every read. One
+that does not name `messenger.media.stream` either is asked the oldest way,
+which copies the blob into the bucket before answering. A host sends a body as
+base64 in JSON to a gateway whose `media.open` does not ask for binary frames.
 
 The Durable Object accepts every socket through the WebSocket Hibernation API.
 Each socket's role sits in its attachment, the runtime answers the host's
@@ -425,7 +445,10 @@ range at a time. A copy that already exists is answered at once with its
 address. Otherwise the call answers `pending`, and the relay delivers
 `transfer.progress` events while it copies, then `transfer.done` with the
 address or `transfer.failed` with the reason. The browser signs the address
-with its own session, so row level security decides who may open it.
+with its own session, so row level security decides who may open it. A
+messenger attachment is copied to the same digest-named object a native app's
+read fills, with the digest taken from its address, and both kinds of read
+share one fill, so a file read once by either is ready for the other.
 
 To send one, the browser uploads it into its member's `upload/` prefix with a
 resumable upload of its own, then calls `person.media.upload` or

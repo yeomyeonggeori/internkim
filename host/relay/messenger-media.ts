@@ -1,11 +1,13 @@
 import {
+	binaryBodyFrames,
+	binaryMediaBody,
 	largestStreamFrameBytes,
 	mediaBody,
 	mediaMessage,
 	type GatewayMediaMessage,
 	type MediaOpen
 } from '../../workers/connection-gateway/src/host-protocol';
-import type { FairOutbox } from './fair-outbox';
+import type { FairOutbox, OutboxDocument } from './fair-outbox';
 
 export type RelayFetch = (url: string, init: RequestInit) => Promise<Response>;
 
@@ -62,27 +64,28 @@ export class MessengerMediaReads {
 				signal: read.aborter.signal
 			});
 			this.send(open.streamID, mediaMessage({ kind: 'media.head', streamID: open.streamID, ...decodedHeadOf(response) }));
-			if (response.body && open.method !== 'HEAD') await this.sendBody(open.streamID, read, response.body);
+			if (response.body && open.method !== 'HEAD') await this.sendBody(open, read, response.body);
 			this.send(open.streamID, mediaMessage({ kind: 'media.end', streamID: open.streamID }));
 		} catch (error) {
 			this.sayItFailed(open, read, reasonOf(error));
 		}
 	}
 
-	private async sendBody(streamID: string, read: MediaRead, body: ReadableStream<Uint8Array>): Promise<void> {
+	private async sendBody(open: MediaOpen, read: MediaRead, body: ReadableStream<Uint8Array>): Promise<void> {
+		const bodyFrameOf = open.bodyFrames === binaryBodyFrames ? binaryMediaBody : mediaBody;
 		for await (const chunk of body) {
 			let remaining = chunk;
 			while (remaining.byteLength > 0) {
 				await creditFor(read);
 				const size = Math.min(remaining.byteLength, read.credit, largestStreamFrameBytes);
-				this.send(streamID, mediaBody(streamID, remaining.subarray(0, size)));
+				this.send(open.streamID, bodyFrameOf(open.streamID, remaining.subarray(0, size)));
 				read.credit -= size;
 				remaining = remaining.subarray(size);
 			}
 		}
 	}
 
-	private send(streamID: string, document: string): void {
+	private send(streamID: string, document: OutboxDocument): void {
 		if (!this.outbox.push(streamID, document)) throw new Error('the gateway connection is backed up');
 	}
 

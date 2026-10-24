@@ -22,7 +22,7 @@ import {
 	type KeptFileReference,
 	type WorkspaceFile
 } from './file-transfer';
-import type { StoreAccess } from './transfer-store';
+import type { RangedSource, StoreAccess } from './transfer-store';
 import { Transfers } from './transfers';
 import { PersonPictures, type PictureRequest } from './person-picture';
 import { defaultAnswerByteCeiling, largestRawBytesThatFit } from './answer-size';
@@ -46,6 +46,7 @@ import { notifyRequestOf, readArrivedMessage, type ArrivedMessage } from './arri
 import { connectToGateway, type GatewayConnection } from './gateway-socket';
 import { MessengerRelay } from './messenger-calls';
 import { messengerStoreOf } from './messenger-store';
+import { MessengerCopies } from './messenger-copies';
 import { CredentialCache } from './credential-cache';
 import { BlueclawACPClient, defaultBlueclawACPSocketPath } from './acp-session';
 import { RecordCatalogs, ticketOf } from './record-catalog';
@@ -181,6 +182,25 @@ async function memberAccessToken(requesterEmail: string): Promise<string> {
 
 const transfers = new Transfers((event, memberID) => gateway?.deliver(event, [memberID]));
 
+const messengerCopies = new MessengerCopies({
+	companyID,
+	access: hostAccess,
+	transfers,
+	readerOf: mediaReaderOf,
+	report: (line) => console.log(line)
+});
+
+async function mediaReaderOf(requesterKey: string, mediaURL: string): Promise<RangedSource | null> {
+	const memberID = requesterKey ? await memberIDOf(requesterKey) : null;
+	const actor = memberID ? await credentials.credentialOf(memberID) : null;
+	if (!actor) return null;
+	return (rangeHeader) => readMediaRange(actor, mediaURL, rangeHeader);
+}
+
+function readMediaRange(actor: ActorCredential, mediaURL: string, rangeHeader: string): Promise<Response> {
+	return askChatdRaw('person.media.read', { actor, mediaURL, range: rangeHeader });
+}
+
 const fileTransfer: FileTransferDependencies = {
 	companyID,
 	hostAccess,
@@ -190,7 +210,8 @@ const fileTransfer: FileTransferDependencies = {
 		accessToken: () => memberAccessToken(requesterEmail)
 	}),
 	transfers,
-	readMediaRange: (actor, mediaURL, rangeHeader) => askChatdRaw('person.media.read', { actor, mediaURL, range: rangeHeader }),
+	messengerCopies,
+	readMediaRange,
 	uploadMedia: (actor, sourceURL, contentType) => dispatch.askChatd('person.media.upload', { actor, sourceURL, contentType }),
 	listWorkspaceDirectory: (requesterEmail, directoryPath) => {
 		const call = workspaceCallOf('person.files.list', { path: directoryPath }, requesterEmail);
@@ -218,7 +239,7 @@ function askChatdRaw(capability: string, body: Record<string, unknown>): Promise
 	return fetchWhenChatdListens(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
 }
 
-const messenger = new MessengerRelay(messengerRelayURL.replace(/^ws/, 'http'), messengerStoreOf(companyID, hostAccess));
+const messenger = new MessengerRelay(messengerRelayURL.replace(/^ws/, 'http'), messengerStoreOf(companyID, hostAccess, messengerCopies));
 
 const dispatch = {
 	messageArrived: tellBrowsers,

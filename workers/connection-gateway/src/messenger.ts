@@ -16,7 +16,9 @@ export type MediaAsk = { method: string; path: string; host: string; headers: Re
 
 export type MediaStreamer = (asked: MediaAsk) => Promise<Response | null>;
 
-export type MessengerReach = { call: MessengerCall; streamMedia: MediaStreamer };
+export type MediaHeadCall = (asked: MediaAsk) => Promise<OneShotAnswer | null>;
+
+export type MessengerReach = { call: MessengerCall; streamMedia: MediaStreamer; headMedia: MediaHeadCall };
 
 export type RelayResponse = {
 	status: number;
@@ -148,10 +150,26 @@ async function relayHTTP(request: Request, target: Target, call: MessengerCall):
 }
 
 async function readMedia(request: Request, target: Target, messenger: MessengerReach): Promise<Response> {
-	const headers = forwardedRequestHeadersOf(request.headers);
-	const streamed = await messenger.streamMedia({ ...target, headers });
+	const asked = { ...target, headers: forwardedRequestHeadersOf(request.headers) };
+	const headed = await messenger.headMedia({ ...asked, method: 'HEAD' });
+	const fromTheCopy = headed ? await answerFromTheCopy(request, headed) : null;
+	if (fromTheCopy) return fromTheCopy;
+	const streamed = await messenger.streamMedia(asked);
 	if (streamed) return streamedMediaResponseOf(streamed);
-	return readMediaByCall(request, { ...target, headers }, messenger.call);
+	return readMediaByCall(request, asked, messenger.call);
+}
+
+async function answerFromTheCopy(request: Request, headed: OneShotAnswer): Promise<Response | null> {
+	const relayed = relayResponseOf(headed);
+	if (!relayed) return null;
+	if (!isSuccessful(relayed.status) || request.method === 'HEAD') return headResponseOf(relayed);
+	if (!relayed.objectURL) return null;
+	const stored = await fetchTheCopy(request, relayed.objectURL);
+	return stored.ok ? copyResponseOf(stored, relayed) : null;
+}
+
+function isSuccessful(status: number): boolean {
+	return status >= 200 && status < 300;
 }
 
 function streamedMediaResponseOf(streamed: Response): Response {
@@ -166,10 +184,19 @@ async function readMediaByCall(request: Request, asked: MediaAsk, call: Messenge
 	const relayed = relayResponseOf(answer);
 	if (relayed && request.method === 'HEAD') return headResponseOf(relayed);
 	if (!relayed?.objectURL) return responseOf(answer);
-	const range = request.headers.get('Range');
-	const stored = await fetch(relayed.objectURL, { headers: range ? { Range: range } : {} });
+	const stored = await fetchTheCopy(request, relayed.objectURL);
 	if (!stored.ok) return refusal(502, `the transfer store answered ${stored.status} for this blob`);
+	return copyResponseOf(stored, relayed);
+}
+
+function fetchTheCopy(request: Request, objectURL: string): Promise<Response> {
+	const range = request.headers.get('Range');
+	return fetch(objectURL, { headers: range ? { Range: range } : {} });
+}
+
+function copyResponseOf(stored: Response, relayed: RelayResponse): Response {
 	const headers = answeredHeadersOf(relayed.headers);
+	headers.delete('content-range');
 	for (const name of ['content-length', 'content-range', 'accept-ranges']) {
 		const value = stored.headers.get(name);
 		if (value) headers.set(name, value);

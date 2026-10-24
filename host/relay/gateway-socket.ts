@@ -8,6 +8,7 @@ import {
 	hostSupportsHeader,
 	isMediaKind,
 	isStreamKind,
+	messengerMediaHeadCapability,
 	messengerMediaStreamCapability,
 	parseGatewayMediaMessage,
 	parseStreamMessage,
@@ -105,7 +106,7 @@ export function connectToGateway(settings: {
 			if (isClosed) return;
 			socket = openHeaderWebSocket(url, {
 				Authorization: `Bearer ${accessToken}`,
-				[hostSupportsHeader]: messengerMediaStreamCapability
+				[hostSupportsHeader]: [messengerMediaStreamCapability, messengerMediaHeadCapability].join(',')
 			});
 		} catch (error) {
 			report(`gateway authentication for ${settings.companyID} failed: ${error instanceof Error ? error.message : error}`);

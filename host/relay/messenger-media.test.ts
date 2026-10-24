@@ -2,10 +2,25 @@ import { afterAll, beforeAll, describe, expect, test } from 'bun:test';
 import { FairOutbox } from './fair-outbox';
 import { MessengerMediaReads } from './messenger-media';
 import { bytesOfBase64 } from '../../workers/connection-gateway/src/base64';
-import { largestStreamFrameBytes, mediaCreditWindowBytes } from '../../workers/connection-gateway/src/host-protocol';
+import {
+	binaryBodyFrames,
+	largestStreamFrameBytes,
+	mediaCreditWindowBytes,
+	parseBinaryMediaBody
+} from '../../workers/connection-gateway/src/host-protocol';
+import type { OutboxDocument } from './fair-outbox';
 
 type Heard = { method: string; path: string; host: string | null; authorization: string | null; range: string | null };
-type Sent = { kind: string; streamID: string; status?: number; headers?: Record<string, string>; data?: string; reason?: string };
+type Sent = {
+	kind: string;
+	streamID: string;
+	status?: number;
+	headers?: Record<string, string>;
+	data?: string;
+	bytes?: Uint8Array;
+	reason?: string;
+	isBinary?: boolean;
+};
 
 const host = 'acme.example.test';
 const video = Uint8Array.from({ length: 3 * 1024 * 1024 + 7 }, (_, index) => (index * 31 + 7) % 251);
@@ -63,8 +78,15 @@ afterAll(() => relay.stop(true));
 function mediaReadsOver(relayURL: string): { reads: MessengerMediaReads; sent: Sent[]; reported: string[] } {
 	const sent: Sent[] = [];
 	const reported: string[] = [];
-	const outbox = new FairOutbox(() => ({ send: (document) => sent.push(JSON.parse(document)), bufferedBytes: () => 0 }));
+	const outbox = new FairOutbox(() => ({ send: (document) => sent.push(sentOf(document)), bufferedBytes: () => 0 }));
 	return { reads: new MessengerMediaReads(relayURL, outbox, (line) => reported.push(line)), sent, reported };
+}
+
+function sentOf(document: OutboxDocument): Sent {
+	if (typeof document === 'string') return JSON.parse(document);
+	const body = parseBinaryMediaBody(document);
+	if (!body) throw new Error('the host sent a binary frame that is no media body');
+	return { ...body, isBinary: true };
 }
 
 function relayed(): { reads: MessengerMediaReads; sent: Sent[]; reported: string[] } {
@@ -73,6 +95,14 @@ function relayed(): { reads: MessengerMediaReads; sent: Sent[]; reported: string
 
 function open(reads: MessengerMediaReads, streamID: string, path: string, headers: Record<string, string>, method = 'GET'): void {
 	reads.take({ kind: 'media.open', streamID, method, path, host, headers, creditBytes: mediaCreditWindowBytes });
+}
+
+function openAskingForBinary(reads: MessengerMediaReads, streamID: string, path: string, headers: Record<string, string>): void {
+	reads.take({ kind: 'media.open', streamID, method: 'GET', path, host, headers, creditBytes: mediaCreditWindowBytes, bodyFrames: binaryBodyFrames });
+}
+
+function bodyOf(one: Sent): Uint8Array {
+	return one.bytes ?? bytesOfBase64(one.data ?? '');
 }
 
 async function until(condition: () => boolean, what: string): Promise<void> {
@@ -84,7 +114,7 @@ async function until(condition: () => boolean, what: string): Promise<void> {
 }
 
 function bodyBytesOf(sent: Sent[]): number {
-	return sent.filter((one) => one.kind === 'media.body').reduce((total, one) => total + bytesOfBase64(one.data ?? '').byteLength, 0);
+	return sent.filter((one) => one.kind === 'media.body').reduce((total, one) => total + bodyOf(one).byteLength, 0);
 }
 
 async function readEverythingGrantingCredit(reads: MessengerMediaReads, sent: Sent[], streamID: string): Promise<Uint8Array> {
@@ -97,7 +127,7 @@ async function readEverythingGrantingCredit(reads: MessengerMediaReads, sent: Se
 		}
 		return sent.some((one) => one.kind === 'media.end' || one.kind === 'media.fail');
 	}, 'the read to end');
-	return Buffer.concat(sent.filter((one) => one.kind === 'media.body').map((one) => bytesOfBase64(one.data ?? '')));
+	return Buffer.concat(sent.filter((one) => one.kind === 'media.body').map(bodyOf));
 }
 
 describe('MessengerMediaReads', () => {
@@ -110,6 +140,17 @@ describe('MessengerMediaReads', () => {
 		expect(sent.filter((one) => one.kind === 'media.body').length).toBeGreaterThan(video.byteLength / largestStreamFrameBytes);
 		expect(Buffer.compare(body, video)).toBe(0);
 		expect(reads.openCount).toBe(0);
+	});
+
+	test('sends the body as binary frames, intact and in order, to a gateway that asks for them', async () => {
+		const { reads, sent } = relayed();
+		openAskingForBinary(reads, 's1b', '/media/video.mp4', { authorization: 'Nostr get' });
+		const body = await readEverythingGrantingCredit(reads, sent, 's1b');
+		const bodies = sent.filter((one) => one.kind === 'media.body');
+		expect(bodies.length).toBeGreaterThan(video.byteLength / largestStreamFrameBytes);
+		expect(bodies.every((one) => one.isBinary && one.streamID === 's1b')).toBe(true);
+		expect(Math.max(...bodies.map((one) => bodyOf(one).byteLength))).toBeLessThanOrEqual(largestStreamFrameBytes);
+		expect(Buffer.compare(body, video)).toBe(0);
 	});
 
 	test("asks the relay with exactly the app's headers, so a range comes back as 206 with its content range", async () => {

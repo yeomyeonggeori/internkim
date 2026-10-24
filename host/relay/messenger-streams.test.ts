@@ -58,7 +58,7 @@ function fakeRelay(): FakeRelay {
 
 function gatewayOutlet(): { outbox: FairOutbox; sent: Record<string, unknown>[] } {
 	const sent: Record<string, unknown>[] = [];
-	const outbox = new FairOutbox(() => ({ send: (document) => sent.push(JSON.parse(document)), bufferedBytes: () => 0 }));
+	const outbox = new FairOutbox(() => ({ send: (document) => sent.push(JSON.parse(String(document))), bufferedBytes: () => 0 }));
 	return { outbox, sent };
 }
 

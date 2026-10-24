@@ -12,7 +12,7 @@ import type { OneShotAnswer, OneShotCall } from './routing';
 import {
 	digestOf,
 	digestsMatch,
-	hostReadsMediaByCallHeader,
+	hostLacksHeader,
 	jsonResponse,
 	memberHeader,
 	streamAddressHeader,
@@ -21,6 +21,7 @@ import {
 	workerBoxHeader
 } from './company-connection';
 import { answerMessengerRequest, isPageNavigation, type MediaAsk } from './messenger';
+import { messengerMediaHeadCapability } from './host-protocol';
 import { MessengerAddresses } from './messenger-address';
 
 export type WorkerEnvironment = {
@@ -65,7 +66,8 @@ async function reachTheMessenger(request: Request, environment: WorkerEnvironmen
 	if (request.headers.get('Upgrade') === 'websocket') return openMessengerStream(request, environment, companyID, url);
 	return answerMessengerRequest(request, url.host, {
 		call: (capability, body) => callTheMessenger(environment, companyID, capability, body),
-		streamMedia: (asked) => streamTheMedia(environment, companyID, asked)
+		streamMedia: (asked) => streamTheMedia(environment, companyID, asked),
+		headMedia: (asked) => headTheMedia(environment, companyID, asked)
 	});
 }
 
@@ -113,23 +115,29 @@ async function callTheMessenger(
 	capability: string,
 	body: Record<string, unknown>
 ): Promise<OneShotAnswer> {
-	const answered = await connectionFor(environment, companyID).fetch(
-		new Request(`https://connection-gateway/company/${encodeURIComponent(companyID)}/messenger-call`, {
-			method: 'POST',
-			body: JSON.stringify({ requestID: crypto.randomUUID(), capability, body })
-		})
-	);
+	const answered = await askTheCompany(environment, companyID, 'messenger-call', { requestID: crypto.randomUUID(), capability, body });
+	return oneShotAnswerOfResponse(await answered.json());
+}
+
+async function headTheMedia(environment: WorkerEnvironment, companyID: string, asked: MediaAsk): Promise<OneShotAnswer | null> {
+	const body = { requestID: crypto.randomUUID(), capability: messengerMediaHeadCapability, body: asked };
+	const answered = await askTheCompany(environment, companyID, 'messenger-media-head', body);
+	if (answered.headers.has(hostLacksHeader)) return null;
 	return oneShotAnswerOfResponse(await answered.json());
 }
 
 async function streamTheMedia(environment: WorkerEnvironment, companyID: string, asked: MediaAsk): Promise<Response | null> {
-	const answered = await connectionFor(environment, companyID).fetch(
-		new Request(`https://connection-gateway/company/${encodeURIComponent(companyID)}/messenger-media`, {
+	const answered = await askTheCompany(environment, companyID, 'messenger-media', asked);
+	return answered.headers.has(hostLacksHeader) ? null : answered;
+}
+
+function askTheCompany(environment: WorkerEnvironment, companyID: string, endpoint: string, body: unknown): Promise<Response> {
+	return connectionFor(environment, companyID).fetch(
+		new Request(`https://connection-gateway/company/${encodeURIComponent(companyID)}/${endpoint}`, {
 			method: 'POST',
-			body: JSON.stringify(asked)
+			body: JSON.stringify(body)
 		})
 	);
-	return answered.headers.has(hostReadsMediaByCallHeader) ? null : answered;
 }
 
 function oneShotAnswerOfResponse(document: unknown): OneShotAnswer {

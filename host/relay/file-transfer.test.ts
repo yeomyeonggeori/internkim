@@ -7,6 +7,7 @@ import {
 	takeUploadIntoWorkspace,
 	type FileTransferDependencies
 } from './file-transfer';
+import { MessengerCopies } from './messenger-copies';
 import { Transfers } from './transfers';
 
 const realFetch = globalThis.fetch;
@@ -56,6 +57,7 @@ function dependencies(overrides: Partial<FileTransferDependencies> = {}) {
 		hostAccess: access,
 		memberAccess: () => access,
 		transfers,
+		messengerCopies: new MessengerCopies({ companyID, access, transfers, readerOf: neverAsked, report: () => undefined }),
 		readMediaRange: neverAsked,
 		uploadMedia: neverAsked,
 		listWorkspaceDirectory: async () => ({ status: 200, body: { entries: [] } }),
@@ -69,7 +71,7 @@ function dependencies(overrides: Partial<FileTransferDependencies> = {}) {
 
 describe('preparing a messenger file for reading', () => {
 	test('one already copied is answered at once, without the messenger being read', async () => {
-		storeHolding({ [`${companyID}/shared/transfer/${digest}.png`]: 91_000_000 });
+		storeHolding({ [`${companyID}/shared/transfer/${digest}`]: 91_000_000 });
 		const { values, started } = dependencies();
 
 		const answer = await prepareMedia(values, 'member-1', actor, {
@@ -84,7 +86,7 @@ describe('preparing a messenger file for reading', () => {
 			body: {
 				transfer: {
 					state: 'ready',
-					address: `${projectURL}/storage/v1/object/asset/${companyID}/shared/transfer/${digest}.png`,
+					address: `${projectURL}/storage/v1/object/asset/${companyID}/shared/transfer/${digest}`,
 					sizeBytes: 91_000_000
 				}
 			}
@@ -105,6 +107,31 @@ describe('preparing a messenger file for reading', () => {
 
 		expect(answer).toEqual({ status: 200, body: { transfer: { state: 'pending' } } });
 		expect(started).toEqual([`${companyID}/shared/transfer/${digest}`]);
+	});
+
+	test('the blob is named by the digest in its address, the one the app reads it by, over the one the message claims', async () => {
+		storeHolding({});
+		const { values, started } = dependencies();
+		const served = 'd'.repeat(64);
+
+		await prepareMedia(values, 'member-1', actor, {
+			transferID: 'transfer-0001',
+			mediaURL: `https://relay.test/media/${served}.jpg`,
+			digest,
+			contentType: 'image/jpeg'
+		});
+
+		expect(started).toEqual([`${companyID}/shared/transfer/${served}`]);
+	});
+
+	test('a file whose address and message name no digest is refused', async () => {
+		storeHolding({});
+		const { values, started } = dependencies();
+
+		const answer = await prepareMedia(values, 'member-1', actor, { transferID: 'transfer-0001', mediaURL: 'https://relay.test/media/x.png' });
+
+		expect(answer.status).toBe(400);
+		expect(started).toEqual([]);
 	});
 
 	test('a call without an id to answer it by is refused', async () => {

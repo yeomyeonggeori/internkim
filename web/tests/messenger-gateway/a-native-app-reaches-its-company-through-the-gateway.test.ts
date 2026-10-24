@@ -9,7 +9,10 @@ import { controlPlane, issueAgentKey, provisionCompany, sessionForHost } from '.
 import { connectToGateway, type GatewayConnection } from '../../../host/relay/gateway-socket';
 import type { Dispatch } from '../../../host/relay/forward';
 import { MessengerRelay } from '../../../host/relay/messenger-calls';
+import { MessengerCopies } from '../../../host/relay/messenger-copies';
 import { messengerStoreOf } from '../../../host/relay/messenger-store';
+import { Transfers } from '../../../host/relay/transfers';
+import type { RangedSource } from '../../../host/relay/transfer-store';
 import { projectURL, publishableKey, serviceRoleKey, signingKey } from '../support/supabase-environment';
 
 const repositoryRoot = resolve(import.meta.dir, '../../..');
@@ -30,6 +33,7 @@ let hostAccountID = '';
 let gatewayPort = 0;
 let relayPort = 0;
 let host: GatewayConnection | null = null;
+const keysTheCompanyHolds = new Map<string, Uint8Array>();
 
 function databaseURL(): string {
 	const named = process.env.SUPABASE_DB_URL ?? '';
@@ -156,7 +160,14 @@ async function connectTheHost(): Promise<void> {
 	const { apiKey } = await issueAgentKey(client, companyID, 'host');
 	const session = await sessionForHost(credentials, apiKey);
 	const hostAccess = { projectURL, apiKey: publishableKey, accessToken: async () => session.accessToken };
-	const messenger = new MessengerRelay(`http://127.0.0.1:${relayPort}`, messengerStoreOf(companyID, hostAccess));
+	const copies = new MessengerCopies({
+		companyID,
+		access: hostAccess,
+		transfers: new Transfers(() => undefined),
+		readerOf: async (requesterKey, mediaURL) => readerAs(requesterKey, mediaURL),
+		report: (line) => writeFileSync(join(workDirectory, 'host.log'), `${line}\n`, { flag: 'a' })
+	});
+	const messenger = new MessengerRelay(`http://127.0.0.1:${relayPort}`, messengerStoreOf(companyID, hostAccess, copies));
 	const dispatch = { serveMessenger: (capability: string, body: Record<string, unknown>) => messenger.serve(capability, body) };
 	host = connectToGateway({
 		gatewayURL: `ws://127.0.0.1:${gatewayPort}`,
@@ -313,6 +324,31 @@ function blossomAuthorization(secretKey: Uint8Array, tags: string[][], content: 
 	return `Nostr ${btoa(JSON.stringify(event))}`;
 }
 
+function readerAs(requesterKey: string, mediaURL: string): RangedSource | null {
+	const secretKey = keysTheCompanyHolds.get(requesterKey);
+	if (!secretKey) return null;
+	return async (range) => {
+		const path = new URL(mediaURL).pathname;
+		return fetch(`http://127.0.0.1:${relayPort}${path}`, {
+			headers: { Host: publicHost, Range: range, Authorization: blossomAuthorization(secretKey, [['t', 'get'], ['server', `https://${publicHost}`]], 'get') }
+		});
+	};
+}
+
+async function copyKeptOf(digest: string): Promise<Uint8Array | null> {
+	const kept = await client.storage.from('asset').download(`${companyID}/shared/transfer/${digest}`);
+	return kept.data ? new Uint8Array(await kept.data.arrayBuffer()) : null;
+}
+
+async function untilKept(digest: string): Promise<Uint8Array> {
+	for (let attempt = 0; attempt < 200; attempt += 1) {
+		const kept = await copyKeptOf(digest);
+		if (kept) return kept;
+		await Bun.sleep(100);
+	}
+	throw new Error(`no copy of ${digest} was ever kept; see ${workDirectory}/host.log`);
+}
+
 test('an app uploads a picture and reads it back streamed from the relay, with the range and length it asks for', async () => {
 	const secretKey = generateSecretKey();
 	const digest = new Bun.CryptoHasher('sha256').update(onePixelPNG).digest('hex');
@@ -330,6 +366,7 @@ test('an app uploads a picture and reads it back streamed from the relay, with t
 	expect(uploaded.status, uploadAnswer).toBe(200);
 	const descriptor = JSON.parse(uploadAnswer) as { url: string; sha256: string };
 	expect(descriptor.url.startsWith(`https://${publicHost}/media/`)).toBe(true);
+	expect(await copyKeptOf(descriptor.sha256)).toEqual(onePixelPNG);
 
 	const blobPath = new URL(descriptor.url).pathname;
 	const readToken = blossomAuthorization(secretKey, [['t', 'get'], ['server', `https://${publicHost}`]], 'get');
@@ -388,6 +425,46 @@ test('a file larger than two transfer chunks and any answer the host may send mo
 	const readBytes = new Uint8Array(await read.arrayBuffer());
 	expect(readBytes.byteLength).toBe(file.byteLength);
 	expect(new Bun.CryptoHasher('sha256').update(readBytes).digest('hex')).toBe(digest);
+}, 120_000);
+
+test('a file the company keeps no copy of streams from the host once, and the next read is served from the copy that read filled', async () => {
+	const secretKey = generateSecretKey();
+	keysTheCompanyHolds.set(getPublicKey(secretKey), secretKey);
+	const file = Uint8Array.from({ length: 3 * 1024 * 1024 + 11 }, (_, index) => (index * 17 + 3) % 251);
+	const digest = new Bun.CryptoHasher('sha256').update(file).digest('hex');
+	const uploadedPastTheGateway = await fetch(`http://127.0.0.1:${relayPort}/upload`, {
+		method: 'PUT',
+		headers: {
+			Host: publicHost,
+			Authorization: blossomAuthorization(secretKey, [['t', 'upload'], ['x', digest]], 'upload'),
+			'Content-Type': 'application/octet-stream',
+			'X-SHA-256': digest
+		},
+		body: file
+	});
+	expect(uploadedPastTheGateway.status, await uploadedPastTheGateway.text()).toBe(200);
+	expect(await copyKeptOf(digest)).toBeNull();
+
+	const blobPath = `/media/${digest}`;
+	const readToken = blossomAuthorization(secretKey, [['t', 'get'], ['server', `https://${publicHost}`]], 'get');
+	const streamed = await fetch(`http://127.0.0.1:${gatewayPort}${blobPath}`, { headers: { Host: publicHost, Authorization: readToken } });
+	expect(streamed.status).toBe(200);
+	expect(new Uint8Array(await streamed.arrayBuffer())).toEqual(file);
+	expect(await untilKept(digest)).toEqual(file);
+
+	const marked = file.toReversed();
+	const remarked = await client.storage.from('asset').update(`${companyID}/shared/transfer/${digest}`, marked, { contentType: 'application/octet-stream' });
+	expect(remarked.error).toBeNull();
+	const fromTheCopy = await fetch(`http://127.0.0.1:${gatewayPort}${blobPath}`, {
+		headers: { Host: publicHost, Authorization: readToken, Range: 'bytes=100-199' }
+	});
+	expect(fromTheCopy.status).toBe(206);
+	expect(fromTheCopy.headers.get('content-range')).toBe(`bytes 100-199/${file.byteLength}`);
+	expect(new Uint8Array(await fromTheCopy.arrayBuffer())).toEqual(marked.slice(100, 200));
+
+	const refused = await fetch(`http://127.0.0.1:${gatewayPort}${blobPath}`, { headers: { Host: publicHost } });
+	expect(refused.status).toBeGreaterThanOrEqual(400);
+	expect((await refused.arrayBuffer()).byteLength).toBe(0);
 }, 120_000);
 
 async function medianRoundTrip(relay: AbstractRelay): Promise<number> {

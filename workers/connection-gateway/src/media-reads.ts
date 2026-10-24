@@ -1,5 +1,4 @@
-import { bytesOfBase64 } from './base64';
-import { mediaCreditWindowBytes, mediaMessage, type HostMediaMessage, type MediaHead } from './host-protocol';
+import { binaryBodyFrames, mediaCreditWindowBytes, mediaMessage, type HostMediaMessage, type MediaHead } from './host-protocol';
 
 export const mediaReadsPerCompany = 32;
 export const mediaHeadBoundMilliseconds = 60_000;
@@ -29,7 +28,7 @@ export class MediaReads {
 		const streamID = crypto.randomUUID();
 		const read = new MediaRead(streamID, request.method, this.sendToHost, () => this.reads.delete(streamID));
 		this.reads.set(streamID, read);
-		const opened = this.sendToHost(mediaMessage({ kind: 'media.open', streamID, ...request, creditBytes: mediaCreditWindowBytes }));
+		const opened = this.sendToHost(mediaMessage({ kind: 'media.open', streamID, ...request, creditBytes: mediaCreditWindowBytes, bodyFrames: binaryBodyFrames }));
 		if (!opened) read.fail(502, 'the company computer could not be asked for this blob');
 		return read.response;
 	}
@@ -76,7 +75,7 @@ class MediaRead {
 		if (message.kind === 'media.fail') return this.fail(502, message.reason || 'the company computer could not read this blob');
 		if (message.kind === 'media.head') return this.start(message);
 		if (!this.controller) return this.fail(502, 'the company computer sent a body before its status');
-		if (message.kind === 'media.body') return this.arrive(bytesOfBase64(message.data));
+		if (message.kind === 'media.body') return this.arrive(message.bytes);
 		this.hasEnded = true;
 		this.wakeWaitingPull();
 	}

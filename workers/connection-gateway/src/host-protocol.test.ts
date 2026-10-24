@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { parseStreamMessage, sendableClose } from './host-protocol';
+import { binaryMediaBody, parseBinaryMediaBody, parseGatewayMediaMessage, parseStreamMessage, sendableClose, type MediaOpen } from './host-protocol';
 
 describe('parseStreamMessage', () => {
 	test('reads the three messages a stream is made of', () => {
@@ -43,5 +43,25 @@ describe('sendableClose', () => {
 
 	test('cuts a reason to the 123 bytes a close frame carries', () => {
 		expect(new TextEncoder().encode(sendableClose(1000, '가'.repeat(60)).reason).byteLength).toBeLessThanOrEqual(123);
+	});
+});
+
+describe('a binary media body', () => {
+	test('carries its stream and every byte, whatever the bytes are', () => {
+		const bytes = Uint8Array.from({ length: 70_000 }, (_, index) => index % 256);
+		const frame = binaryMediaBody('0f6c3a52-8a1e-4f43-9a3b-1f2d3c4b5a69', bytes);
+		expect(parseBinaryMediaBody(frame.buffer)).toEqual({ kind: 'media.body', streamID: '0f6c3a52-8a1e-4f43-9a3b-1f2d3c4b5a69', bytes });
+	});
+
+	test('is refused when it names no stream or is cut inside the name', () => {
+		expect(parseBinaryMediaBody(new Uint8Array([0, 1, 2]))).toBeNull();
+		expect(parseBinaryMediaBody(new Uint8Array([36, 65, 66]))).toBeNull();
+		expect(parseBinaryMediaBody(new Uint8Array(0))).toBeNull();
+	});
+
+	test('is asked for only by an open that says so, which an older host ignores', () => {
+		const open: MediaOpen = { kind: 'media.open', streamID: 's1', method: 'GET', path: '/media/a', host: 'acme.example.test', headers: {}, creditBytes: 1 };
+		expect(parseGatewayMediaMessage({ ...open, bodyFrames: 'binary' })).toEqual({ ...open, bodyFrames: 'binary' });
+		expect(parseGatewayMediaMessage({ ...open, bodyFrames: 'carrier pigeon' })).toEqual(open);
 	});
 });

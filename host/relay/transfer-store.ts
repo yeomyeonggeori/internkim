@@ -249,6 +249,22 @@ export async function copyWithinStore(access: StoreAccess, sourcePath: string, d
 	throw new TransferFailed(response.status, `the store would not copy ${sourcePath} to ${destinationPath}: ${said}`);
 }
 
+export async function moveWithinStore(access: StoreAccess, sourcePath: string, destinationPath: string): Promise<void> {
+	const response = await fetch(`${access.projectURL.replace(/\/+$/, '')}/storage/v1/object/move`, {
+		method: 'POST',
+		headers: {
+			Authorization: `Bearer ${await access.accessToken()}`,
+			apikey: access.apiKey,
+			'Content-Type': 'application/json'
+		},
+		body: JSON.stringify({ bucketId: assetBucket, sourceKey: sourcePath, destinationKey: destinationPath })
+	});
+	if (response.ok) return;
+	const said = await response.text();
+	if (isAlreadyKeptRefusal(response.status, said)) return removeFromStore(access, [sourcePath]);
+	throw new TransferFailed(response.status, `the store would not move ${sourcePath} to ${destinationPath}: ${said}`);
+}
+
 export async function removeFromStore(access: StoreAccess, paths: string[]): Promise<void> {
 	if (paths.length === 0) return;
 	const response = await fetch(`${access.projectURL.replace(/\/+$/, '')}/storage/v1/object/${assetBucket}`, {

@@ -35,16 +35,20 @@ export class Transfers {
 		return this.running.has(key);
 	}
 
-	start(key: string, watcher: TransferWatcher, work: TransferWork): void {
+	start(key: string, watcher: TransferWatcher | null, work: TransferWork): void {
 		const already = this.running.get(key);
 		if (already) {
-			already.watchers.push(watcher);
-			if (already.totalBytes > 0) this.tellProgress(watcher, already);
+			if (watcher) this.watchAlong(already, watcher);
 			return;
 		}
-		const job: Job = { watchers: [watcher], copiedBytes: 0, totalBytes: 0, toldAt: 0 };
+		const job: Job = { watchers: watcher ? [watcher] : [], copiedBytes: 0, totalBytes: 0, toldAt: 0 };
 		this.running.set(key, job);
 		void this.run(key, job, work);
+	}
+
+	private watchAlong(job: Job, watcher: TransferWatcher): void {
+		job.watchers.push(watcher);
+		if (job.totalBytes > 0) this.tellProgress(watcher, job);
 	}
 
 	private async run(key: string, job: Job, work: TransferWork): Promise<void> {
