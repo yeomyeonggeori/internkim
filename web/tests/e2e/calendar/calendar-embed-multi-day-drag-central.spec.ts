@@ -1,5 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
 import { calendarEmbedPath, signInToCalendar } from './calendar-central-test-utils';
+import { waitForHydration } from '../support/hydration';
 
 test.describe('embedded calendar month long-press and drag creation', () => {
 	test.use({ locale: 'ko-KR' });
@@ -27,7 +28,6 @@ test.describe('embedded calendar month long-press and drag creation', () => {
 		const startCell = page.locator('[data-calendar-date="2026-06-10"]');
 		const endCell = page.locator('[data-calendar-date="2026-06-12"]');
 		await startCell.scrollIntoViewIfNeeded();
-		await page.waitForTimeout(1000);
 		const startBox = await startCell.boundingBox();
 		const endBox = await endCell.boundingBox();
 		if (!startBox || !endBox) throw new Error('missing month day cell bounding boxes');
@@ -59,5 +59,5 @@ async function openDesktopMonthView(page: Page): Promise<void> {
 	await page.reload();
 	await expect(page.locator('.calendar-stage')).toHaveClass(/calendar-stage-month/);
 	await expect(page.locator('[data-calendar-date="2026-06-10"]')).toBeVisible();
-	await page.waitForTimeout(1200);
+	await waitForHydration(page);
 }

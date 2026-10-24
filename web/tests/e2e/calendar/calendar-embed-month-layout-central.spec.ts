@@ -6,7 +6,8 @@ import {
 	seedCalendarEvents,
 	signInToCalendar
 } from './calendar-central-test-utils';
-import { dragBetweenCells, waitForClientHydration } from './calendar-draft-popover-test-utils';
+import { dragBetweenCells } from './calendar-draft-popover-test-utils';
+import { waitForHydration } from '../support/hydration';
 
 test.describe('embedded calendar month layout', () => {
 	test.use({ locale: 'ko-KR' });
@@ -189,7 +190,7 @@ test.describe('embedded calendar month layout for a viewer west of the company',
 		const title = '서부에서 만든 종일 일정';
 		try {
 			await openMonthView(page, '2026-06-09');
-			await waitForClientHydration(page);
+			await waitForHydration(page);
 			await dragBetweenCells(page, '2026-06-09', '2026-06-10');
 
 			const popover = page.locator('.calendar-draft-popover');

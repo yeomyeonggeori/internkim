@@ -10,6 +10,7 @@
 	import EffectErrorBoundary from '$lib/components/effect-error-boundary.svelte';
 	import { appSectionPathOf, isFullScreenApp, usesAppShell, usesWebAuthGate } from '$lib/app-shell';
 	import { keepAppInVisualViewport } from '$lib/app-viewport';
+	import { markDocumentHydrated } from '$lib/hydrated-document';
 	import { routePathOf } from '$lib/company-path';
 	import { isSupabaseConfigured } from '$lib/supabase-session';
 	import { revalidateOnReturn } from '$lib/revalidate-on-return';
@@ -97,6 +98,7 @@
 			catchTheLockScreenUp();
 		});
 	});
+	onMount(markDocumentHydrated);
 	onMount(keepAppInVisualViewport);
 	onMount(watchCentralBuzzIdentity);
 	onMount(() => {

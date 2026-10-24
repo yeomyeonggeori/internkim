@@ -1,5 +1,6 @@
 import { expect, type Page } from '@playwright/test';
 import { calendarEmbedPath } from './calendar-central-test-utils';
+import { waitForHydration } from '../support/hydration';
 
 export async function openCalendarEmbed(page: Page, viewLabel: '일' | '주' | '월'): Promise<void> {
 	await page.goto(`${calendarEmbedPath}?date=2026-06-08`);
@@ -7,17 +8,12 @@ export async function openCalendarEmbed(page: Page, viewLabel: '일' | '주' | '
 		window.localStorage.setItem('internkim.calendar.view', view);
 	}, calendarViewStorageValue(viewLabel));
 	await page.reload();
+	await waitForHydration(page);
 	await expect(page.locator('.calendar-stage')).toHaveClass(new RegExp(`calendar-stage-${calendarViewStorageValue(viewLabel)}`));
 }
 
 export async function navigateEmbeddedCalendar(page: Page, dateKey: string): Promise<void> {
-	await page.waitForSelector('.calendar-stage', { state: 'attached' });
-	await page.evaluate(
-		() =>
-			new Promise<void>((resolve) => {
-				requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
-			})
-	);
+	await waitForHydration(page);
 	await expect
 		.poll(async () =>
 			page.evaluate((selectedDateKey) => {

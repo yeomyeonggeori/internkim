@@ -1,5 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
 import { calendarEmbedPath, signInToCalendar } from './calendar-central-test-utils';
+import { waitForHydration } from '../support/hydration';
 
 test.describe('embedded calendar week view at a narrow mobile viewport', () => {
 	test.use({ locale: 'ko-KR' });
@@ -100,5 +101,5 @@ async function openMobileWeekView(page: Page): Promise<void> {
 	await page.evaluate(() => window.localStorage.setItem('internkim.calendar.view', 'week'));
 	await page.reload();
 	await expect(page.locator('.calendar-stage')).toHaveClass(/calendar-stage-week/);
-	await page.waitForTimeout(1000);
+	await waitForHydration(page);
 }

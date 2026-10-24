@@ -5,9 +5,9 @@ import {
 	dragBetweenCells,
 	routeCalendarHolidays,
 	routeEventAdd,
-	routeEventUpdate,
-	waitForClientHydration
+	routeEventUpdate
 } from './calendar-draft-popover-test-utils';
+import { waitForHydration } from '../support/hydration';
 
 test.describe('calendar draft popover', () => {
 	test.use({ locale: 'ko-KR' });
@@ -17,7 +17,7 @@ test.describe('calendar draft popover', () => {
 		await page.clock.setFixedTime(new Date('2026-06-08T12:00:00'));
 		await signInToCalendar(page);
 		await page.goto(calendarEmbedPath);
-		await waitForClientHydration(page);
+		await waitForHydration(page);
 	});
 
 	test('opens a draft popover from an empty day cell without posting a default title event', async ({ page }) => {
@@ -88,7 +88,7 @@ test.describe('calendar draft popover', () => {
 		]);
 		try {
 			await page.reload();
-			await waitForClientHydration(page);
+			await waitForHydration(page);
 			const chip = page.locator(`[data-calendar-event-id="${eventID}"]`);
 			await expect(chip).toBeVisible();
 			await chip.click();
@@ -110,7 +110,7 @@ test.describe('calendar draft popover', () => {
 		]);
 		try {
 			await page.reload();
-			await waitForClientHydration(page);
+			await waitForHydration(page);
 			const chip = page.locator(`[data-calendar-event-id="${eventID}"]`);
 			await expect(chip).toBeVisible();
 			await chip.click();
@@ -180,7 +180,7 @@ test.describe('calendar draft popover', () => {
 		]);
 		try {
 			await page.reload();
-			await waitForClientHydration(page);
+			await waitForHydration(page);
 			const chip = page.locator(`[data-calendar-event-id="${eventID}"]`);
 			await expect(chip).toBeVisible();
 			await chip.click();

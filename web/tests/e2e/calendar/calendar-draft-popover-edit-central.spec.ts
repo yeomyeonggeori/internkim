@@ -1,6 +1,7 @@
 import { expect, test } from '@playwright/test';
 import { calendarEmbedPath, cleanupCalendarEvents, seedCalendarEvents, signInToCalendar } from './calendar-central-test-utils';
-import { routeCalendarHolidays, routeEventDelete, waitForClientHydration } from './calendar-draft-popover-test-utils';
+import { routeCalendarHolidays, routeEventDelete } from './calendar-draft-popover-test-utils';
+import { waitForHydration } from '../support/hydration';
 
 test.describe('calendar draft popover edit mode', () => {
 	test.use({ locale: 'ko-KR' });
@@ -20,7 +21,7 @@ test.describe('calendar draft popover edit mode', () => {
 		try {
 			await signInToCalendar(page);
 			await page.goto(calendarEmbedPath);
-			await waitForClientHydration(page);
+			await waitForHydration(page);
 
 			const chip = page.locator(`[data-calendar-event-id="${eventID}"]`);
 			await expect(chip).toBeVisible();
