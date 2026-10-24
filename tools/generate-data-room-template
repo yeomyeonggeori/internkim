@@ -6,7 +6,7 @@ from pathlib import Path
 
 # An applied migration is never edited, so a template change is written to a
 # new migration and this path moves to it.
-TEMPLATE_MIGRATION = "supabase/migrations/20261016000003_the_data_room_template_names_company_ownership.sql"
+TEMPLATE_MIGRATION = "supabase/migrations/20261024000001_the_data_room_template_leaves_headcount_to_members.sql"
 
 
 def generated_files(repository):
