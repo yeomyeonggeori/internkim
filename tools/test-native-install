@@ -1085,6 +1085,7 @@ class Rig:
         """Everything a person does between downloading the file and a running box."""
         connection = plane.connection_document()
         self.company_id = connection["company"]["id"]
+        plane.forget_the_messenger_credentials(self.company_id)
         installed = install_the_company(self.machine, connection)
         pointed = self.machine.shell(
             f"readlink -f {STATE_DIRECTORY}/current 2>/dev/null; "

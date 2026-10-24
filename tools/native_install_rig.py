@@ -1254,29 +1254,38 @@ class CompanyPlane:
             time.sleep(5)
 
     def read_record(self, path):
-        return answered(
-            self.settings["API_URL"] + path,
-            {
-                "apikey": self.settings["SECRET_KEY"],
-                "Authorization": "Bearer " + self.settings["SECRET_KEY"],
-            },
-        )
+        return answered(self.settings["API_URL"] + path, self.record_headers())
+
+    def delete_from_record(self, path):
+        return answered(self.settings["API_URL"] + path, self.record_headers(), None, "DELETE")
+
+    def record_headers(self):
+        return {
+            "apikey": self.settings["SECRET_KEY"],
+            "Authorization": "Bearer " + self.settings["SECRET_KEY"],
+        }
 
     def forget_the_company_computer(self, company_id):
         """Take back the agent row the connection document wrote."""
-        answered(
-            self.settings["API_URL"]
-            + "/rest/v1/agent?company_id=eq."
-            + company_id
-            + "&name=eq."
-            + COMPANY_COMPUTER_AGENT_NAME,
-            {
-                "apikey": self.settings["SECRET_KEY"],
-                "Authorization": "Bearer " + self.settings["SECRET_KEY"],
-            },
-            None,
-            "DELETE",
+        self.delete_from_record(
+            f"/rest/v1/agent?company_id=eq.{company_id}&name=eq.{COMPANY_COMPUTER_AGENT_NAME}"
         )
+
+    def forget_the_messenger_credentials(self, company_id):
+        status, document = self.read_record(f"/rest/v1/member?select=id&company_id=eq.{company_id}")
+        if status != 200:
+            raise RigFailure(f"the members of company {company_id} could not be read ({status})")
+        member_ids = [row["id"] for row in json.loads(document)]
+        if not member_ids:
+            return
+        kind = urllib.parse.quote(messenger_credential_kind())
+        status, document = self.delete_from_record(
+            f"/rest/v1/credential?kind=eq.{kind}&member_id=in.({','.join(member_ids)})"
+        )
+        if status not in (200, 204):
+            raise RigFailure(
+                f"the messenger credentials of company {company_id} could not be taken back ({status}): {document[:300]!r}"
+            )
 
     def stop(self):
         if self.record_forward:
