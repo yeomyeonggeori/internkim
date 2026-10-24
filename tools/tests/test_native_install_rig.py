@@ -82,6 +82,26 @@ class StandInPackageTests(unittest.TestCase):
         self.assertNotIn("@REVISION@", server)
 
 
+class RepositoryPathTests(unittest.TestCase):
+    def test_every_tracked_file_the_rig_reads_is_still_where_it_says(self):
+        for name, path in repository_paths_the_rig_names():
+            if is_ignored_by_git(path):
+                continue
+            with self.subTest(name=name):
+                self.assertTrue(path.exists(), f"{name} names {path.relative_to(repository_root)}, which is gone")
+
+
+def repository_paths_the_rig_names():
+    for name, value in vars(rig).items():
+        if isinstance(value, Path) and repository_root in value.parents:
+            yield name, value
+
+
+def is_ignored_by_git(path):
+    checked = subprocess.run(["git", "-C", str(repository_root), "check-ignore", "-q", str(path)])
+    return checked.returncode == 0
+
+
 class ReleaseTests(unittest.TestCase):
     def published(self):
         directory = Path(self.enterContext(tempfile.TemporaryDirectory()))
