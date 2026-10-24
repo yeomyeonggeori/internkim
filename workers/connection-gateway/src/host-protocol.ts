@@ -10,6 +10,7 @@ export const messengerMediaReadCapability = 'messenger.media.read';
 export const messengerMediaStageCapability = 'messenger.media.stage';
 export const messengerMediaWriteCapability = 'messenger.media.write';
 export const messengerMediaStreamCapability = 'messenger.media.stream';
+export const messengerMediaHeadCapability = 'messenger.media.head';
 
 export const hostSupportsHeader = 'x-internkim-host-supports';
 
@@ -132,6 +133,7 @@ function sendableCloseCode(code: number): number {
 }
 
 export const mediaCreditWindowBytes = 512 * 1024;
+export const binaryBodyFrames = 'binary';
 
 export type MediaOpen = {
 	kind: 'media.open';
@@ -141,12 +143,13 @@ export type MediaOpen = {
 	host: string;
 	headers: Record<string, string>;
 	creditBytes: number;
+	bodyFrames?: typeof binaryBodyFrames;
 };
 
 export type MediaCredit = { kind: 'media.credit'; streamID: string; bytes: number };
 export type MediaStop = { kind: 'media.stop'; streamID: string; reason: string };
 export type MediaHead = { kind: 'media.head'; streamID: string; status: number; headers: Record<string, string> };
-export type MediaBody = { kind: 'media.body'; streamID: string; data: string };
+export type MediaBody = { kind: 'media.body'; streamID: string; bytes: Uint8Array<ArrayBuffer> };
 export type MediaEnd = { kind: 'media.end'; streamID: string };
 export type MediaFail = { kind: 'media.fail'; streamID: string; reason: string };
 
@@ -180,7 +183,7 @@ function parseMediaMessage(payload: unknown): MediaMessage | null {
 	if (record.kind === 'media.open') return parseMediaOpen(streamID, record);
 	if (record.kind === 'media.credit') return parseMediaCredit(streamID, record);
 	if (record.kind === 'media.head') return parseMediaHead(streamID, record);
-	if (record.kind === 'media.body') return typeof record.data === 'string' ? { kind: 'media.body', streamID, data: record.data } : null;
+	if (record.kind === 'media.body') return typeof record.data === 'string' ? { kind: 'media.body', streamID, bytes: bytesOfBase64(record.data) } : null;
 	if (record.kind === 'media.end') return { kind: 'media.end', streamID };
 	if (record.kind === 'media.stop' || record.kind === 'media.fail') return { kind: record.kind, streamID, reason: stringOr(record.reason, '') };
 	return null;
@@ -192,7 +195,8 @@ function parseMediaOpen(streamID: string, record: Record<string, unknown>): Medi
 	if (typeof path !== 'string' || !path.startsWith('/')) return null;
 	if (typeof host !== 'string' || host === '') return null;
 	if (!isPositiveByteCount(creditBytes)) return null;
-	return { kind: 'media.open', streamID, method, path, host, headers: stringRecordOf(record.headers), creditBytes };
+	const opened: MediaOpen = { kind: 'media.open', streamID, method, path, host, headers: stringRecordOf(record.headers), creditBytes };
+	return record.bodyFrames === binaryBodyFrames ? { ...opened, bodyFrames: binaryBodyFrames } : opened;
 }
 
 function parseMediaCredit(streamID: string, record: Record<string, unknown>): MediaCredit | null {
@@ -217,10 +221,33 @@ function stringRecordOf(value: unknown): Record<string, string> {
 	return Object.fromEntries(Object.entries(value).filter((entry): entry is [string, string] => typeof entry[1] === 'string'));
 }
 
-export function mediaMessage(message: MediaMessage): string {
+export function mediaMessage(message: Exclude<MediaMessage, MediaBody>): string {
 	return JSON.stringify(message);
 }
 
 export function mediaBody(streamID: string, bytes: Uint8Array): string {
-	return mediaMessage({ kind: 'media.body', streamID, data: base64Of(bytes) });
+	return JSON.stringify({ kind: 'media.body', streamID, data: base64Of(bytes) });
+}
+
+const decoder = new TextDecoder();
+const largestBinaryStreamIDBytes = 255;
+
+export function binaryMediaBody(streamID: string, bytes: Uint8Array): Uint8Array<ArrayBuffer> {
+	const name = encoder.encode(streamID);
+	if (name.byteLength === 0 || name.byteLength > largestBinaryStreamIDBytes) {
+		throw new RangeError(`a binary media body names a stream of 1 to ${largestBinaryStreamIDBytes} bytes, not ${name.byteLength}`);
+	}
+	const frame = new Uint8Array(1 + name.byteLength + bytes.byteLength);
+	frame[0] = name.byteLength;
+	frame.set(name, 1);
+	frame.set(bytes, 1 + name.byteLength);
+	return frame;
+}
+
+export function parseBinaryMediaBody(frame: ArrayBuffer | Uint8Array): MediaBody | null {
+	const bytes = frame instanceof Uint8Array ? frame : new Uint8Array(frame);
+	const nameLength = bytes[0] ?? 0;
+	if (nameLength === 0 || bytes.byteLength < 1 + nameLength) return null;
+	const streamID = decoder.decode(bytes.subarray(1, 1 + nameLength));
+	return { kind: 'media.body', streamID, bytes: bytes.slice(1 + nameLength) };
 }

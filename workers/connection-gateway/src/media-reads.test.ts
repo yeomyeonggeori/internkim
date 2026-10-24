@@ -1,6 +1,13 @@
 import { afterEach, describe, expect, jest, test } from 'bun:test';
-import { hostReadsMediaByCallHeader } from './company-connection';
-import { hostSupportsHeader, largestStreamFrameBytes, mediaBody, mediaCreditWindowBytes, messengerMediaStreamCapability } from './host-protocol';
+import { hostLacksHeader } from './company-connection';
+import {
+	binaryMediaBody,
+	hostSupportsHeader,
+	largestStreamFrameBytes,
+	mediaBody,
+	mediaCreditWindowBytes,
+	messengerMediaStreamCapability
+} from './host-protocol';
 import { mediaReadsPerCompany, mediaStallBoundMilliseconds, relayContentLengthHeader } from './media-reads';
 import { ConnectionObject, TestSocket, TestState, socketHeldByTheObject } from './test-durable-object';
 
@@ -8,7 +15,16 @@ const publicHost = 'acme-media.example.test';
 const mediaPath = `/media/${'a'.repeat(64)}.mp4`;
 const appHeaders = { authorization: 'Nostr get-token', range: 'bytes=0-' };
 
-type Opened = { kind: string; streamID: string; method: string; path: string; host: string; headers: Record<string, string>; creditBytes: number };
+type Opened = {
+	kind: string;
+	streamID: string;
+	method: string;
+	path: string;
+	host: string;
+	headers: Record<string, string>;
+	creditBytes: number;
+	bodyFrames?: string;
+};
 
 afterEach(() => {
 	jest.useRealTimers();
@@ -68,7 +84,7 @@ function patterned(length: number, seed: number): Uint8Array<ArrayBuffer> {
 }
 
 describe('a media read', () => {
-	test('asks the host for the media with the app headers unchanged and the credit window', async () => {
+	test('asks the host for the media with the app headers unchanged, the credit window, and binary body frames', async () => {
 		const object = new ConnectionObject(new TestState());
 		const host = await connectHost(object);
 		void askForMedia(object);
@@ -79,7 +95,8 @@ describe('a media read', () => {
 			path: mediaPath,
 			host: publicHost,
 			headers: appHeaders,
-			creditBytes: mediaCreditWindowBytes
+			creditBytes: mediaCreditWindowBytes,
+			bodyFrames: 'binary'
 		});
 	});
 
@@ -106,6 +123,38 @@ describe('a media read', () => {
 		for (const frame of frames) {
 			const read = reader.read();
 			host.receive(mediaBody(streamID, frame));
+			const { value } = await read;
+			if (value) received.push(value);
+		}
+		const finished = reader.read();
+		hostSends(host, { kind: 'media.end', streamID });
+		expect((await finished).done).toBe(true);
+		expect(Buffer.compare(Buffer.concat(received), Buffer.concat(frames))).toBe(0);
+	});
+
+	test('carries a body several binary frames long intact and in order', async () => {
+		const object = new ConnectionObject(new TestState());
+		const host = await connectHost(object);
+		const answered = askForMedia(object);
+		const { streamID } = await openedOn(host);
+		const frames = [0, 1, 2, 3, 4].map((seed) => patterned(largestStreamFrameBytes, seed));
+		const total = frames.reduce((sum, frame) => sum + frame.byteLength, 0);
+		hostSends(host, {
+			kind: 'media.head',
+			streamID,
+			status: 206,
+			headers: { 'content-type': 'video/mp4', 'content-range': `bytes 0-${total - 1}/${total}`, 'content-length': String(total) }
+		});
+		const response = await answered;
+		expect(response.status).toBe(206);
+		expect(response.headers.get('content-range')).toBe(`bytes 0-${total - 1}/${total}`);
+
+		const reader = response.body?.getReader();
+		if (!reader) throw new Error('the answer has no body');
+		const received: Uint8Array[] = [];
+		for (const frame of frames) {
+			const read = reader.read();
+			host.receive(binaryMediaBody(streamID, frame).buffer);
 			const { value } = await read;
 			if (value) received.push(value);
 		}
@@ -213,7 +262,7 @@ describe('a media read', () => {
 		const object = new ConnectionObject(new TestState());
 		const host = await connectHost(object, null);
 		const response = await askForMedia(object);
-		expect(response.headers.get(hostReadsMediaByCallHeader)).toBe('true');
+		expect(response.headers.get(hostLacksHeader)).toBe('messenger.media.stream');
 		expect(host.documents()).toEqual([]);
 	});
 

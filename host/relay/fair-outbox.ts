@@ -1,5 +1,7 @@
+export type OutboxDocument = string | Uint8Array<ArrayBuffer>;
+
 export type Outlet = {
-	send: (document: string) => void;
+	send: (document: OutboxDocument) => void;
 	bufferedBytes: () => number;
 };
 
@@ -7,7 +9,7 @@ export const outletHighWaterBytes = 1024 * 1024;
 export const largestQueuedBytesPerStream = 8 * 1024 * 1024;
 const retryMilliseconds = 5;
 
-type StreamQueue = { documents: string[]; queuedBytes: number };
+type StreamQueue = { documents: OutboxDocument[]; queuedBytes: number };
 
 export class FairOutbox {
 	private readonly queues = new Map<string, StreamQueue>();
@@ -19,11 +21,11 @@ export class FairOutbox {
 		private readonly largestQueuedBytes = largestQueuedBytesPerStream
 	) {}
 
-	push(streamID: string, document: string): boolean {
+	push(streamID: string, document: OutboxDocument): boolean {
 		const queue = this.queues.get(streamID) ?? { documents: [], queuedBytes: 0 };
-		if (queue.queuedBytes + document.length > this.largestQueuedBytes) return false;
+		if (queue.queuedBytes + sizeOf(document) > this.largestQueuedBytes) return false;
 		queue.documents.push(document);
-		queue.queuedBytes += document.length;
+		queue.queuedBytes += sizeOf(document);
 		this.queues.set(streamID, queue);
 		this.drain();
 		return true;
@@ -56,7 +58,7 @@ export class FairOutbox {
 		this.queues.delete(streamID);
 		const document = queue.documents.shift();
 		if (document === undefined) return;
-		queue.queuedBytes -= document.length;
+		queue.queuedBytes -= sizeOf(document);
 		if (queue.documents.length > 0) this.queues.set(streamID, queue);
 		outlet.send(document);
 	}
@@ -69,4 +71,8 @@ export class FairOutbox {
 			this.drain();
 		}, retryMilliseconds);
 	}
+}
+
+function sizeOf(document: OutboxDocument): number {
+	return typeof document === 'string' ? document.length : document.byteLength;
 }

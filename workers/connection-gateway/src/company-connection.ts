@@ -31,7 +31,9 @@ import {
 	bytesOfBinaryFrame,
 	hostSupportsHeader,
 	isMediaKind,
+	messengerMediaHeadCapability,
 	messengerMediaStreamCapability,
+	parseBinaryMediaBody,
 	parseHostMediaMessage,
 	isBinaryFrameTooBig,
 	isFrameTooBig,
@@ -52,7 +54,7 @@ export const streamHostHeader = 'x-internkim-stream-host';
 export const streamAddressHeader = 'x-internkim-stream-address';
 export const streamPathHeader = 'x-internkim-stream-path';
 export const workerBoxHeader = 'x-internkim-worker-box';
-export const hostReadsMediaByCallHeader = 'x-internkim-host-reads-media-by-call';
+export const hostLacksHeader = 'x-internkim-host-lacks';
 export const workerCallsPerCompany = 64;
 export const workerCallBoundMilliseconds = 120_000;
 export const workHoldMilliseconds = 3_000;
@@ -109,6 +111,7 @@ export class CompanyConnectionObject {
 		if (url.pathname.endsWith('/call')) return this.takeOneShotCall(request, this.waitingCalls);
 		if (url.pathname.endsWith('/messenger-call')) return this.takeOneShotCall(request, this.messengerCalls);
 		if (url.pathname.endsWith('/messenger-media')) return this.takeMediaRead(request);
+		if (url.pathname.endsWith('/messenger-media-head')) return this.takeMediaHead(request);
 		if (url.pathname.endsWith('/work')) return this.takeWork(request);
 		if (request.headers.get('Upgrade') !== 'websocket') {
 			return jsonResponse({ error: 'this endpoint speaks websocket' }, 426);
@@ -200,10 +203,13 @@ export class CompanyConnectionObject {
 		return new Response(null, { status: 101, webSocket: client });
 	}
 
+	private async takeMediaHead(request: Request): Promise<Response> {
+		if (!this.currentHostSupports(messengerMediaHeadCapability)) return hostLacks(messengerMediaHeadCapability);
+		return this.takeOneShotCall(request, this.messengerCalls);
+	}
+
 	private async takeMediaRead(request: Request): Promise<Response> {
-		if (!this.currentHostSupports(messengerMediaStreamCapability)) {
-			return new Response(null, { status: 204, headers: { [hostReadsMediaByCallHeader]: 'true' } });
-		}
+		if (!this.currentHostSupports(messengerMediaStreamCapability)) return hostLacks(messengerMediaStreamCapability);
 		const mediaRequest = parseMediaRequest(await readJSONBody(request));
 		if (!mediaRequest) return jsonResponse({ error: 'a media read names a method, a path, a host and headers' }, 400);
 		if (this.mediaReads.isFull) return jsonResponse({ error: 'too many media reads are open for this company at once' }, 503);
@@ -342,6 +348,7 @@ export class CompanyConnectionObject {
 	private onServerMessage(socket: WebSocket, attachment: HostAttachment, message: string | ArrayBuffer): void {
 		if (attachment.isRetired) return;
 		this.noteServerSeen(socket, attachment);
+		if (message instanceof ArrayBuffer) return this.onHostBinaryMessage(message);
 		const payload = readJSON(message);
 		if (isMediaKind(recordKindOf(payload))) return this.onHostMediaMessage(payload);
 		if (isStreamKind(recordKindOf(payload))) {
@@ -356,6 +363,11 @@ export class CompanyConnectionObject {
 			return;
 		}
 		this.deliver(JSON.stringify({ kind: 'deliver', event: parsed.event }), parsed.audienceMemberIDs);
+	}
+
+	private onHostBinaryMessage(message: ArrayBuffer): void {
+		const body = parseBinaryMediaBody(message);
+		if (body) this.mediaReads.take(body);
 	}
 
 	private onHostMediaMessage(payload: unknown): void {
@@ -561,6 +573,10 @@ function freeSlotsOf(payload: unknown): number | null {
 	const { kind, free } = record;
 	if (kind !== 'ready' || typeof free !== 'number' || !Number.isFinite(free)) return null;
 	return free;
+}
+
+function hostLacks(capability: string): Response {
+	return new Response(null, { status: 204, headers: { [hostLacksHeader]: capability } });
 }
 
 function answerResponse(answer: ServerAnswer): Response {

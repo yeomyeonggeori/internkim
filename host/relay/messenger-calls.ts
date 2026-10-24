@@ -1,14 +1,18 @@
 import {
 	messengerHTTPCapability,
+	messengerMediaHeadCapability,
 	messengerMediaReadCapability,
 	messengerMediaStageCapability,
 	messengerMediaWriteCapability
 } from '../../workers/connection-gateway/src/host-protocol';
 import { base64Of, bytesOfBase64 } from '../../workers/connection-gateway/src/base64';
+import type { MessengerCopies } from './messenger-copies';
+import { digestInURL } from './person-picture';
 import { keptSizeOf, removeFromStore, storeRangeReader, storeRangesAsStream, type StoreAccess } from './transfer-store';
 
 export const messengerCapabilities = new Set([
 	messengerHTTPCapability,
+	messengerMediaHeadCapability,
 	messengerMediaReadCapability,
 	messengerMediaStageCapability,
 	messengerMediaWriteCapability
@@ -18,6 +22,7 @@ export type MessengerStore = {
 	companyID: string;
 	access: StoreAccess;
 	signedUploadURL: (path: string) => Promise<string>;
+	copies: MessengerCopies;
 };
 
 export type MessengerAnswer = { status: number; body: unknown };
@@ -35,6 +40,7 @@ const methodsThatCarryNoBody = new Set(['GET', 'HEAD', 'OPTIONS']);
 const transferKind = 'transfer';
 const stagedPrefix = 'staged-';
 const uploadIDPattern = /^[0-9a-f-]{36}$/;
+const nostrAuthorizationPrefix = 'Nostr ';
 
 export class MessengerRelay {
 	constructor(
@@ -47,6 +53,7 @@ export class MessengerRelay {
 		if (!request) return refused(400, `${capability} names a method, a path starting with / and the host the app dialled`);
 		if (capability === messengerHTTPCapability) return this.relayHTTP(request);
 		if (capability === messengerMediaReadCapability) return this.relayHTTP(request);
+		if (capability === messengerMediaHeadCapability) return this.headMedia(request);
 		if (capability === messengerMediaStageCapability) return this.stageMedia();
 		if (capability === messengerMediaWriteCapability) return this.writeMedia(request);
 		return refused(404, `the messenger relay has nothing called ${capability}`);
@@ -63,16 +70,37 @@ export class MessengerRelay {
 		return { status: 200, body: { headers: {}, bodyBase64: '', uploadURL, stagedPath } };
 	}
 
+	private async headMedia(request: RelayRequest): Promise<MessengerAnswer> {
+		const response = await this.askTheRelay(request, { method: 'HEAD' });
+		const answer = await answerOf(response);
+		const mediaURL = `https://${request.host}${request.path}`;
+		const digest = digestInURL(mediaURL);
+		if (!response.ok || !digest) return answer;
+		const objectURL = await this.store.copies.readableAddressOf(digest);
+		if (objectURL) return { ...answer, body: { ...answer.body, objectURL } };
+		const contentType = response.headers.get('content-type') ?? 'application/octet-stream';
+		this.store.copies.fillAsRequester({ digest, contentType, requesterKey: requesterKeyOf(request.headers), mediaURL });
+		return answer;
+	}
+
 	private async writeMedia(request: RelayRequest): Promise<MessengerAnswer> {
 		if (!this.isStagingPath(request.stagedPath)) return refused(400, 'an upload names the place it was staged');
 		const sizeBytes = await keptSizeOf(this.store.access, request.stagedPath);
 		if (sizeBytes === null) return refused(404, 'nothing was staged for this upload');
-		const staged = storeRangesAsStream(storeRangeReader(this.store.access, request.stagedPath));
+		const hasher = new Bun.CryptoHasher('sha256');
+		const staged = storeRangesAsStream(storeRangeReader(this.store.access, request.stagedPath)).pipeThrough(hashedAsItPasses(hasher));
 		const headers = { ...request.headers, 'content-length': String(sizeBytes) };
+		let isKeptAsCopy = false;
 		try {
-			return answerOf(await this.askTheRelay({ ...request, headers }, { method: 'PUT', body: staged }));
+			const response = await this.askTheRelay({ ...request, headers }, { method: 'PUT', body: staged });
+			const answer = await answerOf(response);
+			const acceptedDigest = response.ok ? digestTheRelayAccepted(answer.body.bodyBase64) : '';
+			if (acceptedDigest && acceptedDigest === hasher.digest('hex')) {
+				isKeptAsCopy = await this.store.copies.keepUpload(request.stagedPath, acceptedDigest);
+			}
+			return answer;
 		} finally {
-			await removeFromStore(this.store.access, [request.stagedPath]);
+			if (!isKeptAsCopy) await removeFromStore(this.store.access, [request.stagedPath]);
 		}
 	}
 
@@ -114,9 +142,44 @@ function stringRecordOf(value: unknown): Record<string, string> {
 	return Object.fromEntries(Object.entries(value).filter((entry): entry is [string, string] => typeof entry[1] === 'string'));
 }
 
-async function answerOf(response: Response): Promise<MessengerAnswer> {
+type RelayAnswer = { status: number; body: { headers: Record<string, string>; bodyBase64: string } };
+
+async function answerOf(response: Response): Promise<RelayAnswer> {
 	const body = base64Of(new Uint8Array(await response.arrayBuffer()));
 	return { status: response.status, body: { headers: headersOf(response.headers), bodyBase64: body } };
+}
+
+function hashedAsItPasses(hasher: Bun.CryptoHasher): TransformStream<Uint8Array<ArrayBuffer>, Uint8Array<ArrayBuffer>> {
+	return new TransformStream({
+		transform(chunk, controller) {
+			hasher.update(chunk);
+			controller.enqueue(chunk);
+		}
+	});
+}
+
+function digestTheRelayAccepted(bodyBase64: string): string {
+	const descriptor = parsedJSON(new TextDecoder().decode(bytesOfBase64(bodyBase64)));
+	if (typeof descriptor !== 'object' || descriptor === null || !('sha256' in descriptor)) return '';
+	const digest = descriptor.sha256;
+	return typeof digest === 'string' && /^[0-9a-f]{64}$/.test(digest) ? digest : '';
+}
+
+function parsedJSON(text: string): unknown {
+	try {
+		return JSON.parse(text);
+	} catch {
+		return null;
+	}
+}
+
+function requesterKeyOf(headers: Record<string, string>): string {
+	const authorization = headers.authorization ?? '';
+	if (!authorization.startsWith(nostrAuthorizationPrefix)) return '';
+	const event = parsedJSON(Buffer.from(authorization.slice(nostrAuthorizationPrefix.length), 'base64').toString('utf8'));
+	if (typeof event !== 'object' || event === null || !('pubkey' in event)) return '';
+	const key = event.pubkey;
+	return typeof key === 'string' && /^[0-9a-f]{64}$/.test(key) ? key : '';
 }
 
 function headersOf(headers: Headers): Record<string, string> {

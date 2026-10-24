@@ -1,9 +1,10 @@
 import { assetBucket } from './asset-store';
 import { TransferFailed, type StoreAccess } from './transfer-store';
 import type { MessengerStore } from './messenger-calls';
+import type { MessengerCopies } from './messenger-copies';
 
-export function messengerStoreOf(companyID: string, access: StoreAccess): MessengerStore {
-	return { companyID, access, signedUploadURL: (path) => signedUploadURL(access, path) };
+export function messengerStoreOf(companyID: string, access: StoreAccess, copies: MessengerCopies): MessengerStore {
+	return { companyID, access, copies, signedUploadURL: (path) => signedUploadURL(access, path) };
 }
 
 async function signedUploadURL(access: StoreAccess, path: string): Promise<string> {

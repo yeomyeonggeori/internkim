@@ -8,6 +8,7 @@ import {
 	serverSocketURL
 } from './gateway-socket';
 import type { Dispatch } from './forward';
+import { parseBinaryMediaBody } from '../../workers/connection-gateway/src/host-protocol';
 
 describe('deliveryOf', () => {
 	test('is the frame the gateway fans out, naming an audience only when there is one', () => {
@@ -227,7 +228,7 @@ describe('app streams over the host socket', () => {
 		expect(relayClosed).toHaveLength(1);
 	});
 
-	test('announce that the host streams media, and carry a media read to the relay over http', async () => {
+	test('announce that the host streams media and answers heads, and carry a media read to the relay with binary bodies', async () => {
 		const relay = Bun.serve({
 			hostname: '127.0.0.1',
 			port: 0,
@@ -245,10 +246,12 @@ describe('app streams over the host socket', () => {
 			},
 			websocket: {
 				open(socket) {
-					socket.send(JSON.stringify({ kind: 'media.open', streamID: 'm1', method: 'GET', path: '/media/blob', host: 'acme.example.test', headers: {}, creditBytes: 1024 }));
+					socket.send(
+						JSON.stringify({ kind: 'media.open', streamID: 'm1', method: 'GET', path: '/media/blob', host: 'acme.example.test', headers: {}, creditBytes: 1024, bodyFrames: 'binary' })
+					);
 				},
 				message(_socket, message) {
-					heardByGateway.push(JSON.parse(String(message)));
+					heardByGateway.push(typeof message === 'string' ? JSON.parse(message) : { ...parseBinaryMediaBody(message) });
 				}
 			}
 		});
@@ -265,8 +268,8 @@ describe('app streams over the host socket', () => {
 		connection.close();
 		gateway.stop(true);
 		relay.stop(true);
-		expect(announced).toEqual(['messenger.media.stream']);
+		expect(announced).toEqual(['messenger.media.stream,messenger.media.head']);
 		expect(heardByGateway.map((one) => one.kind)).toEqual(['media.head', 'media.body', 'media.end']);
-		expect(atob(String(heardByGateway[1]?.data))).toBe('read /media/blob');
+		expect(heardByGateway[1]).toMatchObject({ streamID: 'm1', bytes: new TextEncoder().encode('read /media/blob') });
 	});
 });

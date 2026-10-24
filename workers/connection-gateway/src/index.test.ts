@@ -3,6 +3,7 @@ import worker, { CompanyCalls, CompanyConnectionObject, type WorkerEnvironment }
 import { ConnectionObject, TestSocket, newState, socketHeldByTheObject } from './test-durable-object';
 import { oneShotCallBoundMilliseconds, waitingCallsPerCompany, type OneShotAnswer } from './routing';
 import { isPageNavigation } from './messenger';
+import { binaryMediaBody } from './host-protocol';
 
 const serverKey = 'company-server-key';
 const companyID = 'c1';
@@ -73,9 +74,11 @@ async function connectedCompany(): Promise<{ calls: CompanyCalls; serverSocket: 
 
 const storedBlob = new TextEncoder().encode('the bytes of a picture');
 const uploadsKept: { contentType: string | null; body: string }[] = [];
+const storedBlobRanges: (string | null)[] = [];
 
 function storedBlobAnswer(request: Request): Response {
 	const range = request.headers.get('Range');
+	storedBlobRanges.push(range);
 	if (range !== 'bytes=4-8') return new Response(storedBlob, { headers: { 'content-length': String(storedBlob.byteLength) } });
 	return new Response(storedBlob.slice(4, 9), {
 		status: 206,
@@ -594,6 +597,88 @@ describe('a company messenger address', () => {
 		expect(response.status).toBe(200);
 		expect(response.headers.get('content-length')).toBe('22');
 		expect(response.headers.get('x-internkim-relay-content-length')).toBeNull();
+	});
+
+	const copyKeepingHost = { 'x-internkim-host-supports': 'messenger.media.stream,messenger.media.head' };
+
+	function mediaOpensSentTo(host: TestSocket): unknown[] {
+		return host.documents().filter((document) => (document as { kind?: string }).kind === 'media.open');
+	}
+
+	test('serves a blob the relay allows from the company copy, with the range asked, opening no stream on the host', async () => {
+		const { object, host } = await messengerCompany(copyKeepingHost);
+		const sha = 'a'.repeat(64);
+		const readsBefore = storedBlobRanges.length;
+		const answered = worker.fetch(
+			new Request(`https://acme-media.example.test/media/${sha}.png`, { headers: { Authorization: 'Nostr get-token', Range: 'bytes=4-8' } }),
+			hostEnvironment(object)
+		);
+		const head = await callTheHostReceived(host);
+		expect(head.capability).toBe('messenger.media.head');
+		expect(head.body).toMatchObject({ method: 'HEAD', path: `/media/${sha}.png`, host: 'acme-media.example.test', headers: { authorization: 'Nostr get-token', range: 'bytes=4-8' } });
+		host.receive(
+			relayAnswer(head.requestID, 200, {
+				headers: { 'content-type': 'image/png', 'content-length': '22', 'cache-control': 'private, max-age=31536000, immutable', 'accept-ranges': 'bytes' },
+				bodyBase64: '',
+				objectURL: `${recordURL}/store/blob`
+			})
+		);
+		const response = await answered;
+		expect(response.status).toBe(206);
+		expect(response.headers.get('content-range')).toBe(`bytes 4-8/${storedBlob.byteLength}`);
+		expect(response.headers.get('content-length')).toBe('5');
+		expect(response.headers.get('content-type')).toBe('image/png');
+		expect(response.headers.get('cache-control')).toBe('private, max-age=31536000, immutable');
+		expect(await response.text()).toBe('bytes');
+		expect(storedBlobRanges.slice(readsBefore)).toEqual(['bytes=4-8']);
+		expect(mediaOpensSentTo(host)).toEqual([]);
+	});
+
+	test('serves nothing the relay refuses, reading neither the copy nor the host stream', async () => {
+		const { object, host } = await messengerCompany(copyKeepingHost);
+		const readsBefore = storedBlobRanges.length;
+		const answered = worker.fetch(new Request(`https://acme-media.example.test/media/${'b'.repeat(64)}`), hostEnvironment(object));
+		const head = await callTheHostReceived(host);
+		host.receive(relayAnswer(head.requestID, 401, { headers: { 'x-reason': 'auth required' }, bodyBase64: '', objectURL: `${recordURL}/store/blob` }));
+		const response = await answered;
+		expect(response.status).toBe(401);
+		expect(response.headers.get('x-reason')).toBe('auth required');
+		expect(await response.text()).toBe('');
+		expect(storedBlobRanges.length).toBe(readsBefore);
+		expect(mediaOpensSentTo(host)).toEqual([]);
+	});
+
+	test('answers a HEAD from the head the relay answered, without reading the copy', async () => {
+		const { object, host } = await messengerCompany(copyKeepingHost);
+		const readsBefore = storedBlobRanges.length;
+		const answered = worker.fetch(new Request(`https://acme-media.example.test/media/${'a'.repeat(64)}`, { method: 'HEAD' }), hostEnvironment(object));
+		const head = await callTheHostReceived(host);
+		host.receive(relayAnswer(head.requestID, 200, { headers: { 'content-type': 'image/png', 'content-length': '22' }, bodyBase64: '', objectURL: `${recordURL}/store/blob` }));
+		const response = await answered;
+		expect(response.status).toBe(200);
+		expect(response.headers.get('content-length')).toBe('22');
+		expect(storedBlobRanges.length).toBe(readsBefore);
+		expect(mediaOpensSentTo(host)).toEqual([]);
+	});
+
+	test('streams a blob the relay allows from the host when the company keeps no copy of it yet', async () => {
+		const { object, host } = await messengerCompany(copyKeepingHost);
+		const sha = 'c'.repeat(64);
+		const answered = worker.fetch(
+			new Request(`https://acme-media.example.test/media/${sha}`, { headers: { Authorization: 'Nostr get-token' } }),
+			hostEnvironment(object)
+		);
+		const head = await callTheHostReceived(host);
+		host.receive(relayAnswer(head.requestID, 200, { headers: { 'content-type': 'image/png', 'content-length': '5' }, bodyBase64: '' }));
+		const opened = await mediaOpenTheHostReceived(host);
+		expect(opened).toMatchObject({ method: 'GET', path: `/media/${sha}`, headers: { authorization: 'Nostr get-token' }, bodyFrames: 'binary' });
+		host.receive(JSON.stringify({ kind: 'media.head', streamID: opened.streamID, status: 200, headers: { 'content-type': 'image/png', 'content-length': '5' } }));
+		const response = await answered;
+		const body = response.text();
+		host.receive(binaryMediaBody(opened.streamID, new TextEncoder().encode('bytes')).buffer);
+		host.receive(JSON.stringify({ kind: 'media.end', streamID: opened.streamID }));
+		expect(response.status).toBe(200);
+		expect(await body).toBe('bytes');
 	});
 
 	test('reads a blob through the transfer store for a host that does not announce streaming', async () => {

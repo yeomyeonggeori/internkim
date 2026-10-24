@@ -1,5 +1,7 @@
 import { attachmentAddress, attachmentKind, sharedAssetPath } from './asset-store';
 import { filenameAfterConversion } from './converted-filename';
+import type { MessengerCopies } from './messenger-copies';
+import { digestInURL } from './person-picture';
 import {
 	copyIntoStore,
 	copyWithinStore,
@@ -24,6 +26,7 @@ export type FileTransferDependencies = {
 	hostAccess: StoreAccess;
 	memberAccess: (requesterEmail: string) => StoreAccess;
 	transfers: Transfers;
+	messengerCopies: MessengerCopies;
 	readMediaRange: (actor: ActorCredential, mediaURL: string, rangeHeader: string) => Promise<Response>;
 	uploadMedia: (actor: ActorCredential, sourceURL: string, contentType: string) => Promise<Answered>;
 	listWorkspaceDirectory: (requesterEmail: string, directoryPath: string) => Promise<Answered>;
@@ -87,21 +90,12 @@ function watcherOf(memberID: string, body: Record<string, unknown>): TransferWat
 	return transferIDPattern.test(transferID) ? { memberID, transferID } : null;
 }
 
-async function preparedCopy(
-	dependencies: FileTransferDependencies,
-	path: string,
-	watcher: TransferWatcher,
-	copy: (progress: CopyProgress) => Promise<{ sizeBytes: number }>
-): Promise<Answered> {
-	const { projectURL } = dependencies.hostAccess;
+async function preparedCopy(dependencies: FileTransferDependencies, path: string, startCopying: () => void): Promise<Answered> {
 	if (!dependencies.transfers.isRunning(path)) {
 		const keptBytes = await keptSizeOf(dependencies.hostAccess, path);
-		if (keptBytes !== null) return ready(projectURL, path, keptBytes);
+		if (keptBytes !== null) return ready(dependencies.hostAccess.projectURL, path, keptBytes);
 	}
-	dependencies.transfers.start(path, watcher, async (progress) => {
-		const copied = await copy(progress);
-		return { address: attachmentAddress(projectURL, path), sizeBytes: copied.sizeBytes };
-	});
+	startCopying();
 	return pending();
 }
 
@@ -115,14 +109,12 @@ export async function prepareMedia(
 	const mediaURL = text(body, 'mediaURL');
 	if (!watcher || !mediaURL) return refused(400, 'a media transfer names a transferID and the mediaURL it reads');
 	const claimedDigest = text(body, 'digest').toLowerCase();
-	const digest = digestPattern.test(claimedDigest) ? claimedDigest : '';
+	const digest = digestInURL(mediaURL) || (digestPattern.test(claimedDigest) ? claimedDigest : '');
+	if (!digest) return refused(400, `${mediaURL} names no blob by its digest`);
 	const contentType = text(body, 'contentType') || defaultContentType;
-	const key = digest || digestOfText(`media\n${mediaURL}`);
-	const path = sharedAssetPath(dependencies.companyID, transferKind, key, contentType);
 	const source: RangedSource = (rangeHeader) => dependencies.readMediaRange(actor, mediaURL, rangeHeader);
-	return preparedCopy(dependencies, path, watcher, (progress) =>
-		copyIntoStore(dependencies.hostAccess, path, contentType, source, { onProgress: progress, expectedDigest: digest })
-	);
+	const copies = dependencies.messengerCopies;
+	return preparedCopy(dependencies, copies.pathOf(digest), () => copies.fill({ digest, contentType, source }, watcher));
 }
 
 type WorkspaceEntry = { name: string; isDirectory: boolean; size: number; modifiedAt: string };
@@ -160,8 +152,11 @@ export async function prepareWorkspaceFile(
 	const key = digestOfText(`${filePath}\n${found.entry.size}\n${found.entry.modifiedAt}`);
 	const path = `${dependencies.companyID}/person/${memberID}/${transferKind}/${key}`;
 	const source: RangedSource = (rangeHeader) => dependencies.readWorkspaceRange(requesterEmail, filePath, rangeHeader);
-	return preparedCopy(dependencies, path, watcher, (progress) =>
-		copyIntoStore(dependencies.hostAccess, path, defaultContentType, source, { onProgress: progress })
+	return preparedCopy(dependencies, path, () =>
+		dependencies.transfers.start(path, watcher, async (progress) => {
+			const copied = await copyIntoStore(dependencies.hostAccess, path, defaultContentType, source, { onProgress: progress });
+			return { address: attachmentAddress(dependencies.hostAccess.projectURL, path), sizeBytes: copied.sizeBytes };
+		})
 	);
 }
 

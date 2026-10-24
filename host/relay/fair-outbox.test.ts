@@ -1,8 +1,8 @@
 import { describe, expect, test } from 'bun:test';
-import { FairOutbox, type Outlet } from './fair-outbox';
+import { FairOutbox, type Outlet, type OutboxDocument } from './fair-outbox';
 
-function outletBlockedUntilOpened(): { outlet: Outlet; sent: string[]; open: () => void } {
-	const sent: string[] = [];
+function outletBlockedUntilOpened(): { outlet: Outlet; sent: OutboxDocument[]; open: () => void } {
+	const sent: OutboxDocument[] = [];
 	let isBlocked = true;
 	return {
 		sent,
@@ -24,7 +24,7 @@ async function waitUntil(isReady: () => boolean, waitedFor: string): Promise<voi
 
 describe('FairOutbox', () => {
 	test('sends straight through while the socket keeps up', () => {
-		const sent: string[] = [];
+		const sent: OutboxDocument[] = [];
 		const outbox = new FairOutbox(() => ({ send: (document) => sent.push(document), bufferedBytes: () => 0 }));
 		outbox.push('a', 'a1');
 		outbox.push('b', 'b1');

@@ -28,13 +28,16 @@ only ever holds a copy.
 
 | Prefix | What it holds | Who reads it | How long |
 |---|---|---|---|
-| `<company>/shared/transfer/` | a messenger attachment copied for reading, named by its digest | the company | seven days |
+| `<company>/shared/transfer/` | a messenger attachment copied for reading or kept from an app's upload, named by its digest | the company | seven days |
 | `<company>/person/<member>/transfer/` | a workspace file copied for its owner, named by its path, size and modification time | that member | seven days |
 | `<company>/person/<member>/upload/` | a file the browser put there to send or to save | that member | until the host takes it, seven days at most |
 | `<company>/shared/attachment/` | a file the messenger's own store refused, which the message names here instead | the company | for good |
 
 The host deletes its company's expired copies once an hour. A copy is a cache,
-so losing one costs a second read from the computer that holds the file.
+so losing one costs a second read from the computer that holds the file. The
+seven days count from when the copy was made, and reading it does not extend
+them. A native app's read still asks the messenger on that computer whether the
+reader may have the file, so for an app the copy only saves carrying the bytes.
 
 ## A person's memory
 
