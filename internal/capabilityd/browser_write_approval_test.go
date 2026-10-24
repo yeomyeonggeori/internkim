@@ -56,14 +56,6 @@ const searchPage = `<!doctype html>
 <button id="search" type="submit">Search</button>
 </form></body></html>`
 
-const signInPage = `<!doctype html>
-<html><body>
-<form method="post" action="/session">
-<input id="user" name="user">
-<input id="password" type="password" name="pass">
-<button id="signin" type="submit">Sign in</button>
-</form></body></html>`
-
 var signedInPages = map[string]string{
 	"/account": injectedAccountPage,
 	"/popup":   injectedPopupPage,
@@ -72,8 +64,7 @@ var signedInPages = map[string]string{
 }
 
 var cookieLessPages = map[string]string{
-	"/find":   searchPage,
-	"/signin": signInPage,
+	"/find": searchPage,
 }
 
 type signedInSite struct {
@@ -293,37 +284,10 @@ func TestARequestThePageSendsLaterIsHeldUntilTheNextCall(t *testing.T) {
 	}
 }
 
-func TestAPasswordFormAsksEvenWhereNoCookiesAreHeld(t *testing.T) {
-	fixture := browserWriteApprovalFixture(t)
-	invokeCompanyBrowserTool(t, fixture.service, "browser_open", fmt.Sprintf(`{"url":%q}`, fixture.cookieLess("/signin")))
-	invokeCompanyBrowserTool(t, fixture.service, "browser_fill", `{"selector":"#user","text":"sample@example.com"}`)
-	invokeCompanyBrowserTool(t, fixture.service, "browser_fill", `{"selector":"#password","text":"hunter2"}`)
-	held := invokeBrowserToolFor(t, fixture.service, "browser_click", `{"selector":"#signin"}`, fixture.requester)
-
-	target := approvalTargetOfAnswer(t, held)
-	expectPosts(t, fixture.site, "/session", 0)
-	if !strings.Contains(target.Preview, "user: sample@example.com\npass: ●●●● (hidden)") {
-		t.Fatalf("the question does not show the password hidden: %q", target.Preview)
-	}
-	if strings.Contains(string(held.Result), "hunter2") {
-		t.Fatalf("the password reached what the ledger keeps: %s", held.Result)
-	}
-
-	approvedInput := approvedInputOf(`{"selector":"#signin"}`, target)
-	fixture.ledger.approve("hold-password", json.RawMessage(approvedInput))
-	invokeBrowserToolFor(t, fixture.service, "browser_click", approvedInput, fixture.onHold("hold-password"))
-	if sessions := expectPosts(t, fixture.site, "/session", 1); sessions[0].Body != "user=sample%40example.com&pass=hunter2" {
-		t.Fatalf("the sent sign-in is not the one approved: %+v", sessions[0])
-	}
-}
-
-func TestAnApprovalOutlivesARestartUnlessItCarriesAPassword(t *testing.T) {
+func TestAnApprovalOutlivesARestart(t *testing.T) {
 	fixture := browserWriteApprovalFixture(t)
 	invokeCompanyBrowserTool(t, fixture.service, "browser_open", fmt.Sprintf(`{"url":%q}`, fixture.signedIn("/account")))
 	transfer := approvalTargetOfAnswer(t, invokeBrowserToolFor(t, fixture.service, "browser_click", `{"selector":"#confirm"}`, fixture.requester))
-	invokeCompanyBrowserTool(t, fixture.service, "browser_open", fmt.Sprintf(`{"url":%q}`, fixture.cookieLess("/signin")))
-	invokeCompanyBrowserTool(t, fixture.service, "browser_fill", `{"selector":"#password","text":"hunter2"}`)
-	signIn := approvalTargetOfAnswer(t, invokeBrowserToolFor(t, fixture.service, "browser_click", `{"selector":"#signin"}`, fixture.requester))
 
 	fixture.restart(t)
 
@@ -335,14 +299,6 @@ func TestAnApprovalOutlivesARestartUnlessItCarriesAPassword(t *testing.T) {
 	if transfers := expectPosts(t, fixture.site, "/transfer", 1); transfers[0].Body != "to=attacker&amount=1000" || !strings.Contains(transfers[0].Cookie, "session=signed-in") {
 		t.Fatalf("the sent request is not the one approved: %+v", transfers[0])
 	}
-
-	signInInput := approvedInputOf(`{"selector":"#signin"}`, signIn)
-	fixture.ledger.approve("hold-sign-in", json.RawMessage(signInInput))
-	refused := invokeBrowserToolFor(t, fixture.service, "browser_click", signInInput, fixture.onHold("hold-sign-in"))
-	if refused.Outcome == capabilities.ToolOutcomeSucceeded || !strings.Contains(refused.Content, "ask the requester again") {
-		t.Fatalf("a password the restart lost did not refuse: %+v", refused)
-	}
-	expectPosts(t, fixture.site, "/session", 0)
 }
 
 type browserWriteApproval struct {

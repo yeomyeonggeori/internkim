@@ -115,8 +115,6 @@ func (guardHoldingNothing) IsGuarding(context.Context, string) bool { return tru
 
 func (guardHoldingNothing) Settle(context.Context) {}
 
-func (guardHoldingNothing) NotePasswordInputs(context.Context) {}
-
 func (guardHoldingNothing) TakeWithheld() browserruntime.GuardedRequests {
 	return browserruntime.GuardedRequests{}
 }

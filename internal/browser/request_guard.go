@@ -29,8 +29,6 @@ var safeRequestMethods = map[string]bool{
 	http.MethodTrace:   true,
 }
 
-var documentTargetTypes = map[string]bool{"page": true, "iframe": true}
-
 type WithheldRequest struct {
 	Method        string            `json:"method"`
 	URL           string            `json:"url"`
@@ -40,9 +38,8 @@ type WithheldRequest struct {
 }
 
 type HeldRequest struct {
-	Request        WithheldRequest
-	Body           string
-	PasswordFields []string
+	Request WithheldRequest
+	Body    string
 }
 
 type GuardedRequests struct {
@@ -64,7 +61,6 @@ type RequestGuard struct {
 	sessionTypes map[string]string
 	attachment   error
 	withheld     GuardedRequests
-	passwords    map[string]bool
 	resend       *pendingResend
 	resending    sync.Mutex
 	processed    atomic.Int64
@@ -122,7 +118,6 @@ func GuardRequests(ctx context.Context, devtoolsURL string) (*RequestGuard, erro
 		socketURL:    socketURL,
 		watched:      map[string]bool{},
 		sessionTypes: map[string]string{},
-		passwords:    map[string]bool{},
 		answering:    map[int64]chan struct{}{},
 		handled:      make(chan struct{}),
 	}
@@ -298,14 +293,12 @@ func (guard *RequestGuard) answerPausedRequest(sessionID string, parameters json
 		guard.continueRequest(ctx, sessionID, paused.RequestID)
 		return
 	}
-	body := bodyOf(paused)
-	passwordFields := guard.passwordFieldsIn(paused.Request.Headers, body)
-	if len(passwordFields) == 0 && !guard.carriesCookies(ctx, sessionID, paused.Request.URL) {
+	if !guard.carriesCookies(ctx, sessionID, paused.Request.URL) {
 		guard.continueRequest(ctx, sessionID, paused.RequestID)
 		return
 	}
 	_, _ = guard.connection.call(ctx, sessionID, "Fetch.failRequest", map[string]any{"requestId": paused.RequestID, "errorReason": "BlockedByClient"})
-	guard.recordWithheld(paused, body, passwordFields)
+	guard.recordWithheld(paused, bodyOf(paused))
 }
 
 func (guard *RequestGuard) continueRequest(ctx context.Context, sessionID string, requestID string) {
@@ -390,53 +383,6 @@ func (guard *RequestGuard) aPageSession() (string, bool) {
 	return "", false
 }
 
-func (guard *RequestGuard) passwordFieldsIn(headers map[string]string, body string) []string {
-	guard.mutex.Lock()
-	defer guard.mutex.Unlock()
-	passwordFields := []string{}
-	for _, field := range FormFields(ContentTypeOf(headers), body) {
-		if guard.passwords[field.Name] {
-			passwordFields = append(passwordFields, field.Name)
-		}
-	}
-	return passwordFields
-}
-
-func (guard *RequestGuard) NotePasswordInputs(ctx context.Context) {
-	ctx, cancel := context.WithTimeout(ctx, requestGuardAnswerTimeout)
-	defer cancel()
-	names := map[string]bool{}
-	for _, sessionID := range guard.documentSessions() {
-		answer, errorValue := guard.connection.call(ctx, sessionID, "DOM.getDocument", map[string]any{"depth": -1, "pierce": true})
-		_, _ = guard.connection.call(ctx, sessionID, "DOM.disable", map[string]any{})
-		if errorValue != nil {
-			log.Printf("tool.browser.document_unreadable: %v", errorValue)
-			continue
-		}
-		var document struct {
-			Root domNode `json:"root"`
-		}
-		if json.Unmarshal(answer, &document) == nil {
-			document.Root.collectPasswordInputNames(names)
-		}
-	}
-	guard.mutex.Lock()
-	defer guard.mutex.Unlock()
-	guard.passwords = names
-}
-
-func (guard *RequestGuard) documentSessions() []string {
-	guard.mutex.Lock()
-	defer guard.mutex.Unlock()
-	sessions := []string{}
-	for sessionID, targetType := range guard.sessionTypes {
-		if documentTargetTypes[targetType] {
-			sessions = append(sessions, sessionID)
-		}
-	}
-	return sessions
-}
-
 func (guard *RequestGuard) claimResend(paused pausedRequest) (pendingResend, bool) {
 	guard.mutex.Lock()
 	defer guard.mutex.Unlock()
@@ -461,7 +407,7 @@ func resentRequestParameters(requestID string, resend pendingResend) map[string]
 	}
 }
 
-func (guard *RequestGuard) recordWithheld(paused pausedRequest, body string, passwordFields []string) {
+func (guard *RequestGuard) recordWithheld(paused pausedRequest, body string) {
 	guard.mutex.Lock()
 	defer guard.mutex.Unlock()
 	if paused.ResourceType == beaconResourceType {
@@ -475,7 +421,7 @@ func (guard *RequestGuard) recordWithheld(paused pausedRequest, body string, pas
 		IsBodyMissing: paused.Request.HasPostData && body == "",
 		ResourceType:  paused.ResourceType,
 	}
-	guard.withheld.Held = append(guard.withheld.Held, HeldRequest{Request: request, Body: body, PasswordFields: passwordFields})
+	guard.withheld.Held = append(guard.withheld.Held, HeldRequest{Request: request, Body: body})
 }
 
 func headersWithoutCookies(headers map[string]string) map[string]string {
@@ -542,36 +488,4 @@ func (guard *RequestGuard) Resend(ctx context.Context, request WithheldRequest, 
 func (guard *RequestGuard) Close() {
 	guard.connection.close()
 	<-guard.handled
-}
-
-type domNode struct {
-	LocalName       string    `json:"localName"`
-	Attributes      []string  `json:"attributes"`
-	Children        []domNode `json:"children"`
-	ShadowRoots     []domNode `json:"shadowRoots"`
-	ContentDocument *domNode  `json:"contentDocument"`
-}
-
-func (node domNode) collectPasswordInputNames(names map[string]bool) {
-	if node.LocalName == "input" && strings.EqualFold(node.attribute("type"), "password") && node.attribute("name") != "" {
-		names[node.attribute("name")] = true
-	}
-	for _, child := range node.Children {
-		child.collectPasswordInputNames(names)
-	}
-	for _, shadowRoot := range node.ShadowRoots {
-		shadowRoot.collectPasswordInputNames(names)
-	}
-	if node.ContentDocument != nil {
-		node.ContentDocument.collectPasswordInputNames(names)
-	}
-}
-
-func (node domNode) attribute(name string) string {
-	for index := 0; index+1 < len(node.Attributes); index += 2 {
-		if node.Attributes[index] == name {
-			return node.Attributes[index+1]
-		}
-	}
-	return ""
 }
