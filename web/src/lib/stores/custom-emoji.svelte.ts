@@ -6,9 +6,11 @@ type CustomEmojiRecord = { name: string; url: string };
 
 class CustomEmojiStore {
 	nameToURL = $state<Map<string, string>>(new Map());
-	private named = new Set<string>();
+	private named = $state<Set<string>>(new Set());
+	private undrawable = $state<Set<string>>(new Set());
 	private beingDrawn = new Map<string, Promise<string | null>>();
-	private hasLoaded = false;
+	private hasLoaded = $state(false);
+	private hasFailedToLoad = $state(false);
 	private loading: Promise<void> | null = null;
 	private generation = 0;
 
@@ -16,11 +18,19 @@ class CustomEmojiStore {
 		onMessengerCacheReset(() => {
 			this.generation += 1;
 			this.nameToURL = new Map();
-			this.named.clear();
+			this.named = new Set();
+			this.undrawable = new Set();
 			this.beingDrawn.clear();
 			this.hasLoaded = false;
+			this.hasFailedToLoad = false;
 			this.loading = null;
 		});
+	}
+
+	isDrawing(name: string): boolean {
+		if (this.nameToURL.has(name) || this.hasFailedToLoad) return false;
+		if (!this.hasLoaded) return true;
+		return this.named.has(name) && !this.undrawable.has(name);
 	}
 
 	load(): Promise<void> {
@@ -34,6 +44,7 @@ class CustomEmojiStore {
 
 	private async loadOnce(): Promise<void> {
 		const generation = this.generation;
+		this.hasFailedToLoad = false;
 		try {
 			if (isSupabaseConfigured()) {
 				const names = await fetchCustomEmojiNames();
@@ -45,6 +56,7 @@ class CustomEmojiStore {
 			const response = await fetch('/agent/api/custom-emoji', { credentials: 'include' });
 			if (!response.ok) {
 				this.hasLoaded = false;
+				this.hasFailedToLoad = true;
 				return;
 			}
 			const document: { emoji?: CustomEmojiRecord[] } = await response.json();
@@ -54,7 +66,9 @@ class CustomEmojiStore {
 			this.nameToURL = new Map(drawn.map((record) => [record.name, record.url]));
 			this.hasLoaded = true;
 		} catch {
-			if (generation === this.generation) this.hasLoaded = false;
+			if (generation !== this.generation) return;
+			this.hasLoaded = false;
+			this.hasFailedToLoad = true;
 		}
 	}
 
@@ -69,10 +83,13 @@ class CustomEmojiStore {
 		);
 		if (generation !== this.generation) return;
 		const filled = new Map(this.nameToURL);
+		const undrawable = new Set(this.undrawable);
 		for (const [name, url] of drawn) {
 			if (url) filled.set(name, url);
+			else undrawable.add(name);
 		}
 		this.nameToURL = filled;
+		this.undrawable = undrawable;
 	}
 
 	private drawOnce(name: string): Promise<string | null> {
