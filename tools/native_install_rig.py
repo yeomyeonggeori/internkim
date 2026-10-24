@@ -857,7 +857,7 @@ def installed_units(machine, files_command=f"dpkg-query -L {PACKAGE_NAME}"):
 
 # ------------------------------------------------------------------- the plane
 
-CENTRAL_TEST_UTILITIES_PATH = REPOSITORY_ROOT / "web" / "tests" / "e2e" / "central-test-utils.ts"
+CENTRAL_TEST_UTILITIES_PATH = REPOSITORY_ROOT / "web" / "tests" / "e2e" / "support" / "central-test-utils.ts"
 GATEWAY_WORKER_PATH = REPOSITORY_ROOT / "workers" / "connection-gateway"
 COMPANY_COMPUTER_AGENT_NAME = "company-computer"
 MEMBER_SESSION_SCRIPT = REPOSITORY_ROOT / "tools" / "native-install-member-session.ts"

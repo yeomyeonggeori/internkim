@@ -431,6 +431,9 @@ GROUPS = [
             "internal/admind/host_update.go",
             "internal/hostupdate/*",
             "web/static/install.sh",
+            "web/tests/e2e/support/central-test-utils.ts",
+            "web/scripts/local-plane-signing-key.sh",
+            "workers/connection-gateway/*",
         ],
         # The half that needs no guest. The rigs take a disposable guest and
         # about ten minutes, so they are run by hand:
