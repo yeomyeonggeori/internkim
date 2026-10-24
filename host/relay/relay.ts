@@ -146,6 +146,7 @@ const credentials = new CredentialCache(readMessengerCredential);
 const arrivalWatchers = new ArrivalWatchers({
 	activeMemberIDs: () => activeMemberIDsOf(client, companyID),
 	credentialOf: (memberID) => credentials.credentialOf(memberID),
+	forgetRefusedCredential: forgetRefusedMessengerCredential,
 	askChatd: (capability, body) => dispatch.askChatd(capability, body),
 	arrivalsURL: `http://127.0.0.1:${arrivalsPort}${arrivalsPath}`,
 	typingURL: `http://127.0.0.1:${arrivalsPort}${typingPath}`,
@@ -153,6 +154,11 @@ const arrivalWatchers = new ArrivalWatchers({
 	report: (line) => console.log(line),
 	now: () => Date.now()
 });
+
+function forgetRefusedMessengerCredential(memberID: string): void {
+	console.log(`the messenger refused the credential held for member ${memberID}; reading it again from the record`);
+	credentials.forget(memberID);
+}
 
 async function credentialOfMemberActedFor(memberID: string): Promise<{ kind: string; secret: string } | null> {
 	const credential = await credentials.credentialForAction(memberID);
@@ -292,6 +298,7 @@ const dispatch = {
 		return member.data?.email ?? null;
 	},
 	messengerCredentialOf: credentialOfMemberActedFor,
+	forgetRefusedMessengerCredential,
 	connectMessengerAccount: async (memberID: string, account: ConnectedAccount) => {
 		await askTheRecord('POST', '/api/agent/messenger-account', {
 			platform: messengerPlatform,

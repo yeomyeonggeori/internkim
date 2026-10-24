@@ -1,6 +1,6 @@
 import { reasonOf } from './failure';
 import type { SupabaseClient } from '@supabase/supabase-js';
-import type { ActorCredential } from './forward';
+import { isLoginRefusal, type ActorCredential } from './forward';
 
 export const arrivalsWatchCapability = 'person.arrivals.watch';
 export const arrivalsPath = '/arrived';
@@ -9,6 +9,7 @@ export const arrivalsRenewalMilliseconds = 2 * 60_000;
 export type ArrivalWatchersDependencies = {
 	activeMemberIDs: () => Promise<string[]>;
 	credentialOf: (memberID: string) => Promise<ActorCredential | null>;
+	forgetRefusedCredential: (memberID: string) => void;
 	askChatd: (capability: string, body: Record<string, unknown>) => Promise<{ status: number; body: unknown }>;
 	arrivalsURL: string;
 	typingURL: string;
@@ -84,6 +85,7 @@ export class ArrivalWatchers {
 			typingURL: this.dependencies.typingURL,
 			withdrawalsURL: this.dependencies.withdrawalsURL
 		});
+		if (isLoginRefusal(answer)) this.dependencies.forgetRefusedCredential(memberID);
 		if (answer.status >= 300) return `member ${memberID}: chatd answered ${answer.status}: ${JSON.stringify(answer.body)}`;
 		this.watchedAt.set(memberID, this.dependencies.now());
 		return null;

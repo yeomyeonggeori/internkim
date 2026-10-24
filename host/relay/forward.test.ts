@@ -9,6 +9,7 @@ import {
 	forwardToChatd,
 	isPersonCapability,
 	isRegistrationCapability,
+	isLoginRefusal,
 	isWorkspaceCapability,
 	mailOperationOf,
 	publicAPIRequestOf,
@@ -26,6 +27,7 @@ import {
 	type ConnectedAccount,
 	type PublicAPIRequest
 } from './forward';
+import { CredentialCache, type HeldCredential } from './credential-cache';
 import { leafNameOf, type KeptFileReference } from './file-transfer';
 import { TransferFailed } from './transfer-store';
 import { MessengerAnswered } from './person-picture';
@@ -83,6 +85,7 @@ function dispatchThatKnows(externalIDs: Record<string, string>) {
 			emailOfMember: async (memberID: string) =>
 				memberID === 'member-1' ? 'sample@example.test' : null,
 			messengerCredentialOf: async () => ({ kind: 'buzz-secret', secret: 'a-held-secret' }),
+			forgetRefusedMessengerCredential: () => {},
 			messageArrived: (conversationID: string, messageID: string) => {
 				arrivals.push({ conversationID, messageID });
 			},
@@ -228,6 +231,82 @@ describe('serveCallForMember', () => {
 		expect(served.status).toBe(409);
 	});
 
+});
+
+describe('a credential the messenger refuses', () => {
+	const refusal = { status: 401, body: { error: 'ws://relay refused the login: restricted: not a relay member', reason: 'login-refused' } };
+
+	function dispatchOverTheRecord(recordHolds: () => string) {
+		const { dispatch } = dispatchThatKnows({});
+		const triedSecrets: string[] = [];
+		const forgotten: string[] = [];
+		const credentials = new CredentialCache(async (): Promise<HeldCredential> => ({ kind: 'buzz-secret', secret: recordHolds() }));
+		return {
+			triedSecrets,
+			forgotten,
+			dispatch: {
+				...dispatch,
+				messengerCredentialOf: (memberID: string) => credentials.credentialForAction(memberID),
+				forgetRefusedMessengerCredential: (memberID: string) => {
+					forgotten.push(memberID);
+					credentials.forget(memberID);
+				},
+				askChatd: async (_capability: string, body: Record<string, unknown>) => {
+					const secret = (body.actor as { secret: string }).secret;
+					triedSecrets.push(secret);
+					return secret === 'current-key' ? { status: 200, body: { id: 'dm-1' } } : refusal;
+				}
+			}
+		};
+	}
+
+	test('is forgotten, read again from the record, and the call is made once more with what it holds now', async () => {
+		let recordHolds = 'stale-key';
+		const { dispatch, triedSecrets, forgotten } = dispatchOverTheRecord(() => recordHolds);
+		await dispatch.messengerCredentialOf('member-1');
+		recordHolds = 'current-key';
+
+		const served = await serveCallForMember(dispatch, { capability: 'person.dm.ensure', body: {} }, 'member-1');
+
+		expect(served).toEqual({ status: 200, body: { id: 'dm-1' }, replyTo: 'member-1' });
+		expect(triedSecrets).toEqual(['stale-key', 'current-key']);
+		expect(forgotten).toEqual(['member-1']);
+	});
+
+	test('is answered as refused when the record still holds the same one, without asking again', async () => {
+		const { dispatch, triedSecrets, forgotten } = dispatchOverTheRecord(() => 'stale-key');
+
+		const served = await serveCallForMember(dispatch, { capability: 'person.dm.ensure', body: {} }, 'member-1');
+
+		expect(served).toEqual({ ...refusal, replyTo: 'member-1' });
+		expect(triedSecrets).toEqual(['stale-key']);
+		expect(forgotten).toEqual(['member-1']);
+	});
+
+	test('is recognised by the reason chatd gives its refusal', async () => {
+		const { RelayLoginRefused } = await import('../../.dependency/blueclaw/chatd/src/adapters/buzz/relay-connection');
+		const refused = new RelayLoginRefused('ws://relay', 'restricted: not a relay member');
+
+		expect(isLoginRefusal({ status: 401, body: { error: refused.message, reason: refused.reason } })).toBe(true);
+	});
+
+	test('is told apart from any other 401, which forgets nothing', async () => {
+		const { dispatch } = dispatchThatKnows({});
+		const forgotten: string[] = [];
+
+		const served = await serveCallForMember(
+			{
+				...dispatch,
+				forgetRefusedMessengerCredential: (memberID: string) => void forgotten.push(memberID),
+				askChatd: async () => ({ status: 401, body: { error: 'a service token chatd does not hold' } })
+			},
+			{ capability: 'person.dm.ensure', body: {} },
+			'member-1'
+		);
+
+		expect(served.status).toBe(401);
+		expect(forgotten).toEqual([]);
+	});
 });
 
 describe('a message the app sent', () => {
