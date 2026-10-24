@@ -163,9 +163,11 @@ describe('BrowserHandoffs', () => {
 
 	test('a hand-over nobody finishes expires and still settles its question', async () => {
 		const fixture = handoffsFixture();
-		await fixture.handoffs.register(registration(30));
 		let settled = 0;
-		await fixture.handoffs.claim('handoff-1', requester.email, () => settled++);
+		const registering = fixture.handoffs.register(registration(30));
+		const claiming = fixture.handoffs.claim('handoff-1', requester.email, () => settled++);
+		expect(await claiming).toBe('open');
+		await registering;
 
 		await eventually(() => settled > 0);
 
