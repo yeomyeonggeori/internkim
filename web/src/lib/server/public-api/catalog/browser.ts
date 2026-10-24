@@ -51,6 +51,25 @@ const browserWaitInputSchema = z.strictObject({
   withheldRequest: browserWithheldRequestSchema,
 });
 
+const browserHandoffInputSchema = z.strictObject({
+  step: z.string()
+    .min(1)
+    .describe('What the requester does in the browser themselves, in a few plain words: "sign in to the vendor portal", "enter the code sent to their phone".'),
+  handoff: z.string()
+    .describe('Leave unset. The runtime sets it when the requester takes the browser.')
+    .optional(),
+});
+
+const browserHandoffResultSchema = z.strictObject({
+  ended: z.enum(['done', 'abandoned', 'expired'])
+    .describe('done: the requester handed the browser back as finished. abandoned: they handed it back without finishing. expired: nobody handed it back in time.'),
+  origin: z.string().describe('The origin of the page the browser shows now.'),
+  signInOrigin: z.string().describe('The origin of the page that was handed over.'),
+  signInCookiesChanged: z.boolean()
+    .describe("Whether this browser's cookies for signInOrigin changed while the requester had it. Absent when that could not be compared.")
+    .optional(),
+});
+
 const browserFillResultSchema = z.strictObject({
   ok: z.literal(true),
   action: z.literal('fill'),
@@ -79,6 +98,19 @@ const browserWaitResultSchema = z.strictObject({
 });
 
 export const browserControlToolDefinitions: CapabilityToolDefinition[] = [
+  {
+    name: "browser_handoff",
+    namespace: "browser",
+    answeredBy: CapabilityAnsweredBy.Local,
+    privacyClass: "device_browser",
+    policyResource: "tool:browser_handoff",
+    description: "Hand the browser to the requester so they do one step in it themselves, such as signing in or entering a one-time code. Open the page that needs them first. Never type a password or code yourself and never ask for one in the conversation. The call waits while they work and answers how it ended and where the browser is; nothing they see or type there reaches you.",
+    version: "1",
+    estimatedLatency: CapabilityEstimatedLatency.Interactive,
+    inputSchema: browserHandoffInputSchema,
+    result: { schema: browserHandoffResultSchema, effects: [] },
+    sideEffect: CapabilitySideEffect.Read,
+  },
   {
     name: "browser_fill",
     namespace: "browser",

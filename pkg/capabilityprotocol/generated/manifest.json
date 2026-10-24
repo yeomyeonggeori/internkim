@@ -1,8 +1,8 @@
 {
-  "aggregateHash": "e13236a42047e8e60610f83c53795985510b65bae6dee2d408fd89684464ce4d",
+  "aggregateHash": "96ef0e6876f90b76618565f35876ff43edde5edd0f4740be580ae96f3a6b946e",
   "capabilityToolCatalog": {
     "fileName": "capability-tools.json",
-    "hash": "ab1cd5d8cb0c4b40e9c7486038e8602517585572d680126877ad266fe1d0c435"
+    "hash": "9f6bd70c5bb48f60d9fb929d03fddfb9eb208171d8fed57b1f1e77d5c2ca3384"
   },
   "protocolVersion": "0.4.0",
   "schemas": [
@@ -18,7 +18,7 @@
     },
     {
       "fileName": "approval-target.schema.json",
-      "hash": "6644e0eff10cfd9be4682c47a8e207c44085fb3d8a85e61830cc4c867a4b04bb",
+      "hash": "69bcd64b6f90aeac4c2203ff0d37d76ef76694c92d924e4e1ba6889e3627385e",
       "name": "approval-target"
     },
     {

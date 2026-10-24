@@ -55,6 +55,15 @@ export type Delivery = {
 	replyTargetID?: string;
 	isAlreadyPosted?: boolean;
 	isFinal?: boolean;
+	handoffID?: string;
+};
+
+export type HandoffClaim = 'open' | 'ended' | 'refused';
+
+export type HandoffsForQuestions = {
+	claim: (handoffID: string, requesterEmail: string, settle: () => void) => Promise<HandoffClaim>;
+	linkOf: (handoffID: string) => string;
+	answeredInTheThread: (handoffID: string, isDone: boolean) => Promise<void>;
 };
 
 export class AgentUnreachable extends Error {
@@ -94,6 +103,7 @@ export type ACPSessionSettings = {
 	deleteInConversation: DeleteInConversation;
 	sessions: SessionBindingStore;
 	approvalWasRequested: (conversationID: string) => void;
+	handoffs?: HandoffsForQuestions;
 	report?: (line: string) => void;
 };
 
@@ -110,6 +120,7 @@ type PendingApproval = {
 	toolCallID: string;
 	waitingMessageIDs: Set<string>;
 	select: (optionID: string) => void;
+	handoff?: { handoffID: string; handedBackOptionID: string };
 };
 
 export class BlueclawACPClient {
@@ -374,6 +385,9 @@ export class BlueclawACPClient {
 		);
 		if (reading === undefined) return false;
 		this.pendingApprovals.delete(binding.sessionID);
+		if (pending.handoff) {
+			await this.settings.handoffs?.answeredInTheThread(pending.handoff.handoffID, reading.optionID === pending.handoff.handedBackOptionID);
+		}
 		pending.select(reading.optionID);
 		return !reading.isInstruction;
 	}
@@ -399,9 +413,18 @@ export class BlueclawACPClient {
 			return cancelled;
 		}
 		const approval = this.registerPendingApproval(request, binding, delivery, connectionThatAsked);
+		const question = await this.questionToPost(request, binding, delivery, approval.pending);
+		if (question === null) {
+			approval.withdraw();
+			return cancelled;
+		}
+		if ('handedBackOptionID' in question) {
+			approval.withdraw();
+			return { outcome: { outcome: 'selected', optionId: question.handedBackOptionID } };
+		}
 		const outcome = delivery.isAlreadyPosted
 			? undefined
-			: await attemptPost(() => this.settings.postToConversation(addressedBy(binding, delivery), request.toolCall.title ?? ''));
+			: await attemptPost(() => this.settings.postToConversation(addressedBy(binding, delivery), question.text));
 		if (outcome) await this.tellTheAgent(delivery, outcome);
 		if (outcome && 'reason' in outcome) {
 			approval.withdraw();
@@ -411,12 +434,40 @@ export class BlueclawACPClient {
 		return approval.answer;
 	}
 
+	private async questionToPost(
+		request: RequestPermissionRequest,
+		binding: SessionBinding,
+		delivery: Delivery,
+		pending: PendingApproval
+	): Promise<{ text: string } | { handedBackOptionID: string } | null> {
+		const title = request.toolCall.title ?? '';
+		if (!delivery.handoffID) return { text: title };
+		const handedBack = request.options.find((option) => option.kind === 'allow_once');
+		const handoffs = this.settings.handoffs;
+		if (!handedBack || !handoffs) {
+			this.settings.report?.(`hand-over ${delivery.handoffID} has no way to be handed back here, so it was not put to anyone`);
+			return null;
+		}
+		pending.handoff = { handoffID: delivery.handoffID, handedBackOptionID: handedBack.optionId };
+		const claim = await handoffs.claim(delivery.handoffID, binding.requester.email, () =>
+			this.settleHandedBack(request.sessionId, pending, handedBack.optionId)
+		);
+		if (claim === 'refused') return null;
+		if (claim === 'ended') return { handedBackOptionID: handedBack.optionId };
+		return { text: `${title}\n\n${handoffs.linkOf(delivery.handoffID)}` };
+	}
+
+	private settleHandedBack(sessionID: string, pending: PendingApproval, optionID: string): void {
+		if (this.pendingApprovals.get(sessionID) === pending) this.pendingApprovals.delete(sessionID);
+		pending.select(optionID);
+	}
+
 	private registerPendingApproval(
 		request: RequestPermissionRequest,
 		binding: SessionBinding,
 		delivery: Delivery,
 		connectionThatAsked: ClientSideConnection
-	): { answer: Promise<RequestPermissionResponse>; withdraw: () => void } {
+	): { answer: Promise<RequestPermissionResponse>; withdraw: () => void; pending: PendingApproval } {
 		const { promise, resolve } = Promise.withResolvers<RequestPermissionResponse>();
 		const pending: PendingApproval = {
 			toolCallID: request.toolCall.toolCallId,
@@ -436,7 +487,7 @@ export class BlueclawACPClient {
 			},
 			{ once: true }
 		);
-		return { answer: promise, withdraw };
+		return { answer: promise, withdraw, pending };
 	}
 
 	private messageIDsInFlightIn(sessionID: string): string[] {
@@ -471,8 +522,10 @@ export function deliveryOf(meta: Record<string, unknown> | null | undefined): De
 	if (typeof carried !== 'object' || carried === null) return {};
 	const deliveryID = nonEmptyStringIn(carried, 'deliveryID');
 	const replyTargetID = nonEmptyStringIn(carried, 'replyTargetID');
+	const handoffID = nonEmptyStringIn(carried, 'handoffID');
 	return {
 		...(deliveryID ? { deliveryID } : {}),
+		...(handoffID ? { handoffID } : {}),
 		...(replyTargetID ? { replyTargetID } : {}),
 		...(Reflect.get(carried, 'isAlreadyPosted') === true ? { isAlreadyPosted: true } : {}),
 		...(Reflect.get(carried, 'isFinal') === true ? { isFinal: true } : {})

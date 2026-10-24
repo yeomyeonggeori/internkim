@@ -1,4 +1,5 @@
 import { extensionOf } from './asset-store';
+import { isBrowserHandoffCapability } from './browser-handoff';
 import { leafNameOf, type Answered, type KeptFileReference } from './file-transfer';
 import { TransferFailed } from './transfer-store';
 import { MessengerAnswered } from './person-picture';
@@ -201,6 +202,7 @@ export type Dispatch = {
 	mailAccountOf: (memberID: string) => Promise<Record<string, unknown> | null>;
 	connectMessengerAccount: (memberID: string, account: ConnectedAccount) => Promise<void>;
 	messengerCredentialOf: (memberID: string) => Promise<ActorCredential | null>;
+	serveBrowserHandoff: (capability: string, body: Record<string, unknown>, memberID: string) => Promise<{ status: number; body: unknown }>;
 };
 
 export type ConnectedAccount = { kind: string; externalID: string; name: string; secret: string };
@@ -240,6 +242,9 @@ async function serveForMember(
 	body: Record<string, unknown>,
 	replyTo: string
 ): Promise<Served> {
+	if (isBrowserHandoffCapability(capability)) {
+		return { ...(await dispatch.serveBrowserHandoff(capability, body, replyTo)), replyTo };
+	}
 	if (!isPersonCapability(capability)) {
 		return { status: 200, body: await dispatch.serveAsset(capability, body), replyTo };
 	}

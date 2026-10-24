@@ -57,6 +57,7 @@ type Configuration struct {
 	ServiceTokenPath              string
 	WorkQueuePath                 string
 	HostSessionPath               string
+	RelayBaseURL                  string
 }
 
 type Service struct {
@@ -71,6 +72,7 @@ type Service struct {
 
 	browserRequestGuards *browserRequestGuards
 	keptRequestBodies    *keptRequestBodies
+	browserHandoffs      *browserHandoffs
 }
 
 type platformHealthState struct {
@@ -107,6 +109,7 @@ func DefaultConfiguration() Configuration {
 		FileReadPythonPath:            blueclaw.LinuxCompanyHostLayout().DocumentPythonPath(),
 		WorkQueuePath:                 blueclaw.CompanyHostWorkQueuePath,
 		HostSessionPath:               blueclaw.CompanyHostAgentKeyPath,
+		RelayBaseURL:                  blueclaw.CompanyHostRelayLocalURL,
 	}
 }
 
@@ -125,6 +128,9 @@ func (service Service) Run(ctx context.Context) error {
 	}
 	if service.keptRequestBodies == nil {
 		service.keptRequestBodies = &keptRequestBodies{}
+	}
+	if service.browserHandoffs == nil {
+		service.browserHandoffs = &browserHandoffs{}
 	}
 	go service.DeviceBrowsers.KeepTidy(ctx)
 	listener, errorValue := service.listen()
@@ -312,7 +318,7 @@ func (service Service) httpClient() *http.Client {
 
 func (service Service) asAHostService(base *http.Client) *http.Client {
 	configuration := service.Configuration.WithDefaults()
-	return servicetoken.Client(base, configuration.ServiceTokenPath, configuration.BlueclawBaseURL, configuration.AdmindBaseURL, configuration.ChatdEndpoint)
+	return servicetoken.Client(base, configuration.ServiceTokenPath, configuration.BlueclawBaseURL, configuration.AdmindBaseURL, configuration.ChatdEndpoint, configuration.RelayBaseURL)
 }
 
 func (service Service) providerHTTPClient() *http.Client {
@@ -477,6 +483,9 @@ func (configuration Configuration) WithDefaults() Configuration {
 	}
 	if configuration.WorkQueuePath == "" {
 		configuration.WorkQueuePath = defaultConfiguration.WorkQueuePath
+	}
+	if configuration.RelayBaseURL == "" {
+		configuration.RelayBaseURL = defaultConfiguration.RelayBaseURL
 	}
 	if configuration.HostSessionPath == "" {
 		configuration.HostSessionPath = defaultConfiguration.HostSessionPath

@@ -63,6 +63,7 @@ type memberBrowser struct {
 	key         string
 	port        int
 	lastUsedAt  time.Time
+	heldUntil   time.Time
 	running     RunningDeviceBrowser
 	launched    chan struct{}
 	launchError error
@@ -101,6 +102,23 @@ func (browsers *DeviceBrowsers) BrowserFor(ctx context.Context, requesterEmail s
 		DevtoolsURL: fmt.Sprintf("http://127.0.0.1:%d", member.port),
 		SessionName: "internkim-device-" + member.key,
 	}, nil
+}
+
+func (browsers *DeviceBrowsers) HoldUntil(requesterEmail string, until time.Time) {
+	browsers.mutex.Lock()
+	defer browsers.mutex.Unlock()
+	member, isRunning := browsers.members[memberKeyOf(requesterEmail)]
+	if isRunning && until.After(member.heldUntil) {
+		member.heldUntil = until
+	}
+}
+
+func (browsers *DeviceBrowsers) Release(requesterEmail string) {
+	browsers.mutex.Lock()
+	defer browsers.mutex.Unlock()
+	if member, isRunning := browsers.members[memberKeyOf(requesterEmail)]; isRunning {
+		member.heldUntil = time.Time{}
+	}
 }
 
 func (browsers *DeviceBrowsers) KeepTidy(ctx context.Context) {
@@ -203,7 +221,7 @@ func (browsers *DeviceBrowsers) launchOf(member *memberBrowser) DeviceBrowserLau
 }
 
 func (browsers *DeviceBrowsers) canStop(member *memberBrowser) bool {
-	return member.running != nil
+	return member.running != nil && !member.heldUntil.After(browsers.settings.Now())
 }
 
 func (browsers *DeviceBrowsers) leastRecentlyUsedStoppable() *memberBrowser {

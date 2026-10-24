@@ -25,9 +25,9 @@ insufficient:
 - Basic flow: `browser_open`, `browser_snapshot`, interact, then
   `browser_snapshot` again.
 - The device's Moli browser is only for simple public text navigation.
-- Login, MFA, captcha, sensitive information, and account-risky navigation are
-  not yours to do in the device browser: say what blocks you and stop. Do not
-  ask for passwords or MFA codes in chat.
+- A login, MFA code or captcha on the open page is the requester's to do: hand
+  them the browser with `browser_handoff`. Never type passwords or codes
+  yourself and never ask for them in chat.
 - Do not use the device browser for sensitive inputs, irreversible actions,
   uploads/downloads, screenshots, or visual judgments.
 - If `browser.*` returns `blocked_by_captcha`, try one alternate user-provided

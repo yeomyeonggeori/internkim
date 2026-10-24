@@ -9,6 +9,7 @@ var browserToolNames = []string{
 	"browser_select",
 	"browser_press",
 	"browser_wait",
+	"browser_handoff",
 }
 
 func BrowserToolDescriptors() []Descriptor {

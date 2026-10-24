@@ -93,6 +93,7 @@ describe('canonical capability tools', () => {
       'attendance_work_policy_set',
       'browser_click',
       'browser_fill',
+      'browser_handoff',
       'browser_open',
       'browser_press',
       'browser_screenshot',

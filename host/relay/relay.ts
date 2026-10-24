@@ -59,6 +59,8 @@ import { readTyping, typingPath, typingTeller } from './typing';
 import { readWithdrawal, withdrawalsPath, withdrawalTeller, WithdrawnMessages } from './withdrawn';
 import { fetchWhenChatdListens } from './chatd-reach';
 import { asAHostService, carriesTheHostServiceToken } from './host-service-token';
+import { BrowserHandoffs, handoffsPath } from './browser-handoff';
+import { DevtoolsPage } from './devtools-page';
 
 
 const projectURL = required('SUPABASE_URL');
@@ -277,6 +279,8 @@ const dispatch = {
 		});
 		credentials.forget(memberID);
 	},
+	serveBrowserHandoff: (capability: string, body: Record<string, unknown>, memberID: string) =>
+		browserHandoffs.serve(capability, body, memberID)
 };
 
 gateway = openGatewayConnection();
@@ -521,6 +525,16 @@ const deleteInConversation = conversationDeleter({
 
 const postFileToConversation = agentFilePoster({ keepForTheMessenger, postToConversation });
 
+const browserHandoffs = new BrowserHandoffs({
+	appURL,
+	filePath: `${relayStateDirectory}/browser-handoffs.json`,
+	openPage: (devtoolsURL) => DevtoolsPage.open(devtoolsURL),
+	deliver: (event, memberID) => gateway?.deliver(event, [memberID]),
+	emailOfMember: (memberID) => dispatch.emailOfMember(memberID),
+	report: (line) => console.log(`handoff: ${line}`)
+});
+await browserHandoffs.restore();
+
 const blueclawClient = new BlueclawACPClient({
 	socketPath: blueclawACPSocketPath,
 	workspaceRootPath,
@@ -534,6 +548,7 @@ const blueclawClient = new BlueclawACPClient({
 		report: (line) => console.log(`sessions: ${line}`)
 	}),
 	approvalWasRequested: (conversationID) => inboundTurns.releaseTurnsWaitingOnApproval(conversationID),
+	handoffs: browserHandoffs,
 	report: (line) => console.log(`acp: ${line}`)
 });
 
@@ -561,8 +576,12 @@ Bun.serve({
 	hostname: '127.0.0.1',
 	port: arrivalsPort,
 	fetch: async (request) => {
-		if (request.method !== 'POST') return new Response('post an arrival', { status: 405 });
 		const pathname = new URL(request.url).pathname;
+		if (pathname.startsWith(`${handoffsPath}/`) && request.method === 'GET') {
+			if (!(await carriesTheHostServiceToken(request))) return new Response('host services only', { status: 401 });
+			return servedResponse(browserHandoffs.statusOf(decodeURIComponent(pathname.slice(handoffsPath.length + 1))));
+		}
+		if (request.method !== 'POST') return new Response('post an arrival', { status: 405 });
 		const catalogTicket = ticketOf(pathname);
 		if (catalogTicket) return recordCatalogs.serve(request, catalogTicket);
 		if (!(await carriesTheHostServiceToken(request))) {
@@ -570,6 +589,7 @@ Bun.serve({
 		}
 		const offered = await request.json().catch(() => null);
 		if (pathname === '/inbound') return keepInboundMessage(offered);
+		if (pathname === handoffsPath) return servedResponse(await browserHandoffs.register(offered));
 		if (pathname === typingPath) return tellTyping(offered);
 		if (pathname === withdrawalsPath) return tellWithdrawal(offered);
 		const arrived = readArrivedMessage(offered);
@@ -597,6 +617,10 @@ async function sayWhereChatdWasLookedFor(): Promise<void> {
 	console.log(
 		answered ? `chatd answered at ${chatdBaseURL}` : `chatd did not answer at ${chatdBaseURL}`
 	);
+}
+
+function servedResponse(served: { status: number; body: unknown }): Response {
+	return Response.json(served.body, { status: served.status });
 }
 
 async function askTheRecord<Value>(method: string, path: string, body?: unknown): Promise<Value> {

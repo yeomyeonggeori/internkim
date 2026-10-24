@@ -96,6 +96,17 @@ is the exception: it stays only in the browser service's memory, and if that
 service restarted before you approved, nothing is sent and the agent asks
 again.
 
+A sign-in, a one-time code or a check meant for a person is never the agent's
+to do. It calls `browser_handoff`, which posts a link in the thread. The link
+opens the agent's browser live in the app for the person who asked, and for
+nobody else. You work in it and press Done or Stop. The task waits on that as
+it waits on an approval, and resumes when you hand the browser back or after
+fifteen minutes. The agent is told how it ended, which site the browser shows,
+and whether that site's cookies changed. While you hold the browser its
+requests are yours and go out unasked, and the agent's own browser calls are
+refused. The screen and your typing travel between the company's computer and
+the app through the connection gateway, which keeps neither.
+
 <Callout>
 A held call is persisted to the task ledger as `approval.hold_opened`, so an
 approval survives a daemon restart. Approving replays the recorded call

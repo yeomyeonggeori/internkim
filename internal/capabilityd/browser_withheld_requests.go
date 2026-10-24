@@ -84,6 +84,9 @@ type pageRequestGuard interface {
 	NotePasswordInputs(context.Context)
 	TakeWithheld() browserruntime.GuardedRequests
 	Resend(context.Context, browserruntime.WithheldRequest, string, func() error) error
+	HandOver()
+	TakeBack()
+	CookieJarDigest(context.Context, string) (string, error)
 	Close()
 }
 
