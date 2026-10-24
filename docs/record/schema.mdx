@@ -41,6 +41,14 @@ The account's address is the source of truth and `member.email` is its
 projection. Changing someone's address is an update of the account, never a
 re-invitation, so `user_id` never moves.
 
+`member.kind` says what the account stands for: `human` is somebody who works
+here, and `other` is anything else, such as a test account. `departed_on` is
+their last working day on the company clock, and it may lie ahead. The
+headcount the data room shows as `employeeCount` is counted from these rows and
+stored nowhere: active human members who have joined and whose last day has not
+passed. An administrator corrects it by setting `kind` or `departureDate`
+through `person_update`.
+
 ## A task carries events and CRM activity [#tasks]
 
 There is no event table. An event is a task you have to show up for:
@@ -162,6 +170,19 @@ sees an activity they take part in or asked for. Totals count only the deals
 the reader can see. `crm_opportunity_hand_over` gives a deal its reader can
 see to anyone in the company, even if that takes it out of their sight. Nobody
 signed in deletes a CRM record; it is archived.
+
+## A metric names its period [#metrics]
+
+`company_metric` holds one number per metric and period. `period` is a moment,
+the grammar company records are dated in: `2026`, `2026-H1`, `2026-Q2`,
+`2026-05` or a single day. A company that reports in halves records halves, and
+the data room charts the years with the finer periods of a year still open
+beside them.
+
+There is no projection flag. A number last written before its period ended is
+what the company expects, and the data room labels it a projection. Writing the
+same metric and period again once the period is over replaces it with the
+result.
 
 ## The seal and logo are data room documents [#service-files]
 
