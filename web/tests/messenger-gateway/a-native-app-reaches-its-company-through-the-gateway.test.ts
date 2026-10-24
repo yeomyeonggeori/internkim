@@ -313,7 +313,7 @@ function blossomAuthorization(secretKey: Uint8Array, tags: string[][], content: 
 	return `Nostr ${btoa(JSON.stringify(event))}`;
 }
 
-test('an app uploads a picture and reads it back through the transfer store, with the range it asks for', async () => {
+test('an app uploads a picture and reads it back streamed from the relay, with the range and length it asks for', async () => {
 	const secretKey = generateSecretKey();
 	const digest = new Bun.CryptoHasher('sha256').update(onePixelPNG).digest('hex');
 	const uploaded = await fetch(`http://127.0.0.1:${gatewayPort}/upload`, {
@@ -338,6 +338,7 @@ test('an app uploads a picture and reads it back through the transfer store, wit
 	});
 	expect(whole.status).toBe(200);
 	expect(whole.headers.get('content-type')).toBe('image/png');
+	expect(whole.headers.get('content-length')).toBe(String(onePixelPNG.byteLength));
 	const wholeBytes = new Uint8Array(await whole.arrayBuffer());
 	expect(new Bun.CryptoHasher('sha256').update(wholeBytes).digest('hex')).toBe(descriptor.sha256);
 
@@ -345,7 +346,15 @@ test('an app uploads a picture and reads it back through the transfer store, wit
 		headers: { Host: publicHost, Authorization: readToken, Range: 'bytes=0-7' }
 	});
 	expect(part.status).toBe(206);
+	expect(part.headers.get('content-range')).toBe(`bytes 0-7/${onePixelPNG.byteLength}`);
 	expect([...new Uint8Array(await part.arrayBuffer())]).toEqual([...wholeBytes.slice(0, 8)]);
+
+	const looked = await fetch(`http://127.0.0.1:${gatewayPort}${blobPath}`, {
+		method: 'HEAD',
+		headers: { Host: publicHost, Authorization: readToken }
+	});
+	expect(looked.status).toBe(200);
+	expect(looked.headers.get('content-length')).toBe(String(onePixelPNG.byteLength));
 
 	const refused = await fetch(`http://127.0.0.1:${gatewayPort}${blobPath}`, { headers: { Host: publicHost } });
 	expect(refused.status).toBeGreaterThanOrEqual(400);
@@ -375,6 +384,7 @@ test('a file larger than two transfer chunks and any answer the host may send mo
 		headers: { Host: publicHost, Authorization: readToken }
 	});
 	expect(read.status).toBe(200);
+	expect(read.headers.get('content-length')).toBe(String(file.byteLength));
 	const readBytes = new Uint8Array(await read.arrayBuffer());
 	expect(readBytes.byteLength).toBe(file.byteLength);
 	expect(new Bun.CryptoHasher('sha256').update(readBytes).digest('hex')).toBe(digest);

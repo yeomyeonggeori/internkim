@@ -1,4 +1,4 @@
-export type HostAttachment = { role: 'host'; seenAt: number; isRetired: boolean };
+export type HostAttachment = { role: 'host'; seenAt: number; isRetired: boolean; supports: string[] };
 export type ClientAttachment = { role: 'client'; memberID: string };
 export type StreamAttachment = { role: 'stream'; streamID: string; isClosing: boolean };
 export type WorkerAttachment = { role: 'worker'; boxKey: string };
@@ -26,7 +26,7 @@ export function socketAttachmentOf(socket: WebSocket): SocketAttachment | null {
 	if (typeof kept !== 'object' || kept === null) return null;
 	const record: Record<string, unknown> = { ...kept };
 	if (record.role === 'host' && typeof record.seenAt === 'number') {
-		return { role: 'host', seenAt: record.seenAt, isRetired: record.isRetired === true };
+		return { role: 'host', seenAt: record.seenAt, isRetired: record.isRetired === true, supports: stringsOf(record.supports) };
 	}
 	if (record.role === 'client' && typeof record.memberID === 'string') {
 		return { role: 'client', memberID: record.memberID };
@@ -38,4 +38,8 @@ export function socketAttachmentOf(socket: WebSocket): SocketAttachment | null {
 		return { role: 'stream', streamID: record.streamID, isClosing: record.isClosing === true };
 	}
 	return null;
+}
+
+function stringsOf(value: unknown): string[] {
+	return Array.isArray(value) ? value.filter((entry): entry is string => typeof entry === 'string') : [];
 }

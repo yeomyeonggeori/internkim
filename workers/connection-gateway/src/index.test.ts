@@ -468,10 +468,10 @@ describe('what the server delivers unasked', () => {
 });
 
 describe('a company messenger address', () => {
-	async function messengerCompany(): Promise<{ object: CompanyConnectionObject; host: TestSocket }> {
+	async function messengerCompany(supports: Record<string, string> = {}): Promise<{ object: CompanyConnectionObject; host: TestSocket }> {
 		const object = new ConnectionObject(newState());
 		await object.fetch(
-			new Request(`https://connection-gateway/company/${companyID}/host-session`, { headers: { Upgrade: 'websocket' } })
+			new Request(`https://connection-gateway/company/${companyID}/host-session`, { headers: { Upgrade: 'websocket', ...supports } })
 		);
 		if (!socketHeldByTheObject) throw new Error('the object accepted no host socket');
 		return { object, host: socketHeldByTheObject };
@@ -543,7 +543,60 @@ describe('a company messenger address', () => {
 		expect(await response.text()).toBe('[]');
 	});
 
-	test('streams a blob from the transfer store, honouring the range the app asked for', async () => {
+	async function mediaOpenTheHostReceived(host: TestSocket): Promise<{ streamID: string; method: string; path: string; host: string; headers: Record<string, string> }> {
+		for (let round = 0; round < 50; round += 1) {
+			const opened = host.documents().findLast((document) => (document as { kind?: string }).kind === 'media.open');
+			if (opened) return opened as { streamID: string; method: string; path: string; host: string; headers: Record<string, string> };
+			await Bun.sleep(2);
+		}
+		throw new Error('the host was asked for no media');
+	}
+
+	const streamingHost = { 'x-internkim-host-supports': 'messenger.media.stream' };
+
+	test('streams a blob from a host that announces streaming, carrying the range there and the 206 back', async () => {
+		const { object, host } = await messengerCompany(streamingHost);
+		const sha = 'a'.repeat(64);
+		const answered = worker.fetch(
+			new Request(`https://acme-media.example.test/media/${sha}.png`, {
+				headers: { Authorization: 'Nostr get-token', Range: 'bytes=4-8', 'CF-Ray': 'ray' }
+			}),
+			hostEnvironment(object)
+		);
+		const opened = await mediaOpenTheHostReceived(host);
+		expect(opened).toMatchObject({ method: 'GET', path: `/media/${sha}.png`, host: 'acme-media.example.test', headers: { authorization: 'Nostr get-token', range: 'bytes=4-8' } });
+		expect(opened.headers).not.toHaveProperty('cf-ray');
+		host.receive(
+			JSON.stringify({
+				kind: 'media.head',
+				streamID: opened.streamID,
+				status: 206,
+				headers: { 'content-type': 'image/png', 'content-range': 'bytes 4-8/22', 'content-length': '5', connection: 'keep-alive' }
+			})
+		);
+		const response = await answered;
+		expect(response.status).toBe(206);
+		expect(response.headers.get('content-range')).toBe('bytes 4-8/22');
+		expect(response.headers.get('connection')).toBeNull();
+		const body = response.text();
+		host.receive(JSON.stringify({ kind: 'media.body', streamID: opened.streamID, data: btoa('bytes') }));
+		host.receive(JSON.stringify({ kind: 'media.end', streamID: opened.streamID }));
+		expect(await body).toBe('bytes');
+		expect(host.documents().some((document) => (document as { kind?: string }).kind === 'call')).toBe(false);
+	});
+
+	test('answers a HEAD from a streaming host with the length the relay gave', async () => {
+		const { object, host } = await messengerCompany(streamingHost);
+		const answered = worker.fetch(new Request(`https://acme-media.example.test/media/${'a'.repeat(64)}`, { method: 'HEAD' }), hostEnvironment(object));
+		const opened = await mediaOpenTheHostReceived(host);
+		host.receive(JSON.stringify({ kind: 'media.head', streamID: opened.streamID, status: 200, headers: { 'content-type': 'image/png', 'content-length': '22' } }));
+		const response = await answered;
+		expect(response.status).toBe(200);
+		expect(response.headers.get('content-length')).toBe('22');
+		expect(response.headers.get('x-internkim-relay-content-length')).toBeNull();
+	});
+
+	test('reads a blob through the transfer store for a host that does not announce streaming', async () => {
 		const { object, host } = await messengerCompany();
 		const sha = 'a'.repeat(64);
 		const answered = worker.fetch(

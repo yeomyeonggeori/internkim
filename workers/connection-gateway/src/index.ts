@@ -12,6 +12,7 @@ import type { OneShotAnswer, OneShotCall } from './routing';
 import {
 	digestOf,
 	digestsMatch,
+	hostReadsMediaByCallHeader,
 	jsonResponse,
 	memberHeader,
 	streamAddressHeader,
@@ -19,7 +20,7 @@ import {
 	streamPathHeader,
 	workerBoxHeader
 } from './company-connection';
-import { answerMessengerRequest, isPageNavigation } from './messenger';
+import { answerMessengerRequest, isPageNavigation, type MediaAsk } from './messenger';
 import { MessengerAddresses } from './messenger-address';
 
 export type WorkerEnvironment = {
@@ -62,9 +63,10 @@ async function reachTheMessenger(request: Request, environment: WorkerEnvironmen
 	const companyID = await messengerAddressesFor(environment).companyOf(slug);
 	if (!companyID) return jsonResponse({ error: 'no company messenger answers at this address' }, 404);
 	if (request.headers.get('Upgrade') === 'websocket') return openMessengerStream(request, environment, companyID, url);
-	return answerMessengerRequest(request, url.host, (capability, body) =>
-		callTheMessenger(environment, companyID, capability, body)
-	);
+	return answerMessengerRequest(request, url.host, {
+		call: (capability, body) => callTheMessenger(environment, companyID, capability, body),
+		streamMedia: (asked) => streamTheMedia(environment, companyID, asked)
+	});
 }
 
 function theZoneAddressOf(url: URL): string {
@@ -118,6 +120,16 @@ async function callTheMessenger(
 		})
 	);
 	return oneShotAnswerOfResponse(await answered.json());
+}
+
+async function streamTheMedia(environment: WorkerEnvironment, companyID: string, asked: MediaAsk): Promise<Response | null> {
+	const answered = await connectionFor(environment, companyID).fetch(
+		new Request(`https://connection-gateway/company/${encodeURIComponent(companyID)}/messenger-media`, {
+			method: 'POST',
+			body: JSON.stringify(asked)
+		})
+	);
+	return answered.headers.has(hostReadsMediaByCallHeader) ? null : answered;
 }
 
 function oneShotAnswerOfResponse(document: unknown): OneShotAnswer {

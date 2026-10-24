@@ -5,17 +5,7 @@ import {
 	messengerMediaWriteCapability
 } from '../../workers/connection-gateway/src/host-protocol';
 import { base64Of, bytesOfBase64 } from '../../workers/connection-gateway/src/base64';
-import { sharedAssetPath } from './asset-store';
-import {
-	copyIntoStore,
-	keptSizeOf,
-	removeFromStore,
-	signedReadURL,
-	storeRangeReader,
-	storeRangesAsStream,
-	TransferFailed,
-	type StoreAccess
-} from './transfer-store';
+import { keptSizeOf, removeFromStore, storeRangeReader, storeRangesAsStream, type StoreAccess } from './transfer-store';
 
 export const messengerCapabilities = new Set([
 	messengerHTTPCapability,
@@ -44,14 +34,9 @@ type RelayRequest = {
 const methodsThatCarryNoBody = new Set(['GET', 'HEAD', 'OPTIONS']);
 const transferKind = 'transfer';
 const stagedPrefix = 'staged-';
-const signedReadSeconds = 60;
-const defaultContentType = 'application/octet-stream';
-const blobOfItsOwnDigest = /^\/media\/([0-9a-f]{64})(\.[a-z0-9]+)?(\?.*)?$/;
 const uploadIDPattern = /^[0-9a-f-]{36}$/;
 
 export class MessengerRelay {
-	private readonly copying = new Map<string, Promise<void>>();
-
 	constructor(
 		private readonly relayURL: string,
 		private readonly store: MessengerStore
@@ -61,7 +46,7 @@ export class MessengerRelay {
 		const request = relayRequestOf(body);
 		if (!request) return refused(400, `${capability} names a method, a path starting with / and the host the app dialled`);
 		if (capability === messengerHTTPCapability) return this.relayHTTP(request);
-		if (capability === messengerMediaReadCapability) return this.readMedia(request);
+		if (capability === messengerMediaReadCapability) return this.relayHTTP(request);
 		if (capability === messengerMediaStageCapability) return this.stageMedia();
 		if (capability === messengerMediaWriteCapability) return this.writeMedia(request);
 		return refused(404, `the messenger relay has nothing called ${capability}`);
@@ -70,38 +55,6 @@ export class MessengerRelay {
 	private async relayHTTP(request: RelayRequest): Promise<MessengerAnswer> {
 		const body = methodsThatCarryNoBody.has(request.method) ? undefined : bytesOfBase64(request.bodyBase64);
 		return answerOf(await this.askTheRelay(request, { method: request.method, body }));
-	}
-
-	private async readMedia(request: RelayRequest): Promise<MessengerAnswer> {
-		const { range: _range, ...headers } = request.headers;
-		const asked = { ...request, headers };
-		const looked = await this.askTheRelay(asked, { method: 'HEAD' });
-		if (!looked.ok || request.method === 'HEAD') return answerOf(looked, '');
-		const contentType = looked.headers.get('content-type') ?? defaultContentType;
-		const digest = digestNamedBy(request.path);
-		const path = sharedAssetPath(this.store.companyID, transferKind, digest || pathDigestOf(request.path), contentType);
-		const failure = await this.copiedOnce(asked, path, contentType, digest).then(
-			() => null,
-			(error: unknown) => error
-		);
-		if (failure instanceof TransferFailed) return refused(failure.status, failure.message);
-		if (failure) throw failure;
-		const objectURL = await signedReadURL(this.store.access, path, signedReadSeconds);
-		return { status: looked.status, body: { headers: headersOf(looked.headers), bodyBase64: '', objectURL } };
-	}
-
-	private copiedOnce(request: RelayRequest, path: string, contentType: string, digest: string): Promise<void> {
-		const running = this.copying.get(path);
-		if (running) return running;
-		const copy = this.copyUnlessKept(request, path, contentType, digest).finally(() => this.copying.delete(path));
-		this.copying.set(path, copy);
-		return copy;
-	}
-
-	private async copyUnlessKept(request: RelayRequest, path: string, contentType: string, digest: string): Promise<void> {
-		if ((await keptSizeOf(this.store.access, path)) !== null) return;
-		const source = (range: string) => this.askTheRelay({ ...request, headers: { ...request.headers, range } }, { method: 'GET' });
-		await copyIntoStore(this.store.access, path, contentType, source, digest ? { expectedDigest: digest } : {});
 	}
 
 	private async stageMedia(): Promise<MessengerAnswer> {
@@ -141,14 +94,6 @@ export class MessengerRelay {
 	}
 }
 
-function digestNamedBy(path: string): string {
-	return blobOfItsOwnDigest.exec(path)?.[1] ?? '';
-}
-
-function pathDigestOf(path: string): string {
-	return new Bun.CryptoHasher('sha256').update(`media\n${path}`).digest('hex');
-}
-
 function relayRequestOf(body: Record<string, unknown>): RelayRequest | null {
 	const { method, path, host, headers, bodyBase64, stagedPath } = body;
 	if (typeof method !== 'string' || method === '') return null;
@@ -169,8 +114,8 @@ function stringRecordOf(value: unknown): Record<string, string> {
 	return Object.fromEntries(Object.entries(value).filter((entry): entry is [string, string] => typeof entry[1] === 'string'));
 }
 
-async function answerOf(response: Response, bodyBase64?: string): Promise<MessengerAnswer> {
-	const body = bodyBase64 ?? base64Of(new Uint8Array(await response.arrayBuffer()));
+async function answerOf(response: Response): Promise<MessengerAnswer> {
+	const body = base64Of(new Uint8Array(await response.arrayBuffer()));
 	return { status: response.status, body: { headers: headersOf(response.headers), bodyBase64: body } };
 }
 

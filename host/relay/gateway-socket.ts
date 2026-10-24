@@ -3,7 +3,16 @@ import type { Dispatch } from './forward';
 import { doublingDelayMilliseconds } from './failure';
 import { FairOutbox } from './fair-outbox';
 import { MessengerStreams } from './messenger-streams';
-import { isStreamKind, parseStreamMessage, pingFrame } from '../../workers/connection-gateway/src/host-protocol';
+import { MessengerMediaReads } from './messenger-media';
+import {
+	hostSupportsHeader,
+	isMediaKind,
+	isStreamKind,
+	messengerMediaStreamCapability,
+	parseGatewayMediaMessage,
+	parseStreamMessage,
+	pingFrame
+} from '../../workers/connection-gateway/src/host-protocol';
 
 const firstRetryMilliseconds = 500;
 const longestRetryMilliseconds = 30_000;
@@ -73,6 +82,7 @@ export function connectToGateway(settings: {
 		return { send: (document) => open.send(document), bufferedBytes: () => open.bufferedAmount };
 	});
 	const streams = new MessengerStreams(settings.messengerRelayURL, outbox, report);
+	const mediaReads = new MessengerMediaReads(settings.messengerRelayURL.replace(/^ws/, 'http'), outbox, report);
 	const pingMilliseconds = settings.pingMilliseconds ?? pingEveryMilliseconds;
 	const silenceMilliseconds = settings.silenceMilliseconds ?? silenceBeforeRedialMilliseconds;
 	const keepAlive = setInterval(() => {
@@ -93,7 +103,10 @@ export function connectToGateway(settings: {
 				: settings.serverKey;
 			if (!accessToken) throw new Error('the gateway access token was empty');
 			if (isClosed) return;
-			socket = openHeaderWebSocket(url, { Authorization: `Bearer ${accessToken}` });
+			socket = openHeaderWebSocket(url, {
+				Authorization: `Bearer ${accessToken}`,
+				[hostSupportsHeader]: messengerMediaStreamCapability
+			});
 		} catch (error) {
 			report(`gateway authentication for ${settings.companyID} failed: ${error instanceof Error ? error.message : error}`);
 			redial();
@@ -106,6 +119,7 @@ export function connectToGateway(settings: {
 		});
 		socket.addEventListener('message', (message) => hear(message.data));
 		socket.addEventListener('close', () => {
+			mediaReads.closeEverything();
 			streams.closeEverything();
 			redial();
 		});
@@ -124,6 +138,11 @@ export function connectToGateway(settings: {
 	const hear = (data: unknown) => {
 		lastHeardAt = Date.now();
 		const payload = readJSON(data);
+		if (isMediaKind(kindOf(payload))) {
+			const mediaMessage = parseGatewayMediaMessage(payload);
+			if (mediaMessage) mediaReads.take(mediaMessage);
+			return;
+		}
 		const streamMessage = isStreamKind(kindOf(payload)) ? parseStreamMessage(payload) : null;
 		if (streamMessage) {
 			streams.take(streamMessage);

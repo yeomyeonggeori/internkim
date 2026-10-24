@@ -292,11 +292,16 @@ closes with `1012` and the apps dial again. The relay sends streams out in
 turn, one frame each, so one busy subscription cannot hold the connection.
 
 The rest of what an app sends is HTTP. NIP-98 queries, invitations and the
-relay's information document travel as calls on the same connection. Media
-never enters a frame. For a blob the app asks for, the host first asks its
-relay whether that app may have it, copies it once, a range at a time, into the
-transfer store the web's file copies use, and the Worker streams it from there
-with the range the app asked for.
+relay's information document travel as calls on the same connection. A blob
+the app asks for comes back as one streamed HTTP response. The gateway sends
+`media.open` with the app's headers as they arrived, range and token included,
+and the host asks its relay with exactly those, so the relay checks the token
+once, at the start. The host sends back the status and headers, the body in
+frames of at most 512 KiB, and `media.end`. It sends only bytes the gateway has
+granted, and the gateway grants them as the app reads, so the Durable Object
+holds at most 512 KiB of any one blob and at most 32 blobs at once. A host
+that does not name `messenger.media.stream` in its handshake is asked the older
+way, which copies the blob into the transfer store first.
 An upload is staged in the bucket and the host hands it to its relay from
 there. A redirect would be simpler, but the desktop app refuses one when it
 saves or copies a file.

@@ -1,5 +1,6 @@
 import { AskedCalls } from './asked-calls';
 import { WorkQueue } from './work-queue';
+import { MediaReads, type MediaRequest } from './media-reads';
 import {
 	CallLedger,
 	WaitingCalls,
@@ -28,6 +29,10 @@ import {
 import {
 	binaryStreamFrame,
 	bytesOfBinaryFrame,
+	hostSupportsHeader,
+	isMediaKind,
+	messengerMediaStreamCapability,
+	parseHostMediaMessage,
 	isBinaryFrameTooBig,
 	isFrameTooBig,
 	isStreamKind,
@@ -47,6 +52,7 @@ export const streamHostHeader = 'x-internkim-stream-host';
 export const streamAddressHeader = 'x-internkim-stream-address';
 export const streamPathHeader = 'x-internkim-stream-path';
 export const workerBoxHeader = 'x-internkim-worker-box';
+export const hostReadsMediaByCallHeader = 'x-internkim-host-reads-media-by-call';
 export const workerCallsPerCompany = 64;
 export const workerCallBoundMilliseconds = 120_000;
 export const workHoldMilliseconds = 3_000;
@@ -89,6 +95,7 @@ export class CompanyConnectionObject {
 	private readonly messengerCalls = new WaitingCalls(messengerCallsPerCompany, messengerCallBoundMilliseconds);
 	private readonly workerCalls = new WaitingCalls(workerCallsPerCompany, workerCallBoundMilliseconds);
 	private readonly workQueue = new WorkQueue();
+	private readonly mediaReads = new MediaReads((document) => this.isSentToHost(document));
 
 	constructor(private readonly state: DurableObjectState) {
 		this.askedCalls = new AskedCalls(state.storage.sql);
@@ -101,11 +108,12 @@ export class CompanyConnectionObject {
 		if (url.pathname.endsWith('/server-key')) return this.keepServerKey(request);
 		if (url.pathname.endsWith('/call')) return this.takeOneShotCall(request, this.waitingCalls);
 		if (url.pathname.endsWith('/messenger-call')) return this.takeOneShotCall(request, this.messengerCalls);
+		if (url.pathname.endsWith('/messenger-media')) return this.takeMediaRead(request);
 		if (url.pathname.endsWith('/work')) return this.takeWork(request);
 		if (request.headers.get('Upgrade') !== 'websocket') {
 			return jsonResponse({ error: 'this endpoint speaks websocket' }, 426);
 		}
-		if (url.pathname.endsWith('/host-session')) return this.acceptConnectedServer();
+		if (url.pathname.endsWith('/host-session')) return this.acceptConnectedServer(request);
 		if (url.pathname.endsWith('/worker-session')) return this.acceptWorker(request);
 		if (url.pathname.endsWith('/stream-session')) return this.acceptStream(request);
 		if (url.pathname.endsWith('/server')) return this.acceptServer(request);
@@ -163,7 +171,7 @@ export class CompanyConnectionObject {
 		if (!(await this.isTheServerKey(offered))) {
 			return jsonResponse({ error: 'this connection is not the company server' }, 401);
 		}
-		return this.acceptConnectedServer();
+		return this.acceptConnectedServer(request);
 	}
 
 	private async isTheServerKey(authorization: string): Promise<boolean> {
@@ -183,12 +191,40 @@ export class CompanyConnectionObject {
 		return true;
 	}
 
-	private acceptConnectedServer(): Response {
+	private acceptConnectedServer(request: Request): Response {
 		this.retireCurrentHost('another server connected');
 		const { client, server } = newSocketPair();
 		this.state.acceptWebSocket(server, [hostTag]);
-		server.serializeAttachment({ role: 'host', seenAt: Date.now(), isRetired: false } satisfies HostAttachment);
+		const supports = supportedCapabilitiesOf(request.headers);
+		server.serializeAttachment({ role: 'host', seenAt: Date.now(), isRetired: false, supports } satisfies HostAttachment);
 		return new Response(null, { status: 101, webSocket: client });
+	}
+
+	private async takeMediaRead(request: Request): Promise<Response> {
+		if (!this.currentHostSupports(messengerMediaStreamCapability)) {
+			return new Response(null, { status: 204, headers: { [hostReadsMediaByCallHeader]: 'true' } });
+		}
+		const mediaRequest = parseMediaRequest(await readJSONBody(request));
+		if (!mediaRequest) return jsonResponse({ error: 'a media read names a method, a path, a host and headers' }, 400);
+		if (this.mediaReads.isFull) return jsonResponse({ error: 'too many media reads are open for this company at once' }, 503);
+		return this.mediaReads.open(mediaRequest);
+	}
+
+	private currentHostSupports(capability: string): boolean {
+		const host = this.currentHost();
+		const attachment = host ? socketAttachmentOf(host) : null;
+		return attachment?.role === 'host' && attachment.supports.includes(capability);
+	}
+
+	private isSentToHost(document: string): boolean {
+		const host = this.currentHost();
+		if (!host) return false;
+		try {
+			host.send(document);
+			return true;
+		} catch {
+			return false;
+		}
 	}
 
 	private acceptWorker(request: Request): Response {
@@ -307,6 +343,7 @@ export class CompanyConnectionObject {
 		if (attachment.isRetired) return;
 		this.noteServerSeen(socket, attachment);
 		const payload = readJSON(message);
+		if (isMediaKind(recordKindOf(payload))) return this.onHostMediaMessage(payload);
 		if (isStreamKind(recordKindOf(payload))) {
 			const streamMessage = parseStreamMessage(payload);
 			if (streamMessage) this.onHostStreamMessage(socket, streamMessage);
@@ -319,6 +356,11 @@ export class CompanyConnectionObject {
 			return;
 		}
 		this.deliver(JSON.stringify({ kind: 'deliver', event: parsed.event }), parsed.audienceMemberIDs);
+	}
+
+	private onHostMediaMessage(payload: unknown): void {
+		const message = parseHostMediaMessage(payload);
+		if (message) this.mediaReads.take(message);
 	}
 
 	private onHostStreamMessage(host: WebSocket, message: StreamMessage): void {
@@ -409,6 +451,7 @@ export class CompanyConnectionObject {
 		if (attachment.isRetired) return;
 		socket.serializeAttachment({ ...attachment, isRetired: true });
 		this.closeEveryStream(streamCloseCode.hostGone, 'the company computer went away');
+		this.mediaReads.failEverything('the company computer went away');
 		await this.state.storage.put(serverSeenAtStorageKey, this.seenAtOf(socket, attachment));
 		this.deliver(JSON.stringify(await this.presence()));
 	}
@@ -419,6 +462,7 @@ export class CompanyConnectionObject {
 		const attachment = socketAttachmentOf(current);
 		if (attachment?.role === 'host') current.serializeAttachment({ ...attachment, isRetired: true });
 		this.closeEveryStream(streamCloseCode.hostGone, reason);
+		this.mediaReads.failEverything(reason);
 		this.closeQuietly(current, streamCloseCode.hostGone, reason);
 	}
 
@@ -492,6 +536,23 @@ function parseWork(payload: unknown): Work | null {
 	if (typeof affinityKey !== 'string' || affinityKey === '') return null;
 	if (typeof work !== 'object' || work === null) return null;
 	return { requestID, affinityKey, work };
+}
+
+function supportedCapabilitiesOf(headers: Headers): string[] {
+	const announced = headers.get(hostSupportsHeader) ?? '';
+	return announced.split(',').map((capability) => capability.trim()).filter((capability) => capability !== '');
+}
+
+function parseMediaRequest(payload: unknown): MediaRequest | null {
+	if (typeof payload !== 'object' || payload === null) return null;
+	const record: Record<string, unknown> = { ...payload };
+	const { method, path, host, headers } = record;
+	if (typeof method !== 'string' || method === '') return null;
+	if (typeof path !== 'string' || !path.startsWith('/')) return null;
+	if (typeof host !== 'string' || host === '') return null;
+	if (typeof headers !== 'object' || headers === null) return null;
+	const strings = Object.entries(headers).filter((entry): entry is [string, string] => typeof entry[1] === 'string');
+	return { method, path, host, headers: Object.fromEntries(strings) };
 }
 
 function freeSlotsOf(payload: unknown): number | null {

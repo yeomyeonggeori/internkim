@@ -226,4 +226,47 @@ describe('app streams over the host socket', () => {
 		relay.stop(true);
 		expect(relayClosed).toHaveLength(1);
 	});
+
+	test('announce that the host streams media, and carry a media read to the relay over http', async () => {
+		const relay = Bun.serve({
+			hostname: '127.0.0.1',
+			port: 0,
+			fetch: (request) => new Response(`read ${new URL(request.url).pathname}`, { headers: { 'content-type': 'text/plain' } })
+		});
+		const announced: (string | null)[] = [];
+		const heardByGateway: Record<string, unknown>[] = [];
+		const gateway = Bun.serve({
+			hostname: '127.0.0.1',
+			port: 0,
+			fetch(request, serving) {
+				announced.push(request.headers.get('x-internkim-host-supports'));
+				if (serving.upgrade(request, { data: undefined })) return;
+				return new Response('not found', { status: 404 });
+			},
+			websocket: {
+				open(socket) {
+					socket.send(JSON.stringify({ kind: 'media.open', streamID: 'm1', method: 'GET', path: '/media/blob', host: 'acme.example.test', headers: {}, creditBytes: 1024 }));
+				},
+				message(_socket, message) {
+					heardByGateway.push(JSON.parse(String(message)));
+				}
+			}
+		});
+		const connection = connectToGateway({
+			gatewayURL: `ws://127.0.0.1:${gateway.port}`,
+			companyID: 'company-1',
+			hostAccessToken: async () => 'token',
+			dispatch: {} as Dispatch,
+			byteCeiling: 1024,
+			messengerRelayURL: `ws://127.0.0.1:${relay.port}`,
+			report: () => undefined
+		});
+		for (let round = 0; round < 500 && !heardByGateway.some((one) => one.kind === 'media.end'); round += 1) await Bun.sleep(10);
+		connection.close();
+		gateway.stop(true);
+		relay.stop(true);
+		expect(announced).toEqual(['messenger.media.stream']);
+		expect(heardByGateway.map((one) => one.kind)).toEqual(['media.head', 'media.body', 'media.end']);
+		expect(atob(String(heardByGateway[1]?.data))).toBe('read /media/blob');
+	});
 });
