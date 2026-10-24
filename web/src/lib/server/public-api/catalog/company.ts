@@ -133,12 +133,12 @@ const companyMetricListInputSchema = z.strictObject({
 
 const companyMetricRecordInputSchema = z.strictObject({
   amount: moneySchema.describe("The value when the metric is money, e.g. {\"amount\": 1200000000, \"currency\": \"KRW\"}. Give amount or value, never both.").optional(),
-  metric: z.string().describe("Metric key in lowerCamelCase, e.g. 'annualRevenue', 'operatingProfit', 'mau', 'employees'. Reuse the same key across periods."),
+  metric: z.string().describe("Metric key in lowerCamelCase, e.g. 'annualRevenue', 'operatingProfit', 'mau'. Reuse the same key across periods."),
   note: z.string().describe("Source or context note, e.g. 'from the audited financial statements'.").optional(),
   unit: z.string().describe("Unit of a value that is not money, e.g. 'people', 'orders', 'sites'.").optional(),
   usdEquivalent: z.number().describe("The amount in US dollars at the time it is recorded, kept so metrics compare across currencies. Required when amount is not in USD.").optional(),
   value: z.number().describe("The value when the metric is not money, e.g. 26400 for MAU. Use the raw number, not a formatted string.").optional(),
-  period: momentSchema.describe("The period the value covers: YYYY for a year, YYYY-H1 or YYYY-H2 for a half, YYYY-Q1 to YYYY-Q4 for a quarter, YYYY-MM for a month, YYYY-MM-DD for a count taken on one day such as headcount. A value recorded before its period ends is read as what the company expects for it; recording again once the period is over replaces it with the result."),
+  period: momentSchema.describe("The period the value covers: YYYY for a year, YYYY-H1 or YYYY-H2 for a half, YYYY-Q1 to YYYY-Q4 for a quarter, YYYY-MM for a month, YYYY-MM-DD for a count taken on one day. A value recorded before its period ends is read as what the company expects for it; recording again once the period is over replaces it with the result."),
 });
 
 const companyMetricRecordInputIntentSchema = companyMetricRecordInputSchema.partial();
