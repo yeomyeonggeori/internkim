@@ -14,11 +14,6 @@ import (
 // from the server binaries the distribution installed, so nothing here depends
 // on what the distribution calls its own PostgreSQL or Redis service.
 
-var linuxDataServiceUnits = map[string]string{
-	databaseServiceName: blueclaw.CompanyHostDatabaseServiceName + ".service",
-	cacheServiceName:    blueclaw.CompanyHostCacheServiceName + ".service",
-}
-
 type linuxPlatform struct{}
 
 func (linuxPlatform) Describe() string {
@@ -38,7 +33,10 @@ func (linuxPlatform) EnsureServiceAccounts(Machine) error {
 }
 
 func (linuxPlatform) StartTheDatabaseAndTheCache(machine Machine) error {
-	units := []string{linuxDataServiceUnits[databaseServiceName], linuxDataServiceUnits[cacheServiceName]}
+	units := []string{
+		companyHostDataServiceNames[databaseServiceName] + ".service",
+		companyHostDataServiceNames[cacheServiceName] + ".service",
+	}
 	if errorValue := machine.Run("systemctl", append([]string{"enable", "--now"}, units...), nil, io.Discard); errorValue != nil {
 		return fmt.Errorf(
 			"%s could not be started. They are this package's own database and cache, run from the PostgreSQL and Redis or Valkey servers this machine installed, and the company server keeps everything it knows in them: %w",
@@ -134,9 +132,13 @@ func (linuxPlatform) WhereToLookFor(blueclaw.HostDependency) []string {
 	return nil
 }
 
+func (linuxPlatform) WhereItKeepsTheProgram(blueclaw.HostDependency, string) string {
+	return ""
+}
+
 func (linuxPlatform) SupervisorIdentityFor(serviceName string) string {
-	if unit, isOurs := linuxDataServiceUnits[serviceName]; isOurs {
-		return unit
+	if name, isDataService := companyHostDataServiceNames[serviceName]; isDataService {
+		return name + ".service"
 	}
 	return serviceName + ".service"
 }
