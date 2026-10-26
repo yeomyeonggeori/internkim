@@ -23,6 +23,7 @@ if ! allSet; then
     export SUPABASE_PUBLISHABLE_KEY="${SUPABASE_PUBLISHABLE_KEY:-${PUBLISHABLE_KEY:-}}"
     if [ "${SUPABASE_URL:-}" = "${API_URL:-}" ]; then
       export SUPABASE_DB_URL="${SUPABASE_DB_URL:-${DB_URL:-}}"
+      runsOnThisCheckoutsStack=1
     fi
     if [ -z "${SUPABASE_JWT_SIGNING_KEY:-}" ]; then
       export SUPABASE_JWT_SIGNING_KEY="$(local_plane_signing_key "$repository")"
@@ -36,6 +37,9 @@ if ! allSet; then
   exit 1
 fi
 
+if [ "${runsOnThisCheckoutsStack:-0}" -eq 1 ]; then
+  (cd "$repository" && supabase db reset)
+fi
 cd "$repository/web"
 bun -e 'await import("../supabase/scripts/local-database-url.ts")'
 exec bun test "$@"
