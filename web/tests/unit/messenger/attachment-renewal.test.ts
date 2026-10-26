@@ -1,11 +1,8 @@
 import { describe, expect, test } from 'bun:test';
+import { ownProcessTimeoutMilliseconds, runInItsOwnProcess } from '../../support/in-its-own-process';
 
 async function outcome() {
-	const fixture = `${import.meta.dir}/attachment-renewal.fixture.ts`;
-	const run = Bun.spawn([process.execPath, '--conditions', 'browser', fixture], { stdout: 'pipe', stderr: 'pipe' });
-	const [output, errors] = await Promise.all([new Response(run.stdout).text(), new Response(run.stderr).text()]);
-	expect(await run.exited, errors).toBe(0);
-	return JSON.parse(output);
+	return JSON.parse(await runInItsOwnProcess(new URL('./attachment-renewal.fixture.ts', import.meta.url), 'browser'));
 }
 
 describe('a messenger picture whose signed address runs out', () => {
@@ -17,6 +14,6 @@ describe('a messenger picture whose signed address runs out', () => {
 			afterReopen: 'signed-3',
 			signings: 3
 		});
-	});
+	}, ownProcessTimeoutMilliseconds);
 
 });

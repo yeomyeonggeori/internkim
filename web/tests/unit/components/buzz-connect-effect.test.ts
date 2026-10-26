@@ -1,11 +1,7 @@
 import { expect, test } from 'bun:test';
+import { ownProcessTimeoutMilliseconds, runInItsOwnProcess } from '../../support/in-its-own-process';
 
 test('publishing an identity does not restart the open dialog identity effect', async () => {
-	const fixture = new URL('./buzz-connect-effect.fixture.ts', import.meta.url).pathname;
-	const run = Bun.spawn([process.execPath, '--conditions', 'browser', fixture], { stdout: 'pipe', stderr: 'pipe' });
-	const [output, errors, exitCode] = await Promise.all([
-		new Response(run.stdout).text(), new Response(run.stderr).text(), run.exited
-	]);
-	expect(exitCode, errors).toBe(0);
+	const output = await runInItsOwnProcess(new URL('./buzz-connect-effect.fixture.ts', import.meta.url), 'browser');
 	expect(JSON.parse(output)).toEqual({ callsAfterPublish: 2, callsAfterRevalidation: 2, stopped: 1 });
-});
+}, ownProcessTimeoutMilliseconds);

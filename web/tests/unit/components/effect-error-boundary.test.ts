@@ -1,4 +1,5 @@
 import { describe, expect, test } from 'bun:test';
+import { ownProcessTimeoutMilliseconds, runInItsOwnProcess } from '../../support/in-its-own-process';
 
 interface ShellOutcome {
 	gateText: string | null;
@@ -7,11 +8,7 @@ interface ShellOutcome {
 }
 
 async function mountShellInBrowserEnvironment(): Promise<{ contained: ShellOutcome; uncontained: ShellOutcome }> {
-	const fixture = new URL('./effect-error-boundary.fixture.ts', import.meta.url).pathname;
-	const run = Bun.spawn(['bun', '--conditions', 'browser', fixture], { stdout: 'pipe', stderr: 'pipe' });
-	const [output, errorOutput] = await Promise.all([new Response(run.stdout).text(), new Response(run.stderr).text()]);
-	expect(await run.exited, errorOutput).toBe(0);
-	return JSON.parse(output);
+	return JSON.parse(await runInItsOwnProcess(new URL('./effect-error-boundary.fixture.ts', import.meta.url), 'browser'));
 }
 
 describe('an effect that throws inside the app rail', () => {
@@ -19,10 +16,10 @@ describe('an effect that throws inside the app rail', () => {
 		const { contained } = await mountShellInBrowserEnvironment();
 		expect(contained.gateText).toBe('signed-in-check-resolved');
 		expect(contained.reportedErrors).toEqual(['TypeError: createRadialGradient is not a function']);
-	});
+	}, ownProcessTimeoutMilliseconds);
 
 	test('freezes the gate when nothing contains it', async () => {
 		const { uncontained } = await mountShellInBrowserEnvironment();
 		expect(uncontained.gateText).not.toBe('signed-in-check-resolved');
-	});
+	}, ownProcessTimeoutMilliseconds);
 });

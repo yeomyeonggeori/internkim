@@ -1,12 +1,8 @@
 import { expect, test } from 'bun:test';
+import { ownProcessTimeoutMilliseconds, runInItsOwnProcess } from '../support/in-its-own-process';
 
 test('central identity verifies scope, persists only the tab key, and rejects late or revoked claims', async () => {
-	const fixture = new URL('./central-buzz-identity.fixture.ts', import.meta.url).pathname;
-	const run = Bun.spawn([process.execPath, fixture], { stdout: 'pipe', stderr: 'pipe' });
-	const [output, errors, exitCode] = await Promise.all([
-		new Response(run.stdout).text(), new Response(run.stderr).text(), run.exited
-	]);
-	expect(exitCode, errors).toBe(0);
+	const output = await runInItsOwnProcess(new URL('./central-buzz-identity.fixture.ts', import.meta.url), 'script');
 	const result = JSON.parse(output);
 	expect(result.initial).toBeNull();
 	expect(result.first).toBe('same-derived-secret');
@@ -26,4 +22,4 @@ test('central identity verifies scope, persists only the tab key, and rejects la
 	expect(result.getUserCalls).toBeGreaterThan(6);
 	expect(result.memberCalls).toBeGreaterThan(5);
 	expect(result.owners[0]).toMatchObject({ accountID: 'account-a', companyID: 'company-a', accessToken: 'sample-token-a' });
-});
+}, ownProcessTimeoutMilliseconds);

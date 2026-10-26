@@ -1,11 +1,8 @@
 import { expect, test } from 'bun:test';
+import { ownProcessTimeoutMilliseconds, runInItsOwnProcess } from '../support/in-its-own-process';
 
 async function outcome(scenario: string) {
-	const fixture = new URL('./loading-order.fixture.ts', import.meta.url).pathname;
-	const run = Bun.spawn([process.execPath, '--conditions', 'browser', fixture, scenario], { stdout: 'pipe', stderr: 'pipe' });
-	const [output, errors] = await Promise.all([new Response(run.stdout).text(), new Response(run.stderr).text()]);
-	expect(await run.exited, errors).toBe(0);
-	return JSON.parse(output);
+	return JSON.parse(await runInItsOwnProcess(new URL('./loading-order.fixture.ts', import.meta.url), 'browser', scenario));
 }
 
 test('mail deep links skip INBOX and the first body, and resolve later pages from real list rows', async () => {
@@ -14,7 +11,7 @@ test('mail deep links skip INBOX and the first body, and resolve later pages fro
 		later: { pages: ['Archive:later'], bodies: [3], selected: 3 },
 		missing: true, retried: true, lateIgnored: true, searchCanceled: true
 	});
-});
+}, ownProcessTimeoutMilliseconds);
 
 test('leave approvals start independent reads together and retain only ordered pending requests', async () => {
 	expect(await outcome('approval')).toEqual({
@@ -22,8 +19,8 @@ test('leave approvals start independent reads together and retain only ordered p
 		input: { scope: 'all', status: 'requested' },
 		pending: ['earlier', 'later'], historicalLabel: true, refused: true
 	});
-});
+}, ownProcessTimeoutMilliseconds);
 
 test('notification preferences render while reachability is pending and keep enablement guards', async () => {
 	expect(await outcome('notifications')).toEqual({ preferencesStarted: true, visible: true, pendingDisabled: true, onEnabled: true, refusedDisabled: true, loadFailure: true });
-});
+}, ownProcessTimeoutMilliseconds);
