@@ -17,8 +17,9 @@ export const previewMembers: AttendanceTeamPage['members'] = Array.from({length:
  status: (['working','working','working','done','away','not_started','working'] as const)[index % 7],
  latestAt: instant(index % 65), location: index % 7 === 5 ? null : ['사무실','재택','외근'][index % 3]
 }));
-const statusOrder = {working:0,needs_checkout:0,away:1,done:2,not_started:3};
-const compareMembers = (a: AttendanceTeamPage['members'][number], b: AttendanceTeamPage['members'][number]) => statusOrder[a.status]-statusOrder[b.status] || a.name.localeCompare(b.name,'ko') || a.memberID.localeCompare(b.memberID);
+const statusOrder = {working:0,needs_checkout:0,done:1,away:2,not_started:3};
+const isTimed = (status: AttendanceTeamPage['members'][number]['status']) => status==='working'||status==='done';
+const compareMembers = (a: AttendanceTeamPage['members'][number], b: AttendanceTeamPage['members'][number]) => statusOrder[a.status]-statusOrder[b.status] || (isTimed(a.status) ? (b.latestAt??'').localeCompare(a.latestAt??'') : 0) || a.name.localeCompare(b.name,'ko') || a.memberID.localeCompare(b.memberID);
 const totals = (members: AttendanceTeamPage['members']) => ({memberCount: members.length,
  working: members.filter(x=>x.status==='working').length, done: members.filter(x=>x.status==='done').length,
  away: members.filter(x=>x.status==='away').length, notStarted: members.filter(x=>x.status==='not_started').length,
@@ -26,8 +27,10 @@ const totals = (members: AttendanceTeamPage['members']) => ({memberCount: member
 const teams: AttendanceTeamPage['teams'] = (noTeams ? [companyName] : teamNames).map((name,index) => {
  const teamKey = noTeams || index===7 ? 'unassigned' : `team-${index}`;
  const members = previewMembers.filter(x=>x.teamKey===teamKey);
- const actors = members.filter(x=>x.latestAt).map(x=>({memberID:x.memberID,name:x.name,email:x.email,occurredAt:x.latestAt!,location:x.location})).sort((a,b)=>b.occurredAt.localeCompare(a.occurredAt));
- return {teamKey,name,...totals(members),recentClockIns:actors.slice(0,5),recentClockOuts:actors.filter(x=>members.find(m=>m.memberID===x.memberID)?.status==='done').slice(0,5),
+ const previewOf = (status: AttendanceTeamPage['members'][number]['status']) => members.filter(x=>x.status===status)
+  .sort((a,b)=>status==='working'||status==='done' ? (b.latestAt??'').localeCompare(a.latestAt??'') : a.name.localeCompare(b.name,'ko'))
+  .slice(0,4).map(x=>({memberID:x.memberID,name:x.name,email:x.email,occurredAt:x.latestAt}));
+ return {teamKey,name,isCallerTeam:index===0,...totals(members),preview:{working:previewOf('working'),done:previewOf('done'),away:previewOf('away'),notStarted:previewOf('not_started')},
  recordedLocations: ['사무실','재택','외근'].map(name=>({name,count:members.filter(x=>x.status==='working'&&x.location===name).length})).filter(x=>x.count),unknownLocationCount:0};
 });
 const settings = {name:companyName,locale:'ko',timeZone,currencyCode:'KRW',workLocations:[{name:'사무실',color:null},{name:'재택',color:null},{name:'외근',color:null}],leaveDays:15,teamViewVisibleToAll:true,profileImageURL:null};
@@ -51,7 +54,7 @@ export function attendancePreviewAnswer(name: string, input: Record<string, unkn
  if(name==='attendance_work_policy_get') return {timeZone,workMode:'flexible',policy:{version:1,revisions:[{...defaultWorkPolicy(),effectiveDate:'1970-01-01'}]},people:previewMembers.map(m=>({personID:m.memberID,workHours:null,minimumDailyMinutes:480}))};
  if(name==='company_holiday_list') return {count:0,year:null,holidays:[]};
  if((name==='attendance_team_page_get'||name==='attendance_team_dashboard_get')) {
-  const filtered=previewMembers.filter(m=>m.teamKey===input.selectedTeamKey && (!input.searchText || (m.name+' '+m.email).toLowerCase().includes(String(input.searchText).toLowerCase())) && (!input.locationFilter || m.location===input.locationFilter)).sort(compareMembers);
+  const filtered=previewMembers.filter(m=>(!input.selectedTeamKey || m.teamKey===input.selectedTeamKey) && (!input.statusFilter || m.status===input.statusFilter) && (!input.searchText || (m.name+' '+m.email).toLowerCase().includes(String(input.searchText).toLowerCase())) && (!input.locationFilter || m.location===input.locationFilter)).sort(compareMembers);
   const teamOffset=Number(input.teamOffset||0),teamLimit=Number(input.teamLimit||6),memberOffset=Number(input.memberOffset||0),memberLimit=Number(input.memberLimit||24);
   return {companyID,companyName,companySummary:totals(previewMembers),timeZone,serverTime,authorization:{isAdmin,teamViewVisibleToAll:true},teamOffset,teamLimit,teamTotal:teams.length,teams:teams.slice(teamOffset,teamOffset+teamLimit),selectedTeamKey:input.selectedTeamKey||null,memberOffset,memberLimit,memberTotal:filtered.length,members:filtered.slice(memberOffset,memberOffset+memberLimit)};
  }

@@ -12,8 +12,13 @@ const workLocations = [{ name: '사무실', color: null }, { name: '재택', col
 const ownEvent = { id: 'sample-clock-in', personID: memberID, kind: 'clock_in', occurredAt: '2026-10-05T23:00:00.000Z', location: '사무실' };
 const teams = ['제품개발팀', '디자인팀', '사업운영팀', '고객경험팀', '마케팅팀', '경영지원팀'].map((name, index) => ({
 	teamKey: `team-${index}`, name, memberCount: 8, working: 5, done: 1, away: 1, notStarted: 1, needsCheckout: 0,
-	recentClockIns: people.slice(0, 4).map(person => ({ memberID: person.personID, name: person.name, email: person.email, occurredAt: ownEvent.occurredAt, location: '사무실' })),
-	recentClockOuts: [{ memberID: 'sample-1', name: '박예시2', email: 'sample1@example.com', occurredAt: '2026-10-06T01:00:00.000Z', location: '사무실' }],
+	isCallerTeam: index === 0,
+	preview: {
+		working: people.slice(0, 4).map(person => ({ memberID: person.personID, name: person.name, email: person.email, occurredAt: ownEvent.occurredAt })),
+		done: [{ memberID: 'sample-1', name: '박예시2', email: 'sample1@example.com', occurredAt: '2026-10-06T01:00:00.000Z' }],
+		away: [{ memberID: 'sample-2', name: '최견본3', email: 'sample2@example.com', occurredAt: null }],
+		notStarted: [{ memberID: 'sample-3', name: '이샘플4', email: 'sample3@example.com', occurredAt: null }]
+	},
 	recordedLocations: [{ name: '사무실', count: 3 }, { name: '재택', count: 2 }], unknownLocationCount: 0
 }));
 

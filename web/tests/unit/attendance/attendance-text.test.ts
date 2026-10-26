@@ -11,7 +11,7 @@ describe('attendance text', () => {
 
 	test('provides localized labels for component status copy', () => {
 		expect(attendanceText.en.finished).toBe('Out');
-		expect(attendanceText.en.absent).toBe('Not in');
+		expect(attendanceText.en.absent).toBe('Not in yet');
 		expect(attendanceText.en.subscriptionDayTemplate).toBe('{count} days');
 		expect(attendanceText.en.absenceNoWeekdays).toBe('No weekdays to register.');
 		expect(attendanceText.en.absenceKindOther).toBe('Other');
@@ -24,7 +24,7 @@ describe('attendance text', () => {
 		expect(attendanceText.en.mobileStatusView).toBe('Team status');
 		expect(attendanceText.en.mobileToolsView).toBe('My records');
 		expect(attendanceText.ko.finished).toBe('퇴근');
-		expect(attendanceText.ko.absent).toBe('미출근');
+		expect(attendanceText.ko.absent).toBe('출근 전');
 		expect(attendanceText.ko.subscriptionDayTemplate).toBe('{count}일');
 		expect(attendanceText.ko.absenceNoWeekdays).toBe('등록할 평일이 없습니다.');
 		expect(attendanceText.ko.absenceKindOther).toBe('기타');

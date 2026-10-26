@@ -82,7 +82,7 @@ test('team cards are one requester-scoped RPC with real counts and recorded loca
 	expect(state.teams[0].memberCount).toBe(2);
 	expect(state.teams[0].working).toBe(1);
 	expect(state.teams[0].done).toBe(1);
-	expect(state.teams[0].recentClockOuts[0].memberID).toBe(peerID);
+	expect(state.teams[0].preview.done[0].memberID).toBe(peerID);
 	expect(state.teams[0].recordedLocations).toEqual([{ name: 'Office', count: 1 }]);
 });
 

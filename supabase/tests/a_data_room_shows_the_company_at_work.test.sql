@@ -68,15 +68,15 @@ select is(
   (internal.data_room_activity('44300000-0000-0000-0000-000000000000') -> 'attendance' -> 'teams' -> 0 ->> 'working')::integer,
   ((select page from team_page) -> 'teams' -> 0 ->> 'working')::integer,
   'and so does each team');
-select ok(not exists (select 1 from jsonb_array_elements((select page from team_page) -> 'teams') team,
-    jsonb_array_elements(team -> 'recentClockIns') actor where actor ->> 'memberID' = '44300000-0000-0000-0000-000000000012'),
-  'the team page lists only the clock-ins of the day it shows');
+select ok(not exists (select 1 from jsonb_array_elements((select page from team_page) -> 'teams') team
+    where jsonb_array_length(team #> '{preview,working}') <> least((team ->> 'working')::integer, 4)),
+  'the team page names everyone it counts as working, an open shift from an earlier day included');
 select ok(exists (select 1 from jsonb_array_elements(internal.data_room_activity('44300000-0000-0000-0000-000000000000') #> '{attendance,teams}') team,
-    jsonb_array_elements(team -> 'recentClockIns') actor where actor ->> 'person' = 'p1'),
-  'the data room lists who came in that day');
-select ok(not exists (select 1 from jsonb_array_elements(internal.data_room_activity('44300000-0000-0000-0000-000000000000') #> '{attendance,teams}') team,
-    jsonb_array_elements(team -> 'recentClockIns') actor where actor ->> 'person' = 'p2'),
-  'and leaves out a clock-in from another day');
+    jsonb_array_elements(team #> '{preview,working}') actor where actor ->> 'person' = 'p1'),
+  'the data room names who is working that day');
+select ok(not exists (select 1 from jsonb_array_elements(internal.data_room_activity('44300000-0000-0000-0000-000000000000') #> '{attendance,teams}') team
+    where jsonb_array_length(team #> '{preview,working}') <> least((team ->> 'working')::integer, 4)),
+  'and names as many as it counts, the way the attendance screen does');
 
 insert into public.task (company_id, title, status, starts_at, ends_at, updated_at) values
   ('44300000-0000-0000-0000-000000000000', '지난달 마감 업무', 'completed', now() - interval '31 days', now() - interval '30 days', now() - interval '30 days');

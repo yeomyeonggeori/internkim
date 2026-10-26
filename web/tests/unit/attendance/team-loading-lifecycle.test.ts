@@ -9,7 +9,7 @@ afterEach(() => { mock.restore(); if (originalState === undefined) Reflect.delet
 
 function page(teamKey = 'team-0'): AttendanceTeamPage {
 	return { companyID: 'sample-company', timeZone: 'UTC', serverTime: '2026-10-06T03:00:00Z', authorization: { isAdmin: true, teamViewVisibleToAll: true }, teamOffset: 0, teamLimit: 6, teamTotal: 2, selectedTeamKey: teamKey, memberOffset: 0, memberLimit: 24, memberTotal: 1,
-		teams: [{ teamKey, name: 'Sample team', memberCount: 1, working: 1, done: 0, away: 0, needsCheckout: 0, notStarted: 0, recentClockIns: [], recentClockOuts: [], recordedLocations: [], unknownLocationCount: 0 }],
+		teams: [{ teamKey, name: 'Sample team', memberCount: 1, working: 1, done: 0, away: 0, needsCheckout: 0, notStarted: 0, isCallerTeam: false, preview: { working: [], done: [], away: [], notStarted: [] }, recordedLocations: [], unknownLocationCount: 0 }],
 		members: [{ memberID: 'sample-member', name: '이샘플', email: 'sample@example.com', teamKey, status: 'working', latestAt: null, location: null }] };
 }
 
@@ -39,7 +39,7 @@ test('team and filter changes clear foreign rows while stale requests cannot res
 	read.mockReturnValueOnce(older.promise).mockReturnValueOnce(newer.promise);
 	state.selectTeam('team-1');
 	expect(state.members).toEqual([]);
-	state.filter('sample', 'Office');
+	state.filter('sample', 'Office', '');
 	older.resolve(page('team-0'));
 	await Promise.resolve(); await Promise.resolve();
 	expect(state.members).toEqual([]);

@@ -47,7 +47,7 @@ for (const width of [1280, 390, 320]) {
 			expect(Math.abs(initialMetric.height - metric.height)).toBeLessThanOrEqual(2);
 		}
 		await capture(page, 'teams-loaded', width);
-		await page.getByTestId('attendance-team-card').first().getByRole('button', { name: /구성원|직원/ }).click();
+		await page.getByTestId('attendance-team-card').first().getByRole('button', { name: /모두 보기/ }).click();
 		await expect.poll(() => fixture.members.reads).toBeGreaterThan(0);
 		if (phase !== 'before') await expect(page.locator('[data-attendance-skeleton="members"]')).toBeVisible();
 		await capture(page, 'members-pending', width);

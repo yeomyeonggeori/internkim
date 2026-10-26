@@ -8244,7 +8244,7 @@
         "state": "ok"
       },
       "canonicalName": "attendance_team_page_get",
-      "description": "Read one authorized page of team attendance counts or employees for the current company day. Team cards contain true current-state counts, recent recorded clock events and recorded work locations. Employee search and location filtering happen before paging. Historical records are read separately.",
+      "description": "Read one authorized page of team attendance counts or employees for the current company day. Team cards contain current-state counts, up to four named colleagues per state and the work locations of those working; the team of the caller comes first. Without a team the employee page reads the whole company. Employee search, location and status filtering happen before paging. Historical records are read separately.",
       "estimatedLatency": "low",
       "idempotency": {
         "required": false,
@@ -8282,6 +8282,15 @@
           },
           "selectedTeamKey": {
             "minLength": 1,
+            "type": "string"
+          },
+          "statusFilter": {
+            "enum": [
+              "working",
+              "done",
+              "away",
+              "not_started"
+            ],
             "type": "string"
           },
           "teamLimit": {
@@ -8449,6 +8458,9 @@
                   "minimum": 0,
                   "type": "integer"
                 },
+                "isCallerTeam": {
+                  "type": "boolean"
+                },
                 "memberCount": {
                   "maximum": 9007199254740991,
                   "minimum": 0,
@@ -8467,85 +8479,161 @@
                   "minimum": 0,
                   "type": "integer"
                 },
-                "recentClockIns": {
-                  "items": {
-                    "additionalProperties": false,
-                    "properties": {
-                      "email": {
-                        "type": "string"
-                      },
-                      "location": {
-                        "anyOf": [
-                          {
+                "preview": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "away": {
+                      "items": {
+                        "additionalProperties": false,
+                        "properties": {
+                          "email": {
                             "type": "string"
                           },
-                          {
-                            "type": "null"
-                          }
-                        ]
-                      },
-                      "memberID": {
-                        "minLength": 1,
-                        "type": "string"
-                      },
-                      "name": {
-                        "type": "string"
-                      },
-                      "occurredAt": {
-                        "type": "string"
-                      }
-                    },
-                    "required": [
-                      "memberID",
-                      "name",
-                      "email",
-                      "occurredAt",
-                      "location"
-                    ],
-                    "type": "object"
-                  },
-                  "maxItems": 5,
-                  "type": "array"
-                },
-                "recentClockOuts": {
-                  "items": {
-                    "additionalProperties": false,
-                    "properties": {
-                      "email": {
-                        "type": "string"
-                      },
-                      "location": {
-                        "anyOf": [
-                          {
+                          "memberID": {
+                            "minLength": 1,
                             "type": "string"
                           },
-                          {
-                            "type": "null"
+                          "name": {
+                            "type": "string"
+                          },
+                          "occurredAt": {
+                            "anyOf": [
+                              {
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
                           }
-                        ]
+                        },
+                        "required": [
+                          "memberID",
+                          "name",
+                          "email",
+                          "occurredAt"
+                        ],
+                        "type": "object"
                       },
-                      "memberID": {
-                        "minLength": 1,
-                        "type": "string"
-                      },
-                      "name": {
-                        "type": "string"
-                      },
-                      "occurredAt": {
-                        "type": "string"
-                      }
+                      "maxItems": 4,
+                      "type": "array"
                     },
-                    "required": [
-                      "memberID",
-                      "name",
-                      "email",
-                      "occurredAt",
-                      "location"
-                    ],
-                    "type": "object"
+                    "done": {
+                      "items": {
+                        "additionalProperties": false,
+                        "properties": {
+                          "email": {
+                            "type": "string"
+                          },
+                          "memberID": {
+                            "minLength": 1,
+                            "type": "string"
+                          },
+                          "name": {
+                            "type": "string"
+                          },
+                          "occurredAt": {
+                            "anyOf": [
+                              {
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          }
+                        },
+                        "required": [
+                          "memberID",
+                          "name",
+                          "email",
+                          "occurredAt"
+                        ],
+                        "type": "object"
+                      },
+                      "maxItems": 4,
+                      "type": "array"
+                    },
+                    "notStarted": {
+                      "items": {
+                        "additionalProperties": false,
+                        "properties": {
+                          "email": {
+                            "type": "string"
+                          },
+                          "memberID": {
+                            "minLength": 1,
+                            "type": "string"
+                          },
+                          "name": {
+                            "type": "string"
+                          },
+                          "occurredAt": {
+                            "anyOf": [
+                              {
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          }
+                        },
+                        "required": [
+                          "memberID",
+                          "name",
+                          "email",
+                          "occurredAt"
+                        ],
+                        "type": "object"
+                      },
+                      "maxItems": 4,
+                      "type": "array"
+                    },
+                    "working": {
+                      "items": {
+                        "additionalProperties": false,
+                        "properties": {
+                          "email": {
+                            "type": "string"
+                          },
+                          "memberID": {
+                            "minLength": 1,
+                            "type": "string"
+                          },
+                          "name": {
+                            "type": "string"
+                          },
+                          "occurredAt": {
+                            "anyOf": [
+                              {
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          }
+                        },
+                        "required": [
+                          "memberID",
+                          "name",
+                          "email",
+                          "occurredAt"
+                        ],
+                        "type": "object"
+                      },
+                      "maxItems": 4,
+                      "type": "array"
+                    }
                   },
-                  "maxItems": 5,
-                  "type": "array"
+                  "required": [
+                    "working",
+                    "done",
+                    "away",
+                    "notStarted"
+                  ],
+                  "type": "object"
                 },
                 "recordedLocations": {
                   "items": {
@@ -8585,14 +8673,14 @@
               "required": [
                 "teamKey",
                 "name",
+                "isCallerTeam",
                 "memberCount",
                 "working",
                 "done",
                 "away",
                 "needsCheckout",
                 "notStarted",
-                "recentClockIns",
-                "recentClockOuts",
+                "preview",
                 "recordedLocations",
                 "unknownLocationCount"
               ],
@@ -8769,6 +8857,9 @@
                     "minimum": 0,
                     "type": "integer"
                   },
+                  "isCallerTeam": {
+                    "type": "boolean"
+                  },
                   "memberCount": {
                     "maximum": 9007199254740991,
                     "minimum": 0,
@@ -8787,85 +8878,161 @@
                     "minimum": 0,
                     "type": "integer"
                   },
-                  "recentClockIns": {
-                    "items": {
-                      "additionalProperties": false,
-                      "properties": {
-                        "email": {
-                          "type": "string"
-                        },
-                        "location": {
-                          "anyOf": [
-                            {
+                  "preview": {
+                    "additionalProperties": false,
+                    "properties": {
+                      "away": {
+                        "items": {
+                          "additionalProperties": false,
+                          "properties": {
+                            "email": {
                               "type": "string"
                             },
-                            {
-                              "type": "null"
-                            }
-                          ]
-                        },
-                        "memberID": {
-                          "minLength": 1,
-                          "type": "string"
-                        },
-                        "name": {
-                          "type": "string"
-                        },
-                        "occurredAt": {
-                          "type": "string"
-                        }
-                      },
-                      "required": [
-                        "memberID",
-                        "name",
-                        "email",
-                        "occurredAt",
-                        "location"
-                      ],
-                      "type": "object"
-                    },
-                    "maxItems": 5,
-                    "type": "array"
-                  },
-                  "recentClockOuts": {
-                    "items": {
-                      "additionalProperties": false,
-                      "properties": {
-                        "email": {
-                          "type": "string"
-                        },
-                        "location": {
-                          "anyOf": [
-                            {
+                            "memberID": {
+                              "minLength": 1,
                               "type": "string"
                             },
-                            {
-                              "type": "null"
+                            "name": {
+                              "type": "string"
+                            },
+                            "occurredAt": {
+                              "anyOf": [
+                                {
+                                  "type": "string"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
                             }
-                          ]
+                          },
+                          "required": [
+                            "memberID",
+                            "name",
+                            "email",
+                            "occurredAt"
+                          ],
+                          "type": "object"
                         },
-                        "memberID": {
-                          "minLength": 1,
-                          "type": "string"
-                        },
-                        "name": {
-                          "type": "string"
-                        },
-                        "occurredAt": {
-                          "type": "string"
-                        }
+                        "maxItems": 4,
+                        "type": "array"
                       },
-                      "required": [
-                        "memberID",
-                        "name",
-                        "email",
-                        "occurredAt",
-                        "location"
-                      ],
-                      "type": "object"
+                      "done": {
+                        "items": {
+                          "additionalProperties": false,
+                          "properties": {
+                            "email": {
+                              "type": "string"
+                            },
+                            "memberID": {
+                              "minLength": 1,
+                              "type": "string"
+                            },
+                            "name": {
+                              "type": "string"
+                            },
+                            "occurredAt": {
+                              "anyOf": [
+                                {
+                                  "type": "string"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            }
+                          },
+                          "required": [
+                            "memberID",
+                            "name",
+                            "email",
+                            "occurredAt"
+                          ],
+                          "type": "object"
+                        },
+                        "maxItems": 4,
+                        "type": "array"
+                      },
+                      "notStarted": {
+                        "items": {
+                          "additionalProperties": false,
+                          "properties": {
+                            "email": {
+                              "type": "string"
+                            },
+                            "memberID": {
+                              "minLength": 1,
+                              "type": "string"
+                            },
+                            "name": {
+                              "type": "string"
+                            },
+                            "occurredAt": {
+                              "anyOf": [
+                                {
+                                  "type": "string"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            }
+                          },
+                          "required": [
+                            "memberID",
+                            "name",
+                            "email",
+                            "occurredAt"
+                          ],
+                          "type": "object"
+                        },
+                        "maxItems": 4,
+                        "type": "array"
+                      },
+                      "working": {
+                        "items": {
+                          "additionalProperties": false,
+                          "properties": {
+                            "email": {
+                              "type": "string"
+                            },
+                            "memberID": {
+                              "minLength": 1,
+                              "type": "string"
+                            },
+                            "name": {
+                              "type": "string"
+                            },
+                            "occurredAt": {
+                              "anyOf": [
+                                {
+                                  "type": "string"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            }
+                          },
+                          "required": [
+                            "memberID",
+                            "name",
+                            "email",
+                            "occurredAt"
+                          ],
+                          "type": "object"
+                        },
+                        "maxItems": 4,
+                        "type": "array"
+                      }
                     },
-                    "maxItems": 5,
-                    "type": "array"
+                    "required": [
+                      "working",
+                      "done",
+                      "away",
+                      "notStarted"
+                    ],
+                    "type": "object"
                   },
                   "recordedLocations": {
                     "items": {
@@ -8905,14 +9072,14 @@
                 "required": [
                   "teamKey",
                   "name",
+                  "isCallerTeam",
                   "memberCount",
                   "working",
                   "done",
                   "away",
                   "needsCheckout",
                   "notStarted",
-                  "recentClockIns",
-                  "recentClockOuts",
+                  "preview",
                   "recordedLocations",
                   "unknownLocationCount"
                 ],
@@ -8953,7 +9120,7 @@
         "state": "ok"
       },
       "canonicalName": "attendance_team_dashboard_get",
-      "description": "Read one authorized page of team attendance counts or employees for the current company day. Team cards contain true current-state counts, recent recorded clock events and recorded work locations. Employee search and location filtering happen before paging. Historical records are read separately.",
+      "description": "Read one authorized page of team attendance counts or employees for the current company day. Team cards contain current-state counts, up to four named colleagues per state and the work locations of those working; the team of the caller comes first. Without a team the employee page reads the whole company. Employee search, location and status filtering happen before paging. Historical records are read separately.",
       "estimatedLatency": "low",
       "idempotency": {
         "required": false,
@@ -8991,6 +9158,15 @@
           },
           "selectedTeamKey": {
             "minLength": 1,
+            "type": "string"
+          },
+          "statusFilter": {
+            "enum": [
+              "working",
+              "done",
+              "away",
+              "not_started"
+            ],
             "type": "string"
           },
           "teamLimit": {
@@ -9205,6 +9381,9 @@
                   "minimum": 0,
                   "type": "integer"
                 },
+                "isCallerTeam": {
+                  "type": "boolean"
+                },
                 "memberCount": {
                   "maximum": 9007199254740991,
                   "minimum": 0,
@@ -9223,85 +9402,161 @@
                   "minimum": 0,
                   "type": "integer"
                 },
-                "recentClockIns": {
-                  "items": {
-                    "additionalProperties": false,
-                    "properties": {
-                      "email": {
-                        "type": "string"
-                      },
-                      "location": {
-                        "anyOf": [
-                          {
+                "preview": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "away": {
+                      "items": {
+                        "additionalProperties": false,
+                        "properties": {
+                          "email": {
                             "type": "string"
                           },
-                          {
-                            "type": "null"
-                          }
-                        ]
-                      },
-                      "memberID": {
-                        "minLength": 1,
-                        "type": "string"
-                      },
-                      "name": {
-                        "type": "string"
-                      },
-                      "occurredAt": {
-                        "type": "string"
-                      }
-                    },
-                    "required": [
-                      "memberID",
-                      "name",
-                      "email",
-                      "occurredAt",
-                      "location"
-                    ],
-                    "type": "object"
-                  },
-                  "maxItems": 5,
-                  "type": "array"
-                },
-                "recentClockOuts": {
-                  "items": {
-                    "additionalProperties": false,
-                    "properties": {
-                      "email": {
-                        "type": "string"
-                      },
-                      "location": {
-                        "anyOf": [
-                          {
+                          "memberID": {
+                            "minLength": 1,
                             "type": "string"
                           },
-                          {
-                            "type": "null"
+                          "name": {
+                            "type": "string"
+                          },
+                          "occurredAt": {
+                            "anyOf": [
+                              {
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
                           }
-                        ]
+                        },
+                        "required": [
+                          "memberID",
+                          "name",
+                          "email",
+                          "occurredAt"
+                        ],
+                        "type": "object"
                       },
-                      "memberID": {
-                        "minLength": 1,
-                        "type": "string"
-                      },
-                      "name": {
-                        "type": "string"
-                      },
-                      "occurredAt": {
-                        "type": "string"
-                      }
+                      "maxItems": 4,
+                      "type": "array"
                     },
-                    "required": [
-                      "memberID",
-                      "name",
-                      "email",
-                      "occurredAt",
-                      "location"
-                    ],
-                    "type": "object"
+                    "done": {
+                      "items": {
+                        "additionalProperties": false,
+                        "properties": {
+                          "email": {
+                            "type": "string"
+                          },
+                          "memberID": {
+                            "minLength": 1,
+                            "type": "string"
+                          },
+                          "name": {
+                            "type": "string"
+                          },
+                          "occurredAt": {
+                            "anyOf": [
+                              {
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          }
+                        },
+                        "required": [
+                          "memberID",
+                          "name",
+                          "email",
+                          "occurredAt"
+                        ],
+                        "type": "object"
+                      },
+                      "maxItems": 4,
+                      "type": "array"
+                    },
+                    "notStarted": {
+                      "items": {
+                        "additionalProperties": false,
+                        "properties": {
+                          "email": {
+                            "type": "string"
+                          },
+                          "memberID": {
+                            "minLength": 1,
+                            "type": "string"
+                          },
+                          "name": {
+                            "type": "string"
+                          },
+                          "occurredAt": {
+                            "anyOf": [
+                              {
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          }
+                        },
+                        "required": [
+                          "memberID",
+                          "name",
+                          "email",
+                          "occurredAt"
+                        ],
+                        "type": "object"
+                      },
+                      "maxItems": 4,
+                      "type": "array"
+                    },
+                    "working": {
+                      "items": {
+                        "additionalProperties": false,
+                        "properties": {
+                          "email": {
+                            "type": "string"
+                          },
+                          "memberID": {
+                            "minLength": 1,
+                            "type": "string"
+                          },
+                          "name": {
+                            "type": "string"
+                          },
+                          "occurredAt": {
+                            "anyOf": [
+                              {
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          }
+                        },
+                        "required": [
+                          "memberID",
+                          "name",
+                          "email",
+                          "occurredAt"
+                        ],
+                        "type": "object"
+                      },
+                      "maxItems": 4,
+                      "type": "array"
+                    }
                   },
-                  "maxItems": 5,
-                  "type": "array"
+                  "required": [
+                    "working",
+                    "done",
+                    "away",
+                    "notStarted"
+                  ],
+                  "type": "object"
                 },
                 "recordedLocations": {
                   "items": {
@@ -9341,14 +9596,14 @@
               "required": [
                 "teamKey",
                 "name",
+                "isCallerTeam",
                 "memberCount",
                 "working",
                 "done",
                 "away",
                 "needsCheckout",
                 "notStarted",
-                "recentClockIns",
-                "recentClockOuts",
+                "preview",
                 "recordedLocations",
                 "unknownLocationCount"
               ],
@@ -9572,6 +9827,9 @@
                     "minimum": 0,
                     "type": "integer"
                   },
+                  "isCallerTeam": {
+                    "type": "boolean"
+                  },
                   "memberCount": {
                     "maximum": 9007199254740991,
                     "minimum": 0,
@@ -9590,85 +9848,161 @@
                     "minimum": 0,
                     "type": "integer"
                   },
-                  "recentClockIns": {
-                    "items": {
-                      "additionalProperties": false,
-                      "properties": {
-                        "email": {
-                          "type": "string"
-                        },
-                        "location": {
-                          "anyOf": [
-                            {
+                  "preview": {
+                    "additionalProperties": false,
+                    "properties": {
+                      "away": {
+                        "items": {
+                          "additionalProperties": false,
+                          "properties": {
+                            "email": {
                               "type": "string"
                             },
-                            {
-                              "type": "null"
-                            }
-                          ]
-                        },
-                        "memberID": {
-                          "minLength": 1,
-                          "type": "string"
-                        },
-                        "name": {
-                          "type": "string"
-                        },
-                        "occurredAt": {
-                          "type": "string"
-                        }
-                      },
-                      "required": [
-                        "memberID",
-                        "name",
-                        "email",
-                        "occurredAt",
-                        "location"
-                      ],
-                      "type": "object"
-                    },
-                    "maxItems": 5,
-                    "type": "array"
-                  },
-                  "recentClockOuts": {
-                    "items": {
-                      "additionalProperties": false,
-                      "properties": {
-                        "email": {
-                          "type": "string"
-                        },
-                        "location": {
-                          "anyOf": [
-                            {
+                            "memberID": {
+                              "minLength": 1,
                               "type": "string"
                             },
-                            {
-                              "type": "null"
+                            "name": {
+                              "type": "string"
+                            },
+                            "occurredAt": {
+                              "anyOf": [
+                                {
+                                  "type": "string"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
                             }
-                          ]
+                          },
+                          "required": [
+                            "memberID",
+                            "name",
+                            "email",
+                            "occurredAt"
+                          ],
+                          "type": "object"
                         },
-                        "memberID": {
-                          "minLength": 1,
-                          "type": "string"
-                        },
-                        "name": {
-                          "type": "string"
-                        },
-                        "occurredAt": {
-                          "type": "string"
-                        }
+                        "maxItems": 4,
+                        "type": "array"
                       },
-                      "required": [
-                        "memberID",
-                        "name",
-                        "email",
-                        "occurredAt",
-                        "location"
-                      ],
-                      "type": "object"
+                      "done": {
+                        "items": {
+                          "additionalProperties": false,
+                          "properties": {
+                            "email": {
+                              "type": "string"
+                            },
+                            "memberID": {
+                              "minLength": 1,
+                              "type": "string"
+                            },
+                            "name": {
+                              "type": "string"
+                            },
+                            "occurredAt": {
+                              "anyOf": [
+                                {
+                                  "type": "string"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            }
+                          },
+                          "required": [
+                            "memberID",
+                            "name",
+                            "email",
+                            "occurredAt"
+                          ],
+                          "type": "object"
+                        },
+                        "maxItems": 4,
+                        "type": "array"
+                      },
+                      "notStarted": {
+                        "items": {
+                          "additionalProperties": false,
+                          "properties": {
+                            "email": {
+                              "type": "string"
+                            },
+                            "memberID": {
+                              "minLength": 1,
+                              "type": "string"
+                            },
+                            "name": {
+                              "type": "string"
+                            },
+                            "occurredAt": {
+                              "anyOf": [
+                                {
+                                  "type": "string"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            }
+                          },
+                          "required": [
+                            "memberID",
+                            "name",
+                            "email",
+                            "occurredAt"
+                          ],
+                          "type": "object"
+                        },
+                        "maxItems": 4,
+                        "type": "array"
+                      },
+                      "working": {
+                        "items": {
+                          "additionalProperties": false,
+                          "properties": {
+                            "email": {
+                              "type": "string"
+                            },
+                            "memberID": {
+                              "minLength": 1,
+                              "type": "string"
+                            },
+                            "name": {
+                              "type": "string"
+                            },
+                            "occurredAt": {
+                              "anyOf": [
+                                {
+                                  "type": "string"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            }
+                          },
+                          "required": [
+                            "memberID",
+                            "name",
+                            "email",
+                            "occurredAt"
+                          ],
+                          "type": "object"
+                        },
+                        "maxItems": 4,
+                        "type": "array"
+                      }
                     },
-                    "maxItems": 5,
-                    "type": "array"
+                    "required": [
+                      "working",
+                      "done",
+                      "away",
+                      "notStarted"
+                    ],
+                    "type": "object"
                   },
                   "recordedLocations": {
                     "items": {
@@ -9708,14 +10042,14 @@
                 "required": [
                   "teamKey",
                   "name",
+                  "isCallerTeam",
                   "memberCount",
                   "working",
                   "done",
                   "away",
                   "needsCheckout",
                   "notStarted",
-                  "recentClockIns",
-                  "recentClockOuts",
+                  "preview",
                   "recordedLocations",
                   "unknownLocationCount"
                 ],

@@ -8,7 +8,8 @@
 	import { dataRoomCompanyText } from './company-text';
 	import { contributionTotal, type CompanyActivity } from './activity';
 
-	type RecentActor = CompanyActivity['attendance']['teams'][number]['recentClockIns'][number];
+	type ActivityTeam = CompanyActivity['attendance']['teams'][number];
+	type ShownPerson = { person: string; name: string };
 
 	let { activity, locale }: { activity: CompanyActivity; locale: 'ko' | 'en' } = $props();
 
@@ -17,25 +18,23 @@
 	const allTeams = $derived(activity.attendance.teams.length);
 	const total = $derived(contributionTotal(activity));
 	const teams = $derived(
-		activity.attendance.teams.toSorted((left, right) => right.memberCount - left.memberCount).slice(0, shownTeams)
+		activity.attendance.teams.toSorted((left, right) => right.memberCount - left.memberCount).slice(0, shownTeams).map(withNames)
 	);
+
+	function withNames(team: ActivityTeam) {
+		const named = (people: ActivityTeam['preview']['working']): ShownPerson[] =>
+			people.map((shown) => ({ person: shown.person, name: activity.people[shown.person]?.name ?? '' }));
+		return {
+			...team,
+			preview: { working: named(team.preview.working), done: named(team.preview.done), away: named(team.preview.away), notStarted: named(team.preview.notStarted) }
+		};
+	}
 	const isAttendanceToday = $derived(activity.attendance.date === activity.today);
 	const attendanceDay = $derived(new Intl.DateTimeFormat(locale, { month: 'long', day: 'numeric', weekday: 'short', timeZone: 'UTC' })
 		.format(new Date(`${activity.attendance.date}T00:00:00Z`)));
 	const asOf = $derived(new Intl.DateTimeFormat(locale, { month: 'long', day: 'numeric', weekday: 'short', timeZone: 'UTC' })
 		.format(new Date(`${activity.today}T00:00:00Z`)));
 </script>
-
-{#snippet recentActors(actors: RecentActor[], label: string)}
-	<div class="flex min-w-0 items-center justify-between gap-2 max-sm:flex-col max-sm:items-start max-sm:justify-start max-sm:gap-1.5">
-		<span class="text-muted-foreground text-xs">{label}</span>
-		<span class="flex -space-x-2">
-			{#each actors.slice(0, 4) as actor (actor.person)}
-				<ActivityAvatar person={activity.people[actor.person]} seed={actor.person} class="ring-card size-8 ring-2" />
-			{/each}
-		</span>
-	</div>
-{/snippet}
 
 <Tooltip.Provider>
 	<section class="grid gap-6" aria-labelledby="company-activity">
@@ -64,7 +63,9 @@
 			{#if teams.length > 0}
 				<div class="grid gap-3 min-[761px]:grid-cols-2 lg:grid-cols-4">
 					{#each teams as team (team.teamKey)}
-						<AttendanceTeamCard {team} name={team.name} actorStack={recentActors} />
+						<AttendanceTeamCard {team} name={team.name}>
+							{#snippet face(shown: ShownPerson)}<ActivityAvatar person={activity.people[shown.person]} seed={shown.person} class="size-6" />{/snippet}
+						</AttendanceTeamCard>
 					{/each}
 				</div>
 			{/if}

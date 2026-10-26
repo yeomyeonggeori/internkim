@@ -51,7 +51,7 @@ test('a team opens a server-paged employee list with search and on-demand monthl
 	await signInToAttendance(page);
 	const development = page.getByTestId('attendance-team-card').filter({ hasText: '개발팀' });
 	await expect(development).toBeVisible();
-	await development.getByRole('button', { name: '구성원 보기' }).click();
+	await development.getByRole('button', { name: /모두 보기/ }).click();
 	const employeePage = page.getByTestId('team-employee-page');
 	await expect(employeePage).toBeVisible();
 	await expect(employeePage.getByText('이샘플')).toBeVisible();
@@ -106,7 +106,7 @@ test('a day opened from a person month covers that month and steps back to it', 
 test('going back from a team employee list returns to the team cards on the same page', async ({ page }) => {
 	await signInToAttendance(page);
 	const attendanceURL = page.url();
-	await page.getByTestId('attendance-team-card').filter({ hasText: '개발팀' }).getByRole('button', { name: '구성원 보기' }).click();
+	await page.getByTestId('attendance-team-card').filter({ hasText: '개발팀' }).getByRole('button', { name: /모두 보기/ }).click();
 	await expect(page.getByTestId('team-employee-page')).toBeVisible();
 
 	await page.goBack();
@@ -114,7 +114,7 @@ test('going back from a team employee list returns to the team cards on the same
 	await expect(page.getByTestId('attendance-team-card')).toHaveCount(3);
 	expect(page.url()).toBe(attendanceURL);
 
-	await page.getByTestId('attendance-team-card').filter({ hasText: '개발팀' }).getByRole('button', { name: '구성원 보기' }).click();
+	await page.getByTestId('attendance-team-card').filter({ hasText: '개발팀' }).getByRole('button', { name: /모두 보기/ }).click();
 	await expect(page.getByTestId('team-employee-page')).toBeVisible();
 	await page.getByRole('button', { name: '팀 목록' }).click();
 	await expect(page.getByTestId('attendance-team-card')).toHaveCount(3);

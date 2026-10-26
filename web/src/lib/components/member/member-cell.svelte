@@ -31,7 +31,7 @@
 
 {#snippet identity()}
 	<MemberAvatar {member} role={member.roles[0]} class="size-9" />
-	<span class="grid min-w-0 gap-0.5 text-left">
+	<span class="grid min-w-0 flex-1 gap-0.5 text-left">
 		<span class="flex min-w-0 flex-wrap items-baseline gap-x-1.5 leading-snug">
 			<span class="max-w-full truncate text-sm font-medium">{displayPersonName(member.name || member.email)}</span>
 			{#if member.jobTitle}<span class="text-muted-foreground max-w-full truncate text-sm">{member.jobTitle}</span>{/if}
