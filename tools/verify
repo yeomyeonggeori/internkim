@@ -13,6 +13,12 @@ fails, because the ones after it have their own verdict to give.
 A group that fills the machine (a Go test run, the web suite, end-to-end
 browsers) holds one of a few slots every verify run on this machine shares, so
 five worktrees verifying at once queue instead of starving each other's tests.
+
+A group that passed is not run again while everything it is selected by reads
+the same: the same files under its patterns, the same submodule commits, the
+same tools and the same commands. The record of a pass is kept for the whole
+machine, so a fresh clone or a rebase that left a group's files alone reuses
+it. A failure is never kept, and --all or --only runs what they name afresh.
 """
 
 import argparse
@@ -20,6 +26,8 @@ import concurrent.futures
 import contextlib
 import fcntl
 import fnmatch
+import functools
+import hashlib
 import os
 import shlex
 import subprocess
@@ -97,6 +105,8 @@ VERIFICATION_ARTIFACTS = REPOSITORY_ROOT / ".artifacts" / "verification"
 verification_run_directory = None
 MACHINE_SLOT_DIRECTORY = Path("/tmp")
 MACHINE_SLOTS = max(1, (os.cpu_count() or 1) // 6)
+PASSED_GROUP_DIRECTORY = Path.home() / ".cache" / "internkim-verify" / "passed"
+reusing_passes = False
 
 
 def holding_the_local_plane(*commands):
@@ -257,15 +267,20 @@ GROUPS = [
     Group(
         "web",
         [
-            "internal/tasksize/*",
             "web/*",
-            ".dependency/blueclaw/protocol/*",
+            "host/relay/*",
+            "supabase/*",
+            "workers/*",
+            ".dependency/blueclaw",
+            ".dependency/internkim-plugin",
             "pkg/capabilityprotocol/generated/*",
             "pkg/capabilityprotocol/refusal-sentences.json",
             "docs/web/app/lib/openapi.ts",
-            "supabase/functions/_shared/*",
-            "supabase/tests/*",
-            "host/relay/arrived.ts",
+            "internal/tasksize/*",
+            "internal/admind/persona-schema/*",
+            "internal/companyzone/*",
+            "internal/*/testdata/*",
+            "tools/environment.json",
         ],
         [
             BUN_INSTALL,
@@ -273,6 +288,7 @@ GROUPS = [
             # path, so its dependencies have to be installed for anything here to
             # resolve zod.
             ["bun", "install", "--frozen-lockfile", "--cwd", "../.dependency/blueclaw/protocol"],
+            ["bun", "install", "--frozen-lockfile", "--cwd", "../host/relay"],
             ["bun", "run", "check"],
             ["bun", "run", "test"],
             holding_the_local_plane(["bun", "run", "test:api"]),
@@ -331,7 +347,6 @@ GROUPS = [
             "web/playwright.config.ts",
             "web/vite.config.ts",
             "web/svelte.config.js",
-            "web/package.json",
             "web/bun.lock",
             "web/scripts/e2e.sh",
             "supabase/migrations/*",
@@ -543,8 +558,75 @@ def machine_slot_for(group):
 
 
 def run_group(group):
+    input_key = group_input_key(group) if reusing_passes else None
+    if input_key and (PASSED_GROUP_DIRECTORY / input_key).exists():
+        print(f"same {group.name}: it passed on these inputs before", flush=True)
+        return group.name, True, None, ""
     with machine_slot_for(group):
-        return run_group_commands(group)
+        result = run_group_commands(group)
+    if input_key and result[1]:
+        PASSED_GROUP_DIRECTORY.mkdir(parents=True, exist_ok=True)
+        (PASSED_GROUP_DIRECTORY / input_key).write_text(f"{group.name}\n{REPOSITORY_ROOT}\n{time.strftime('%Y-%m-%d %H:%M:%S')}\n")
+    return result
+
+
+def group_input_key(group):
+    digest = hashlib.sha256()
+    digest.update(Path(__file__).read_bytes())
+    digest.update(repr((group.name, group.working_directory, group.commands, tool_versions())).encode())
+    for path, mode in repository_entries():
+        if not group.matches(path):
+            continue
+        content = entry_content(path, mode)
+        if content is None:
+            return None
+        digest.update(path.encode() + b"\0" + content + b"\0")
+    return digest.hexdigest()
+
+
+def entry_content(path, mode):
+    full_path = REPOSITORY_ROOT / path
+    if mode == "160000":
+        return submodule_content(full_path)
+    if full_path.is_symlink():
+        return b"link " + os.readlink(full_path).encode()
+    if not full_path.is_file():
+        return b"absent"
+    return hashlib.sha256(full_path.read_bytes()).digest()
+
+
+def submodule_content(full_path):
+    def git(*arguments):
+        return subprocess.run(["git", *arguments], cwd=full_path, capture_output=True, text=True)
+
+    top_level = git("rev-parse", "--show-toplevel")
+    if top_level.returncode != 0 or Path(top_level.stdout.strip()).resolve() != full_path.resolve():
+        return None
+    status = git("status", "--porcelain", "--ignore-submodules=none")
+    commit = git("rev-parse", "HEAD")
+    if status.returncode != 0 or commit.returncode != 0 or status.stdout.strip():
+        return None
+    return b"commit " + commit.stdout.strip().encode()
+
+
+@functools.cache
+def repository_entries():
+    tracked = subprocess.run(["git", "ls-files", "--stage", "-z"], cwd=REPOSITORY_ROOT, capture_output=True, text=True, check=True)
+    entries = {}
+    for record in tracked.stdout.split("\0"):
+        if not record:
+            continue
+        metadata, path = record.split("\t", 1)
+        entries[path] = metadata.split(" ", 1)[0]
+    for path in git_paths(["ls-files", "--others", "--exclude-standard", "-z"], "cannot list untracked files"):
+        entries[path] = "untracked"
+    return sorted(entries.items())
+
+
+@functools.cache
+def tool_versions():
+    commands = [["go", "version"], ["bun", "--version"], [sys.executable, "--version"]]
+    return tuple(subprocess.run(command, capture_output=True, text=True).stdout.strip() for command in commands)
 
 
 def run_group_commands(group):
@@ -607,7 +689,7 @@ def print_plan(groups):
 
 
 def main():
-    global verification_run_directory
+    global verification_run_directory, reusing_passes
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--base", default="origin/main", help="what to compare against")
     parser.add_argument("--all", action="store_true", help="run every group, not only the touched ones")
@@ -615,6 +697,7 @@ def main():
     parser.add_argument("--plan", action="store_true", help="show selected groups and commands without running them")
     arguments = parser.parse_args()
     groups = groups_to_run(arguments)
+    reusing_passes = not (arguments.all or arguments.only)
 
     if arguments.plan:
         print_plan(groups)
@@ -632,7 +715,8 @@ def main():
         futures = [pool.submit(run_lane, lane) for lane in lanes]
         for future in concurrent.futures.as_completed(futures):
             for name, passed, seconds, output in future.result():
-                print(f"{'ok  ' if passed else 'FAIL'} {name} ({seconds:.0f}s)", flush=True)
+                took = "unchanged since it passed" if seconds is None else f"{seconds:.0f}s"
+                print(f"{'ok  ' if passed else 'FAIL'} {name} ({took})", flush=True)
                 if not passed:
                     failed.append((name, output))
 
