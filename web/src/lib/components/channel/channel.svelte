@@ -951,7 +951,7 @@
 		<div
 			bind:this={threadScroller}
 			onscroll={handleThreadScroll}
-			class="@container/conversation flex min-h-0 flex-1 flex-col-reverse gap-4 overflow-y-auto px-4 py-8"
+			class="@container/conversation flex min-h-0 flex-1 flex-col-reverse justify-end-safe gap-4 overflow-y-auto px-4 py-8"
 		>
 			{#if openThreadRoot}
 				{#each reversedThreadReplyGroups as group (group.id)}
@@ -1022,7 +1022,7 @@
 					bind:this={scrollContainer}
 					onscroll={handleViewportScroll}
 					use:chooseMessageOnClick={{ enabled: capture.isCapturing, onChoose: capture.choose }}
-					class="@container/conversation isolate flex min-h-0 flex-1 flex-col-reverse gap-4 overflow-x-hidden overflow-y-auto overscroll-y-none px-4 pt-12 pb-[calc(var(--dock-height)+2.5rem)] [scrollbar-gutter:stable]"
+					class="@container/conversation isolate flex min-h-0 flex-1 flex-col-reverse justify-end-safe gap-4 overflow-x-hidden overflow-y-auto overscroll-y-none px-4 pt-12 pb-[calc(var(--dock-height)+2.5rem)] [scrollbar-gutter:stable]"
 				>
 					{#each reversedTimeline as item (item.id)}
 						{#if item.kind === 'date'}
