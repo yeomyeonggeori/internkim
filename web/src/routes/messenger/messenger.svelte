@@ -12,7 +12,6 @@
 	import MessengerBrowseChannelsDialog from './messenger-browse-channels-dialog.svelte';
 	import MessengerChannelDetails from './messenger-channel-details.svelte';
 	import MessengerChannelHeaderActions from './messenger-channel-header-actions.svelte';
-	import MessengerChannelMembersDialog from './messenger-channel-members-dialog.svelte';
 	import MessengerChannelOwnerDialog from './messenger-channel-owner-dialog.svelte';
 	import MessengerConversationExportDialog from './messenger-conversation-export-dialog.svelte';
 	import MessengerConversationSearch from './messenger-conversation-search.svelte';
@@ -163,7 +162,7 @@
 		leavingChannel = channel;
 		isLeaveOpen = true;
 	}
-	let isChannelMembersOpen = $state(false);
+	let areChannelMembersExpanded = $state(false);
 	let isChannelOwnerOpen = $state(false);
 	let channelOwnerAction = $state<'add' | 'hand-over'>('add');
 	const canManageChannels = isSupabaseConfigured();
@@ -222,11 +221,13 @@
 	}
 
 	function openChannelMembers() {
-		isChannelMembersOpen = true;
+		areChannelMembersExpanded = true;
+		isChannelDetailsOpen = true;
 		refreshConversations('the channel list did not refresh for the member list');
 	}
 
 	function openChannelDetails() {
+		areChannelMembersExpanded = false;
 		isChannelDetailsOpen = true;
 		refreshConversations('the channel list did not refresh for the channel details');
 	}
@@ -749,8 +750,9 @@
 {#if activeConversation?.kind === 'group'}
 	<MessengerChannelDetails
 		bind:open={isChannelDetailsOpen}
+		bind:membersExpanded={areChannelMembersExpanded}
 		channel={activeConversation}
-		openMembers={() => ((isChannelDetailsOpen = false), openChannelMembers())}
+		onMembersChanged={() => refreshConversations('the channel list did not refresh after changing members')}
 		openOwnerAdd={() => ((isChannelDetailsOpen = false), (channelOwnerAction = 'add'), (isChannelOwnerOpen = true))}
 		openOwnerHandover={() => (
 			(isChannelDetailsOpen = false), (channelOwnerAction = 'hand-over'), (isChannelOwnerOpen = true)
@@ -758,13 +760,6 @@
 		openExport={() => ((isChannelDetailsOpen = false), exportConversation(activeConversation))}
 		openLeave={() => ((isChannelDetailsOpen = false), leaveChannel(activeConversation))}
 		onDeleted={leftChannel}
-	/>
-	<MessengerChannelMembersDialog
-		bind:open={isChannelMembersOpen}
-		channelID={activeConversation.id}
-		members={activeConversation.members ?? []}
-		viewerRole={activeConversation.myRole}
-		onMembersChanged={() => refreshConversations('the channel list did not refresh after adding members')}
 	/>
 	<MessengerChannelOwnerDialog
 		bind:open={isChannelOwnerOpen}
