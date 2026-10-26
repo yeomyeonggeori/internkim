@@ -3,6 +3,7 @@ import importlib.machinery
 import importlib.util
 import io
 import json
+import os
 import re
 import subprocess
 import sys
@@ -38,6 +39,38 @@ def a_repository_with_a_branch(directory):
     git("commit", "-qm", "base")
     git("checkout", "-q", "-b", "branch")
     return git
+
+
+RELATIVE_REFERENCE = re.compile(r"['\"`]((?:\.\./)+[^'\"`$]*)['\"`]")
+WEB_SUITE_SOURCES = ["web/src", "web/tests/unit", "web/tests/api", "web/tests/conventions", "web/tests/support"]
+
+
+def web_suite_references_outside_web(repository_root):
+    submodules = submodule_paths(repository_root)
+    references = set()
+    for source_directory in WEB_SUITE_SOURCES:
+        for source in (repository_root / source_directory).rglob("*"):
+            if source.suffix not in {".ts", ".svelte", ".js"} or "node_modules" in source.parts:
+                continue
+            for literal in RELATIVE_REFERENCE.findall(source.read_text(errors="ignore")):
+                path = Path(os.path.normpath(source.parent / literal)).relative_to(repository_root, walk_up=True).as_posix()
+                if path.startswith(("web/", "..")) or path in {".", "web"}:
+                    continue
+                references.add(next((submodule for submodule in submodules if path.startswith(submodule + "/")), as_a_repository_path(repository_root, path)))
+    return references
+
+
+def as_a_repository_path(repository_root, path):
+    if (repository_root / path).is_dir():
+        return f"{path}/"
+    if (repository_root / path).exists():
+        return path
+    return next((f"{path}{suffix}" for suffix in [".ts", ".js", ".svelte"] if (repository_root / f"{path}{suffix}").exists()), path)
+
+
+def submodule_paths(repository_root):
+    listing = subprocess.run(["git", "config", "-f", ".gitmodules", "--get-regexp", "path"], cwd=repository_root, capture_output=True, text=True)
+    return [line.split(" ", 1)[1] for line in listing.stdout.splitlines()]
 
 
 class VerificationPlanTests(unittest.TestCase):
@@ -124,10 +157,24 @@ class VerificationPlanTests(unittest.TestCase):
         selected = {group.name for group in groups if group.is_touched_by(["internal/tasksize/definitions.json"])}
         self.assertTrue({"go", "web", "generated-protocol"}.issubset(selected))
 
-    def test_relay_message_tag_changes_verify_the_shell_that_matches_it(self):
+    def test_a_relay_change_runs_the_web_tests_that_import_the_relay(self):
         groups = verification_module().GROUPS
-        selected = {group.name for group in groups if group.is_touched_by(["host/relay/arrived.ts"])}
-        self.assertIn("web", selected)
+        for changed_path in ["host/relay/arrived.ts", "host/relay/acp-session.ts", "host/relay/bun.lock"]:
+            selected = {group.name for group in groups if group.is_touched_by([changed_path])}
+            self.assertIn("web", selected, changed_path)
+
+    def test_every_file_the_web_suite_reaches_outside_web_selects_the_web_group(self):
+        module = verification_module()
+        web = next(group for group in module.GROUPS if group.name == "web")
+        missed = sorted(path for path in web_suite_references_outside_web(module.REPOSITORY_ROOT) if not web.matches(path) and not web.matches(f"{path}any-file"))
+        self.assertEqual(missed, [])
+
+    def test_a_script_line_in_the_package_reaches_no_browser(self):
+        groups = verification_module().GROUPS
+        selected = {group.name for group in groups if group.is_touched_by(["web/package.json"])}
+        self.assertNotIn("e2e", selected)
+        selected = {group.name for group in groups if group.is_touched_by(["web/bun.lock"])}
+        self.assertIn("e2e", selected)
 
     def test_internkim_plugin_changes_select_the_plugin_group(self):
         groups = verification_module().GROUPS
@@ -242,6 +289,42 @@ class VerificationPlanTests(unittest.TestCase):
                 waiting.join(timeout=10)
             self.assertFalse(waiting.is_alive())
             self.assertTrue(result[0][1])
+
+    def test_a_group_that_passed_runs_again_only_when_what_selects_it_changes(self):
+        module = verification_module()
+        with tempfile.TemporaryDirectory() as directory, patch.object(module, "REPOSITORY_ROOT", Path(directory)), patch.object(module, "PASSED_GROUP_DIRECTORY", Path(directory) / "passed"), patch.object(module, "reusing_passes", True):
+            root = Path(directory)
+            a_repository_with_a_branch(root)
+            module.verification_run_directory = root / "logs"
+            counter = root / "runs"
+            group = module.Group("docs", ["docs/*"], [[sys.executable, "-c", f"import pathlib; path = pathlib.Path({str(counter)!r}); path.write_text(path.read_text() + 'x' if path.exists() else 'x')"]])
+
+            def run():
+                module.repository_entries.cache_clear()
+                with redirect_stdout(io.StringIO()):
+                    return module.run_group(group)
+
+            self.assertTrue(run()[1])
+            self.assertIsNone(run()[2])
+            (root / "elsewhere.txt").write_text("outside the patterns")
+            self.assertIsNone(run()[2])
+            (root / "docs" / "kept.mdx").write_text("changed")
+            self.assertIsNotNone(run()[2])
+            self.assertEqual(counter.read_text(), "xx")
+
+    def test_a_failure_is_never_remembered(self):
+        module = verification_module()
+        with tempfile.TemporaryDirectory() as directory, patch.object(module, "REPOSITORY_ROOT", Path(directory)), patch.object(module, "PASSED_GROUP_DIRECTORY", Path(directory) / "passed"), patch.object(module, "reusing_passes", True):
+            root = Path(directory)
+            a_repository_with_a_branch(root)
+            module.verification_run_directory = root / "logs"
+            group = module.Group("docs", ["docs/*"], [[sys.executable, "-c", "raise SystemExit(1)"]])
+            for _ in range(2):
+                module.repository_entries.cache_clear()
+                with redirect_stdout(io.StringIO()):
+                    result = module.run_group(group)
+                self.assertFalse(result[1])
+                self.assertIsNotNone(result[2])
 
 
 if __name__ == "__main__":

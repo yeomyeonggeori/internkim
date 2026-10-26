@@ -67,6 +67,13 @@ machine: one for each six cores. When several checkouts verify at once, those
 groups queue for a slot and print `wait`, so one run's load never becomes
 another's timeout.
 
+A group that passed is not run again while the files its patterns select, the
+submodule commits, the tools and the commands are all the same. The record is
+kept for the whole machine, so a fresh clone, or a rebase that left a group's
+files alone, prints `same` for that group and moves on. A failure is never
+kept, and `--all` or `--only` runs what they name afresh. This makes a group's
+patterns a promise: they name every file the group reads.
+
 ## Running them yourself
 
 ```bash
