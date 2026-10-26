@@ -347,6 +347,10 @@ html.internkim-embedded [data-app-shell-scroll] {
   .messenger-channel-list [data-sidebar='group-label'] {
     padding-right: 56px;
   }
+  .messenger-channel-list [data-sidebar='menu-badge'] {
+    top: 50%;
+    translate: 0 -50%;
+  }
   .messenger-channel-list [data-sidebar='group-action'] {
     top: 8px;
     right: 8px;
