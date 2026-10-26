@@ -1,3 +1,4 @@
+import fcntl
 import importlib.machinery
 import importlib.util
 import io
@@ -5,6 +6,7 @@ import json
 import re
 import sys
 import tempfile
+import threading
 import time
 from pathlib import Path
 from contextlib import redirect_stdout
@@ -175,6 +177,27 @@ class VerificationPlanTests(unittest.TestCase):
             module.run_group(groups[1])
             self.assertTrue((Path(directory) / "one" / "second" / "1.log").exists())
             self.assertTrue((Path(directory) / "two" / "second" / "1.log").exists())
+
+
+    def test_a_group_that_fills_the_machine_waits_while_another_run_holds_every_slot(self):
+        module = verification_module()
+        with tempfile.TemporaryDirectory() as directory, patch.object(module, "MACHINE_SLOT_DIRECTORY", Path(directory)), patch.object(module, "MACHINE_SLOTS", 1):
+            module.verification_run_directory = Path(directory) / "logs"
+            slot_held_elsewhere = (Path(directory) / "internkim-verify-slot-0.lock").open("a")
+            fcntl.flock(slot_held_elsewhere, fcntl.LOCK_EX)
+            heavy = module.Group("heavy", [], [[sys.executable, "-c", "pass"]], fills_the_machine=True)
+            light = module.Group("light", [], [[sys.executable, "-c", "pass"]])
+            result = []
+            waiting = threading.Thread(target=lambda: result.append(module.run_group(heavy)))
+            with redirect_stdout(io.StringIO()):
+                waiting.start()
+                self.assertTrue(module.run_group(light)[1])
+                waiting.join(timeout=1)
+                self.assertTrue(waiting.is_alive())
+                slot_held_elsewhere.close()
+                waiting.join(timeout=10)
+            self.assertFalse(waiting.is_alive())
+            self.assertTrue(result[0][1])
 
 
 if __name__ == "__main__":

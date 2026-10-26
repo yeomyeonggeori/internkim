@@ -9,11 +9,18 @@ name the same lane share
 something a second process would corrupt, so they run one after another, in the
 order they are declared here; a lane runs every group in it even after one
 fails, because the ones after it have their own verdict to give.
+
+A group that fills the machine (a Go test run, the web suite, end-to-end
+browsers) holds one of a few slots every verify run on this machine shares, so
+five worktrees verifying at once queue instead of starving each other's tests.
 """
 
 import argparse
 import concurrent.futures
+import contextlib
+import fcntl
 import fnmatch
+import os
 import shlex
 import subprocess
 import sys
@@ -25,12 +32,13 @@ REPOSITORY_ROOT = Path(__file__).resolve().parent.parent
 
 
 class Group:
-    def __init__(self, name, patterns, commands, working_directory=".", lane=None):
+    def __init__(self, name, patterns, commands, working_directory=".", lane=None, fills_the_machine=False):
         self.name = name
         self.patterns = patterns
         self.commands = commands
         self.working_directory = working_directory
         self.lane = lane or name
+        self.fills_the_machine = fills_the_machine
 
     def is_touched_by(self, changed_paths):
         return any(self.matches(path) for path in changed_paths)
@@ -62,7 +70,7 @@ def end_to_end_area_of(path, areas):
 
 class EndToEndGroup(Group):
     def __init__(self, name, patterns, lane):
-        super().__init__(name, patterns, [["scripts/e2e.sh"]], working_directory="web", lane=lane)
+        super().__init__(name, patterns, [["scripts/e2e.sh"]], working_directory="web", lane=lane, fills_the_machine=True)
 
     def narrowed_to(self, changed_paths):
         touched = [path for path in changed_paths if self.matches(path)]
@@ -75,7 +83,7 @@ class EndToEndGroup(Group):
         if areas:
             planes = [f"--project={plane}" for plane in PLANES_WITHOUT_THE_DATABASE] if database_paths else []
             commands.append(["scripts/e2e.sh", *planes, *(f"tests/e2e/{area}" for area in sorted(areas))])
-        return Group(self.name, self.patterns, commands, self.working_directory, self.lane)
+        return Group(self.name, self.patterns, commands, self.working_directory, self.lane, fills_the_machine=True)
 
 
 def reaches_only_the_database(path):
@@ -87,6 +95,8 @@ BUN_INSTALL = ["bun", "install", "--frozen-lockfile"]
 WITH_LOCAL_PLANE = str(REPOSITORY_ROOT / "tools" / "with-local-plane")
 VERIFICATION_ARTIFACTS = REPOSITORY_ROOT / ".artifacts" / "verification"
 verification_run_directory = None
+MACHINE_SLOT_DIRECTORY = Path("/tmp")
+MACHINE_SLOTS = max(1, (os.cpu_count() or 1) // 6)
 
 
 def holding_the_local_plane(*commands):
@@ -122,6 +132,7 @@ GROUPS = [
             ["tools/verify-agent-plugin"],
             [".dependency/internkim-plugin/tests/run"],
         ],
+        fills_the_machine=True,
     ),
     Group(
         "skill-tool-references",
@@ -165,6 +176,7 @@ GROUPS = [
             ["bun", "run", "test"],
         ],
         working_directory=".dependency/blueclaw",
+        fills_the_machine=True,
     ),
     Group(
         "bluecollar",
@@ -176,6 +188,7 @@ GROUPS = [
             ["go", "-C", "cmd/bluecollar-acp", "test", "-race", "./..."],
         ],
         working_directory=".dependency/blueclaw/.dependency/bluecollar",
+        fills_the_machine=True,
     ),
     Group(
         "blueclaw-scenarios",
@@ -197,6 +210,7 @@ GROUPS = [
                 "./cmd/blueclaw-lab/",
             ],
         ],
+        fills_the_machine=True,
     ),
     Group(
         "generated-protocol",
@@ -225,6 +239,7 @@ GROUPS = [
             ".dependency/*",
         ],
         [["go", "build", "./..."], ["go", "vet", "./..."], ["go", "test", "./..."]],
+        fills_the_machine=True,
     ),
     Group(
         "schema",
@@ -268,6 +283,7 @@ GROUPS = [
         ],
         working_directory="web",
         lane="web",
+        fills_the_machine=True,
     ),
     Group(
         "android",
@@ -502,7 +518,40 @@ def changed_paths_against(base):
     return sorted(paths)
 
 
+def claim_free_machine_slot():
+    for index in range(MACHINE_SLOTS):
+        handle = (MACHINE_SLOT_DIRECTORY / f"internkim-verify-slot-{index}.lock").open("a")
+        try:
+            fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            return handle
+        except BlockingIOError:
+            handle.close()
+    return None
+
+
+@contextlib.contextmanager
+def machine_slot_for(group):
+    if not group.fills_the_machine:
+        yield
+        return
+    slot = claim_free_machine_slot()
+    if slot is None:
+        print(f"wait {group.name} for one of {MACHINE_SLOTS} machine slots", flush=True)
+    while slot is None:
+        time.sleep(2)
+        slot = claim_free_machine_slot()
+    try:
+        yield
+    finally:
+        slot.close()
+
+
 def run_group(group):
+    with machine_slot_for(group):
+        return run_group_commands(group)
+
+
+def run_group_commands(group):
     started = time.monotonic()
     group_log_directory = verification_run_directory / group.name
     group_log_directory.mkdir(parents=True, exist_ok=True)

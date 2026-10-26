@@ -61,6 +61,12 @@ repository-wide rule, are guards. They live in
 `tools/verify --plan` prints what a change would run without running it, and
 `tools/verify --all` runs everything.
 
+A group that keeps every core busy, such as a Go test run, the web suite or the
+UI tests, holds one of a few slots shared by every `tools/verify` on the
+machine: one for each six cores. When several checkouts verify at once, those
+groups queue for a slot and print `wait`, so one run's load never becomes
+another's timeout.
+
 ## Running them yourself
 
 ```bash
