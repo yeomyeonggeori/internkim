@@ -62,19 +62,18 @@ test.describe('messenger inline video', () => {
 		await page.goto(`/messenger?channel=${channelID}`);
 	});
 
-	test('a video message shows its controls and seeks where the bar is moved', async ({ page }) => {
+	test('a video message plays in place with the browser controls', async ({ page }) => {
 		const player = page.locator('[data-video-player="message"]');
-		await expect(player.getByRole('button', { name: '재생', exact: true })).toBeVisible();
-		await expect(player.getByText('00:04')).toBeVisible();
+		const video = player.locator('video');
+		await expect(video).toHaveAttribute('controls');
+		await expect.poll(() => video.evaluate((element: HTMLVideoElement) => element.duration)).toBeGreaterThan(3);
 
-		const position = player.getByLabel('재생 위치').getByRole('slider');
-		await position.focus();
-		await page.keyboard.press('End');
-		await expect(position).toHaveAttribute('aria-valuenow', /^[34]/);
-		await expect.poll(() => playbackSecondsOf(player)).toBeGreaterThan(3);
+		await video.click();
+		await expect.poll(() => playbackSecondsOf(player)).toBeGreaterThan(0);
+		await expect(page.getByRole('dialog')).toHaveCount(0);
 	});
 
-	test('a video opens in the viewer with the same controls and a download button', async ({ page }) => {
+	test('a video opens in the viewer with the browser controls and a download button', async ({ page }) => {
 		await page.getByRole('button', { name: '영상 크게 보기' }).click();
 		const viewer = page.getByRole('dialog');
 		await expect(viewer.getByText(videoName)).toBeVisible();
@@ -82,11 +81,47 @@ test.describe('messenger inline video', () => {
 		await expect(viewer.getByRole('button', { name: '확대' })).toHaveCount(0);
 
 		const player = viewer.locator('[data-video-player="viewer"]');
-		await expect(player.getByLabel('소리 크기').getByRole('slider')).toBeVisible();
-		await player.getByRole('button', { name: '재생 속도' }).click();
-		await page.getByRole('menuitemradio', { name: '1.5x' }).click();
-		await expect(player.getByRole('button', { name: '재생 속도' })).toHaveText('1.5x');
-		await player.getByRole('button', { name: '재생', exact: true }).first().click();
+		await expect(player.locator('video')).toHaveAttribute('controls');
+		await expect(player.getByRole('button', { name: '영상 크게 보기' })).toHaveCount(0);
+		await player.locator('video').click();
 		await expect.poll(() => playbackSecondsOf(player)).toBeGreaterThan(0);
 	});
+});
+
+test('arrow keys on a focused video in the viewer stay with the video', async ({ page }) => {
+	const pictureName = '회의 사진.gif';
+	const pictureAndVideo = {
+		...videoMessage,
+		attachments: [
+			{
+				kind: 'image',
+				url: 'meeting-picture',
+				source: 'data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==',
+				filename: pictureName,
+				mimeType: 'image/gif',
+				widthPixels: 1,
+				heightPixels: 1
+			},
+			...videoMessage.attachments
+		]
+	};
+	await mockStore(page);
+	await mockDeviceMessenger(
+		page,
+		reader,
+		[{ id: channelID, name: '영상 채널', kind: 'group', myRole: 'member' }],
+		[pictureAndVideo]
+	);
+	await page.setViewportSize({ width: 1280, height: 800 });
+	await page.goto(`/messenger?channel=${channelID}`);
+
+	await page.getByRole('button', { name: pictureName }).click();
+	const viewer = page.getByRole('dialog');
+	await page.keyboard.press('ArrowRight');
+	await expect(viewer.getByText(videoName)).toBeVisible();
+
+	await viewer.locator('[data-video-player="viewer"] video').focus();
+	await page.keyboard.press('ArrowRight');
+	await expect(viewer.getByText(videoName)).toBeVisible();
+	await expect(viewer.locator('[data-video-player="viewer"] video')).toBeVisible();
 });

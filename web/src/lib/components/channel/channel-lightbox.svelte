@@ -54,6 +54,7 @@
 	function handleKeydown(event: KeyboardEvent) {
 		if (!view || event.defaultPrevented) return;
 		if (event.key === 'Escape') view = null;
+		else if (event.target instanceof HTMLMediaElement) return;
 		else if (event.key === 'ArrowRight') step(1);
 		else if (event.key === 'ArrowLeft') step(-1);
 	}
