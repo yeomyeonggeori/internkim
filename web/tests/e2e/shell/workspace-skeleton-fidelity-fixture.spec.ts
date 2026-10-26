@@ -68,7 +68,7 @@ for (const width of [1280, 390, 320]) {
 			await expect(loading).toBeVisible();
 			if (scene === 'organization') await expect(loading.getByRole('button', { name: '구성원 초대' })).toBeVisible();
 			await settle(page);
-			const pendingContent = scene === 'crm' ? loading.locator('table') : loading.locator('[data-slot="item"]').first();
+			const pendingContent = scene === 'crm' ? loading.locator('table') : loading.locator('[data-member-skeleton]').first();
 			const pending = await box(pendingContent);
 			const pendingHeaders = scene === 'crm' ? await headings(loading) : [];
 			await capture(page, `${scene}-${width}-loading`, pendingContent);

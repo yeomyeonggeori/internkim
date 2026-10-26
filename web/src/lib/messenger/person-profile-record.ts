@@ -9,6 +9,7 @@ export type PersonProfileRecord = {
 	record: UserRecord;
 	groups: OrgGroup[];
 	userRecords: UserRecord[];
+	representativeID?: string;
 };
 
 let loading: { key: string; generation: number; value: Promise<UsersResponse> } | null = null;
@@ -42,5 +43,5 @@ export async function personProfileRecordOf(person: MentionPerson): Promise<Pers
 	const userRecords = directory.records ?? [];
 	const record = userRecords.find((candidate) => candidate.memberID === memberID);
 	if (!record) return undefined;
-	return { record, groups: directory.availableGroups ?? [], userRecords };
+	return { record, groups: directory.availableGroups ?? [], userRecords, representativeID: directory.representativeID };
 }
