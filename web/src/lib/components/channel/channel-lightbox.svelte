@@ -23,6 +23,7 @@
 	import { createPageText } from '$lib/i18n/page-text.svelte';
 	import { startDownload } from './attachment-download';
 	import ChannelVideoPlayer from './channel-video-player.svelte';
+	import LightboxPictureMenu from './lightbox-picture-menu.svelte';
 
 	let { view = $bindable() }: { view: LightboxView | null } = $props();
 
@@ -112,17 +113,19 @@
 					/>
 				</div>
 			{:else}
-				<div class="pointer-events-none z-10 transition-transform" style:transform={`scale(${zoomPercent / 100})`}>
-					<LoadingImage
-						src={currentItem.source}
-						width={currentItem.width}
-						height={currentItem.height}
-						alt=""
-						loading="eager"
-						maxHeight="calc(100dvh - 3rem)"
-						class="max-w-[calc(100vw-3rem)] rounded-md"
-					/>
-				</div>
+				<LightboxPictureMenu source={currentItem.source} filename={currentItem.filename}>
+					<div class="z-10 transition-transform" style:transform={`scale(${zoomPercent / 100})`}>
+						<LoadingImage
+							src={currentItem.source}
+							width={currentItem.width}
+							height={currentItem.height}
+							alt=""
+							loading="eager"
+							maxHeight="calc(100dvh - 3rem)"
+							class="max-w-[calc(100vw-3rem)] rounded-md"
+						/>
+					</div>
+				</LightboxPictureMenu>
 			{/if}
 		{/key}
 		<div class="absolute inset-x-0 top-0 z-20 flex items-center gap-3 p-3 text-white">

@@ -1,4 +1,4 @@
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Locator, type Page } from '@playwright/test';
 import { mockDeviceMessenger } from './messenger-device-mock';
 
 const channelID = 'channel-attachment-download';
@@ -56,6 +56,11 @@ async function mockStore(page: Page): Promise<void> {
 	});
 }
 
+async function settledBox(element: Locator) {
+	await element.evaluate((node) => Promise.all(node.getAnimations().map((animation) => animation.finished)));
+	return element.boundingBox();
+}
+
 test.describe('messenger attachment download', () => {
 	test.beforeEach(async ({ page }) => {
 		await mockStore(page);
@@ -81,6 +86,41 @@ test.describe('messenger attachment download', () => {
 		await expect(viewer.getByText('100%')).toBeVisible();
 		await viewer.getByRole('button', { name: '확대' }).click();
 		await expect(viewer.getByText('110%')).toBeVisible();
+	});
+
+	test('the viewer closes on Escape', async ({ page }) => {
+		await page.getByRole('button', { name: pictureName }).click();
+		await expect(page.getByRole('dialog')).toBeVisible();
+		await page.keyboard.press('Escape');
+		await expect(page.getByRole('dialog')).toHaveCount(0);
+	});
+
+	test('the viewer picture menu downloads the picture under its own name', async ({ page }) => {
+		await page.getByRole('button', { name: pictureName }).click();
+		const viewer = page.getByRole('dialog');
+		await viewer.locator('img').click({ button: 'right' });
+		const downloadItem = page.getByRole('menuitem', { name: '사진 다운로드' });
+		await expect(page.getByRole('menuitem', { name: '사진 복사' })).toBeVisible();
+		const downloading = page.waitForEvent('download');
+		await downloadItem.click();
+		expect((await downloading).suggestedFilename()).toBe(pictureName);
+	});
+
+	test('the viewer picture menu keeps its size when the picture is zoomed', async ({ page }) => {
+		await page.getByRole('button', { name: pictureName }).click();
+		const viewer = page.getByRole('dialog');
+		const picture = viewer.locator('img');
+		await picture.click({ button: 'right' });
+		const unzoomed = await settledBox(page.getByRole('menu'));
+		await page.keyboard.press('Escape');
+		await expect(page.getByRole('menu')).toHaveCount(0);
+
+		await viewer.getByRole('button', { name: '확대' }).click();
+		await expect(viewer.getByText('110%')).toBeVisible();
+		await picture.click({ button: 'right' });
+		const zoomed = await settledBox(page.getByRole('menu'));
+		if (!unzoomed || !zoomed) throw new Error('the picture menu has no layout box');
+		expect(zoomed.width).toBeCloseTo(unzoomed.width, 0);
 	});
 
 	test('the message menu downloads the picture under its own name', async ({ page }) => {
