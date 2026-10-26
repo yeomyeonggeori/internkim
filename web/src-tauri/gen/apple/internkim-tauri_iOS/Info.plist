@@ -22,6 +22,8 @@
 	<string>0.1.0</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
+	<key>NSSupportsLiveActivities</key>
+	<true/>
 	<key>NSUserActivityTypes</key>
 	<array>
 		<string>INSendMessageIntent</string>

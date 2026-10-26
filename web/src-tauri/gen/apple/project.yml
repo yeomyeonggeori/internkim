@@ -62,6 +62,7 @@ targets:
         AppIdentifierPrefix: $(DEVELOPMENT_TEAM).
         UIBackgroundModes: [remote-notification]
         NSUserActivityTypes: [INSendMessageIntent]
+        NSSupportsLiveActivities: true
     entitlements:
       path: internkim-tauri_iOS/internkim-tauri_iOS.entitlements
       properties:

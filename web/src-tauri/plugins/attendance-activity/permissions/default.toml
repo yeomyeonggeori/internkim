@@ -1,0 +1,10 @@
+[default]
+description = "Lets the web app register the phone's lock screen attendance tokens and close the lock screen card"
+permissions = [
+    "allow-register-listener",
+    "allow-remove-listener",
+    "allow-watch-tokens",
+    "allow-held-tokens",
+    "allow-lock-screen-state",
+    "allow-close-cards",
+]
