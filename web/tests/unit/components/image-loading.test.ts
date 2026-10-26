@@ -1,4 +1,5 @@
 import { describe, expect, test } from 'bun:test';
+import { ownProcessTimeoutMilliseconds, runInItsOwnProcess } from '../../support/in-its-own-process';
 import { observeImageLoad, type ImageLoadState } from '../../../src/lib/components/image-loading';
 
 class TestImage extends EventTarget {
@@ -49,12 +50,7 @@ describe('image request lifecycle', () => {
 });
 
 test('the mounted image component clears old results, handles cached pixels, and cleans up replaced nodes', async () => {
-	const fixture = new URL('./image-loading.fixture.ts', import.meta.url).pathname;
-	const run = Bun.spawn([process.execPath, '--conditions', 'browser', fixture], { stdout: 'pipe', stderr: 'pipe' });
-	const [output, errors, exitCode] = await Promise.all([
-		new Response(run.stdout).text(), new Response(run.stderr).text(), run.exited
-	]);
-	expect(exitCode, errors).toBe(0);
+	const output = await runInItsOwnProcess(new URL('./image-loading.fixture.ts', import.meta.url), 'browser');
 	expect(JSON.parse(output)).toEqual({
 		cached: 'loaded', cachedSkeletons: 0, replacementPending: 'loading', staleResultIgnored: 'loading',
 		replacementLoaded: 'loaded', failed: 'error', fallback: 'Sample picture: Image could not be loaded', removed: null,
@@ -65,4 +61,4 @@ test('the mounted image component clears old results, handles cached pixels, and
 			}))
 		]
 	});
-});
+}, ownProcessTimeoutMilliseconds);

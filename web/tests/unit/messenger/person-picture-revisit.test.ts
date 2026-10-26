@@ -1,20 +1,14 @@
 import { beforeAll, describe, expect, test } from 'bun:test';
+import { ownProcessTimeoutMilliseconds, runInItsOwnProcess } from '../../support/in-its-own-process';
 
 type Revisit = { askedWith: { externalID: string; avatarURL: string }[]; unchanged: string; changed: string; expired: string };
 
 let revisit: Revisit;
 
 beforeAll(async () => {
-	const fixture = new URL('./person-picture-revisit.fixture.ts', import.meta.url).pathname;
-	const run = Bun.spawn([process.execPath, fixture], { stdout: 'pipe', stderr: 'pipe' });
-	const [output, errorOutput, exitCode] = await Promise.all([
-		new Response(run.stdout).text(),
-		new Response(run.stderr).text(),
-		run.exited
-	]);
-	expect(exitCode, errorOutput).toBe(0);
+	const output = await runInItsOwnProcess(new URL('./person-picture-revisit.fixture.ts', import.meta.url), 'script');
 	revisit = JSON.parse(output);
-});
+}, ownProcessTimeoutMilliseconds);
 
 describe('a picture kept on an earlier visit', () => {
 	test('is drawn without asking again while the messenger names the same avatar', () => {

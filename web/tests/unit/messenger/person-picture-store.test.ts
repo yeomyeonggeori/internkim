@@ -1,20 +1,14 @@
 import { beforeAll, describe, expect, test } from 'bun:test';
+import { ownProcessTimeoutMilliseconds, runInItsOwnProcess } from '../../support/in-its-own-process';
 
 let initialPictures: { member: string; email: string; external: string };
 
 beforeAll(async () => {
 	// The exported store is a singleton. Read its initial state in a fresh
 	// process so directory-loading tests cannot prime it for this assertion.
-	const fixture = new URL('./person-picture-store.fixture.ts', import.meta.url).pathname;
-	const run = Bun.spawn([process.execPath, fixture], { stdout: 'pipe', stderr: 'pipe' });
-	const [output, errorOutput, exitCode] = await Promise.all([
-		new Response(run.stdout).text(),
-		new Response(run.stderr).text(),
-		run.exited
-	]);
-	expect(exitCode, errorOutput).toBe(0);
+	const output = await runInItsOwnProcess(new URL('./person-picture-store.fixture.ts', import.meta.url), 'script');
 	initialPictures = JSON.parse(output);
-});
+}, ownProcessTimeoutMilliseconds);
 
 // pictureOf answers from the directory the store loads for itself, and it is
 // loaded by remember(), not by rememberExternals(). A caller that primes the
