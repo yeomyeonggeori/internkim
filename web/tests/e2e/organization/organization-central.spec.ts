@@ -60,6 +60,16 @@ test('an administrator saves their own job title', async ({ page }) => {
 	await expect(page.getByTestId(`organization-person-node-${ownMemberID}`)).toContainText(editedJobTitle);
 });
 
+test('a person can contact a colleague but is offered no way to contact themselves', async ({ page }) => {
+	await signIn(page);
+
+	const ownCard = page.getByTestId(`organization-person-card-${ownMemberID}`);
+	const colleagueCard = page.getByTestId(`organization-person-card-${colleagueMemberID}`);
+	await expect(colleagueCard.getByRole('button', { name: 'DM 보내기' })).toBeVisible();
+	await expect(ownCard.getByText('나', { exact: true })).toBeVisible();
+	await expect(ownCard.getByRole('button', { name: 'DM 보내기' })).toHaveCount(0);
+});
+
 test('an administrator moves a colleague into a newly added organization', async ({ page }) => {
 	await signIn(page);
 

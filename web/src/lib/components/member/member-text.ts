@@ -4,6 +4,7 @@ export const memberText = {
 		callPhone: '전화 걸기',
 		noPhoneNumber: '등록된 전화번호 없음',
 		sendEmail: '메일 보내기',
+		you: '나',
 		representative: '대표자',
 		responsible: '책임자',
 		noMessengerAccount: '{name}님은 메신저 계정이 없어 DM을 보낼 수 없습니다'
@@ -13,6 +14,7 @@ export const memberText = {
 		callPhone: 'Call',
 		noPhoneNumber: 'No phone number',
 		sendEmail: 'Send email',
+		you: 'You',
 		representative: 'Representative',
 		responsible: 'Head',
 		noMessengerAccount: '{name} has no messenger account to receive a direct message'
