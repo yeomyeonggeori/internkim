@@ -1,18 +1,18 @@
 <script lang="ts">
-	import PersonAvatar from '$lib/components/person-avatar.svelte';
+	import { page } from '$app/state';
 	import { MediaQuery } from 'svelte/reactivity';
-	import { displayPersonName } from '$lib/person-name.svelte';
-	import CrownIcon from '@lucide/svelte/icons/crown';
-	import TimerIcon from '@lucide/svelte/icons/timer';
-	import FlagTriangleRightIcon from '@lucide/svelte/icons/flag-triangle-right';
+	import { toast } from 'svelte-sonner';
 	import Building2Icon from '@lucide/svelte/icons/building-2';
 	import ComponentIcon from '@lucide/svelte/icons/component';
 	import UserIcon from '@lucide/svelte/icons/user';
-	import { Badge } from '$lib/components/ui/badge';
 	import CountBadge from '$lib/components/count-badge.svelte';
-	import OrganizationPersonContactActions from './organization-person-contact-actions.svelte';
+	import MemberCard from '$lib/components/member/member-card.svelte';
+	import MemberCell from '$lib/components/member/member-cell.svelte';
+	import { memberRolesOf, type MemberProfile } from '$lib/components/member/member-role';
+	import { memberText } from '$lib/components/member/member-text';
 	import * as Item from '$lib/components/ui/item';
-	import * as Tooltip from '$lib/components/ui/tooltip';
+	import { createPageText } from '$lib/i18n/page-text.svelte';
+	import { openDirectMessageWith } from '$lib/messenger/open-direct-message';
 	import type { UserRecord } from '$lib/organization/types';
 	import { organizationSectionTrailingGap } from './organization-section-tree';
 	import { organizationTenure } from './organization-tenure';
@@ -42,6 +42,7 @@
 	const depth = $derived(Math.min(section.depth, isMobile.current ? 2 : 8));
 	const railBottom = $derived(organizationSectionTrailingGap(node, 12));
 	const today = new Date();
+	const words = createPageText(memberText);
 
 	$effect(() => {
 		const header = headerElement;
@@ -65,32 +66,28 @@
 		return () => scrollElement.removeEventListener('scroll', updateStuckState);
 	});
 
-	function tenureLabel(hireDate: string | undefined): string {
+	function tenureOf(hireDate: string | undefined): { label: string; detail: string } | undefined {
 		const tenure = organizationTenure(hireDate, today);
-		if (!tenure) return '';
-		if (!tenure.years) return `${tenure.months}${text.tenureMonthUnit}`;
-		return `${tenure.years}${text.tenureYearUnit}+`;
+		if (!tenure) return undefined;
+		const label = tenure.years ? `${tenure.years}${text.tenureYearUnit}+` : `${tenure.months}${text.tenureMonthUnit}`;
+		return { label, detail: `${hireDate} · ${tenure.years}${text.tenureYearUnit} ${tenure.months}${text.tenureMonthUnit}` };
 	}
 
-	function tenureDetail(hireDate: string | undefined): string {
-		const tenure = organizationTenure(hireDate, today);
-		if (!tenure) return '';
-		return `${hireDate} · ${tenure.years}${text.tenureYearUnit} ${tenure.months}${text.tenureMonthUnit}`;
+	function memberOf(record: UserRecord): MemberProfile {
+		return {
+			memberID: record.memberID,
+			name: record.name || record.email,
+			email: record.email,
+			image: record.image,
+			jobTitle: record.jobTitle || text.noTitle,
+			phoneNumber: record.phoneNumber,
+			roles: memberRolesOf(record.memberID, section.representativeID, section.responsibleUserID)
+		};
 	}
 
-	function personLabel(record: UserRecord): string {
-		return displayPersonName(record.name || record.email);
-	}
-
-	type Role = { isRepresentative: boolean; label: string; class: string };
-
-	function rolesOf(record: UserRecord): Role[] {
-		const roles: Role[] = [];
-		if (record.memberID === section.representativeID)
-			roles.push({ isRepresentative: true, label: text.companyRepresentative, class: 'bg-blue-500 text-white dark:bg-blue-600' });
-		if (record.memberID === section.responsibleUserID)
-			roles.push({ isRepresentative: false, label: text.responsible, class: 'bg-emerald-500 text-white dark:bg-emerald-600' });
-		return roles;
+	async function messageMember(member: MemberProfile) {
+		const opening = await openDirectMessageWith(member, page.url.pathname);
+		if (opening === 'no-messenger-account') toast.error(words.noMessengerAccount.replace('{name}', member.name));
 	}
 </script>
 
@@ -145,77 +142,27 @@
 		data-testid={`organization-members-${section.id || 'root'}`}
 	>
 		{#each section.records as record (record.memberID)}
-			{@const roles = rolesOf(record)}
-			{@const tenure = tenureLabel(record.hireDate)}
-			<Item.Root
-				variant={isMobile.current ? 'default' : 'outline'}
-				class={[
-					'bg-card hover:bg-accent/40 relative gap-2 max-sm:flex-nowrap max-sm:px-2 max-sm:py-1.5 sm:flex-col sm:items-center sm:px-4 sm:pt-7 sm:pb-2 sm:text-center',
-					selectedUserID === record.memberID && 'shadow-lg max-sm:bg-accent max-sm:shadow-none'
-				]}
-				data-testid={`organization-person-card-${record.memberID}`}
-			>
-				{#if !isMobile.current}
-					<div class="absolute top-2 left-2 z-10 grid items-center justify-items-start gap-1">
-						{#each roles as role (role.label)}
-							<Badge variant="secondary" class={role.class}>
-								{#if role.isRepresentative}
-									<CrownIcon />
-								{:else}
-									<FlagTriangleRightIcon />
-								{/if}
-								{role.label}
-							</Badge>
-						{/each}
-						{#if tenure}
-							<Tooltip.Root>
-								<Tooltip.Trigger>
-									{#snippet child({ props })}
-										<Badge {...props} variant="outline" class="bg-background h-5 gap-1 rounded-full px-1.5 font-normal tabular-nums">
-											<TimerIcon class="size-3" />
-											{tenure}
-										</Badge>
-									{/snippet}
-								</Tooltip.Trigger>
-								<Tooltip.Content side="top">{tenureDetail(record.hireDate)}</Tooltip.Content>
-							</Tooltip.Root>
-						{/if}
-					</div>
-				{/if}
-				<button
-					type="button"
-					class="flex min-h-11 w-full min-w-0 items-center gap-3 max-sm:flex-1 sm:grid sm:justify-items-center sm:gap-2"
-					onclick={() => selectRecord(record)}
-					data-testid={`organization-person-node-${record.memberID}`}
-				>
-					<PersonAvatar name={displayPersonName(record.name)} email={record.email} seed={record.memberID} image={record.image ?? ''} class="size-10 shrink-0 max-sm:size-9 sm:size-20" />
-					{#if isMobile.current}
-						<span class="grid min-w-0 w-full gap-0.5 text-left">
-							<span class="flex min-w-0 items-center gap-2">
-								<span class="truncate text-sm leading-snug font-medium">{personLabel(record)}</span>
-								{#each roles as role (role.label)}
-									<Badge variant="secondary" class="font-normal">
-										{#if role.isRepresentative}<CrownIcon />{:else}<FlagTriangleRightIcon />{/if}
-										{role.label}
-									</Badge>
-								{/each}
-							</span>
-							<span class="text-muted-foreground flex min-w-0 items-center gap-2 text-xs leading-normal">
-								<span class="truncate">{record.jobTitle || text.noTitle}</span>
-								{#if tenure}
-									<span class="inline-flex shrink-0 items-center gap-1 tabular-nums" title={tenureDetail(record.hireDate)}><TimerIcon class="size-3" />{tenure}</span>
-								{/if}
-							</span>
-						</span>
-					{:else}
-						<span class="grid min-w-0 w-full gap-0.5 text-left sm:text-center">
-							<span class="break-words text-sm leading-snug font-medium sm:truncate">{personLabel(record)}</span>
-							<span class="text-muted-foreground break-words text-xs leading-normal sm:truncate">{record.jobTitle || text.noTitle}</span>
-						</span>
-					{/if}
-				</button>
-				<OrganizationPersonContactActions email={record.email} phoneNumber={record.phoneNumber ?? ''} {text} />
-			</Item.Root>
+			{@const member = memberOf(record)}
+			{#if isMobile.current}
+				<MemberCell
+					{member}
+					isSelected={selectedUserID === record.memberID}
+					onSelect={() => selectRecord(record)}
+					onMessage={() => void messageMember(member)}
+					testID={`organization-person-card-${record.memberID}`}
+					selectTestID={`organization-person-node-${record.memberID}`}
+				/>
+			{:else}
+				<MemberCard
+					{member}
+					tenure={tenureOf(record.hireDate)}
+					isSelected={selectedUserID === record.memberID}
+					onSelect={() => selectRecord(record)}
+					onMessage={() => void messageMember(member)}
+					testID={`organization-person-card-${record.memberID}`}
+					selectTestID={`organization-person-node-${record.memberID}`}
+				/>
+			{/if}
 		{/each}
 	</Item.Group>
 	{#each node.children as childNode (childNode.section.id)}

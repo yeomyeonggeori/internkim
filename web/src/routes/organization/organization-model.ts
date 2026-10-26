@@ -1,5 +1,6 @@
 import type { OrgGroup, UserRecord } from '$lib/organization/types';
 import type { Locale } from '../../lib/i18n/locale.svelte';
+import { responsibleMemberIDOf } from '$lib/organization/responsible-member';
 import { compareOrganizationGroups } from './organization-group-order';
 import { organizationOrganizationTree, type OrganizationOrganizationTreeNode } from './organization-tree-model';
 
@@ -31,7 +32,7 @@ export function organizationOrganizationSections(
 	]);
 	const responsibleUserIDByOrganizationID = new Map([
 		['', undefined],
-		...countTree.nodes.map((node) => [node.id, organizationResponsibleUserID(node.directRecords)] as const)
+		...countTree.nodes.map((node) => [node.id, responsibleMemberIDOf(node.directRecords)] as const)
 	]);
 	if (!selectedOrganizationID) {
 		return [
@@ -65,13 +66,4 @@ function sectionFromNode(
 		...(representativeID ? { representativeID } : {}),
 		responsibleUserID: responsibleUserIDByOrganizationID.get(node.id)
 	};
-}
-
-function organizationResponsibleUserID(records: UserRecord[]): string | undefined {
-	const memberIDs = new Set(records.map((record) => record.memberID));
-	const candidates = records.filter((record) => {
-		const supervisorID = record.supervisorID?.trim() ?? '';
-		return !supervisorID || !memberIDs.has(supervisorID);
-	});
-	return candidates.length === 1 ? candidates[0].memberID : undefined;
 }

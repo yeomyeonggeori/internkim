@@ -1,5 +1,5 @@
 <script lang="ts">
-	import MessageSquareIcon from '@lucide/svelte/icons/message-square';
+	import MessageCircleIcon from '@lucide/svelte/icons/message-circle';
 	import PersonAvatar from '$lib/components/person-avatar.svelte';
 	import { Button } from '$lib/components/ui/button';
 	import * as Sheet from '$lib/components/ui/sheet';
@@ -60,7 +60,7 @@
 				</div>
 				<div class="px-4">
 					<Button variant="secondary" class="h-auto w-full flex-col gap-1 py-3" onclick={() => onMessage(person)}>
-						<MessageSquareIcon class="size-5" />
+						<MessageCircleIcon class="size-5" />
 						{text.sendDirectMessage}
 					</Button>
 				</div>
