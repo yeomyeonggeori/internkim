@@ -30,7 +30,8 @@ mock.module('../../../src/lib/host-bridge', () => ({
 							postedAt: '2026-10-12T05:00:00.000Z'
 						}
 					}
-				]
+				],
+				held: [{ id: 'reply-0', body: '다시 썼어요', isUnread: false }]
 			}
 		};
 	}
@@ -42,10 +43,11 @@ describe('the inbox over the company bridge', () => {
 	test('asks person.inbox.list and keeps why each message is there, and whether it is unread', async () => {
 		asked.length = 0;
 
-		const items = await fetchInbox();
+		const inbox = await fetchInbox();
 
 		expect(asked).toEqual([{ capability: 'person.inbox.list', body: undefined }]);
-		expect(items).toEqual([
+		expect(inbox.held).toBeUndefined();
+		expect(inbox.items).toEqual([
 			{
 				reason: 'thread_reply',
 				isUnread: true,
@@ -59,6 +61,16 @@ describe('the inbox over the company bridge', () => {
 				}
 			}
 		]);
+	});
+
+	test('asked since its newest entry, sends what it holds and keeps what came back for those', async () => {
+		asked.length = 0;
+		const window = { since: '2026-10-12T04:00:00.000Z', heldIDs: ['reply-0'] };
+
+		const inbox = await fetchInbox(window);
+
+		expect(asked).toEqual([{ capability: 'person.inbox.list', body: window }]);
+		expect(inbox.held).toEqual([{ id: 'reply-0', body: '다시 썼어요', isUnread: false }]);
 	});
 
 	test('marks a thread read by naming its root alongside its conversation', async () => {

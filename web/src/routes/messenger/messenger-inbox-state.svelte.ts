@@ -1,5 +1,7 @@
 import { bridgeInbox, type InboxEntry } from '$lib/messenger/channel-over-bridge';
-import { markThreadRead } from '$lib/messenger/messenger-api';
+import { messengerCacheScope, requireCurrentMessengerScope } from '$lib/messenger/cache-scope';
+import { keepCachedInbox, mergeInbox } from '$lib/messenger/inbox-cache';
+import { markThreadRead, type MessengerInboxWindow } from '$lib/messenger/messenger-api';
 
 export type InboxFilter = 'all' | 'unread';
 
@@ -16,15 +18,24 @@ export class MessengerInboxState {
 	private readSequence = 0;
 	private isRefreshWanted = false;
 
+	showCached(cached: InboxEntry[]): void {
+		if (this.hasLoaded || cached.length === 0) return;
+		this.entries = cached;
+		this.hasLoaded = true;
+	}
+
 	async load(): Promise<void> {
 		const sequence = ++this.readSequence;
 		this.isLoading = true;
 		this.error = '';
 		try {
-			const next = await bridgeInbox();
+			const scope = await messengerCacheScope();
+			const answer = await bridgeInbox(this.windowSinceNewest());
+			await requireCurrentMessengerScope(scope);
 			if (sequence !== this.readSequence) return;
-			this.entries = next;
+			this.entries = mergeInbox(this.entries, answer);
 			this.hasLoaded = true;
+			keepCachedInbox(scope, this.entries);
 		} catch (failure) {
 			console.warn('the inbox did not load', failure);
 			if (sequence === this.readSequence) this.error = failure instanceof Error ? failure.message : String(failure);
@@ -58,5 +69,11 @@ export class MessengerInboxState {
 		this.hasLoaded = false;
 		this.isLoading = false;
 		this.error = '';
+	}
+
+	private windowSinceNewest(): MessengerInboxWindow | undefined {
+		const newest = this.entries[0];
+		if (!this.hasLoaded || !newest) return undefined;
+		return { since: newest.sentAt, heldIDs: this.entries.map((entry) => entry.id) };
 	}
 }

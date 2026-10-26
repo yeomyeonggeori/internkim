@@ -320,15 +320,23 @@ export type MessengerInboxItem = {
 	message: MessengerSearchMatch;
 };
 
-export async function fetchInbox(): Promise<MessengerInboxItem[]> {
+export type MessengerInboxWindow = { since: string; heldIDs: string[] };
+
+export type MessengerHeldInboxItem = { id: string; body: string; isUnread: boolean };
+
+export type MessengerInbox = { items: MessengerInboxItem[]; held?: MessengerHeldInboxItem[] };
+
+export async function fetchInbox(window?: MessengerInboxWindow): Promise<MessengerInbox> {
 	const answer = await ask<{
 		items: { reason: MessengerInboxReason; isUnread: boolean; message: PersonalMessageMatch }[];
-	}>('person.inbox.list');
-	return answer.items.map((item) => ({
+		held?: MessengerHeldInboxItem[];
+	}>('person.inbox.list', window);
+	const items = answer.items.map((item) => ({
 		reason: item.reason,
 		isUnread: item.isUnread,
 		message: asSearchMatch(item.message)
 	}));
+	return { items, held: window ? answer.held : undefined };
 }
 
 export async function markThreadRead(channelID: string, threadRootID: string, readAt: string): Promise<void> {
