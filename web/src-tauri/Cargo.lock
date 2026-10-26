@@ -1753,6 +1753,7 @@ version = "0.1.0"
 dependencies = [
  "tauri",
  "tauri-build",
+ "tauri-plugin-attendance-activity",
  "tauri-plugin-attendance-widget",
  "tauri-plugin-foreground-notifications",
  "tauri-plugin-haptics",
@@ -3669,6 +3670,14 @@ dependencies = [
  "serde_json",
  "tauri-utils",
  "walkdir",
+]
+
+[[package]]
+name = "tauri-plugin-attendance-activity"
+version = "0.1.0"
+dependencies = [
+ "tauri",
+ "tauri-plugin",
 ]
 
 [[package]]
