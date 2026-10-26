@@ -1083,5 +1083,45 @@
 		"path": "company_info_set.result.representativePersonID",
 		"reason": "The representative is a member of the company, marked by member.is_representative and held to one per company, so the answer says which person it is beside the name and title it prints.",
 		"release": "the release carrying this catalog reaches company hosts by ship-host before the web/API deploy, after the migration that adds member.is_representative; a host still on the older catalog refuses these answers until it takes the catalog"
+	},
+	{
+		"path": "attendance_team_page_get.result.teams[].recentClockIns",
+		"reason": "A team card names who is in each state. preview carries up to four people per state, latest clock-in or clock-out first, so the clock-in list is one of its states.",
+		"release": "the attendance team roster release carries this catalog to company hosts by ship-host before the web/API deployment and the migration that answers with preview"
+	},
+	{
+		"path": "attendance_team_page_get.result.teams[].recentClockOuts",
+		"reason": "A team card names who is in each state. preview carries up to four people per state, latest clock-out first, so the clock-out list is one of its states.",
+		"release": "the attendance team roster release carries this catalog to company hosts by ship-host before the web/API deployment and the migration that answers with preview"
+	},
+	{
+		"path": "attendance_team_page_get.result.teams[].preview",
+		"reason": "A team now answers with up to four named people for each of working, clocked out, on leave and not started, replacing the clock-in and clock-out lists.",
+		"release": "the attendance team roster release carries this catalog to company hosts by ship-host before the web/API deployment and the migration that answers with preview"
+	},
+	{
+		"path": "attendance_team_page_get.result.teams[].isCallerTeam",
+		"reason": "A team marks whether the caller belongs to it, so the caller's team is listed first.",
+		"release": "the attendance team roster release carries this catalog to company hosts by ship-host before the web/API deployment and the migration that answers with preview"
+	},
+	{
+		"path": "attendance_team_dashboard_get.result.teams[].recentClockIns",
+		"reason": "A team card names who is in each state. preview carries up to four people per state, latest clock-in or clock-out first, so the clock-in list is one of its states.",
+		"release": "the attendance team roster release carries this catalog to company hosts by ship-host before the web/API deployment and the migration that answers with preview"
+	},
+	{
+		"path": "attendance_team_dashboard_get.result.teams[].recentClockOuts",
+		"reason": "A team card names who is in each state. preview carries up to four people per state, latest clock-out first, so the clock-out list is one of its states.",
+		"release": "the attendance team roster release carries this catalog to company hosts by ship-host before the web/API deployment and the migration that answers with preview"
+	},
+	{
+		"path": "attendance_team_dashboard_get.result.teams[].preview",
+		"reason": "A team now answers with up to four named people for each of working, clocked out, on leave and not started, replacing the clock-in and clock-out lists.",
+		"release": "the attendance team roster release carries this catalog to company hosts by ship-host before the web/API deployment and the migration that answers with preview"
+	},
+	{
+		"path": "attendance_team_dashboard_get.result.teams[].isCallerTeam",
+		"reason": "A team marks whether the caller belongs to it, so the caller's team is listed first.",
+		"release": "the attendance team roster release carries this catalog to company hosts by ship-host before the web/API deployment and the migration that answers with preview"
 	}
 ]
