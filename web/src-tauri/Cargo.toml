@@ -19,6 +19,7 @@ tauri-plugin-attendance-widget = { path = "../attendance-widget/tauri-plugin" }
 tauri-plugin-page-theme = { path = "plugins/page-theme" }
 tauri-plugin-keyboard = { path = "plugins/keyboard" }
 tauri-plugin-foreground-notifications = { path = "plugins/foreground-notifications" }
+tauri-plugin-silent-push = { path = "plugins/silent-push" }
 tauri-plugin-haptics = "2"
 
 [profile.release]

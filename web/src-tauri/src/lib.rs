@@ -10,6 +10,7 @@ pub fn run() {
     #[cfg(any(target_os = "android", target_os = "ios", target_os = "macos"))]
     let builder = builder.plugin(tauri_plugin_notifications::init());
     let builder = builder.plugin(tauri_plugin_foreground_notifications::init());
+    let builder = builder.plugin(tauri_plugin_silent_push::init());
     builder
         .run(tauri::generate_context!())
         .expect("the internkim app could not start");
