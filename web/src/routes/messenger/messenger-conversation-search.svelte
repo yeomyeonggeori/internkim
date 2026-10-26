@@ -76,6 +76,7 @@
 </script>
 
 <aside
+	data-slot="conversation-search"
 	class="bg-background flex min-h-0 w-full flex-col border-l max-sm:fixed max-sm:inset-0 max-sm:z-50 sm:max-w-sm"
 	aria-label={text.conversationSearch}
 >
