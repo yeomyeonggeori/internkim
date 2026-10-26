@@ -1,11 +1,11 @@
 <script lang="ts">
-	import * as Empty from '$lib/components/ui/empty';
 	import PersonAvatar from '$lib/components/person-avatar.svelte';
+	import PersonAvatarStack from '$lib/components/person-avatar-stack.svelte';
 	import PersonMultiSelect from '$lib/components/person-multi-select.svelte';
 	import * as AlertDialog from '$lib/components/ui/alert-dialog';
 	import { Button } from '$lib/components/ui/button';
-	import * as Command from '$lib/components/ui/command';
-	import * as Dialog from '$lib/components/ui/dialog';
+	import * as Item from '$lib/components/ui/item';
+	import { Separator } from '$lib/components/ui/separator';
 	import { Spinner } from '$lib/components/ui/spinner';
 	import { channelText } from '$lib/i18n/channel-text';
 	import { createPageText } from '$lib/i18n/page-text.svelte';
@@ -15,17 +15,18 @@
 	import { circleChannels } from '$lib/messenger/circle-channels.svelte';
 	import { displayPersonName } from '$lib/person-name.svelte';
 	import { avatarPresenceOf } from '$lib/messenger/member-presence.svelte';
+	import ChevronDownIcon from '@lucide/svelte/icons/chevron-down';
 	import UserMinusIcon from '@lucide/svelte/icons/user-minus';
 	import { toast } from 'svelte-sonner';
 
 	let {
-		open = $bindable(false),
+		expanded = $bindable(false),
 		channelID,
 		members,
 		viewerRole,
 		onMembersChanged
 	}: {
-		open?: boolean;
+		expanded?: boolean;
 		channelID: string;
 		members: ChannelMember[];
 		viewerRole?: ChannelRole;
@@ -33,6 +34,7 @@
 	} = $props();
 
 	const text = createPageText(channelText);
+	const firstShownCount = 5;
 
 	let candidates = $state<ChannelCandidate[]>([]);
 	let isLoadingCandidates = $state(false);
@@ -41,13 +43,21 @@
 	let isAdding = $state(false);
 	let removing = $state<ChannelMember | null>(null);
 	let isRemoving = $state(false);
+	let isShowingAll = $state(false);
 
 	const keepingCircleName = $derived(circleChannels.circleNameOf(channelID));
+	const memberCountLabel = $derived(text.channelMemberCount.replace('{count}', String(members.length)));
 	const memberExternalIDs = $derived(new Set(members.map((member) => member.externalID)));
 	const addable = $derived(candidates.filter((candidate) => !memberExternalIDs.has(candidate.externalID)));
+	const hiddenCount = $derived(isShowingAll ? 0 : Math.max(0, members.length - firstShownCount));
+	const shownMembers = $derived(hiddenCount > 0 ? members.slice(0, firstShownCount) : members);
 
 	$effect(() => {
-		if (!open || keepingCircleName) return;
+		if (!expanded) isShowingAll = false;
+	});
+
+	$effect(() => {
+		if (!expanded || keepingCircleName) return;
 		let active = true;
 		chosenIDs = [];
 		isLoadingCandidates = true;
@@ -86,10 +96,6 @@
 		}
 	}
 
-	function askAboutRemoval(member: ChannelMember) {
-		removing = member;
-	}
-
 	async function removeThem() {
 		if (!removing) return;
 		const member = removing;
@@ -115,13 +121,34 @@
 	}
 </script>
 
-<Dialog.Root bind:open>
-	<Dialog.Content class="sm:max-w-md" closeLabel={text.closeChannelMembers}>
-		<Dialog.Header>
-			<Dialog.Title>{text.channelMembersTitle}</Dialog.Title>
-		</Dialog.Header>
+<Item.Root>
+	{#snippet child({ props })}
+		<button {...props} type="button" aria-expanded={expanded} onclick={() => (expanded = !expanded)}>
+			<Item.Content class="text-left">
+				<Item.Title>{text.channelMembersTitle}</Item.Title>
+			</Item.Content>
+			<Item.Actions class="text-muted-foreground h-7 min-w-0 justify-end text-sm">
+				<span>{memberCountLabel}</span>
+				{#if !expanded}
+					<PersonAvatarStack
+						people={members.map((member) => ({
+							name: member.name,
+							seed: member.memberID ?? member.externalID,
+							memberID: member.memberID,
+							externalID: member.externalID
+						}))}
+						label={memberCountLabel}
+					/>
+				{/if}
+				<ChevronDownIcon class={['size-4 shrink-0 transition-transform', expanded && 'rotate-180']} />
+			</Item.Actions>
+		</button>
+	{/snippet}
+</Item.Root>
+{#if expanded}
+	<div class="grid gap-2 px-4 pb-3">
 		{#if keepingCircleName}
-			<p class="text-sm text-muted-foreground">
+			<p class="text-muted-foreground text-sm">
 				{text.channelMembersFollowCircle.replace('{circle}', keepingCircleName)}
 			</p>
 		{:else}
@@ -142,49 +169,49 @@
 					{text.addChannelMembers}
 				</Button>
 			</div>
-			{#if candidateError}<p role="alert" class="text-sm text-destructive">{candidateError}</p>{/if}
+			{#if candidateError}<p role="alert" class="text-destructive text-sm">{candidateError}</p>{/if}
 		{/if}
-		<Command.Root>
-			<Command.Input placeholder={text.searchMembers} />
-			<Command.List>
-				<Command.Empty class="p-0"><Empty.Root class="p-3"><Empty.Header><Empty.Title>{text.noMatchingMembers}</Empty.Title></Empty.Header></Empty.Root></Command.Empty>
-				<Command.Group heading={text.channelMemberCount.replace('{count}', String(members.length))}>
-					{#each members as member (member.memberID ?? member.externalID)}
-						<Command.Item
-							value={member.memberID ?? member.externalID ?? ''}
-							keywords={[member.name, displayPersonName(member.name)]}
-						>
-							<PersonAvatar
-								name={member.name}
-								seed={member.memberID ?? member.externalID ?? ''}
-								memberID={member.memberID ?? ''}
-								externalID={member.externalID ?? ''}
-								{...avatarPresenceOf(member.memberID, text)}
-								class="size-8"
-							/>
-							<span class="truncate">{displayPersonName(member.name) || text.unnamedMember}</span>
-							{#if viewerRole === 'owner' && member.role === 'member'}
-								<Button
-									type="button"
-									variant="ghost"
-									size="icon-sm"
-									class="ml-auto shrink-0"
-									aria-label={text.removeChannelMember}
-									onclick={(event) => {
-										event.stopPropagation();
-										askAboutRemoval(member);
-									}}
-								>
-									<UserMinusIcon />
-								</Button>
-							{/if}
-						</Command.Item>
-					{/each}
-				</Command.Group>
-			</Command.List>
-		</Command.Root>
-	</Dialog.Content>
-</Dialog.Root>
+		<Item.Group aria-label={text.channelMembersTitle}>
+			{#each shownMembers as member (member.memberID ?? member.externalID)}
+				<Item.Root size="sm" class="px-0">
+					<Item.Media>
+						<PersonAvatar
+							name={member.name}
+							seed={member.memberID ?? member.externalID ?? ''}
+							memberID={member.memberID ?? ''}
+							externalID={member.externalID ?? ''}
+							{...avatarPresenceOf(member.memberID, text)}
+							class="size-8"
+						/>
+					</Item.Media>
+					<Item.Content class="min-w-0">
+						<Item.Title class="truncate">{displayPersonName(member.name) || text.unnamedMember}</Item.Title>
+						{#if member.role === 'owner'}<Item.Description>{text.channelOwner}</Item.Description>{/if}
+					</Item.Content>
+					{#if viewerRole === 'owner' && member.role === 'member'}
+						<Item.Actions>
+							<Button
+								type="button"
+								variant="ghost"
+								size="icon-sm"
+								aria-label={text.removeChannelMember}
+								onclick={() => (removing = member)}
+							>
+								<UserMinusIcon />
+							</Button>
+						</Item.Actions>
+					{/if}
+				</Item.Root>
+			{/each}
+		</Item.Group>
+		{#if hiddenCount > 0}
+			<Button variant="ghost" size="sm" class="justify-start" onclick={() => (isShowingAll = true)}>
+				{text.showAllChannelMembers.replace('{count}', String(hiddenCount))}
+			</Button>
+		{/if}
+	</div>
+{/if}
+<Separator />
 
 <AlertDialog.Root open={removing !== null} onOpenChange={(next) => !next && (removing = null)}>
 	<AlertDialog.Content>

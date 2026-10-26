@@ -5,7 +5,6 @@
 	import HashIcon from '@lucide/svelte/icons/hash';
 	import Trash2Icon from '@lucide/svelte/icons/trash-2';
 	import LockIcon from '@lucide/svelte/icons/lock';
-	import PersonAvatarStack from '$lib/components/person-avatar-stack.svelte';
 	import * as AlertDialog from '$lib/components/ui/alert-dialog';
 	import * as Avatar from '$lib/components/ui/avatar';
 	import { CopyButton } from '$lib/components/ui/copy-button';
@@ -20,11 +19,13 @@
 	import { MessengerRefusal, deleteChannel } from '$lib/messenger/messenger-api';
 	import { circleChannels } from '$lib/messenger/circle-channels.svelte';
 	import { toast } from 'svelte-sonner';
+	import MessengerChannelMembersSection from './messenger-channel-members-section.svelte';
 
 	let {
 		open = $bindable(false),
+		membersExpanded = $bindable(false),
 		channel,
-		openMembers,
+		onMembersChanged,
 		openOwnerAdd,
 		openOwnerHandover,
 		openExport,
@@ -32,8 +33,9 @@
 		onDeleted
 	}: {
 		open?: boolean;
+		membersExpanded?: boolean;
 		channel: ChannelSummary;
-		openMembers: () => void;
+		onMembersChanged: () => void;
 		openOwnerAdd: () => void;
 		openOwnerHandover: () => void;
 		openExport: () => void;
@@ -46,7 +48,6 @@
 	const valueRowClass = 'text-muted-foreground h-7 min-w-0 justify-end text-sm';
 	const actionRowClass = 'min-h-7 justify-center text-left';
 	const members = $derived(channel.members ?? []);
-	const memberCountLabel = $derived(text.channelMemberCount.replace('{count}', String(members.length)));
 	const owners = $derived(members.filter((member) => member.role === 'owner'));
 	const ownerNames = $derived(owners.map((owner) => displayPersonName(owner.name) || text.unnamedMember).join(', '));
 	const amOwner = $derived(channel.myRole === 'owner');
@@ -153,28 +154,13 @@
 						</Item.Root>
 						<Separator />
 					{/if}
-					<Item.Root>
-						{#snippet child({ props })}
-							<button {...props} type="button" onclick={openMembers}>
-								<Item.Content class="text-left">
-									<Item.Title>{text.channelMembersTitle}</Item.Title>
-								</Item.Content>
-								<Item.Actions class={valueRowClass}>
-									<span>{memberCountLabel}</span>
-									<PersonAvatarStack
-										people={members.map((member) => ({
-											name: member.name,
-											seed: member.memberID ?? member.externalID,
-											memberID: member.memberID,
-											externalID: member.externalID
-										}))}
-										label={memberCountLabel}
-									/>
-								</Item.Actions>
-							</button>
-						{/snippet}
-					</Item.Root>
-					<Separator />
+					<MessengerChannelMembersSection
+						bind:expanded={membersExpanded}
+						channelID={channel.id}
+						{members}
+						viewerRole={channel.myRole}
+						{onMembersChanged}
+					/>
 					<Item.Root>
 						<Item.Content>
 							<Item.Title>{text.channelIDLabel}</Item.Title>
