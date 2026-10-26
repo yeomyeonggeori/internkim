@@ -20,7 +20,7 @@
 		"test:api": "./scripts/test-against-local-plane.sh tests/api",
 		"test:transfer": "./scripts/test-against-local-plane.sh tests/transfer",
 		"test:messenger-gateway": "./scripts/test-against-local-plane.sh tests/messenger-gateway",
-		"pilot": "monkeys run @test bun run tests/pilot/run-pilot.ts",
+		"pilot": "monkeys run @pilot bun run tests/pilot/run-pilot.ts",
 		"pilot:summary": "bun run tests/pilot/summarize-pilot.ts",
 		"test:unit:pilot": "bun test tests/unit/pilot",
 		"gen": "wrangler types"
