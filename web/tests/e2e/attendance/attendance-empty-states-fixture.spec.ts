@@ -158,9 +158,9 @@ for (const width of [1280, 390]) {
 		await fixture.install(page);
 		await page.goto('/example-co/attendance');
 		await expect(page.getByTestId('attendance-team-card')).toHaveCount(6);
-		await page.getByTestId('attendance-team-card').first().getByRole('button', { name: /구성원|직원/ }).click();
+		await page.getByTestId('attendance-team-card').first().getByRole('button', { name: /모두 보기/ }).click();
 		const members = page.getByTestId('team-employee-page');
-		await expect(members.getByRole('button')).toHaveCount(8);
+		await expect(members.locator('[data-testid^="team-employee-"]')).toHaveCount(8);
 		const search = page.getByRole('textbox', { name: '이름 또는 이메일 검색', exact: true });
 		fixture.members.block();
 		await search.fill('matching-nobody');
@@ -173,7 +173,7 @@ for (const width of [1280, 390]) {
 		if (phase === 'before') await search.fill('');
 		else await members.getByRole('button', { name: '필터 초기화', exact: true }).click();
 		await expect(search).toHaveValue('');
-		await expect(members.getByRole('button')).toHaveCount(8);
+		await expect(members.locator('[data-testid^="team-employee-"]')).toHaveCount(8);
 		await expect(members.locator('[data-slot="empty"]')).toHaveCount(0);
 	});
 

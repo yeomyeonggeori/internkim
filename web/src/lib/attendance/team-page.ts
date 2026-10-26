@@ -1,24 +1,30 @@
 import { z } from 'zod';
 
-const actorSchema = z.strictObject({
+const previewPersonSchema = z.strictObject({
 	memberID: z.string().min(1),
 	name: z.string(),
 	email: z.string(),
-	occurredAt: z.string(),
-	location: z.string().nullable()
+	occurredAt: z.string().nullable()
 });
+
+const previewPeopleSchema = z.array(previewPersonSchema).max(4);
 
 const teamSchema = z.strictObject({
 	teamKey: z.string(),
 	name: z.string(),
+	isCallerTeam: z.boolean(),
 	memberCount: z.number().int().nonnegative(),
 	working: z.number().int().nonnegative(),
 	done: z.number().int().nonnegative(),
 	away: z.number().int().nonnegative(),
 	needsCheckout: z.number().int().nonnegative(),
 	notStarted: z.number().int().nonnegative(),
-	recentClockIns: z.array(actorSchema).max(5),
-	recentClockOuts: z.array(actorSchema).max(5),
+	preview: z.strictObject({
+		working: previewPeopleSchema,
+		done: previewPeopleSchema,
+		away: previewPeopleSchema,
+		notStarted: previewPeopleSchema
+	}),
 	recordedLocations: z.array(z.strictObject({
 		name: z.string(), count: z.number().int().nonnegative()
 	})),
@@ -43,7 +49,8 @@ export const attendanceTeamPageInputSchema = z.strictObject({
 	memberOffset: z.number().int().nonnegative().optional(),
 	memberLimit: z.number().int().min(1).max(48).optional(),
 	searchText: z.string().max(100).optional(),
-	locationFilter: z.string().max(100).optional()
+	locationFilter: z.string().max(100).optional(),
+	statusFilter: z.enum(['working', 'done', 'away', 'not_started']).optional()
 });
 
 export const attendanceTeamPageSchema = z.strictObject({

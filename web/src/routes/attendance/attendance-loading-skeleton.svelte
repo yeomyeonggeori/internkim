@@ -16,7 +16,7 @@
 		{ label: text.working, color: 'var(--color-success)' },
 		{ label: text.finished, color: 'var(--color-muted-foreground)' },
 		{ label: text.onLeave, color: 'var(--color-warning)' },
-		{ label: text.teamNotStarted, color: 'var(--color-muted)' }
+		{ label: text.teamNotStarted, color: 'var(--color-border)' }
 	]);
 </script>
 
@@ -32,12 +32,11 @@
 					<div class="flex justify-between gap-3"><div class="space-y-2"><Skeleton class="h-5 w-24" /><Skeleton class="h-4 w-12" /></div><div class="space-y-2"><Skeleton class="ml-auto h-6 w-14" /><Skeleton class="h-4 w-20" /></div></div>
 					<Skeleton class="h-3 w-full rounded-full max-sm:h-1.5" />
 				</Card.Header>
-				<Card.Content class="flex flex-col gap-4 px-4 pb-4">
-					<div class="grid grid-cols-2 gap-x-6 gap-y-2 text-xs text-muted-foreground">{#each legend as item (item.label)}<span class="flex items-center justify-between gap-4"><span class="inline-flex items-center gap-1.5"><ColorMarker color={item.color} /><span>{item.label}</span></span><Skeleton class="h-4 w-4" /></span>{/each}</div>
-					<div class="flex flex-wrap items-center gap-x-2 gap-y-1 border-t border-border/70 pt-3 text-xs text-muted-foreground"><span>{text.teamRecordedLocations}</span><Skeleton class="h-4 w-16" /></div>
-					<div class="flex flex-col gap-3 border-t border-border/70 pt-3 max-sm:grid max-sm:grid-cols-2 max-sm:gap-4">{#each [0, 1] as row (row)}<div class="flex h-8 items-center justify-between max-sm:h-auto max-sm:flex-col max-sm:items-start max-sm:gap-1.5"><Skeleton class="h-4 w-20" /><div class="flex -space-x-2">{#each [0, 1, 2] as avatar (avatar)}<Skeleton class="size-8 rounded-full ring-2 ring-card" />{/each}</div></div>{/each}</div>
+				<Card.Content class="flex flex-col px-2 pb-2">
+					{#each legend as item (item.label)}<div class="grid h-10 grid-cols-[4.5rem_auto_minmax(0,1fr)_1.5rem] items-center gap-2.5 px-2"><span class="text-muted-foreground flex items-center gap-1.5 text-xs whitespace-nowrap"><ColorMarker color={item.color} />{item.label}</span><span class="flex pl-1.5">{#each [0, 1] as avatar (avatar)}<Skeleton class="ring-card -ml-1.5 size-6 rounded-full ring-2" />{/each}</span><Skeleton class="h-4 w-20" /><Skeleton class="ml-auto h-4 w-4" /></div>{/each}
+					<div class="text-muted-foreground border-border/70 mx-2 mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 border-t pt-3 pb-1 text-xs"><span>{text.teamRecordedLocations}</span><Skeleton class="h-5 w-16" /></div>
 				</Card.Content>
-				<Card.Footer class="h-11 border-t border-border/70 px-4"><Button variant="ghost" class="h-11 w-full justify-between rounded-none px-4 text-sm font-medium" disabled>{text.teamEmployeesView}<ArrowRightIcon class="size-4" /></Button></Card.Footer>
+				<Card.Footer class="h-11 border-t border-border/70 px-4"><Button variant="ghost" class="h-11 w-full justify-between rounded-none px-4 text-sm font-medium" disabled><Skeleton class="h-4 w-24" /><ArrowRightIcon class="size-4" /></Button></Card.Footer>
 			</Card.Root>
 		{/each}
 	</div>
@@ -66,9 +65,9 @@
 				<div class="divide-y">{#each Array.from({ length: rowCount }) as _, index (index)}<div class="grid h-12 grid-cols-[4.5rem_minmax(0,1fr)] items-center gap-2"><div class="px-2"><Skeleton class="h-4 w-12" /></div><div class="space-y-2 px-2"><Skeleton class="h-3 w-24" /><Skeleton class="h-1.5 w-full rounded-full" /></div></div>{/each}</div></div>
 			</Card.Content></Card.Root>
 		{:else if kind === 'members'}
-			<Card.Root class="gap-0 py-0"><Card.Content class="divide-y p-0">
+			<Card.Root class="gap-0 py-0"><Card.Content class="flex flex-col gap-0.5 p-2">
 				{#each Array.from({ length: rowCount }) as _, index (index)}
-					<Card.Content class="py-3"><div class="flex min-h-9 items-center gap-3"><Skeleton class="size-9 shrink-0 rounded-full" /><div class="flex h-9 min-w-0 flex-1 flex-col justify-center gap-1"><Skeleton class="h-4 w-24 max-w-full" /><Skeleton class="h-3 w-36 max-w-full" /></div><div class="flex shrink-0 gap-2"><Skeleton class="h-5 w-10" /><Skeleton class="h-5 w-10" /></div></div><div class="mt-2 pl-12"><Skeleton class="h-1.5 w-full rounded-full" /></div></Card.Content>
+					<div class="flex min-w-0 items-center gap-2 rounded-lg px-2 py-1.5"><span class="flex min-h-11 min-w-0 flex-1 items-center gap-3"><Skeleton class="size-9 shrink-0 rounded-full" /><span class="grid min-w-0 flex-1 gap-1"><Skeleton class="h-4 w-28 max-w-full" /><Skeleton class="h-4 w-20 max-w-full" /><Skeleton class="mt-1 h-1.5 w-full rounded-full" /></span></span><span class="h-9 w-[108px] shrink-0"></span></div>
 				{/each}
 			</Card.Content></Card.Root>
 		{:else}

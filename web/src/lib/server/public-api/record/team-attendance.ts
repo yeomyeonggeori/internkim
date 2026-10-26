@@ -12,7 +12,8 @@ export async function teamAttendance(caller: SupabaseClient, untrustedInput: Rec
 		member_offset: input.memberOffset ?? 0,
 		member_limit: input.memberLimit ?? 24,
 		search_text: input.searchText ?? '',
-		location_filter: input.locationFilter ?? ''
+		location_filter: input.locationFilter ?? '',
+		status_filter: input.statusFilter ?? ''
 	});
 	if (error) throw new RecordRefusedTheWrite(error.message, statusOfPostgresCode(error.code));
 	return attendanceTeamPageSchema.parse(data);

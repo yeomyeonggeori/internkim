@@ -8,6 +8,9 @@ import {
 
 type Team = AttendanceTeamPage['teams'][number];
 type Member = AttendanceTeamPage['members'][number];
+export type MemberStatusFilter = NonNullable<AttendanceTeamPageInput['statusFilter']>;
+
+export const companyScopeKey = 'company';
 
 export class AttendanceTeamState {
 	teams = $state<Team[]>([]);
@@ -19,6 +22,7 @@ export class AttendanceTeamState {
 	selectedTeamKey = $state('');
 	searchText = $state('');
 	locationFilter = $state('');
+	statusFilter = $state<MemberStatusFilter | ''>('');
 	isLoadingTeams = $state(false);
 	isLoadingMembers = $state(false);
 	hasLoadedTeams = $state(false);
@@ -77,7 +81,7 @@ export class AttendanceTeamState {
 			this.teamTotal = page.teamTotal;
 			this.timeZone = page.timeZone;
 			this.serverTime = page.serverTime;
-			if (this.selectedTeamKey && !page.teams.some((team) => team.teamKey === this.selectedTeamKey)) {
+			if (this.selectedTeamKey && this.selectedTeamKey !== companyScopeKey && !page.teams.some((team) => team.teamKey === this.selectedTeamKey)) {
 				this.clearSelection();
 			}
 		} catch (error) {
@@ -94,11 +98,12 @@ export class AttendanceTeamState {
 		}
 	}
 
-	selectTeam(teamKey: string): void {
+	selectTeam(teamKey: string, status: MemberStatusFilter | '' = ''): void {
 		this.selectedTeamKey = teamKey;
 		this.memberOffset = 0;
 		this.searchText = '';
 		this.locationFilter = '';
+		this.statusFilter = status;
 		this.members = [];
 		this.hasLoadedMembers = false;
 		void this.loadMembers(0);
@@ -115,11 +120,12 @@ export class AttendanceTeamState {
 		this.memberError = '';
 	}
 
-	filter(search: string, location: string): void {
+	filter(search: string, location: string, status: MemberStatusFilter | ''): void {
 		this.members = [];
 		this.memberTotal = 0;
 		this.searchText = search;
 		this.locationFilter = location;
+		this.statusFilter = status;
 		this.memberOffset = 0;
 		void this.loadMembers(0);
 	}
@@ -133,7 +139,9 @@ export class AttendanceTeamState {
 		this.memberError = '';
 		try {
 			const page = await this.read({
-				pageKind: 'members', selectedTeamKey: this.selectedTeamKey,
+				pageKind: 'members',
+				...(this.selectedTeamKey === companyScopeKey ? {} : { selectedTeamKey: this.selectedTeamKey }),
+				...(this.statusFilter ? { statusFilter: this.statusFilter } : {}),
 				memberOffset: offset, memberLimit: 24,
 				searchText: this.searchText.trim(), locationFilter: this.locationFilter
 			});

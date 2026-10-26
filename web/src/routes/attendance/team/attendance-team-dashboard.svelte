@@ -6,6 +6,8 @@
 	import { buildTeamRowsForDates } from './team-status-table-model';
 	import { companyDateOf, companyTimeOf } from '$lib/company-time';
 	import AttendancePersonRow from './attendance-person-row.svelte';
+	import TeamStatusDayProgress from './team-status-day-progress.svelte';
+	import { Skeleton } from '$lib/components/ui/skeleton';
 	import TeamPersonMonth from './team-person-month.svelte';
 	import { invokeTool, ToolRefused } from '$lib/public-api-call';
 	import { appNavigation } from '$lib/components/app-navigation.svelte';
@@ -20,7 +22,6 @@
 	import ArrowRightIcon from '@lucide/svelte/icons/arrow-right';
 	import Clock3Icon from '@lucide/svelte/icons/clock-3';
 	import LocationLabel from '../shared/location-label.svelte';
-	import PersonAvatarStack from '$lib/components/person-avatar-stack.svelte';
 	import PersonAvatar from '$lib/components/person-avatar.svelte';
 	import { Badge } from '$lib/components/ui/badge';
 	import { Button } from '$lib/components/ui/button';
@@ -35,7 +36,18 @@
 	import type { AttendanceTeamPage } from '$lib/attendance/team-page';
 	import { createPageText } from '$lib/i18n/page-text.svelte';
 	import { attendanceText } from '../text';
-	import { getAttendanceTeamState } from './attendance-team-state.svelte';
+	import { companyScopeKey, getAttendanceTeamState, type MemberStatusFilter } from './attendance-team-state.svelte';
+	import { page } from '$app/state';
+	import { toast } from 'svelte-sonner';
+	import MemberCell from '$lib/components/member/member-cell.svelte';
+	import { memberRolesOf, type MemberProfile } from '$lib/components/member/member-role';
+	import { memberText } from '$lib/components/member/member-text';
+	import { openDirectMessageWith } from '$lib/messenger/open-direct-message';
+	import { supabaseOrganizationDirectory } from '$lib/organization/supabase-directory';
+	import { responsibleMemberIDOf } from '$lib/organization/responsible-member';
+	import type { UsersResponse } from '$lib/organization/types';
+	import AttendanceMoment from '../shared/attendance-moment.svelte';
+	import { memberStatusOf } from './team-card-status';
 
 	const text = createPageText(attendanceText);
 	const teamState = getAttendanceTeamState();
@@ -47,8 +59,21 @@
 	const ownStatus = $derived(statusName(ownStatusKind));
 	const ownLocation = $derived(myAttendanceToday.day.activeSegment?.locationName ?? '—');
 	const companyTotals = $derived(teamState.companySummary);
+	const words = createPageText(memberText);
 	let searchDraft = $state('');
 	let locationDraft = $state('');
+	let statusDraft = $state<MemberStatusFilter | ''>('');
+	let directory = $state<UsersResponse | undefined>(undefined);
+	const isCompanyScope = $derived(teamState.selectedTeamKey === companyScopeKey);
+	const recordByMember = $derived(new Map((directory?.records ?? []).map((record) => [record.memberID, record])));
+	const groupNameByID = $derived(new Map((directory?.availableGroups ?? []).map((group) => [group.id, group.name])));
+	const responsibleByGroup = $derived(new Map((directory?.availableGroups ?? []).map((group) => [group.id, responsibleMemberIDOf((directory?.records ?? []).filter((record) => record.groupID === group.id))])));
+	const statusOptions = $derived([
+		{ value: 'working' as const, label: text.working },
+		{ value: 'done' as const, label: text.finished },
+		{ value: 'away' as const, label: text.onLeave },
+		{ value: 'not_started' as const, label: text.teamNotStarted }
+	]);
 	let selectedMember = $state<AttendanceTeamPage['members'][number] | null>(null);
 	let sheetOpen = $state(false);
 	const selectedTeam = $derived(teamState.teams.find((team) => team.teamKey === teamState.selectedTeamKey));
@@ -83,20 +108,40 @@
 		return team.teamKey === 'unassigned' ? teamState.companyName || companyLabel || team.name : team.name;
 	}
 
-	async function openActor(actor: RecentActor, teamKey: string): Promise<void> {
-		try {
-			const answer = await invokeTool<AttendanceTeamPage>('attendance_team_page_get', {pageKind: 'members', selectedTeamKey: teamKey, searchText: actor.email, memberLimit: 48});
-			const member = answer.members.find((member) => member.memberID === actor.memberID);
-			if (member) { selectedMember = member; sheetOpen = true; }
-		} catch (error) { teamState.memberError = error instanceof Error ? error.message : String(error); }
+	$effect(() => {
+		if (!teamState.selectedTeamKey || directory) return;
+		supabaseOrganizationDirectory()
+			.then((found) => (directory = found))
+			.catch((failure: unknown) => console.warn('the organization directory did not load for the employee page', failure));
+	});
+
+	function memberProfileOf(member: AttendanceTeamPage['members'][number]): MemberProfile {
+		const record = recordByMember.get(member.memberID);
+		const groupID = record?.groupID ?? '';
+		return {
+			memberID: member.memberID,
+			name: member.name,
+			email: member.email,
+			image: record?.image,
+			jobTitle: record?.jobTitle,
+			team: groupNameByID.get(groupID),
+			phoneNumber: record?.phoneNumber,
+			roles: memberRolesOf(member.memberID, directory?.representativeID, responsibleByGroup.get(groupID))
+		};
+	}
+
+	async function messageMember(member: MemberProfile): Promise<void> {
+		const opening = await openDirectMessageWith(member, page.url.pathname);
+		if (opening === 'no-messenger-account') toast.error(words.noMessengerAccount.replace('{name}', member.name));
 	}
 
 	$effect(() => {
 		if (!teamState.selectedTeamKey) return;
 		const search = searchDraft.trim();
 		const location = locationDraft;
-		if (search === teamState.searchText && location === teamState.locationFilter) return;
-		const timer = setTimeout(() => teamState.filter(search, location), 250);
+		const status = statusDraft;
+		if (search === teamState.searchText && location === teamState.locationFilter && status === teamState.statusFilter) return;
+		const timer = setTimeout(() => teamState.filter(search, location, status), 250);
 		return () => clearTimeout(timer);
 	});
 
@@ -122,10 +167,11 @@
 	}
 
 
-	function selectTeam(key: string): void {
+	function selectTeam(key: string, status: MemberStatusFilter | '' = ''): void {
 		searchDraft = '';
 		locationDraft = '';
-		teamState.selectTeam(key);
+		statusDraft = status;
+		teamState.selectTeam(key, status);
 		rememberOpenedTeam(key);
 	}
 
@@ -138,31 +184,13 @@
 		teamState.clearSelection();
 		searchDraft = '';
 		locationDraft = '';
+		statusDraft = '';
 	}
 
 	$effect(() => {
 		if (teamKeyInHistory() === undefined && untrack(() => teamState.selectedTeamKey) !== '') dismissTeam();
 	});
-
-	type RecentActor = AttendanceTeamPage['teams'][number]['recentClockIns'][number];
 </script>
-
-{#snippet recentActors(actors: RecentActor[], label: string, teamKey: string)}
-	<div class="flex min-w-0 items-center justify-between gap-2 max-sm:flex-col max-sm:items-start max-sm:justify-start max-sm:gap-1.5">
-		<span class="text-xs text-muted-foreground">{label}</span>
-            <PersonAvatarStack people={actors} max={4} label={label} avatarClass="size-8 ring-2 ring-card">
-                {#snippet renderPerson(person, index)}
-                    {@const actor = actors[index]}
-                    <Tooltip.Root>
-                        <Tooltip.Trigger aria-label={displayPersonName(actor.name) + ' ' + timeOf(actor.occurredAt)} onclick={() => openActor(actor, teamKey)} class="relative rounded-full ring-2 ring-card">
-                            <PersonAvatar name={person.name} email={person.email} class="size-8" />
-                        </Tooltip.Trigger>
-                        <Tooltip.Content>{displayPersonName(actor.name)} · {timeOf(actor.occurredAt)}</Tooltip.Content>
-                    </Tooltip.Root>
-                {/snippet}
-            </PersonAvatarStack>
-	</div>
-{/snippet}
 
 <Tooltip.Provider>
 	<div class="mx-auto flex w-full max-w-7xl flex-col gap-6 max-sm:gap-4" data-testid="attendance-team-dashboard" aria-busy={teamState.isLoadingTeams || teamState.isLoadingMembers}>
@@ -176,7 +204,7 @@
         {#if !teamState.selectedTeamKey && teamState.isLoadingTeams && !companyTotals && !teamState.error}
             <AttendanceLoadingSkeleton kind="metrics" />
         {:else if !teamState.selectedTeamKey && companyTotals}
-			<AttendanceCompanyMetrics summary={companyTotals} />
+			<AttendanceCompanyMetrics summary={companyTotals} onSelect={(status) => selectTeam(companyScopeKey, status)} />
         {/if}
 		<div class="flex flex-wrap items-end justify-between gap-3">
 			<div>
@@ -185,7 +213,7 @@
 						<ArrowLeftIcon />{text.teamBack}
 					</Button>
 				{/if}
-				<h2 class="text-xl font-semibold tracking-tight max-sm:text-lg">{selectedTeam ? teamName(selectedTeam) : text.teamTodayTitle}</h2>
+				<h2 class="text-xl font-semibold tracking-tight max-sm:text-lg">{selectedTeam ? teamName(selectedTeam) : isCompanyScope ? text.teamWholeCompany : text.teamTodayTitle}</h2>
 			</div>
 			<div class="flex items-center gap-3"><span class="text-xs text-muted-foreground">{teamState.serverTime ? timeOf(teamState.serverTime) : '—'} 기준</span></div>
 		</div>
@@ -204,11 +232,11 @@
 			{:else if teamState.teams.length || !teamState.error}
 				<div class="grid gap-4 max-sm:gap-3 min-[761px]:grid-cols-2 min-[1101px]:grid-cols-3" data-testid="team-card-page">
 					{#each teamState.teams as team (team.teamKey)}
-						<AttendanceTeamCard {team} name={teamName(team)}>
-							{#snippet actorStack(actors: RecentActor[], label: string)}{@render recentActors(actors, label, team.teamKey)}{/snippet}
+						<AttendanceTeamCard {team} name={teamName(team)} isCallerTeam={team.isCallerTeam} onStatus={(status) => selectTeam(team.teamKey, memberStatusOf(status))}>
+							{#snippet face(person)}<PersonAvatar name={person.name} email={person.email} memberID={person.memberID} class="size-6" />{/snippet}
 							{#snippet footer()}
 								<Button variant="ghost" class="h-11 w-full justify-between rounded-none px-4 text-sm font-medium" onclick={() => selectTeam(team.teamKey)}>
-									{text.teamEmployeesView}<ArrowRightIcon class="size-4" />
+									{text.teamAllMembers.replace('{count}', String(team.memberCount))}<ArrowRightIcon class="size-4" />
 								</Button>
 							{/snippet}
 						</AttendanceTeamCard>
@@ -231,6 +259,15 @@
 						{/each}
 					</Select.Group></Select.Content>
 				</Select.Root>
+				<Select.Root type="single" value={statusDraft || '__all'} onValueChange={(value) => (statusDraft = statusOptions.find((option) => option.value === value)?.value ?? '')}>
+					<Select.Trigger class="w-full sm:w-40" aria-label={text.allStatuses}>{statusOptions.find((option) => option.value === statusDraft)?.label ?? text.allStatuses}</Select.Trigger>
+					<Select.Content><Select.Group>
+						<Select.Item value="__all" label={text.allStatuses}>{text.allStatuses}</Select.Item>
+						{#each statusOptions as option (option.value)}
+							<Select.Item value={option.value} label={option.label}>{option.label}</Select.Item>
+						{/each}
+					</Select.Group></Select.Content>
+				</Select.Root>
 			</div>
 			{#if teamState.memberError}
 				<p role="alert" class="text-sm text-destructive">{teamState.memberError}</p>
@@ -241,14 +278,27 @@
 			{:else if teamState.members.length || !teamState.memberError}
 				{#if todayError}<p role="alert" class="text-sm text-destructive">{todayError}</p>{/if}
 				<Card.Root class="gap-0 py-0" data-testid="team-employee-page">
-					<Card.Content class="divide-y p-0">
+					<Card.Content class="flex flex-col gap-0.5 p-2">
 						{#each teamState.members as member (member.memberID)}
-                            <AttendancePersonRow name={member.name} email={member.email} status={member.status} statusLabel={statusName(member.status)} day={todayDays.get(member.memberID)} progressLoading={todayLoading} location={member.location ?? text.teamUnknownLocation} onclick={() => { selectedMember = member; sheetOpen = true; }} />
+							{@const profile = memberProfileOf(member)}
+							{@const day = todayDays.get(member.memberID)}
+							<MemberCell
+								member={profile}
+								showsTeam={isCompanyScope}
+								onSelect={() => { selectedMember = member; sheetOpen = true; }}
+								onMessage={() => void messageMember(profile)}
+								testID={`team-employee-${member.memberID}`}
+							>
+								{#snippet detail()}
+									<AttendanceMoment status={member.status} latestAt={member.latestAt} location={member.location} timeZone={teamState.timeZone} />
+									{#if day || todayLoading}<span class="mt-1 block w-full" aria-busy={todayLoading}>{#if day}<TeamStatusDayProgress {day} />{:else}<Skeleton class="h-1.5 w-full rounded-full" data-testid="employee-today-progress-loading" aria-hidden="true" />{/if}</span>{/if}
+								{/snippet}
+							</MemberCell>
 						{:else}
 							<Empty.Root>
-								<Empty.Header><Empty.Title>{teamState.searchText.trim() || teamState.locationFilter ? text.noMatchingMembers : text.noMembers}</Empty.Title></Empty.Header>
-								{#if teamState.searchText.trim() || teamState.locationFilter}
-									<Empty.Content><Button variant="outline" size="sm" onclick={() => { searchDraft = ''; locationDraft = ''; teamState.filter('', ''); }}>{text.clearFilters}</Button></Empty.Content>
+								<Empty.Header><Empty.Title>{teamState.searchText.trim() || teamState.locationFilter || teamState.statusFilter ? text.noMatchingMembers : text.noMembers}</Empty.Title></Empty.Header>
+								{#if teamState.searchText.trim() || teamState.locationFilter || teamState.statusFilter}
+									<Empty.Content><Button variant="outline" size="sm" onclick={() => { searchDraft = ''; locationDraft = ''; statusDraft = ''; teamState.filter('', '', ''); }}>{text.clearFilters}</Button></Empty.Content>
 								{/if}
 							</Empty.Root>
 						{/each}

@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(29);
+select plan(35);
 
 insert into auth.users (id, email) values
   ('43200000-0000-0000-0000-000000000001', 'team-owner@example.com'),
@@ -16,19 +16,24 @@ insert into public.member (id, company_id, email, user_id, status, is_admin, nam
   ('43200000-0000-0000-0000-000000000012', '43200000-0000-0000-0000-000000000000', 'team-peer@example.com', '43200000-0000-0000-0000-000000000002', 'active', false, 'Peer Sample', '43200000-0000-0000-0000-000000000010'),
   ('43200000-0000-0000-0000-000000000013', '43200000-0000-0000-0000-000000000000', 'unassigned@example.com', null, 'active', false, 'Unassigned Sample', null);
 
-select ok(not (select prosecdef from pg_proc where oid='public.attendance_team_page(text,integer,integer,text,integer,integer,text,text)'::regprocedure), 'paged read uses caller RLS');
-select ok(has_function_privilege('authenticated','public.attendance_team_page(text,integer,integer,text,integer,integer,text,text)','execute'), 'authenticated may read');
-select ok(not has_function_privilege('anon','public.attendance_team_page(text,integer,integer,text,integer,integer,text,text)','execute'), 'anonymous cannot call');
-select ok(not has_function_privilege('service_role','public.attendance_team_page(text,integer,integer,text,integer,integer,text,text)','execute'), 'service role is not an alternate read path');
+select ok(not (select prosecdef from pg_proc where oid='public.attendance_team_page(text,integer,integer,text,integer,integer,text,text,text)'::regprocedure), 'paged read uses caller RLS');
+select ok(has_function_privilege('authenticated','public.attendance_team_page(text,integer,integer,text,integer,integer,text,text,text)','execute'), 'authenticated may read');
+select ok(not has_function_privilege('anon','public.attendance_team_page(text,integer,integer,text,integer,integer,text,text,text)','execute'), 'anonymous cannot call');
+select ok(not has_function_privilege('service_role','public.attendance_team_page(text,integer,integer,text,integer,integer,text,text,text)','execute'), 'service role is not an alternate read path');
 
+insert into public.attendance (member_id, kind, occurred_at, location)
+select event.member_id::uuid, event.kind::public.attendance_kind, clock.day_start + (now() - clock.day_start) * event.share, event.location
+from (select date_trunc('day', now() at time zone 'America/New_York') at time zone 'America/New_York' as day_start) clock,
+  (values
+    ('43200000-0000-0000-0000-000000000011', 'clock_in', 0.1, 'Office'),
+    ('43200000-0000-0000-0000-000000000012', 'clock_in', 0.2, 'Office'),
+    ('43200000-0000-0000-0000-000000000012', 'clock_out', 0.3, null),
+    ('43200000-0000-0000-0000-000000000011', 'clock_out', 0.4, null),
+    ('43200000-0000-0000-0000-000000000011', 'clock_in', 0.5, 'Office'),
+    ('43200000-0000-0000-0000-000000000012', 'clock_in', 0.6, 'Office'),
+    ('43200000-0000-0000-0000-000000000012', 'clock_out', 0.7, null)
+  ) as event(member_id, kind, share, location);
 insert into public.attendance (member_id, kind, occurred_at, location) values
-  ('43200000-0000-0000-0000-000000000011', 'clock_in', now()-interval '30 minutes', 'Office'),
-  ('43200000-0000-0000-0000-000000000012', 'clock_in', now()-interval '25 minutes', 'Office'),
-  ('43200000-0000-0000-0000-000000000012', 'clock_out', now()-interval '20 minutes', null),
-  ('43200000-0000-0000-0000-000000000011', 'clock_out', now()-interval '15 minutes', null),
-  ('43200000-0000-0000-0000-000000000011', 'clock_in', now()-interval '10 minutes', 'Office'),
-  ('43200000-0000-0000-0000-000000000012', 'clock_in', now()-interval '7 minutes', 'Office'),
-  ('43200000-0000-0000-0000-000000000012', 'clock_out', now()-interval '5 minutes', null),
   ('43200000-0000-0000-0000-000000000013', 'clock_in', now()-interval '1 day', 'Office');
 
 set local role authenticated;
@@ -38,8 +43,13 @@ select is(jsonb_array_length(public.attendance_team_page('teams',0,1)->'teams'),
 select is(public.attendance_team_page('teams',0,1)->'teams'->0->>'name','Alpha','team order is stable');
 select is((public.attendance_team_page('teams',0,1)->'teams'->0->>'working')::integer,1,'working counts use the latest actual event');
 select is((public.attendance_team_page('teams',0,1)->'teams'->0->>'done')::integer,1,'clocked-out employees count separately');
-select is(public.attendance_team_page('teams',0,1)->'teams'->0->'recentClockOuts'->0->>'name','Peer Sample','recent actor is an actual clock-out');
-select is(jsonb_array_length(public.attendance_team_page('teams',0,1)->'teams'->0->'recentClockIns'),2,'recent actor stack contains distinct people');
+select is(public.attendance_team_page('teams',0,1)->'teams'->0->'preview'->'done'->0->>'name','Peer Sample','a clocked-out colleague is named under done');
+select is(jsonb_array_length(public.attendance_team_page('teams',0,1)->'teams'->0->'preview'->'working'),1,'each colleague is named once, under where they stand now');
+select is(public.attendance_team_page('teams',0,1)->'teams'->0->>'isCallerTeam','true','the caller''s own team is marked and comes first');
+select is((public.attendance_team_page('members',0,12,null,0,24)->>'memberTotal')::integer,3,'without a team the employee page reads the whole company');
+select is((public.attendance_team_page('members',0,12,null,0,24,'','','done')->>'memberTotal')::integer,1,'a status filter narrows the employee page before paging');
+select is(public.attendance_team_page('members',0,12,null,0,24)->'members'->0->>'name','Owner Sample','the latest clock-in leads the working colleagues');
+select is(public.attendance_team_page('members',0,12,null,0,24)->'members'->2->>'name','Peer Sample','clocked-out colleagues follow everyone working');
 select is((public.attendance_team_page('teams',0,1)->'teams'->0->'recordedLocations'->0->>'count')::integer,1,'locations count current workers, not clock-in events');
 select is((public.attendance_team_page('teams',2,1)->'teams'->0->>'working')::integer,1,'an older open shift is grouped into current working attendance');
 select is((public.attendance_team_page('members',0,12,'43200000-0000-0000-0000-000000000010',0,1)->>'memberTotal')::integer,2,'member total precedes page limit');
@@ -51,6 +61,7 @@ select throws_ok($$select public.attendance_team_page(team_limit=>null)$$,'22023
 select throws_ok($$select public.attendance_team_page(member_limit=>null)$$,'22023','invalid attendance page','explicit null member limit cannot unbound the read');
 select throws_ok($$select public.attendance_team_page(team_limit=>25)$$,'22023','invalid attendance page','oversize team page is refused');
 select throws_ok($$select public.attendance_team_page(member_limit=>49)$$,'22023','invalid attendance page','oversize member page is refused');
+select throws_ok($$select public.attendance_team_page(status_filter=>'late')$$,'22023','invalid attendance page','an unknown status is refused');
 select throws_ok($$select public.attendance_team_page(search_text=>null)$$,'22023','invalid attendance page','explicit null filter is refused');
 select throws_ok($$select public.attendance_team_page('members',0,12,'43200000-0000-0000-0000-000000000099')$$,'42501','the selected team is outside this company','foreign team cannot be selected');
 reset role;

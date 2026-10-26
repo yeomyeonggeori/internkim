@@ -2,7 +2,8 @@ import { z } from 'zod';
 import type { Task } from '../../routes/task/task-types';
 
 const count = z.number().int().nonnegative();
-const recentActorSchema = z.object({ person: z.string(), occurredAt: z.string() });
+const previewPersonSchema = z.object({ person: z.string(), occurredAt: z.string().nullable() });
+const previewPeopleSchema = z.array(previewPersonSchema);
 
 const activityTeamSchema = z.object({
 	teamKey: z.string(),
@@ -15,8 +16,12 @@ const activityTeamSchema = z.object({
 	notStarted: count,
 	unknownLocationCount: count,
 	recordedLocations: z.array(z.object({ name: z.string(), count })),
-	recentClockIns: z.array(recentActorSchema),
-	recentClockOuts: z.array(recentActorSchema)
+	preview: z.object({
+		working: previewPeopleSchema,
+		done: previewPeopleSchema,
+		away: previewPeopleSchema,
+		notStarted: previewPeopleSchema
+	})
 });
 
 const activityTaskSchema = z.object({
