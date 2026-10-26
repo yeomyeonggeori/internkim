@@ -4,6 +4,7 @@ import importlib.util
 import io
 import json
 import re
+import subprocess
 import sys
 import tempfile
 import threading
@@ -21,6 +22,22 @@ def verification_module():
     module = importlib.util.module_from_spec(specification)
     loader.exec_module(module)
     return module
+
+
+def a_repository_with_a_branch(directory):
+    def git(*arguments):
+        subprocess.run(["git", *arguments], cwd=directory, check=True, capture_output=True)
+
+    git("init", "-q", "-b", "main")
+    git("config", "user.email", "verify@example.com")
+    git("config", "user.name", "verify")
+    (directory / "docs").mkdir()
+    (directory / "docs" / "moved.mdx").write_text("moved")
+    (directory / "docs" / "kept.mdx").write_text("kept")
+    git("add", ".")
+    git("commit", "-qm", "base")
+    git("checkout", "-q", "-b", "branch")
+    return git
 
 
 class VerificationPlanTests(unittest.TestCase):
@@ -178,6 +195,33 @@ class VerificationPlanTests(unittest.TestCase):
             self.assertTrue((Path(directory) / "one" / "second" / "1.log").exists())
             self.assertTrue((Path(directory) / "two" / "second" / "1.log").exists())
 
+
+    def test_a_base_that_cannot_be_compared_stops_the_run_instead_of_selecting_nothing(self):
+        module = verification_module()
+        with tempfile.TemporaryDirectory() as directory, patch.object(module, "REPOSITORY_ROOT", Path(directory)):
+            git = a_repository_with_a_branch(Path(directory))
+            (Path(directory) / "docs" / "kept.mdx").write_text("changed")
+            git("commit", "-qam", "change")
+            with self.assertRaises(SystemExit) as stopped:
+                module.changed_paths_against("origin/main")
+        self.assertIn("cannot compare HEAD with origin/main", str(stopped.exception))
+
+    def test_every_changed_path_is_read_whole_on_both_sides_of_a_rename(self):
+        module = verification_module()
+        with tempfile.TemporaryDirectory() as directory, patch.object(module, "REPOSITORY_ROOT", Path(directory)):
+            root = Path(directory)
+            git = a_repository_with_a_branch(root)
+            (root / "web").mkdir()
+            git("mv", "docs/moved.mdx", "web/moved.mdx")
+            git("commit", "-qm", "move")
+            (root / "web" / "a name with spaces.ts").write_text("untracked")
+            (root / "docs" / "kept.mdx").write_text("uncommitted")
+            git("mv", "docs/kept.mdx", "web/kept.mdx")
+            changed = module.changed_paths_against("main")
+        self.assertEqual(
+            changed,
+            ["docs/kept.mdx", "docs/moved.mdx", "web/a name with spaces.ts", "web/kept.mdx", "web/moved.mdx"],
+        )
 
     def test_a_group_that_fills_the_machine_waits_while_another_run_holds_every_slot(self):
         module = verification_module()

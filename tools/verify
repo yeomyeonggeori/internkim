@@ -501,21 +501,17 @@ for declared in GROUPS:
 
 
 def changed_paths_against(base):
-    difference = subprocess.run(
-        ["git", "diff", "--name-only", f"{base}...HEAD"],
-        cwd=REPOSITORY_ROOT,
-        capture_output=True,
-        text=True,
-    )
-    uncommitted = subprocess.run(
-        ["git", "status", "--porcelain"],
-        cwd=REPOSITORY_ROOT,
-        capture_output=True,
-        text=True,
-    )
-    paths = set(difference.stdout.split())
-    paths.update(line[3:] for line in uncommitted.stdout.splitlines() if line[3:])
-    return sorted(paths)
+    committed = git_paths(["diff", "--name-only", "--no-renames", "-z", f"{base}...HEAD"], f"cannot compare HEAD with {base}")
+    uncommitted = git_paths(["diff", "--name-only", "--no-renames", "-z", "HEAD"], "cannot read uncommitted changes")
+    untracked = git_paths(["ls-files", "--others", "--exclude-standard", "-z"], "cannot list untracked files")
+    return sorted(committed | uncommitted | untracked)
+
+
+def git_paths(arguments, failure):
+    listing = subprocess.run(["git", *arguments], cwd=REPOSITORY_ROOT, capture_output=True, text=True)
+    if listing.returncode != 0:
+        raise SystemExit(f"{failure}: {listing.stderr.strip()}")
+    return {path for path in listing.stdout.split("\0") if path}
 
 
 def claim_free_machine_slot():
