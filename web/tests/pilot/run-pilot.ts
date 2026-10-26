@@ -1,4 +1,4 @@
-//   monkeys run @test bun run tests/pilot/run-pilot.ts --arm <bluecollar|bluecollar-pi-shaped|bluecollar-reply-action|claude-code> [--repetitions 3] [--tasks tests/pilot/tasks] [--run-id <id>] [--only <task name>]
+//   monkeys run @pilot bun run tests/pilot/run-pilot.ts --arm <bluecollar|bluecollar-pi-shaped|bluecollar-reply-action|claude-code> [--repetitions 3] [--tasks tests/pilot/tasks] [--run-id <id>] [--only <task name>]
 //
 //   PILOT_APP_URL          the local app the external harness reaches over MCP (claude-code)
 //   PILOT_FLEET_CONFIG     the kept Local Fleet's config.json (bluecollar arms)
