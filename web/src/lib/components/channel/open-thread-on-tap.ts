@@ -6,7 +6,7 @@ export type OpenThreadOnTapOptions = {
 };
 
 const elementsWithTheirOwnAction =
-	'a, button, input, textarea, select, label, summary, [role="button"], [role="link"], [contenteditable="true"]';
+	'a, button, input, textarea, select, label, summary, video[controls], audio[controls], [role="button"], [role="link"], [contenteditable="true"]';
 
 function hasItsOwnAction(target: EventTarget | null, row: HTMLElement): boolean {
 	if (!(target instanceof Element)) return false;
