@@ -14,8 +14,9 @@ let watching = false;
 const resets = new Set<() => void>();
 const storagePrefix = 'messenger-conversations:';
 const messageStoragePrefix = 'messenger-messages:';
+const inboxStoragePrefix = 'messenger-inbox:';
 const verifiedScopeKey = 'messenger-verified-scope';
-const storedPrefixes = [storagePrefix, messageStoragePrefix, 'messenger-last-channel:'];
+const storedPrefixes = [storagePrefix, messageStoragePrefix, inboxStoragePrefix, 'messenger-last-channel:'];
 const storedKeys = ['messenger-conversations', 'messenger-last-channel', verifiedScopeKey];
 
 export function onMessengerCacheReset(reset: () => void): () => void {
@@ -172,6 +173,10 @@ export async function messengerCacheScope(): Promise<MessengerCacheScope> {
 
 export function conversationStorageKey(scope: MessengerCacheScope): string {
 	return storagePrefix + scope.key;
+}
+
+export function inboxStorageKey(scope: MessengerCacheScope): string {
+	return inboxStoragePrefix + scope.key;
 }
 
 export function messageStorageKey(scopeKey: string, channelID: string): string {

@@ -63,6 +63,7 @@
 	import { holdBackNotificationsFor } from '$lib/native-shell/open-conversation';
 	import { adoptRememberedMessengerScope, messengerCacheScope, messengerCacheKey, onMessengerCacheReset, requireCurrentMessengerScope, type MessengerCacheScope } from '$lib/messenger/cache-scope';
 	import { keepCachedConversations, readCachedConversations } from '$lib/messenger/conversation-list-cache';
+	import { readCachedInbox } from '$lib/messenger/inbox-cache';
 	import { followBuzzArrivals, stopBuzzArrivals } from '$lib/messenger/buzz-arrivals';
 	import { prefetchArrivedConversation } from '$lib/messenger/arrived-message-prefetch';
 
@@ -524,14 +525,15 @@
 			void loadConversationList().then(selectInitialChannel).catch(() => undefined);
 		});
 		userChannelOrder = loadChannelOrder();
-		if (isSupabaseConfigured()) {
-			stopListeningForArrivals = onCompanyEvent(readListOnArrival);
-			void inbox.load();
-		}
+		if (isSupabaseConfigured()) stopListeningForArrivals = onCompanyEvent(readListOnArrival);
 
 		const mountedGeneration = cacheGeneration;
 		const remembered = await adoptRememberedMessengerScope();
 		if (isDestroyed || mountedGeneration !== cacheGeneration) return;
+		if (isSupabaseConfigured()) {
+			if (remembered) inbox.showCached(readCachedInbox(remembered));
+			void inbox.load();
+		}
 		const cached = remembered ? readCachedConversations(remembered) : [];
 		if (cached.length > 0) {
 			conversations = cached;
