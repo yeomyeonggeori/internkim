@@ -134,7 +134,10 @@ git -C "$source_directory" checkout "$pinned_revision" -- "${declared_mime_patch
 git -C "$source_directory" apply "$declared_mime_patch"
 
 if [ "$target" = "darwin-arm64" ]; then
+  # macOS 27's dyld refuses a dylib cargo's release strip leaves with a
+  # "mis-aligned LINKEDIT string pool", so a stripped proc macro cannot load.
   (cd "$source_directory" \
+    && export CARGO_PROFILE_RELEASE_BUILD_OVERRIDE_STRIP=false \
     && cargo update --package rust-s3 \
     && cargo update --package rustls --precise "$fixed_rustls_version" \
     && cargo build --release --locked -p buzz-relay --bin buzz-relay -p buzz-admin --bin buzz-admin)
