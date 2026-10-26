@@ -1,0 +1,196 @@
+#!/usr/bin/env python3
+"""Build the Tauri iOS app from a commit, sign it with its entitlements, and upload it to App Store Connect.
+
+`cargo tauri ios build` archives unsigned whenever an App Store Connect API key
+is in the environment, so the export signs every bundle from its provisioning
+profile alone and the widget loses its App Group and keychain group. This signs
+each bundle in the archive with the entitlements file its target declares before
+the export, checks the exported ipa carries every one of them, and uploads only
+an ipa that does.
+
+The commit is checked out into a temporary worktree, so local changes never
+ship. Which testers receive the build is decided in App Store Connect after the
+upload, not here.
+
+    APPLE_API_KEY=<key id> APPLE_API_ISSUER=<issuer id> APPLE_API_KEY_PATH=<.p8 path> \\
+        tools/ship-tauri-ios --version 1.0.0 --build-number 2026102701 [--ref origin/main] [--no-upload]
+"""
+
+import argparse
+import json
+import os
+import plistlib
+import shutil
+import subprocess
+import sys
+import tempfile
+from pathlib import Path
+
+REPOSITORY_ROOT = Path(__file__).resolve().parent.parent
+TAURI_DIRECTORY = Path("web/src-tauri")
+APPLE_PROJECT_DIRECTORY = TAURI_DIRECTORY / "gen/apple"
+ARCHIVE_NAME = "internkim-tauri_iOS.xcarchive"
+APPLICATION_TARGET = "internkim-tauri_iOS"
+API_KEY_VARIABLES = ("APPLE_API_KEY", "APPLE_API_ISSUER", "APPLE_API_KEY_PATH")
+APP_IDENTIFIER_PREFIX_KEY = "AppIdentifierPrefix"
+APP_IDENTIFIER_PREFIX_SETTING = "$(AppIdentifierPrefix)"
+PUSH_ENVIRONMENT_KEY = "aps-environment"
+FAILURE_OUTPUT_LINES = 20
+
+
+class ShipFailure(Exception):
+    pass
+
+
+def say(line: str) -> None:
+    print(line, flush=True)
+
+
+def run(command: list[str], directory: Path, environment: dict[str, str] | None = None) -> str:
+    try:
+        finished = subprocess.run(command, cwd=directory, env=environment, capture_output=True, text=True)
+    except FileNotFoundError as missing:
+        raise ShipFailure(f"{command[0]} is not on PATH: {missing}") from missing
+    if finished.returncode != 0:
+        output = "\n".join((finished.stdout + finished.stderr).splitlines()[-FAILURE_OUTPUT_LINES:])
+        raise ShipFailure(f"{' '.join(command[:4])} failed in {directory}:\n{output}")
+    return finished.stdout
+
+
+def api_key_environment() -> dict[str, str]:
+    missing = [name for name in API_KEY_VARIABLES if not os.environ.get(name)]
+    if missing:
+        raise ShipFailure(f"set {', '.join(missing)}: the App Store Connect API key signs the export and the upload")
+    return dict(os.environ)
+
+
+def development_team(checkout: Path) -> str:
+    configuration = json.loads((checkout / TAURI_DIRECTORY / "tauri.conf.json").read_text())
+    return configuration["bundle"]["iOS"]["developmentTeam"]
+
+
+def build_archive(checkout: Path, version: str, build_number: str, environment: dict[str, str]) -> Path:
+    override = json.dumps({"version": version, "bundle": {"iOS": {"bundleVersion": build_number}}})
+    run(["cargo", "tauri", "ios", "build", "--archive-only", "--config", override], checkout / "web", environment)
+    return checkout / APPLE_PROJECT_DIRECTORY / "build" / ARCHIVE_NAME
+
+
+def declared_entitlements(checkout: Path, target: str, team: str) -> dict | None:
+    path = checkout / APPLE_PROJECT_DIRECTORY / target / f"{target}.entitlements"
+    if not path.exists():
+        return None
+    text = path.read_text().replace(APP_IDENTIFIER_PREFIX_SETTING, f"{team}.")
+    entitlements = plistlib.loads(text.encode())
+    if PUSH_ENVIRONMENT_KEY in entitlements:
+        entitlements[PUSH_ENVIRONMENT_KEY] = "production"
+    return entitlements
+
+
+def bundles_inner_first(application: Path) -> list[tuple[Path, str]]:
+    extensions = sorted((application / "PlugIns").glob("*.appex"))
+    return [(extension, extension.stem) for extension in extensions] + [(application, APPLICATION_TARGET)]
+
+
+def sign_archive(archive: Path, checkout: Path, team: str, scratch: Path) -> None:
+    application = next((archive / "Products/Applications").glob("*.app"))
+    for bundle, target in bundles_inner_first(application):
+        entitlements = declared_entitlements(checkout, target, team)
+        command = ["codesign", "--force", "--sign", "-"]
+        if entitlements is not None:
+            entitlements_path = scratch / f"{target}.entitlements"
+            entitlements_path.write_bytes(plistlib.dumps(entitlements))
+            command += ["--entitlements", str(entitlements_path)]
+        run(command + [str(bundle)], scratch)
+
+
+def export_ipa(archive: Path, team: str, scratch: Path, environment: dict[str, str]) -> Path:
+    options = scratch / "export-options.plist"
+    options.write_bytes(plistlib.dumps({
+        "method": "app-store-connect",
+        "destination": "export",
+        "teamID": team,
+        "signingStyle": "automatic",
+    }))
+    export_directory = scratch / "export"
+    run([
+        "xcodebuild", "-exportArchive", "-archivePath", str(archive), "-exportOptionsPlist", str(options),
+        "-exportPath", str(export_directory), "-allowProvisioningUpdates",
+        "-authenticationKeyPath", environment["APPLE_API_KEY_PATH"],
+        "-authenticationKeyID", environment["APPLE_API_KEY"],
+        "-authenticationKeyIssuerID", environment["APPLE_API_ISSUER"],
+    ], scratch, environment)
+    return next(export_directory.glob("*.ipa"))
+
+
+def signed_entitlements(bundle: Path, scratch: Path) -> dict:
+    output = run(["codesign", "--display", "--entitlements", "-", "--xml", str(bundle)], scratch)
+    return plistlib.loads(output.encode()) if output.strip() else {}
+
+
+def entitlement_gaps(bundle: Path, target: str, checkout: Path, team: str, scratch: Path) -> list[str]:
+    declared = declared_entitlements(checkout, target, team) or {}
+    signed = signed_entitlements(bundle, scratch)
+    gaps = [f"{target} lacks {key}" for key, value in declared.items() if key != PUSH_ENVIRONMENT_KEY and signed.get(key) != value]
+    information = plistlib.loads((bundle / "Info.plist").read_bytes())
+    if APP_IDENTIFIER_PREFIX_KEY in information and information[APP_IDENTIFIER_PREFIX_KEY] != f"{team}.":
+        gaps.append(f"{target} Info.plist {APP_IDENTIFIER_PREFIX_KEY} is {information[APP_IDENTIFIER_PREFIX_KEY]!r}")
+    return gaps
+
+
+def verify_ipa(ipa: Path, checkout: Path, team: str, scratch: Path) -> None:
+    unpacked = scratch / "unpacked"
+    run(["ditto", "-x", "-k", str(ipa), str(unpacked)], scratch)
+    application = next((unpacked / "Payload").glob("*.app"))
+    gaps = [gap for bundle, target in bundles_inner_first(application) for gap in entitlement_gaps(bundle, target, checkout, team, scratch)]
+    if gaps:
+        raise ShipFailure("the exported ipa is missing what its targets declare, so it was not uploaded:\n" + "\n".join(gaps))
+
+
+def upload(ipa: Path, scratch: Path, environment: dict[str, str]) -> None:
+    run([
+        "xcrun", "altool", "--upload-app", "--file", str(ipa), "--type", "ios",
+        "--apiKey", environment["APPLE_API_KEY"], "--apiIssuer", environment["APPLE_API_ISSUER"],
+        "--p8-file-path", environment["APPLE_API_KEY_PATH"],
+    ], scratch, environment)
+
+
+def parse_arguments() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser.add_argument("--version", required=True, help="the version testers see, such as 1.0.0")
+    parser.add_argument("--build-number", required=True, help="a number above every build already uploaded")
+    parser.add_argument("--ref", default="origin/main", help="the commit to build")
+    parser.add_argument("--no-upload", action="store_true", help="stop after checking the exported ipa")
+    return parser.parse_args()
+
+
+def main() -> int:
+    arguments = parse_arguments()
+    scratch = Path(tempfile.mkdtemp(prefix="internkim-ship-tauri-ios-"))
+    checkout = scratch / "checkout"
+    try:
+        environment = api_key_environment()
+        run(["git", "worktree", "add", "--detach", str(checkout), arguments.ref], REPOSITORY_ROOT)
+        commit = run(["git", "rev-parse", "--short", "HEAD"], checkout).strip()
+        say(f"source: {arguments.ref} {commit}")
+        team = development_team(checkout)
+        archive = build_archive(checkout, arguments.version, arguments.build_number, environment)
+        say(f"archived {arguments.version} ({arguments.build_number})")
+        sign_archive(archive, checkout, team, scratch)
+        ipa = export_ipa(archive, team, scratch, environment)
+        verify_ipa(ipa, checkout, team, scratch)
+        say(f"checked entitlements: {ipa}")
+        if arguments.no_upload:
+            return 0
+        upload(ipa, scratch, environment)
+        shutil.rmtree(scratch)
+        say(f"uploaded {arguments.version} ({arguments.build_number}) from {commit}")
+        return 0
+    except ShipFailure as failure:
+        say(f"failed: {failure}")
+        return 1
+    finally:
+        subprocess.run(["git", "worktree", "remove", "--force", str(checkout)], cwd=REPOSITORY_ROOT, capture_output=True)
+
+
+if __name__ == "__main__":
+    sys.exit(main())

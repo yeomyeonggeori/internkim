@@ -59,7 +59,7 @@ targets:
           - UIInterfaceOrientationLandscapeRight
         CFBundleShortVersionString: 0.1.0
         CFBundleVersion: "0.1.0"
-        AppIdentifierPrefix: $(TeamIdentifierPrefix)
+        AppIdentifierPrefix: $(DEVELOPMENT_TEAM).
         UIBackgroundModes: [remote-notification]
         NSUserActivityTypes: [INSendMessageIntent]
     entitlements:
@@ -120,7 +120,7 @@ targets:
     info:
       path: AttendanceWidget/Info.plist
       properties:
-        AppIdentifierPrefix: $(TeamIdentifierPrefix)
+        AppIdentifierPrefix: $(DEVELOPMENT_TEAM).
         CFBundleDisplayName: internkim
         CFBundleShortVersionString: 0.1.0
         CFBundleVersion: "0.1.0"
