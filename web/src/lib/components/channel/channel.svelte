@@ -1127,6 +1127,11 @@
 			side="right"
 			class="flex w-full flex-col gap-0 p-0 sm:max-w-md"
 			onEscapeKeydown={(event) => {
+				if (lightbox) {
+					event.preventDefault();
+					lightbox = null;
+					return;
+				}
 				if (!editingMessageID) return;
 				event.preventDefault();
 				editingMessageID = '';

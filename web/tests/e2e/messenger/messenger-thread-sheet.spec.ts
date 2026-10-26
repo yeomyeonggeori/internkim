@@ -19,7 +19,18 @@ const replyMessage = {
 	threadRootId: rootMessage.id,
 	sender: reader,
 	text: replyText,
-	sentAt: '2026-09-28T01:05:00Z'
+	sentAt: '2026-09-28T01:05:00Z',
+	attachments: [
+		{
+			kind: 'image',
+			url: 'reply-picture.png',
+			source:
+				'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==',
+			filename: 'reply-picture.png',
+			widthPixels: 120,
+			heightPixels: 120
+		}
+	]
 };
 
 const unansweredText = '아직 답글이 없는 메시지입니다';
@@ -154,6 +165,20 @@ test.describe('messenger thread sheet', () => {
 
 		await expect(page.getByRole('dialog')).toHaveCount(1);
 		await expect(page.getByRole('dialog', { name: '글타래' })).toHaveCount(0);
+	});
+
+	test('Escape closes a picture opened from the thread and keeps the thread open', async ({ page }) => {
+		await page.setViewportSize({ width: 1280, height: 800 });
+		await page.goto(`/messenger?channel=${channelID}`);
+
+		await page.getByRole('button', { name: /1개 답글/ }).click();
+		const threadSheet = page.getByRole('dialog', { name: '글타래' });
+		await threadSheet.getByRole('button', { name: 'reply-picture.png' }).click();
+		await expect(page.getByRole('dialog')).toHaveCount(2);
+
+		await page.keyboard.press('Escape');
+		await expect(page.getByRole('dialog')).toHaveCount(1);
+		await expect(threadSheet).toBeVisible();
 	});
 
 	test('does not open a thread when text in a timeline message is dragged to select it', async ({ page }) => {
