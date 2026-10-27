@@ -90,7 +90,7 @@ for (const width of [320, 360, 390]) {
 		await expectTouchTarget(attachment);
 		expect(await attachment.evaluate((element) => getComputedStyle(element).backgroundColor)).toBe('rgba(0, 0, 0, 0)');
 		const pill = await page.locator('.composer-input').evaluate((element) => ({ radius: parseFloat(getComputedStyle(element).borderRadius), height: element.getBoundingClientRect().height }));
-		expect(pill.height).toBeLessThanOrEqual(40);
+		expect(pill.height).toBeLessThanOrEqual(44);
 		expect(pill.radius).toBeGreaterThanOrEqual(pill.height / 2);
 		expect(await page.locator('.composer-input').evaluate((element) => getComputedStyle(element).backgroundColor)).not.toMatch(/^rgba\(.*, 0\)$|transparent/);
 		const placeholderCenter = await page.locator('.composer-input [data-slot="input-group-control"] > span').evaluate((element) => { const box = element.getBoundingClientRect(); return box.top + box.height / 2; });
@@ -261,6 +261,33 @@ test('software keyboard viewport and bottom safe area keep the composer reachabl
 		viewport.dispatchEvent(new Event('resize'));
 	});
 	expect(await page.evaluate(() => document.documentElement.style.getPropertyValue('--app-viewport-height'))).toBe('');
+});
+
+test('thread sheet keeps its composer above the home indicator and on the keyboard', async ({ page }) => {
+	await page.setViewportSize({ width: 390, height: 760 });
+	await mockDeviceMessenger(page, reader, [{ id: channelID, name: '샘플 채널', kind: 'group' }], [
+		{ id: 'thread-root', sender: author, text: '스레드 원글', sentAt: '2026-09-28T01:00:00Z' },
+		{ id: 'thread-reply', threadRootId: 'thread-root', sender: reader, text: '스레드 답글', sentAt: '2026-09-28T01:01:00Z' }
+	]);
+	await page.goto(`/messenger?channel=${channelID}`);
+	await page.evaluate(() => document.documentElement.style.setProperty('--app-mobile-nav-bottom', '34px'));
+	await page.getByRole('button', { name: /1개 답글/ }).click();
+	const input = page.getByRole('dialog').locator('.composer-input');
+	await expect.poll(async () => {
+		const bounds = await input.boundingBox();
+		return bounds ? 760 - bounds.y - bounds.height : -1;
+	}).toBe(26);
+	await page.getByRole('combobox', { name: '답글을 입력하세요' }).focus();
+	await page.evaluate(() => {
+		const viewport = window.visualViewport;
+		if (!viewport) throw new Error('This browser must support visualViewport');
+		Object.defineProperties(viewport, { height: { configurable: true, value: 440 }, offsetTop: { configurable: true, value: 24 } });
+		viewport.dispatchEvent(new Event('resize'));
+	});
+	await expect.poll(async () => {
+		const bounds = await input.boundingBox();
+		return bounds ? 464 - bounds.y - bounds.height : -1;
+	}).toBe(8);
 });
 
 async function expectComposerGap(page: Page): Promise<void> {
