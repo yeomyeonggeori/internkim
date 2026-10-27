@@ -113,7 +113,7 @@ struct AttendanceProvider: AppIntentTimelineProvider {
             let zone = settings.companyTimeZone
 
             let rows: [AttendanceRow]
-            if let shown = AttendanceWidgetCache.rowsShown(
+            if !AttendanceWidgetStore.serverChanged(since: cache.tappedAt), let shown = AttendanceWidgetCache.rowsShown(
                 cachedRows: cache.rows,
                 pending: cache.pending,
                 rowsTrustedUntil: cache.rowsTrustedUntil,

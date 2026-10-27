@@ -13,6 +13,7 @@ enum AttendanceWidgetStore {
     private static let tokenNameAccount = "public-api-token-name"
     private static let installAccount = "install-id"
     private static let originKey = "widget.origin"
+    private static let serverChangedKey = "widget.serverChangedAt"
 
     private static var accessGroup: String? {
         guard let prefix = Bundle.main.object(forInfoDictionaryKey: "AppIdentifierPrefix") as? String,
@@ -48,6 +49,15 @@ enum AttendanceWidgetStore {
         delete(account: tokenAccount)
         delete(account: tokenNameAccount)
         sharedDefaults?.removeObject(forKey: originKey)
+    }
+
+    static func noteServerChange(at moment: Date = Date()) {
+        sharedDefaults?.set(moment, forKey: serverChangedKey)
+    }
+
+    static func serverChanged(since moment: Date?) -> Bool {
+        guard let changed = sharedDefaults?.object(forKey: serverChangedKey) as? Date else { return false }
+        return changed > (moment ?? .distantPast)
     }
 
     private static func query(account: String) -> [String: Any] {
