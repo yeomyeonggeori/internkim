@@ -167,6 +167,7 @@ def main() -> int:
     arguments = parse_arguments()
     scratch = Path(tempfile.mkdtemp(prefix="internkim-ship-tauri-ios-"))
     checkout = scratch / "checkout"
+    uploaded = False
     try:
         environment = api_key_environment()
         run(["git", "worktree", "add", "--detach", str(checkout), arguments.ref], REPOSITORY_ROOT)
@@ -182,7 +183,7 @@ def main() -> int:
         if arguments.no_upload:
             return 0
         upload(ipa, scratch, environment)
-        shutil.rmtree(scratch)
+        uploaded = True
         say(f"uploaded {arguments.version} ({arguments.build_number}) from {commit}")
         return 0
     except ShipFailure as failure:
@@ -190,6 +191,8 @@ def main() -> int:
         return 1
     finally:
         subprocess.run(["git", "worktree", "remove", "--force", str(checkout)], cwd=REPOSITORY_ROOT, capture_output=True)
+        if uploaded:
+            shutil.rmtree(scratch)
 
 
 if __name__ == "__main__":
