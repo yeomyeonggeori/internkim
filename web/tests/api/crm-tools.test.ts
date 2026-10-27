@@ -547,7 +547,7 @@ describe('the activities recorded against a deal', () => {
 	});
 
 	test('start and end today, all day, when they name no dates', async () => {
-		const today = dayIn('Asia/Seoul', new Date());
+		const today = dayIn('Asia/Seoul', now);
 		const recorded = await asSample('crm_activity_save', {
 			organizationHint: 'ABC상사',
 			title: '날짜 없이 남긴 메모',
@@ -561,7 +561,7 @@ describe('the activities recorded against a deal', () => {
 	});
 
 	test('completed with last week\'s date show on last week\'s board and not on this one', async () => {
-		const lastMonday = weekWindow('Asia/Seoul', new Date(), -1, -1).from;
+		const lastMonday = weekWindow('Asia/Seoul', now, -1, -1).from;
 		const thisMonday = dayShifted(lastMonday, 7);
 		const recorded = await asSample('crm_activity_save', {
 			organizationHint: 'ABC상사',
@@ -583,8 +583,8 @@ describe('the activities recorded against a deal', () => {
 	});
 
 	test('on the calendar stay on the board as the same row, which the board can edit', async () => {
-		const today = dayIn('Asia/Seoul', new Date());
-		const thisMonday = weekWindow('Asia/Seoul', new Date(), 0, 0).from;
+		const today = dayIn('Asia/Seoul', now);
+		const thisMonday = weekWindow('Asia/Seoul', now, 0, 0).from;
 		const recorded = await asSample('crm_activity_save', {
 			organizationHint: 'ABC상사',
 			title: '캘린더에 올린 방문',
@@ -618,7 +618,7 @@ describe('the activities recorded against a deal', () => {
 	});
 
 	test('created on the calendar as completed end today, the way a task does', async () => {
-		const today = dayIn('Asia/Seoul', new Date());
+		const today = dayIn('Asia/Seoul', now);
 		const recorded = await asSample('crm_activity_save', {
 			organizationHint: 'ABC상사',
 			title: '미리 끝낸 방문',
@@ -635,7 +635,7 @@ describe('the activities recorded against a deal', () => {
 	});
 
 	test('keep the size the board gave them when the calendar edits them', async () => {
-		const today = dayIn('Asia/Seoul', new Date());
+		const today = dayIn('Asia/Seoul', now);
 		const recorded = await asSample('crm_activity_save', {
 			organizationHint: 'ABC상사',
 			title: '캘린더에서 고친 방문',
