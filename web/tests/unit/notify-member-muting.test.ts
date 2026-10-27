@@ -34,7 +34,7 @@ function clientWhere(options: {
 			if (table === 'member') {
 				return {
 					select: () => ({
-						eq: () => ({ maybeSingle: async () => ({ data: { notification_settings: options.settings }, error: null }) })
+						eq: () => ({ maybeSingle: async () => ({ data: { preferences: { notificationSettings: options.settings } }, error: null }) })
 					})
 				};
 			}

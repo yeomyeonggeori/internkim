@@ -38,11 +38,13 @@ async function wantsToBeTold(
 ): Promise<boolean> {
 	const { data, error } = await client
 		.from('member')
-		.select('notification_settings')
+		.select('preferences')
 		.eq('id', memberID)
-		.maybeSingle<{ notification_settings: unknown }>();
+		.maybeSingle<{ preferences: unknown }>();
 	if (error) throw new Error(error.message);
-	return readNotificationSettings(data?.notification_settings).categories[category];
+	const preferences = data?.preferences;
+	const stored = typeof preferences === 'object' && preferences !== null ? Reflect.get(preferences, 'notificationSettings') : undefined;
+	return readNotificationSettings(stored).categories[category];
 }
 
 async function hasMuted(client: SupabaseClient, memberID: string, conversationID: string): Promise<boolean> {

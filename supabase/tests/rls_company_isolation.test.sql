@@ -1231,10 +1231,10 @@ begin
   perform public.notification_settings_set('{"message": false}'::jsonb);
   reset role;
 
-  select notification_settings into chosen from public.member where id = mine;
+  select preferences -> 'notificationSettings' into chosen from public.member where id = mine;
   assert chosen = '{"message": false}'::jsonb, 'a member sets their own notification settings';
 
-  select notification_settings into untouched from public.member where id = theirs;
+  select coalesce(preferences -> 'notificationSettings', '{}'::jsonb) into untouched from public.member where id = theirs;
   assert untouched = '{}'::jsonb, 'and only their own';
 
   raise notice 'push: notification settings are written for the caller, never for a named member';
@@ -1303,6 +1303,7 @@ declare
   directory_rows integer;
   entitlement_refused boolean := false;
   preferences_refused boolean := false;
+  arrangement_refused boolean := false;
   note_refused boolean := false;
 begin
   set local role authenticated;
@@ -1324,6 +1325,11 @@ begin
     preferences_refused := true;
   end;
   begin
+    perform preferences from public.member;
+  exception when insufficient_privilege then
+    arrangement_refused := true;
+  end;
+  begin
     perform note from public.member;
   exception when insufficient_privilege then
     note_refused := true;
@@ -1331,6 +1337,7 @@ begin
 
   assert entitlement_refused, 'a colleague reads no row of what anybody was granted';
   assert preferences_refused, 'a colleague cannot read somebody notification settings';
+  assert arrangement_refused, 'a colleague cannot read how somebody keeps their messenger';
   assert note_refused, 'a colleague cannot read the note kept about somebody';
 
   reset role;
