@@ -13,7 +13,8 @@ pub fn run() {
     let builder = builder
         .plugin(tauri_plugin_foreground_notifications::init())
         .plugin(tauri_plugin_silent_push::init())
-        .plugin(tauri_plugin_attendance_activity::init());
+        .plugin(tauri_plugin_attendance_activity::init())
+        .plugin(tauri_plugin_back_gesture::init());
     builder
         .run(tauri::generate_context!())
         .expect("the internkim app could not start");

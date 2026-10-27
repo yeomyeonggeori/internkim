@@ -1755,6 +1755,7 @@ dependencies = [
  "tauri-build",
  "tauri-plugin-attendance-activity",
  "tauri-plugin-attendance-widget",
+ "tauri-plugin-back-gesture",
  "tauri-plugin-foreground-notifications",
  "tauri-plugin-haptics",
  "tauri-plugin-keyboard",
@@ -3682,6 +3683,14 @@ dependencies = [
 
 [[package]]
 name = "tauri-plugin-attendance-widget"
+version = "0.1.0"
+dependencies = [
+ "tauri",
+ "tauri-plugin",
+]
+
+[[package]]
+name = "tauri-plugin-back-gesture"
 version = "0.1.0"
 dependencies = [
  "tauri",
