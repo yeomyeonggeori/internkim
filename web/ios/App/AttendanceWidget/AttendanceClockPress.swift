@@ -22,7 +22,6 @@ enum AttendanceClockPress {
                 $0.tappedAt = tapped
                 $0.rowsTrustedUntil = tapped.addingTimeInterval(AttendanceWidgetCache.rowsTrustedFor)
             }
-            WidgetCenter.shared.reloadAllTimelines()
         }
 
         let saving = Task {
@@ -42,6 +41,7 @@ enum AttendanceClockPress {
     private static func save(api: AttendanceAPI, kind: String, location: String?, zone: TimeZone?, pressed: AttendanceRow?) async {
         let origin = api.credential.origin
         var closeCards = false
+        var drawnPressWasWrong = true
         do {
             let written = try await api.clock(kind: kind, location: location)
             let added = zone.flatMap { zone in written.event.flatMap { AttendanceWidgetCache.row(from: $0, timeZone: zone) } }
@@ -49,13 +49,14 @@ enum AttendanceClockPress {
                 $0.settle(pressed: pressed, written: written, added: added, now: Date())
             }
             closeCards = kind == "clock_out"
+            drawnPressWasWrong = written.status == "removed" || added == nil
         } catch {
             AttendanceWidgetCache.amend(origin: origin) {
                 $0.refuse(pressed: pressed)
             }
             AttendanceRefusal.keep(error.localizedDescription)
         }
-        WidgetCenter.shared.reloadAllTimelines()
+        if drawnPressWasWrong { WidgetCenter.shared.reloadAllTimelines() }
         if closeCards { await AttendanceLockScreenCards.close() }
     }
 }
