@@ -51,3 +51,5 @@ docs/api/reference/
 docs/tools/reference/
 *.sqlite
 skills-lock.json
+
+.gradle/
