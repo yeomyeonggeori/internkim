@@ -1,0 +1,3 @@
+[default]
+description = "Lets an edge swipe go back through the page's history"
+permissions = []
