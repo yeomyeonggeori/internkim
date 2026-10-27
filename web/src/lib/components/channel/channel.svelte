@@ -732,8 +732,8 @@
 			<button
 				type="button"
 				class="block max-w-full cursor-zoom-in overflow-hidden rounded-lg"
-				aria-label={loneImage.filename ?? '이미지 크게 보기'}
-				onclick={() => openLightbox(attachments, loneImage.source ?? '')}
+				aria-label={attachmentSource.isNotShown(loneImage.url) ? `${text.attachmentUnavailable} · ${text.retry}` : (loneImage.filename ?? '이미지 크게 보기')}
+				onclick={() => (attachmentSource.isNotShown(loneImage.url) ? attachmentSource.retry(loneImage.url) : openLightbox(attachments, loneImage.source ?? ''))}
 			>
 				<LoadingImage
 					messagePicture

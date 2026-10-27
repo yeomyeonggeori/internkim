@@ -33,6 +33,18 @@ export async function keepAttachmentFile(address: string, readableURL: string): 
 	}
 }
 
+export async function forgetAttachmentFile(address: string): Promise<void> {
+	const shown = shownURLOfAddress.get(address);
+	if (shown) URL.revokeObjectURL(shown);
+	shownURLOfAddress.delete(address);
+	try {
+		const cache = await openAttachmentFiles();
+		await cache?.delete(fileKeyOf(address));
+	} catch (failure) {
+		console.warn('a messenger attachment kept on this device could not be forgotten', { address, failure });
+	}
+}
+
 export async function forgetAttachmentFiles(): Promise<void> {
 	for (const shown of shownURLOfAddress.values()) URL.revokeObjectURL(shown);
 	shownURLOfAddress.clear();
