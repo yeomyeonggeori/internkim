@@ -9,15 +9,20 @@ const link = 'https://example.com/reel/one';
 const channel = { id: 'channel-notice', name: '공지', kind: 'group', isPrivate: false, participantExternalIDs: [readerExternalID] };
 const linkMessage = { id: 'link-message', conversationID: channel.id, authorExternalID: readerExternalID, body: link, postedAt: '2026-10-27T01:00:00.000Z', reactions: [], attachments: [] };
 
-type LinkPreview = { url: string; title: string; description: string; siteName: string; imageURL: string };
+type LinkVideo = { url: string; kind: 'file' | 'player'; width: number; height: number };
+type LinkPreview = { url: string; title: string; description: string; siteName: string; imageURL: string; video: LinkVideo | null };
 
 const preview: LinkPreview = {
 	url: link,
 	title: '샘플 영상',
 	description: '좋아요 10개',
 	siteName: 'Example',
-	imageURL: 'https://cdn.example.com/cover.jpg'
+	imageURL: 'https://cdn.example.com/cover.jpg',
+	video: null
 };
+const videoFile: LinkVideo = { url: 'https://cdn.example.com/one.mp4', kind: 'file', width: 720, height: 1280 };
+const videoPlayer: LinkVideo = { url: 'https://player.example.com/embed/one', kind: 'player', width: 0, height: 0 };
+const poster = '<svg xmlns="http://www.w3.org/2000/svg" width="191" height="100"><rect width="191" height="100" fill="#466baa"/></svg>';
 
 async function signInWithOneMessage(page: Page, preview: LinkPreview): Promise<void> {
 	await page.addInitScript(({ memberID, email }) => {
@@ -72,4 +77,47 @@ test('a link card whose picture the site refuses keeps its text and leaves no br
 	await expect(card(page)).toContainText(preview.description);
 	await expect(card(page).locator('[data-loading-image]')).toHaveCount(0);
 	await expect(card(page).getByText('이미지를 불러올 수 없어요')).toHaveCount(0);
+});
+
+test('a link card with a video file plays it in place and keeps its link', async ({ page }) => {
+	await signInWithOneMessage(page, { ...preview, video: videoFile });
+	await page.route(preview.imageURL, (route) => route.fulfill({ contentType: 'image/svg+xml', body: poster }));
+	await page.route(videoFile.url, () => {});
+	await page.goto(`/messenger?channel=${channel.id}`);
+	const video = page.locator('[data-link-video="file"]');
+	await expect(video.locator('[data-loading-image]')).toHaveAttribute('data-loading-image', 'loaded');
+	const box = await video.boundingBox();
+	if (!box) throw new Error('The link video has no frame');
+	expect(box.width / box.height).toBeCloseTo(720 / 1280, 2);
+	expect(box.height).toBeLessThanOrEqual(26 * 16 + 1);
+	await page.getByRole('button', { name: `${preview.title} 영상 재생` }).click();
+	await expect(video.locator('video')).toHaveAttribute('src', videoFile.url);
+	await expect(card(page)).toContainText(preview.description);
+});
+
+test('a link card with a site player frames the player only once asked to play', async ({ page }) => {
+	await signInWithOneMessage(page, { ...preview, video: videoPlayer });
+	await page.route(preview.imageURL, (route) => route.fulfill({ contentType: 'image/svg+xml', body: poster }));
+	let isPlayerRequested = false;
+	await page.route(videoPlayer.url, (route) => {
+		isPlayerRequested = true;
+		return route.fulfill({ contentType: 'text/html', body: '<p>player</p>' });
+	});
+	await page.goto(`/messenger?channel=${channel.id}`);
+	const frame = page.locator('[data-link-video="player"]');
+	await expect(frame.locator('[data-loading-image]')).toHaveAttribute('data-loading-image', 'loaded');
+	expect(isPlayerRequested).toBe(false);
+	await frame.getByRole('button', { name: `${preview.title} 영상 재생` }).click();
+	await expect(page.frameLocator(`iframe[title="${preview.title}"]`).getByText('player')).toBeVisible();
+	await expect(card(page)).toContainText(preview.siteName);
+});
+
+test('a link card whose video file fails goes back to the picture card', async ({ page }) => {
+	await signInWithOneMessage(page, { ...preview, video: videoFile });
+	await page.route(preview.imageURL, (route) => route.fulfill({ contentType: 'image/svg+xml', body: poster }));
+	await page.route(videoFile.url, (route) => route.fulfill({ status: 404 }));
+	await page.goto(`/messenger?channel=${channel.id}`);
+	await page.getByRole('button', { name: `${preview.title} 영상 재생` }).click();
+	await expect(page.locator('[data-link-video]')).toHaveCount(0);
+	await expect(card(page).locator('[data-loading-image]')).toHaveAttribute('data-loading-image', 'loaded');
 });

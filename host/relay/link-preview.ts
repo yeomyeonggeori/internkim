@@ -6,6 +6,14 @@ export type LinkPreview = {
 	description: string;
 	siteName: string;
 	imageURL: string;
+	video: LinkVideo | null;
+};
+
+export type LinkVideo = {
+	url: string;
+	kind: 'file' | 'player';
+	width: number;
+	height: number;
 };
 
 const pageByteCap = 512 * 1024;
@@ -27,8 +35,50 @@ export async function readLinkPreview(link: string): Promise<LinkPreview | null>
 		title,
 		description: tags.get('og:description') ?? tags.get('description') ?? '',
 		siteName: tags.get('og:site_name') ?? address.hostname,
-		imageURL: imageAddress(tags.get('og:image'), address)
+		imageURL: imageAddress(tags.get('og:image'), address),
+		video: videoOf(tags, address)
 	};
+}
+
+export function videoOf(tags: Map<string, string>, page: URL): LinkVideo | null {
+	return openGraphVideoOf(tags, page) ?? twitterPlayerOf(tags, page);
+}
+
+function openGraphVideoOf(tags: Map<string, string>, page: URL): LinkVideo | null {
+	const link = tags.get('og:video:secure_url') ?? tags.get('og:video:url') ?? tags.get('og:video');
+	const kind = videoKindOf(tags.get('og:video:type') ?? '');
+	if (!link || !kind) return null;
+	return playableVideo(link, kind, tags.get('og:video:width'), tags.get('og:video:height'), page);
+}
+
+function twitterPlayerOf(tags: Map<string, string>, page: URL): LinkVideo | null {
+	const link = tags.get('twitter:player');
+	if (!link) return null;
+	return playableVideo(link, 'player', tags.get('twitter:player:width'), tags.get('twitter:player:height'), page);
+}
+
+function videoKindOf(type: string): LinkVideo['kind'] | null {
+	const mediaType = type.split(';')[0].trim().toLowerCase();
+	if (mediaType.startsWith('video/')) return 'file';
+	if (mediaType === 'text/html') return 'player';
+	return null;
+}
+
+function playableVideo(
+	link: string,
+	kind: LinkVideo['kind'],
+	width: string | undefined,
+	height: string | undefined,
+	page: URL
+): LinkVideo | null {
+	const address = reachableAddress(URL.parse(link, page)?.toString() ?? '');
+	if (address?.protocol !== 'https:') return null;
+	return { url: address.toString(), kind, width: dimensionOf(width), height: dimensionOf(height) };
+}
+
+function dimensionOf(value: string | undefined): number {
+	const parsed = Number(value);
+	return Number.isInteger(parsed) && parsed > 0 ? parsed : 0;
 }
 
 export function reachableAddress(link: string): URL | null {
