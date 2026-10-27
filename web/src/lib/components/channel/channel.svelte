@@ -96,6 +96,7 @@
 		participants = [],
 		isGroup = false,
 		isWithTheAgent = true,
+		isThreadOpen = $bindable(false),
 		onReadThrough
 	}: {
 		isActive?: boolean;
@@ -106,6 +107,7 @@
 		participants?: MentionPerson[];
 		isGroup?: boolean;
 		isWithTheAgent?: boolean;
+		isThreadOpen?: boolean;
 		onReadThrough?: (sentAt: string) => void;
 	} = $props();
 
@@ -529,6 +531,10 @@
 		threadComposer?.clear();
 		openThreadRoot = null;
 	}
+
+	$effect(() => {
+		isThreadOpen = openThreadRoot !== null;
+	});
 
 	$effect(() => {
 		if (threadRootIDInHistory() === undefined && untrack(() => openThreadRoot) !== null) dismissThread();
