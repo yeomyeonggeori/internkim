@@ -204,9 +204,9 @@
 	canRemoveParticipant={page.canRemoveParticipant}
 	saveTask={page.saveTask}
 	deleteTask={page.deleteTask}
-	canUpdateTask={isLoading ? () => false : page.canUpdateTask}
-	canDeleteTask={isLoading ? () => false : page.canDeleteTask}
-	canManageTaskAssignment={isLoading ? () => false : page.canManageTaskAssignment}
+	canUpdateTask={page.canUpdateTask}
+	canDeleteTask={page.canDeleteTask}
+	canManageTaskAssignment={page.canManageTaskAssignment}
 	isOwnTask={page.editor.isOwnTask}
 	startEditingTask={page.editor.startEditingTask}
 	closeEditor={page.closeEditor}
