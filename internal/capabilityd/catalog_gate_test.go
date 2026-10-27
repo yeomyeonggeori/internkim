@@ -791,6 +791,42 @@ func gateCases() map[string]catalogGateCase {
 				expectResultHolds(t, answered, `"isMuted":false`)
 			},
 		},
+		"channel_order_get": {
+			kind:    provesCarrying,
+			reaches: map[gateBackend]*standingIn{admindOverTheSocket: answering(`{"tool":"channel_order_get","result":{"pinnedChannels":["channel-1"],"channelOrder":["channel-2","channel-1"]}}`)},
+			input:   `{}`,
+			expect: func(t *testing.T, answered capabilities.ToolInvokeResponse) {
+				expectSucceeded(t, answered)
+				expectResultHolds(t, answered, `"pinnedChannels":["channel-1"]`)
+			},
+		},
+		"channel_order_set": {
+			kind:    provesCarrying,
+			reaches: map[gateBackend]*standingIn{admindOverTheSocket: answering(`{"tool":"channel_order_set","result":{"pinnedChannels":[],"channelOrder":["channel-2","channel-1"]}}`)},
+			input:   `{"channelOrder":["channel-2","channel-1"]}`,
+			expect: func(t *testing.T, answered capabilities.ToolInvokeResponse) {
+				expectSucceeded(t, answered)
+				expectResultHolds(t, answered, `"channelOrder":["channel-2","channel-1"]`)
+			},
+		},
+		"channel_pin": {
+			kind:    provesCarrying,
+			reaches: map[gateBackend]*standingIn{admindOverTheSocket: answering(`{"tool":"channel_pin","result":{"channelID":"channel-1","isPinned":true,"pinnedChannels":["channel-1"],"channelOrder":[]}}`)},
+			input:   `{"channelID":"channel-1"}`,
+			expect: func(t *testing.T, answered capabilities.ToolInvokeResponse) {
+				expectSucceeded(t, answered)
+				expectResultHolds(t, answered, `"isPinned":true`)
+			},
+		},
+		"channel_unpin": {
+			kind:    provesCarrying,
+			reaches: map[gateBackend]*standingIn{admindOverTheSocket: answering(`{"tool":"channel_unpin","result":{"channelID":"channel-1","isPinned":false,"pinnedChannels":[],"channelOrder":[]}}`)},
+			input:   `{"channelID":"channel-1"}`,
+			expect: func(t *testing.T, answered capabilities.ToolInvokeResponse) {
+				expectSucceeded(t, answered)
+				expectResultHolds(t, answered, `"isPinned":false`)
+			},
+		},
 		"attendance_work_policy_get": {
 			kind:    provesCarrying,
 			reaches: map[gateBackend]*standingIn{admindOverTheSocket: answering(`{"tool":"attendance_work_policy_get","result":{"timeZone":"Asia/Seoul","workMode":"flexible","policy":{"version":1,"revisions":[{"effectiveDate":"1970-01-01","workMode":"flexible","workingWeekdays":[1,2,3,4,5],"dailyTargetMinutes":480,"weeklyTargetMinutes":2400,"referenceStartTime":"09:00","fixedStartTime":"","fixedEndTime":"","coreTimeEnabled":false,"coreStartTime":"","coreEndTime":"","breakPeriods":[],"nightStartTime":"22:00","nightEndTime":"06:00"}]},"people":[]}}`)},

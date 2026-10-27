@@ -73,6 +73,8 @@ import {
 	notificationSettingsGet,
 	notificationSettingsSet
 } from './notification-tools';
+import { channelOrderGet, channelOrderSet, channelPin, channelUnpin } from './channel-order-tools';
+import { channelOrderSetInputSchema, channelPinInputSchema } from '../catalog/channel-order';
 import { LabelUnresolved } from './labels';
 import { WhoseRecordsContradicted } from './whose';
 import { RecordRefusedTheWrite, WriteNotReadBack } from './tasks';
@@ -118,7 +120,8 @@ function exactAttendancePersonIDs(name: string, input: ToolInput): string[] | un
 const readsWithoutPeople = new Set([
 	'company_settings_get', 'company_holiday_list', 'crm_organization_list',
 	'crm_contact_list', 'crm_opportunity_list', 'crm_vocabulary_get',
-	'calendar_subscription_get', 'calendar_subscription_add', 'calendar_subscription_delete'
+	'calendar_subscription_get', 'calendar_subscription_add', 'calendar_subscription_delete',
+	'channel_order_get', 'channel_order_set', 'channel_pin', 'channel_unpin'
 ]);
 
 function placeTheAppAnswersAt(name: string, place: ToolPlace | undefined): ToolPlace {
@@ -215,6 +218,10 @@ const toolsOverTheRecord: Record<string, ToolRun> = {
 	notification_settings_set: (context, input) => notificationSettingsSet(context, input),
 	conversation_mute: (context, input) => conversationMute(context, input),
 	conversation_unmute: (context, input) => conversationUnmute(context, input),
+	channel_order_get: (context) => channelOrderGet(context),
+	channel_order_set: (context, input) => channelOrderSet(context, channelOrderSetInputSchema.parse(input)),
+	channel_pin: (context, input) => channelPin(context, channelPinInputSchema.parse(input)),
+	channel_unpin: (context, input) => channelUnpin(context, channelPinInputSchema.parse(input)),
 	crm_organization_list: (context, input) => crmOrganizationList(context, input),
 	crm_organization_add: (context, input) => crmOrganizationAdd(context, input),
 	crm_organization_update: (context, input) => crmOrganizationUpdate(context, input),

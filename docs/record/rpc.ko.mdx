@@ -39,6 +39,10 @@ description: "PostgREST가 /rest/v1/rpc로 노출하는 함수 전부와, 누가
 | `calendar_subscription_company` | `target_token_hash text` | `uuid` | definer | service_role |
 | `calendar_subscription_save` | `target_token_hash text` | `void` | definer | authenticated |
 | `can_manage_task_relationship` | `target_task_id uuid` | `boolean` | definer | 없음 |
+| `channel_order_get` | — | `jsonb` | definer | authenticated, service_role |
+| `channel_order_set` | `pinned text[], ordered text[]` | `jsonb` | definer | authenticated, service_role |
+| `channel_pin` | `channel text` | `jsonb` | definer | authenticated, service_role |
+| `channel_unpin` | `channel text` | `jsonb` | definer | authenticated, service_role |
 | `circle_channel_add` | `target_company uuid, target_circle text, channel_name text` | `void` | definer | authenticated, service_role |
 | `circle_channel_delete` | `target_company uuid, target_circle text, confirmed_name text` | `void` | definer | authenticated, service_role |
 | `circle_set` | `target_company uuid, circle_id text, circle_name text, readable_categories text[]` | `void` | definer | authenticated, service_role |

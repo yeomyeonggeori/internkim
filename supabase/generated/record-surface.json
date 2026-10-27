@@ -308,6 +308,46 @@
       "callableBy": []
     },
     {
+      "name": "channel_order_get",
+      "arguments": "",
+      "returns": "jsonb",
+      "security": "definer",
+      "callableBy": [
+        "authenticated",
+        "service_role"
+      ]
+    },
+    {
+      "name": "channel_order_set",
+      "arguments": "pinned text[], ordered text[]",
+      "returns": "jsonb",
+      "security": "definer",
+      "callableBy": [
+        "authenticated",
+        "service_role"
+      ]
+    },
+    {
+      "name": "channel_pin",
+      "arguments": "channel text",
+      "returns": "jsonb",
+      "security": "definer",
+      "callableBy": [
+        "authenticated",
+        "service_role"
+      ]
+    },
+    {
+      "name": "channel_unpin",
+      "arguments": "channel text",
+      "returns": "jsonb",
+      "security": "definer",
+      "callableBy": [
+        "authenticated",
+        "service_role"
+      ]
+    },
+    {
       "name": "circle_channel_add",
       "arguments": "target_company uuid, target_circle text, channel_name text",
       "returns": "void",
