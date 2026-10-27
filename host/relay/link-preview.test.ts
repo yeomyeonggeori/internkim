@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { decodePage, imageAddress, reachableAddress } from './link-preview';
+import { decodePage, imageAddress, reachableAddress, readMetaTags } from './link-preview';
 
 describe('reachableAddress', () => {
 	test('an ordinary web address is fetched', () => {
@@ -68,5 +68,21 @@ describe('decodePage', () => {
 
 	test('an unknown charset does not throw', () => {
 		expect(decodePage(new TextEncoder().encode('hi'), 'text/html; charset=nonsense-9')).toBe('hi');
+	});
+});
+
+describe('readMetaTags', () => {
+	test('reads a value the page wrote as character references as the text it stands for', async () => {
+		const tags = await readMetaTags(
+			'<meta property="og:title" content="&#xc0d8;&#xd50c; on Instagram: &quot;hi&quot;">' +
+				'<meta property="og:image" content="https://cdn.example.com/one.jpg?a=1&amp;b=2">'
+		);
+		expect(tags.get('og:title')).toBe('샘플 on Instagram: "hi"');
+		expect(tags.get('og:image')).toBe('https://cdn.example.com/one.jpg?a=1&b=2');
+	});
+
+	test('reads the document title the same way', async () => {
+		const tags = await readMetaTags('<title>Tom &amp; Jerry &#8212; one</title>');
+		expect(tags.get('title')).toBe('Tom & Jerry — one');
 	});
 });

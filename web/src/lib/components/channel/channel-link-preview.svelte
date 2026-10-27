@@ -6,6 +6,7 @@
 	let { url }: { url: string } = $props();
 
 	let preview = $state<LinkPreview | null>(null);
+	let failedImageURL = $state('');
 
 	$effect(() => {
 		if (!url || !isSupabaseConfigured()) return;
@@ -28,7 +29,7 @@
 		rel="noreferrer"
 		class="flex w-full max-w-[min(70%,20rem)] flex-col self-start overflow-hidden rounded-lg border bg-card text-card-foreground no-underline transition-colors group-data-[align=end]/message:self-end hover:bg-accent"
 	>
-		{#if preview.imageURL}
+		{#if preview.imageURL && preview.imageURL !== failedImageURL}
 			<LoadingImage
 				src={preview.imageURL}
 				alt=""
@@ -36,6 +37,7 @@
 				fill
 				class="aspect-[1.91/1] w-full"
 				imageClass="object-cover"
+				onFailed={() => (failedImageURL = preview?.imageURL ?? '')}
 			/>
 		{/if}
 		<div class="grid gap-0.5 px-3 py-2">

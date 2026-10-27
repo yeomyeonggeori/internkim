@@ -4,7 +4,8 @@
 	"type": "module",
 	"dependencies": {
 		"@agentclientprotocol/sdk": "^1.4.0",
-		"@supabase/supabase-js": "^2.111.0"
+		"@supabase/supabase-js": "^2.111.0",
+		"entities": "^8.1.0"
 	},
 	"scripts": {
 		"check": "tsc --noEmit"
