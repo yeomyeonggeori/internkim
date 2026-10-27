@@ -35,11 +35,12 @@
 					<Attachment.Media variant="image">
 						{#if attachment.source}
 							{@const source = attachment.source}
+							{@const notShown = attachmentSource.isNotShown(attachment.url)}
 							<button
 								type="button"
 								class="block h-full w-full cursor-zoom-in"
-								aria-label={attachment.filename ?? '이미지 크게 보기'}
-								onclick={() => openPicture(source)}
+								aria-label={notShown ? `${text.attachmentUnavailable} · ${text.retry}` : (attachment.filename ?? '이미지 크게 보기')}
+								onclick={() => (notShown ? attachmentSource.retry(attachment.url) : openPicture(source))}
 							>
 								<LoadingImage
 									messagePicture

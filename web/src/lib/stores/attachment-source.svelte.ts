@@ -1,7 +1,7 @@
 import { isSupabaseConfigured, projectURL } from '$lib/supabase';
 import { copyAttachmentForReading, type MessengerAttachment } from '$lib/messenger/messenger-api';
 import { keptAssetPathOf } from '$lib/messenger/kept-attachment';
-import { forgetAttachmentFiles, isKeptAsFile, keepAttachmentFile, keptAttachmentFile } from '$lib/messenger/attachment-files';
+import { forgetAttachmentFile, forgetAttachmentFiles, isKeptAsFile, keepAttachmentFile, keptAttachmentFile } from '$lib/messenger/attachment-files';
 import { onMessengerCacheReset } from '$lib/messenger/cache-scope';
 import { readableForSeconds, signedForReading } from '$lib/transfer/company-transfer';
 
@@ -18,7 +18,9 @@ class AttachmentSourceStore {
 	private progressByURL = $state<Map<string, AttachmentProgress>>(new Map());
 	private failureByURL = $state<Map<string, string>>(new Map());
 	private loadingURLs = $state<Set<string>>(new Set());
+	private notShownURLs = $state<Set<string>>(new Set());
 	private asked = new Map<string, MessengerAttachment>();
+	private reopenedAfterFailure = new Set<string>();
 	private generation = 0;
 
 	constructor() {
@@ -28,7 +30,9 @@ class AttachmentSourceStore {
 			this.progressByURL = new Map();
 			this.failureByURL = new Map();
 			this.loadingURLs = new Set();
+			this.notShownURLs = new Set();
 			this.asked.clear();
+			this.reopenedAfterFailure.clear();
 			void forgetAttachmentFiles();
 		});
 	}
@@ -52,6 +56,10 @@ class AttachmentSourceStore {
 		return this.failureByURL.get(url) ?? '';
 	}
 
+	isNotShown(url: string): boolean {
+		return this.notShownURLs.has(url);
+	}
+
 	wants(attachments: MessengerAttachment[]): void {
 		if (!isSupabaseConfigured()) return;
 		for (const attachment of attachments) {
@@ -64,15 +72,30 @@ class AttachmentSourceStore {
 
 	renew(url: string): void {
 		const attachment = this.asked.get(url);
-		if (!attachment || !this.needsRenewal(url)) return;
-		void this.open(attachment);
+		const shown = this.openableByURL.get(url);
+		if (!attachment || !shown || this.loadingURLs.has(url)) return;
+		if (isStale(shown, Date.now())) {
+			void this.open(attachment);
+			return;
+		}
+		if (this.reopenedAfterFailure.has(url)) {
+			this.notShownURLs = new Set([...this.notShownURLs, url]);
+			return;
+		}
+		this.reopenedAfterFailure.add(url);
+		this.openAgain(attachment);
 	}
 
 	retry(url: string): void {
 		const attachment = this.asked.get(url);
 		if (!attachment || this.loadingURLs.has(url)) return;
 		this.failureByURL = withoutKey(this.failureByURL, url);
-		void this.open(attachment);
+		this.openAgain(attachment);
+	}
+
+	private openAgain(attachment: MessengerAttachment): void {
+		this.openableByURL = withoutKey(this.openableByURL, attachment.url);
+		void this.open(attachment, { withoutDeviceCopy: true });
 	}
 
 	private needsRenewal(url: string, now: number = Date.now()): boolean {
@@ -84,15 +107,16 @@ class AttachmentSourceStore {
 		return this.failureByURL.has(url) && !this.loadingURLs.has(url);
 	}
 
-	private async open(attachment: MessengerAttachment): Promise<void> {
+	private async open(attachment: MessengerAttachment, { withoutDeviceCopy = false }: { withoutDeviceCopy?: boolean } = {}): Promise<void> {
 		const generation = this.generation;
 		const url = attachment.url;
 		this.loadingURLs = new Set([...this.loadingURLs, url]);
 		try {
+			if (withoutDeviceCopy) await forgetAttachmentFile(url);
 			const kept = isKeptAsFile(attachment.contentType) ? await keptAttachmentFile(url) : '';
 			if (generation !== this.generation) return;
 			if (kept) {
-				this.openableByURL = new Map(this.openableByURL).set(url, { address: kept, expiresAt: Number.POSITIVE_INFINITY });
+				this.opened(url, { address: kept, expiresAt: Number.POSITIVE_INFINITY });
 				return;
 			}
 			const address = keptAssetPathOf(projectURL(), url) ? url : await this.copied(attachment, generation);
@@ -100,7 +124,7 @@ class AttachmentSourceStore {
 			const expiresAt = Date.now() + readableForSeconds * 1000;
 			const signed = await signedForReading(address);
 			if (generation !== this.generation) return;
-			this.openableByURL = new Map(this.openableByURL).set(url, { address: signed, expiresAt });
+			this.opened(url, { address: signed, expiresAt });
 			if (isKeptAsFile(attachment.contentType)) void keepAttachmentFile(url, signed);
 		} catch (failure) {
 			if (generation !== this.generation) return;
@@ -111,6 +135,11 @@ class AttachmentSourceStore {
 			this.progressByURL = withoutKey(this.progressByURL, url);
 			this.loadingURLs = new Set([...this.loadingURLs].filter((loading) => loading !== url));
 		}
+	}
+
+	private opened(url: string, openable: Openable): void {
+		this.openableByURL = new Map(this.openableByURL).set(url, openable);
+		if (this.notShownURLs.has(url)) this.notShownURLs = new Set([...this.notShownURLs].filter((notShown) => notShown !== url));
 	}
 
 	private async copied(attachment: MessengerAttachment, generation: number): Promise<string> {

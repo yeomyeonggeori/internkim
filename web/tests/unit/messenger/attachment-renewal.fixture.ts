@@ -30,7 +30,6 @@ await advance(0);
 attachmentSource.wants([attachment]);
 await nextTurn();
 const first = attachmentSource.openable(attachment.url);
-attachmentSource.renew(attachment.url);
 attachmentSource.wants([attachment]);
 await nextTurn();
 const whileFresh = attachmentSource.openable(attachment.url);

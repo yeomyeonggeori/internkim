@@ -17,7 +17,8 @@ Reflect.set(globalThis, 'location', new URL(origin));
 Reflect.set(globalThis, 'caches', {
 	open: async () => ({
 		match: async (key: string) => stored.get(key)?.clone(),
-		put: async (key: string, response: Response) => { stored.set(key, response); }
+		put: async (key: string, response: Response) => { stored.set(key, response); },
+		delete: async (key: string) => stored.delete(key)
 	}),
 	delete: async () => true
 });
@@ -56,12 +57,22 @@ attachmentSource.wants([picture(newAddress), { ...picture(documentAddress), cont
 await nextTurn();
 await nextTurn();
 
-console.log(JSON.stringify({
+const beforeNotShown = {
 	keptOpenable,
 	keptWork,
 	newOpenable: attachmentSource.openable(newAddress),
 	documentOpenable: attachmentSource.openable(documentAddress),
-	fetched,
+	fetched: [...fetched],
 	newKept: stored.has(keyOf(newAddress)),
 	documentKept: stored.has(keyOf(documentAddress))
+};
+
+attachmentSource.renew(keptAddress);
+await nextTurn();
+await nextTurn();
+
+console.log(JSON.stringify({
+	...beforeNotShown,
+	notShownOpenable: attachmentSource.openable(keptAddress),
+	notShownKeptAgain: await stored.get(keyOf(keptAddress))?.clone().text()
 }));
