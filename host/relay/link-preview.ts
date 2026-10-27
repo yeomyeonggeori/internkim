@@ -1,3 +1,5 @@
+import { decodeHTML, decodeHTMLAttribute } from 'entities';
+
 export type LinkPreview = {
 	url: string;
 	title: string;
@@ -104,7 +106,7 @@ function decodeWith(bytes: Uint8Array, label: string): string {
 	}
 }
 
-async function readMetaTags(html: string): Promise<Map<string, string>> {
+export async function readMetaTags(html: string): Promise<Map<string, string>> {
 	const tags = new Map<string, string>();
 	let title = '';
 	await new HTMLRewriter()
@@ -112,7 +114,7 @@ async function readMetaTags(html: string): Promise<Map<string, string>> {
 			element(tag) {
 				const key = tag.getAttribute('property') ?? tag.getAttribute('name');
 				const value = tag.getAttribute('content');
-				if (key && value && !tags.has(key)) tags.set(key, value);
+				if (key && value && !tags.has(key)) tags.set(key, decodeHTMLAttribute(value));
 			}
 		})
 		.on('title', {
@@ -122,7 +124,8 @@ async function readMetaTags(html: string): Promise<Map<string, string>> {
 		})
 		.transform(new Response(html))
 		.text();
-	if (title.trim() && !tags.has('title')) tags.set('title', title.trim());
+	const documentTitle = decodeHTML(title).trim();
+	if (documentTitle && !tags.has('title')) tags.set('title', documentTitle);
 	return tags;
 }
 
