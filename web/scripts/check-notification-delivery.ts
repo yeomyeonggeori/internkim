@@ -122,7 +122,7 @@ try {
 		.eq('member_id', company.adminMemberID);
 	await admin
 		.from('member')
-		.update({ notification_settings: { message: false } })
+		.update({ preferences: { notificationSettings: { message: false } } })
 		.eq('id', company.adminMemberID);
 	const silenced = await notify(agentKey, {
 		platform: 'mattermost',
@@ -141,7 +141,7 @@ try {
 	await admin.from('push_device').update({ address: forgotten.address }).eq('member_id', company.adminMemberID);
 	await admin
 		.from('member')
-		.update({ notification_settings: {} })
+		.update({ preferences: {} })
 		.eq('id', company.adminMemberID);
 	await notify(agentKey, { platform: 'mattermost', externalIDs: [externalID], category: 'message', ...sent });
 	const surviving = await admin
