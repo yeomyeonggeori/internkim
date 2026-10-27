@@ -15,8 +15,9 @@ const resets = new Set<() => void>();
 const storagePrefix = 'messenger-conversations:';
 const messageStoragePrefix = 'messenger-messages:';
 const inboxStoragePrefix = 'messenger-inbox:';
+const channelOrderStoragePrefix = 'messenger-channel-order:';
 const verifiedScopeKey = 'messenger-verified-scope';
-const storedPrefixes = [storagePrefix, messageStoragePrefix, inboxStoragePrefix, 'messenger-last-channel:'];
+const storedPrefixes = [storagePrefix, messageStoragePrefix, inboxStoragePrefix, channelOrderStoragePrefix, 'messenger-last-channel:'];
 const storedKeys = ['messenger-conversations', 'messenger-last-channel', verifiedScopeKey];
 
 export function onMessengerCacheReset(reset: () => void): () => void {
@@ -177,6 +178,10 @@ export function conversationStorageKey(scope: MessengerCacheScope): string {
 
 export function inboxStorageKey(scope: MessengerCacheScope): string {
 	return inboxStoragePrefix + scope.key;
+}
+
+export function channelOrderStorageKey(scope: MessengerCacheScope): string {
+	return channelOrderStoragePrefix + scope.key;
 }
 
 export function messageStorageKey(scopeKey: string, channelID: string): string {

@@ -14834,6 +14834,437 @@
       "worksOffline": false
     },
     {
+      "answeredBy": "record",
+      "availability": {
+        "state": "ok"
+      },
+      "canonicalName": "channel_order_get",
+      "description": "Get how the requester orders their own channel list: the channels they pinned, in order, and the order of every channel. It is the requester's own and the same on every device they sign in on.",
+      "estimatedLatency": "low",
+      "idempotency": {
+        "required": false,
+        "scope": "operation",
+        "supported": false
+      },
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {},
+        "type": "object"
+      },
+      "inputSchemaStrict": true,
+      "modelName": "channel_order_get",
+      "modelVisibility": "hidden",
+      "modelVisible": false,
+      "name": "channel_order_get",
+      "namespace": "channel",
+      "namespaceSummary": "Channels in the company messenger: create, join, leave, delete, and who belongs to or owns one.",
+      "outputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "channelOrder": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "pinnedChannels": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "pinnedChannels",
+          "channelOrder"
+        ],
+        "type": "object"
+      },
+      "outputSchemaStrict": true,
+      "policyResource": "tool:channel_order_get",
+      "privacyClass": "user_preference",
+      "requiresUserPresence": false,
+      "resultContract": {
+        "effects": [],
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "additionalProperties": false,
+          "properties": {
+            "channelOrder": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "pinnedChannels": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            }
+          },
+          "required": [
+            "pinnedChannels",
+            "channelOrder"
+          ],
+          "type": "object"
+        }
+      },
+      "sideEffect": "read",
+      "sideEffectClass": "read",
+      "version": "1",
+      "worksOffline": false
+    },
+    {
+      "answeredBy": "record",
+      "availability": {
+        "state": "ok"
+      },
+      "canonicalName": "channel_order_set",
+      "description": "Set the order of the requester's own channel list: the order of their pinned channels, the order of every channel, or both. It changes nothing for anybody else.",
+      "estimatedLatency": "low",
+      "idempotency": {
+        "required": false,
+        "scope": "operation",
+        "supported": false
+      },
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "channelOrder": {
+            "description": "Every channel in the order the requester lists them, pinned ones included at the place they return to when unpinned.",
+            "items": {
+              "description": "The exact id of the channel, as the messenger answers it.",
+              "maxLength": 256,
+              "minLength": 1,
+              "type": "string"
+            },
+            "maxItems": 1000,
+            "type": "array"
+          },
+          "pinnedChannels": {
+            "description": "The pinned channels in the order to keep them. It only reorders the pins: a channel named here that is not pinned stays unpinned, and a pinned channel left out keeps its pin at the end.",
+            "items": {
+              "description": "The exact id of the channel, as the messenger answers it.",
+              "maxLength": 256,
+              "minLength": 1,
+              "type": "string"
+            },
+            "maxItems": 1000,
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
+      "inputSchemaStrict": true,
+      "modelName": "channel_order_set",
+      "modelVisibility": "hidden",
+      "modelVisible": false,
+      "name": "channel_order_set",
+      "namespace": "channel",
+      "namespaceSummary": "Channels in the company messenger: create, join, leave, delete, and who belongs to or owns one.",
+      "outputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "channelOrder": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "pinnedChannels": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "pinnedChannels",
+          "channelOrder"
+        ],
+        "type": "object"
+      },
+      "outputSchemaStrict": true,
+      "policyResource": "tool:channel_order_set",
+      "privacyClass": "user_preference",
+      "requiresUserPresence": false,
+      "resultContract": {
+        "effects": [
+          {
+            "effect": "updated",
+            "effectIdentity": "singleton",
+            "objectType": "channel_order"
+          }
+        ],
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "additionalProperties": false,
+          "properties": {
+            "channelOrder": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "pinnedChannels": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            }
+          },
+          "required": [
+            "pinnedChannels",
+            "channelOrder"
+          ],
+          "type": "object"
+        }
+      },
+      "sideEffect": "workspace_write",
+      "sideEffectClass": "workspace_write",
+      "version": "1",
+      "worksOffline": false
+    },
+    {
+      "answeredBy": "record",
+      "availability": {
+        "state": "ok"
+      },
+      "canonicalName": "channel_pin",
+      "description": "Pin a channel to the top of the requester's own channel list, after the channels already pinned. Pinning a pinned channel leaves it where it is, and it changes nothing for anybody else.",
+      "estimatedLatency": "low",
+      "idempotency": {
+        "required": false,
+        "scope": "operation",
+        "supported": false
+      },
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "channelID": {
+            "description": "The exact id of the channel, as the messenger answers it.",
+            "maxLength": 256,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "channelID"
+        ],
+        "type": "object"
+      },
+      "inputSchemaStrict": true,
+      "modelName": "channel_pin",
+      "modelVisibility": "hidden",
+      "modelVisible": false,
+      "name": "channel_pin",
+      "namespace": "channel",
+      "namespaceSummary": "Channels in the company messenger: create, join, leave, delete, and who belongs to or owns one.",
+      "outputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "channelID": {
+            "type": "string"
+          },
+          "channelOrder": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "isPinned": {
+            "type": "boolean"
+          },
+          "pinnedChannels": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "channelID",
+          "isPinned",
+          "pinnedChannels",
+          "channelOrder"
+        ],
+        "type": "object"
+      },
+      "outputSchemaStrict": true,
+      "policyResource": "tool:channel_pin",
+      "privacyClass": "user_preference",
+      "requiresUserPresence": false,
+      "resultContract": {
+        "effects": [
+          {
+            "effect": "updated",
+            "effectIdentity": "id",
+            "objectType": "channel",
+            "resultField": "channelID"
+          }
+        ],
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "additionalProperties": false,
+          "properties": {
+            "channelID": {
+              "type": "string"
+            },
+            "channelOrder": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "isPinned": {
+              "type": "boolean"
+            },
+            "pinnedChannels": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            }
+          },
+          "required": [
+            "channelID",
+            "isPinned",
+            "pinnedChannels",
+            "channelOrder"
+          ],
+          "type": "object"
+        }
+      },
+      "sideEffect": "workspace_write",
+      "sideEffectClass": "workspace_write",
+      "version": "1",
+      "worksOffline": false
+    },
+    {
+      "answeredBy": "record",
+      "availability": {
+        "state": "ok"
+      },
+      "canonicalName": "channel_unpin",
+      "description": "Unpin a channel from the requester's own channel list, so it goes back to its place among the other channels.",
+      "estimatedLatency": "low",
+      "idempotency": {
+        "required": false,
+        "scope": "operation",
+        "supported": false
+      },
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "channelID": {
+            "description": "The exact id of the channel, as the messenger answers it.",
+            "maxLength": 256,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "channelID"
+        ],
+        "type": "object"
+      },
+      "inputSchemaStrict": true,
+      "modelName": "channel_unpin",
+      "modelVisibility": "hidden",
+      "modelVisible": false,
+      "name": "channel_unpin",
+      "namespace": "channel",
+      "namespaceSummary": "Channels in the company messenger: create, join, leave, delete, and who belongs to or owns one.",
+      "outputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "channelID": {
+            "type": "string"
+          },
+          "channelOrder": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "isPinned": {
+            "type": "boolean"
+          },
+          "pinnedChannels": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "channelID",
+          "isPinned",
+          "pinnedChannels",
+          "channelOrder"
+        ],
+        "type": "object"
+      },
+      "outputSchemaStrict": true,
+      "policyResource": "tool:channel_unpin",
+      "privacyClass": "user_preference",
+      "requiresUserPresence": false,
+      "resultContract": {
+        "effects": [
+          {
+            "effect": "updated",
+            "effectIdentity": "id",
+            "objectType": "channel",
+            "resultField": "channelID"
+          }
+        ],
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "additionalProperties": false,
+          "properties": {
+            "channelID": {
+              "type": "string"
+            },
+            "channelOrder": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "isPinned": {
+              "type": "boolean"
+            },
+            "pinnedChannels": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            }
+          },
+          "required": [
+            "channelID",
+            "isPinned",
+            "pinnedChannels",
+            "channelOrder"
+          ],
+          "type": "object"
+        }
+      },
+      "sideEffect": "workspace_write",
+      "sideEffectClass": "workspace_write",
+      "version": "1",
+      "worksOffline": false
+    },
+    {
       "answeredBy": "company",
       "availability": {
         "state": "ok"

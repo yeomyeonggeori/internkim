@@ -8,11 +8,14 @@
 	import EyeOffIcon from '@lucide/svelte/icons/eye-off';
 	import EllipsisVerticalIcon from '@lucide/svelte/icons/ellipsis-vertical';
 	import FileDownIcon from '@lucide/svelte/icons/file-down';
+	import PinIcon from '@lucide/svelte/icons/pin';
+	import PinOffIcon from '@lucide/svelte/icons/pin-off';
 	import { mergeProps } from 'bits-ui';
 	import type { Snippet } from 'svelte';
 	import { fromAction } from 'svelte/attachments';
 	import type { HTMLLiAttributes } from 'svelte/elements';
 	import { MediaQuery } from 'svelte/reactivity';
+	import { holdToReorder, type HoldToReorderMoves } from './hold-to-reorder';
 	import { swallowClickAfterTouchHold } from './swallow-click-after-touch-hold';
 
 	type Props = {
@@ -21,6 +24,10 @@
 		unmuteLabel: string;
 		menuLabel: string;
 		onSwitchMuted: () => void;
+		isPinned?: boolean;
+		pinLabel?: string;
+		unpinLabel?: string;
+		onSwitchPinned?: () => void;
 		exportLabel?: string;
 		onExport?: () => void;
 		leaveLabel?: string;
@@ -28,6 +35,7 @@
 		hideLabel?: string;
 		onHide?: () => void;
 		itemProps?: HTMLLiAttributes & Record<string, unknown>;
+		holdMoves?: HoldToReorderMoves;
 		children: Snippet;
 	};
 
@@ -37,6 +45,10 @@
 		unmuteLabel,
 		menuLabel,
 		onSwitchMuted,
+		isPinned = false,
+		pinLabel = '',
+		unpinLabel = '',
+		onSwitchPinned,
 		exportLabel = '',
 		onExport,
 		leaveLabel = '',
@@ -44,12 +56,23 @@
 		hideLabel = '',
 		onHide,
 		itemProps = {},
+		holdMoves,
 		children
 	}: Props = $props();
 
 	const canHover = new MediaQuery('hover: hover', true);
 	let isContextMenuOpen = $state(false);
 </script>
+
+{#snippet switchPinnedLabel()}
+	{#if isPinned}
+		<PinOffIcon />
+		<span>{unpinLabel}</span>
+	{:else}
+		<PinIcon />
+		<span>{pinLabel}</span>
+	{/if}
+{/snippet}
 
 {#snippet switchMutedLabel()}
 	{#if isMuted}
@@ -82,6 +105,12 @@
 			<Sidebar.MenuItem
 				{...mergeProps(props, itemProps)}
 				{@attach fromAction(swallowClickAfterTouchHold, () => ({ isMenuOpen: isContextMenuOpen }))}
+				{@attach holdMoves &&
+					fromAction(holdToReorder, () => ({
+						...holdMoves,
+						isMenuOpen: isContextMenuOpen,
+						closeMenu: () => (isContextMenuOpen = false)
+					}))}
 			>
 				{@render children()}
 				{#if canHover.current}
@@ -94,6 +123,11 @@
 							{/snippet}
 						</DropdownMenu.Trigger>
 						<DropdownMenu.Content side="right" align="start" class="w-52">
+							{#if onSwitchPinned}
+								<DropdownMenu.Item onSelect={onSwitchPinned}>
+									{@render switchPinnedLabel()}
+								</DropdownMenu.Item>
+							{/if}
 							<DropdownMenu.Item onSelect={onSwitchMuted}>
 								{@render switchMutedLabel()}
 							</DropdownMenu.Item>
@@ -119,6 +153,11 @@
 		{/snippet}
 	</ContextMenu.Trigger>
 	<ContextMenu.Content class="w-52">
+		{#if onSwitchPinned}
+			<ContextMenu.Item onSelect={onSwitchPinned}>
+				{@render switchPinnedLabel()}
+			</ContextMenu.Item>
+		{/if}
 		<ContextMenu.Item onSelect={onSwitchMuted}>
 			{@render switchMutedLabel()}
 		</ContextMenu.Item>

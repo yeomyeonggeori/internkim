@@ -20,6 +20,7 @@ import { calendarSubscriptionToolDefinitions } from './calendar-subscription';
 import { circleToolDefinitions } from './circle';
 import { hostToolDefinitions } from './host';
 import { channelToolDefinitions } from './channel';
+import { channelOrderToolDefinitions } from './channel-order';
 import { crmToolDefinitions } from './crm';
 import {
   taskLabelGetInputSchema,
@@ -2116,6 +2117,7 @@ const capabilityToolDefinitions: CapabilityToolDefinition[] = [
   ...attendanceToolDefinitions,
   ...messageToolDefinitions,
   ...channelToolDefinitions,
+  ...channelOrderToolDefinitions,
   ...webToolDefinitions,
   ...fileToolDefinitions,
   ...browserToolDefinitions,

@@ -1,7 +1,5 @@
 import type { ChannelSummary } from '$lib/components/channel/channel-api';
 
-const storageKey = 'messenger-channel-order';
-
 const pinnedToTop = ['광장', '잡담'];
 const pinnedToBottom = ['일정', '업무', '근태'];
 
@@ -11,21 +9,6 @@ function defaultRank(name: string): number {
 	const bottomIndex = pinnedToBottom.indexOf(name);
 	if (bottomIndex !== -1) return 1000 + bottomIndex;
 	return 500;
-}
-
-export function loadChannelOrder(): string[] {
-	if (typeof localStorage === 'undefined') return [];
-	try {
-		const stored: unknown = JSON.parse(localStorage.getItem(storageKey) ?? '[]');
-		return Array.isArray(stored) ? stored.filter((id): id is string => typeof id === 'string') : [];
-	} catch {
-		return [];
-	}
-}
-
-export function saveChannelOrder(channelIDs: string[]): void {
-	if (typeof localStorage === 'undefined') return;
-	localStorage.setItem(storageKey, JSON.stringify(channelIDs));
 }
 
 export function orderChannels(channels: ChannelSummary[], userOrder: string[]): ChannelSummary[] {
@@ -38,6 +21,11 @@ export function orderChannels(channels: ChannelSummary[], userOrder: string[]): 
 		if (secondRank !== undefined) return 1;
 		return defaultRank(first.name) - defaultRank(second.name);
 	});
+}
+
+export function pinnedChannelsOf(channels: ChannelSummary[], pinnedChannelIDs: string[]): ChannelSummary[] {
+	const channelOf = new Map(channels.map((channel) => [channel.id, channel]));
+	return pinnedChannelIDs.flatMap((channelID) => channelOf.get(channelID) ?? []);
 }
 
 export function orderDirectMessages(directMessages: ChannelSummary[]): ChannelSummary[] {

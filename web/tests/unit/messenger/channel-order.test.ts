@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { orderChannels, orderDirectMessages, moveChannel } from '../../../src/routes/messenger/channel-order';
+import { orderChannels, orderDirectMessages, moveChannel, pinnedChannelsOf } from '../../../src/routes/messenger/channel-order';
 
 const channel = (id: string, name: string) => ({ id, name, kind: 'group' as const });
 
@@ -39,6 +39,13 @@ describe('moveChannel', () => {
 	test('no-ops on unknown or identical ids', () => {
 		expect(moveChannel(['a', 'b'], 'a', 'a')).toEqual(['a', 'b']);
 		expect(moveChannel(['a', 'b'], 'x', 'a')).toEqual(['a', 'b']);
+	});
+});
+
+describe('pinnedChannelsOf', () => {
+	test('lists the pinned channels in the order they were pinned and skips one the reader no longer sees', () => {
+		const input = [channel('c1', '광장'), channel('c2', '잡담'), channel('c3', '근태')];
+		expect(pinnedChannelsOf(input, ['c3', 'gone', 'c1']).map((c) => c.id)).toEqual(['c3', 'c1']);
 	});
 });
 

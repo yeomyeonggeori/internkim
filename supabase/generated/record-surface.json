@@ -10,6 +10,15 @@
       ]
     },
     {
+      "name": "aim_standby_boxes_at",
+      "arguments": "box_key text, target text",
+      "returns": "TABLE(public_key text, host_name text, package_version text)",
+      "security": "definer",
+      "callableBy": [
+        "service_role"
+      ]
+    },
+    {
       "name": "announce_event_reminders",
       "arguments": "",
       "returns": "void",
@@ -239,7 +248,7 @@
     },
     {
       "name": "attendance_team_page",
-      "arguments": "page_kind text DEFAULT 'teams'::text, team_offset integer DEFAULT 0, team_limit integer DEFAULT 12, selected_team_key text DEFAULT NULL::text, member_offset integer DEFAULT 0, member_limit integer DEFAULT 24, search_text text DEFAULT ''::text, location_filter text DEFAULT ''::text",
+      "arguments": "page_kind text DEFAULT 'teams'::text, team_offset integer DEFAULT 0, team_limit integer DEFAULT 12, selected_team_key text DEFAULT NULL::text, member_offset integer DEFAULT 0, member_limit integer DEFAULT 24, search_text text DEFAULT ''::text, location_filter text DEFAULT ''::text, status_filter text DEFAULT ''::text",
       "returns": "jsonb",
       "security": "invoker",
       "callableBy": [
@@ -299,6 +308,46 @@
       "callableBy": []
     },
     {
+      "name": "channel_order_get",
+      "arguments": "",
+      "returns": "jsonb",
+      "security": "definer",
+      "callableBy": [
+        "authenticated",
+        "service_role"
+      ]
+    },
+    {
+      "name": "channel_order_set",
+      "arguments": "pinned text[], ordered text[]",
+      "returns": "jsonb",
+      "security": "definer",
+      "callableBy": [
+        "authenticated",
+        "service_role"
+      ]
+    },
+    {
+      "name": "channel_pin",
+      "arguments": "channel text",
+      "returns": "jsonb",
+      "security": "definer",
+      "callableBy": [
+        "authenticated",
+        "service_role"
+      ]
+    },
+    {
+      "name": "channel_unpin",
+      "arguments": "channel text",
+      "returns": "jsonb",
+      "security": "definer",
+      "callableBy": [
+        "authenticated",
+        "service_role"
+      ]
+    },
+    {
       "name": "circle_channel_add",
       "arguments": "target_company uuid, target_circle text, channel_name text",
       "returns": "void",
@@ -330,8 +379,8 @@
     },
     {
       "name": "claim_empty_box",
-      "arguments": "claiming_company uuid, box_key text, ticket_hash text, fresh_since timestamp with time zone",
-      "returns": "TABLE(outcome text, encryption_key text)",
+      "arguments": "claiming_company uuid, box_key text, ticket_hash text, fresh_since timestamp with time zone, is_replacing boolean",
+      "returns": "TABLE(outcome text, given_role text)",
       "security": "definer",
       "callableBy": [
         "service_role"
@@ -362,6 +411,15 @@
       "security": "definer",
       "callableBy": [
         "authenticated"
+      ]
+    },
+    {
+      "name": "company_keeps_a_backup",
+      "arguments": "kept_company uuid",
+      "returns": "boolean",
+      "security": "definer",
+      "callableBy": [
+        "service_role"
       ]
     },
     {
@@ -400,6 +458,16 @@
       "arguments": "target_team uuid",
       "returns": "uuid",
       "security": "invoker",
+      "callableBy": [
+        "authenticated",
+        "service_role"
+      ]
+    },
+    {
+      "name": "company_representative_set",
+      "arguments": "representative uuid",
+      "returns": "void",
+      "security": "definer",
       "callableBy": [
         "authenticated",
         "service_role"
@@ -784,6 +852,15 @@
       ]
     },
     {
+      "name": "keep_claimed_box",
+      "arguments": "claiming_company uuid, box_key text, box_encryption_key text, box_host_name text, is_replacing boolean",
+      "returns": "text",
+      "security": "definer",
+      "callableBy": [
+        "service_role"
+      ]
+    },
+    {
       "name": "leave_accrue_due",
       "arguments": "",
       "returns": "jsonb",
@@ -841,6 +918,15 @@
       "security": "definer",
       "callableBy": [
         "authenticated",
+        "service_role"
+      ]
+    },
+    {
+      "name": "make_box_serve",
+      "arguments": "serving_company uuid, box_key text",
+      "returns": "text",
+      "security": "definer",
+      "callableBy": [
         "service_role"
       ]
     },
@@ -996,9 +1082,30 @@
       ]
     },
     {
+      "name": "my_app_box_role",
+      "arguments": "",
+      "returns": "text",
+      "security": "definer",
+      "callableBy": [
+        "authenticated",
+        "service_role"
+      ]
+    },
+    {
       "name": "my_app_company",
       "arguments": "",
       "returns": "uuid",
+      "security": "definer",
+      "callableBy": [
+        "anon",
+        "authenticated",
+        "service_role"
+      ]
+    },
+    {
+      "name": "my_company_headcount",
+      "arguments": "",
+      "returns": "integer",
       "security": "definer",
       "callableBy": [
         "anon",
@@ -1057,6 +1164,15 @@
       "callableBy": [
         "anon",
         "authenticated",
+        "service_role"
+      ]
+    },
+    {
+      "name": "note_box_seen",
+      "arguments": "box_key text, seen_version text",
+      "returns": "text",
+      "security": "definer",
+      "callableBy": [
         "service_role"
       ]
     },
@@ -1190,6 +1306,49 @@
       ]
     },
     {
+      "name": "task_deletable",
+      "arguments": "task task",
+      "returns": "boolean",
+      "security": "invoker",
+      "callableBy": [
+        "authenticated"
+      ]
+    },
+    {
+      "name": "task_end_of_day",
+      "arguments": "task task, day date",
+      "returns": "timestamp with time zone",
+      "security": "invoker",
+      "callableBy": []
+    },
+    {
+      "name": "task_first_day",
+      "arguments": "task task",
+      "returns": "date",
+      "security": "invoker",
+      "callableBy": [
+        "authenticated"
+      ]
+    },
+    {
+      "name": "task_is_work",
+      "arguments": "task task",
+      "returns": "boolean",
+      "security": "invoker",
+      "callableBy": [
+        "authenticated"
+      ]
+    },
+    {
+      "name": "task_last_day",
+      "arguments": "task task",
+      "returns": "date",
+      "security": "invoker",
+      "callableBy": [
+        "authenticated"
+      ]
+    },
+    {
       "name": "task_parent_set",
       "arguments": "target_task_id uuid, target_parent_task_id uuid",
       "returns": "void",
@@ -1200,9 +1359,18 @@
     },
     {
       "name": "task_save",
-      "arguments": "target_task_id uuid, target_title text, target_status task_status DEFAULT NULL::task_status, target_note text DEFAULT NULL::text, target_location jsonb DEFAULT NULL::jsonb, target_business text DEFAULT NULL::text, target_type text DEFAULT NULL::text, target_size text DEFAULT NULL::text, target_starts_at timestamp with time zone DEFAULT NULL::timestamp with time zone, target_ends_at timestamp with time zone DEFAULT NULL::timestamp with time zone, target_write_dates boolean DEFAULT true, target_is_event boolean DEFAULT false, target_is_whole_day boolean DEFAULT false, target_notify_minutes_before integer DEFAULT NULL::integer, target_participant_ids uuid[] DEFAULT '{}'::uuid[], target_parent_task_id uuid DEFAULT NULL::uuid, target_expected_updated_at timestamp with time zone DEFAULT NULL::timestamp with time zone, target_mirrors jsonb DEFAULT NULL::jsonb, target_is_open_to_company boolean DEFAULT NULL::boolean",
+      "arguments": "target_task_id uuid, target_title text, target_status task_status DEFAULT NULL::task_status, target_note text DEFAULT NULL::text, target_location jsonb DEFAULT NULL::jsonb, target_business text DEFAULT NULL::text, target_type text DEFAULT NULL::text, target_size text DEFAULT NULL::text, target_starts_at timestamp with time zone DEFAULT NULL::timestamp with time zone, target_ends_at timestamp with time zone DEFAULT NULL::timestamp with time zone, target_write_dates boolean DEFAULT true, target_is_event boolean DEFAULT NULL::boolean, target_is_whole_day boolean DEFAULT NULL::boolean, target_notify_minutes_before integer DEFAULT NULL::integer, target_participant_ids uuid[] DEFAULT '{}'::uuid[], target_parent_task_id uuid DEFAULT NULL::uuid, target_expected_updated_at timestamp with time zone DEFAULT NULL::timestamp with time zone, target_mirrors jsonb DEFAULT NULL::jsonb, target_is_open_to_company boolean DEFAULT NULL::boolean, target_organization_id uuid DEFAULT NULL::uuid, target_opportunity_id uuid DEFAULT NULL::uuid, target_contact_id uuid DEFAULT NULL::uuid",
       "returns": "uuid",
       "security": "definer",
+      "callableBy": [
+        "authenticated"
+      ]
+    },
+    {
+      "name": "task_updatable",
+      "arguments": "task task",
+      "returns": "boolean",
+      "security": "invoker",
       "callableBy": [
         "authenticated"
       ]

@@ -8,6 +8,7 @@ description: "PostgREST가 /rest/v1/rpc로 노출하는 함수 전부와, 누가
 | 이름 | 인자 | 반환 | 보안 | 호출 가능 |
 | --- | --- | --- | --- | --- |
 | `account_of_address` | `address text` | `uuid` | definer | service_role |
+| `aim_standby_boxes_at` | `box_key text, target text` | `TABLE(public_key text, host_name text, package_version text)` | definer | service_role |
 | `announce_event_reminders` | — | `void` | definer | service_role |
 | `apns_key_keep` | `new_key_id text, new_team_id text, new_bundle_id text, new_private_key text, new_environment text DEFAULT 'production'::text` | `void` | definer | service_role |
 | `ask_about_shifts_nobody_closed` | — | `void` | definer | service_role |
@@ -31,24 +32,30 @@ description: "PostgREST가 /rest/v1/rpc로 노출하는 함수 전부와, 누가
 | `attendance_reconciliation_save` | `target_company uuid, attendance_work_policy jsonb, attendance_calendar jsonb` | `void` | invoker | service_role |
 | `attendance_remove` | `event_id uuid, reason text` | `jsonb` | definer | authenticated |
 | `attendance_server_time` | — | `timestamp with time zone` | invoker | authenticated, service_role |
-| `attendance_team_page` | `page_kind text DEFAULT 'teams'::text, team_offset integer DEFAULT 0, team_limit integer DEFAULT 12, selected_team_key text DEFAULT NULL::text, member_offset integer DEFAULT 0, member_limit integer DEFAULT 24, search_text text DEFAULT ''::text, location_filter text DEFAULT ''::text` | `jsonb` | invoker | authenticated |
+| `attendance_team_page` | `page_kind text DEFAULT 'teams'::text, team_offset integer DEFAULT 0, team_limit integer DEFAULT 12, selected_team_key text DEFAULT NULL::text, member_offset integer DEFAULT 0, member_limit integer DEFAULT 24, search_text text DEFAULT ''::text, location_filter text DEFAULT ''::text, status_filter text DEFAULT ''::text` | `jsonb` | invoker | authenticated |
 | `attendance_work_policies` | — | `TABLE(member_id uuid, work_hours jsonb, minimum_daily_minutes integer, work_mode text, work_policy jsonb)` | definer | anon, authenticated, service_role |
 | `attendance_work_policy_save` | `target_policy jsonb` | `jsonb` | definer | authenticated |
 | `box_pairing_attempts_remain` | `claiming_company uuid` | `boolean` | definer | 없음 |
 | `calendar_subscription_company` | `target_token_hash text` | `uuid` | definer | service_role |
 | `calendar_subscription_save` | `target_token_hash text` | `void` | definer | authenticated |
 | `can_manage_task_relationship` | `target_task_id uuid` | `boolean` | definer | 없음 |
+| `channel_order_get` | — | `jsonb` | definer | authenticated, service_role |
+| `channel_order_set` | `pinned text[], ordered text[]` | `jsonb` | definer | authenticated, service_role |
+| `channel_pin` | `channel text` | `jsonb` | definer | authenticated, service_role |
+| `channel_unpin` | `channel text` | `jsonb` | definer | authenticated, service_role |
 | `circle_channel_add` | `target_company uuid, target_circle text, channel_name text` | `void` | definer | authenticated, service_role |
 | `circle_channel_delete` | `target_company uuid, target_circle text, confirmed_name text` | `void` | definer | authenticated, service_role |
 | `circle_set` | `target_company uuid, circle_id text, circle_name text, readable_categories text[]` | `void` | definer | authenticated, service_role |
-| `claim_empty_box` | `claiming_company uuid, box_key text, ticket_hash text, fresh_since timestamp with time zone` | `TABLE(outcome text, encryption_key text)` | definer | service_role |
+| `claim_empty_box` | `claiming_company uuid, box_key text, ticket_hash text, fresh_since timestamp with time zone, is_replacing boolean` | `TABLE(outcome text, given_role text)` | definer | service_role |
 | `company_documents_matching` | `target_query text, target_limit integer, minimum_relevance real DEFAULT 0` | `SETOF company_document` | invoker | authenticated |
 | `company_holidays_merge` | `target_company uuid, target_holidays jsonb` | `jsonb` | invoker | service_role |
 | `company_holidays_save` | `target_holidays jsonb` | `jsonb` | definer | authenticated |
+| `company_keeps_a_backup` | `kept_company uuid` | `boolean` | definer | service_role |
 | `company_of_member` | `target_member uuid` | `uuid` | invoker | authenticated, service_role |
 | `company_of_messenger_address` | `address_slug text` | `uuid` | definer | anon, authenticated, service_role |
 | `company_of_task` | `target_task uuid` | `uuid` | invoker | authenticated, service_role |
 | `company_of_team` | `target_team uuid` | `uuid` | invoker | authenticated, service_role |
+| `company_representative_set` | `representative uuid` | `void` | definer | authenticated, service_role |
 | `company_topic` | `target_company uuid` | `text` | invoker | anon, authenticated, service_role |
 | `complete_parent_when_children_are_done` | `parent_id uuid` | `void` | definer | service_role |
 | `complete_tasks_past_their_end` | — | `void` | definer | service_role |
@@ -86,12 +93,14 @@ description: "PostgREST가 /rest/v1/rpc로 노출하는 함수 전부와, 누가
 | `is_money` | `money jsonb` | `boolean` | invoker | anon, authenticated, service_role |
 | `is_public_identity_credential` | `kind text` | `boolean` | definer | authenticated, service_role |
 | `is_work_hours` | `schedule jsonb` | `boolean` | invoker | anon, authenticated, service_role |
+| `keep_claimed_box` | `claiming_company uuid, box_key text, box_encryption_key text, box_host_name text, is_replacing boolean` | `text` | definer | service_role |
 | `leave_accrue_due` | — | `jsonb` | definer | authenticated, service_role |
 | `leave_balances` | `target_year integer` | `jsonb` | definer | authenticated, service_role |
 | `leave_days_in_year` | `starts_at timestamp with time zone, ends_at timestamp with time zone, total_days numeric, time_zone text, target_year integer, year_start_month integer DEFAULT 1, year_start_day integer DEFAULT 1` | `numeric` | invoker | anon, authenticated, service_role |
 | `leave_in_full` | — | `TABLE(id uuid, member_id uuid, kind text, is_paid boolean, is_deducted boolean, days numeric, status leave_status, starts_at timestamp with time zone, ends_at timestamp with time zone, note text)` | definer | authenticated, service_role |
 | `leave_management_source` | — | `jsonb` | definer | authenticated, service_role |
 | `leave_return_early` | `work_location text` | `jsonb` | definer | authenticated, service_role |
+| `make_box_serve` | `serving_company uuid, box_key text` | `text` | definer | service_role |
 | `member_circles_set` | `target_company uuid, target_member uuid, circle_ids text[]` | `void` | definer | authenticated, service_role |
 | `member_hr_file` | `target_member uuid` | `TABLE(member_id uuid, leave_days numeric, note text)` | definer | authenticated, service_role |
 | `member_leave_days` | `target_member uuid` | `numeric` | definer | anon, authenticated, service_role |
@@ -106,12 +115,15 @@ description: "PostgREST가 /rest/v1/rpc로 노출하는 함수 전부와, 누가
 | `member_topic` | `target_member uuid` | `text` | invoker | anon, authenticated, service_role |
 | `member_work_hours` | `target_member uuid` | `jsonb` | definer | anon, authenticated, service_role |
 | `member_work_hours_on` | `target_member uuid, target_day date` | `jsonb` | definer | anon, authenticated, service_role |
+| `my_app_box_role` | — | `text` | definer | authenticated, service_role |
 | `my_app_company` | — | `uuid` | definer | anon, authenticated, service_role |
+| `my_company_headcount` | — | `integer` | definer | anon, authenticated, service_role |
 | `my_company_topic` | — | `text` | definer | anon, authenticated, service_role |
 | `my_member` | — | `uuid` | definer | anon, authenticated, service_role |
 | `my_member_topic` | — | `text` | definer | anon, authenticated, service_role |
 | `my_notification_settings` | — | `jsonb` | definer | authenticated, service_role |
 | `my_team` | — | `uuid` | definer | anon, authenticated, service_role |
+| `note_box_seen` | `box_key text, seen_version text` | `text` | definer | service_role |
 | `notification_settings_set` | `chosen jsonb` | `void` | definer | anon, authenticated, service_role |
 | `people_on_task` | `subject uuid` | `uuid[]` | invoker | anon, authenticated, service_role |
 | `person_set` | `target_member uuid, account_changes jsonb, organization_changes jsonb` | `void` | definer | authenticated, service_role |
@@ -125,8 +137,14 @@ description: "PostgREST가 /rest/v1/rpc로 노출하는 함수 전부와, 누가
 | `size_bytes` | `document company_document` | `bigint` | invoker | authenticated, service_role |
 | `status_my_leave_request_takes` | — | `leave_status` | definer | authenticated, service_role |
 | `task_children_link` | `parent_id uuid, child_ids uuid[]` | `void` | definer | authenticated |
+| `task_deletable` | `task task` | `boolean` | invoker | authenticated |
+| `task_end_of_day` | `task task, day date` | `timestamp with time zone` | invoker | 없음 |
+| `task_first_day` | `task task` | `date` | invoker | authenticated |
+| `task_is_work` | `task task` | `boolean` | invoker | authenticated |
+| `task_last_day` | `task task` | `date` | invoker | authenticated |
 | `task_parent_set` | `target_task_id uuid, target_parent_task_id uuid` | `void` | definer | authenticated |
-| `task_save` | `target_task_id uuid, target_title text, target_status task_status DEFAULT NULL::task_status, target_note text DEFAULT NULL::text, target_location jsonb DEFAULT NULL::jsonb, target_business text DEFAULT NULL::text, target_type text DEFAULT NULL::text, target_size text DEFAULT NULL::text, target_starts_at timestamp with time zone DEFAULT NULL::timestamp with time zone, target_ends_at timestamp with time zone DEFAULT NULL::timestamp with time zone, target_write_dates boolean DEFAULT true, target_is_event boolean DEFAULT false, target_is_whole_day boolean DEFAULT false, target_notify_minutes_before integer DEFAULT NULL::integer, target_participant_ids uuid[] DEFAULT '{}'::uuid[], target_parent_task_id uuid DEFAULT NULL::uuid, target_expected_updated_at timestamp with time zone DEFAULT NULL::timestamp with time zone, target_mirrors jsonb DEFAULT NULL::jsonb, target_is_open_to_company boolean DEFAULT NULL::boolean` | `uuid` | definer | authenticated |
+| `task_save` | `target_task_id uuid, target_title text, target_status task_status DEFAULT NULL::task_status, target_note text DEFAULT NULL::text, target_location jsonb DEFAULT NULL::jsonb, target_business text DEFAULT NULL::text, target_type text DEFAULT NULL::text, target_size text DEFAULT NULL::text, target_starts_at timestamp with time zone DEFAULT NULL::timestamp with time zone, target_ends_at timestamp with time zone DEFAULT NULL::timestamp with time zone, target_write_dates boolean DEFAULT true, target_is_event boolean DEFAULT NULL::boolean, target_is_whole_day boolean DEFAULT NULL::boolean, target_notify_minutes_before integer DEFAULT NULL::integer, target_participant_ids uuid[] DEFAULT '{}'::uuid[], target_parent_task_id uuid DEFAULT NULL::uuid, target_expected_updated_at timestamp with time zone DEFAULT NULL::timestamp with time zone, target_mirrors jsonb DEFAULT NULL::jsonb, target_is_open_to_company boolean DEFAULT NULL::boolean, target_organization_id uuid DEFAULT NULL::uuid, target_opportunity_id uuid DEFAULT NULL::uuid, target_contact_id uuid DEFAULT NULL::uuid` | `uuid` | definer | authenticated |
+| `task_updatable` | `task task` | `boolean` | invoker | authenticated |
 | `task_vocabulary_save` | `target_vocabulary jsonb` | `jsonb` | definer | authenticated |
 | `team_add` | `new_name text, parent_team uuid, new_position integer` | `uuid` | definer | authenticated, service_role |
 | `team_delete` | `target_team uuid` | `integer` | definer | authenticated, service_role |
