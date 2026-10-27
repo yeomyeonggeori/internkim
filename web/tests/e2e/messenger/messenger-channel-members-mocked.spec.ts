@@ -32,10 +32,10 @@ for (const width of [390, 1280]) {
 		expect((await details.boundingBox())!.x).toBeGreaterThanOrEqual(0);
 
 		const list = details.getByRole('list', { name: '채널 멤버' });
-		await expect(list.locator('[data-slot="item"]')).toHaveCount(5);
+		await expect(list.getByRole('listitem')).toHaveCount(5);
 		await expect(list.getByText('박예시', { exact: true })).toBeVisible();
 		await details.getByRole('button', { name: '모두 보기 (2명 더)' }).click();
-		await expect(list.locator('[data-slot="item"]')).toHaveCount(memberNames.length);
+		await expect(list.getByRole('listitem')).toHaveCount(memberNames.length);
 
 		const toggle = details.getByRole('button', { name: /^채널 멤버/ });
 		await expect(toggle).toHaveAttribute('aria-expanded', 'true');

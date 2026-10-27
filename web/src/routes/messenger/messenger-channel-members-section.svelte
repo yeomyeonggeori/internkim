@@ -171,39 +171,34 @@
 			</div>
 			{#if candidateError}<p role="alert" class="text-destructive text-sm">{candidateError}</p>{/if}
 		{/if}
-		<Item.Group aria-label={text.channelMembersTitle}>
+		<ul class="grid" aria-label={text.channelMembersTitle}>
 			{#each shownMembers as member (member.memberID ?? member.externalID)}
-				<Item.Root size="sm" class="px-0">
-					<Item.Media>
-						<PersonAvatar
-							name={member.name}
-							seed={member.memberID ?? member.externalID ?? ''}
-							memberID={member.memberID ?? ''}
-							externalID={member.externalID ?? ''}
-							{...avatarPresenceOf(member.memberID, text)}
-							class="size-8"
-						/>
-					</Item.Media>
-					<Item.Content class="min-w-0">
-						<Item.Title class="truncate">{displayPersonName(member.name) || text.unnamedMember}</Item.Title>
-						{#if member.role === 'owner'}<Item.Description>{text.channelOwner}</Item.Description>{/if}
-					</Item.Content>
+				<li class="flex min-h-10 min-w-0 items-center gap-2.5 py-1">
+					<PersonAvatar
+						name={member.name}
+						seed={member.memberID ?? member.externalID ?? ''}
+						memberID={member.memberID ?? ''}
+						externalID={member.externalID ?? ''}
+						{...avatarPresenceOf(member.memberID, text)}
+						class="size-7"
+					/>
+					<span class="truncate text-sm font-medium">{displayPersonName(member.name) || text.unnamedMember}</span>
+					{#if member.role === 'owner'}<span class="text-muted-foreground shrink-0 text-xs">{text.channelOwner}</span>{/if}
 					{#if viewerRole === 'owner' && member.role === 'member'}
-						<Item.Actions>
-							<Button
-								type="button"
-								variant="ghost"
-								size="icon-sm"
-								aria-label={text.removeChannelMember}
-								onclick={() => (removing = member)}
-							>
-								<UserMinusIcon />
-							</Button>
-						</Item.Actions>
+						<Button
+							type="button"
+							variant="ghost"
+							size="icon-sm"
+							class="ml-auto shrink-0"
+							aria-label={text.removeChannelMember}
+							onclick={() => (removing = member)}
+						>
+							<UserMinusIcon />
+						</Button>
 					{/if}
-				</Item.Root>
+				</li>
 			{/each}
-		</Item.Group>
+		</ul>
 		{#if hiddenCount > 0}
 			<Button variant="ghost" size="sm" class="justify-start" onclick={() => (isShowingAll = true)}>
 				{text.showAllChannelMembers.replace('{count}', String(hiddenCount))}
