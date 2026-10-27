@@ -59,3 +59,31 @@ test('the unread count gives way to the more button while the row is hovered or 
 	await expect(moreButton).toHaveCSS('opacity', '0');
 	await expect(badge).toHaveCSS('opacity', '1');
 });
+
+test.describe('on a touch phone', () => {
+	test.use({ hasTouch: true, isMobile: true });
+
+	test('the unread count sits in the middle of its taller row', async ({ page }) => {
+		await mockDeviceMessenger(
+			page,
+			reader,
+			[
+				{ id: 'channel-read', name: '읽은 채널', kind: 'group', myRole: 'member', unreadCount: 0 },
+				{ id: 'channel-few', name: '새 글 채널', kind: 'group', myRole: 'member', unreadCount: 25 }
+			],
+			[]
+		);
+		await page.setViewportSize({ width: 390, height: 800 });
+		await page.goto('/messenger?channel=channel-read');
+		await page.getByRole('button', { name: '채널 목록 열기' }).click();
+
+		const row = page.locator('[data-sidebar="menu-item"]').filter({ hasText: '새 글 채널' }).last();
+		const button = row.locator('[data-sidebar="menu-button"]');
+		const badge = row.locator('[data-sidebar="menu-badge"]');
+		await expect(badge).toBeVisible();
+		await expect.poll(async () => (await button.boundingBox())?.height ?? 0).toBeGreaterThanOrEqual(44);
+		const buttonBox = (await button.boundingBox())!;
+		const badgeBox = (await badge.boundingBox())!;
+		expect(Math.abs(badgeBox.y + badgeBox.height / 2 - (buttonBox.y + buttonBox.height / 2))).toBeLessThanOrEqual(1);
+	});
+});

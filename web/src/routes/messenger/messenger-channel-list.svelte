@@ -1,5 +1,6 @@
 <script lang="ts">
 	import PersonAvatar from '$lib/components/person-avatar.svelte';
+	import { Badge } from '$lib/components/ui/badge/index.js';
 	import * as Sidebar from '$lib/components/ui/sidebar/index.js';
 	import * as DropdownMenu from '$lib/components/ui/dropdown-menu/index.js';
 	import CompassIcon from '@lucide/svelte/icons/compass';
@@ -82,14 +83,18 @@
 	}
 </script>
 
-{#snippet unreadBadge(conversation: ChannelSummary)}
-	{@const label = unreadBadgeLabel(conversation.unreadCount)}
+{#snippet unreadBadge(unreadCount: number | undefined, givesWayToMenu: boolean)}
+	{@const label = unreadBadgeLabel(unreadCount)}
 	{#if label}
 		<Sidebar.MenuBadge
-			class="md:group-hover/menu-item:opacity-0 md:group-focus-within/menu-item:opacity-0 md:group-has-[[data-sidebar=menu-action][data-state=open]]/menu-item:opacity-0"
+			class={givesWayToMenu
+				? 'md:group-hover/menu-item:opacity-0 md:group-focus-within/menu-item:opacity-0 md:group-has-[[data-sidebar=menu-action][data-state=open]]/menu-item:opacity-0'
+				: undefined}
 		>
-			<span class="sr-only">{text.unreadMessages}</span>
-			{label}
+			<Badge variant="secondary">
+				<span class="sr-only">{text.unreadMessages}</span>
+				{label}
+			</Badge>
 		</Sidebar.MenuBadge>
 	{/if}
 {/snippet}
@@ -108,12 +113,7 @@
 							<InboxIcon />
 							<span class={conversationNameClass(inbox.unreadCount, false, inbox.isActive)}>{inboxText.inbox}</span>
 						</Sidebar.MenuButton>
-						{#if unreadBadgeLabel(inbox.unreadCount)}
-							<Sidebar.MenuBadge>
-								<span class="sr-only">{text.unreadMessages}</span>
-								{unreadBadgeLabel(inbox.unreadCount)}
-							</Sidebar.MenuBadge>
-						{/if}
+						{@render unreadBadge(inbox.unreadCount, false)}
 					</Sidebar.MenuItem>
 				</Sidebar.Menu>
 			</Sidebar.Group>
@@ -187,7 +187,7 @@
 								{#if channel.isPrivate}<LockIcon />{:else}<HashIcon />{/if}
 								<span class={conversationNameClass(channel.unreadCount, muted.has(channel.id), shownActiveID === channel.id)}>{channel.name}</span>
 							</Sidebar.MenuButton>
-							{@render unreadBadge(channel)}
+							{@render unreadBadge(channel.unreadCount, true)}
 						</ConversationMenu>
 					{/each}
 				</Sidebar.Menu>
@@ -232,7 +232,7 @@
 
 								<span class={conversationNameClass(conversation.unreadCount, muted.has(conversation.id), shownActiveID === conversation.id)}>{conversation.name}</span>
 							</Sidebar.MenuButton>
-							{@render unreadBadge(conversation)}
+							{@render unreadBadge(conversation.unreadCount, true)}
 						</ConversationMenu>
 					{/each}
 				</Sidebar.Menu>
