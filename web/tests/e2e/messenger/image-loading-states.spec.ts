@@ -50,7 +50,7 @@ for (const width of [1280, 390, 320]) {
 		try {
 			await page.goto(`/messenger?channel=${channelID}`);
 			await page.getByRole('button', { name: /1개 답글/ }).click();
-			const thread = page.getByRole('dialog', { name: '글타래' });
+			const thread = page.getByRole(width < 640 ? 'region' : 'dialog', { name: '글타래' });
 			const frame = thread.locator('[data-loading-image]');
 			await expect(frame).toHaveAttribute('data-loading-image', 'loading');
 			await thread.evaluate(element => Promise.all(element.getAnimations({ subtree: true }).map(animation => animation.finished)));

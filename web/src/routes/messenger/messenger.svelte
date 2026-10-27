@@ -7,6 +7,8 @@
 	import { MessengerInboxState } from './messenger-inbox-state.svelte';
 	import { inboxPlaceOf, inboxThreadRootOf } from './messenger-inbox-place';
 	import MessengerInboxPlaceLink from './messenger-inbox-place-link.svelte';
+	import MessengerThreadCrumbs from './messenger-thread-crumbs.svelte';
+	import { leaveOpenedThreadThroughHistory } from '$lib/components/channel/thread-history';
 	import type { InboxEntry } from '$lib/messenger/channel-over-bridge';
 	import MessengerListSkeleton from './messenger-list-skeleton.svelte';
 	import MessengerBrowseChannelsDialog from './messenger-browse-channels-dialog.svelte';
@@ -190,6 +192,8 @@
 	});
 
 	const isMobile = new IsMobile();
+	let isThreadOpen = $state(false);
+	const isThreadOpenOnPhone = $derived(isMobile.current && isThreadOpen);
 	const isChannelCoveredByInbox = $derived(isInboxOpen && (isMobile.current || chosenInboxEntryID === undefined));
 
 	$effect(() => {
@@ -652,9 +656,11 @@
 			{/if}
 			<div class={['flex min-h-0 min-w-0 flex-1 flex-col', isInboxOpen && 'max-sm:hidden', isChannelCoveredByInbox && 'hidden']}>
 				<header class="flex h-12 shrink-0 items-center gap-2 border-b px-2 sm:h-14 sm:px-6">
-					{@render channelListTrigger()}
+					{#if !isThreadOpenOnPhone || chosenInboxPlace}{@render channelListTrigger()}{/if}
 					{#if chosenInboxPlace}
 						<MessengerInboxPlaceLink place={chosenInboxPlace} go={leaveInboxForChosenPlace} />
+					{:else if isThreadOpenOnPhone && activeConversation}
+						<MessengerThreadCrumbs conversationName={activeConversation.name} isGroup={activeConversation.kind !== 'dm'} back={leaveOpenedThreadThroughHistory} />
 					{:else if activeConversation?.kind === 'dm'}
 						{@const conversation = activeConversation}
 						<button
@@ -713,13 +719,14 @@
 				{#key `${cacheGeneration}:${activeID}`}
 					<Channel
 						bind:this={channelView}
+						bind:isThreadOpen
 						channelId={activeID}
 						participants={mentionPeopleOf(activeConversation)}
 						isGroup={activeConversation?.kind === 'group'}
 						showSenderNames={activeConversation?.kind === 'group'}
 						canModerate={activeConversation?.myRole === 'owner' || activeConversation?.myRole === 'admin'}
 						isWithTheAgent={activeConversation?.isWithTheAgent === true}
-						threadLayout={isInboxOpen ? 'focus' : 'sheet'}
+						threadLayout={isInboxOpen || isMobile.current ? 'focus' : 'sheet'}
 						onReadThrough={isChannelCoveredByInbox ? undefined : (sentAt) => readThrough(activeID, sentAt)}
 					/>
 				{/key}

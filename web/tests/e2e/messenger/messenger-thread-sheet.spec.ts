@@ -215,3 +215,64 @@ test.describe('messenger thread sheet on a touch screen', () => {
 		expect(await reply.evaluate((element) => getComputedStyle(element).userSelect)).toBe('none');
 	});
 });
+
+test.describe('messenger thread on a phone', () => {
+	test.use({ viewport: { width: 390, height: 844 } });
+
+	test.beforeEach(async ({ page }) => {
+		await mockThreadChannel(page);
+		await page.goto(`/messenger?channel=${channelID}`);
+		await page.getByRole('button', { name: /1개 답글/ }).click();
+	});
+
+	test('opens in place of the conversation above the app navigation', async ({ page }) => {
+		const crumbs = page.getByRole('navigation', { name: '글타래' });
+		await expect(crumbs.getByRole('button', { name: '스레드 채널' })).toBeVisible();
+		await expect(crumbs.getByText('글타래')).toHaveAttribute('aria-current', 'page');
+		await expect(page.getByText(replyText)).toBeVisible();
+		await expect(page.getByText(unansweredText)).toBeHidden();
+		await expect(page.getByRole('dialog', { name: '글타래' })).toHaveCount(0);
+
+		const composer = await page.getByRole('combobox', { name: '답글을 입력하세요' }).boundingBox();
+		const navigation = await page.locator('.internkim-app-mobile-navigation').boundingBox();
+		if (composer === null || navigation === null) throw new Error('the thread composer or the app navigation has no layout box');
+		expect(composer.y + composer.height).toBeLessThanOrEqual(navigation.y);
+	});
+
+	for (const way of ['스레드 닫기', '스레드 채널']) {
+		test(`${way} returns to the conversation and leaves no extra step for going back`, async ({ page }) => {
+			await page.getByRole('button', { name: way, exact: true }).click();
+
+			await expect(page.getByText(unansweredText)).toBeVisible();
+			await expect(page.getByRole('navigation', { name: '글타래' })).toHaveCount(0);
+			await expect(page).toHaveURL(new RegExp(`/messenger\\?channel=${channelID}$`));
+
+			await page.goBack();
+			await expect(page).toHaveURL('about:blank');
+		});
+	}
+
+	test('going back returns to the conversation', async ({ page }) => {
+		await page.goBack();
+
+		await expect(page.getByText(unansweredText)).toBeVisible();
+		await expect(page.getByRole('navigation', { name: '글타래' })).toHaveCount(0);
+	});
+
+	test('going forward after going back keeps the header on the conversation it shows', async ({ page }) => {
+		await page.goBack();
+		await expect(page.getByText(unansweredText)).toBeVisible();
+
+		await page.goForward();
+
+		await expect(page.getByText(unansweredText)).toBeVisible();
+		await expect(page.getByRole('navigation', { name: '글타래' })).toHaveCount(0);
+	});
+
+	test('the messenger tab returns to the same conversation', async ({ page }) => {
+		await page.locator('.internkim-app-mobile-navigation').getByRole('link', { name: '메신저' }).click();
+
+		await expect(page.getByText(unansweredText)).toBeVisible();
+		await expect(page.getByRole('navigation', { name: '글타래' })).toHaveCount(0);
+	});
+});

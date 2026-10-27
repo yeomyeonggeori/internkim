@@ -96,6 +96,7 @@
 		participants = [],
 		isGroup = false,
 		isWithTheAgent = true,
+		isThreadOpen = $bindable(false),
 		onReadThrough
 	}: {
 		isActive?: boolean;
@@ -106,6 +107,7 @@
 		participants?: MentionPerson[];
 		isGroup?: boolean;
 		isWithTheAgent?: boolean;
+		isThreadOpen?: boolean;
 		onReadThrough?: (sentAt: string) => void;
 	} = $props();
 
@@ -529,6 +531,10 @@
 		threadComposer?.clear();
 		openThreadRoot = null;
 	}
+
+	$effect(() => {
+		isThreadOpen = openThreadRoot !== null;
+	});
 
 	$effect(() => {
 		if (threadRootIDInHistory() === undefined && untrack(() => openThreadRoot) !== null) dismissThread();
@@ -1046,7 +1052,7 @@
 	>
 		<Sheet.Content
 			side="right"
-			class="flex w-full flex-col gap-0 p-0 max-sm:pb-[max(0px,calc(var(--app-viewport-safe-bottom,var(--app-mobile-nav-bottom))-1rem))] sm:max-w-md"
+			class="flex w-full flex-col gap-0 p-0 sm:max-w-md"
 			onEscapeKeydown={(event) => {
 				if (lightbox) {
 					event.preventDefault();
