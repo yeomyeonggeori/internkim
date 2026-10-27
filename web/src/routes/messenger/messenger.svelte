@@ -59,7 +59,8 @@
 	import { buzzIdentity } from '$lib/stores/buzz-identity.svelte';
 	import { breadcrumbMeta } from '$lib/stores/breadcrumb-meta.svelte';
 	import { syncMattermostToBuzz } from '$lib/buzz-mm-sync';
-	import { loadChannelOrder, saveChannelOrder, orderChannels, orderDirectMessages, moveChannel } from './channel-order';
+	import { orderChannels, orderDirectMessages } from './channel-order';
+	import { ChannelOrderState } from './channel-order-state.svelte';
 	import { holdBackNotificationsFor } from '$lib/native-shell/open-conversation';
 	import { adoptRememberedMessengerScope, messengerCacheScope, messengerCacheKey, onMessengerCacheReset, requireCurrentMessengerScope, type MessengerCacheScope } from '$lib/messenger/cache-scope';
 	import { keepCachedConversations, readCachedConversations } from '$lib/messenger/conversation-list-cache';
@@ -172,7 +173,7 @@
 	let peopleReadSequence = 0;
 	let muted = $state<Set<string>>(new Set());
 	let syncedIdentityRevision = -1;
-	let userChannelOrder = $state<string[]>([]);
+	const channelOrder = new ChannelOrderState();
 	let profilePerson = $state<MentionPerson | undefined>(undefined);
 	let isPersonProfileOpen = $state(false);
 
@@ -354,7 +355,7 @@
 	const groupChannels = $derived(
 		orderChannels(
 			conversations.filter((conversation) => conversation.kind === 'group'),
-			userChannelOrder
+			channelOrder.channelOrder
 		)
 	);
 	const directMessages = $derived(
@@ -377,15 +378,6 @@
 		if (next) selectChannel(next.id);
 	}
 
-	function reorderChannels(draggedChannelID: string, targetChannelID: string) {
-		const reordered = moveChannel(
-			groupChannels.map((channel) => channel.id),
-			draggedChannelID,
-			targetChannelID
-		);
-		userChannelOrder = reordered;
-		saveChannelOrder(reordered);
-	}
 	const activeConversation = $derived(
 		conversations.find((conversation) => conversation.id === activeID)
 	);
@@ -515,6 +507,7 @@
 			people = [];
 			activeID = undefined;
 			muted = new Set();
+			channelOrder.reset();
 			profilePerson = undefined;
 			isPersonProfileOpen = false;
 			isNewDirectMessageOpen = false;
@@ -524,9 +517,9 @@
 			inbox.reset();
 			chosenInboxEntryID = undefined;
 			if (isSupabaseConfigured()) void inbox.load();
+			void channelOrder.load();
 			void loadConversationList().then(selectInitialChannel).catch(() => undefined);
 		});
-		userChannelOrder = loadChannelOrder();
 		if (isSupabaseConfigured()) stopListeningForArrivals = onCompanyEvent(readListOnArrival);
 
 		const mountedGeneration = cacheGeneration;
@@ -536,6 +529,7 @@
 			if (remembered) inbox.showCached(readCachedInbox(remembered));
 			void inbox.load();
 		}
+		if (remembered) channelOrder.showCached(remembered);
 		const cached = remembered ? readCachedConversations(remembered) : [];
 		if (cached.length > 0) {
 			conversations = cached;
@@ -553,6 +547,7 @@
 		mutedConversations()
 			.then(async (held) => { await requireCurrentMessengerScope(scope); muted = held; })
 			.catch(() => undefined);
+		void channelOrder.load();
 		try {
 			await loadConversationList();
 			if (!conversations.some((conversation) => conversation.id === activeID)) {
@@ -602,7 +597,7 @@
 			openNewChannel={canManageChannels ? openNewChannel : undefined}
 			openBrowseChannels={canManageChannels ? openBrowseChannels : undefined}
 			{openOnPlatform}
-			{reorderChannels}
+			{channelOrder}
 			selectChannel={selectChannelFromSheet}
 			sidebarWidth="100%"
 		/>
@@ -628,7 +623,7 @@
 				openNewChannel={canManageChannels ? openNewChannel : undefined}
 				openBrowseChannels={canManageChannels ? openBrowseChannels : undefined}
 				{openOnPlatform}
-				{reorderChannels}
+				{channelOrder}
 				selectChannel={chooseChannel}
 			/>
 			{#if isInboxOpen}

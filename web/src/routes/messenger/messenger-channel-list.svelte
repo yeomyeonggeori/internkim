@@ -23,6 +23,10 @@
 	import { conversationNameClass, unreadBadgeLabel } from '$lib/messenger/unread-badge';
 	import { avatarPresenceOf } from '$lib/messenger/member-presence.svelte';
 	import { circleChannels } from '$lib/messenger/circle-channels.svelte';
+	import { pinnedChannelsOf } from './channel-order';
+	import { noticeWhenChannelOrderFails } from './channel-order-notice';
+	import type { ChannelOrderState } from './channel-order-state.svelte';
+	import { ChannelListReorder, type ChannelListSection } from './channel-list-reorder.svelte';
 
 	let {
 		activeID,
@@ -42,7 +46,7 @@
 		openNewChannel,
 		openBrowseChannels,
 		openOnPlatform,
-		reorderChannels,
+		channelOrder,
 		selectChannel,
 		sidebarWidth = '16rem'
 	}: {
@@ -63,7 +67,7 @@
 		openNewChannel?: () => void;
 		openBrowseChannels?: () => void;
 		openOnPlatform: { url: string; label: string } | null;
-		reorderChannels: (draggedChannelID: string, targetChannelID: string) => void;
+		channelOrder: ChannelOrderState;
 		selectChannel: (channelID: string) => void;
 		sidebarWidth?: string;
 	} = $props();
@@ -72,16 +76,47 @@
 	const exportText = createPageText(conversationExportText);
 	const inboxText = createPageText(messengerInboxText);
 	const shownActiveID = $derived(inbox?.isActive ? undefined : activeID);
+	const pinnedChannels = $derived(pinnedChannelsOf(groupChannels, channelOrder.pinnedChannels));
+	const unpinnedChannels = $derived(groupChannels.filter((channel) => !channelOrder.isPinned(channel.id)));
+	const reorder = new ChannelListReorder(dropChannel);
 
-	let draggedChannelID = $state<string | null>(null);
-	let dragOverChannelID = $state<string | null>(null);
+	function dropChannel(section: ChannelListSection, draggedID: string, targetID: string) {
+		const moved =
+			section === 'pinned'
+				? channelOrder.movePinned(draggedID, targetID)
+				: channelOrder.moveChannel(groupChannels.map((channel) => channel.id), draggedID, targetID);
+		noticeWhenChannelOrderFails(moved, text.reorderFailed);
+	}
 
-	function handleDrop(targetChannelID: string) {
-		if (!draggedChannelID) return;
-		reorderChannels(draggedChannelID, targetChannelID);
-		draggedChannelID = null;
+	function switchPinned(channel: ChannelSummary) {
+		const notice = channelOrder.isPinned(channel.id) ? text.unpinFailed : text.pinFailed;
+		noticeWhenChannelOrderFails(channelOrder.switchPinned(channel.id), notice);
 	}
 </script>
+
+{#snippet channelRow(channel: ChannelSummary, section: ChannelListSection)}
+	<ConversationMenu
+		isMuted={muted.has(channel.id)}
+		muteLabel={text.muteConversation}
+		unmuteLabel={text.unmuteConversation}
+		menuLabel={text.conversationMenu}
+		onSwitchMuted={() => switchMuted(channel.id)}
+		isPinned={section === 'pinned'}
+		pinLabel={text.pinChannel}
+		unpinLabel={text.unpinChannel}
+		onSwitchPinned={() => switchPinned(channel)}
+		leaveLabel={text.leaveChannel}
+		onLeave={circleChannels.circleNameOf(channel.id) ? undefined : () => leaveChannel(channel)}
+		itemProps={reorder.rowProps(section, channel.id)}
+		holdMoves={reorder.holdMoves(section, channel.id)}
+	>
+		<Sidebar.MenuButton isActive={shownActiveID === channel.id} onclick={() => selectChannel(channel.id)}>
+			{#if channel.isPrivate}<LockIcon />{:else}<HashIcon />{/if}
+			<span class={conversationNameClass(channel.unreadCount, muted.has(channel.id), shownActiveID === channel.id)}>{channel.name}</span>
+		</Sidebar.MenuButton>
+		{@render unreadBadge(channel.unreadCount, true)}
+	</ConversationMenu>
+{/snippet}
 
 {#snippet unreadBadge(unreadCount: number | undefined, givesWayToMenu: boolean)}
 	{@const label = unreadBadgeLabel(unreadCount)}
@@ -118,6 +153,19 @@
 				</Sidebar.Menu>
 			</Sidebar.Group>
 			{/if}
+			{#if pinnedChannels.length > 0}
+				<MessengerChannelSection
+					title={text.pinnedChannelsTitle}
+					open={isSectionOpen('pinned')}
+					onOpenChange={(open) => setSectionOpen('pinned', open)}
+				>
+					<Sidebar.Menu>
+						{#each pinnedChannels as channel (channel.id)}
+							{@render channelRow(channel, 'pinned')}
+						{/each}
+					</Sidebar.Menu>
+				</MessengerChannelSection>
+			{/if}
 			<MessengerChannelSection
 				title={text.channelListTitle}
 				open={isSectionOpen('channels')}
@@ -148,47 +196,8 @@
 				{/snippet}
 				<Sidebar.Menu>
 					{#if isLoading}<li><MessengerListSkeleton label={text.loadingConversations} compact /></li>{/if}
-					{#each groupChannels as channel (channel.id)}
-						<ConversationMenu
-							isMuted={muted.has(channel.id)}
-							muteLabel={text.muteConversation}
-							unmuteLabel={text.unmuteConversation}
-							menuLabel={text.conversationMenu}
-							onSwitchMuted={() => switchMuted(channel.id)}
-							leaveLabel={text.leaveChannel}
-							onLeave={circleChannels.circleNameOf(channel.id) ? undefined : () => leaveChannel(channel)}
-							itemProps={{
-								draggable: 'true',
-								class:
-									dragOverChannelID === channel.id
-										? 'border-primary rounded-md border'
-										: 'rounded-md border border-transparent',
-								ondragstart: () => (draggedChannelID = channel.id),
-								ondragend: () => ((draggedChannelID = null), (dragOverChannelID = null)),
-								ondragover: (event: DragEvent) => {
-									if (!draggedChannelID || draggedChannelID === channel.id) return;
-									event.preventDefault();
-									dragOverChannelID = channel.id;
-								},
-								ondragleave: () => {
-									if (dragOverChannelID === channel.id) dragOverChannelID = null;
-								},
-								ondrop: (event: DragEvent) => {
-									event.preventDefault();
-									dragOverChannelID = null;
-									handleDrop(channel.id);
-								}
-							}}
-						>
-							<Sidebar.MenuButton
-								isActive={shownActiveID === channel.id}
-								onclick={() => selectChannel(channel.id)}
-							>
-								{#if channel.isPrivate}<LockIcon />{:else}<HashIcon />{/if}
-								<span class={conversationNameClass(channel.unreadCount, muted.has(channel.id), shownActiveID === channel.id)}>{channel.name}</span>
-							</Sidebar.MenuButton>
-							{@render unreadBadge(channel.unreadCount, true)}
-						</ConversationMenu>
+					{#each unpinnedChannels as channel (channel.id)}
+						{@render channelRow(channel, 'channels')}
 					{/each}
 				</Sidebar.Menu>
 			</MessengerChannelSection>

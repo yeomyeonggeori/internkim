@@ -1,6 +1,6 @@
 const storageKey = 'messenger-collapsed-sections';
 
-const channelSections = ['channels', 'directMessages'] as const;
+const channelSections = ['pinned', 'channels', 'directMessages'] as const;
 
 export type ChannelSection = (typeof channelSections)[number];
 
