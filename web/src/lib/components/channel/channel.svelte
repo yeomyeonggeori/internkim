@@ -1046,7 +1046,7 @@
 	>
 		<Sheet.Content
 			side="right"
-			class="flex w-full flex-col gap-0 p-0 max-sm:pb-[max(0px,calc(var(--app-viewport-safe-bottom,var(--app-mobile-nav-bottom))-1rem))] sm:max-w-md"
+			class="flex w-full flex-col gap-0 p-0 sm:max-w-md"
 			onEscapeKeydown={(event) => {
 				if (lightbox) {
 					event.preventDefault();

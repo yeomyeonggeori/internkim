@@ -181,7 +181,7 @@ test.describe('messenger composer on a touch keyboard', () => {
 		await composer.click();
 		for (let line = 0; line < 10; line++) await composer.press('Enter');
 
-		await expect.poll(() => composer.evaluate((element) => element.clientHeight)).toBe(96);
+		await expect.poll(() => composer.evaluate((element) => element.clientHeight)).toBe(92);
 		expect(await composer.evaluate((element) => element.scrollHeight > element.clientHeight)).toBe(true);
 	});
 });

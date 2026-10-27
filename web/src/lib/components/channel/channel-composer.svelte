@@ -367,13 +367,13 @@
 	@media (max-width: 639px) {
 		.channel-composer :global(.composer-input) {
 			display: grid;
-			grid-template-columns: 36px minmax(0, 1fr) 36px;
+			grid-template-columns: 32px minmax(0, 1fr) 32px;
 			align-items: end;
 			column-gap: 4px;
 			min-height: 0;
 			height: auto;
 			padding: 3px;
-			border-radius: 22px;
+			border-radius: 20px;
 		}
 		.channel-composer :global(.composer-attachments) {
 			grid-column: 1 / -1;
@@ -392,10 +392,10 @@
 			grid-column: 3;
 		}
 		.channel-composer :global(.composer-input button) {
-			width: 36px;
-			min-width: 36px;
-			height: 36px;
-			min-height: 36px;
+			width: 32px;
+			min-width: 32px;
+			height: 32px;
+			min-height: 32px;
 			border-radius: 9999px;
 			transition-property: transform, opacity, background-color, color;
 			transition-duration: 150ms;
@@ -410,10 +410,10 @@
 			grid-row: 2;
 		}
 		.channel-composer :global(.tiptap) {
-			min-height: 36px;
-			max-height: calc(4 * 20px + 16px);
+			min-height: 32px;
+			max-height: calc(4 * 20px + 12px);
 			overflow-y: auto;
-			padding: 8px 4px;
+			padding: 6px 4px;
 			font-size: 16px;
 			line-height: 20px;
 		}
@@ -421,7 +421,7 @@
 			margin-block: 0;
 		}
 		.channel-composer :global([data-slot="input-group-control"] > span) {
-			top: 8px;
+			top: 6px;
 			left: 4px;
 			line-height: 20px;
 		}
