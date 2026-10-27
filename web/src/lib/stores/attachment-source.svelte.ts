@@ -55,8 +55,9 @@ class AttachmentSourceStore {
 	wants(attachments: MessengerAttachment[]): void {
 		if (!isSupabaseConfigured()) return;
 		for (const attachment of attachments) {
-			if (this.asked.has(attachment.url) && !this.needsRenewal(attachment.url)) continue;
+			if (this.asked.has(attachment.url) && !this.needsRenewal(attachment.url) && !this.hasFailed(attachment.url)) continue;
 			this.asked.set(attachment.url, attachment);
+			if (this.failureByURL.has(attachment.url)) this.failureByURL = withoutKey(this.failureByURL, attachment.url);
 			void this.open(attachment);
 		}
 	}
@@ -77,6 +78,10 @@ class AttachmentSourceStore {
 	private needsRenewal(url: string, now: number = Date.now()): boolean {
 		const openable = this.openableByURL.get(url);
 		return Boolean(openable && isStale(openable, now) && !this.loadingURLs.has(url));
+	}
+
+	private hasFailed(url: string): boolean {
+		return this.failureByURL.has(url) && !this.loadingURLs.has(url);
 	}
 
 	private async open(attachment: MessengerAttachment): Promise<void> {
