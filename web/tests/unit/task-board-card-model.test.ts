@@ -34,13 +34,13 @@ describe('flow task board card model', () => {
 		expect(display.participantIDs).toEqual(['member-1', 'member-2']);
 	});
 
-	test('labels null business as 기타', () => {
+	test('leaves an unset business without a label', () => {
 		const display = buildTaskBoardCardDisplay(task({
 			business: null,
 			type: '운영'
 		}));
 
-		expect(display.businessLabel).toBe('기타');
+		expect(display.businessLabel).toBe('');
 		expect(display.metadataLabels).toEqual(['운영']);
 	});
 
@@ -50,7 +50,6 @@ describe('flow task board card model', () => {
 			type: null
 		}), 'Etc.');
 
-		expect(display.businessLabel).toBe('Etc.');
 		expect(display.metadataLabels).toEqual(['Etc.']);
 	});
 });

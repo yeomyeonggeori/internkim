@@ -57,10 +57,11 @@ export function createTaskListColumns(input: TaskListColumnsInput): ColumnDef<Ta
 		{
 			accessorKey: 'business',
 			header: (context) => renderHeader(text.table.business, context.column),
-			cell: (info) => renderComponent(TaskListBusinessCell, {
-				label: taskDefinitionLabel(info.row.original.business, text.report.etcLabel),
-				color: businessColor(info.row.original.business)
-			})
+			cell: (info) => {
+				const business = info.row.original.business;
+				if (!business) return '';
+				return renderComponent(TaskListBusinessCell, { label: business, color: businessColor(business) });
+			}
 		},
 		{
 			accessorKey: 'type',

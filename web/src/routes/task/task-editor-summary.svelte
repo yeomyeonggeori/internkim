@@ -24,8 +24,10 @@
 	{#if taskDraft.size}
 		<Badge class={sizeBadgeClass(taskDraft.size)}>{taskDraft.size}</Badge>
 	{/if}
-	<Badge class="border-transparent" style={taskDefinitionBadgeStyle(businessColor(taskDraft.business))}>
-		{taskDefinitionLabel(taskDraft.business, text.etcLabel)}
-	</Badge>
+	{#if taskDraft.business}
+		<Badge class="border-transparent" style={taskDefinitionBadgeStyle(businessColor(taskDraft.business))}>
+			{taskDraft.business}
+		</Badge>
+	{/if}
 	<DefinitionBadge label={taskDefinitionLabel(taskDraft.type, text.etcLabel)} color={taskTypeColor(taskDraft.type)} />
 </div>

@@ -99,10 +99,10 @@ test('a colour repainted on the record repaints the badge', async ({ page }) => 
 	).toBe(repaintedTypeColor.toLowerCase());
 });
 
-test('a task the record gives no business and no type is labelled 기타 twice', async ({ page }) => {
+test('a task the record gives no business and no type shows only its type as 기타', async ({ page }) => {
 	await signInToTheTaskBoard(page);
 
 	const card = taskCard(page, unlabelledTaskID);
 	await expect(card).toBeVisible();
-	await expect(card.locator('[data-slot="badge"]').filter({ hasText: '기타' })).toHaveCount(2);
+	await expect(card.locator('[data-slot="badge"]').filter({ hasText: '기타' })).toHaveCount(1);
 });
