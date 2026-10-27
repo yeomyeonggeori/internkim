@@ -1,5 +1,4 @@
 <script lang="ts">
-	import * as Attachment from '$lib/components/ui/attachment/index.js';
 	import * as Bubble from '$lib/components/ui/bubble/index.js';
 	import * as Empty from '$lib/components/ui/empty/index.js';
 	import * as Marker from '$lib/components/ui/marker/index.js';
@@ -47,15 +46,12 @@
 		type ThreadSummary
 	} from './channel-api';
 	import {
-		attachmentStateOf,
-		formatAttachmentMeta,
-		preparingLabel,
 		openableAttachments,
 		pictureAddressesOf,
 		messagePicturesOf,
 		lightboxItemsOf
 	} from './channel-attachments';
-	import { startDownload } from './attachment-download';
+	import ChannelAttachmentGroup from './channel-attachment-group.svelte';
 	import { messageActionsFor } from './channel-message-actions';
 	import type { MentionPerson } from '$lib/messenger/mention-candidates';
 	import { latestSentAtOf } from '$lib/messenger/conversation-read-marker';
@@ -76,10 +72,7 @@
 	import JumpToLatestButton from './jump-to-latest-button.svelte';
 	import { leaveOpenedThreadThroughHistory, rememberOpenedThread, threadRootIDInHistory } from './thread-history';
 	import CornerDownRightIcon from '@lucide/svelte/icons/corner-down-right';
-	import FileIcon from '@lucide/svelte/icons/file';
 	import InfoIcon from '@lucide/svelte/icons/info';
-	import RotateCwIcon from '@lucide/svelte/icons/rotate-cw';
-	import DownloadIcon from '@lucide/svelte/icons/download';
 	import MessageSquareIcon from '@lucide/svelte/icons/message-square';
 	import MessageCircleDashedIcon from '@lucide/svelte/icons/message-circle-dashed';
 	import XIcon from '@lucide/svelte/icons/x';
@@ -751,79 +744,7 @@
 		</div>
 	{:else if attachments.length > 0}
 		<div class={`relative w-fit max-w-[80%] self-start group-data-[align=end]/message:self-end`}>
-			<Attachment.Group class="relative w-fit max-w-full">
-			{#each attachments as attachment (attachment.url)}
-				{@const attachmentState = attachmentStateOf(attachment.source, attachmentSource.status(attachment.url))}
-				<Attachment.Root orientation="vertical" state={attachmentState}>
-					{#if attachment.kind === 'image' && attachment.source}
-						<Attachment.Media variant="image">
-							<button
-								type="button"
-								class="block h-full w-full cursor-zoom-in"
-								aria-label={attachment.filename ?? '이미지 크게 보기'}
-								onclick={() => openLightbox(attachments, attachment.source ?? '')}
-							>
-								<LoadingImage
-									messagePicture
-									src={attachment.source}
-									alt={attachment.filename ?? ''}
-									onFailed={() => attachmentSource.renew(attachment.url)}
-									loading="lazy"
-									fill
-									class="aspect-square h-full w-full"
-									imageClass="object-cover"
-								/>
-							</button>
-						</Attachment.Media>
-					{:else}
-						<Attachment.Media>
-							<FileIcon />
-						</Attachment.Media>
-						<Attachment.Content>
-							<Attachment.Title>
-								{#if attachment.source}
-									<a href={attachment.source} target="_blank" rel="noreferrer">
-										{attachment.filename ?? attachment.url}
-									</a>
-								{:else}
-									{attachment.filename ?? attachment.url}
-								{/if}
-							</Attachment.Title>
-							{#if attachmentState === 'error'}
-								<Attachment.Description title={attachmentSource.failure(attachment.url)}>
-									{text.attachmentUnavailable}
-								</Attachment.Description>
-							{:else if attachmentState === 'processing'}
-								<Attachment.Description>
-									{preparingLabel(text.attachmentPreparing, attachmentSource.progress(attachment.url))}
-								</Attachment.Description>
-							{:else if formatAttachmentMeta(attachment)}
-								<Attachment.Description>
-									{formatAttachmentMeta(attachment)}
-								</Attachment.Description>
-							{/if}
-						</Attachment.Content>
-						{#if attachmentState === 'error'}
-							<Attachment.Actions>
-								<Attachment.Action aria-label={text.retry} onclick={() => attachmentSource.retry(attachment.url)}>
-									<RotateCwIcon />
-								</Attachment.Action>
-							</Attachment.Actions>
-						{:else if attachment.source}
-							{@const source = attachment.source}
-							<Attachment.Actions>
-								<Attachment.Action
-									aria-label={text.downloadAttachment}
-									onclick={() => startDownload(source, attachment.filename ?? '')}
-								>
-									<DownloadIcon />
-								</Attachment.Action>
-							</Attachment.Actions>
-						{/if}
-					{/if}
-				</Attachment.Root>
-			{/each}
-			</Attachment.Group>
+			<ChannelAttachmentGroup {attachments} openPicture={(source) => openLightbox(attachments, source)} />
 			{@render timeStamp(message)}
 		</div>
 	{/if}
