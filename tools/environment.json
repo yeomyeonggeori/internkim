@@ -486,6 +486,10 @@
     "isRequiredOnPages": true,
     "isInVault": true
   },
+  "TILES_SCREENSHOT": {
+    "process": "web e2e tests",
+    "description": "optional path for the messenger attachment tiles screenshot; unset skips it"
+  },
   "TMPDIR": {
     "process": "tools",
     "description": "the system temporary-directory override several tools/* build and verification scripts use as a scratch-directory base, with /tmp as the fallback"
