@@ -9,6 +9,7 @@ enum SilentPush {
             return .newData
         }
         guard userInfo["widget"] as? String == "attendance" else { return .noData }
+        AttendanceWidgetStore.noteServerChange()
         WidgetCenter.shared.reloadAllTimelines()
         if userInfo["clock"] as? String == "clock_out" {
             await AttendanceLockScreenCards.close()
