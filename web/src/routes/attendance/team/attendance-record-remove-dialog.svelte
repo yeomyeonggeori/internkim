@@ -1,6 +1,5 @@
 <script lang="ts">
-	import { Button } from '$lib/components/ui/button';
-	import * as Dialog from '$lib/components/ui/dialog';
+	import * as AlertDialog from '$lib/components/ui/alert-dialog';
 	import ChangeReasonSelect from '../shared/change-reason-select.svelte';
 	import type { AttendanceText } from '../text';
 	import type { AttendanceRecordRemovalState } from './attendance-record-removal.svelte';
@@ -29,12 +28,12 @@
 	}
 </script>
 
-<Dialog.Root open={removal.isOpen} onOpenChange={(open) => (open ? undefined : removal.close())}>
-	<Dialog.Content class="sm:max-w-md" closeLabel={text.close}>
-		<Dialog.Header>
-			<Dialog.Title>{text.records.removeTitle}</Dialog.Title>
-			<Dialog.Description>{text.records.removeDescription}</Dialog.Description>
-		</Dialog.Header>
+<AlertDialog.Root open={removal.isOpen} onOpenChange={(open) => (open ? undefined : removal.close())}>
+	<AlertDialog.Content class="sm:max-w-md">
+		<AlertDialog.Header>
+			<AlertDialog.Title>{text.records.removeTitle}</AlertDialog.Title>
+			<AlertDialog.Description>{text.records.removeDescription}</AlertDialog.Description>
+		</AlertDialog.Header>
 
 		<div class="grid gap-3 py-2">
 			<div class="grid gap-1 rounded-lg border border-border/70 bg-muted/40 px-3 py-2">
@@ -56,18 +55,16 @@
 			{/if}
 		</div>
 
-		<Dialog.Footer>
-			<Button variant="outline" disabled={removal.isSaving} onclick={() => removal.close()}>
-				{text.cancel}
-			</Button>
-			<Button
+		<AlertDialog.Footer>
+			<AlertDialog.Cancel disabled={removal.isSaving}>{text.cancel}</AlertDialog.Cancel>
+			<AlertDialog.Action
 				variant="destructive"
 				disabled={!removal.canSubmit}
 				onclick={() => removal.submit()}
 				data-testid="attendance-record-remove-submit"
 			>
 				{submitLabel}
-			</Button>
-		</Dialog.Footer>
-	</Dialog.Content>
-</Dialog.Root>
+			</AlertDialog.Action>
+		</AlertDialog.Footer>
+	</AlertDialog.Content>
+</AlertDialog.Root>
