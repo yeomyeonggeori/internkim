@@ -12,7 +12,7 @@ export function buildTaskBoardCardDisplay(task: Task, etcLabel = '기타'): Task
 	return {
 		participantNames: task.participantNames,
 		participantIDs: task.participantIDs,
-		businessLabel: taskDefinitionLabel(task.business, etcLabel),
+		businessLabel: task.business ?? '',
 		metadataLabels: [taskDefinitionLabel(task.type, etcLabel)]
 	};
 }
