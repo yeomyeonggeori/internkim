@@ -94,6 +94,34 @@ test('an edit saved from the sheet is on the record', async ({ page }) => {
 	expect(saved?.business).toBe('사업둘');
 });
 
+test('the save button stays on the sheet and shows it is saving while the edit is written', async ({ page }) => {
+	const taskID = await seedOne({ title: 'E2E 상세 저장 중 업무' });
+	await signInToTheTaskBoard(page);
+	await openTaskCard(page, taskID);
+
+	const sheet = taskSheet(page);
+	await sheet.getByRole('button', { name: '업무 수정' }).click();
+	await sheet.getByPlaceholder('업무 내용').fill('E2E 상세 저장 중 업무 수정');
+	let releaseWrite = (): void => {};
+	const writeHeld = new Promise<void>((resolve) => {
+		releaseWrite = resolve;
+	});
+	await page.route('**/api/v1/tools/task_update/invoke', async (route) => {
+		await writeHeld;
+		await route.continue();
+	});
+
+	await sheet.getByRole('button', { name: '업무 저장' }).click();
+	const savingButton = sheet.getByRole('button', { name: '저장 중...' });
+	await expect(savingButton).toBeVisible();
+	await expect(savingButton).toHaveAttribute('aria-busy', 'true');
+	await expect(savingButton).toBeDisabled();
+
+	releaseWrite();
+	await expect(sheet).not.toBeVisible();
+	expect((await taskRowOf(taskID))?.title).toBe('E2E 상세 저장 중 업무 수정');
+});
+
 test('a task the record gives a requester shows that requester and every status', async ({ page }) => {
 	const taskID = await seedOne({
 		title: 'E2E 상세 요청받은 업무',
