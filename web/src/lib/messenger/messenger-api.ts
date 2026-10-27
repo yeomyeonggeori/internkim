@@ -78,6 +78,14 @@ export type LinkPreview = {
 	description: string;
 	siteName: string;
 	imageURL: string;
+	video: LinkVideo | null;
+};
+
+export type LinkVideo = {
+	url: string;
+	kind: 'file' | 'player';
+	width: number;
+	height: number;
 };
 
 type PersonalConversation = {

@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { decodePage, imageAddress, reachableAddress, readMetaTags } from './link-preview';
+import { decodePage, imageAddress, reachableAddress, readMetaTags, videoOf } from './link-preview';
 
 describe('reachableAddress', () => {
 	test('an ordinary web address is fetched', () => {
@@ -84,5 +84,52 @@ describe('readMetaTags', () => {
 	test('reads the document title the same way', async () => {
 		const tags = await readMetaTags('<title>Tom &amp; Jerry &#8212; one</title>');
 		expect(tags.get('title')).toBe('Tom & Jerry — one');
+	});
+});
+
+describe('the video a preview names', () => {
+	const page = new URL('https://example.com/watch/one');
+	const tagsOf = (entries: Record<string, string>) => new Map(Object.entries(entries));
+
+	test('is a file the reader plays when the page declares a video type', () => {
+		const tags = tagsOf({
+			'og:video': 'http://cdn.example.com/one.mp4',
+			'og:video:secure_url': 'https://cdn.example.com/one.mp4',
+			'og:video:type': 'video/mp4',
+			'og:video:width': '1280',
+			'og:video:height': '720'
+		});
+		expect(videoOf(tags, page)).toEqual({ url: 'https://cdn.example.com/one.mp4', kind: 'file', width: 1280, height: 720 });
+	});
+
+	test('is a player the site serves when the page declares an HTML video', () => {
+		const tags = tagsOf({ 'og:video:url': 'https://player.example.com/embed/one', 'og:video:type': 'text/html' });
+		expect(videoOf(tags, page)).toEqual({ url: 'https://player.example.com/embed/one', kind: 'player', width: 0, height: 0 });
+	});
+
+	test('falls back to the twitter player when the open graph video is in a form nobody plays', () => {
+		const tags = tagsOf({
+			'og:video': 'https://example.com/one.swf',
+			'og:video:type': 'application/x-shockwave-flash',
+			'twitter:player': 'https://player.example.com/embed/one',
+			'twitter:player:width': '640',
+			'twitter:player:height': '360'
+		});
+		expect(videoOf(tags, page)).toEqual({ url: 'https://player.example.com/embed/one', kind: 'player', width: 640, height: 360 });
+	});
+
+	test('is left out when the page names none or names one without a type', () => {
+		expect(videoOf(tagsOf({}), page)).toBeNull();
+		expect(videoOf(tagsOf({ 'og:video': 'https://cdn.example.com/one.mp4' }), page)).toBeNull();
+	});
+
+	test('is left out when it is not served over https', () => {
+		const tags = tagsOf({ 'og:video': 'http://cdn.example.com/one.mp4', 'og:video:type': 'video/mp4' });
+		expect(videoOf(tags, page)).toBeNull();
+	});
+
+	test('is left out when it points at a network the reader should not be aimed at', () => {
+		const tags = tagsOf({ 'twitter:player': 'https://192.168.1.1/player' });
+		expect(videoOf(tags, page)).toBeNull();
 	});
 });
