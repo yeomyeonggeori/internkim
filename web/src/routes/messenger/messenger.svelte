@@ -12,7 +12,6 @@
 	import MessengerBrowseChannelsDialog from './messenger-browse-channels-dialog.svelte';
 	import MessengerChannelDetails from './messenger-channel-details.svelte';
 	import MessengerChannelHeaderActions from './messenger-channel-header-actions.svelte';
-	import MessengerChannelOwnerDialog from './messenger-channel-owner-dialog.svelte';
 	import MessengerConversationExportDialog from './messenger-conversation-export-dialog.svelte';
 	import MessengerConversationSearch from './messenger-conversation-search.svelte';
 	import type { ConversationSearchMatch } from '$lib/messenger/channel-over-bridge';
@@ -163,8 +162,6 @@
 		isLeaveOpen = true;
 	}
 	let areChannelMembersExpanded = $state(false);
-	let isChannelOwnerOpen = $state(false);
-	let channelOwnerAction = $state<'add' | 'hand-over'>('add');
 	const canManageChannels = isSupabaseConfigured();
 	let isChannelSheetOpen = $state(false);
 	let people = $state<Person[]>([]);
@@ -753,20 +750,9 @@
 		bind:membersExpanded={areChannelMembersExpanded}
 		channel={activeConversation}
 		onMembersChanged={() => refreshConversations('the channel list did not refresh after changing members')}
-		openOwnerAdd={() => ((isChannelDetailsOpen = false), (channelOwnerAction = 'add'), (isChannelOwnerOpen = true))}
-		openOwnerHandover={() => (
-			(isChannelDetailsOpen = false), (channelOwnerAction = 'hand-over'), (isChannelOwnerOpen = true)
-		)}
 		openExport={() => ((isChannelDetailsOpen = false), exportConversation(activeConversation))}
 		openLeave={() => ((isChannelDetailsOpen = false), leaveChannel(activeConversation))}
 		onDeleted={leftChannel}
-	/>
-	<MessengerChannelOwnerDialog
-		bind:open={isChannelOwnerOpen}
-		channelID={activeConversation.id}
-		members={activeConversation.members ?? []}
-		action={channelOwnerAction}
-		onHandedOver={() => refreshConversations('the channel list did not refresh after handing the channel over')}
 	/>
 {/if}
 <MessengerNewChannelDialog bind:open={isNewChannelOpen} onCreated={showChannel} />

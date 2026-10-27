@@ -1,5 +1,4 @@
 <script lang="ts">
-	import CrownIcon from '@lucide/svelte/icons/crown';
 	import DoorOpenIcon from '@lucide/svelte/icons/door-open';
 	import FileDownIcon from '@lucide/svelte/icons/file-down';
 	import HashIcon from '@lucide/svelte/icons/hash';
@@ -20,24 +19,23 @@
 	import { circleChannels } from '$lib/messenger/circle-channels.svelte';
 	import { toast } from 'svelte-sonner';
 	import MessengerChannelMembersSection from './messenger-channel-members-section.svelte';
+	import MessengerChannelOwnersSection from './messenger-channel-owners-section.svelte';
 
 	let {
 		open = $bindable(false),
 		membersExpanded = $bindable(false),
+		ownersExpanded = $bindable(false),
 		channel,
 		onMembersChanged,
-		openOwnerAdd,
-		openOwnerHandover,
 		openExport,
 		openLeave,
 		onDeleted
 	}: {
 		open?: boolean;
 		membersExpanded?: boolean;
+		ownersExpanded?: boolean;
 		channel: ChannelSummary;
 		onMembersChanged: () => void;
-		openOwnerAdd: () => void;
-		openOwnerHandover: () => void;
 		openExport: () => void;
 		openLeave: () => void;
 		onDeleted: (channelID: string) => void;
@@ -48,8 +46,6 @@
 	const valueRowClass = 'text-muted-foreground h-7 min-w-0 justify-end text-sm';
 	const actionRowClass = 'min-h-7 justify-center text-left';
 	const members = $derived(channel.members ?? []);
-	const owners = $derived(members.filter((member) => member.role === 'owner'));
-	const ownerNames = $derived(owners.map((owner) => displayPersonName(owner.name) || text.unnamedMember).join(', '));
 	const amOwner = $derived(channel.myRole === 'owner');
 	const keepingCircleName = $derived(circleChannels.circleNameOf(channel.id));
 
@@ -110,40 +106,13 @@
 						</Item.Actions>
 					</Item.Root>
 					<Separator />
-					{#if amOwner}
-						<Item.Root>
-							{#snippet child({ props })}
-								<button {...props} type="button" onclick={openOwnerAdd}>
-									<Item.Content class="text-left">
-										<Item.Title>{text.channelOwner}</Item.Title>
-									</Item.Content>
-									<Item.Actions class={valueRowClass}>
-										<span class="truncate">{ownerNames}</span>
-										<CrownIcon class="size-4 shrink-0" />
-									</Item.Actions>
-								</button>
-							{/snippet}
-						</Item.Root>
-						<Separator />
-						<Item.Root>
-							{#snippet child({ props })}
-								<button {...props} type="button" onclick={openOwnerHandover}>
-									<Item.Content class="text-left">
-										<Item.Title>{text.handOverChannel}</Item.Title>
-									</Item.Content>
-									<Item.Actions class={valueRowClass}><CrownIcon class="size-4" /></Item.Actions>
-								</button>
-							{/snippet}
-						</Item.Root>
-					{:else}
-						<Item.Root>
-							<Item.Content>
-								<Item.Title>{text.channelOwner}</Item.Title>
-							</Item.Content>
-							<Item.Actions class={valueRowClass}><span class="truncate">{ownerNames}</span></Item.Actions>
-						</Item.Root>
-					{/if}
-					<Separator />
+					<MessengerChannelOwnersSection
+						bind:expanded={ownersExpanded}
+						channelID={channel.id}
+						{members}
+						viewerRole={channel.myRole}
+						onOwnersChanged={onMembersChanged}
+					/>
 					{#if keepingCircleName}
 						<Item.Root>
 							<Item.Content>
