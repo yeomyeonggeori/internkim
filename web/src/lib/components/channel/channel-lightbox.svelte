@@ -129,7 +129,7 @@
 				</LightboxPictureMenu>
 			{/if}
 		{/key}
-		<div class="absolute inset-x-0 top-0 z-20 flex items-center gap-3 p-3 text-white">
+		<div class="absolute inset-x-0 top-0 z-20 flex items-center gap-3 p-3 pt-[calc(env(safe-area-inset-top)+0.75rem)] text-white">
 			<span class="min-w-0 flex-1 truncate text-sm text-white/90">{currentItem.filename}</span>
 			<button
 				type="button"
@@ -195,7 +195,7 @@
 				<ChevronRightIcon class="size-6" />
 			</button>
 			<div
-				class="absolute bottom-5 z-20 rounded-full bg-black/50 px-3 py-1 text-sm text-white/90"
+				class="absolute bottom-[calc(env(safe-area-inset-bottom)+1.25rem)] z-20 rounded-full bg-black/50 px-3 py-1 text-sm text-white/90"
 			>
 				{view.index + 1} / {view.items.length}
 			</div>
