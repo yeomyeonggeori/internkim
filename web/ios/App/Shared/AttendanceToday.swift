@@ -154,6 +154,10 @@ struct AttendanceToday: Equatable {
         return hours * 60 + minutes
     }
 
+    static func minutesLeftInDay(after localTime: String) -> Int {
+        minutesPerDay - clamp(localMinutes(localTime))
+    }
+
     static func moment(_ written: String) -> Date? {
         let withFraction = ISO8601DateFormatter()
         withFraction.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
