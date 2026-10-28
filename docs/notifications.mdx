@@ -30,9 +30,9 @@ default except `mail`.
 
 Two switches decide whether a push is sent, and both belong to the person: the
 category switch in their settings, and whether they muted that conversation.
-The first message in a conversation gives everyone in it an unmuted row in
-`notification`, and muting flips that row. A member with no device subscribed
-is never reached at all, which is the state everyone starts in.
+Both live in the member's `preferences`, as `notificationSettings` and
+`mutedChannels`. A member with no device subscribed is never reached at all,
+which is the state everyone starts in.
 
 ## The key pair [#keys]
 

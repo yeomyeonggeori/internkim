@@ -23,36 +23,14 @@ async function reachableKeys() {
 	};
 }
 
-function clientWhere(options: {
-	settings: unknown;
-	mutedConversations: string[];
-	unmutedConversations?: string[];
-	deviceKeys: unknown;
-}) {
+function clientWhere(options: { settings: unknown; mutedConversations: string[]; deviceKeys: unknown }) {
 	const client = {
 		from(table: string) {
 			if (table === 'member') {
+				const preferences = { notificationSettings: options.settings, mutedChannels: options.mutedConversations };
 				return {
 					select: () => ({
-						eq: () => ({ maybeSingle: async () => ({ data: { preferences: { notificationSettings: options.settings } }, error: null }) })
-					})
-				};
-			}
-			if (table === 'notification') {
-				return {
-					select: () => ({
-						eq: () => ({
-							eq: (_column: string, conversationID: string) => ({
-								maybeSingle: async () => ({
-									data: options.mutedConversations.includes(conversationID)
-										? { is_muted: true }
-										: (options.unmutedConversations ?? []).includes(conversationID)
-											? { is_muted: false }
-											: null,
-									error: null
-								})
-							})
-						})
+						eq: () => ({ maybeSingle: async () => ({ data: { preferences }, error: null }) })
 					})
 				};
 			}
@@ -127,21 +105,6 @@ describe('a conversation a member has muted', () => {
 		answerWith(201);
 
 		const delivery = await notifyMember(client, 'member-1', 'task', notification, pushKeys, 1_700_000_000);
-
-		expect(delivery.silent).toBe(false);
-		expect(delivery.reached).toBe(1);
-	});
-
-	test('is heard again once unmuted, though the row that recorded the mute remains', async () => {
-		const client = clientWhere({
-			settings: { message: true },
-			mutedConversations: [],
-			unmutedConversations: ['channel-a'],
-			deviceKeys: await reachableKeys()
-		});
-		answerWith(201);
-
-		const delivery = await notifyMember(client, 'member-1', 'message', notification, pushKeys, 1_700_000_000, 'channel-a');
 
 		expect(delivery.silent).toBe(false);
 		expect(delivery.reached).toBe(1);
