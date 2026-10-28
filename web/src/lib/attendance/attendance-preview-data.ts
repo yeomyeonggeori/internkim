@@ -70,8 +70,7 @@ export function attendancePreviewAnswer(name: string, input: Record<string, unkn
   return {status:'added',event};
  })();
  if(name==='company_settings_get') return settings;
- if(name==='person_list' && input.limit) {const people=previewMembers.filter(m=>!input.searchText||(m.name+' '+m.email).toLowerCase().includes(String(input.searchText).toLowerCase())).slice(0,Number(input.limit)).map(m=>({personID:m.memberID,name:m.name,email:m.email}));return {requesterID:own.memberID,count:people.length,people};}
- if(name==='person_list') return {requesterID:own.memberID,count:previewMembers.length,people:previewMembers.map(m=>({personID:m.memberID,name:m.name,email:m.email,isAdmin:isAdmin && m.memberID===own.memberID}))};
+ if(name==='person_list') {const people=previewMembers.filter(m=>!input.searchText||(m.name+' '+m.email).toLowerCase().includes(String(input.searchText).toLowerCase())).map(m=>({personID:m.memberID,name:m.name,email:m.email,isAdmin:isAdmin && m.memberID===own.memberID}));return {requesterID:own.memberID,count:people.length,totalCount:people.length,people};}
  if((name==='attendance_list'||name==='attendance_changes_page_get')) {
   const requested=Array.isArray(input.personHints)?previewMembers.filter(m=>(input.personHints as string[]).includes(m.memberID)):input.scope==='all'?previewMembers:[own];
   if (input.handWrittenOnly) {

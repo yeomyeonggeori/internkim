@@ -8,11 +8,13 @@ import {
 } from '$lib/server/control-plane';
 import { removeMemberAsAdministrator, resetPasswordAsAdministrator } from '$lib/server/member-administration';
 import { personName } from '$lib/person-name';
-import type {
-	DirectoryPerson,
-	PersonInviteResult,
-	PersonPasswordResetResult,
-	PersonWithdrawResult
+import {
+	personListPageSize,
+	type DirectoryPerson,
+	type PersonInviteResult,
+	type PersonListResult,
+	type PersonPasswordResetResult,
+	type PersonWithdrawResult
 } from '../catalog/people';
 import type { RecordContext } from './company';
 import {
@@ -23,7 +25,7 @@ import {
 	type RecordPerson
 } from './people';
 import { RecordRefusedTheWrite, statusOfPostgresCode } from './tasks';
-import { teamOfHint, teamsOfCompany, type RecordTeam } from './teams';
+import { descendantsOfTeam, teamOfHint, teamsOfCompany, type RecordTeam } from './teams';
 
 export type PersonUpdateInput = {
 	personHint?: string;
@@ -104,25 +106,80 @@ export function answeredPerson(
 	};
 }
 
-export async function personList(context: RecordContext, input: {searchText?: string;limit?: number} = {}) {
- if(input.limit !== undefined) {
-  let query = context.caller.from('member').select('id,name,email,is_admin').eq('company_id',context.companyID).neq('status','withdrawn').order('name').order('id').limit(Math.min(48,Math.max(1,input.limit)));
-  const search = (input.searchText ?? '').trim();
-  if(search) {
-   const pattern = '%' + search.replace(/[\\%_]/g, '\\$&') + '%';
-   query = query.or(`name.ilike.${JSON.stringify(pattern)},email.ilike.${JSON.stringify(pattern)}`);
-  }
-  const {data,error} = await query;
-  if(error) throw new Error(error.message);
-  const people = (data ?? []).map(person => ({personID:person.id,name:person.name || person.email || '',email:person.email || '',isAdmin:person.is_admin === true}));
-  return {requesterID:context.requesterID,count:people.length,people};
- }
+export type PersonListInput = {
+	searchText?: string;
+	teamHint?: string;
+	limit?: number;
+	cursor?: string;
+};
+
+type PersonListPosition = { name: string; personID: string };
+
+export async function personList(context: RecordContext, input: PersonListInput = {}): Promise<PersonListResult> {
 	const teams = await teamsOfCompany(context.caller);
+	const matching = context.people
+		.filter(personMatchesSearch(input.searchText ?? ''))
+		.filter(personInTeams(teamIDsOfListHint(teams, input.teamHint)))
+		.sort(comparePeopleByPosition);
+	const after = input.cursor === undefined ? undefined : positionOfCursor(input.cursor);
+	const remaining = after ? matching.filter((person) => comparePeopleByPosition(person, after) > 0) : matching;
+	const page = remaining.slice(0, input.limit ?? personListPageSize);
+	const last = page.at(-1);
 	return {
 		requesterID: context.requesterID,
-		count: context.people.length,
-		people: context.people.map((person) => answeredPerson(person, context.people, teams, context.locale))
+		count: page.length,
+		totalCount: matching.length,
+		people: page.map((person) => answeredPerson(person, context.people, teams, context.locale)),
+		...(last && remaining.length > page.length ? { nextCursor: cursorOfPosition(last) } : {})
 	};
+}
+
+function personMatchesSearch(searchText: string): (person: RecordPerson) => boolean {
+	const search = searchText.trim().toLowerCase();
+	if (!search) return () => true;
+	return (person) => person.name.toLowerCase().includes(search) || person.email.toLowerCase().includes(search);
+}
+
+function teamIDsOfListHint(teams: RecordTeam[], teamHint: string | undefined): Set<string> | undefined {
+	if (teamHint === undefined) return undefined;
+	return descendantsOfTeam(teams, teamOfHint(teams, teamHint).teamID);
+}
+
+function personInTeams(teamIDs: Set<string> | undefined): (person: RecordPerson) => boolean {
+	if (!teamIDs) return () => true;
+	return (person) => teamIDs.has(person.teamID);
+}
+
+function comparePeopleByPosition(left: PersonListPosition, right: PersonListPosition): number {
+	if (left.name !== right.name) return left.name < right.name ? -1 : 1;
+	if (left.personID === right.personID) return 0;
+	return left.personID < right.personID ? -1 : 1;
+}
+
+function cursorOfPosition(person: PersonListPosition): string {
+	const bytes = new TextEncoder().encode(JSON.stringify([person.name, person.personID]));
+	return btoa(String.fromCharCode(...bytes));
+}
+
+function positionOfCursor(cursor: string): PersonListPosition {
+	const decoded = decodedCursor(cursor);
+	if (!isPositionPair(decoded)) {
+		throw new RecordRefusedTheWrite('cursor is not one a person_list result gave; omit it to start from the first page', 400);
+	}
+	return { name: decoded[0], personID: decoded[1] };
+}
+
+function isPositionPair(value: unknown): value is [string, string] {
+	return Array.isArray(value) && value.length === 2 && value.every((part) => typeof part === 'string');
+}
+
+function decodedCursor(cursor: string): unknown {
+	try {
+		const bytes = Uint8Array.from(atob(cursor), (character) => character.charCodeAt(0));
+		return JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(bytes));
+	} catch {
+		return undefined;
+	}
 }
 
 export async function personUpdate(

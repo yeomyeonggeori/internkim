@@ -1,4 +1,5 @@
 import { invokeTool } from '$lib/public-api-call';
+import { companyDirectory } from '$lib/record/person-directory';
 import { memberRoleOf } from '$lib/member-vocabulary';
 import type { OrgGroup, UserRecord, UsersResponse } from '$lib/organization/types';
 
@@ -16,7 +17,6 @@ type AnsweredPerson = {
 	hireDate?: string;
 };
 
-type AnsweredPeople = { count: number; people: AnsweredPerson[] };
 type AnsweredCompany = { representativePersonID: string | null };
 
 type AnsweredTeam = {
@@ -30,7 +30,7 @@ type AnsweredTeams = { count: number; teams: AnsweredTeam[] };
 
 export async function supabaseOrganizationDirectory(): Promise<UsersResponse> {
 	const [people, teams, company] = await Promise.all([
-		invokeTool<AnsweredPeople>('person_list', {}),
+		companyDirectory<AnsweredPerson>(),
 		invokeTool<AnsweredTeams>('team_list', {}),
 		invokeTool<AnsweredCompany>('company_info_get', {})
 	]);
