@@ -54,17 +54,17 @@ class AppNavigation {
 	apps = $derived<AppRailItem[]>([
 		{ href: this.link('/messenger/'), label: text.messenger, icon: MessageCircleIcon },
 		{ href: this.link('/task/'), label: text.task, icon: SquareCheckBigIcon, badgeCount: appBadgeCounts.requestedTasks },
-		{ href: this.link('/memory/'), label: text.memory, icon: BrainIcon },
 		{ href: this.link('/calendar/'), label: text.calendar, icon: CalendarIcon, badgeCount: appBadgeCounts.participatingEvents },
 		{ href: this.link('/mail/'), label: text.mail, icon: MailIcon },
 		{ href: this.link('/attendance/'), label: text.attendance, icon: FlameIcon },
-		{ href: this.link('/crm/'), label: text.crm, icon: HeartHandshakeIcon },
 		{ href: this.link('/organization/'), label: text.organization, icon: NetworkIcon },
-		{ href: this.link('/files/'), label: text.files, icon: FolderOpenIcon },
+		{ href: this.link('/crm/'), label: text.crm, icon: HeartHandshakeIcon },
 		{ href: this.link('/data-room/'), label: text.dataRoom, icon: LibraryBigIcon }
 	]);
 
 	workspace = $derived<AppRailItem[]>([
+		{ href: this.link('/memory/'), label: text.memory, icon: BrainIcon },
+		{ href: this.link('/files/'), label: text.files, icon: FolderOpenIcon },
 		...(this.canViewTasks
 			? [
 					{ href: this.link('/runs/'), label: text.tasks, icon: ActivityIcon }
