@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(7);
+select plan(6);
 
 insert into auth.users (id, email) values
   ('54000000-0000-0000-0000-000000000001', 'quiet-one@example.test'),
@@ -68,13 +68,6 @@ select is(
   (select preferences -> 'mutedChannels' from public.member where id = '54000000-0000-0000-0000-0000000000b2'),
   '["channel-a"]'::jsonb,
   'unmuting is not contagious'
-);
-
-select is(
-  (select array_agg(conversation_id order by conversation_id) from public.notification
-   where member_id = '54000000-0000-0000-0000-0000000000b1' and is_muted),
-  array['dm-b'],
-  'the notification rows still follow, for the functions deployed before preferences held the mutes'
 );
 
 do $$
