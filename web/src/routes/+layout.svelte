@@ -222,7 +222,7 @@
 			{/if}
 			<div class="flex min-w-0 flex-1 flex-col">
 				{#if !isEmbeddedFrame()}
-					<header data-app-chrome class="internkim-app-header" class:max-sm:hidden={routePathOf(page.url.pathname).split('/')[1] === 'messenger'}>
+					<header data-app-chrome class="internkim-app-header max-sm:hidden">
 						<AppRailModeMenu class="-ml-1 max-sm:hidden" />
 						<Separator orientation="vertical" class="mr-2 !h-4 max-sm:hidden" />
 						<div class="internkim-app-crumbs flex-1">

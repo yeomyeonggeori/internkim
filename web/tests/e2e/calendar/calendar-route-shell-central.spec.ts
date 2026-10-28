@@ -161,6 +161,33 @@ test.describe('calendar route shell', () => {
 		}
 	});
 
+	test('scrolls the month grid away with the day agenda on a short phone', async ({ page }) => {
+		await routeCalendarHolidays(page);
+		await page.setViewportSize({ width: 390, height: 600 });
+		await page.clock.setFixedTime(new Date('2026-06-15T12:00:00'));
+		const eventIDs = await seedCalendarEvents(
+			Array.from({ length: 8 }, (_, index) => {
+				const hour = String(9 + index).padStart(2, '0');
+				return { title: `짧은 화면 일정 ${index + 1}`, startISO: `2026-06-15T${hour}:00:00+09:00`, endISO: `2026-06-15T${hour}:30:00+09:00` };
+			})
+		);
+		try {
+			await signInToCalendar(page);
+			const monthGrid = page.getByRole('grid');
+			const lastEvent = page.locator(`[data-calendar-event-id="${eventIDs.at(-1)}"]`);
+			await expect(lastEvent).toBeAttached();
+			const gridTopBefore = await monthGrid.evaluate((element) => element.getBoundingClientRect().top);
+
+			await lastEvent.scrollIntoViewIfNeeded();
+
+			await expect(lastEvent).toBeInViewport();
+			const gridTopAfter = await monthGrid.evaluate((element) => element.getBoundingClientRect().top);
+			expect(gridTopAfter).toBeLessThan(gridTopBefore);
+		} finally {
+			await cleanupCalendarEvents(eventIDs);
+		}
+	});
+
 	test('says nothing about a subscription there is none of', async ({ page }) => {
 		await routeCalendarHolidays(page);
 		await page.route('**/api/v1/tools/calendar_subscription_get/invoke', async (route) => {

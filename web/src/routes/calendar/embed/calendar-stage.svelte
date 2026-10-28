@@ -260,7 +260,7 @@
 					aria-busy={loading}
 				>
 					{#if toolbarView === ViewType.MONTH && isPhone.current}
-						<div class="absolute inset-0 flex min-h-0 flex-col">
+						<div class="absolute inset-0 overflow-y-auto overscroll-contain">
 							<CalendarMonthAgenda
 								visibleDate={toolbarDate}
 								events={gridEvents}
