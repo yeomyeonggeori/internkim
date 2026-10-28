@@ -1302,7 +1302,6 @@ select lives_ok($block$do $$
 declare
   directory_rows integer;
   entitlement_refused boolean := false;
-  preferences_refused boolean := false;
   arrangement_refused boolean := false;
   note_refused boolean := false;
 begin
@@ -1320,11 +1319,6 @@ begin
   select count(*) = 0 into entitlement_refused
   from public.leave where days >= 0;
   begin
-    perform notification_settings from public.member;
-  exception when insufficient_privilege then
-    preferences_refused := true;
-  end;
-  begin
     perform preferences from public.member;
   exception when insufficient_privilege then
     arrangement_refused := true;
@@ -1336,8 +1330,7 @@ begin
   end;
 
   assert entitlement_refused, 'a colleague reads no row of what anybody was granted';
-  assert preferences_refused, 'a colleague cannot read somebody notification settings';
-  assert arrangement_refused, 'a colleague cannot read how somebody keeps their messenger';
+  assert arrangement_refused, 'a colleague cannot read somebody notification settings or how they keep their messenger';
   assert note_refused, 'a colleague cannot read the note kept about somebody';
 
   reset role;

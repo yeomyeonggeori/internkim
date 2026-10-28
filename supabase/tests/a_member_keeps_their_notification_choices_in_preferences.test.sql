@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(4);
+select plan(3);
 
 insert into auth.users (id, email) values
   ('53000000-0000-0000-0000-000000000001', 'choice-one@example.test');
@@ -39,12 +39,6 @@ select is(
   (select preferences -> 'notificationSettings' from public.member where id = '53000000-0000-0000-0000-0000000000b1'),
   '{"mail": true}'::jsonb,
   'pinning a channel keeps the notification choice'
-);
-
-select is(
-  (select notification_settings from public.member where id = '53000000-0000-0000-0000-0000000000b1'),
-  '{"mail": true}'::jsonb,
-  'the old column carries the same choice while push code that reads it is still running'
 );
 
 select * from finish();
