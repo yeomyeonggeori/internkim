@@ -140,7 +140,7 @@
 	{/if}
 {/snippet}
 
-<div class="flex min-h-0 flex-1 flex-col">
+<div class="flex flex-col">
 	<div class="text-muted-foreground grid grid-cols-7 pt-1.5 text-center text-xs font-medium">
 		{#each weekdayLabels as weekdayLabel, weekdayIndex (weekdayIndex)}
 			<div class={cn('py-1', (weekdayIndex === 0 || weekdayIndex === 6) && 'text-destructive')}>{weekdayLabel}</div>
@@ -194,9 +194,9 @@
 			</div>
 		{/each}
 	</div>
-	<section class="border-border/50 flex min-h-0 flex-1 flex-col border-t" aria-label={dayLabelFormatter.format(visibleDate)}>
+	<section class="border-border/50 border-t" aria-label={dayLabelFormatter.format(visibleDate)}>
 		<h2 class="px-4 pt-3 pb-1 text-sm font-semibold">{dayLabelFormatter.format(visibleDate)}</h2>
-		<div class="min-h-0 flex-1 overflow-y-auto pb-24">
+		<div class="pb-24">
 			{#if loading}
 				<div class="grid gap-1 px-4 py-2" aria-hidden="true" data-calendar-agenda-loading>
 					{#each [0, 1] as row (row)}
