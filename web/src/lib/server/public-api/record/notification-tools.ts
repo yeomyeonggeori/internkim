@@ -7,7 +7,7 @@ import {
 	type NotificationChoices
 } from './notifications';
 import type { RecordContext } from './company';
-import { notificationCategories, type NotificationCategory } from '../catalog/notifications';
+import { notificationCategories, notificationSettingsResultSchema, type NotificationCategory } from '../catalog/notifications';
 import type { ConversationMuteResult, NotificationSettingsResult } from '../catalog/notifications';
 
 export type NotificationSettingsSetInput = { turnOn?: string[]; turnOff?: string[] };
@@ -25,13 +25,9 @@ async function storedChoices(context: RecordContext): Promise<NotificationChoice
 }
 
 async function mutedConversationIDs(context: RecordContext): Promise<string[]> {
-	const { data, error } = await context.caller
-		.from('notification')
-		.select('conversation_id')
-		.eq('is_muted', true)
-		.returns<{ conversation_id: string }[]>();
+	const { data, error } = await context.caller.rpc('my_muted_conversations');
 	if (error) throw new Error(error.message);
-	return (data ?? []).map((row) => row.conversation_id).sort();
+	return notificationSettingsResultSchema.shape.mutedConversationIDs.parse(data).sort();
 }
 
 async function settingsAnswered(context: RecordContext): Promise<NotificationSettingsResult> {

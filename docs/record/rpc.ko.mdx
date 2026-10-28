@@ -121,6 +121,7 @@ description: "PostgREST가 /rest/v1/rpc로 노출하는 함수 전부와, 누가
 | `my_company_topic` | — | `text` | definer | anon, authenticated, service_role |
 | `my_member` | — | `uuid` | definer | anon, authenticated, service_role |
 | `my_member_topic` | — | `text` | definer | anon, authenticated, service_role |
+| `my_muted_conversations` | — | `text[]` | definer | authenticated, service_role |
 | `my_notification_settings` | — | `jsonb` | definer | authenticated, service_role |
 | `my_team` | — | `uuid` | definer | anon, authenticated, service_role |
 | `note_box_seen` | `box_key text, seen_version text` | `text` | definer | service_role |

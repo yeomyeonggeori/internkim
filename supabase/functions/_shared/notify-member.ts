@@ -20,10 +20,8 @@ export async function notifyMember(
 	nowInSeconds: number,
 	conversationID = ''
 ): Promise<Delivery> {
-	if (!(await wantsToBeTold(client, memberID, category))) {
-		return { reached: 0, pruned: 0, silent: true };
-	}
-	if (await hasMuted(client, memberID, conversationID)) {
+	const preferences = await preferencesOf(client, memberID);
+	if (!wantsToBeTold(preferences, category) || hasMuted(preferences, conversationID)) {
 		return { reached: 0, pruned: 0, silent: true };
 	}
 
@@ -31,11 +29,7 @@ export async function notifyMember(
 	return { reached, pruned, silent: false };
 }
 
-async function wantsToBeTold(
-	client: SupabaseClient,
-	memberID: string,
-	category: NotificationCategory
-): Promise<boolean> {
+async function preferencesOf(client: SupabaseClient, memberID: string): Promise<object> {
 	const { data, error } = await client
 		.from('member')
 		.select('preferences')
@@ -43,18 +37,15 @@ async function wantsToBeTold(
 		.maybeSingle<{ preferences: unknown }>();
 	if (error) throw new Error(error.message);
 	const preferences = data?.preferences;
-	const stored = typeof preferences === 'object' && preferences !== null ? Reflect.get(preferences, 'notificationSettings') : undefined;
-	return readNotificationSettings(stored).categories[category];
+	return typeof preferences === 'object' && preferences !== null ? preferences : {};
 }
 
-async function hasMuted(client: SupabaseClient, memberID: string, conversationID: string): Promise<boolean> {
+function wantsToBeTold(preferences: object, category: NotificationCategory): boolean {
+	return readNotificationSettings(Reflect.get(preferences, 'notificationSettings')).categories[category];
+}
+
+function hasMuted(preferences: object, conversationID: string): boolean {
 	if (!conversationID) return false;
-	const { data, error } = await client
-		.from('notification')
-		.select('is_muted')
-		.eq('member_id', memberID)
-		.eq('conversation_id', conversationID)
-		.maybeSingle<{ is_muted: boolean }>();
-	if (error) throw new Error(error.message);
-	return data?.is_muted === true;
+	const muted = Reflect.get(preferences, 'mutedChannels');
+	return Array.isArray(muted) && muted.includes(conversationID);
 }

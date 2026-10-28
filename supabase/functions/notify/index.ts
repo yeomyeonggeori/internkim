@@ -1,6 +1,5 @@
 import { callingAgent } from '../_shared/agent-caller.ts';
 import { notificationCategories, type NotificationCategory } from '../_shared/categories.ts';
-import { rememberConversationMembers } from '../_shared/conversation-members.ts';
 import { askedObject, json, refuse, serveRefusals } from '../_shared/http.ts';
 import { membersOfCompanyByEmail, membersOfCompanyByExternalID } from '../_shared/member-directory.ts';
 import { addressedIn } from '../_shared/notify-recipients.ts';
@@ -59,7 +58,6 @@ Deno.serve(
 			pushKeys,
 			conversationID
 		);
-		await rememberConversationMembers(client, conversationID, [...recipientMemberIDs, sender ?? '']);
 
 		return json({ ...delivered, addressed: recipients.length });
 	})

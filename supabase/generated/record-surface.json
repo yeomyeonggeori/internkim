@@ -1147,6 +1147,16 @@
       ]
     },
     {
+      "name": "my_muted_conversations",
+      "arguments": "",
+      "returns": "text[]",
+      "security": "definer",
+      "callableBy": [
+        "authenticated",
+        "service_role"
+      ]
+    },
+    {
       "name": "my_notification_settings",
       "arguments": "",
       "returns": "jsonb",
