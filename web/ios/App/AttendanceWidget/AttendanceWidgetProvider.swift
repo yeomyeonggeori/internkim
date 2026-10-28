@@ -44,8 +44,8 @@ struct AttendanceEntry: TimelineEntry {
 }
 
 struct AttendanceProvider: AppIntentTimelineProvider {
-    private static let minutesDrawnAhead = 60
-    private static let whileIdle: TimeInterval = 30 * 60
+    private static let minutesDrawnAhead = 4 * 60
+    private static let retryAfterFailure: TimeInterval = 30 * 60
 
     func placeholder(in context: Context) -> AttendanceEntry {
         AttendanceEntry.nothingYet()
@@ -67,8 +67,12 @@ struct AttendanceProvider: AppIntentTimelineProvider {
     }
 
     private func entries(of read: AttendanceEntry, at now: Date) -> ([AttendanceEntry], Date) {
+        let minutesLeftToday = AttendanceToday.minutesLeftInDay(after: read.currentTime)
+        let idleUntil = read.failure == nil
+            ? now.addingTimeInterval(TimeInterval(minutesLeftToday * 60))
+            : now.addingTimeInterval(Self.retryAfterFailure)
         if !read.today.isWorking, let closing = AttendanceLocationChoice.closes(after: now) {
-            return ([read.at(now, isChoosingLocation: true), read.at(closing)], now.addingTimeInterval(Self.whileIdle))
+            return ([read.at(now, isChoosingLocation: true), read.at(closing)], idleUntil)
         }
 
         var entries: [AttendanceEntry] = []
@@ -80,12 +84,13 @@ struct AttendanceProvider: AppIntentTimelineProvider {
         }
 
         guard read.today.isWorking else {
-            return (entries, now.addingTimeInterval(Self.whileIdle))
+            return (entries, idleUntil)
         }
-        for minute in 1...Self.minutesDrawnAhead {
+        let minutesAhead = min(Self.minutesDrawnAhead, minutesLeftToday)
+        for minute in stride(from: 1, to: minutesAhead, by: 1) {
             entries.append(read.at(now.addingTimeInterval(TimeInterval(minute * 60))))
         }
-        return (entries, now.addingTimeInterval(TimeInterval(Self.minutesDrawnAhead * 60)))
+        return (entries, now.addingTimeInterval(TimeInterval(minutesAhead * 60)))
     }
 
     private func read(at now: Date, chosen: String?) async -> (entry: AttendanceEntry, isStale: Bool) {
