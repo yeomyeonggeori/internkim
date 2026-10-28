@@ -13799,6 +13799,147 @@
       "availability": {
         "state": "ok"
       },
+      "canonicalName": "channel_list",
+      "description": "The channels the requester can see in the company messenger, by exact ID and current name: the ones they are in and the open ones they could join. Call this when a channel's exact name is not known before message_send, message_search or channel_join. A nextCursor means more channels remain; read them before concluding a channel does not exist.",
+      "estimatedLatency": "medium",
+      "idempotency": {
+        "required": false,
+        "scope": "operation",
+        "supported": false
+      },
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "cursor": {
+            "description": "Pagination cursor from a previous channel_list result. Omit on the first call.",
+            "type": "string"
+          },
+          "limit": {
+            "description": "Maximum channels to return. Defaults to 50.",
+            "maximum": 100,
+            "minimum": 1,
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "inputSchemaStrict": true,
+      "modelName": "channel_list",
+      "modelVisibility": "visible",
+      "modelVisible": true,
+      "name": "channel_list",
+      "namespace": "channel",
+      "namespaceSummary": "Channels in the company messenger: create, join, leave, delete, and who belongs to or owns one.",
+      "outputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "channels": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "channelID": {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "isMember": {
+                  "description": "Whether the requester is in the channel. One they are not in is open for them to join.",
+                  "type": "boolean"
+                },
+                "name": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "channelID",
+                "name",
+                "isMember"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "nextCursor": {
+            "description": "Present only when more channels remain; pass it as cursor to read them.",
+            "type": "string"
+          },
+          "totalCount": {
+            "description": "How many channels the requester can see in all.",
+            "maximum": 9007199254740991,
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "channels",
+          "totalCount"
+        ],
+        "type": "object"
+      },
+      "outputSchemaStrict": true,
+      "policyResource": "tool:channel_list",
+      "privacyClass": "platform_message",
+      "requiresUserPresence": false,
+      "resultContract": {
+        "effects": [],
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "additionalProperties": false,
+          "properties": {
+            "channels": {
+              "items": {
+                "additionalProperties": false,
+                "properties": {
+                  "channelID": {
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  "isMember": {
+                    "description": "Whether the requester is in the channel. One they are not in is open for them to join.",
+                    "type": "boolean"
+                  },
+                  "name": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "channelID",
+                  "name",
+                  "isMember"
+                ],
+                "type": "object"
+              },
+              "type": "array"
+            },
+            "nextCursor": {
+              "description": "Present only when more channels remain; pass it as cursor to read them.",
+              "type": "string"
+            },
+            "totalCount": {
+              "description": "How many channels the requester can see in all.",
+              "maximum": 9007199254740991,
+              "minimum": 0,
+              "type": "integer"
+            }
+          },
+          "required": [
+            "channels",
+            "totalCount"
+          ],
+          "type": "object"
+        }
+      },
+      "sideEffect": "read",
+      "sideEffectClass": "read",
+      "version": "1",
+      "worksOffline": false
+    },
+    {
+      "answeredBy": "company",
+      "availability": {
+        "state": "ok"
+      },
       "canonicalName": "channel_add",
       "description": "Create a group channel in the company messenger with the requester as its owner, and add the members named. It is done as the requester, exactly as their messenger screen does it, and refused for the same reasons.",
       "estimatedLatency": "medium",

@@ -437,6 +437,17 @@ func gateCases() map[string]catalogGateCase {
 				expectResultHolds(t, answered, `"isHidden":false`)
 			},
 		},
+		"channel_list": {
+			kind:    provesBehaviour,
+			reaches: reachingTheMessengerAsTheRequester(),
+			input:   `{}`,
+			expect: func(t *testing.T, answered capabilities.ToolInvokeResponse) {
+				expectSucceeded(t, answered)
+				expectResultHolds(t, answered, `{"channelID":"channel-2","name":"open-room","isMember":false}`)
+				expectResultHolds(t, answered, `{"channelID":"channel-1","name":"전사-공지","isMember":true}`)
+				expectResultHolds(t, answered, `"totalCount":2`)
+			},
+		},
 		"channel_add": {
 			kind:    provesBehaviour,
 			reaches: reachingTheMessengerAsTheRequester(),

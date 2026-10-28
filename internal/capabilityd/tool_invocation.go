@@ -64,6 +64,7 @@ var capabilityToolRoutes = []capabilityToolRoute{
 	{ToolName: messageReactionDeleteToolName, Handler: Service.invokeMessageReactionTool},
 	{ToolName: conversationHideToolName, Handler: Service.invokeConversationVisibilityTool},
 	{ToolName: conversationRevealToolName, Handler: Service.invokeConversationVisibilityTool},
+	{ToolName: channelListToolName, Handler: Service.invokeChannelListTool},
 	{ToolName: channelAddToolName, Handler: Service.invokeChannelTool},
 	{ToolName: channelJoinToolName, Handler: Service.invokeChannelTool},
 	{ToolName: channelLeaveToolName, Handler: Service.invokeChannelTool},

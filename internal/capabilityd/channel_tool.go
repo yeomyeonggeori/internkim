@@ -214,7 +214,7 @@ func (service Service) requesterMessengerKey(ctx context.Context, request capabi
 	pubkeyHex, errorValue := service.directoryBuzzKey(ctx, request.Context.RequesterEmail)
 	if errorValue != nil {
 		return "", platformToolErrorResponse(request.ToolName, platformToolStaticFailure("requester_not_addressable", "requester_resolve",
-			"this change was to be made as "+request.Context.RequesterEmail+" and could not: "+errorValue.Error())), true
+			"this was to be done as "+request.Context.RequesterEmail+" and could not: "+errorValue.Error())), true
 	}
 	return pubkeyHex, capabilities.ToolInvokeResponse{}, false
 }
