@@ -183,8 +183,9 @@ test('the app keeps clear of the status bar and home indicator and its tabs answ
 	await expect(page.locator('meta[name="viewport"]')).toHaveAttribute('content', /viewport-fit=cover/);
 	const navigation = page.locator('.internkim-app-mobile-navigation');
 	await expect(navigation).toBeVisible();
-	const headerTop = await page.locator('.internkim-app-header').evaluate(header => header.getBoundingClientRect().top);
-	expect(headerTop).toBeGreaterThanOrEqual(47);
+	await expect(page.locator('.internkim-app-header')).toBeHidden();
+	const contentTop = await page.locator('[data-app-shell-scroll]').evaluate(content => content.getBoundingClientRect().top);
+	expect(contentTop).toBeGreaterThanOrEqual(47);
 	const lastLabelBottom = await navigation.locator('a, button').last().locator('span').evaluate(label => label.getBoundingClientRect().bottom);
 	expect(844 - lastLabelBottom).toBeGreaterThanOrEqual(34);
 	const tabsUnderTheScreenEdge = await navigation.locator('a, button').evaluateAll(items =>
