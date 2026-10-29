@@ -213,7 +213,7 @@ test('same-week refresh retains the settled task list', async ({ page }) => {
 	const pending = gate();
 	fixture.historyGate = pending.promise;
 	fixture.historyStarted = gate();
-	await page.evaluate(async () => { const moduleURL = '/src/lib/components/app-page-actions.svelte.ts'; const actions = await import(moduleURL); void actions.pageActions.refresh(); });
+	await page.getByRole('button', { name: '새로고침', exact: true }).click();
 	await fixture.historyStarted.promise;
 	await expect(page.getByText(taskTitle, { exact: true }).last()).toBeVisible();
 	await expect(page.locator('[data-task-content-skeleton="list"]')).toHaveCount(0);

@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
+import { waitForHydration } from '../support/hydration';
 
 const memberID = '10000000-0000-4000-8000-000000000001';
 const companyID = '20000000-0000-4000-8000-000000000001';
@@ -83,6 +84,7 @@ test('a direct conversation is hidden from its menu and the list says so', async
 	await signInToTheCompanyApp(page, companyConversations(), asked);
 	await page.setViewportSize({ width: 1280, height: 800 });
 	await page.goto('/messenger?channel=dm-park');
+	await waitForHydration(page);
 	await expect(rowNamed(page, '박예시')).toBeVisible();
 
 	await rowNamed(page, '박예시').click({ button: 'right' });
@@ -104,6 +106,7 @@ test('a channel row offers no hiding', async ({ page }) => {
 	await signInToTheCompanyApp(page, companyConversations(), []);
 	await page.setViewportSize({ width: 1280, height: 800 });
 	await page.goto('/messenger?channel=channel-notice');
+	await waitForHydration(page);
 	await rowNamed(page, '공지').click({ button: 'right' });
 	await expect(page.getByRole('menuitem', { name: '채널 나가기' })).toBeVisible();
 	await expect(page.getByRole('menuitem', { name: '대화 숨기기' })).toHaveCount(0);
@@ -117,6 +120,7 @@ test('a hidden direct conversation opened from the inbox comes back to the list'
 	await signInToTheCompanyApp(page, conversations, asked);
 	await page.setViewportSize({ width: 1280, height: 800 });
 	await page.goto('/messenger');
+	await waitForHydration(page);
 	await expect(rowNamed(page, '최견본')).toBeVisible();
 	await expect(rowNamed(page, '박예시')).toHaveCount(0);
 

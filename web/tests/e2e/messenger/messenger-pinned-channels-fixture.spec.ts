@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
+import { waitForHydration } from '../support/hydration';
 
 const memberID = '10000000-0000-4000-8000-000000000001';
 const companyID = '20000000-0000-4000-8000-000000000001';
@@ -102,6 +103,7 @@ test.describe('on a pointer that can hover', () => {
 		const calls: ToolCall[] = [];
 		await signInToTheCompanyApp(page, held, calls);
 		await page.goto('/messenger?channel=channel-notice');
+		await waitForHydration(page);
 		await expect(rowsIn(page, '채널')).toHaveText(['공지', '디자인', '개발']);
 		await expect(sectionTitled(page, '고정됨')).toHaveCount(0);
 
@@ -122,6 +124,7 @@ test.describe('on a pointer that can hover', () => {
 		const held: ChannelOrder = { pinnedChannels: ['channel-dev'], channelOrder: [] };
 		await signInToTheCompanyApp(page, held, []);
 		await page.goto('/messenger?channel=channel-notice');
+		await waitForHydration(page);
 
 		await expect(rowsIn(page, '고정됨')).toHaveText(['개발']);
 		await expect(rowsIn(page, '채널')).toHaveText(['공지', '디자인']);
@@ -132,6 +135,7 @@ test.describe('on a pointer that can hover', () => {
 		const calls: ToolCall[] = [];
 		await signInToTheCompanyApp(page, held, calls);
 		await page.goto('/messenger?channel=channel-notice');
+		await waitForHydration(page);
 		await expect(rowsIn(page, '고정됨')).toHaveText(['공지', '디자인']);
 
 		await rowNamed(page, '디자인').dragTo(rowNamed(page, '공지'));
@@ -149,6 +153,7 @@ test.describe('on a touch screen', () => {
 		const calls: ToolCall[] = [];
 		await signInToTheCompanyApp(page, held, calls);
 		await page.goto('/messenger?channel=channel-notice');
+		await waitForHydration(page);
 		await expect(rowsIn(page, '채널')).toHaveText(['공지', '디자인', '개발']);
 
 		const from = await centerOf(page, '개발');

@@ -53,15 +53,41 @@ function specsOn(plane: Exclude<Plane, 'standalone'>): RegExp {
 	return new RegExp(`-${plane}\\.spec\\.ts$`);
 }
 
-function devServerFor(plane: Plane) {
-	const url = baseURLOf(plane);
-	return {
-		command: `bun run dev --host 127.0.0.1 --port ${new URL(url).port} --strictPort`,
-		url,
-		timeout: 120_000,
-		reuseExistingServer: false,
-		env: { VITE_ADMIND_TARGET: '', ...planeEnvironments[plane] }
-	};
+const planesServedFromDevelopment: Plane[] = ['mocked', 'standalone'];
+
+function projectsNamedIn(argumentList: string[]): string[] {
+	return argumentList.flatMap((argument, index) => {
+		if (argument.startsWith('--project=')) return [argument.slice('--project='.length)];
+		if (argument === '--project') return [argumentList[index + 1] ?? ''];
+		return [];
+	});
+}
+
+function selectedPlanes(): Plane[] {
+	const named = projectsNamedIn(process.argv);
+	const selected = planes.filter((plane) => named.includes(plane));
+	return selected.length > 0 ? selected : planes;
+}
+
+function serverCommandFor(plane: Plane, port: string, isFirstBuiltPlane: boolean): string {
+	const hostAndPort = `--host 127.0.0.1 --port ${port} --strictPort`;
+	if (planesServedFromDevelopment.includes(plane)) return `bun run dev ${hostAndPort}`;
+	const preview = `bunx vite preview ${hostAndPort}`;
+	return isFirstBuiltPlane ? `bun run build && ${preview}` : preview;
+}
+
+function webServersFor(selected: Plane[]) {
+	const firstBuiltPlane = selected.find((plane) => !planesServedFromDevelopment.includes(plane));
+	return selected.map((plane) => {
+		const url = baseURLOf(plane);
+		return {
+			command: serverCommandFor(plane, new URL(url).port, plane === firstBuiltPlane),
+			url,
+			timeout: plane === firstBuiltPlane ? 600_000 : 120_000,
+			reuseExistingServer: false,
+			env: { VITE_ADMIND_TARGET: '', ...planeEnvironments[plane] }
+		};
+	});
 }
 
 export default defineConfig({
@@ -83,6 +109,6 @@ export default defineConfig({
 		})),
 		{ name: 'standalone', testIgnore: namedPlanes.map(specsOn), use: { baseURL: baseURLOf('standalone') } }
 	],
-	webServer: planes.map(devServerFor),
+	webServer: webServersFor(selectedPlanes()),
 	reporter: [['list']]
 });
