@@ -11,23 +11,15 @@ export const GET: RequestHandler = async ({ request, url, platform }) => {
 	// know about somebody it has never heard of - which is every person invited
 	// since it last looked.
 	const email = (url.searchParams.get('email') ?? '').trim().toLowerCase();
-	const everyone = await client
-		.from('member')
-		.select(memberColumns)
-		.eq('company_id', companyID)
-		.returns<MemberRow[]>();
+	const [everyone, teams, circles] = await Promise.all([
+		client.from('member').select(memberColumns).eq('company_id', companyID).returns<MemberRow[]>(),
+		client.from('team').select('id, name').eq('company_id', companyID).returns<{ id: string; name: string }[]>(),
+		circlesOfTheCompany({ client, companyID })
+	]);
 	if (everyone.error) return json({ error: everyone.error.message }, { status: 502 });
-
-	const rows = everyone.data ?? [];
-	const teams = await client
-		.from('team')
-		.select('id, name')
-		.eq('company_id', companyID)
-		.returns<{ id: string; name: string }[]>();
 	if (teams.error) return json({ error: teams.error.message }, { status: 502 });
 
-	const circles = await circlesOfTheCompany({ client, companyID });
-
+	const rows = everyone.data ?? [];
 	const named = namedMembers(rows, teams.data ?? [], circles);
 	if (!email) return json({ members: named });
 	return json({ member: named.find((member) => member.email === email) ?? null });
