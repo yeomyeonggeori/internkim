@@ -61,6 +61,29 @@ test.describe('app rail', () => {
 		await expect.poll(async () => railIconSize(appRail.getByRole('link', { name: '기억' }))).toBe(16);
 	});
 
+	test('names a collapsed rail icon in a tooltip on hover', async ({ page }) => {
+		await page.setViewportSize({ width: 930, height: 1904 });
+		await page.goto('/memory/');
+
+		await hoverUntilVisible(page.locator(appRailSelector).getByRole('link', { name: '업무' }), railTooltip(page, '업무'));
+	});
+
+	test('shows no tooltip when hovering expands the rail', async ({ page }) => {
+		await page.addInitScript(() => localStorage.setItem('internkim.app-rail-mode', 'hover'));
+		await page.setViewportSize({ width: 930, height: 1904 });
+		await page.goto('/memory/');
+
+		const taskLink = page.locator(appRailSelector).getByRole('link', { name: '업무' });
+		await expect(async () => {
+			await page.mouse.move(600, 600);
+			await taskLink.hover();
+			await expect(taskLink).toHaveAttribute('data-state', /open/, { timeout: 1_000 });
+		}).toPass({ timeout: 15_000 });
+
+		await expect(page.locator(appRailSelector).getByText('업무', { exact: true })).toBeVisible();
+		await expect(railTooltip(page, '업무')).toBeHidden();
+	});
+
 	test('uses bottom navigation instead of the rail on mobile', async ({ page }) => {
 		await page.setViewportSize({ width: 444, height: 866 });
 		await page.goto('/memory/');
@@ -176,6 +199,18 @@ test.describe('app rail', () => {
 		await expect.poll(async () => page.evaluate(() => document.cookie.includes('sidebar:state='))).toBe(false);
 	});
 });
+
+function railTooltip(page: Page, label: string): Locator {
+	return page.locator('[data-slot="tooltip-content"]', { hasText: label });
+}
+
+async function hoverUntilVisible(trigger: Locator, revealed: Locator): Promise<void> {
+	await expect(async () => {
+		await trigger.page().mouse.move(600, 600);
+		await trigger.hover();
+		await expect(revealed).toBeVisible({ timeout: 1_000 });
+	}).toPass({ timeout: 15_000 });
+}
 
 async function openUntilVisible(trigger: Locator, revealed: Locator): Promise<void> {
 	await expect(async () => {
