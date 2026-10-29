@@ -183,7 +183,8 @@ export enum ScheduleToolName {
 
 const scheduleListInputSchema = z.strictObject({
   status: z.enum(['active', 'failed', 'expired']).optional(),
-  limit: z.int().min(1).optional(),
+  limit: z.int().min(1).max(100).describe('Maximum schedules to return. Defaults to 50.').optional(),
+  cursor: z.string().min(1).describe('Pagination cursor from a previous schedule_list result. Omit on the first call.').optional(),
 });
 
 const scheduleMomentDescription = 'Written as an RFC3339 date-time carrying an offset, such as 2026-09-20T09:00:00+09:00.';
@@ -289,6 +290,8 @@ const scheduleListItemSchema = z.strictObject({
 
 const scheduleListResultSchema = z.strictObject({
   schedules: z.array(scheduleListItemSchema),
+  totalCount: z.int().nonnegative().describe('How many schedules match the status filter across every page.'),
+  nextCursor: z.string().describe('Present only when more schedules remain; pass it as cursor to read them.').optional(),
 });
 
 const scheduleToolDefinitions: CapabilityToolDefinition[] = [
@@ -298,7 +301,7 @@ const scheduleToolDefinitions: CapabilityToolDefinition[] = [
     answeredBy: CapabilityAnsweredBy.Company,
     privacyClass: 'workspace_schedule',
     policyResource: 'tool:schedule_list',
-    description: 'List scheduled tasks created by the current requester. Filter by active, failed, or expired status and cap the result with limit. Use it to answer what reminders or recurring tasks are scheduled.',
+    description: 'List scheduled tasks created by the current requester, newest first. Filter by active, failed, or expired status. Use it to answer what reminders or recurring tasks are scheduled. A nextCursor means more schedules remain; read them before concluding a schedule does not exist.',
     version: '1',
     estimatedLatency: CapabilityEstimatedLatency.Low,
     inputSchema: scheduleListInputSchema,

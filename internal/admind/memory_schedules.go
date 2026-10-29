@@ -18,6 +18,7 @@ type memoryScheduleCancelRequest struct {
 type scheduleToolListInput struct {
 	Status string `json:"status"`
 	Limit  int    `json:"limit"`
+	Cursor string `json:"cursor"`
 }
 
 // The shapes Blueclaw's signed schedule contract accepts. They are decoded here
@@ -134,51 +135,24 @@ func (service *Service) writeUserMemorySchedules(responseWriter http.ResponseWri
 }
 
 func (service *Service) writeUserScheduleToolList(responseWriter http.ResponseWriter, request *http.Request) {
-	personID, ok := service.writeMemorySchedulePersonID(responseWriter, request)
-	if !ok {
-		return
-	}
-	var input scheduleToolListInput
-	decoder := json.NewDecoder(http.MaxBytesReader(responseWriter, request.Body, 16*1024))
-	decoder.DisallowUnknownFields()
-	if errorValue := decoder.Decode(&input); errorValue != nil {
-		http.Error(responseWriter, "invalid schedule list request", http.StatusBadRequest)
-		return
-	}
-	if errorValue := decoder.Decode(&struct{}{}); errorValue != io.EOF {
-		http.Error(responseWriter, "invalid schedule list request", http.StatusBadRequest)
-		return
-	}
-	body, errorValue := json.Marshal(input)
-	if errorValue != nil {
-		http.Error(responseWriter, "invalid schedule list request", http.StatusBadRequest)
-		return
-	}
-	var output json.RawMessage
-	if errorValue := service.blueclawSignedRequest(request.Context(), http.MethodPost, "/admin/api/schedule/tool-list", body, personID, &output); errorValue != nil {
-		log.Printf("schedule tool list upstream failed: %v", errorValue)
-		http.Error(responseWriter, "schedule list unavailable", http.StatusBadGateway)
-		return
-	}
-	responseWriter.Header().Set("Content-Type", "application/json")
-	_, _ = responseWriter.Write(output)
+	service.forwardScheduleTool(responseWriter, request, "/admin/api/schedule/tool-list", &scheduleToolListInput{})
 }
 
 func (service *Service) writeUserScheduleToolCreate(responseWriter http.ResponseWriter, request *http.Request) {
-	service.forwardScheduleToolWrite(responseWriter, request, "/admin/api/schedule/tool-create", &scheduleToolCreateInput{})
+	service.forwardScheduleTool(responseWriter, request, "/admin/api/schedule/tool-create", &scheduleToolCreateInput{})
 }
 
 func (service *Service) writeUserScheduleToolUpdate(responseWriter http.ResponseWriter, request *http.Request) {
-	service.forwardScheduleToolWrite(responseWriter, request, "/admin/api/schedule/tool-update", &scheduleToolUpdateInput{})
+	service.forwardScheduleTool(responseWriter, request, "/admin/api/schedule/tool-update", &scheduleToolUpdateInput{})
 }
 
 func (service *Service) writeUserScheduleToolCancel(responseWriter http.ResponseWriter, request *http.Request) {
-	service.forwardScheduleToolWrite(responseWriter, request, "/admin/api/schedule/tool-cancel", &scheduleToolCancelInput{})
+	service.forwardScheduleTool(responseWriter, request, "/admin/api/schedule/tool-cancel", &scheduleToolCancelInput{})
 }
 
 // Blueclaw owns what a schedule write means, including which hint resolved and
 // which did not, so its status and its body reach the caller unchanged.
-func (service *Service) forwardScheduleToolWrite(responseWriter http.ResponseWriter, request *http.Request, upstreamPath string, input any) {
+func (service *Service) forwardScheduleTool(responseWriter http.ResponseWriter, request *http.Request, upstreamPath string, input any) {
 	personID, isKnown := service.writeMemorySchedulePersonID(responseWriter, request)
 	if !isKnown {
 		return
@@ -189,8 +163,8 @@ func (service *Service) forwardScheduleToolWrite(responseWriter http.ResponseWri
 	}
 	statusCode, answer, errorValue := service.blueclawSignedAnswer(request.Context(), http.MethodPost, upstreamPath, body, personID)
 	if errorValue != nil {
-		log.Printf("schedule tool write upstream failed: %v", errorValue)
-		http.Error(responseWriter, "schedule write unavailable", http.StatusBadGateway)
+		log.Printf("schedule tool upstream failed: %s: %v", upstreamPath, errorValue)
+		http.Error(responseWriter, "schedule tool unavailable", http.StatusBadGateway)
 		return
 	}
 	responseWriter.Header().Set("Content-Type", contentTypeOfScheduleToolAnswer(answer))

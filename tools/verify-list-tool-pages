@@ -32,7 +32,6 @@ PAGES_WITHOUT_A_TOTAL = {
 }
 
 CUT_WITHOUT_SAYING_SO = {
-    "schedule_list": "answers at most limit schedules and nothing says more exist",
     "task_list": "answers at most limit tasks and nothing says more exist",
     "task_board_get": "answers at most limit tasks and nothing says more exist",
     "event_list": "answers at most limit events and nothing says more exist",
