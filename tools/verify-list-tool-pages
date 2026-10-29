@@ -1,0 +1,118 @@
+#!/usr/bin/env python3
+"""Fail when a tool that caps its answer does not say what it left out.
+
+A capped answer read as a whole one is how a model concludes that someone or
+something does not exist. person_list cut the company at 48 people without
+saying so, and a channel lookup that could not see past its first answer gave
+up on a channel that was there. A tool that takes `cursor` therefore caps its
+pages at 100 and answers `totalCount` and `nextCursor`, and a tool that takes
+`limit` without `cursor` is listed below with the reason a cut answer is still
+the whole answer, or as debt to pay down.
+
+https://docs.intern.kim/tools/#naming says what `limit` and `cursor` mean.
+"""
+
+import json
+import sys
+
+import tool_name_sources as sources
+
+PAGE_CEILING = 100
+
+CUT_ON_PURPOSE = {
+    "web_search": "answers the best few results for a query; there is no rest of the web to page through",
+    "company_document_search": "answers the best few documents for a query, ranked, and a narrower query is how to see others",
+    "host_diagnostics_get": "answers the newest log lines, and older lines are not what a diagnosis reads",
+}
+
+PAGES_WITHOUT_A_TOTAL = {
+    "message_search": "chatd ranks matches as it reads the channel, so a total would scan the whole history; hasMore says more remain",
+    "mail_message_list": "IMAP answers a page of a mailbox without counting what the cursor has not reached",
+    "mail_message_search": "IMAP answers a page of matches without counting what the cursor has not reached",
+}
+
+CUT_WITHOUT_SAYING_SO = {
+    "schedule_list": "answers at most limit schedules and nothing says more exist",
+    "task_list": "answers at most limit tasks and nothing says more exist",
+    "task_board_get": "answers at most limit tasks and nothing says more exist",
+    "event_list": "answers at most limit events and nothing says more exist",
+    "leave_list": "answers at most limit rows and nothing says more exist",
+    "attendance_list": "answers at most limit rows and nothing says more exist",
+}
+
+UNBOUNDED_PAGES = {
+    "mail_message_list": "a page has no maximum, so one call can carry a whole mailbox into the context",
+    "mail_message_search": "a page has no maximum, so one call can carry every match into the context",
+}
+
+
+def schema_of(value):
+    if isinstance(value, str):
+        return json.loads(value)
+    return value or {}
+
+
+def properties_of(schema):
+    return schema.get("properties") or {}
+
+
+def paged_tool_faults(tool_name, input_properties, output_properties):
+    maximum = (input_properties.get("limit") or {}).get("maximum")
+    if maximum is None or maximum > PAGE_CEILING:
+        yield ("unbounded", tool_name), f"{tool_name} pages with cursor but lets a page exceed {PAGE_CEILING}; cap limit at {PAGE_CEILING}"
+    if "nextCursor" not in output_properties:
+        yield ("next", tool_name), f"{tool_name} takes cursor but never answers nextCursor, so a caller cannot reach the next page"
+    if "totalCount" not in output_properties:
+        yield ("total", tool_name), f"{tool_name} pages without totalCount, so a caller cannot tell a page from the whole"
+
+
+def capped_tool_faults(tool_name):
+    yield ("cut", tool_name), (
+        f"{tool_name} takes limit without cursor, so a cut answer reads as the whole one;"
+        f" page it with cursor, or add it to CUT_ON_PURPOSE with the reason the cut is the answer"
+    )
+
+
+def observed_faults(tool):
+    tool_name = sources.model_name_of(tool)
+    input_properties = properties_of(schema_of(tool.get("inputSchema")))
+    output_properties = properties_of(schema_of(tool.get("outputSchema")))
+    if "cursor" in input_properties:
+        yield from paged_tool_faults(tool_name, input_properties, output_properties)
+    elif "limit" in input_properties:
+        yield from capped_tool_faults(tool_name)
+
+
+def accepted_faults():
+    accepted = {("cut", name) for name in CUT_ON_PURPOSE | CUT_WITHOUT_SAYING_SO}
+    accepted |= {("total", name) for name in PAGES_WITHOUT_A_TOTAL}
+    accepted |= {("unbounded", name) for name in UNBOUNDED_PAGES}
+    return accepted
+
+
+def stale_entry_faults(accepted, observed_keys):
+    for kind, tool_name in sorted(accepted - observed_keys):
+        yield f"{tool_name} is listed as accepting a {kind} fault it no longer has; remove the entry"
+
+
+def main():
+    tools = [tool for tool in sources.catalog_tools() if tool.get("modelVisibility") != "hidden"]
+    if len(tools) < 60:
+        raise SystemExit(f"read only {len(tools)} catalog tools, so this check is reading the wrong place")
+    accepted = accepted_faults()
+    observed = [(key, fault) for tool in tools for key, fault in observed_faults(tool)]
+    faults = [fault for key, fault in observed if key not in accepted]
+    faults += stale_entry_faults(accepted, {key for key, _ in observed})
+
+    for fault in faults:
+        print(fault, file=sys.stderr)
+    if faults:
+        print(f"\n{len(faults)} list tool faults; https://docs.intern.kim/tools/#naming says what limit and cursor mean", file=sys.stderr)
+        return 1
+    debt = len(CUT_WITHOUT_SAYING_SO) + len(UNBOUNDED_PAGES)
+    print(f"ok {len(tools)} catalog tools page or cut on purpose, {debt} cut or unbounded answers left to pay down")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

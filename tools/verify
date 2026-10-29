@@ -154,13 +154,17 @@ GROUPS = [
             "tools/tool_name_sources.py",
             "tools/verify-tool-name-collisions",
             "tools/verify-tool-naming",
+            "tools/verify-list-tool-pages",
             "tools/tests/test_verify_tool_name_collisions.py",
+            "tools/tests/test_verify_list_tool_pages.py",
             "tools/tool-naming-debt.json",
         ],
         [
             ["tools/verify-skill-tool-references"],
             ["tools/verify-tool-name-collisions"],
             ["tools/verify-tool-naming"],
+            ["tools/verify-list-tool-pages"],
+            ["python3", "-m", "unittest", "discover", "-s", "tools/tests", "-p", "test_verify_list_tool_pages.py"],
             [
                 "python3",
                 "-m",
