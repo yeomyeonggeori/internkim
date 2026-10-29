@@ -142,6 +142,10 @@ acquireLock() {
 
 minimumCommandLineVersion="2.119.0"
 stackRuntime="native"
+queryTimeoutSeconds=30
+stopTimeoutSeconds="${LOCAL_PLANE_STOP_TIMEOUT_SECONDS:-120}"
+startTimeoutSeconds="${LOCAL_PLANE_START_TIMEOUT_SECONDS:-600}"
+reclaimGraceSeconds=10
 
 . "$repositoryRoot/web/scripts/local-plane-signing-key.sh"
 signingKeysPath="$(local_plane_signing_keys_path "$repositoryRoot")"
@@ -162,13 +166,33 @@ runQuietlyUnlessItFails() {
   return "$status"
 }
 
+runWithin() {
+  python3 -c '
+import subprocess, sys
+seconds, command = float(sys.argv[1]), sys.argv[2:]
+try:
+    sys.exit(subprocess.run(command, timeout=seconds).returncode)
+except subprocess.TimeoutExpired:
+    print("%s did not finish within %gs" % (" ".join(command), seconds), file=sys.stderr)
+    sys.exit(124)
+except KeyboardInterrupt:
+    sys.exit(130)
+' "$@"
+}
+
+supabaseWithin() {
+  local seconds="$1"
+  shift
+  runWithin "$seconds" supabase "$@"
+}
+
 versionIsAtLeast() {
   [ "$(printf '%s\n%s\n' "$2" "$1" | sort -V | head -1)" = "$2" ]
 }
 
 requireStackCommandLine() {
   local installedVersion
-  installedVersion="$(supabase --version 2>/dev/null | head -1 || true)"
+  installedVersion="$(supabaseWithin "$queryTimeoutSeconds" --version 2>/dev/null | head -1 || true)"
   if [ -n "$installedVersion" ] && versionIsAtLeast "$installedVersion" "$minimumCommandLineVersion"; then
     return 0
   fi
@@ -183,13 +207,16 @@ writeSigningKeyWhenMissing() {
   fi
   mkdir -p "$(dirname "$signingKeysPath")"
   printf 'writing a local signing key to %s\n' "$signingKeysPath" >&2
-  (umask 077 && cd "$repositoryRoot" && supabase gen signing-key --algorithm ES256 --output-format text 2>/dev/null \
+  (umask 077 && cd "$repositoryRoot" && supabaseWithin "$queryTimeoutSeconds" gen signing-key --algorithm ES256 --output-format text 2>/dev/null \
     | python3 -c 'import json, sys; json.dump([json.load(sys.stdin)], sys.stdout)' > "$signingKeysPath")
 }
 
+localPlaneStatus() {
+  (cd "$repositoryRoot" && supabaseWithin "$queryTimeoutSeconds" status --output-format json 2>/dev/null) || true
+}
+
 servingStackIdentifier() {
-  (cd "$repositoryRoot" && supabase status --output-format json 2>/dev/null) \
-    | python3 -c '
+  localPlaneStatus | python3 -c '
 import json, sys
 status = json.load(sys.stdin)
 if status.get("owner", "unavailable") != "unavailable":
@@ -197,13 +224,27 @@ if status.get("owner", "unavailable") != "unavailable":
 ' 2>/dev/null || true
 }
 
+recordedStackIdentifier() {
+  localPlaneStatus | python3 -c '
+import json, sys
+print(json.load(sys.stdin)["identity"]["id"])
+' 2>/dev/null || true
+}
+
+servicesNotReady() {
+  localPlaneStatus | python3 -c '
+import json, sys
+services = json.load(sys.stdin).get("services", [])
+print(", ".join("%s (%s)" % (service["service"], service["state"]) for service in services if service["state"] != "running"))
+' 2>/dev/null || printf 'unknown, supabase status did not answer'
+}
+
 stackIsServing() {
   [ -n "$(servingStackIdentifier)" ]
 }
 
 servingStackHasSleepingServices() {
-  (cd "$repositoryRoot" && supabase status --output-format json 2>/dev/null) \
-    | python3 -c '
+  localPlaneStatus | python3 -c '
 import json, sys
 services = json.load(sys.stdin).get("services", [])
 sys.exit(0 if any(service["state"] == "sleeping" for service in services) else 1)
@@ -216,7 +257,7 @@ currentBranchContext() {
 
 stacksOfThisRepository() {
   local stackList
-  stackList="$(cd "$repositoryRoot" && supabase stack list --output-format json 2>/dev/null)" || return 0
+  stackList="$(cd "$repositoryRoot" && supabaseWithin "$queryTimeoutSeconds" stack list --output-format json 2>/dev/null)" || return 0
   python3 -c '
 import json, os, re, sys
 repository_root, branch_context, project_identifier, stack_runtime, selection, stack_list = sys.argv[1:7]
@@ -251,12 +292,97 @@ for stack in json.loads(stack_list)["stacks"]:
 
 destroyStack() {
   printf 'destroying the local plane stack %s, %s\n' "$1" "$2" >&2
-  (cd "$repositoryRoot" && runQuietlyUnlessItFails supabase stack destroy --stack-id "$1" --yes --output-format text)
+  (cd "$repositoryRoot" && runQuietlyUnlessItFails supabaseWithin "$stopTimeoutSeconds" stack destroy --stack-id "$1" --yes --output-format text)
+}
+
+stackProjectRoot() {
+  (cd "$repositoryRoot" && supabaseWithin "$queryTimeoutSeconds" stack list --output-format json 2>/dev/null) \
+    | python3 -c '
+import json, sys
+stack_identifier = sys.argv[1]
+print(next(stack["project_root"] for stack in json.load(sys.stdin)["stacks"] if stack["id"] == stack_identifier))
+' "$1" 2>/dev/null || printf 'an unknown project'
+}
+
+stackProcessIdentifiers() {
+  ps -axo pid=,command= | awk -v stackIdentifier="$1" '
+{
+  for (field = 2; field <= NF; field++) {
+    if ($field == "supabase-stack-id=" stackIdentifier || ($field == "__supabase_stack_host__" && $(field + 3) == stackIdentifier)) {
+      print $1
+      next
+    }
+  }
+}'
+}
+
+processTreeOf() {
+  ps -axo pid=,ppid= | awk -v roots="$*" '
+BEGIN {
+  rootCount = split(roots, rootList, " ")
+  for (position = 1; position <= rootCount; position++) inTree[rootList[position]] = 1
+}
+{ parentOf[$1] = $2 }
+END {
+  do {
+    grew = 0
+    for (child in parentOf) {
+      if (!(child in inTree) && (parentOf[child] in inTree)) {
+        inTree[child] = 1
+        grew = 1
+      }
+    }
+  } while (grew)
+  for (member in inTree) print member
+}'
+}
+
+describeProcesses() {
+  ps -o pid=,comm= -p "$(printf '%s' "$*" | tr ' ' ',')" 2>/dev/null \
+    | awk '{ name = $2; sub(".*/", "", name); described = described (described == "" ? "" : ", ") $1 " " name } END { print described }'
+}
+
+anyProcessIsAlive() {
+  local processIdentifier
+  for processIdentifier in "$@"; do
+    if kill -0 "$processIdentifier" 2>/dev/null; then
+      return 0
+    fi
+  done
+  return 1
+}
+
+terminateProcesses() {
+  kill -TERM "$@" 2>/dev/null || true
+  local deadline=$((SECONDS + reclaimGraceSeconds))
+  while [ "$SECONDS" -lt "$deadline" ] && anyProcessIsAlive "$@"; do
+    sleep 0.2
+  done
+  kill -KILL "$@" 2>/dev/null || true
+}
+
+reclaimStack() {
+  local projectRoot stackProcesses processTree killed
+  projectRoot="$(stackProjectRoot "$1")"
+  stackProcesses="$(stackProcessIdentifiers "$1" | tr '\n' ' ')"
+  if [ -z "${stackProcesses// /}" ]; then
+    printf 'RECLAIMED the local plane stack %s of %s: %s, and no process of it was running; its data is kept\n' \
+      "$1" "$projectRoot" "$2" >&2
+    return 0
+  fi
+  processTree="$(processTreeOf $stackProcesses | tr '\n' ' ')"
+  killed="$(describeProcesses $processTree)"
+  terminateProcesses $processTree
+  printf 'RECLAIMED the local plane stack %s of %s: %s, so its processes were killed (%s); its data is kept\n' \
+    "$1" "$projectRoot" "$2" "$killed" >&2
 }
 
 stopStack() {
   printf 'stopping the local plane stack %s, %s; its data is kept\n' "$1" "$2" >&2
-  (cd / && SUPABASE_EXPERIMENTAL_STACK=1 runQuietlyUnlessItFails supabase stack stop --stack-id "$1" --output-format text)
+  if (cd / && SUPABASE_EXPERIMENTAL_STACK=1 runQuietlyUnlessItFails supabaseWithin "$stopTimeoutSeconds" stack stop --stack-id "$1" --output-format text); then
+    return 0
+  fi
+  reclaimStack "$1" "its stop failed or did not finish within ${stopTimeoutSeconds}s"
 }
 
 freePortsFromOtherCheckouts() {
@@ -293,7 +419,21 @@ startStackWhenDown() {
   fi
   freePortsFromOtherCheckouts
   printf 'starting the local plane\n' >&2
-  (cd "$repositoryRoot" && runQuietlyUnlessItFails supabase start --runtime "$stackRuntime" --eager --output-format text)
+  if (cd "$repositoryRoot" && runQuietlyUnlessItFails supabaseWithin "$startTimeoutSeconds" start --runtime "$stackRuntime" --eager --output-format text); then
+    return 0
+  fi
+  failToStart
+}
+
+failToStart() {
+  local notReady stackIdentifier
+  notReady="$(servicesNotReady)"
+  printf 'the local plane did not become ready within %ss; not ready: %s\n' "$startTimeoutSeconds" "${notReady:-none reported}" >&2
+  stackIdentifier="$(recordedStackIdentifier)"
+  if [ -n "$stackIdentifier" ]; then
+    reclaimStack "$stackIdentifier" "it did not become ready"
+  fi
+  exit 1
 }
 
 scheduleStopWhenIdle() {
@@ -324,8 +464,7 @@ stopWhenIdle() {
   if ! isTheLastUse "$useToken"; then
     return 0
   fi
-  printf '%s stopping the local plane stack %s, unused since %s\n' "$(date '+%F %T')" "$stackIdentifier" "$useToken"
-  (cd / && SUPABASE_EXPERIMENTAL_STACK=1 supabase stack stop --stack-id "$stackIdentifier" --output-format text)
+  stopStack "$stackIdentifier" "$(date '+%F %T'), unused since $useToken"
 }
 
 if [ "$1" = "--stop-when-idle" ]; then
