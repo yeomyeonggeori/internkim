@@ -65,17 +65,11 @@ for (const width of [320, 360, 390, 568, 1280]) {
 			viewer: null
 		} }));
 		await page.goto('/share/00000000-0000-4000-8000-000000000002');
-		await page.getByRole('tab', { name: /^(Documents|자료)$/ }).click();
-		await expect(page.getByRole('button', { name: /공유 문서의 긴 제목/ })).toBeVisible();
-		if (width < 768) {
-			await page.getByRole('button', { name: /^(Folders|폴더)$/ }).click();
-			await page.getByRole('option').last().click();
-			await expect(page.getByRole('listbox')).toBeHidden();
-		}
-		await capture('shared-room');
-		await page.getByRole('tab', { name: /^(Company|회사 소개)$/ }).click();
 		await expect(page.getByText('시드 투자 유치')).toBeVisible();
 		await capture('shared-room-company');
+		await page.getByRole('button', { name: /법인 자료/ }).click();
+		await expect(page.getByRole('button', { name: /공유 문서의 긴 제목/ })).toBeVisible();
+		await capture('shared-room');
 		await page.goto('/oauth/consent');
 		await expect(page.locator('main')).toBeVisible();
 		await capture('consent-sign-in');

@@ -51,14 +51,16 @@
 {:else if !failure}
 	<div role="status" aria-label={text.title} aria-busy="true" class="flex min-h-dvh flex-col">
 		<header aria-hidden="true" class="bg-background sticky top-0 z-10 border-b">
-			<div class="mx-auto flex w-full max-w-7xl items-center gap-3 px-4 py-3">
+			<div class="mx-auto flex w-full max-w-5xl items-center gap-3 px-4 py-3">
 				<Skeleton class="size-8 shrink-0" />
 				<div class="grid min-w-0 flex-1 gap-1"><Skeleton class="h-4 w-40" /><Skeleton class="h-3 w-56 max-w-full" /></div>
 				<Tooltip.Provider><RefreshButton label={text.refresh} variant="ghost" size="icon-sm" refresh={load} disabled /></Tooltip.Provider>
 			</div>
 		</header>
-		<div aria-hidden="true" class="mx-auto grid w-full max-w-5xl gap-6 px-4 py-6">
-			<Skeleton class="h-9 w-48" />
+		<div aria-hidden="true" class="mx-auto grid w-full max-w-5xl gap-4 px-4 py-6">
+			<Skeleton class="h-7 w-24" />
+			<Skeleton class="h-48 w-full" />
+			<Skeleton class="mt-8 h-7 w-28" />
 			<Skeleton class="h-24 w-full" />
 			<div class="grid gap-4 sm:grid-cols-3">{#each [0, 1, 2] as tile (tile)}<Skeleton class="h-28 w-full" />{/each}</div>
 		</div>

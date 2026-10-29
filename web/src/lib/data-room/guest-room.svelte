@@ -2,11 +2,9 @@
 	import RefreshButton from '$lib/components/refresh-button.svelte';
 	import SearchIcon from '@lucide/svelte/icons/search';
 	import * as InputGroup from '$lib/components/ui/input-group';
-	import * as Select from '$lib/components/ui/select';
-	import * as Table from '$lib/components/ui/table';
-	import * as Tabs from '$lib/components/ui/tabs';
 	import * as Tooltip from '$lib/components/ui/tooltip';
-	import { fileVisual } from '$lib/files/view';
+	import AnimatedHeight from '$lib/components/animated-height.svelte';
+	import FileBrowserList, { type FileBrowserEntry } from '$lib/components/file-browser-list.svelte';
 	import CurrencySwitcher from '$lib/components/currency-switcher.svelte';
 	import { LanguageSwitcher } from '$lib/components/ui/language-switcher';
 	import { appShellText } from '$lib/i18n/app-shell-text';
@@ -17,12 +15,12 @@
 	import { isEmptyCompany, localized } from './company';
 	import { dataRoomCompanyText } from './company-text';
 	import DocumentViewer from './document-viewer.svelte';
+	import FolderBreadcrumb from './folder-breadcrumb.svelte';
 	import {
-		documentsInFolder,
-		guestFolders,
-		matchingDocuments,
+		listedDocuments,
 		sharedCategoryName,
 		sharedFileName,
+		subfolderEntries,
 		type SharedDocument,
 		type SharedRoom
 	} from './guest-room';
@@ -55,13 +53,22 @@
 	let query = $state('');
 	let openID = $state<string | null>(null);
 	const hasCompany = $derived(!isEmptyCompany(room.company));
-	let view = $state(isEmptyCompany(room.company) ? 'documents' : 'company');
 	const companyText = $derived(dataRoomCompanyText[currentLocale.value]);
 	const roomTitle = $derived(localized(room.company.profile.name, currentLocale.value) || text.sharedRoom);
-	const folders = $derived(guestFolders(room, currentLocale.value));
-	const selectedFolder = $derived(folders.find((folder) => folder.code === selectedCode));
-	const visibleDocuments = $derived(matchingDocuments(documentsInFolder(room, selectedCode), query));
+	const selectedCategory = $derived(room.categories.find((category) => category.code === selectedCode));
+	const parentCategory = $derived(room.categories.find((category) => category.code === selectedCategory?.parent));
+	const visibleDocuments = $derived(listedDocuments(room, selectedCode, query));
+	const entries = $derived([
+		...(query ? [] : subfolderEntries(room, selectedCode, currentLocale.value)),
+		...visibleDocuments.map(documentEntryOf)
+	]);
 	const viewerDocuments = $derived(visibleDocuments.map(viewerDocumentOf));
+	const breadcrumbs = $derived([
+		{ code: '', name: companyText.documents },
+		...[parentCategory, selectedCategory]
+			.filter((category) => category !== undefined)
+			.map((category) => ({ code: category.code, name: sharedCategoryName(category, currentLocale.value) }))
+	]);
 	const openedAt = new Date();
 	const watermark = $derived(
 		`${room.viewer ?? text.publicViewer} · ${openedAt.toLocaleString(currentLocale.value === 'ko' ? 'ko-KR' : 'en-US', {
@@ -93,6 +100,15 @@
 		return category ? sharedCategoryName(category, currentLocale.value) : code;
 	}
 
+	function documentEntryOf(document: SharedDocument): FileBrowserEntry {
+		return {
+			id: document.id,
+			name: document.title,
+			fileName: sharedFileName(document) ?? undefined,
+			cells: [document.extension?.toUpperCase() ?? '', document.document_date ?? '']
+		};
+	}
+
 	function viewerDocumentOf(document: SharedDocument): ViewerDocument {
 		const details: [string, string][] = [
 			[text.category, categoryLabel(document.category_code)],
@@ -116,16 +132,19 @@
 		openID = null;
 	}
 
-	function openCompanyFolder(code: string) {
-		view = 'documents';
-		openFolder(code);
+	function openEntry(entry: FileBrowserEntry) {
+		if (entry.isDirectory) {
+			openFolder(entry.id);
+			return;
+		}
+		openID = entry.id;
 	}
 </script>
 
 <Tooltip.Provider delayDuration={120}>
 <div class={cn('bg-muted/40 flex flex-1 flex-col', fillsViewport && 'min-h-dvh')}>
 	<header class="bg-background sticky top-0 z-10 border-b">
-		<div class="mx-auto flex w-full max-w-7xl items-center gap-3 px-4 py-3">
+		<div class="mx-auto flex w-full max-w-5xl items-center gap-3 px-4 py-3">
 			<img src={room.company.logo ?? '/favicon.svg'} alt="" class="size-8 shrink-0 object-contain" />
 			<div class="min-w-0 flex-1">
 				<h1 class="truncate text-base leading-tight font-semibold">{roomTitle}</h1>
@@ -142,116 +161,42 @@
 		</div>
 	</header>
 
-	{#if hasCompany}
-		<div class="mx-auto w-full max-w-7xl px-4 pt-6">
-			<div class="flex max-w-5xl items-center justify-between gap-3">
-				<Tabs.Root bind:value={view}>
-					<Tabs.List>
-						<Tabs.Trigger value="company">{companyText.companyTab}</Tabs.Trigger>
-						<Tabs.Trigger value="documents">{companyText.documentsTab}</Tabs.Trigger>
-					</Tabs.List>
-				</Tabs.Root>
-				{#if view === 'company'}<CurrencySwitcher label={companyText.currency.label} asRecorded={companyText.currency.asRecorded} />{/if}
+	<div class="mx-auto grid w-full max-w-5xl flex-1 content-start gap-12 px-4 py-6">
+		<div class="grid min-w-0 gap-4">
+			<div class="flex flex-wrap items-center justify-between gap-3">
+				{#if selectedCode}<FolderBreadcrumb crumbs={breadcrumbs} onOpen={openFolder} />{:else}<h2 class="text-xl font-semibold">{companyText.documents}</h2>{/if}
+				<InputGroup.Root class="bg-background w-full sm:w-72">
+					<InputGroup.Addon><SearchIcon /></InputGroup.Addon>
+					<InputGroup.Input type="search" placeholder={text.search} aria-label={text.search} bind:value={query} />
+				</InputGroup.Root>
 			</div>
+			<AnimatedHeight>
+				<FileBrowserList
+					{entries}
+					title={companyText.documents}
+					nameLabel={text.name}
+					countBadgeVariant="secondary"
+					columns={[
+						{ label: text.fileType, width: 'narrow' },
+						{ label: text.date, width: 'wide' }
+					]}
+					emptyLabel={query ? text.noResults : text.empty}
+					selectedID={openID ?? undefined}
+					onSelect={openEntry}
+				/>
+			</AnimatedHeight>
+			<p class="text-muted-foreground text-xs">{text.confidential}</p>
 		</div>
-	{/if}
-
-	{#if hasCompany && view === 'company'}
-		<div class="mx-auto w-full max-w-7xl flex-1 px-4 py-6"><div class="max-w-5xl"><CompanyOverview company={room.company} sharedWith={room.viewer} folders={folders.filter((folder) => !folder.isChild)} onOpenFolder={openCompanyFolder} /></div></div>
-	{:else}
-		<div class="mx-auto grid w-full max-w-7xl flex-1 content-start gap-6 px-4 py-6 md:grid-cols-[15rem_minmax(0,1fr)]">
-			<nav aria-label={text.folders} class="grid content-start gap-0.5 max-md:hidden">
-				<p class="text-muted-foreground px-2 pb-2 text-xs font-medium">{text.folders}</p>
-				{#snippet folderButton(code: string, name: string, documentCount: number, isChild: boolean)}
-					<button
-						type="button"
-						aria-current={selectedCode === code ? 'page' : undefined}
-						class={cn(
-							'hover:bg-background flex items-center justify-between gap-2 rounded-md px-2 py-1.5 text-left text-sm',
-							isChild && 'pl-6',
-							selectedCode === code && 'bg-background font-medium shadow-sm ring-1 ring-black/5'
-						)}
-						onclick={() => openFolder(code)}
-					>
-						<span class="min-w-0 truncate">{name}</span>
-						<span class="text-muted-foreground text-xs tabular-nums">{documentCount}</span>
-					</button>
-				{/snippet}
-				{@render folderButton('', text.allDocuments, room.documents.length, false)}
-				{#each folders as folder (folder.code)}
-					{@render folderButton(folder.code, folder.name, folder.documentCount, folder.isChild)}
-				{/each}
-			</nav>
-
-			<section class="grid min-w-0 content-start gap-4" aria-labelledby="guest-room-folder">
-				<Select.Root type="single" value={selectedCode || 'all'} onValueChange={(value) => openFolder(value === 'all' ? '' : value)}>
-					<Select.Trigger class="w-full md:hidden" aria-label={text.folders}
-						><span class="truncate">{selectedFolder?.name ?? text.allDocuments}</span></Select.Trigger
-					>
-					<Select.Content>
-						<Select.Item value="all">{text.allDocuments}</Select.Item>
-						{#each folders as folder (folder.code)}
-							<Select.Item value={folder.code} label={folder.name} class={folder.isChild ? 'pl-6' : ''}>{folder.name}</Select.Item>
-						{/each}
-					</Select.Content>
-				</Select.Root>
-
-				<div class="flex flex-wrap items-end justify-between gap-3">
-					<div>
-						<h2 id="guest-room-folder" class="text-lg font-semibold">{selectedFolder?.name ?? text.allDocuments}</h2>
-						<p class="text-muted-foreground text-xs tabular-nums">{visibleDocuments.length} {text.documentCount}</p>
-					</div>
-					<InputGroup.Root class="bg-background w-full sm:w-72">
-						<InputGroup.Addon><SearchIcon /></InputGroup.Addon>
-						<InputGroup.Input type="search" placeholder={text.search} aria-label={text.search} bind:value={query} />
-					</InputGroup.Root>
+		{#if hasCompany}
+			<section class="grid gap-4" aria-labelledby="guest-room-company">
+				<div class="flex items-center justify-between gap-3">
+					<h2 id="guest-room-company" class="text-xl font-semibold">{companyText.company}</h2>
+					<CurrencySwitcher label={companyText.currency.label} asRecorded={companyText.currency.asRecorded} />
 				</div>
-
-				<div class="bg-background overflow-hidden rounded-xl border">
-					<Table.Root>
-						<Table.Header>
-							<Table.Row>
-								<Table.Head class="pl-4">{text.name}</Table.Head>
-								<Table.Head class="w-44 max-md:hidden">{text.category}</Table.Head>
-								<Table.Head class="w-28 max-sm:hidden">{text.date}</Table.Head>
-								<Table.Head class="w-16 pr-4 max-sm:hidden">{text.fileType}</Table.Head>
-							</Table.Row>
-						</Table.Header>
-						<Table.Body>
-							{#each visibleDocuments as document (document.id)}
-								{@const visual = fileVisual(sharedFileName(document) ?? '')}
-								<Table.Row class="cursor-pointer has-[button:focus-visible]:bg-muted/50" onclick={() => (openID = document.id)}>
-									<Table.Cell class="max-w-0 py-3 pl-4">
-										<div class="flex items-center gap-3">
-											<visual.icon class="size-5 shrink-0 {visual.colorClass}" />
-											<div class="min-w-0">
-												<button type="button" class="block max-w-full truncate text-left font-medium focus-visible:outline-none"
-													>{document.title}</button
-												>
-												{#if document.summary}<p class="text-muted-foreground truncate text-xs">{document.summary}</p>{/if}
-											</div>
-										</div>
-									</Table.Cell>
-									<Table.Cell class="text-muted-foreground max-w-44 truncate max-md:hidden"
-										>{categoryLabel(document.category_code)}</Table.Cell
-									>
-									<Table.Cell class="text-muted-foreground tabular-nums max-sm:hidden">{document.document_date ?? ''}</Table.Cell>
-									<Table.Cell class="text-muted-foreground pr-4 text-xs max-sm:hidden">{document.extension?.toUpperCase() ?? ''}</Table.Cell>
-								</Table.Row>
-							{:else}
-								<Table.Row>
-									<Table.Cell colspan={4} class="text-muted-foreground py-12 text-center">
-										{query ? text.noResults : text.empty}
-									</Table.Cell>
-								</Table.Row>
-							{/each}
-						</Table.Body>
-					</Table.Root>
-				</div>
-				<p class="text-muted-foreground text-xs">{text.confidential}</p>
+				<CompanyOverview company={room.company} sharedWith={room.viewer} />
 			</section>
-		</div>
-	{/if}
+		{/if}
+	</div>
 </div>
 
 <DocumentViewer

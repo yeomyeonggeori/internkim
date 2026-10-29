@@ -4,8 +4,7 @@
 	import { toast } from 'svelte-sonner';
 	import { z } from 'zod';
 	import { Button } from '$lib/components/ui/button';
-	import * as Breadcrumb from '$lib/components/ui/breadcrumb';
-	import * as Tabs from '$lib/components/ui/tabs';
+	import AnimatedHeight from '$lib/components/animated-height.svelte';
 	import FileBrowserList, { type FileBrowserEntry } from '$lib/components/file-browser-list.svelte';
 	import { invokeTool } from '$lib/public-api-call';
 	import { createPageText } from '$lib/i18n/page-text.svelte';
@@ -13,7 +12,6 @@
 	import { categoryName } from '$lib/data-room/model';
 	import {
 		dataRoomFolderEntries,
-		documentsInCategory,
 		documentCategoryLabel,
 		documentFileName,
 		type DataRoomDocument
@@ -25,6 +23,7 @@
 	import CurrencySwitcher from '$lib/components/currency-switcher.svelte';
 	import CompanyOverview from '$lib/data-room/company-overview.svelte';
 	import CompanyOverviewSkeleton from '$lib/data-room/company-overview-skeleton.svelte';
+	import FolderBreadcrumb from '$lib/data-room/folder-breadcrumb.svelte';
 	import { dataRoomRequest } from '$lib/data-room/guest';
 	import DocumentViewer from '$lib/data-room/document-viewer.svelte';
 	import { previewSourceOf, type ViewerDocument } from '$lib/data-room/viewer';
@@ -36,7 +35,6 @@
 	let room = $state<z.infer<typeof dataRoomGetResultSchema> | null>(null);
 	let documents = $state<DataRoomDocument[]>([]);
 	let company = $state<DataRoomCompany | null>(null);
-	let view = $state('company');
 	let selectedCode = $state('');
 	let openID = $state<string | null>(null);
 	let isDownloading = $state(false);
@@ -47,6 +45,7 @@
 	const companyText = $derived(dataRoomCompanyText[currentLocale.value]);
 	const hasCompany = $derived(company !== null && !isEmptyCompany(company));
 	const isCompanyPending = $derived(company === null && isLoading);
+	const showsCompany = $derived(hasCompany || isCompanyPending);
 	const selectedCategory = $derived(categories.find((category) => category.code === selectedCode));
 	const parentCategory = $derived(
 		categories.find((category) => category.code === selectedCategory?.parent)
@@ -54,21 +53,11 @@
 	const entries = $derived(
 		dataRoomFolderEntries(documents, categories, selectedCode, currentLocale.value)
 	);
-	const companyFolders = $derived(
-		categories
-			.filter((category) => category.parent === null)
-			.map((category) => ({
-				code: category.code,
-				name: categoryName(category, currentLocale.value),
-				documentCount: documentsInCategory(documents, categories, category.code).length
-			}))
-			.filter((folder) => folder.documentCount > 0)
-	);
 	const viewerDocuments = $derived(
 		documents.filter((document) => document.categoryCode === selectedCode).map(viewerDocumentOf)
 	);
 	const breadcrumbs = $derived([
-		{ code: '', name: text.title },
+		{ code: '', name: companyText.documents },
 		...(parentCategory
 			? [{ code: parentCategory.code, name: categoryName(parentCategory, currentLocale.value) }]
 			: []),
@@ -152,10 +141,6 @@
 		selectedCode = code;
 		openID = null;
 	}
-	function openCompanyFolder(code: string) {
-		view = 'documents';
-		openCategory(code);
-	}
 	function openEntry(entry: FileBrowserEntry) {
 		if (entry.isDirectory) {
 			openCategory(entry.id);
@@ -169,45 +154,20 @@
 <svelte:head><title>{text.title}</title></svelte:head>
 
 <div class="min-h-full w-full">
-	<div class="min-w-0 p-4 md:p-6">
-		{#if hasCompany || isCompanyPending}
-			<div class="mb-4 flex max-w-5xl items-center justify-between gap-3">
-				<Tabs.Root bind:value={view}>
-					<Tabs.List>
-						<Tabs.Trigger value="company">{companyText.companyTab}</Tabs.Trigger>
-						<Tabs.Trigger value="documents">{companyText.documentsTab}</Tabs.Trigger>
-					</Tabs.List>
-				</Tabs.Root>
-				{#if view === 'company'}<CurrencySwitcher label={companyText.currency.label} asRecorded={companyText.currency.asRecorded} />{/if}
-			</div>
-		{/if}
-		{#if isCompanyPending && view === 'company'}
-			<div class="max-w-5xl"><CompanyOverviewSkeleton /></div>
-		{:else if company && hasCompany && view === 'company'}
-			<div class="max-w-5xl"><CompanyOverview {company} folders={companyFolders} onOpenFolder={openCompanyFolder} /></div>
-		{:else}
-			<div class="mb-4 flex items-center justify-between gap-3">
-				<Breadcrumb.Root
-					><Breadcrumb.List
-						>{#each breadcrumbs as crumb, index (crumb.code)}{#if index > 0}<Breadcrumb.Separator
-								/>{/if}<Breadcrumb.Item
-								>{#if index === breadcrumbs.length - 1}<Breadcrumb.Page>{crumb.name}</Breadcrumb.Page
-									>{:else}<Breadcrumb.Link onclick={() => openCategory(crumb.code)}
-										>{crumb.name}</Breadcrumb.Link
-									>{/if}</Breadcrumb.Item
-							>{/each}</Breadcrumb.List
-					></Breadcrumb.Root
-				>
+	<div class="grid max-w-5xl min-w-0 gap-12 p-4 md:p-6">
+		<div class="grid min-w-0 gap-4">
+			<div class="flex items-center justify-between gap-3">
+				{#if selectedCode}<FolderBreadcrumb crumbs={breadcrumbs} onOpen={openCategory} />{:else}<h2 class="text-xl font-semibold">{companyText.documents}</h2>{/if}
 				<div class="flex items-center gap-2">
 					<RefreshButton label={text.refresh} variant="ghost" size="icon-sm" refresh={load} />
 					{#if room}<SharePreview /><ShareLinks />{/if}
 				</div>
 			</div>
-			{#if errorMessage}<div role="alert" class="mb-4 flex items-center justify-between gap-3">
+			{#if errorMessage}<div role="alert" class="flex items-center justify-between gap-3">
 					<p class="text-destructive text-sm">{errorMessage}</p>
 					<Button variant="outline" size="sm" onclick={load}>{text.retry}</Button>
 				</div>{/if}
-			<div class="flex items-start gap-4">
+			<AnimatedHeight>
 				<FileBrowserList
 					{entries}
 					{isLoading}
@@ -224,7 +184,16 @@
 					selectedID={openID ?? undefined}
 					onSelect={openEntry}
 				/>
-			</div>
+			</AnimatedHeight>
+		</div>
+		{#if showsCompany}
+			<section class="grid gap-4" aria-labelledby="data-room-company">
+				<div class="flex items-center justify-between gap-3">
+					<h2 id="data-room-company" class="text-xl font-semibold">{companyText.company}</h2>
+					<CurrencySwitcher label={companyText.currency.label} asRecorded={companyText.currency.asRecorded} />
+				</div>
+				{#if company && hasCompany}<CompanyOverview {company} />{:else}<CompanyOverviewSkeleton />{/if}
+			</section>
 		{/if}
 	</div>
 </div>

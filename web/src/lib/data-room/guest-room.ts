@@ -1,11 +1,11 @@
 import type { z } from 'zod';
+import type { FileBrowserEntry } from '$lib/components/file-browser-list.svelte';
 import { matchesKoreanSearch } from '$lib/korean-search';
 import type { sharedDataRoomSchema } from './schemas';
 
 export type SharedRoom = z.infer<typeof sharedDataRoomSchema>;
 export type SharedDocument = SharedRoom['documents'][number];
 export type SharedCategory = SharedRoom['categories'][number];
-export type GuestFolder = { code: string; name: string; isChild: boolean; documentCount: number };
 
 export function sharedCategoryName(category: SharedCategory, locale: string): string {
 	return locale === 'ko' ? category.name_ko || category.name : category.name;
@@ -25,20 +25,22 @@ export function documentsInFolder(room: SharedRoom, code: string): SharedDocumen
 	return room.documents.filter((document) => codes.has(document.category_code));
 }
 
-export function guestFolders(room: SharedRoom, locale: string): GuestFolder[] {
-	const folderOf = (category: SharedCategory): GuestFolder => ({
-		code: category.code,
-		name: sharedCategoryName(category, locale),
-		isChild: category.parent !== null,
-		documentCount: documentsInFolder(room, category.code).length
-	});
+export function subfolderEntries(room: SharedRoom, code: string, locale: string): FileBrowserEntry[] {
 	return room.categories
-		.filter((category) => category.parent === null)
-		.flatMap((parent) => [
-			folderOf(parent),
-			...room.categories.filter((category) => category.parent === parent.code).map(folderOf)
-		])
-		.filter((folder) => folder.documentCount > 0);
+		.filter((category) => category.parent === (code || null))
+		.map((category) => ({
+			id: category.code,
+			name: sharedCategoryName(category, locale),
+			isDirectory: true,
+			entryCount: documentsInFolder(room, category.code).length,
+			cells: []
+		}))
+		.filter((folder) => folder.entryCount > 0);
+}
+
+export function listedDocuments(room: SharedRoom, code: string, query: string): SharedDocument[] {
+	if (query) return matchingDocuments(documentsInFolder(room, code), query);
+	return room.documents.filter((document) => document.category_code === code);
 }
 
 export function matchingDocuments(documents: SharedDocument[], query: string): SharedDocument[] {
