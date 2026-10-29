@@ -153,6 +153,13 @@ Stripe 식별자, Stripe가 부르는 그대로의 `subscription_status`,
 `credits_used`가 0이 됩니다. 1인 한도는 `company.rules.creditPolicy.usageLimit`입니다.
 이 칸과 줄은 서버만 쓰고, 관리자는 통장을 읽습니다.
 
+Stripe 알림은 `/api/stripe/webhook`과 `service_role`만 부를 수 있는 두 함수를 거쳐
+기록에 닿습니다. `company_subscription_invoice_paid`는 Stripe 알림 하나마다 한 번만
+인보이스의 크레딧을 주고, 기간을 여는 인보이스라면 남은 양을 먼저 소멸시킨 뒤
+`subscription_ends_at`을 옮깁니다. `company_subscription_changed`는 Stripe가 알려 준
+상태를 적습니다. 회사는 결제창이 구독 메타데이터에 넣은 `company_id`로 찾으므로,
+그 값이 없는 알림은 다른 상품의 것으로 보고 무시합니다.
+
 ## CRM [#crm]
 
 | 무엇 | 어디에 |
