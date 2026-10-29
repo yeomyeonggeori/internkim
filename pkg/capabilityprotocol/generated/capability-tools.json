@@ -7,7 +7,7 @@
         "state": "ok"
       },
       "canonicalName": "schedule_list",
-      "description": "List scheduled tasks created by the current requester. Filter by active, failed, or expired status and cap the result with limit. Use it to answer what reminders or recurring tasks are scheduled.",
+      "description": "List scheduled tasks created by the current requester, newest first. Filter by active, failed, or expired status. Use it to answer what reminders or recurring tasks are scheduled. A nextCursor means more schedules remain; read them before concluding a schedule does not exist.",
       "estimatedLatency": "low",
       "idempotency": {
         "required": false,
@@ -18,8 +18,14 @@
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
         "properties": {
+          "cursor": {
+            "description": "Pagination cursor from a previous schedule_list result. Omit on the first call.",
+            "minLength": 1,
+            "type": "string"
+          },
           "limit": {
-            "maximum": 9007199254740991,
+            "description": "Maximum schedules to return. Defaults to 50.",
+            "maximum": 100,
             "minimum": 1,
             "type": "integer"
           },
@@ -45,6 +51,10 @@
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
         "properties": {
+          "nextCursor": {
+            "description": "Cursor for the next page. Absent when no more schedules match.",
+            "type": "string"
+          },
           "schedules": {
             "items": {
               "additionalProperties": false,
@@ -97,10 +107,17 @@
               "type": "object"
             },
             "type": "array"
+          },
+          "totalCount": {
+            "description": "How many schedules match the filters across every page.",
+            "maximum": 9007199254740991,
+            "minimum": -9007199254740991,
+            "type": "integer"
           }
         },
         "required": [
-          "schedules"
+          "schedules",
+          "totalCount"
         ],
         "type": "object"
       },
@@ -114,6 +131,10 @@
           "$schema": "https://json-schema.org/draft/2020-12/schema",
           "additionalProperties": false,
           "properties": {
+            "nextCursor": {
+              "description": "Cursor for the next page. Absent when no more schedules match.",
+              "type": "string"
+            },
             "schedules": {
               "items": {
                 "additionalProperties": false,
@@ -166,10 +187,17 @@
                 "type": "object"
               },
               "type": "array"
+            },
+            "totalCount": {
+              "description": "How many schedules match the filters across every page.",
+              "maximum": 9007199254740991,
+              "minimum": -9007199254740991,
+              "type": "integer"
             }
           },
           "required": [
-            "schedules"
+            "schedules",
+            "totalCount"
           ],
           "type": "object"
         }
