@@ -502,7 +502,7 @@ describe('the document ledger', () => {
 		expect(resultOf(registered).documentNumber).toBe('Q-2026-001');
 		expect(resultOf(registered).kind).toBe('issued');
 		expect(resultOf(registered).requesterID).toBe(sampleID);
-		expect(resultOf(registered).storageDirectory).toBe('/workspace/circles/member/documents/quote');
+		expect(resultOf(registered)).not.toHaveProperty('storageDirectory');
 		expect(Date.parse(String(resultOf(registered).createdAt))).toBeGreaterThan(Date.now() - 60_000);
 		expect(resultOf(registered).updatedAt).toBe(resultOf(registered).createdAt);
 		expect(resultOf(registered).sizeBytes).toBeNull();

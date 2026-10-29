@@ -267,11 +267,6 @@ export const companyDocumentDownloadResultSchema = z.strictObject({
   downloadURL: z.string(),
 });
 
-export const companyDocumentRegisteredResultSchema = z.strictObject({
-  ...companyDocumentResultSchema.shape,
-  storageDirectory: z.string(),
-});
-
 
 const equityHolderKindSchema = z.enum(["founder", "employee", "investor", "option_pool", "other"]);
 
@@ -345,12 +340,12 @@ export const companyToolDefinitions: CapabilityToolDefinition[] = [
     answeredBy: CapabilityAnsweredBy.Record,
     privacyClass: "workspace_company",
     policyResource: "tool:company_document_register",
-    description: "Register a company document in the document ledger and, for kind=issued, receive the official document number to print in the document plus the storage directory to save the final file in. Call BEFORE rendering an official document so the number appears in it. Always include a 2-3 sentence summary of the document's key terms (parties, amounts, dates) so later questions can be answered without re-reading the file. A document filed in the data room names its categoryCode, date and hash, and its files are uploaded with company_document_upload once it is registered; one that replaces an older document names it with supersedesHint instead of editing it.",
+    description: "Register a company document in the document ledger and, for kind=issued, receive the official document number to print in the document. Call BEFORE rendering an official document so the number appears in it. Always include a 2-3 sentence summary of the document's key terms (parties, amounts, dates) so later questions can be answered without re-reading the file. A document filed in the data room names its categoryCode, date and hash, and its files are uploaded with company_document_upload once it is registered; one that replaces an older document names it with supersedesHint instead of editing it.",
     version: "2",
     estimatedLatency: CapabilityEstimatedLatency.Low,
     inputSchema: companyDocumentRegisterInputSchema,
     inputIntentSchema: companyDocumentRegisterInputIntentSchema,
-    result: { schema: companyDocumentRegisteredResultSchema, effects: [{ objectType: "company_document", effect: ResourceMutationEffect.Created, resultField: "documentID", effectIdentity: ResourceEffectIdentity.ID }] },
+    result: { schema: companyDocumentResultSchema, effects: [{ objectType: "company_document", effect: ResourceMutationEffect.Created, resultField: "documentID", effectIdentity: ResourceEffectIdentity.ID }] },
     sideEffect: CapabilitySideEffect.WorkspaceWrite,
     completionEvidence: { mode: "success", action: "write_company", targetKind: "company" },
   },
@@ -606,7 +601,6 @@ export type CompanyRecordAttribute = z.infer<typeof companyRecordAttributeSchema
 export type CompanyRecordResult = z.infer<typeof companyRecordResultSchema>;
 export type CompanyRecordListResult = z.infer<typeof companyRecordListResultSchema>;
 export type CompanyDocumentResult = z.infer<typeof companyDocumentResultSchema>;
-export type CompanyDocumentRegisteredResult = z.infer<typeof companyDocumentRegisteredResultSchema>;
 export type CompanyDocumentListResult = z.infer<typeof companyDocumentListResultSchema>;
 export type CompanyDocumentRecallResult = z.infer<typeof recallSourceResultSchema>;
 export type CompanyDocumentPublished = z.infer<typeof companyDocumentPublishedSchema>;

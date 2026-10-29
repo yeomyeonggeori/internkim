@@ -8,7 +8,7 @@ import {
 	type TransferProgress
 } from '$lib/transfer/company-transfer';
 
-export type WorkspaceRootKind = 'personal' | 'circle' | 'public';
+export type WorkspaceRootKind = 'personal';
 
 export type WorkspaceRoot = {
 	id: string;

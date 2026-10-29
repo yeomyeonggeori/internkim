@@ -68,9 +68,8 @@ Allowed workspace paths for raw terminal and file kernel tools:
   intermediate files.
 - `artifacts/<artifact-slug>`: preserved personal output path for final files
   that need durable personal storage.
-- `/workspace/circles/<circleID>`: team/circle artifact path only when the
-  requester belongs to that circle and asked for shared placement.
-- `/workspace/shared/public`: intentionally public shared artifacts.
+- Nothing in the workspace is shared beyond the requester. A file another
+  person or an outsider should read is filed in the data room.
 - `/workspace/shared/cache/dependencies`: package caches only. Do not store task
   inputs, private source files, or final artifacts there.
 

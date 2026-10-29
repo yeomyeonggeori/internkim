@@ -1,7 +1,7 @@
 export const filesText = {
 	ko: {
 		title: '파일',
-		subtitle: '접근 가능한 워크스페이스',
+		subtitle: '내 워크스페이스',
 		refresh: '새로고침',
 		empty: '이 폴더는 비어 있습니다.',
 		loadFailed: '파일을 불러오지 못했습니다.',
@@ -17,12 +17,11 @@ export const filesText = {
 		folder: '폴더',
 		name: '이름',
 		size: '크기',
-		modified: '수정',
-		roots: '위치'
+		modified: '수정'
 	},
 	en: {
 		title: 'Files',
-		subtitle: 'Workspaces you can access',
+		subtitle: 'Your workspace',
 		refresh: 'Refresh',
 		empty: 'This folder is empty.',
 		loadFailed: 'Could not load files.',
@@ -38,7 +37,6 @@ export const filesText = {
 		folder: 'Folder',
 		name: 'Name',
 		size: 'Size',
-		modified: 'Modified',
-		roots: 'Locations'
+		modified: 'Modified'
 	}
 } as const;
