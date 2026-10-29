@@ -38,6 +38,10 @@ type chatdMessageSearchResponse struct {
 }
 
 func (service Service) invokeChatdPlatformMessageSearch(ctx context.Context, request capabilities.ToolInvokeRequest, input platformMessageSearchInput) (capabilities.ToolInvokeResponse, error) {
+	input, question, isAsking := service.withSearchedChannelResolved(ctx, request, input)
+	if isAsking {
+		return question, nil
+	}
 	searchRequest, scope, failure, hasFailure := chatdMessageSearchRequestFromInput(request.Context, input)
 	if hasFailure {
 		return platformToolErrorResponse(request.ToolName, failure), nil
@@ -49,6 +53,24 @@ func (service Service) invokeChatdPlatformMessageSearch(ctx context.Context, req
 	}
 	result := canonicalChatdMessageSearchResult(response, input, scope, request.Context.RequesterPlatformUserID)
 	return platformToolSuccessResponse(request.ToolName, "ok", result)
+}
+
+func (service Service) withSearchedChannelResolved(ctx context.Context, request capabilities.ToolInvokeRequest, input platformMessageSearchInput) (platformMessageSearchInput, capabilities.ToolInvokeResponse, bool) {
+	channelName := input.DeliveryTarget.ChannelName
+	if normalizedChatdMessageSearchScope(input.Scope, request.Context, input) != "channel" || input.DeliveryTarget.ChannelID != "" || channelName == "" {
+		return input, capabilities.ToolInvokeResponse{}, false
+	}
+	channels, errorValue := service.chatdChannels(ctx)
+	if errorValue != nil {
+		return input, capabilities.ToolInvokeResponse{}, false
+	}
+	resolution := resolveHint(channelName, channels, nil)
+	if resolution.Outcome != hintResolved {
+		return input, platformDMErrorResponse(request.ToolName, messageChannelQuestion(channelName, resolution)), true
+	}
+	input.DeliveryTarget.ChannelID = strings.TrimSpace(resolution.Match.ChannelID)
+	input.DeliveryTarget.ChannelName = ""
+	return input, capabilities.ToolInvokeResponse{}, false
 }
 
 func chatdMessageSearchRequestFromInput(toolContext capabilities.ToolInvokeContext, input platformMessageSearchInput) (chatdMessageSearchRequest, string, platformToolFailure, bool) {

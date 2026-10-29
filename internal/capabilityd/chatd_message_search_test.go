@@ -15,6 +15,10 @@ func TestChatdMessageSearchRoutesANamedChannelThroughChatd(testContext *testing.
 	var receivedPath string
 	var receivedRequest chatdMessageSearchRequest
 	chatdServer := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		if request.URL.Path == "/v1/platform/buzz/channels.list" {
+			json.NewEncoder(writer).Encode(map[string]any{"channels": []chatdChannel{{ChannelID: "channel-uuid", Name: "잡담"}}})
+			return
+		}
 		receivedPath = request.URL.Path
 		json.NewDecoder(request.Body).Decode(&receivedRequest)
 		json.NewEncoder(writer).Encode(chatdMessageSearchResponse{
@@ -43,7 +47,7 @@ func TestChatdMessageSearchRoutesANamedChannelThroughChatd(testContext *testing.
 	if receivedPath != "/v1/platform/buzz/message.search" {
 		testContext.Fatalf("chatd received %q", receivedPath)
 	}
-	if receivedRequest.ChannelName != "잡담" || receivedRequest.AuthoredBy != "assistant" {
+	if receivedRequest.ChannelID != "channel-uuid" || receivedRequest.ChannelName != "" || receivedRequest.AuthoredBy != "assistant" {
 		testContext.Fatalf("chatd received %+v", receivedRequest)
 	}
 	if receivedRequest.RequesterPubkeyHex != "requester-pubkey" {
