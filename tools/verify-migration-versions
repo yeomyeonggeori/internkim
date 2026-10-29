@@ -42,10 +42,8 @@ def names_on_base():
     )
 
 
-def main():
-    here = names_here()
+def version_conflicts(here, base):
     failures = []
-
     claimed = collections.defaultdict(list)
     for name in here:
         claimed[version_of(name)].append(name)
@@ -53,17 +51,24 @@ def main():
         if len(names) > 1:
             failures.append(f"{version} is claimed by {' and '.join(names)}")
 
+    on_base = collections.defaultdict(set)
+    for name in base or []:
+        on_base[version_of(name)].add(name)
+    for name in here:
+        taken = on_base[version_of(name)]
+        if taken and name not in taken:
+            failures.append(
+                f"{version_of(name)} is {' and '.join(sorted(taken))} on {BASE} and {name} here"
+            )
+    return failures
+
+
+def main():
+    here = names_here()
     base = names_on_base()
     if base is None:
         print(f"note {BASE} is not fetched, so only this tree was read")
-    else:
-        on_base = {version_of(name): name for name in base}
-        for name in here:
-            taken = on_base.get(version_of(name))
-            if taken is not None and taken != name:
-                failures.append(
-                    f"{version_of(name)} is {taken} on {BASE} and {name} here"
-                )
+    failures = version_conflicts(here, base)
 
     if failures:
         for failure in failures:
