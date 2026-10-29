@@ -1,5 +1,5 @@
 import { invokeTool } from '$lib/public-api-call';
-import type { RecordAttendanceList, RecordLeaveList } from './attendance-record';
+import { leaveOf, type RecordAttendanceList, type RecordLeaveList } from './attendance-record';
 import { membersInReadingOrder } from '$lib/member-order';
 import {
 	approvedLeaveBetween,
@@ -112,7 +112,7 @@ export async function supabaseWorkStatusInputs(
 			const isCovered = summaryRecords && firstDay >= summaryRecords.from && lastDay <= summaryRecords.to;
 			const [attendance, leave, holidays] = await Promise.all([
 				isCovered ? summaryRecords.attendance : scopedPerson ? invokeTool<RecordAttendanceList>('attendance_list', {personHints:[scopedPerson.personID], from:shiftedDay(firstDay, -1), to:lastDay}) : attendanceBetween(shiftedDay(firstDay, -1), lastDay),
-				isCovered ? summaryRecords.leave : scopedPerson ? invokeTool<RecordLeaveList>('leave_list', {personHints:[scopedPerson.personID], status:'approved', from:firstDay, to:lastDay}) : approvedLeaveBetween(firstDay, lastDay),
+				isCovered ? summaryRecords.leave : scopedPerson ? leaveOf({personHints:[scopedPerson.personID], status:'approved', from:firstDay, to:lastDay}) : approvedLeaveBetween(firstDay, lastDay),
 				workStatusHolidays(coveredDays)
 			]);
 			return { coveredDays, attendance, leave, holidays };

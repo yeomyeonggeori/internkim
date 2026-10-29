@@ -4,6 +4,7 @@ import { personName } from '$lib/person-name';
 import { personOfHint } from './people';
 import { ownerNamedBy, whoseRecords, whoseRecordsHolds } from './whose';
 import { statusOfPostgresCode, RecordRefusedTheWrite } from './tasks';
+import { descendingPositions, pageOf } from './list-page';
 import {
 	leaveBalancesOfCompany,
 	leaveDaysGranted,
@@ -104,6 +105,12 @@ export type LeaveListInput = {
 	to?: string;
 	status?: string;
 	limit?: number;
+	cursor?: string;
+};
+
+const leaveNewestFirst = {
+	positionOf: (row: LeaveRow) => [row.starts_at, row.id],
+	compare: descendingPositions
 };
 
 export async function leaveList(context: RecordContext, input: LeaveListInput) {
@@ -121,15 +128,17 @@ export async function leaveList(context: RecordContext, input: LeaveListInput) {
 		return true;
 	});
 
-	const kept = input.limit && input.limit > 0 ? rows.slice(0, input.limit) : rows;
+	const { items, totalCount, nextCursor } = pageOf('leave_list', rows, leaveNewestFirst, input);
 	return {
 		scope: whose.everyone ? 'everyone' : 'person',
 		personID: ownerNamedBy(whose) || null,
 		personName: personNameOf(context, ownerNamedBy(whose)),
 		statusFilter: input.status ?? null,
-		count: kept.length,
-		leave: kept.map((row) => answeredLeave(context, row)),
-		registeredKinds: context.leaveKinds.map((kind) => kind.name)
+		count: items.length,
+		totalCount,
+		leave: items.map((row) => answeredLeave(context, row)),
+		registeredKinds: context.leaveKinds.map((kind) => kind.name),
+		...(nextCursor ? { nextCursor } : {})
 	};
 }
 

@@ -1,5 +1,5 @@
 import { companyTimeZone } from '$lib/company/company-settings';
-import { invokeTool } from '$lib/public-api-call';
+import { everyPageOf } from '$lib/record/every-page';
 import { dayOffColor } from './day-off-color';
 import { eventReminderLeadOf } from './event-reminder-lead';
 import type { CalendarEvent } from '../../routes/calendar/embed/calendar-event-persistence';
@@ -27,15 +27,15 @@ type AnsweredEntry = AnsweredEvent & {
 };
 
 export async function companyCalendarEntries(from: Date, to: Date, requestedTimeZone = companyTimeZone()): Promise<CalendarEvent[]> {
-	const [answered, timeZone] = await Promise.all([
-		invokeTool<{ events: AnsweredEntry[] }>('event_list', {
+	const [pages, timeZone] = await Promise.all([
+		everyPageOf<{ events: AnsweredEntry[]; nextCursor?: string }>('event_list', {
 			scope: 'all',
 			startsAt: from.toISOString(),
 			endsAt: to.toISOString()
 		}),
 		requestedTimeZone
 	]);
-	return answered.events.map((entry) => calendarEventOfEntry(entry, timeZone));
+	return pages.flatMap((page) => page.events).map((entry) => calendarEventOfEntry(entry, timeZone));
 }
 
 function calendarEventOfEntry(entry: AnsweredEntry, timeZone: string): CalendarEvent {

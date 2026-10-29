@@ -5511,7 +5511,7 @@
         "state": "ok"
       },
       "canonicalName": "event_list",
-      "description": "List calendar entries in a concrete time window. Reads the requester's own schedule unless personHints names other people or scope is all. Personal schedules include events they attend and company-open events. Each entry names its source; approved leave is read-only. Resolve natural-language dates to startsAt and endsAt before calling.",
+      "description": "List calendar entries in a concrete time window. Reads the requester's own schedule unless personHints names other people or scope is all. Personal schedules include events they attend and company-open events. Each entry names its source; approved leave is read-only. Resolve natural-language dates to startsAt and endsAt before calling. A nextCursor in the result means more entries fall in the window than this page holds: read the next page before concluding that an entry is not there.",
       "estimatedLatency": "low",
       "idempotency": {
         "required": false,
@@ -5522,14 +5522,20 @@
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
         "properties": {
+          "cursor": {
+            "description": "Pagination cursor from a previous event_list result. Omit on the first call.",
+            "minLength": 1,
+            "type": "string"
+          },
           "endsAt": {
             "description": "Exclusive end of the window. ISO 8601 with timezone for a moment, or YYYY-MM-DD for a whole day.",
             "type": "string"
           },
           "limit": {
-            "description": "Maximum number of events to return.",
-            "exclusiveMinimum": 0,
-            "type": "number"
+            "description": "Maximum entries to return. Defaults to 50.",
+            "maximum": 100,
+            "minimum": 1,
+            "type": "integer"
           },
           "personHints": {
             "description": "Names, @handles, or emails of the people whose calendar entries to read. Omit it for the requester's own, which is the usual case. Do not send it together with scope.",
@@ -5668,10 +5674,21 @@
               "type": "object"
             },
             "type": "array"
+          },
+          "nextCursor": {
+            "description": "Cursor for the next page. Absent when no more entries match.",
+            "type": "string"
+          },
+          "totalCount": {
+            "description": "How many entries match the filters across every page.",
+            "maximum": 9007199254740991,
+            "minimum": -9007199254740991,
+            "type": "integer"
           }
         },
         "required": [
-          "events"
+          "events",
+          "totalCount"
         ],
         "type": "object"
       },
@@ -5773,10 +5790,21 @@
                 "type": "object"
               },
               "type": "array"
+            },
+            "nextCursor": {
+              "description": "Cursor for the next page. Absent when no more entries match.",
+              "type": "string"
+            },
+            "totalCount": {
+              "description": "How many entries match the filters across every page.",
+              "maximum": 9007199254740991,
+              "minimum": -9007199254740991,
+              "type": "integer"
             }
           },
           "required": [
-            "events"
+            "events",
+            "totalCount"
           ],
           "type": "object"
         }
@@ -6425,7 +6453,7 @@
         "state": "ok"
       },
       "canonicalName": "leave_list",
-      "description": "List leave in the record. Use this to answer 'when am I off', 'who is away next week', or 'what have I not had decided yet'. It reads the requester's own leave unless personHints names other people or scope is all. registeredKinds in the result names the leave types this company offers, which is what leave_request takes.",
+      "description": "List leave in the record. Use this to answer 'when am I off', 'who is away next week', or 'what have I not had decided yet'. It reads the requester's own leave unless personHints names other people or scope is all. registeredKinds in the result names the leave types this company offers, which is what leave_request takes. A nextCursor in the result means more leave matches than this page holds: read the next page before concluding that somebody is not away.",
       "estimatedLatency": "low",
       "idempotency": {
         "required": false,
@@ -6436,13 +6464,20 @@
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
         "properties": {
+          "cursor": {
+            "description": "Pagination cursor from a previous leave_list result. Omit on the first call.",
+            "minLength": 1,
+            "type": "string"
+          },
           "from": {
             "description": "Earliest day to include. ISO 8601 with timezone for a moment, or YYYY-MM-DD for a whole day. Omit for no lower bound.",
             "type": "string"
           },
           "limit": {
-            "description": "Maximum number of rows to return.",
-            "type": "number"
+            "description": "Maximum rows to return. Defaults to 50.",
+            "maximum": 100,
+            "minimum": 1,
+            "type": "integer"
           },
           "personHints": {
             "description": "Names, @handles, or emails of the people whose leave to read. Omit it for the requester's own, which is the usual case. Do not send it together with scope.",
@@ -6487,6 +6522,7 @@
         "additionalProperties": false,
         "properties": {
           "count": {
+            "description": "How many rows this page holds.",
             "maximum": 9007199254740991,
             "minimum": -9007199254740991,
             "type": "integer"
@@ -6567,6 +6603,10 @@
             },
             "type": "array"
           },
+          "nextCursor": {
+            "description": "Cursor for the next page. Absent when no more rows match.",
+            "type": "string"
+          },
           "personID": {
             "anyOf": [
               {
@@ -6598,11 +6638,18 @@
                 "type": "null"
               }
             ]
+          },
+          "totalCount": {
+            "description": "How many rows match the filters across every page.",
+            "maximum": 9007199254740991,
+            "minimum": -9007199254740991,
+            "type": "integer"
           }
         },
         "required": [
           "leave",
           "count",
+          "totalCount",
           "scope",
           "personID",
           "personName",
@@ -6622,6 +6669,7 @@
           "additionalProperties": false,
           "properties": {
             "count": {
+              "description": "How many rows this page holds.",
               "maximum": 9007199254740991,
               "minimum": -9007199254740991,
               "type": "integer"
@@ -6702,6 +6750,10 @@
               },
               "type": "array"
             },
+            "nextCursor": {
+              "description": "Cursor for the next page. Absent when no more rows match.",
+              "type": "string"
+            },
             "personID": {
               "anyOf": [
                 {
@@ -6733,11 +6785,18 @@
                   "type": "null"
                 }
               ]
+            },
+            "totalCount": {
+              "description": "How many rows match the filters across every page.",
+              "maximum": 9007199254740991,
+              "minimum": -9007199254740991,
+              "type": "integer"
             }
           },
           "required": [
             "leave",
             "count",
+            "totalCount",
             "scope",
             "personID",
             "personName",

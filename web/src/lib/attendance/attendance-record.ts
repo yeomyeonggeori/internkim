@@ -1,5 +1,6 @@
 import { invokeTool } from '$lib/public-api-call';
 import { companyDirectory, type RecordDirectory, type RecordPerson } from '$lib/record/person-directory';
+import { everyPageOf } from '$lib/record/every-page';
 import type { OrderableMember } from '$lib/member-order';
 import type { AttendanceKind } from '../../routes/attendance/attendance-context.svelte';
 
@@ -70,6 +71,14 @@ export type RecordLeaveList = {
 	registeredKinds: string[];
 };
 
+type RecordLeavePage = RecordLeaveList & { nextCursor?: string };
+
+export async function leaveOf(input: Record<string, unknown>): Promise<RecordLeaveList> {
+	const pages = await everyPageOf<RecordLeavePage>('leave_list', input);
+	const leave = pages.flatMap((page) => page.leave);
+	return { count: leave.length, leave, registeredKinds: pages[0].registeredKinds };
+}
+
 export type RecordLeaveBalance = {
 	personID: string;
 	personName: string;
@@ -95,11 +104,11 @@ export function attendanceBetween(from: string, to: string): Promise<RecordAtten
 }
 
 export function approvedLeaveBetween(from: string, to: string): Promise<RecordLeaveList> {
-	return invokeTool('leave_list', { scope: 'all', status: 'approved', from, to });
+	return leaveOf({ scope: 'all', status: 'approved', from, to });
 }
 
 export function everyLeaveOfTheCompany(): Promise<RecordLeaveList> {
-	return invokeTool('leave_list', { scope: 'all' });
+	return leaveOf({ scope: 'all' });
 }
 
 export function myLeaveBalance(): Promise<RecordLeaveBalances> {

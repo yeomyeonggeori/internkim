@@ -32,7 +32,7 @@ test('employee leave starts independent reads together and requests only the cal
 	expect(asked.map((call) => call.name)).toEqual([
 		'attendance_leave_policy_get', 'leave_balance', 'leave_list', 'company_settings_get', 'person_list'
 	]);
-	expect(asked.find((call) => call.name === 'leave_list')?.input).toEqual({});
+	expect(asked.find((call) => call.name === 'leave_list')?.input).toEqual({ limit: 100 });
 	if (!releasePolicy) throw new Error('policy gate was not initialized');
 	releasePolicy();
 	const payload = await reading;
