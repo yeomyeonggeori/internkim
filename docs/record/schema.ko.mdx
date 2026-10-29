@@ -135,6 +135,24 @@ CRM 활동 테이블도 없습니다. `organization_id`를 가진 task가 곧 �
 달려 있으므로 정책에 속합니다. 기간과 `days`는 정당하게 어긋납니다. 금요일부터
 월요일까지의 연차는 나흘에 걸치지만 이틀을 씁니다.
 
+## 크레딧 [#credits]
+
+자기 OpenRouter 키가 없는 회사는 Stripe로 구독하고 우리 키로 크레딧을 씁니다.
+1크레딧은 AI 원가 1000분의 1달러입니다. 돈과 구독은 Stripe가 들고, 회사 행에는
+Stripe 식별자, Stripe가 부르는 그대로의 `subscription_status`,
+`subscription_ends_at`이 있습니다.
+
+`company_credit_entry`의 한 줄은 주거나 쓴 크레딧이고, `credits`의 부호가
+어느 쪽인지 말합니다. `credit_kind`는 기간과 함께 사라지는 `subscription`이거나
+사서 남는 `permanent`입니다. `entry_kind`는 그 줄이 생긴 이유로, `grant`,
+`purchase`, `refund`, `usage`, `expiry`, `absorbed` 중 하나입니다. 줄은 더하기만
+합니다. 줄마다 `company.subscription_credits`나 `company.permanent_credits`를
+움직이고, 사용 줄은 그 멤버의 `credits_used`에 더해집니다. 잔여량은 0 아래로
+내려가지 않습니다. 비용이 잔여량을 넘으면 그 차이만큼 `absorbed` 줄이 먼저
+들어갑니다. `subscription_ends_at`이 다음 기간으로 넘어가면 모든 멤버의
+`credits_used`가 0이 됩니다. 1인 한도는 `company.rules.creditPolicy.usageLimit`입니다.
+이 칸과 줄은 서버만 쓰고, 관리자는 통장을 읽습니다.
+
 ## CRM [#crm]
 
 | 무엇 | 어디에 |
