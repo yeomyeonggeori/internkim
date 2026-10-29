@@ -419,7 +419,6 @@ html.internkim-embedded [data-app-shell-scroll] {
   }
   [data-slot='dialog-content']:has([data-slot='command']) {
     top: calc(var(--app-viewport-top, 0px) + 12px);
-    transform: none;
     display: flex;
     flex-direction: column;
     translate: -50% 0;
