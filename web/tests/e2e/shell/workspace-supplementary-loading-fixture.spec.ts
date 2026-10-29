@@ -62,7 +62,7 @@ const scenes: Scene[] = [
 	{ name: 'settings-setup', path: '/example-co/settings/setup', gates: ['host-setup'], ready: 'text=예시 회사' },
 	{ name: 'settings-members', path: '/example-co/settings/setup', gates: ['person_list'], ready: 'text=member1@example.com', focus: async page => { await page.getByRole('button', { name: '구성원 초대', exact: true }).scrollIntoViewIfNeeded(); } },
 	{ name: 'data-room', path: '/example-co/data-room', gates: ['dataroom_get', 'company_document_list'], ready: 'button:has-text("회사 소개")' },
-	{ name: 'public-data-room', path: `/share/${companyID}`, gates: ['public-data-room'], ready: 'tbody tr' },
+	{ name: 'public-data-room', path: `/share/${companyID}`, gates: ['public-data-room'], ready: 'button:has-text("회사 소개")' },
 	{ name: 'file-preview', path: '/example-co/files', gates: ['person.files.download'], ready: 'article:has-text("Fixture preview")', action: async page => { await page.getByRole('button', { name: /주간-회고-1.md/ }).click(); } },
 	{ name: 'run-approvals', path: '/example-co/runs/approvals', gates: ['person.runs.list'], ready: 'button:has-text("이번만 승인")' },
 	{ name: 'run-logs', path: '/example-co/runs/dev-task-run-001', gates: ['service-logs'], ready: 'pre:has-text("task accepted")', action: async page => { await page.getByRole('tab', { name: '로그', exact: true }).click(); } },
@@ -130,7 +130,7 @@ for (const width of [1280, 390]) for (const scene of scenes) {
 	});
 }
 
-test('data room shows its view switcher and a company skeleton before the company answers', async ({ page }) => {
+test('data room shows its documents and a company skeleton before the company answers', async ({ page }) => {
 	test.skip(phase === 'before', 'The original screen opened on the documents list until the company answered');
 	const fixture = new SupplementaryFixture();
 	fixture.hold('data-room-company');
@@ -141,13 +141,12 @@ test('data room shows its view switcher and a company skeleton before the compan
 	});
 	await page.goto('/example-co/data-room');
 	await expect.poll(() => fixture.requested.has('data-room-company')).toBe(true);
-	await expect(page.getByRole('tab', { name: '회사 소개', selected: true })).toBeVisible();
-	await expect(page.getByRole('tab', { name: '자료', exact: true })).toBeVisible();
-	await expect(page.locator('[aria-busy="true"] [data-slot="skeleton"]').first()).toBeVisible();
-	await expect(page.locator('tbody tr')).toHaveCount(0);
+	const company = page.getByRole('region', { name: '회사 소개', exact: true });
+	await expect(page.getByRole('heading', { name: '자료', exact: true })).toBeVisible();
+	await expect(company.locator('[aria-busy="true"] [data-slot="skeleton"]').first()).toBeVisible();
 	fixture.release('data-room-company');
-	await expect(page.getByText('예시 슬로건')).toBeVisible();
-	await expect(page.getByRole('tab', { name: '회사 소개', selected: true })).toBeVisible();
+	await expect(company.getByText('예시 슬로건')).toBeVisible();
+	await expect(company.locator('[aria-busy="true"]')).toHaveCount(0);
 });
 
 for (const status of [401, 403]) for (const target of ['memory', 'files', 'mail', 'runs', 'run-detail']) {
