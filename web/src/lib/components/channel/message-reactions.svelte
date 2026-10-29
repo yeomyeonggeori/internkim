@@ -6,9 +6,9 @@
 	import { createPageText } from '$lib/i18n/page-text.svelte';
 	import { reactionPeopleLabel } from './channel-reactions';
 	import type { ChannelMessageReaction } from './channel-api';
-	import { customEmoji } from '$lib/stores/custom-emoji.svelte';
-	import LoadingImage from '$lib/components/loading-image.svelte';
-	import { Skeleton } from '$lib/components/ui/skeleton';
+	import ReactionGlyph, { reactionImage } from './reaction-glyph.svelte';
+	import ReactionPeopleSheet from './reaction-people-sheet.svelte';
+	import { reactionChipHold } from './reaction-chip-hold';
 	import SmilePlusIcon from '@lucide/svelte/icons/smile-plus';
 
 	let {
@@ -25,17 +25,16 @@
 
 	const text = createPageText(channelText);
 	const chipClass = cn(toggleVariants({ variant: 'outline', size: 'sm' }), 'h-6 min-w-0 rounded-full px-2 tabular-nums aria-pressed:border-foreground/30');
+	let isSheetOpen = $state(false);
+	let sheetReaction = $state('');
 
 	function toggleWhenJoinable(reaction: ChannelMessageReaction): void {
 		if (canChange && !reactionImage(reaction)) onToggle(reaction);
 	}
 
-	function reactionImage(reaction: ChannelMessageReaction): string | undefined {
-		return customEmoji.nameToURL.get(reaction.value) || reaction.imageURL;
-	}
-
-	function isReactionImageDrawing(reaction: ChannelMessageReaction): boolean {
-		return Boolean(reaction.imageURL) && customEmoji.isDrawing(reaction.value);
+	function openSheet(reaction: ChannelMessageReaction): void {
+		sheetReaction = reaction.value;
+		isSheetOpen = true;
 	}
 </script>
 
@@ -58,14 +57,9 @@
 						aria-pressed={reaction.reactedByMe ?? false}
 						aria-label={imageURL ? `${shortcode} ${reaction.count}` : undefined}
 						onclick={() => toggleWhenJoinable(reaction)}
+						use:reactionChipHold={{ onHold: () => openSheet(reaction) }}
 					>
-						{#if isReactionImageDrawing(reaction)}
-							<Skeleton class="size-4 shrink-0 rounded-none" />
-						{:else if imageURL}
-							<LoadingImage src={imageURL} alt={shortcode} fallbackText={shortcode} fill loading="eager" class="size-4 shrink-0 rounded-none" />
-						{:else}
-							<span class="text-sm leading-none">{reaction.emoji}</span>
-						{/if}
+						<ReactionGlyph {reaction} class="text-sm" />
 						<span>{reaction.count}</span>
 					</button>
 				{/snippet}
@@ -73,13 +67,7 @@
 			<Tooltip.Content>
 				<div class="flex flex-col gap-0.5">
 					<div class="flex items-center gap-1">
-						{#if isReactionImageDrawing(reaction)}
-							<Skeleton class="size-4 shrink-0 rounded-none" />
-						{:else if imageURL}
-							<LoadingImage src={imageURL} alt={shortcode} fallbackText={shortcode} fill loading="eager" class="size-4 shrink-0 rounded-none" />
-						{:else}
-							<span>{reaction.emoji}</span>
-						{/if}
+						<ReactionGlyph {reaction} />
 						{#if reaction.value !== reaction.emoji}
 							<span>:{reaction.value}:</span>
 						{/if}
@@ -97,6 +85,7 @@
 		</button>
 	{/if}
 </div>
+<ReactionPeopleSheet {reactions} bind:open={isSheetOpen} bind:selected={sheetReaction} />
 
 <style>
 	@media (max-width: 639px) {
