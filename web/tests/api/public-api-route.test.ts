@@ -898,6 +898,15 @@ describe("the company's picture", () => {
 		expect((settings.body as { result: { profileImageURL: string } }).result.profileImageURL).toContain('/storage/v1/');
 	});
 
+	test('is kept as an SVG logo', async () => {
+		const logo = new File(['<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1 1"/>'], 'logo.svg', { type: 'image/svg+xml' });
+
+		const answered = await pictureCall(administratorsToken, logo);
+
+		expect(answered.status).toBe(200);
+		expect((answered.body as { profileImageURL: string }).profileImageURL).toContain('.svg');
+	});
+
 	test('is taken down by an administrator, and nothing is answered in its place', async () => {
 		const answered = await reach('/company/profile-image', administratorsToken, { method: 'DELETE' });
 

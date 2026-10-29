@@ -2,7 +2,11 @@
 	import CompanyAvatar from '$lib/components/company-avatar.svelte';
 	import * as Card from '$lib/components/ui/card';
 	import * as DropdownMenu from '$lib/components/ui/dropdown-menu';
-	import { companyPictureFormats, companyPictureMegabytes } from '$lib/company/company-picture';
+	import {
+		companyPictureFormats,
+		companyPictureFormatsAsNamed,
+		companyPictureMegabytes
+	} from '$lib/company/company-picture';
 	import {
 		forgetCompanyProfileImage,
 		loadCompanyProfileImage,
@@ -109,7 +113,9 @@
 		{/if}
 		<div class="grid gap-0.5">
 			<p class="text-sm font-medium">{name}</p>
-			<p class="text-xs text-muted-foreground">{text.companyPictureHintTemplate.replace('{megabytes}', String(companyPictureMegabytes))}</p>
+			<p class="text-xs text-muted-foreground">{text.companyPictureHintTemplate
+					.replace('{formats}', companyPictureFormatsAsNamed)
+					.replace('{megabytes}', String(companyPictureMegabytes))}</p>
 		</div>
 	</Card.Content>
 </Card.Root>
