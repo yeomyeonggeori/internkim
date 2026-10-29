@@ -27,12 +27,25 @@ export function pageOf<Item>(toolName: string, items: Item[], order: ListOrder<I
 	const ordered = [...items].sort((left, right) => order.compare(order.positionOf(left), order.positionOf(right)));
 	const after = input.cursor === undefined ? undefined : positionOfCursor(toolName, input.cursor);
 	const remaining = after ? ordered.filter((item) => order.compare(order.positionOf(item), after) > 0) : ordered;
-	const page = remaining.slice(0, input.limit ?? listPageSize);
+	return pageOfFetched(remaining, ordered.length, order.positionOf, input);
+}
+
+export function fetchedPageSize(input: ListPageInput): number {
+	return (input.limit ?? listPageSize) + 1;
+}
+
+export function pageOfFetched<Item>(
+	fetched: Item[],
+	totalCount: number,
+	positionOf: (item: Item) => string[],
+	input: ListPageInput
+): ListPage<Item> {
+	const page = fetched.slice(0, input.limit ?? listPageSize);
 	const last = page.at(-1);
 	return {
 		items: page,
-		totalCount: ordered.length,
-		...(last && remaining.length > page.length ? { nextCursor: cursorOfPosition(order.positionOf(last)) } : {})
+		totalCount,
+		...(last && fetched.length > page.length ? { nextCursor: cursorOfPosition(positionOf(last)) } : {})
 	};
 }
 
@@ -41,9 +54,9 @@ function cursorOfPosition(position: string[]): string {
 	return btoa(String.fromCharCode(...bytes));
 }
 
-function positionOfCursor(toolName: string, cursor: string): string[] {
+export function positionOfCursor(toolName: string, cursor: string, isShaped: (position: string[]) => boolean = () => true): string[] {
 	const decoded = decodedCursor(cursor);
-	if (!isPosition(decoded)) {
+	if (!isPosition(decoded) || !isShaped(decoded)) {
 		throw new RecordRefusedTheWrite(`cursor is not one a ${toolName} result gave; omit it to start from the first page`, 400);
 	}
 	return decoded;

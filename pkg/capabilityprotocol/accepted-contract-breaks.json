@@ -1158,5 +1158,25 @@
 		"path": "leave_list.result.nextCursor",
 		"reason": "leave_list answers a page at a time, and the cursor is how a caller reads the page after this one.",
 		"release": "the release carrying this catalog reaches company hosts by ship-host before the web/API deploy that answers leave_list a page at a time; a host still on the older catalog refuses these answers until it takes the catalog"
+	},
+	{
+		"path": "task_list.result.totalCount",
+		"reason": "task_list answers a page at a time, so it says how many tasks match across every page.",
+		"release": "the release carrying this catalog reaches company hosts by ship-host before the web/API deploy that answers task_list and task_board_get a page at a time; a host still on the older catalog refuses these answers until it takes the catalog"
+	},
+	{
+		"path": "task_list.result.nextCursor",
+		"reason": "task_list answers a page at a time, and the cursor is how a caller reads the page after this one.",
+		"release": "the release carrying this catalog reaches company hosts by ship-host before the web/API deploy that answers task_list and task_board_get a page at a time; a host still on the older catalog refuses these answers until it takes the catalog"
+	},
+	{
+		"path": "task_board_get.result.totalCount",
+		"reason": "task_board_get answers a page at a time, so it says how many tasks match across every page.",
+		"release": "the release carrying this catalog reaches company hosts by ship-host before the web/API deploy that answers task_list and task_board_get a page at a time; a host still on the older catalog refuses these answers until it takes the catalog"
+	},
+	{
+		"path": "task_board_get.result.nextCursor",
+		"reason": "task_board_get answers a page at a time, and the cursor is how a caller reads the page after this one.",
+		"release": "the release carrying this catalog reaches company hosts by ship-host before the web/API deploy that answers task_list and task_board_get a page at a time; a host still on the older catalog refuses these answers until it takes the catalog"
 	}
 ]
