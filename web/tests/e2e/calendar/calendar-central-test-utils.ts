@@ -1,5 +1,6 @@
 import type { Page } from '@playwright/test';
-import { centralPlaneAdminClient, exampleCompanyID, member1ID } from '../support/central-test-utils';
+import { centralPlaneAdminClient, exampleCompanyID, member1ID, exampleCompanySlug } from '../support/central-test-utils';
+import { signInToTheCentralPlane } from '../support/central-plane-sign-in';
 
 export type CalendarCentralEvent = {
 	id?: string;
@@ -11,20 +12,11 @@ export type CalendarCentralEvent = {
 	participantIDs?: string[];
 };
 
-const calendarPath = '/example-co/calendar';
+const calendarPath = `/${exampleCompanySlug}/calendar`;
 export const calendarEmbedPath = `${calendarPath}/embed`;
 
 export async function signInToCalendar(page: Page): Promise<void> {
-	await page.goto(calendarPath);
-	const email = page.getByRole('textbox', { name: '이메일' });
-	const needsSignIn = await email
-		.waitFor({ state: 'visible', timeout: 8000 })
-		.then(() => true)
-		.catch(() => false);
-	if (!needsSignIn) return;
-	await email.fill('member1@example.com');
-	await page.getByRole('textbox', { name: '비밀번호' }).fill('seed-password');
-	await page.getByRole('button', { name: '로그인', exact: true }).click();
+	if (!(await signInToTheCentralPlane(page, calendarPath))) return;
 	await page.waitForURL(`**${calendarPath}**`);
 	await page.locator('.calendar-stage').waitFor({ state: 'visible' });
 }

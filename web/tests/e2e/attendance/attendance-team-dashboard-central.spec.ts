@@ -1,6 +1,7 @@
 import { expect, test } from '@playwright/test';
 import { signInToAttendance } from './attendance-central-test-utils';
 import { signInToTheTaskBoard } from '../task/task-central-test-utils';
+import { exampleCompanySlug } from '../support/central-test-utils';
 
 test.use({ locale: 'ko-KR' });
 
@@ -21,7 +22,7 @@ test('the default dashboard renders bounded team cards without all-company month
 		}
 	});
 	const began = Date.now();
-	await page.goto('/example-co/attendance');
+	await page.goto(`/${exampleCompanySlug}/attendance`);
 	await expect(page.getByTestId('attendance-team-dashboard')).toBeVisible();
 	await expect(page.getByTestId('attendance-team-card')).toHaveCount(3);
 	await expect(page.getByTestId('team-status-grid')).toHaveCount(0);

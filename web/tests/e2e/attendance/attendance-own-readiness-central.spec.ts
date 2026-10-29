@@ -1,5 +1,6 @@
 import { expect, test, type Route } from '@playwright/test';
 import { signInToTheTaskBoard } from '../task/task-central-test-utils';
+import { exampleCompanySlug } from '../support/central-test-utils';
 
 test.use({ locale: 'ko-KR' });
 
@@ -43,7 +44,7 @@ test('own clock actions become usable while every team history input remains pen
 	});
 	try {
 		actions.push({ action: 'navigate', time: Date.now() });
-		await page.goto('/example-co/attendance');
+		await page.goto(`/${exampleCompanySlug}/attendance`);
 		await expect.poll(() => pending.length).toBeGreaterThan(0);
 		await expect(page.getByTestId('attendance-own-strip').getByRole('button', { name: /출근|퇴근/ }).first()).toBeVisible();
 		actions.push({ action: 'open palette', time: Date.now() });

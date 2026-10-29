@@ -11,7 +11,7 @@ import {
 	seoulInstant,
 	seoulMonthToday
 } from './attendance-central-test-utils';
-import { member1Email, member1ID } from '../support/central-test-utils';
+import { member1Email, member1ID, exampleCompanySlug } from '../support/central-test-utils';
 
 test.describe.configure({ mode: 'serial', timeout: 90_000 });
 test.use({ locale: 'ko-KR' });
@@ -46,7 +46,7 @@ test.afterAll(async () => {
 });
 
 async function openSettings(page: Page): Promise<void> {
-	await signInToTheCentralPlane(page, '/example-co/settings');
+	await signInToTheCentralPlane(page, `/${exampleCompanySlug}/settings`);
 	await page.getByRole('tab', { name: '관리자' }).click();
 	await page
 		.getByTestId('attendance-work-settings')
@@ -65,7 +65,7 @@ async function saveWorkSettings(page: Page): Promise<void> {
 }
 
 async function openTheMonthBefore(page: Page): Promise<void> {
-	await page.goto('/example-co/attendance');
+	await page.goto(`/${exampleCompanySlug}/attendance`);
 	await openMonthlyAttendance(page);
 	await page.getByTestId('team-status-table').waitFor({ state: 'visible', timeout: 20000 });
 	await page.getByRole('dialog').getByRole('button', { name: '이전 달', exact: true }).click();
