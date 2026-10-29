@@ -1,11 +1,16 @@
-export const companyPictureFormats = [
-	'image/png',
-	'image/jpeg',
-	'image/gif',
-	'image/webp',
-	'image/heic',
-	'image/heif'
-];
+const companyPictureFormatNames: Record<string, string> = {
+	'image/png': 'PNG',
+	'image/jpeg': 'JPG',
+	'image/gif': 'GIF',
+	'image/webp': 'WebP',
+	'image/svg+xml': 'SVG',
+	'image/heic': 'HEIC',
+	'image/heif': 'HEIF'
+};
+
+export const companyPictureFormats = Object.keys(companyPictureFormatNames);
+
+export const companyPictureFormatsAsNamed = Object.values(companyPictureFormatNames).join(', ');
 
 export const companyPictureMegabytes = 10;
 

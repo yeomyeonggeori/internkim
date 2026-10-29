@@ -261,6 +261,8 @@ const aPixelPNG = Uint8Array.from(
 	(character) => character.charCodeAt(0)
 );
 
+const aSquareSVG = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1 1"><rect width="1" height="1"/></svg>';
+
 const uploadedPaths: string[] = [];
 
 type KeptDocument = { id: string; category_code: string; document_date: string; supersedes: string | null; storage_path: string | null };
@@ -418,6 +420,24 @@ describe("the company's picture", () => {
 
 		expect(kept.status).toBe(200);
 		expect(String(resultOf(kept).profileImageURL)).toContain('/storage/v1/');
+		expect(await keptPicturePath()).toBe(storagePath);
+	});
+
+	test('is kept as an SVG logo, put with the SVG Content-Type', async () => {
+		const asked = await asAdmin('company_image_upload', { image: 'picture', fileName: 'logo.svg' });
+		const storagePath = String(resultOf(asked).storagePath);
+		uploadedPaths.push(storagePath);
+		const put = await fetch(String(resultOf(asked).uploadURL), {
+			method: 'PUT',
+			headers: { 'content-type': 'image/svg+xml' },
+			body: aSquareSVG
+		});
+		expect(put.ok).toBe(true);
+
+		const kept = await asAdmin('company_settings_update', { profileImage: storagePath });
+
+		expect(storagePath).toMatch(new RegExp(`^${companyID}/shared/company/upload-${uuidPattern}\\.svg$`));
+		expect(kept.status).toBe(200);
 		expect(await keptPicturePath()).toBe(storagePath);
 	});
 
