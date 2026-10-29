@@ -156,6 +156,11 @@ type chatdIdentitySelfResponse struct {
 }
 
 func (service Service) invokeChatdPlatformMessageContext(ctx context.Context, request capabilities.ToolInvokeRequest) (capabilities.ToolInvokeResponse, error) {
+	if !hasArrivedOnAConversation(request.Context) {
+		failure := platformToolStaticFailure("conversation_not_available", "context",
+			"this request did not arrive on a conversation, so there is none to return; name a channelName, channelID or person in the tool that needs one")
+		return platformToolErrorResponse(request.ToolName, failure), nil
+	}
 	var botIdentity chatdIdentitySelfResponse
 	if errorValue := service.chatdRequest(ctx, "identity.self", map[string]any{}, &botIdentity); errorValue != nil {
 		return platformToolErrorResponse(request.ToolName, platformToolFailureForError("bot_lookup", "platform_unavailable", errorValue)), nil
@@ -175,6 +180,10 @@ func (service Service) invokeChatdPlatformMessageContext(ctx context.Context, re
 		BotUsername:             botIdentity.Name,
 	}
 	return platformToolSuccessResponse(request.ToolName, "ok", result)
+}
+
+func hasArrivedOnAConversation(toolContext capabilities.ToolInvokeContext) bool {
+	return strings.TrimSpace(toolContext.ConversationID) != "" || strings.TrimSpace(toolContext.ReplyTargetID) != "" || strings.TrimSpace(toolContext.ChannelID) != ""
 }
 
 func buzzReplyTargetChannel(replyTargetID string) string {

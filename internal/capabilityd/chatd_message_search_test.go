@@ -174,6 +174,21 @@ func TestChatdMessageContextAnswersFromTheConversationItself(testContext *testin
 	}
 }
 
+func TestMessageContextOutsideAConversationIsRefusedRatherThanAnsweredEmpty(testContext *testing.T) {
+	service := Service{Configuration: Configuration{ChatdEndpoint: "http://127.0.0.1:1", ChatdPlatform: "buzz"}}
+	response, errorValue := service.invokeChatdPlatformMessageContext(context.Background(), capabilities.ToolInvokeRequest{
+		ToolName: "message_context",
+		Input:    json.RawMessage(`{}`),
+		Context:  capabilities.ToolInvokeContext{Platform: "buzz", RequesterPersonID: "person-1"},
+	})
+	if errorValue != nil {
+		testContext.Fatalf("context failed: %v", errorValue)
+	}
+	if response.Outcome != capabilities.ToolOutcomeFailed || !strings.Contains(string(response.Result), `"errorCode":"conversation_not_available"`) {
+		testContext.Fatalf("a call from outside a conversation is told there is none, answered %q", response.Content)
+	}
+}
+
 func TestMessageDeleteApprovalPreviewQuotesTheTargets(testContext *testing.T) {
 	chatdServer := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 		if request.URL.Path != "/v1/platform/buzz/message.search" {
