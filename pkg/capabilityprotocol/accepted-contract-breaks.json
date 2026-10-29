@@ -1123,5 +1123,15 @@
 		"path": "attendance_team_dashboard_get.result.teams[].isCallerTeam",
 		"reason": "A team marks whether the caller belongs to it, so the caller's team is listed first.",
 		"release": "the attendance team roster release carries this catalog to company hosts by ship-host before the web/API deployment and the migration that answers with preview"
+	},
+	{
+		"path": "person_list.result.totalCount",
+		"reason": "person_list answers a page at a time, so it says how many people match across every page.",
+		"release": "the release carrying this catalog reaches company hosts by ship-host before the web/API deploy that answers person_list a page at a time; a host still on the older catalog refuses these answers until it takes the catalog"
+	},
+	{
+		"path": "person_list.result.nextCursor",
+		"reason": "person_list answers a page at a time, and the cursor is how a caller reads the page after this one.",
+		"release": "the release carrying this catalog reaches company hosts by ship-host before the web/API deploy that answers person_list a page at a time; a host still on the older catalog refuses these answers until it takes the catalog"
 	}
 ]

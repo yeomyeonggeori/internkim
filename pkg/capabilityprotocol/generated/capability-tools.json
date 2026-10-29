@@ -3488,7 +3488,7 @@
         "state": "ok"
       },
       "canonicalName": "person_list",
-      "description": "Everyone who works here, with their exact name, email and mention, and what the company directory holds about them: their job title, their organization, who they report to, and when they started. Call this when somebody asks who a person is or who works here, and when a person hint was refused with a list of candidates to choose between. Do not call it to turn a fragment into a name before another call: person hints take the fragment as it was written and the server resolves it, so a name given partly or by a given name alone is already enough. requesterID names which of them is asking.",
+      "description": "Everyone who works here, with their exact name, email and mention, and what the company directory holds about them: their job title, their organization, who they report to, and when they started. Call this when somebody asks who a person is or who works here, and when a person hint was refused with a list of candidates to choose between. Do not call it to turn a fragment into a name before another call: person hints take the fragment as it was written and the server resolves it, so a name given partly or by a given name alone is already enough. requesterID names which of them is asking. A nextCursor in the result means more people match than this page holds: read the next page before concluding that somebody is not here.",
       "estimatedLatency": "low",
       "idempotency": {
         "required": false,
@@ -3499,13 +3499,26 @@
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
         "properties": {
+          "cursor": {
+            "description": "Pagination cursor from a previous person_list result. Omit on the first call.",
+            "minLength": 1,
+            "type": "string"
+          },
           "limit": {
-            "maximum": 48,
+            "description": "Maximum people to return. Defaults to 50.",
+            "maximum": 100,
             "minimum": 1,
             "type": "integer"
           },
           "searchText": {
+            "description": "Only the people whose name or email contains this text.",
             "maxLength": 100,
+            "type": "string"
+          },
+          "teamHint": {
+            "description": "Only the people in this organization and the organizations under it: its exact team ID or its exact CURRENT name as a team_list result shows it. A name several organizations carry fails with the candidates to choose between.",
+            "maxLength": 256,
+            "minLength": 1,
             "type": "string"
           }
         },
@@ -3515,13 +3528,26 @@
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
         "properties": {
+          "cursor": {
+            "description": "Pagination cursor from a previous person_list result. Omit on the first call.",
+            "minLength": 1,
+            "type": "string"
+          },
           "limit": {
-            "maximum": 48,
+            "description": "Maximum people to return. Defaults to 50.",
+            "maximum": 100,
             "minimum": 1,
             "type": "integer"
           },
           "searchText": {
+            "description": "Only the people whose name or email contains this text.",
             "maxLength": 100,
+            "type": "string"
+          },
+          "teamHint": {
+            "description": "Only the people in this organization and the organizations under it: its exact team ID or its exact CURRENT name as a team_list result shows it. A name several organizations carry fails with the candidates to choose between.",
+            "maxLength": 256,
+            "minLength": 1,
             "type": "string"
           }
         },
@@ -3539,7 +3565,12 @@
         "additionalProperties": false,
         "properties": {
           "count": {
+            "description": "How many people this page holds.",
             "type": "number"
+          },
+          "nextCursor": {
+            "description": "Cursor for the next page. Absent when no more people match.",
+            "type": "string"
           },
           "people": {
             "items": {
@@ -3612,11 +3643,18 @@
           },
           "requesterID": {
             "type": "string"
+          },
+          "totalCount": {
+            "description": "How many people match the filters across every page.",
+            "maximum": 9007199254740991,
+            "minimum": -9007199254740991,
+            "type": "integer"
           }
         },
         "required": [
           "requesterID",
           "count",
+          "totalCount",
           "people"
         ],
         "type": "object"
@@ -3632,7 +3670,12 @@
           "additionalProperties": false,
           "properties": {
             "count": {
+              "description": "How many people this page holds.",
               "type": "number"
+            },
+            "nextCursor": {
+              "description": "Cursor for the next page. Absent when no more people match.",
+              "type": "string"
             },
             "people": {
               "items": {
@@ -3705,11 +3748,18 @@
             },
             "requesterID": {
               "type": "string"
+            },
+            "totalCount": {
+              "description": "How many people match the filters across every page.",
+              "maximum": 9007199254740991,
+              "minimum": -9007199254740991,
+              "type": "integer"
             }
           },
           "required": [
             "requesterID",
             "count",
+            "totalCount",
             "people"
           ],
           "type": "object"
@@ -3717,7 +3767,7 @@
       },
       "sideEffect": "read",
       "sideEffectClass": "read",
-      "version": "4",
+      "version": "5",
       "worksOffline": false
     },
     {

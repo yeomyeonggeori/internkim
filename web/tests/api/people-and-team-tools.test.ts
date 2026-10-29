@@ -235,6 +235,83 @@ describe('a directory entry written through the two homes it lives in', () => {
 	}, networkHookTimeout);
 });
 
+describe('the directory read a page at a time', () => {
+	type ListedPerson = { personID: string; name: string };
+
+	async function everyPageOf(input: Record<string, unknown>): Promise<Record<string, unknown>[]> {
+		const pages: Record<string, unknown>[] = [];
+		let cursor: unknown;
+		do {
+			const page = resultOf(await asAdmin('person_list', { ...input, ...(cursor ? { cursor } : {}) }));
+			pages.push(page);
+			cursor = page.nextCursor;
+		} while (cursor);
+		return pages;
+	}
+
+	test('walks every person once across pages, and says when no page is left', async () => {
+		const addedIDs = await Promise.all(
+			['가견본', '나견본', '다견본', '라견본', '마견본'].map(async (name, index) => {
+				const personID = await addMember(client, companyID, `${slug}-page-${index}@example.test`);
+				await client.from('member').update({ name }).eq('id', personID);
+				return personID;
+			})
+		);
+
+		const whole = resultOf(await asAdmin('person_list', { limit: 100 }));
+		expect(whole.nextCursor).toBeUndefined();
+		const pages = await everyPageOf({ limit: 2 });
+		const walked = pages.flatMap((page) => (page.people as ListedPerson[]).map((person) => person.personID));
+
+		expect(pages.length).toBe(Math.ceil(Number(whole.totalCount) / 2));
+		expect(new Set(walked).size).toBe(walked.length);
+		expect(walked).toEqual((whole.people as ListedPerson[]).map((person) => person.personID));
+		expect(pages.every((page) => page.totalCount === whole.totalCount)).toBe(true);
+		expect(pages.at(-1)?.nextCursor).toBeUndefined();
+
+		await client.from('member').delete().in('id', addedIDs);
+	}, networkHookTimeout);
+
+	test('answers fifty people when the call names no limit', async () => {
+		const listed = resultOf(await asAdmin('person_list'));
+		expect(listed.count).toBe(Math.min(50, Number(listed.totalCount)));
+	}, networkHookTimeout);
+
+	test('narrows to an organization and the organizations under it', async () => {
+		await asAdmin('team_add', { name: '모바일', parentHint: '개발팀' });
+		await asAdmin('person_update', { personHint: '박예시', teamHint: '모바일' });
+
+		const listed = resultOf(await asAdmin('person_list', { teamHint: '개발팀' }));
+		const names = (listed.people as ListedPerson[]).map((person) => person.name).sort();
+		expect(names).toEqual(['박예시', '이샘플']);
+		expect(listed.totalCount).toBe(2);
+
+		const nested = resultOf(await asAdmin('person_list', { teamHint: '모바일' }));
+		expect((nested.people as ListedPerson[]).map((person) => person.name)).toEqual(['박예시']);
+
+		await asAdmin('person_update', { personHint: '박예시', teamHint: '' });
+		await asAdmin('team_delete', { teamHint: '모바일' });
+	}, networkHookTimeout);
+
+	test('narrows by name or email', async () => {
+		const listed = resultOf(await asAdmin('person_list', { searchText: `${slug}-example` }));
+		expect((listed.people as ListedPerson[]).map((person) => person.personID)).toEqual([exampleID]);
+	}, networkHookTimeout);
+
+	test('refuses an organization no name or ID answers to', async () => {
+		const refusal = refusalOf(await asAdmin('person_list', { teamHint: '없는조직' }));
+		expect(refusal.status).toBe(409);
+	}, networkHookTimeout);
+
+	test('refuses a cursor no result gave', async () => {
+		for (const cursor of ['not-a-cursor', btoa('{"name":"x"}'), btoa('[1,2]')]) {
+			const refusal = refusalOf(await asAdmin('person_list', { cursor }));
+			expect(refusal.status).toBe(400);
+			expect(refusal.error).toContain('cursor');
+		}
+	}, networkHookTimeout);
+});
+
 describe('inviting somebody through the plane s own invite path', () => {
 	test('creates the account, the sign-in, and the directory entry', async () => {
 		const invited = resultOf(

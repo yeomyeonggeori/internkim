@@ -1,11 +1,10 @@
 import { companyTimeZone } from '$lib/company/company-settings';
 import { eventReminderLeadOf } from './event-reminder-lead';
 import { invokeTool } from '$lib/public-api-call';
+import { companyDirectory } from '$lib/record/person-directory';
 import type { CalendarEvent, CalendarEventPayload } from '../../routes/calendar/embed/calendar-event-persistence';
 import type { CalendarParticipant } from '../../routes/calendar/embed/calendar-participants';
 import { companyCalendarEntries, type AnsweredEvent } from './company-calendar';
-
-type AnsweredPeople = { people: { personID: string; name: string; email: string }[] };
 
 const noReminder = 0;
 
@@ -54,7 +53,7 @@ export async function deleteSupabaseCalendarEvent(
 }
 
 export async function supabaseCalendarParticipants(): Promise<CalendarParticipant[]> {
-	const answered = await invokeTool<AnsweredPeople>('person_list', {});
+	const answered = await companyDirectory();
 	return answered.people.map((person) => ({
 		personID: person.personID,
 		name: person.name || person.email.split('@')[0],

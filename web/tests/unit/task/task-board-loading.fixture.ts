@@ -40,7 +40,7 @@ describe('board loading', () => {
 		const reading = taskState('scope', '2026-09-28');
 		expect(calls).toEqual([
 			{ name: 'task_board_get', input: { scope: 'all', boardWeek: '2026-09-28' } },
-			{ name: 'person_list', input: {} }
+			{ name: 'person_list', input: { limit: 100 } }
 		]);
 		tasks.resolve(); people.resolve();
 		const state = await reading;
