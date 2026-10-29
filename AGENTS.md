@@ -595,16 +595,16 @@ and delete the duplicates.
 - Keep `/workspace/.blueclaw/*` service-owned and inaccessible to normal task
   users. Treat `/workspace/private/people/<personID>`,
   `/workspace/circles/<circleID>`, and `/workspace/shared/*` permissions as the
-  final workspace access boundary.
+  final workspace access boundary. A circle's directory holds its memory: the
+  service writes it and the circle's group only reads it.
 - Keep workspace `.protected/` directories service-owned and non-writable by
   task users. Agents may read files there, but all changes must go through the
   owning service API; do not provide delete operations for protected sources of truth.
 - Use `/workspace/shared/cache/dependencies` only for package caches. Never
   place private/source files there.
-- `/workspace/shared/public` is for externally-shareable content (safe to show
-  non-member such as investors). Never put editable source, drafts, secrets, or
-  member-only files there. For all-employee internal sharing use a member circle
-  under `/workspace/circles/<circleID>`, not `shared/public`.
+- The workspace shares nothing beyond the requester. A conversation, direct or
+  group, works in the requester's home, and a file anyone else should read,
+  inside the company or outside it, goes to the data room.
 - There is no executable allow or deny list for the terminal: POSIX user, group,
   and file permissions are the execution boundary, so a system-modification
   command simply fails at execution for an unprivileged actor.

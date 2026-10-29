@@ -1133,5 +1133,10 @@
 		"path": "person_list.result.nextCursor",
 		"reason": "person_list answers a page at a time, and the cursor is how a caller reads the page after this one.",
 		"release": "the release carrying this catalog reaches company hosts by ship-host before the web/API deploy that answers person_list a page at a time; a host still on the older catalog refuses these answers until it takes the catalog"
+	},
+	{
+		"path": "company_document_register.result.storageDirectory",
+		"reason": "The storage directory named a circle directory that requesters can no longer write: a circle's directory now holds only its memory, which the service writes. A company form is written to the requester's documents and its original is uploaded to the registered document in the data room.",
+		"release": "the release carrying the read-only circle directories ships the blueclaw runtime and the office skill that no longer reads storageDirectory to company hosts before the web/API deploys"
 	}
 ]

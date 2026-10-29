@@ -17,13 +17,9 @@ type DevFilesMockPluginOptions = {
 };
 
 const personalPath = '/workspace/private/people/dev-person-admin';
-const circlePath = '/workspace/circles/design-team';
-const publicPath = '/workspace/shared';
 
 const roots: WorkspaceRoot[] = [
-	{ id: 'personal', label: '개인', agentPath: personalPath, kind: 'personal' },
-	{ id: 'circle-design', label: '디자인팀', agentPath: circlePath, kind: 'circle' },
-	{ id: 'public', label: '공개', agentPath: publicPath, kind: 'public' }
+	{ id: 'personal', label: '개인', agentPath: personalPath, kind: 'personal' }
 ];
 
 function directory(name: string, parent: string, modifiedAt: string): WorkspaceEntry {
@@ -55,16 +51,6 @@ const listings: Record<string, WorkspaceEntry[]> = {
 		file('README.md', `${personalPath}/프로젝트`, 1840, '2026-06-20T18:45:00+09:00'),
 		file('main.go', `${personalPath}/프로젝트`, 5312, '2026-06-20T18:30:00+09:00'),
 		file('메모.txt', `${personalPath}/프로젝트`, 920, '2026-06-20T18:10:00+09:00')
-	],
-	[circlePath]: [
-		directory('브랜드-가이드', circlePath, '2026-06-17T10:00:00+09:00'),
-		file('스프린트-보드.md', circlePath, 7420, '2026-06-21T19:30:00+09:00')
-	],
-	[`${circlePath}/브랜드-가이드`]: [
-		file('컬러-팔레트.md', `${circlePath}/브랜드-가이드`, 2210, '2026-06-17T10:00:00+09:00')
-	],
-	[publicPath]: [
-		file('공지사항.md', publicPath, 1530, '2026-06-22T09:00:00+09:00')
 	]
 };
 

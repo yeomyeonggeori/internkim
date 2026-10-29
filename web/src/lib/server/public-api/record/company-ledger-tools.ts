@@ -11,7 +11,6 @@ import type {
 	CompanyDocumentListResult,
 	CompanyDocumentPublished,
 	CompanyDocumentRecallResult,
-	CompanyDocumentRegisteredResult,
 	CompanyDocumentResult,
 	CompanyDocumentUploadResult,
 	CompanyMetricListResult,
@@ -574,7 +573,7 @@ function kindOfDocument(kind: string | undefined): string {
 export async function companyDocumentRegister(
 	context: RecordContext,
 	input: CompanyDocumentRegisterInput
-): Promise<CompanyDocumentRegisteredResult> {
+): Promise<CompanyDocumentResult> {
 	const documentType = textOf(input.documentType, 'a document names the type it is');
 	const title = textOf(input.title, 'a document needs a title');
 	const kind = kindOfDocument(input.kind);
@@ -602,10 +601,7 @@ export async function companyDocumentRegister(
 		.select(documentColumns)
 		.single<DocumentRow>();
 	if (error) throw refuseTheWrite(error, onlyAColleagueWritesDocuments);
-	return {
-		...answeredDocument(data),
-		storageDirectory: `/workspace/circles/member/documents/${documentType}`
-	};
+	return answeredDocument(data);
 }
 
 async function reservedDocumentNumber(context: RecordContext, prefix: string): Promise<string> {
