@@ -107,6 +107,7 @@ describe('canonical capability tools', () => {
       'channel_delete',
       'channel_join',
       'channel_leave',
+      'channel_list',
       'channel_member_add',
       'channel_member_delete',
       'channel_order_get',

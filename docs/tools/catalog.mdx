@@ -191,6 +191,11 @@ exact channel ID or the channel's current name, and `personHint` names a
 company member; both climb the resolver ladder and ask when a name is
 ambiguous. Deleting a channel and handing it over wait for approval.
 
+`channel_list` asks chatd for the requester's own conversations and for the
+open channels they could join, and answers both in name order, each marked by
+whether the requester is in it. It pages by `cursor`, 50 at a time by default
+and 100 at most.
+
 ## Teams [#team]
 
 <ToolCatalog namespace="team" />

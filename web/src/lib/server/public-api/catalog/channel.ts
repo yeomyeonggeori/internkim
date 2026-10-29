@@ -9,6 +9,7 @@ import {
 import { ResourceMutationEffect, type CapabilityToolDefinition } from './definition';
 
 export enum ChannelToolName {
+  List = 'channel_list',
   Add = 'channel_add',
   Join = 'channel_join',
   Leave = 'channel_leave',
@@ -61,6 +62,37 @@ const channelResultSchema = z.strictObject({
   notAddedPersonHints: z.array(z.string()).describe('The people named who were not added; the messenger refused them.').optional(),
 });
 
+export const channelListInputSchema = z.strictObject({
+  limit: z.number().int().min(1).max(100).describe('Maximum channels to return. Defaults to 50.').optional(),
+  cursor: z.string().describe('Pagination cursor from a previous channel_list result. Omit on the first call.').optional(),
+});
+
+const listedChannelSchema = z.strictObject({
+  channelID: z.string().min(1),
+  name: z.string(),
+  isMember: z.boolean().describe('Whether the requester is in the channel. One they are not in is open for them to join.'),
+});
+
+const channelListResultSchema = z.strictObject({
+  channels: z.array(listedChannelSchema),
+  totalCount: z.number().int().nonnegative().describe('How many channels the requester can see in all.'),
+  nextCursor: z.string().describe('Present only when more channels remain; pass it as cursor to read them.').optional(),
+});
+
+const channelListTool: CapabilityToolDefinition = {
+  name: ChannelToolName.List,
+  namespace: 'channel',
+  answeredBy: CapabilityAnsweredBy.Company,
+  privacyClass: 'platform_message',
+  policyResource: `tool:${ChannelToolName.List}`,
+  description: 'The channels the requester can see in the company messenger, by exact ID and current name: the ones they are in and the open ones they could join. Call this when a channel\'s exact name is not known before message_send, message_search or channel_join. A nextCursor means more channels remain; read them before concluding a channel does not exist.',
+  version: '1',
+  estimatedLatency: CapabilityEstimatedLatency.Medium,
+  inputSchema: channelListInputSchema,
+  result: { schema: channelListResultSchema, effects: [] },
+  sideEffect: CapabilitySideEffect.Read,
+};
+
 function channelEffect(effect: ResourceMutationEffect) {
   return [{ objectType: 'channel', effect, resultField: 'channelID', effectIdentity: ResourceEffectIdentity.ID }];
 }
@@ -94,6 +126,7 @@ const asTheRequester = 'It is done as the requester, exactly as their messenger 
 const ownersOnly = 'Only an owner of the channel may do this.';
 
 export const channelToolDefinitions: CapabilityToolDefinition[] = [
+  channelListTool,
   channelTool(ChannelToolName.Add,
     `Create a group channel in the company messenger with the requester as its owner, and add the members named. ${asTheRequester}`,
     channelAddInputSchema, ResourceMutationEffect.Created, CapabilitySideEffect.ExternalWrite),

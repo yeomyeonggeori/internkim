@@ -612,6 +612,19 @@ describe('a channel changed in the messenger', () => {
 	});
 });
 
+describe('the channels a requester can see', () => {
+	test('are read on the company machine, even by a token that may only read', async () => {
+		const answered = await invoke('channel_list', readersToken, { limit: 50 });
+		expect(answered.status).toBe(503);
+	});
+
+	test('are refused a page larger than a hundred, before anything is carried', async () => {
+		const answered = await invoke('channel_list', holdersToken, { limit: 101 });
+		expect(answered.status).toBe(400);
+		expect(messageOf(answered)).toContain('limit');
+	});
+});
+
 describe('a reaction, a hidden conversation and a rewritten message', () => {
 	test('are carried to the company machine, never answered here', async () => {
 		for (const [name, input] of [
