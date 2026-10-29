@@ -60,6 +60,33 @@ def web_suite_references_outside_web(repository_root):
     return references
 
 
+GO_RELATIVE_PATH = re.compile(r'"((?:\.\./)+[^"]*)"')
+GO_EMBED = re.compile(r"^//go:embed (.+)$", re.MULTILINE)
+
+
+def go_build_reads_outside_go_sources(repository_root):
+    tracked = set(subprocess.run(["git", "ls-files"], cwd=repository_root, capture_output=True, text=True).stdout.splitlines())
+    submodules = submodule_paths(repository_root)
+    references = set()
+    for source in tracked:
+        if not source.endswith(".go") or source.startswith(".dependency/"):
+            continue
+        text = (repository_root / source).read_text(errors="ignore")
+        literals = GO_RELATIVE_PATH.findall(text) + [pattern for line in GO_EMBED.findall(text) for pattern in line.split()]
+        for literal in literals:
+            path = Path(os.path.normpath(Path(source).parent / literal)).as_posix()
+            if source.startswith(path + "/"):
+                continue
+            submodule = next((submodule for submodule in submodules if path == submodule or path.startswith(submodule + "/")), None)
+            if submodule:
+                references.add(submodule)
+            elif path in tracked:
+                references.add(path)
+            elif any(name.startswith(path + "/") for name in tracked):
+                references.add(f"{path}/")
+    return references
+
+
 def as_a_repository_path(repository_root, path):
     if (repository_root / path).is_dir():
         return f"{path}/"
@@ -168,6 +195,25 @@ class VerificationPlanTests(unittest.TestCase):
         web = next(group for group in module.GROUPS if group.name == "web")
         missed = sorted(path for path in web_suite_references_outside_web(module.REPOSITORY_ROOT) if not web.matches(path) and not web.matches(f"{path}any-file"))
         self.assertEqual(missed, [])
+
+    def test_every_file_the_go_build_reads_outside_go_sources_selects_the_go_group(self):
+        module = verification_module()
+        go = next(group for group in module.GROUPS if group.name == "go")
+        missed = sorted(path for path in go_build_reads_outside_go_sources(module.REPOSITORY_ROOT) if not go.matches(path) and not go.matches(f"{path}any-file"))
+        self.assertEqual(missed, [])
+
+    def test_a_data_room_template_change_beside_migrations_and_the_plugin_runs_the_go_tests_that_read_them(self):
+        groups = verification_module().GROUPS
+        changed = [
+            "web/src/lib/data-room/template.json",
+            "supabase/migrations/20990101000000_example.sql",
+            "supabase/migrations/20990101000001_example.sql",
+            ".dependency/internkim-plugin",
+        ]
+        selected = {group.name for group in groups if group.is_touched_by(changed)}
+        self.assertTrue({"go", "web", "schema", "internkim-plugin"} <= selected, selected)
+        for reader in ["web/src/lib/data-room/template.json", ".dependency/internkim-plugin"]:
+            self.assertIn("go", {group.name for group in groups if group.is_touched_by([reader])}, reader)
 
     def test_a_script_line_in_the_package_reaches_no_browser(self):
         groups = verification_module().GROUPS
