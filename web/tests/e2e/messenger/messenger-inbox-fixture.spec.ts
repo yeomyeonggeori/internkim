@@ -171,6 +171,20 @@ test('choosing a channel from the sidebar leaves the inbox', async ({ page }) =>
 	await expect(conversationHeader(page)).toBeVisible();
 });
 
+test('a tapped message notification leaves the open inbox for its conversation', async ({ page }) => {
+	await openMessenger(page, 1280);
+	await expect(inboxPanel(page).locator('[data-inbox-entry]')).toHaveCount(3);
+
+	await page.evaluate(async () => {
+		const cache = await caches.open('internkim-notification-destination');
+		await cache.put('/internkim/notification-destination', new Response('/messenger/?channel=channel-1'));
+		window.dispatchEvent(new Event('focus'));
+	});
+
+	await expect(inboxPanel(page)).toBeHidden();
+	await expect(conversationHeader(page)).toBeVisible();
+});
+
 test('on a phone the inbox fills the screen until an entry is chosen', async ({ page }) => {
 	await openMessenger(page, 390);
 	const panel = inboxPanel(page);
