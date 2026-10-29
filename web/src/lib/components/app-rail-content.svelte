@@ -25,12 +25,10 @@
 			<AppRailNavSection items={apps} {currentPath} />
 		</Sidebar.GroupContent>
 	</Sidebar.Group>
-	{#if workspace.length > 0}
-		<Sidebar.Group>
-			<Sidebar.GroupLabel class="group-data-[collapsible=icon]:pointer-events-none">{workspaceLabel}</Sidebar.GroupLabel>
-			<Sidebar.GroupContent>
-				<AppRailNavSection items={workspace} {currentPath} />
-			</Sidebar.GroupContent>
-		</Sidebar.Group>
-	{/if}
+	<Sidebar.Group>
+		<Sidebar.GroupLabel class="group-data-[collapsible=icon]:pointer-events-none">{workspaceLabel}</Sidebar.GroupLabel>
+		<Sidebar.GroupContent>
+			<AppRailNavSection items={workspace} {currentPath} />
+		</Sidebar.GroupContent>
+	</Sidebar.Group>
 </Sidebar.Content>
