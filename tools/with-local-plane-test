@@ -8,6 +8,8 @@ lockPath="$LOCAL_PLANE_STATE_DIRECTORY/internkim-local-plane.lock"
 queuePath="$LOCAL_PLANE_STATE_DIRECTORY/internkim-local-plane.queue"
 lastUsedPath="$LOCAL_PLANE_STATE_DIRECTORY/internkim-local-plane.last-used"
 mkdir -p "$LOCAL_PLANE_STATE_DIRECTORY"
+export LOCAL_PLANE_STOP_TIMEOUT_SECONDS=1
+export LOCAL_PLANE_START_TIMEOUT_SECONDS=1
 fakeState="$runDirectory/state"
 fakeBinaries="$runDirectory/bin"
 checkoutRoot="$runDirectory/checkout"
@@ -23,6 +25,7 @@ stopTheIdleStopsThisTestStarted() {
 
 cleanUp() {
   stopTheIdleStopsThisTestStarted
+  pkill -f "$fakeBinaries/fake-stack-" 2>/dev/null || true
   rm -rf "$runDirectory"
 }
 
@@ -48,15 +51,30 @@ owner=unavailable
 [ -e "$fakeState/stack" ] && owner=reachable
 storage=running
 [ -e "$fakeState/asleep" ] && storage=sleeping
+services='[{"service":"storage","state":"'\$storage'"}]'
+[ -e "$fakeState/start-hangs" ] && services='[{"service":"db","state":"running"},{"service":"auth","state":"starting"},{"service":"realtime","state":"stopped"}]'
 case "\$1 \${2:-}" in
   "--version "*) cat "$fakeState/version" 2>/dev/null || echo 2.119.0 ;;
-  "status "*) printf '{"identity":{"id":"fake-stack"},"owner":"%s","services":[{"service":"storage","state":"%s"}]}\n' "\$owner" "\$storage" ;;
-  "start "*) touch "$fakeState/stack"; [[ " \$* " == *" --eager "* ]] || touch "$fakeState/asleep" ;;
+  "status "*) printf '{"identity":{"id":"fake-stack"},"owner":"%s","services":%s}\n' "\$owner" "\$services" ;;
+  "start "*) [ -e "$fakeState/start-hangs" ] && exec sleep 600; touch "$fakeState/stack"; [[ " \$* " == *" --eager "* ]] || touch "$fakeState/asleep" ;;
   "gen signing-key") echo '{"kty":"EC","kid":"fake"}' ;;
   "stack list") cat "$fakeState/stacks.json" 2>/dev/null || echo '{"stacks":[]}' ;;
-  "stack stop") rm -f "$fakeState/stack" "$fakeState/asleep" ;;
+  "stack stop") [ -e "$fakeState/stop-hangs" ] && exec sleep 600; rm -f "$fakeState/stack" "$fakeState/asleep" ;;
   "stack destroy") rm -f "$fakeState/stack" ;;
 esac
+FAKE
+
+cat > "$fakeBinaries/fake-stack-host" <<'FAKE'
+#!/usr/bin/env bash
+"$(dirname "$0")/fake-stack-native" __supabase_stack_native__ -- "supabase-stack-id=$4" &
+sleep 600 &
+wait
+FAKE
+
+cat > "$fakeBinaries/fake-stack-native" <<'FAKE'
+#!/usr/bin/env bash
+sleep 600 &
+wait
 FAKE
 
 chmod +x "$fakeBinaries"/*
@@ -237,6 +255,66 @@ if called "supabase stack destroy --stack-id unrelated --yes --output-format tex
   fail "the lock destroyed a stack of a project that is not this repository"
 fi
 
+startWedgedStack() {
+  ("$fakeBinaries/fake-stack-host" __supabase_stack_host__ "$runDirectory/stacks" "$runDirectory/cache" "$1" > /dev/null 2>&1 &)
+  local deadline=$(($(date +%s) + 10))
+  until pgrep -f "^sleep 600" -P "$(pgrep -f "supabase-stack-id=$1" | head -1)" > /dev/null 2>&1; do
+    if [ "$(date +%s)" -ge "$deadline" ]; then
+      return 1
+    fi
+    sleep 0.05
+  done
+}
+
+processesOfTheWedgedStack() {
+  local host native
+  host="$(pgrep -f "__supabase_stack_host__ .* $1\$" || true)"
+  native="$(pgrep -f "supabase-stack-id=$1" || true)"
+  printf '%s\n' $host $native
+  for parent in $host $native; do
+    pgrep -P "$parent" || true
+  done
+}
+
+resetFakes stop-hangs
+cat > "$fakeState/stacks.json" <<STACKS
+{"stacks": [
+  {"id": "wedged-stack", "project_root": "$otherCheckout", "branch_context": "refs/heads/other", "runtime": "native"}
+]}
+STACKS
+startWedgedStack wedged-stack || fail "the fake wedged stack never started"
+wedgedProcesses="$(processesOfTheWedgedStack wedged-stack | sort -u | tr '\n' ' ')"
+"$withLocalPlane" sh -c "touch '$runDirectory/ran-past-a-wedged-stack'" 2> "$runDirectory/wedged-diagnostics" && wedgedStatus=0 || wedgedStatus=$?
+if [ "$wedgedStatus" -ne 0 ] || [ ! -e "$runDirectory/ran-past-a-wedged-stack" ]; then
+  fail "a stack whose stop hangs failed an unrelated command"
+  cat "$runDirectory/wedged-diagnostics" >&2
+fi
+for processIdentifier in $wedgedProcesses; do
+  if kill -0 "$processIdentifier" 2>/dev/null; then
+    fail "process $processIdentifier of a stack whose stop hung was left running"
+  fi
+done
+reclaimLine="$(grep "^RECLAIMED the local plane stack wedged-stack of $otherCheckout: .* killed (" "$runDirectory/wedged-diagnostics" || true)"
+for processIdentifier in $wedgedProcesses; do
+  if [[ "$reclaimLine" != *"$processIdentifier "* ]]; then
+    fail "reclaiming a stack whose stop hung did not name process $processIdentifier among what it killed"
+    cat "$runDirectory/wedged-diagnostics" >&2
+  fi
+done
+
+resetFakes start-hangs
+"$withLocalPlane" sh -c "touch '$runDirectory/ran-on-an-unready-plane'" 2> "$runDirectory/unready-diagnostics" && unreadyStatus=0 || unreadyStatus=$?
+if [ "$unreadyStatus" -eq 0 ] || [ -e "$runDirectory/ran-on-an-unready-plane" ]; then
+  fail "the lock ran a command on a plane that never became ready"
+fi
+if ! grep -q "not ready: auth (starting), realtime (stopped)" "$runDirectory/unready-diagnostics"; then
+  fail "the lock gave up on a plane that never became ready without naming the services that were not"
+  cat "$runDirectory/unready-diagnostics" >&2
+fi
+if isAbandoned || [ -e "$lockPath" ]; then
+  fail "the lock outlived a plane that never became ready"
+fi
+
 resetFakes stack
 cat > "$fakeState/stacks.json" <<STACKS
 {"stacks": [
@@ -268,7 +346,7 @@ fi
 
 resetFakes stack
 printf 'idle\n' > "$lastUsedPath"
-"$withLocalPlane" --stop-when-idle idle fake-stack 0 > /dev/null
+"$withLocalPlane" --stop-when-idle idle fake-stack 0 > /dev/null 2>&1
 if [ -e "$fakeState/stack" ]; then
   fail "a plane unused since the last release was not stopped"
 fi
