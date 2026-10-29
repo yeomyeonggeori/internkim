@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
+import { waitForHydration } from '../support/hydration';
 
 const memberID = '10000000-0000-4000-8000-000000000001';
 const companyID = '20000000-0000-4000-8000-000000000001';
@@ -66,6 +67,7 @@ test('a link card whose picture loads shows it above the title', async ({ page }
 	await signInWithOneMessage(page, preview);
 	await page.route(preview.imageURL, (route) => route.fulfill({ contentType: 'image/svg+xml', body: '<svg xmlns="http://www.w3.org/2000/svg" width="191" height="100"/>' }));
 	await page.goto(`/messenger?channel=${channel.id}`);
+	await waitForHydration(page);
 	await expect(card(page).locator('[data-loading-image]')).toHaveAttribute('data-loading-image', 'loaded');
 	await expect(card(page)).toContainText(preview.siteName);
 });
@@ -74,6 +76,7 @@ test('a link card whose picture the site refuses keeps its text and leaves no br
 	await signInWithOneMessage(page, preview);
 	await page.route(preview.imageURL, (route) => route.fulfill({ status: 403, body: 'refused' }));
 	await page.goto(`/messenger?channel=${channel.id}`);
+	await waitForHydration(page);
 	await expect(card(page)).toContainText(preview.description);
 	await expect(card(page).locator('[data-loading-image]')).toHaveCount(0);
 	await expect(card(page).getByText('이미지를 불러올 수 없어요')).toHaveCount(0);
@@ -84,6 +87,7 @@ test('a link card with a video file plays it in place and keeps its link', async
 	await page.route(preview.imageURL, (route) => route.fulfill({ contentType: 'image/svg+xml', body: poster }));
 	await page.route(videoFile.url, () => {});
 	await page.goto(`/messenger?channel=${channel.id}`);
+	await waitForHydration(page);
 	const video = page.locator('[data-link-video="file"]');
 	await expect(video.locator('[data-loading-image]')).toHaveAttribute('data-loading-image', 'loaded');
 	const box = await video.boundingBox();
@@ -104,6 +108,7 @@ test('a link card with a site player frames the player only once asked to play',
 		return route.fulfill({ contentType: 'text/html', body: '<p>player</p>' });
 	});
 	await page.goto(`/messenger?channel=${channel.id}`);
+	await waitForHydration(page);
 	const frame = page.locator('[data-link-video="player"]');
 	await expect(frame.locator('[data-loading-image]')).toHaveAttribute('data-loading-image', 'loaded');
 	expect(isPlayerRequested).toBe(false);
@@ -117,6 +122,7 @@ test('a link card whose video file fails goes back to the picture card', async (
 	await page.route(preview.imageURL, (route) => route.fulfill({ contentType: 'image/svg+xml', body: poster }));
 	await page.route(videoFile.url, (route) => route.fulfill({ status: 404 }));
 	await page.goto(`/messenger?channel=${channel.id}`);
+	await waitForHydration(page);
 	await page.getByRole('button', { name: `${preview.title} 영상 재생` }).click();
 	await expect(page.locator('[data-link-video]')).toHaveCount(0);
 	await expect(card(page).locator('[data-loading-image]')).toHaveAttribute('data-loading-image', 'loaded');
