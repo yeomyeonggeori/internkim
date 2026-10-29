@@ -489,3 +489,27 @@ describe('a leave asked under autonomous work', () => {
 		}
 	});
 });
+
+describe('leave_list read a page at a time', () => {
+	test('walks every row newest first, once, and says when no page is left', async () => {
+		const days = ['2027-02-02', '2027-02-09', '2027-02-16'];
+		for (const day of days) {
+			resultOf(await asSample('leave_request', { kind: '연차', startsAt: day, endsAt: day, days: 1 }));
+		}
+		const window = { from: '2027-02-01', to: '2027-02-28' };
+
+		const first = resultOf(await asSample('leave_list', { ...window, limit: 2 }));
+		const second = resultOf(await asSample('leave_list', { ...window, limit: 2, cursor: first.nextCursor }));
+		const starts = [first, second].flatMap((page) => (page.leave as { startDate: string }[]).map((row) => row.startDate));
+
+		expect(first.totalCount).toBe(3);
+		expect(first.count).toBe(2);
+		expect(starts).toEqual([...days].reverse());
+		expect(second.nextCursor).toBeUndefined();
+	});
+
+	test('refuses a cursor no result gave', async () => {
+		const refused = await asSample('leave_list', { cursor: 'not-a-cursor' });
+		expect(refused.status).toBe(400);
+	});
+});

@@ -1133,5 +1133,25 @@
 		"path": "person_list.result.nextCursor",
 		"reason": "person_list answers a page at a time, and the cursor is how a caller reads the page after this one.",
 		"release": "the release carrying this catalog reaches company hosts by ship-host before the web/API deploy that answers person_list a page at a time; a host still on the older catalog refuses these answers until it takes the catalog"
+	},
+	{
+		"path": "event_list.result.totalCount",
+		"reason": "event_list answers a page at a time, so it says how many entries fall in the window across every page.",
+		"release": "the release carrying this catalog reaches company hosts by ship-host before the web/API deploy that answers event_list a page at a time; a host still on the older catalog refuses these answers until it takes the catalog"
+	},
+	{
+		"path": "event_list.result.nextCursor",
+		"reason": "event_list answers a page at a time, and the cursor is how a caller reads the page after this one.",
+		"release": "the release carrying this catalog reaches company hosts by ship-host before the web/API deploy that answers event_list a page at a time; a host still on the older catalog refuses these answers until it takes the catalog"
+	},
+	{
+		"path": "leave_list.result.totalCount",
+		"reason": "leave_list answers a page at a time, so it says how many rows match across every page.",
+		"release": "the release carrying this catalog reaches company hosts by ship-host before the web/API deploy that answers leave_list a page at a time; a host still on the older catalog refuses these answers until it takes the catalog"
+	},
+	{
+		"path": "leave_list.result.nextCursor",
+		"reason": "leave_list answers a page at a time, and the cursor is how a caller reads the page after this one.",
+		"release": "the release carrying this catalog reaches company hosts by ship-host before the web/API deploy that answers leave_list a page at a time; a host still on the older catalog refuses these answers until it takes the catalog"
 	}
 ]

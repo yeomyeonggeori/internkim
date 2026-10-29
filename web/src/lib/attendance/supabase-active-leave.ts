@@ -1,7 +1,7 @@
 import { invokeTool } from '$lib/public-api-call';
 import { companyDateOf, companyTimeOf } from '$lib/company-time';
 import { supabaseLeaveTypeDirectory } from './supabase-leave-types';
-import type { RecordLeave, RecordLeaveList } from './attendance-record';
+import { leaveOf, type RecordLeave, type RecordLeaveList } from './attendance-record';
 import type { AttendanceActiveLeave } from '../../routes/attendance/attendance-context.svelte';
 
 export async function supabaseActiveLeave(
@@ -10,7 +10,7 @@ export async function supabaseActiveLeave(
 	knownLeave?: RecordLeave[]
 ): Promise<AttendanceActiveLeave | undefined> {
 	const today = companyDateOf(now, timeZone);
-	const mine = knownLeave ?? (await invokeTool<RecordLeaveList>('leave_list', {
+	const mine = knownLeave ?? (await leaveOf({
 		status: 'approved',
 		from: today,
 		to: today
