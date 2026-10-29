@@ -60,7 +60,7 @@ function devServerFor(plane: Plane) {
 		url,
 		timeout: 120_000,
 		reuseExistingServer: false,
-		env: planeEnvironments[plane]
+		env: { VITE_ADMIND_TARGET: '', ...planeEnvironments[plane] }
 	};
 }
 
