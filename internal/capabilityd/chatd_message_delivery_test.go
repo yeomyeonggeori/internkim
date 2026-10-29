@@ -134,12 +134,16 @@ func TestChatdMessageSearchNeedsATargetToRead(testContext *testing.T) {
 
 func TestChatdMessageSearchReadsAChannelsOwnRecord(testContext *testing.T) {
 	chatdServer := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		if request.URL.Path == "/v1/platform/buzz/channels.list" {
+			writer.Write([]byte(`{"channels":[{"channelID":"channel-1","name":"잡담"}]}`))
+			return
+		}
 		if request.URL.Path != "/v1/platform/buzz/message.search" {
 			testContext.Fatalf("unexpected chatd path %s", request.URL.Path)
 		}
 		body, _ := io.ReadAll(request.Body)
-		if !strings.Contains(string(body), `"channelName":"잡담"`) || !strings.Contains(string(body), `"authoredBy":"assistant"`) {
-			testContext.Fatalf("expected the channel name and author to travel, got %s", body)
+		if !strings.Contains(string(body), `"channelID":"channel-1"`) || !strings.Contains(string(body), `"authoredBy":"assistant"`) {
+			testContext.Fatalf("expected the resolved channel and author to travel, got %s", body)
 		}
 		writer.Write([]byte(`{"channelID":"channel-1","candidates":[
 			{"messageID":"m2","channelID":"channel-1","authorPubkeyHex":"pub-agent","authoredByAssistant":true,"createdAt":1787886000000,"text":"번역 안내","score":1}
