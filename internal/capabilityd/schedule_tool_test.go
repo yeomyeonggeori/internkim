@@ -40,7 +40,7 @@ func TestScheduleListReachesAdmindAsRequesterAndKeepsExactResult(t *testing.T) {
 		reachedRequester = request.Header.Get(admindRequesterEmailHeader)
 		reachedBody = string(body)
 		responseWriter.Header().Set("Content-Type", "application/json")
-		_, _ = responseWriter.Write([]byte(`{"schedules":[{"scheduleID":"schedule-1","taskInstruction":"full instruction","cadence":"cron","status":"failed"}]}`))
+		_, _ = responseWriter.Write([]byte(`{"schedules":[{"scheduleID":"schedule-1","taskInstruction":"full instruction","cadence":"cron","status":"failed"}],"totalCount":1}`))
 	}))
 	service := Service{Configuration: Configuration{AdmindSocketPath: socketPath}}
 

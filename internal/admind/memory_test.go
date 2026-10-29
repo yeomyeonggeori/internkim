@@ -133,6 +133,9 @@ func TestScheduleToolListSignsTheActiveRequesterAndForwardsExactInput(t *testing
 		if errorValue != nil {
 			t.Fatal(errorValue)
 		}
+		if string(body) == `{"cursor":"invented"}` {
+			return jsonResponse(http.StatusBadRequest, `cursor is not one a previous schedule_list result gave`, nil), nil
+		}
 		if string(body) != `{"status":"failed","limit":1}` {
 			t.Fatalf("schedule input = %s", body)
 		}
@@ -154,6 +157,13 @@ func TestScheduleToolListSignsTheActiveRequesterAndForwardsExactInput(t *testing
 	service.router().ServeHTTP(response, arrivingOnTheRequesterSocket(request))
 	if response.Code != http.StatusBadRequest {
 		t.Fatalf("trailing JSON status = %d, want %d", response.Code, http.StatusBadRequest)
+	}
+	request = httptest.NewRequest(http.MethodPost, "/memory/api/schedules/tool-list", strings.NewReader(`{"cursor":"invented"}`))
+	request.Header.Set(requesterEmailHeader, "member@example.com")
+	response = httptest.NewRecorder()
+	service.router().ServeHTTP(response, arrivingOnTheRequesterSocket(request))
+	if response.Code != http.StatusBadRequest || !strings.Contains(response.Body.String(), "cursor") {
+		t.Fatalf("a refused cursor reaches the caller as the refusal, got %d %s", response.Code, response.Body.String())
 	}
 }
 
