@@ -295,7 +295,10 @@
 
 	afterNavigate((navigation) => {
 		const requestedID = navigation.to?.url.searchParams.get('channel');
-		if (!requestedID || activeID === undefined || requestedID === activeID) return;
+		if (!requestedID) return;
+		isInboxOpen = false;
+		chosenInboxEntryID = undefined;
+		if (activeID === undefined || requestedID === activeID) return;
 		void showChannel(requestedID);
 	});
 
