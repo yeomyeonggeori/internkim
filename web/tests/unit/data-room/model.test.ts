@@ -36,7 +36,7 @@ describe('the company data room template', () => {
 	});
 
 	test('database initialization and the portable skill derive from the same source', () => {
-		const migration = readFileSync(new URL('../../../../supabase/migrations/20261024000001_the_data_room_template_leaves_headcount_to_members.sql', import.meta.url), 'utf8');
+		const migration = readFileSync(new URL('../../../../supabase/migrations/20261029000001_the_company_logo_is_part_of_the_company_profile.sql', import.meta.url), 'utf8');
 		const embedded = migration.split('$json$')[1];
 		expect(JSON.parse(embedded ?? '')).toEqual(dataRoomTemplate);
 		const portable = readFileSync(new URL('../../../../.dependency/internkim-plugin/skills/dataroom/assets/template.json', import.meta.url), 'utf8');
