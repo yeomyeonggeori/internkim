@@ -29,7 +29,13 @@ A screen is a UI test in the directory named after its route, such as
 `web/tests/e2e/crm/` for `/crm`. Screens that belong to no single route, like the
 navigation rail or the workspace loading states, live in `web/tests/e2e/shell/`.
 Cover the states a person actually meets: loading, empty, an error, a missing
-permission and a phone-width screen.
+permission and a phone-width screen. The widths are named once, in
+`web/tests/e2e/support/screen-widths.ts`. A state runs at `everyScreen`, a
+desktop and a phone. A spec whose subject is whether the layout fits runs at
+`everyLayoutBand`, the narrowest width of each band the breakpoints divide.
+
+A UI test drives the screen and asserts what is on it. It never imports an app
+module into the page: logic it would reach for is a unit test of that module.
 
 The file name says which plane the screen runs against:
 
@@ -39,6 +45,11 @@ The file name says which plane the screen runs against:
 | `-fixture.spec.ts` | an address the test answers itself with `page.route` | the test must hold a response back or shape it exactly |
 | `-mocked.spec.ts` | the dev server's sample data (`VITE_MOCK_*`) | the screen is host-backed and the sample data is enough |
 | `.spec.ts` | no central plane | the screen works without one, like the messenger against a stubbed relay |
+
+The central, fixture and standalone planes run on one build of the app, served
+by `vite preview`, so a test meets the same bundled CSS and JavaScript a person
+does. The mocked plane runs on the dev server, where its sample data lives. Only
+the servers of the projects a run names start.
 
 Each worker running `-central` specs signs in to a company of its own, a copy
 of the example company that `supabase/seed.dev.sql` seeds once per worker. The
