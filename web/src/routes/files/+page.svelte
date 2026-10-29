@@ -3,7 +3,6 @@
 	import { onMount } from 'svelte';
 	import * as Breadcrumb from '$lib/components/ui/breadcrumb';
 	import * as FileDropZone from '$lib/components/ui/file-drop-zone';
-	import * as Select from '$lib/components/ui/select';
 	import { Button, buttonVariants } from '$lib/components/ui/button';
 	import { Spinner } from '$lib/components/ui/spinner';
 	import { Skeleton } from '$lib/components/ui/skeleton';
@@ -13,7 +12,6 @@
 	import { currentLocale } from '$lib/i18n/locale.svelte';
 	import UploadIcon from '@lucide/svelte/icons/upload';
 	import FileDetail from './file-detail.svelte';
-	import FilesSidebar from './files-sidebar.svelte';
 	import { getFilesState } from './files-context.svelte';
 	import { formatFileSize, formatModified } from '$lib/files/view';
 	import { filesText } from './text';
@@ -72,7 +70,6 @@
 </script>
 
 <div class="flex h-full min-h-0">
-	<FilesSidebar />
 	<div class="min-w-0 flex-1 overflow-auto p-4 sm:p-6">
 		{#if files.errorMessage}
 			<div role="alert" class="mb-4 flex items-center justify-between gap-3">
@@ -83,19 +80,6 @@
 		<FileDropZone.Root onUpload={(uploaded) => files.upload(uploaded)} disabled={files.isUploading}>
 			<div class="flex flex-col gap-4">
 				<div class="flex min-w-0 flex-wrap items-center gap-2 md:flex-nowrap md:items-end md:justify-between {hasLocation ? '' : 'max-md:hidden'}">
-					{#if hasLocation}
-						<Select.Root type="single" value={files.currentRoot?.id ?? ''} onValueChange={(id) => {
-							const root = files.roots.find((root) => root.id === id);
-							if (root) void files.openRoot(root);
-						}}>
-							<Select.Trigger aria-label={text.roots} class="min-w-0 flex-1 md:hidden"><span class="min-w-0 truncate">{files.currentRoot?.label ?? text.roots}</span></Select.Trigger>
-							<Select.Content><Select.Group>
-								{#each files.roots as root (root.id)}
-									<Select.Item value={root.id} label={root.label}><span class="min-w-0 whitespace-normal break-words">{root.label}</span></Select.Item>
-								{/each}
-							</Select.Group></Select.Content>
-						</Select.Root>
-					{/if}
 					<Breadcrumb.Root class="min-w-0 max-w-full overflow-x-auto max-md:order-last max-md:basis-full {files.breadcrumbs.length > 1 ? '' : 'max-md:hidden'}">
 						<Breadcrumb.List class="w-max flex-nowrap">
 							{#if files.isLoading && files.breadcrumbs.length === 0}

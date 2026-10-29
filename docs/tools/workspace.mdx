@@ -74,8 +74,7 @@ system-modifying command simply fails for an unprivileged actor. The
 | `private/people/<personID>/tmp/<task>` | you | drafts and build intermediates |
 | `private/people/<personID>/artifacts/<slug>` | you | finished personal output |
 | `private/protected/<personID>` | the service writes, you read | your memory |
-| `circles/<circleID>` | the circle's group | deliberate team sharing |
-| `shared/public` | everyone; safe for outsiders | externally shareable content |
+| `circles/<circleID>` | the service writes, the circle reads | that circle's memory |
 | `shared/cache/dependencies` | everyone | package caches only |
 | `skills` | read and execute | bundled skill source |
 | `.blueclaw` | the service only | policy, logs, internal state |
@@ -91,8 +90,9 @@ reply        attachments           the runtime attaches them to what you receive
 
 `tmp/` is ephemeral and `artifacts/` is durable; the artifact manifest
 (`internal/agentruntime/artifact_manifest.go`) tracks what a task produced by
-those paths. Work for the team goes to a circle directory, and only content
-safe to show outsiders goes to `shared/public`.
+those paths. A direct message and a group conversation both work in the
+requester's home. What someone else should read is filed in the
+[data room](/docs/data-room/agent).
 
 ## Skills [#skills]
 

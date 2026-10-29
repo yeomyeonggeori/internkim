@@ -102,8 +102,8 @@ test('an old directory request cannot overwrite a newly selected root', async ()
 	const gate = Promise.withResolvers<WorkspaceEntry[]>();
 	entries = () => gate.promise;
 	const oldRead = state.reload();
-	entries = async () => [{ ...entry, name: 'new-root.md', agentPath: '/workspace/shared/new-root.md' }];
-	await state.openRoot({ id: 'public', label: 'Public', kind: 'public', agentPath: '/workspace/shared' });
+	entries = async () => [{ ...entry, name: 'new-root.md', agentPath: '/workspace/private/people/other/new-root.md' }];
+	await state.openRoot({ id: 'other', label: 'Other', kind: 'personal', agentPath: '/workspace/private/people/other' });
 	gate.reject(new FilesReadError('Old root denied', 403));
 	await oldRead;
 	expect(state.currentEntries[0].name).toBe('new-root.md');
@@ -116,8 +116,8 @@ test('A to B to A starts a fresh A read without an older pending A request suppr
 	const oldGate = Promise.withResolvers<WorkspaceEntry[]>();
 	entries = () => oldGate.promise;
 	const oldRead = state.reload();
-	entries = async () => [{ ...entry, agentPath: '/workspace/shared/public.md', name: 'public.md' }];
-	await state.openRoot({ id: 'public', label: 'Public', kind: 'public', agentPath: '/workspace/shared' });
+	entries = async () => [{ ...entry, agentPath: '/workspace/private/people/other/other.md', name: 'other.md' }];
+	await state.openRoot({ id: 'other', label: 'Other', kind: 'personal', agentPath: '/workspace/private/people/other' });
 	const currentGate = Promise.withResolvers<WorkspaceEntry[]>();
 	let currentReads = 0;
 	entries = () => { currentReads += 1; return currentGate.promise; };
