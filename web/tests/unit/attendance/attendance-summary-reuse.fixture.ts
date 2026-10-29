@@ -79,7 +79,7 @@ describe('attendance summary record reuse', () => {
 			scope: 'all', from: '2026-07-31', to: '2026-09-06'
 		});
 		expect(asked.find((call) => call.name === 'leave_list')?.input).toEqual({
-			scope: 'all', status: 'approved', from: '2026-08-01', to: '2026-09-06'
+			scope: 'all', status: 'approved', from: '2026-08-01', to: '2026-09-06', limit: 100
 		});
 		expect(asked.some((call) => call.name === 'company_settings_get' || call.name === 'person_list')).toBe(false);
 	});

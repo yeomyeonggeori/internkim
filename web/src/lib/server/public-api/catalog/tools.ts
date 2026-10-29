@@ -47,6 +47,7 @@ import {
   WorkspaceTaskSize,
   WorkspaceTaskStatus,
 } from './workspace-task';
+import { listCursorSchema, listLimitSchema, listNextCursorSchema, listTotalCountSchema } from './list-page';
 
 export {
   WorkspaceTaskInitialStatus,
@@ -628,7 +629,8 @@ export const calendarListInputSchema = z.strictObject({
   query: z.string().describe('Optional free-text filter matched against event titles, notes, and locations.').optional(),
   personHints: z.array(z.string()).describe(personHintsDescription('calendar entries')).optional(),
   scope: z.enum(WorkspaceTaskScope).describe(whoseScopeDescription('calendar entries')).optional(),
-  limit: z.number().positive().refine(Number.isInteger, 'Limit must be a whole number.').describe('Maximum number of events to return.').optional(),
+  limit: listLimitSchema('entries').optional(),
+  cursor: listCursorSchema('event_list').optional(),
 });
 
 const calendarEventHintSchema = z.string().min(1).max(256).describe(
@@ -664,6 +666,8 @@ export const calendarEntryResultSchema = calendarEventResultSchema.extend({
 
 export const calendarListResultSchema = z.strictObject({
   events: z.array(calendarEntryResultSchema),
+  totalCount: listTotalCountSchema('entries'),
+  nextCursor: listNextCursorSchema('entries').optional(),
 });
 
 export const calendarDeleteResultSchema = z.strictObject({
@@ -1137,7 +1141,8 @@ export const leaveListInputSchema = z.strictObject({
   from: z.string().describe(`Earliest day to include. ${momentDescription} Omit for no lower bound.`).optional(),
   to: z.string().describe(`Latest day to include. ${momentDescription} Omit for no upper bound.`).optional(),
   status: z.enum(WorkspaceLeaveStatus).describe('Filter by status. Omit the field to return every status.').optional(),
-  limit: z.number().describe('Maximum number of rows to return.').optional(),
+  limit: listLimitSchema('rows').optional(),
+  cursor: listCursorSchema('leave_list').optional(),
 });
 
 export const leaveBalanceInputSchema = z.strictObject({
@@ -1202,7 +1207,9 @@ export const leaveResultSchema = z.strictObject({
 
 export const leaveListResultSchema = z.strictObject({
   leave: z.array(leaveResultSchema),
-  count: z.number().int(),
+  count: z.number().int().describe('How many rows this page holds.'),
+  totalCount: listTotalCountSchema('rows'),
+  nextCursor: listNextCursorSchema('rows').optional(),
   scope: z.string(),
   personID: z.string().nullable(),
   personName: z.string(),
@@ -1431,7 +1438,7 @@ const calendarToolDefinitions: CapabilityToolDefinition[] = [
     answeredBy: CapabilityAnsweredBy.Record,
     privacyClass: 'workspace_calendar',
     policyResource: 'tool:event_list',
-    description: "List calendar entries in a concrete time window. Reads the requester's own schedule unless personHints names other people or scope is all. Personal schedules include events they attend and company-open events. Each entry names its source; approved leave is read-only. Resolve natural-language dates to startsAt and endsAt before calling.",
+    description: "List calendar entries in a concrete time window. Reads the requester's own schedule unless personHints names other people or scope is all. Personal schedules include events they attend and company-open events. Each entry names its source; approved leave is read-only. Resolve natural-language dates to startsAt and endsAt before calling. A nextCursor in the result means more entries fall in the window than this page holds: read the next page before concluding that an entry is not there.",
     version: '4',
     estimatedLatency: CapabilityEstimatedLatency.Low,
     inputSchema: calendarListInputSchema,
@@ -1844,7 +1851,7 @@ const leaveToolDefinitions: CapabilityToolDefinition[] = [
     answeredBy: CapabilityAnsweredBy.Record,
     privacyClass: 'workspace_leave',
     policyResource: 'tool:leave_list',
-    description: "List leave in the record. Use this to answer 'when am I off', 'who is away next week', or 'what have I not had decided yet'. It reads the requester's own leave unless personHints names other people or scope is all. registeredKinds in the result names the leave types this company offers, which is what leave_request takes.",
+    description: "List leave in the record. Use this to answer 'when am I off', 'who is away next week', or 'what have I not had decided yet'. It reads the requester's own leave unless personHints names other people or scope is all. registeredKinds in the result names the leave types this company offers, which is what leave_request takes. A nextCursor in the result means more leave matches than this page holds: read the next page before concluding that somebody is not away.",
     version: '2',
     estimatedLatency: CapabilityEstimatedLatency.Low,
     inputSchema: leaveListInputSchema,

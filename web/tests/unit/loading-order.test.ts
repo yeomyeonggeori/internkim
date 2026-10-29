@@ -16,7 +16,7 @@ test('mail deep links skip INBOX and the first body, and resolve later pages fro
 test('leave approvals start independent reads together and retain only ordered pending requests', async () => {
 	expect(await outcome('approval')).toEqual({
 		started: ['attendance_leave_policy_get', 'leave_list', 'company_settings_get', 'person_list'],
-		input: { scope: 'all', status: 'requested' },
+		input: { scope: 'all', status: 'requested', limit: 100 },
 		pending: ['earlier', 'later'], historicalLabel: true, refused: true
 	});
 }, ownProcessTimeoutMilliseconds);

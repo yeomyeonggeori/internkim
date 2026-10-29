@@ -93,7 +93,7 @@ export function attendancePreviewAnswer(name: string, input: Record<string, unkn
  }
  if(name==='leave_list') {
   const leave = previewState==='empty'?[]:previewLeaves.filter(row=>(input.scope==='all'||(Array.isArray(input.personHints)?input.personHints.includes(row.personID):row.personID===own.memberID))&&(!input.status||row.status===input.status)&&(!input.from||row.endDate>=String(input.from))&&(!input.to||row.startDate<=String(input.to)));
-  return {count:leave.length,leave,registeredKinds:['annual','paid','unpaid']};
+  return {count:leave.length,totalCount:leave.length,leave,registeredKinds:['annual','paid','unpaid']};
  }
  if(name==='leave_balance') {
   const people=input.scope==='all'?previewMembers:input.personHint?previewMembers.filter(m=>m.email===input.personHint||m.memberID===input.personHint):[own];
