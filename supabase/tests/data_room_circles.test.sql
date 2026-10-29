@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(37);
+select plan(39);
 
 insert into auth.users (id, email, email_confirmed_at) values
   ('62000000-0000-0000-0000-000000000001', 'data-admin@example.com', now()),
@@ -14,6 +14,8 @@ insert into public.member (id, company_id, user_id, email, status, is_admin)
 
 select is((select count(*) from public.data_room_category where company_id = '62000000-0000-0000-0000-000000000010'), 48::bigint, 'a company starts with the fixed taxonomy and X');
 select is((select count(*) from public.circle where company_id = '62000000-0000-0000-0000-000000000010'), 8::bigint, 'a company starts with eight circles');
+select is((select name_ko from public.data_room_category where company_id = '62000000-0000-0000-0000-000000000010' and code = 'X'), '미분류', 'X is named unclassified');
+select ok((select description like '%logo%' from public.data_room_category where company_id = '62000000-0000-0000-0000-000000000010' and code = 'GP'), 'the company logo is filed with the company profile members read');
 
 insert into public.company_document (id, company_id, document_type, title, category_code, storage_path)
 values
