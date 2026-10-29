@@ -7,7 +7,7 @@ import {
 	seedCRMActivity,
 	signInToTheCRM
 } from './crm-central-test-utils';
-import { everyLayoutBand, smallBreakpointWidth } from '../support/screen-widths';
+import { everyScreen, smallBreakpointWidth } from '../support/screen-widths';
 
 test.use({ locale: 'ko-KR' });
 
@@ -47,7 +47,7 @@ test.afterAll(async () => {
 test('fits every CRM table to its content with the name column absorbing the slack', async ({ page }) => {
 	test.setTimeout(150_000);
 
-	for (const width of everyLayoutBand) {
+	for (const width of everyScreen) {
 		await page.setViewportSize({ width, height: 900 });
 		await signInToTheCRM(page);
 		await expectNoHorizontalOverflow(page.locator('html'));
