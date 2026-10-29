@@ -1,7 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { crmStageSettles, isCRMStage, type CRMStage } from '$lib/crm/crm-stage';
 import { convertedAmount } from '$lib/server/converted-amount';
-import { frankfurterProvider } from '$lib/server/exchange-rates';
+import type { ExchangeRateProvider } from '$lib/server/exchange-rates';
 import { minorOfMoney, storedMoneyOf } from '$lib/server/stored-money';
 import type { Money } from '$lib/money';
 import {
@@ -99,8 +99,6 @@ export type CRMOpportunityWritten = {
 	fundingRoundHint?: string;
 	stage?: string;
 };
-
-const exchangeRates = frankfurterProvider();
 
 function searchableText(value: string): string {
 	return value.trim().toLowerCase().split(/\s+/).join('');
@@ -575,7 +573,8 @@ async function handedOverOpportunity(
 
 export async function crmOpportunityMove(
 	context: RecordContext,
-	input: CRMOpportunityMoveInput
+	input: CRMOpportunityMoveInput,
+	exchangeRates: ExchangeRateProvider
 ): Promise<CRMOpportunityResult> {
 	const row = await opportunityOfCRMHint(context, hintOf(input.opportunityHint, 'deal'));
 	const stage = stageWritten(input.stage);
@@ -583,7 +582,7 @@ export async function crmOpportunityMove(
 
 	const company = await crmCompanyRow(context.caller);
 	const settled = crmStageSettles(stage)
-		? await settledAmountOf(row, company.currency_code, input.finalAmount)
+		? await settledAmountOf(exchangeRates, row, company.currency_code, input.finalAmount)
 		: null;
 
 	const { data, error } = await context.caller.rpc('crm_opportunity_close', {
@@ -621,6 +620,7 @@ async function reorderedOpportunity(
 }
 
 async function settledAmountOf(
+	exchangeRates: ExchangeRateProvider,
 	row: OpportunityRow,
 	companyCurrency: string,
 	finalAmount: Money | undefined

@@ -299,15 +299,12 @@ test('opens in the company base currency and re-denominates amounts when the vie
 	const viewCurrency = page.getByRole('tabpanel', { name: '거래' }).getByLabel('보기 통화');
 	await expect(viewCurrency).toHaveText(/USD/, { timeout: 20000 });
 	const amount = await cellUnder(page, row, '금액');
-	await expect(amount).toHaveText(/^\$/, { timeout: 20000 });
-	const inDollars = (await amount.innerText()).trim();
+	await expect(amount).toHaveText('$1.2만', { timeout: 20000 });
 
 	await viewCurrency.click();
 	await chooseCurrencyOption(page, 'KRW');
 	await expect(viewCurrency).toHaveText(/KRW/, { timeout: 20000 });
-	await expect(amount).not.toHaveText(inDollars, { timeout: 20000 });
-	await expect(amount).toHaveText(/^₩/, { timeout: 20000 });
-	await expect(amount).toHaveText(/만|억/, { timeout: 20000 });
+	await expect(amount).toHaveText('₩1,800만', { timeout: 20000 });
 });
 
 test('sorting the open amount column orders the accounts by value both ways', async ({ page }) => {

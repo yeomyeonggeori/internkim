@@ -37,7 +37,7 @@ const planeEnvironments: Record<Plane, Record<string, string>> = {
 };
 
 const freePortsProgram = `
-const servers = Array.from({ length: ${planes.length} }, () => Bun.listen({ hostname: '127.0.0.1', port: 0, socket: { data() {} } }));
+const servers = Array.from({ length: ${planes.length + 1} }, () => Bun.listen({ hostname: '127.0.0.1', port: 0, socket: { data() {} } }));
 console.log(servers.map((server) => server.port).join(','));
 for (const server of servers) server.stop(true);
 `;
@@ -48,6 +48,15 @@ const serverPorts = process.env.E2E_SERVER_PORTS.split(',');
 function baseURLOf(plane: Plane): string {
 	return `http://127.0.0.1:${serverPorts[planes.indexOf(plane)]}`;
 }
+
+const exchangeRateStandInPort = serverPorts[planes.length];
+const exchangeRateStandInURL = `http://127.0.0.1:${exchangeRateStandInPort}/v2`;
+
+const exchangeRateStandIn = {
+	command: `bun tests/support/exchange-rate-stand-in.ts ${exchangeRateStandInPort}`,
+	url: `${exchangeRateStandInURL}/currencies`,
+	reuseExistingServer: false
+};
 
 function specsOn(plane: Exclude<Plane, 'standalone'>): RegExp {
 	return new RegExp(`-${plane}\\.spec\\.ts$`);
@@ -85,7 +94,7 @@ function webServersFor(selected: Plane[]) {
 			url,
 			timeout: plane === firstBuiltPlane ? 600_000 : 120_000,
 			reuseExistingServer: false,
-			env: { VITE_ADMIND_TARGET: '', ...planeEnvironments[plane] }
+			env: { VITE_ADMIND_TARGET: '', FRANKFURTER_URL: exchangeRateStandInURL, ...planeEnvironments[plane] }
 		};
 	});
 }
@@ -109,6 +118,6 @@ export default defineConfig({
 		})),
 		{ name: 'standalone', testIgnore: namedPlanes.map(specsOn), use: { baseURL: baseURLOf('standalone') } }
 	],
-	webServer: webServersFor(selectedPlanes()),
+	webServer: [exchangeRateStandIn, ...webServersFor(selectedPlanes())],
 	reporter: [['list']]
 });
