@@ -133,7 +133,7 @@ func workspaceFilesRequest(t *testing.T, service *Service, method string, target
 	return recorder
 }
 
-func TestWorkspaceFilesRootsListsOwnMemberCirclesAndShared(t *testing.T) {
+func TestWorkspaceFilesRootsListOnlyThePersonalWorkspace(t *testing.T) {
 	service, _ := newWorkspaceFilesTestService(t)
 	recorder := workspaceFilesRequest(t, service, http.MethodGet, "/files/api/roots", "me@example.com", nil, "")
 	if recorder.Code != http.StatusOK {
@@ -145,48 +145,29 @@ func TestWorkspaceFilesRootsListsOwnMemberCirclesAndShared(t *testing.T) {
 	if errorValue := json.Unmarshal(recorder.Body.Bytes(), &response); errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	agentPaths := map[string]bool{}
-	for _, root := range response.Roots {
-		agentPaths[root.AgentPath] = true
-	}
-	for _, expected := range []string{"/workspace/private/people/person-me", "/workspace/circles/engineering", "/workspace/circles/member", "/workspace/shared/public"} {
-		if !agentPaths[expected] {
-			t.Fatalf("missing root %q in %+v", expected, response.Roots)
-		}
-	}
-	if agentPaths["/workspace/circles/design"] {
-		t.Fatalf("non-member circle leaked into roots: %+v", response.Roots)
+	if len(response.Roots) != 1 || response.Roots[0].AgentPath != "/workspace/private/people/person-me" {
+		t.Fatalf("expected the personal workspace alone; what is shared lives in the data room, got %+v", response.Roots)
 	}
 }
 
-func TestWorkspaceFilesListAllowsOwnCircleAndShared(t *testing.T) {
+func TestWorkspaceFilesListAllowsOwnHome(t *testing.T) {
 	service, _ := newWorkspaceFilesTestService(t)
-	cases := []struct {
-		path     string
-		expected string
-	}{
-		{"/workspace/private/people/person-me", "note.txt"},
-		{"/workspace/circles/engineering", "spec.md"},
-		{"/workspace/shared/public", "readme.txt"},
+	recorder := workspaceFilesRequest(t, service, http.MethodGet, "/files/api/list?path=/workspace/private/people/person-me", "me@example.com", nil, "")
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("status = %d body = %s", recorder.Code, recorder.Body.String())
 	}
-	for _, testCase := range cases {
-		recorder := workspaceFilesRequest(t, service, http.MethodGet, "/files/api/list?path="+testCase.path, "me@example.com", nil, "")
-		if recorder.Code != http.StatusOK {
-			t.Fatalf("list %q status = %d body = %s", testCase.path, recorder.Code, recorder.Body.String())
-		}
-		if !strings.Contains(recorder.Body.String(), testCase.expected) {
-			t.Fatalf("list %q missing %q: %s", testCase.path, testCase.expected, recorder.Body.String())
-		}
+	if !strings.Contains(recorder.Body.String(), "note.txt") {
+		t.Fatalf("listing missing note.txt: %s", recorder.Body.String())
 	}
 }
 
 func TestWorkspaceFilesListCarriesHowManyEntriesAFolderHolds(t *testing.T) {
 	service, workspaceDirectory := newWorkspaceFilesTestService(t)
-	seedWorkspaceFile(t, workspaceDirectory, "circles/engineering/drafts/outline.md", "outline")
-	if errorValue := os.MkdirAll(filepath.Join(workspaceDirectory, "circles/engineering/empty"), 0o755); errorValue != nil {
+	seedWorkspaceFile(t, workspaceDirectory, "private/people/person-me/drafts/outline.md", "outline")
+	if errorValue := os.MkdirAll(filepath.Join(workspaceDirectory, "private/people/person-me/empty"), 0o755); errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	recorder := workspaceFilesRequest(t, service, http.MethodGet, "/files/api/list?path=/workspace/circles/engineering", "me@example.com", nil, "")
+	recorder := workspaceFilesRequest(t, service, http.MethodGet, "/files/api/list?path=/workspace/private/people/person-me", "me@example.com", nil, "")
 	if recorder.Code != http.StatusOK {
 		t.Fatalf("status = %d body = %s", recorder.Code, recorder.Body.String())
 	}
@@ -206,7 +187,7 @@ func TestWorkspaceFilesListCarriesHowManyEntriesAFolderHolds(t *testing.T) {
 	if count := entryCountByName["empty"]; count == nil || *count != 0 {
 		t.Fatalf("expected empty to hold none, got %s", recorder.Body.String())
 	}
-	if entryCountByName["spec.md"] != nil {
+	if entryCountByName["note.txt"] != nil {
 		t.Fatalf("expected a file to carry no entry count, got %s", recorder.Body.String())
 	}
 }
@@ -222,7 +203,9 @@ func TestWorkspaceFilesListExcludesBlueclawInternals(t *testing.T) {
 func TestWorkspaceFilesDeniesForbiddenPaths(t *testing.T) {
 	service, _ := newWorkspaceFilesTestService(t)
 	forbidden := []string{
+		"/workspace/circles/engineering",
 		"/workspace/circles/design",
+		"/workspace/shared/public",
 		"/workspace/private/people/person-other",
 		"/workspace/private/people/person-me/../person-other",
 		"/workspace/shared",
@@ -265,11 +248,11 @@ func TestWorkspaceFilesDownloadAndDenial(t *testing.T) {
 func TestWorkspaceFilesUploadWritesIntoAllowedDirectoryAndDeniesOthers(t *testing.T) {
 	service, workspaceDirectory := newWorkspaceFilesTestService(t)
 	body, contentType := buildWorkspaceUploadBody(t, "upload.txt", "uploaded-content")
-	recorder := workspaceFilesRequest(t, service, http.MethodPost, "/files/api/upload?path=/workspace/circles/engineering", "me@example.com", body, contentType)
+	recorder := workspaceFilesRequest(t, service, http.MethodPost, "/files/api/upload?path=/workspace/private/people/person-me", "me@example.com", body, contentType)
 	if recorder.Code != http.StatusOK {
 		t.Fatalf("upload status = %d body = %s", recorder.Code, recorder.Body.String())
 	}
-	written, errorValue := os.ReadFile(filepath.Join(workspaceDirectory, "circles", "engineering", "upload.txt"))
+	written, errorValue := os.ReadFile(filepath.Join(workspaceDirectory, "private", "people", "person-me", "upload.txt"))
 	if errorValue != nil {
 		t.Fatalf("uploaded file not written: %v", errorValue)
 	}
@@ -277,7 +260,7 @@ func TestWorkspaceFilesUploadWritesIntoAllowedDirectoryAndDeniesOthers(t *testin
 		t.Fatalf("uploaded content = %q", string(written))
 	}
 	deniedBody, deniedContentType := buildWorkspaceUploadBody(t, "evil.txt", "x")
-	deniedRecorder := workspaceFilesRequest(t, service, http.MethodPost, "/files/api/upload?path=/workspace/circles/design", "me@example.com", deniedBody, deniedContentType)
+	deniedRecorder := workspaceFilesRequest(t, service, http.MethodPost, "/files/api/upload?path=/workspace/circles/engineering", "me@example.com", deniedBody, deniedContentType)
 	if deniedRecorder.Code != http.StatusForbidden {
 		t.Fatalf("expected 403 upload, got %d body = %s", deniedRecorder.Code, deniedRecorder.Body.String())
 	}
@@ -361,7 +344,6 @@ func TestWorkspaceFilesNameTheReadingPersonToBlueclaw(t *testing.T) {
 	service, _, proxiedQueries := newRecordingWorkspaceFilesTestService(t)
 	reads := []string{
 		"/files/api/list?path=/workspace/private/people/person-me",
-		"/files/api/list?path=/workspace/circles/engineering",
 		"/files/api/download?path=/workspace/private/people/person-me/note.txt",
 	}
 	for _, read := range reads {

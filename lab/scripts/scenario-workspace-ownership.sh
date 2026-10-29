@@ -28,38 +28,31 @@ sync_workspace() {
 }
 
 sync_workspace
-shared_project="$workspace_path/circles/team/sites/sample-site"
+circle_memory="$workspace_path/circles/team/.protected/memory.db"
 private_directory="$workspace_path/private/people/owner/drafts"
-public_directory="$workspace_path/shared/public/sample-site"
 
+runuser -u blueclaw -- bash -c 'printf "circle memory\n" > "$1"' bash "$circle_memory"
 runuser -u bc_person_owner -- bash -c '
-  umask 007
-  mkdir -p "$1"
-  printf "shared content\n" > "$1/readme.txt"
-  printf "#!/bin/sh\nprintf ready\n" > "$1/run.sh"
-  chmod 0770 "$1/run.sh"
   umask 077
-  mkdir -p "$2"
-  printf "private content\n" > "$2/notes.txt"
-  umask 022
-  mkdir -p "$3"
-  printf "public content\n" > "$3/index.html"
-' bash "$shared_project" "$private_directory" "$public_directory"
+  mkdir -p "$1"
+  printf "private content\n" > "$1/notes.txt"
+' bash "$private_directory"
 
 snapshot_ownership() {
   stat -c '%u:%g:%a %n' \
-    "$shared_project" "$shared_project/readme.txt" "$shared_project/run.sh" \
-    "$private_directory" "$private_directory/notes.txt" \
-    "$public_directory" "$public_directory/index.html"
+    "$workspace_path/circles/team" "$circle_memory" \
+    "$private_directory" "$private_directory/notes.txt"
 }
 
 assert_access() {
-  test "$(runuser -u bc_person_reader -- cat "$shared_project/readme.txt")" = 'shared content'
-  test "$(runuser -u bc_person_reader -- "$shared_project/run.sh")" = ready
+  test "$(runuser -u bc_person_reader -- cat "$circle_memory")" = 'circle memory'
   test "$(runuser -u bc_person_owner -- cat "$private_directory/notes.txt")" = 'private content'
-  test "$(runuser -u bc_person_outsider -- cat "$public_directory/index.html")" = 'public content'
-  if runuser -u bc_person_outsider -- cat "$shared_project/readme.txt" >/dev/null 2>&1; then
-    echo 'non-member gained access to the team project' >&2
+  if runuser -u bc_person_owner -- touch "$workspace_path/circles/team/planted.txt" 2>/dev/null; then
+    echo 'a member wrote into a circle directory only the service writes' >&2
+    return 1
+  fi
+  if runuser -u bc_person_outsider -- cat "$circle_memory" >/dev/null 2>&1; then
+    echo 'non-member read the circle memory' >&2
     return 1
   fi
   if runuser -u bc_person_reader -- cat "$private_directory/notes.txt" >/dev/null 2>&1; then
@@ -81,4 +74,4 @@ for sync_number in 1 2; do
   assert_access
 done
 printf '%s\n' "$after_ownership"
-echo 'workspace-ownership: preserved across repeated workspace syncs; member access and private boundaries verified'
+echo 'workspace-ownership: preserved across repeated workspace syncs; circle memory, read-only circles and private boundaries verified'

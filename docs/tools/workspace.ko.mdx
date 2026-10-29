@@ -72,8 +72,7 @@ description: 워크스페이스 도구, 그것이 실행되는 POSIX 신원, 완
 | `private/people/<personID>/tmp/<task>` | 본인 | 초안과 빌드 중간물 |
 | `private/people/<personID>/artifacts/<slug>` | 본인 | 완성된 개인 결과물 |
 | `private/protected/<personID>` | 서비스가 쓰고 본인이 읽음 | 본인의 기억 |
-| `circles/<circleID>` | 그 서클의 그룹 | 의도적인 팀 공유 |
-| `shared/public` | 전원; 외부인에게 보여도 안전 | 외부 공유 가능한 콘텐츠 |
+| `circles/<circleID>` | 서비스가 쓰고 서클이 읽음 | 그 서클의 메모리 |
 | `shared/cache/dependencies` | 전원 | 패키지 캐시 전용 |
 | `skills` | 읽기와 실행 | 번들 스킬 소스 |
 | `.blueclaw` | 서비스만 | 폴리시, 로그, 내부 상태 |
@@ -89,8 +88,8 @@ reply        attachments           런타임이 받는 답장에 붙여 줌
 
 `tmp/`는 휘발성이고 `artifacts/`가 영속입니다. 아티팩트 매니페스트
 (`internal/agentruntime/artifact_manifest.go`)가 이 경로들로 태스크가 만든
-것을 추적합니다. 팀을 위한 작업은 서클 디렉터리로 가고, 외부인에게 보여도
-안전한 것만 `shared/public`으로 갑니다.
+것을 추적합니다. DM이든 그룹 대화든 요청자의 홈에서 작업합니다. 다른 사람이
+읽어야 하는 파일은 [데이터룸](/docs/data-room/agent)에 올립니다.
 
 ## 스킬 [#skills]
 

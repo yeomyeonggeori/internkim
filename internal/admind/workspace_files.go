@@ -16,8 +16,6 @@ import (
 const (
 	workspaceAgentRoot         = "/workspace"
 	workspacePrivatePeoplePath = "/workspace/private/people/"
-	workspaceCirclesPath       = "/workspace/circles/"
-	workspacePublicPath        = "/workspace/shared/public"
 )
 
 var errWorkspacePathForbidden = errors.New("workspace path is not accessible")
@@ -39,9 +37,7 @@ type workspaceEntry struct {
 }
 
 type workspaceAccess struct {
-	personID  string
-	circleIDs map[string]bool
-	circles   []adminCircleRecord
+	personID string
 }
 
 func (service *Service) serveFilesPage(responseWriter http.ResponseWriter, request *http.Request) {
@@ -118,17 +114,7 @@ func (service *Service) resolveWorkspaceAccess(request *http.Request) (workspace
 	if personID == "" {
 		return workspaceAccess{}, false, nil
 	}
-	memberCircleIDs := map[string]bool{}
-	for _, circleID := range blueclawCirclesByEmail(policyDocument)[strings.ToLower(strings.TrimSpace(actorEmail))] {
-		memberCircleIDs[strings.ToLower(strings.TrimSpace(circleID))] = true
-	}
-	memberCircles := []adminCircleRecord{}
-	for _, circle := range blueclawAvailableCircles(policyDocument) {
-		if memberCircleIDs[circle.CircleID] {
-			memberCircles = append(memberCircles, circle)
-		}
-	}
-	return workspaceAccess{personID: personID, circleIDs: memberCircleIDs, circles: memberCircles}, true, nil
+	return workspaceAccess{personID: personID}, true, nil
 }
 
 func blueclawPersonIDByEmail(policyDocument map[string]any, email string) string {
@@ -150,27 +136,12 @@ func blueclawPersonIDByEmail(policyDocument map[string]any, email string) string
 }
 
 func (service *Service) writeWorkspaceRoots(responseWriter http.ResponseWriter, request *http.Request, access workspaceAccess) {
-	labels := service.workspaceRootLabels(request.Context())
 	roots := []workspaceRoot{{
 		ID:        "personal",
-		Label:     labels.personal,
+		Label:     service.personalWorkspaceLabel(request.Context()),
 		AgentPath: workspacePrivatePeoplePath + access.personID,
 		Kind:      "personal",
 	}}
-	for _, circle := range access.circles {
-		roots = append(roots, workspaceRoot{
-			ID:        "circle:" + circle.CircleID,
-			Label:     circle.DisplayName,
-			AgentPath: workspaceCirclesPath + circle.CircleID,
-			Kind:      "circle",
-		})
-	}
-	roots = append(roots, workspaceRoot{
-		ID:        "public",
-		Label:     labels.public,
-		AgentPath: workspacePublicPath,
-		Kind:      "public",
-	})
 	service.writeJSON(responseWriter, map[string]any{"roots": roots})
 }
 
@@ -422,18 +393,7 @@ func workspacePathContains(root string, candidate string) bool {
 }
 
 func (access workspaceAccess) allowsAgentPath(agentPath string) bool {
-	if isWithinWorkspaceRoot(agentPath, workspacePublicPath) {
-		return true
-	}
-	if isWithinWorkspaceRoot(agentPath, workspacePrivatePeoplePath+access.personID) {
-		return true
-	}
-	for circleID := range access.circleIDs {
-		if isWithinWorkspaceRoot(agentPath, workspaceCirclesPath+circleID) {
-			return true
-		}
-	}
-	return false
+	return isWithinWorkspaceRoot(agentPath, workspacePrivatePeoplePath+access.personID)
 }
 
 func isWithinWorkspaceRoot(agentPath string, root string) bool {
@@ -445,16 +405,11 @@ func sanitizeContentDispositionFilename(name string) string {
 	return replacer.Replace(name)
 }
 
-type workspaceRootLabelSet struct {
-	personal string
-	public   string
-}
-
-func (service *Service) workspaceRootLabels(ctx context.Context) workspaceRootLabelSet {
+func (service *Service) personalWorkspaceLabel(ctx context.Context) string {
 	if strings.HasPrefix(strings.ToLower(service.workspaceLanguage(ctx)), "en") {
-		return workspaceRootLabelSet{personal: "My workspace", public: "Public"}
+		return "My workspace"
 	}
-	return workspaceRootLabelSet{personal: "개인", public: "공개"}
+	return "개인"
 }
 
 func writeWorkspacePathError(responseWriter http.ResponseWriter, errorValue error) {
