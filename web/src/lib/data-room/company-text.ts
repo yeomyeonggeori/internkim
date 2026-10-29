@@ -2,16 +2,15 @@ import type { Locale } from '$lib/i18n/locale.svelte';
 import type { HolderKind, PeriodKind } from './company';
 
 type CompanyText = {
-	documentsTab: string;
+	documents: string;
 	currency: { label: string; asRecorded: string; converted: (currency: string, date: string) => string };
-	companyTab: string;
+	company: string;
 	legal: string;
 	factGroups: Record<'company' | 'entity' | 'registration', string>;
 	metrics: string;
 	records: string;
 	funding: string;
 	proof: string;
-	contents: string;
 	empty: string;
 	scope: string;
 	attributeNames: Record<string, string>;
@@ -27,7 +26,6 @@ type CompanyText = {
 	highlights: Record<'founded' | 'employees' | 'raised' | 'revenue', string>;
 	yearsOperating: (years: number) => string;
 	rounds: (count: number) => string;
-	documents: (count: number) => string;
 	people: (count: number) => string;
 	change: (percent: string, kind: PeriodKind) => string;
 	projected: string;
@@ -80,16 +78,15 @@ type CompanyText = {
 
 export const dataRoomCompanyText: Record<Locale, CompanyText> = {
 	ko: {
-		documentsTab: '자료',
+		documents: '자료',
 		currency: { label: '표시 통화', asRecorded: '기록된 통화', converted: (currency, date) => `금액은 ${date} 환율로 ${currency}로 환산했습니다.` },
-		companyTab: '회사 소개',
+		company: '회사 소개',
 		legal: '법인 정보',
 		factGroups: { company: '회사', entity: '법인·회계', registration: '등록 정보' },
 		metrics: '주요 지표',
 		records: '연혁',
 		funding: '자금 조달',
 		proof: '주요 실적',
-		contents: '데이터룸 자료',
 		empty: '이 범위에서 보여줄 회사 정보가 없습니다.',
 		scope: '회사 기록에서 바로 읽어 보여줍니다. 기록이 바뀌면 이 화면도 함께 바뀌며, 열람 권한이 있는 분류의 정보만 표시합니다.',
 		attributeNames: { investors: '투자사', leadInvestor: '리드 투자사', valuation: '기업가치', preMoney: '투자 전 기업가치', postMoney: '투자 후 기업가치', instrument: '투자 형태', number: '번호', round: '라운드' },
@@ -105,7 +102,6 @@ export const dataRoomCompanyText: Record<Locale, CompanyText> = {
 		highlights: { founded: '설립', employees: '임직원', raised: '누적 투자 유치', revenue: '매출' },
 		yearsOperating: (years) => `${years}년 차`,
 		rounds: (count) => `${count}개 라운드`,
-		documents: (count) => `자료 ${count}건`,
 		people: (count) => `${new Intl.NumberFormat('ko').format(count)}명`,
 		change: (percent, kind) => `${{ year: '전년 대비', half: '전 반기 대비', quarter: '전 분기 대비', month: '전월 대비', day: '직전 대비' }[kind]} ${percent}`,
 		projected: '전망',
@@ -193,16 +189,15 @@ export const dataRoomCompanyText: Record<Locale, CompanyText> = {
 		}
 	},
 	en: {
-		documentsTab: 'Documents',
+		documents: 'Documents',
 		currency: { label: 'Display currency', asRecorded: 'As recorded', converted: (currency, date) => `Amounts are converted to ${currency} at the ${date} exchange rate.` },
-		companyTab: 'Company',
+		company: 'Company',
 		legal: 'Legal entity',
 		factGroups: { company: 'Company', entity: 'Entity & accounts', registration: 'Registration' },
 		metrics: 'Key metrics',
 		records: 'Timeline',
 		funding: 'Funding',
 		proof: 'Track record',
-		contents: 'In this data room',
 		empty: 'There is no company information in this scope.',
 		scope: 'Read straight from the company record, so this page changes when the record does. Shows only what the categories you can read cover.',
 		attributeNames: { investors: 'Investors', leadInvestor: 'Lead investor', valuation: 'Valuation', preMoney: 'Pre-money valuation', postMoney: 'Post-money valuation', instrument: 'Instrument', number: 'Number', round: 'Round' },
@@ -218,7 +213,6 @@ export const dataRoomCompanyText: Record<Locale, CompanyText> = {
 		highlights: { founded: 'Founded', employees: 'Employees', raised: 'Total raised', revenue: 'Revenue' },
 		yearsOperating: (years) => `Year ${years}`,
 		rounds: (count) => `${count} ${count === 1 ? 'round' : 'rounds'}`,
-		documents: (count) => `${count} ${count === 1 ? 'document' : 'documents'}`,
 		people: (count) => new Intl.NumberFormat('en').format(count),
 		change: (percent, kind) => `${percent} ${{ year: 'YoY', half: 'HoH', quarter: 'QoQ', month: 'MoM', day: 'vs previous' }[kind]}`,
 		projected: 'projected',

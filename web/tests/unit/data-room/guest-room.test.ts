@@ -1,9 +1,10 @@
 import { describe, expect, test } from 'bun:test';
 import {
 	documentsInFolder,
-	guestFolders,
+	listedDocuments,
 	matchingDocuments,
 	sharedFileName,
+	subfolderEntries,
 	type SharedRoom
 } from '../../../src/lib/data-room/guest-room';
 
@@ -42,13 +43,21 @@ const room: SharedRoom = {
 	viewer: null
 };
 
-describe('guestFolders', () => {
-	test('lists each parent before its children and leaves out folders holding nothing', () => {
-		expect(guestFolders(room, 'ko')).toEqual([
-			{ code: 'F', name: '재무', isChild: false, documentCount: 2 },
-			{ code: 'FS', name: '재무제표', isChild: true, documentCount: 1 },
-			{ code: 'FT', name: '세무', isChild: true, documentCount: 1 }
+describe('subfolderEntries', () => {
+	test('opens on the top-level folders and leaves out folders holding nothing', () => {
+		expect(subfolderEntries(room, '', 'ko').map((entry) => [entry.id, entry.name, entry.entryCount])).toEqual([
+			['F', '재무', 2]
 		]);
+		expect(subfolderEntries(room, 'F', 'ko').map((entry) => entry.id)).toEqual(['FS', 'FT']);
+	});
+});
+
+describe('listedDocuments', () => {
+	test('lists what a folder holds itself, and a search reaches into its children', () => {
+		expect(listedDocuments(room, 'F', '')).toEqual([]);
+		expect(listedDocuments(room, 'FS', '').map((shared) => shared.id)).toEqual(['audit']);
+		expect(listedDocuments(room, 'F', '법인세').map((shared) => shared.id)).toEqual(['return']);
+		expect(listedDocuments(room, '', '감사').map((shared) => shared.id)).toEqual(['audit']);
 	});
 });
 

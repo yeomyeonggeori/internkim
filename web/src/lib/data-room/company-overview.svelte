@@ -1,6 +1,4 @@
 <script lang="ts">
-	import ChevronRightIcon from '@lucide/svelte/icons/chevron-right';
-	import FolderIcon from '@lucide/svelte/icons/folder';
 	import GlobeIcon from '@lucide/svelte/icons/globe';
 	import MailIcon from '@lucide/svelte/icons/mail';
 	import PhoneIcon from '@lucide/svelte/icons/phone';
@@ -41,15 +39,9 @@
 		type DataRoomCompany
 	} from './company';
 
-	type Folder = { code: string; name: string; documentCount: number };
 	type Highlight = { key: string; label: string; value: string; note: string };
 
-	let {
-		company: recordedCompany,
-		folders = [],
-		sharedWith,
-		onOpenFolder
-	}: { company: DataRoomCompany; folders?: Folder[]; sharedWith?: string | null; onOpenFolder?: (code: string) => void } = $props();
+	let { company: recordedCompany, sharedWith }: { company: DataRoomCompany; sharedWith?: string | null } = $props();
 
 	let exchangeRates = $state<ExchangeRates>(new Map());
 
@@ -82,7 +74,6 @@
 	const proof = $derived(proofGroups(company.records));
 	const timeline = $derived(milestoneRecords(company.records));
 	const highlights = $derived(companyHighlights());
-	const documentTotal = $derived(folders.reduce((sum, folder) => sum + folder.documentCount, 0));
 	const hasIntroduction = $derived(
 		Boolean(slogan || description || profile.website || profile.email || profile.phone || raising) || highlights.length > 0
 	);
@@ -207,32 +198,6 @@
 						</article>
 					{/each}
 				</div>
-			</section>
-		{/if}
-
-		{#if documentTotal > 0}
-			<section class="grid gap-3" aria-labelledby="company-contents">
-				<div class="flex items-baseline justify-between gap-3">
-					<h3 id="company-contents" class="text-lg font-semibold">{text.contents}</h3>
-					<p class="text-muted-foreground text-xs tabular-nums">{text.documents(documentTotal)}</p>
-				</div>
-				<ul class="bg-border grid gap-px overflow-hidden rounded-lg border sm:grid-cols-2">
-					{#each folders as folder, index (folder.code)}
-						<li class={cn('bg-background', index === folders.length - 1 && folders.length % 2 === 1 && 'sm:col-span-2')}>
-							<button
-								type="button"
-								class="hover:bg-accent/60 flex w-full items-center gap-3 px-4 py-3 text-left text-sm transition-colors disabled:cursor-default disabled:hover:bg-transparent"
-								disabled={!onOpenFolder}
-								onclick={() => onOpenFolder?.(folder.code)}
-							>
-								<FolderIcon class="text-muted-foreground size-4 shrink-0" />
-								<span class="min-w-0 flex-1 truncate">{folder.name}</span>
-								<span class="text-muted-foreground text-xs tabular-nums">{folder.documentCount}</span>
-								{#if onOpenFolder}<ChevronRightIcon class="text-muted-foreground size-4" />{/if}
-							</button>
-						</li>
-					{/each}
-				</ul>
 			</section>
 		{/if}
 
