@@ -122,9 +122,11 @@
 	{@const label = unreadBadgeLabel(unreadCount)}
 	{#if label}
 		<Sidebar.MenuBadge
-			class={givesWayToMenu
-				? 'md:group-hover/menu-item:opacity-0 md:group-focus-within/menu-item:opacity-0 md:group-has-[[data-sidebar=menu-action][data-state=open]]/menu-item:opacity-0'
-				: undefined}
+			class={cn(
+				'px-0',
+				givesWayToMenu &&
+					'md:group-hover/menu-item:opacity-0 md:group-focus-within/menu-item:opacity-0 md:group-has-[[data-sidebar=menu-action][data-state=open]]/menu-item:opacity-0'
+			)}
 		>
 			<Badge variant="secondary">
 				<span class="sr-only">{text.unreadMessages}</span>
