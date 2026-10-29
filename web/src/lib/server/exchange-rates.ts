@@ -6,7 +6,7 @@ export type ExchangeRateProvider = {
 };
 
 const providerName = 'Frankfurter';
-const frankfurterBaseURL = 'https://api.frankfurter.dev/v2';
+export const frankfurterURL = 'https://api.frankfurter.dev/v2';
 const cacheLifetimeInMilliseconds = 12 * 60 * 60 * 1000;
 const rateCacheLifetimeInMilliseconds = 60 * 60 * 1000;
 const defaultRequestTimeoutInMilliseconds = 5000;
@@ -19,6 +19,12 @@ type SupportedCurrenciesCache = {
 type RateCache = {
 	rate: ExchangeRate;
 	fetchedAtInMilliseconds: number;
+};
+
+type ProviderConnection = {
+	fetchImplementation: typeof fetch;
+	baseURL: string;
+	requestTimeoutInMilliseconds: number;
 };
 
 type ProviderCaches = {
@@ -85,11 +91,8 @@ function pathOf(url: URL): string {
 	return `${url.pathname}${url.search}`;
 }
 
-async function fetchJSON(
-	fetchImplementation: typeof fetch,
-	url: URL,
-	requestTimeoutInMilliseconds: number
-): Promise<unknown> {
+async function fetchJSON(connection: ProviderConnection, url: URL): Promise<unknown> {
+	const { fetchImplementation, requestTimeoutInMilliseconds } = connection;
 	const attemptedPath = pathOf(url);
 	const controller = new AbortController();
 	const timeout = setTimeout(() => controller.abort(), requestTimeoutInMilliseconds);
@@ -115,21 +118,17 @@ async function fetchJSON(
 	}
 }
 
-async function fetchedSupportedCurrencies(
-	fetchImplementation: typeof fetch,
-	requestTimeoutInMilliseconds: number
-): Promise<CurrencyCatalogueEntry[]> {
-	const currenciesURL = new URL(`${frankfurterBaseURL}/currencies`);
-	const payload = await fetchJSON(fetchImplementation, currenciesURL, requestTimeoutInMilliseconds);
+async function fetchedSupportedCurrencies(connection: ProviderConnection): Promise<CurrencyCatalogueEntry[]> {
+	const currenciesURL = new URL(`${connection.baseURL}/currencies`);
+	const payload = await fetchJSON(connection, currenciesURL);
 	const currencies = parsedCurrenciesPayload(payload, pathOf(currenciesURL));
 	return currencies.toSorted((left, right) => left.code.localeCompare(right.code));
 }
 
 async function cachedSupportedCurrencies(
 	caches: ProviderCaches,
-	fetchImplementation: typeof fetch,
-	nowInMilliseconds: number,
-	requestTimeoutInMilliseconds: number
+	connection: ProviderConnection,
+	nowInMilliseconds: number
 ): Promise<CurrencyCatalogueEntry[]> {
 	const cache = caches.supportedCurrencies;
 	if (cache && nowInMilliseconds - cache.fetchedAtInMilliseconds < cacheLifetimeInMilliseconds) {
@@ -137,7 +136,7 @@ async function cachedSupportedCurrencies(
 	}
 
 	try {
-		const currencies = await fetchedSupportedCurrencies(fetchImplementation, requestTimeoutInMilliseconds);
+		const currencies = await fetchedSupportedCurrencies(connection);
 		caches.supportedCurrencies = { currencies, fetchedAtInMilliseconds: nowInMilliseconds };
 		return currencies;
 	} catch (cause) {
@@ -151,34 +150,30 @@ function todayInUTC(nowInMilliseconds: number): string {
 }
 
 async function fetchedLatestRate(
-	fetchImplementation: typeof fetch,
+	connection: ProviderConnection,
 	base: string,
 	quote: string,
-	nowInMilliseconds: number,
-	requestTimeoutInMilliseconds: number
+	nowInMilliseconds: number
 ): Promise<ExchangeRate> {
 	if (base === quote) return { base, quote, rate: 1, asOf: todayInUTC(nowInMilliseconds) };
 
-	const latestURL = new URL(`${frankfurterBaseURL}/rates`);
+	const latestURL = new URL(`${connection.baseURL}/rates`);
 	latestURL.searchParams.set('base', base);
 	latestURL.searchParams.set('quotes', quote);
 
-	const payload = await fetchJSON(fetchImplementation, latestURL, requestTimeoutInMilliseconds);
+	const payload = await fetchJSON(connection, latestURL);
 	const parsed = parsedLatestPayload(payload, quote, pathOf(latestURL));
 	return { base: parsed.base, quote, rate: parsed.rate, asOf: parsed.date };
 }
 
 async function cachedLatestRate(
 	caches: ProviderCaches,
-	fetchImplementation: typeof fetch,
+	connection: ProviderConnection,
 	base: string,
 	quote: string,
-	nowInMilliseconds: number,
-	requestTimeoutInMilliseconds: number
+	nowInMilliseconds: number
 ): Promise<ExchangeRate> {
-	if (base === quote) {
-		return fetchedLatestRate(fetchImplementation, base, quote, nowInMilliseconds, requestTimeoutInMilliseconds);
-	}
+	if (base === quote) return fetchedLatestRate(connection, base, quote, nowInMilliseconds);
 
 	const pairKey = pairKeyOf(base, quote);
 	const cache = caches.ratesByPairKey.get(pairKey);
@@ -187,7 +182,7 @@ async function cachedLatestRate(
 	}
 
 	try {
-		const rate = await fetchedLatestRate(fetchImplementation, base, quote, nowInMilliseconds, requestTimeoutInMilliseconds);
+		const rate = await fetchedLatestRate(connection, base, quote, nowInMilliseconds);
 		caches.ratesByPairKey.set(pairKey, { rate, fetchedAtInMilliseconds: nowInMilliseconds });
 		return rate;
 	} catch (cause) {
@@ -197,16 +192,20 @@ async function cachedLatestRate(
 }
 
 export function frankfurterProvider(options?: {
+	baseURL?: string;
 	fetch?: typeof fetch;
 	now?: () => number;
 	requestTimeoutInMilliseconds?: number;
 }): ExchangeRateProvider {
-	const fetchImplementation = options?.fetch ?? fetch;
+	const connection: ProviderConnection = {
+		fetchImplementation: options?.fetch ?? fetch,
+		baseURL: options?.baseURL ?? frankfurterURL,
+		requestTimeoutInMilliseconds: options?.requestTimeoutInMilliseconds ?? defaultRequestTimeoutInMilliseconds
+	};
 	const now = options?.now ?? Date.now;
-	const requestTimeoutInMilliseconds = options?.requestTimeoutInMilliseconds ?? defaultRequestTimeoutInMilliseconds;
 	const caches: ProviderCaches = { supportedCurrencies: null, ratesByPairKey: new Map() };
 	return {
-		supportedCurrencies: () => cachedSupportedCurrencies(caches, fetchImplementation, now(), requestTimeoutInMilliseconds),
-		latestRate: (base, quote) => cachedLatestRate(caches, fetchImplementation, base, quote, now(), requestTimeoutInMilliseconds)
+		supportedCurrencies: () => cachedSupportedCurrencies(caches, connection, now()),
+		latestRate: (base, quote) => cachedLatestRate(caches, connection, base, quote, now())
 	};
 }

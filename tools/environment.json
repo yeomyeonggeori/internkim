@@ -154,7 +154,7 @@
   },
   "E2E_SERVER_PORTS": {
     "process": "web e2e tests",
-    "description": "the three dev server ports web/playwright.config.ts picks on its first load and hands to its workers, as central,fixture,standalone; set it to choose them yourself"
+    "description": "the dev server ports web/playwright.config.ts picks on its first load and hands to its workers, one per plane as central,fixture,mocked,standalone and then the exchange-rate stand-in's; set it to choose them yourself"
   },
   "EMPTY_CAPTURE_DIR": {
     "process": "web fixture tests",
@@ -163,6 +163,10 @@
   "EMPTY_CAPTURE_PHASE": {
     "process": "web fixture tests",
     "description": "before or after label for Empty component evidence; defaults to after"
+  },
+  "FRANKFURTER_URL": {
+    "process": "web",
+    "description": "the Frankfurter API base URL the web app reads exchange rates from; defaults to https://api.frankfurter.dev/v2, and web/playwright.config.ts points it at a local stand-in"
   },
   "GATEWAY_ADMIN_TOKEN": {
     "process": "web, connection-gateway worker",

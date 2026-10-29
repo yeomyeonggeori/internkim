@@ -1,9 +1,9 @@
 import { convertedAmount } from '$lib/server/converted-amount';
-import { frankfurterProvider, type ExchangeRateProvider } from '$lib/server/exchange-rates';
+import { env } from '$env/dynamic/private';
+import { exchangeRatesOf } from '$lib/server/configured-exchange-rates';
 import { error, json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 
-const provider: ExchangeRateProvider = frankfurterProvider();
 const currencyCodePattern = /^[A-Z]{3}$/;
 
 function requiredAmount(url: URL): number {
@@ -26,7 +26,7 @@ export const GET: RequestHandler = async ({ url }) => {
 	const to = requiredCurrencyCode(url, 'to');
 
 	try {
-		return json(await convertedAmount(provider, { amount, currency: from }, to));
+		return json(await convertedAmount(exchangeRatesOf(env), { amount, currency: from }, to));
 	} catch (cause) {
 		error(502, cause instanceof Error ? cause.message : 'the exchange rate provider is unavailable');
 	}
