@@ -3,41 +3,33 @@ import { expectTouchTarget } from '../support/touch-target';
 import { mockDeviceMessenger } from './messenger-device-mock';
 
 for (const viewport of [{ width: 320, height: 760 }, { width: 568, height: 320 }, { width: 1280, height: 800 }]) {
-	test(`shared toasts preserve position, stack and actions at ${viewport.width}px`, async ({ page }) => {
+	test(`copy toasts keep their position and stack at ${viewport.width}px`, async ({ page, context }) => {
+		await context.grantPermissions(['clipboard-read', 'clipboard-write']);
+		await page.clock.install();
 		await openConversation(page, viewport.width, viewport.height);
-		await page.evaluate(async () => {
-			const url = performance.getEntriesByType('resource').map(entry => entry.name).find(name => /\/svelte-sonner\.js\?/.test(name));
-			if (!url) throw new Error('Loaded Sonner module was not found');
-			const { toast } = await import(/* @vite-ignore */ url);
-			for (let index = 1; index <= 3; index++) toast(`모바일 검토 알림 ${index}`, { duration: Infinity, action: { label: '확인', onClick: () => { document.body.dataset.toastAction = 'done'; } } });
-		});
+		for (let copied = 1; copied <= 3; copied++) await copyTheMessage(page);
 		const toaster = page.locator('[data-sonner-toaster]');
 		await expect(toaster).toHaveAttribute('data-y-position', viewport.width < 640 ? 'top' : 'bottom');
 		await expect(page.locator('[data-sonner-toast]')).toHaveCount(3);
 		const front = page.locator('[data-sonner-toast][data-front="true"]');
 		await expect(front).toBeVisible();
+		await expect(front).toHaveText('복사했습니다.');
 		await expect(front).toHaveCSS('padding', '16px');
 		await expect(front).toHaveCSS('font-size', '13px');
-		await expect(front.getByRole('button', { name: '확인', exact: true })).toHaveCSS('height', '24px');
-		await expect(front.getByRole('button', { name: '확인', exact: true })).toHaveCSS('font-size', '12px');
 		await expect(front.locator('[data-close-button]')).toHaveCount(0);
 		if (viewport.width < 640) {
 			await expect.poll(async () => (await front.boundingBox())?.y ?? -1).toBeGreaterThanOrEqual(15.5);
 			const box = await front.boundingBox();
 			expect(box!.y + box!.height).toBeLessThanOrEqual(viewport.height);
 			await page.getByRole('button', { name: '더보기', exact: true }).click();
-			const action = front.getByRole('button', { name: '확인', exact: true });
-			expect(await action.evaluate(element => { const rect = element.getBoundingClientRect(); return element.contains(document.elementFromPoint(rect.x + rect.width / 2, rect.y + rect.height / 2)); })).toBe(true);
+			expect(await front.evaluate(element => { const rect = element.getBoundingClientRect(); return element.contains(document.elementFromPoint(rect.x + rect.width / 2, rect.y + rect.height / 2)); })).toBe(true);
 			const output = process.env.MOBILE_UX_SCREENSHOTS;
 			if (output) await page.screenshot({ path: `${output}/toast-${viewport.width}.png` });
 			await page.keyboard.press('Escape');
 			await expect(page.getByRole('dialog', { name: '더보기' })).toBeHidden();
 			if (viewport.width === 320) {
+				await page.getByRole('combobox', { name: '메시지를 입력하세요' }).focus();
 				await page.evaluate(() => {
-					const field = document.createElement('textarea');
-					field.style.cssText = 'position: fixed; top: 0; left: 0; opacity: 0';
-					document.body.appendChild(field);
-					field.focus({ preventScroll: true });
 					const viewport = window.visualViewport!;
 					Object.defineProperties(viewport, { height: { configurable: true, get: () => 440 }, offsetTop: { configurable: true, get: () => 24 } });
 					viewport.dispatchEvent(new Event('resize'));
@@ -47,15 +39,19 @@ for (const viewport of [{ width: 320, height: 760 }, { width: 568, height: 320 }
 				if (output) await page.screenshot({ path: `${output}/toast-keyboard-320.png` });
 			}
 		}
-		await page.locator('[data-sonner-toast][data-front="true"]').getByRole('button', { name: '확인', exact: true }).click();
-		await expect(page.locator('body')).toHaveAttribute('data-toast-action', 'done');
-		await expect(page.locator('[data-sonner-toast]')).toHaveCount(2);
 		await expectNoHorizontalOverflow(page);
 	});
 }
 
+async function copyTheMessage(page: Page) {
+	await page.getByText(conversationMessage, { exact: true }).click({ button: 'right' });
+	await page.getByRole('menuitem', { name: '내용 복사' }).click();
+	await expect(page.getByRole('menu')).toHaveCount(0);
+}
+
 const channelID = 'mobile-ux-channel';
 const reader = { id: 'person-reader', name: '이샘플', email: 'reader@example.com' };
+const conversationMessage = '사무실 문 앞에 퀵 하나 왔습니다. 챙겨주세요.';
 const author = { id: 'person-author', name: '박예시', email: 'author@example.com' };
 
 async function openConversation(page: Page, width: number, height = 760) {
@@ -68,7 +64,7 @@ async function openConversation(page: Page, width: number, height = 760) {
 		members: [{ externalID: author.id, name: author.name, role: 'member' }]
 	}], [{
 		id: 'mobile-ux-message', sender: author,
-		text: '사무실 문 앞에 퀵 하나 왔습니다. 챙겨주세요.',
+		text: conversationMessage,
 		sentAt: '2026-09-28T01:00:00Z'
 	}]);
 	await page.goto(`/messenger?channel=${channelID}`);

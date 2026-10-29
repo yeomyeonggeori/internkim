@@ -64,7 +64,7 @@ function specsOn(plane: Exclude<Plane, 'standalone'>): RegExp {
 	return new RegExp(`-${plane}\\.spec\\.ts$`);
 }
 
-const planesServedFromDevelopment: Plane[] = ['mocked', 'standalone'];
+const planesServedFromDevelopment: Plane[] = ['mocked'];
 
 function projectsNamedIn(argumentList: string[]): string[] {
 	return argumentList.flatMap((argument, index) => {
