@@ -15,7 +15,8 @@ browsers) runs each command in one of a few slots every verify run on this
 machine shares, so five worktrees verifying at once queue instead of starving
 each other's tests. A command that needs the local plane takes the plane first
 and a slot second, so a run waiting for the plane never keeps a slot from a run
-that could use it.
+that could use it; the price is that the plane sits idle while its holder waits
+for a slot, and anyone running with-local-plane by hand queues behind that.
 
 A group that passed is not run again while everything it is selected by reads
 the same: the same files under its patterns, the same submodule commits, the
@@ -65,7 +66,7 @@ class Group:
     def command_to_run(self, command):
         if not self.fills_the_machine:
             return command
-        holder = machine_slot_holder()
+        holder = machine_slot_holder(self.name)
         if command[0] == WITH_LOCAL_PLANE:
             return [WITH_LOCAL_PLANE, *holder, *command[1:]]
         if self.needs_the_local_plane(command):
@@ -552,8 +553,13 @@ def git_paths(arguments, failure):
     return {path for path in listing.stdout.split("\0") if path}
 
 
-def machine_slot_holder():
-    return [sys.executable, str(Path(__file__).resolve()), HOLD_A_MACHINE_SLOT, str(MACHINE_SLOT_DIRECTORY), str(MACHINE_SLOTS), "--"]
+@functools.cache
+def console_descriptor():
+    return os.dup(sys.__stdout__.fileno())
+
+
+def machine_slot_holder(group_name):
+    return [sys.executable, str(Path(__file__).resolve()), HOLD_A_MACHINE_SLOT, str(MACHINE_SLOT_DIRECTORY), str(MACHINE_SLOTS), str(console_descriptor()), group_name, "--"]
 
 
 def claim_free_machine_slot(slot_directory, slot_count):
@@ -567,10 +573,10 @@ def claim_free_machine_slot(slot_directory, slot_count):
     return None
 
 
-def run_holding_a_machine_slot(slot_directory, slot_count, command):
+def run_holding_a_machine_slot(slot_directory, slot_count, console, group_name, command):
     slot = claim_free_machine_slot(slot_directory, slot_count)
     if slot is None:
-        print(f"waiting for one of {slot_count} machine slots", file=sys.stderr, flush=True)
+        os.write(console, f"wait {group_name} for one of {slot_count} machine slots\n".encode())
     while slot is None:
         time.sleep(2)
         slot = claim_free_machine_slot(slot_directory, slot_count)
@@ -662,7 +668,8 @@ def run_group_commands(group):
             with log_path.open("w") as log:
                 log.write(f"$ {attempted}\n")
                 log.flush()
-                finished = subprocess.run(group.command_to_run(command), cwd=REPOSITORY_ROOT / group.working_directory, stdout=log, stderr=subprocess.STDOUT)
+                passed_descriptors = (console_descriptor(),) if group.fills_the_machine else ()
+                finished = subprocess.run(group.command_to_run(command), cwd=REPOSITORY_ROOT / group.working_directory, stdout=log, stderr=subprocess.STDOUT, pass_fds=passed_descriptors)
         except OSError as error:
             log_path.write_text(f"$ {attempted}\n{error}\n")
             print(f"FAIL {group.name} command {command_index}", flush=True)
@@ -711,8 +718,10 @@ def print_plan(groups):
 def main():
     global verification_run_directory, reusing_passes
     if sys.argv[1:2] == [HOLD_A_MACHINE_SLOT]:
-        slot_directory, slot_count, separator, *command = sys.argv[2:]
-        return run_holding_a_machine_slot(Path(slot_directory), int(slot_count), command)
+        slot_directory, slot_count, console, group_name, separator, *command = sys.argv[2:]
+        if separator != "--":
+            raise SystemExit(f"{HOLD_A_MACHINE_SLOT} takes <directory> <count> <console> <group> -- <command>, not {separator!r} before the command")
+        return run_holding_a_machine_slot(Path(slot_directory), int(slot_count), int(console), group_name, command)
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--base", default="origin/main", help="what to compare against")
     parser.add_argument("--all", action="store_true", help="run every group, not only the touched ones")
