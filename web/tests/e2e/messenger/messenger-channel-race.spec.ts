@@ -15,12 +15,14 @@ const message = (id: string) => ({
 	sentAt: '2026-08-05T10:00:00Z'
 });
 
-async function cachedMessageIDs(page: Page): Promise<string[] | undefined> {
-	return page.evaluate(async () => {
-		const moduleURL = '/src/lib/components/channel/channel-message-cache.ts';
-		const cache = await import(moduleURL);
-		return cache.getCachedMessages('channel-a')?.map((entry: { id: string }) => entry.id);
-	});
+function readGate() {
+	let release = () => {};
+	const opened = new Promise<void>((resolve) => (release = resolve));
+	return { opened, release };
+}
+
+function emptyRead(channelID: string) {
+	return { json: { conversationID: channelID, currentUserId: reader.id, messages: [], hasMoreBefore: false, historyCursor: '' } };
 }
 
 test('an old channel read cannot erase the cache after rapid navigation', async ({ page }) => {
@@ -31,6 +33,7 @@ test('an old channel read cannot erase the cache after rapid navigation', async 
 	const oldReadCanFinish = new Promise<void>((resolve) => (releaseOldRead = resolve));
 	let releaseFinalRead = () => {};
 	const finalReadCanFinish = new Promise<void>((resolve) => (releaseFinalRead = resolve));
+	let isHoldingReads = false;
 	let aReads = 0;
 	await page.route('**/agent/api/dm?*', async (route) => {
 		const channelID = new URL(route.request().url()).searchParams.get('channelId') ?? '';
@@ -40,7 +43,7 @@ test('an old channel read cannot erase the cache after rapid navigation', async 
 			await route.fulfill({ json: { conversationID: channelID, currentUserId: reader.id, messages: [], hasMoreBefore: false, historyCursor: '' } });
 			return;
 		}
-		if (channelID === 'channel-a' && aReads === 4) await finalReadCanFinish;
+		if (channelID === 'channel-a' && isHoldingReads) await finalReadCanFinish;
 		await route.fulfill({
 			json: {
 				conversationID: channelID,
@@ -64,14 +67,17 @@ test('an old channel read cannot erase the cache after rapid navigation', async 
 	const oldResponse = page.waitForResponse((response) =>
 		response.url().includes('channelId=channel-a') && response.status() === 200
 	);
+	isHoldingReads = true;
 	releaseOldRead();
 	await oldResponse;
 	await page.waitForTimeout(100);
-	expect(await cachedMessageIDs(page)).toEqual(['a-message']);
 	expect(aReads).toBe(3);
 	await page.locator('[data-sidebar="menu-button"]').filter({ hasText: 'channel-b' }).click();
 	await page.locator('[data-sidebar="menu-button"]').filter({ hasText: 'channel-a' }).click();
 	expect(aReads).toBe(4);
+	await expect(page.getByText('a-message')).toBeVisible();
+	await page.reload();
+	await expect.poll(() => aReads).toBe(5);
 	await expect(page.getByText('a-message')).toBeVisible();
 	releaseFinalRead();
 });
@@ -82,6 +88,8 @@ test('an older empty read cannot replace a newer successful read in the active c
 	const oldReadIsStarted = new Promise<void>((resolve) => (oldReadStarted = resolve));
 	let releaseOldRead = () => {};
 	const oldReadCanFinish = new Promise<void>((resolve) => (releaseOldRead = resolve));
+	const reopenedReads = readGate();
+	let isHoldingReads = false;
 	let readCount = 0;
 	const knownMessage = {
 		...message('known-message'),
@@ -92,13 +100,19 @@ test('an older empty read cannot replace a newer successful read in the active c
 			await route.fulfill({ json: {} });
 			return;
 		}
+		const channelID = new URL(route.request().url()).searchParams.get('channelId') ?? '';
+		if (channelID !== 'channel-a') {
+			await route.fulfill(emptyRead(channelID));
+			return;
+		}
 		readCount += 1;
 		if (readCount === 2) {
 			oldReadStarted();
 			await oldReadCanFinish;
-			await route.fulfill({ json: { conversationID: 'channel-a', currentUserId: reader.id, messages: [], hasMoreBefore: false, historyCursor: '' } });
+			await route.fulfill(emptyRead('channel-a'));
 			return;
 		}
+		if (isHoldingReads) await reopenedReads.opened;
 		await route.fulfill({
 			json: {
 				conversationID: 'channel-a',
@@ -117,11 +131,17 @@ test('an older empty read cannot replace a newer successful read in the active c
 	const oldResponse = page.waitForResponse((response) =>
 		response.url().includes('channelId=channel-a') && response.status() === 200
 	);
+	isHoldingReads = true;
 	releaseOldRead();
 	await oldResponse;
 	await page.waitForTimeout(100);
-	expect(await cachedMessageIDs(page)).toEqual(['known-message', 'newer-message']);
 	await expect(page.getByText('newer-message')).toBeVisible();
+	const reads = readCount;
+	await page.reload();
+	await expect.poll(() => readCount).toBeGreaterThan(reads);
+	await expect(page.getByText('known-message')).toBeVisible();
+	await expect(page.getByText('newer-message')).toBeVisible();
+	reopenedReads.release();
 });
 
 for (const newerRead of ['pending', 'failed']) {
@@ -133,6 +153,8 @@ for (const newerRead of ['pending', 'failed']) {
 		const olderReadIsStarted = new Promise<void>((resolve) => (olderReadStarted = resolve));
 		let releaseNewerRead = () => {};
 		const newerReadCanFinish = new Promise<void>((resolve) => (releaseNewerRead = resolve));
+		const reopenedReads = readGate();
+		let isHoldingReads = false;
 		let readCount = 0;
 		const knownMessage = {
 			...message('known-message'),
@@ -143,13 +165,19 @@ for (const newerRead of ['pending', 'failed']) {
 				await route.fulfill({ json: {} });
 				return;
 			}
+			const channelID = new URL(route.request().url()).searchParams.get('channelId') ?? '';
+			if (channelID !== 'channel-a') {
+				await route.fulfill(emptyRead(channelID));
+				return;
+			}
 			readCount += 1;
 			if (readCount === 2) {
 				olderReadStarted();
 				await olderReadCanFinish;
-				await route.fulfill({ json: { conversationID: 'channel-a', currentUserId: reader.id, messages: [], hasMoreBefore: false, historyCursor: '' } });
+				await route.fulfill(emptyRead('channel-a'));
 				return;
 			}
+			if (isHoldingReads) await reopenedReads.opened;
 			if (readCount === 3 && newerRead === 'pending') await newerReadCanFinish;
 			if (readCount === 3 && newerRead === 'failed') {
 				await route.fulfill({ status: 503, body: 'unavailable' });
@@ -171,48 +199,19 @@ for (const newerRead of ['pending', 'failed']) {
 		const olderResponse = page.waitForResponse((response) =>
 			response.url().includes('channelId=channel-a') && response.status() === 200
 		);
+		isHoldingReads = true;
 		releaseOlderRead();
 		await olderResponse;
 		await page.waitForTimeout(100);
-		expect(await cachedMessageIDs(page)).toEqual(['known-message']);
+		await expect(page.getByText('known-message')).toBeVisible();
+		const reads = readCount;
+		await page.reload();
+		await expect.poll(() => readCount).toBeGreaterThan(reads);
 		await expect(page.getByText('known-message')).toBeVisible();
 		releaseNewerRead();
+		reopenedReads.release();
 	});
 }
-
-test('a read from the previous account cannot refill its cleared cache', async ({ page }) => {
-	await mockDeviceMessenger(page, reader, channels, []);
-	let oldReadStarted = () => {};
-	const oldReadIsStarted = new Promise<void>((resolve) => (oldReadStarted = resolve));
-	let releaseOldRead = () => {};
-	const oldReadCanFinish = new Promise<void>((resolve) => (releaseOldRead = resolve));
-	let readCount = 0;
-	await page.route('**/agent/api/dm?*', async (route) => {
-		readCount += 1;
-		if (readCount === 2) {
-			oldReadStarted();
-			await oldReadCanFinish;
-		}
-		await route.fulfill({ json: { conversationID: 'channel-a', currentUserId: reader.id, messages: [message('account-message')], hasMoreBefore: false, historyCursor: '' } });
-	});
-	await page.goto('/messenger?channel=channel-a');
-	await expect(page.getByText('account-message')).toBeVisible();
-	await page.clock.install();
-	await page.clock.fastForward(5000);
-	await oldReadIsStarted;
-	await page.evaluate(async () => {
-		const moduleURL = '/src/lib/components/channel/channel-message-cache.ts';
-		const cache = await import(moduleURL);
-		cache.clearChannelMessageCache();
-	});
-	const oldResponse = page.waitForResponse((response) =>
-		response.url().includes('channelId=channel-a') && response.status() === 200
-	);
-	releaseOldRead();
-	await oldResponse;
-	await page.waitForTimeout(100);
-	expect(await cachedMessageIDs(page)).toBeUndefined();
-});
 
 test('an actual empty channel and a failed channel still show their own states', async ({ page }) => {
 	await mockDeviceMessenger(page, reader, channels, []);

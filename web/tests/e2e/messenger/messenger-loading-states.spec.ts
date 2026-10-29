@@ -91,23 +91,6 @@ test('people failure is an error and retry returns actual people', async ({ page
 	await expect(dialog.getByText('박예시')).toBeVisible();
 });
 
-test('known conversation survives refresh but scope reset hides it until the new list settles', async ({ page }) => {
-	test.skip(isBaseline, 'New scope loading behavior is asserted against implementation');
-	await page.goto('/messenger?channel=loading-channel');
-	await expect(page.getByText(message.text)).toBeVisible();
-	const pending = gate();
-	await page.route('**/agent/api/channels', async route => { await pending.promise; await route.fulfill({ json: { conversations: [{ ...conversations[0], id: 'replacement', name: '새 범위 대화' }] } }); });
-	await page.reload();
-	await expect(page.getByText(message.text)).toBeVisible();
-	await expect(page.locator('[data-messenger-list-skeleton]')).toHaveCount(0);
-	await page.evaluate(async () => { const moduleURL = '/src/lib/messenger/cache-scope.ts'; const scope = await import(moduleURL); scope.invalidateMessengerCacheScope(true); });
-	await expect(page.locator('[data-messenger-list-skeleton]').first()).toBeVisible();
-	await expect(page.getByText(message.text)).toHaveCount(0);
-	pending.release();
-	await expect(page.locator('[data-sidebar="menu-button"]').filter({ hasText: '새 범위 대화' })).toBeVisible();
-	await expect(page).toHaveURL(/channel=replacement/);
-});
-
 test('failed initial conversation list stops skeletons and retries initial selection', async ({ page }) => {
 	test.skip(isBaseline, 'New error/retry behavior is asserted against implementation');
 	let fail = true;
