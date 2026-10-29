@@ -142,6 +142,26 @@ company and by country. Half and quarter days are just fractions of `days`.
 on the company's country, so it belongs to the policy. The span and `days`
 legitimately disagree: a Friday to Monday leave spans four days and costs two.
 
+## Credits [#credits]
+
+A company without its own OpenRouter key subscribes through Stripe and spends
+credits through ours. One credit is a thousandth of a dollar of AI cost. Stripe
+holds the money and the subscription; the company row keeps the Stripe
+identifiers, `subscription_status` as Stripe names it, and
+`subscription_ends_at`.
+
+A row on `company_credit_entry` is credits given or spent, and the sign of
+`credits` says which. `credit_kind` is `subscription`, which lapses with the
+period, or `permanent`, which was bought and stays. `entry_kind` says why the
+line exists: `grant`, `purchase`, `refund`, `usage`, `expiry` or `absorbed`.
+Lines are only added. Each one moves `company.subscription_credits` or
+`company.permanent_credits`, and a usage line adds to its member's
+`credits_used`. A balance never goes below zero: when a cost exceeds it, an
+`absorbed` line for the difference comes first. When `subscription_ends_at`
+moves forward, every member's `credits_used` returns to zero. The per-member
+ceiling is `company.rules.creditPolicy.usageLimit`. Only the server writes
+these columns and lines; an administrator reads the ledger.
+
 ## CRM [#crm]
 
 | Concern | Where it lives |
