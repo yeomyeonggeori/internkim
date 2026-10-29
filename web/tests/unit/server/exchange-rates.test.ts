@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 import { createMockFetch } from '../test-fetch';
 import { frankfurterProvider } from '../../../src/lib/server/exchange-rates';
+import { answerAsFrankfurter, standInCurrencies, standInRateDate } from '../../support/exchange-rate-stand-in';
 
 const oneHourInMilliseconds = 60 * 60 * 1000;
 const twelveHoursInMilliseconds = 12 * oneHourInMilliseconds;
@@ -300,5 +301,46 @@ describe('frankfurterProvider().latestRate', () => {
 		currentTimeInMilliseconds = epochInMilliseconds + 2 * oneHourInMilliseconds + 2;
 		expect(await provider.latestRate('USD', 'KRW')).toEqual(expectedRate);
 		expect(fetchCallCount).toBe(3);
+	});
+});
+
+describe('frankfurterProvider({ baseURL })', () => {
+	test('asks the instance it is given instead of the public one', async () => {
+		const requestedURLs: string[] = [];
+		const provider = frankfurterProvider({
+			baseURL: 'http://rates.example.com/v2',
+			fetch: createMockFetch(async (input) => {
+				requestedURLs.push(String(input));
+				return answerAsFrankfurter(new Request(input));
+			}),
+			now: () => epochInMilliseconds
+		});
+
+		await provider.supportedCurrencies();
+		await provider.latestRate('USD', 'KRW');
+
+		expect(requestedURLs).toEqual([
+			'http://rates.example.com/v2/currencies',
+			'http://rates.example.com/v2/rates?base=USD&quotes=KRW'
+		]);
+	});
+
+	test('reads the end-to-end stand-in the way it reads Frankfurter', async () => {
+		const provider = frankfurterProvider({
+			baseURL: 'http://rates.example.com/v2',
+			fetch: createMockFetch(async (input) => answerAsFrankfurter(new Request(input))),
+			now: () => epochInMilliseconds
+		});
+
+		expect((await provider.supportedCurrencies()).map((currency) => currency.code)).toEqual(
+			Object.keys(standInCurrencies).toSorted()
+		);
+		expect(await provider.latestRate('KRW', 'USD')).toEqual({
+			base: 'KRW',
+			quote: 'USD',
+			rate: 1 / standInCurrencies.KRW.unitsPerDollar,
+			asOf: standInRateDate
+		});
+		await expect(provider.latestRate('KRW', 'XYZ')).rejects.toThrow('failed with status 404');
 	});
 });
