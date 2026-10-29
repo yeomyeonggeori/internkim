@@ -1,8 +1,9 @@
 import {expect,test} from '@playwright/test';
 import {signInToAttendance,openMonthlyAttendance} from './attendance-central-test-utils';
 import {member1Email} from '../support/central-test-utils';
+import { everyLayoutBand } from '../support/screen-widths';
 test.use({locale:'ko-KR'});
-for(const width of [320,390,1280]) {
+for (const width of everyLayoutBand) {
  test(`the own clock and team dashboard remain together at ${width}px`,async({page})=>{
   await page.setViewportSize({width,height:844});
   await signInToAttendance(page);

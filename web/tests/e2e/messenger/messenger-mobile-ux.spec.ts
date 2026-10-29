@@ -1,6 +1,7 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
 import { expectTouchTarget } from '../support/touch-target';
 import { mockDeviceMessenger } from './messenger-device-mock';
+import { everyPhoneScreen, narrowestWidth, smallBreakpointWidth } from '../support/screen-widths';
 
 for (const viewport of [{ width: 320, height: 760 }, { width: 568, height: 320 }, { width: 1280, height: 800 }]) {
 	test(`copy toasts keep their position and stack at ${viewport.width}px`, async ({ page, context }) => {
@@ -9,7 +10,7 @@ for (const viewport of [{ width: 320, height: 760 }, { width: 568, height: 320 }
 		await openConversation(page, viewport.width, viewport.height);
 		for (let copied = 1; copied <= 3; copied++) await copyTheMessage(page);
 		const toaster = page.locator('[data-sonner-toaster]');
-		await expect(toaster).toHaveAttribute('data-y-position', viewport.width < 640 ? 'top' : 'bottom');
+		await expect(toaster).toHaveAttribute('data-y-position', viewport.width < smallBreakpointWidth ? 'top' : 'bottom');
 		await expect(page.locator('[data-sonner-toast]')).toHaveCount(3);
 		const front = page.locator('[data-sonner-toast][data-front="true"]');
 		await expect(front).toBeVisible();
@@ -17,7 +18,7 @@ for (const viewport of [{ width: 320, height: 760 }, { width: 568, height: 320 }
 		await expect(front).toHaveCSS('padding', '16px');
 		await expect(front).toHaveCSS('font-size', '13px');
 		await expect(front.locator('[data-close-button]')).toHaveCount(0);
-		if (viewport.width < 640) {
+		if (viewport.width < smallBreakpointWidth) {
 			await expect.poll(async () => (await front.boundingBox())?.y ?? -1).toBeGreaterThanOrEqual(15.5);
 			const box = await front.boundingBox();
 			expect(box!.y + box!.height).toBeLessThanOrEqual(viewport.height);
@@ -27,7 +28,7 @@ for (const viewport of [{ width: 320, height: 760 }, { width: 568, height: 320 }
 			if (output) await page.screenshot({ path: `${output}/toast-${viewport.width}.png` });
 			await page.keyboard.press('Escape');
 			await expect(page.getByRole('dialog', { name: '더보기' })).toBeHidden();
-			if (viewport.width === 320) {
+			if (viewport.width === narrowestWidth) {
 				await page.getByRole('combobox', { name: '메시지를 입력하세요' }).focus();
 				await page.evaluate(() => {
 					const viewport = window.visualViewport!;
@@ -77,7 +78,7 @@ async function expectNoHorizontalOverflow(page: Page) {
 	);
 }
 
-for (const width of [320, 360, 390]) {
+for (const width of everyPhoneScreen) {
 	test(`mobile attachment and selected text formatting fit ${width}px`, async ({ page }) => {
 		await openConversation(page, width);
 		await expect(page.locator('.internkim-app-header')).toBeHidden();

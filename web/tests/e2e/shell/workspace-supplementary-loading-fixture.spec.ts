@@ -2,6 +2,7 @@ import { expect, test, type Page, type Route } from '@playwright/test';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { WorkspaceLoadingFixture, prepareWorkspaceLoading } from './workspace-loading-fixture';
 import { createDevTasksMockResponse } from '../../../dev-tasks-mock-plugin';
+import { desktopWidth, everyScreen } from '../support/screen-widths';
 
 const phase = process.env.LOADING_CAPTURE_PHASE ?? 'after';
 const output = process.env.LOADING_CAPTURE_DIR;
@@ -75,7 +76,7 @@ const scenes: Scene[] = [
 test.use({ locale: 'ko-KR', colorScheme: 'light', contextOptions: { reducedMotion: 'reduce' } });
 async function capture(page: Page, scene: string, width: number, state: string) {
 	if (!output) return;
-	const securityDesktop = scene === 'settings-security' && width === 1280;
+	const securityDesktop = scene === 'settings-security' && width === desktopWidth;
 	const stableScroll = scene === 'settings-members' || securityDesktop;
 	if (stableScroll) await page.evaluate(async () => {
 		await document.fonts.ready;
@@ -109,7 +110,7 @@ async function capture(page: Page, scene: string, width: number, state: string) 
 	await writeFile(`${output}/${phase}/${scene}-${width}-${state}.json`, JSON.stringify({ route: new URL(page.url()).pathname, viewport: page.viewportSize(), reducedMotionVerified: motion, animations: stableScroll ? 'allow after finite animations settled' : 'disabled', scroll, afterScroll, postScreenshotScrollVerified: stableScroll, targetGeometry, tokenCardFullyInViewport: securityDesktop }, null, 2));
 }
 
-for (const width of [1280, 390]) for (const scene of scenes) {
+for (const width of everyScreen) for (const scene of scenes) {
 	test(`${scene.name} supplementary pending and ready at ${width}px`, async ({ page }) => {
 		await page.setViewportSize({ width, height: 900 });
 		const fixture = new SupplementaryFixture();

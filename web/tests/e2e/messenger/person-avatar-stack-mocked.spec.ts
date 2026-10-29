@@ -1,9 +1,10 @@
 import { expect, test } from '@playwright/test';
 import { mockDeviceMessenger } from './messenger-device-mock';
+import { everyScreen } from '../support/screen-widths';
 
 test.use({ locale: 'ko-KR', colorScheme: 'dark', contextOptions: { reducedMotion: 'reduce' } });
 
-for (const width of [1280, 390, 320]) {
+for (const width of everyScreen) {
 	test(`shared avatar overflow matches its avatars and stays on top at ${width}px`, async ({ page }, testInfo) => {
 		await page.setViewportSize({ width, height: 1000 });
 		await mockDeviceMessenger(page, { id: 'sample-reader', email: 'reader@example.com' }, [], []);

@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
+import { everyLayoutBand } from '../support/screen-widths';
 
 const facts = [
 	{ factID: 'fact-preference', originID: 'origin-preference', scopeType: 'person', isStatic: true, content: '금요일 오후에 회고하는 것을 선호한다.', importance: 4, storageStrength: 1.2, createdAt: '2026-08-01T09:00:00Z', lastRecalledAt: '2026-08-20T09:00:00Z', triggerPhrases: [] },
@@ -94,7 +95,7 @@ test.describe('memory workbench', () => {
 		await expect(page.getByText('private backend detail')).toHaveCount(0);
 	});
 
-	for (const width of [320, 375, 414, 768, 1280]) {
+	for (const width of everyLayoutBand) {
 		test(`has no horizontal overflow at ${width}px`, async ({ page }) => {
 			await page.setViewportSize({ width, height: 844 });
 			await prepareMemoryPage(page);

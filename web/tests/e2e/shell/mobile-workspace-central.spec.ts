@@ -5,6 +5,7 @@ import { openTaskFilters, seedTasks, removeTasks, taskRowOf } from '../task/task
 import { seedAttendanceEvents, cleanupAttendanceEvents, seoulInstant, seoulMonthToday, monthBefore, dayOfMonth } from '../attendance/attendance-central-test-utils';
 import { readFileSync } from 'node:fs';
 import type { DataRoomCategory, TemplateCircle } from '../../../src/lib/data-room/model';
+import { everyLayoutBand, largeBreakpointWidth, narrowestWidth, smallBreakpointWidth } from '../support/screen-widths';
 const dataRoomTemplate: { categories: DataRoomCategory[]; circles: TemplateCircle[] } = JSON.parse(readFileSync(new URL('../../../src/lib/data-room/template.json', import.meta.url), 'utf8'));
 
 test.describe.configure({ mode: 'serial', timeout: 150_000 });
@@ -28,16 +29,16 @@ async function fits(page: Page, name: string) {
 	if (output) await page.screenshot({ path: `${output}/${name}-${page.viewportSize()!.width}.png` });
 }
 
-for (const width of [320, 360, 390, 568, 1280]) {
+for (const width of everyLayoutBand) {
 	test(`task, directory, attendance and document categories at ${width}px`, async ({ page }) => {
-		await page.setViewportSize({ width, height: width === 568 ? 320 : 844 });
+		await page.setViewportSize({ width, height: 844 });
 		await signInToTheCentralPlane(page, `/${exampleCompanySlug}/task`);
 		await expect(page.locator('[data-task-ready="true"]')).toBeVisible();
 		const filters = await openTaskFilters(page);
 		await filters.getByPlaceholder('내용, 목표, 참여자 검색').fill(title);
 		await page.keyboard.press('Escape');
 		await page.getByRole('tab', { name: '표', exact: true }).click();
-		if (width < 640) {
+		if (width < smallBreakpointWidth) {
 			const task = page.getByRole('row').filter({ hasText: title });
 			await expect(task).toBeVisible();
 			await expect(task).toContainText('M');
@@ -53,7 +54,7 @@ for (const width of [320, 360, 390, 568, 1280]) {
 		}
 		await page.getByRole('tab', { name: '정의', exact: true }).click();
 		await fits(page, 'task-definitions');
-		if (width < 640) { await page.locator('[data-slot="accordion-trigger"]').first().click(); await fits(page, 'task-size-details'); }
+		if (width < smallBreakpointWidth) { await page.locator('[data-slot="accordion-trigger"]').first().click(); await fits(page, 'task-size-details'); }
 		await page.getByRole('tab', { name: '구성원', exact: true }).click();
 		await fits(page, 'task-members');
 		await page.goto(`/${exampleCompanySlug}/organization`);
@@ -63,11 +64,11 @@ for (const width of [320, 360, 390, 568, 1280]) {
 		await person.click();
 		await expect(page.getByTestId('organization-person-detail-panel')).toBeVisible();
 		await fits(page, 'organization-detail');
-		if (width < 1024) await page.keyboard.press('Escape');
+		if (width < largeBreakpointWidth) await page.keyboard.press('Escape');
 		await page.goto(`/${exampleCompanySlug}/attendance`);
 		await expect(page.getByRole('button', { name: '근무 현황', exact: true }).or(page.getByTestId('attendance-team-dashboard')).first()).toBeVisible();
 		await fits(page, 'attendance');
-		if (width < 640) {
+		if (width < smallBreakpointWidth) {
 			await page.getByRole('button', { name: '관리', exact: true }).click();
 			await page.getByRole('menuitem', { name: '휴가 관리', exact: true }).click();
 			const management = page.getByTestId('leave-management-view');
@@ -78,7 +79,7 @@ for (const width of [320, 360, 390, 568, 1280]) {
 			await fits(page, 'leave-management-detail');
 			await expect(page.getByRole('dialog').getByTestId('leave-management-refresh')).toBeVisible();
 			await page.keyboard.press('Escape');
-			if (width === 320) {
+			if (width === narrowestWidth) {
 				await page.route('**/api/v1/tools/company_settings_get/invoke', route => route.fulfill({ status: 503, json: { message: 'test unavailable' } }));
 				await management.getByRole('button', { name: member3Email }).click();
 				await expect(management.getByText('직원별 휴가 정보를 불러오지 못했습니다.')).toBeVisible();
