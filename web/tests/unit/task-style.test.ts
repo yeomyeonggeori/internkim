@@ -6,7 +6,7 @@ import {
 
 describe('flow status icon styles', () => {
 	const cases: Array<[string, string]> = [
-		['completed', 'text-[#16a34a]'],
+		['completed', 'text-success'],
 		['in_progress', 'text-[#0284c7]'],
 		['planned', 'text-[#d97706]'],
 		['requested', 'text-[#7c3aed]'],
@@ -28,7 +28,7 @@ describe('flow status icon styles', () => {
 
 describe('flow relationship status icon styles', () => {
 	test('uses completed styling only for completed work', () => {
-		expect(relationshipStatusIconClass('completed')).toBe('text-[#16a34a]');
+		expect(relationshipStatusIconClass('completed')).toBe('text-success');
 	});
 
 	test('uses one incomplete style for active statuses', () => {

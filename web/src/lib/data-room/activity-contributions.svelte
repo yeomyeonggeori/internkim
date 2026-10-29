@@ -58,8 +58,8 @@
 		background-color: var(--color-muted);
 		box-shadow: inset 0 0 0 1px color-mix(in oklch, var(--color-foreground) 6%, transparent);
 	}
-	.contribution-cell[data-level='1'] { background-color: color-mix(in oklch, var(--color-foreground) 12%, var(--color-muted)); }
-	.contribution-cell[data-level='2'] { background-color: color-mix(in oklch, var(--color-foreground) 24%, var(--color-muted)); }
-	.contribution-cell[data-level='3'] { background-color: color-mix(in oklch, var(--color-foreground) 40%, var(--color-muted)); }
-	.contribution-cell[data-level='4'] { background-color: color-mix(in oklch, var(--color-foreground) 62%, var(--color-muted)); }
+	.contribution-cell[data-level='1'] { background-color: color-mix(in oklch, var(--color-success) 25%, var(--color-muted)); }
+	.contribution-cell[data-level='2'] { background-color: color-mix(in oklch, var(--color-success) 45%, var(--color-muted)); }
+	.contribution-cell[data-level='3'] { background-color: color-mix(in oklch, var(--color-success) 70%, var(--color-muted)); }
+	.contribution-cell[data-level='4'] { background-color: var(--color-success); }
 </style>

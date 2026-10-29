@@ -72,7 +72,7 @@
     --accent-foreground: hsl(240 5.9% 10%);
     --destructive: hsl(0 72.2% 50.6%);
     --destructive-foreground: hsl(0 0% 98%);
-    --success: hsl(142 71% 45%);
+    --success: hsl(142 76% 36%);
     --success-foreground: hsl(0 0% 100%);
     --warning: oklch(0.74 0.15 75);
     --warning-foreground: oklch(0.22 0.04 75);
@@ -111,8 +111,8 @@
     --accent-foreground: hsl(0 0% 98%);
     --destructive: hsl(0 91% 71%);
     --destructive-foreground: hsl(0 0% 98%);
-    --success: hsl(142 76% 55%);
-    --success-foreground: hsl(240 10% 3.9%);
+    --success: hsl(142 76% 36%);
+    --success-foreground: hsl(0 0% 100%);
     --warning: oklch(0.78 0.13 75);
     --warning-foreground: oklch(0.18 0.03 75);
     --warning-subtle: oklch(0.26 0.07 75);
