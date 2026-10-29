@@ -271,9 +271,15 @@ GROUPS = [
     ),
     Group(
         "schema",
-        ["supabase/*", "tools/verify-migration-versions", "tools/with-local-plane*"],
+        [
+            "supabase/*",
+            "tools/verify-migration-versions",
+            "tools/tests/test_verify_migration_versions.py",
+            "tools/with-local-plane*",
+        ],
         [
             ["tools/verify-migration-versions"],
+            ["python3", "-m", "unittest", "discover", "-s", "tools/tests", "-p", "test_verify_migration_versions.py"],
             holding_the_local_plane(
                 ["supabase", "db", "reset"],
                 ["supabase", "test", "db"],
