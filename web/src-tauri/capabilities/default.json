@@ -3,5 +3,5 @@
   "identifier": "default",
   "windows": ["main"],
   "remote": { "urls": ["https://intern.kim/*", "https://*.intern.kim/*"] },
-  "permissions": ["core:default", "os:default"]
+  "permissions": ["core:default", "os:default", "opener:allow-open-url", "opener:allow-default-urls"]
 }
