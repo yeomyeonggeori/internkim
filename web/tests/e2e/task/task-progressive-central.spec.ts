@@ -125,7 +125,11 @@ test('ordinary task editing avoids 1501 historical rows until relationships are 
 	const childTitle = '보드 밖의 오래된 완료 자녀';
 	const parentTitle = '보드 밖의 오래된 부모 후보';
 	let historyReads = 0;
+	const historyPages: Promise<{ tasks: { taskID: string }[]; nextCursor?: string }>[] = [];
 	page.on('request', request => { if (request.url().endsWith('/task_list/invoke')) historyReads++; });
+	page.on('response', response => {
+		if (response.url().endsWith('/task_list/invoke') && response.ok()) historyPages.push(response.json().then(body => body.result));
+	});
 	let releaseHistory = () => {};
 	const readBoard = () => page.waitForResponse(response => response.url().endsWith('/task_board_get/invoke') && response.ok());
 	try {
@@ -175,20 +179,20 @@ test('ordinary task editing avoids 1501 historical rows until relationships are 
 		await sheet.getByRole('button', { name: '업무 수정' }).click();
 		const historyGate = new Promise<void>(resolve => { releaseHistory = resolve; });
 		await page.route('**/task_list/invoke', async route => { await historyGate; await route.continue(); });
-		const historyResponse = page.waitForResponse(response => response.url().endsWith('/task_list/invoke') && response.ok());
 		await sheet.getByRole('button', { name: '업무 관계', exact: true }).click();
 		await expect.poll(() => historyReads).toBe(1);
 		await expect(sheet.locator('[data-task-relationships]')).toHaveCount(0);
 		await expect(sheet.getByPlaceholder('업무 내용')).toBeEditable();
 		releaseHistory();
-		const historyBody = await (await historyResponse).text();
-		const historicalTasks: { taskID: string }[] = JSON.parse(historyBody).result.tasks;
-		expect(historicalIDs.every(historicalID => historicalTasks.some(task => task.taskID === historicalID))).toBe(true);
 		await expect(sheet.locator(`[data-task-relationship-task="${historicalIDs[0]}"]`)).toBeVisible();
 		await expect(sheet.getByLabel('자녀 업무 1 / 1 완료, 100%', { exact: true })).toBeVisible();
 		await expect.poll(() => page.evaluate(() => localStorage.getItem('internkim:task-snapshot:v1'))).not.toBeNull();
-		expect(historyReads).toBe(1);
-		console.log(JSON.stringify({ ordinaryOpenEditSaveHistoryReads: 0, relationshipDemandHistoryReads: historyReads, historyRows: historicalTasks.length, historyJSONBytes: Buffer.byteLength(historyBody), historicalFixtureRows: historicalIDs.length }));
+		const pages = await Promise.all(historyPages);
+		const historicalTasks = pages.flatMap(historyPage => historyPage.tasks);
+		expect(historicalIDs.every(historicalID => historicalTasks.some(task => task.taskID === historicalID))).toBe(true);
+		expect(pages.at(-1)?.nextCursor).toBeUndefined();
+		expect(historyReads).toBe(pages.length);
+		console.log(JSON.stringify({ ordinaryOpenEditSaveHistoryReads: 0, relationshipDemandHistoryReads: historyReads, historyRows: historicalTasks.length, historicalFixtureRows: historicalIDs.length }));
 		await sheet.getByRole('button', { name: '부모 업무 추가' }).click();
 		const selector = page.getByRole('dialog', { name: '부모 업무', exact: true });
 		await selector.getByPlaceholder('부모 업무 검색').fill(childTitle);
