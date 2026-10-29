@@ -1,6 +1,7 @@
 import { expect, test, type Page } from '@playwright/test';
 import { mkdir } from 'node:fs/promises';
 import { mockDeviceMessenger, type MockConversation } from './messenger-device-mock';
+import { everyScreen, smallBreakpointWidth } from '../support/screen-widths';
 
 const reader = { id: 'loading-reader', email: 'reader@example.com' };
 const conversations: MockConversation[] = [{ id: 'loading-channel', name: '샘플광장', kind: 'group', myRole: 'member' }];
@@ -29,7 +30,7 @@ test.beforeEach(async ({ page }) => {
 	await page.route('**/agent/api/custom-emoji', route => route.fulfill({ json: { emojis: [] } }));
 });
 
-for (const width of [1280, 390, 320]) {
+for (const width of everyScreen) {
 	test(`cold conversation list reserves content at ${width}px`, async ({ page }) => {
 		await page.setViewportSize({ width, height: 900 });
 		const pending = gate();
@@ -41,13 +42,13 @@ for (const width of [1280, 390, 320]) {
 		});
 		await page.goto('/messenger?channel=loading-channel');
 		await started.promise;
-		if (width < 640) await page.getByRole('button', { name: '채널 목록 열기' }).click();
+		if (width < smallBreakpointWidth) await page.getByRole('button', { name: '채널 목록 열기' }).click();
 		if (!isBaseline) await expect(page.locator('[data-messenger-list-skeleton]:visible').first()).toBeVisible();
 		else await expect(page.locator('[data-messenger-list-skeleton]')).toHaveCount(0);
 		await capture(page, `messenger-cold-${width}`);
 		pending.release();
 		await expect(page.locator('[data-sidebar="menu-button"]:visible').filter({ hasText: '샘플광장' }).first()).toBeVisible();
-		if (width < 640) await page.keyboard.press('Escape');
+		if (width < smallBreakpointWidth) await page.keyboard.press('Escape');
 		await expect(page.getByText(message.text)).toBeVisible();
 		await expect(page.locator('[data-messenger-list-skeleton]')).toHaveCount(0);
 		await capture(page, `messenger-loaded-${width}`);
@@ -60,7 +61,7 @@ for (const width of [1280, 390, 320]) {
 		const pending = gate();
 		const started = gate();
 		await page.route('**/agent/api/people', async route => { started.release(); await pending.promise; await route.fulfill({ json: { people: [] } }); });
-		if (width < 640) await page.getByRole('button', { name: '채널 목록 열기' }).click();
+		if (width < smallBreakpointWidth) await page.getByRole('button', { name: '채널 목록 열기' }).click();
 		await page.getByRole('button', { name: '새 개인 메시지', exact: true }).click();
 		await started.promise;
 		const dialog = page.getByRole('dialog');

@@ -1,6 +1,7 @@
 import { expect, test, type Page } from '@playwright/test';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { WorkspaceLoadingFixture, prepareWorkspaceLoading } from './workspace-loading-fixture';
+import { everyScreen } from '../support/screen-widths';
 	import { defaultLeavePolicy } from '../../../src/lib/attendance/leave-policy-defaults';
 
 const phase = process.env.EMPTY_CAPTURE_PHASE ?? 'after';
@@ -72,7 +73,7 @@ const scenes = [
 	{ name: 'approvals', path: '/runs/approvals', gate: 'person.runs.list', title: '승인을 기다리는 작업이 없습니다.' }
 ];
 
-for (const width of [1280, 390]) for (const scene of scenes) {
+for (const width of everyScreen) for (const scene of scenes) {
 	test(`${scene.name} settles from pending to a real empty state at ${width}px`, async ({ page }) => {
 		await page.setViewportSize({ width, height: 900 });
 		const fixture = new EmptyWorkspaceFixture();
@@ -206,7 +207,7 @@ for (const status of [503, 403]) for (const kind of ['skills', 'learned-skills']
 	});
 }
 
-for (const width of [1280, 390, 320]) {
+for (const width of everyScreen) {
 	test(`task list preserves pending then shows a compact settled zero at ${width}px`, async ({ page }) => {
 		await page.setViewportSize({ width, height: 900 });
 		const fixture = new EmptyWorkspaceFixture();

@@ -1,6 +1,7 @@
 import { expect, test, type Page, type Route } from '@playwright/test';
 import { mkdir } from 'node:fs/promises';
 import { taskWeekOfDate } from '../../../src/lib/task/task-week-code';
+import { everyScreen } from '../support/screen-widths';
 
 const memberID = '10000000-0000-4000-8000-000000000001';
 const companyID = '20000000-0000-4000-8000-000000000001';
@@ -112,7 +113,7 @@ async function capture(page: Page, scene: string) {
 
 test.use({ locale: 'ko-KR', colorScheme: 'light', contextOptions: { reducedMotion: 'reduce' } });
 
-for (const width of [1280, 390, 320]) {
+for (const width of everyScreen) {
 	test(`cold board and history list reserve content at ${width}px`, async ({ page }) => {
 		await page.setViewportSize({ width, height: 900 });
 		const fixture = new LoadingFixture();
@@ -139,7 +140,7 @@ for (const width of [1280, 390, 320]) {
 	});
 }
 
-for (const width of [1280, 390]) {
+for (const width of everyScreen) {
 	for (const pane of [{ name: '보고', variant: 'report' }, { name: '구성원', variant: 'members' }]) {
 		test(`${pane.variant} pending geometry at ${width}px`, async ({ page }) => {
 			await page.setViewportSize({ width, height: 900 });
