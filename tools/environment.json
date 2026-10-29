@@ -297,9 +297,17 @@
     "process": "tools/with-local-plane",
     "description": "the process ID of the tools/with-local-plane run already holding this machine's local Supabase stack; a script or command that sees it set is already inside the lock and runs without taking it again"
   },
+  "LOCAL_PLANE_START_TIMEOUT_SECONDS": {
+    "process": "tools/with-local-plane",
+    "description": "how long tools/with-local-plane waits for supabase start to bring the local plane up before it names the services that are not ready, kills the stack's processes and fails; defaults to 600, and only tools/with-local-plane-test sets it"
+  },
   "LOCAL_PLANE_STATE_DIRECTORY": {
     "process": "tools/with-local-plane",
     "description": "the directory holding the local plane's lock, queue of waiting runs, last-use record and idle-stop log; defaults to /tmp so every checkout on the machine shares one, and only tools/with-local-plane-test sets it, to keep its runs off the real lock"
+  },
+  "LOCAL_PLANE_STOP_TIMEOUT_SECONDS": {
+    "process": "tools/with-local-plane",
+    "description": "how long tools/with-local-plane waits for supabase stack stop or destroy before it kills the stack's processes, keeping its data; defaults to 120, and only tools/with-local-plane-test sets it"
   },
   "LOG_DIRECTORY_PATH": {
     "process": "tools/render-company-runtime",
