@@ -11,7 +11,7 @@ export function statusBadgeClass(status: string): string {
 }
 
 export function statusIconClass(status: string): string {
-	if (isTaskStatusCompleted(status)) return 'text-[#16a34a]';
+	if (isTaskStatusCompleted(status)) return 'text-success';
 	if (isTaskStatusInProgress(status)) return 'text-[#0284c7]';
 	if (isTaskStatusPlanned(status)) return 'text-[#d97706]';
 	if (isTaskStatusRequested(status)) return 'text-[#7c3aed]';
@@ -21,7 +21,7 @@ export function statusIconClass(status: string): string {
 }
 
 export function relationshipStatusIconClass(status: string): string {
-	if (isTaskStatusCompleted(status)) return 'text-[#16a34a]';
+	if (isTaskStatusCompleted(status)) return 'text-success';
 	return 'text-[#7c3aed]';
 }
 
@@ -33,7 +33,7 @@ export function sizeBadgeClass(size: string): string {
 		case 'S':
 			return `${baseClass} bg-[#2563eb]`;
 		case 'M':
-			return `${baseClass} bg-[#16a34a]`;
+			return `${baseClass} bg-success`;
 		case 'L':
 			return `${baseClass} bg-[#d97706]`;
 		case 'XL':
