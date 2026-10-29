@@ -42,6 +42,8 @@ set ends_at = ends_at
 where starts_at is null
   and ends_at is not null;
 
+set constraints all immediate;
+
 alter table public.task enable trigger task_status_derived_from_dates;
 alter table public.task enable trigger stamp_task_update;
 alter table public.task enable trigger task_write_announced;

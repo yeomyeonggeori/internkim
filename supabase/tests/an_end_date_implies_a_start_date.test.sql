@@ -56,9 +56,10 @@ insert into public.task (id, company_id, title, status, starts_at, ends_at) valu
     null, ((now() at time zone 'Asia/Seoul')::date - 7)::timestamp at time zone 'Asia/Seoul' + interval '15 hours');
 select is(
   (select (starts_at, status::text) from public.task where id = '99800000-0000-0000-0000-0000000000b5'),
-  (((now() at time zone 'Asia/Seoul')::date - 7)::timestamp at time zone 'Asia/Seoul', 'completed'),
+  (((now() at time zone 'Asia/Seoul')::date - 7)::timestamp at time zone 'Asia/Seoul', 'completed'::text),
   'implied start: a task recorded as done started and finished the same day');
 
+set constraints all immediate;
 alter table public.task disable trigger task_start_filled_from_its_end;
 select throws_ok(
   $$insert into public.task (company_id, title, status, starts_at, ends_at) values
