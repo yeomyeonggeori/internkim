@@ -38,6 +38,15 @@ describe('vite proxy config', () => {
 		expect(authPattern.test('/auth/verify/start')).toBe(true);
 	});
 
+	test('sends nothing to admind when the target is set empty, as the end-to-end planes set it', async () => {
+		process.env.VITE_ADMIND_TARGET = '';
+		try {
+			expect(await devServerProxy()).toEqual({});
+		} finally {
+			delete process.env.VITE_ADMIND_TARGET;
+		}
+	});
+
 	test('leaves the public API to the app that answers it', async () => {
 		const proxy = await devServerProxy();
 
