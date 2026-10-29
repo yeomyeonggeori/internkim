@@ -63,15 +63,13 @@ for (const width of [320, 390, 1280]) {
 }
 
 for (const width of [320, 390]) {
-	test(`files retain mobile root selection and shared preview after reader-role integration at ${width}px`, async ({ page }) => {
+	test(`files open a preview from the person's workspace at ${width}px`, async ({ page }) => {
 		await page.setViewportSize({ width, height: 844 });
 		await page.goto('/files/');
 		const item = page.getByRole('button', { name: /주간-회고.md/ });
 		await expect(item).toBeVisible();
 		await expectTouchTarget(item);
-		await page.getByRole('button', { name: '위치', exact: true }).click();
-		await page.getByRole('option', { name: '공개', exact: true }).click();
-		await page.getByRole('button', { name: /공지사항.md/ }).click();
+		await item.click();
 		await expect(page.getByRole('dialog')).toBeVisible();
 		await fits(page);
 	});
@@ -87,11 +85,7 @@ for (const viewport of [{ width: 320, height: 760 }, { width: 360, height: 760 }
 		await fits(page);
 		await screenshot(page, `files-${viewport.width}`);
 		if (mobile) {
-			await page.getByRole('button', { name: '위치', exact: true }).click();
-			await screenshot(page, `files-roots-${viewport.width}`);
-			await page.getByRole('option', { name: '공개', exact: true }).click();
-			await expect(page.getByRole('button', { name: /공지사항.md/ })).toBeVisible();
-			await page.getByRole('button', { name: /공지사항.md/ }).click();
+			await page.getByRole('button', { name: /주간-회고.md/ }).click();
 			await expect(page.getByRole('dialog')).toBeVisible();
 			await fits(page);
 			await screenshot(page, `files-detail-${viewport.width}`);
