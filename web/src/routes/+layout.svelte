@@ -36,6 +36,7 @@
 	import { goWhereNotificationsPoint } from '$lib/notifications/opened-notification';
 	import { forgetSignedInAccount } from '$lib/signed-in-account-memo';
 	import { keepShellStatusBarOnPageTheme } from '$lib/native-shell/page-theme';
+	import { openLinksLeavingTheAppInBrowser } from '$lib/native-shell/external-links';
 	import { goWhereNativeNotificationsPoint, keepNativeDeviceClaimed } from '$lib/notifications/native-device';
 	import { askToBeReachedOnce } from '$lib/notifications/ask-once';
 	import { keepWidgetSupplied } from '$lib/widget/attendance-widget-supply';
@@ -100,6 +101,7 @@
 	});
 	onMount(markDocumentHydrated);
 	onMount(keepAppInVisualViewport);
+	onMount(openLinksLeavingTheAppInBrowser);
 	onMount(watchCentralBuzzIdentity);
 	onMount(() => {
 		needsLegacyIdentity = !isSupabaseConfigured();
