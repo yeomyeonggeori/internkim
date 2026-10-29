@@ -95,17 +95,15 @@ func (service *Service) everyAddressThisDeviceKnows(ctx context.Context) []strin
 		seen[email] = true
 		addresses = append(addresses, email)
 	}
-	for _, record := range service.directoryRecords(ctx) {
+	for _, record := range service.blueclawPolicyUserRecords(ctx) {
 		add(record.Email)
+	}
+	if members, errorValue := service.companyMembers(ctx); errorValue == nil {
+		for _, member := range members {
+			add(member.Email)
+		}
 	}
 	add(service.seedAdminEmail())
 	add(service.claimedAdminEmail())
-	if client := service.centralPlane(); client != nil {
-		if members, errorValue := client.Members(ctx); errorValue == nil {
-			for _, member := range members {
-				add(member.Email)
-			}
-		}
-	}
 	return addresses
 }
