@@ -158,6 +158,12 @@ what a `search` ranks against, `scope` says whose records a call reads,
 `startsAt` and `endsAt` are RFC 3339 instants, `date` is a `YYYY-MM-DD` day in
 the company's zone, and `reason` is why a record was written by hand.
 
+A tool that reads many records a page at a time takes `limit`, at most 100, and
+`cursor`, copied from the previous answer's `nextCursor`, and answers
+`totalCount`. `nextCursor` is present only while records remain.
+`tools/verify-list-tool-pages` fails a tool that caps its answer without saying
+what it left out.
+
 The agent's kernel tools (`bash`, `read`, `write`, `edit`, `plan`, `equip`) are
 exempt. They carry the names other coding agents use, so a model recognizes
 them on its first turn. Tools from outside MCP servers keep their own names.

@@ -157,6 +157,11 @@ MCP로 부릅니다.
 `date`는 회사 시간대의 `YYYY-MM-DD` 날짜, `reason`은 기록을 손으로 쓴
 이유입니다.
 
+많은 레코드를 페이지로 나눠 읽는 도구는 최대 100인 `limit`과, 앞 답의
+`nextCursor`를 그대로 옮긴 `cursor`를 받고 `totalCount`를 답합니다.
+`nextCursor`는 남은 레코드가 있을 때만 옵니다. 답을 자르면서 무엇을 뺐는지
+말하지 않는 도구는 `tools/verify-list-tool-pages`가 막습니다.
+
 에이전트의 커널 도구(`bash`, `read`, `write`, `edit`, `plan`, `equip`)는
 예외입니다. 다른 코딩 에이전트가 쓰는 이름을 그대로 써서, 모델이 첫 턴에
 알아봅니다. 외부 MCP 서버의 도구는 그 서버가 붙인 이름을 씁니다.
