@@ -5,7 +5,9 @@ import (
 	"encoding/json"
 	"net/http"
 	"strings"
+	"sync"
 	"testing"
+	"time"
 )
 
 func answeringManyChannelsAsTheRequester(request *http.Request) (int, string) {
@@ -115,5 +117,48 @@ func TestAChannelPageLargerThanAHundredIsRefused(t *testing.T) {
 
 	if !answered.IsError || answered.ErrorCode != "invalid_input" {
 		t.Fatalf("expected the limit refused as input, got %+v", answered)
+	}
+}
+
+func answeringOnlyOnceBothListsAreAsked(bothAsked *sync.WaitGroup) func(*http.Request) (int, string) {
+	return func(request *http.Request) (int, string) {
+		if isAChannelListOfTheRequester(request) {
+			bothAsked.Done()
+			if !hasSettledWithin(bothAsked, 2*time.Second) {
+				return http.StatusGatewayTimeout, `{"error":"the other list was never asked while this one waited"}`
+			}
+		}
+		return answeringManyChannelsAsTheRequester(request)
+	}
+}
+
+func isAChannelListOfTheRequester(request *http.Request) bool {
+	return strings.HasSuffix(request.URL.Path, "/requester.conversations.list") ||
+		strings.HasSuffix(request.URL.Path, "/requester.channels.open.list")
+}
+
+func hasSettledWithin(waitGroup *sync.WaitGroup, limit time.Duration) bool {
+	settled := make(chan struct{})
+	go func() {
+		waitGroup.Wait()
+		close(settled)
+	}()
+	select {
+	case <-settled:
+		return true
+	case <-time.After(limit):
+		return false
+	}
+}
+
+func TestTheJoinedAndOpenChannelsAreAskedAtOnce(t *testing.T) {
+	var bothAsked sync.WaitGroup
+	bothAsked.Add(2)
+	service := channelService(t, answeringPerCall(answeringOnlyOnceBothListsAreAsked(&bothAsked)))
+
+	result := listChannels(t, service, `{}`)
+
+	if result.TotalCount != 5 {
+		t.Fatalf("expected the five channels both lists name, got %+v", result)
 	}
 }
