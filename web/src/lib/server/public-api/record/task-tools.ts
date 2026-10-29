@@ -15,7 +15,7 @@ import {
 	organizationOfCRMHint,
 	writeCRMColumns
 } from './crm-tools';
-import { dayOfInstant, endWritten, isTheSameMoment, startWritten, weekWindow } from './days';
+import { dayOfInstant, dayShifted, endWritten, instantOfDay, isTheSameMoment, startWritten, weekWindow } from './days';
 import { labelOf } from './labels';
 import { displayNameOf, mentionOf, personOfHint, type RecordPerson } from './people';
 import type { RecordContext } from './company';
@@ -33,10 +33,10 @@ import {
 	taskWriteArguments,
 	type TaskRow
 } from './tasks';
-import { ownerNamedBy, whoseRecords, whoseRecordsHoldsAny } from './whose';
+import { ownerNamedBy, whoseRecords } from './whose';
 import { labelsOfVocabulary, type CompanyLabels } from './labels';
-import { countUnfinishedTasks } from './unfinished-task-count';
-import { taskBoardWindow, tasksForBoard, taskChildProgressForBoard, type TaskBoardWindow, type TaskCardRow } from './task-board';
+import { taskPage, type TaskSearch } from './task-page';
+import { lastDayBetween, taskBoardDatePredicate, taskBoardWindow, taskChildProgressForBoard, type TaskBoardWindow, type TaskCardRow } from './task-board';
 
 type TaskWritten = {
 	title?: string;
@@ -372,61 +372,36 @@ export async function taskDelete(
 	return { taskID: row.id, deleted: true };
 }
 
-const rollsForwardToTheWeekRead = new Set(['planned', 'paused']);
-const staysInTheWeekItEnded = new Set(['completed', 'rejected', 'stopped']);
+const rollsForwardToTheWeekRead = ['planned', 'paused'];
+const staysInTheWeekItEnded = ['completed', 'rejected', 'stopped'];
 
-function weekCodeOfOffset(context: RecordContext, offset: number): string {
-	return taskWeekCodeForDateISO(weekWindow(context.labels.timezone, context.now, offset, offset).from);
-}
-
-function weeksAsked(context: RecordContext, weekFrom: number, weekTo: number): Set<string> {
-	const [earlier, later] = weekFrom <= weekTo ? [weekFrom, weekTo] : [weekTo, weekFrom];
-	const asked = new Set<string>();
-	for (let offset = earlier; offset <= later; offset += 1) {
-		asked.add(weekCodeOfOffset(context, offset));
-	}
-	return asked;
-}
-
-function weekCodeOfDay(context: RecordContext, instant: string | null): string {
-	const day = dayOfInstant(context.labels.timezone, instant);
-	return day ? taskWeekCodeForDateISO(day) : '';
-}
-
-function weekCodeOfTask(context: RecordContext, row: TaskCardRow, thisWeek: string): string {
-	const startWeek = weekCodeOfDay(context, row.starts_at);
-	const endWeek = row.task_last_day ? taskWeekCodeForDateISO(row.task_last_day) : '';
-	if (row.status === 'paused') return thisWeek;
-	if (rollsForwardToTheWeekRead.has(row.status)) {
-		if (!startWeek || isCurrentOrEarlier(startWeek, thisWeek)) return thisWeek;
-		return startWeek;
-	}
-	if (staysInTheWeekItEnded.has(row.status)) return endWeek || startWeek;
-	return endWeek;
-}
-
-function isCurrentOrEarlier(weekCode: string, thisWeek: string): boolean {
-	const asked = weekOrdinalOf(weekCode);
-	const current = weekOrdinalOf(thisWeek);
-	if (asked === null || current === null) return false;
-	return asked <= current;
-}
-
-function weekOrdinalOf(weekCode: string): number | null {
-	const read = /^(\d{2})W(\d{1,2})$/.exec(weekCode.trim().toUpperCase());
-	if (!read) return null;
-	return Number(read[1]) * 100 + Number(read[2]);
+function weekDatesPredicate(context: RecordContext, weekFrom: number, weekTo: number): string {
+	const timeZone = context.labels.timezone;
+	const asked = weekWindow(timeZone, context.now, weekFrom, weekTo);
+	const thisWeek = weekWindow(timeZone, context.now, 0, 0);
+	const nextMonday = instantOfDay(timeZone, dayShifted(thisWeek.to, 1));
+	const isThisWeekAsked = asked.from <= thisWeek.from && thisWeek.from <= asked.to;
+	const endsInTheWeeksAsked = lastDayBetween(timeZone, asked.from, asked.to);
+	const startsInTheWeeksAsked = `starts_at.gte.${instantOfDay(timeZone, asked.from)},starts_at.lt.${instantOfDay(timeZone, dayShifted(asked.to, 1))}`;
+	return [
+		...(isThisWeekAsked ? ['status.eq.paused', `and(status.eq.planned,or(starts_at.is.null,starts_at.lt.${nextMonday}))`] : []),
+		`and(status.eq.planned,starts_at.gte.${nextMonday},${startsInTheWeeksAsked})`,
+		`and(status.in.(${staysInTheWeekItEnded.join(',')}),or(and(${endsInTheWeeksAsked}),and(ends_at.is.null,${startsInTheWeeksAsked})))`,
+		`and(status.not.in.(${[...rollsForwardToTheWeekRead, ...staysInTheWeekItEnded].join(',')}),${endsInTheWeeksAsked})`
+	].join(',');
 }
 
 function searchableText(value: string): string {
 	return value.trim().toLowerCase().split(/\s+/).join('');
 }
 
-function matchesQuery(context: RecordContext, row: TaskCardRow, query: string | undefined): boolean {
-	const asked = searchableText(query ?? '');
-	if (!asked) return true;
-	const searched = [row.title, row.business ?? '', row.type ?? '', ownerOf(context, row).name, row.status];
-	return searched.some((value) => searchableText(value).includes(asked));
+function taskSearchOf(context: RecordContext, query: string | undefined): TaskSearch | undefined {
+	const text = searchableText(query ?? '');
+	if (!text) return undefined;
+	const soleParticipantIDs = context.people
+		.filter((person) => searchableText(personName(person.name, context.locale)).includes(text))
+		.map((person) => person.personID);
+	return { text, soleParticipantIDs };
 }
 
 export async function taskList(context: RecordContext, input: TaskListInput) {
@@ -440,8 +415,6 @@ export async function taskBoard(context: RecordContext, input: TaskBoardInput) {
 
 async function readTaskList(context: RecordContext, input: TaskListInput, board: TaskBoardWindow | undefined) {
 	const whose = whoseRecords(context.people, input.personHints, input.scope, context.requesterID);
-	const weeks = weeksAsked(context, input.weekFrom ?? 0, input.weekTo ?? input.weekFrom ?? 0);
-	const thisWeek = weekCodeOfOffset(context, 0);
 	const deal = input.opportunityHint ? await opportunityOfCRMHint(context, input.opportunityHint) : null;
 	const organization = input.organizationHint
 		? await organizationOfCRMHint(context, input.organizationHint)
@@ -449,35 +422,34 @@ async function readTaskList(context: RecordContext, input: TaskListInput, board:
 	const everyWeek =
 		input.everyWeek === true ||
 		(Boolean(deal || organization) && input.weekFrom === undefined && input.weekTo === undefined);
-
-	const candidates = board
-		? await tasksForBoard(context.caller, board, { organizationID: organization?.id, opportunityID: deal?.id })
-		: await tasksOfCompany(context.caller, false, { status: input.status });
-	const rows = candidates.filter((row) => {
-		if (!whoseRecordsHoldsAny(whose, row.task_participant.map(({ member_id }) => member_id))) return false;
-		if (input.status && row.status !== input.status) return false;
-		if (!board && deal && row.opportunity_id !== deal.id) return false;
-		if (!board && organization && row.organization_id !== organization.id) return false;
-		if (!matchesQuery(context, row, input.query)) return false;
-		return Boolean(board) || everyWeek || weeks.has(weekCodeOfTask(context, row, thisWeek));
-	});
-
-	const kept = input.limit && input.limit > 0 ? rows.slice(0, input.limit) : rows;
+	const weekFrom = input.weekFrom ?? 0;
+	const weekTo = input.weekTo ?? input.weekFrom ?? 0;
+	const page = await taskPage(context.caller, {
+		whose,
+		status: input.status,
+		organizationID: organization?.id,
+		opportunityID: deal?.id,
+		dates: board ? taskBoardDatePredicate(board) : everyWeek ? undefined : weekDatesPredicate(context, weekFrom, weekTo),
+		search: taskSearchOf(context, input.query),
+		carriesLinks: !board
+	}, input, board ? 'task_board_get' : 'task_list');
 	const people = peopleByID(context);
 	return {
 		...(board ? {
 			boardWeek: board.week,
-			childProgress: Object.entries(await taskChildProgressForBoard(context.caller, kept.map(row => row.id)))
+			childProgress: Object.entries(await taskChildProgressForBoard(context.caller, page.items.map(row => row.id)))
 				.map(([parentTaskID, progress]) => ({ parentTaskID, ...progress }))
 		} : {}),
 		scope: whose.everyone ? 'everyone' : 'person',
 		ownerID: ownerNamedBy(whose),
-		...(!board ? { weekFrom: input.weekFrom ?? 0, weekTo: input.weekTo ?? input.weekFrom ?? 0 } : {}),
+		...(!board ? { weekFrom, weekTo } : {}),
 		statusFilter: input.status ?? '',
-		count: kept.length,
-		unfinishedCount: countUnfinishedTasks(rows),
-		tasks: kept.map((row) => answeredTask(context, row, people)),
-		registeredLabels: registeredLabelsOf(context.labels)
+		count: page.items.length,
+		totalCount: page.totalCount,
+		unfinishedCount: page.unfinishedCount,
+		tasks: page.items.map((row) => answeredTask(context, row, people)),
+		registeredLabels: registeredLabelsOf(context.labels),
+		...(page.nextCursor ? { nextCursor: page.nextCursor } : {})
 	};
 }
 
