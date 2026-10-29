@@ -26,9 +26,24 @@ function admindProxy(target: string, devUserEmail?: string): ProxyOptions {
 	return options;
 }
 
+function admindProxies(target: string, devUserEmail?: string): Record<string, ProxyOptions> {
+	return {
+		'/admin/api': admindProxy(target),
+		'/agent/api': admindProxy(target, devUserEmail),
+		'/buzz/api': admindProxy(target, devUserEmail),
+		'/attendance/api': admindProxy(target),
+		'^/auth/(?!claim)': admindProxy(target, devUserEmail),
+		'/calendar/api': admindProxy(target),
+		'/crm/api': admindProxy(target, devUserEmail),
+		'/mail/api': admindProxy(target),
+		'/memory/api': admindProxy(target),
+		'/organization/api': admindProxy(target)
+	};
+}
+
 export default defineConfig(({ mode }) => {
 	const env = loadEnv(mode, process.cwd(), '');
-	const admindTarget = env.VITE_ADMIND_TARGET || 'http://127.0.0.1:18080';
+	const admindTarget = env.VITE_ADMIND_TARGET ?? 'http://127.0.0.1:18080';
 	const devUserRole = devUserRoleFromEnv(env.VITE_DEV_USER_ROLE);
 	const isAdminMockEnabled = env.VITE_MOCK_ADMIN === '1' || env.VITE_MOCK_CRM === '1';
 	const devUserEmail = env.VITE_DEV_USER_EMAIL;
@@ -62,18 +77,7 @@ export default defineConfig(({ mode }) => {
 				ssrFiles: ['./src/routes/**/+layout.svelte', './src/routes/**/+page.svelte']
 			},
 			allowedHosts: env.VITE_ALLOWED_HOSTS ? env.VITE_ALLOWED_HOSTS.split(',') : undefined,
-			proxy: {
-				'/admin/api': admindProxy(admindTarget),
-				'/agent/api': admindProxy(admindTarget, devUserEmail),
-				'/buzz/api': admindProxy(admindTarget, devUserEmail),
-				'/attendance/api': admindProxy(admindTarget),
-				'^/auth/(?!claim)': admindProxy(admindTarget, devUserEmail),
-				'/calendar/api': admindProxy(admindTarget),
-				'/crm/api': admindProxy(admindTarget, devUserEmail),
-				'/mail/api': admindProxy(admindTarget),
-				'/memory/api': admindProxy(admindTarget),
-				'/organization/api': admindProxy(admindTarget)
-			}
+			proxy: admindTarget ? admindProxies(admindTarget, devUserEmail) : {}
 		},
 		build: {
 			rollupOptions: {
