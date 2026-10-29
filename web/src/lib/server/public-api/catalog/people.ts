@@ -8,6 +8,7 @@ import {
 } from './protocol';
 
 import { ResourceMutationEffect, type CapabilityToolDefinition } from './definition';
+import { listCursorSchema, listLimitSchema, moreRemainSentence, nextCursorSchema } from './list-page';
 
 const resourceIDSchema = z.string()
   .min(1)
@@ -43,14 +44,11 @@ const parentHintSchema = z.string().max(256).describe(
   'The organization this one sits under, named the way teamHint is. An empty string makes it a top-level organization.',
 );
 
-export const personListPageSize = 50;
-export const personListPageSizeLimit = 100;
-
 export const personListInputSchema = z.strictObject({
   searchText: z.string().max(100).describe('Only the people whose name or email contains this text.').optional(),
   teamHint: teamHintSchema.describe('Only the people in this organization and the organizations under it: its exact team ID or its exact CURRENT name as a team_list result shows it. A name several organizations carry fails with the candidates to choose between.').optional(),
-  limit: z.number().int().min(1).max(personListPageSizeLimit).describe(`Maximum people to return. Defaults to ${personListPageSize}.`).optional(),
-  cursor: z.string().min(1).describe('Pagination cursor from a previous person_list result. Omit on the first call.').optional(),
+  limit: listLimitSchema('people').optional(),
+  cursor: listCursorSchema('person_list').optional(),
 });
 
 export const personListInputIntentSchema = personListInputSchema;
@@ -80,7 +78,7 @@ export const personListResultSchema = z.strictObject({
   count: z.number().describe('How many people this page holds.'),
   totalCount: z.number().int().describe('How many people match the filters across every page.'),
   people: z.array(directoryPersonSchema),
-  nextCursor: z.string().describe('Cursor for the next page. Absent when no more people match.').optional(),
+  nextCursor: nextCursorSchema('people').optional(),
 });
 
 const personUpdateObjectSchema = z.strictObject({
@@ -221,7 +219,7 @@ export const peopleToolDefinitions: CapabilityToolDefinition[] = [
     answeredBy: CapabilityAnsweredBy.Record,
     privacyClass: 'workspace_task',
     policyResource: 'tool:person_list',
-    description: 'Everyone who works here, with their exact name, email and mention, and what the company directory holds about them: their job title, their organization, who they report to, and when they started. Call this when somebody asks who a person is or who works here, and when a person hint was refused with a list of candidates to choose between. Do not call it to turn a fragment into a name before another call: person hints take the fragment as it was written and the server resolves it, so a name given partly or by a given name alone is already enough. requesterID names which of them is asking. A nextCursor in the result means more people match than this page holds: read the next page before concluding that somebody is not here.',
+    description: 'Everyone who works here, with their exact name, email and mention, and what the company directory holds about them: their job title, their organization, who they report to, and when they started. Call this when somebody asks who a person is or who works here, and when a person hint was refused with a list of candidates to choose between. Do not call it to turn a fragment into a name before another call: person hints take the fragment as it was written and the server resolves it, so a name given partly or by a given name alone is already enough. requesterID names which of them is asking. ' + moreRemainSentence('people', 'somebody is not here'),
     version: '5',
     estimatedLatency: CapabilityEstimatedLatency.Low,
     inputSchema: personListInputSchema,

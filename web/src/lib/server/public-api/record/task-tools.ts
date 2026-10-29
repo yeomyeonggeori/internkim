@@ -36,6 +36,8 @@ import {
 import { ownerNamedBy, whoseRecords, whoseRecordsHoldsAny } from './whose';
 import { labelsOfVocabulary, type CompanyLabels } from './labels';
 import { countUnfinishedTasks } from './unfinished-task-count';
+import { cursorOfPosition, positionOfCursor } from './list-cursor';
+import { listPageSize } from '../catalog/list-page';
 import { taskBoardWindow, tasksForBoard, taskChildProgressForBoard, type TaskBoardWindow, type TaskCardRow } from './task-board';
 
 type TaskWritten = {
@@ -460,9 +462,12 @@ async function readTaskList(context: RecordContext, input: TaskListInput, board:
 		if (!board && organization && row.organization_id !== organization.id) return false;
 		if (!matchesQuery(context, row, input.query)) return false;
 		return Boolean(board) || everyWeek || weeks.has(weekCodeOfTask(context, row, thisWeek));
-	});
+	}).sort(compareTasksByPosition);
 
-	const kept = input.limit && input.limit > 0 ? rows.slice(0, input.limit) : rows;
+	const after = input.cursor === undefined ? undefined : taskListPositionOfCursor(input.cursor);
+	const remaining = after ? rows.filter((row) => compareTasksByPosition(row, after) > 0) : rows;
+	const kept = remaining.slice(0, input.limit ?? listPageSize);
+	const last = kept.at(-1);
 	const people = peopleByID(context);
 	return {
 		...(board ? {
@@ -475,10 +480,25 @@ async function readTaskList(context: RecordContext, input: TaskListInput, board:
 		...(!board ? { weekFrom: input.weekFrom ?? 0, weekTo: input.weekTo ?? input.weekFrom ?? 0 } : {}),
 		statusFilter: input.status ?? '',
 		count: kept.length,
+		totalCount: rows.length,
 		unfinishedCount: countUnfinishedTasks(rows),
 		tasks: kept.map((row) => answeredTask(context, row, people)),
-		registeredLabels: registeredLabelsOf(context.labels)
+		registeredLabels: registeredLabelsOf(context.labels),
+		...(last && remaining.length > kept.length ? { nextCursor: cursorOfPosition([last.updated_at, last.id]) } : {})
 	};
+}
+
+type TaskListPosition = { updated_at: string; id: string };
+
+function taskListPositionOfCursor(cursor: string): TaskListPosition {
+	const [updatedAt, taskID] = positionOfCursor(cursor, 'task_list or task_board_get', 2);
+	return { updated_at: updatedAt, id: taskID };
+}
+
+function compareTasksByPosition(left: TaskListPosition, right: TaskListPosition): number {
+	if (left.updated_at !== right.updated_at) return left.updated_at > right.updated_at ? -1 : 1;
+	if (left.id === right.id) return 0;
+	return left.id < right.id ? -1 : 1;
 }
 
 function registeredLabelsOf(labels: CompanyLabels): TaskLabelVocabulary {

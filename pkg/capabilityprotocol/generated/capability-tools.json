@@ -1401,7 +1401,7 @@
         "state": "ok"
       },
       "canonicalName": "task_list",
-      "description": "List workspace tasks with optional filters. Use this to answer 'what tasks does X have', 'what is on my plate', or 'show incomplete items this week'. It reads the requester's own tasks unless personHints names other people or scope is all.",
+      "description": "List workspace tasks with optional filters. Use this to answer 'what tasks does X have', 'what is on my plate', or 'show incomplete items this week'. It reads the requester's own tasks unless personHints names other people or scope is all, most recently changed first. A nextCursor in the result means more tasks match than this page holds: read the next page before concluding that a task is not there.",
       "estimatedLatency": "low",
       "idempotency": {
         "required": false,
@@ -1412,13 +1412,20 @@
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
         "properties": {
+          "cursor": {
+            "description": "Pagination cursor from a previous task_list or task_board_get result. Omit on the first call.",
+            "minLength": 1,
+            "type": "string"
+          },
           "everyWeek": {
             "description": "Every week there is, ignoring weekFrom and weekTo. Use it to search the whole history or to total work across all time.",
             "type": "boolean"
           },
           "limit": {
-            "description": "Maximum number of tasks to return. Omit to return every matching task.",
-            "type": "number"
+            "description": "Maximum tasks to return. Defaults to 50.",
+            "maximum": 100,
+            "minimum": 1,
+            "type": "integer"
           },
           "opportunityHint": {
             "description": "Only the work on one deal. Names the deal this work belongs to, as a crm_opportunity_list result shows it, or its exact opportunity ID. The deal already says which organization it is with.",
@@ -1485,9 +1492,14 @@
         "additionalProperties": false,
         "properties": {
           "count": {
+            "description": "How many tasks this page holds.",
             "maximum": 9007199254740991,
             "minimum": -9007199254740991,
             "type": "integer"
+          },
+          "nextCursor": {
+            "description": "Cursor for the next page. Absent when no more tasks match.",
+            "type": "string"
           },
           "ownerID": {
             "type": "string"
@@ -1668,8 +1680,14 @@
             },
             "type": "array"
           },
+          "totalCount": {
+            "description": "How many tasks match the filters across every page.",
+            "maximum": 9007199254740991,
+            "minimum": -9007199254740991,
+            "type": "integer"
+          },
           "unfinishedCount": {
-            "description": "Number of unfinished tasks among all matching rows before the optional limit is applied.",
+            "description": "Number of unfinished tasks among all matching rows across every page.",
             "maximum": 9007199254740991,
             "minimum": -9007199254740991,
             "type": "integer"
@@ -1688,6 +1706,7 @@
         "required": [
           "tasks",
           "count",
+          "totalCount",
           "unfinishedCount",
           "scope",
           "registeredLabels"
@@ -1705,9 +1724,14 @@
           "additionalProperties": false,
           "properties": {
             "count": {
+              "description": "How many tasks this page holds.",
               "maximum": 9007199254740991,
               "minimum": -9007199254740991,
               "type": "integer"
+            },
+            "nextCursor": {
+              "description": "Cursor for the next page. Absent when no more tasks match.",
+              "type": "string"
             },
             "ownerID": {
               "type": "string"
@@ -1888,8 +1912,14 @@
               },
               "type": "array"
             },
+            "totalCount": {
+              "description": "How many tasks match the filters across every page.",
+              "maximum": 9007199254740991,
+              "minimum": -9007199254740991,
+              "type": "integer"
+            },
             "unfinishedCount": {
-              "description": "Number of unfinished tasks among all matching rows before the optional limit is applied.",
+              "description": "Number of unfinished tasks among all matching rows across every page.",
               "maximum": 9007199254740991,
               "minimum": -9007199254740991,
               "type": "integer"
@@ -1908,6 +1938,7 @@
           "required": [
             "tasks",
             "count",
+            "totalCount",
             "unfinishedCount",
             "scope",
             "registeredLabels"
@@ -1917,7 +1948,7 @@
       },
       "sideEffect": "read",
       "sideEffectClass": "read",
-      "version": "4",
+      "version": "5",
       "worksOffline": false
     },
     {
@@ -1926,7 +1957,7 @@
         "state": "ok"
       },
       "canonicalName": "task_board_get",
-      "description": "Get one task board week: its visible cards, including undated and overdue carry-over work, with direct-child progress across all weeks. Counts describe this board selection; use task_list for complete history and reports. Uses the same person scope and read permissions as task_list.",
+      "description": "Get one task board week: its visible cards, including undated and overdue carry-over work, with direct-child progress across all weeks. Counts describe this board selection; use task_list for complete history and reports. Uses the same person scope and read permissions as task_list. A nextCursor in the result means more cards match than this page holds: read the next page before concluding that a card is not on the board.",
       "estimatedLatency": "low",
       "idempotency": {
         "required": false,
@@ -1942,9 +1973,16 @@
             "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
             "type": "string"
           },
+          "cursor": {
+            "description": "Pagination cursor from a previous task_list or task_board_get result. Omit on the first call.",
+            "minLength": 1,
+            "type": "string"
+          },
           "limit": {
-            "description": "Maximum number of tasks to return. Omit to return every matching task.",
-            "type": "number"
+            "description": "Maximum tasks to return. Defaults to 50.",
+            "maximum": 100,
+            "minimum": 1,
+            "type": "integer"
           },
           "opportunityHint": {
             "description": "Only the work on one deal. Names the deal this work belongs to, as a crm_opportunity_list result shows it, or its exact opportunity ID. The deal already says which organization it is with.",
@@ -2042,9 +2080,14 @@
             "type": "array"
           },
           "count": {
+            "description": "How many tasks this page holds.",
             "maximum": 9007199254740991,
             "minimum": -9007199254740991,
             "type": "integer"
+          },
+          "nextCursor": {
+            "description": "Cursor for the next page. Absent when no more tasks match.",
+            "type": "string"
           },
           "ownerID": {
             "type": "string"
@@ -2225,8 +2268,14 @@
             },
             "type": "array"
           },
+          "totalCount": {
+            "description": "How many tasks match the filters across every page.",
+            "maximum": 9007199254740991,
+            "minimum": -9007199254740991,
+            "type": "integer"
+          },
           "unfinishedCount": {
-            "description": "Number of unfinished tasks among all matching rows before the optional limit is applied.",
+            "description": "Number of unfinished tasks among all matching rows across every page.",
             "maximum": 9007199254740991,
             "minimum": -9007199254740991,
             "type": "integer"
@@ -2245,6 +2294,7 @@
         "required": [
           "tasks",
           "count",
+          "totalCount",
           "unfinishedCount",
           "scope",
           "registeredLabels",
@@ -2300,9 +2350,14 @@
               "type": "array"
             },
             "count": {
+              "description": "How many tasks this page holds.",
               "maximum": 9007199254740991,
               "minimum": -9007199254740991,
               "type": "integer"
+            },
+            "nextCursor": {
+              "description": "Cursor for the next page. Absent when no more tasks match.",
+              "type": "string"
             },
             "ownerID": {
               "type": "string"
@@ -2483,8 +2538,14 @@
               },
               "type": "array"
             },
+            "totalCount": {
+              "description": "How many tasks match the filters across every page.",
+              "maximum": 9007199254740991,
+              "minimum": -9007199254740991,
+              "type": "integer"
+            },
             "unfinishedCount": {
-              "description": "Number of unfinished tasks among all matching rows before the optional limit is applied.",
+              "description": "Number of unfinished tasks among all matching rows across every page.",
               "maximum": 9007199254740991,
               "minimum": -9007199254740991,
               "type": "integer"
@@ -2503,6 +2564,7 @@
           "required": [
             "tasks",
             "count",
+            "totalCount",
             "unfinishedCount",
             "scope",
             "registeredLabels",
@@ -2514,7 +2576,7 @@
       },
       "sideEffect": "read",
       "sideEffectClass": "read",
-      "version": "1",
+      "version": "2",
       "worksOffline": false
     },
     {

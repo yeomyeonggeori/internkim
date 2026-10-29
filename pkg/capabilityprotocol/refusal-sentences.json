@@ -16,8 +16,8 @@
 	},
 	{
 		"tool": "task_list",
-		"input": { "limit": "ten" },
-		"refusal": "input.limit must be a number, and it is \"ten\""
+		"input": { "weekFrom": "ten" },
+		"refusal": "input.weekFrom must be a number, and it is \"ten\""
 	},
 	{
 		"tool": "task_list",
