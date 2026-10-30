@@ -33,7 +33,7 @@
 		: 'relative z-10 w-[min(calc(100vw-3rem),64rem)]'}
 >
 	<video
-		src={source}
+		src={`${source}#t=0.001`}
 		controls
 		preload="metadata"
 		playsinline
