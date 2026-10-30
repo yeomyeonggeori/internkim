@@ -39,3 +39,15 @@ func TestASavedSecretThatIsNotOneIsRefusedRatherThanReplaced(t *testing.T) {
 		t.Fatal("a saved secret that is not one was replaced")
 	}
 }
+
+func TestACompanyThatAnswersWithNoModelKeyIsLeftWithoutOne(t *testing.T) {
+	secretDirectoryPath := t.TempDir()
+
+	if errorValue := KeepModelKey(secretDirectoryPath, "", func() (string, error) { return " \n", nil }); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+
+	if _, errorValue := os.Stat(filepath.Join(secretDirectoryPath, modelKeyFileName)); !os.IsNotExist(errorValue) {
+		t.Fatalf("a company that brought no key must have no key file, so it pays through the gateway; stat returned %v", errorValue)
+	}
+}

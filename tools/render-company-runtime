@@ -35,6 +35,8 @@ own:
   SERVICE_TOKEN_PATH        /run/internkim/secrets/service-token
   POSIX_HELPER_PATH         /usr/local/bin/blueclaw-posix-helper
   MODEL_ENDPOINT            the ladder's own endpoint
+  SUPABASE_URL              the central plane whose model gateway the ladder reaches when MODEL_API_KEY_PATH holds no key
+  MODEL_GATEWAY_KEY_PATH    the file holding this computer's credential, which the gateway is asked with
 USAGE
   exit 2
 }
@@ -112,5 +114,6 @@ jq \
   "${templatePath}" > "${renderedPath}"
 
 "${capabilitydPath}" --print-capabilities --socket "${CAPABILITY_SOCKET_PATH}" > "${capabilitiesPath}"
-"${capabilitydPath}" --print-model-ladder "${MODEL_API_KEY_PATH}" --model-endpoint "${MODEL_ENDPOINT:-}" > "${languageModelPath}"
+"${capabilitydPath}" --print-model-ladder "${MODEL_API_KEY_PATH}" --model-endpoint "${MODEL_ENDPOINT:-}" \
+  --model-gateway "${SUPABASE_URL:-}" --model-gateway-key "${MODEL_GATEWAY_KEY_PATH:-}" > "${languageModelPath}"
 jq -s '.[0] * {capabilities: .[1], languageModel: .[2], memory: {embeddingModel: .[2].embedding.model, embeddingDimensions: .[2].embedding.dimensions}}' "${renderedPath}" "${capabilitiesPath}" "${languageModelPath}" > "${outputPath}"

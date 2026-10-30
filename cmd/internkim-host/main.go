@@ -319,6 +319,7 @@ func boxDaemon(appURL string) box.Daemon {
 			PairingPageListenAddress:  blueclaw.CompanyHostBoxPairingPageListenAddress,
 			ConnectionFilePath:        companyhost.CurrentConnectionPath(),
 			CredentialPaths:           []string{blueclaw.CompanyHostAgentKeyPath, blueclaw.RelayAgentKeyPath},
+			StagedCredentialPaths:     []string{blueclaw.LinuxCompanyHostLayout().RunAgentKeyPath()},
 			WorkQueuePath:             blueclaw.CompanyHostWorkQueuePath,
 			ModelKeyPath:              blueclaw.CompanyHostModelKeyPath,
 			ResetRequestPath:          blueclaw.CompanyHostBoxResetRequestPath,
@@ -328,9 +329,12 @@ func boxDaemon(appURL string) box.Daemon {
 			_, errorValue := companyhost.Install(request, thisComputer{}, os.Stdout)
 			return errorValue
 		},
-		TakeOver:       takeOverFromTheNewestBackup,
-		StandDown:      standDown,
-		StandUp:        standUp,
+		TakeOver:  takeOverFromTheNewestBackup,
+		StandDown: standDown,
+		StandUp:   standUp,
+		RestartServices: func() error {
+			return companyhost.RestartTheServices(thisComputer{}, os.Stdout)
+		},
 		StartKeepingUp: startKeepingUpWithTheServiceBox,
 		FollowRelease:  followTheServiceBoxRelease,
 		StartWorking:   startWorkingForTheServiceBox,
@@ -459,7 +463,7 @@ func readModelKeyFile(path string) (string, error) {
 
 func readModelKey(input *os.File, output io.Writer) (string, error) {
 	if term.IsTerminal(int(input.Fd())) {
-		fmt.Fprint(output, "OpenRouter API key (hidden): ")
+		fmt.Fprint(output, "OpenRouter API key (hidden; press Enter to use the company's credits instead): ")
 		document, errorValue := term.ReadPassword(int(input.Fd()))
 		fmt.Fprintln(output)
 		return string(document), errorValue
@@ -467,9 +471,6 @@ func readModelKey(input *os.File, output io.Writer) (string, error) {
 	line, errorValue := bufio.NewReader(input).ReadString('\n')
 	if errorValue != nil && !errors.Is(errorValue, io.EOF) {
 		return "", errorValue
-	}
-	if strings.TrimSpace(line) == "" {
-		return "", fmt.Errorf("no OpenRouter API key on standard input. Supply --model-key-file, or run this where you can type")
 	}
 	return line, nil
 }
