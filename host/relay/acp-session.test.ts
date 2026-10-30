@@ -33,7 +33,8 @@ import {
 } from './acp-session';
 import { SessionBindingStore } from './session-binding-store';
 import { RecordCatalogs, ticketOf } from './record-catalog';
-import { agentFilePoster } from './conversation-post';
+import { agentFilePoster, replyThreadOf } from './conversation-post';
+import type { WorkWatcher } from './tool-progress';
 import type { KeptAttachment, WorkspaceFile } from './file-transfer';
 
 type DeliveryReport = { method: string; params: Record<string, unknown> };
@@ -574,6 +575,72 @@ test('an approval that blueclaw leaves the socket without hearing an answer for 
 const progressThread = 'buzz:conversation-1:message-7';
 const progressDelivery = { deliveryID: 'turn-1', replyTargetID: progressThread };
 const finalReplyDelivery = { ...progressDelivery, isFinal: true };
+
+function aWorkRecorder() {
+	const heard: Record<string, unknown>[] = [];
+	const work: WorkWatcher = {
+		working: (addressing, seen) => heard.push({ event: 'working', threadID: replyThreadOf(addressing), ...seen }),
+		said: (addressing, said) => heard.push({ event: 'said', threadID: replyThreadOf(addressing), ...said })
+	};
+	return { heard, work };
+}
+
+test('where browsers draw the work, steps and what the agent said go out as events and no progress message is posted', async () => {
+	const agent = anAgentOnASocket({});
+	const conversation = aConversation();
+	const recorder = aWorkRecorder();
+	const client = aClientFor(agent.socketPath, conversation, { work: recorder.work, postsProgressMessages: false });
+	await aSessionOpenedBy(client);
+
+	await agent.updateWithNoTurnOpen(
+		'session-1',
+		{ sessionUpdate: 'tool_call', toolCallId: 'call-1', title: 'event_list', status: 'in_progress' },
+		progressDelivery
+	);
+	await agent.updateWithNoTurnOpen(
+		'session-1',
+		{ sessionUpdate: 'tool_call_update', toolCallId: 'call-1', status: 'completed' },
+		progressDelivery
+	);
+	await agent.updateWithNoTurnOpen(
+		'session-1',
+		{ sessionUpdate: 'agent_thought_chunk', content: { type: 'text', text: '미팅 2개를 찾았어요' } },
+		progressDelivery
+	);
+	await waitUntil(() => conversation.posted.length === 1, 'the checkpoint to be posted');
+	await agent.updateWithNoTurnOpen(
+		'session-1',
+		{ sessionUpdate: 'tool_call', toolCallId: 'call-2', title: 'room_list', status: 'in_progress' },
+		progressDelivery
+	);
+	await agent.speakWithNoTurnOpen('session-1', { type: 'text', text: '회의실도 잡혀 있어요' }, finalReplyDelivery);
+	await waitUntil(() => agent.deliveryReports.length === 1, 'the relay to report the reply');
+
+	expect(conversation.posted.map((posted) => posted.message)).toEqual(['미팅 2개를 찾았어요', '회의실도 잡혀 있어요']);
+	expect(conversation.edited).toEqual([]);
+	expect(conversation.deleted).toEqual([]);
+	expect(recorder.heard).toEqual([
+		{ event: 'working', threadID: progressThread, deliveryID: 'turn-1', steps: [{ title: 'event_list', status: 'in_progress' }] },
+		{ event: 'working', threadID: progressThread, deliveryID: 'turn-1', steps: [{ title: 'event_list', status: 'completed' }] },
+		{ event: 'said', threadID: progressThread, deliveryID: 'turn-1', messageID: 'posted-1', isStillWorking: true },
+		{ event: 'working', threadID: progressThread, deliveryID: 'turn-1', steps: [{ title: 'room_list', status: 'in_progress' }] },
+		{ event: 'said', threadID: progressThread, deliveryID: 'turn-1', messageID: 'posted-2', isStillWorking: false }
+	]);
+});
+
+test('a direct question shows work from the moment it is asked, and the turn ending stops whatever never said its last word', async () => {
+	const agent = anAgentOnASocket({});
+	const recorder = aWorkRecorder();
+	const client = aClientFor(agent.socketPath, aConversation(), { work: recorder.work, postsProgressMessages: false });
+	const directAddressing = { ...sampleAddressing, conversationType: 'direct' };
+
+	await client.ask(sampleRequester, directAddressing, '안녕하세요', { messageID: 'message-1', context: {} });
+
+	expect(recorder.heard).toEqual([
+		{ event: 'working', threadID: 'conversation-1', promptID: 'message-1', steps: [] },
+		{ event: 'said', threadID: 'conversation-1', promptID: 'message-1', isStillWorking: false }
+	]);
+});
 
 test('tool progress is posted once, edited on each update, and taken down once the reply is posted after it', async () => {
 	const agent = anAgentOnASocket({});

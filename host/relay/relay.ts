@@ -54,7 +54,9 @@ import { displayNameForRequester, readInboundMessage } from './inbound-message';
 import { InboundQueue } from './inbound-queue';
 import { InboundTurns } from './inbound-turn';
 import { SessionBindingStore } from './session-binding-store';
-import { agentFilePoster, conversationDeleter, conversationEditor, conversationPoster } from './conversation-post';
+import { agentFilePoster, conversationDeleter, conversationEditor, conversationPoster, replyThreadOf } from './conversation-post';
+import type { WorkWatcher } from './tool-progress';
+import { saidEventKind, workingEventKind } from '../../web/src/lib/messenger/agent-work';
 import { ArrivalWatchers, activeMemberIDsOf, arrivalsPath, keepWatchingArrivals } from './arrival-watchers';
 import { readTyping, typingPath, typingTeller } from './typing';
 import { readWithdrawal, withdrawalsPath, withdrawalTeller, WithdrawnMessages } from './withdrawn';
@@ -140,6 +142,15 @@ function tellBrowsers(conversationID: string, messageID: string): void {
 	if (!conversationID) return;
 	gateway?.deliver({ kind: 'message.arrived', conversationID, messageID });
 }
+
+const workShownToBrowsers: WorkWatcher = {
+	working: (addressing, work) =>
+		gateway?.deliver({ kind: workingEventKind, conversationID: addressing.conversationID, work: { threadID: replyThreadOf(addressing), ...work } }),
+	said: (addressing, said) =>
+		gateway?.deliver({ kind: saidEventKind, conversationID: addressing.conversationID, work: { threadID: replyThreadOf(addressing), ...said } })
+};
+
+const buzzPlatform = 'buzz';
 
 const credentials = new CredentialCache(readMessengerCredential);
 
@@ -576,6 +587,8 @@ const blueclawClient = new BlueclawACPClient({
 		report: (line) => console.log(`sessions: ${line}`)
 	}),
 	approvalWasRequested: (conversationID) => inboundTurns.releaseTurnsWaitingOnApproval(conversationID),
+	work: workShownToBrowsers,
+	postsProgressMessages: messengerPlatform !== buzzPlatform,
 	handoffs: browserHandoffs,
 	report: (line) => console.log(`acp: ${line}`)
 });

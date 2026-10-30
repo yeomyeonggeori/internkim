@@ -1,10 +1,12 @@
 import type { Addressing, DeleteInConversation, EditInConversation, PostToConversation } from './acp-session';
+import type { ToolStep, ToolStepStatus } from '../../web/src/lib/messenger/agent-work';
+
+export { toolStepStatuses as toolCallStatuses } from '../../web/src/lib/messenger/agent-work';
 
 export const startedToolCallKind = 'tool_call';
 export const updatedToolCallKind = 'tool_call_update';
-export const toolCallStatuses = ['pending', 'in_progress', 'completed', 'failed'] as const;
 
-export type ToolCallStatus = (typeof toolCallStatuses)[number];
+export type ToolCallStatus = ToolStepStatus;
 
 export type ToolCallProgress = {
 	toolCallID: string;
@@ -31,17 +33,27 @@ export function progressOfToolCall(call: StartedToolCall | UpdatedToolCall): Too
 	return { toolCallID: call.toolCallId, status };
 }
 
+export type WorkSeen = { deliveryID?: string; promptID?: string; steps: ToolStep[] };
+
+export type WorkSaid = { deliveryID?: string; promptID?: string; messageID?: string; isStillWorking: boolean };
+
+export type WorkWatcher = {
+	working: (addressing: Addressing, work: WorkSeen) => void;
+	said: (addressing: Addressing, said: WorkSaid) => void;
+};
+
 export type ToolProgressSettings = {
 	postToConversation: PostToConversation;
 	editInConversation: EditInConversation;
 	deleteInConversation: DeleteInConversation;
+	postsProgressMessages: boolean;
+	work?: WorkWatcher;
 	report?: (line: string) => void;
 };
 
-type ShownCall = { title: string; status: ToolCallStatus };
-
 type DeliveryTimeline = {
-	calls: Map<string, ShownCall>;
+	calls: Map<string, ToolStep>;
+	addressing?: Addressing;
 	progressMessageID?: string;
 	publishing: Promise<unknown>;
 };
@@ -68,7 +80,7 @@ export class ToolProgress {
 		if (this.finishedDeliveryIDs.has(deliveryID)) return;
 		const timeline = this.timelineOf(deliveryID);
 		const show = async () => {
-			if (!this.finishedDeliveryIDs.has(deliveryID)) await this.showCall(timeline, addressing, progress);
+			if (!this.finishedDeliveryIDs.has(deliveryID)) await this.showCall(deliveryID, timeline, addressing, progress);
 		};
 		await this.inOrder(timeline, show).catch((failure) => {
 			this.settings.report?.(`progress was not shown: ${String(failure)}`);
@@ -77,7 +89,7 @@ export class ToolProgress {
 
 	async showCheckpoint(deliveryID: string, addressing: Addressing, checkpoint: string): Promise<void> {
 		const timeline = this.timelineOf(deliveryID);
-		await this.inOrder(timeline, () => this.sayCheckpoint(timeline, addressing, checkpoint)).catch((failure) => {
+		await this.inOrder(timeline, () => this.sayCheckpoint(deliveryID, timeline, addressing, checkpoint)).catch((failure) => {
 			this.settings.report?.(`the checkpoint was not shown: ${String(failure)}`);
 		});
 	}
@@ -88,7 +100,36 @@ export class ToolProgress {
 			const messageID = await post();
 			await this.takeDownProgress(timeline, addressing);
 			this.finish(deliveryID);
+			this.settings.work?.said(addressing, { deliveryID, messageID, isStillWorking: false });
 			return messageID;
+		});
+	}
+
+	async postAlong(deliveryID: string, addressing: Addressing, post: () => Promise<string>): Promise<string> {
+		const timeline = this.timelineOf(deliveryID);
+		return this.inOrder(timeline, async () => {
+			const messageID = await post();
+			if (!this.settings.postsProgressMessages) beginNextProgress(timeline);
+			this.settings.work?.said(addressing, { deliveryID, messageID, isStillWorking: true });
+			return messageID;
+		});
+	}
+
+	async waitForThePerson(deliveryID: string, addressing: Addressing, questionMessageID?: string): Promise<void> {
+		const timeline = this.timelineOf(deliveryID);
+		await this.inOrder(timeline, async () => {
+			if (!this.settings.postsProgressMessages) beginNextProgress(timeline);
+			this.settings.work?.said(addressing, { deliveryID, messageID: questionMessageID, isStillWorking: false });
+		});
+	}
+
+	async stop(deliveryID: string): Promise<void> {
+		const timeline = this.deliveries.get(deliveryID);
+		if (!timeline) return;
+		await this.inOrder(timeline, async () => {
+			if (this.finishedDeliveryIDs.has(deliveryID)) return;
+			this.finish(deliveryID);
+			if (timeline.addressing) this.settings.work?.said(timeline.addressing, { deliveryID, isStillWorking: false });
 		});
 	}
 
@@ -106,11 +147,19 @@ export class ToolProgress {
 		return done;
 	}
 
-	private async showCall(timeline: DeliveryTimeline, addressing: Addressing, progress: ToolCallProgress): Promise<void> {
+	private async showCall(
+		deliveryID: string,
+		timeline: DeliveryTimeline,
+		addressing: Addressing,
+		progress: ToolCallProgress
+	): Promise<void> {
 		const known = timeline.calls.get(progress.toolCallID);
 		const title = progress.title ?? known?.title;
 		if (title === undefined) return;
 		timeline.calls.set(progress.toolCallID, { title, status: progress.status ?? known?.status ?? 'pending' });
+		timeline.addressing = addressing;
+		this.settings.work?.working(addressing, { deliveryID, steps: [...timeline.calls.values()] });
+		if (!this.settings.postsProgressMessages) return;
 		const text = [...timeline.calls.values()].map((call) => `${statusMarkers[call.status]} ${call.title}`).join('\n');
 		if (timeline.progressMessageID === undefined) {
 			timeline.progressMessageID = await this.settings.postToConversation(addressing, text);
@@ -119,7 +168,13 @@ export class ToolProgress {
 		await this.settings.editInConversation(addressing, timeline.progressMessageID, text);
 	}
 
-	private async sayCheckpoint(timeline: DeliveryTimeline, addressing: Addressing, checkpoint: string): Promise<void> {
+	private async sayCheckpoint(
+		deliveryID: string,
+		timeline: DeliveryTimeline,
+		addressing: Addressing,
+		checkpoint: string
+	): Promise<void> {
+		timeline.addressing = addressing;
 		const progressMessageID = timeline.progressMessageID;
 		if (progressMessageID !== undefined) {
 			const isEdited = await this.settings.editInConversation(addressing, progressMessageID, checkpoint).then(
@@ -131,11 +186,13 @@ export class ToolProgress {
 			);
 			if (isEdited) {
 				beginNextProgress(timeline);
+				this.settings.work?.said(addressing, { deliveryID, messageID: progressMessageID, isStillWorking: true });
 				return;
 			}
 		}
-		await this.settings.postToConversation(addressing, checkpoint);
+		const messageID = await this.settings.postToConversation(addressing, checkpoint);
 		await this.takeDownProgress(timeline, addressing);
+		this.settings.work?.said(addressing, { deliveryID, messageID, isStillWorking: true });
 	}
 
 	private async takeDownProgress(timeline: DeliveryTimeline, addressing: Addressing): Promise<void> {

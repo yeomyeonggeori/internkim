@@ -16,7 +16,7 @@ import { randomUUID } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import type { KeptAttachment, WorkspaceFile } from './file-transfer';
 import type { SessionBindingStore } from './session-binding-store';
-import { ToolProgress, progressOfToolCall, startedToolCallKind, updatedToolCallKind } from './tool-progress';
+import { ToolProgress, progressOfToolCall, startedToolCallKind, updatedToolCallKind, type WorkWatcher } from './tool-progress';
 
 export const defaultBlueclawACPSocketPath = '/run/internkim/acp/blueclaw-acp.sock';
 export const sessionMetaKey = 'kim.intern/session';
@@ -82,6 +82,7 @@ async function fromTheAgent<T>(request: Promise<T>): Promise<T> {
 	}
 }
 
+const directConversationType = 'direct';
 const firstReconnectDelayMilliseconds = 250;
 const longestReconnectDelayMilliseconds = 5_000;
 
@@ -103,6 +104,8 @@ export type ACPSessionSettings = {
 	deleteInConversation: DeleteInConversation;
 	sessions: SessionBindingStore;
 	approvalWasRequested: (conversationID: string) => void;
+	work?: WorkWatcher;
+	postsProgressMessages?: boolean;
 	handoffs?: HandoffsForQuestions;
 	report?: (line: string) => void;
 };
@@ -132,6 +135,7 @@ export class BlueclawACPClient {
 	private readonly bindingBySpeaker = new Map<string, SessionBinding>();
 	private readonly pendingApprovals = new Map<string, PendingApproval>();
 	private readonly sessionOfPromptInFlight = new Map<string, string>();
+	private readonly deliveriesSeenInSession = new Map<string, Set<string>>();
 	private readonly toolProgress: ToolProgress;
 
 	constructor(settings: ACPSessionSettings) {
@@ -140,6 +144,8 @@ export class BlueclawACPClient {
 			postToConversation: settings.postToConversation,
 			editInConversation: settings.editInConversation,
 			deleteInConversation: settings.deleteInConversation,
+			postsProgressMessages: settings.postsProgressMessages ?? true,
+			work: settings.work,
 			report: settings.report
 		});
 	}
@@ -180,6 +186,9 @@ export class BlueclawACPClient {
 		const sessionID = await fromTheAgent(this.sessionFor(agent, requester, addressing));
 		const messageID = facts?.messageID;
 		if (messageID !== undefined) this.sessionOfPromptInFlight.set(messageID, sessionID);
+		if (messageID !== undefined && addressing.conversationType === directConversationType) {
+			this.settings.work?.working(addressing, { promptID: messageID, steps: [] });
+		}
 		try {
 			const answer = await fromTheAgent(
 				agent.prompt({
@@ -191,7 +200,23 @@ export class BlueclawACPClient {
 			return answer.stopReason;
 		} finally {
 			if (messageID !== undefined) this.sessionOfPromptInFlight.delete(messageID);
+			if (messageID !== undefined) this.settings.work?.said(addressing, { promptID: messageID, isStillWorking: false });
+			this.stopDeliveriesOnceIdle(sessionID);
 		}
+	}
+
+	private noteDelivery(sessionID: string, delivery: Delivery): void {
+		if (!delivery.deliveryID) return;
+		const seen = this.deliveriesSeenInSession.get(sessionID) ?? new Set<string>();
+		seen.add(delivery.deliveryID);
+		this.deliveriesSeenInSession.set(sessionID, seen);
+	}
+
+	private stopDeliveriesOnceIdle(sessionID: string): void {
+		if ([...this.sessionOfPromptInFlight.values()].includes(sessionID)) return;
+		const seen = this.deliveriesSeenInSession.get(sessionID);
+		this.deliveriesSeenInSession.delete(sessionID);
+		for (const deliveryID of seen ?? []) void this.toolProgress.stop(deliveryID);
 	}
 
 	private async agent(): Promise<ClientSideConnection> {
@@ -285,6 +310,7 @@ export class BlueclawACPClient {
 
 	private readUpdate(notification: SessionNotification): void {
 		const update = notification.update;
+		this.noteDelivery(notification.sessionId, deliveryOf(notification._meta));
 		if (update.sessionUpdate === 'agent_thought_chunk' && update.content.type === 'text') {
 			void this.showCheckpoint(notification.sessionId, update.content.text, deliveryOf(notification._meta));
 			return;
@@ -334,7 +360,8 @@ export class BlueclawACPClient {
 		delivery: Delivery
 	): Promise<string> {
 		const post = this.posterOf(content, requester, addressing);
-		if (!delivery.isFinal || !delivery.deliveryID) return post();
+		if (!delivery.deliveryID) return post();
+		if (!delivery.isFinal) return this.toolProgress.postAlong(delivery.deliveryID, addressing, post);
 		return this.toolProgress.postFinal(delivery.deliveryID, addressing, post);
 	}
 
@@ -407,6 +434,7 @@ export class BlueclawACPClient {
 		connectionThatAsked: ClientSideConnection
 	): Promise<RequestPermissionResponse> {
 		const delivery = deliveryOf(request._meta);
+		this.noteDelivery(request.sessionId, delivery);
 		const binding = this.sessionBindingOf(request.sessionId);
 		if (!binding) {
 			await this.tellTheAgent(delivery, { reason: `this relay holds no session ${request.sessionId}, so it has no conversation to ask in` });
@@ -429,6 +457,9 @@ export class BlueclawACPClient {
 		if (outcome && 'reason' in outcome) {
 			approval.withdraw();
 			return cancelled;
+		}
+		if (delivery.deliveryID) {
+			await this.toolProgress.waitForThePerson(delivery.deliveryID, addressedBy(binding, delivery), outcome?.messageID);
 		}
 		this.settings.approvalWasRequested(binding.addressing.conversationID);
 		return approval.answer;
