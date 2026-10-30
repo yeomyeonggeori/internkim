@@ -223,6 +223,9 @@ verify_jwt = false
 [functions.withdraw-notification]
 verify_jwt = false
 
+[functions.model-gateway]
+verify_jwt = false
+
 [remotes.production]
 project_id = "mutvimjbvmoludotyehk"
 

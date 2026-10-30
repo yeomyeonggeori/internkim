@@ -406,8 +406,8 @@
     "description": "the OpenAI-compatible endpoint the rendered model ladder reaches, for a company running its models through a gateway of its own; defaults to the ladder's own endpoint"
   },
   "OPENROUTER_API_KEY": {
-    "process": "cli",
-    "description": "the OpenRouter API key for remote model inference from tooling run on this machine; also read by internal/llmbackend's live OpenRouter test",
+    "process": "cli, model-gateway edge function",
+    "description": "the OpenRouter API key for remote model inference from tooling run on this machine, and the key supabase/functions/model-gateway calls with for a company that brings none; also read by internal/llmbackend's live OpenRouter test",
     "isInVault": true
   },
   "PATH": {
