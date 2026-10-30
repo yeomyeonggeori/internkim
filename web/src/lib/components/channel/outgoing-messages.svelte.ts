@@ -1,5 +1,6 @@
 import { feelHaptic } from '$lib/native-shell/haptics';
-import type { ChannelMessage, ChannelParticipant } from './channel-api';
+import { attachmentKindOf } from '$lib/messenger/attachment-kind';
+import type { ChannelMessage, ChannelMessageAttachment, ChannelParticipant } from './channel-api';
 import type { OutgoingMessage } from './channel-composer.svelte';
 
 export type OutgoingEntry = {
@@ -12,6 +13,29 @@ export type OutgoingEntry = {
 };
 
 export type OutgoingMessages = ReturnType<typeof createOutgoingMessages>;
+
+function previewsOf(messageID: string, draft: OutgoingMessage): ChannelMessageAttachment[] {
+	return draft.attachments.map((attachment, index) => ({
+		kind: attachmentKindOf(attachment.contentType),
+		url: `${messageID}-attachment-${index}`,
+		source: URL.createObjectURL(attachment.content),
+		filename: attachment.filename,
+		mimeType: attachment.contentType,
+		sizeBytes: attachment.content.size
+	}));
+}
+
+function releasePreviews(entry: OutgoingEntry): void {
+	for (const attachment of entry.message.attachments ?? []) URL.revokeObjectURL(attachment.source ?? '');
+}
+
+function shownMessageOf(entry: OutgoingEntry): ChannelMessage {
+	const isUploading = !entry.hasFailed && entry.deliveredSerial === undefined;
+	return {
+		...entry.message,
+		attachments: entry.message.attachments?.map((attachment) => ({ ...attachment, isUploading }))
+	};
+}
 
 export function createOutgoingMessages(options: {
 	sender: () => ChannelParticipant;
@@ -26,8 +50,9 @@ export function createOutgoingMessages(options: {
 		entries = entries.map((entry) => (entry.message.id === messageID ? { ...entry, ...change } : entry));
 	}
 
-	function forget(messageID: string): void {
-		entries = entries.filter((entry) => entry.message.id !== messageID);
+	function keepOnly(isKept: (entry: OutgoingEntry) => boolean): void {
+		for (const entry of entries) if (!isKept(entry)) releasePreviews(entry);
+		entries = entries.filter(isKept);
 	}
 
 	async function attempt(entry: OutgoingEntry): Promise<void> {
@@ -45,25 +70,27 @@ export function createOutgoingMessages(options: {
 
 	return {
 		messagesIn(channelID: string | undefined): ChannelMessage[] {
-			return entries.filter((entry) => entry.channelID === channelID).map((entry) => entry.message);
+			return entries.filter((entry) => entry.channelID === channelID).map(shownMessageOf);
 		},
 		deliveredSoFar(): number {
 			return deliveredSerial;
 		},
 		forgetDeliveredThrough(serialSeen: number): void {
-			entries = entries.filter((entry) => entry.deliveredSerial === undefined || entry.deliveredSerial > serialSeen);
+			keepOnly((entry) => entry.deliveredSerial === undefined || entry.deliveredSerial > serialSeen);
 		},
 		hasFailed(messageID: string): boolean {
 			return entries.some((entry) => entry.message.id === messageID && entry.hasFailed);
 		},
 		send(draft: OutgoingMessage, channelID: string | undefined, threadRootID?: string): Promise<void> {
+			const messageID = `pending-${serial++}`;
 			const entry: OutgoingEntry = {
 				message: {
-					id: `pending-${serial++}`,
+					id: messageID,
 					threadRootId: threadRootID,
 					sender: options.sender(),
-					text: draft.text || draft.attachmentSummary,
-					sentAt: new Date().toISOString()
+					text: draft.text,
+					sentAt: new Date().toISOString(),
+					attachments: previewsOf(messageID, draft)
 				},
 				draft,
 				channelID,
@@ -80,7 +107,7 @@ export function createOutgoingMessages(options: {
 			return attempt({ ...entry, hasFailed: false });
 		},
 		discard(messageID: string): void {
-			forget(messageID);
+			keepOnly((entry) => entry.message.id !== messageID);
 		}
 	};
 }

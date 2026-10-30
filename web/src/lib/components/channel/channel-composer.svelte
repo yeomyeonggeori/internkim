@@ -6,7 +6,6 @@
 		text: string;
 		attachments: ChannelOutgoingAttachment[];
 		mentions: DraftMentions;
-		attachmentSummary: string;
 	};
 </script>
 
@@ -109,9 +108,8 @@
 		isSending = true;
 		value = '';
 		mentions.forget();
-		const attachmentSummary = attachments.map((attachment) => attachment.filename).join(', ');
 		pendingAttachments.clear();
-		await onSend({ text: trimmed, attachments, mentions: outgoingMentions, attachmentSummary }).finally(
+		await onSend({ text: trimmed, attachments, mentions: outgoingMentions }).finally(
 			() => (isSending = false)
 		);
 	}
