@@ -1562,6 +1562,30 @@ func TestOpenRouterContextWindowComesFromModelCatalog(t *testing.T) {
 	}
 }
 
+func TestTheModelCatalogIsAskedWithTheKeyTheCallsCarry(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(responseWriter http.ResponseWriter, request *http.Request) {
+		if request.Header.Get("Authorization") != "Bearer host-session" {
+			http.Error(responseWriter, `{"error":"no company computer credential"}`, http.StatusUnauthorized)
+			return
+		}
+		responseWriter.Write([]byte(`{"data":[{"id":"google/gemma-3-12b-it","context_length":131072}]}`))
+	}))
+	defer server.Close()
+	keyPath := filepath.Join(t.TempDir(), "agent-key")
+	if errorValue := os.WriteFile(keyPath, []byte("host-session\n"), 0o600); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+
+	backend := OpenRouterBackend{
+		KeyPath:   keyPath,
+		ModelName: "google/gemma-3-12b-it",
+		BaseURL:   server.URL + "/functions/v1/model-gateway/api/v1/chat/completions",
+	}
+	if tokens := backend.ContextWindowTokensForModel("google/gemma-3-12b-it"); tokens != 131072 {
+		t.Fatalf("a catalog behind the model gateway answers only a caller that presents its credential; got %d", tokens)
+	}
+}
+
 func TestOpenRouterContextWindowFallsBackWhenCatalogUnreachable(t *testing.T) {
 	deadServer := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}))
 	deadServer.Close()
