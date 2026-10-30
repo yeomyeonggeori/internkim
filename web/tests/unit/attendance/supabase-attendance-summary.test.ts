@@ -175,7 +175,8 @@ describe('supabaseAttendanceSummary', () => {
 			scope: 'all',
 			status: 'approved',
 			from: '2026-09-01',
-			to: '2026-09-30'
+			to: '2026-09-30',
+			limit: 100
 		});
 	});
 
@@ -257,7 +258,7 @@ describe('supabaseAttendanceSummary', () => {
 		const summary = await supabaseAttendanceSummary('2026-07');
 		expect(summary.activeLeave?.requestID).toBe('leave-one');
 		expect(asked.find((call) => call.name === 'leave_list' && !call.input.scope)?.input).toEqual({
-			status: 'approved', from: '2026-08-18', to: '2026-08-18'
+			status: 'approved', from: '2026-08-18', to: '2026-08-18', limit: 100
 		});
 	});
 

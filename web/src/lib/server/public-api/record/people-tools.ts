@@ -9,7 +9,6 @@ import {
 import { removeMemberAsAdministrator, resetPasswordAsAdministrator } from '$lib/server/member-administration';
 import { personName } from '$lib/person-name';
 import {
-	personListPageSize,
 	type DirectoryPerson,
 	type PersonInviteResult,
 	type PersonListResult,
@@ -24,6 +23,7 @@ import {
 	personOfHint,
 	type RecordPerson
 } from './people';
+import { ascendingPositions, pageOf } from './list-page';
 import { RecordRefusedTheWrite, statusOfPostgresCode } from './tasks';
 import { descendantsOfTeam, teamOfHint, teamsOfCompany, type RecordTeam } from './teams';
 
@@ -113,24 +113,23 @@ export type PersonListInput = {
 	cursor?: string;
 };
 
-type PersonListPosition = { name: string; personID: string };
+const peopleByName = {
+	positionOf: (person: RecordPerson) => [person.name, person.personID],
+	compare: ascendingPositions
+};
 
 export async function personList(context: RecordContext, input: PersonListInput = {}): Promise<PersonListResult> {
 	const teams = await teamsOfCompany(context.caller);
 	const matching = context.people
 		.filter(personMatchesSearch(input.searchText ?? ''))
-		.filter(personInTeams(teamIDsOfListHint(teams, input.teamHint)))
-		.sort(comparePeopleByPosition);
-	const after = input.cursor === undefined ? undefined : positionOfCursor(input.cursor);
-	const remaining = after ? matching.filter((person) => comparePeopleByPosition(person, after) > 0) : matching;
-	const page = remaining.slice(0, input.limit ?? personListPageSize);
-	const last = page.at(-1);
+		.filter(personInTeams(teamIDsOfListHint(teams, input.teamHint)));
+	const { items, totalCount, nextCursor } = pageOf('person_list', matching, peopleByName, input);
 	return {
 		requesterID: context.requesterID,
-		count: page.length,
-		totalCount: matching.length,
-		people: page.map((person) => answeredPerson(person, context.people, teams, context.locale)),
-		...(last && remaining.length > page.length ? { nextCursor: cursorOfPosition(last) } : {})
+		count: items.length,
+		totalCount,
+		people: items.map((person) => answeredPerson(person, context.people, teams, context.locale)),
+		...(nextCursor ? { nextCursor } : {})
 	};
 }
 
@@ -148,38 +147,6 @@ function teamIDsOfListHint(teams: RecordTeam[], teamHint: string | undefined): S
 function personInTeams(teamIDs: Set<string> | undefined): (person: RecordPerson) => boolean {
 	if (!teamIDs) return () => true;
 	return (person) => teamIDs.has(person.teamID);
-}
-
-function comparePeopleByPosition(left: PersonListPosition, right: PersonListPosition): number {
-	if (left.name !== right.name) return left.name < right.name ? -1 : 1;
-	if (left.personID === right.personID) return 0;
-	return left.personID < right.personID ? -1 : 1;
-}
-
-function cursorOfPosition(person: PersonListPosition): string {
-	const bytes = new TextEncoder().encode(JSON.stringify([person.name, person.personID]));
-	return btoa(String.fromCharCode(...bytes));
-}
-
-function positionOfCursor(cursor: string): PersonListPosition {
-	const decoded = decodedCursor(cursor);
-	if (!isPositionPair(decoded)) {
-		throw new RecordRefusedTheWrite('cursor is not one a person_list result gave; omit it to start from the first page', 400);
-	}
-	return { name: decoded[0], personID: decoded[1] };
-}
-
-function isPositionPair(value: unknown): value is [string, string] {
-	return Array.isArray(value) && value.length === 2 && value.every((part) => typeof part === 'string');
-}
-
-function decodedCursor(cursor: string): unknown {
-	try {
-		const bytes = Uint8Array.from(atob(cursor), (character) => character.charCodeAt(0));
-		return JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(bytes));
-	} catch {
-		return undefined;
-	}
 }
 
 export async function personUpdate(
