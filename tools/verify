@@ -11,8 +11,12 @@ order they are declared here; a lane runs every group in it even after one
 fails, because the ones after it have their own verdict to give.
 
 A group that fills the machine (a Go test run, the web suite, end-to-end
-browsers) holds one of a few slots every verify run on this machine shares, so
-five worktrees verifying at once queue instead of starving each other's tests.
+browsers) runs each command in one of a few slots every verify run on this
+machine shares, so five worktrees verifying at once queue instead of starving
+each other's tests. A command that needs the local plane takes the plane first
+and a slot second, so a run waiting for the plane never keeps a slot from a run
+that could use it; the price is that the plane sits idle while its holder waits
+for a slot, and anyone running with-local-plane by hand queues behind that.
 
 A group that passed is not run again while everything it is selected by reads
 the same: the same files under its patterns, the same submodule commits, the
@@ -23,7 +27,6 @@ it. A failure is never kept, and --all or --only runs what they name afresh.
 
 import argparse
 import concurrent.futures
-import contextlib
 import fcntl
 import fnmatch
 import functools
@@ -57,6 +60,19 @@ class Group:
     def narrowed_to(self, changed_paths):
         return self
 
+    def needs_the_local_plane(self, command):
+        return command[0] == WITH_LOCAL_PLANE
+
+    def command_to_run(self, command):
+        if not self.fills_the_machine:
+            return command
+        holder = machine_slot_holder(self.name)
+        if command[0] == WITH_LOCAL_PLANE:
+            return [WITH_LOCAL_PLANE, *holder, *command[1:]]
+        if self.needs_the_local_plane(command):
+            return [WITH_LOCAL_PLANE, *holder, *command]
+        return [*holder, *command]
+
 
 END_TO_END_DIRECTORY = REPOSITORY_ROOT / "web" / "tests" / "e2e"
 AREA_ROOTS = ("web/src/routes/", "web/src/lib/", "web/tests/e2e/")
@@ -80,6 +96,10 @@ class EndToEndGroup(Group):
     def __init__(self, name, patterns, lane):
         super().__init__(name, patterns, [["scripts/e2e.sh"]], working_directory="web", lane=lane, fills_the_machine=True)
 
+    def needs_the_local_plane(self, command):
+        asked = subprocess.run([command[0], NEEDS_THE_LOCAL_PLANE, *command[1:]], cwd=REPOSITORY_ROOT / self.working_directory, capture_output=True)
+        return asked.returncode == 0
+
     def narrowed_to(self, changed_paths):
         touched = [path for path in changed_paths if self.matches(path)]
         database_paths = [path for path in touched if reaches_only_the_database(path)]
@@ -91,7 +111,9 @@ class EndToEndGroup(Group):
         if areas:
             planes = [f"--project={plane}" for plane in PLANES_WITHOUT_THE_DATABASE] if database_paths else []
             commands.append(["scripts/e2e.sh", *planes, *(f"tests/e2e/{area}" for area in sorted(areas))])
-        return Group(self.name, self.patterns, commands, self.working_directory, self.lane, fills_the_machine=True)
+        narrowed = EndToEndGroup(self.name, self.patterns, self.lane)
+        narrowed.commands = commands
+        return narrowed
 
 
 def reaches_only_the_database(path):
@@ -105,6 +127,8 @@ VERIFICATION_ARTIFACTS = REPOSITORY_ROOT / ".artifacts" / "verification"
 verification_run_directory = None
 MACHINE_SLOT_DIRECTORY = Path("/tmp")
 MACHINE_SLOTS = max(1, (os.cpu_count() or 1) // 6)
+HOLD_A_MACHINE_SLOT = "--hold-a-machine-slot"
+NEEDS_THE_LOCAL_PLANE = "--needs-the-local-plane"
 PASSED_GROUP_DIRECTORY = Path.home() / ".cache" / "internkim-verify" / "passed"
 reusing_passes = False
 
@@ -553,9 +577,18 @@ def git_paths(arguments, failure):
     return {path for path in listing.stdout.split("\0") if path}
 
 
-def claim_free_machine_slot():
-    for index in range(MACHINE_SLOTS):
-        handle = (MACHINE_SLOT_DIRECTORY / f"internkim-verify-slot-{index}.lock").open("a")
+@functools.cache
+def console_descriptor():
+    return os.dup(sys.__stdout__.fileno())
+
+
+def machine_slot_holder(group_name):
+    return [sys.executable, str(Path(__file__).resolve()), HOLD_A_MACHINE_SLOT, str(MACHINE_SLOT_DIRECTORY), str(MACHINE_SLOTS), str(console_descriptor()), group_name, "--"]
+
+
+def claim_free_machine_slot(slot_directory, slot_count):
+    for index in range(slot_count):
+        handle = (slot_directory / f"internkim-verify-slot-{index}.lock").open("a")
         try:
             fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
             return handle
@@ -564,21 +597,15 @@ def claim_free_machine_slot():
     return None
 
 
-@contextlib.contextmanager
-def machine_slot_for(group):
-    if not group.fills_the_machine:
-        yield
-        return
-    slot = claim_free_machine_slot()
+def run_holding_a_machine_slot(slot_directory, slot_count, console, group_name, command):
+    slot = claim_free_machine_slot(slot_directory, slot_count)
     if slot is None:
-        print(f"wait {group.name} for one of {MACHINE_SLOTS} machine slots", flush=True)
+        os.write(console, f"wait {group_name} for one of {slot_count} machine slots\n".encode())
     while slot is None:
         time.sleep(2)
-        slot = claim_free_machine_slot()
-    try:
-        yield
-    finally:
-        slot.close()
+        slot = claim_free_machine_slot(slot_directory, slot_count)
+    with slot:
+        return subprocess.run(command).returncode
 
 
 def run_group(group):
@@ -586,8 +613,7 @@ def run_group(group):
     if input_key and (PASSED_GROUP_DIRECTORY / input_key).exists():
         print(f"same {group.name}: it passed on these inputs before", flush=True)
         return group.name, True, None, ""
-    with machine_slot_for(group):
-        result = run_group_commands(group)
+    result = run_group_commands(group)
     if input_key and result[1]:
         PASSED_GROUP_DIRECTORY.mkdir(parents=True, exist_ok=True)
         (PASSED_GROUP_DIRECTORY / input_key).write_text(f"{group.name}\n{REPOSITORY_ROOT}\n{time.strftime('%Y-%m-%d %H:%M:%S')}\n")
@@ -666,7 +692,8 @@ def run_group_commands(group):
             with log_path.open("w") as log:
                 log.write(f"$ {attempted}\n")
                 log.flush()
-                finished = subprocess.run(command, cwd=REPOSITORY_ROOT / group.working_directory, stdout=log, stderr=subprocess.STDOUT)
+                passed_descriptors = (console_descriptor(),) if group.fills_the_machine else ()
+                finished = subprocess.run(group.command_to_run(command), cwd=REPOSITORY_ROOT / group.working_directory, stdout=log, stderr=subprocess.STDOUT, pass_fds=passed_descriptors)
         except OSError as error:
             log_path.write_text(f"$ {attempted}\n{error}\n")
             print(f"FAIL {group.name} command {command_index}", flush=True)
@@ -714,6 +741,11 @@ def print_plan(groups):
 
 def main():
     global verification_run_directory, reusing_passes
+    if sys.argv[1:2] == [HOLD_A_MACHINE_SLOT]:
+        slot_directory, slot_count, console, group_name, separator, *command = sys.argv[2:]
+        if separator != "--":
+            raise SystemExit(f"{HOLD_A_MACHINE_SLOT} takes <directory> <count> <console> <group> -- <command>, not {separator!r} before the command")
+        return run_holding_a_machine_slot(Path(slot_directory), int(slot_count), int(console), group_name, command)
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--base", default="origin/main", help="what to compare against")
     parser.add_argument("--all", action="store_true", help="run every group, not only the touched ones")
