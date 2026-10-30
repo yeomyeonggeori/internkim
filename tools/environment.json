@@ -513,6 +513,10 @@
     "isRequiredOnPages": true,
     "isInVault": true
   },
+  "TEST_PARALLEL_INDEX": {
+    "process": "web e2e tests",
+    "description": "the Playwright worker's parallel index, which web/tests/e2e/support/worker-company.ts turns into the seeded company that worker runs against; Playwright sets it"
+  },
   "TILES_SCREENSHOT": {
     "process": "web e2e tests",
     "description": "optional path for the messenger attachment tiles screenshot; unset skips it"
