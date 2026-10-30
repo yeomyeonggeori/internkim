@@ -792,6 +792,29 @@ describe('an event written through the record', () => {
 	});
 });
 
+describe('event_list read a page at a time', () => {
+	test('walks every entry in the window once, and says when no page is left', async () => {
+		const days = ['2027-03-02', '2027-03-03', '2027-03-04'];
+		for (const day of days) {
+			resultOf(await run('event_add', { title: `페이지 일정 ${day}`, startsAt: `${day}T10:00:00+09:00`, endsAt: `${day}T11:00:00+09:00` }));
+		}
+		const window = { startsAt: '2027-03-01T00:00:00+09:00', endsAt: '2027-03-05T00:00:00+09:00' };
+
+		const first = resultOf(await run('event_list', { ...window, limit: 2 }));
+		const second = resultOf(await run('event_list', { ...window, limit: 2, cursor: first.nextCursor }));
+		const titles = [first, second].flatMap((page) => (page.events as { title: string }[]).map((event) => event.title));
+
+		expect(first.totalCount).toBe(3);
+		expect(titles).toEqual(days.map((day) => `페이지 일정 ${day}`));
+		expect(second.nextCursor).toBeUndefined();
+	});
+
+	test('refuses a cursor no result gave', async () => {
+		const refused = await run('event_list', { cursor: 'not-a-cursor' });
+		expect(refused.status).toBe(400);
+	});
+});
+
 describe('looking at what a delete would touch', () => {
 	test('names the event the delete then deletes, and writes nothing', async () => {
 		const made = resultOf(

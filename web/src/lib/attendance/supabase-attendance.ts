@@ -13,6 +13,7 @@ import {
 	attendanceBetween,
 	companyDirectory,
 	companySettings,
+	leaveOf,
 	orderablePersonOf,
 	type RecordAttendance,
 	type RecordAttendanceList,
@@ -115,7 +116,7 @@ export async function supabaseAttendanceTodaySummary(members: AttendanceMember[]
  const personHints = members.map(member => member.memberID);
  const [attendance, leave] = await Promise.all([
   invokeTool<RecordAttendanceList>('attendance_list', {personHints, from: shiftedDay(today, -1), to: today}),
-  invokeTool<RecordLeaveList>('leave_list', {personHints, status:'approved', from:today, to:today})
+  leaveOf({personHints, status:'approved', from:today, to:today})
  ]);
  if (attendance.count >= 20000) throw new Error('Today attendance exceeded the supported page');
  const emails = new Map(members.map(member => [member.memberID, member.email]));
@@ -141,7 +142,7 @@ export async function supabaseAttendancePersonSummary(
 		invokeTool<RecordAttendanceList>('attendance_list', {
 			personHints, from: shiftedDay(firstDay, -1), to: lastDay
 		}),
-		invokeTool<RecordLeaveList>('leave_list', {
+		leaveOf({
 			personHints, status: 'approved', from: firstDay, to: lastDay
 		})
 	]);

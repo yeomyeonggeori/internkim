@@ -4,6 +4,7 @@ import {
 	companyDirectory,
 	companySettings,
 	everyLeaveOfTheCompany,
+	leaveOf,
 	myLeaveBalance,
 	timeZoneOfPerson,
 	type RecordLeave,
@@ -88,7 +89,7 @@ export async function supabaseEmployeeLeave(): Promise<EmployeeLeavePayload> {
 	const [directory, answeredBalance, answeredLeave, members] = await Promise.all([
 		supabaseLeaveTypeDirectory(),
 		myLeaveBalance(),
-		invokeTool<RecordLeaveList>('leave_list', {}),
+		leaveOf({}),
 		memberDirectory()
 	]);
 	const balanceOfMine = answeredBalance.balances[0];
@@ -174,7 +175,7 @@ export async function cancelSupabaseLeaveRequest(requestID: string): Promise<voi
 export async function supabaseLeaveApprovalInbox(): Promise<LeaveApprovalInbox> {
 	const [directory, answered, members] = await Promise.all([
 		supabaseLeaveTypeDirectory(),
-		invokeTool<RecordLeaveList>('leave_list', { scope: 'all', status: 'requested' }),
+		leaveOf({ scope: 'all', status: 'requested' }),
 		memberDirectory()
 	]);
 	const rows = answered.leave.map(leaveRowOf)

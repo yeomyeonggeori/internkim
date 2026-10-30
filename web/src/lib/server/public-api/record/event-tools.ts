@@ -22,6 +22,7 @@ import { labelOf } from './labels';
 import { peopleOfHints } from './people';
 import { whoseRecords, whoseRecordsHoldsAny, type WhoseRecords } from './whose';
 import type { RecordContext } from './company';
+import { ascendingPositions, pageOf } from './list-page';
 import {
 	deleteTask,
 	RecordRefusedTheWrite,
@@ -322,6 +323,12 @@ export type EventListInput = {
 	personHints?: string[];
 	scope?: string;
 	limit?: number;
+	cursor?: string;
+};
+
+const entriesByStart = {
+	positionOf: (entry: CompanyCalendarEntry) => [entry.startISO, entry.source, entry.id],
+	compare: ascendingPositions
 };
 
 export function eventWindowOf(context: RecordContext, input: EventListInput): { from: string; to: string } {
@@ -407,6 +414,10 @@ export async function eventList(context: RecordContext, input: EventListInput) {
 		const searched = `${entry.title} ${entry.description} ${entry.location}`;
 		return searched.toLowerCase().includes(asked);
 	});
-	const kept = input.limit && input.limit > 0 ? found.slice(0, input.limit) : found;
-	return { events: kept.map((entry) => answeredEntry(context, entry)) };
+	const { items, totalCount, nextCursor } = pageOf('event_list', found, entriesByStart, input);
+	return {
+		events: items.map((entry) => answeredEntry(context, entry)),
+		totalCount,
+		...(nextCursor ? { nextCursor } : {})
+	};
 }
