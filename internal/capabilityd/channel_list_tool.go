@@ -61,19 +61,40 @@ func (service Service) invokeChannelListTool(ctx context.Context, request capabi
 }
 
 func (service Service) channelsTheRequesterSees(ctx context.Context, requesterPubkeyHex string) ([]listedChannel, error) {
+	openChannels := make(chan chatdChannelsAnswer, 1)
+	go func() {
+		openChannels <- service.openChannelsTheRequesterSees(ctx, requesterPubkeyHex)
+	}()
+	joined := service.channelsTheRequesterIsIn(ctx, requesterPubkeyHex)
+	open := <-openChannels
+	if joined.errorValue != nil {
+		return nil, joined.errorValue
+	}
+	if open.errorValue != nil {
+		return nil, open.errorValue
+	}
+	return mergedChannels(joined.channels, open.channels), nil
+}
+
+type chatdChannelsAnswer struct {
+	channels   []chatdChannel
+	errorValue error
+}
+
+func (service Service) channelsTheRequesterIsIn(ctx context.Context, requesterPubkeyHex string) chatdChannelsAnswer {
 	var conversations struct {
 		Conversations []requesterConversation `json:"conversations"`
 	}
-	if errorValue := service.askChatdAsTheRequester(ctx, "requester.conversations.list", requesterPubkeyHex, map[string]any{}, &conversations); errorValue != nil {
-		return nil, errorValue
-	}
+	errorValue := service.askChatdAsTheRequester(ctx, "requester.conversations.list", requesterPubkeyHex, map[string]any{}, &conversations)
+	return chatdChannelsAnswer{channels: groupChannels(conversations.Conversations), errorValue: errorValue}
+}
+
+func (service Service) openChannelsTheRequesterSees(ctx context.Context, requesterPubkeyHex string) chatdChannelsAnswer {
 	var open struct {
 		Channels []requesterConversation `json:"channels"`
 	}
-	if errorValue := service.askChatdAsTheRequester(ctx, "requester.channels.open.list", requesterPubkeyHex, map[string]any{}, &open); errorValue != nil {
-		return nil, errorValue
-	}
-	return mergedChannels(groupChannels(conversations.Conversations), groupChannels(open.Channels)), nil
+	errorValue := service.askChatdAsTheRequester(ctx, "requester.channels.open.list", requesterPubkeyHex, map[string]any{}, &open)
+	return chatdChannelsAnswer{channels: groupChannels(open.Channels), errorValue: errorValue}
 }
 
 func mergedChannels(joined []chatdChannel, open []chatdChannel) []listedChannel {
