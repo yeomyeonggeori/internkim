@@ -498,6 +498,10 @@
     "isRequiredOnPages": true,
     "isInVault": true
   },
+  "TEST_PARALLEL_INDEX": {
+    "process": "web e2e tests",
+    "description": "set by Playwright in each worker, unique among the workers running at once; picks which seeded company that worker's central specs sign into"
+  },
   "TILES_SCREENSHOT": {
     "process": "web e2e tests",
     "description": "optional path for the messenger attachment tiles screenshot; unset skips it"
