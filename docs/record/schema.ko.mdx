@@ -161,7 +161,8 @@ Stripe 알림은 `/api/stripe/webhook`과 `service_role`만 부를 수 있는 �
 그 값이 없는 알림은 다른 상품의 것으로 보고 무시합니다.
 
 AI 호출은 `model-gateway` 엣지 함수를 거쳐 크레딧을 씁니다. 회사 컴퓨터는 에이전트
-키나 호스트 세션으로 들어오고, 요청한 멤버를 `x-internkim-member` 헤더에 적습니다.
+키나 호스트 세션으로 들어오고, 멤버가 요청한 호출이면 그 멤버를 `x-internkim-member`
+헤더에 적습니다. 요청한 멤버가 없는 호출은 회사 잔여량만 봅니다.
 `company_member_credit_refusal`은 그 멤버가 호출을 시작해도 되는지 답하고, 안 되면
 이유를 돌려줍니다. 호출은 우리 키로 OpenRouter에 가고, 끝나면
 `company_credit_usage_charged`가 실제 비용을 적습니다. 구독 크레딧을 먼저, 그다음

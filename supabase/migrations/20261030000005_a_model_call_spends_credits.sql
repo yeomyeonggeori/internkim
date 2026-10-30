@@ -5,7 +5,9 @@
 -- company_member_credit_refusal says whether a member may start a call: the
 -- company must have credits of either kind left, and the member must be under
 -- the per-member ceiling, company.rules.creditPolicy.usageLimit or the default
--- the caller passes. It names the reason when the answer is no.
+-- the caller passes. It names the reason when the answer is no. A call no
+-- member asked for, such as the agent tidying its memory, has no member and
+-- answers only to the company's balance.
 --
 -- company_credit_usage_charged writes what a finished call cost. Subscription
 -- credits are spent first, then permanent ones. A cost larger than both is
@@ -37,15 +39,18 @@ begin
     return 'no_company';
   end if;
 
+  if credits_left <= 0 then
+    return 'no_credits';
+  end if;
+  if target_member is null then
+    return null;
+  end if;
+
   select credits_used into used
   from public.member
   where id = target_member and company_id = target_company;
   if not found then
     return 'not_a_member';
-  end if;
-
-  if credits_left <= 0 then
-    return 'no_credits';
   end if;
   if used >= usage_limit then
     return 'usage_limit';

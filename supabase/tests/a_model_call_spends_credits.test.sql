@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(10);
+select plan(12);
 
 insert into public.company (id, name, slug, country, locale, timezone, currency_code, rules) values
   ('57700000-0000-0000-0000-000000000000', 'Spending Sample', 'spending-sample', 'KR', 'ko', 'Asia/Seoul', 'KRW',
@@ -65,6 +65,14 @@ select is(public.company_member_credit_refusal('57700000-0000-0000-0000-00000000
   '57700000-0000-0000-0000-000000000010', 10000), 'usage_limit',
   'a member at the company''s ceiling is refused even while credits are left');
 reset role;
+
+set local role service_role;
+select is(public.company_member_credit_refusal('57700000-0000-0000-0000-000000000000', null, 10000), null,
+  'a call no member asked for answers only to the company''s balance');
+select public.company_credit_usage_charged('57700000-0000-0000-0000-000000000000', null, 30);
+reset role;
+select is((select permanent_credits from public.company where id = '57700000-0000-0000-0000-000000000000'), 920::bigint,
+  'a call no member asked for is charged to the company alone');
 
 set local role authenticated;
 select throws_ok($$select public.company_credit_usage_charged('57700000-0000-0000-0000-000000000000',

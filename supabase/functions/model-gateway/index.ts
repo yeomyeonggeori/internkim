@@ -1,38 +1,46 @@
 import { callingAgent } from '../_shared/agent-caller.ts';
 import { askedObject, refuse, serveRefusals } from '../_shared/http.ts';
 import { costOfAnswer, creditsOfCost, streamCostReader } from '../_shared/model-call-cost.ts';
+import { modelGatewayRoute } from '../_shared/model-gateway-route.ts';
 import type { SupabaseClient } from '../_shared/service-client.ts';
 
-const openRouterChatURL = 'https://openrouter.ai/api/v1/chat/completions';
+const openRouterOrigin = 'https://openrouter.ai';
 const defaultUsageLimit = 10_000;
 const memberHeader = 'x-internkim-member';
 const guidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-type Charge = { client: SupabaseClient; companyID: string; memberID: string };
+type Charge = { client: SupabaseClient; companyID: string; memberID: string | null };
 
 Deno.serve(
 	serveRefusals(async (request) => {
-		if (request.method !== 'POST') refuse(405, 'POST only');
+		const route = modelGatewayRoute(request.method, new URL(request.url).pathname);
+		if (!route) refuse(404, 'the model gateway answers chat completions, decisions and the model list');
 		const { client, companyID } = await callingAgent(request);
-		const memberID = request.headers.get(memberHeader) ?? '';
-		if (!guidPattern.test(memberID)) refuse(400, `which member asked: their id in the ${memberHeader} header`);
 
+		const openRouterKey = Deno.env.get('OPENROUTER_API_KEY') ?? '';
+		if (!openRouterKey) refuse(503, 'this deployment holds no OpenRouter key');
+		const upstreamURL = openRouterOrigin + route.upstreamPath;
+		const authorization = { Authorization: `Bearer ${openRouterKey}` };
+
+		if (!route.isCharged) {
+			const listed = await fetch(upstreamURL, { headers: authorization });
+			return new Response(listed.body, { status: listed.status, headers: { 'Content-Type': 'application/json' } });
+		}
+
+		const memberID = requestingMember(request);
 		const { data: refusal, error } = await client.rpc('company_member_credit_refusal', {
 			target_company: companyID,
 			target_member: memberID,
 			default_usage_limit: defaultUsageLimit
 		});
-		if (error) refuse(502, `the record could not say whether this member may call: ${error.message}`);
+		if (error) refuse(502, `the record could not say whether this call may start: ${error.message}`);
 		if (refusal === 'not_a_member') refuse(403, 'that member is not one of this company');
 		if (typeof refusal === 'string') refuse(402, refusal);
 
-		const openRouterKey = Deno.env.get('OPENROUTER_API_KEY') ?? '';
-		if (!openRouterKey) refuse(503, 'this deployment holds no OpenRouter key');
-
 		const asked = await askedObject(request);
-		const upstream = await fetch(openRouterChatURL, {
+		const upstream = await fetch(upstreamURL, {
 			method: 'POST',
-			headers: { Authorization: `Bearer ${openRouterKey}`, 'Content-Type': 'application/json' },
+			headers: { ...authorization, 'Content-Type': 'application/json' },
 			body: JSON.stringify({ ...asked, usage: { include: true } })
 		});
 		if (!upstream.ok || !upstream.body) {
@@ -47,6 +55,13 @@ Deno.serve(
 		return new Response(JSON.stringify(answer), { headers: { 'Content-Type': 'application/json' } });
 	})
 );
+
+function requestingMember(request: Request): string | null {
+	const presented = request.headers.get(memberHeader);
+	if (presented === null) return null;
+	if (!guidPattern.test(presented)) refuse(400, `the ${memberHeader} header carries a member id`);
+	return presented;
+}
 
 function streamedAndCharged(upstream: ReadableStream<Uint8Array>, charge: Charge): Response {
 	const reader = streamCostReader();
