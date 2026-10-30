@@ -2,7 +2,7 @@ set search_path = public, extensions;
 
 do $$
 begin
-  if exists (select 1 from public.company where id <> '000000cc-0000-0000-0000-000000000001') then
+  if exists (select 1 from public.company where id::text not like '000000cc-0000-0000-%') then
     raise exception 'seed.dev.sql builds a fixture company and refuses to run where a real one already exists. You are pointed at a database with real data.';
   end if;
 end
@@ -307,3 +307,97 @@ insert into public.company_equity_entry (id, company_id, effective_on, holder, h
   ('000000d3-0000-0000-0000-000000000006', '000000cc-0000-0000-0000-000000000001', '2023-05-20', '견본 파트너스', 'investor', 'preferred', 40000, '000000d2-0000-0000-0000-000000000012'),
   ('000000d3-0000-0000-0000-000000000007', '000000cc-0000-0000-0000-000000000001', '2024-01-02', '최견본', 'employee', 'common', 20000, null)
 on conflict (id) do nothing;
+
+create function pg_temp.in_worker_company(fixture_id uuid, company_number integer) returns uuid
+language sql immutable as $$
+  select case
+    when fixture_id::text like '000000__-0000-0000-0000-%'
+      then overlay(fixture_id::text placing lpad(company_number::text, 4, '0') from 20 for 4)::uuid
+    else md5(fixture_id::text || ':' || company_number)::uuid
+  end
+$$;
+
+create function pg_temp.worker_company_email(email text, company_number integer) returns text
+language sql immutable as $$
+  select replace(email, '@', '+company' || company_number || '@')
+$$;
+
+create function pg_temp.copy_into_worker_company(table_name text, owned_rows text, company_number integer) returns void
+language plpgsql as $$
+declare
+  column_names text;
+  copied_values text;
+begin
+  select
+    string_agg(quote_ident(column_name), ', ' order by ordinal_position),
+    string_agg(case
+      when data_type = 'uuid' then format('pg_temp.in_worker_company(%I, %s)', column_name, company_number)
+      when copy_into_worker_company.table_name = 'member' and column_name = 'email' then format('pg_temp.worker_company_email(email, %s)', company_number)
+      when copy_into_worker_company.table_name = 'company' and column_name = 'slug' then format('slug || %L', '-' || company_number)
+      else quote_ident(column_name)
+    end, ', ' order by ordinal_position)
+  into column_names, copied_values
+  from information_schema.columns
+  where table_schema = 'public'
+    and columns.table_name = copy_into_worker_company.table_name
+    and is_generated = 'NEVER'
+    and identity_generation is distinct from 'ALWAYS';
+  execute format('insert into public.%I (%s) select %s from public.%I where %s',
+    table_name, column_names, copied_values, table_name, owned_rows);
+end
+$$;
+
+create function pg_temp.seed_worker_company(company_number integer) returns void
+language plpgsql as $$
+declare
+  example_company constant text := '''000000cc-0000-0000-0000-000000000001''';
+  example_members constant text := format('(select id from public.member where company_id = %s)', example_company);
+begin
+  insert into auth.users (
+    instance_id, id, aud, role, email, encrypted_password,
+    email_confirmed_at, created_at, updated_at,
+    raw_app_meta_data, raw_user_meta_data,
+    confirmation_token, recovery_token, email_change,
+    email_change_token_new, email_change_token_current,
+    phone_change, phone_change_token, reauthentication_token
+  )
+  select
+    account.instance_id, pg_temp.in_worker_company(account.id, company_number), account.aud, account.role,
+    pg_temp.worker_company_email(account.email, company_number), account.encrypted_password,
+    account.email_confirmed_at, account.created_at, account.updated_at,
+    account.raw_app_meta_data, account.raw_user_meta_data,
+    '', '', '', '', '', '', '', ''
+  from auth.users account
+  join public.member on member.user_id = account.id
+  where member.company_id = '000000cc-0000-0000-0000-000000000001'
+  on conflict (id) do nothing;
+
+  insert into auth.identities (provider_id, user_id, identity_data, provider, last_sign_in_at, created_at, updated_at)
+  select
+    account.id::text, account.id,
+    jsonb_build_object('sub', account.id::text, 'email', account.email, 'email_verified', true),
+    'email', now(), now(), now()
+  from auth.users account
+  join public.member on pg_temp.in_worker_company(member.user_id, company_number) = account.id
+  where member.company_id = '000000cc-0000-0000-0000-000000000001'
+  on conflict (provider, provider_id) do nothing;
+
+  perform pg_temp.copy_into_worker_company('company', 'id = ' || example_company, company_number);
+  update public.company set rules = rules - 'attendanceLeavePolicy'
+  where id = pg_temp.in_worker_company('000000cc-0000-0000-0000-000000000001', company_number);
+  perform pg_temp.copy_into_worker_company(table_name, 'company_id = ' || example_company, company_number)
+  from unnest(array['team', 'member', 'company_record', 'organization', 'contact', 'opportunity', 'task',
+    'company_metric', 'company_equity_entry']) as table_name;
+  perform pg_temp.copy_into_worker_company('task_participant',
+    format('task_id in (select id from public.task where company_id = %s)', example_company), company_number);
+  perform pg_temp.copy_into_worker_company(table_name, 'member_id in ' || example_members, company_number)
+  from unnest(array['attendance', 'leave']) as table_name;
+  update public.company worker
+  set rules = example.rules
+  from public.company example
+  where example.id = '000000cc-0000-0000-0000-000000000001'
+    and worker.id = pg_temp.in_worker_company(example.id, company_number);
+end
+$$;
+
+select pg_temp.seed_worker_company(company_number) from generate_series(1, 7) as company_number;

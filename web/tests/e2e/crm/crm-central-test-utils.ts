@@ -1,9 +1,9 @@
 import { expect, type Locator, type Page } from '@playwright/test';
 import { signInToTheCentralPlane } from '../support/central-plane-sign-in';
-import { centralPlaneAdminClient, exampleCompanyID } from '../support/central-test-utils';
+import { centralPlaneAdminClient, exampleCompanyID, exampleCompanySlug } from '../support/central-test-utils';
 
 export async function signInToTheCRM(page: Page, email?: string): Promise<void> {
-	await signInToTheCentralPlane(page, '/example-co/crm', email);
+	await signInToTheCentralPlane(page, `/${exampleCompanySlug}/crm`, email);
 	await page.locator('[data-crm-ready="true"]').waitFor({ state: 'visible', timeout: 20000 });
 }
 

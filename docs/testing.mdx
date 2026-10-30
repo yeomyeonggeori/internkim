@@ -40,8 +40,10 @@ The file name says which plane the screen runs against:
 | `-mocked.spec.ts` | the dev server's sample data (`VITE_MOCK_*`) | the screen is host-backed and the sample data is enough |
 | `.spec.ts` | no central plane | the screen works without one, like the messenger against a stubbed relay |
 
-A test that changes company state puts it back in `afterAll`, because every
-`-central` spec shares one database.
+Each worker running `-central` specs signs in to a company of its own, a copy
+of the example company that `supabase/seed.dev.sql` seeds once per worker. The
+specs one worker runs still share that company, so a test that changes company
+state puts it back in `afterAll`.
 
 Tests that read source files to keep two copies of one fact in step, or to hold a
 repository-wide rule, are guards. They live in

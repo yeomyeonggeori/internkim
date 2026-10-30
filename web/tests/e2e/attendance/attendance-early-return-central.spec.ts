@@ -1,7 +1,7 @@
 import { expect, test, type Page } from '@playwright/test';
 import { pickDate } from './date-picker-test-utils';
 import { signInToTheCentralPlane } from '../support/central-plane-sign-in';
-import { centralPlaneAdminClient, cleanupLeave, member1ID } from '../support/central-test-utils';
+import { centralPlaneAdminClient, cleanupLeave, member1ID, exampleCompanySlug } from '../support/central-test-utils';
 import { attendanceRowsOf, cleanupAttendanceEvents } from './attendance-central-test-utils';
 
 test.describe.configure({ mode: 'serial', timeout: 120_000 });
@@ -59,7 +59,7 @@ function startedBeforeNowWithinTheDay(): string {
 }
 
 async function requestLeaveCoveringNow(page: Page): Promise<void> {
-	await signInToTheCentralPlane(page, '/example-co/attendance');
+	await signInToTheCentralPlane(page, `/${exampleCompanySlug}/attendance`);
 	await page.getByTestId('leave-history-navigation').click();
 	await page.getByRole('button', { name: '휴가 신청', exact: true }).click();
 	const form = page.getByTestId('leave-request-dialog').getByTestId('leave-request-form');

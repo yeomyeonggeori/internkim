@@ -8,7 +8,7 @@ import {
 	signInToAttendance
 } from './attendance-central-test-utils';
 import { signInToTheCentralPlane } from '../support/central-plane-sign-in';
-import { centralPlaneAdminClient, member1ID } from '../support/central-test-utils';
+import { centralPlaneAdminClient, member1ID, exampleCompanySlug } from '../support/central-test-utils';
 import { moveAttendanceEarlier } from '../../support/move-attendance-earlier';
 
 test.describe.configure({ mode: 'serial', timeout: 90_000 });
@@ -87,7 +87,7 @@ test('the first clock menu opens an existing clock-in without an eager task read
 	]);
 	try {
 		const invokes = trackToolInvokes(page);
-		await signInToTheCentralPlane(page, '/example-co/task');
+		await signInToTheCentralPlane(page, `/${exampleCompanySlug}/task`);
 		await expect(page.locator('[data-task-ready="true"]')).toBeVisible();
 		await page.waitForLoadState('networkidle');
 		expect(invokes.names).not.toContain('attendance_list');

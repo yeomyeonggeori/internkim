@@ -1,7 +1,7 @@
 import { expect, test, type Page } from '@playwright/test';
 import { pickDate } from './date-picker-test-utils';
 import { signInToTheCentralPlane } from '../support/central-plane-sign-in';
-import { centralPlaneAdminClient, exampleCompanyID } from '../support/central-test-utils';
+import { centralPlaneAdminClient, exampleCompanyID, exampleCompanySlug } from '../support/central-test-utils';
 
 test.describe.configure({ mode: 'serial', timeout: 60_000 });
 test.use({ locale: 'ko-KR' });
@@ -23,7 +23,7 @@ test.afterAll(async () => {
 });
 
 async function openSettings(page: Page): Promise<void> {
-	await signInToTheCentralPlane(page, '/example-co/settings');
+	await signInToTheCentralPlane(page, `/${exampleCompanySlug}/settings`);
 	await switchToAdministratorTab(page);
 }
 
@@ -61,7 +61,7 @@ test('a leave type an administrator adds is offered on the leave request form', 
 	await settings.getByRole('button', { name: '저장', exact: true }).click();
 	await expect(page.getByText('휴가 설정을 저장했습니다.')).toBeVisible({ timeout: 20000 });
 
-	await page.goto('/example-co/attendance');
+	await page.goto(`/${exampleCompanySlug}/attendance`);
 	await page.getByTestId('leave-history-navigation').click();
 	await page.getByRole('button', { name: '휴가 신청', exact: true }).click();
 	await page.getByTestId('leave-request-type-trigger').click();

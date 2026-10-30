@@ -1,13 +1,15 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
+import { inWorkerCompany, workerCompanyEmail, workerCompanySlug } from './worker-company';
 
-export const exampleCompanyID = '000000cc-0000-0000-0000-000000000001';
-export const member1ID = '000000ee-0000-0000-0000-000000000001';
-export const member2ID = '000000ee-0000-0000-0000-000000000002';
-export const member3ID = '000000ee-0000-0000-0000-000000000003';
+export const exampleCompanyID = inWorkerCompany('000000cc-0000-0000-0000-000000000001');
+export const exampleCompanySlug = workerCompanySlug;
+export const member1ID = inWorkerCompany('000000ee-0000-0000-0000-000000000001');
+export const member2ID = inWorkerCompany('000000ee-0000-0000-0000-000000000002');
+export const member3ID = inWorkerCompany('000000ee-0000-0000-0000-000000000003');
 
-export const member1Email = 'member1@example.com';
-export const member2Email = 'member2@example.com';
-export const member3Email = 'member3@example.com';
+export const member1Email = workerCompanyEmail('member1@example.com');
+export const member2Email = workerCompanyEmail('member2@example.com');
+export const member3Email = workerCompanyEmail('member3@example.com');
 
 export const seedPassword = 'seed-password';
 

@@ -10,7 +10,7 @@ import {
 	seoulInstant,
 	seoulMonthToday
 } from './attendance-central-test-utils';
-import { member1Email, member3Email, member3ID, member3Name } from '../support/central-test-utils';
+import { member1Email, member3Email, member3ID, member3Name, exampleCompanySlug } from '../support/central-test-utils';
 
 test.describe.configure({ mode: 'serial', timeout: 90_000 });
 test.use({ locale: 'ko-KR' });
@@ -41,7 +41,7 @@ test.afterAll(async () => {
 });
 
 async function openHandWrittenRecords(page: Page, email: string): Promise<void> {
-	await signInToTheCentralPlane(page, '/example-co/attendance', email);
+	await signInToTheCentralPlane(page, `/${exampleCompanySlug}/attendance`, email);
 	await page.getByTestId('attendance-sidebar-scroll').waitFor({ state: 'visible', timeout: 30000 });
 	await page.getByTestId('hand-written-navigation').click();
 	await page.getByTestId('hand-written-view').waitFor({ state: 'visible', timeout: 20000 });
@@ -85,7 +85,7 @@ test('an administrator sees what was written by hand and undoes it from the list
 });
 
 test('somebody who does not administer the company never sees the list', async ({ page }) => {
-	await signInToTheCentralPlane(page, '/example-co/attendance', member3Email);
+	await signInToTheCentralPlane(page, `/${exampleCompanySlug}/attendance`, member3Email);
 	await page.getByTestId('attendance-sidebar-scroll').waitFor({ state: 'visible', timeout: 30000 });
 
 	await expect(page.getByTestId('hand-written-navigation')).toHaveCount(0);
