@@ -10,6 +10,12 @@ selects_central_specs() {
   grep -q -- '\[central\]' <<<"$listed"
 }
 
+if [ "${1:-}" = "--needs-the-local-plane" ]; then
+  shift
+  selects_central_specs "$@"
+  exit
+fi
+
 if [ -z "${LOCAL_PLANE_LOCK_HOLDER:-}" ] && selects_central_specs "$@"; then
   exec "$repository/tools/with-local-plane" "$0" "$@"
 fi

@@ -336,6 +336,64 @@ class VerificationPlanTests(unittest.TestCase):
             self.assertFalse(waiting.is_alive())
             self.assertTrue(result[0][1])
 
+    def test_a_command_waiting_for_the_local_plane_holds_no_machine_slot(self):
+        module = verification_module()
+        with tempfile.TemporaryDirectory() as directory, patch.object(module, "MACHINE_SLOT_DIRECTORY", Path(directory)), patch.object(module, "MACHINE_SLOTS", 1):
+            root = Path(directory)
+            module.verification_run_directory = root / "logs"
+            observed = root / "observed"
+            plane = root / "with-local-plane"
+            slot = root / "internkim-verify-slot-0.lock"
+            plane.write_text(
+                "#!/bin/sh\n"
+                f"{sys.executable} -c \"import fcntl; handle = open({str(slot)!r}, 'a'); fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)\" "
+                f"&& echo free > {observed} || echo held > {observed}\n"
+                "exec \"$@\"\n"
+            )
+            plane.chmod(0o755)
+            with patch.object(module, "WITH_LOCAL_PLANE", str(plane)):
+                group = module.Group("heavy", [], [module.holding_the_local_plane([sys.executable, "-c", "pass"])], fills_the_machine=True)
+                with redirect_stdout(io.StringIO()):
+                    self.assertTrue(module.run_group(group)[1])
+            self.assertEqual(observed.read_text().strip(), "free")
+
+    def test_a_group_that_fills_the_machine_takes_its_slot_inside_the_local_plane(self):
+        module = verification_module()
+        holder = module.machine_slot_holder("heavy")
+        command = [sys.executable, "-c", "pass"]
+        heavy = module.Group("heavy", [], [], fills_the_machine=True)
+        light = module.Group("light", [], [])
+        self.assertEqual(heavy.command_to_run(command), [*holder, *command])
+        self.assertEqual(heavy.command_to_run(module.holding_the_local_plane(command)), [module.WITH_LOCAL_PLANE, *holder, *module.holding_the_local_plane(command)[1:]])
+        self.assertEqual(light.command_to_run(module.holding_the_local_plane(command)), module.holding_the_local_plane(command))
+        end_to_end = next(group for group in module.GROUPS if group.name == "e2e")
+        with patch.object(type(end_to_end), "needs_the_local_plane", return_value=True):
+            self.assertEqual(end_to_end.command_to_run(["scripts/e2e.sh"]), [module.WITH_LOCAL_PLANE, *module.machine_slot_holder("e2e"), "scripts/e2e.sh"])
+
+    def test_a_command_waiting_for_a_machine_slot_says_so_on_the_console(self):
+        module = verification_module()
+        reading, writing = os.pipe()
+        with tempfile.TemporaryDirectory() as directory, patch.object(module, "MACHINE_SLOT_DIRECTORY", Path(directory)), patch.object(module, "MACHINE_SLOTS", 1), patch.object(module, "console_descriptor", return_value=writing):
+            module.verification_run_directory = Path(directory) / "logs"
+            slot_held_elsewhere = (Path(directory) / "internkim-verify-slot-0.lock").open("a")
+            fcntl.flock(slot_held_elsewhere, fcntl.LOCK_EX)
+            heavy = module.Group("heavy", [], [[sys.executable, "-c", "pass"]], fills_the_machine=True)
+            waiting = threading.Thread(target=lambda: module.run_group(heavy))
+            with redirect_stdout(io.StringIO()):
+                waiting.start()
+                announced = os.read(reading, 200).decode()
+                slot_held_elsewhere.close()
+                waiting.join(timeout=10)
+        os.close(reading)
+        os.close(writing)
+        self.assertEqual(announced, "wait heavy for one of 1 machine slots\n")
+
+    def test_a_slot_holder_refuses_a_command_line_without_its_separator(self):
+        script = Path(__file__).resolve().parents[1] / "verify"
+        refused = subprocess.run([sys.executable, str(script), "--hold-a-machine-slot", "/tmp", "1", "1", "heavy", "true"], capture_output=True, text=True)
+        self.assertNotEqual(refused.returncode, 0)
+        self.assertIn("--", refused.stderr)
+
     def test_a_group_that_passed_runs_again_only_when_what_selects_it_changes(self):
         module = verification_module()
         with tempfile.TemporaryDirectory() as directory, patch.object(module, "REPOSITORY_ROOT", Path(directory)), patch.object(module, "PASSED_GROUP_DIRECTORY", Path(directory) / "passed"), patch.object(module, "reusing_passes", True):
