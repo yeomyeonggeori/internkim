@@ -170,6 +170,15 @@ period first expires what was left and then moves `subscription_ends_at`.
 is the `company_id` the checkout put in the subscription's metadata, so an
 event that names none belongs to another product and is ignored.
 
+A model call spends them through the `model-gateway` edge function. The
+company's computer signs in with its agent key or host session and names the
+member who asked in the `x-internkim-member` header.
+`company_member_credit_refusal` says whether that member may start a call, and
+names the reason when not. The call goes to OpenRouter with our key, and
+`company_credit_usage_charged` writes what it cost once it finishes: subscription
+credits first, then permanent ones, and an `absorbed` line for any part neither
+covers. A credit is $0.001, and part of one is charged as a whole one.
+
 ## CRM [#crm]
 
 | Concern | Where it lives |
