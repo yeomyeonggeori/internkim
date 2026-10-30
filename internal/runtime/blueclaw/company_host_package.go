@@ -371,6 +371,7 @@ install -d -o root -g %[3]s -m 0750 %[5]s
 [ -s %[25]s ] || od -An -tx1 -N32 /dev/urandom | tr -d ' \n' > %[25]s
 install -o root -g %[3]s -m 0440 %[25]s %[6]s
 [ ! -r %[7]s ] || install -o root -g %[3]s -m 0440 %[7]s %[8]s
+install -o root -g %[3]s -m 0440 %[2]s %[34]s
 [ -s %[31]s ] || od -An -tx1 -N32 /dev/urandom | tr -d ' \n' > %[31]s
 install -o root -g %[3]s -m 0440 %[31]s %[32]s
 install -o root -g %[27]s -m 0440 %[31]s %[33]s
@@ -390,6 +391,7 @@ else
   WORKSPACE_ROOT_PATH=%[12]s \
   LOG_DIRECTORY_PATH=%[9]s \
   MODEL_API_KEY_PATH=%[8]s \
+  MODEL_GATEWAY_KEY_PATH=%[34]s \
   ADMIN_ASSERTION_KEY_PATH=%[6]s \
   SERVICE_TOKEN_PATH=%[32]s \
   POSIX_HELPER_PATH=%[23]s \
@@ -439,5 +441,6 @@ fi
 		layout.MigrationPath,
 		CompanyHostServiceTokenPath,
 		layout.RunServiceTokenPath(),
-		layout.RelayServiceTokenPath())
+		layout.RelayServiceTokenPath(),
+		layout.RunAgentKeyPath())
 }
