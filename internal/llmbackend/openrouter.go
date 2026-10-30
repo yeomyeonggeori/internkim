@@ -749,7 +749,7 @@ func isLocalModelReference(modelName string) bool {
 }
 
 func (backend OpenRouterBackend) ContextWindowTokensForModel(modelName string) int64 {
-	if tokens := sharedOpenRouterModelCatalog.contextWindowTokens(backend.modelsURL(), backend.HTTPClient, backend.resolveModelName(modelName)); tokens > 0 {
+	if tokens := sharedOpenRouterModelCatalog.contextWindowTokens(backend.modelsURL(), backend.HTTPClient, readOpenRouterKey(backend.KeyPath), backend.resolveModelName(modelName)); tokens > 0 {
 		return tokens
 	}
 	return DefaultContextWindowTokens

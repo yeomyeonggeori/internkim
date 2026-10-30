@@ -409,5 +409,5 @@ func startTheRestoredHost(platform backupPlatform, machine Machine, directoryPat
 }
 
 func noModelKeyPrompt() (string, error) {
-	return "", fmt.Errorf("the backup carries no OpenRouter key. Run `internkim install` with --model-key-file after the restore")
+	return "", nil
 }

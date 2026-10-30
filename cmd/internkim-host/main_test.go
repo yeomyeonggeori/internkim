@@ -79,11 +79,11 @@ func TestTheModelKeyIsReadFromStandardInputWhenThereIsNoTerminal(t *testing.T) {
 	}
 }
 
-func TestAnEmptyStandardInputNamesTheOptionThatSuppliesTheKey(t *testing.T) {
+func TestAnEmptyStandardInputMeansTheCompanyBroughtNoKey(t *testing.T) {
 	var prompt bytes.Buffer
-	_, errorValue := readModelKey(pipeHolding(t, ""), &prompt)
-	if errorValue == nil || !strings.Contains(errorValue.Error(), "--model-key-file") {
-		t.Fatalf("an empty standard input returned %v", errorValue)
+	key, errorValue := readModelKey(pipeHolding(t, ""), &prompt)
+	if errorValue != nil || strings.TrimSpace(key) != "" {
+		t.Fatalf("an empty standard input returned %q, %v", key, errorValue)
 	}
 }
 

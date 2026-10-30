@@ -97,6 +97,9 @@ func KeepModelKey(secretDirectoryPath, suppliedKey string, promptForKey func() (
 	if errorValue != nil {
 		return errorValue
 	}
+	if strings.TrimSpace(value) == "" {
+		return nil
+	}
 	return writeModelKey(path, value)
 }
 

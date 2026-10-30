@@ -405,9 +405,13 @@
     "process": "tools/render-company-runtime",
     "description": "the OpenAI-compatible endpoint the rendered model ladder reaches, for a company running its models through a gateway of its own; defaults to the ladder's own endpoint"
   },
+  "MODEL_GATEWAY_KEY_PATH": {
+    "process": "tools/render-company-runtime",
+    "description": "the file holding this computer's credential to the central plane, which the rendered model ladder names on every endpoint when MODEL_API_KEY_PATH holds no key and the ladder reaches the model gateway instead"
+  },
   "OPENROUTER_API_KEY": {
-    "process": "cli",
-    "description": "the OpenRouter API key for remote model inference from tooling run on this machine; also read by internal/llmbackend's live OpenRouter test",
+    "process": "cli, model-gateway edge function",
+    "description": "the OpenRouter API key for remote model inference from tooling run on this machine, and the key supabase/functions/model-gateway calls with for a company that brings none; also read by internal/llmbackend's live OpenRouter test",
     "isInVault": true
   },
   "PATH": {
@@ -508,8 +512,8 @@
     "isInVault": true
   },
   "SUPABASE_URL": {
-    "process": "relay, host, web, connection-gateway worker, web scripts",
-    "description": "the Supabase project URL; required across the relay, the host's admind, the web app and the gateway worker, and used by web/scripts' one-off ops scripts",
+    "process": "relay, host, web, connection-gateway worker, web scripts, tools/render-company-runtime",
+    "description": "the Supabase project URL; required across the relay, the host's admind, the web app and the gateway worker, used by web/scripts' one-off ops scripts, and the central plane whose model gateway the rendered model ladder reaches for a company that brought no OpenRouter key",
     "isRequiredOnPages": true,
     "isInVault": true
   },

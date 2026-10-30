@@ -65,20 +65,23 @@ type Document struct {
 // chat completions. github.com/OpenRouterTeam/go-sdk decisions.go
 const DecisionsPath = "/api/alpha/decisions"
 
+const chatAPIPath = "/api/v1"
+
 func DecisionsURL(modelEndpoint string) string {
-	origin := originOf(modelEndpoint)
-	if origin == "" {
-		origin = originOf(Endpoint)
+	root := apiRootOf(modelEndpoint)
+	if root == "" {
+		root = apiRootOf(Endpoint)
 	}
-	return origin + DecisionsPath
+	return root + DecisionsPath
 }
 
-func originOf(rawURL string) string {
+func apiRootOf(rawURL string) string {
 	parsed, errorValue := url.Parse(strings.TrimSpace(rawURL))
 	if errorValue != nil || parsed.Scheme == "" || parsed.Host == "" {
 		return ""
 	}
-	return parsed.Scheme + "://" + parsed.Host
+	prefix, _, _ := strings.Cut(parsed.Path, chatAPIPath)
+	return parsed.Scheme + "://" + parsed.Host + strings.TrimSuffix(prefix, "/")
 }
 
 func ModelNames() []string {

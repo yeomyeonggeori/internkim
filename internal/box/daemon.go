@@ -35,6 +35,7 @@ type Places struct {
 	PairingPageListenAddress  string
 	ConnectionFilePath        string
 	CredentialPaths           []string
+	StagedCredentialPaths     []string
 	WorkQueuePath             string
 	ModelKeyPath              string
 	ResetRequestPath          string
@@ -48,6 +49,7 @@ type Daemon struct {
 	TakeOver          func(ctx context.Context, session Session, keyring Keyring) error
 	StandDown         func() error
 	StandUp           func() error
+	RestartServices   func() error
 	StartKeepingUp    func(ctx context.Context, session Session)
 	FollowRelease     func(targetVersion string) error
 	StartWorking      func(ctx context.Context, session Session)
@@ -173,11 +175,7 @@ func (daemon Daemon) serveClaimed(ctx context.Context, session Session, identity
 	if isTakingOver, errorValue := daemon.takeOver(ctx, session, keyring); errorValue != nil || isTakingOver {
 		return announceInterval, errorValue
 	}
-	if session.SealedModelKey == nil {
-		log.Printf("%s connected this box and has not given it a model key yet", session.Configuration.Company.Name)
-		return announceInterval, nil
-	}
-	modelKey, errorValue := keyring.OpenModelKey(*session.SealedModelKey, session.Configuration.Company.ID)
+	modelKey, errorValue := companyModelKey(session, keyring)
 	if errorValue != nil {
 		return 0, errorValue
 	}
@@ -320,6 +318,12 @@ func (daemon Daemon) renew(session Session, keyring Keyring) error {
 			return fmt.Errorf("keeping the renewed session at %s: %w", path, errorValue)
 		}
 	}
+	for _, path := range daemon.Places.StagedCredentialPaths {
+		errorValue := replaceKeepingOwner(path, session.Session.AccessToken+"\n")
+		if errorValue != nil && !errors.Is(errorValue, os.ErrNotExist) {
+			return fmt.Errorf("keeping the renewed session at %s: %w", path, errorValue)
+		}
+	}
 	if session.SealedModelKey == nil {
 		return nil
 	}
@@ -327,7 +331,14 @@ func (daemon Daemon) renew(session Session, keyring Keyring) error {
 	if errorValue != nil {
 		return errorValue
 	}
-	return replaceKeepingOwner(daemon.Places.ModelKeyPath, modelKey+"\n")
+	return daemon.keepModelKey(session.Configuration.Company.Name, modelKey)
+}
+
+func companyModelKey(session Session, keyring Keyring) (string, error) {
+	if session.SealedModelKey == nil {
+		return "", nil
+	}
+	return keyring.OpenModelKey(*session.SealedModelKey, session.Configuration.Company.ID)
 }
 
 func (daemon Daemon) InstallWithConnectionFile(ctx context.Context, connectionKey string, modelKey string) error {

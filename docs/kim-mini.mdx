@@ -242,3 +242,8 @@ The administrator pastes an OpenRouter key at `intern.kim`. The browser encrypts
 to the company key, and the ciphertext travels through the central plane to the
 box, which decrypts it on its own disk. The plane stores and relays a value it cannot
 read.
+
+A company that pastes no key reaches its models through the central plane's model
+gateway, which calls OpenRouter with our key and charges the company's credits. The
+box asks it with its own session, renewed every hour. A key pasted later restarts the
+box's services once, and from then on the box calls OpenRouter with it.
