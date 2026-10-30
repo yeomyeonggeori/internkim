@@ -1,5 +1,6 @@
 <script lang="ts">
 	import * as Attachment from '$lib/components/ui/attachment/index.js';
+	import type { AttachmentState } from '$lib/components/ui/attachment/index.js';
 	import LoadingImage from '$lib/components/loading-image.svelte';
 	import { Spinner } from '$lib/components/ui/spinner/index.js';
 	import { channelText } from '$lib/i18n/channel-text';
@@ -24,16 +25,24 @@
 	const text = createPageText(channelText);
 	const pictures = $derived(attachments.filter((attachment) => attachment.kind === 'image'));
 	const files = $derived(attachments.filter((attachment) => attachment.kind !== 'image'));
+
+	function stateOf(attachment: ChannelMessageAttachment): AttachmentState {
+		if (attachment.isUploading) return 'uploading';
+		return attachmentStateOf(attachment.source, attachmentSource.status(attachment.url));
+	}
 </script>
 
 <div class="flex min-w-0 flex-col gap-2">
 	{#if pictures.length > 0}
 		<Attachment.Group class="relative w-fit max-w-full">
 			{#each pictures as attachment (attachment.url)}
-				{@const attachmentState = attachmentStateOf(attachment.source, attachmentSource.status(attachment.url))}
+				{@const attachmentState = stateOf(attachment)}
 				<Attachment.Root orientation="vertical" state={attachmentState}>
 					<Attachment.Media variant="image">
-						{#if attachment.source}
+						{#if attachmentState === 'uploading'}
+							<img src={attachment.source} alt={attachment.filename ?? ''} class="aspect-square h-full w-full object-cover" />
+							<Spinner role="status" aria-label={text.attachmentUploading} class="absolute" />
+						{:else if attachment.source}
 							{@const source = attachment.source}
 							{@const notShown = attachmentSource.isNotShown(attachment.url)}
 							<button
@@ -76,14 +85,14 @@
 		</Attachment.Group>
 	{/if}
 	{#each files as attachment (attachment.url)}
-		{@const attachmentState = attachmentStateOf(attachment.source, attachmentSource.status(attachment.url))}
+		{@const attachmentState = stateOf(attachment)}
 		<Attachment.Root state={attachmentState}>
 			<Attachment.Media>
 				<FileIcon />
 			</Attachment.Media>
 			<Attachment.Content>
 				<Attachment.Title>
-					{#if attachment.source}
+					{#if attachment.source && attachmentState !== 'uploading'}
 						<a href={attachment.source} target="_blank" rel="noreferrer">
 							{attachment.filename ?? attachment.url}
 						</a>
@@ -91,7 +100,9 @@
 						{attachment.filename ?? attachment.url}
 					{/if}
 				</Attachment.Title>
-				{#if attachmentState === 'error'}
+				{#if attachmentState === 'uploading'}
+					<Attachment.Description>{text.attachmentUploading}</Attachment.Description>
+				{:else if attachmentState === 'error'}
 					<Attachment.Description title={attachmentSource.failure(attachment.url)}>
 						{text.attachmentUnavailable}
 					</Attachment.Description>
@@ -111,7 +122,7 @@
 						<RotateCwIcon />
 					</Attachment.Action>
 				</Attachment.Actions>
-			{:else if attachment.source}
+			{:else if attachment.source && attachmentState !== 'uploading'}
 				{@const source = attachment.source}
 				<Attachment.Actions>
 					<Attachment.Action
