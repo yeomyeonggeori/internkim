@@ -1,6 +1,6 @@
 import { expect, type Locator, type Page } from '@playwright/test';
 import { signInToTheCentralPlane } from '../support/central-plane-sign-in';
-import { centralPlaneAdminClient, exampleCompanyID } from '../support/central-test-utils';
+import { centralPlaneAdminClient, exampleCompanyID, exampleCompanySlug } from '../support/central-test-utils';
 
 export type CentralTaskStatus =
 	| 'requested'
@@ -68,7 +68,7 @@ export function weekEndInstant(): string {
 }
 
 export async function signInToTheTaskBoard(page: Page, email?: string): Promise<void> {
-	await signInToTheCentralPlane(page, '/example-co/task', email);
+	await signInToTheCentralPlane(page, `/${exampleCompanySlug}/task`, email);
 	await page.locator('[data-task-ready="true"]').waitFor({ state: 'visible', timeout: 30000 });
 	await expect(taskColumn(page, 'in_progress')).toBeVisible();
 }

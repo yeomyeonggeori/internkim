@@ -2,7 +2,7 @@ import { chromium, expect, test } from '@playwright/test';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { centralPlaneAdminClient, exampleCompanyID, member1ID } from '../support/central-test-utils';
+import { centralPlaneAdminClient, exampleCompanyID, member1ID, exampleCompanySlug } from '../support/central-test-utils';
 import { seedTasks, removeTasks, taskCard, weekStartInstant, openTaskCard, taskSheet, taskParticipantIDsOf } from './task-central-test-utils';
 import { signInToTheCentralPlane } from '../support/central-plane-sign-in';
 import { taskWeekOfDate } from '../../../src/lib/task/task-week-code';
@@ -10,7 +10,7 @@ import { taskWeekOfDate } from '../../../src/lib/task/task-week-code';
 test.use({ locale: 'ko-KR' });
 
 test('task startup creates report content only after the report tab is opened', async ({ page }) => {
-	await signInToTheCentralPlane(page, '/example-co/task');
+	await signInToTheCentralPlane(page, `/${exampleCompanySlug}/task`);
 	await expect(page.locator('[data-task-ready="true"]')).toBeVisible();
 	const report = page.getByText('이번 주간 업무 일별 종류 거리 분포', { exact: true });
 	await expect(report).toHaveCount(0);
@@ -26,7 +26,7 @@ test('task startup creates report content only after the report tab is opened', 
 test('task avatars paint when their cards enter the visible scroll area', async ({ page }) => {
 	const ids = await seedTasks(Array.from({ length: 32 }, (_, index) => ({ title: `가시성 검증 ${String(index).padStart(2, '0')}`, status: 'planned', participantIDs: [member1ID], startsAtISO: weekStartInstant(), endsAtISO: weekStartInstant() })));
 	try {
-		await signInToTheCentralPlane(page, '/example-co/task');
+		await signInToTheCentralPlane(page, `/${exampleCompanySlug}/task`);
 		await expect(page.locator('[data-task-ready="true"]')).toBeVisible();
 		const cards = page.locator('[data-task-board-card]').filter({ hasText: '가시성 검증 ' });
 		const first = cards.first();
@@ -49,7 +49,7 @@ test('a closed browser restores a scoped snapshot and preserves stale age on a w
 	const key = 'internkim:task-snapshot:v1';
 	try {
 		let page = context.pages()[0];
-		await signInToTheCentralPlane(page, '/example-co/task');
+		await signInToTheCentralPlane(page, `/${exampleCompanySlug}/task`);
 		await page.getByRole('tab', { name: '보고', exact: true }).click();
 		await expect.poll(() => page.evaluate(key => localStorage.getItem(key), key)).not.toBeNull();
 		const before = await page.evaluate(key => JSON.parse(localStorage.getItem(key)!).savedAt, key);
@@ -57,13 +57,13 @@ test('a closed browser restores a scoped snapshot and preserves stale age on a w
 		context = await chromium.launchPersistentContext(path, { baseURL, locale: 'ko-KR', timezoneId: 'Asia/Seoul' });
 		page = context.pages()[0];
 		await page.route(/\/(task_list|task_board_get)\/invoke$/, async route => { await gate; await route.fulfill({ status: 503, json: { error: 'Temporarily unavailable' } }); });
-		await page.goto('/example-co/task');
+		await page.goto(`/${exampleCompanySlug}/task`);
 		await expect(page.locator('[data-task-progress="snapshot"]')).toBeVisible();
 		await expect(taskCard(page, id)).toBeVisible();
 		await expect(page.locator('[data-task-ready="false"]')).toBeVisible();
 		await expect(page.getByRole('button', { name: '이전 주', exact: true })).toBeDisabled();
 		const previousWeek = taskWeekOfDate(new Date(Date.now() - 7 * 86400000)).code;
-		await page.goto(`/example-co/task?week=${previousWeek}`);
+		await page.goto(`/${exampleCompanySlug}/task?week=${previousWeek}`);
 		await expect(page.locator('[data-task-progress="snapshot"]')).toBeVisible();
 		expect(await page.evaluate(key => JSON.parse(localStorage.getItem(key)!).savedAt, key)).toBe(before);
 		release();
@@ -82,12 +82,12 @@ test('first task visit shows structure then real cards before directory completi
 	const tasks = new Promise<void>(resolve => { releaseTasks = resolve; });
 	const people = new Promise<void>(resolve => { releasePeople = resolve; });
 	try {
-		await signInToTheCentralPlane(page, '/example-co/organization');
+		await signInToTheCentralPlane(page, `/${exampleCompanySlug}/organization`);
 		await expect(page.getByTestId('organization-board')).toBeVisible();
 		await page.evaluate(() => { localStorage.removeItem('internkim:task-snapshot:v1'); localStorage.removeItem('internkim:task-board-snapshots:v1'); });
 		await page.route('**/task_board_get/invoke', async route => { await tasks; await route.continue(); });
 		await page.route('**/person_list/invoke', async route => { await people; await route.continue(); });
-		await page.goto('/example-co/task');
+		await page.goto(`/${exampleCompanySlug}/task`);
 		await expect(page.locator('[data-task-progress="skeleton"]')).toBeVisible();
 		await expect(page.locator('[data-task-skeleton]')).toBeVisible();
 		await page.screenshot({ path: test.info().outputPath('task-skeleton-desktop.png') });
@@ -132,7 +132,7 @@ test('ordinary task editing avoids 1501 historical rows until relationships are 
 		const noted = await admin.from('task').update({ note: '일반 편집 뒤에도 유지하는 메모' }).eq('id', id);
 		if (noted.error) throw new Error(noted.error.message);
 		const initial = readBoard();
-		await signInToTheCentralPlane(page, '/example-co/task');
+		await signInToTheCentralPlane(page, `/${exampleCompanySlug}/task`);
 		const before = (await (await initial).json()).result;
 		await expect(taskCard(page, id)).toBeVisible();
 		for (let offset = 0; offset < historicalIDs.length; offset += 500) {
@@ -215,7 +215,7 @@ test('initial and retained relationship failures retry without replacing the edi
 	]);
 	let historyReads = 0;
 	try {
-		await signInToTheCentralPlane(page, '/example-co/task');
+		await signInToTheCentralPlane(page, `/${exampleCompanySlug}/task`);
 		await expect(page.locator('[data-task-ready="true"]')).toBeVisible();
 		await openTaskCard(page, id);
 		const sheet = taskSheet(page);
@@ -257,11 +257,11 @@ test('directory denial wins over a later task preview and cannot reappear on rev
 	let release!: () => void;
 	const gate = new Promise<void>(resolve => { release = resolve; });
 	try {
-		await signInToTheCentralPlane(page, '/example-co/organization');
+		await signInToTheCentralPlane(page, `/${exampleCompanySlug}/organization`);
 		await expect(page.getByTestId('organization-board')).toBeVisible();
 		await page.route('**/task_board_get/invoke', async route => { await gate; await route.continue(); });
 		await page.route('**/person_list/invoke', route => route.fulfill({ status: 403, json: { error: 'Permission denied' } }));
-		await page.goto('/example-co/task');
+		await page.goto(`/${exampleCompanySlug}/task`);
 		await expect(page.locator('[data-task-ready="false"]')).toBeVisible();
 		await expect(page.locator('main')).toContainText('Permission denied');
 		release();
@@ -269,8 +269,8 @@ test('directory denial wins over a later task preview and cannot reappear on rev
 		await expect(page.locator('[data-task-board-card]')).toHaveCount(0);
 		expect(await page.evaluate(() => localStorage.getItem('internkim:task-snapshot:v1'))).toBeNull();
 		expect(await page.evaluate(() => localStorage.getItem('internkim:task-board-snapshots:v1'))).toBeNull();
-		await page.goto('/example-co/organization');
-		await page.goto('/example-co/task');
+		await page.goto(`/${exampleCompanySlug}/organization`);
+		await page.goto(`/${exampleCompanySlug}/task`);
 		await expect(page.locator('[data-task-board-card]')).toHaveCount(0);
 	} finally { release(); }
 });

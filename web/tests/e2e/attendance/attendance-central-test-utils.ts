@@ -1,6 +1,6 @@
 import type { Page } from '@playwright/test';
 import { signInToTheCentralPlane } from '../support/central-plane-sign-in';
-import { centralPlaneAdminClient, exampleCompanyID } from '../support/central-test-utils';
+import { centralPlaneAdminClient, exampleCompanyID, exampleCompanySlug } from '../support/central-test-utils';
 
 export type AttendanceCentralKind = 'clock_in' | 'clock_out';
 
@@ -34,7 +34,7 @@ export type LeaveCentralRow = {
 
 const seoulOffset = '+09:00';
 
-export async function signInToAttendance(page: Page, path = '/example-co/attendance'): Promise<void> {
+export async function signInToAttendance(page: Page, path = `/${exampleCompanySlug}/attendance`): Promise<void> {
 	await signInToTheCentralPlane(page, path);
 	await page
 		.locator('[data-testid="attendance-own-strip"]:visible')

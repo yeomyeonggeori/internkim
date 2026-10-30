@@ -1,5 +1,6 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
 import { signInToTheCentralPlane } from '../support/central-plane-sign-in';
+import { exampleCompanySlug } from '../support/central-test-utils';
 
 test.describe.configure({ mode: 'serial', timeout: 60_000 });
 test.use({ locale: 'ko-KR' });
@@ -15,7 +16,7 @@ const organizationTypeName = 'E2E 관계처 유형';
 const queuedTypeNames = ['E2E 대기 유형 하나', 'E2E 대기 유형 둘'];
 
 async function signIn(page: Page): Promise<void> {
-	await signInToTheCentralPlane(page, '/example-co/crm');
+	await signInToTheCentralPlane(page, `/${exampleCompanySlug}/crm`);
 	await page.locator('[data-crm-ready="true"]').waitFor({ state: 'visible', timeout: 20000 });
 }
 
@@ -97,12 +98,12 @@ test('every activity lands on the task board, and one registered on the calendar
 	await recordActivity(page, calendarActivityTitle, true);
 	await recordActivity(page, boardActivityTitle, false);
 
-	await page.goto('/example-co/calendar');
+	await page.goto(`/${exampleCompanySlug}/calendar`);
 	const calendar = page.locator('.calendar-stage');
 	await expect(calendar.getByText(calendarActivityTitle).first()).toBeVisible({ timeout: 20000 });
 	await expect(calendar.getByText(boardActivityTitle)).toHaveCount(0);
 
-	await page.goto('/example-co/flow');
+	await page.goto(`/${exampleCompanySlug}/flow`);
 	await page.locator('[data-task-ready="true"]').waitFor({ state: 'visible', timeout: 20000 });
 	await expect(page.getByText(boardActivityTitle).first()).toBeVisible({ timeout: 20000 });
 	await expect(page.getByText(calendarActivityTitle).first()).toBeVisible({ timeout: 20000 });
@@ -160,7 +161,7 @@ test('adds and removes an unused CRM definition', async ({ page }) => {
 
 test('rejects deleting an in-use flow business with guidance', async ({ page }) => {
 	await signIn(page);
-	await page.goto('/example-co/flow');
+	await page.goto(`/${exampleCompanySlug}/flow`);
 	await page.getByRole('tab', { name: '정의' }).click();
 	await page.getByRole('button', { name: '삭제' }).first().waitFor({ state: 'visible' });
 	await page.getByRole('button', { name: '삭제' }).first().click();
@@ -231,7 +232,7 @@ async function openAdministratorSettings(page: Page): Promise<void> {
 
 test('an administrator moves the company onto another base currency', async ({ page }) => {
 	await signIn(page);
-	await page.goto('/example-co/settings');
+	await page.goto(`/${exampleCompanySlug}/settings`);
 	await openAdministratorSettings(page);
 	const currency = page.getByLabel('기준 통화');
 	await expect(currency).toContainText('KRW', { timeout: 20000 });

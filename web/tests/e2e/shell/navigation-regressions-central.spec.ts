@@ -1,5 +1,5 @@
 import { taskWeekMondayForCode } from '../../../src/lib/task/task-week-code';
-import { member1ID } from '../support/central-test-utils';
+import { member1ID, exampleCompanySlug, member2Email } from '../support/central-test-utils';
 import { expect, test } from '@playwright/test';
 import { signInToTheTaskBoard, seedTasks, removeTasks, taskCard } from '../task/task-central-test-utils';
 import { signInToCalendar, seedCalendarEvents, cleanupCalendarEvents } from '../calendar/calendar-central-test-utils';
@@ -61,7 +61,7 @@ test('calendar search changes dates both inside the calendar and from another ro
 		await signInToCalendar(page);
 		for (const fromTask of [false, true]) {
 			if (fromTask) {
-				await page.goto('/example-co/task');
+				await page.goto(`/${exampleCompanySlug}/task`);
 				await expect(page.locator('[data-task-ready="true"]')).toBeVisible();
 			}
 			await page.keyboard.press('/');
@@ -143,7 +143,7 @@ test('a late task response cannot change the route after leaving', async ({ page
 	await page.route('**/task_board_get/invoke', async route => { started(); await gate; await route.continue(); });
 	await page.keyboard.press('r');
 	await pending;
-	await page.locator('a[href="/example-co/organization"]').first().click();
+	await page.locator(`a[href="/${exampleCompanySlug}/organization"]`).first().click();
 	await expect(page.getByTestId('organization-board')).toBeVisible();
 	const response = page.waitForResponse(response => response.url().includes('/task_board_get/invoke'));
 	release();
@@ -189,12 +189,12 @@ test('changing account scope removes the previous task editor draft', async ({ p
 		await signInToTheTaskBoard(page);
 		await openTaskCard(page, taskID);
 		await expect(taskSheet(page)).toBeVisible();
-		const response = await page.request.post(`${process.env.SUPABASE_URL}/auth/v1/token?grant_type=password`, { headers: { apikey: process.env.SUPABASE_PUBLISHABLE_KEY ?? '' }, data: { email: 'member2@example.com', password: 'seed-password' } });
+		const response = await page.request.post(`${process.env.SUPABASE_URL}/auth/v1/token?grant_type=password`, { headers: { apikey: process.env.SUPABASE_PUBLISHABLE_KEY ?? '' }, data: { email: member2Email, password: 'seed-password' } });
 		expect(response.ok()).toBe(true);
 		const session = await response.json();
 		const storageKey = `sb-${new URL(process.env.SUPABASE_URL ?? '').hostname.split('.')[0]}-auth-token`;
 		const otherTab = await context.newPage();
-		await otherTab.goto('/example-co/organization');
+		await otherTab.goto(`/${exampleCompanySlug}/organization`);
 		await otherTab.evaluate(({ storageKey, session }) => {
 			localStorage.setItem(storageKey, JSON.stringify(session));
 			const channel = new BroadcastChannel(storageKey);

@@ -1,5 +1,7 @@
 import { execFileSync } from 'node:child_process';
+import { availableParallelism } from 'node:os';
 import { defineConfig, devices } from '@playwright/test';
+import { workerCompanyCount } from './tests/e2e/support/worker-company';
 
 const companyTimeZone = 'Asia/Seoul';
 process.env.TZ = companyTimeZone;
@@ -101,7 +103,7 @@ function webServersFor(selected: Plane[]) {
 
 export default defineConfig({
 	testDir: './tests/e2e',
-	workers: '30%',
+	workers: Math.max(1, Math.min(workerCompanyCount, Math.floor(availableParallelism() * 0.3))),
 	timeout: 30_000,
 	expect: { timeout: 10_000 },
 	use: {
@@ -113,7 +115,6 @@ export default defineConfig({
 		...namedPlanes.map((plane) => ({
 			name: plane,
 			testMatch: specsOn(plane),
-			workers: plane === 'central' ? 1 : undefined,
 			use: { baseURL: baseURLOf(plane) }
 		})),
 		{ name: 'standalone', testIgnore: namedPlanes.map(specsOn), use: { baseURL: baseURLOf('standalone') } }

@@ -1,25 +1,17 @@
 import { expect, test, type Page } from '@playwright/test';
+import { exampleCompanySlug, member1ID, member2ID } from '../support/central-test-utils';
+import { signInToTheCentralPlane } from '../support/central-plane-sign-in';
 
 test.describe.configure({ mode: 'serial', timeout: 60_000 });
 test.use({ locale: 'ko-KR' });
 
-const ownMemberID = '000000ee-0000-0000-0000-000000000001';
-const colleagueMemberID = '000000ee-0000-0000-0000-000000000002';
+const ownMemberID = member1ID;
+const colleagueMemberID = member2ID;
 const editedJobTitle = 'E2E 중앙 직책';
 const addedOrganizationName = 'E2E 중앙 조직';
 
 async function signIn(page: Page): Promise<void> {
-	await page.goto('/example-co/organization');
-	const email = page.getByRole('textbox', { name: '이메일' });
-	const needsSignIn = await email
-		.waitFor({ state: 'visible', timeout: 8000 })
-		.then(() => true)
-		.catch(() => false);
-	if (needsSignIn) {
-		await email.fill('member1@example.com');
-		await page.getByRole('textbox', { name: '비밀번호' }).fill('seed-password');
-		await page.getByRole('button', { name: '로그인', exact: true }).click();
-	}
+	await signInToTheCentralPlane(page, `/${exampleCompanySlug}/organization`);
 	await page.getByTestId(`organization-person-node-${ownMemberID}`).waitFor({ state: 'visible', timeout: 20000 });
 }
 

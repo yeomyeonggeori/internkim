@@ -371,8 +371,11 @@ and delete the duplicates.
   `-fixture`, `-mocked`) names its plane.
   `tools/tests/test_verification_plan.py` fails when a test directory or a
   `tools/tests` file is run by nothing.
-- Every `-central` spec shares one reset database, so a spec that changes
-  company state restores it in `afterAll`.
+- Each worker running `-central` specs signs in to a company of its own,
+  seeded by `supabase/seed.dev.sql` as a copy of the example company and
+  named by `web/tests/e2e/support/worker-company.ts`. The specs one worker
+  runs share that company, so a spec that changes company state restores it
+  in `afterAll`.
 - Test what a person or a caller sees, never the text of the source. A test
   that reads a `.svelte` file to find a class name or a call passes when the
   screen is broken and fails when it is rewritten correctly. Reading source is

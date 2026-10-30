@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
 import { signInToTheCentralPlane } from '../support/central-plane-sign-in';
-import { member1ID, member3ID } from '../support/central-test-utils';
+import { member1ID, member3ID, exampleCompanySlug, member1Email, member3Email } from '../support/central-test-utils';
 import { openTaskFilters, seedTasks, removeTasks, taskRowOf } from '../task/task-central-test-utils';
 import { seedAttendanceEvents, cleanupAttendanceEvents, seoulInstant, seoulMonthToday, monthBefore, dayOfMonth } from '../attendance/attendance-central-test-utils';
 import { readFileSync } from 'node:fs';
@@ -31,7 +31,7 @@ async function fits(page: Page, name: string) {
 for (const width of [320, 360, 390, 568, 1280]) {
 	test(`task, directory, attendance and document categories at ${width}px`, async ({ page }) => {
 		await page.setViewportSize({ width, height: width === 568 ? 320 : 844 });
-		await signInToTheCentralPlane(page, '/example-co/task');
+		await signInToTheCentralPlane(page, `/${exampleCompanySlug}/task`);
 		await expect(page.locator('[data-task-ready="true"]')).toBeVisible();
 		const filters = await openTaskFilters(page);
 		await filters.getByPlaceholder('내용, 목표, 참여자 검색').fill(title);
@@ -56,7 +56,7 @@ for (const width of [320, 360, 390, 568, 1280]) {
 		if (width < 640) { await page.locator('[data-slot="accordion-trigger"]').first().click(); await fits(page, 'task-size-details'); }
 		await page.getByRole('tab', { name: '구성원', exact: true }).click();
 		await fits(page, 'task-members');
-		await page.goto('/example-co/organization');
+		await page.goto(`/${exampleCompanySlug}/organization`);
 		const person = page.getByTestId(`organization-person-node-${member1ID}`);
 		await expect(person).toBeVisible();
 		await fits(page, 'organization');
@@ -64,28 +64,28 @@ for (const width of [320, 360, 390, 568, 1280]) {
 		await expect(page.getByTestId('organization-person-detail-panel')).toBeVisible();
 		await fits(page, 'organization-detail');
 		if (width < 1024) await page.keyboard.press('Escape');
-		await page.goto('/example-co/attendance');
+		await page.goto(`/${exampleCompanySlug}/attendance`);
 		await expect(page.getByRole('button', { name: '근무 현황', exact: true }).or(page.getByTestId('attendance-team-dashboard')).first()).toBeVisible();
 		await fits(page, 'attendance');
 		if (width < 640) {
 			await page.getByRole('button', { name: '관리', exact: true }).click();
 			await page.getByRole('menuitem', { name: '휴가 관리', exact: true }).click();
 			const management = page.getByTestId('leave-management-view');
-			await expect(management.getByRole('button', { name: /member1@example.com/ })).toBeVisible();
+			await expect(management.getByRole('button', { name: member1Email })).toBeVisible();
 			await fits(page, 'leave-management');
-			await management.getByRole('button', { name: /member1@example.com/ }).click();
+			await management.getByRole('button', { name: member1Email }).click();
 			await expect(page.getByTestId('leave-management-employee-detail-header')).toBeVisible();
 			await fits(page, 'leave-management-detail');
 			await expect(page.getByRole('dialog').getByTestId('leave-management-refresh')).toBeVisible();
 			await page.keyboard.press('Escape');
 			if (width === 320) {
 				await page.route('**/api/v1/tools/company_settings_get/invoke', route => route.fulfill({ status: 503, json: { message: 'test unavailable' } }));
-				await management.getByRole('button', { name: /member3@example.com/ }).click();
+				await management.getByRole('button', { name: member3Email }).click();
 				await expect(management.getByText('직원별 휴가 정보를 불러오지 못했습니다.')).toBeVisible();
 				await expect(page.getByTestId('leave-management-employee-detail-header')).toBeHidden();
 				await page.unroute('**/api/v1/tools/company_settings_get/invoke');
 				await page.getByRole('dialog').getByTestId('leave-management-refresh').click();
-				await expect(page.getByTestId('leave-management-employee-detail-header')).toContainText('member3@example.com');
+				await expect(page.getByTestId('leave-management-employee-detail-header')).toContainText(member3Email);
 				await page.keyboard.press('Escape');
 			}
 			await page.getByRole('button', { name: '관리', exact: true }).click();
@@ -106,7 +106,7 @@ for (const width of [320, 360, 390, 568, 1280]) {
 		await page.route('**/api/v1/tools/company_document_list/invoke', route => route.fulfill({ json: { result: { count: 0, documents: [] } } }));
 		await page.route('**/api/v1/tools/dataroom_links_get/invoke', route => route.fulfill({ json: { result: { links: [], shareableCircleIDs: dataRoomTemplate.circles.map(circle => circle.id), downloadableCircleIDs: [] } } }));
 		await page.route('**/api/v1/tools/circle_list/invoke', route => route.fulfill({ json: { result: { circles: dataRoomTemplate.circles.map(circle => ({ id: circle.id, name: circle.nameKO, isDefault: true, readableCategories: circle.readableCategories, memberIDs: [], channelName: null, channelID: null })) } } }));
-		await page.goto('/example-co/data-room');
+		await page.goto(`/${exampleCompanySlug}/data-room`);
 		const browser = page.getByRole('region', { name: '데이터룸', exact: true });
 		await expect(browser.getByRole('button')).toHaveCount(topLevelFolders.length);
 		await fits(page, 'data-room');
@@ -118,7 +118,7 @@ for (const width of [320, 360, 390, 568, 1280]) {
 		await expect(page.getByRole('dialog')).toBeVisible();
 		await fits(page, 'data-room-share');
 		await page.keyboard.press('Escape');
-		await page.goto('/example-co/settings');
+		await page.goto(`/${exampleCompanySlug}/settings`);
 		await page.getByRole('tab', { name: '관리자', exact: true }).click();
 		await page.getByRole('button', { name: '서클 추가', exact: true }).click();
 		await expect(page.getByRole('dialog').getByRole('checkbox').first()).toBeVisible();
@@ -128,11 +128,11 @@ for (const width of [320, 360, 390, 568, 1280]) {
 
 test('switching sections from the mobile navigation keeps the back history where it was', async ({ page }) => {
 	await page.setViewportSize({ width: 390, height: 844 });
-	await signInToTheCentralPlane(page, '/example-co/task');
+	await signInToTheCentralPlane(page, `/${exampleCompanySlug}/task`);
 	await expect(page.locator('[data-task-ready="true"]')).toBeVisible();
 	const navigation = page.getByRole('navigation', { name: '앱', exact: true });
 	const historyBefore = await page.evaluate(() => history.length);
-	for (const [label, path] of [['근태', '/example-co/attendance'], ['일정', '/example-co/calendar'], ['메신저', '/example-co/messenger'], ['업무', '/example-co/task']]) {
+	for (const [label, path] of [['근태', `/${exampleCompanySlug}/attendance`], ['일정', `/${exampleCompanySlug}/calendar`], ['메신저', `/${exampleCompanySlug}/messenger`], ['업무', `/${exampleCompanySlug}/task`]]) {
 		await navigation.getByRole('link', { name: label, exact: true }).click();
 		await expect(page).toHaveURL(new RegExp(`${path}(\\?|$)`));
 	}
