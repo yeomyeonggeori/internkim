@@ -18,6 +18,7 @@
 	import { createOutgoingMessages } from './outgoing-messages.svelte';
 	import MessageReactions from './message-reactions.svelte';
 	import MessageRow from './message-row.svelte';
+	import LiveWorkBubble from './live-work-bubble.svelte';
 	import SenderAvatar from './sender-avatar.svelte';
 	import MessageCaptureBar from './message-capture-bar.svelte';
 	import MessageCaptureOverlay from './message-capture-overlay.svelte';
@@ -57,6 +58,7 @@
 	import { latestSentAtOf } from '$lib/messenger/conversation-read-marker';
 	import { mentionLabelsOf } from '$lib/messenger/mention-picker.svelte';
 	import { activityLabel } from '$lib/messenger/typing-signal';
+	import { liveWorkAfterEvent, liveWorkShownIn, liveWorkStillHeard, type LiveWork, type ShownWork } from '$lib/messenger/agent-work';
 	import { whatToCopy } from './message-copy';
 	import { messagesWithReactions } from './channel-reactions';
 	import {
@@ -120,6 +122,8 @@
 	let currentUserImage = $state('');
 	let agentWorkingSince = $state<number | null>(null);
 	const isAgentWorking = $derived(agentWorkingSince !== null);
+	let liveWork = $state<LiveWork[]>([]);
+	const agent = $derived(participants.find((person) => person.isAgent));
 	const nameByExternalID = $derived(new Map(participants.map((person) => [person.externalID, person.name])));
 	const typing = createChannelTyping(
 		() => channelId,
@@ -269,6 +273,10 @@
 	);
 
 	const threadReplyGroups = $derived(groupConsecutiveMessages(threadReplies));
+
+	const loadedMessageIDs = $derived(new Set(messages.map((message) => message.id)));
+	const workShownInTimeline = $derived(liveWorkShownIn(liveWork, channelId, loadedMessageIDs));
+	const workShownInThread = $derived(liveWorkShownIn(liveWork, openThreadRoot?.id, loadedMessageIDs));
 
 	async function loadConversation() {
 		if (isDestroyed) return;
@@ -481,8 +489,9 @@
 		clearTimeout(refreshTimer);
 		if (isDestroyed) return;
 		agentWorkingSince = stillWorkingSince(agentWorkingSince, Date.now());
+		liveWork = liveWorkStillHeard(liveWork, Date.now());
 		if (!isActive) return;
-		const delay = isAgentWorking ? agentWorkingRefreshIntervalMs : idleRefreshIntervalMs;
+		const delay = isAgentWorking || liveWork.length > 0 ? agentWorkingRefreshIntervalMs : idleRefreshIntervalMs;
 		refreshTimer = setTimeout(async () => {
 			await loadConversation();
 			scheduleRefresh();
@@ -491,6 +500,11 @@
 
 	let isReadingAgain = false;
 	let isAnotherReadWanted = false;
+
+	function hearCompanyEvent(event: CompanyEvent): void {
+		liveWork = liveWorkAfterEvent(liveWork, event, channelId, Date.now());
+		void readAgainOnArrival(event);
+	}
 
 	async function readAgainOnArrival(event: CompanyEvent) {
 		if (event.kind !== 'message.arrived' || !channelId || event.conversationID !== channelId) return;
@@ -568,6 +582,7 @@
 		historyCursor = '';
 		isLoadingOlder = false;
 		openThreadRoot = null;
+		liveWork = [];
 		const cached = getCachedMessages(activeChannelID) ?? [];
 		if (cached.length > 0) {
 			messages = cached;
@@ -597,6 +612,7 @@
 			editingMessageID = '';
 			lightbox = null;
 			agentWorkingSince = null;
+			liveWork = [];
 			isLoadingOlder = false;
 			hasMoreBefore = false;
 			historyCursor = '';
@@ -604,7 +620,7 @@
 			for (const message of outgoing.messagesIn(channelId)) outgoing.discard(message.id);
 		});
 		customEmoji.load();
-		if (isSupabaseConfigured()) stopListeningForArrivals = onCompanyEvent((event) => void readAgainOnArrival(event));
+		if (isSupabaseConfigured()) stopListeningForArrivals = onCompanyEvent(hearCompanyEvent);
 		await loadCurrentUser();
 		scheduleRefresh();
 	});
@@ -873,6 +889,29 @@
 	</MessageRow>
 {/snippet}
 
+{#snippet liveWorkRows(works: ShownWork[])}
+	{#each works.toReversed() as work (work.key)}
+		<div class="py-1">
+			<Message.Root align="start">
+				{#if agent}
+					{@render senderAvatar({
+						id: agent.externalID,
+						name: agent.name,
+						externalID: agent.externalID,
+						memberID: agent.memberID,
+						avatarURL: agent.avatarURL
+					})}
+				{:else}
+					<Message.Avatar />
+				{/if}
+				<Message.Content>
+					<LiveWorkBubble steps={work.steps} label={text.working} />
+				</Message.Content>
+			</Message.Root>
+		</div>
+	{/each}
+{/snippet}
+
 {#snippet threadBody()}
 	<div class="relative flex min-h-0 flex-1 flex-col">
 		<div
@@ -881,6 +920,7 @@
 			class="@container/conversation flex min-h-0 flex-1 flex-col-reverse gap-4 [&>:first-child]:mb-auto overflow-y-auto px-4 py-8"
 		>
 			{#if openThreadRoot}
+				{@render liveWorkRows(workShownInThread)}
 				{#each reversedThreadReplyGroups as group (group.id)}
 					<Message.Group class="gap-0">
 						{#each group.items as reply, index (reply.id)}
@@ -951,6 +991,7 @@
 					use:chooseMessageOnClick={{ enabled: capture.isCapturing, onChoose: capture.choose }}
 					class="@container/conversation isolate flex min-h-0 flex-1 flex-col-reverse gap-4 [&>:first-child]:mb-auto overflow-x-hidden overflow-y-auto overscroll-y-none px-4 pt-12 pb-[calc(var(--dock-height)+2.5rem)] [scrollbar-gutter:stable]"
 				>
+					{@render liveWorkRows(workShownInTimeline)}
 					{#each reversedTimeline as item (item.id)}
 						{#if item.kind === 'date'}
 							<Marker.Root variant="separator">
