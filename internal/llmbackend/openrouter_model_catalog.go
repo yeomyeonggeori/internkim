@@ -21,7 +21,7 @@ type openRouterModelCatalog struct {
 
 var sharedOpenRouterModelCatalog openRouterModelCatalog
 
-func (catalog *openRouterModelCatalog) contextWindowTokens(modelsURL string, httpClient *http.Client, modelName string) int64 {
+func (catalog *openRouterModelCatalog) contextWindowTokens(modelsURL string, httpClient *http.Client, apiKey string, modelName string) int64 {
 	catalog.mutex.Lock()
 	defer catalog.mutex.Unlock()
 	if catalog.entriesByURL == nil {
@@ -30,7 +30,7 @@ func (catalog *openRouterModelCatalog) contextWindowTokens(modelsURL string, htt
 	entry, isCached := catalog.entriesByURL[modelsURL]
 	if !isCached || time.Since(entry.fetchedAt) > openRouterModelCatalogRefreshInterval {
 		entry = openRouterModelCatalogEntry{
-			contextLengthByModel: fetchOpenRouterModelContextLengths(modelsURL, httpClient),
+			contextLengthByModel: fetchOpenRouterModelContextLengths(modelsURL, httpClient, apiKey),
 			fetchedAt:            time.Now(),
 		}
 		catalog.entriesByURL[modelsURL] = entry
@@ -38,13 +38,20 @@ func (catalog *openRouterModelCatalog) contextWindowTokens(modelsURL string, htt
 	return entry.contextLengthByModel[modelName]
 }
 
-func fetchOpenRouterModelContextLengths(modelsURL string, httpClient *http.Client) map[string]int64 {
+func fetchOpenRouterModelContextLengths(modelsURL string, httpClient *http.Client, apiKey string) map[string]int64 {
 	if httpClient == nil {
 		httpClient = &http.Client{}
 	}
 	requestClient := *httpClient
 	requestClient.Timeout = 5 * time.Second
-	response, errorValue := requestClient.Get(modelsURL)
+	request, errorValue := http.NewRequest(http.MethodGet, modelsURL, nil)
+	if errorValue != nil {
+		return map[string]int64{}
+	}
+	if apiKey != "" {
+		request.Header.Set("Authorization", "Bearer "+apiKey)
+	}
+	response, errorValue := requestClient.Do(request)
 	if errorValue != nil {
 		return map[string]int64{}
 	}
