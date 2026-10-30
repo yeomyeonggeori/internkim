@@ -63,6 +63,7 @@ export type ChannelMessageAttachment = {
 	sizeBytes?: number;
 	widthPixels?: number;
 	heightPixels?: number;
+	isUploading?: boolean;
 };
 
 export type ChannelCustomEmoji = {

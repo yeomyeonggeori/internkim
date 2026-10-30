@@ -657,11 +657,11 @@
 	{@const mine = isMine(message)}
 	{@const reactionAlign = mine ? 'start' : 'end'}
 	{@const loneImage =
-		attachments.length === 1 && attachments[0].kind === 'image' && attachments[0].source
+		attachments.length === 1 && attachments[0].kind === 'image' && attachments[0].source && !attachments[0].isUploading
 			? attachments[0]
 			: undefined}
 	{@const loneVideo =
-		attachments.length === 1 && attachments[0].kind === 'video' && attachments[0].source
+		attachments.length === 1 && attachments[0].kind === 'video' && attachments[0].source && !attachments[0].isUploading
 			? attachments[0]
 			: undefined}
 	{#if message.isError}
