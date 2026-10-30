@@ -300,15 +300,92 @@ func TestAClaimedBoxShowsNoCode(t *testing.T) {
 	}
 }
 
-func TestAClaimedBoxWaitsForItsModelKeyBeforeInstalling(t *testing.T) {
+func TestAClaimedBoxWhoseCompanyBroughtNoModelKeyInstallsWithoutOne(t *testing.T) {
 	plane := &fakePlane{isClaimed: true, accessToken: "header.claims.signature"}
 	recorded := &installs{}
 	daemon, _ := daemonFor(t, plane, recorded)
 
-	runSteps(t, daemon, 2)
+	runSteps(t, daemon, 1)
 
-	if plane.announcements != 0 || len(recorded.requests) != 0 {
-		t.Fatalf("announcements = %d, installs = %d", plane.announcements, len(recorded.requests))
+	if plane.announcements != 0 || len(recorded.requests) != 1 || recorded.requests[0].ModelKey != "" {
+		t.Fatalf("announcements = %d, installs = %+v", plane.announcements, recorded.requests)
+	}
+}
+
+func TestAModelKeyGivenAfterAKeylessInstallStartsTheServicesAgainOnce(t *testing.T) {
+	plane := &fakePlane{isClaimed: true, accessToken: "header.claims.signature"}
+	recorded := &installs{}
+	daemon, places := daemonFor(t, plane, recorded)
+	restarts := 0
+	daemon.RestartServices = func() error {
+		restarts++
+		return nil
+	}
+	runSteps(t, daemon, 1)
+	writeCredentialFiles(t, places)
+
+	plane.sealedModelKey = sealTo(t, identityOf(t, places), "sk-or-v1-later")
+	runSteps(t, daemon, 1)
+	runSteps(t, daemon, 1)
+
+	requireFile(t, places.ModelKeyPath, "sk-or-v1-later\n", 0o600)
+	if len(recorded.requests) != 1 || restarts != 1 {
+		t.Fatalf("installs = %d, restarts = %d; a new key must restart the services once and an unchanged one never", len(recorded.requests), restarts)
+	}
+}
+
+func TestARestartThatFailedIsTriedAgainAtTheNextCheck(t *testing.T) {
+	plane := &fakePlane{isClaimed: true, accessToken: "header.claims.signature"}
+	daemon, places := daemonFor(t, plane, &installs{})
+	runSteps(t, daemon, 1)
+	writeCredentialFiles(t, places)
+	restarts := 0
+	daemon.RestartServices = func() error {
+		restarts++
+		if restarts == 1 {
+			return errors.New("a unit did not start")
+		}
+		return nil
+	}
+
+	plane.sealedModelKey = sealTo(t, identityOf(t, places), "sk-or-v1-later")
+	runSteps(t, daemon, 1)
+	runSteps(t, daemon, 1)
+	runSteps(t, daemon, 1)
+
+	if restarts != 2 {
+		t.Fatalf("restarts = %d; a failed restart must be tried again, and only until it succeeds", restarts)
+	}
+}
+
+func writeCredentialFiles(t *testing.T, places Places) {
+	t.Helper()
+	for _, path := range places.CredentialPaths {
+		if errorValue := os.WriteFile(path, []byte("installed\n"), 0o640); errorValue != nil {
+			t.Fatal(errorValue)
+		}
+	}
+}
+
+func TestARenewalRewritesTheStagedCopiesThatExistAndSkipsTheOnesNotStagedYet(t *testing.T) {
+	plane := &fakePlane{isClaimed: true, accessToken: "first.session.token"}
+	recorded := &installs{}
+	daemon, places := daemonFor(t, plane, recorded)
+	stagedPath := filepath.Join(t.TempDir(), "staged-agent-key")
+	daemon.Places.StagedCredentialPaths = []string{filepath.Join(t.TempDir(), "not-staged-yet"), stagedPath}
+	runSteps(t, daemon, 1)
+	for _, path := range append([]string{stagedPath}, places.CredentialPaths...) {
+		if errorValue := os.WriteFile(path, []byte("installed\n"), 0o440); errorValue != nil {
+			t.Fatal(errorValue)
+		}
+	}
+
+	plane.accessToken = "second.session.token"
+	runSteps(t, daemon, 1)
+
+	requireFile(t, stagedPath, "second.session.token\n", 0o440)
+	for _, path := range places.CredentialPaths {
+		requireFile(t, path, "second.session.token\n", 0o440)
 	}
 }
 

@@ -258,6 +258,10 @@ func (layout CompanyHostLayout) RunModelKeyPath() string {
 	return layout.RunSecretsPath() + "/openrouter-key"
 }
 
+func (layout CompanyHostLayout) RunAgentKeyPath() string {
+	return layout.RunSecretsPath() + "/agent-key"
+}
+
 func (layout CompanyHostLayout) CapabilitySocketPath() string {
 	return layout.RunPath + "/capability.sock"
 }

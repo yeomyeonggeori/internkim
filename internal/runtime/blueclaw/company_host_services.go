@@ -284,6 +284,7 @@ func companyHostCapabilityService(layout CompanyHostLayout) CompanyHostService {
 			"--device-browser-user", BlueclawUser,
 			"--file-read-python", layout.DocumentPythonPath(),
 			"--relay-url", CompanyHostRelayLocalURL,
+			"--central-plane-url", "${SUPABASE_URL}",
 		},
 		Environment:           companyHostCommonEnvironment(),
 		RestartAfterSeconds:   5,

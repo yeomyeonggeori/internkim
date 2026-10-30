@@ -141,9 +141,10 @@ func TestDecideNeedsAStateAndAQuestion(t *testing.T) {
 
 func TestDecisionsRouteSharesTheHostOfTheConfiguredBaseURL(t *testing.T) {
 	cases := map[string]string{
-		"https://openrouter.ai/api/v1/chat/completions": "https://openrouter.ai" + modelladder.DecisionsPath,
-		"https://gateway.example/api/v1":                "https://gateway.example" + modelladder.DecisionsPath,
-		"":                                              "https://openrouter.ai" + modelladder.DecisionsPath,
+		"https://openrouter.ai/api/v1/chat/completions":                            "https://openrouter.ai" + modelladder.DecisionsPath,
+		"https://gateway.example/api/v1":                                           "https://gateway.example" + modelladder.DecisionsPath,
+		"https://plane.example/functions/v1/model-gateway/api/v1/chat/completions": "https://plane.example/functions/v1/model-gateway" + modelladder.DecisionsPath,
+		"": "https://openrouter.ai" + modelladder.DecisionsPath,
 	}
 	for baseURL, expectedURL := range cases {
 		backend := OpenRouterBackend{BaseURL: baseURL}

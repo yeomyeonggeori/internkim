@@ -127,7 +127,7 @@ read, whether required or optional, in one table:
 | `MESSENGER_RELAY_URL` | relay | the company's Buzz relay on loopback, which the relay dials for every native app the gateway carries; defaults to ws://127.0.0.1:3000 |
 | `RELAY_STATE_DIR` | relay + host | where the relay keeps the state it must survive a restart with, chiefly the durable queue of inbound messenger events under inbound/; defaults to /var/lib/internkim/relay |
 | `SUPABASE_PUBLISHABLE_KEY` | relay + host | the Supabase project's publishable (anon) key; required across the relay, the host's admind, the web app and the gateway worker, and used by web/scripts' one-off ops scripts |
-| `SUPABASE_URL` | relay + host | the Supabase project URL; required across the relay, the host's admind, the web app and the gateway worker, and used by web/scripts' one-off ops scripts |
+| `SUPABASE_URL` | relay + host | the Supabase project URL; required across the relay, the host's admind, the web app and the gateway worker, used by web/scripts' one-off ops scripts, and the central plane whose model gateway the rendered model ladder reaches for a company that brought no OpenRouter key |
 | `WORKSPACE_ROOT_PATH` | relay | the workspace root rendered into the company plane's runtime document, and the cwd the relay opens an ACP session with; defaults to /workspace |
 
 <!-- END GENERATED -->
