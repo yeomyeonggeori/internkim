@@ -172,6 +172,20 @@ func TestAStreamThatEndsWithoutACompleteDocumentIsNotAnAnswer(t *testing.T) {
 	}
 }
 
+func TestAWholeAnswerItsProviderEndedWithAnErrorIsTheProvidersFailure(t *testing.T) {
+	freshServingRecord(t)
+	backend := streamingBackend(t, func(responseWriter http.ResponseWriter, request *http.Request) {
+		responseWriter.Header().Set("Content-Type", "application/json")
+		responseWriter.Write([]byte(`{"provider":"Wafer","choices":[{"finish_reason":"error","message":{"role":"assistant","content":""}}]}`))
+	})
+
+	_, errorValue := backend.CompleteStructured(context.Background(), structuredAsk(true))
+
+	if errorValue == nil || !strings.Contains(errorValue.Error(), "Wafer") || !strings.Contains(errorValue.Error(), "a-model") {
+		t.Fatalf("a whole answer its provider ended with an error fails naming the provider and the model: %v", errorValue)
+	}
+}
+
 func TestAResponseHealedAskIsSentWholeBecauseHealingDoesNotStream(t *testing.T) {
 	freshServingRecord(t)
 	var mutex sync.Mutex
