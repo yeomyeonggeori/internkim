@@ -58,7 +58,7 @@
 	import { latestSentAtOf } from '$lib/messenger/conversation-read-marker';
 	import { mentionLabelsOf } from '$lib/messenger/mention-picker.svelte';
 	import { activityLabel } from '$lib/messenger/typing-signal';
-	import { liveWorkAfterEvent, liveWorkShownIn, liveWorkStillHeard, type LiveWork, type ShownWork } from '$lib/messenger/agent-work';
+	import { liveWorkAfterEvent, liveWorkShownIn, liveWorkShownInTimeline, liveWorkStillHeard, type LiveWork, type ShownWork } from '$lib/messenger/agent-work';
 	import { whatToCopy } from './message-copy';
 	import { messagesWithReactions } from './channel-reactions';
 	import {
@@ -275,7 +275,7 @@
 	const threadReplyGroups = $derived(groupConsecutiveMessages(threadReplies));
 
 	const loadedMessageIDs = $derived(new Set(messages.map((message) => message.id)));
-	const workShownInTimeline = $derived(liveWorkShownIn(liveWork, channelId, loadedMessageIDs));
+	const workShownInTimeline = $derived(liveWorkShownInTimeline(liveWork, openThreadRoot?.id, loadedMessageIDs));
 	const workShownInThread = $derived(liveWorkShownIn(liveWork, openThreadRoot?.id, loadedMessageIDs));
 
 	async function loadConversation() {
