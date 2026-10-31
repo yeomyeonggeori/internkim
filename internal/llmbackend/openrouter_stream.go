@@ -79,12 +79,15 @@ func (backend OpenRouterBackend) streamCompletion(ctx context.Context, apiKey st
 		go watchServing(ctx, slowSignal, progress, expectation)
 	}
 	response, errorValue := backend.readStream(ctx, apiKey, requestDocument, sessionID, progress)
+	if errorValue == nil {
+		errorValue = providerFailureOf(response, modelName)
+	}
 	provider, elapsed, outputCharacters := progress.snapshot(time.Now())
 	if errorValue == nil {
 		sharedServingRecord.recordSample(modelName, servingSample{Provider: provider, Duration: elapsed, CharactersPerSecond: float64(outputCharacters) / elapsed.Seconds()})
 		return response, nil
 	}
-	if ctx.Err() != nil {
+	if ctx.Err() != nil || isProviderFailedCompletion(errorValue) {
 		sharedServingRecord.noteCut(modelName, provider)
 	}
 	return openAIResponseWithUsage{}, errorValue

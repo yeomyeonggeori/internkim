@@ -95,3 +95,24 @@ func providerErrorCodeText(code any) string {
 		return ""
 	}
 }
+
+type providerFailedCompletionError struct {
+	Provider string
+	Model    string
+}
+
+func (failure providerFailedCompletionError) Error() string {
+	return fmt.Sprintf("openrouter provider %s ended the %s completion with finish_reason=error", firstNonEmpty(failure.Provider, "unknown"), failure.Model)
+}
+
+func providerFailureOf(response openAIResponseWithUsage, modelName string) error {
+	if len(response.Choices) == 0 || response.Choices[0].FinishReason != "error" {
+		return nil
+	}
+	return providerFailedCompletionError{Provider: response.Provider, Model: modelName}
+}
+
+func isProviderFailedCompletion(errorValue error) bool {
+	var failure providerFailedCompletionError
+	return errors.As(errorValue, &failure)
+}
