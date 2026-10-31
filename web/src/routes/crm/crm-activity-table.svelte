@@ -122,7 +122,7 @@
 						onclick={() => onEdit(activity.id)}
 						onkeydown={(event) => handleRowKeydown(event, activity.id)}
 					>
-						<Table.Cell class="w-full max-w-0 whitespace-normal pl-4 font-medium">
+						<Table.Cell class="w-full max-w-0 sm:min-w-48 whitespace-normal pl-4 font-medium">
 							<div class="flex min-w-0 items-center gap-1.5">
 								<span class="line-clamp-2">{activity.title}</span>
 								{#if activity.calendarEventID}

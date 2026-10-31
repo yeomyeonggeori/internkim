@@ -96,7 +96,7 @@
 						onclick={() => onEdit(contact.id)}
 						onkeydown={(event) => handleRowKeydown(event, contact.id)}
 					>
-						<Table.Cell class="w-full max-w-0 whitespace-normal pl-4">
+						<Table.Cell class="w-full max-w-0 sm:min-w-48 whitespace-normal pl-4">
 							<div class="flex flex-wrap items-center gap-2">
 								<span class="break-words font-medium">{contact.name}</span>
 							</div>
