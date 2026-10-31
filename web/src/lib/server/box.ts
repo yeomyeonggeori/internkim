@@ -445,8 +445,15 @@ export async function companyBoxesOf(client: SupabaseClient, companyID: string):
 		sealingKey: keyring?.sealingKey ?? null,
 		hasModelKey: Boolean(keyring?.sealedModelKey),
 		newestBackupAt: keyring ? await newestKeptBackupAt(client, companyID, keyring.sealingKey) : null,
-		takeOver: await takeOverOf(client, companyID)
+		takeOver: await takeOverOf(client, companyID),
+		isServedByConnectionFile: await companyServedByConnectionFile(client, companyID)
 	};
+}
+
+async function companyServedByConnectionFile(client: SupabaseClient, companyID: string): Promise<boolean> {
+	const { data, error } = await client.rpc('company_served_by_connection_file', { served_company: companyID });
+	if (error) throw new Error(`whether a connection file serves ${companyID}: ${error.message}`);
+	return data === true;
 }
 
 const keptBackupBucket = 'box_backup';
@@ -479,7 +486,7 @@ function documentOf(text: string): unknown {
 	}
 }
 
-const servingOutcomeSchema = z.enum(['serving', 'not_its_box', 'no_backup']);
+const servingOutcomeSchema = z.enum(['serving', 'not_its_box', 'no_backup', 'served_by_connection_file']);
 
 export type ServingOutcome = z.infer<typeof servingOutcomeSchema>;
 

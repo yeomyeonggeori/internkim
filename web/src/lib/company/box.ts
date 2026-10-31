@@ -118,7 +118,8 @@ export const companyBoxesSchema = z.object({
 	sealingKey: boxKeySchema.nullable(),
 	hasModelKey: z.boolean(),
 	newestBackupAt: z.string().nullable(),
-	takeOver: takeOverSchema
+	takeOver: takeOverSchema,
+	isServedByConnectionFile: z.boolean()
 }).strict();
 
 export const keptBackupManifestVersion = 2;

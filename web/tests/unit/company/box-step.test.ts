@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { boxStepOf, shortBoxName } from '../../../src/routes/settings/setup/box-step';
+import { boxStepOf, isCompanyServed, shortBoxName } from '../../../src/routes/settings/setup/box-step';
 
 const publicKey = 'oYwaGe-VYDGlZRd4ButkPDL65UP6m3BBNTUfLugolZI';
 const connected = {
@@ -14,7 +14,7 @@ const connected = {
 	hasAdminAccount: false
 };
 const announced = { publicKey, announcedAt: '2026-09-27T00:00:00.000Z', hostName: null, pairingPageAddresses: [] };
-const noBoxes = { boxes: [], sealingKey: null, hasModelKey: false, newestBackupAt: null, takeOver: { isAutomatic: false, lapseSeconds: 300 } };
+const noBoxes = { boxes: [], sealingKey: null, hasModelKey: false, newestBackupAt: null, takeOver: { isAutomatic: false, lapseSeconds: 300 }, isServedByConnectionFile: false };
 
 describe('the company computer step', () => {
 	test('waits for a box when none is announcing on this network', () => {
@@ -26,15 +26,29 @@ describe('the company computer step', () => {
 	});
 
 	test('asks for the model key once a box is connected', () => {
-		expect(boxStepOf({ boxes: [connected], sealingKey: publicKey, hasModelKey: false, newestBackupAt: null, takeOver: { isAutomatic: false, lapseSeconds: 300 }, empty: [announced] })).toBe('givingModelKey');
+		expect(boxStepOf({ boxes: [connected], sealingKey: publicKey, hasModelKey: false, newestBackupAt: null, takeOver: { isAutomatic: false, lapseSeconds: 300 }, isServedByConnectionFile: false, empty: [announced] })).toBe('givingModelKey');
 	});
 
 	test('is done once the company has its model key, however many boxes it runs on', () => {
 		const standby = { ...connected, publicKey: 'p'.repeat(43), role: 'standby' as const, holdsCompanyKey: false };
-		expect(boxStepOf({ boxes: [connected, standby], sealingKey: publicKey, hasModelKey: true, newestBackupAt: null, takeOver: { isAutomatic: false, lapseSeconds: 300 }, empty: [] })).toBe('connected');
+		expect(boxStepOf({ boxes: [connected, standby], sealingKey: publicKey, hasModelKey: true, newestBackupAt: null, takeOver: { isAutomatic: false, lapseSeconds: 300 }, isServedByConnectionFile: false, empty: [] })).toBe('connected');
 	});
 });
 
 test('a box is named by the last four characters of its public key, the ones its own page shows', () => {
 	expect(shortBoxName(publicKey)).toBe('…olZI');
+});
+
+describe('whether connecting a box adds to the company or starts it', () => {
+	test('a company with no box and no connection file is not served yet', () => {
+		expect(isCompanyServed(noBoxes)).toBe(false);
+	});
+
+	test('a company its connection file computer serves is served before it has any box', () => {
+		expect(isCompanyServed({ ...noBoxes, isServedByConnectionFile: true })).toBe(true);
+	});
+
+	test('a company with a box is served', () => {
+		expect(isCompanyServed({ ...noBoxes, boxes: [connected] })).toBe(true);
+	});
 });
