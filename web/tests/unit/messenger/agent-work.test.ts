@@ -3,6 +3,7 @@ import {
 	liveWorkAfterEvent,
 	liveWorkLifetimeMilliseconds,
 	liveWorkShownIn,
+	liveWorkShownInTimeline,
 	liveWorkStillHeard,
 	saidEventKind,
 	workingEventKind,
@@ -82,12 +83,39 @@ describe('liveWorkShownIn', () => {
 		expect(works).toEqual([]);
 	});
 
-	test('a bubble shows only where its answer will land', () => {
+	test('a thread shows only the work whose answer lands in it', () => {
 		const works = heard([working({ deliveryID: 'turn-A', threadID: 'message-7' })]);
 
 		expect(liveWorkShownIn(works, 'message-7', nothingLoaded)).toHaveLength(1);
-		expect(liveWorkShownIn(works, conversationID, nothingLoaded)).toEqual([]);
+		expect(liveWorkShownIn(works, 'message-8', nothingLoaded)).toEqual([]);
 		expect(liveWorkShownIn(works, undefined, nothingLoaded)).toEqual([]);
+	});
+});
+
+describe('liveWorkShownInTimeline', () => {
+	test('work answering in a thread nobody has opened yet shows in the timeline', () => {
+		const works = heard([
+			working({ deliveryID: 'turn-A', threadID: 'question-1', steps: [{ title: 'leave_list', status: 'in_progress' }] })
+		]);
+
+		expect(liveWorkShownInTimeline(works, undefined, nothingLoaded)).toEqual([
+			{ key: 'turn-A', steps: [{ title: 'leave_list', status: 'in_progress' }] }
+		]);
+	});
+
+	test('work answering in the open thread shows there and not again in the timeline', () => {
+		const works = heard([working({ deliveryID: 'turn-A', threadID: 'question-1' }), working({ deliveryID: 'turn-B' })]);
+
+		expect(liveWorkShownInTimeline(works, 'question-1', nothingLoaded).map((work) => work.key)).toEqual(['turn-B']);
+	});
+
+	test('the threaded answer ends the timeline bubble once it is loaded', () => {
+		const works = heard([
+			working({ deliveryID: 'turn-A', threadID: 'question-1' }),
+			said({ deliveryID: 'turn-A', threadID: 'question-1', messageID: 'answer-A', isStillWorking: false })
+		]);
+
+		expect(liveWorkShownInTimeline(works, undefined, new Set(['answer-A']))).toEqual([]);
 	});
 });
 
