@@ -133,7 +133,7 @@
 						onclick={() => onEdit(opportunity.id)}
 						onkeydown={(event) => handleRowKeydown(event, opportunity.id)}
 					>
-						<Table.Cell class="w-full max-w-0 whitespace-normal pl-4 font-medium">
+						<Table.Cell class="w-full max-w-0 sm:min-w-48 whitespace-normal pl-4 font-medium">
 							<div class="flex min-w-0 flex-wrap items-center gap-2 sm:flex-nowrap">
 								<p class="break-words sm:truncate">{opportunity.name}</p>
 								{#if opportunity.calendarEventID}
