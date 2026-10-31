@@ -7,7 +7,7 @@
 	import * as Item from '$lib/components/ui/item';
 	import { Spinner } from '$lib/components/ui/spinner';
 	import { createPageText } from '$lib/i18n/page-text.svelte';
-	import { boxStepOf, shortBoxName } from './box-step';
+	import { boxStepOf, isCompanyServed, shortBoxName } from './box-step';
 	import type { BoxClaimIntent, ConnectedBox, EmptyBox, VerifiedBoxAnswer } from '$lib/company/box';
 	import { confirmDelete } from '$lib/components/ui/confirm-delete-dialog';
 	import BoxAdminPassword from './box-admin-password.svelte';
@@ -27,6 +27,7 @@
 		hasModelKey: false,
 		newestBackupAt: null,
 		takeOver: { isAutomatic: false, lapseSeconds: 300 },
+		isServedByConnectionFile: false,
 		empty: []
 	});
 	let modelKey = $state('');
@@ -41,6 +42,7 @@
 	const step = $derived(boxStepOf(boxes));
 	const hasBoxes = $derived(boxes.boxes.length > 0);
 	const hasSeveralBoxes = $derived(boxes.boxes.length > 1);
+	const isServed = $derived(isCompanyServed(boxes));
 
 	onMount(() => {
 		void refresh();
@@ -115,7 +117,7 @@
 	}
 
 	function canServe(box: ConnectedBox): boolean {
-		return box.role === 'standby' && box.holdsCompanyKey && step === 'connected';
+		return box.role === 'standby' && box.holdsCompanyKey && step === 'connected' && !boxes.isServedByConnectionFile;
 	}
 
 	function backupMoment(isoTime: string): string {
@@ -181,7 +183,7 @@
 {/snippet}
 
 <div class="grid min-w-0 gap-4">
-	{#if isCompanyComputerOnline && !hasBoxes}<ConnectedComputer />{/if}
+	{#if isCompanyComputerOnline && (!hasBoxes || boxes.isServedByConnectionFile)}<ConnectedComputer />{/if}
 
 	{#each boxes.boxes as box (box.publicKey)}
 		<Item.Root variant="outline">
@@ -247,15 +249,19 @@
 				<Item.Description>{verified.hostName ?? text.foundBox} · <span class="font-mono">{shortBoxName(verified.publicKey)}</span></Item.Description>
 				<Item.Description>{text.confirmNetwork.replace('{address}', verified.publicAddress)}</Item.Description>
 				<Item.Description>{text.confirmMatch.replace('{fingerprint}', shortBoxName(verified.publicKey))}</Item.Description>
-				{#if hasBoxes}<Item.Description>{text.confirmAddOrReplace}</Item.Description>{/if}
+				{#if boxes.isServedByConnectionFile}
+					<Item.Description>{text.confirmAddBesideComputer}</Item.Description>
+				{:else if hasBoxes}
+					<Item.Description>{text.confirmAddOrReplace}</Item.Description>
+				{/if}
 			</Item.Content>
 			<Item.Actions>
 				<Button variant="outline" onclick={() => (verified = null)} disabled={connectingKey !== ''}>{text.cancel}</Button>
-				{#if hasBoxes}
+				{#if isServed}
 					<Button variant="outline" onclick={() => confirm('replace')} disabled={connectingKey !== ''}>{text.confirmReplace}</Button>
 				{/if}
 				<Button onclick={() => confirm('add')} disabled={connectingKey !== ''}>
-					{connectingKey === verified.publicKey ? text.connecting : hasBoxes ? text.confirmAdd : text.confirmConnect}
+					{connectingKey === verified.publicKey ? text.connecting : isServed ? text.confirmAdd : text.confirmConnect}
 				</Button>
 			</Item.Actions>
 		</Item.Root>
@@ -264,13 +270,13 @@
 			<p class="flex items-center gap-2 text-sm font-medium"><Spinner />{text.searching}</p>
 			<p class="text-sm text-muted-foreground">{text.searchingHint}</p>
 		</div>
-	{:else if boxes.empty.length > 0 && (hasBoxes || isCompanyComputerOnline)}
+	{:else if boxes.empty.length > 0 && (isServed || isCompanyComputerOnline)}
 		<Collapsible.Root class="grid gap-2">
 			<Collapsible.Trigger class="inline-flex min-h-11 items-center justify-self-start text-sm underline">
 				{text.showWaitingBoxes.replace('{count}', String(boxes.empty.length))}
 			</Collapsible.Trigger>
 			<Collapsible.Content class="grid gap-2">
-				{#if hasBoxes}<p class="text-sm text-muted-foreground">{text.addBoxDescription}</p>{/if}
+				{#if isServed}<p class="text-sm text-muted-foreground">{text.addBoxDescription}</p>{/if}
 				{@render waitingBoxes()}
 			</Collapsible.Content>
 		</Collapsible.Root>
