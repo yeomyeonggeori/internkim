@@ -427,7 +427,8 @@ export async function writePost(
 		body,
 		parentID,
 		attachments,
-		mentions
+		mentions,
+		timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone
 	});
 	return asPost(message);
 }
