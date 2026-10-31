@@ -18,6 +18,8 @@ queuePath="$stateDirectory/internkim-local-plane.queue"
 lastUsedPath="$stateDirectory/internkim-local-plane.last-used"
 idleStopLogPath="$stateDirectory/internkim-local-plane.idle-stop.log"
 defaultIdleSeconds=900
+longestBoundedHoldSeconds=2700
+heldCommand="$(printf '%s' "$*" | tr '\n' ' ')"
 holderPath="${lockPath}.holder.$$"
 ticketPath=""
 weHoldTheLock=0
@@ -47,6 +49,14 @@ holderWorktree() {
   sed -n 2p "$1" 2>/dev/null || true
 }
 
+holderClaimedAt() {
+  sed -n 3p "$1" 2>/dev/null || true
+}
+
+holderCommand() {
+  sed -n 4p "$1" 2>/dev/null || true
+}
+
 holderIsRunning() {
   local processID
   processID="$(holderProcessID "$1")"
@@ -57,7 +67,7 @@ holderIsRunning() {
 }
 
 claimLock() {
-  printf '%s\n%s\n' "$$" "$repositoryRoot" > "$holderPath"
+  printf '%s\n%s\n%s\n%s\n' "$$" "$repositoryRoot" "$(date +%s)" "$heldCommand" > "$holderPath"
   ln "$holderPath" "$lockPath" 2>/dev/null
 }
 
@@ -75,12 +85,47 @@ releaseStaleHolder() {
   rm -f "$claimPath"
 }
 
+secondsHeld() {
+  local claimedAt
+  claimedAt="$(holderClaimedAt "$lockPath")"
+  if [[ ! "$claimedAt" =~ ^[0-9]+$ ]]; then
+    return 0
+  fi
+  echo "$(($(date +%s) - claimedAt))"
+}
+
+describeDuration() {
+  printf '%dh%02dm' "$(($1 / 3600))" "$(($1 % 3600 / 60))"
+}
+
 announceWait() {
-  local processID worktree
+  local processID worktree heldSeconds
   processID="$(holderProcessID "$lockPath")"
   worktree="$(holderWorktree "$lockPath")"
-  printf 'waiting for the local plane held by %s in %s\n' \
+  heldSeconds="$(secondsHeld)"
+  printf 'waiting for the local plane held by %s in %s' \
     "${processID:-another process}" "${worktree:-another worktree}" >&2
+  if [ -n "$heldSeconds" ]; then
+    printf ' for %s, running %s' "$(describeDuration "$heldSeconds")" "$(holderCommand "$lockPath")" >&2
+  fi
+  printf '\n' >&2
+}
+
+refuseToWaitOnAnOpenEndedHold() {
+  local heldSeconds processID
+  if ! holderIsRunning "$lockPath"; then
+    return 0
+  fi
+  heldSeconds="$(secondsHeld)"
+  if [ -z "$heldSeconds" ] || [ "$heldSeconds" -lt "$longestBoundedHoldSeconds" ]; then
+    return 0
+  fi
+  processID="$(holderProcessID "$lockPath")"
+  printf 'the local plane has been held for %s by %s in %s, running %s\n' \
+    "$(describeDuration "$heldSeconds")" "$processID" "$(holderWorktree "$lockPath")" "$(holderCommand "$lockPath")" >&2
+  printf 'no bounded run holds it past %s, so this is not waiting; once that run is no longer needed, stop it with pkill -TERM -P %s and run this again\n' \
+    "$(describeDuration "$longestBoundedHoldSeconds")" "$processID" >&2
+  exit 1
 }
 
 newestTicketNumber() {
@@ -129,6 +174,7 @@ acquireLock() {
   local waitedSeconds=0
   takeTicket
   while ! claimWhenFirstInLine; do
+    refuseToWaitOnAnOpenEndedHold
     if [ "$((waitedSeconds % 30))" -eq 0 ]; then
       announceWait
     fi
