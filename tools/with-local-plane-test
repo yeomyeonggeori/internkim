@@ -145,6 +145,49 @@ if ! grep -q "waiting for the local plane held by .* in $checkoutRoot" "$runDire
   cat "$runDirectory/second-diagnostics" >&2
 fi
 
+finishesWithin() {
+  local processID="$1"
+  local deadline=$(($(date +%s) + $2))
+  while kill -0 "$processID" 2>/dev/null; do
+    if [ "$(date +%s)" -ge "$deadline" ]; then
+      kill "$processID" 2>/dev/null || true
+      wait "$processID" 2>/dev/null || true
+      return 1
+    fi
+    sleep 0.1
+  done
+}
+
+resetFakes stack
+sleep 600 &
+openEndedHolder=$!
+openEndedWorktree="$runDirectory/demo-worktree"
+openEndedCommand="bash -c exec tools/test-native-install --hold --name internkim-demo"
+printf '%s\n%s\n%s\n%s\n' "$openEndedHolder" "$openEndedWorktree" "$(($(date +%s) - 36000))" "$openEndedCommand" > "$lockPath"
+"$withLocalPlane" sh -c "touch '$runDirectory/ran-behind-an-open-ended-hold'" 2> "$runDirectory/open-ended-diagnostics" &
+openEndedWaiter=$!
+if ! finishesWithin "$openEndedWaiter" 10; then
+  fail "a command waited on a holder that had held the plane for ten hours instead of failing"
+elif wait "$openEndedWaiter"; then
+  fail "a command behind a holder that had held the plane for ten hours reported success"
+fi
+if [ -e "$runDirectory/ran-behind-an-open-ended-hold" ]; then
+  fail "a command ran on a plane another process still held"
+fi
+for detail in "held for 10h00m by $openEndedHolder in $openEndedWorktree" "running $openEndedCommand" "pkill -TERM -P $openEndedHolder"; do
+  if ! grep -qF -- "$detail" "$runDirectory/open-ended-diagnostics"; then
+    fail "a command that refused to wait on an open-ended hold did not say: $detail"
+    cat "$runDirectory/open-ended-diagnostics" >&2
+  fi
+done
+if [ "$(sed -n 1p "$lockPath")" != "$openEndedHolder" ]; then
+  fail "a command that refused to wait on an open-ended hold took the lock from its holder"
+fi
+kill "$openEndedHolder"
+wait "$openEndedHolder" 2>/dev/null || true
+rm -f "$lockPath"
+rm -rf "$queuePath"
+
 startedInOrder() {
   local label="$1"
   "$withLocalPlane" sh -c "echo $label >> '$runDirectory/claim-order'" 2> /dev/null &
