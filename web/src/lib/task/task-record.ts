@@ -1,4 +1,5 @@
 import { invokeTool } from '$lib/public-api-call';
+import { everyPageOf } from '$lib/record/every-page';
 import { clearStoredTaskSnapshot } from '../../routes/task/task-snapshot-storage';
 import type { TaskChildProgress } from '../../routes/task/task-relationships';
 
@@ -54,10 +55,20 @@ export type WrittenTask = {
 	size?: string;
 };
 
-export function everyTaskOfTheCompany(boardWeek?: string): Promise<RecordTaskList> {
-	return boardWeek
-		? invokeTool('task_board_get', { scope: 'all', boardWeek })
-		: invokeTool('task_list', { scope: 'all', everyWeek: true });
+type RecordTaskListPage = RecordTaskList & { nextCursor?: string };
+
+export async function everyTaskOfTheCompany(boardWeek?: string): Promise<RecordTaskList> {
+	const pages = boardWeek
+		? await everyPageOf<RecordTaskListPage>('task_board_get', { scope: 'all', boardWeek })
+		: await everyPageOf<RecordTaskListPage>('task_list', { scope: 'all', everyWeek: true });
+	return taskListOfPages(pages);
+}
+
+function taskListOfPages(pages: RecordTaskListPage[]): RecordTaskList {
+	const { nextCursor: _lastCursor, ...first } = pages[0];
+	const tasks = pages.flatMap((page) => page.tasks);
+	const childProgress = pages.flatMap((page) => page.childProgress ?? []);
+	return { ...first, count: tasks.length, tasks, ...(first.childProgress ? { childProgress } : {}) };
 }
 
 export function addTask(written: WrittenTask & { parentTaskHint?: string }): Promise<RecordTask> {
