@@ -2,6 +2,7 @@ import { expect, test, type Page } from '@playwright/test';
 import { expectTouchTarget } from '../support/touch-target';
 import { mockBuzzDisabled } from '../messenger/buzz-test-routes';
 import { routeCalendarShellAPI } from '../calendar/calendar-route-shell-test-utils';
+import { everyLayoutBand, everyPhoneScreen, mediumBreakpointWidth, smallBreakpointWidth } from '../support/screen-widths';
 
 async function screenshot(page: Page, name: string) {
 	const output = process.env.MOBILE_UX_SCREENSHOTS;
@@ -18,7 +19,7 @@ test.beforeEach(async ({ page }) => {
 	await page.route('**/persona/api/user', route => route.fulfill({ json: { schemaVersion: 1, callMe: '이샘플', morningBriefing: { enabled: true, time: '09:00' } } }));
 });
 
-for (const width of [320, 390, 1280]) {
+for (const width of everyLayoutBand) {
 	test(`calendar toolbar keeps its controls on one compact mobile row at ${width}px`, async ({ page }) => {
 		await page.setViewportSize({ width, height: 844 });
 		await routeCalendarShellAPI(page);
@@ -28,7 +29,7 @@ for (const width of [320, 390, 1280]) {
 		await expect(page.locator('.calendar-stage')).toBeVisible();
 		const toolbar = page.locator('.calendar-toolbar');
 		await fits(page);
-		if (width < 640) {
+		if (width < smallBreakpointWidth) {
 			const title = await toolbar.locator('.calendar-toolbar-title').boundingBox();
 			const more = toolbar.getByRole('button', { name: '월 일정 도구', exact: true });
 			const moreBox = await more.boundingBox();
@@ -62,7 +63,7 @@ for (const width of [320, 390, 1280]) {
 	});
 }
 
-for (const width of [320, 390]) {
+for (const width of everyPhoneScreen) {
 	test(`files open a preview from the person's workspace at ${width}px`, async ({ page }) => {
 		await page.setViewportSize({ width, height: 844 });
 		await page.goto('/files/');
@@ -79,7 +80,7 @@ for (const viewport of [{ width: 320, height: 760 }, { width: 360, height: 760 }
 	test(`workspace surfaces preserve mobile controls at ${viewport.width}px`, async ({ page }) => {
 		test.setTimeout(150_000);
 		await page.setViewportSize(viewport);
-		const mobile = viewport.width < 640;
+		const mobile = viewport.width < smallBreakpointWidth;
 		await page.goto('/files/');
 		await expect(page.getByRole('button', { name: /주간-회고.md/ })).toBeVisible();
 		await fits(page);
@@ -139,7 +140,7 @@ for (const viewport of [{ width: 320, height: 760 }, { width: 360, height: 760 }
 		await screenshot(page, `schedule-edit-${viewport.width}`);
 		await page.keyboard.press('Escape');
 		await page.goto('/runs/');
-		await expect(page.locator(viewport.width < 768 ? '[data-task-run-mobile-list] > *' : 'tbody tr').first()).toBeVisible();
+		await expect(page.locator(viewport.width < mediumBreakpointWidth ? '[data-task-run-mobile-list] > *' : 'tbody tr').first()).toBeVisible();
 		await fits(page);
 		await screenshot(page, `runs-${viewport.width}`);
 		await page.goto('/runs/dev-task-run-001');

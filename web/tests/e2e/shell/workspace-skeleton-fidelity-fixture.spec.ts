@@ -2,6 +2,7 @@ import { expect, test, type Locator, type Page } from '@playwright/test';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { WorkspaceLoadingFixture, prepareWorkspaceLoading } from './workspace-loading-fixture';
 import { taskWeekOfDate } from '../../../src/lib/task/task-week-code';
+import { everyScreen, smallBreakpointWidth } from '../support/screen-widths';
 
 const output = process.env.SKELETON_FIDELITY_DIRECTORY;
 test.use({ locale: 'ko-KR', colorScheme: 'light', contextOptions: { reducedMotion: 'reduce' } });
@@ -54,7 +55,7 @@ async function capture(page: Page, name: string, anchor: Locator): Promise<void>
 	await writeFile(`${output}/${name}.json`, JSON.stringify({ route: new URL(page.url()).pathname, viewport: page.viewportSize(), reducedMotionVerified: await page.evaluate(() => matchMedia('(prefers-reduced-motion: reduce)').matches), populatedReady: name.endsWith('-ready'), before, after }, null, 2));
 }
 
-for (const width of [1280, 390, 320]) {
+for (const width of everyScreen) {
 	for (const scene of ['crm', 'organization']) {
 		test(`${scene} loading preserves loaded structure at ${width}px`, async ({ page }) => {
 			await page.setViewportSize({ width, height: 900 });
@@ -99,7 +100,7 @@ for (const width of [1280, 390, 320]) {
 			const loading = page.locator(`[data-task-content-skeleton="${variant}"]`);
 			await expect(loading).toBeVisible();
 			await settle(page);
-			const isTable = variant === 'list' || width >= 640;
+			const isTable = variant === 'list' || width >= smallBreakpointWidth;
 			const pendingContent = isTable ? loading.locator('table') : loading.locator('[data-task-member-skeleton]').first();
 			const pending = await box(pendingContent);
 			const pendingHeaders = isTable ? await headings(loading) : [];

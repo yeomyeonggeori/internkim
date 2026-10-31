@@ -1,6 +1,7 @@
 import { expect, test, type Page } from '@playwright/test';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { mockDeviceMessenger } from './messenger-device-mock';
+import { everyScreen, smallBreakpointWidth } from '../support/screen-widths';
 
 const channelID = 'image-loading-channel';
 const reader = { id: 'image-reader', email: 'reader@example.com' };
@@ -37,7 +38,7 @@ async function mockChannel(page: Page, source = pictureURL, dimensions: { widthP
 
 test.use({ locale: 'ko-KR', colorScheme: 'dark', contextOptions: { reducedMotion: 'reduce' } });
 
-for (const width of [1280, 390, 320]) {
+for (const width of everyScreen) {
 	test(`thread picture has a stable skeleton until pixels arrive at ${width}px`, async ({ page }) => {
 		await page.setViewportSize({ width, height: 900 });
 		await page.clock.setFixedTime(new Date('2026-10-06T03:00:00Z'));
@@ -50,7 +51,7 @@ for (const width of [1280, 390, 320]) {
 		try {
 			await page.goto(`/messenger?channel=${channelID}`);
 			await page.getByRole('button', { name: /1개 답글/ }).click();
-			const thread = page.getByRole(width < 640 ? 'region' : 'dialog', { name: '글타래' });
+			const thread = page.getByRole(width < smallBreakpointWidth ? 'region' : 'dialog', { name: '글타래' });
 			const frame = thread.locator('[data-loading-image]');
 			await expect(frame).toHaveAttribute('data-loading-image', 'loading');
 			await thread.evaluate(element => Promise.all(element.getAnimations({ subtree: true }).map(animation => animation.finished)));

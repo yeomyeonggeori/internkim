@@ -1,5 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
 import { mockDeviceMessenger } from './messenger-device-mock';
+import { everyScreen } from '../support/screen-widths';
 
 const channelID = 'channel-members-channel';
 const reader = { id: 'person-reader', name: '이샘플', email: 'reader@example.com' };
@@ -18,7 +19,7 @@ async function openChannel(page: Page, width: number) {
 	await expect(page.getByRole('combobox', { name: '메시지를 입력하세요' })).toBeVisible();
 }
 
-for (const width of [390, 1280]) {
+for (const width of everyScreen) {
 	test(`the member count opens channel details with the member list unfolded at ${width}px`, async ({ page }) => {
 		await openChannel(page, width);
 		await page.getByRole('button', { name: `멤버 ${memberNames.length}명`, exact: true }).click();

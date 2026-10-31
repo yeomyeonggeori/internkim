@@ -29,6 +29,13 @@ icon: FlaskConical
 `web/tests/e2e/crm/`입니다. 내비게이션 레일이나 작업 공간의 로딩 상태처럼 한
 라우트에 속하지 않는 화면은 `web/tests/e2e/shell/`에 둡니다. 사람이 실제로 만나는
 상태를 빠짐없이 확인합니다. 로딩, 빈 화면, 오류, 권한 없음, 휴대폰 폭입니다.
+화면 폭은 `web/tests/e2e/support/screen-widths.ts` 한 곳에 이름이 있습니다. 상태는
+데스크톱과 휴대폰인 `everyScreen`에서 확인합니다. 레이아웃이 맞는지가 주제인
+스펙은 breakpoint가 나누는 구간마다 가장 좁은 폭인 `everyLayoutBand`에서
+확인합니다.
+
+UI 테스트는 화면을 조작하고 화면에 보이는 것을 확인합니다. 앱 모듈을 페이지 안으로
+import하지 않습니다. 그렇게 확인하고 싶은 로직은 그 모듈의 unit 테스트입니다.
 
 화면이 어떤 plane에 붙는지는 파일 이름이 정합니다.
 
@@ -38,6 +45,11 @@ icon: FlaskConical
 | `-fixture.spec.ts` | 테스트가 `page.route`로 직접 답하는 주소 | 응답을 붙잡아 두거나 정확한 모양으로 줘야 합니다 |
 | `-mocked.spec.ts` | 개발 서버의 샘플 데이터(`VITE_MOCK_*`) | 호스트가 답하는 화면이고 샘플 데이터로 충분합니다 |
 | `.spec.ts` | central plane 없음 | 메신저처럼 plane 없이도 동작하는 화면입니다 |
+
+central, fixture, standalone plane은 앱을 한 번 빌드해 `vite preview`로 띄운 곳에서
+돕니다. 그래서 테스트는 사람이 받는 것과 같은 번들 CSS와 JavaScript를 만납니다.
+mocked plane은 샘플 데이터가 있는 개발 서버에서 돕니다. 실행이 고른 project의
+서버만 뜹니다.
 
 `-central` 스펙을 돌리는 워커는 저마다 자기 회사로 로그인합니다. 그 회사는
 `supabase/seed.dev.sql`이 워커마다 하나씩 만든 예시 회사의 사본입니다. 한 워커가

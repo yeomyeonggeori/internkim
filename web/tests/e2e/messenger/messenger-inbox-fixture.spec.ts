@@ -1,5 +1,6 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
 import { WorkspaceLoadingFixture, prepareWorkspaceLoading } from '../shell/workspace-loading-fixture';
+import { everyScreen } from '../support/screen-widths';
 
 test.use({ locale: 'ko-KR', colorScheme: 'light', contextOptions: { reducedMotion: 'reduce' } });
 
@@ -233,7 +234,7 @@ async function captureInbox(page: Page, name: string) {
 	await page.screenshot({ path: `${directory}/${name}.png`, animations: 'disabled' });
 }
 
-for (const width of [1280, 390]) {
+for (const width of everyScreen) {
 	test(`the inbox skeleton holds the rows the inbox settles into at ${width}px`, async ({ page }) => {
 		const fixture = new MessengerInboxFixture();
 		fixture.hold('person.inbox.list');

@@ -1,5 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
 import { AttendanceLoadingFixture } from './attendance-loading-fixture';
+import { everyScreen, mediumBreakpointWidth } from '../support/screen-widths';
 
 const phase = process.env.LOADING_EVIDENCE_PHASE || 'after';
 const screenshots = process.env.LOADING_EVIDENCE_DIR;
@@ -19,7 +20,7 @@ async function capture(page: Page, scene: string, width: number): Promise<void> 
 }
 test.use({ locale: 'ko-KR' });
 
-for (const width of [1280, 390, 320]) {
+for (const width of everyScreen) {
 	test(`attendance loading scenes retain geometry at ${width}px`, async ({ page }) => {
 		test.setTimeout(90_000);
 		await page.setViewportSize({ width, height: 900 });
@@ -102,7 +103,7 @@ test('successful team response without optional metrics stops its loading placeh
 	await expect(page.getByTestId('attendance-company-summary')).toHaveCount(0);
 });
 
-for (const width of [1280, 390, 320]) {
+for (const width of everyScreen) {
 	for (const scene of [
 		{ name: 'leave-history', label: '내 휴가', testId: 'leave-history-view', admin: false },
 		{ name: 'approvals', label: '휴가 승인', testId: 'leave-approval-view', admin: true },
@@ -117,7 +118,7 @@ for (const width of [1280, 390, 320]) {
 			await fixture.install(page);
 			await page.goto('/example-co/attendance');
 			await expect(page.getByTestId('attendance-team-card')).toHaveCount(6);
-			if (width < 768 && scene.admin) {
+			if (width < mediumBreakpointWidth && scene.admin) {
 				await page.getByRole('button', { name: '관리', exact: true }).click();
 				await page.getByRole('menuitem', { name: scene.label, exact: true }).click();
 			} else await page.getByRole('button', { name: scene.label, exact: true }).filter({ visible: true }).click();

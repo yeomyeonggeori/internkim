@@ -1,6 +1,7 @@
 import { expect, test, type Locator, type Page, type Route } from '@playwright/test';
 import { mkdir } from 'node:fs/promises';
 import { AttendanceLoadingFixture, LoadingResponseGate, loadingFixtureTime } from './attendance-loading-fixture';
+import { everyScreen, mediumBreakpointWidth } from '../support/screen-widths';
 
 const phase = process.env.EMPTY_CAPTURE_PHASE ?? 'after';
 const output = process.env.EMPTY_CAPTURE_DIR;
@@ -69,7 +70,7 @@ const scenes: Scene[] = [
 async function openScene(page: Page, scene: Scene, width: number): Promise<Locator> {
 	await page.goto('/example-co/attendance');
 	await expect(page.getByTestId('attendance-team-card')).toHaveCount(6);
-	if (width < 768 && scene.admin) {
+	if (width < mediumBreakpointWidth && scene.admin) {
 		await page.getByRole('button', { name: '관리', exact: true }).click();
 		await page.getByRole('menuitem', { name: scene.label, exact: true }).click();
 	} else {
@@ -91,7 +92,7 @@ async function capture(page: Page, scene: string, width: number, target?: Locato
 
 test.use({ locale: 'ko-KR', colorScheme: 'light', contextOptions: { reducedMotion: 'reduce' } });
 
-for (const width of [1280, 390]) {
+for (const width of everyScreen) {
 	for (const scene of scenes) {
 		test(`attendance ${scene.name} distinguishes pending and loaded empty at ${width}px`, async ({ page }) => {
 			await page.setViewportSize({ width, height: 900 });

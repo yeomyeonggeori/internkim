@@ -1,6 +1,7 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { WorkspaceLoadingFixture, prepareWorkspaceLoading } from './workspace-loading-fixture';
+import { everyScreen, mediumBreakpointWidth, smallBreakpointWidth } from '../support/screen-widths';
 
 test.use({ locale: 'ko-KR', colorScheme: 'light', contextOptions: { reducedMotion: 'reduce' } });
 
@@ -34,7 +35,7 @@ async function recordGeometry(scene: string, width: number, measurements: Record
 	await writeFile(`${directory}/${phase}/${scene}-${width}-geometry.json`, JSON.stringify(measurements, null, 2));
 }
 
-for (const width of [1280, 390]) {
+for (const width of everyScreen) {
 	test(`file list reserves breadcrumb and row geometry at ${width}px`, async ({ page }) => {
 		const fixture = await begin(page, width, '/files', 'person.files.roots');
 		const skeleton = page.getByTestId('file-list-loading-skeleton');
@@ -63,9 +64,9 @@ for (const width of [1280, 390]) {
 		const skeleton = page.getByTestId('run-list-loading-skeleton');
 		await expect(page.getByRole('tab', { name: '작업', exact: true })).toBeVisible();
 		const pendingCard = await bounds(skeleton);
-		const pendingRow = await bounds(skeleton.locator(width < 768 ? '.divide-y > div' : 'tbody > tr').first());
+		const pendingRow = await bounds(skeleton.locator(width < mediumBreakpointWidth ? '.divide-y > div' : 'tbody > tr').first());
 		fixture.release('person.runs.list');
-		const readyRow = await bounds(page.locator(width < 768 ? '[data-task-run-mobile-list] > div' : 'main tbody > tr').first());
+		const readyRow = await bounds(page.locator(width < mediumBreakpointWidth ? '[data-task-run-mobile-list] > div' : 'main tbody > tr').first());
 		const readyCard = await bounds(page.locator('main [data-slot="card"]').filter({ has: page.locator('[data-task-run-mobile-list]') }));
 		expectAligned(pendingCard.y, readyCard.y);
 		expectAligned(pendingRow.y, readyRow.y);
@@ -125,15 +126,15 @@ for (const width of [1280, 390]) {
 	});
 }
 
-for (const width of [1280, 390]) {
+for (const width of everyScreen) {
 	test(`schedule skeleton reserves shared table and mobile action geometry at ${width}px`, async ({ page }) => {
 		const fixture = await begin(page, width, '/memory/schedules', 'person.memory.schedules');
 		const skeleton = page.getByTestId('schedule-loading-skeleton');
-		const pendingRow = await bounds(skeleton.locator(width < 640 ? '.divide-y > div' : 'tbody > tr').first());
-		const pendingHeader = width >= 640 ? await bounds(skeleton.locator('thead')) : undefined;
+		const pendingRow = await bounds(skeleton.locator(width < smallBreakpointWidth ? '.divide-y > div' : 'tbody > tr').first());
+		const pendingHeader = width >= smallBreakpointWidth ? await bounds(skeleton.locator('thead')) : undefined;
 		fixture.release('person.memory.schedules');
-		const readyRow = await bounds(page.locator(width < 640 ? 'main ul.divide-y > li' : 'main tbody > tr').first());
-		const readyHeader = width >= 640 ? await bounds(page.locator('main thead')) : undefined;
+		const readyRow = await bounds(page.locator(width < smallBreakpointWidth ? 'main ul.divide-y > li' : 'main tbody > tr').first());
+		const readyHeader = width >= smallBreakpointWidth ? await bounds(page.locator('main thead')) : undefined;
 		expectAligned(pendingRow.y, readyRow.y);
 		expectAligned(pendingRow.height, readyRow.height);
 		if (pendingHeader && readyHeader) {

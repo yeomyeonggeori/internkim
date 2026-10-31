@@ -2,6 +2,7 @@ import { expect, test, type Page } from '@playwright/test';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { AttendanceLoadingFixture, LoadingResponseGate, loadingFixtureTime } from '../attendance/attendance-loading-fixture';
 import { calendarViewStorageKey } from '../../../src/routes/calendar/calendar-storage-keys';
+import { desktopWidth, everyScreen, smallBreakpointWidth } from '../support/screen-widths';
 
 const before = process.env.LOADING_EVIDENCE_PHASE === 'before';
 const directory = process.env.LOADING_EVIDENCE_DIR;
@@ -57,7 +58,7 @@ async function capture(page: Page, scene: string, width: number) {
 	return beforeCapture;
 }
 
-for (const width of [1280, 390, 320]) {
+for (const width of everyScreen) {
 	for (const view of ['month', 'week', 'day']) {
 		test(`calendar revised ${view} loading keeps known geometry at ${width}px`, async ({ page }) => {
 			await page.setViewportSize({ width, height: 900 });
@@ -69,7 +70,7 @@ for (const width of [1280, 390, 320]) {
 			if (!before) {
 				await expect(page.locator('[data-calendar-loading-status]')).toBeVisible();
 				const status = await page.locator('[data-calendar-loading-status]').boundingBox();
-				const navigation = width < 640 ? await page.locator('.internkim-app-mobile-navigation').boundingBox() : null;
+				const navigation = width < smallBreakpointWidth ? await page.locator('.internkim-app-mobile-navigation').boundingBox() : null;
 				expect(status).not.toBeNull();
 				expect(status!.y + status!.height).toBeLessThanOrEqual(navigation?.y ?? 900);
 				expect(await page.locator('[data-calendar-loading-status] svg').evaluate(node => getComputedStyle(node).animationName)).toBe('none');
@@ -88,7 +89,7 @@ for (const width of [1280, 390, 320]) {
 	}
 }
 
-for (const width of [1280, 390]) {
+for (const width of everyScreen) {
 	for (const view of ['month', 'week', 'day']) {
 		test(`calendar settled empty ${view} preserves the editable grid at ${width}px`, async ({ page }) => {
 			await page.setViewportSize({ width, height: 900 });
@@ -97,19 +98,19 @@ for (const width of [1280, 390]) {
 			await expect(page.locator('.calendar-stage')).toHaveAttribute('aria-busy', 'false');
 			await expect(page.locator('[data-calendar-date]').first()).toBeAttached();
 			await expect(page.locator('[data-calendar-event-id]')).toHaveCount(0);
-			if (view === 'day' && width === 1280) await expect(page.locator('aside [data-slot="empty"]')).toBeVisible();
+			if (view === 'day' && width === desktopWidth) await expect(page.locator('aside [data-slot="empty"]')).toBeVisible();
 			await capture(page, `${view}-empty`, width);
 		});
 	}
 }
 
-for (const width of [1280, 390]) {
+for (const width of everyScreen) {
 	test(`calendar empty participant filter has a reset and search-empty at ${width}px`, async ({ page }) => {
 		await page.setViewportSize({ width, height: 900 });
 		const response = await prepare(page, 'month');
 		await page.goto('/example-co/calendar?date=2026-10-06');
 		await expect(page.getByRole('button', { name: /제품 점검/ }).first()).toBeVisible();
-		if (width < 640) await page.getByRole('button', { name: /일정 도구$/ }).click();
+		if (width < smallBreakpointWidth) await page.getByRole('button', { name: /일정 도구$/ }).click();
 		await page.getByRole('combobox', { name: '참여자 선택', exact: true }).click();
 		await page.getByRole('combobox').last().fill('존재하지않는참여자');
 		await expect(page.getByText('결과가 없습니다', { exact: true })).toBeVisible();
@@ -122,7 +123,7 @@ for (const width of [1280, 390]) {
 		if (!before) await expect(page.getByTestId('calendar-filter-empty')).toBeVisible();
 		await capture(page, 'filter-empty', width);
 		if (!before) {
-			if (width >= 640) {
+			if (width >= smallBreakpointWidth) {
 				response.gate.block();
 				await page.getByRole('button', { name: '새로고침', exact: true }).first().click();
 				await expect.poll(() => response.gate.reads).toBeGreaterThan(1);

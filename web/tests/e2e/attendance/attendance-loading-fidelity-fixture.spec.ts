@@ -1,6 +1,7 @@
 import { expect, test, type Page, type Route } from '@playwright/test';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { AttendanceLoadingFixture } from './attendance-loading-fixture';
+import { desktopWidth, everyScreen, mediumBreakpointWidth } from '../support/screen-widths';
 
 test.use({ locale: 'ko-KR', colorScheme: 'light', contextOptions: { reducedMotion: 'reduce' } });
 const folder = process.env.LOADING_EVIDENCE_DIR;
@@ -33,7 +34,7 @@ async function capture(page: Page, scene: string, width: number, state: string, 
 	await writeFile(`${path}.json`, JSON.stringify({ viewport: page.viewportSize(), fixture: 'three short personal requests; three approval requests; three corrections; eight employees', geometry }, null, 2));
 }
 
-for (const width of [1280, 390, 320]) {
+for (const width of everyScreen) {
 	for (const scene of [
 		{ name: 'approvals', label: '휴가 승인', panel: 'leave-approval-view', row: '[data-testid^="leave-approval-request-"]', admin: true },
 		{ name: 'leave-history', label: '내 휴가', panel: 'leave-history-view', row: '[data-testid="leave-history-row"]', admin: false },
@@ -48,7 +49,7 @@ for (const width of [1280, 390, 320]) {
 			await fixture.install(page);
 			await page.goto('/example-co/attendance');
 			await expect(page.getByTestId('attendance-team-card')).toHaveCount(6);
-			if (width < 768 && scene.admin) {
+			if (width < mediumBreakpointWidth && scene.admin) {
 				await page.getByRole('button', { name: '관리', exact: true }).click();
 				await page.getByRole('menuitem', { name: scene.label, exact: true }).click();
 			} else await page.getByRole('button', { name: scene.label, exact: true }).filter({ visible: true }).click();
@@ -58,7 +59,7 @@ for (const width of [1280, 390, 320]) {
 			await expect.poll(() => gate.reads).toBeGreaterThan(0);
 			const pendingRow = await loading.locator('[data-loading-row]:visible').first().boundingBox();
 			expect(pendingRow).not.toBeNull();
-			const checksUnselectedDetail = scene.name === 'leave-employees' && width === 1280;
+			const checksUnselectedDetail = scene.name === 'leave-employees' && width === desktopWidth;
 			const selectionPrompt = panel.getByText('직원을 선택해 휴가 상세 내역을 확인하세요.', { exact: true });
 			if (checksUnselectedDetail) {
 				await expect(selectionPrompt).toBeVisible();

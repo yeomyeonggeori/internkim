@@ -7,6 +7,7 @@ import {
 	seedCRMActivity,
 	signInToTheCRM
 } from './crm-central-test-utils';
+import { everyScreen, smallBreakpointWidth } from '../support/screen-widths';
 
 test.use({ locale: 'ko-KR' });
 
@@ -46,7 +47,7 @@ test.afterAll(async () => {
 test('fits every CRM table to its content with the name column absorbing the slack', async ({ page }) => {
 	test.setTimeout(150_000);
 
-	for (const width of [390, 768, 1024, 1440]) {
+	for (const width of everyScreen) {
 		await page.setViewportSize({ width, height: 900 });
 		await signInToTheCRM(page);
 		await expectNoHorizontalOverflow(page.locator('html'));
@@ -64,6 +65,7 @@ test('fits every CRM table to its content with the name column absorbing the sla
 						panel.locator(`[data-crm-report-card="${card}"]`),
 						rightAligned,
 						false,
+						false,
 						`${width}px 보고 ${card}`
 					);
 				}
@@ -74,6 +76,7 @@ test('fits every CRM table to its content with the name column absorbing the sla
 				panel,
 				rightAlignedColumns[tabName] ?? [],
 				contentSizedTabs.includes(tabName),
+				width < smallBreakpointWidth && (tabName === '연락처' || tabName === '거래'),
 				`${width}px ${tabName}`
 			);
 		}
@@ -84,6 +87,7 @@ async function expectColumnFit(
 	panel: Locator,
 	rightAligned: string[],
 	isContentSized: boolean,
+	hasMobileSummary: boolean,
 	context: string
 ): Promise<void> {
 	const columns = await panel.getByRole('columnheader').evaluateAll((headers) =>
@@ -98,7 +102,6 @@ async function expectColumnFit(
 				textAlign: getComputedStyle(header).textAlign
 			}); })
 	);
-	const hasMobileSummary = context.startsWith('390px') && (context.endsWith('연락처') || context.endsWith('거래'));
 	expect(columns.length, `${context} has columns`).toBeGreaterThanOrEqual(hasMobileSummary ? 1 : 2);
 
 	const hasSlack = await panel

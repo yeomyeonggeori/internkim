@@ -1,5 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
 import { mkdir } from 'node:fs/promises';
+import { everyScreen } from '../support/screen-widths';
 
 const before = process.env.LOADING_EVIDENCE_PHASE === 'before';
 test.use({ locale: 'ko-KR', colorScheme: 'light', contextOptions: { reducedMotion: 'reduce' } });
@@ -11,7 +12,7 @@ async function capture(page: Page, scene: string, width: number): Promise<void> 
 	await page.screenshot({ path: `${folder}/auth-${scene}-${width}-${before ? 'before' : 'after'}.png`, animations: 'disabled' });
 }
 
-for (const width of [1280, 390, 320]) {
+for (const width of everyScreen) {
 	test(`authorization probe preserves an accessible loading status at ${width}px`, async ({ page }) => {
 		await page.setViewportSize({ width, height: 900 });
 		await page.clock.setFixedTime(new Date('2026-10-06T03:00:00Z'));
