@@ -54,11 +54,14 @@ repository-wide rule, are guards. They live in
 `tools/verify` reads what a change touches and runs what it can break:
 
 - Unit and API tests run in full for any change to the code they cover.
-- UI tests run for the areas a change touches. A change under
-  `web/src/routes/crm/`, `web/src/lib/crm/` or `web/tests/e2e/crm/` runs
-  `web/tests/e2e/crm/`. A change to anything shared, such as a component, a
-  stylesheet or the layout, runs every area. A migration or the seed reaches
-  only the specs on the local plane, so it runs every `-central` spec.
+- UI tests run for the areas a change reaches. A changed file reaches every
+  area whose routes under `web/src/routes/<area>/` or specs under
+  `web/tests/e2e/<area>/` import it, directly or through other modules, so a
+  CRM screen runs `web/tests/e2e/crm/` and a module the task board and the CRM
+  both import runs both. A file the layout, a route with no area of its own,
+  `web/tests/e2e/support/` or nothing at all imports runs every area. A
+  migration or the seed reaches only the specs on the local plane, so it runs
+  every `-central` spec.
 
 `tools/verify --plan` prints what a change would run without running it, and
 `tools/verify --all` runs everything.

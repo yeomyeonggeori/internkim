@@ -32,6 +32,7 @@ import fnmatch
 import functools
 import hashlib
 import os
+import re
 import shlex
 import subprocess
 import sys
@@ -74,8 +75,13 @@ class Group:
         return [*holder, *command]
 
 
-END_TO_END_DIRECTORY = REPOSITORY_ROOT / "web" / "tests" / "e2e"
-AREA_ROOTS = ("web/src/routes/", "web/src/lib/", "web/tests/e2e/")
+WEB_DIRECTORY = REPOSITORY_ROOT / "web"
+END_TO_END_DIRECTORY = WEB_DIRECTORY / "tests" / "e2e"
+ENTRY_POINT_ROOTS = ("web/src/routes/", "web/tests/e2e/")
+IMPORTING_SOURCE_PATTERNS = ("src/**/*.ts", "src/**/*.js", "src/**/*.svelte", "tests/e2e/**/*.ts")
+IMPORT_SPECIFIER = re.compile(r"""\b(?:from|import)\s*\(?\s*['"]([^'"]+)['"]""")
+RESOLUTION_SUFFIXES = ("", ".ts", ".js", ".svelte", "/index.ts", "/index.js")
+EVERY_AREA = "every area"
 DATABASE_PATTERNS = ("supabase/migrations/*", "supabase/seed.dev.sql")
 PLANES_WITHOUT_THE_DATABASE = ("fixture", "mocked", "standalone")
 
@@ -84,12 +90,60 @@ def end_to_end_areas():
     return sorted(path.name for path in END_TO_END_DIRECTORY.iterdir() if path.is_dir() and path.name != "support")
 
 
-def end_to_end_area_of(path, areas):
-    root = next((root for root in AREA_ROOTS if path.startswith(root)), None)
+@functools.cache
+def importers_by_source():
+    importers = {}
+    for pattern in IMPORTING_SOURCE_PATTERNS:
+        for importer in WEB_DIRECTORY.glob(pattern):
+            for specifier in IMPORT_SPECIFIER.findall(importer.read_text(errors="replace")):
+                imported = resolved_import(importer, specifier)
+                if imported is not None:
+                    importers.setdefault(imported, set()).add(repository_path(importer))
+    return importers
+
+
+def resolved_import(importer, specifier):
+    target = specifier.split("?", 1)[0]
+    if target == "$lib" or target.startswith("$lib/"):
+        base = WEB_DIRECTORY / "src" / "lib" / target[len("$lib/"):]
+    elif target.startswith("."):
+        base = importer.parent / target
+    else:
+        return None
+    base = Path(os.path.normpath(base))
+    candidates = [Path(f"{base}{suffix}") for suffix in RESOLUTION_SUFFIXES]
+    if base.suffix == ".js":
+        candidates.append(base.with_suffix(".ts"))
+    return next((repository_path(candidate) for candidate in candidates if candidate.is_file()), None)
+
+
+def repository_path(path):
+    return path.relative_to(REPOSITORY_ROOT).as_posix()
+
+
+def files_importing(path, importers):
+    reached, waiting = set(), [path]
+    while waiting:
+        current = waiting.pop()
+        if current not in reached:
+            reached.add(current)
+            waiting.extend(importers.get(current, ()))
+    return reached
+
+
+def entry_point_area(path, areas):
+    root = next((root for root in ENTRY_POINT_ROOTS if path.startswith(root)), None)
     if root is None:
         return None
     area = path[len(root):].split("/", 1)[0]
-    return area if area in areas else None
+    return area if area in areas else EVERY_AREA
+
+
+def end_to_end_areas_reaching(path, areas, importers):
+    reaching = {entry_point_area(file, areas) for file in files_importing(path, importers)} - {None}
+    if not reaching or EVERY_AREA in reaching:
+        return None
+    return reaching
 
 
 class EndToEndGroup(Group):
@@ -104,9 +158,10 @@ class EndToEndGroup(Group):
         touched = [path for path in changed_paths if self.matches(path)]
         database_paths = [path for path in touched if reaches_only_the_database(path)]
         known_areas = end_to_end_areas()
-        areas = {end_to_end_area_of(path, known_areas) for path in touched if path not in database_paths}
-        if None in areas:
+        reached = [end_to_end_areas_reaching(path, known_areas, importers_by_source()) for path in touched if path not in database_paths]
+        if None in reached:
             return self
+        areas = set().union(*reached)
         commands = [["scripts/e2e.sh", "--project=central"]] if database_paths else []
         if areas:
             planes = [f"--project={plane}" for plane in PLANES_WITHOUT_THE_DATABASE] if database_paths else []
