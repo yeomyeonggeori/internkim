@@ -254,6 +254,18 @@ describe('the company master profile', () => {
 
 		expect(refused.status).toBe(400);
 	});
+
+	test("answers in the company's own language when no language is asked", async () => {
+		expect(resultOf(await asAdmin('company_info_get')).language).toBe('ko');
+
+		await client.from('company').update({ locale: 'en-US' }).eq('id', companyID);
+		const english = resultOf(await asAdmin('company_info_get'));
+		await client.from('company').update({ locale: 'ko' }).eq('id', companyID);
+
+		expect(english.language).toBe('en');
+		expect(english.representativeTitle).toBe('CEO');
+		expect(english.missingFields).toContain('name');
+	});
 });
 
 const aPixelPNG = Uint8Array.from(
