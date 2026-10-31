@@ -894,7 +894,7 @@ def seeded_administrator():
     document = CENTRAL_TEST_UTILITIES_PATH.read_text()
     fields = {}
     for name in ("member1Email", "seedPassword"):
-        found = re.search(r"export const " + name + r" = '([^']+)'", document)
+        found = re.search(r"export const " + name + r" = (?:workerCompanyEmail\()?'([^']+)'", document)
         if not found:
             raise RigFailure(f"{CENTRAL_TEST_UTILITIES_PATH} no longer exports {name}")
         fields[name] = found.group(1)
