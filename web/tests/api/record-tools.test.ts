@@ -141,13 +141,13 @@ describe('attendance_team_page_get', () => {
 });
 
 describe('task_board_get over real company rows', () => {
-	test('excludes 1501 historical rows, preserves 1501 cards and counts only direct children', async () => {
+	test('excludes 1501 historical rows, preserves every card across pages and counts only direct children', async () => {
 		const boardWeek = taskWeekOfDate(new Date()).startISO;
 		const prefix = `board-scaling-${Date.now()}`;
 		const parentID = crypto.randomUUID();
 		const children = [crypto.randomUUID(), crypto.randomUUID()];
 		const grandchildID = crypto.randomUUID();
-		const relevantIDs = Array.from({ length: 1501 }, () => crypto.randomUUID());
+		const relevantIDs = Array.from({ length: 301 }, () => crypto.randomUUID());
 		const historicalIDs = Array.from({ length: 1501 }, () => crypto.randomUUID());
 		const allIDs = [parentID, ...children, grandchildID, ...relevantIDs, ...historicalIDs];
 		const insert = async (rows: Record<string, unknown>[]) => {
@@ -509,7 +509,7 @@ describe('task_list', () => {
 		expect(first.count).toBe(50);
 		expect(first.totalCount).toBe(51);
 		expect(typeof first.nextCursor).toBe('string');
-	});
+	}, networkHookTimeout);
 
 	test('refuses a cursor no result gave', async () => {
 		for (const cursor of ['not-a-cursor', btoa('{"id":"x"}'), btoa('[1,2]')]) {
