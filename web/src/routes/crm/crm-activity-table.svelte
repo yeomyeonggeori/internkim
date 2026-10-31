@@ -17,6 +17,7 @@
 	import type { CRMOrganization, CRMActivity, CRMOpportunity } from './crm-types';
 	import { crmLabel } from './crm-labels';
 	import CRMTableColumnHeader from './crm-table-column-header.svelte';
+	import CRMTableText from './crm-table-text.svelte';
 	import { nextSortState, sortRows, type CRMSortComparators, type CRMSortState } from './crm-table-sort';
 	import { findOrganizationByID, formatCRMDate } from './crm-view-model';
 	import TaskStatusBadge from '$lib/components/task-status-badge.svelte';
@@ -121,7 +122,7 @@
 						onclick={() => onEdit(activity.id)}
 						onkeydown={(event) => handleRowKeydown(event, activity.id)}
 					>
-						<Table.Cell class="w-full whitespace-normal pl-4 font-medium">
+						<Table.Cell class="w-full max-w-0 sm:min-w-48 whitespace-normal pl-4 font-medium">
 							<div class="flex min-w-0 items-center gap-1.5">
 								<span class="line-clamp-2">{activity.title}</span>
 								{#if activity.calendarEventID}
@@ -146,8 +147,8 @@
 								<span class="text-muted-foreground">{text.none}</span>
 							{/if}
 						</Table.Cell>
-						<Table.Cell class="hidden whitespace-nowrap text-muted-foreground sm:table-cell"><p class="truncate">{organization?.name ?? text.none}</p></Table.Cell>
-						<Table.Cell class="hidden whitespace-nowrap text-muted-foreground xl:table-cell"><p class="truncate">{opportunity?.name ?? text.none}</p></Table.Cell>
+						<Table.Cell class="hidden whitespace-nowrap text-muted-foreground sm:table-cell"><CRMTableText text={organization?.name ?? text.none} /></Table.Cell>
+						<Table.Cell class="hidden whitespace-nowrap text-muted-foreground xl:table-cell"><CRMTableText text={opportunity?.name ?? text.none} /></Table.Cell>
 						<Table.Cell class="hidden whitespace-nowrap text-right tabular-nums text-muted-foreground md:table-cell">{activity.startsAt ? formatCRMDate(activity.startsAt.slice(0, 10), currentLocale.value) : text.none}</Table.Cell>
 						<Table.Cell class="hidden whitespace-nowrap text-right tabular-nums text-muted-foreground xl:table-cell">{activity.endsAt ? formatCRMDate(activity.endsAt.slice(0, 10), currentLocale.value) : text.none}</Table.Cell>
 						<Table.Cell class="hidden whitespace-nowrap lg:table-cell">

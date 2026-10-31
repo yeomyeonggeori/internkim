@@ -10,6 +10,7 @@
 	import { crmDefinitionLabel, crmLabel } from './crm-labels';
 	import { accountStatusIcon } from './crm-status-icons';
 	import CRMTableColumnHeader from './crm-table-column-header.svelte';
+	import CRMTableText from './crm-table-text.svelte';
 	import { nextSortState, sortRows, type CRMSortComparators, type CRMSortState } from './crm-table-sort';
 	import type { CRMOrganization, CRMContact } from './crm-types';
 	import { currentCRMDate } from './crm-date';
@@ -105,7 +106,7 @@
 			<Table.Body class="text-left">
 				{#each visibleOrganizations as organization (organization.id)}
 					<Table.Row class="cursor-pointer align-top hover:bg-muted/40" tabindex={0} onclick={() => openOrganization(organization.id)}>
-						<Table.Cell class="w-full whitespace-normal pl-4 max-sm:max-w-0">
+						<Table.Cell class="w-full max-w-0 sm:min-w-48 whitespace-normal pl-4">
 							<div class="min-w-0">
 								<p class="truncate font-medium">{organization.name}</p>
 								<p class="mt-1 hidden line-clamp-2 text-xs leading-5 text-muted-foreground sm:block">{organization.description}</p>
@@ -133,7 +134,7 @@
 							{/if}
 						</Table.Cell>
 						<Table.Cell class="hidden whitespace-nowrap text-muted-foreground xl:table-cell">
-							<p class="truncate">{findOrganizationContactLabel(organization.id, contacts) || text.none}</p>
+							<CRMTableText text={findOrganizationContactLabel(organization.id, contacts) || text.none} />
 						</Table.Cell>
 						<Table.Cell class="whitespace-nowrap hidden text-right tabular-nums text-muted-foreground lg:table-cell">
 							{organization.lastContactDate ? formatCRMDate(organization.lastContactDate, currentLocale.value) : text.none}

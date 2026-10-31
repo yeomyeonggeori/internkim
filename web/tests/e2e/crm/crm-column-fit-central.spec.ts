@@ -1,6 +1,7 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
 import {
 	expectNoHorizontalOverflow,
+	lengthenCRMText,
 	organizationIDNamed,
 	removeCRMActivities,
 	seedCRMActivity,
@@ -9,7 +10,8 @@ import {
 
 test.use({ locale: 'ko-KR' });
 
-const activityTitle = 'E2E 컬럼 맞춤 검증 활동';
+const longText = ' 글로벌 전략 파트너십 및 다년간 전사 확장 계약 검증용 아주 긴 이름';
+const activityTitle = `E2E 컬럼 맞춤 검증 활동${longText}`;
 
 // The four list tables size themselves to their content; the report's owner table keeps its own layout.
 const contentSizedTabs = ['관계처', '연락처', '거래', '활동'];
@@ -28,14 +30,17 @@ const reportTables: Record<string, string[]> = {
 };
 
 let seededActivityID = '';
+let restoreCRMText = async (): Promise<void> => {};
 
 test.beforeAll(async () => {
 	const organizationID = await organizationIDNamed('예시 협력 기관');
 	seededActivityID = await seedCRMActivity(organizationID, activityTitle);
+	restoreCRMText = await lengthenCRMText(organizationID, longText);
 });
 
 test.afterAll(async () => {
 	await removeCRMActivities([seededActivityID]);
+	await restoreCRMText();
 });
 
 test('fits every CRM table to its content with the name column absorbing the slack', async ({ page }) => {
@@ -53,9 +58,6 @@ test('fits every CRM table to its content with the name column absorbing the sla
 			await expect(panel).toBeVisible();
 			await expectNoHorizontalOverflow(panel);
 			await expect(panel.locator('tbody tr').first()).toHaveCSS('display', 'table-row');
-			for (const container of await panel.locator('[data-slot="table-container"]').all()) {
-				await expectNoHorizontalOverflow(container);
-			}
 			if (tabName === '보고') {
 				for (const [card, rightAligned] of Object.entries(reportTables)) {
 					await expectColumnFit(
@@ -99,10 +101,18 @@ async function expectColumnFit(
 	const hasMobileSummary = context.startsWith('390px') && (context.endsWith('연락처') || context.endsWith('거래'));
 	expect(columns.length, `${context} has columns`).toBeGreaterThanOrEqual(hasMobileSummary ? 1 : 2);
 
-	if (isContentSized) {
+	const hasSlack = await panel
+		.locator('[data-slot="table-container"]')
+		.first()
+		.evaluate((container) => container.scrollWidth <= container.clientWidth + 1);
+	if (isContentSized && hasSlack) {
 		// The name column is first and takes every pixel the others do not need.
 		const widest = columns.reduce((largest, column) => (column.width > largest.width ? column : largest));
 		expect(widest.label, `${context} widest column`).toBe(columns[0].label);
+	}
+	if (isContentSized && !hasSlack && !context.startsWith('390px')) {
+		// Without slack the table scrolls inside its card rather than squeezing the name column.
+		expect(columns[0].width, `${context} name column keeps a readable width`).toBeGreaterThanOrEqual(190);
 	}
 
 	for (const column of columns) {

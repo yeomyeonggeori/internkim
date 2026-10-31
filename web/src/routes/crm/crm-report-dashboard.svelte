@@ -407,7 +407,7 @@
 								onclick={() => onOpenOrganization(account.id)}
 								onkeydown={(event) => handleQuietKeydown(event, account.id)}
 							>
-								<Table.Cell class="w-full whitespace-nowrap pl-6 font-medium">{account.name}</Table.Cell>
+								<Table.Cell class="w-full max-w-0 sm:min-w-48 pl-6 font-medium"><p class="truncate" title={account.name}>{account.name}</p></Table.Cell>
 								<Table.Cell class="hidden whitespace-nowrap md:table-cell">
 									{#if account.ownerName}
 										<PersonChip name={displayPersonName(account.ownerName)} email={account.ownerEmail} seed={account.ownerSeed} />

@@ -10,6 +10,7 @@
 	import type { CRMOrganization, CRMContact } from './crm-types';
 	import { effectiveContactOwner, findOrganizationByID } from './crm-view-model';
 	import CRMTableColumnHeader from './crm-table-column-header.svelte';
+	import CRMTableText from './crm-table-text.svelte';
 	import { nextSortState, sortRows, type CRMSortComparators, type CRMSortState } from './crm-table-sort';
 	import type { CRMText } from './text';
 
@@ -95,7 +96,7 @@
 						onclick={() => onEdit(contact.id)}
 						onkeydown={(event) => handleRowKeydown(event, contact.id)}
 					>
-						<Table.Cell class="w-full whitespace-normal pl-4">
+						<Table.Cell class="w-full max-w-0 sm:min-w-48 whitespace-normal pl-4">
 							<div class="flex flex-wrap items-center gap-2">
 								<span class="break-words font-medium">{contact.name}</span>
 							</div>
@@ -103,9 +104,9 @@
 							{#if contact.title}<p class="mt-1 break-words text-sm text-muted-foreground md:hidden">{contact.title}</p>{/if}
 							{#if contact.email}<a class="inline-flex min-h-11 max-w-full items-center break-all text-primary sm:hidden" href={`mailto:${contact.email}`} onclick={(event) => event.stopPropagation()} onkeydown={(event) => event.stopPropagation()}>{contact.email}</a>{/if}
 						</Table.Cell>
-						<Table.Cell class="hidden whitespace-nowrap text-muted-foreground sm:table-cell sm:pr-0"><p class="truncate">{organization?.name ?? text.none}</p></Table.Cell>
-						<Table.Cell class="hidden whitespace-nowrap md:table-cell">{contact.title || text.none}</Table.Cell>
-						<Table.Cell class="hidden whitespace-nowrap pr-6 sm:table-cell lg:pr-0"><a class="block truncate text-primary hover:underline" href={`mailto:${contact.email}`} onclick={(event) => event.stopPropagation()} onkeydown={(event) => event.stopPropagation()}>{contact.email}</a></Table.Cell>
+						<Table.Cell class="hidden whitespace-nowrap text-muted-foreground sm:table-cell sm:pr-0"><CRMTableText text={organization?.name ?? text.none} /></Table.Cell>
+						<Table.Cell class="hidden whitespace-nowrap md:table-cell"><CRMTableText text={contact.title || text.none} /></Table.Cell>
+						<Table.Cell class="hidden whitespace-nowrap pr-6 sm:table-cell lg:pr-0"><CRMTableText class="text-primary" text={contact.email} href={`mailto:${contact.email}`} /></Table.Cell>
 						<Table.Cell class="hidden whitespace-nowrap pr-6 lg:table-cell xl:pr-0">
 							{#if owner}
 								<PersonChip name={displayPersonName(owner.name)} email={owner.email} seed={owner.seed} />
@@ -113,7 +114,7 @@
 								<span class="text-muted-foreground">{text.none}</span>
 							{/if}
 						</Table.Cell>
-						<Table.Cell class="hidden whitespace-nowrap pr-6 xl:table-cell">{#if contact.phone}<a class="block truncate hover:underline" href={`tel:${contact.phone}`} onclick={(event) => event.stopPropagation()} onkeydown={(event) => event.stopPropagation()}>{contact.phone}</a>{:else}{text.none}{/if}</Table.Cell>
+						<Table.Cell class="hidden whitespace-nowrap pr-6 xl:table-cell">{#if contact.phone}<CRMTableText text={contact.phone} href={`tel:${contact.phone}`} />{:else}{text.none}{/if}</Table.Cell>
 					</Table.Row>
 				{:else}
 					<Table.Row class="hover:bg-transparent"><Table.Cell colspan={6} class="whitespace-normal p-0"><Empty.Root><Empty.Header><Empty.Title>{text.contactsEmpty}</Empty.Title></Empty.Header></Empty.Root></Table.Cell></Table.Row>
