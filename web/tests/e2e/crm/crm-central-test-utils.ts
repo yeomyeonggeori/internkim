@@ -69,3 +69,37 @@ export async function expectNoHorizontalOverflow(locator: Locator): Promise<void
 	const overflow = await locator.evaluate((element) => element.scrollWidth - element.clientWidth);
 	expect(overflow).toBeLessThanOrEqual(1);
 }
+
+type LongTextRow = { table: 'organization' | 'contact' | 'opportunity'; id: string; original: Record<string, string | null> };
+
+export async function lengthenCRMText(organizationID: string, suffix: string): Promise<() => Promise<void>> {
+	const admin = centralPlaneAdminClient();
+	const organization = await admin.from('organization').select('id, name').eq('id', organizationID).single<{ id: string; name: string }>();
+	const contacts = await admin.from('contact').select('id, name, email, title').eq('organization_id', organizationID).returns<{ id: string; name: string; email: string | null; title: string | null }[]>();
+	const opportunities = await admin.from('opportunity').select('id, name').eq('organization_id', organizationID).returns<{ id: string; name: string }[]>();
+	if (organization.error) throw new Error(`Failed to read the organization to lengthen: ${organization.error.message}`);
+	if (contacts.error) throw new Error(`Failed to read the contacts to lengthen: ${contacts.error.message}`);
+	if (opportunities.error) throw new Error(`Failed to read the opportunities to lengthen: ${opportunities.error.message}`);
+
+	const rows: LongTextRow[] = [
+		{ table: 'organization', id: organization.data.id, original: { name: organization.data.name } },
+		...contacts.data.map((contact): LongTextRow => ({ table: 'contact', id: contact.id, original: { name: contact.name, email: contact.email, title: contact.title } })),
+		...opportunities.data.map((opportunity): LongTextRow => ({ table: 'opportunity', id: opportunity.id, original: { name: opportunity.name } }))
+	];
+	await writeCRMRows(rows.map((row) => ({ ...row, original: lengthened(row.original, suffix) })));
+	return () => writeCRMRows(rows);
+}
+
+function lengthened(values: Record<string, string | null>, suffix: string): Record<string, string | null> {
+	return Object.fromEntries(
+		Object.entries(values).map(([field, value]) => [field, field === 'email' ? `a.very.long.address.for.the.column.fit.${value ?? 'contact@example.com'}` : `${value ?? ''}${suffix}`])
+	);
+}
+
+async function writeCRMRows(rows: LongTextRow[]): Promise<void> {
+	const admin = centralPlaneAdminClient();
+	for (const row of rows) {
+		const updated = await admin.from(row.table).update(row.original).eq('id', row.id);
+		if (updated.error) throw new Error(`Failed to write ${row.table} ${row.id}: ${updated.error.message}`);
+	}
+}
