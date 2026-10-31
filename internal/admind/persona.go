@@ -175,7 +175,7 @@ func defaultSoulDocument() soulDocument {
 			"장기 사실은 이 문서가 아니라 기억에 둔다.",
 		},
 		Tone:     &soulTone{Register: "formal", Traits: []string{"calm", "clear", "concise"}},
-		Language: &soulLanguage{Default: "ko", MatchRequester: true},
+		Language: &soulLanguage{MatchRequester: true},
 	}
 }
 

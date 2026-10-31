@@ -65,7 +65,7 @@ func TestPersonaSeedsBothConfigurationDocuments(t *testing.T) {
 	if len(identity.Names) < 2 || identity.Names[0] != "김인턴" || identity.Names[1] != "Intern Kim" || identity.Handle != "internkim" {
 		t.Fatalf("expected the default identity, got %+v", identity)
 	}
-	if soul.Language == nil || soul.Language.Default != "ko" || !soul.Language.MatchRequester || len(soul.Values) == 0 {
+	if soul.Language == nil || soul.Language.Default != "" || !soul.Language.MatchRequester || len(soul.Values) == 0 {
 		t.Fatalf("expected the default soul, got %+v", soul)
 	}
 	for _, fileName := range []string{service.Configuration.IdentityDocumentPath, service.Configuration.SoulDocumentPath} {
