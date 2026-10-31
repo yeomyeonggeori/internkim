@@ -1,6 +1,7 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
 import {
 	expectNoHorizontalOverflow,
+	lengthenCRMText,
 	organizationIDNamed,
 	removeCRMActivities,
 	seedCRMActivity,
@@ -9,7 +10,8 @@ import {
 
 test.use({ locale: 'ko-KR' });
 
-const activityTitle = 'E2E 컬럼 맞춤 검증 활동';
+const longText = ' 글로벌 전략 파트너십 및 다년간 전사 확장 계약 검증용 아주 긴 이름';
+const activityTitle = `E2E 컬럼 맞춤 검증 활동${longText}`;
 
 // The four list tables size themselves to their content; the report's owner table keeps its own layout.
 const contentSizedTabs = ['관계처', '연락처', '거래', '활동'];
@@ -28,14 +30,17 @@ const reportTables: Record<string, string[]> = {
 };
 
 let seededActivityID = '';
+let restoreCRMText = async (): Promise<void> => {};
 
 test.beforeAll(async () => {
 	const organizationID = await organizationIDNamed('예시 협력 기관');
 	seededActivityID = await seedCRMActivity(organizationID, activityTitle);
+	restoreCRMText = await lengthenCRMText(organizationID, longText);
 });
 
 test.afterAll(async () => {
 	await removeCRMActivities([seededActivityID]);
+	await restoreCRMText();
 });
 
 test('fits every CRM table to its content with the name column absorbing the slack', async ({ page }) => {

@@ -13,6 +13,7 @@
 	import { dealStageIcon } from './crm-status-icons';
 	import CRMPipelineBadge from './crm-pipeline-badge.svelte';
 	import CRMTableColumnHeader from './crm-table-column-header.svelte';
+	import CRMTableText from './crm-table-text.svelte';
 	import { nextSortState, sortRows, type CRMSortComparators, type CRMSortState } from './crm-table-sort';
 	import { crmLabel } from './crm-labels';
 	import { daysLabel, findOrganizationByID, findNextActionByID, formatCRMDate, getProgressKind, getStageVariant, opportunityStageLabel } from './crm-view-model';
@@ -132,7 +133,7 @@
 						onclick={() => onEdit(opportunity.id)}
 						onkeydown={(event) => handleRowKeydown(event, opportunity.id)}
 					>
-						<Table.Cell class="w-full whitespace-normal pl-4 font-medium">
+						<Table.Cell class="w-full max-w-0 whitespace-normal pl-4 font-medium">
 							<div class="flex min-w-0 flex-wrap items-center gap-2 sm:flex-nowrap">
 								<p class="break-words sm:truncate">{opportunity.name}</p>
 								{#if opportunity.calendarEventID}
@@ -148,7 +149,7 @@
 							</div>
 						</Table.Cell>
 						<Table.Cell class="hidden whitespace-nowrap text-muted-foreground sm:table-cell">
-							<p class="truncate">{organization?.name ?? text.none}</p>
+							<CRMTableText text={organization?.name ?? text.none} />
 						</Table.Cell>
 						<Table.Cell class="hidden whitespace-nowrap lg:table-cell">
 							<CRMPipelineBadge {opportunity} {organization} {pipelines} {text} />
@@ -161,7 +162,7 @@
 							{opportunity.targetDate ? formatCRMDate(opportunity.targetDate, currentLocale.value) : text.none}
 						</Table.Cell>
 						<Table.Cell class="hidden whitespace-nowrap pr-6 text-muted-foreground xl:table-cell xl:pr-0">
-							<p class="truncate">{action?.title ?? text.none}</p>
+							<CRMTableText text={action?.title ?? text.none} />
 						</Table.Cell>
 						<Table.Cell class="hidden whitespace-nowrap pr-6 lg:table-cell xl:pr-0">
 							{#if opportunity.ownerName}
