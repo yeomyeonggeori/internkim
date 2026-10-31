@@ -1,8 +1,9 @@
 import { expect, test } from '@playwright/test';
 import { expectTouchTarget } from '../support/touch-target';
 import { mockBuzzDisabled } from '../messenger/buzz-test-routes';
+import { everyLayoutBand, smallBreakpointWidth } from '../support/screen-widths';
 
-for (const width of [320, 390, 1280]) {
+for (const width of everyLayoutBand) {
 	test(`claim recovery actions stay compact at ${width}px`, async ({ page }) => {
 		await page.setViewportSize({ width, height: 844 });
 		await mockBuzzDisabled(page);
@@ -15,7 +16,7 @@ for (const width of [320, 390, 1280]) {
 		const confirm = page.getByRole('button', { name: '확인', exact: true });
 		const resend = page.getByRole('button', { name: '다시 보내기', exact: true });
 		const another = page.getByRole('button', { name: '다른 이메일 쓰기', exact: true });
-		if (width < 640) {
+		if (width < smallBreakpointWidth) {
 			const [primary, left, right] = await Promise.all([confirm.boundingBox(), resend.boundingBox(), another.boundingBox()]);
 			expect(primary && left && right).toBeTruthy();
 			expect(Math.abs(left!.y - right!.y)).toBeLessThan(1);
@@ -32,10 +33,10 @@ for (const width of [320, 390, 1280]) {
 	});
 }
 
-for (const width of [320, 360, 390, 568, 1280]) {
+for (const width of everyLayoutBand) {
 	test(`public forms and shared categories fit ${width}px`, async ({ page }) => {
 		test.setTimeout(90_000);
-		await page.setViewportSize({ width, height: width === 568 ? 320 : 844 });
+		await page.setViewportSize({ width, height: 844 });
 		await mockBuzzDisabled(page);
 		await page.route('**/admin/api/locale', route => route.fulfill({ json: { locale: 'ko' } }));
 		await page.route('**/api/auth/claim', route => route.fulfill({ json: {} }));

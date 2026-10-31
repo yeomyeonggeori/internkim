@@ -3,10 +3,11 @@ import { member1ID, exampleCompanySlug, member2Email } from '../support/central-
 import { expect, test } from '@playwright/test';
 import { signInToTheTaskBoard, seedTasks, removeTasks, taskCard } from '../task/task-central-test-utils';
 import { signInToCalendar, seedCalendarEvents, cleanupCalendarEvents } from '../calendar/calendar-central-test-utils';
+import { everyPhoneScreen } from '../support/screen-widths';
 
 test.use({ locale: 'ko-KR' });
 
-for (const width of [320, 390]) {
+for (const width of everyPhoneScreen) {
 	test(`calendar compact controls keep authenticated reads usable at ${width}px`, async ({ page }) => {
 		await page.setViewportSize({ width, height: 844 });
 		await signInToCalendar(page);

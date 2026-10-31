@@ -1,6 +1,7 @@
 import { expect, test, type Page } from '@playwright/test';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { WorkspaceLoadingFixture, prepareWorkspaceLoading } from './workspace-loading-fixture';
+import { everyScreen } from '../support/screen-widths';
 
 const phase = process.env.LOADING_CAPTURE_PHASE ?? 'after';
 const output = process.env.LOADING_CAPTURE_DIR;
@@ -28,7 +29,7 @@ const scenes = [
 	{ name: 'run-detail', path: '/runs/dev-task-run-001', gate: 'person.runs.detail', skeleton: 'run-detail-loading-skeleton', ready: 'main h1' }
 ];
 
-for (const width of [1280, 390, 320]) {
+for (const width of everyScreen) {
 	for (const scene of scenes) {
 		test(`${scene.name} pending and ready layout at ${width}px`, async ({ page }) => {
 			await page.setViewportSize({ width, height: 900 });

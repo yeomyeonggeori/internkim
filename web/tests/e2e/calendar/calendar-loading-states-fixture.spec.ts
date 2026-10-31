@@ -1,6 +1,7 @@
 import { expect, test, type Page } from '@playwright/test';
 import { AttendanceLoadingFixture } from '../attendance/attendance-loading-fixture';
 import { calendarViewStorageKey } from '../../../src/routes/calendar/calendar-storage-keys';
+import { everyScreen } from '../support/screen-widths';
 
 const phase = process.env.LOADING_EVIDENCE_PHASE || 'after';
 const directory = process.env.LOADING_EVIDENCE_DIR;
@@ -9,7 +10,7 @@ async function capture(page: Page, scene: string, width: number): Promise<void> 
 	expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
 }
 test.use({ locale: 'ko-KR' });
-for (const width of [1280, 390, 320]) {
+for (const width of everyScreen) {
 	for (const view of ['month', 'week', 'day']) {
 		test(`calendar ${view} pending and loaded at ${width}px`, async ({ page }) => {
 			await page.setViewportSize({ width, height: 900 });
