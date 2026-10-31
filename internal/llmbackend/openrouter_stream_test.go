@@ -194,6 +194,28 @@ func TestAClientThatGivesUpMidStreamRemembersTheProvider(t *testing.T) {
 	}
 }
 
+func TestAStreamThatEndsWithAnErrorFinishIsItsProvidersFailure(t *testing.T) {
+	record := freshServingRecord(t)
+	backend := streamingBackend(t, func(responseWriter http.ResponseWriter, request *http.Request) {
+		responseWriter.Header().Set("Content-Type", "text/event-stream")
+		writeStreamChunk(t, responseWriter, `{"provider":"Wafer","choices":[{"delta":{"role":"assistant","content":""},"finish_reason":null}]}`)
+		writeStreamChunk(t, responseWriter, `{"provider":"Wafer","choices":[{"delta":{"content":""},"finish_reason":"error"}]}`)
+		writeStreamChunk(t, responseWriter, "[DONE]")
+	})
+
+	_, errorValue := backend.CompleteChat(context.Background(), ChatRequest{Model: "a-model", Messages: []ChatMessage{{Role: "user", Content: "hi"}}})
+
+	if errorValue == nil {
+		t.Fatal("an answer its provider ended with an error is not an answer")
+	}
+	if !strings.Contains(errorValue.Error(), "Wafer") || !strings.Contains(errorValue.Error(), "a-model") {
+		t.Fatalf("the failure names the provider and the model: %v", errorValue)
+	}
+	if slugs := record.ignoredProviders("a-model"); len(slugs) != 1 || slugs[0] != "wafer" {
+		t.Fatalf("the next ask routes around the provider that failed: %v", slugs)
+	}
+}
+
 func TestAWholeJSONAnswerIsStillRead(t *testing.T) {
 	freshServingRecord(t)
 	backend := streamingBackend(t, func(responseWriter http.ResponseWriter, request *http.Request) {

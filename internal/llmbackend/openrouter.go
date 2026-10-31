@@ -504,6 +504,9 @@ func (backend OpenRouterBackend) sendWhole(ctx context.Context, apiKey string, r
 	if errorValue := json.Unmarshal(responseDocument, &parsed); errorValue != nil {
 		return openRouterCompletion{}, errorValue
 	}
+	if failure := providerFailureOf(parsed, request.ModelName); failure != nil {
+		return openRouterCompletion{}, failure
+	}
 	return completionOf(parsed)
 }
 
