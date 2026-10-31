@@ -20843,7 +20843,7 @@
         "state": "ok"
       },
       "canonicalName": "company_info_get",
-      "description": "Read the company master profile (name, representative, address, contact, bank account, country-specific legal attributes such as a business registration number). Pass language ('ko' or 'en') to get the view for that document language plus missingFields listing empty core fields. The answer also carries that view as the file company-profile.json, with the newest seal and logo images from the data room beside it, for a document to print from as it is. Call this before creating any company letterhead document; if missingFields is empty, never ask the user for company info again.",
+      "description": "Read the company master profile (name, representative, address, contact, bank account, country-specific legal attributes such as a business registration number). Without language it answers in the company's own language and names it as language; pass language ('ko' or 'en') for another document language. Either way missingFields lists empty core fields for that language. The answer also carries that view as the file company-profile.json, with the newest seal and logo images from the data room beside it, for a document to print from as it is. Call this before creating any company letterhead document; if missingFields is empty, never ask the user for company info again.",
       "estimatedLatency": "low",
       "idempotency": {
         "required": false,
@@ -20855,7 +20855,7 @@
         "additionalProperties": false,
         "properties": {
           "language": {
-            "description": "Document language to resolve the profile for, e.g. 'ko' or 'en'. Defaults to 'ko'. The response's missingFields lists core fields still empty for this language.",
+            "description": "Document language to resolve the profile for, e.g. 'ko' or 'en'. Omit it to get the company's own language, which the response's language names. The response's missingFields lists core fields still empty for this language.",
             "type": "string"
           }
         },
