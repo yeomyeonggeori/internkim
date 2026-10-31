@@ -142,6 +142,9 @@ func (daemon Daemon) step(ctx context.Context, identity Identity, page *pairingP
 	}
 	if !isClaimed {
 		daemon.nameHost(ctx, "")
+		if errorValue := daemon.stopServing("no company holds this box any longer"); errorValue != nil {
+			return 0, false, errorValue
+		}
 		return announceInterval, false, daemon.announce(ctx, identity, page.localPage())
 	}
 	daemon.nameHost(ctx, session.Configuration.Company.Slug)
@@ -242,20 +245,25 @@ func (daemon Daemon) standBy(ctx context.Context, session Session) (time.Duratio
 	if daemon.StartKeepingUp != nil {
 		daemon.StartKeepingUp(ctx, session)
 	}
-	if daemon.installedCompany() != session.Configuration.Company.ID {
-		return daemon.untilNextCheck(session.Session), nil
+	reason := fmt.Sprintf("another box serves %s now", session.Configuration.Company.Name)
+	return daemon.untilNextCheck(session.Session), daemon.stopServing(reason)
+}
+
+func (daemon Daemon) stopServing(reason string) error {
+	if daemon.installedCompany() == "" {
+		return nil
 	}
-	log.Printf("another box serves %s now, so this one stops its services and stands by", session.Configuration.Company.Name)
+	log.Printf("%s, so this box stops the company's services", reason)
 	daemon.forgetTheQueueAddress()
 	if daemon.StandDown != nil {
 		if errorValue := daemon.StandDown(); errorValue != nil {
-			return 0, fmt.Errorf("standing down for %s: %w", session.Configuration.Company.Name, errorValue)
+			return fmt.Errorf("stopping the company's services: %w", errorValue)
 		}
 	}
 	if errorValue := ForgetInstalledCompany(daemon.Places.StateDirectoryPath); errorValue != nil {
-		return 0, errorValue
+		return errorValue
 	}
-	return daemon.untilNextCheck(session.Session), daemon.forgetServiceLease()
+	return daemon.forgetServiceLease()
 }
 
 func (daemon Daemon) keepTheQueueAddress(session Session) {

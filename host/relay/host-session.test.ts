@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { keepHostSession, type HostSession } from './host-session';
+import { confirmStillServing, keepHostSession, NoLongerServes, type HostSession } from './host-session';
 
 function sessionFor(credential: string, expiresAt: number): HostSession {
 	return { companyID: 'company', accessToken: `session-of-${credential}`, expiresAt };
@@ -43,5 +43,29 @@ describe('keepHostSession', () => {
 		});
 
 		expect(await keeper.keepFresh()).toBe(true);
+	});
+});
+
+describe('confirmStillServing', () => {
+	test('passes while the record answers that this computer serves its company', async () => {
+		await confirmStillServing(async () => ({ data: 'service', error: null, status: 200 }));
+	});
+
+	test('a standby computer no longer serves', async () => {
+		await expect(confirmStillServing(async () => ({ data: 'standby', error: null, status: 200 }))).rejects.toBeInstanceOf(NoLongerServes);
+	});
+
+	test('a computer its company let go no longer serves', async () => {
+		await expect(confirmStillServing(async () => ({ data: null, error: null, status: 200 }))).rejects.toBeInstanceOf(NoLongerServes);
+	});
+
+	test('a refused session no longer serves', async () => {
+		await expect(confirmStillServing(async () => ({ data: null, error: { message: 'JWT expired' }, status: 401 }))).rejects.toBeInstanceOf(NoLongerServes);
+	});
+
+	test('a record that cannot be reached says nothing about serving', async () => {
+		const unreachable = confirmStillServing(async () => ({ data: null, error: { message: 'fetch failed' }, status: 0 }));
+		await expect(unreachable).rejects.toThrow('fetch failed');
+		await expect(unreachable).rejects.not.toBeInstanceOf(NoLongerServes);
 	});
 });
