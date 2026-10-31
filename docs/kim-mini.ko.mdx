@@ -67,6 +67,10 @@ Raspberry Pi OS는 나라를 고르기 전까지 Wi-Fi를 꺼 두는데, 새 상
 `tools/flash-kim-mini <image> <diskN>`은 Mac에서 이미지를 카드에 굽고 그날을 `internkim-made-on`에 적습니다.
 SD카드나 USB 디스크에만 쓰며, 지우기 전에 디스크 이름을 한 번 더 입력받습니다.
 
+이미지는 설치된 파일이 끝나는 곳에서 끝나므로, 카드에는 그만큼만 씁니다. 상자는 처음 켜질 때
+Raspberry Pi OS가 하듯 루트 파티션과 파일 시스템을 카드 전체로 늘립니다. `cmdline.txt`의
+`resize` 플래그로 initramfs가 파티션을 늘리고, `rpi-resize.service`로 systemd가 파일 시스템을 늘립니다.
+
 ## 상자에서는 누구도 root를 갖지 않습니다
 
 상자의 로그인 계정은 `admin` 하나이고, 이 계정에는 `sudo`가 없습니다. `systemd-journal` 그룹에 있어서

@@ -83,6 +83,12 @@ shows there without the mark.
 records the day in `internkim-made-on`. It writes only to an SD card or USB disk,
 and asks for the disk name before erasing it.
 
+The image ends where its installed files end, so writing a card writes only
+those. On its first boot the box grows its root partition and file system to
+the whole card, as Raspberry Pi OS does: the `resize` flag in `cmdline.txt` has
+the initramfs extend the partition, and `rpi-resize.service` has systemd grow
+the file system.
+
 ## Nobody on a box holds root
 
 A box has one login account, `admin`, and it has no `sudo`. It is in
