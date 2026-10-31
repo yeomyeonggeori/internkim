@@ -56,14 +56,30 @@ export function liveWorkShownIn(
 	loadedMessageIDs: ReadonlySet<string>
 ): ShownWork[] {
 	if (threadID === undefined) return [];
-	return works
-		.filter((work) => work.threadID === threadID)
-		.flatMap((work) => {
-			if (work.becomingMessageID === undefined || !loadedMessageIDs.has(work.becomingMessageID)) {
-				return [{ key: work.key, steps: work.steps }];
-			}
-			return work.isStillWorking ? [{ key: work.key, steps: [] }] : [];
-		});
+	return worksStillShown(
+		works.filter((work) => work.threadID === threadID),
+		loadedMessageIDs
+	);
+}
+
+export function liveWorkShownInTimeline(
+	works: LiveWork[],
+	openThreadID: string | undefined,
+	loadedMessageIDs: ReadonlySet<string>
+): ShownWork[] {
+	return worksStillShown(
+		works.filter((work) => work.threadID !== openThreadID),
+		loadedMessageIDs
+	);
+}
+
+function worksStillShown(works: LiveWork[], loadedMessageIDs: ReadonlySet<string>): ShownWork[] {
+	return works.flatMap((work) => {
+		if (work.becomingMessageID === undefined || !loadedMessageIDs.has(work.becomingMessageID)) {
+			return [{ key: work.key, steps: work.steps }];
+		}
+		return work.isStillWorking ? [{ key: work.key, steps: [] }] : [];
+	});
 }
 
 function worksAfterWorking(works: LiveWork[], report: WorkReport, now: number): LiveWork[] {
