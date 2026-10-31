@@ -27,6 +27,16 @@ function heard(events: ReturnType<typeof working>[]): LiveWork[] {
 }
 
 describe('liveWorkAfterEvent', () => {
+	test('work the relay addresses by platform reaches the conversation and thread the browser has open', () => {
+		const event = {
+			kind: workingEventKind,
+			conversationID: `buzz:${conversationID}`,
+			work: { threadID: `buzz:${conversationID}:message-1`, deliveryID: 'delivery-1', steps: [{ title: 'attendance_list', status: 'pending' }] }
+		};
+		const works = liveWorkAfterEvent([], event, conversationID, heardAt);
+		expect(liveWorkShownIn(works, 'message-1', nothingLoaded).map((work) => work.steps[0]?.title)).toEqual(['attendance_list']);
+	});
+
 	test('each piece of work gets its own bubble with the steps it reported', () => {
 		const works = heard([
 			working({ deliveryID: 'turn-A', steps: [{ title: 'event_list', status: 'in_progress' }] }),
