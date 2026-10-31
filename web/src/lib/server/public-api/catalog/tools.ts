@@ -184,7 +184,8 @@ export enum ScheduleToolName {
 
 const scheduleListInputSchema = z.strictObject({
   status: z.enum(['active', 'failed', 'expired']).optional(),
-  limit: z.int().min(1).optional(),
+  limit: listLimitSchema('schedules').optional(),
+  cursor: listCursorSchema('schedule_list').optional(),
 });
 
 const scheduleMomentDescription = 'Written as an RFC3339 date-time carrying an offset, such as 2026-09-20T09:00:00+09:00.';
@@ -290,6 +291,8 @@ const scheduleListItemSchema = z.strictObject({
 
 const scheduleListResultSchema = z.strictObject({
   schedules: z.array(scheduleListItemSchema),
+  totalCount: listTotalCountSchema('schedules'),
+  nextCursor: listNextCursorSchema('schedules').optional(),
 });
 
 const scheduleToolDefinitions: CapabilityToolDefinition[] = [
@@ -299,7 +302,7 @@ const scheduleToolDefinitions: CapabilityToolDefinition[] = [
     answeredBy: CapabilityAnsweredBy.Company,
     privacyClass: 'workspace_schedule',
     policyResource: 'tool:schedule_list',
-    description: 'List scheduled tasks created by the current requester. Filter by active, failed, or expired status and cap the result with limit. Use it to answer what reminders or recurring tasks are scheduled.',
+    description: 'List scheduled tasks created by the current requester, newest first. Filter by active, failed, or expired status. Use it to answer what reminders or recurring tasks are scheduled. A nextCursor means more schedules remain; read them before concluding a schedule does not exist.',
     version: '1',
     estimatedLatency: CapabilityEstimatedLatency.Low,
     inputSchema: scheduleListInputSchema,
@@ -485,7 +488,8 @@ export const taskListInputSchema = z.strictObject({
   everyWeek: z.boolean()
     .describe('Every week there is, ignoring weekFrom and weekTo. Use it to search the whole history or to total work across all time.')
     .optional(),
-  limit: z.number().describe('Maximum number of tasks to return. Omit to return every matching task.').optional(),
+  limit: listLimitSchema('tasks').optional(),
+  cursor: listCursorSchema('task_list or task_board_get').optional(),
 });
 
 const taskHintSchema = z.string().min(1).max(256).describe(
@@ -526,8 +530,10 @@ export const taskDeleteInputIntentSchema = z.strictObject({});
 
 export const taskListResultSchema = z.strictObject({
   tasks: z.array(taskResultSchema),
-  count: z.number().int(),
-  unfinishedCount: z.number().int().describe('Number of unfinished tasks among all matching rows before the optional limit is applied.'),
+  count: z.number().int().describe('How many tasks this page holds.'),
+  totalCount: listTotalCountSchema('tasks'),
+  unfinishedCount: z.number().int().describe('Number of unfinished tasks among all matching rows across every page.'),
+  nextCursor: listNextCursorSchema('tasks').optional(),
   scope: z.string(),
   weekFrom: z.number().int().optional(),
   weekTo: z.number().int().optional(),
@@ -1022,8 +1028,8 @@ const taskToolDefinitions: CapabilityToolDefinition[] = [
     answeredBy: CapabilityAnsweredBy.Record,
     privacyClass: 'workspace_task',
     policyResource: 'tool:task_list',
-    description: "List workspace tasks with optional filters. Use this to answer 'what tasks does X have', 'what is on my plate', or 'show incomplete items this week'. It reads the requester's own tasks unless personHints names other people or scope is all.",
-    version: '4',
+    description: "List workspace tasks with optional filters. Use this to answer 'what tasks does X have', 'what is on my plate', or 'show incomplete items this week'. It reads the requester's own tasks unless personHints names other people or scope is all, most recently changed first. A nextCursor in the result means more tasks match than this page holds: read the next page before concluding that a task is not there.",
+    version: '5',
     estimatedLatency: CapabilityEstimatedLatency.Low,
     inputSchema: taskListInputSchema,
     result: { schema: taskListResultSchema, effects: [] },
@@ -1035,8 +1041,8 @@ const taskToolDefinitions: CapabilityToolDefinition[] = [
     answeredBy: CapabilityAnsweredBy.Record,
     privacyClass: 'workspace_task',
     policyResource: 'tool:task_board_get',
-    description: 'Get one task board week: its visible cards, including undated and overdue carry-over work, with direct-child progress across all weeks. Counts describe this board selection; use task_list for complete history and reports. Uses the same person scope and read permissions as task_list.',
-    version: '1',
+    description: 'Get one task board week: its visible cards, including undated and overdue carry-over work, with direct-child progress across all weeks. Counts describe this board selection; use task_list for complete history and reports. Uses the same person scope and read permissions as task_list. A nextCursor in the result means more cards match than this page holds: read the next page before concluding that a card is not on the board.',
+    version: '2',
     estimatedLatency: CapabilityEstimatedLatency.Low,
     inputSchema: taskBoardInputSchema,
     result: { schema: taskBoardResultSchema, effects: [] },
