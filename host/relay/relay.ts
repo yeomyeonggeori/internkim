@@ -27,7 +27,7 @@ import { Transfers } from './transfers';
 import { PersonPictures, type PictureRequest } from './person-picture';
 import { defaultAnswerByteCeiling, largestRawBytesThatFit } from './answer-size';
 import { positiveNumberSetting } from './settings';
-import { keepHostSession, type HostSession } from './host-session';
+import { confirmStillServing, keepHostSession, NoLongerServes, type HostSession } from './host-session';
 import {
 	answerBodyOf,
 	askAdmind,
@@ -112,7 +112,7 @@ const client = createClient(projectURL, publishableKey, {
 const companyID = hostSession.current().companyID;
 console.log(`acting as the host of company ${companyID}`);
 
-setInterval(() => void keepGoing('session', keepSessionFresh), 60_000);
+setInterval(() => void keepGoing('session', keepServingWithAFreshSession), 60_000);
 setInterval(() => void keepGoing('expiring transfer copies', letExpiredCopiesGo), 60 * 60_000);
 
 
@@ -322,6 +322,7 @@ const dispatch = {
 		browserHandoffs.serve(capability, body, memberID)
 };
 
+await letGoUnlessStillServing();
 gateway = openGatewayConnection();
 
 let credentialKindAsked: Promise<string> | undefined;
@@ -720,6 +721,22 @@ async function letExpiredCopiesGo(): Promise<void> {
 
 async function keepSessionFresh(): Promise<void> {
 	if (await hostSession.keepFresh()) console.log('session renewed');
+}
+
+async function keepServingWithAFreshSession(): Promise<void> {
+	await keepSessionFresh().catch((refusal) => console.error('session renewal failed:', refusal instanceof Error ? refusal.message : refusal));
+	await letGoUnlessStillServing();
+}
+
+async function letGoUnlessStillServing(): Promise<void> {
+	try {
+		await confirmStillServing(() => client.rpc('my_app_box_role'));
+	} catch (refusal) {
+		if (!(refusal instanceof NoLongerServes)) throw refusal;
+		console.error(`${refusal.message}, so the relay lets go of the gateway and stops`);
+		gateway?.close();
+		process.exit(1);
+	}
 }
 
 async function keepGoing(what: string, work: () => Promise<void>): Promise<void> {

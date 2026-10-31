@@ -253,6 +253,25 @@ func TestAServiceBoxMadeAStandbyStopsItsServicesAndTakesOverAgainWhenItServesOnc
 	}
 }
 
+func TestAServiceBoxItsCompanyLetsGoStopsItsServicesBeforeAnnouncing(t *testing.T) {
+	plane := &fakePlane{isClaimed: true, accessToken: "service.session.token"}
+	recorded := &installs{}
+	daemon, places := daemonFor(t, plane, recorded)
+	plane.sealedModelKey = sealTo(t, identityOf(t, places), "sk-or-v1-sample")
+	runSteps(t, daemon, 1)
+	if installedCompanyIn(places.StateDirectoryPath) != sampleCompanyID {
+		t.Fatal("the service box did not install")
+	}
+	stoodDown := 0
+	daemon.StandDown = func() error { stoodDown++; return nil }
+
+	plane.isClaimed = false
+	runSteps(t, daemon, 2)
+	if stoodDown != 1 || installedCompanyIn(places.StateDirectoryPath) != "" {
+		t.Fatalf("stood down %d times; installed %q", stoodDown, installedCompanyIn(places.StateDirectoryPath))
+	}
+}
+
 type serviceSwitches struct{ downs, ups int }
 
 func cutOffServiceBox(t *testing.T, takeOver TakeOverPolicy) (*fakePlane, *installs, Daemon, *time.Time, *serviceSwitches) {
