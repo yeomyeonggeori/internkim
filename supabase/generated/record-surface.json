@@ -474,6 +474,15 @@
       ]
     },
     {
+      "name": "company_served_by_connection_file",
+      "arguments": "served_company uuid",
+      "returns": "boolean",
+      "security": "definer",
+      "callableBy": [
+        "service_role"
+      ]
+    },
+    {
       "name": "company_topic",
       "arguments": "target_company uuid",
       "returns": "text",
