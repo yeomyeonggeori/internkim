@@ -178,8 +178,9 @@
     --layer-panel-popout: 52;
     --layer-alert-overlay: 53;
     --layer-alert: 54;
-    --layer-tooltip: 55;
-    --layer-dragged: 56;
+    --layer-alert-popout: 55;
+    --layer-tooltip: 56;
+    --layer-dragged: 57;
   }
 
   .internkim-app-mobile-navigation {
