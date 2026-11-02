@@ -247,7 +247,7 @@
 	}
 </script>
 
-<div bind:this={scrollContainer} class="h-full max-h-[calc(100vh-12rem)] max-w-full overflow-auto rounded-md border" data-testid="team-status-table">
+<div bind:this={scrollContainer} class="isolate h-full max-h-[calc(100vh-12rem)] max-w-full overflow-auto rounded-md border" data-testid="team-status-table">
 	<div style:min-width={tableWidth} role="table" aria-label={text.teamMonthlyStatusTable}>
 		<div bind:this={headerRow} class="sticky top-0 z-20 grid border-b bg-muted" style:grid-template-columns={gridTemplateColumns} role="row">
 			<div class="sticky left-0 z-30 border-r bg-muted" role="columnheader"></div>
