@@ -104,6 +104,25 @@ test('a day opened from a person month covers that month and steps back to it', 
 	await expect(month).toHaveCount(0);
 });
 
+test.describe('on a phone', () => {
+	test.use({ viewport: { width: 390, height: 844 } });
+
+	test('a day opened from a person month covers the whole month sheet', async ({ page }) => {
+		await signInToAttendance(page);
+		await page.getByTestId('attendance-own-strip').getByRole('button').first().click();
+		const month = page.getByTestId('team-status-grid');
+		await expect(month).toBeVisible();
+		const personSheet = page.locator('[data-slot="sheet-content"]').filter({ has: month });
+		const detail = page.getByTestId('team-status-day-detail-sheet');
+		await page.locator('[data-testid^="team-status-cell-"]').first().click();
+		await expect(detail).toBeVisible();
+		const personBox = await personSheet.boundingBox();
+		await expect
+			.poll(async () => { const box = await detail.boundingBox(); return [box?.x, box?.y, box?.width, box?.height]; })
+			.toEqual([personBox?.x, personBox?.y, personBox?.width, personBox?.height]);
+	});
+});
+
 test('going back from a team employee list returns to the team cards on the same page', async ({ page }) => {
 	await signInToAttendance(page);
 	const attendanceURL = page.url();
