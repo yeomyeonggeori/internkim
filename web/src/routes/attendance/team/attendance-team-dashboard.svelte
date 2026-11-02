@@ -48,6 +48,7 @@
 	import type { UsersResponse } from '$lib/organization/types';
 	import AttendanceMoment from '../shared/attendance-moment.svelte';
 	import { memberStatusOf } from './team-card-status';
+	import { breadcrumbMeta } from '$lib/stores/breadcrumb-meta.svelte';
 
 	const text = createPageText(attendanceText);
 	const teamState = getAttendanceTeamState();
@@ -77,6 +78,7 @@
 	let selectedMember = $state<AttendanceTeamPage['members'][number] | null>(null);
 	let sheetOpen = $state(false);
 	const selectedTeam = $derived(teamState.teams.find((team) => team.teamKey === teamState.selectedTeamKey));
+	const scopeTitle = $derived(selectedTeam ? teamName(selectedTeam) : isCompanyScope ? text.teamWholeCompany : text.teamTodayTitle);
 	const knownLocations = $derived(myAttendanceToday.summary?.locations ?? []);
 
     let todaySummary = $state<AttendanceSummary | null>(null);
@@ -190,6 +192,15 @@
 	$effect(() => {
 		if (teamKeyInHistory() === undefined && untrack(() => teamState.selectedTeamKey) !== '') dismissTeam();
 	});
+
+	$effect(() => {
+		breadcrumbMeta.value = teamState.selectedTeamKey ? scopeTitle : '';
+		breadcrumbMeta.clear = dismissTeam;
+		return () => {
+			breadcrumbMeta.value = '';
+			breadcrumbMeta.clear = undefined;
+		};
+	});
 </script>
 
 <Tooltip.Provider>
@@ -213,7 +224,7 @@
 						<ArrowLeftIcon />{text.teamBack}
 					</Button>
 				{/if}
-				<h2 class="text-xl font-semibold tracking-tight max-sm:text-lg">{selectedTeam ? teamName(selectedTeam) : isCompanyScope ? text.teamWholeCompany : text.teamTodayTitle}</h2>
+				<h2 class="text-xl font-semibold tracking-tight max-sm:text-lg">{scopeTitle}</h2>
 			</div>
 			<div class="flex items-center gap-3"><span class="text-xs text-muted-foreground">{teamState.serverTime ? timeOf(teamState.serverTime) : '—'} 기준</span></div>
 		</div>

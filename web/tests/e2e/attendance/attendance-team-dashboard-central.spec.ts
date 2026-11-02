@@ -140,3 +140,15 @@ test('going back from a team employee list returns to the team cards on the same
 	await expect(page.getByTestId('attendance-team-card')).toHaveCount(3);
 	expect(page.url()).toBe(attendanceURL);
 });
+
+test('the header breadcrumb names the open team and returns to the team cards', async ({ page }) => {
+	await signInToAttendance(page);
+	const crumbs = page.locator('.internkim-app-crumbs');
+	await page.getByTestId('attendance-team-card').filter({ hasText: '개발팀' }).getByRole('button', { name: /모두 보기/ }).click();
+	await expect(page.getByTestId('team-employee-page')).toBeVisible();
+	await expect(crumbs).toContainText('개발팀');
+
+	await crumbs.getByRole('link', { name: '근태' }).click();
+	await expect(page.getByTestId('attendance-team-card')).toHaveCount(3);
+	await expect(crumbs).not.toContainText('개발팀');
+});
