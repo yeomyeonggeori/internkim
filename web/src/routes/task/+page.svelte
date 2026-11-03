@@ -343,7 +343,7 @@
 			</div>
 		{/if}
 
-		<TaskTabRow activeTab={activeTab} labels={text.tabs} disabled={isLoading || !isStateFresh} onSelectTab={selectTab} />
+		<TaskTabRow activeTab={activeTab} labels={text.tabs} disabled={isLoading || (!isStateFresh && !cacheSavedAt)} onSelectTab={selectTab} />
 		{#if pendingTaskID && historyError}
 			<p role="status" class="text-sm text-destructive">{historyError}</p>
 			<button class="text-left text-sm underline" onclick={ensureFullState}>{text.retryHistory}</button>
@@ -399,7 +399,7 @@
 		<div class={activeTab === 'members' ? '' : 'hidden'}>
 			{#if TaskMembersView && summary?.completeness === 'full' && summary.week.code === selectedWeek}
 				<div aria-busy={isRefreshing || isHistoryLoading}>
-					<TaskMembersView members={members()} text={text.members} isLoading={isLoading || isRefreshing || isHistoryLoading} hasLoadError={Boolean(errorMessage || historyError) || !isStateFresh} />
+					<TaskMembersView members={members()} text={text.members} isLoading={isLoading || isRefreshing || isHistoryLoading} hasLoadError={Boolean(errorMessage || historyError) || (!isStateFresh && !cacheSavedAt)} />
 				</div>
 			{/if}
 			{#if activeTab === 'members'}
