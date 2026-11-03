@@ -5,6 +5,7 @@ export type ArrivedMessage = {
 	authorName: string;
 	recipientExternalIDs: string[];
 	preview: string;
+	attachmentKinds: string[];
 };
 
 export type Told = {
@@ -30,7 +31,8 @@ export function readArrivedMessage(offered: unknown): ArrivedMessage | null {
 		authorExternalID,
 		authorName: text(held.authorName),
 		recipientExternalIDs: externalIDs(held.recipientExternalIDs, authorExternalID),
-		preview: text(held.preview).slice(0, previewLimit)
+		preview: text(held.preview).slice(0, previewLimit),
+		attachmentKinds: words(held.attachmentKinds)
 	};
 }
 
@@ -43,6 +45,7 @@ export type NotifyRequest = Told & {
 	messageID: string;
 	withdrawnMessageIDs: string[];
 	senderPicturePath: string;
+	attachmentKinds: string[];
 };
 
 export function tellingOf(arrived: ArrivedMessage, authorName: string): Told {
@@ -75,12 +78,18 @@ export function notifyRequestOf(
 		messageID: arrived.messageID,
 		withdrawnMessageIDs,
 		senderPicturePath,
+		attachmentKinds: arrived.attachmentKinds,
 		...tellingOf(arrived, authorName)
 	};
 }
 
 function text(offered: unknown): string {
 	return typeof offered === 'string' ? offered.trim() : '';
+}
+
+function words(offered: unknown): string[] {
+	if (!Array.isArray(offered)) return [];
+	return offered.filter((entry): entry is string => typeof entry === 'string' && entry.trim() !== '');
 }
 
 export function externalIDs(offered: unknown, author: string): string[] {
