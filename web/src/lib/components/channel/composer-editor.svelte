@@ -5,6 +5,7 @@
 <script lang="ts">
 	import { Editor } from '@tiptap/core';
 	import StarterKit from '@tiptap/starter-kit';
+	import Link from '@tiptap/extension-link';
 	import { MarkdownManager } from '@tiptap/markdown';
 	import { onDestroy, onMount } from 'svelte';
 	import {
@@ -53,7 +54,10 @@
 	const hardBreakCharacter = '\n';
 	const editorClass = 'markdown min-h-16 w-full px-2.5 py-2 text-base outline-none md:text-sm';
 
-	const extensions = [StarterKit.configure({ heading: false, horizontalRule: false, underline: false })];
+	const extensions = [
+		StarterKit.configure({ heading: false, horizontalRule: false, underline: false, link: false }),
+		Link.extend({ inclusive: false })
+	];
 	const markdownParser = new MarkdownManager({ extensions });
 
 	let element = $state<HTMLDivElement | null>(null);

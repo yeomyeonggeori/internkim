@@ -88,6 +88,21 @@ test.describe('messenger composer toolbar', () => {
 		await expect(bold).toBeHidden();
 	});
 
+	test('words typed right after a pasted address stay plain text', async ({ page }) => {
+		const composer = page.getByRole('combobox', { name: /메시지/ });
+		await composer.click();
+		await composer.evaluate((element) => {
+			const clipboardData = new DataTransfer();
+			clipboardData.setData('text/plain', 'https://example.com');
+			element.dispatchEvent(new ClipboardEvent('paste', { bubbles: true, cancelable: true, clipboardData }));
+		});
+		await expect(composer.locator('a')).toHaveText('https://example.com');
+
+		await composer.pressSequentially('뒤에 쓴 글');
+		await expect(composer.locator('a')).toHaveText('https://example.com');
+		await expect(composer).toHaveText('https://example.com뒤에 쓴 글');
+	});
+
 	test('the emoji button puts the chosen emoji at the cursor', async ({ page }) => {
 		const composer = page.getByRole('combobox', { name: /메시지/ });
 		await composer.fill('좋아요');
