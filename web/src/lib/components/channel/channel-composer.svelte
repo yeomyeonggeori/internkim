@@ -245,6 +245,7 @@
 			placeholder={disabled ? text.composerDisabledPlaceholder : placeholder}
 			ariaAttributes={editorAriaAttributes}
 			{disabled}
+			acceptsDrop={!typesOnTouchKeyboard.current}
 			onKeydown={handleKeydown}
 			onInput={handleInput}
 			onSelectionChange={handleSelectionChange}

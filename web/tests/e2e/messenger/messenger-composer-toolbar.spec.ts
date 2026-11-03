@@ -1,5 +1,22 @@
-import { expect, test } from '@playwright/test';
+import { expect, test, type Locator } from '@playwright/test';
 import { mockDeviceMessenger } from './messenger-device-mock';
+
+async function dropTextOnto(composer: Locator, dropped: string): Promise<void> {
+	await composer.evaluate((element, text) => {
+		const box = element.getBoundingClientRect();
+		const dataTransfer = new DataTransfer();
+		dataTransfer.setData('text/plain', text);
+		element.dispatchEvent(
+			new DragEvent('drop', {
+				bubbles: true,
+				cancelable: true,
+				dataTransfer,
+				clientX: box.left + 8,
+				clientY: box.top + box.height / 2
+			})
+		);
+	}, dropped);
+}
 
 const channelID = 'channel-composer';
 const reader = { id: 'person-reader', email: 'reader@example.com' };
@@ -86,6 +103,12 @@ test.describe('messenger composer toolbar', () => {
 
 		await page.getByRole('button', { name: '서식 숨기기' }).click();
 		await expect(bold).toBeHidden();
+	});
+
+	test('text dragged onto the composer is written into it', async ({ page }) => {
+		const composer = page.getByRole('combobox', { name: /메시지/ });
+		await dropTextOnto(composer, '끌어온 글');
+		await expect(composer).toHaveText('끌어온 글');
 	});
 
 	test('words typed right after a pasted address stay plain text', async ({ page }) => {
@@ -189,6 +212,12 @@ test.describe('messenger composer on a touch keyboard', () => {
 
 		await page.getByRole('button', { name: '보내기' }).tap();
 		await expect.poll(() => sent).toEqual(['첫 줄\n둘째 줄']);
+	});
+
+	test('text dragged onto the composer is not written into it', async ({ page }) => {
+		const composer = page.getByRole('combobox', { name: /메시지/ });
+		await dropTextOnto(composer, '끌어온 글');
+		await expect(composer).toHaveText('');
 	});
 
 	test('the composer grows to four lines and scrolls inside after that', async ({ page }) => {
