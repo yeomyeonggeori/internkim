@@ -294,3 +294,50 @@ async function selectText(composer: Locator, start: number, end: number): Promis
 		document.dispatchEvent(new Event('selectionchange'));
 	}, { start, end });
 }
+
+test.describe('the keyboard on a touch screen', () => {
+	test.use({ hasTouch: true });
+
+	const thread = (page: Page) => page.getByRole('region', { name: '글타래' });
+	const composerHasFocus = (page: Page) =>
+		page.evaluate(() => document.activeElement?.getAttribute('aria-label') === '메시지를 입력하세요');
+
+	test('a message tapped while typing closes the keyboard instead of opening its thread', async ({ page }) => {
+		await openConversation(page, 390);
+		await page.getByRole('combobox', { name: '메시지를 입력하세요' }).focus();
+		expect(await composerHasFocus(page)).toBe(true);
+
+		await page.getByText(conversationMessage, { exact: true }).tap();
+
+		expect(await composerHasFocus(page)).toBe(false);
+		await expect(thread(page)).toHaveCount(0);
+
+		await page.getByText(conversationMessage, { exact: true }).tap();
+
+		await expect(thread(page)).toBeVisible();
+	});
+
+	test('dragging the conversation back toward older messages closes the keyboard', async ({ page }) => {
+		await openConversation(page, 390);
+		await page.getByRole('combobox', { name: '메시지를 입력하세요' }).focus();
+
+		await dragConversation(page, [300, 320]);
+		expect(await composerHasFocus(page)).toBe(true);
+
+		await dragConversation(page, [300, 360]);
+		expect(await composerHasFocus(page)).toBe(false);
+	});
+});
+
+async function dragConversation(page: Page, clientYs: number[]) {
+	await page.getByText(conversationMessage, { exact: true }).evaluate((message, path) => {
+		let scroller: Element | null = message;
+		while (scroller && getComputedStyle(scroller).overflowY !== 'auto') scroller = scroller.parentElement;
+		if (!scroller) throw new Error('the message is not inside a scrolling conversation');
+		const target = scroller;
+		const at = (clientY: number) => [new Touch({ identifier: 1, target, clientX: 100, clientY })];
+		const [start, ...moves] = path;
+		target.dispatchEvent(new TouchEvent('touchstart', { touches: at(start), bubbles: true }));
+		for (const clientY of moves) target.dispatchEvent(new TouchEvent('touchmove', { touches: at(clientY), bubbles: true }));
+	}, clientYs);
+}
