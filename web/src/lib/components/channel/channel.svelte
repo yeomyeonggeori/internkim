@@ -88,6 +88,7 @@
 	import { isSupabaseConfigured } from '$lib/supabase';
 	import { onDestroy, onMount, tick, untrack } from 'svelte';
 	import { loadHistoryUntilHeld, revealMessageElement } from './message-reveal';
+	import { dismissKeyboardOnScrollBack } from './keyboard-dismissal';
 
 	let {
 		isActive = true,
@@ -926,6 +927,7 @@
 		<div
 			bind:this={threadScroller}
 			onscroll={handleThreadScroll}
+			use:dismissKeyboardOnScrollBack
 			class="@container/conversation flex min-h-0 flex-1 flex-col-reverse gap-4 [&>:first-child]:mb-auto overflow-y-auto px-4 py-8"
 		>
 			{#if openThreadRoot}
@@ -997,6 +999,7 @@
 				<div
 					bind:this={scrollContainer}
 					onscroll={handleViewportScroll}
+					use:dismissKeyboardOnScrollBack
 					use:chooseMessageOnClick={{ enabled: capture.isCapturing, onChoose: capture.choose }}
 					class="@container/conversation isolate flex min-h-0 flex-1 flex-col-reverse gap-4 [&>:first-child]:mb-auto overflow-x-hidden overflow-y-auto overscroll-y-none px-4 pt-12 pb-[calc(var(--dock-height)+2.5rem)] [scrollbar-gutter:stable]"
 				>
