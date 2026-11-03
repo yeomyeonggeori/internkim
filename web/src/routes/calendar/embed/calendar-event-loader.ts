@@ -12,10 +12,12 @@ import {
 	fetchCalendarHolidays,
 	type CalendarHolidayLocale
 } from './calendar-holiday-persistence';
+import { forgetStoredCalendarRanges, readStoredCalendarRange, storeCalendarRange } from './calendar-range-cache';
 
 type CalendarEventLoaderContext = {
 	isBrowser: () => boolean;
 	getLocale: () => CalendarHolidayLocale;
+	getCacheScope?: () => string;
 	errorFallback: () => string;
 	holidayErrorFallback: () => string;
 	getCalendarEvents: () => DayTaskEvent[];
@@ -67,7 +69,10 @@ export function createCalendarEventLoader(
 		isLoadPending = true;
 		visibleRange = { startDate, endDate };
 		const rangeKey = `${startDate.getTime()}:${endDate.getTime()}`;
-		context.setIsInitialLoading?.(!loadedRanges.has(rangeKey));
+		const cacheScope = context.getCacheScope?.() ?? '';
+		const cacheKey = `${rangeKey}:${context.getLocale()}`;
+		const hasShownStoredRange = !loadedRanges.has(rangeKey) && showStoredRange(cacheScope, cacheKey, startDate, endDate);
+		context.setIsInitialLoading?.(!loadedRanges.has(rangeKey) && !hasShownStoredRange);
 		context.setIsLoading(true);
 		context.setErrorMessage('');
 		let timeZone: Promise<string> | undefined;
@@ -82,6 +87,7 @@ export function createCalendarEventLoader(
 				? dependencies.fetchEvents(startDate, endDate)
 				: fetchCalendarEvents(startDate, endDate, sharedTimeZone()));
 			if (requestID !== loadEventsRequestID) return;
+			storeCalendarRange(cacheScope, cacheKey, { events: calendarEvents });
 			const events = mergePreservedLocalEvents(calendarEvents.map(dayTaskEventFromCalendarEvent));
 			const existingEvents = context.getVisibleEvents();
 			const mergedEvents = uniqueEventsByID([
@@ -96,6 +102,7 @@ export function createCalendarEventLoader(
 			context.afterRenderEvents?.(events);
 			const holidayResult = await holidays;
 			if (holidayRequestID !== loadHolidaysRequestID) return;
+			if (!holidayResult.error) storeCalendarRange(cacheScope, cacheKey, { holidays: holidayResult.holidays });
 			const holidayEvents = holidayResult.holidays.map(dayTaskEventFromCalendarHoliday);
 			const currentEvents = context.getVisibleEvents();
 			if (holidayEvents.length > 0 || currentEvents.some((event) => holidayInRange(event, startDate, endDate))) {
@@ -113,6 +120,7 @@ export function createCalendarEventLoader(
 			if (requestID !== loadEventsRequestID) return;
 			if (error instanceof ToolRefused && [401, 403].includes(error.status)) {
 				loadedRanges.clear();
+				forgetStoredCalendarRanges();
 				publishEvents([]);
 			}
 			context.setErrorMessage(error instanceof Error ? error.message : context.errorFallback());
@@ -122,6 +130,18 @@ export function createCalendarEventLoader(
 			context.setIsLoading(false);
 			context.setIsInitialLoading?.(false);
 		}
+	}
+
+	function showStoredRange(cacheScope: string, cacheKey: string, startDate: Date, endDate: Date): boolean {
+		const stored = readStoredCalendarRange(cacheScope, cacheKey);
+		if (!stored) return false;
+		const existingEvents = context.getVisibleEvents();
+		publishEvents(uniqueEventsByID([
+			...eventsOutsideRange(existingEvents, startDate, endDate),
+			...mergePreservedLocalEvents(stored.events.map(dayTaskEventFromCalendarEvent)),
+			...stored.holidays.map(dayTaskEventFromCalendarHoliday)
+		]));
+		return true;
 	}
 
 	function publishEvents(events: DayTaskEvent[]): void {
