@@ -22,6 +22,7 @@
 		activeFormats = $bindable([]),
 		placeholder,
 		disabled,
+		acceptsDrop,
 		ariaAttributes,
 		onKeydown,
 		onInput,
@@ -33,6 +34,7 @@
 		activeFormats?: ComposerFormat[];
 		placeholder: string;
 		disabled: boolean;
+		acceptsDrop: boolean;
 		ariaAttributes: Record<string, string>;
 		onKeydown: (event: KeyboardEvent) => boolean;
 		onInput: () => void;
@@ -147,7 +149,8 @@
 			editorProps: {
 				attributes: { ...ariaAttributes, class: editorClass, 'aria-multiline': 'true' },
 				handleKeyDown: (_view, event) => handleKeyDown(event),
-				handlePaste: (_view, event) => handlePaste(event)
+				handlePaste: (_view, event) => handlePaste(event),
+				handleDrop: () => !acceptsDrop
 			},
 			onUpdate: ({ editor: current }) => emit(current),
 			onSelectionUpdate: () => onSelectionChange(),
