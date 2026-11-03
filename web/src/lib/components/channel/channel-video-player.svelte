@@ -6,6 +6,7 @@
 	import Maximize2Icon from '@lucide/svelte/icons/maximize-2';
 	import { channelText } from '$lib/i18n/channel-text';
 	import { createPageText } from '$lib/i18n/page-text.svelte';
+	import { videoPlaybackHandoff } from './video-playback-handoff';
 
 	let {
 		source,
@@ -37,6 +38,7 @@
 		controls
 		preload="metadata"
 		playsinline
+		use:videoPlaybackHandoff={source}
 		style:aspect-ratio={aspectRatio}
 		class={variant === 'message' ? 'size-full object-contain' : 'max-h-[calc(100dvh-10rem)] size-full rounded-md bg-black object-contain'}
 	></video>
