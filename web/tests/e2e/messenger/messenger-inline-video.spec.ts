@@ -86,6 +86,28 @@ test.describe('messenger inline video', () => {
 		await player.locator('video').click();
 		await expect.poll(() => playbackSecondsOf(player)).toBeGreaterThan(0);
 	});
+
+	test('playback carries over between the message and the viewer', async ({ page }) => {
+		const messagePlayer = page.locator('[data-video-player="message"]');
+		const messageVideo = messagePlayer.locator('video');
+		await expect.poll(() => messageVideo.evaluate((element: HTMLVideoElement) => element.duration)).toBeGreaterThan(3);
+		await messageVideo.evaluate((element: HTMLVideoElement) => {
+			element.currentTime = 2;
+			return element.play();
+		});
+
+		await page.getByRole('button', { name: '영상 크게 보기' }).click();
+		const viewerPlayer = page.getByRole('dialog').locator('[data-video-player="viewer"]');
+		await expect.poll(() => playbackSecondsOf(viewerPlayer)).toBeGreaterThan(2);
+		await expect.poll(() => messageVideo.evaluate((element: HTMLVideoElement) => element.paused)).toBe(true);
+		await expect.poll(() => viewerPlayer.locator('video').evaluate((element: HTMLVideoElement) => element.paused)).toBe(false);
+
+		const viewerSeconds = await playbackSecondsOf(viewerPlayer);
+		await page.keyboard.press('Escape');
+		await expect(page.getByRole('dialog')).toHaveCount(0);
+		await expect.poll(() => playbackSecondsOf(messagePlayer)).toBeGreaterThanOrEqual(viewerSeconds);
+		await expect.poll(() => messageVideo.evaluate((element: HTMLVideoElement) => element.paused)).toBe(false);
+	});
 });
 
 test('arrow keys on a focused video in the viewer stay with the video', async ({ page }) => {
