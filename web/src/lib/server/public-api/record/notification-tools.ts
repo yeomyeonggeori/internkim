@@ -1,16 +1,22 @@
 import { RecordRefusedTheWrite, statusOfPostgresCode } from './tasks';
 import {
+	attendanceReachFromStored,
 	categoriesChoosableBy,
 	choicesFromStored,
+	isAttendanceReach,
 	isNotificationCategory,
-	storedFromChoices,
-	type NotificationChoices
+	storedFromChoices
 } from './notifications';
 import type { RecordContext } from './company';
-import { notificationCategories, notificationSettingsResultSchema, type NotificationCategory } from '../catalog/notifications';
+import {
+	notificationCategories,
+	notificationSettingsResultSchema,
+	type AttendanceReach,
+	type NotificationCategory
+} from '../catalog/notifications';
 import type { ConversationMuteResult, NotificationSettingsResult } from '../catalog/notifications';
 
-export type NotificationSettingsSetInput = { turnOn?: string[]; turnOff?: string[] };
+export type NotificationSettingsSetInput = { turnOn?: string[]; turnOff?: string[]; attendanceReach?: string };
 
 export type ConversationMuteInput = { conversationID?: string };
 
@@ -18,10 +24,10 @@ function requesterAdministers(context: RecordContext): boolean {
 	return context.people.find((person) => person.personID === context.requesterID)?.isAdmin === true;
 }
 
-async function storedChoices(context: RecordContext): Promise<NotificationChoices> {
+async function storedSettings(context: RecordContext): Promise<unknown> {
 	const { data, error } = await context.caller.rpc('my_notification_settings');
 	if (error) throw new Error(error.message);
-	return choicesFromStored(data);
+	return data;
 }
 
 async function mutedConversationIDs(context: RecordContext): Promise<string[]> {
@@ -31,7 +37,8 @@ async function mutedConversationIDs(context: RecordContext): Promise<string[]> {
 }
 
 async function settingsAnswered(context: RecordContext): Promise<NotificationSettingsResult> {
-	const chosen = await storedChoices(context);
+	const stored = await storedSettings(context);
+	const chosen = choicesFromStored(stored);
 	const choosable = categoriesChoosableBy(requesterAdministers(context));
 	return {
 		categories: notificationCategories.map((category) => ({
@@ -39,6 +46,7 @@ async function settingsAnswered(context: RecordContext): Promise<NotificationSet
 			isOn: chosen[category],
 			isChoosable: choosable.includes(category)
 		})),
+		attendanceReach: attendanceReachFromStored(stored),
 		mutedConversationIDs: await mutedConversationIDs(context)
 	};
 }
@@ -68,23 +76,38 @@ function categoryAsked(named: string, choosable: NotificationCategory[]): Notifi
 	return category;
 }
 
+function reachAsked(named: string): AttendanceReach {
+	const reach = named.trim();
+	if (!isAttendanceReach(reach)) {
+		throw new RecordRefusedTheWrite(
+			`${reach || 'a reach with no name'} is not a reach attendance notices have`,
+			400,
+			'no_such_attendance_reach'
+		);
+	}
+	return reach;
+}
+
 export async function notificationSettingsSet(
 	context: RecordContext,
 	input: NotificationSettingsSetInput
 ): Promise<NotificationSettingsResult> {
 	const turnOn = input.turnOn ?? [];
 	const turnOff = input.turnOff ?? [];
-	if (turnOn.length === 0 && turnOff.length === 0) {
-		throw new Error('a notification change names at least one category to turn on or off');
+	if (turnOn.length === 0 && turnOff.length === 0 && input.attendanceReach === undefined) {
+		throw new Error('a notification change names at least one category to turn on or off, or an attendance reach');
 	}
 
 	const choosable = categoriesChoosableBy(requesterAdministers(context));
-	const chosen = await storedChoices(context);
+	const stored = await storedSettings(context);
+	const chosen = choicesFromStored(stored);
 	for (const named of turnOn) chosen[categoryAsked(named, choosable)] = true;
 	for (const named of turnOff) chosen[categoryAsked(named, choosable)] = false;
+	const attendanceReach =
+		input.attendanceReach === undefined ? attendanceReachFromStored(stored) : reachAsked(input.attendanceReach);
 
 	const { error } = await context.caller.rpc('notification_settings_set', {
-		chosen: storedFromChoices(chosen)
+		chosen: storedFromChoices(chosen, attendanceReach)
 	});
 	if (error) throw new RecordRefusedTheWrite(error.message, statusOfPostgresCode(error.code));
 	return settingsAnswered(context);
