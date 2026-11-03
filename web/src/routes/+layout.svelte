@@ -42,6 +42,7 @@
 	import { keepWidgetSupplied } from '$lib/widget/attendance-widget-supply';
 	import { keepActivityTokensClaimed } from '$lib/widget/attendance-activity-tokens';
 	import { catchTheLockScreenUp } from '$lib/attendance/lock-screen-catch-up';
+	import { tellWhenTheWidgetCannotFollow } from '$lib/attendance/background-refresh-notice';
 	import { setPersonNameCompanyLocale } from '$lib/person-name.svelte';
 	import RefreshCwIcon from '@lucide/svelte/icons/refresh-cw';
 	import SearchIcon from '@lucide/svelte/icons/search';
@@ -97,6 +98,7 @@
 				console.warn('the lock screen is not following attendance', failure)
 			);
 			catchTheLockScreenUp();
+			tellWhenTheWidgetCannotFollow();
 		});
 	});
 	onMount(markDocumentHydrated);
