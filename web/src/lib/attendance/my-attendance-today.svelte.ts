@@ -6,6 +6,7 @@ import { createPageText } from '$lib/i18n/page-text.svelte';
 import { attendanceText } from '../../routes/attendance/text';
 import { addAttendanceEvent, toggleAttendanceOnServer } from '../../routes/attendance/attendance-api';
 import { supabaseCurrentAttendance } from './supabase-current-attendance';
+import { forgetStoredAttendanceToday, readStoredAttendanceToday, storeAttendanceToday } from './my-attendance-today-cache';
 import { ToolRefused } from '$lib/public-api-call';
 import { attendanceEventFromClock } from './supabase-attendance';
 import type { AttendanceWriteEvent } from './attendance-write';
@@ -30,6 +31,8 @@ class MyAttendanceToday {
 	isMenuOpen = $state(false);
 	isSubmitting = $state(false);
 	isLoading = $state(false);
+	isShowingStored = $state(false);
+	private storageScope = '';
 	private clockEventHandler: ((event: AttendanceWriteEvent) => void) | undefined;
 	private clockMutationHandler: (() => void) | undefined;
 	private clockMutationSequence = 0;
@@ -81,7 +84,21 @@ class MyAttendanceToday {
 		this.clockFailure = '';
 		this.isSubmitting = false;
 		this.isLoading = false;
+		this.isShowingStored = false;
+		this.storageScope = '';
 		this.loadedAt = Number.NEGATIVE_INFINITY;
+	};
+
+	showStored = (scope: string): void => {
+		this.storageScope = scope;
+		if (this.summary) return;
+		const stored = readStoredAttendanceToday(scope);
+		const storedServerTime = Date.parse(stored?.summary.serverTime ?? '');
+		if (!stored || !Number.isFinite(storedServerTime)) return;
+		const serverTimeNow = storedServerTime + Date.now() - stored.savedAt;
+		this.summary = { ...stored.summary, serverTime: new Date(serverTimeNow).toISOString() };
+		this.loadedAt = performance.now();
+		this.isShowingStored = true;
 	};
 
 	refresh = (): Promise<AttendanceSummary | null> => {
@@ -129,10 +146,16 @@ class MyAttendanceToday {
 			this.summary = summary;
 			this.loadedAt = performance.now();
 			this.hasFreshRead = true;
+			this.isShowingStored = false;
 			this.loadFailure = '';
+			storeAttendanceToday(this.storageScope, summary);
 		} catch (failure) {
 			if (loadSequence !== this.clockMutationSequence) return this.summary;
-			if (failure instanceof ToolRefused && [401, 403].includes(failure.status)) this.summary = null;
+			if (failure instanceof ToolRefused && [401, 403].includes(failure.status)) {
+				this.summary = null;
+				this.isShowingStored = false;
+				forgetStoredAttendanceToday();
+			}
 			this.hasFreshRead = false;
 			this.loadFailure = failure instanceof Error ? failure.message : String(failure);
 		} finally {
@@ -142,7 +165,7 @@ class MyAttendanceToday {
 	};
 
 	clock = async (kind: AttendanceKind, locationID: string, confirmedEarlyReturn = false) => {
-		if (this.isSubmitting) return;
+		if (this.isSubmitting || this.isShowingStored) return;
 		const authorityGeneration = this.authorityGeneration;
 		this.isSubmitting = true;
 		this.clockFailure = '';
@@ -190,7 +213,7 @@ class MyAttendanceToday {
 	// clock-in until it lands.
 	closeAndClockIn = async (clockOutTime: string, locationID: string) => {
 		const stillOpen = this.clockInNobodyClosed;
-		if (!stillOpen || this.isSubmitting) return;
+		if (!stillOpen || this.isSubmitting || this.isShowingStored) return;
 		const authorityGeneration = this.authorityGeneration;
 		this.isSubmitting = true;
 		this.clockFailure = '';

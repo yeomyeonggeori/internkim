@@ -191,7 +191,7 @@
 		{/if}
 
 		{#if showLocationPicker}
-			<Select.Root type="single" bind:value={selectedLocationID} disabled={isToggling}>
+			<Select.Root type="single" bind:value={selectedLocationID} disabled={isToggling || myAttendanceToday.isShowingStored}>
 				<Select.Trigger size="sm" class="w-full text-xs">
 					{locations.find((location) => location.id === selectedLocationID)?.name ?? text.location}
 				</Select.Trigger>
@@ -205,7 +205,7 @@
 
 		{#if nextKind === 'clock_out'}
 			<AlertDialog.Root>
-				<AlertDialog.Trigger class={cn(buttonVariants({ variant: 'outline' }), 'w-full')} disabled={isToggling}>
+				<AlertDialog.Trigger class={cn(buttonVariants({ variant: 'outline' }), 'w-full')} disabled={isToggling || myAttendanceToday.isShowingStored}>
 					{#if isToggling}
 						<LoaderIcon class="size-3.5 animate-spin" />
 					{:else}
@@ -228,7 +228,7 @@
 			</AlertDialog.Root>
 		{:else if activeLeave}
 			<AlertDialog.Root>
-				<AlertDialog.Trigger class={cn(buttonVariants(), 'w-full')} disabled={isToggling}>
+				<AlertDialog.Trigger class={cn(buttonVariants(), 'w-full')} disabled={isToggling || myAttendanceToday.isShowingStored}>
 					{#if isToggling}
 						<LoaderIcon class="size-3.5 animate-spin" />
 					{:else}
@@ -256,7 +256,7 @@
 			</AlertDialog.Root>
 		{:else if stillOpen}
 			<AlertDialog.Root bind:open={isCloseOpen}>
-				<AlertDialog.Trigger class={cn(buttonVariants(), 'w-full')} disabled={isToggling}>
+				<AlertDialog.Trigger class={cn(buttonVariants(), 'w-full')} disabled={isToggling || myAttendanceToday.isShowingStored}>
 					{#if isToggling}
 						<LoaderIcon class="size-3.5 animate-spin" />
 					{:else}
@@ -292,7 +292,7 @@
 				</AlertDialog.Content>
 			</AlertDialog.Root>
 		{:else}
-			<Button class="w-full" onclick={() => handleToggle()} disabled={isToggling}>
+			<Button class="w-full" onclick={() => handleToggle()} disabled={isToggling || myAttendanceToday.isShowingStored}>
 				{#if isToggling}
 					<LoaderIcon class="size-3.5 animate-spin" />
 				{:else}
