@@ -49,14 +49,14 @@ export function tellingOf(arrived: ArrivedMessage, authorName: string): Told {
 	return {
 		title: authorName || 'internkim',
 		body: arrived.preview,
-		openPath: conversationPathOf(arrived.conversationID),
+		openPath: messagePathOf(arrived),
 		tag: `message:${arrived.conversationID}`
 	};
 }
 
-function conversationPathOf(conversationID: string): string {
-	if (!conversationID) return '/messenger/';
-	return `/messenger/?channel=${encodeURIComponent(conversationID)}`;
+function messagePathOf(arrived: ArrivedMessage): string {
+	if (!arrived.conversationID) return '/messenger/';
+	return `/messenger/?channel=${encodeURIComponent(arrived.conversationID)}&message=${encodeURIComponent(arrived.messageID)}`;
 }
 
 export function notifyRequestOf(
