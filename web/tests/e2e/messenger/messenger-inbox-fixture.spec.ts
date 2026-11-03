@@ -197,6 +197,24 @@ test('on a phone the inbox fills the screen until an entry is chosen', async ({ 
 	await expect(page.getByText('감사합니다').first()).toBeVisible();
 });
 
+test('on a phone a mention in a channel opens in the channel among its neighbours', async ({ page }) => {
+	await openMessenger(page, 390);
+
+	await inboxPanel(page).locator('[data-inbox-entry="mention-1"]').click();
+
+	await expect(page.getByText('@이샘플 확인 부탁드려요')).toBeVisible();
+	await expect(page.getByText('배포 일정 공유드려요')).toBeVisible();
+	await expect(page.getByRole('region', { name: '글타래' })).toHaveCount(0);
+});
+
+test('on a phone a thread reply still opens its thread', async ({ page }) => {
+	await openMessenger(page, 390);
+
+	await inboxPanel(page).locator('[data-inbox-entry="reply-1"]').click();
+
+	await expect(page.getByRole('region', { name: '글타래' }).getByText('로그인 화면 고쳤어요')).toBeVisible();
+});
+
 test('on a phone the conversation behind the inbox is not marked read', async ({ page }) => {
 	const fixture = await openMessenger(page, 390);
 	await expect(inboxPanel(page).locator('[data-inbox-entry]')).toHaveCount(3);
