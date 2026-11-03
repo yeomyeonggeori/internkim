@@ -1094,6 +1094,9 @@
 		<Sheet.Content
 			side="right"
 			class="flex w-full flex-col gap-0 p-0 sm:max-w-md"
+			onInteractOutside={(event) => {
+				if (event.target instanceof Element && event.target.closest('[data-channel-lightbox]')) event.preventDefault();
+			}}
 			onEscapeKeydown={(event) => {
 				if (lightbox) {
 					event.preventDefault();
