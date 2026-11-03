@@ -15,6 +15,7 @@
 	} from './composer-formatting';
 	import { composerDocumentOf, markdownOfComposer } from './composer-markdown';
 	import type { WrittenMention } from '$lib/messenger/mention-draft';
+	import { feelHaptic } from '$lib/native-shell/haptics';
 	import { filesToAttachFromClipboard } from './clipboard-files';
 
 	let {
@@ -150,7 +151,8 @@
 				attributes: { ...ariaAttributes, class: editorClass, 'aria-multiline': 'true' },
 				handleKeyDown: (_view, event) => handleKeyDown(event),
 				handlePaste: (_view, event) => handlePaste(event),
-				handleDrop: () => !acceptsDrop
+				handleDrop: () => !acceptsDrop,
+				handleDOMEvents: { pointerdown: (_view, event) => feelTap(event) }
 			},
 			onUpdate: ({ editor: current }) => emit(current),
 			onSelectionUpdate: () => onSelectionChange(),
@@ -168,6 +170,11 @@
 	}
 
 	onDestroy(() => editor?.destroy());
+
+	function feelTap(event: PointerEvent): false {
+		if (event.pointerType === 'touch' && !disabled) feelHaptic('touch');
+		return false;
+	}
 
 	$effect(() => {
 		if (!editor || value === emittedValue) return;
