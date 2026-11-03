@@ -126,7 +126,7 @@
 			bringBackHiddenConversation(entry.conversationID);
 		}
 		await tick();
-		await channelView?.revealMessage(entry.id, inboxThreadRootOf(entry, conversationOf(entry.conversationID)));
+		await channelView?.revealMessage(entry.id, inboxThreadRootOf(entry, conversationOf(entry.conversationID), !isMobile.current));
 	}
 
 	async function leaveInboxForChosenPlace() {
@@ -135,7 +135,7 @@
 		isInboxOpen = false;
 		chosenInboxEntryID = undefined;
 		await tick();
-		await channelView?.revealMessage(entry.id, inboxThreadRootOf(entry, conversationOf(entry.conversationID)));
+		await channelView?.revealMessage(entry.id, inboxThreadRootOf(entry, conversationOf(entry.conversationID), true));
 	}
 
 	function conversationOf(conversationID: string): ChannelSummary | undefined {
