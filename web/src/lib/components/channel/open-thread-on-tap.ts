@@ -1,3 +1,4 @@
+import { typingElementOutside } from './keyboard-dismissal';
 import { swipeDecisionPixels } from './swipe-to-reply';
 
 export type OpenThreadOnTapOptions = {
@@ -28,11 +29,13 @@ export function openThreadOnTap(
 	let startClientX = 0;
 	let startClientY = 0;
 	let hasTravelled = false;
+	let keyboardToClose: HTMLElement | null = null;
 
 	const handlePointerDown = (event: PointerEvent): void => {
 		startClientX = event.clientX;
 		startClientY = event.clientY;
 		hasTravelled = false;
+		keyboardToClose = event.pointerType === 'touch' ? typingElementOutside(node) : null;
 	};
 
 	const handlePointerMove = (event: PointerEvent): void => {
@@ -43,6 +46,11 @@ export function openThreadOnTap(
 	const handleClick = (event: MouseEvent): void => {
 		if (options.disabled || event.defaultPrevented || hasTravelled) return;
 		if (hasItsOwnAction(event.target, node) || hasSelectedTextInside(node)) return;
+		if (keyboardToClose) {
+			keyboardToClose.blur();
+			keyboardToClose = null;
+			return;
+		}
 		options.onOpen();
 	};
 
