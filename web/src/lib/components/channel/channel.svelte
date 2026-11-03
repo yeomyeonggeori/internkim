@@ -424,14 +424,23 @@
 		threadScroller?.scrollTo({ top: 0, behavior: 'smooth' });
 	}
 
-	export async function revealMessage(messageID: string, threadRootID?: string): Promise<boolean> {
-		const timelineID = threadRootID ?? messageID;
-		const held = await loadHistoryUntilHeld({
-			holds: () => messages.some((message) => message.id === timelineID),
+	function loadHistoryHolding(messageID: string): Promise<boolean> {
+		return loadHistoryUntilHeld({
+			holds: () => messages.some((message) => message.id === messageID),
 			hasMore: () => hasMoreBefore,
 			isLoading: () => isLoadingOlder || (!hasLoadedOnce && !loadFailed && !isDestroyed),
 			loadOlder: loadOlderMessages
 		});
+	}
+
+	export async function revealMessageInItsThread(messageID: string): Promise<boolean> {
+		if (!(await loadHistoryHolding(messageID))) return false;
+		return revealMessage(messageID, messages.find((message) => message.id === messageID)?.threadRootId);
+	}
+
+	export async function revealMessage(messageID: string, threadRootID?: string): Promise<boolean> {
+		const timelineID = threadRootID ?? messageID;
+		const held = await loadHistoryHolding(timelineID);
 		if (!held || !scrollContainer) return false;
 		await tick();
 		const revealedInTimeline = revealMessageElement(scrollContainer, timelineID);
