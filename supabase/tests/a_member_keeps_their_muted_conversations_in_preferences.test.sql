@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(6);
+select plan(8);
 
 insert into auth.users (id, email) values
   ('54000000-0000-0000-0000-000000000001', 'quiet-one@example.test'),
@@ -69,6 +69,35 @@ select is(
   '["channel-a"]'::jsonb,
   'unmuting is not contagious'
 );
+
+do $$
+begin
+  set local role service_role;
+  perform public.conversation_mute_for('54000000-0000-0000-0000-0000000000b2', 'channel-seated');
+  perform public.conversation_mute_for('54000000-0000-0000-0000-0000000000b2', 'channel-seated');
+end $$;
+reset role;
+
+select is(
+  (select preferences -> 'mutedChannels' from public.member where id = '54000000-0000-0000-0000-0000000000b2'),
+  '["channel-a", "channel-seated"]'::jsonb,
+  'the company computer mutes a conversation for a member, once'
+);
+
+do $$
+begin
+  set local role authenticated;
+  perform set_config('request.jwt.claims', '{"sub":"54000000-0000-0000-0000-000000000001"}', true);
+  begin
+    perform public.conversation_mute_for('54000000-0000-0000-0000-0000000000b2', 'channel-unwanted');
+    perform set_config('mutes.for_another', 'answered', true);
+  exception when insufficient_privilege then
+    perform set_config('mutes.for_another', 'refused', true);
+  end;
+end $$;
+reset role;
+
+select is(current_setting('mutes.for_another'), 'refused', 'a member mutes nothing for anybody else');
 
 do $$
 begin
