@@ -23,6 +23,7 @@
 	import { createPageText } from '$lib/i18n/page-text.svelte';
 	import { startDownload } from './attachment-download';
 	import ChannelVideoPlayer from './channel-video-player.svelte';
+	import { dragsToDismiss, LightboxDragDismiss } from './lightbox-drag-dismiss.svelte';
 	import LightboxPictureMenu from './lightbox-picture-menu.svelte';
 
 	let { view = $bindable() }: { view: LightboxView | null } = $props();
@@ -33,11 +34,18 @@
 	const zoomStepPercent = 10;
 
 	let touchStartX = 0;
+	let touchStartY = 0;
 	let touchMoved = false;
 	let zoomPercent = $state(smallestZoomPercent);
+	const drag = new LightboxDragDismiss({
+		onDismiss: () => (view = null),
+		isDisabled: () => zoomPercent !== smallestZoomPercent
+	});
 
 	$effect(() => {
-		if (!view) zoomPercent = smallestZoomPercent;
+		if (view) return;
+		zoomPercent = smallestZoomPercent;
+		drag.reset();
 	});
 
 	function step(delta: number) {
@@ -61,12 +69,14 @@
 
 	function handleTouchStart(event: TouchEvent) {
 		touchStartX = event.changedTouches[0]?.clientX ?? 0;
+		touchStartY = event.changedTouches[0]?.clientY ?? 0;
 		touchMoved = false;
 	}
 
 	function handleTouchEnd(event: TouchEvent) {
 		const deltaX = (event.changedTouches[0]?.clientX ?? 0) - touchStartX;
-		if (Math.abs(deltaX) < 40) return;
+		const deltaY = (event.changedTouches[0]?.clientY ?? 0) - touchStartY;
+		if (Math.abs(deltaX) < 40 || Math.abs(deltaX) < Math.abs(deltaY)) return;
 		touchMoved = true;
 		step(deltaX < 0 ? 1 : -1);
 	}
@@ -97,9 +107,11 @@
 		transition:fade={{ duration: 150 }}
 		ontouchstart={handleTouchStart}
 		ontouchend={handleTouchEnd}
+		use:dragsToDismiss={drag}
 	>
 		<button
 			type="button"
+			style:opacity={drag.backdropOpacity}
 			class="absolute inset-0 cursor-zoom-out bg-black/80"
 			aria-label={text.closeViewer}
 			onclick={closeFromBackdrop}
@@ -116,7 +128,10 @@
 				</div>
 			{:else}
 				<LightboxPictureMenu source={currentItem.source} filename={currentItem.filename}>
-					<div class="z-10 transition-transform" style:transform={`scale(${zoomPercent / 100})`}>
+					<div
+						class={['z-10', !drag.isDragging && 'transition-transform']}
+						style:transform={`translateY(${drag.offset}px) scale(${zoomPercent / 100})`}
+					>
 						<LoadingImage
 							src={currentItem.source}
 							width={currentItem.width}
