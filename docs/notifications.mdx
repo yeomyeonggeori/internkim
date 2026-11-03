@@ -100,3 +100,10 @@ WebKit drops the icon a notification carries, so the sender's name leads the
 body text. An Android phone that shows notifications only when the app is
 opened has put Chrome to sleep: the push arrived and waited, and battery
 optimisation for Chrome is what holds it.
+
+The attendance widget on an iPhone follows a clock-in or clock-out made
+elsewhere through a silent push that wakes the app. iOS holds those pushes back
+when Background App Refresh is off for the app or for the whole phone, and in
+Low Power Mode. The widget then changes only when the app is opened or the
+widget is pressed. The app says so once above the tab bar, with a button to its
+Settings page, and says it again if the setting is turned on and later off.
