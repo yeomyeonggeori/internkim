@@ -45,7 +45,7 @@
 	{#if onOpen}
 		<button
 			type="button"
-			class="absolute top-2 right-2 flex size-8 items-center justify-center rounded-full bg-black/60 text-white backdrop-blur transition hover:bg-black/80"
+			class="absolute top-2 left-2 flex size-8 items-center justify-center rounded-full bg-black/60 text-white backdrop-blur transition hover:bg-black/80"
 			aria-label={text.openVideo}
 			onclick={onOpen}
 		>
