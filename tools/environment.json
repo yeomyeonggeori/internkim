@@ -469,7 +469,7 @@
   },
   "STRIPE_SECRET_KEY": {
     "process": "web",
-    "description": "the Stripe secret key the web app creates subscription checkouts with; Stripe billing answers 503 while it is unset",
+    "description": "the Stripe secret key the web app creates subscription checkouts, sets a subscription's seats and reads prorated prices with; Stripe billing answers 503 while it is unset",
     "isInVault": true
   },
   "STRIPE_WEBHOOK_SECRET": {
