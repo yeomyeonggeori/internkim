@@ -1,3 +1,5 @@
+import { shareAttachment, sharesInsteadOfDownloading } from './attachment-share';
+
 const downloadParameter = 'download';
 
 export function downloadAddressOf(source: string, filename: string): string {
@@ -8,6 +10,10 @@ export function downloadAddressOf(source: string, filename: string): string {
 }
 
 export function startDownload(source: string, filename: string): void {
+	if (sharesInsteadOfDownloading()) {
+		void shareAttachment(source, filename);
+		return;
+	}
 	const link = document.createElement('a');
 	link.href = downloadAddressOf(source, filename);
 	link.download = filename;
