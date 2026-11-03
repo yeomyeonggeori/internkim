@@ -43,7 +43,7 @@
   <Select.Root type="single" bind:value={selectedLocation} disabled={myAttendanceToday.isSubmitting}><Select.Trigger class="w-full sm:w-36" aria-label={text.location}>{myAttendanceToday.locations.find(location=>location.id===selectedLocation)?.name ?? text.location}</Select.Trigger><Select.Content><Select.Group>{#each myAttendanceToday.locations as location (location.id)}<Select.Item value={location.id} label={location.name}>{location.name}</Select.Item>{/each}</Select.Group></Select.Content></Select.Root>
  {/if}
  {#if myAttendanceToday.nextKind === 'clock_in' && myAttendanceToday.locations.length===0}<p role="alert" class="text-xs text-destructive">{text.noConfiguredWorkLocation}</p>{/if}
- <Button size="sm" class="w-full gap-3 sm:w-auto sm:gap-1" onclick={beginClock} disabled={!myAttendanceToday.summary || myAttendanceToday.isSubmitting || (myAttendanceToday.nextKind==='clock_in' && !validLocation)}>
+ <Button size="sm" class="w-full gap-3 sm:w-auto sm:gap-1" onclick={beginClock} disabled={!myAttendanceToday.summary || myAttendanceToday.isSubmitting || myAttendanceToday.isShowingStored || (myAttendanceToday.nextKind==='clock_in' && !validLocation)}>
   {#if myAttendanceToday.isSubmitting}<LoaderIcon class="size-4 animate-spin" />
   {:else if myAttendanceToday.nextKind === 'clock_out'}<LogOutIcon class="size-4 sm:hidden" />
   {:else}<LogInIcon class="size-4 sm:hidden" />{/if}
