@@ -53,3 +53,16 @@ test('a member who is not an owner sees the owners without the owner actions', a
 	await expect(details.getByRole('button', { name: '주인 추가', exact: true })).toHaveCount(0);
 	await expect(details.getByRole('button', { name: '주인 넘기기', exact: true })).toHaveCount(0);
 });
+
+test('channel owners are folded again when channel details are opened again', async ({ page }) => {
+	const details = await openDetails(page, 'member');
+	const toggle = details.getByRole('button', { name: /^채널 주인/ });
+	await toggle.click();
+	await expect(toggle).toHaveAttribute('aria-expanded', 'true');
+
+	await details.getByRole('button', { name: '채널 정보 닫기' }).click();
+	await expect(details).toBeHidden();
+	await page.getByRole('button', { name: '채널 정보' }).click();
+	await expect(details.getByRole('button', { name: /^채널 주인/ })).toHaveAttribute('aria-expanded', 'false');
+	await expect(details.getByRole('list', { name: '채널 주인' })).toBeHidden();
+});
