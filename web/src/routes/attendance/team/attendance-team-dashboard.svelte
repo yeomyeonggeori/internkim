@@ -206,7 +206,7 @@
 <Tooltip.Provider>
 	<div class="mx-auto flex w-full max-w-7xl flex-col gap-6 max-sm:gap-4" data-testid="attendance-team-dashboard" aria-busy={teamState.isLoadingTeams || teamState.isLoadingMembers}>
 
-        {#if myAttendanceToday.loadFailure}<p role="alert" class="text-sm text-destructive">{myAttendanceToday.loadFailure}</p>{/if}
+        {#if myAttendanceToday.loadFailure && !myAttendanceToday.isShowingStored}<p role="alert" class="text-sm text-destructive">{myAttendanceToday.loadFailure}</p>{/if}
         <Card.Root class="gap-0 py-0" data-testid="attendance-own-strip" aria-busy={myAttendanceToday.isLoading}>
             <AttendancePersonRow name={ownName} email={ownEmail} status={ownStatusKind} statusLabel={ownStatus} day={ownDay} location={ownLocation === '—' ? null : ownLocation} onclick={openOwnRecord}>
                 {#snippet action()}<OwnClockAction />{/snippet}

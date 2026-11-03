@@ -278,3 +278,19 @@ test('directory denial wins over a later task preview and cannot reappear on rev
 		await expect(page.locator('[data-task-board-card]')).toHaveCount(0);
 	} finally { release(); }
 });
+
+test('a restored snapshot lets the report tab open before the fresh read lands', async ({ page }) => {
+	await signInToTheCentralPlane(page, `/${exampleCompanySlug}/task`);
+	await page.getByRole('tab', { name: '보고', exact: true }).click();
+	await expect.poll(() => page.evaluate(() => localStorage.getItem('internkim:task-snapshot:v1'))).not.toBeNull();
+	await page.getByRole('tab', { name: '업무', exact: true }).click();
+	let release = () => {};
+	const gate = new Promise<void>((resolve) => { release = resolve; });
+	await page.route(/\/(task_list|task_board_get)\/invoke$/, async (route) => { await gate; await route.continue().catch(() => undefined); });
+	try {
+		await page.reload();
+		await expect(page.locator('[data-task-progress="snapshot"]')).toBeVisible();
+		await page.getByRole('tab', { name: '보고', exact: true }).click();
+		await expect(page.getByText('이번 주간 업무 일별 종류 거리 분포', { exact: true })).toBeVisible();
+	} finally { release(); }
+});
