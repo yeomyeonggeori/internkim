@@ -36,7 +36,7 @@
 	let reactionRow = $state<HTMLElement | null>(null);
 
 	function toggleWhenJoinable(reaction: ChannelMessageReaction): void {
-		if (canChange && !reactionImage(reaction)) onToggle(reaction);
+		if (canChange) onToggle(reaction);
 	}
 
 	function showPeople(reaction: ChannelMessageReaction): void {
