@@ -69,14 +69,14 @@ class LongInboxFixture extends MessengerInboxFixture {
 	}
 }
 
-async function openMessenger(page: Page, width: number, fixture = new MessengerInboxFixture()): Promise<MessengerInboxFixture> {
+async function openMessenger(page: Page, width: number, fixture = new MessengerInboxFixture(), path = '/messenger'): Promise<MessengerInboxFixture> {
 	await page.setViewportSize({ width, height: 900 });
 	await prepareWorkspaceLoading(page, fixture);
 	await page.route('http://127.0.0.1:56801/rest/v1/member?**', async (route) => {
 		if (route.request().url().includes('user_id=eq.')) return route.fallback();
 		await route.fulfill({ json: members });
 	});
-	await page.goto('/messenger');
+	await page.goto(path);
 	return fixture;
 }
 
@@ -184,6 +184,49 @@ test('a tapped message notification leaves the open inbox for its conversation',
 
 	await expect(inboxPanel(page)).toBeHidden();
 	await expect(conversationHeader(page)).toBeVisible();
+});
+
+test('a tapped notification for a thread reply opens that thread at the reply', async ({ page }) => {
+	await openMessenger(page, 390);
+	await expect(inboxPanel(page).locator('[data-inbox-entry]')).toHaveCount(3);
+
+	await page.evaluate(async () => {
+		const cache = await caches.open('internkim-notification-destination');
+		await cache.put('/internkim/notification-destination', new Response('/messenger/?channel=channel-1&message=reply-1'));
+		window.dispatchEvent(new Event('focus'));
+	});
+
+	await expect(page.getByRole('region', { name: '글타래' }).getByText('로그인 화면 고쳤어요')).toBeVisible();
+	await expect(page).not.toHaveURL(/message=/);
+});
+
+test('a thread reply notification tapped in another conversation opens that thread', async ({ page }) => {
+	await openMessenger(page, 390, new MessengerInboxFixture(), '/messenger/?channel=dm-1');
+	await expect(page.getByText('감사합니다').first()).toBeVisible();
+
+	await page.evaluate(async () => {
+		const cache = await caches.open('internkim-notification-destination');
+		await cache.put('/internkim/notification-destination', new Response('/messenger/?channel=channel-1&message=reply-1'));
+		window.dispatchEvent(new Event('focus'));
+	});
+
+	await expect(page.getByRole('region', { name: '글타래' }).getByText('로그인 화면 고쳤어요')).toBeVisible();
+	await expect(page).toHaveURL(/channel=channel-1/);
+	await expect(page).not.toHaveURL(/message=/);
+});
+
+test('an app opened from a thread reply notification starts in that thread', async ({ page }) => {
+	await openMessenger(page, 390, new MessengerInboxFixture(), '/messenger/?channel=channel-1&message=reply-1');
+
+	await expect(page.getByRole('region', { name: '글타래' }).getByText('로그인 화면 고쳤어요')).toBeVisible();
+	await expect(page).not.toHaveURL(/message=/);
+});
+
+test('a notification for a channel message opens the channel without a thread', async ({ page }) => {
+	await openMessenger(page, 390, new MessengerInboxFixture(), '/messenger/?channel=channel-1&message=mention-1');
+
+	await expect(page.getByText('@이샘플 확인 부탁드려요')).toBeVisible();
+	await expect(page.getByRole('region', { name: '글타래' })).toHaveCount(0);
 });
 
 test('on a phone the inbox fills the screen until an entry is chosen', async ({ page }) => {

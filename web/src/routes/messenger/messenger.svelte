@@ -6,6 +6,7 @@
 	import MessengerInbox from './messenger-inbox.svelte';
 	import { MessengerInboxState } from './messenger-inbox-state.svelte';
 	import { inboxPlaceOf, inboxThreadRootOf } from './messenger-inbox-place';
+	import { linkedMessageIDOf, withoutLinkedMessage } from './messenger-linked-message';
 	import MessengerInboxPlaceLink from './messenger-inbox-place-link.svelte';
 	import MessengerThreadCrumbs from './messenger-thread-crumbs.svelte';
 	import { leaveOpenedThreadThroughHistory } from '$lib/components/channel/thread-history';
@@ -80,7 +81,7 @@
 		activeID = channelID;
 		const scope = messengerCacheKey();
 		if (typeof localStorage !== 'undefined' && scope) localStorage.setItem(`${lastChannelKey}:${scope}`, channelID);
-		const url = new URL(location.href);
+		const url = withoutLinkedMessage(new URL(location.href));
 		url.searchParams.set('channel', channelID);
 		replaceState(url, {});
 	}
@@ -290,17 +291,33 @@
 			? shownConversations(conversations).find((conversation) => conversation.id === requestedID)
 			: undefined;
 		const initial = remembered ?? groupChannels[0] ?? shownConversations(conversations)[0];
-		if (initial) selectChannel(initial.id);
+		if (!initial) return;
+		const linkedMessageID = remembered ? linkedMessageIDOf(page.url) : undefined;
+		selectChannel(initial.id);
+		void revealLinkedMessage(linkedMessageID);
 	}
 
 	afterNavigate((navigation) => {
-		const requestedID = navigation.to?.url.searchParams.get('channel');
-		if (!requestedID) return;
+		const requested = navigation.to?.url;
+		const requestedID = requested?.searchParams.get('channel');
+		if (!requested || !requestedID) return;
 		isInboxOpen = false;
 		chosenInboxEntryID = undefined;
-		if (activeID === undefined || requestedID === activeID) return;
-		void showChannel(requestedID);
+		if (activeID === undefined) return;
+		void openRequestedChannel(requestedID, linkedMessageIDOf(requested));
 	});
+
+	async function openRequestedChannel(channelID: string, linkedMessageID: string | undefined) {
+		if (channelID === activeID) selectChannel(channelID);
+		else await showChannel(channelID);
+		await revealLinkedMessage(linkedMessageID);
+	}
+
+	async function revealLinkedMessage(messageID: string | undefined) {
+		if (!messageID) return;
+		await tick();
+		await channelView?.revealMessageInItsThread(messageID);
+	}
 
 	$effect(() => {
 		const revision = buzzIdentity.revision;
