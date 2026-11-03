@@ -61,7 +61,7 @@
 			{@const shortcode = `:${reaction.value}:`}
 			{@const peopleLabel = reactionPeopleLabel(
 				(reaction.people ?? []).map((person) => person.name).filter(Boolean),
-				{ reactedBy: text.reactedBy, reactedByMore: text.reactedByMore }
+				text.reactedBy
 			)}
 			<Tooltip.Root disabled={isMobile.current || isPopoverOpen}>
 				<Tooltip.Trigger>

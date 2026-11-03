@@ -5,19 +5,9 @@ export function reactionValueFor(pickedGlyph: string, existing: ChannelMessageRe
 	return match ? match.value : pickedGlyph;
 }
 
-export function reactionPeopleLabel(
-	names: string[],
-	templates: { reactedBy: string; reactedByMore: string },
-	shown = 3
-): string {
+export function reactionPeopleLabel(names: string[], reactedBy: string): string {
 	if (names.length === 0) return '';
-	if (names.length <= shown) {
-		return templates.reactedBy.replace('{names}', names.join(', '));
-	}
-	const remainingCount = names.length - shown;
-	return templates.reactedByMore
-		.replace('{names}', names.slice(0, shown).join(', '))
-		.replace('{count}', String(remainingCount));
+	return reactedBy.replace('{names}', names.join(', '));
 }
 
 export type ReactionChange = {
