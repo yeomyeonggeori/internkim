@@ -89,7 +89,8 @@
 	{@const currentItem = view.items[view.index]}
 	{@const hasMultiple = view.items.length > 1}
 	<div
-		class="fixed inset-0 z-(--layer-alert) flex items-center justify-center"
+		class="pointer-events-auto fixed inset-0 z-(--layer-alert) flex items-center justify-center pt-[calc(env(safe-area-inset-top)+3.75rem)] pb-[calc(env(safe-area-inset-bottom)+3.75rem)]"
+		data-channel-lightbox
 		role="dialog"
 		aria-modal="true"
 		tabindex="-1"
@@ -122,7 +123,7 @@
 							height={currentItem.height}
 							alt=""
 							loading="eager"
-							maxHeight="calc(100dvh - 3rem)"
+							maxHeight="calc(100dvh - 7.5rem - env(safe-area-inset-top) - env(safe-area-inset-bottom))"
 							class="max-w-[calc(100vw-3rem)] rounded-md"
 						/>
 					</div>
