@@ -16,7 +16,7 @@ key, so their other devices and the Buzz apps agree on it.
 | Category | Sent when | Reaches |
 |---|---|---|
 | `message` | the relay sees a message addressed to someone | those addressed |
-| `attendance` | a member clocks in or out | everyone else in the company |
+| `attendance` | a member clocks in or out | everyone else in the company, or as far as each listener narrowed it |
 | `leave` | a member asks for leave | the administrators, minus the asker |
 | `task` | a task moves between statuses | the requester and the participants, minus whoever moved it |
 | `calendar` | an event's reminder lead time is reached | the members on that event |
@@ -31,8 +31,11 @@ default except `mail`.
 Two switches decide whether a push is sent, and both belong to the person: the
 category switch in their settings, and whether they muted that conversation.
 Both live in the member's `preferences`, as `notificationSettings` and
-`mutedChannels`. A member with no device subscribed is never reached at all,
-which is the state everyone starts in.
+`mutedChannels`. Attendance also has a reach, `attendanceReach` in the same
+settings: `everyone`, `teamAndSupervisors` for the member's own team and every
+supervisor above them up to the top, or `team` for their own team alone. A
+supervisor in another team still counts. A member with no device subscribed is
+never reached at all, which is the state everyone starts in.
 
 ## The key pair [#keys]
 
