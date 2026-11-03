@@ -3,9 +3,16 @@
 	import { Button } from '$lib/components/ui/button';
 	import * as Card from '$lib/components/ui/card';
 	import { Switch } from '$lib/components/ui/switch';
+	import * as Select from '$lib/components/ui/select';
 	import { Label } from '$lib/components/ui/label';
-	import type { NotificationCategory } from '$lib/notifications/categories';
 	import {
+		attendanceReaches,
+		isAttendanceReach,
+		type AttendanceReach,
+		type NotificationCategory
+	} from '$lib/notifications/categories';
+	import {
+		chooseAttendanceReach,
 		chooseNotificationCategory,
 		myNotificationSettings,
 		type NotificationSettings
@@ -29,7 +36,7 @@
 	const fieldID = $props.id();
 
 	let reach = $state<Reachability>('off');
-	let settings = $state<NotificationSettings>({ categories: [], mutedConversationIDs: [] });
+	let settings = $state<NotificationSettings>({ categories: [], attendanceReach: 'everyone', mutedConversationIDs: [] });
 	let isLoadingReachability = $state(true);
 	let isLoadingSettings = $state(true);
 	let reachabilityFailed = $state(false);
@@ -46,6 +53,17 @@
 		calendar: text.notifyCalendar,
 		mail: text.notifyMail
 	});
+
+	const attendanceOff = 'off';
+
+	const attendanceReachLabels: Record<AttendanceReach | typeof attendanceOff, string> = $derived({
+		everyone: text.notifyAttendanceEveryone,
+		teamAndSupervisors: text.notifyAttendanceTeamAndSupervisors,
+		team: text.notifyAttendanceTeam,
+		off: text.notifyAttendanceOff
+	});
+
+	const attendanceOptions = [...attendanceReaches, attendanceOff] as const;
 
 	async function loadReachability() {
 		try {
@@ -117,6 +135,29 @@
 			toast.error(text.notifyFailed);
 		}
 	}
+
+	function attendanceChosen(isOn: boolean): AttendanceReach | typeof attendanceOff {
+		return isOn ? settings.attendanceReach : attendanceOff;
+	}
+
+	async function chooseAttendance(chosen: string) {
+		if (chosen === attendanceOff) return choose('attendance', false);
+		if (!isAttendanceReach(chosen)) return;
+		const previous = settings;
+		settings = {
+			...settings,
+			attendanceReach: chosen,
+			categories: settings.categories.map((choice) =>
+				choice.category === 'attendance' ? { ...choice, isOn: true } : choice
+			)
+		};
+		try {
+			settings = await chooseAttendanceReach(chosen);
+		} catch {
+			settings = previous;
+			toast.error(text.notifyFailed);
+		}
+	}
 </script>
 
 <Card.Root>
@@ -157,12 +198,30 @@
 							{categoryLabels[choice.category]}
 						</Label>
 						<div class="flex items-center gap-2">
-							<Switch
-								id="{fieldID}-{choice.category}"
-								checked={choice.isOn}
-								disabled={isLoadingReachability || reachabilityFailed || reach !== 'on'}
-								onCheckedChange={(wanted) => choose(choice.category, wanted)}
-							/>
+							{#if choice.category === 'attendance'}
+								<Select.Root
+									type="single"
+									value={attendanceChosen(choice.isOn)}
+									onValueChange={chooseAttendance}
+									disabled={isLoadingReachability || reachabilityFailed || reach !== 'on'}
+								>
+									<Select.Trigger id="{fieldID}-{choice.category}" class="w-44">
+										{attendanceReachLabels[attendanceChosen(choice.isOn)]}
+									</Select.Trigger>
+									<Select.Content><Select.Group>
+										{#each attendanceOptions as option (option)}
+											<Select.Item value={option} label={attendanceReachLabels[option]} />
+										{/each}
+									</Select.Group></Select.Content>
+								</Select.Root>
+							{:else}
+								<Switch
+									id="{fieldID}-{choice.category}"
+									checked={choice.isOn}
+									disabled={isLoadingReachability || reachabilityFailed || reach !== 'on'}
+									onCheckedChange={(wanted) => choose(choice.category, wanted)}
+								/>
+							{/if}
 						</div>
 					</div>
 				{/each}

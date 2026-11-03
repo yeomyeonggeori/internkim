@@ -120,7 +120,7 @@ if (scenario === 'mail') {
 	let failures = 0;
 	mock.module('$lib/i18n/page-text.svelte', () => ({ createPageText: () => ({ notifications: 'Notifications', notifyMessage: 'Messages', notifyLoadFailed: 'Load failed' }) }));
 	mock.module('$lib/notifications/subscribe', () => ({ reachability: () => reach(), startBeingReached: async () => 'on', stopBeingReached: async () => 'off' }));
-	mock.module('$lib/notifications/settings', () => ({ myNotificationSettings: async () => { preferencesStarted = true; if (failPreferences) throw new Error('failed'); return { categories: [{ category: 'message', isOn: true, isChoosable: true }], mutedConversationIDs: [] }; }, chooseNotificationCategory: async () => ({}) }));
+	mock.module('$lib/notifications/settings', () => ({ myNotificationSettings: async () => { preferencesStarted = true; if (failPreferences) throw new Error('failed'); return { categories: [{ category: 'message', isOn: true, isChoosable: true }], attendanceReach: 'everyone', mutedConversationIDs: [] }; }, chooseNotificationCategory: async () => ({}), chooseAttendanceReach: async () => ({}) }));
 	mock.module('$lib/notifications/self-test', () => ({ sendTestNotification: async () => ({ reached: 0 }) }));
 	mock.module('svelte-sonner', () => ({ toast: { error: () => { failures += 1; } } }));
 	const { flushSync, mount, unmount } = await import('svelte');
