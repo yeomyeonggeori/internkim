@@ -52,6 +52,10 @@
 	let isConfirmingDelete = $state(false);
 	let isDeleting = $state(false);
 
+	$effect(() => {
+		if (!open) ownersExpanded = false;
+	});
+
 	async function remove() {
 		isDeleting = true;
 		try {
