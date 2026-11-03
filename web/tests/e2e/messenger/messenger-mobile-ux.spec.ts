@@ -327,7 +327,41 @@ test.describe('the keyboard on a touch screen', () => {
 		await dragConversation(page, [300, 360]);
 		expect(await composerHasFocus(page)).toBe(false);
 	});
+
+	test('the phone app taps back on every composer tap and when a message is sent', async ({ page }) => {
+		await insideThePhoneApp(page);
+		await openConversation(page, 390);
+		const composer = page.getByRole('combobox', { name: '메시지를 입력하세요' });
+
+		await composer.tap();
+		await expect.poll(() => hapticsFelt(page)).toBe(1);
+		await composer.tap();
+		await expect.poll(() => hapticsFelt(page)).toBe(2);
+		await page.keyboard.type('햅틱 확인');
+		await page.getByRole('button', { name: '보내기', exact: true }).tap();
+		await expect.poll(() => hapticsFelt(page)).toBe(3);
+	});
 });
+
+async function insideThePhoneApp(page: Page) {
+	await page.addInitScript(() => {
+		const felt: string[] = [];
+		Reflect.set(window, 'hapticsFelt', felt);
+		Reflect.set(window, 'isTauri', true);
+		Reflect.set(window, '__TAURI_OS_PLUGIN_INTERNALS__', { platform: 'ios' });
+		Reflect.set(window, '__TAURI_INTERNALS__', {
+			invoke: async (command: string) => {
+				if (command.startsWith('plugin:haptics|')) felt.push(command);
+				return null;
+			},
+			transformCallback: () => 0
+		});
+	});
+}
+
+async function hapticsFelt(page: Page): Promise<number> {
+	return page.evaluate(() => (Reflect.get(window, 'hapticsFelt') as string[]).length);
+}
 
 async function dragConversation(page: Page, clientYs: number[]) {
 	await page.getByText(conversationMessage, { exact: true }).evaluate((message, path) => {
