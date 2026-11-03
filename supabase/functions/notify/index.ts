@@ -3,6 +3,8 @@ import { notificationCategories, type NotificationCategory } from '../_shared/ca
 import { askedObject, json, refuse, serveRefusals } from '../_shared/http.ts';
 import { membersOfCompanyByEmail, membersOfCompanyByExternalID } from '../_shared/member-directory.ts';
 import { addressedIn } from '../_shared/notify-recipients.ts';
+import { bodyWithAttachmentLabels } from '../_shared/attachment-labels.ts';
+import { localeOfMember } from '../_shared/member-locale.ts';
 import { pictureURLOfSender } from '../_shared/sender-picture.ts';
 import { notifyMember, type Delivery, type Notification } from '../_shared/notify-member.ts';
 import type { SupabaseClient } from '../_shared/service-client.ts';
@@ -23,6 +25,7 @@ type NotifyRequest = {
 	withdrawnMessageIDs?: unknown;
 	senderExternalID?: unknown;
 	senderPicturePath?: unknown;
+	attachmentKinds?: unknown;
 };
 
 Deno.serve(
@@ -56,7 +59,8 @@ Deno.serve(
 				icon: await pictureURLOfSender(client, companyID, asked.senderPicturePath, sender ?? '')
 			},
 			pushKeys,
-			conversationID
+			conversationID,
+			askedAttachmentKinds(asked)
 		);
 
 		return json({ ...delivered, addressed: recipients.length });
@@ -69,18 +73,36 @@ async function tellEach(
 	category: NotificationCategory,
 	notification: Notification,
 	pushKeys: PushKeys,
-	conversationID: string
+	conversationID: string,
+	attachmentKinds: string[]
 ): Promise<{ told: number; reached: number; pruned: number }> {
 	const nowInSeconds = Math.floor(Date.now() / 1000);
 	const deliveries: Delivery[] = [];
 	for (const memberID of memberIDs) {
-		deliveries.push(await notifyMember(client, memberID, category, notification, pushKeys, nowInSeconds, conversationID));
+		const told = await notificationFor(client, memberID, notification, attachmentKinds);
+		deliveries.push(await notifyMember(client, memberID, category, told, pushKeys, nowInSeconds, conversationID));
 	}
 	return {
 		told: deliveries.filter((delivery) => !delivery.silent).length,
 		reached: deliveries.reduce((total, delivery) => total + delivery.reached, 0),
 		pruned: deliveries.reduce((total, delivery) => total + delivery.pruned, 0)
 	};
+}
+
+async function notificationFor(
+	client: SupabaseClient,
+	memberID: string,
+	notification: Notification,
+	attachmentKinds: string[]
+): Promise<Notification> {
+	if (attachmentKinds.length === 0) return notification;
+	const locale = await localeOfMember(client, memberID);
+	return { ...notification, body: bodyWithAttachmentLabels(notification.body, attachmentKinds, locale) };
+}
+
+function askedAttachmentKinds(asked: NotifyRequest): string[] {
+	if (!Array.isArray(asked.attachmentKinds)) return [];
+	return asked.attachmentKinds.filter((kind): kind is string => typeof kind === 'string');
 }
 
 function askedCategory(offered: unknown): NotificationCategory {
