@@ -31427,7 +31427,7 @@
             "type": "boolean"
           },
           "kind": {
-            "description": "The kind of work it was: a note, a call, a meeting, an email, a task.",
+            "description": "The task type the activity is written with. Choose the matching company type from registeredLabels.types in task_list, using the meaning of the work. Read the current definitions when they are not already available. Send an empty string when no type fits; it is stored as null and displayed as Other in the user's language. Never invent a label. Omit it to keep an activity's current type, or on a new one to let the record decide it from the company's own definitions.",
             "maxLength": 64,
             "type": "string"
           },
@@ -31532,7 +31532,7 @@
             "type": "boolean"
           },
           "kind": {
-            "description": "The kind of work it was: a note, a call, a meeting, an email, a task.",
+            "description": "The task type the activity is written with. Choose the matching company type from registeredLabels.types in task_list, using the meaning of the work. Read the current definitions when they are not already available. Send an empty string when no type fits; it is stored as null and displayed as Other in the user's language. Never invent a label. Omit it to keep an activity's current type, or on a new one to let the record decide it from the company's own definitions.",
             "maxLength": 64,
             "type": "string"
           },
