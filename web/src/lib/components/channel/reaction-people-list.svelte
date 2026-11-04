@@ -45,7 +45,7 @@
 		{/each}
 	</Tabs.List>
 	<Tabs.Content value={everyReaction}>
-		<ul class="max-h-[50vh] overflow-y-auto py-1">
+		<ul class="h-80 overflow-y-auto py-1">
 			{#each reactions as reaction (reaction.value)}
 				{#each reaction.people ?? [] as person (person.id)}
 					{@render personRow(person, reaction)}
@@ -55,7 +55,7 @@
 	</Tabs.Content>
 	{#each reactions as reaction (reaction.value)}
 		<Tabs.Content value={reaction.value}>
-			<ul class="max-h-[50vh] overflow-y-auto py-1">
+			<ul class="h-80 overflow-y-auto py-1">
 				{#each reaction.people ?? [] as person (person.id)}
 					{@render personRow(person, reaction)}
 				{/each}

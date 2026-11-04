@@ -887,6 +887,19 @@ describe('canonical capability tools', () => {
     expect(taskDeleteInputSchema.safeParse({ taskHint: 'task-1', query: 'settlement' }).success).toBe(false);
   });
 
+  test('describes a CRM activity\'s kind as the company task type it writes', () => {
+    const catalog = buildCapabilityToolCatalog(protocolVersion);
+    const describedProperties = z.looseObject({ properties: z.record(z.string(), z.looseObject({ description: z.string().optional() })) });
+    const descriptionOf = (toolName: string, field: string): string => {
+      const inputSchema = catalog.tools.find(candidate => candidate.name === toolName)?.inputSchema;
+      return describedProperties.parse(inputSchema).properties[field]?.description ?? '';
+    };
+    const taskTypeRule = descriptionOf('task_update', 'type').split(' Omit to preserve')[0];
+
+    expect(taskTypeRule).toContain('registeredLabels.types');
+    expect(descriptionOf('crm_activity_save', 'kind')).toContain(taskTypeRule);
+  });
+
   test('validates calendar inputs with exact mutation identities', () => {
     expect(calendarAddInputSchema.safeParse({
       title: 'customer support weekly check',

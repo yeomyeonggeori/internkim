@@ -33,10 +33,12 @@ for (const width of everyScreen) {
 		expect((await details.boundingBox())!.x).toBeGreaterThanOrEqual(0);
 
 		const list = details.getByRole('list', { name: '채널 멤버' });
-		await expect(list.getByRole('listitem')).toHaveCount(5);
-		await expect(list.getByText('박예시', { exact: true })).toBeVisible();
-		await details.getByRole('button', { name: '모두 보기 (2명 더)' }).click();
 		await expect(list.getByRole('listitem')).toHaveCount(memberNames.length);
+		await expect(list.getByText('박예시', { exact: true })).toBeVisible();
+		await expect(list.getByText('윤예시', { exact: true })).not.toBeInViewport();
+		await list.getByText('윤예시', { exact: true }).scrollIntoViewIfNeeded();
+		await expect(list.getByText('윤예시', { exact: true })).toBeInViewport();
+		await expect(list.getByText('박예시', { exact: true })).not.toBeInViewport();
 
 		const toggle = details.getByRole('button', { name: /^채널 멤버/ });
 		await expect(toggle).toHaveAttribute('aria-expanded', 'true');

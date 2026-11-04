@@ -151,7 +151,7 @@
 				</Button>
 			</div>
 		{/if}
-		<ul class="grid" aria-label={text.channelOwnersTitle}>
+		<ul class="grid max-h-50 touch-pan-y overflow-x-hidden overflow-y-auto overscroll-contain" aria-label={text.channelOwnersTitle}>
 			{#each owners as owner (keyOf(owner))}
 				<li class="flex min-w-0 items-center gap-2.5 py-1.5">
 					<PersonAvatar

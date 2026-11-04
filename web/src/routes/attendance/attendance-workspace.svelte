@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { page } from '$app/state';
 	import { myAttendanceToday } from '$lib/attendance/my-attendance-today.svelte';
 	import { attendanceSummaryRecords } from '$lib/attendance/attendance-summary-records';
 	import { pageActions } from '$lib/components/app-page-actions.svelte';
@@ -141,6 +142,7 @@
 	onMount(() => {
 		myAttendanceToday.setClockEventHandler((event) => workStatus.applyAttendanceEvent(event));
 		myAttendanceToday.setClockMutationHandler(() => { void teamState.refresh(true); });
+		myAttendanceToday.showStored(page.data.workspaceScope ?? '');
 		void myAttendanceToday.load();
 		const releaseRefresh = pageActions.setRefresh(async () => {
 			await Promise.all([myAttendanceToday.load(true), refreshLoadedSummary(), teamState.refresh(), employeeLeave.load(), refreshSelectedAdminView()]);

@@ -5,6 +5,7 @@
 <script lang="ts">
 	import { Editor } from '@tiptap/core';
 	import StarterKit from '@tiptap/starter-kit';
+	import Link from '@tiptap/extension-link';
 	import { MarkdownManager } from '@tiptap/markdown';
 	import { onDestroy, onMount } from 'svelte';
 	import {
@@ -14,6 +15,7 @@
 	} from './composer-formatting';
 	import { composerDocumentOf, markdownOfComposer } from './composer-markdown';
 	import type { WrittenMention } from '$lib/messenger/mention-draft';
+	import { feelHaptic } from '$lib/native-shell/haptics';
 	import { filesToAttachFromClipboard } from './clipboard-files';
 
 	let {
@@ -21,6 +23,7 @@
 		activeFormats = $bindable([]),
 		placeholder,
 		disabled,
+		acceptsDrop,
 		ariaAttributes,
 		onKeydown,
 		onInput,
@@ -32,6 +35,7 @@
 		activeFormats?: ComposerFormat[];
 		placeholder: string;
 		disabled: boolean;
+		acceptsDrop: boolean;
 		ariaAttributes: Record<string, string>;
 		onKeydown: (event: KeyboardEvent) => boolean;
 		onInput: () => void;
@@ -53,7 +57,10 @@
 	const hardBreakCharacter = '\n';
 	const editorClass = 'markdown min-h-16 w-full px-2.5 py-2 text-base outline-none md:text-sm';
 
-	const extensions = [StarterKit.configure({ heading: false, horizontalRule: false, underline: false })];
+	const extensions = [
+		StarterKit.configure({ heading: false, horizontalRule: false, underline: false, link: false }),
+		Link.extend({ inclusive: false })
+	];
 	const markdownParser = new MarkdownManager({ extensions });
 
 	let element = $state<HTMLDivElement | null>(null);
@@ -143,7 +150,9 @@
 			editorProps: {
 				attributes: { ...ariaAttributes, class: editorClass, 'aria-multiline': 'true' },
 				handleKeyDown: (_view, event) => handleKeyDown(event),
-				handlePaste: (_view, event) => handlePaste(event)
+				handlePaste: (_view, event) => handlePaste(event),
+				handleDrop: () => !acceptsDrop,
+				handleDOMEvents: { pointerdown: (_view, event) => feelTap(event) }
 			},
 			onUpdate: ({ editor: current }) => emit(current),
 			onSelectionUpdate: () => onSelectionChange(),
@@ -161,6 +170,11 @@
 	}
 
 	onDestroy(() => editor?.destroy());
+
+	function feelTap(event: PointerEvent): false {
+		if (event.pointerType === 'touch' && !disabled) feelHaptic('touch');
+		return false;
+	}
 
 	$effect(() => {
 		if (!editor || value === emittedValue) return;

@@ -13,6 +13,7 @@
 	} from './task-status';
 	import { relationshipStatusIconClass } from './task-style';
 	import { taskDefinitionLabel } from './task-workspace-model';
+	import { taskDateRangeText } from './task-date-range';
 	import type { Task } from './task-types';
 
 	type RelationshipResult = void | boolean;
@@ -21,6 +22,7 @@
 		task: Task;
 		taskTypeColor: (type: string | null) => string;
 		etcLabel: string;
+		dateRangeLabel: string;
 		editable: boolean;
 		pending: boolean;
 		statusLabel: (status: string) => string;
@@ -36,6 +38,7 @@
 		task,
 		taskTypeColor,
 		etcLabel,
+		dateRangeLabel,
 		editable,
 		pending,
 		statusLabel,
@@ -50,6 +53,8 @@
 	function stopPropagation(event: Event): void {
 		event.stopPropagation();
 	}
+
+	let dateRange = $derived(taskDateRangeText(task.startDate, task.endDate));
 
 	let statusKind = $derived(
 		isTaskStatusCompleted(task.status) ? 'completed' : 'incomplete'
@@ -102,6 +107,13 @@
 			<span class="truncate text-xs text-muted-foreground">{task.ownerName}</span>
 		</div>
 	</div>
+
+	{#if dateRange}
+		<div class="pointer-events-none relative z-[1] shrink-0 space-y-1 text-right" data-task-relationship-dates>
+			<p class="text-xs text-muted-foreground">{dateRangeLabel}</p>
+			<p class="text-xs tabular-nums text-foreground">{dateRange}</p>
+		</div>
+	{/if}
 
 	{#if editable}
 		<div class="relative z-10 shrink-0">

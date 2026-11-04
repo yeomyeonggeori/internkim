@@ -74,4 +74,18 @@ test.describe('on a touch screen', () => {
 		await expect(page.getByRole('menuitem', { name: '이 대화 알림 끄기' })).toBeVisible();
 		await expect(page).toHaveURL(/channel=channel-open/);
 	});
+
+	test('a long press on another row while a menu is open leaves only the new menu open', async ({ page }) => {
+		await mockDeviceMessenger(page, reader, conversations, []);
+		await page.goto('/messenger?channel=channel-open');
+		await expect(itemNamed(page, '누를 채널')).toBeVisible();
+
+		await holdWithFinger(page, '누를 채널');
+		await expect(page.getByRole('menuitem', { name: '채널 나가기' })).toBeVisible();
+
+		await holdWithFinger(page, '박예시');
+		await expect(page.getByRole('menu')).toHaveCount(1);
+		await expect(page.getByRole('menuitem', { name: '채널 나가기' })).toHaveCount(0);
+		await expect(page.getByRole('menuitem', { name: '이 대화 알림 끄기' })).toBeVisible();
+	});
 });

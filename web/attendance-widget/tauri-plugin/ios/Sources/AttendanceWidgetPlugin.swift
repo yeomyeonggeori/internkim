@@ -1,4 +1,5 @@
 import Tauri
+import UIKit
 import WidgetKit
 
 class AttendanceWidgetSupply: Decodable {
@@ -32,6 +33,23 @@ class AttendanceWidgetPlugin: Plugin {
         AttendanceWidgetStore.forget()
         WidgetCenter.shared.reloadAllTimelines()
         invoke.resolve()
+    }
+
+    @objc public func backgroundRefreshState(_ invoke: Invoke) {
+        DispatchQueue.main.async {
+            invoke.resolve(["allowed": UIApplication.shared.backgroundRefreshStatus == .available])
+        }
+    }
+
+    @objc public func openSettings(_ invoke: Invoke) {
+        DispatchQueue.main.async {
+            guard let settings = URL(string: UIApplication.openSettingsURLString) else {
+                invoke.reject("iOS gave no address for this app's Settings page")
+                return
+            }
+            UIApplication.shared.open(settings)
+            invoke.resolve()
+        }
     }
 }
 
