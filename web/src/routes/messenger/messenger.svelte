@@ -10,6 +10,7 @@
 	import MessengerInboxPlaceLink from './messenger-inbox-place-link.svelte';
 	import MessengerThreadCrumbs from './messenger-thread-crumbs.svelte';
 	import { leaveOpenedThreadThroughHistory } from '$lib/components/channel/thread-history';
+	import { swipeToOpenChannelList } from './swipe-to-open-channel-list';
 	import type { InboxEntry } from '$lib/messenger/channel-over-bridge';
 	import MessengerListSkeleton from './messenger-list-skeleton.svelte';
 	import MessengerBrowseChannelsDialog from './messenger-browse-channels-dialog.svelte';
@@ -669,7 +670,10 @@
 					</Empty.Header>
 				</Empty.Root>
 			{/if}
-			<div class={['flex min-h-0 min-w-0 flex-1 flex-col', isInboxOpen && 'max-sm:hidden', isChannelCoveredByInbox && 'hidden']}>
+			<div
+				class={['flex min-h-0 min-w-0 flex-1 flex-col', isInboxOpen && 'max-sm:hidden', isChannelCoveredByInbox && 'hidden']}
+				use:swipeToOpenChannelList={{ onOpen: () => (isChannelSheetOpen = true), disabled: !isMobile.current || isThreadOpen }}
+			>
 				<header class="flex h-12 shrink-0 items-center gap-2 border-b px-2 sm:h-14 sm:px-6">
 					{#if !isThreadOpenOnPhone || chosenInboxPlace}{@render channelListTrigger()}{/if}
 					{#if chosenInboxPlace}
