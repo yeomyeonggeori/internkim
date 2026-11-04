@@ -128,6 +128,22 @@ test('supplementary fixture: ordinary editing demands no history until relations
 	expect(fixture.historyReads).toBe(1);
 });
 
+test('supplementary fixture: related tasks show the dates they have the way the task detail does', async ({ page }) => {
+	const fixture = new TaskRelationshipFixture();
+	const [target, parent, child] = fixture.tasks;
+	if (!target || !parent || !child) throw new Error('Fixture seeds a target, a parent and a child');
+	Object.assign(target, { parentTaskID });
+	Object.assign(parent, { startDate: '2026-11-02', endDate: '2026-11-05' });
+	Object.assign(child, { parentTaskID: targetTaskID, endDate: '2026-11-07' });
+	await installAuthenticatedFixture(page, fixture);
+	const sheet = taskSheet(page);
+	await sheet.getByRole('button', { name: '업무 관계', exact: true }).click();
+	const parentDates = sheet.locator(`[data-task-relationship-task="${parentTaskID}"] [data-task-relationship-dates]`);
+	const childDates = sheet.locator(`[data-task-relationship-task="${childTaskID}"] [data-task-relationship-dates]`);
+	await expect(parentDates).toHaveText(/시작일 — 종료일\s*2026-11-02 — 2026-11-05/);
+	await expect(childDates).toHaveText(/시작일 — 종료일\s*2026-11-07/);
+});
+
 test('supplementary fixture: child selector stays visible and disabled until the write commits', async ({ page }) => {
 	const fixture = new TaskRelationshipFixture();
 	await installAuthenticatedFixture(page, fixture);
