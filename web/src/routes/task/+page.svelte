@@ -13,7 +13,7 @@
 	import { ToolRefused } from '$lib/public-api-call';
 	import { subscribeTaskWrites } from '$lib/task/task-live-refresh';
 	import { supersededLoadIsNotAFailure, type TaskLoadOptions } from './task-load-tracker';
-	import { createTaskReadSession, sameTaskReadContext, type TaskReadContext } from './task-read-session';
+	import { createTaskReadSession, readCoversWrite, sameTaskReadContext, type TaskReadContext } from './task-read-session';
 	import { rememberTask, forgetLastSeenTask } from './task-last-seen';
 	import { clearStoredTaskSnapshot, taskSnapshotGeneration, subscribeTaskSnapshotInvalidation } from './task-snapshot-storage';
 	import type { TaskState, TaskSummary } from './task-types';
@@ -138,7 +138,7 @@
 
 	onMount(() => {
 		const stopFollowingInvalidation = subscribeTaskSnapshotInvalidation(() => { stateReadGeneration = -1; });
-		const stopFollowingTaskWrites = subscribeTaskWrites(() => { void refreshCurrentWeek(); });
+		const stopFollowingTaskWrites = subscribeTaskWrites(refreshAfterTaskWrite);
 		return () => {
 			isDisposed = true;
 			readSession.invalidate();
@@ -299,11 +299,6 @@
 		loadTask(week, { reloadState: false });
 	}
 
-	function openTaskWhenReady(taskID: string): void {
-		pendingTaskID = taskID;
-		openPendingTask();
-	}
-
 	function selectTab(tab: string) {
 		activeTab = tab;
 		paneError = '';
@@ -320,6 +315,12 @@
 		}
 		if (tab === 'members' && !TaskMembersView) TaskMembersView = (await import('./task-members-view.svelte')).default;
 		if (tab === 'definitions' && !TaskDefinitionsEditor) TaskDefinitionsEditor = (await import('./task-definitions-editor.svelte')).default;
+	}
+
+	function refreshAfterTaskWrite(heardGeneration: number): void {
+		const reads = [stateReadGeneration, boardRequest?.generation ?? -1, fullRequest?.generation ?? -1];
+		if (reads.some((read) => readCoversWrite(read, heardGeneration, taskSnapshotGeneration()))) return;
+		void refreshCurrentWeek();
 	}
 
 	function refreshCurrentWeek() {
@@ -356,7 +357,6 @@
 				shownWeek={selectedWeek ? taskWeekForCode(selectedWeek, new Date()) : summary?.week}
 				canNavigateWeek={Boolean(summary) && !cacheSavedAt}
 				{focusedTaskID}
-				{openTaskWhenReady}
 				{text}
 				isLoading={isLoading || !isStateFresh}
 				isPendingRead={isLoading || isRefreshing || isHistoryLoading}

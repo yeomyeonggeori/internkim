@@ -310,7 +310,7 @@ export async function taskUpdate(context: RecordContext, input: TaskUpdateInput)
 
 async function writeTaskParent(context: RecordContext, row: TaskRow, hint: string): Promise<void> {
 	const named = hint.trim();
-	const parent = named ? taskOfHint(await tasksOfCompany(context.caller, false), named, 'task').id : null;
+	const parent = named ? (await taskFromHint(context.caller, named, false)).id : null;
 	if (parent === row.id) throw new Error('a task cannot be its own parent');
 	const { error } = await context.caller.rpc('task_parent_set', {
 		target_task_id: row.id,
@@ -321,8 +321,8 @@ async function writeTaskParent(context: RecordContext, row: TaskRow, hint: strin
 
 async function linkTaskChildren(context: RecordContext, row: TaskRow, hints: string[]): Promise<void> {
 	if (hints.length === 0) return;
-	const tasks = await tasksOfCompany(context.caller, false);
-	const childIDs = hints.map((hint) => taskOfHint(tasks, hint, 'task').id);
+	const children = await Promise.all(hints.map((hint) => taskFromHint(context.caller, hint, false)));
+	const childIDs = children.map((child) => child.id);
 	const { error } = await context.caller.rpc('task_children_link', {
 		parent_id: row.id,
 		child_ids: childIDs
