@@ -8,6 +8,7 @@ const readerExternalID = 'a'.repeat(64);
 const directory = [{ id: memberID, name: '이샘플', email, messenger: { buzz: readerExternalID }, is_admin: true }];
 const link = 'https://example.com/reel/one';
 const channel = { id: 'channel-notice', name: '공지', kind: 'group', isPrivate: false, participantExternalIDs: [readerExternalID] };
+const otherChannel = { ...channel, id: 'channel-other', name: '잡담' };
 const linkMessage = { id: 'link-message', conversationID: channel.id, authorExternalID: readerExternalID, body: link, postedAt: '2026-10-27T01:00:00.000Z', reactions: [], attachments: [] };
 
 type LinkVideo = { url: string; kind: 'file' | 'player'; width: number; height: number };
@@ -25,7 +26,8 @@ const videoFile: LinkVideo = { url: 'https://cdn.example.com/one.mp4', kind: 'fi
 const videoPlayer: LinkVideo = { url: 'https://player.example.com/embed/one', kind: 'player', width: 0, height: 0 };
 const poster = '<svg xmlns="http://www.w3.org/2000/svg" width="191" height="100"><rect width="191" height="100" fill="#466baa"/></svg>';
 
-async function signInWithOneMessage(page: Page, preview: LinkPreview): Promise<void> {
+async function signInWithOneMessage(page: Page, preview: LinkPreview): Promise<{ previewsAsked: number }> {
+	const asked = { previewsAsked: 0 };
 	await page.addInitScript(({ memberID, email }) => {
 		const issuedAt = Math.floor(Date.now() / 1000);
 		const encode = (value: object) => btoa(JSON.stringify(value)).replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_');
@@ -50,14 +52,18 @@ async function signInWithOneMessage(page: Page, preview: LinkPreview): Promise<v
 			const message: { kind: string; capability: string; requestID: string } = JSON.parse(String(raw));
 			if (message.kind !== 'call') return;
 			const answer = (body: object) => socket.send(JSON.stringify({ kind: 'result', requestID: message.requestID, status: 200, body }));
-			if (message.capability === 'person.conversations.list') return answer({ conversations: [channel] });
+			if (message.capability === 'person.conversations.list') return answer({ conversations: [channel, otherChannel] });
 			if (message.capability === 'person.identity') return answer({ externalID: readerExternalID, name: '이샘플' });
 			if (message.capability === 'person.messages.list') return answer({ messages: [linkMessage], hasMoreBefore: false });
 			if (message.capability === 'person.inbox.list') return answer({ items: [] });
-			if (message.capability === 'asset.link') return answer(preview);
+			if (message.capability === 'asset.link') {
+				asked.previewsAsked++;
+				return answer(preview);
+			}
 			answer({});
 		});
 	});
+	return asked;
 }
 const card = (page: Page) => page.locator(`a[href="${link}"]`).filter({ hasText: preview.title });
 
@@ -126,4 +132,17 @@ test('a link card whose video file fails goes back to the picture card', async (
 	await page.getByRole('button', { name: `${preview.title} 영상 재생` }).click();
 	await expect(page.locator('[data-link-video]')).toHaveCount(0);
 	await expect(card(page).locator('[data-loading-image]')).toHaveAttribute('data-loading-image', 'loaded');
+});
+
+test('a link card shown again after switching channels does not ask for its preview again', async ({ page }) => {
+	const asked = await signInWithOneMessage(page, preview);
+	await page.goto(`/messenger?channel=${channel.id}`);
+	await waitForHydration(page);
+	await expect(card(page)).toBeVisible();
+
+	await page.getByText(otherChannel.name, { exact: true }).first().click();
+	await expect(page).toHaveURL(new RegExp(`channel=${otherChannel.id}`));
+	await expect(card(page)).toBeVisible();
+
+	expect(asked.previewsAsked).toBe(1);
 });

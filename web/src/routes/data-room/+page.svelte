@@ -160,7 +160,7 @@
 				{#if selectedCode}<FolderBreadcrumb crumbs={breadcrumbs} onOpen={openCategory} />{:else}<h2 class="text-xl font-semibold">{companyText.documents}</h2>{/if}
 				<div class="flex items-center gap-2">
 					<RefreshButton label={text.refresh} variant="ghost" size="icon-sm" refresh={load} />
-					{#if room}<SharePreview /><ShareLinks />{/if}
+					{#if room}<SharePreview /><ShareLinks {categories} />{/if}
 				</div>
 			</div>
 			{#if errorMessage}<div role="alert" class="flex items-center justify-between gap-3">

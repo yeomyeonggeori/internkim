@@ -1,4 +1,9 @@
-import { notificationCategories, type NotificationCategory } from '../catalog/notifications';
+import {
+	attendanceReaches,
+	notificationCategories,
+	type AttendanceReach,
+	type NotificationCategory
+} from '../catalog/notifications';
 
 export type NotificationChoices = Record<NotificationCategory, boolean>;
 
@@ -34,8 +39,21 @@ export function choicesFromStored(stored: unknown): NotificationChoices {
 	return choices;
 }
 
-export function storedFromChoices(choices: NotificationChoices): Record<string, boolean> {
-	const stored: Record<string, boolean> = {};
+export function isAttendanceReach(value: string): value is AttendanceReach {
+	return attendanceReaches.some((reach) => reach === value);
+}
+
+export function attendanceReachFromStored(stored: unknown): AttendanceReach {
+	if (typeof stored !== 'object' || stored === null) return 'everyone';
+	const reach = Reflect.get(stored, 'attendanceReach');
+	return typeof reach === 'string' && isAttendanceReach(reach) ? reach : 'everyone';
+}
+
+export function storedFromChoices(
+	choices: NotificationChoices,
+	attendanceReach: AttendanceReach
+): Record<string, boolean | string> {
+	const stored: Record<string, boolean | string> = { attendanceReach };
 	for (const category of notificationCategories) {
 		stored[category] = choices[category];
 	}

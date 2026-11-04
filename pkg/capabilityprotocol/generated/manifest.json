@@ -1,8 +1,8 @@
 {
-  "aggregateHash": "180ccea7ff6a26b540ad58037216367e085c213df7450323d72168b387ede7ff",
+  "aggregateHash": "8501b433a80892c247036082913074182d96eaf2fefb6c2c9e3b1bb04e34b1d7",
   "capabilityToolCatalog": {
     "fileName": "capability-tools.json",
-    "hash": "35c9a6648babd9a367ce17545683bd3d58b58d68bda66ba24a32a8a0967b4ff2"
+    "hash": "9df902a58df2a5d9a199bba75fc229bdae2341bb28bbc6de94741b83be5de9fe"
   },
   "protocolVersion": "0.4.0",
   "schemas": [
@@ -63,7 +63,7 @@
     },
     {
       "fileName": "platform-inbound-event.schema.json",
-      "hash": "0265b9acf8beb7f537e07169d64f44cea07086cb56171680f3aba4b5189b4576",
+      "hash": "35051015d457a3225997da5df10a7f95be2f43bd89bf31c3e1e7e79252a5ec1d",
       "name": "platform-inbound-event"
     },
     {

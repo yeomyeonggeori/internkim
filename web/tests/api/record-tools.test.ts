@@ -141,13 +141,13 @@ describe('attendance_team_page_get', () => {
 });
 
 describe('task_board_get over real company rows', () => {
-	test('excludes 1501 historical rows, preserves 1501 cards and counts only direct children', async () => {
+	test('excludes 1501 historical rows, preserves every card across pages and counts only direct children', async () => {
 		const boardWeek = taskWeekOfDate(new Date()).startISO;
 		const prefix = `board-scaling-${Date.now()}`;
 		const parentID = crypto.randomUUID();
 		const children = [crypto.randomUUID(), crypto.randomUUID()];
 		const grandchildID = crypto.randomUUID();
-		const relevantIDs = Array.from({ length: 1501 }, () => crypto.randomUUID());
+		const relevantIDs = Array.from({ length: 301 }, () => crypto.randomUUID());
 		const historicalIDs = Array.from({ length: 1501 }, () => crypto.randomUUID());
 		const allIDs = [parentID, ...children, grandchildID, ...relevantIDs, ...historicalIDs];
 		const insert = async (rows: Record<string, unknown>[]) => {
@@ -162,8 +162,17 @@ describe('task_board_get over real company rows', () => {
 			ends_at: status === 'completed' ? '2020-01-02T00:00:00Z' : null
 		});
 		const boardIDs = async () => {
-			const result = resultOf(await run('task_board_get', { boardWeek, query: prefix }));
-			return { result, ids: (result.tasks as { taskID: string }[]).map(task => task.taskID) };
+			const pages: Record<string, unknown>[] = [];
+			let cursor: unknown;
+			do {
+				const page = resultOf(await run('task_board_get', { boardWeek, query: prefix, limit: 100, ...(cursor ? { cursor } : {}) }));
+				pages.push(page);
+				cursor = page.nextCursor;
+			} while (cursor);
+			const ids = pages.flatMap(page => (page.tasks as { taskID: string }[]).map(task => task.taskID));
+			expect(new Set(ids).size).toBe(ids.length);
+			expect(pages.every(page => page.totalCount === ids.length)).toBe(true);
+			return { childProgress: pages.flatMap(page => page.childProgress as unknown[]), ids };
 		};
 		try {
 			await insert([row(parentID, 'planned'), row(children[0], 'completed', parentID), row(children[1], 'paused', parentID), row(grandchildID, 'completed', children[0])]);
@@ -183,7 +192,7 @@ describe('task_board_get over real company rows', () => {
 			}
 			const scaled = await boardIDs();
 			expect(new Set(scaled.ids)).toEqual(new Set([parentID, children[1], ...relevantIDs]));
-			expect(scaled.result.childProgress).toContainEqual({ parentTaskID: parentID, completed: 1, total: 2, percent: 50 });
+			expect(scaled.childProgress).toContainEqual({ parentTaskID: parentID, completed: 1, total: 2, percent: 50 });
 		} finally {
 			for (let offset = 0; offset < allIDs.length; offset += 100) {
 				const { error } = await client.from('task').delete().in('id', allIDs.slice(offset, offset + 100));
@@ -470,6 +479,44 @@ describe('task_list', () => {
 		const limited = resultOf(await run('task_list', { query: slug, everyWeek: true, limit: 1 }));
 		expect(limited.count).toBe(1);
 		expect(limited.unfinishedCount).toBe(5);
+	});
+
+	test('reads a page at a time, each task once, until no cursor is left', async () => {
+		const prefix = `${slug} pages`;
+		for (const order of ['하나', '둘', '셋', '넷', '다섯']) await run('task_add', { title: `${prefix} ${order}` });
+		const whole = resultOf(await run('task_list', { query: prefix, everyWeek: true, limit: 100 }));
+		expect(whole.totalCount).toBe(5);
+		expect('nextCursor' in whole).toBe(false);
+
+		const pages: Record<string, unknown>[] = [];
+		let cursor: unknown;
+		do {
+			const page = resultOf(await run('task_list', { query: prefix, everyWeek: true, limit: 2, ...(cursor ? { cursor } : {}) }));
+			pages.push(page);
+			cursor = page.nextCursor;
+		} while (cursor);
+
+		expect(pages.map((page) => page.count)).toEqual([2, 2, 1]);
+		expect(pages.every((page) => page.totalCount === 5 && page.unfinishedCount === 5)).toBe(true);
+		expect(pages.flatMap((page) => (page.tasks as { taskID: string }[]).map((task) => task.taskID)))
+			.toEqual((whole.tasks as { taskID: string }[]).map((task) => task.taskID));
+	});
+
+	test('holds fifty tasks to a page unless asked for fewer', async () => {
+		const prefix = `${slug} default page`;
+		for (let index = 0; index < 51; index += 1) await run('task_add', { title: `${prefix} ${index}` });
+		const first = resultOf(await run('task_list', { query: prefix, everyWeek: true }));
+		expect(first.count).toBe(50);
+		expect(first.totalCount).toBe(51);
+		expect(typeof first.nextCursor).toBe('string');
+	}, networkHookTimeout);
+
+	test('refuses a cursor no result gave', async () => {
+		for (const cursor of ['not-a-cursor', btoa('{"id":"x"}'), btoa('[1,2]')]) {
+			const refusal = await run('task_list', { cursor });
+			expect(refusal.status).toBe(400);
+			expect((refusal.body as { error: string }).error).toContain('cursor');
+		}
 	});
 
 	test('names the labels this company registered, with the colours it painted them', async () => {
@@ -1049,6 +1096,29 @@ describe('a task put under another', () => {
 			childTaskHints: [first.taskID as string]
 		});
 		expect(refused.status).toBe(422);
+	});
+
+	test('takes its children as it is added, or is not added when one cannot go', async () => {
+		const first = resultOf(await run('task_add', { title: '새 상위 밑으로 갈 일 하나' }));
+		const second = resultOf(await run('task_add', { title: '새 상위 밑으로 갈 일 둘' }));
+
+		const added = resultOf(await run('task_add', {
+			title: '처음부터 하위를 갖는 일',
+			childTaskHints: [first.taskID as string, second.taskID as string]
+		}));
+		const listed = resultOf(await run('task_list', { scope: 'all', everyWeek: true }));
+		const parents = (listed.tasks as Record<string, string>[])
+			.filter((task) => [first.taskID, second.taskID].includes(task.taskID))
+			.map((task) => task.parentTaskID);
+		expect(parents).toEqual([added.taskID as string, added.taskID as string]);
+
+		const refused = await run('task_add', {
+			title: '하위를 받지 못해 남지 않을 일',
+			childTaskHints: [first.taskID as string]
+		});
+		expect(refused.status).toBe(422);
+		const afterRefusal = resultOf(await run('task_list', { scope: 'all', everyWeek: true, query: '하위를 받지 못해 남지 않을 일' }));
+		expect(afterRefusal.tasks).toEqual([]);
 	});
 });
 

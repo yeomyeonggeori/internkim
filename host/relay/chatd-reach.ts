@@ -4,7 +4,7 @@ export const chatdRestartWaitMilliseconds = 30_000;
 
 const firstPauseMilliseconds = 250;
 const longestPauseMilliseconds = 4_000;
-const refusedConnectionCode = 'ConnectionRefused';
+const refusedConnectionCodes = new Set(['ConnectionRefused', 'ECONNREFUSED']);
 
 export async function fetchWhenChatdListens(
 	url: string,
@@ -28,7 +28,13 @@ export async function fetchWhenChatdListens(
 }
 
 function wasRefused(failure: unknown): boolean {
-	return typeof failure === 'object' && failure !== null && 'code' in failure && failure.code === refusedConnectionCode;
+	return (
+		typeof failure === 'object' &&
+		failure !== null &&
+		'code' in failure &&
+		typeof failure.code === 'string' &&
+		refusedConnectionCodes.has(failure.code)
+	);
 }
 
 function failureAfterWaiting(failure: unknown, waitMilliseconds: number): Error {

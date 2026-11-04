@@ -254,6 +254,26 @@ describe('the company master profile', () => {
 
 		expect(refused.status).toBe(400);
 	});
+
+	test('answers in the working language, not where the company is registered, when no language is asked', async () => {
+		expect(resultOf(await asAdmin('company_info_get')).language).toBe('ko');
+		await asAdmin('company_info_set', {
+			language: 'en',
+			jurisdiction: 'the Republic of Korea',
+			legalAttributes: '{"Business registration number": "123-45-67890"}'
+		});
+
+		await client.from('company').update({ locale: 'en-US' }).eq('id', companyID);
+		const english = resultOf(await asAdmin('company_info_get'));
+		await client.from('company').update({ locale: 'ko' }).eq('id', companyID);
+
+		expect(english.language).toBe('en');
+		expect(english.jurisdiction).toBe('the Republic of Korea');
+		expect(english.legalAttributes).toEqual([{ label: 'Business registration number', value: '123-45-67890' }]);
+		expect(english.capital).toEqual({ amount: 500000000, currency: 'KRW' });
+		expect(english.representativeTitle).toBe('CEO');
+		expect(english.missingFields).toContain('name');
+	});
 });
 
 const aPixelPNG = Uint8Array.from(

@@ -1,5 +1,7 @@
 import type { SupabaseClient } from './service-client.ts';
+import { whoHearsTheClockOf, type Colleague } from './attendance-audience.ts';
 import { endActivityOnOwnPhones, showClockOnOwnPhones } from './attendance-live-activity.ts';
+import { readNotificationSettings } from './categories.ts';
 import { refreshOwnWidgets, widgetClockOf } from './attendance-widget-refresh.ts';
 import { pictureURLOfMember } from './member-directory.ts';
 import { notifyMember, type Notification } from './notify-member.ts';
@@ -135,8 +137,8 @@ async function tellEachExcept(
 	pushKeys: PushKeys,
 	nowInSeconds: number
 ): Promise<Announced> {
-	const listeners = await companyMembers(record, companyID);
-	return tellEach(record, listeners.filter((id) => id !== announcerID), category, notification, pushKeys, nowInSeconds);
+	const listeners = whoHearsTheClockOf(announcerID, await colleaguesOf(record, companyID));
+	return tellEach(record, listeners, category, notification, pushKeys, nowInSeconds);
 }
 
 async function tellWhoAnswers(
@@ -151,15 +153,28 @@ async function tellWhoAnswers(
 	return tellEach(record, answering, 'leave', notification, pushKeys, nowInSeconds);
 }
 
-async function companyMembers(record: SupabaseClient, companyID: string): Promise<string[]> {
+type ColleagueRow = { id: string; team_id: string | null; supervisor_id: string | null; preferences: unknown };
+
+async function colleaguesOf(record: SupabaseClient, companyID: string): Promise<Colleague[]> {
 	const { data, error } = await record
 		.from('member')
-		.select('id')
+		.select('id, team_id, supervisor_id, preferences')
 		.eq('company_id', companyID)
 		.neq('status', 'withdrawn')
-		.returns<{ id: string }[]>();
+		.returns<ColleagueRow[]>();
 	if (error) throw new Error(error.message);
-	return (data ?? []).map((member) => member.id);
+	return (data ?? []).map((member) => ({
+		id: member.id,
+		teamID: member.team_id,
+		supervisorID: member.supervisor_id,
+		attendanceReach: readNotificationSettings(notificationSettingsOf(member.preferences)).attendanceReach
+	}));
+}
+
+function notificationSettingsOf(preferences: unknown): unknown {
+	return typeof preferences === 'object' && preferences !== null
+		? Reflect.get(preferences, 'notificationSettings')
+		: undefined;
 }
 
 async function tellEach(

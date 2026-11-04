@@ -16,6 +16,8 @@ export type AttendanceWidgetPlugin = {
 	install(): Promise<WidgetInstall>;
 	supply(supply: WidgetSupply): Promise<void>;
 	forget(): Promise<void>;
+	backgroundRefreshState(): Promise<{ allowed: boolean }>;
+	openSettings(): Promise<void>;
 };
 
 export type WidgetPlatform = 'ios' | 'android';

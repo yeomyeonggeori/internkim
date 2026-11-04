@@ -1,7 +1,7 @@
 import { expect, test, type Page } from '@playwright/test';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { mockDeviceMessenger } from './messenger-device-mock';
-import { everyScreen, smallBreakpointWidth } from '../support/screen-widths';
+import { desktopWidth, everyScreen, smallBreakpointWidth } from '../support/screen-widths';
 
 const channelID = 'image-loading-channel';
 const reader = { id: 'image-reader', email: 'reader@example.com' };
@@ -193,6 +193,28 @@ test('the lightbox keeps attachment proportions while its image is pending', asy
 	} finally {
 		pending.release();
 	}
+});
+
+test('a lightbox opened from a thread takes clicks instead of the thread behind it', async ({ page }) => {
+	await page.setViewportSize({ width: desktopWidth, height: 700 });
+	await mockChannel(page, cachedPicture);
+	await page.goto(`/messenger?channel=${channelID}`);
+	await page.getByRole('button', { name: /1개 답글/ }).click();
+	const thread = page.getByRole('dialog', { name: '글타래' });
+	await thread.getByRole('button', { name: 'sample-photo.svg', exact: true }).click();
+	const lightbox = page.getByRole('dialog').filter({ has: page.getByRole('button', { name: '다운로드' }) });
+	const frame = lightbox.locator('[data-loading-image]');
+	await expect(frame).toHaveAttribute('data-loading-image', 'loaded');
+	const toolbar = await lightbox.getByRole('button', { name: '다운로드' }).boundingBox();
+	const picture = await frame.boundingBox();
+	if (!toolbar || !picture) throw new Error('The lightbox has no toolbar or picture box');
+	expect(picture.y).toBeGreaterThanOrEqual(toolbar.y + toolbar.height);
+	await capture(page, 'lightbox-over-thread');
+	await frame.click();
+	await expect(frame).toBeVisible();
+	await page.mouse.click(10, 690);
+	await expect(frame).toHaveCount(0);
+	await expect(thread).toBeVisible();
 });
 
 test('a decoded cached image is visible at the first paint when reopened', async ({ page }) => {

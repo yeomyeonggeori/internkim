@@ -18,6 +18,7 @@
 
 	let { text, isOpen = $bindable(), detail, backLabel }: Props = $props();
 	const isMobile = new IsMobile();
+	const isBottomSheet = $derived(isMobile.current && !backLabel);
 
 	function formatDate(date: string): string {
 		return new Intl.DateTimeFormat(text.dateLocale, {
@@ -33,8 +34,8 @@
 
 <Sheet.Root bind:open={isOpen}>
 	<Sheet.Content
-		side={isMobile.current ? 'bottom' : 'right'}
-		class={isMobile.current
+		side={isBottomSheet ? 'bottom' : 'right'}
+		class={isBottomSheet
 			? 'max-h-[92vh] gap-0 rounded-t-xl p-0'
 			: backLabel ? 'w-full gap-0 p-0 sm:max-w-2xl' : 'w-full gap-0 p-0 sm:max-w-[34rem]'}
 		closeLabel={text.close}

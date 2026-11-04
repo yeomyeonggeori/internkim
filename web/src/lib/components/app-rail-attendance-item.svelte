@@ -31,7 +31,7 @@
 			<DropdownMenu.RadioItem
 				bind:ref={() => locationElements[index] ?? null, (element) => (locationElements[index] = element)}
 				value={location.id}
-				disabled={myAttendanceToday.isSubmitting}
+				disabled={myAttendanceToday.isSubmitting || myAttendanceToday.isShowingStored}
 			>
 				{location.name}
 			</DropdownMenu.RadioItem>
@@ -51,7 +51,7 @@
 	{#if myAttendanceToday.locations.length <= 1}
 		<DropdownMenu.Item
 			closeOnSelect={false}
-			disabled={myAttendanceToday.nextKind === 'clock_out' || myAttendanceToday.isSubmitting}
+			disabled={myAttendanceToday.nextKind === 'clock_out' || myAttendanceToday.isSubmitting || myAttendanceToday.isShowingStored}
 			onclick={() => void myAttendanceToday.clock('clock_in', myAttendanceToday.locations[0]?.id ?? '').catch(() => undefined)}
 		>
 			{text.clockIn}
@@ -73,7 +73,7 @@
 	<DropdownMenu.Item
 		bind:ref={clockOutElement}
 		closeOnSelect={false}
-		disabled={myAttendanceToday.nextKind === 'clock_in' || myAttendanceToday.isSubmitting}
+		disabled={myAttendanceToday.nextKind === 'clock_in' || myAttendanceToday.isSubmitting || myAttendanceToday.isShowingStored}
 		onclick={() => void myAttendanceToday.clock('clock_out', '').catch(() => undefined)}
 	>
 		{text.clockOut}
