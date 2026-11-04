@@ -58,4 +58,13 @@ describe('what person.message.send is asked to carry', () => {
 		const send = asked.find((call) => call.capability === 'person.message.send');
 		expect(send?.body.attachments).toEqual([]);
 	});
+
+	test('the time zone of the device it was written on, so the agent reads its times there', async () => {
+		asked.length = 0;
+
+		await writePost('channel-1', '재택 출근 아홉시');
+
+		const send = asked.find((call) => call.capability === 'person.message.send');
+		expect(send?.body.timeZone).toBe(Intl.DateTimeFormat().resolvedOptions().timeZone);
+	});
 });
