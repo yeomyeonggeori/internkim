@@ -30,3 +30,7 @@ export function taskDateRangeParts(
 		.map((date) => taskDateParts(date, currentYear))
 		.filter((date): date is TaskDateParts => date !== undefined);
 }
+
+export function taskDateRangeText(startDate: string | undefined, endDate: string | undefined): string {
+	return [startDate, endDate].filter(Boolean).join(' — ');
+}

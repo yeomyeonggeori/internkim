@@ -152,6 +152,7 @@
 				canManageRelationships={editable && relationshipsReady}
 				pendingTaskIDs={pendingRelationshipTaskIDs}
 				text={text.relationships}
+				dateRangeLabel={`${text.startDate} — ${text.endDate}`}
 				{taskTypeColor}
 				{statusLabel}
 				onOpenTask={openRelatedTask}

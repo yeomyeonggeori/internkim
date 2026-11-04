@@ -27,6 +27,18 @@ describe('flow task board model', () => {
 		expect(progressColumn?.tasks.map((task) => task.id)).toEqual(['first', 'middle', 'last']);
 	});
 
+	test('puts parent tasks above other tasks, each group by end date', () => {
+		const board = buildTaskBoard([
+			task({ id: 'early-task', status: 'in_progress', endDate: '2026-06-01' }),
+			task({ id: 'late-parent', status: 'in_progress', endDate: '2026-06-10' }),
+			task({ id: 'early-parent', status: 'in_progress', endDate: '2026-06-05' })
+		], { parentTaskIDs: new Set(['late-parent', 'early-parent']) });
+
+		const progressColumn = board.find((column) => column.status === 'in_progress');
+
+		expect(progressColumn?.tasks.map((task) => task.id)).toEqual(['early-parent', 'late-parent', 'early-task']);
+	});
+
 	test('breaks a tie on end date by creation time, earliest first', () => {
 		const board = buildTaskBoard([
 			task({ id: 'created-later', status: 'in_progress', endDate: '2026-06-05', createdAt: '2026-06-01T12:00:00Z' }),
@@ -139,9 +151,9 @@ function task(overrides: Partial<Task>): Task {
 	return {
 		id: '',
 		ownerID: 'member-1',
-		ownerName: '김철수',
+		ownerName: '이샘플',
 		participantIDs: ['member-1'],
-		participantNames: ['김철수'],
+		participantNames: ['이샘플'],
 		business: '샘플거리',
 		type: '기능',
 		content: '업무',
