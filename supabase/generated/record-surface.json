@@ -501,6 +501,15 @@
       ]
     },
     {
+      "name": "company_served_by_connection_file",
+      "arguments": "served_company uuid",
+      "returns": "boolean",
+      "security": "definer",
+      "callableBy": [
+        "service_role"
+      ]
+    },
+    {
       "name": "company_subscription_changed",
       "arguments": "target_company uuid, target_customer text, target_subscription text, target_status text, status_at timestamp with time zone",
       "returns": "void",
