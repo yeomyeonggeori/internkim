@@ -24,6 +24,7 @@ class LoadingFixture {
 	boardFailure = false;
 	historyFailure = false;
 	peopleFailure = false;
+	taskCanUpdate = false;
 
 	async answer(route: Route) {
 		const tool = new URL(route.request().url()).pathname.split('/').at(-2);
@@ -40,7 +41,7 @@ class LoadingFixture {
 			if (history ? this.historyFailure : this.boardFailure) { await route.fulfill({ status: 503, json: { error: 'Task read unavailable' } }); return; }
 			await route.fulfill({ json: { result: {
 				scope: 'all', count: 1,
-				tasks: [{ taskID: '30000000-0000-4000-8000-000000000001', content: taskTitle, status: 'planned', size: 'M', ownerID: memberID, ownerName: '이샘플', participantIDs: [memberID], participantNames: ['이샘플'], createdAt: fixedDate, weekCode: taskWeekOfDate(new Date(fixedDate)).code }],
+				tasks: [{ taskID: '30000000-0000-4000-8000-000000000001', content: taskTitle, status: 'planned', size: 'M', ownerID: memberID, ownerName: '이샘플', participantIDs: [memberID], participantNames: ['이샘플'], createdAt: fixedDate, weekCode: taskWeekOfDate(new Date(fixedDate)).code, canUpdate: this.taskCanUpdate }],
 				registeredLabels: { businesses: [], types: [], sizes: ['S', 'M', 'L'], statuses: ['requested', 'planned', 'in_progress', 'completed', 'paused', 'rejected', 'stopped'] }
 			} } });
 			return;
@@ -222,9 +223,10 @@ test('same-week refresh retains the settled task list', async ({ page }) => {
 	await expect(page.locator('[data-task-ready="true"]')).toBeVisible();
 });
 
-test('a board card opens while the board refreshes', async ({ page }) => {
+test('a board card opens while the board refreshes, and editing waits for it', async ({ page }) => {
 	test.skip(isBaseline, 'Opening during a refresh is asserted against implementation');
 	const fixture = new LoadingFixture();
+	fixture.taskCanUpdate = true;
 	await installFixture(page, fixture);
 	await page.goto('/example-co/task');
 	await expect(page.locator('[data-task-ready="true"]')).toBeVisible();
@@ -235,7 +237,9 @@ test('a board card opens while the board refreshes', async ({ page }) => {
 	await fixture.boardStarted.promise;
 	await page.locator('[data-task-board-card]').filter({ hasText: taskTitle }).click();
 	await expect(page.getByRole('dialog').getByText(taskTitle, { exact: true })).toBeVisible();
+	await expect(page.getByRole('button', { name: '업무 수정', exact: true })).toBeDisabled();
 	pending.release();
+	await expect(page.getByRole('button', { name: '업무 수정', exact: true })).toBeEnabled();
 });
 
 test('partial board stops its directory loading status after directory failure', async ({ page }) => {

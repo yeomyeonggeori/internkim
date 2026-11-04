@@ -18,6 +18,7 @@
 	type Props = {
 		taskDraft: Task | null;
 		isEditingTask: boolean;
+		isEditingLocked: boolean;
 		members: TaskMember[];
 		categoryOptions: TaskEditorOption[];
 		typeOptions: TaskEditorOption[];
@@ -64,6 +65,7 @@
 	let {
 		taskDraft = $bindable<Task | null>(null),
 		isEditingTask,
+		isEditingLocked,
 		members,
 		categoryOptions,
 		typeOptions,
@@ -184,7 +186,7 @@
 				</div>
 				<Sheet.Footer class="border-t">
 					{#if canEditTask}
-						<Button class="gap-2" onclick={startEditingTask}>
+						<Button class="gap-2" onclick={startEditingTask} disabled={isEditingLocked}>
 							<PencilIcon />
 							{text.editTitle}
 						</Button>

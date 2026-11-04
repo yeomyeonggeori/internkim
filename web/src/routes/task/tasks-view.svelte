@@ -187,6 +187,7 @@
 	memberEmail={page.memberEmail}
 	bind:taskDraft={page.editor.taskDraft}
 	isEditingTask={page.editor.isEditingTask}
+	isEditingLocked={isLoading}
 	members={page.members()}
 	categoryOptions={page.categoryOptions()}
 	typeOptions={page.typeOptions()}
