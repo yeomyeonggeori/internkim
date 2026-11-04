@@ -1,6 +1,7 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
 import { expectTouchTarget } from '../support/touch-target';
 import { mockDeviceMessenger } from './messenger-device-mock';
+import { swipeSideways } from './swipe-sideways';
 import { everyPhoneScreen, narrowestWidth, smallBreakpointWidth } from '../support/screen-widths';
 
 for (const viewport of [{ width: 320, height: 760 }, { width: 568, height: 320 }, { width: 1280, height: 800 }]) {
@@ -375,3 +376,25 @@ async function dragConversation(page: Page, clientYs: number[]) {
 		for (const clientY of moves) target.dispatchEvent(new TouchEvent('touchmove', { touches: at(clientY), bubbles: true }));
 	}, clientYs);
 }
+
+test.describe('swiping the conversation on a phone', () => {
+	test('a swipe to the right from the screen edge opens the channel list', async ({ page }) => {
+		await openConversation(page, 390);
+		await swipeSideways(page.getByText(conversationMessage, { exact: true }), 2, 160);
+		await expect(page.getByRole('dialog', { name: '채널' })).toBeVisible();
+	});
+
+	test('a swipe to the left leaves the channel list closed', async ({ page }) => {
+		await openConversation(page, 390);
+		await swipeSideways(page.getByText(conversationMessage, { exact: true }), 300, 140);
+		await page.waitForTimeout(300);
+		await expect(page.getByRole('dialog', { name: '채널' })).toHaveCount(0);
+	});
+
+	test('a short swipe to the right leaves the channel list closed', async ({ page }) => {
+		await openConversation(page, 390);
+		await swipeSideways(page.getByText(conversationMessage, { exact: true }), 100, 130);
+		await page.waitForTimeout(300);
+		await expect(page.getByRole('dialog', { name: '채널' })).toHaveCount(0);
+	});
+});
