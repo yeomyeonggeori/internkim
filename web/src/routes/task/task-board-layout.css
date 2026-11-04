@@ -1,10 +1,15 @@
 [data-task-board-scroll] {
 		container-type: inline-size;
-		scrollbar-width: none;
 	}
 
-	[data-task-board-scroll]::-webkit-scrollbar {
-		display: none;
+	@media (hover: none), (pointer: coarse) {
+		[data-task-board-scroll] {
+			scrollbar-width: none;
+		}
+
+		[data-task-board-scroll]::-webkit-scrollbar {
+			display: none;
+		}
 	}
 
 	.task-board-column {

@@ -39,7 +39,7 @@ describe('board loading', () => {
 		directoryGate = people.promise;
 		const reading = taskState('scope', '2026-09-28');
 		expect(calls).toEqual([
-			{ name: 'task_board_get', input: { scope: 'all', boardWeek: '2026-09-28' } },
+			{ name: 'task_board_get', input: { scope: 'all', boardWeek: '2026-09-28', limit: 100 } },
 			{ name: 'person_list', input: { limit: 100 } }
 		]);
 		tasks.resolve(); people.resolve();
@@ -88,7 +88,7 @@ describe('board loading', () => {
 		expect(taskState('scope')).toBe(history);
 		const state = await history;
 		await board;
-		expect(calls.filter(call => call.name === 'task_list')).toEqual([{ name: 'task_list', input: { scope: 'all', everyWeek: true } }]);
+		expect(calls.filter(call => call.name === 'task_list')).toEqual([{ name: 'task_list', input: { scope: 'all', everyWeek: true, limit: 100 } }]);
 		expect(state.completeness).toBe('full');
 		expect(state.boardWeek).toBeUndefined();
 		expect(state.metrics.memberScores).toBeDefined();

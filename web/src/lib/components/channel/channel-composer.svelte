@@ -41,6 +41,7 @@
 	import PlusIcon from '@lucide/svelte/icons/plus';
 	import SmilePlusIcon from '@lucide/svelte/icons/smile-plus';
 	import XIcon from '@lucide/svelte/icons/x';
+	import { feelHaptic } from '$lib/native-shell/haptics';
 	import { onDestroy, onMount } from 'svelte';
 	import { MediaQuery } from 'svelte/reactivity';
 
@@ -245,6 +246,7 @@
 			placeholder={disabled ? text.composerDisabledPlaceholder : placeholder}
 			ariaAttributes={editorAriaAttributes}
 			{disabled}
+			acceptsDrop={!typesOnTouchKeyboard.current}
 			onKeydown={handleKeydown}
 			onInput={handleInput}
 			onSelectionChange={handleSelectionChange}
@@ -345,6 +347,7 @@
 		variant="default"
 		size="icon-sm"
 		class={className}
+		onclick={() => feelHaptic('touch')}
 		disabled={disabled || (value.trim().length === 0 && pendingAttachments.items.length === 0) || isSending}
 	>
 		<ArrowUpIcon />

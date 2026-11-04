@@ -253,6 +253,22 @@ export async function saveTask(
 	return data;
 }
 
+export async function saveTaskWithChildren(
+	caller: SupabaseClient,
+	argumentsOfSave: Record<string, unknown>,
+	childTaskIDs: string[]
+): Promise<string> {
+	const { data, error } = await caller.rpc('task_save_with_children', {
+		save_arguments: argumentsOfSave,
+		child_ids: childTaskIDs
+	});
+	if (error) {
+		throw refusedWriteOf(error.message, error.code);
+	}
+	if (typeof data !== 'string') throw new RecordRefusedTheWrite('the record named no task it saved', 502);
+	return data;
+}
+
 // PostgREST answers a delete row level security forbids with an empty list and
 // no error, so the representation is the only proof anything went.
 export async function deleteTask(caller: SupabaseClient, taskID: string): Promise<void> {

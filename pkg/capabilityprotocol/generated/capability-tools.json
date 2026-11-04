@@ -7,7 +7,7 @@
         "state": "ok"
       },
       "canonicalName": "schedule_list",
-      "description": "List scheduled tasks created by the current requester. Filter by active, failed, or expired status and cap the result with limit. Use it to answer what reminders or recurring tasks are scheduled.",
+      "description": "List scheduled tasks created by the current requester, newest first. Filter by active, failed, or expired status. Use it to answer what reminders or recurring tasks are scheduled. A nextCursor means more schedules remain; read them before concluding a schedule does not exist.",
       "estimatedLatency": "low",
       "idempotency": {
         "required": false,
@@ -18,8 +18,14 @@
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
         "properties": {
+          "cursor": {
+            "description": "Pagination cursor from a previous schedule_list result. Omit on the first call.",
+            "minLength": 1,
+            "type": "string"
+          },
           "limit": {
-            "maximum": 9007199254740991,
+            "description": "Maximum schedules to return. Defaults to 50.",
+            "maximum": 100,
             "minimum": 1,
             "type": "integer"
           },
@@ -45,6 +51,10 @@
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
         "properties": {
+          "nextCursor": {
+            "description": "Cursor for the next page. Absent when no more schedules match.",
+            "type": "string"
+          },
           "schedules": {
             "items": {
               "additionalProperties": false,
@@ -97,10 +107,17 @@
               "type": "object"
             },
             "type": "array"
+          },
+          "totalCount": {
+            "description": "How many schedules match the filters across every page.",
+            "maximum": 9007199254740991,
+            "minimum": -9007199254740991,
+            "type": "integer"
           }
         },
         "required": [
-          "schedules"
+          "schedules",
+          "totalCount"
         ],
         "type": "object"
       },
@@ -114,6 +131,10 @@
           "$schema": "https://json-schema.org/draft/2020-12/schema",
           "additionalProperties": false,
           "properties": {
+            "nextCursor": {
+              "description": "Cursor for the next page. Absent when no more schedules match.",
+              "type": "string"
+            },
             "schedules": {
               "items": {
                 "additionalProperties": false,
@@ -166,10 +187,17 @@
                 "type": "object"
               },
               "type": "array"
+            },
+            "totalCount": {
+              "description": "How many schedules match the filters across every page.",
+              "maximum": 9007199254740991,
+              "minimum": -9007199254740991,
+              "type": "integer"
             }
           },
           "required": [
-            "schedules"
+            "schedules",
+            "totalCount"
           ],
           "type": "object"
         }
@@ -1024,6 +1052,13 @@
             "description": "The company business this work is for, from registeredLabels.businesses in a task_list result, whenever the conversation or the work itself shows which one. Omit it only when that is unknown: the record then decides it from the company's own definitions.",
             "type": "string"
           },
+          "childTaskHints": {
+            "description": "Existing tasks to move under the new task, each an exact task ID or exact CURRENT title from a task_list result. Every one of them must stand on its own already; when any cannot move, the new task is not added either.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
           "endsAt": {
             "description": "When the work is due. ISO 8601 with timezone for a moment, or YYYY-MM-DD for a whole day. Resolve relative dates from the current date. Omit when the user did not specify one.",
             "type": "string"
@@ -1096,6 +1131,13 @@
           "business": {
             "description": "The company business this work is for, from registeredLabels.businesses in a task_list result, whenever the conversation or the work itself shows which one. Omit it only when that is unknown: the record then decides it from the company's own definitions.",
             "type": "string"
+          },
+          "childTaskHints": {
+            "description": "Existing tasks to move under the new task, each an exact task ID or exact CURRENT title from a task_list result. Every one of them must stand on its own already; when any cannot move, the new task is not added either.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
           },
           "endsAt": {
             "description": "When the work is due. ISO 8601 with timezone for a moment, or YYYY-MM-DD for a whole day. Resolve relative dates from the current date. Omit when the user did not specify one.",
@@ -1401,7 +1443,7 @@
         "state": "ok"
       },
       "canonicalName": "task_list",
-      "description": "List workspace tasks with optional filters. Use this to answer 'what tasks does X have', 'what is on my plate', or 'show incomplete items this week'. It reads the requester's own tasks unless personHints names other people or scope is all.",
+      "description": "List workspace tasks with optional filters. Use this to answer 'what tasks does X have', 'what is on my plate', or 'show incomplete items this week'. It reads the requester's own tasks unless personHints names other people or scope is all, most recently changed first. A nextCursor in the result means more tasks match than this page holds: read the next page before concluding that a task is not there.",
       "estimatedLatency": "low",
       "idempotency": {
         "required": false,
@@ -1412,13 +1454,20 @@
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
         "properties": {
+          "cursor": {
+            "description": "Pagination cursor from a previous task_list or task_board_get result. Omit on the first call.",
+            "minLength": 1,
+            "type": "string"
+          },
           "everyWeek": {
             "description": "Every week there is, ignoring weekFrom and weekTo. Use it to search the whole history or to total work across all time.",
             "type": "boolean"
           },
           "limit": {
-            "description": "Maximum number of tasks to return. Omit to return every matching task.",
-            "type": "number"
+            "description": "Maximum tasks to return. Defaults to 50.",
+            "maximum": 100,
+            "minimum": 1,
+            "type": "integer"
           },
           "opportunityHint": {
             "description": "Only the work on one deal. Names the deal this work belongs to, as a crm_opportunity_list result shows it, or its exact opportunity ID. The deal already says which organization it is with.",
@@ -1485,9 +1534,14 @@
         "additionalProperties": false,
         "properties": {
           "count": {
+            "description": "How many tasks this page holds.",
             "maximum": 9007199254740991,
             "minimum": -9007199254740991,
             "type": "integer"
+          },
+          "nextCursor": {
+            "description": "Cursor for the next page. Absent when no more tasks match.",
+            "type": "string"
           },
           "ownerID": {
             "type": "string"
@@ -1668,8 +1722,14 @@
             },
             "type": "array"
           },
+          "totalCount": {
+            "description": "How many tasks match the filters across every page.",
+            "maximum": 9007199254740991,
+            "minimum": -9007199254740991,
+            "type": "integer"
+          },
           "unfinishedCount": {
-            "description": "Number of unfinished tasks among all matching rows before the optional limit is applied.",
+            "description": "Number of unfinished tasks among all matching rows across every page.",
             "maximum": 9007199254740991,
             "minimum": -9007199254740991,
             "type": "integer"
@@ -1688,6 +1748,7 @@
         "required": [
           "tasks",
           "count",
+          "totalCount",
           "unfinishedCount",
           "scope",
           "registeredLabels"
@@ -1705,9 +1766,14 @@
           "additionalProperties": false,
           "properties": {
             "count": {
+              "description": "How many tasks this page holds.",
               "maximum": 9007199254740991,
               "minimum": -9007199254740991,
               "type": "integer"
+            },
+            "nextCursor": {
+              "description": "Cursor for the next page. Absent when no more tasks match.",
+              "type": "string"
             },
             "ownerID": {
               "type": "string"
@@ -1888,8 +1954,14 @@
               },
               "type": "array"
             },
+            "totalCount": {
+              "description": "How many tasks match the filters across every page.",
+              "maximum": 9007199254740991,
+              "minimum": -9007199254740991,
+              "type": "integer"
+            },
             "unfinishedCount": {
-              "description": "Number of unfinished tasks among all matching rows before the optional limit is applied.",
+              "description": "Number of unfinished tasks among all matching rows across every page.",
               "maximum": 9007199254740991,
               "minimum": -9007199254740991,
               "type": "integer"
@@ -1908,6 +1980,7 @@
           "required": [
             "tasks",
             "count",
+            "totalCount",
             "unfinishedCount",
             "scope",
             "registeredLabels"
@@ -1917,7 +1990,7 @@
       },
       "sideEffect": "read",
       "sideEffectClass": "read",
-      "version": "4",
+      "version": "5",
       "worksOffline": false
     },
     {
@@ -1926,7 +1999,7 @@
         "state": "ok"
       },
       "canonicalName": "task_board_get",
-      "description": "Get one task board week: its visible cards, including undated and overdue carry-over work, with direct-child progress across all weeks. Counts describe this board selection; use task_list for complete history and reports. Uses the same person scope and read permissions as task_list.",
+      "description": "Get one task board week: its visible cards, including undated and overdue carry-over work, with direct-child progress across all weeks. Counts describe this board selection; use task_list for complete history and reports. Uses the same person scope and read permissions as task_list. A nextCursor in the result means more cards match than this page holds: read the next page before concluding that a card is not on the board.",
       "estimatedLatency": "low",
       "idempotency": {
         "required": false,
@@ -1942,9 +2015,16 @@
             "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
             "type": "string"
           },
+          "cursor": {
+            "description": "Pagination cursor from a previous task_list or task_board_get result. Omit on the first call.",
+            "minLength": 1,
+            "type": "string"
+          },
           "limit": {
-            "description": "Maximum number of tasks to return. Omit to return every matching task.",
-            "type": "number"
+            "description": "Maximum tasks to return. Defaults to 50.",
+            "maximum": 100,
+            "minimum": 1,
+            "type": "integer"
           },
           "opportunityHint": {
             "description": "Only the work on one deal. Names the deal this work belongs to, as a crm_opportunity_list result shows it, or its exact opportunity ID. The deal already says which organization it is with.",
@@ -2042,9 +2122,14 @@
             "type": "array"
           },
           "count": {
+            "description": "How many tasks this page holds.",
             "maximum": 9007199254740991,
             "minimum": -9007199254740991,
             "type": "integer"
+          },
+          "nextCursor": {
+            "description": "Cursor for the next page. Absent when no more tasks match.",
+            "type": "string"
           },
           "ownerID": {
             "type": "string"
@@ -2225,8 +2310,14 @@
             },
             "type": "array"
           },
+          "totalCount": {
+            "description": "How many tasks match the filters across every page.",
+            "maximum": 9007199254740991,
+            "minimum": -9007199254740991,
+            "type": "integer"
+          },
           "unfinishedCount": {
-            "description": "Number of unfinished tasks among all matching rows before the optional limit is applied.",
+            "description": "Number of unfinished tasks among all matching rows across every page.",
             "maximum": 9007199254740991,
             "minimum": -9007199254740991,
             "type": "integer"
@@ -2245,6 +2336,7 @@
         "required": [
           "tasks",
           "count",
+          "totalCount",
           "unfinishedCount",
           "scope",
           "registeredLabels",
@@ -2300,9 +2392,14 @@
               "type": "array"
             },
             "count": {
+              "description": "How many tasks this page holds.",
               "maximum": 9007199254740991,
               "minimum": -9007199254740991,
               "type": "integer"
+            },
+            "nextCursor": {
+              "description": "Cursor for the next page. Absent when no more tasks match.",
+              "type": "string"
             },
             "ownerID": {
               "type": "string"
@@ -2483,8 +2580,14 @@
               },
               "type": "array"
             },
+            "totalCount": {
+              "description": "How many tasks match the filters across every page.",
+              "maximum": 9007199254740991,
+              "minimum": -9007199254740991,
+              "type": "integer"
+            },
             "unfinishedCount": {
-              "description": "Number of unfinished tasks among all matching rows before the optional limit is applied.",
+              "description": "Number of unfinished tasks among all matching rows across every page.",
               "maximum": 9007199254740991,
               "minimum": -9007199254740991,
               "type": "integer"
@@ -2503,6 +2606,7 @@
           "required": [
             "tasks",
             "count",
+            "totalCount",
             "unfinishedCount",
             "scope",
             "registeredLabels",
@@ -2514,7 +2618,7 @@
       },
       "sideEffect": "read",
       "sideEffectClass": "read",
-      "version": "1",
+      "version": "2",
       "worksOffline": false
     },
     {
@@ -36044,7 +36148,7 @@
         "state": "ok"
       },
       "canonicalName": "notification_settings_get",
-      "description": "The notification settings: what the requester is told about, category by category, and the conversations they have muted. The kinds of thing a person is told about: message for something somebody wrote them, task for work assigned to them, approval for something waiting on their decision, attendance for their own clock, leave for the requests colleagues send, calendar for an event about to start, and mail for a new message in a connected mailbox. A category the requester may not choose is answered with isChoosable false, so a change to it would be refused.",
+      "description": "The notification settings: what the requester is told about, category by category, and the conversations they have muted. The kinds of thing a person is told about: message for something somebody wrote them, task for work assigned to them, approval for something waiting on their decision, attendance for their own clock, leave for the requests colleagues send, calendar for an event about to start, and mail for a new message in a connected mailbox. A category the requester may not choose is answered with isChoosable false, so a change to it would be refused. Whose clocking in and out the requester is told about while attendance is on: everyone for the whole company, teamAndSupervisors for their own team and every supervisor above them, one supervisor's supervisor after another, and team for their own team alone.",
       "estimatedLatency": "low",
       "idempotency": {
         "required": false,
@@ -36068,6 +36172,14 @@
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
         "properties": {
+          "attendanceReach": {
+            "enum": [
+              "everyone",
+              "teamAndSupervisors",
+              "team"
+            ],
+            "type": "string"
+          },
           "categories": {
             "items": {
               "additionalProperties": false,
@@ -36100,6 +36212,7 @@
         },
         "required": [
           "categories",
+          "attendanceReach",
           "mutedConversationIDs"
         ],
         "type": "object"
@@ -36114,6 +36227,14 @@
           "$schema": "https://json-schema.org/draft/2020-12/schema",
           "additionalProperties": false,
           "properties": {
+            "attendanceReach": {
+              "enum": [
+                "everyone",
+                "teamAndSupervisors",
+                "team"
+              ],
+              "type": "string"
+            },
             "categories": {
               "items": {
                 "additionalProperties": false,
@@ -36146,6 +36267,7 @@
           },
           "required": [
             "categories",
+            "attendanceReach",
             "mutedConversationIDs"
           ],
           "type": "object"
@@ -36162,7 +36284,7 @@
         "state": "ok"
       },
       "canonicalName": "notification_settings_set",
-      "description": "Change the notification settings: which categories of notice the requester is told about at all, and which conversations are muted. This is the standing preference, not one arriving reminder: a repeating alert the requester set up is stopped with schedule_cancel. Only the categories the call names change, and the whole setting is answered back. A category the requester may not choose is refused by name rather than quietly dropped.",
+      "description": "Change the notification settings: which categories of notice the requester is told about at all, whose clocking in and out reaches them, and which conversations are muted. This is the standing preference, not one arriving reminder: a repeating alert the requester set up is stopped with schedule_cancel. Only the categories and the reach the call names change, and the whole setting is answered back. A category the requester may not choose is refused by name rather than quietly dropped.",
       "estimatedLatency": "medium",
       "idempotency": {
         "required": false,
@@ -36173,6 +36295,15 @@
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
         "properties": {
+          "attendanceReach": {
+            "description": "Whose clocking in and out the requester is told about while attendance is on: everyone for the whole company, teamAndSupervisors for their own team and every supervisor above them, one supervisor's supervisor after another, and team for their own team alone. Left out, it keeps the reach it has.",
+            "enum": [
+              "everyone",
+              "teamAndSupervisors",
+              "team"
+            ],
+            "type": "string"
+          },
           "turnOff": {
             "description": "The categories to stop being told about. A category named in neither list keeps the setting it has.",
             "items": {
@@ -36212,6 +36343,15 @@
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
         "properties": {
+          "attendanceReach": {
+            "description": "Whose clocking in and out the requester is told about while attendance is on: everyone for the whole company, teamAndSupervisors for their own team and every supervisor above them, one supervisor's supervisor after another, and team for their own team alone. Left out, it keeps the reach it has.",
+            "enum": [
+              "everyone",
+              "teamAndSupervisors",
+              "team"
+            ],
+            "type": "string"
+          },
           "turnOff": {
             "description": "The categories to stop being told about. A category named in neither list keeps the setting it has.",
             "items": {
@@ -36258,6 +36398,14 @@
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
         "properties": {
+          "attendanceReach": {
+            "enum": [
+              "everyone",
+              "teamAndSupervisors",
+              "team"
+            ],
+            "type": "string"
+          },
           "categories": {
             "items": {
               "additionalProperties": false,
@@ -36290,6 +36438,7 @@
         },
         "required": [
           "categories",
+          "attendanceReach",
           "mutedConversationIDs"
         ],
         "type": "object"
@@ -36310,6 +36459,14 @@
           "$schema": "https://json-schema.org/draft/2020-12/schema",
           "additionalProperties": false,
           "properties": {
+            "attendanceReach": {
+              "enum": [
+                "everyone",
+                "teamAndSupervisors",
+                "team"
+              ],
+              "type": "string"
+            },
             "categories": {
               "items": {
                 "additionalProperties": false,
@@ -36342,6 +36499,7 @@
           },
           "required": [
             "categories",
+            "attendanceReach",
             "mutedConversationIDs"
           ],
           "type": "object"

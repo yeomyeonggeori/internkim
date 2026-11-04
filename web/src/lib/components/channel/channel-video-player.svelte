@@ -6,6 +6,7 @@
 	import Maximize2Icon from '@lucide/svelte/icons/maximize-2';
 	import { channelText } from '$lib/i18n/channel-text';
 	import { createPageText } from '$lib/i18n/page-text.svelte';
+	import { videoPlaybackHandoff } from './video-playback-handoff';
 
 	let {
 		source,
@@ -37,13 +38,14 @@
 		controls
 		preload="metadata"
 		playsinline
+		use:videoPlaybackHandoff={source}
 		style:aspect-ratio={aspectRatio}
 		class={variant === 'message' ? 'size-full object-contain' : 'max-h-[calc(100dvh-10rem)] size-full rounded-md bg-black object-contain'}
 	></video>
 	{#if onOpen}
 		<button
 			type="button"
-			class="absolute top-2 right-2 flex size-8 items-center justify-center rounded-full bg-black/60 text-white backdrop-blur transition hover:bg-black/80"
+			class="absolute top-2 left-2 flex size-8 items-center justify-center rounded-full bg-black/60 text-white backdrop-blur transition hover:bg-black/80"
 			aria-label={text.openVideo}
 			onclick={onOpen}
 		>

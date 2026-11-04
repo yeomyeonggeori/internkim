@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { createTaskReadSession, sameTaskReadContext } from '../../../src/routes/task/task-read-session';
+import { createTaskReadSession, readCoversWrite, sameTaskReadContext } from '../../../src/routes/task/task-read-session';
 
 describe('task request ownership', () => {
 	test('full history stays user-triggered through same-account route revalidation and week navigation', () => {
@@ -52,5 +52,17 @@ describe('task request ownership', () => {
 		expect(session.isCurrent(reading, 1)).toBe(true);
 		expect(session.isCurrent(reading, 2)).toBe(false);
 		expect(session.owns(reading)).toBe(true);
+	});
+});
+
+describe('a heard task write', () => {
+	test('needs no second refresh when a read started after it and nothing invalidated that read', () => {
+		expect(readCoversWrite(3, 2, 3)).toBe(true);
+		expect(readCoversWrite(2, 2, 2)).toBe(true);
+	});
+	test('still refreshes when the only read predates it or was invalidated since', () => {
+		expect(readCoversWrite(1, 2, 2)).toBe(false);
+		expect(readCoversWrite(3, 2, 4)).toBe(false);
+		expect(readCoversWrite(-1, 2, 2)).toBe(false);
 	});
 });

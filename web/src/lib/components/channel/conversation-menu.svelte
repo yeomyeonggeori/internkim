@@ -16,6 +16,7 @@
 	import type { HTMLLiAttributes } from 'svelte/elements';
 	import { MediaQuery } from 'svelte/reactivity';
 	import { holdToReorder, type HoldToReorderMoves } from './hold-to-reorder';
+	import { openConversationMenu } from './open-conversation-menu.svelte';
 	import { swallowClickAfterTouchHold } from './swallow-click-after-touch-hold';
 
 	type Props = {
@@ -61,7 +62,9 @@
 	}: Props = $props();
 
 	const canHover = new MediaQuery('hover: hover', true);
-	let isContextMenuOpen = $state(false);
+	const menuID = $props.id();
+	const isContextMenuOpen = $derived(openConversationMenu.isOpen(menuID));
+	const setContextMenuOpen = (isOpen: boolean): void => openConversationMenu.setOpen(menuID, isOpen);
 </script>
 
 {#snippet switchPinnedLabel()}
@@ -99,7 +102,7 @@
 	<span>{hideLabel}</span>
 {/snippet}
 
-<ContextMenu.Root bind:open={isContextMenuOpen}>
+<ContextMenu.Root bind:open={() => isContextMenuOpen, setContextMenuOpen}>
 	<ContextMenu.Trigger class="[-webkit-touch-callout:none]">
 		{#snippet child({ props })}
 			<Sidebar.MenuItem
@@ -109,7 +112,7 @@
 					fromAction(holdToReorder, () => ({
 						...holdMoves,
 						isMenuOpen: isContextMenuOpen,
-						closeMenu: () => (isContextMenuOpen = false)
+						closeMenu: () => setContextMenuOpen(false)
 					}))}
 			>
 				{@render children()}

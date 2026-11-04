@@ -34,7 +34,6 @@
 	} = $props();
 
 	const text = createPageText(channelText);
-	const firstShownCount = 5;
 
 	let candidates = $state<ChannelCandidate[]>([]);
 	let isLoadingCandidates = $state(false);
@@ -43,18 +42,11 @@
 	let isAdding = $state(false);
 	let removing = $state<ChannelMember | null>(null);
 	let isRemoving = $state(false);
-	let isShowingAll = $state(false);
 
 	const keepingCircleName = $derived(circleChannels.circleNameOf(channelID));
 	const memberCountLabel = $derived(text.channelMemberCount.replace('{count}', String(members.length)));
 	const memberExternalIDs = $derived(new Set(members.map((member) => member.externalID)));
 	const addable = $derived(candidates.filter((candidate) => !memberExternalIDs.has(candidate.externalID)));
-	const hiddenCount = $derived(isShowingAll ? 0 : Math.max(0, members.length - firstShownCount));
-	const shownMembers = $derived(hiddenCount > 0 ? members.slice(0, firstShownCount) : members);
-
-	$effect(() => {
-		if (!expanded) isShowingAll = false;
-	});
 
 	$effect(() => {
 		if (!expanded || keepingCircleName) return;
@@ -171,8 +163,8 @@
 			</div>
 			{#if candidateError}<p role="alert" class="text-destructive text-sm">{candidateError}</p>{/if}
 		{/if}
-		<ul class="grid" aria-label={text.channelMembersTitle}>
-			{#each shownMembers as member (member.memberID ?? member.externalID)}
+		<ul class="grid max-h-50 touch-pan-y overflow-x-hidden overflow-y-auto overscroll-contain" aria-label={text.channelMembersTitle}>
+			{#each members as member (member.memberID ?? member.externalID)}
 				<li class="flex min-h-10 min-w-0 items-center gap-2.5 py-1">
 					<PersonAvatar
 						name={member.name}
@@ -199,11 +191,6 @@
 				</li>
 			{/each}
 		</ul>
-		{#if hiddenCount > 0}
-			<Button variant="ghost" size="sm" class="justify-start" onclick={() => (isShowingAll = true)}>
-				{text.showAllChannelMembers.replace('{count}', String(hiddenCount))}
-			</Button>
-		{/if}
 	</div>
 {/if}
 <Separator />

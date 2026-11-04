@@ -88,6 +88,7 @@
 	import { isSupabaseConfigured } from '$lib/supabase';
 	import { onDestroy, onMount, tick, untrack } from 'svelte';
 	import { loadHistoryUntilHeld, revealMessageElement } from './message-reveal';
+	import { dismissKeyboardOnScrollBack } from './keyboard-dismissal';
 
 	let {
 		isActive = true,
@@ -424,14 +425,23 @@
 		threadScroller?.scrollTo({ top: 0, behavior: 'smooth' });
 	}
 
-	export async function revealMessage(messageID: string, threadRootID?: string): Promise<boolean> {
-		const timelineID = threadRootID ?? messageID;
-		const held = await loadHistoryUntilHeld({
-			holds: () => messages.some((message) => message.id === timelineID),
+	function loadHistoryHolding(messageID: string): Promise<boolean> {
+		return loadHistoryUntilHeld({
+			holds: () => messages.some((message) => message.id === messageID),
 			hasMore: () => hasMoreBefore,
 			isLoading: () => isLoadingOlder || (!hasLoadedOnce && !loadFailed && !isDestroyed),
 			loadOlder: loadOlderMessages
 		});
+	}
+
+	export async function revealMessageInItsThread(messageID: string): Promise<boolean> {
+		if (!(await loadHistoryHolding(messageID))) return false;
+		return revealMessage(messageID, messages.find((message) => message.id === messageID)?.threadRootId);
+	}
+
+	export async function revealMessage(messageID: string, threadRootID?: string): Promise<boolean> {
+		const timelineID = threadRootID ?? messageID;
+		const held = await loadHistoryHolding(timelineID);
 		if (!held || !scrollContainer) return false;
 		await tick();
 		const revealedInTimeline = revealMessageElement(scrollContainer, timelineID);
@@ -917,6 +927,7 @@
 		<div
 			bind:this={threadScroller}
 			onscroll={handleThreadScroll}
+			use:dismissKeyboardOnScrollBack
 			class="@container/conversation flex min-h-0 flex-1 flex-col-reverse gap-4 [&>:first-child]:mb-auto overflow-y-auto px-4 py-8"
 		>
 			{#if openThreadRoot}
@@ -988,6 +999,7 @@
 				<div
 					bind:this={scrollContainer}
 					onscroll={handleViewportScroll}
+					use:dismissKeyboardOnScrollBack
 					use:chooseMessageOnClick={{ enabled: capture.isCapturing, onChoose: capture.choose }}
 					class="@container/conversation isolate flex min-h-0 flex-1 flex-col-reverse gap-4 [&>:first-child]:mb-auto overflow-x-hidden overflow-y-auto overscroll-y-none px-4 pt-12 pb-[calc(var(--dock-height)+2.5rem)] [scrollbar-gutter:stable]"
 				>
@@ -1094,6 +1106,9 @@
 		<Sheet.Content
 			side="right"
 			class="flex w-full flex-col gap-0 p-0 sm:max-w-md"
+			onInteractOutside={(event) => {
+				if (event.target instanceof Element && event.target.closest('[data-channel-lightbox]')) event.preventDefault();
+			}}
 			onEscapeKeydown={(event) => {
 				if (lightbox) {
 					event.preventDefault();
