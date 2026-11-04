@@ -50,6 +50,9 @@ export const PATCH: RequestHandler = async ({ request, platform }) => {
 	if (!serve.success) error(400, 'name the box that serves the company by its public key');
 	const outcome = await makeBoxServe(member.record, member.companyID, serve.data.publicKey);
 	if (outcome === 'not_its_box') error(404, 'this company has no such box connected');
+	if (outcome === 'served_by_connection_file') {
+		error(409, 'the company computer connected with a connection file serves the company, and no box can take over what it holds');
+	}
 	if (outcome === 'no_backup') {
 		error(409, 'the company keeps no backup yet for this box to take over from; the box that serves keeps one every fifteen minutes');
 	}
