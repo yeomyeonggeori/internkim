@@ -29,3 +29,18 @@ export async function keepHostSession(source: HostSessionSource): Promise<HostSe
 
 	return { current: () => session, keepFresh };
 }
+
+export type RoleAnswer = { data: unknown; error: { message: string } | null; status: number };
+
+export class NoLongerServes extends Error {}
+
+export async function confirmStillServing(askRole: () => PromiseLike<RoleAnswer>): Promise<void> {
+	const answer = await askRole();
+	if (answer.status === 401 || answer.status === 403) {
+		throw new NoLongerServes(`the central plane refused this computer's session (${answer.status})`);
+	}
+	if (answer.error) throw new Error(`asking whether this computer still serves its company: ${answer.error.message}`);
+	if (answer.data !== 'service') {
+		throw new NoLongerServes(`the central plane answers that this computer is ${answer.data ?? 'no longer its company\'s'}`);
+	}
+}
