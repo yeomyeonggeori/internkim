@@ -7,6 +7,8 @@ export async function tauriAttendanceWidget(): Promise<AttendanceWidgetPlugin> {
 	return {
 		install: () => invoke<WidgetInstall>(`plugin:${pluginName}|install`),
 		supply: (supply: WidgetSupply) => invoke<void>(`plugin:${pluginName}|supply`, { ...supply }),
-		forget: () => invoke<void>(`plugin:${pluginName}|forget`)
+		forget: () => invoke<void>(`plugin:${pluginName}|forget`),
+		backgroundRefreshState: () => invoke<{ allowed: boolean }>(`plugin:${pluginName}|background_refresh_state`),
+		openSettings: () => invoke<void>(`plugin:${pluginName}|open_settings`)
 	};
 }

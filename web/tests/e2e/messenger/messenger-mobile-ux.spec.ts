@@ -1,6 +1,7 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
 import { expectTouchTarget } from '../support/touch-target';
 import { mockDeviceMessenger } from './messenger-device-mock';
+import { swipeSideways } from './swipe-sideways';
 import { everyPhoneScreen, narrowestWidth, smallBreakpointWidth } from '../support/screen-widths';
 
 for (const viewport of [{ width: 320, height: 760 }, { width: 568, height: 320 }, { width: 1280, height: 800 }]) {
@@ -294,3 +295,106 @@ async function selectText(composer: Locator, start: number, end: number): Promis
 		document.dispatchEvent(new Event('selectionchange'));
 	}, { start, end });
 }
+
+test.describe('the keyboard on a touch screen', () => {
+	test.use({ hasTouch: true });
+
+	const thread = (page: Page) => page.getByRole('region', { name: '글타래' });
+	const composerHasFocus = (page: Page) =>
+		page.evaluate(() => document.activeElement?.getAttribute('aria-label') === '메시지를 입력하세요');
+
+	test('a message tapped while typing closes the keyboard instead of opening its thread', async ({ page }) => {
+		await openConversation(page, 390);
+		await page.getByRole('combobox', { name: '메시지를 입력하세요' }).focus();
+		expect(await composerHasFocus(page)).toBe(true);
+
+		await page.getByText(conversationMessage, { exact: true }).tap();
+
+		expect(await composerHasFocus(page)).toBe(false);
+		await expect(thread(page)).toHaveCount(0);
+
+		await page.getByText(conversationMessage, { exact: true }).tap();
+
+		await expect(thread(page)).toBeVisible();
+	});
+
+	test('dragging the conversation back toward older messages closes the keyboard', async ({ page }) => {
+		await openConversation(page, 390);
+		await page.getByRole('combobox', { name: '메시지를 입력하세요' }).focus();
+
+		await dragConversation(page, [300, 320]);
+		expect(await composerHasFocus(page)).toBe(true);
+
+		await dragConversation(page, [300, 360]);
+		expect(await composerHasFocus(page)).toBe(false);
+	});
+
+	test('the phone app taps back on every composer tap and when a message is sent', async ({ page }) => {
+		await insideThePhoneApp(page);
+		await openConversation(page, 390);
+		const composer = page.getByRole('combobox', { name: '메시지를 입력하세요' });
+
+		await composer.tap();
+		await expect.poll(() => hapticsFelt(page)).toBe(1);
+		await composer.tap();
+		await expect.poll(() => hapticsFelt(page)).toBe(2);
+		await page.keyboard.type('햅틱 확인');
+		await page.getByRole('button', { name: '보내기', exact: true }).tap();
+		await expect.poll(() => hapticsFelt(page)).toBe(3);
+	});
+});
+
+async function insideThePhoneApp(page: Page) {
+	await page.addInitScript(() => {
+		const felt: string[] = [];
+		Reflect.set(window, 'hapticsFelt', felt);
+		Reflect.set(window, 'isTauri', true);
+		Reflect.set(window, '__TAURI_OS_PLUGIN_INTERNALS__', { platform: 'ios' });
+		Reflect.set(window, '__TAURI_INTERNALS__', {
+			invoke: async (command: string) => {
+				if (command.startsWith('plugin:haptics|')) felt.push(command);
+				return null;
+			},
+			transformCallback: () => 0
+		});
+	});
+}
+
+async function hapticsFelt(page: Page): Promise<number> {
+	return page.evaluate(() => (Reflect.get(window, 'hapticsFelt') as string[]).length);
+}
+
+async function dragConversation(page: Page, clientYs: number[]) {
+	await page.getByText(conversationMessage, { exact: true }).evaluate((message, path) => {
+		let scroller: Element | null = message;
+		while (scroller && getComputedStyle(scroller).overflowY !== 'auto') scroller = scroller.parentElement;
+		if (!scroller) throw new Error('the message is not inside a scrolling conversation');
+		const target = scroller;
+		const at = (clientY: number) => [new Touch({ identifier: 1, target, clientX: 100, clientY })];
+		const [start, ...moves] = path;
+		target.dispatchEvent(new TouchEvent('touchstart', { touches: at(start), bubbles: true }));
+		for (const clientY of moves) target.dispatchEvent(new TouchEvent('touchmove', { touches: at(clientY), bubbles: true }));
+	}, clientYs);
+}
+
+test.describe('swiping the conversation on a phone', () => {
+	test('a swipe to the right from the screen edge opens the channel list', async ({ page }) => {
+		await openConversation(page, 390);
+		await swipeSideways(page.getByText(conversationMessage, { exact: true }), 2, 160);
+		await expect(page.getByRole('dialog', { name: '채널' })).toBeVisible();
+	});
+
+	test('a swipe to the left leaves the channel list closed', async ({ page }) => {
+		await openConversation(page, 390);
+		await swipeSideways(page.getByText(conversationMessage, { exact: true }), 300, 140);
+		await page.waitForTimeout(300);
+		await expect(page.getByRole('dialog', { name: '채널' })).toHaveCount(0);
+	});
+
+	test('a short swipe to the right leaves the channel list closed', async ({ page }) => {
+		await openConversation(page, 390);
+		await swipeSideways(page.getByText(conversationMessage, { exact: true }), 100, 130);
+		await page.waitForTimeout(300);
+		await expect(page.getByRole('dialog', { name: '채널' })).toHaveCount(0);
+	});
+});

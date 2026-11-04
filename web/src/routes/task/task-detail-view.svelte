@@ -3,6 +3,7 @@
 	import PersonChip from '$lib/components/person-chip.svelte';
 	import { displayPersonName } from '$lib/person-name.svelte';
 	import { hasTaskRequestProvenance } from './task-options';
+	import { taskDateRangeText } from './task-date-range';
 	import type { TaskEditorText } from './task-editor-types';
 	import type { Task } from './task-types';
 
@@ -17,7 +18,7 @@
 
 	let { task, text, statusLabel, businessColor, taskTypeColor, memberEmail }: Props = $props();
 
-	const dateRange = $derived([task.startDate, task.endDate].filter(Boolean).join(' — '));
+	const dateRange = $derived(taskDateRangeText(task.startDate, task.endDate));
 </script>
 
 <div class="space-y-4">

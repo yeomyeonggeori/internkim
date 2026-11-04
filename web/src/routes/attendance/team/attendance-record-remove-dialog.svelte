@@ -45,7 +45,7 @@
 				</span>
 			</div>
 
-			<ChangeReasonSelect bind:value={removal.reason} disabled={removal.isSaving} label={text.records.reason} />
+			<ChangeReasonSelect bind:value={removal.reason} disabled={removal.isSaving} label={text.records.reason} contentClass="z-(--layer-alert-popout)" />
 
 			<p class="text-xs text-muted-foreground" data-testid="attendance-record-remove-notice">
 				{noticeMessage}

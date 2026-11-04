@@ -13,6 +13,7 @@ const layerNames = [
 	'--layer-panel-popout',
 	'--layer-alert-overlay',
 	'--layer-alert',
+	'--layer-alert-popout',
 	'--layer-tooltip',
 	'--layer-dragged'
 ];
@@ -57,6 +58,10 @@ describe('what covers what on screen', () => {
 	test('an alert interrupts everything a panel opened', () => {
 		expect(layerValue('--layer-alert-overlay')).toBeGreaterThan(layerValue('--layer-panel-popout'));
 		expect(layerValue('--layer-alert')).toBeGreaterThan(layerValue('--layer-alert-overlay'));
+	});
+
+	test('what an alert opens sits above the alert', () => {
+		expect(layerValue('--layer-alert-popout')).toBeGreaterThan(layerValue('--layer-alert'));
 	});
 
 	test('a tooltip sits above every overlay', () => {

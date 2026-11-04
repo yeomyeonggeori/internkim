@@ -64,7 +64,7 @@ async function asAdmin(name: string, input: Record<string, unknown> = {}) {
 
 type NotificationChoice = { category: string; isOn: boolean; isChoosable: boolean };
 
-type SettingsResult = { categories: NotificationChoice[]; mutedConversationIDs: string[] };
+type SettingsResult = { categories: NotificationChoice[]; attendanceReach: string; mutedConversationIDs: string[] };
 
 type MutingResult = { conversationID: string; isMuted: boolean; mutedConversationIDs: string[] };
 
@@ -90,6 +90,7 @@ describe('what a person is told about', () => {
 		expect(answered.status).toBe(200);
 		expect(choiceOf(settings, 'message').isOn).toBe(true);
 		expect(choiceOf(settings, 'mail').isOn).toBe(false);
+		expect(settings.attendanceReach).toBe('everyone');
 		expect(settings.mutedConversationIDs).toEqual([]);
 	});
 
@@ -114,6 +115,19 @@ describe('what a person is told about', () => {
 		const readBack = resultOf<SettingsResult>(await asSample('notification_settings_get'));
 		expect(choiceOf(readBack, 'mail').isOn).toBe(true);
 		expect(choiceOf(readBack, 'task').isOn).toBe(false);
+	});
+
+	test('narrows whose clock reaches the requester, and keeps it through a category change', async () => {
+		const narrowed = resultOf<SettingsResult>(
+			await asSample('notification_settings_set', { attendanceReach: 'teamAndSupervisors' })
+		);
+		expect(narrowed.attendanceReach).toBe('teamAndSupervisors');
+
+		const afterCategory = resultOf<SettingsResult>(await asSample('notification_settings_set', { turnOff: ['mail'] }));
+		expect(afterCategory.attendanceReach).toBe('teamAndSupervisors');
+
+		const restored = resultOf<SettingsResult>(await asSample('notification_settings_set', { attendanceReach: 'everyone' }));
+		expect(restored.attendanceReach).toBe('everyone');
 	});
 
 	test('refuses a category the requester may not choose, and names it', async () => {

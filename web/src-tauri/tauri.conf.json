@@ -6,7 +6,7 @@
   "build": { "frontendDist": "../app-shell" },
   "app": {
     "windows": [
-      { "label": "main", "title": "internkim", "url": "https://intern.kim", "width": 1200, "height": 800 }
+      { "label": "main", "title": "internkim", "url": "https://intern.kim", "width": 1200, "height": 800, "dragDropEnabled": false }
     ],
     "security": { "csp": null }
   },

@@ -73,6 +73,7 @@
 		getIsMobileTwoDayWeekView: () => isMobileTwoDayWeekView,
 		getLocaleCode: () => localeCode,
 		getLocale: () => currentLocale.value,
+		getCacheScope: () => page.data.workspaceScope ?? '',
 		initialCalendarDate,
 		initialCalendarView,
 		setVisibleDate,

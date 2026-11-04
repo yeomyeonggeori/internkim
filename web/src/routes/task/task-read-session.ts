@@ -5,6 +5,10 @@ export function sameTaskReadContext(left: TaskReadContext, right: TaskReadContex
 	return left.scope === right.scope && left.week === right.week && left.generation === right.generation;
 }
 
+export function readCoversWrite(readGeneration: number, heardGeneration: number, currentGeneration: number): boolean {
+	return readGeneration >= heardGeneration && readGeneration === currentGeneration;
+}
+
 export function createTaskReadSession() {
 	let scope = '';
 	let week = '';

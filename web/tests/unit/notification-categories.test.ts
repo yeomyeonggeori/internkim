@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 import { notificationCategories } from '../../src/lib/notifications/categories';
 import {
+	attendanceReachFromStored,
 	choicesFromStored,
 	storedFromChoices
 } from '../../src/lib/server/public-api/record/notifications';
@@ -33,11 +34,13 @@ describe('what a member is told about', () => {
 
 	test('what is written back is what reading it gives again', () => {
 		const chosen = choicesFromStored({ message: false, mail: true });
-		expect(choicesFromStored(storedFromChoices(chosen))).toEqual(chosen);
+		const stored = storedFromChoices(chosen, 'team');
+		expect(choicesFromStored(stored)).toEqual(chosen);
+		expect(attendanceReachFromStored(stored)).toBe('team');
 	});
 
 	test('every category is written, so a new one does not read as a refusal', () => {
-		const stored = storedFromChoices(choicesFromStored(null));
+		const stored = storedFromChoices(choicesFromStored(null), 'everyone');
 		for (const category of notificationCategories) {
 			expect(typeof stored[category]).toBe('boolean');
 		}

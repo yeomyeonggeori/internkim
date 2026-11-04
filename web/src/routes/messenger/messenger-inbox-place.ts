@@ -9,7 +9,11 @@ export function inboxPlaceOf(entry: InboxEntry, conversation: ChannelSummary | u
 	return { kind: 'thread', channelName: conversation.name };
 }
 
-export function inboxThreadRootOf(entry: InboxEntry, conversation: ChannelSummary | undefined): string | undefined {
-	if (conversation?.kind === 'group') return entry.threadRootId ?? entry.id;
+export function inboxThreadRootOf(
+	entry: InboxEntry,
+	conversation: ChannelSummary | undefined,
+	opensChannelMessageAsThread: boolean
+): string | undefined {
+	if (opensChannelMessageAsThread && conversation?.kind === 'group') return entry.threadRootId ?? entry.id;
 	return entry.threadRootId;
 }
