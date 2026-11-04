@@ -27,6 +27,7 @@ import {
   taskLabelGetResultSchema,
   taskLabelGetToolName,
   taskLabelVocabularySchema,
+  taskTypeDescription,
   taskVocabularySetInputIntentSchema,
   taskVocabularySetInputSchema,
 } from './labels';
@@ -399,7 +400,6 @@ const taskSizeDescription = [
 
 const labelsTheRecordDecides = "Omit it otherwise: the record decides the business, type and size a new task leaves out, from the company's own definitions.";
 
-const taskTypeDescription = 'Choose the matching company type from registeredLabels.types in task_list, using the meaning of the work. Read the current definitions when they are not already available. Send an empty string when no type fits; it is stored as null and displayed as Other in the user\'s language. Never invent a label.';
 const workspaceTaskStatusSchema = z.enum(WorkspaceTaskStatus);
 
 const taskParticipantSchema = z.strictObject({
