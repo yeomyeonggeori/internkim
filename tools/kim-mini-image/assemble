@@ -6,7 +6,7 @@ releaseTag="$2"
 outputImage="$3"
 wifiCountry="$4"
 timeZone="$5"
-growBy="8G"
+installRoom="8G"
 root=/mnt/kim-mini
 baseImage="$(dirname "$outputImage")/$(basename "$baseImageURL")"
 
@@ -18,7 +18,7 @@ expectedChecksum="$(curl -fsSL "$baseImageURL.sha256" | cut -d' ' -f1)"
 echo "$expectedChecksum  $baseImage" | sha256sum -c --quiet || { echo "$baseImage does not match $baseImageURL.sha256" >&2; exit 1; }
 
 xz -dc "$baseImage" > "$outputImage"
-truncate -s "+$growBy" "$outputImage"
+truncate -s "+$installRoom" "$outputImage"
 parted -s "$outputImage" resizepart 2 100%
 
 partitionDevice() {
@@ -41,6 +41,19 @@ trap cleanUp EXIT
 
 e2fsck -fy "$rootDevice" >/dev/null || [ $? -le 1 ]
 resize2fs "$rootDevice" >/dev/null
+
+shrinkToContent() {
+  rootDevice="$(partitionDevice 2)"
+  e2fsck -fy "$rootDevice" >/dev/null || [ $? -le 1 ]
+  resize2fs -M "$rootDevice" >/dev/null
+  e2fsck -fn "$rootDevice" >/dev/null || { echo "the root file system is not clean after shrinking it" >&2; exit 1; }
+  fileSystemBytes="$(dumpe2fs -h "$rootDevice" 2>/dev/null | awk -F: '$1 == "Block count" { count = $2 } $1 == "Block size" { size = $2 } END { print count * size }')"
+  losetup -d "$rootDevice"
+  rootStart="$(partx -g -o START -n 2 "$outputImage" | tr -d ' ')"
+  rootSectors="$((fileSystemBytes / 512))"
+  echo "$rootStart,$rootSectors" | sfdisk --quiet --no-reread --no-tell-kernel -N 2 "$outputImage"
+  truncate -s "$(((rootStart + rootSectors) * 512))" "$outputImage"
+}
 
 mkdir -p "$root"
 mount "$rootDevice" "$root"
@@ -95,6 +108,7 @@ sed -i 's/^127\.0\.1\.1.*/127.0.1.1\tkimmini/' "$root/etc/hosts"
 chroot "$root" apt-get clean
 mv -f "$root/etc/resolv.conf.kim-mini-image" "$root/etc/resolv.conf"
 cleanUp
+shrinkToContent
 trap - EXIT
 xz -T0 -f "$outputImage"
 echo "built $outputImage.xz from $(basename "$baseImageURL") and internkim $releaseTag"
