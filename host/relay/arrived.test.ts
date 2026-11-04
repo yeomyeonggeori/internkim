@@ -7,7 +7,8 @@ const posted = {
 	authorExternalID: 'U-author',
 	authorName: '이샘플',
 	recipientExternalIDs: ['U-first', 'U-second'],
-	preview: '오늘 회의 30분 미뤄도 될까요'
+	preview: '오늘 회의 30분 미뤄도 될까요',
+	attachmentKinds: ['image']
 };
 
 describe('readArrivedMessage', () => {
@@ -46,6 +47,12 @@ describe('readArrivedMessage', () => {
 		expect(arrived?.preview.length).toBe(140);
 	});
 
+	test('an older messenger that reports no files reports a message without any', () => {
+		const { attachmentKinds: _absent, ...withoutFiles } = posted;
+
+		expect(readArrivedMessage(withoutFiles)?.attachmentKinds).toEqual([]);
+	});
+
 	test('a recipient list of the wrong shape leaves nobody to tell', () => {
 		expect(readArrivedMessage({ ...posted, recipientExternalIDs: 'U-first' })?.recipientExternalIDs).toEqual([]);
 		expect(readArrivedMessage({ ...posted, recipientExternalIDs: [7, null] })?.recipientExternalIDs).toEqual([]);
@@ -59,7 +66,7 @@ describe('tellingOf', () => {
 		expect(tellingOf(arrived!, '이샘플')).toEqual({
 			title: '이샘플',
 			body: '오늘 회의 30분 미뤄도 될까요',
-			openPath: '/messenger/?channel=channel-1',
+			openPath: '/messenger/?channel=channel-1&message=post-7',
 			tag: 'message:channel-1'
 		});
 	});
@@ -88,9 +95,10 @@ describe('notifyRequestOf', () => {
 			messageID: 'post-7',
 			withdrawnMessageIDs: ['post-3'],
 			senderPicturePath: picturePath,
+			attachmentKinds: ['image'],
 			title: '이샘플',
 			body: '오늘 회의 30분 미뤄도 될까요',
-			openPath: '/messenger/?channel=channel-1',
+			openPath: '/messenger/?channel=channel-1&message=post-7',
 			tag: 'message:channel-1'
 		});
 	});

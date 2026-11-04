@@ -33,6 +33,7 @@ type CalendarPageControllerContext = {
 	getIsMobileTwoDayWeekView: () => boolean;
 	getLocaleCode: () => string;
 	getLocale: () => CalendarHolidayLocale;
+	getCacheScope: () => string;
 	initialCalendarDate: () => Date;
 	initialCalendarView: () => ViewType;
 	setVisibleDate: (date: Date) => void;
@@ -57,6 +58,7 @@ export function createCalendarPageController(context: CalendarPageControllerCont
 	const eventLoader: CalendarEventLoader = createCalendarEventLoader({
 		isBrowser: context.isBrowser,
 		getLocale: context.getLocale,
+		getCacheScope: context.getCacheScope,
 		errorFallback: () => context.text.error,
 		holidayErrorFallback: () => context.text.holidayLoadError,
 		getCalendarEvents: () => eventStore.getAllEvents(),

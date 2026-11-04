@@ -61,11 +61,12 @@
             </DropdownMenu.Root>
         {:else if !myAttendanceToday.summary && !myAttendanceToday.loadFailure}<Skeleton class="ml-auto h-9 w-16" aria-hidden="true" />{/if}
     </nav>
+{#if myAttendanceToday.loadFailure && (!myAttendanceToday.summary || myAttendanceToday.isShowingStored)}
+	<p role="alert" class="mt-3 text-sm text-destructive">{myAttendanceToday.loadFailure}</p>
+	<Button variant="outline" size="sm" onclick={() => myAttendanceToday.refresh()}>{text.refresh}</Button>
+{/if}
 {#if !myAttendanceToday.summary}
-	{#if myAttendanceToday.loadFailure}
-		<p role="alert" class="mt-3 text-sm text-destructive">{myAttendanceToday.loadFailure}</p>
-		<Button variant="outline" size="sm" onclick={() => myAttendanceToday.refresh()}>{text.refresh}</Button>
-	{:else}
+	{#if !myAttendanceToday.loadFailure}
 		<AttendanceLoadingSkeleton />
 	{/if}
 {:else}

@@ -169,14 +169,23 @@ export function changedTaskFields(task: Task, originalTask: Task): Partial<Writt
 	));
 }
 
-export async function saveTask(task: Task, statusBefore: string | null, originalTask?: Task): Promise<void> {
+export async function saveTask(
+	task: Task,
+	statusBefore: string | null,
+	originalTask?: Task,
+	childTaskIDs: string[] = []
+): Promise<void> {
 	if (task.id) {
 		const written = originalTask ? changedTaskFields(task, originalTask) : writtenTaskOf(task);
 		if (Object.keys(written).length === 0) return;
 		await updateTask(task.id, written);
 	} else {
 		const written = writtenTaskOf(task);
-		await addTask({ ...withoutUnchosenLabels(written), ...(task.parentTaskID ? { parentTaskHint: task.parentTaskID } : {}) });
+		await addTask({
+			...withoutUnchosenLabels(written),
+			...(task.parentTaskID ? { parentTaskHint: task.parentTaskID } : {}),
+			...(childTaskIDs.length > 0 ? { childTaskHints: childTaskIDs } : {})
+		});
 	}
 	if (statusBefore !== null && statusBefore !== centralStatusFromWord(task.status)) {
 		void announceTaskMoved(task.id);

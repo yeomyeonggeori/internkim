@@ -1,5 +1,6 @@
 <script lang="ts">
-	import { fetchLinkPreview, type LinkPreview } from '$lib/messenger/messenger-api';
+	import type { LinkPreview } from '$lib/messenger/messenger-api';
+	import { linkPreviewOf } from '$lib/messenger/link-previews';
 	import { isSupabaseConfigured } from '$lib/supabase';
 	import LoadingImage from '$lib/components/loading-image.svelte';
 	import ChannelLinkVideo from './channel-link-video.svelte';
@@ -17,7 +18,7 @@
 	$effect(() => {
 		if (!url || !isSupabaseConfigured()) return;
 		let stillWanted = true;
-		void fetchLinkPreview(url)
+		void linkPreviewOf(url)
 			.catch(() => null)
 			.then((found) => {
 				if (stillWanted) preview = found;

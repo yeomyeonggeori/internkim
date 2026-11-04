@@ -83,13 +83,14 @@
 		moveTask: (request) => moveTask(request)
 	});
 
+	let childProgressByParent = $derived(serverChildProgress ? new Map(Object.entries(serverChildProgress)) : buildTaskChildProgressByParent(allTasks));
 	let columns = $derived(buildTaskBoard(tasks, {
 		weekStartISO,
 		weekEndISO,
 		weekPosition,
-		hideEmptyRequestColumn: shouldHideEmptyRequestColumn(participantScope)
+		hideEmptyRequestColumn: shouldHideEmptyRequestColumn(participantScope),
+		parentTaskIDs: new Set(childProgressByParent.keys())
 	}));
-	let childProgressByParent = $derived(serverChildProgress ? new Map(Object.entries(serverChildProgress)) : buildTaskChildProgressByParent(allTasks));
 
 	function addTaskLabel(status: string): string {
 		return boardText.addTask.replace('{status}', statusLabel(status));

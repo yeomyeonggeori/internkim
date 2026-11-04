@@ -5,6 +5,7 @@ import { TransferFailed } from './transfer-store';
 import { MessengerAnswered } from './person-picture';
 import { reasonOf } from './failure';
 import { chatdRestartWaitMilliseconds, fetchWhenChatdListens } from './chatd-reach';
+import { channelOwnerAddCapability, seatedOwnerOf, type SeatedOwner } from './seated-owner';
 
 export type Call = {
 	callID?: string;
@@ -204,6 +205,7 @@ export type Dispatch = {
 	messengerCredentialOf: (memberID: string) => Promise<ActorCredential | null>;
 	serveBrowserHandoff: (capability: string, body: Record<string, unknown>, memberID: string) => Promise<{ status: number; body: unknown }>;
 	forgetRefusedMessengerCredential: (memberID: string) => void;
+	muteSeatedOwner: (seated: SeatedOwner) => Promise<void>;
 };
 
 export type ConnectedAccount = { kind: string; externalID: string; name: string; secret: string };
@@ -297,6 +299,12 @@ async function serveAsActor(
 			dispatch.messageArrived(String(body.conversationID ?? ''), messageIDOf(sent.body));
 		}
 		return sent;
+	}
+	if (capability === channelOwnerAddCapability) {
+		const added = await dispatch.askChatd(channelOwnerAddCapability, { ...body, actor });
+		const seated = seatedOwnerOf(body, added);
+		if (seated) await dispatch.muteSeatedOwner(seated);
+		return added;
 	}
 	if (capability === prepareMediaCapability) return dispatch.transfer.prepareMedia(memberID, actor, body);
 	if (capability === uploadMediaCapability) {
