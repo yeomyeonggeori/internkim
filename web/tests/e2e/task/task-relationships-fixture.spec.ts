@@ -34,6 +34,7 @@ class TaskRelationshipFixture {
 	failedHistoryReads = new Set<number>();
 	added: Record<string, unknown>[] = [];
 	writeGate = Promise.resolve();
+	historyGate = Promise.resolve();
 	onWriteStarted = () => {};
 
 	listed(): RecordTaskList {
@@ -51,6 +52,7 @@ class TaskRelationshipFixture {
 		}
 		if (toolName === 'task_list') {
 			this.historyReads++;
+			await this.historyGate;
 			if (this.failedHistoryReads.has(this.historyReads)) {
 				await route.fulfill({ status: 503, json: { error: 'Temporarily unavailable' } });
 				return;
@@ -134,6 +136,32 @@ test('supplementary fixture: ordinary editing demands no history until relations
 	await sheet.getByRole('button', { name: '업무 관계', exact: true }).click();
 	await expect(sheet.getByRole('heading', { name: '업무 관계', exact: true })).toBeVisible();
 	expect(fixture.historyReads).toBe(1);
+});
+
+test('supplementary fixture: relationships open from the stored history while a fresh one loads', async ({ page }) => {
+	const fixture = new TaskRelationshipFixture();
+	const [target] = fixture.tasks;
+	if (!target) throw new Error('Fixture seeds a target');
+	Object.assign(target, { parentTaskID });
+	await installAuthenticatedFixture(page, fixture);
+	const sheet = taskSheet(page);
+	await sheet.getByRole('button', { name: '업무 관계', exact: true }).click();
+	await expect(sheet.locator(`[data-task-relationship-task="${parentTaskID}"]`)).toBeVisible();
+
+	let releaseHistory = () => {};
+	fixture.historyGate = new Promise<void>(resolve => { releaseHistory = resolve; });
+	try {
+		await page.reload();
+		await expect(page.locator('[data-task-ready="true"]')).toBeVisible();
+		await openTaskCard(page, targetTaskID);
+		await sheet.getByRole('button', { name: '업무 수정' }).click();
+		await sheet.getByRole('button', { name: '업무 관계', exact: true }).click();
+		await expect(sheet.locator(`[data-task-relationship-task="${parentTaskID}"]`)).toBeVisible();
+		await expect(sheet.getByRole('button', { name: '자녀 업무 추가' })).toHaveCount(0);
+		await expect.poll(() => fixture.historyReads).toBe(2);
+		releaseHistory();
+		await expect(sheet.getByRole('button', { name: '자녀 업무 추가' })).toBeEnabled();
+	} finally { releaseHistory(); }
 });
 
 test('supplementary fixture: related tasks show the dates they have the way the task detail does', async ({ page }) => {

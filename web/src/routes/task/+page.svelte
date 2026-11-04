@@ -16,7 +16,8 @@
 	import { createTaskReadSession, readCoversWrite, sameTaskReadContext, type TaskReadContext } from './task-read-session';
 	import { rememberTask, forgetLastSeenTask } from './task-last-seen';
 	import { clearStoredTaskSnapshot, taskSnapshotGeneration, subscribeTaskSnapshotInvalidation } from './task-snapshot-storage';
-	import type { TaskState, TaskSummary } from './task-types';
+	import { storedRelationshipTasks } from './task-relationship-snapshot';
+	import type { Task, TaskState, TaskSummary } from './task-types';
 	import { taskText } from './text';
 
 	let { data } = $props();
@@ -40,6 +41,7 @@
 	let isRefreshing = $state(false);
 	let isHistoryLoading = $state(false);
 	let historyError = $state('');
+	let relationshipSnapshotTasks = $state<Task[] | null>(null);
 	type PendingTaskRead = TaskReadContext & { promise: Promise<boolean> };
 	let fullRequest: PendingTaskRead | null = null;
 	let boardRequest: PendingTaskRead | null = null;
@@ -88,6 +90,7 @@
 				taskState = null;
 				summary = null;
 				cacheSavedAt = 0;
+				relationshipSnapshotTasks = null;
 				fullRequest = null;
 				historyError = '';
 				paneError = '';
@@ -137,7 +140,7 @@
 	});
 
 	onMount(() => {
-		const stopFollowingInvalidation = subscribeTaskSnapshotInvalidation(() => { stateReadGeneration = -1; });
+		const stopFollowingInvalidation = subscribeTaskSnapshotInvalidation(() => { stateReadGeneration = -1; relationshipSnapshotTasks = null; });
 		const stopFollowingTaskWrites = subscribeTaskWrites(refreshAfterTaskWrite);
 		return () => {
 			isDisposed = true;
@@ -191,6 +194,7 @@
 	function ensureFullState(): Promise<boolean> {
 		readSession.requireFullHistory();
 		if (taskState?.completeness === 'full' && stateReadGeneration === taskSnapshotGeneration() && !cacheSavedAt) return Promise.resolve(true);
+		if (taskState?.completeness !== 'full') relationshipSnapshotTasks = storedRelationshipTasks(taskScope);
 		const generation = taskSnapshotGeneration();
 		const context = { scope: taskScope, generation, week: selectedWeek };
 		if (boardRequest && sameTaskReadContext(boardRequest, context) && !taskState?.peopleReady) {
@@ -362,6 +366,7 @@
 				isPendingRead={isLoading || isRefreshing || isHistoryLoading}
 				loadError={errorMessage}
 				{ensureFullState}
+				{relationshipSnapshotTasks}
 				{isHistoryLoading}
 				{historyError}
 				{loadTask}
