@@ -1097,6 +1097,29 @@ describe('a task put under another', () => {
 		});
 		expect(refused.status).toBe(422);
 	});
+
+	test('takes its children as it is added, or is not added when one cannot go', async () => {
+		const first = resultOf(await run('task_add', { title: '새 상위 밑으로 갈 일 하나' }));
+		const second = resultOf(await run('task_add', { title: '새 상위 밑으로 갈 일 둘' }));
+
+		const added = resultOf(await run('task_add', {
+			title: '처음부터 하위를 갖는 일',
+			childTaskHints: [first.taskID as string, second.taskID as string]
+		}));
+		const listed = resultOf(await run('task_list', { scope: 'all', everyWeek: true }));
+		const parents = (listed.tasks as Record<string, string>[])
+			.filter((task) => [first.taskID, second.taskID].includes(task.taskID))
+			.map((task) => task.parentTaskID);
+		expect(parents).toEqual([added.taskID as string, added.taskID as string]);
+
+		const refused = await run('task_add', {
+			title: '하위를 받지 못해 남지 않을 일',
+			childTaskHints: [first.taskID as string]
+		});
+		expect(refused.status).toBe(422);
+		const afterRefusal = resultOf(await run('task_list', { scope: 'all', everyWeek: true, query: '하위를 받지 못해 남지 않을 일' }));
+		expect(afterRefusal.tasks).toEqual([]);
+	});
 });
 
 describe('a date taken off a task', () => {

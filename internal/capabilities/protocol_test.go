@@ -188,7 +188,7 @@ func TestMailDescriptorsShowTheToolsTheMailSkillCalls(t *testing.T) {
 func TestFlowDescriptorUsesTypedTaskCreateInput(t *testing.T) {
 	schema := descriptorSchema(t, TaskToolDescriptors(), "task_add")
 
-	assertSchemaHasProperties(t, schema, "title", "size", "status", "business", "type", "startsAt", "endsAt", "participantPersonHints", "parentTaskHint")
+	assertSchemaHasProperties(t, schema, "title", "size", "status", "business", "type", "startsAt", "endsAt", "participantPersonHints", "parentTaskHint", "childTaskHints")
 	assertSchemaRequires(t, schema, "title")
 	if stringSliceContains(schema.Required, "goal") || stringSliceContains(schema.Required, "endDate") {
 		t.Fatalf("expected goal and endDate to be optional in %+v", schema.Required)
