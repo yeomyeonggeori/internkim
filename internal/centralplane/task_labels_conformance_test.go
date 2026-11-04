@@ -12,7 +12,7 @@ import (
 )
 
 func TestTaskLabelsReadAnAnswerTheCatalogPromises(t *testing.T) {
-	const result = `{"tasks":[],"count":0,"unfinishedCount":0,"scope":"self",` +
+	const result = `{"tasks":[],"count":0,"totalCount":0,"unfinishedCount":0,"scope":"self",` +
 		`"registeredLabels":{"businesses":[{"name":"신사업","color":"#2563eb"}],` +
 		`"types":[{"name":"협상"}],"sizes":["XS"],"statuses":["planned"]}}`
 

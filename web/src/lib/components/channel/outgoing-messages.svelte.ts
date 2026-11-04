@@ -65,7 +65,7 @@ export function createOutgoingMessages(options: {
 		}
 		deliveredSerial++;
 		replace(entry.message.id, { deliveredSerial });
-		await options.afterDelivered(entry);
+		void options.afterDelivered(entry);
 	}
 
 	return {

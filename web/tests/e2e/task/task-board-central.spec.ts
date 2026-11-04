@@ -139,7 +139,7 @@ test('a move that the company channel also announces leaves no load error behind
 	await dragCardOntoColumn(page, movedTaskID, 'in_progress');
 	await expectTaskStatus(movedTaskID, 'in_progress');
 
-	await expect.poll(() => boardReadsAnswered, { timeout: 10_000 }).toBe(2);
+	await expect.poll(() => boardReadsAnswered, { timeout: 10_000 }).toBe(1);
 	await expect(page.locator('main[data-task-ready="true"]')).toBeVisible();
 	await expect(page.getByText(taskText.ko.loadError)).toHaveCount(0);
 	await expect(taskColumn(page, 'in_progress').locator(`[data-task-board-card="${movedTaskID}"]`)).toBeVisible();

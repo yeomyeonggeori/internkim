@@ -47,19 +47,25 @@ The record answers these directly. A caller reaches one at `POST /rest/v1/rpc/<n
 | `circle_channel_delete` | `target_company uuid, target_circle text, confirmed_name text` | `void` | definer | authenticated, service_role |
 | `circle_set` | `target_company uuid, circle_id text, circle_name text, readable_categories text[]` | `void` | definer | authenticated, service_role |
 | `claim_empty_box` | `claiming_company uuid, box_key text, ticket_hash text, fresh_since timestamp with time zone, is_replacing boolean` | `TABLE(outcome text, given_role text)` | definer | service_role |
+| `company_billed_seats` | `target_company uuid` | `integer` | definer | service_role |
+| `company_credit_usage_charged` | `target_company uuid, target_member uuid, used_credits bigint` | `void` | definer | service_role |
 | `company_documents_matching` | `target_query text, target_limit integer, minimum_relevance real DEFAULT 0` | `SETOF company_document` | invoker | authenticated |
 | `company_holidays_merge` | `target_company uuid, target_holidays jsonb` | `jsonb` | invoker | service_role |
 | `company_holidays_save` | `target_holidays jsonb` | `jsonb` | definer | authenticated |
 | `company_keeps_a_backup` | `kept_company uuid` | `boolean` | definer | service_role |
+| `company_member_credit_refusal` | `target_company uuid, target_member uuid, default_usage_limit bigint` | `text` | definer | service_role |
 | `company_of_member` | `target_member uuid` | `uuid` | invoker | authenticated, service_role |
 | `company_of_messenger_address` | `address_slug text` | `uuid` | definer | anon, authenticated, service_role |
 | `company_of_task` | `target_task uuid` | `uuid` | invoker | authenticated, service_role |
 | `company_of_team` | `target_team uuid` | `uuid` | invoker | authenticated, service_role |
 | `company_representative_set` | `representative uuid` | `void` | definer | authenticated, service_role |
+| `company_subscription_changed` | `target_company uuid, target_customer text, target_subscription text, target_status text, status_at timestamp with time zone` | `void` | definer | service_role |
+| `company_subscription_invoice_paid` | `target_company uuid, target_event text, target_customer text, target_subscription text, granted_credits bigint, opens_period boolean, period_ends_at timestamp with time zone` | `void` | definer | service_role |
 | `company_topic` | `target_company uuid` | `text` | invoker | anon, authenticated, service_role |
 | `complete_parent_when_children_are_done` | `parent_id uuid` | `void` | definer | service_role |
 | `complete_tasks_past_their_end` | — | `void` | definer | service_role |
 | `conversation_mute` | `conversation text` | `void` | definer | anon, authenticated, service_role |
+| `conversation_mute_for` | `muted_member uuid, conversation text` | `void` | definer | service_role |
 | `conversation_unmute` | `conversation text` | `void` | definer | anon, authenticated, service_role |
 | `crm_opportunity_close` | `target_opportunity_id uuid, target_stage_id crm_stage, target_stage_position integer, target_stage_changed_at timestamp with time zone, target_lost_reason text, target_base_amount_minor bigint, target_base_currency_code text` | `opportunity` | invoker | authenticated |
 | `crm_opportunity_hand_over` | `target_opportunity_id uuid, target_owner_id uuid` | `opportunity` | definer | authenticated |
@@ -110,6 +116,7 @@ The record answers these directly. A caller reaches one at `POST /rest/v1/rpc/<n
 | `member_minimum_daily_minutes` | `target_member uuid` | `integer` | definer | anon, authenticated, service_role |
 | `member_picture_keep` | `picture_path text` | `boolean` | definer | authenticated, service_role |
 | `member_secret_name` | `target_member uuid, target_kind text` | `text` | invoker | anon, authenticated, service_role |
+| `member_takes_a_seat` | `member_kind member_kind, member_status member_status` | `boolean` | invoker | anon, authenticated, service_role |
 | `member_timezone` | `target_member uuid` | `text` | definer | anon, authenticated, service_role |
 | `member_today` | `target_member uuid` | `date` | definer | anon, authenticated, service_role |
 | `member_topic` | `target_member uuid` | `text` | invoker | anon, authenticated, service_role |
@@ -128,6 +135,7 @@ The record answers these directly. A caller reaches one at `POST /rest/v1/rpc/<n
 | `notification_settings_set` | `chosen jsonb` | `void` | definer | anon, authenticated, service_role |
 | `people_on_task` | `subject uuid` | `uuid[]` | invoker | anon, authenticated, service_role |
 | `person_set` | `target_member uuid, account_changes jsonb, organization_changes jsonb` | `void` | definer | authenticated, service_role |
+| `push_device_address` | `device_kind text, device_address text` | `text` | invoker | anon, authenticated, service_role |
 | `push_device_claim` | `device_kind text, device_address text, device_keys jsonb` | `void` | definer | anon, authenticated, service_role |
 | `push_device_release` | `device_kind text, device_address text` | `void` | definer | anon, authenticated, service_role |
 | `push_keys_read` | — | `jsonb` | definer | service_role |
@@ -145,6 +153,9 @@ The record answers these directly. A caller reaches one at `POST /rest/v1/rpc/<n
 | `task_last_day` | `task task` | `date` | invoker | authenticated |
 | `task_parent_set` | `target_task_id uuid, target_parent_task_id uuid` | `void` | definer | authenticated |
 | `task_save` | `target_task_id uuid, target_title text, target_status task_status DEFAULT NULL::task_status, target_note text DEFAULT NULL::text, target_location jsonb DEFAULT NULL::jsonb, target_business text DEFAULT NULL::text, target_type text DEFAULT NULL::text, target_size text DEFAULT NULL::text, target_starts_at timestamp with time zone DEFAULT NULL::timestamp with time zone, target_ends_at timestamp with time zone DEFAULT NULL::timestamp with time zone, target_write_dates boolean DEFAULT true, target_is_event boolean DEFAULT NULL::boolean, target_is_whole_day boolean DEFAULT NULL::boolean, target_notify_minutes_before integer DEFAULT NULL::integer, target_participant_ids uuid[] DEFAULT '{}'::uuid[], target_parent_task_id uuid DEFAULT NULL::uuid, target_expected_updated_at timestamp with time zone DEFAULT NULL::timestamp with time zone, target_mirrors jsonb DEFAULT NULL::jsonb, target_is_open_to_company boolean DEFAULT NULL::boolean, target_organization_id uuid DEFAULT NULL::uuid, target_opportunity_id uuid DEFAULT NULL::uuid, target_contact_id uuid DEFAULT NULL::uuid` | `uuid` | definer | authenticated |
+| `task_save_with_children` | `save_arguments jsonb, child_ids uuid[]` | `uuid` | invoker | authenticated |
+| `task_search_text` | `task task` | `text` | invoker | authenticated |
+| `task_sole_participant` | `task task` | `uuid` | invoker | authenticated |
 | `task_updatable` | `task task` | `boolean` | invoker | authenticated |
 | `task_vocabulary_save` | `target_vocabulary jsonb` | `jsonb` | definer | authenticated |
 | `team_add` | `new_name text, parent_team uuid, new_position integer` | `uuid` | definer | authenticated, service_role |
@@ -168,6 +179,7 @@ These run when a row changes. Nobody calls them.
 | --- |
 | `abandon_the_profile_image` |
 | `announce_task_write` |
+| `ask_the_subscription_to_follow_its_seats` |
 | `bind_member_to_new_user` |
 | `data_room_guard_category` |
 | `data_room_guard_document` |
@@ -195,6 +207,7 @@ These run when a row changes. Nobody calls them.
 | `stamp_crm_record` |
 | `stamp_task_on_participant_change` |
 | `stamp_task_update` |
+| `start_ended_task_on_its_last_day` |
 | `sync_member_email_from_user` |
 | `validate_attendance_correction` |
 | `validate_attendance_update_order` |

@@ -387,6 +387,24 @@
       ]
     },
     {
+      "name": "company_billed_seats",
+      "arguments": "target_company uuid",
+      "returns": "integer",
+      "security": "definer",
+      "callableBy": [
+        "service_role"
+      ]
+    },
+    {
+      "name": "company_credit_usage_charged",
+      "arguments": "target_company uuid, target_member uuid, used_credits bigint",
+      "returns": "void",
+      "security": "definer",
+      "callableBy": [
+        "service_role"
+      ]
+    },
+    {
       "name": "company_documents_matching",
       "arguments": "target_query text, target_limit integer, minimum_relevance real DEFAULT 0",
       "returns": "SETOF company_document",
@@ -417,6 +435,15 @@
       "name": "company_keeps_a_backup",
       "arguments": "kept_company uuid",
       "returns": "boolean",
+      "security": "definer",
+      "callableBy": [
+        "service_role"
+      ]
+    },
+    {
+      "name": "company_member_credit_refusal",
+      "arguments": "target_company uuid, target_member uuid, default_usage_limit bigint",
+      "returns": "text",
       "security": "definer",
       "callableBy": [
         "service_role"
@@ -474,6 +501,33 @@
       ]
     },
     {
+      "name": "company_served_by_connection_file",
+      "arguments": "served_company uuid",
+      "returns": "boolean",
+      "security": "definer",
+      "callableBy": [
+        "service_role"
+      ]
+    },
+    {
+      "name": "company_subscription_changed",
+      "arguments": "target_company uuid, target_customer text, target_subscription text, target_status text, status_at timestamp with time zone",
+      "returns": "void",
+      "security": "definer",
+      "callableBy": [
+        "service_role"
+      ]
+    },
+    {
+      "name": "company_subscription_invoice_paid",
+      "arguments": "target_company uuid, target_event text, target_customer text, target_subscription text, granted_credits bigint, opens_period boolean, period_ends_at timestamp with time zone",
+      "returns": "void",
+      "security": "definer",
+      "callableBy": [
+        "service_role"
+      ]
+    },
+    {
       "name": "company_topic",
       "arguments": "target_company uuid",
       "returns": "text",
@@ -510,6 +564,15 @@
       "callableBy": [
         "anon",
         "authenticated",
+        "service_role"
+      ]
+    },
+    {
+      "name": "conversation_mute_for",
+      "arguments": "muted_member uuid, conversation text",
+      "returns": "void",
+      "security": "definer",
+      "callableBy": [
         "service_role"
       ]
     },
@@ -1027,6 +1090,17 @@
       ]
     },
     {
+      "name": "member_takes_a_seat",
+      "arguments": "member_kind member_kind, member_status member_status",
+      "returns": "boolean",
+      "security": "invoker",
+      "callableBy": [
+        "anon",
+        "authenticated",
+        "service_role"
+      ]
+    },
+    {
       "name": "member_timezone",
       "arguments": "target_member uuid",
       "returns": "text",
@@ -1219,6 +1293,17 @@
       ]
     },
     {
+      "name": "push_device_address",
+      "arguments": "device_kind text, device_address text",
+      "returns": "text",
+      "security": "invoker",
+      "callableBy": [
+        "anon",
+        "authenticated",
+        "service_role"
+      ]
+    },
+    {
       "name": "push_device_claim",
       "arguments": "device_kind text, device_address text, device_keys jsonb",
       "returns": "void",
@@ -1377,6 +1462,33 @@
       ]
     },
     {
+      "name": "task_save_with_children",
+      "arguments": "save_arguments jsonb, child_ids uuid[]",
+      "returns": "uuid",
+      "security": "invoker",
+      "callableBy": [
+        "authenticated"
+      ]
+    },
+    {
+      "name": "task_search_text",
+      "arguments": "task task",
+      "returns": "text",
+      "security": "invoker",
+      "callableBy": [
+        "authenticated"
+      ]
+    },
+    {
+      "name": "task_sole_participant",
+      "arguments": "task task",
+      "returns": "uuid",
+      "security": "invoker",
+      "callableBy": [
+        "authenticated"
+      ]
+    },
+    {
       "name": "task_updatable",
       "arguments": "task task",
       "returns": "boolean",
@@ -1513,6 +1625,7 @@
   "triggerFunctions": [
     "abandon_the_profile_image",
     "announce_task_write",
+    "ask_the_subscription_to_follow_its_seats",
     "bind_member_to_new_user",
     "data_room_guard_category",
     "data_room_guard_document",
@@ -1540,6 +1653,7 @@
     "stamp_crm_record",
     "stamp_task_on_participant_change",
     "stamp_task_update",
+    "start_ended_task_on_its_last_day",
     "sync_member_email_from_user",
     "validate_attendance_correction",
     "validate_attendance_update_order",
@@ -1557,6 +1671,10 @@
     {
       "name": "announce-task",
       "verifyJWT": true
+    },
+    {
+      "name": "model-gateway",
+      "verifyJWT": false
     },
     {
       "name": "notify",

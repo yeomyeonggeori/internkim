@@ -11,13 +11,15 @@
 	let { position = 'bottom-right', offset, mobileOffset, ...restProps }: SonnerProps = $props();
 	const isMobile = new MediaQuery('(max-width: 639px)');
 	const topOffset = 'calc(var(--app-viewport-top, 0px) + max(16px, env(safe-area-inset-top)))';
+	const bottomOffset =
+		'calc(var(--app-viewport-bottom, 0px) + var(--app-mobile-nav-height) + var(--app-viewport-safe-bottom, var(--app-mobile-nav-bottom)) + 8px)';
 </script>
 
 <Sonner
 	theme={mode.current}
 	class="toaster group"
 	position={isMobile.current ? 'top-center' : position}
-	mobileOffset={isMobile.current ? { top: topOffset, left: 'max(16px, env(safe-area-inset-left))', right: 'max(16px, env(safe-area-inset-right))' } : mobileOffset}
+	mobileOffset={isMobile.current ? { top: topOffset, bottom: bottomOffset, left: 'max(16px, env(safe-area-inset-left))', right: 'max(16px, env(safe-area-inset-right))' } : mobileOffset}
 	offset={isMobile.current ? { top: topOffset } : offset}
 	style="--normal-bg: var(--color-popover); --normal-text: var(--color-popover-foreground); --normal-border: var(--color-border);"
 	{...restProps}

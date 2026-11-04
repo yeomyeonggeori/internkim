@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { taskDateParts, taskDateRangeParts, taskDateText } from '../../src/routes/task/task-date-range';
+import { taskDateParts, taskDateRangeParts, taskDateRangeText, taskDateText } from '../../src/routes/task/task-date-range';
 
 describe('flow task date range', () => {
 	test('omits the year when it matches the current year', () => {
@@ -37,5 +37,10 @@ describe('the dates a task card shows', () => {
 		expect(taskDateRangeParts(undefined, '2026-09-09', 2026)).toEqual([{ month: '09', day: '09' }]);
 		expect(taskDateRangeParts('2026-09-07', undefined, 2026)).toEqual([{ month: '09', day: '07' }]);
 	});
-});
 
+	test('joins the dates a task has and leaves none blank', () => {
+		expect(taskDateRangeText('2026-11-02', '2026-11-05')).toBe('2026-11-02 — 2026-11-05');
+		expect(taskDateRangeText(undefined, '2026-11-05')).toBe('2026-11-05');
+		expect(taskDateRangeText(undefined, undefined)).toBe('');
+	});
+});

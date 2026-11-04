@@ -175,7 +175,9 @@ export const dataRoomCompanyText: Record<Locale, CompanyText> = {
 			operatingProfit: '영업이익',
 			netIncome: '순이익',
 			employees: '임직원 수',
-			mau: '월간 활성 사용자'
+			mau: '월간 활성 사용자',
+			monthlyRevenue: '월 매출',
+			activeClients: '활성 고객사'
 		},
 		recordCategories: {
 			history: '마일스톤',
@@ -286,7 +288,9 @@ export const dataRoomCompanyText: Record<Locale, CompanyText> = {
 			operatingProfit: 'Operating profit',
 			netIncome: 'Net income',
 			employees: 'Employees',
-			mau: 'Monthly active users'
+			mau: 'Monthly active users',
+			monthlyRevenue: 'Monthly revenue',
+			activeClients: 'Active clients'
 		},
 		recordCategories: {
 			history: 'Milestone',

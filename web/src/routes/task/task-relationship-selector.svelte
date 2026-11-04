@@ -30,6 +30,7 @@
 		onSetParent: (taskID: string, parentID?: string) => RelationshipResult | Promise<RelationshipResult>;
 		onSetParents: (taskIDs: string[], parentID: string) => boolean | Promise<boolean>;
 		onCreateChild: () => boolean;
+		canCreateChild?: boolean;
 	};
 
 	let {
@@ -44,7 +45,8 @@
 		taskTypeColor,
 		onSetParent,
 		onSetParents,
-		onCreateChild
+		onCreateChild,
+		canCreateChild = true
 	}: Props = $props();
 
 	let selectedTaskIDs = $state<string[]>([]);
@@ -135,7 +137,7 @@
 			{/each}
 		</Command.Group>
 
-		{#if mode === 'children'}
+		{#if mode === 'children' && canCreateChild}
 			<Command.Separator />
 			<Command.Group>
 				<Command.Item value="relationship-create-child" forceMount onSelect={createChild} disabled={disabled || submitting}>

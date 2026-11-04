@@ -26,7 +26,9 @@ const paidInvoice = z.object({
 			z.object({
 				amount: z.number().int(),
 				period: z.object({ end: z.number().int() }),
-				pricing: z.object({ unit_amount_decimal: z.string() }).nullable()
+				pricing: z
+					.object({ price_details: z.object({ price: z.string() }), unit_amount_decimal: z.string().nullable() })
+					.nullable()
 			})
 		).min(1)
 	})
@@ -48,6 +50,8 @@ const stripeEvent = z.object({
 
 export type StripeEventOutcome = 'applied' | 'ignored';
 
+export type UnitAmountOfPrice = (priceID: string) => Promise<number>;
+
 export class StripeEventRefused extends Error {
 	constructor(message: string) {
 		super(message);
@@ -55,17 +59,26 @@ export class StripeEventRefused extends Error {
 	}
 }
 
-export async function applyStripeEvent(client: SupabaseClient, payload: unknown): Promise<StripeEventOutcome> {
+export async function applyStripeEvent(
+	client: SupabaseClient,
+	payload: unknown,
+	unitAmountOfPrice: UnitAmountOfPrice
+): Promise<StripeEventOutcome> {
 	const event = stripeEvent.safeParse(payload);
 	if (!event.success) throw new StripeEventRefused('the body is not a Stripe event');
-	if (event.data.type === 'invoice.paid') return applyPaidInvoice(client, event.data.id, event.data.data.object);
+	if (event.data.type === 'invoice.paid') return applyPaidInvoice(client, event.data.id, event.data.data.object, unitAmountOfPrice);
 	if (event.data.type.startsWith('customer.subscription.')) {
 		return applySubscriptionChange(client, event.data, event.data.data.object);
 	}
 	return 'ignored';
 }
 
-async function applyPaidInvoice(client: SupabaseClient, eventID: string, object: unknown): Promise<StripeEventOutcome> {
+async function applyPaidInvoice(
+	client: SupabaseClient,
+	eventID: string,
+	object: unknown,
+	unitAmountOfPrice: UnitAmountOfPrice
+): Promise<StripeEventOutcome> {
 	if (!invoiceNamingACompany.safeParse(object).success) return 'ignored';
 	const invoice = paidInvoice.safeParse(object);
 	if (!invoice.success) throw new StripeEventRefused(`paid invoice ${eventID}: ${z.prettifyError(invoice.error)}`);
@@ -75,7 +88,7 @@ async function applyPaidInvoice(client: SupabaseClient, eventID: string, object:
 		target_event: eventID,
 		target_customer: invoice.data.customer,
 		target_subscription: details.subscription,
-		granted_credits: creditsPaidFor(invoice.data.lines.data),
+		granted_credits: await creditsPaidFor(invoice.data.lines.data, unitAmountOfPrice),
 		opens_period: periodOpeningReasons.has(invoice.data.billing_reason ?? ''),
 		period_ends_at: new Date(latestPeriodEnd(invoice.data.lines.data) * 1000).toISOString()
 	});
@@ -102,14 +115,18 @@ async function applySubscriptionChange(
 	return 'applied';
 }
 
-type PaidLine = { amount: number; pricing: { unit_amount_decimal: string } | null };
+type PaidLine = { amount: number; pricing: { price_details: { price: string }; unit_amount_decimal: string | null } | null };
 
-function creditsPaidFor(lines: PaidLine[]): number {
-	return lines.reduce((credits, line) => {
-		const unitAmount = Number(line.pricing?.unit_amount_decimal ?? 0);
-		if (line.amount <= 0 || unitAmount <= 0) return credits;
-		return credits + Math.round((subscriptionCreditsPerMember * line.amount) / unitAmount);
-	}, 0);
+async function creditsPaidFor(lines: PaidLine[], unitAmountOfPrice: UnitAmountOfPrice): Promise<number> {
+	let seatsPaidFor = 0;
+	for (const line of lines) {
+		if (!line.pricing) continue;
+		const unitAmount = line.pricing.unit_amount_decimal === null
+			? await unitAmountOfPrice(line.pricing.price_details.price)
+			: Number(line.pricing.unit_amount_decimal);
+		if (unitAmount > 0) seatsPaidFor += line.amount / unitAmount;
+	}
+	return Math.max(0, Math.round(subscriptionCreditsPerMember * seatsPaidFor));
 }
 
 function latestPeriodEnd(lines: { period: { end: number } }[]): number {
