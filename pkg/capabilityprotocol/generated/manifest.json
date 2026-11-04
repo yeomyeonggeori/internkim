@@ -1,5 +1,5 @@
 {
-  "aggregateHash": "401c9148a6cfa68da751047bc386451e52a4c0271a8b8a59cae4332906c2cd35",
+  "aggregateHash": "c23a8e8ad8f1bb68f6138157a2253f12354fa6b00dc4dd443684b52ec229bf7a",
   "capabilityToolCatalog": {
     "fileName": "capability-tools.json",
     "hash": "35b4f49ba3a04e935aef353d9d71b828cdf649be1fd58504da3956dccd239e3c"
@@ -63,7 +63,7 @@
     },
     {
       "fileName": "platform-inbound-event.schema.json",
-      "hash": "0265b9acf8beb7f537e07169d64f44cea07086cb56171680f3aba4b5189b4576",
+      "hash": "35051015d457a3225997da5df10a7f95be2f43bd89bf31c3e1e7e79252a5ec1d",
       "name": "platform-inbound-event"
     },
     {
