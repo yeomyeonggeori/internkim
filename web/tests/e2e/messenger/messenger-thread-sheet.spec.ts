@@ -1,5 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
 import { mockDeviceMessenger } from './messenger-device-mock';
+import { swipeSideways } from './swipe-sideways';
 import { insideTheIPhoneApp, lastBackGestureChoice } from '../support/iphone-app';
 
 const channelID = 'channel-thread-sheet';
@@ -252,6 +253,14 @@ test.describe('messenger thread on a phone', () => {
 			await expect(page).toHaveURL('about:blank');
 		});
 	}
+
+	test('a swipe to the right keeps the thread instead of opening the channel list', async ({ page }) => {
+		await swipeSideways(page.getByText(replyText), 2, 160);
+		await page.waitForTimeout(300);
+
+		await expect(page.getByRole('dialog', { name: '채널' })).toHaveCount(0);
+		await expect(page.getByRole('navigation', { name: '글타래' })).toBeVisible();
+	});
 
 	test('going back returns to the conversation', async ({ page }) => {
 		await page.goBack();
