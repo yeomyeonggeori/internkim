@@ -299,11 +299,6 @@
 		loadTask(week, { reloadState: false });
 	}
 
-	function openTaskWhenReady(taskID: string): void {
-		pendingTaskID = taskID;
-		openPendingTask();
-	}
-
 	function selectTab(tab: string) {
 		activeTab = tab;
 		paneError = '';
@@ -356,7 +351,6 @@
 				shownWeek={selectedWeek ? taskWeekForCode(selectedWeek, new Date()) : summary?.week}
 				canNavigateWeek={Boolean(summary) && !cacheSavedAt}
 				{focusedTaskID}
-				{openTaskWhenReady}
 				{text}
 				isLoading={isLoading || !isStateFresh}
 				isPendingRead={isLoading || isRefreshing || isHistoryLoading}

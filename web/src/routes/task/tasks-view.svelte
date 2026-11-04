@@ -24,7 +24,6 @@
 		shownWeek: TaskSummary['week'] | undefined;
 		canNavigateWeek: boolean;
 		focusedTaskID: string;
-		openTaskWhenReady: (taskID: string) => void;
 		text: TaskPageText;
 		isLoading: boolean;
 		isPendingRead: boolean;
@@ -37,7 +36,7 @@
 		setPageErrorMessage: (message: string) => void;
 	};
 
-	let { summary, shownWeek, canNavigateWeek, focusedTaskID, openTaskWhenReady, text, isLoading, isPendingRead, loadError, ensureFullState, isHistoryLoading, historyError, loadTask, selectWeek, setPageErrorMessage }: Props = $props();
+	let { summary, shownWeek, canNavigateWeek, focusedTaskID, text, isLoading, isPendingRead, loadError, ensureFullState, isHistoryLoading, historyError, loadTask, selectWeek, setPageErrorMessage }: Props = $props();
 	const hasShownWeek = $derived(Boolean(summary && summary.week.code === shownWeek?.code));
 
 	const page = createTasksController();
@@ -125,7 +124,7 @@
 				boardText={text.task.board}
 				etcLabel={text.task.etcLabel}
 				statusLabel={page.statusLabel}
-				openTask={(task) => { if (isLoading) openTaskWhenReady(task.id); else page.openTask(task); }}
+				openTask={page.openTask}
 				createTask={(status) => { if (!isLoading) page.createTask(status); }}
 				moveTask={page.moveTaskOnBoard}
 				pendingTaskIDs={page.board.pendingTaskIDs}
@@ -155,7 +154,7 @@
 				pendingStatusTaskID={page.pendingStatusTaskID}
 				statusLabel={page.statusLabel}
 				updateTaskStatus={page.updateTaskStatus}
-				openTask={(task) => { if (isLoading) openTaskWhenReady(task.id); else page.openTask(task); }}
+				openTask={page.openTask}
 				canUpdateTask={isLoading ? () => false : page.canUpdateTask}
 				{focusedTaskID}
 			/>
