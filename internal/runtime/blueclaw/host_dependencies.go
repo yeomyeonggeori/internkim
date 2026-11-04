@@ -142,6 +142,24 @@ var hostDependencies = []HostDependency{
 		NeededBy:            []HostPart{HostPartMessenger},
 	},
 	{
+		DebianPackage:       "libheif-examples",
+		DnfPackages:         []string{"libheif-tools"},
+		PacmanPackages:      []string{"libheif"},
+		HomebrewFormula:     "libheif",
+		ProgramsTheHostRuns: []string{"heif-convert"},
+		NeededBy:            []HostPart{HostPartMessenger},
+	},
+	{
+		DebianPackage:      "libheif-plugin-libde265",
+		DebianAlternatives: []string{"libheif1"},
+		DnfPackages:        []string{"libheif-freeworld", "libheif-tools"},
+		WhatBringsItInstead: map[PackageManager]string{
+			PackageManagerPacman: "Arch's libheif depends on libde265",
+		},
+		WhatAnswersItOnAMac: "Homebrew's libheif depends on libde265",
+		NeededBy:            []HostPart{HostPartMessenger},
+	},
+	{
 		DebianPackage:   "openssl",
 		DnfPackages:     []string{"openssl"},
 		PacmanPackages:  []string{"openssl"},
