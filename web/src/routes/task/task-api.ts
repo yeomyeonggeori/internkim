@@ -85,8 +85,13 @@ function companyAppErrorMessage(body: unknown, fallback: string): string {
 	return fallback;
 }
 
-export function saveTask(task: Task, statusBefore: string | null, originalTask?: Task): Promise<void> {
-	return saveTaskOnRecord(task, statusBefore, originalTask);
+export function saveTask(
+	task: Task,
+	statusBefore: string | null,
+	originalTask?: Task,
+	childTaskIDs: string[] = []
+): Promise<void> {
+	return saveTaskOnRecord(task, statusBefore, originalTask, childTaskIDs);
 }
 
 export function moveTaskOnBoard(request: TaskBoardMoveRequest): Promise<void> {
