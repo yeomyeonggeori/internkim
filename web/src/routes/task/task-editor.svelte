@@ -11,12 +11,14 @@
 	import TaskEditorParticipants from './task-editor-participants.svelte';
 	import TaskEditorSummary from './task-editor-summary.svelte';
 	import TaskRelationshipsSection from './task-relationships-section.svelte';
+	import TaskDraftRelationships from './task-draft-relationships.svelte';
 	import { formatTaskWeekCodeRange } from './task-week-label';
 	import type { TaskEditorOption, TaskEditorText } from './task-editor-types';
 	import type { TaskMember, Task } from './task-types';
 
 	type Props = {
 		taskDraft: Task | null;
+		draftChildTaskIDs: string[];
 		isEditingTask: boolean;
 		isEditingLocked: boolean;
 		members: TaskMember[];
@@ -64,6 +66,7 @@
 
 	let {
 		taskDraft = $bindable<Task | null>(null),
+		draftChildTaskIDs = $bindable<string[]>([]),
 		isEditingTask,
 		isEditingLocked,
 		members,
@@ -106,14 +109,19 @@
 		loadRelationships
 	}: Props = $props();
 
+	const draftRelationshipKey = 'draft';
 	let requestedRelationshipTaskID = $state('');
 	$effect(() => {
 		if (!taskDraft) requestedRelationshipTaskID = '';
 	});
 
+	function setDraftParent(parentTaskID: string | undefined): void {
+		if (taskDraft) taskDraft = { ...taskDraft, parentTaskID };
+	}
+
 	function requestRelationships(): void {
-		if (!taskDraft?.id) return;
-		requestedRelationshipTaskID = taskDraft.id;
+		if (!taskDraft) return;
+		requestedRelationshipTaskID = taskDraft.id || draftRelationshipKey;
 		void loadRelationships();
 	}
 
@@ -166,6 +174,29 @@
 			{:else}
 				{#if relationshipsError}<p role="status" class="text-sm text-destructive">{relationshipsError}</p><Button variant="outline" onclick={loadRelationships}>{relationshipsRetryLabel}</Button>
 				{:else}<TaskRelationshipsSkeleton label={relationshipsLoadingLabel} title={text.relationships.title} />{/if}
+		{/if}
+	{:else if taskDraft}
+		{#if !hasRelationshipData && requestedRelationshipTaskID !== draftRelationshipKey}
+			<Button variant="outline" onclick={requestRelationships}>{text.relationships.title}</Button>
+		{:else if hasRelationshipData}
+			<TaskDraftRelationships
+				{taskDraft}
+				childTaskIDs={draftChildTaskIDs}
+				{tasks}
+				{currentMemberID}
+				editable={editable && relationshipsReady}
+				text={text.relationships}
+				dateRangeLabel={`${text.startDate} — ${text.endDate}`}
+				{taskTypeColor}
+				{statusLabel}
+				onOpenTask={openRelatedTask}
+				onSetParent={setDraftParent}
+				onSetChildren={(childTaskIDs) => (draftChildTaskIDs = childTaskIDs)}
+			/>
+		{:else if relationshipsError}
+			<p role="status" class="text-sm text-destructive">{relationshipsError}</p><Button variant="outline" onclick={loadRelationships}>{relationshipsRetryLabel}</Button>
+		{:else}
+			<TaskRelationshipsSkeleton label={relationshipsLoadingLabel} title={text.relationships.title} />
 		{/if}
 	{/if}
 {/snippet}
