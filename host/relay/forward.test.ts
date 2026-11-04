@@ -28,6 +28,7 @@ import {
 	type PublicAPIRequest
 } from './forward';
 import { CredentialCache, type HeldCredential } from './credential-cache';
+import type { SeatedOwner } from './seated-owner';
 import { leafNameOf, type KeptFileReference } from './file-transfer';
 import { TransferFailed } from './transfer-store';
 import { MessengerAnswered } from './person-picture';
@@ -41,13 +42,18 @@ function dispatchThatKnows(externalIDs: Record<string, string>) {
 	const admindCalls: AdmindCall[] = [];
 	const arrivals: { conversationID: string; messageID: string }[] = [];
 	const transfers: { operation: string; memberID: string; requester?: string; actor?: unknown; body: unknown }[] = [];
+	const seatedOwners: SeatedOwner[] = [];
 	return {
 		asked,
 		connected,
 		admindCalls,
 		arrivals,
 		transfers,
+		seatedOwners,
 		dispatch: {
+			muteSeatedOwner: async (seated: SeatedOwner) => {
+				seatedOwners.push(seated);
+			},
 			connectMessengerAccount: async (memberID: string, account: ConnectedAccount) => {
 				connected.push({ memberID, account });
 			},
@@ -325,6 +331,64 @@ describe('a message the app sent', () => {
 
 		expect(served.status).toBe(200);
 		expect(arrivals).toEqual([{ conversationID: 'channel-1', messageID: 'event-1' }]);
+	});
+});
+
+describe('an owner the app adds to a channel', () => {
+	function ownerAddAnswered(answer: { status: number; body: unknown }) {
+		const fake = dispatchThatKnows({});
+		const dispatch = {
+			...fake.dispatch,
+			askChatd: async (capability: string, body: Record<string, unknown>) => {
+				fake.asked.push({ capability, body });
+				return answer;
+			}
+		};
+		return { ...fake, dispatch };
+	}
+
+	test('is muted there when the messenger says they were not in the channel', async () => {
+		const { asked, dispatch, seatedOwners } = ownerAddAnswered({ status: 200, body: { newToChannel: true } });
+
+		const served = await serveCallForMember(
+			dispatch,
+			{ callID: 'c1', capability: 'person.channel.owner.add', body: { conversationID: 'channel-1', externalID: 'npub-admin' } },
+			'member-1'
+		);
+
+		expect(served).toEqual({ status: 200, body: { newToChannel: true }, replyTo: 'member-1' });
+		expect(asked).toEqual([
+			{
+				capability: 'person.channel.owner.add',
+				body: { conversationID: 'channel-1', externalID: 'npub-admin', actor: { kind: 'buzz-secret', secret: 'a-held-secret' } }
+			}
+		]);
+		expect(seatedOwners).toEqual([{ conversationID: 'channel-1', externalID: 'npub-admin' }]);
+	});
+
+	test('keeps hearing the channel when they were in it already', async () => {
+		const { dispatch, seatedOwners } = ownerAddAnswered({ status: 200, body: { newToChannel: false } });
+
+		await serveCallForMember(
+			dispatch,
+			{ callID: 'c1', capability: 'person.channel.owner.add', body: { conversationID: 'channel-1', externalID: 'npub-invited' } },
+			'member-1'
+		);
+
+		expect(seatedOwners).toEqual([]);
+	});
+
+	test('is muted nowhere when the messenger refused the add', async () => {
+		const { dispatch, seatedOwners } = ownerAddAnswered({ status: 403, body: { error: 'only an owner may do this', reason: 'not-owner' } });
+
+		const served = await serveCallForMember(
+			dispatch,
+			{ callID: 'c1', capability: 'person.channel.owner.add', body: { conversationID: 'channel-1', externalID: 'npub-admin' } },
+			'member-1'
+		);
+
+		expect(served.status).toBe(403);
+		expect(seatedOwners).toEqual([]);
 	});
 });
 

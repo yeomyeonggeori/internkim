@@ -61,6 +61,7 @@ import { ArrivalWatchers, activeMemberIDsOf, arrivalsPath, keepWatchingArrivals 
 import { readTyping, typingPath, typingTeller } from './typing';
 import { readWithdrawal, withdrawalsPath, withdrawalTeller, WithdrawnMessages } from './withdrawn';
 import { fetchWhenChatdListens } from './chatd-reach';
+import { seatedOwnerMuter } from './seated-owner';
 import { asAHostService, carriesTheHostServiceToken } from './host-service-token';
 import { BrowserHandoffs, handoffsPath } from './browser-handoff';
 import { DevtoolsPage } from './devtools-page';
@@ -319,7 +320,13 @@ const dispatch = {
 		credentials.forget(memberID);
 	},
 	serveBrowserHandoff: (capability: string, body: Record<string, unknown>, memberID: string) =>
-		browserHandoffs.serve(capability, body, memberID)
+		browserHandoffs.serve(capability, body, memberID),
+	muteSeatedOwner: seatedOwnerMuter({
+		memberIDOf,
+		muteFor: async (memberID: string, conversationID: string) => {
+			await askTheRecord('POST', '/api/agent/conversation-mute', { memberID, conversationID });
+		}
+	})
 };
 
 gateway = openGatewayConnection();

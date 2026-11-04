@@ -208,15 +208,15 @@ export async function companyInfoGet(
 	input: CompanyInfoGetInput
 ): Promise<CompanyProfileResult> {
 	const [row, representativeID, headcount] = await Promise.all([companyRow(context.caller), representativeIDHeld(context), headcountOf(context)]);
-	return companyProfileView(profileOf(row.profile), languageAsked(input.language), headcount, representativeOf(context, representativeID));
+	return companyProfileView(profileOf(row.profile), languageAsked(input.language, row.locale), headcount, representativeOf(context, representativeID));
 }
 
 export async function companyInfoSet(
 	context: RecordContext,
 	input: CompanyInfoSetInput
 ): Promise<CompanyProfileResult> {
-	const language = languageAsked(input.language);
 	const row = await companyRow(context.caller);
+	const language = languageAsked(input.language, row.locale);
 	const written = profileWithUpdate(profileOf(row.profile), input, language, context.now);
 	const held = await representativeIDHeld(context);
 	const representativeID = representativeIDAsked(context, input.representativePersonHint, held);

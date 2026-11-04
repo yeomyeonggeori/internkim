@@ -31,6 +31,7 @@ type TaskEditorControllerInput = {
 
 export class TaskEditorController {
 	taskDraft = $state<Task | null>(null);
+	draftChildTaskIDs = $state<string[]>([]);
 	statusWhenOpened = $state<string | null>(null);
 	private originalTask: Task | undefined;
 	isEditingTask = $state(false);
@@ -64,6 +65,7 @@ export class TaskEditorController {
 	openTask = (task: Task, isTaskPending: (taskID: string) => boolean): void => {
 		if (isTaskPending(task.id)) return;
 		this.taskDraft = cloneTask(task);
+		this.draftChildTaskIDs = [];
 		this.originalTask = cloneTask(task);
 		this.statusWhenOpened = task.status;
 		this.isEditingTask = false;
@@ -79,6 +81,7 @@ export class TaskEditorController {
 		const owner = this.defaultTaskOwner();
 		if (!owner || !this.summary) return;
 		this.taskDraft = createTaskDraft(owner, definitionsFromSummary(this.summary), this.taskWeek());
+		this.draftChildTaskIDs = [];
 		this.originalTask = undefined;
 		this.statusWhenOpened = null;
 		this.isEditingTask = true;
@@ -100,6 +103,7 @@ export class TaskEditorController {
 		const result = await saveTaskDraft({
 			task: this.taskDraft,
 			originalTask: this.originalTask,
+			childTaskIDs: this.draftChildTaskIDs,
 			statusBefore: this.statusWhenOpened,
 			canUpdateTask: this.canUpdateTask,
 			loadTask: this.loadTask,

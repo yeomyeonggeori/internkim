@@ -31,13 +31,17 @@ export type ShownWork = { key: string; steps: ToolStep[] };
 
 const promptKeyPrefix = 'prompt:';
 
+function bareIDOf(addressedID: string): string {
+	return addressedID.slice(addressedID.lastIndexOf(':') + 1);
+}
+
 export function liveWorkAfterEvent(
 	works: LiveWork[],
 	event: CompanyEvent,
 	conversationID: string | undefined,
 	now: number
 ): LiveWork[] {
-	if (!conversationID || event.conversationID !== conversationID) return works;
+	if (!conversationID || bareIDOf(event.conversationID ?? '') !== bareIDOf(conversationID)) return works;
 	const report = workReportOf(event.work);
 	if (!report) return works;
 	if (event.kind === workingEventKind) return worksAfterWorking(works, report, now);
@@ -56,14 +60,30 @@ export function liveWorkShownIn(
 	loadedMessageIDs: ReadonlySet<string>
 ): ShownWork[] {
 	if (threadID === undefined) return [];
-	return works
-		.filter((work) => work.threadID === threadID)
-		.flatMap((work) => {
-			if (work.becomingMessageID === undefined || !loadedMessageIDs.has(work.becomingMessageID)) {
-				return [{ key: work.key, steps: work.steps }];
-			}
-			return work.isStillWorking ? [{ key: work.key, steps: [] }] : [];
-		});
+	return worksStillShown(
+		works.filter((work) => work.threadID === threadID),
+		loadedMessageIDs
+	);
+}
+
+export function liveWorkShownInTimeline(
+	works: LiveWork[],
+	openThreadID: string | undefined,
+	loadedMessageIDs: ReadonlySet<string>
+): ShownWork[] {
+	return worksStillShown(
+		works.filter((work) => work.threadID !== openThreadID),
+		loadedMessageIDs
+	);
+}
+
+function worksStillShown(works: LiveWork[], loadedMessageIDs: ReadonlySet<string>): ShownWork[] {
+	return works.flatMap((work) => {
+		if (work.becomingMessageID === undefined || !loadedMessageIDs.has(work.becomingMessageID)) {
+			return [{ key: work.key, steps: work.steps }];
+		}
+		return work.isStillWorking ? [{ key: work.key, steps: [] }] : [];
+	});
 }
 
 function worksAfterWorking(works: LiveWork[], report: WorkReport, now: number): LiveWork[] {
@@ -99,7 +119,7 @@ function workReportOf(offered: unknown): WorkReport | null {
 	const { threadID, deliveryID, promptID, steps, messageID, isStillWorking } = offered as Record<string, unknown>;
 	if (typeof threadID !== 'string' || threadID === '') return null;
 	return {
-		threadID,
+		threadID: bareIDOf(threadID),
 		...(typeof deliveryID === 'string' && deliveryID ? { deliveryID } : {}),
 		...(typeof promptID === 'string' && promptID ? { promptID } : {}),
 		...(Array.isArray(steps) ? { steps: steps.flatMap(toolStepOf) } : {}),

@@ -15,6 +15,8 @@ export const taskLabelVocabularySchema = z.strictObject({
   etcTypeColor: z.string().optional(),
 });
 
+export const taskTypeDescription = 'Choose the matching company type from registeredLabels.types in task_list, using the meaning of the work. Read the current definitions when they are not already available. Send an empty string when no type fits; it is stored as null and displayed as Other in the user\'s language. Never invent a label.';
+
 const writtenLabelSchema = z.strictObject({
   name: z.string().min(1).max(128).describe('The label as people read it on a task.'),
   color: z.string().max(64).describe('CSS colour the board paints this label in. Omit to let one be derived from the name.').optional(),

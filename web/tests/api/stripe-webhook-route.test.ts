@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, mock, test } from 'bun:test';
 import { isHttpError } from '@sveltejs/kit';
 import { controlPlane, provisionCompany } from '../../src/lib/server/control-plane';
-import { subscriptionCreditsPerMember } from '../../src/lib/server/stripe-billing-events';
+import { applyStripeEvent, subscriptionCreditsPerMember } from '../../src/lib/server/stripe-billing-events';
 import { projectURL, publishableKey, serviceRoleKey, signingKey } from '../support/supabase-environment';
 
 mock.module('$env/dynamic/private', () => ({
@@ -14,9 +14,15 @@ const networkHookTimeout = 60_000;
 const client = controlPlane({ projectURL, serviceRoleKey });
 const stamp = Date.now();
 const webhookSecret = `whsec_route_${stamp}`;
-const environment = { SUPABASE_URL: projectURL, SUPABASE_SECRET_KEY: serviceRoleKey, STRIPE_WEBHOOK_SECRET: webhookSecret };
+const environment = {
+	SUPABASE_URL: projectURL,
+	SUPABASE_SECRET_KEY: serviceRoleKey,
+	STRIPE_WEBHOOK_SECRET: webhookSecret,
+	STRIPE_SECRET_KEY: 'sk_test_unused'
+};
 const encoder = new TextEncoder();
 const unitAmount = 1900;
+const priceID = `price_route_${stamp}`;
 const periodEnd = 1_800_000_000;
 
 let companyID = '';
@@ -57,7 +63,7 @@ function paidInvoice(eventID: string, billingReason: string, lineAmount: number,
 				customer: `cus_route_${stamp}`,
 				billing_reason: billingReason,
 				parent: { subscription_details: { subscription: `sub_route_${stamp}`, metadata: { company_id: company } } },
-				lines: { data: [{ amount: lineAmount, period: { end: periodEnd }, pricing: { unit_amount_decimal: String(unitAmount) } }] }
+				lines: { data: [{ amount: lineAmount, period: { end: periodEnd }, pricing: { price_details: { price: priceID }, unit_amount_decimal: String(unitAmount) } }] }
 			}
 		}
 	};
@@ -101,8 +107,35 @@ describe('the Stripe webhook', () => {
 		expect(await subscriptionCreditsOfCompany()).toBe(2 * subscriptionCreditsPerMember);
 	});
 
-	test('grants a seat added partway in proportion to what it paid', async () => {
-		await deliver(paidInvoice(`evt_prorated_${stamp}`, 'subscription_update', unitAmount / 2));
+	test('grants seats added partway for what the prorated lines net to', async () => {
+		const proratedLine = (amount: number) => ({
+			amount,
+			period: { end: periodEnd },
+			pricing: { price_details: { price: priceID }, unit_amount_decimal: null }
+		});
+		const pricesAsked: string[] = [];
+		const outcome = await applyStripeEvent(
+			client,
+			{
+				id: `evt_prorated_${stamp}`,
+				type: 'invoice.paid',
+				created: periodEnd,
+				data: {
+					object: {
+						customer: `cus_route_${stamp}`,
+						billing_reason: 'subscription_update',
+						parent: { subscription_details: { subscription: `sub_route_${stamp}`, metadata: { company_id: companyID } } },
+						lines: { data: [proratedLine(-unitAmount), proratedLine(1.5 * unitAmount)] }
+					}
+				}
+			},
+			async (askedPrice) => {
+				pricesAsked.push(askedPrice);
+				return unitAmount;
+			}
+		);
+		expect(outcome).toBe('applied');
+		expect(pricesAsked).toEqual([priceID, priceID]);
 		expect(await subscriptionCreditsOfCompany()).toBe(2.5 * subscriptionCreditsPerMember);
 	});
 

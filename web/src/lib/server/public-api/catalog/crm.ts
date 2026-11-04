@@ -17,7 +17,7 @@ import {
   ResourceEffectIdentity,
 } from './protocol';
 
-import { taskLabelVocabularySchema } from './labels';
+import { taskLabelVocabularySchema, taskTypeDescription } from './labels';
 import { WorkspaceTaskStatus } from './workspace-task';
 
 import { ResourceMutationEffect, type CapabilityToolDefinition } from './definition';
@@ -281,7 +281,7 @@ export const crmActivitySaveInputSchema = z.strictObject({
   opportunityHint: opportunityHintSchema.describe('The deal the work belongs to.').optional(),
   contactHint: contactHintSchema.describe('The person the work was with.').optional(),
   title: z.string().min(1).max(256).describe('What happened, in a line.').optional(),
-  kind: z.string().max(64).describe('The kind of work it was: a note, a call, a meeting, an email, a task.').optional(),
+  kind: z.string().max(64).describe(`The task type the activity is written with. ${taskTypeDescription} Omit it to keep an activity's current type, or on a new one to let the record decide it from the company's own definitions.`).optional(),
   business: z.string().max(128).describe('Business label, from registeredLabels.businesses.').optional(),
   note: z.string().max(8192).describe('What was said or decided.').optional(),
   status: z.enum(WorkspaceTaskStatus).describe('The status the task stands at.').optional(),

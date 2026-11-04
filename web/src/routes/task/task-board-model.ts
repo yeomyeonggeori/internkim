@@ -14,6 +14,7 @@ export type TaskBoardOptions = {
 	weekEndISO?: string;
 	weekPosition?: TaskBoardWeekPosition;
 	hideEmptyRequestColumn?: boolean;
+	parentTaskIDs?: ReadonlySet<string>;
 };
 
 export type TaskBoardWeekPosition = 'past' | 'current' | 'future';
@@ -31,7 +32,7 @@ export function buildTaskBoard(tasks: Task[], options: TaskBoardOptions = {}): T
 			status,
 			tasks: tasks
 				.filter((task) => task.status === status && matchesBoardColumnWeek(task, status, options))
-				.toSorted(compareTaskBoardOrder)
+				.toSorted((left, right) => compareTaskBoardOrder(left, right, options.parentTaskIDs))
 		}))
 		.filter((column) => !(column.status === 'requested' && column.tasks.length === 0 && options.hideEmptyRequestColumn));
 }
@@ -40,7 +41,9 @@ export function isTaskBoardStatus(status: string): status is TaskBoardStatus {
 	return BOARD_STATUS_VALUES.some((boardStatus) => boardStatus === status);
 }
 
-function compareTaskBoardOrder(left: Task, right: Task): number {
+function compareTaskBoardOrder(left: Task, right: Task, parentTaskIDs: ReadonlySet<string> = new Set()): number {
+	const parentComparison = Number(parentTaskIDs.has(right.id)) - Number(parentTaskIDs.has(left.id));
+	if (parentComparison !== 0) return parentComparison;
 	const endDateComparison = compareAscendingOptionalDate(left.endDate, right.endDate);
 	if (endDateComparison !== 0) return endDateComparison;
 	const createdAtComparison = compareAscendingOptionalDate(left.createdAt, right.createdAt);
