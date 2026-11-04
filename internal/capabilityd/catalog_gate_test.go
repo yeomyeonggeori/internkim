@@ -186,7 +186,7 @@ func gateCases() map[string]catalogGateCase {
 		"schedule_list": {
 			kind: provesBehaviour,
 			reaches: map[gateBackend]*standingIn{
-				admindOverTheSocket: answering(`{"schedules":[{"scheduleID":"schedule-1","taskInstruction":"prepare the daily report","cadence":"cron","status":"failed"}]}`),
+				admindOverTheSocket: answering(`{"schedules":[{"scheduleID":"schedule-1","taskInstruction":"prepare the daily report","cadence":"cron","status":"failed"}],"totalCount":1}`),
 			},
 			input: `{"status":"failed","limit":1}`,
 			expect: func(t *testing.T, answered capabilities.ToolInvokeResponse) {

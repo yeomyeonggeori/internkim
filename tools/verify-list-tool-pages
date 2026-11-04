@@ -32,7 +32,6 @@ PAGES_WITHOUT_A_TOTAL = {
 }
 
 CUT_WITHOUT_SAYING_SO = {
-    "schedule_list": "answers at most limit schedules and nothing says more exist",
     "attendance_list": "answers at most limit rows and nothing says more exist",
 }
 

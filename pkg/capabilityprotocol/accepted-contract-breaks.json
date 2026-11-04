@@ -1188,5 +1188,15 @@
 		"path": "notification_settings_set.result.attendanceReach",
 		"reason": "Attendance notices are narrowed to everyone, a person's team and every supervisor above them, or their team alone. The settings answer says which reach the requester chose, so a reader sees the setting it is about to change.",
 		"release": "the attendance notification reach release carries the catalog to company hosts before the web/API deployment that answers attendanceReach"
+	},
+	{
+		"path": "schedule_list.result.totalCount",
+		"reason": "schedule_list answered at most twenty schedules, cut again by limit, with nothing saying more existed. It now reads a page at a time with a cursor and says how many match, the shape the other list tools answer.",
+		"release": "the host release carrying blueclaw's paged schedule list and this catalog reaches company hosts before the web/API catalog deploys; schedule_list is answered on the host, so the answer and its contract travel in the same package"
+	},
+	{
+		"path": "schedule_list.result.nextCursor",
+		"reason": "schedule_list answered at most twenty schedules, cut again by limit, with nothing saying more existed. It now reads a page at a time with a cursor and says how many match, the shape the other list tools answer.",
+		"release": "the host release carrying blueclaw's paged schedule list and this catalog reaches company hosts before the web/API catalog deploys; schedule_list is answered on the host, so the answer and its contract travel in the same package"
 	}
 ]
