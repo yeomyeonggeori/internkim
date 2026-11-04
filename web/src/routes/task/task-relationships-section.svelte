@@ -20,6 +20,7 @@
 		canManageRelationships?: boolean;
 		pendingTaskIDs?: string[];
 		text: TaskRelationshipsText;
+		dateRangeLabel: string;
 		taskTypeColor: (type: string | null) => string;
 		statusLabel: (status: string) => string;
 		onOpenTask: (task: Task) => void;
@@ -37,6 +38,7 @@
 		canManageRelationships = editable,
 		pendingTaskIDs = [],
 		text,
+		dateRangeLabel,
 		taskTypeColor,
 		statusLabel,
 		onOpenTask,
@@ -89,6 +91,7 @@
 				pending={isPending(task.id)}
 				openTaskLabel={text.parent}
 				etcLabel={text.etcLabel}
+				{dateRangeLabel}
 				moreActionsLabel={text.moreActions}
 				removeRelationshipLabel={text.removeRelationship}
 				onOpenTask={openTask}
@@ -124,6 +127,7 @@
 						pending={isPending(child.id)}
 						openTaskLabel={text.children}
 						etcLabel={text.etcLabel}
+						{dateRangeLabel}
 						moreActionsLabel={text.moreActions}
 						removeRelationshipLabel={text.removeRelationship}
 						onOpenTask={openTask}
