@@ -1453,6 +1453,15 @@
       ]
     },
     {
+      "name": "task_save_with_children",
+      "arguments": "save_arguments jsonb, child_ids uuid[]",
+      "returns": "uuid",
+      "security": "invoker",
+      "callableBy": [
+        "authenticated"
+      ]
+    },
+    {
       "name": "task_search_text",
       "arguments": "task task",
       "returns": "text",

@@ -32,6 +32,7 @@ class TaskRelationshipFixture {
 	tasks = [taskFixture(targetTaskID, targetTitle), taskFixture(parentTaskID, parentTitle), taskFixture(childTaskID, childTitle)];
 	historyReads = 0;
 	failedHistoryReads = new Set<number>();
+	added: Record<string, unknown>[] = [];
 	writeGate = Promise.resolve();
 	onWriteStarted = () => {};
 
@@ -63,6 +64,12 @@ class TaskRelationshipFixture {
 			await this.write(route);
 			return;
 		}
+		if (toolName === 'task_add') {
+			const written: { input: Record<string, unknown> } = route.request().postDataJSON();
+			this.added.push(written.input);
+			await route.fulfill({ json: { result: taskFixture('30000000-0000-4000-8000-000000000004', String(written.input.title)) } });
+			return;
+		}
 		await route.fulfill({ status: 503, json: { error: 'Tool has no supplementary UI fixture' } });
 	}
 
@@ -83,7 +90,7 @@ class TaskRelationshipFixture {
 	}
 }
 
-async function installAuthenticatedFixture(page: Page, fixture: TaskRelationshipFixture): Promise<void> {
+async function installAuthenticatedFixture(page: Page, fixture: TaskRelationshipFixture, opensTarget = true): Promise<void> {
 	await page.addInitScript(({ memberID }) => {
 		const issuedAt = Math.floor(Date.now() / 1000);
 		const encode = (value: object) => btoa(JSON.stringify(value)).replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_');
@@ -106,6 +113,7 @@ async function installAuthenticatedFixture(page: Page, fixture: TaskRelationship
 	await page.route('**/api/v1/tools/*/invoke', route => fixture.answer(route));
 	await page.goto('/example-co/task');
 	await expect(page.locator('[data-task-ready="true"]')).toBeVisible();
+	if (!opensTarget) return;
 	await openTaskCard(page, targetTaskID);
 	await taskSheet(page).getByRole('button', { name: '업무 수정' }).click();
 }
@@ -198,4 +206,37 @@ test('supplementary fixture: initial and retained history failures both retry wi
 	await expect(sheet.locator(`[data-task-relationship-task="${parentTaskID}"]`)).toBeVisible();
 	expect(fixture.historyReads).toBe(4);
 	expect(fixture.tasks.find(task => task.taskID === targetTaskID)?.parentTaskID).toBe(parentTaskID);
+});
+
+test('supplementary fixture: a new task carries the parent and children chosen before it is saved', async ({ page }) => {
+	const fixture = new TaskRelationshipFixture();
+	await installAuthenticatedFixture(page, fixture, false);
+	await page.getByRole('button', { name: '예정 업무 추가' }).first().click();
+	const sheet = taskSheet(page);
+	await sheet.getByPlaceholder('업무 내용').fill('Fixture 관계와 함께 추가하는 업무');
+	await sheet.getByRole('button', { name: '업무 관계', exact: true }).click();
+
+	await sheet.getByRole('button', { name: '부모 업무 추가' }).click();
+	const parentSelector = page.getByRole('dialog', { name: '부모 업무', exact: true });
+	await parentSelector.getByPlaceholder('부모 업무 검색').fill(parentTitle);
+	await parentSelector.getByRole('option', { name: new RegExp(parentTitle) }).click();
+	await expect(parentSelector).not.toBeVisible();
+
+	await sheet.getByRole('button', { name: '자녀 업무 추가' }).click();
+	const childSelector = page.getByRole('dialog', { name: '자녀 업무', exact: true });
+	await expect(childSelector.getByRole('option', { name: /새 자녀 업무 만들기/ })).toHaveCount(0);
+	await expect(childSelector.getByRole('option', { name: new RegExp(parentTitle) })).toHaveCount(0);
+	await childSelector.getByPlaceholder('자녀 업무 검색').fill(childTitle);
+	await childSelector.getByRole('option', { name: new RegExp(childTitle) }).click();
+	await childSelector.getByRole('button', { name: '선택한 업무 연결' }).click();
+	await expect(childSelector).not.toBeVisible();
+
+	await expect(sheet.locator(`[data-task-relationship-task="${parentTaskID}"]`)).toBeVisible();
+	await expect(sheet.locator(`[data-task-relationship-task="${childTaskID}"]`)).toBeVisible();
+	expect(fixture.added).toEqual([]);
+
+	await sheet.getByRole('button', { name: '업무 저장', exact: true }).click();
+	await expect(sheet).not.toBeVisible();
+	expect(fixture.added).toHaveLength(1);
+	expect(fixture.added[0]).toMatchObject({ parentTaskHint: parentTaskID, childTaskHints: [childTaskID] });
 });

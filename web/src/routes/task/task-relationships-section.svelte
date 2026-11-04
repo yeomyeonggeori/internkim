@@ -28,6 +28,7 @@
 		onSetParents: (taskIDs: string[], parentID: string) => boolean | Promise<boolean>;
 		onCreateChild: (parentID: string) => void;
 		allowTaskSwitching?: boolean;
+		canCreateChild?: boolean;
 	};
 
 	let {
@@ -45,7 +46,8 @@
 		onSetParent,
 		onSetParents,
 		onCreateChild,
-		allowTaskSwitching = true
+		allowTaskSwitching = true,
+		canCreateChild = true
 	}: Props = $props();
 
 	function openTask(relatedTask: Task): boolean {
@@ -154,6 +156,7 @@
 		{onSetParent}
 		{onSetParents}
 		onCreateChild={createChild}
+		{canCreateChild}
 	/>
 	<TaskRelationshipSelector
 		bind:open={childSelectorOpen}
@@ -168,5 +171,6 @@
 		{onSetParent}
 		{onSetParents}
 		onCreateChild={createChild}
+		{canCreateChild}
 	/>
 {/if}
