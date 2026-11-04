@@ -13,7 +13,8 @@
 	import { toast } from 'svelte-sonner';
 	import { createTasksController } from './tasks-controller.svelte';
 	import type { LoadTask } from './task-load-tracker';
-	import type { TaskSummary } from './task-types';
+	import { relationshipTasksWithSnapshot } from './task-relationship-snapshot';
+	import type { Task, TaskSummary } from './task-types';
 	import { taskText } from './text';
 	import type { PageText } from '$lib/i18n/page-text.svelte';
 
@@ -29,6 +30,7 @@
 		isPendingRead: boolean;
 		loadError: string;
 		ensureFullState: () => Promise<boolean>;
+		relationshipSnapshotTasks: Task[] | null;
 		isHistoryLoading: boolean;
 		historyError: string;
 		loadTask: LoadTask;
@@ -36,10 +38,11 @@
 		setPageErrorMessage: (message: string) => void;
 	};
 
-	let { summary, shownWeek, canNavigateWeek, focusedTaskID, text, isLoading, isPendingRead, loadError, ensureFullState, isHistoryLoading, historyError, loadTask, selectWeek, setPageErrorMessage }: Props = $props();
+	let { summary, shownWeek, canNavigateWeek, focusedTaskID, text, isLoading, isPendingRead, loadError, ensureFullState, relationshipSnapshotTasks, isHistoryLoading, historyError, loadTask, selectWeek, setPageErrorMessage }: Props = $props();
 	const hasShownWeek = $derived(Boolean(summary && summary.week.code === shownWeek?.code));
 
 	const page = createTasksController();
+	let relationshipTasks = $derived(summary?.completeness !== 'full' && relationshipSnapshotTasks ? relationshipTasksWithSnapshot(page.tasks(), relationshipSnapshotTasks) : page.tasks());
 	let taskViewTab = $state('board');
 	$effect(() => {
 		if (taskViewTab === 'list') untrack(() => { void ensureFullState(); });
@@ -181,7 +184,7 @@
 <TaskEditor
 	businessColor={page.businessColor}
 	taskTypeColor={page.taskTypeColor}
-	tasks={page.tasks()}
+	tasks={relationshipTasks}
 	currentMemberID={page.currentMemberID()}
 	pendingRelationshipTaskIDs={page.relationships.pendingTaskIDs}
 	memberEmail={page.memberEmail}
@@ -215,7 +218,7 @@
 	setTaskParent={page.setTaskParent}
 	setTaskParents={page.setTaskParents}
 	createChildTask={page.createChildTask}
-	hasRelationshipData={summary?.completeness === 'full'}
+	hasRelationshipData={summary?.completeness === 'full' || relationshipSnapshotTasks !== null}
 	relationshipsReady={summary?.completeness === 'full' && !isHistoryLoading && !isLoading}
 	relationshipsLoadingLabel={text.loadingHistory}
 	relationshipsError={historyError}
