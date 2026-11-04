@@ -71,7 +71,7 @@ function taskListOfPages(pages: RecordTaskListPage[]): RecordTaskList {
 	return { ...first, count: tasks.length, tasks, ...(first.childProgress ? { childProgress } : {}) };
 }
 
-export function addTask(written: WrittenTask & { parentTaskHint?: string }): Promise<RecordTask> {
+export function addTask(written: WrittenTask & { parentTaskHint?: string; childTaskHints?: string[] }): Promise<RecordTask> {
 	clearStoredTaskSnapshot();
 	return invokeTool<RecordTask>('task_add', written).then(afterTaskWrite);
 }

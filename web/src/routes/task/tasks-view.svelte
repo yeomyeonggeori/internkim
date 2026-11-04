@@ -186,6 +186,7 @@
 	pendingRelationshipTaskIDs={page.relationships.pendingTaskIDs}
 	memberEmail={page.memberEmail}
 	bind:taskDraft={page.editor.taskDraft}
+	bind:draftChildTaskIDs={page.editor.draftChildTaskIDs}
 	isEditingTask={page.editor.isEditingTask}
 	isEditingLocked={isLoading}
 	members={page.members()}
