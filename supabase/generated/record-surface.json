@@ -832,6 +832,13 @@
       ]
     },
     {
+      "name": "forget_a_request_of_oneself",
+      "arguments": "target_task_id uuid",
+      "returns": "void",
+      "security": "definer",
+      "callableBy": []
+    },
+    {
       "name": "is_a_scheduled_job",
       "arguments": "presented text",
       "returns": "boolean",
@@ -1417,6 +1424,13 @@
       ]
     },
     {
+      "name": "task_is_asked_of_its_asker",
+      "arguments": "target_task_id uuid, asker uuid",
+      "returns": "boolean",
+      "security": "definer",
+      "callableBy": []
+    },
+    {
       "name": "task_is_work",
       "arguments": "task task",
       "returns": "boolean",
@@ -1620,11 +1634,11 @@
     "bind_member_to_new_user",
     "data_room_guard_category",
     "data_room_guard_document",
-    "derive_task_status_from_dates",
     "enforce_crm_reference_consistency",
     "follow_children_completion",
+    "forget_requests_of_oneself",
     "guard_task_authority_shape",
-    "guard_task_status_against_dates",
+    "keep_task_status_and_dates_agreeing",
     "leave_carries_the_terms_of_its_kind",
     "leave_granted_to_a_new_member",
     "leave_grants_restart_when_the_opening_rule_changes",
@@ -1644,7 +1658,6 @@
     "stamp_crm_record",
     "stamp_task_on_participant_change",
     "stamp_task_update",
-    "start_ended_task_on_its_last_day",
     "sync_member_email_from_user",
     "validate_attendance_correction",
     "validate_attendance_update_order",

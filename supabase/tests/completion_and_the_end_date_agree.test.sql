@@ -2,10 +2,10 @@ begin;
 create extension if not exists pgtap with schema extensions;
 select plan(16);
 
-select has_function('public', 'derive_task_status_from_dates', 'agree: dates drive the status');
-select has_function('public', 'guard_task_status_against_dates', 'agree: named statuses are guarded');
-select has_trigger('public', 'task', 'task_status_derived_from_dates', 'agree: the deriving trigger is wired');
-select has_trigger('public', 'task', 'task_status_guarded_against_dates', 'agree: the guarding trigger is wired');
+select has_function('public', 'keep_task_status_and_dates_agreeing', 'agree: one function holds status and dates together');
+select has_trigger('public', 'task', 'task_status_and_dates_agree', 'agree: the agreeing trigger is wired');
+select hasnt_trigger('public', 'task', 'task_status_derived_from_dates', 'agree: the deriving trigger is gone');
+select hasnt_trigger('public', 'task', 'task_status_guarded_against_dates', 'agree: the refusing trigger is gone');
 
 insert into public.company (id, name, slug, country, locale, timezone) values
   ('99900000-0000-0000-0000-0000000000a0', 'Agreement Company', 'agreement-company', 'KR', 'ko', 'Asia/Seoul');
@@ -35,10 +35,11 @@ select is(
   ((now() at time zone 'Asia/Seoul')::date, (now() at time zone 'Asia/Seoul')::date),
   'agree: completing a dateless task stamps today on both dates');
 
-select throws_ok(
-  $$update public.task set status = 'completed' where id = '99900000-0000-0000-0000-0000000000b2'$$,
-  '23514', 'a task cannot complete before it starts',
-  'agree: a task cannot complete before it starts');
+update public.task set status = 'completed' where id = '99900000-0000-0000-0000-0000000000b2';
+select is(
+  (select (public.task_last_day(task), starts_at = ends_at) from public.task where id = '99900000-0000-0000-0000-0000000000b2'),
+  ((now() at time zone 'Asia/Seoul')::date, true),
+  'agree: completing a task before its start ends it today and starts it at that end');
 
 update public.task set status = 'completed' where id = '99900000-0000-0000-0000-0000000000b3';
 select is(
@@ -58,12 +59,13 @@ select is(
   'paused',
   'agree: a write that names its own status is respected');
 
-select throws_ok(
-  $$insert into public.task (company_id, title, status, starts_at, ends_at) values
-    ('99900000-0000-0000-0000-0000000000a0', 'Insert claiming a future start', 'completed',
-      ((now() at time zone 'Asia/Seoul')::date + 1)::timestamptz, ((now() at time zone 'Asia/Seoul')::date + 4)::timestamptz)$$,
-  '23514', 'a task cannot complete before it starts',
-  'agree: an insert cannot complete before it starts either');
+insert into public.task (company_id, title, status, starts_at, ends_at) values
+  ('99900000-0000-0000-0000-0000000000a0', 'Insert claiming a future start', 'completed',
+    ((now() at time zone 'Asia/Seoul')::date + 1)::timestamptz, ((now() at time zone 'Asia/Seoul')::date + 4)::timestamptz);
+select is(
+  (select (public.task_last_day(task), starts_at = ends_at) from public.task where title = 'Insert claiming a future start'),
+  ((now() at time zone 'Asia/Seoul')::date, true),
+  'agree: an insert completing before its start ends today too');
 
 update public.task set status = 'completed', ends_at = ((now() at time zone 'Asia/Seoul')::date + 5)::timestamptz
   where id = '99900000-0000-0000-0000-0000000000b9';
@@ -85,15 +87,17 @@ select is(
   'planned',
   'agree: postponing an unstarted task reopens it as planned');
 
-select throws_ok(
-  $$update public.task set status = 'in_progress' where id = '99900000-0000-0000-0000-0000000000c1'$$,
-  '23514', 'a task cannot be in progress before it starts',
-  'agree: a task cannot run before it starts');
+update public.task set status = 'in_progress' where id = '99900000-0000-0000-0000-0000000000c1';
+select is(
+  (select (status::text, public.task_first_day(task)) from public.task where id = '99900000-0000-0000-0000-0000000000c1'),
+  ('in_progress'::text, (now() at time zone 'Asia/Seoul')::date),
+  'agree: starting a task before its start moves the start to now');
 
-select throws_ok(
-  $$update public.task set status = 'planned' where id = '99900000-0000-0000-0000-0000000000b3'$$,
-  '23514', 'a task past its end cannot go back to planned; move the end date first',
-  'agree: a task past its end cannot go back to planned');
+update public.task set status = 'planned' where id = '99900000-0000-0000-0000-0000000000b3';
+select is(
+  (select (status::text, starts_at, ends_at) from public.task where id = '99900000-0000-0000-0000-0000000000b3'),
+  ('planned'::text, null::timestamptz, null::timestamptz),
+  'agree: planning an ended task again clears the dates that already passed');
 
 update public.task set starts_at = (now() at time zone 'Asia/Seoul')::date::timestamptz where id = '99900000-0000-0000-0000-0000000000c1';
 select is(
