@@ -464,6 +464,9 @@ export const taskAddInputSchema = z.strictObject({
     .describe('Names, @handles, or emails of the people the task belongs to. Omit it when the work is the requester\u2019s own, which is the usual case; the name the requester used to address you is not a participant.')
     .optional(),
   parentTaskHint: z.string().max(256).describe(parentTaskHintDescription).optional(),
+  childTaskHints: z.array(z.string())
+    .describe('Existing tasks to move under the new task, each an exact task ID or exact CURRENT title from a task_list result. Every one of them must stand on its own already; when any cannot move, the new task is not added either.')
+    .optional(),
   organizationHint: z.string().max(256).describe(crmOrganizationHintDescription).optional(),
   opportunityHint: z.string().max(256).describe(crmOpportunityHintDescription).optional(),
 });

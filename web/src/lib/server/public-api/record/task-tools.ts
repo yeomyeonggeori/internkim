@@ -25,6 +25,7 @@ import {
 	participantsOfHints,
 	RecordRefusedTheWrite,
 	saveTask,
+	saveTaskWithChildren,
 	savedTaskByID,
 	statusOfPostgresCode,
 	taskOfHint,
@@ -199,7 +200,9 @@ function writtenFields(context: RecordContext, written: TaskWritten, row: TaskRo
 	};
 }
 
-export async function taskAdd(context: RecordContext, asked: TaskWritten): Promise<AnsweredTask> {
+type TaskAddInput = TaskWritten & { childTaskHints?: string[] };
+
+export async function taskAdd(context: RecordContext, asked: TaskAddInput): Promise<AnsweredTask> {
 	if (!asked.title?.trim()) throw new Error('a task needs a title');
 	const input = missesATaskLabel(asked)
 		? withDecidedTaskLabels(asked, await context.decideTaskLabels({ title: asked.title, note: asked.note ?? '' }))
@@ -212,12 +215,19 @@ export async function taskAdd(context: RecordContext, asked: TaskWritten): Promi
 	const parentTaskID = input.parentTaskHint?.trim() ? taskOfHint(tasks, input.parentTaskHint, 'task').id : null;
 	const duplicate = duplicateJustAdded(context, tasks, participantIDs, asked.title.trim());
 	const links = await crmColumnsWritten(context, input, duplicate ?? null);
+	const childTaskIDs = (input.childTaskHints ?? []).map((hint) => taskOfHint(tasks, hint, 'task').id);
 	const saved = duplicate
 		? (await mergedIntoDuplicate(context, duplicate, input)).id
-		: await saveTask(context.caller, taskWriteArguments(null, { ...written, status, participantIDs, parentTaskID, links }));
+		: await saveNewTask(context, taskWriteArguments(null, { ...written, status, participantIDs, parentTaskID, links }), childTaskIDs);
 
 	if (duplicate) await writeCRMColumns(context, saved, links);
+	if (duplicate && childTaskIDs.length > 0) await linkTaskChildren(context, duplicate, childTaskIDs);
 	return answeredTask(context, await taskByID(context, saved));
+}
+
+function saveNewTask(context: RecordContext, argumentsOfSave: Record<string, unknown>, childTaskIDs: string[]): Promise<string> {
+	if (childTaskIDs.length === 0) return saveTask(context.caller, argumentsOfSave);
+	return saveTaskWithChildren(context.caller, argumentsOfSave, childTaskIDs);
 }
 
 function statusOfAssignedWork(asked: string | undefined, participantIDs: string[], requesterID: string): string | undefined {

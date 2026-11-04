@@ -1052,6 +1052,13 @@
             "description": "The company business this work is for, from registeredLabels.businesses in a task_list result, whenever the conversation or the work itself shows which one. Omit it only when that is unknown: the record then decides it from the company's own definitions.",
             "type": "string"
           },
+          "childTaskHints": {
+            "description": "Existing tasks to move under the new task, each an exact task ID or exact CURRENT title from a task_list result. Every one of them must stand on its own already; when any cannot move, the new task is not added either.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
           "endsAt": {
             "description": "When the work is due. ISO 8601 with timezone for a moment, or YYYY-MM-DD for a whole day. Resolve relative dates from the current date. Omit when the user did not specify one.",
             "type": "string"
@@ -1124,6 +1131,13 @@
           "business": {
             "description": "The company business this work is for, from registeredLabels.businesses in a task_list result, whenever the conversation or the work itself shows which one. Omit it only when that is unknown: the record then decides it from the company's own definitions.",
             "type": "string"
+          },
+          "childTaskHints": {
+            "description": "Existing tasks to move under the new task, each an exact task ID or exact CURRENT title from a task_list result. Every one of them must stand on its own already; when any cannot move, the new task is not added either.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
           },
           "endsAt": {
             "description": "When the work is due. ISO 8601 with timezone for a moment, or YYYY-MM-DD for a whole day. Resolve relative dates from the current date. Omit when the user did not specify one.",
