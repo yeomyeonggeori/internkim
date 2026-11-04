@@ -1,8 +1,8 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { taskWeekDateFromISO, taskWeekOfDate } from '$lib/task/task-week-code';
-import { matchesTaskBoardWeek, type TaskBoardOptions, type TaskBoardWeekPosition } from '../../../../routes/task/task-board-model';
+import type { TaskBoardOptions, TaskBoardWeekPosition } from '../../../../routes/task/task-board-model';
 import type { TaskChildProgress } from '../../../../routes/task/task-relationships';
-import { dayOfInstant, dayShifted, instantOfDay } from './days';
+import { dayShifted, instantOfDay } from './days';
 import { workColumn, type TaskRow } from './tasks';
 
 export type TaskCardRow = Pick<TaskRow,
@@ -10,7 +10,7 @@ export type TaskCardRow = Pick<TaskRow,
 	'starts_at' | 'ends_at' | 'task_last_day' | 'created_at' | 'updated_at' | 'requester_id' | 'task_participant' | 'task_deletable' | 'task_updatable'
 > & Partial<Pick<TaskRow, 'organization_id' | 'opportunity_id'>>;
 
-const cardColumns = 'id, parent_task_id, title, status, business, type, size, starts_at, ends_at, task_last_day, created_at, updated_at, requester_id, task_participant (member_id), task_deletable, task_updatable';
+export const cardColumns = 'id, parent_task_id, title, status, business, type, size, starts_at, ends_at, task_last_day, created_at, updated_at, requester_id, task_participant (member_id), task_deletable, task_updatable';
 const rowsPerPage = 500;
 const parentIDsPerQuery = 100;
 
@@ -36,47 +36,35 @@ export function taskBoardWindow(week: string, timeZone: string, now: Date): Task
 	};
 }
 
+export function lastDayBetween(timeZone: string, firstDay: string, lastDay: string): string {
+	return `${lastDayOnOrAfter(timeZone, firstDay)},${lastDayOnOrBefore(timeZone, lastDay)}`;
+}
+
+function lastDayOnOrAfter(timeZone: string, day: string): string {
+	const start = instantOfDay(timeZone, day);
+	return `or(and(is_whole_day.is.true,ends_at.gt.${start}),and(is_whole_day.is.false,ends_at.gte.${start}))`;
+}
+
+function lastDayOnOrBefore(timeZone: string, day: string): string {
+	const end = instantOfDay(timeZone, dayShifted(day, 1));
+	return `or(and(is_whole_day.is.true,ends_at.lte.${end}),and(is_whole_day.is.false,ends_at.lt.${end}))`;
+}
+
 export function taskBoardDatePredicate(window: TaskBoardWindow): string {
-	const { weekStartISO, weekEndISO } = window.options;
+	const weekEnd = dayShifted(window.week, 6);
+	const endsThisWeek = lastDayBetween(window.timeZone, window.week, weekEnd);
 	const clauses = [
 		'status.in.(requested,paused)',
-		`and(status.eq.completed,task_last_day.gte.${weekStartISO},task_last_day.lte.${weekEndISO})`
+		`and(status.eq.completed,${endsThisWeek})`
 	];
 	if (window.position === 'current') {
 		clauses.push('status.eq.in_progress');
-		clauses.push(`and(status.eq.planned,or(task_last_day.lte.${weekEndISO},and(ends_at.is.null,or(starts_at.lt.${window.until},starts_at.is.null))))`);
+		clauses.push(`and(status.eq.planned,or(${lastDayOnOrBefore(window.timeZone, weekEnd)},and(ends_at.is.null,or(starts_at.lt.${window.until},starts_at.is.null))))`);
 	}
 	if (window.position === 'future') {
-		clauses.push(`and(status.eq.planned,or(and(task_last_day.gte.${weekStartISO},task_last_day.lte.${weekEndISO}),and(ends_at.is.null,starts_at.gte.${window.from},starts_at.lt.${window.until})))`);
+		clauses.push(`and(status.eq.planned,or(and(${endsThisWeek}),and(ends_at.is.null,starts_at.gte.${window.from},starts_at.lt.${window.until})))`);
 	}
 	return clauses.join(',');
-}
-
-export function rowMatchesTaskBoard(row: TaskCardRow, window: TaskBoardWindow): boolean {
-	return matchesTaskBoardWeek({
-		status: row.status,
-		startDate: dayOfInstant(window.timeZone, row.starts_at),
-		endDate: row.task_last_day ?? ''
-	}, window.options);
-}
-
-export async function tasksForBoard(
-	caller: SupabaseClient,
-	window: TaskBoardWindow,
-	links: { organizationID?: string; opportunityID?: string } = {}
-): Promise<TaskCardRow[]> {
-	const rows: TaskCardRow[] = [];
-	for (let from = 0; ; from += rowsPerPage) {
-		let query = caller.from('task').select(cardColumns).eq(workColumn, true)
-			.or(taskBoardDatePredicate(window));
-		if (links.organizationID) query = query.eq('organization_id', links.organizationID);
-		if (links.opportunityID) query = query.eq('opportunity_id', links.opportunityID);
-		const { data, error } = await query.order('id').range(from, from + rowsPerPage - 1).returns<TaskCardRow[]>();
-		if (error) throw new Error(error.message);
-		const page = data ?? [];
-		rows.push(...page.filter(row => rowMatchesTaskBoard(row, window)));
-		if (page.length < rowsPerPage) return rows.sort((left, right) => right.updated_at.localeCompare(left.updated_at));
-	}
 }
 
 export async function taskChildProgressForBoard(caller: SupabaseClient, taskIDs: string[]): Promise<Record<string, TaskChildProgress>> {

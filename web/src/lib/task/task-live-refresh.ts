@@ -1,14 +1,15 @@
 import { onCompanyBroadcast } from '$lib/company-channel';
-import { clearStoredTaskSnapshot } from '../../routes/task/task-snapshot-storage';
+import { clearStoredTaskSnapshot, taskSnapshotGeneration } from '../../routes/task/task-snapshot-storage';
 
 const refreshDelayMilliseconds = 400;
 
-export function subscribeTaskWrites(onWrite: () => void): () => void {
+export function subscribeTaskWrites(onWrite: (heardGeneration: number) => void): () => void {
 	let refreshTimer: ReturnType<typeof setTimeout> | undefined;
 	const stopListening = onCompanyBroadcast('task_written', () => {
 		clearStoredTaskSnapshot();
+		const heardGeneration = taskSnapshotGeneration();
 		clearTimeout(refreshTimer);
-		refreshTimer = setTimeout(onWrite, refreshDelayMilliseconds);
+		refreshTimer = setTimeout(() => onWrite(heardGeneration), refreshDelayMilliseconds);
 	});
 	return () => {
 		stopListening();

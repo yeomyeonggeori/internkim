@@ -20,7 +20,9 @@
 	import { currentLocale } from '$lib/i18n/locale.svelte';
 	import { dataRoomSharingText } from '$lib/data-room/sharing-text';
 	import { dataRoomText } from '$lib/data-room/text';
-	import { shareableCircleItems } from './circle-items';
+	import type { DataRoomCategory } from '$lib/data-room/model';
+	import { circleLabel, readableCategoryNames, shareableCircleItems } from './circle-items';
+	let { categories }: { categories: DataRoomCategory[] } = $props();
 	const text = createPageText(dataRoomSharingText);
 	const browserText = createPageText(dataRoomText);
 	const fieldID = $props.id();
@@ -172,9 +174,11 @@
 								></Select.Content
 							></Select.Root
 						><Field.Description
-							>{circles
-								.find((circle) => circle.id === circleID)
-								?.readableCategories.join(', ')}</Field.Description
+							>{readableCategoryNames(
+								circles.find((circle) => circle.id === circleID),
+								categories,
+								currentLocale.value
+							)}</Field.Description
 						></Field.Field
 					>
 					<Field.Field
@@ -225,7 +229,7 @@
 					<div class="min-w-0">
 						<p class="truncate font-medium">{link.label}</p>
 						<p class="text-xs text-muted-foreground">
-							{link.circleID} · {link.revokedAt
+							{circleLabel(circles, link.circleID, currentLocale.value)} · {link.revokedAt
 								? text.revoked
 								: Date.parse(link.expiresAt) <= Date.now()
 									? text.expired

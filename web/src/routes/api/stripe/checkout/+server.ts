@@ -2,6 +2,7 @@ import { environmentOfPlatform } from '$lib/server/agent-request';
 import { adminCallerOf, asMember, controlPlane, planeCredentialsOf } from '$lib/server/control-plane';
 import { signedInAccessTokenOf } from '$lib/server/member-request';
 import { subscriptionCheckoutURL } from '$lib/server/stripe-checkout';
+import { billedSeatsOf } from '$lib/server/stripe-seats';
 import { error, json } from '@sveltejs/kit';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { RequestHandler } from './$types';
@@ -22,24 +23,13 @@ export const POST: RequestHandler = async ({ request, platform, url }) => {
 	const checkoutURL = await subscriptionCheckoutURL({
 		secretKey,
 		priceID,
-		memberCount: await billedMemberCount(record, caller.companyID),
+		memberCount: await billedSeatsOf(record, caller.companyID),
 		companyID: caller.companyID,
 		customerID: await stripeCustomerOf(record, caller.companyID),
 		returnURL: url.origin
 	});
 	return json({ url: checkoutURL });
 };
-
-async function billedMemberCount(record: SupabaseClient, companyID: string): Promise<number> {
-	const { count, error: countError } = await record
-		.from('member')
-		.select('id', { count: 'exact', head: true })
-		.eq('company_id', companyID)
-		.eq('kind', 'human')
-		.not('status', 'in', '(departed,withdrawn)');
-	if (countError) error(500, countError.message);
-	return count ?? 0;
-}
 
 async function stripeCustomerOf(record: SupabaseClient, companyID: string): Promise<string | null> {
 	const { data, error: readError } = await record

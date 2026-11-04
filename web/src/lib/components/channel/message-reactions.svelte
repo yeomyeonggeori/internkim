@@ -36,7 +36,7 @@
 	let reactionRow = $state<HTMLElement | null>(null);
 
 	function toggleWhenJoinable(reaction: ChannelMessageReaction): void {
-		if (canChange && !reactionImage(reaction)) onToggle(reaction);
+		if (canChange) onToggle(reaction);
 	}
 
 	function showPeople(reaction: ChannelMessageReaction): void {
@@ -61,7 +61,7 @@
 			{@const shortcode = `:${reaction.value}:`}
 			{@const peopleLabel = reactionPeopleLabel(
 				(reaction.people ?? []).map((person) => person.name).filter(Boolean),
-				{ reactedBy: text.reactedBy, reactedByMore: text.reactedByMore }
+				text.reactedBy
 			)}
 			<Tooltip.Root disabled={isMobile.current || isPopoverOpen}>
 				<Tooltip.Trigger>

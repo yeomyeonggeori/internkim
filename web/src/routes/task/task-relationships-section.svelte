@@ -20,6 +20,7 @@
 		canManageRelationships?: boolean;
 		pendingTaskIDs?: string[];
 		text: TaskRelationshipsText;
+		dateRangeLabel: string;
 		taskTypeColor: (type: string | null) => string;
 		statusLabel: (status: string) => string;
 		onOpenTask: (task: Task) => void;
@@ -27,6 +28,7 @@
 		onSetParents: (taskIDs: string[], parentID: string) => boolean | Promise<boolean>;
 		onCreateChild: (parentID: string) => void;
 		allowTaskSwitching?: boolean;
+		canCreateChild?: boolean;
 	};
 
 	let {
@@ -37,13 +39,15 @@
 		canManageRelationships = editable,
 		pendingTaskIDs = [],
 		text,
+		dateRangeLabel,
 		taskTypeColor,
 		statusLabel,
 		onOpenTask,
 		onSetParent,
 		onSetParents,
 		onCreateChild,
-		allowTaskSwitching = true
+		allowTaskSwitching = true,
+		canCreateChild = true
 	}: Props = $props();
 
 	function openTask(relatedTask: Task): boolean {
@@ -89,6 +93,7 @@
 				pending={isPending(task.id)}
 				openTaskLabel={text.parent}
 				etcLabel={text.etcLabel}
+				{dateRangeLabel}
 				moreActionsLabel={text.moreActions}
 				removeRelationshipLabel={text.removeRelationship}
 				onOpenTask={openTask}
@@ -124,6 +129,7 @@
 						pending={isPending(child.id)}
 						openTaskLabel={text.children}
 						etcLabel={text.etcLabel}
+						{dateRangeLabel}
 						moreActionsLabel={text.moreActions}
 						removeRelationshipLabel={text.removeRelationship}
 						onOpenTask={openTask}
@@ -150,6 +156,7 @@
 		{onSetParent}
 		{onSetParents}
 		onCreateChild={createChild}
+		{canCreateChild}
 	/>
 	<TaskRelationshipSelector
 		bind:open={childSelectorOpen}
@@ -164,5 +171,6 @@
 		{onSetParent}
 		{onSetParents}
 		onCreateChild={createChild}
+		{canCreateChild}
 	/>
 {/if}

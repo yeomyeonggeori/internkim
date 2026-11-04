@@ -13,10 +13,11 @@
 	import { ToolRefused } from '$lib/public-api-call';
 	import { subscribeTaskWrites } from '$lib/task/task-live-refresh';
 	import { supersededLoadIsNotAFailure, type TaskLoadOptions } from './task-load-tracker';
-	import { createTaskReadSession, sameTaskReadContext, type TaskReadContext } from './task-read-session';
+	import { createTaskReadSession, readCoversWrite, sameTaskReadContext, type TaskReadContext } from './task-read-session';
 	import { rememberTask, forgetLastSeenTask } from './task-last-seen';
 	import { clearStoredTaskSnapshot, taskSnapshotGeneration, subscribeTaskSnapshotInvalidation } from './task-snapshot-storage';
-	import type { TaskState, TaskSummary } from './task-types';
+	import { storedRelationshipTasks } from './task-relationship-snapshot';
+	import type { Task, TaskState, TaskSummary } from './task-types';
 	import { taskText } from './text';
 
 	let { data } = $props();
@@ -40,6 +41,7 @@
 	let isRefreshing = $state(false);
 	let isHistoryLoading = $state(false);
 	let historyError = $state('');
+	let relationshipSnapshotTasks = $state<Task[] | null>(null);
 	type PendingTaskRead = TaskReadContext & { promise: Promise<boolean> };
 	let fullRequest: PendingTaskRead | null = null;
 	let boardRequest: PendingTaskRead | null = null;
@@ -88,6 +90,7 @@
 				taskState = null;
 				summary = null;
 				cacheSavedAt = 0;
+				relationshipSnapshotTasks = null;
 				fullRequest = null;
 				historyError = '';
 				paneError = '';
@@ -137,8 +140,8 @@
 	});
 
 	onMount(() => {
-		const stopFollowingInvalidation = subscribeTaskSnapshotInvalidation(() => { stateReadGeneration = -1; });
-		const stopFollowingTaskWrites = subscribeTaskWrites(() => { void refreshCurrentWeek(); });
+		const stopFollowingInvalidation = subscribeTaskSnapshotInvalidation(() => { stateReadGeneration = -1; relationshipSnapshotTasks = null; });
+		const stopFollowingTaskWrites = subscribeTaskWrites(refreshAfterTaskWrite);
 		return () => {
 			isDisposed = true;
 			readSession.invalidate();
@@ -191,6 +194,7 @@
 	function ensureFullState(): Promise<boolean> {
 		readSession.requireFullHistory();
 		if (taskState?.completeness === 'full' && stateReadGeneration === taskSnapshotGeneration() && !cacheSavedAt) return Promise.resolve(true);
+		if (taskState?.completeness !== 'full') relationshipSnapshotTasks = storedRelationshipTasks(taskScope);
 		const generation = taskSnapshotGeneration();
 		const context = { scope: taskScope, generation, week: selectedWeek };
 		if (boardRequest && sameTaskReadContext(boardRequest, context) && !taskState?.peopleReady) {
@@ -299,11 +303,6 @@
 		loadTask(week, { reloadState: false });
 	}
 
-	function openTaskWhenReady(taskID: string): void {
-		pendingTaskID = taskID;
-		openPendingTask();
-	}
-
 	function selectTab(tab: string) {
 		activeTab = tab;
 		paneError = '';
@@ -320,6 +319,12 @@
 		}
 		if (tab === 'members' && !TaskMembersView) TaskMembersView = (await import('./task-members-view.svelte')).default;
 		if (tab === 'definitions' && !TaskDefinitionsEditor) TaskDefinitionsEditor = (await import('./task-definitions-editor.svelte')).default;
+	}
+
+	function refreshAfterTaskWrite(heardGeneration: number): void {
+		const reads = [stateReadGeneration, boardRequest?.generation ?? -1, fullRequest?.generation ?? -1];
+		if (reads.some((read) => readCoversWrite(read, heardGeneration, taskSnapshotGeneration()))) return;
+		void refreshCurrentWeek();
 	}
 
 	function refreshCurrentWeek() {
@@ -343,7 +348,7 @@
 			</div>
 		{/if}
 
-		<TaskTabRow activeTab={activeTab} labels={text.tabs} disabled={isLoading || !isStateFresh} onSelectTab={selectTab} />
+		<TaskTabRow activeTab={activeTab} labels={text.tabs} disabled={isLoading || (!isStateFresh && !cacheSavedAt)} onSelectTab={selectTab} />
 		{#if pendingTaskID && historyError}
 			<p role="status" class="text-sm text-destructive">{historyError}</p>
 			<button class="text-left text-sm underline" onclick={ensureFullState}>{text.retryHistory}</button>
@@ -356,12 +361,12 @@
 				shownWeek={selectedWeek ? taskWeekForCode(selectedWeek, new Date()) : summary?.week}
 				canNavigateWeek={Boolean(summary) && !cacheSavedAt}
 				{focusedTaskID}
-				{openTaskWhenReady}
 				{text}
 				isLoading={isLoading || !isStateFresh}
 				isPendingRead={isLoading || isRefreshing || isHistoryLoading}
 				loadError={errorMessage}
 				{ensureFullState}
+				{relationshipSnapshotTasks}
 				{isHistoryLoading}
 				{historyError}
 				{loadTask}
@@ -399,7 +404,7 @@
 		<div class={activeTab === 'members' ? '' : 'hidden'}>
 			{#if TaskMembersView && summary?.completeness === 'full' && summary.week.code === selectedWeek}
 				<div aria-busy={isRefreshing || isHistoryLoading}>
-					<TaskMembersView members={members()} text={text.members} isLoading={isLoading || isRefreshing || isHistoryLoading} hasLoadError={Boolean(errorMessage || historyError) || !isStateFresh} />
+					<TaskMembersView members={members()} text={text.members} isLoading={isLoading || isRefreshing || isHistoryLoading} hasLoadError={Boolean(errorMessage || historyError) || (!isStateFresh && !cacheSavedAt)} />
 				</div>
 			{/if}
 			{#if activeTab === 'members'}

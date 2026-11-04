@@ -792,6 +792,53 @@ describe('a connection file claims the computer it is installed on', () => {
 	});
 });
 
+describe('a box added to a company its connection file computer serves', () => {
+	async function aCompanyOnAConnectionFile(label: string) {
+		const served = await aCompany(label);
+		const issued = await issueAgentKey(client, served.companyID, companyComputerName);
+		const hostSession = await sessionForHost(credentials, issued.apiKey);
+		return { companyID: served.companyID, hostSession };
+	}
+
+	async function roleOfHostSession(accessToken: string): Promise<unknown> {
+		const { data } = await asMember(credentials, accessToken).rpc('my_app_box_role');
+		return data;
+	}
+
+	test('stands by, leaves the computer serving, and cannot take the gateway', async () => {
+		const served = await aCompanyOnAConnectionFile('served');
+		const box = await aBox();
+		expect((await companyBoxesOf(client, served.companyID)).isServedByConnectionFile).toBe(true);
+
+		expect(await claimWithCode(served.companyID, box.publicKey, await announcedCode(box), 'add')).toBe('standby');
+
+		const standing = await boxSessionFor(credentials, box.publicKey, environment, appURL);
+		expect(standing?.role).toBe('standby');
+		expect(await roleOfHostSession(standing?.session.accessToken ?? '')).toBe('standby');
+		expect(await roleOfHostSession(served.hostSession.accessToken)).toBe('service');
+		expect(await companyOfHostSession(credentials, served.hostSession.accessToken)).toBe(served.companyID);
+	});
+
+	test('is never made to serve while the computer does', async () => {
+		const served = await aCompanyOnAConnectionFile('kept');
+		const box = await aBox();
+		await claimWithCode(served.companyID, box.publicKey, await announcedCode(box), 'add');
+
+		expect(await makeBoxServe(client, served.companyID, box.publicKey)).toBe('served_by_connection_file');
+		expect((await boxSessionFor(credentials, box.publicKey, environment, appURL))?.role).toBe('standby');
+	});
+
+	test('replaces the computer only when asked, which ends the computer\'s session', async () => {
+		const served = await aCompanyOnAConnectionFile('replaced');
+		const box = await aBox();
+
+		expect(await claimWithCode(served.companyID, box.publicKey, await announcedCode(box), 'replace')).toBe('service');
+
+		expect((await companyBoxesOf(client, served.companyID)).isServedByConnectionFile).toBe(false);
+		expect(await companyOfHostSession(credentials, served.hostSession.accessToken)).toBeNull();
+	});
+});
+
 describe('the routes a company computer calls accept its session', () => {
 	test('a host session names the company it was issued for', async () => {
 		const box = await aBox();

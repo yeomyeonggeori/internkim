@@ -59,10 +59,12 @@ const plainFields = ['foundedDate', 'fiscalYearEnd', 'phone', 'fax', 'email', 'w
 
 const coreLocalizedFields = ['name', 'address', 'bankAccount'] as const;
 
-const defaultLanguage = 'ko';
+export function languageAsked(offered: string | undefined, companyLocale: string): string {
+	return offered?.trim().toLowerCase() || languageOfLocale(companyLocale);
+}
 
-export function languageAsked(offered: string | undefined): string {
-	return offered?.trim().toLowerCase() || defaultLanguage;
+function languageOfLocale(locale: string): string {
+	return locale.split('-')[0].toLowerCase();
 }
 
 export function representativeTitleOf(language: string): string {
