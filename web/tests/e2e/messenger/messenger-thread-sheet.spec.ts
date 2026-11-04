@@ -1,5 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
 import { mockDeviceMessenger } from './messenger-device-mock';
+import { insideTheIPhoneApp, lastBackGestureChoice } from '../support/iphone-app';
 
 const channelID = 'channel-thread-sheet';
 const reader = { id: 'person-reader', name: '이샘플', email: 'reader@example.com' };
@@ -274,5 +275,24 @@ test.describe('messenger thread on a phone', () => {
 
 		await expect(page.getByText(unansweredText)).toBeVisible();
 		await expect(page.getByRole('navigation', { name: '글타래' })).toHaveCount(0);
+	});
+});
+
+test.describe('messenger thread in the iPhone app', () => {
+	test.use({ viewport: { width: 390, height: 844 } });
+
+	test('keeps the edge swipe that closes an open thread', async ({ page }) => {
+		await insideTheIPhoneApp(page);
+		await mockThreadChannel(page);
+		await page.goto(`/messenger?channel=${channelID}`);
+		await expect.poll(() => lastBackGestureChoice(page)).toBe(false);
+
+		await page.getByRole('button', { name: /1개 답글/ }).click();
+		await expect(page.getByRole('navigation', { name: '글타래' })).toBeVisible();
+		await expect.poll(() => lastBackGestureChoice(page)).toBe(true);
+
+		await page.goBack();
+		await expect(page.getByRole('navigation', { name: '글타래' })).toHaveCount(0);
+		await expect.poll(() => lastBackGestureChoice(page)).toBe(false);
 	});
 });
