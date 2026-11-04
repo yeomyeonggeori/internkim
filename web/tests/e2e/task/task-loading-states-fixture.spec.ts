@@ -222,6 +222,22 @@ test('same-week refresh retains the settled task list', async ({ page }) => {
 	await expect(page.locator('[data-task-ready="true"]')).toBeVisible();
 });
 
+test('a board card opens while the board refreshes', async ({ page }) => {
+	test.skip(isBaseline, 'Opening during a refresh is asserted against implementation');
+	const fixture = new LoadingFixture();
+	await installFixture(page, fixture);
+	await page.goto('/example-co/task');
+	await expect(page.locator('[data-task-ready="true"]')).toBeVisible();
+	const pending = gate();
+	fixture.boardGate = pending.promise;
+	fixture.boardStarted = gate();
+	await page.getByRole('button', { name: '새로고침', exact: true }).click();
+	await fixture.boardStarted.promise;
+	await page.locator('[data-task-board-card]').filter({ hasText: taskTitle }).click();
+	await expect(page.getByRole('dialog').getByText(taskTitle, { exact: true })).toBeVisible();
+	pending.release();
+});
+
 test('partial board stops its directory loading status after directory failure', async ({ page }) => {
 	test.skip(isBaseline, 'Terminal partial-load behavior is asserted against implementation');
 	const fixture = new LoadingFixture();
