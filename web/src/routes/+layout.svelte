@@ -36,6 +36,7 @@
 	import { goWhereNotificationsPoint } from '$lib/notifications/opened-notification';
 	import { forgetSignedInAccount } from '$lib/signed-in-account-memo';
 	import { keepShellStatusBarOnPageTheme } from '$lib/native-shell/page-theme';
+	import { keepBackGestureOffOnMainPages } from '$lib/components/main-page-back-gesture.svelte';
 	import { openLinksLeavingTheAppInBrowser } from '$lib/native-shell/external-links';
 	import { goWhereNativeNotificationsPoint, keepNativeDeviceClaimed } from '$lib/notifications/native-device';
 	import { askToBeReachedOnce } from '$lib/notifications/ask-once';
@@ -105,6 +106,7 @@
 	onMount(keepAppInVisualViewport);
 	onMount(openLinksLeavingTheAppInBrowser);
 	onMount(watchCentralBuzzIdentity);
+	onMount(keepBackGestureOffOnMainPages);
 	onMount(() => {
 		needsLegacyIdentity = !isSupabaseConfigured();
 		initializeLocale();
