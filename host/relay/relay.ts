@@ -27,7 +27,7 @@ import { Transfers } from './transfers';
 import { PersonPictures, type PictureRequest } from './person-picture';
 import { defaultAnswerByteCeiling, largestRawBytesThatFit } from './answer-size';
 import { positiveNumberSetting } from './settings';
-import { confirmStillServing, keepHostSession, NoLongerServes, type HostSession } from './host-session';
+import { keepHostSession, letGoUnlessStillServing, type HostSession } from './host-session';
 import {
 	answerBodyOf,
 	askAdmind,
@@ -329,7 +329,7 @@ const dispatch = {
 	})
 };
 
-await letGoUnlessStillServing();
+await letGoUnlessThisComputerStillServes();
 gateway = openGatewayConnection();
 
 let credentialKindAsked: Promise<string> | undefined;
@@ -732,18 +732,17 @@ async function keepSessionFresh(): Promise<void> {
 
 async function keepServingWithAFreshSession(): Promise<void> {
 	await keepSessionFresh().catch((refusal) => console.error('session renewal failed:', refusal instanceof Error ? refusal.message : refusal));
-	await letGoUnlessStillServing();
+	await letGoUnlessThisComputerStillServes();
 }
 
-async function letGoUnlessStillServing(): Promise<void> {
-	try {
-		await confirmStillServing(() => client.rpc('my_app_box_role'));
-	} catch (refusal) {
-		if (!(refusal instanceof NoLongerServes)) throw refusal;
-		console.error(`${refusal.message}, so the relay lets go of the gateway and stops`);
-		gateway?.close();
-		process.exit(1);
-	}
+async function letGoUnlessThisComputerStillServes(): Promise<void> {
+	await letGoUnlessStillServing(() => client.rpc('my_app_box_role'), letGoOfTheGateway);
+}
+
+function letGoOfTheGateway(reason: string): void {
+	console.error(`${reason}, so the relay lets go of the gateway and stops`);
+	gateway?.close();
+	process.exit(1);
 }
 
 async function keepGoing(what: string, work: () => Promise<void>): Promise<void> {
