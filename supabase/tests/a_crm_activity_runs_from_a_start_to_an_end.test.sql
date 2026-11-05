@@ -128,21 +128,21 @@ select is(
   'activity dates: a CRM activity created on the calendar as completed ends today, like any task'
 );
 
-select throws_ok(
-  $$select public.task_save(
-    target_task_id := null,
-    target_title := 'Visit completed before it starts',
-    target_status := 'completed',
-    target_starts_at := ((now() at time zone 'Asia/Seoul')::date + 2)::timestamptz,
-    target_ends_at := ((now() at time zone 'Asia/Seoul')::date + 3)::timestamptz,
-    target_is_event := true,
-    target_is_whole_day := true,
-    target_participant_ids := array['59500000-0000-0000-0000-0000000000a1'::uuid],
-    target_organization_id := '59500000-0000-0000-0000-000000000101'
-  )$$,
-  '23514',
-  'a task cannot complete before it starts',
-  'activity dates: a CRM activity created on the calendar cannot complete before it starts'
+select public.task_save(
+  target_task_id := null,
+  target_title := 'Visit completed before it starts',
+  target_status := 'completed',
+  target_starts_at := ((now() at time zone 'Asia/Seoul')::date + 2)::timestamptz,
+  target_ends_at := ((now() at time zone 'Asia/Seoul')::date + 3)::timestamptz,
+  target_is_event := true,
+  target_is_whole_day := true,
+  target_participant_ids := array['59500000-0000-0000-0000-0000000000a1'::uuid],
+  target_organization_id := '59500000-0000-0000-0000-000000000101'
+);
+select is(
+  (select (public.task_first_day(task), public.task_last_day(task)) from public.task where title = 'Visit completed before it starts'),
+  ((now() at time zone 'Asia/Seoul')::date, (now() at time zone 'Asia/Seoul')::date),
+  'activity dates: a CRM activity completed before it starts happened today'
 );
 
 reset role;

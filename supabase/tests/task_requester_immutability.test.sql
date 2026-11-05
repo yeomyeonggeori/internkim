@@ -98,7 +98,7 @@ insert into public.task (id, company_id, title) values
 insert into public.task_participant (task_id, member_id) values
   (
     '45000000-0000-0000-0000-000000000101',
-    '45000000-0000-0000-0000-0000000000a1'
+    '45000000-0000-0000-0000-0000000000a2'
   ),
   (
     '45000000-0000-0000-0000-000000000103',
@@ -109,7 +109,7 @@ insert into public.task_participant (task_id, member_id) values
     '45000000-0000-0000-0000-0000000000a1'
   );
 
-select lives_ok($block$do $$
+select throws_ok($block$do $$
 begin
   set local role authenticated;
   perform set_config(
@@ -121,14 +121,15 @@ begin
   update public.task
   set status = 'requested'
   where id = '45000000-0000-0000-0000-000000000103';
-
-  reset role;
-end $$;$block$, 'requested task: an authenticated member can transition an existing task');
+end $$;$block$,
+  '23514',
+  'a task nobody asked for cannot be requested',
+  'requested task: existing work nobody asked for cannot be moved into requested');
 
 select is(
   (select requester_id from public.task where id = '45000000-0000-0000-0000-000000000103'),
-  '45000000-0000-0000-0000-0000000000a1'::uuid,
-  'requested task: transition records the authenticated member'
+  null::uuid,
+  'requested task: the refused move names nobody as the one who asked'
 );
 
 select throws_ok(
