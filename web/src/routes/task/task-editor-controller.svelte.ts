@@ -32,7 +32,6 @@ type TaskEditorControllerInput = {
 export class TaskEditorController {
 	taskDraft = $state<Task | null>(null);
 	draftChildTaskIDs = $state<string[]>([]);
-	statusWhenOpened = $state<string | null>(null);
 	private originalTask: Task | undefined;
 	isEditingTask = $state(false);
 	taskErrorMessage = $state('');
@@ -67,7 +66,6 @@ export class TaskEditorController {
 		this.taskDraft = cloneTask(task);
 		this.draftChildTaskIDs = [];
 		this.originalTask = cloneTask(task);
-		this.statusWhenOpened = task.status;
 		this.isEditingTask = false;
 		this.taskErrorMessage = '';
 	};
@@ -83,7 +81,6 @@ export class TaskEditorController {
 		this.taskDraft = createTaskDraft(owner, definitionsFromSummary(this.summary), this.taskWeek());
 		this.draftChildTaskIDs = [];
 		this.originalTask = undefined;
-		this.statusWhenOpened = null;
 		this.isEditingTask = true;
 		if (typeof status === 'string' && status) this.taskDraft.status = status;
 		const isRequest = status === 'requested';
@@ -104,7 +101,6 @@ export class TaskEditorController {
 			task: this.taskDraft,
 			originalTask: this.originalTask,
 			childTaskIDs: this.draftChildTaskIDs,
-			statusBefore: this.statusWhenOpened,
 			canUpdateTask: this.canUpdateTask,
 			loadTask: this.loadTask,
 			weekCode: this.currentWeek(),

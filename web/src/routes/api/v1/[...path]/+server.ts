@@ -71,7 +71,7 @@ export const fallback: RequestHandler = async ({ request, url, params, platform 
 	if (previewed) return previewHere(request, member, previewed);
 
 	const invoked = invokedToolName(request.method, path);
-	if (invoked) return runHere(request, url, environment, member, invoked);
+	if (invoked) return runHere(request, url, environment, member, invoked, platform?.context?.waitUntil.bind(platform.context));
 	return carryToTheCompany(request, url, environment, member, path);
 };
 
@@ -111,12 +111,13 @@ async function runHere(
 	url: URL,
 	environment: Environment,
 	member: CallingMember,
-	name: string
+	name: string,
+	backgroundWork?: (work: Promise<unknown>) => void
 ): Promise<Response> {
 	const payload = await payloadOf(request);
 	if (!payload) error(400, 'this call carried a body that is not a json object');
 
-	const place = { environment, appAddress: theAppAddressAnswering(environment, url) };
+	const place = { environment, appAddress: theAppAddressAnswering(environment, url), backgroundWork };
 	const answered = await toolCalledByMember(place, member, name, payload, queryTheCompanySees(url));
 	return json(answered.body, { status: answered.status });
 }

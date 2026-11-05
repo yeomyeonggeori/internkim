@@ -37,6 +37,7 @@ import {
 import { ownerNamedBy, whoseRecords } from './whose';
 import { labelsOfVocabulary, type CompanyLabels } from './labels';
 import { taskPage, type TaskSearch } from './task-page';
+import { taskChangeOf, type TaskChangeAnnouncer } from './task-change';
 import { lastDayBetween, taskBoardDatePredicate, taskBoardWindow, taskChildProgressForBoard, type TaskBoardWindow, type TaskCardRow } from './task-board';
 
 type TaskWritten = {
@@ -202,7 +203,11 @@ function writtenFields(context: RecordContext, written: TaskWritten, row: TaskRo
 
 type TaskAddInput = TaskWritten & { childTaskHints?: string[] };
 
-export async function taskAdd(context: RecordContext, asked: TaskAddInput): Promise<AnsweredTask> {
+export async function taskAdd(
+	context: RecordContext,
+	asked: TaskAddInput,
+	announceTaskChange?: TaskChangeAnnouncer
+): Promise<AnsweredTask> {
 	if (!asked.title?.trim()) throw new Error('a task needs a title');
 	const input = missesATaskLabel(asked)
 		? withDecidedTaskLabels(asked, await context.decideTaskLabels({ title: asked.title, note: asked.note ?? '' }))
@@ -222,7 +227,9 @@ export async function taskAdd(context: RecordContext, asked: TaskAddInput): Prom
 
 	if (duplicate) await writeCRMColumns(context, saved, links);
 	if (duplicate && childTaskIDs.length > 0) await linkTaskChildren(context, duplicate, childTaskIDs);
-	return answeredTask(context, await taskByID(context, saved));
+	const added = await taskByID(context, saved);
+	await announceTaskChange?.(taskChangeOf(duplicate ?? null, added, context.requesterID));
+	return answeredTask(context, added);
 }
 
 function saveNewTask(context: RecordContext, argumentsOfSave: Record<string, unknown>, childTaskIDs: string[]): Promise<string> {
@@ -302,7 +309,11 @@ function namesAColumn(input: TaskUpdateInput): boolean {
 	return Object.keys(input).some((field) => !fieldsThatAreNotColumns.has(field));
 }
 
-export async function taskUpdate(context: RecordContext, input: TaskUpdateInput): Promise<AnsweredTask> {
+export async function taskUpdate(
+	context: RecordContext,
+	input: TaskUpdateInput,
+	announceTaskChange?: TaskChangeAnnouncer
+): Promise<AnsweredTask> {
 	if (!input.taskHint) throw new Error('an update names the task it changes');
 	const row = await taskRowOfHint(context, input.taskHint);
 
@@ -315,6 +326,7 @@ export async function taskUpdate(context: RecordContext, input: TaskUpdateInput)
 	await writeCRMColumns(context, saved, await crmColumnsWritten(context, input, row));
 	const patched = await taskByID(context, saved);
 	refuseUnlessPatched(written, patched);
+	await announceTaskChange?.(taskChangeOf(row, patched, context.requesterID));
 	return answeredTask(context, patched);
 }
 

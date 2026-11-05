@@ -3,7 +3,7 @@ import { describe, expect, test } from 'bun:test';
 import { centralTaskStatusOptions } from '../../../src/lib/task/central-task';
 import { WorkspaceTaskStatus } from '../../../src/lib/server/public-api/catalog/workspace-task';
 import { centralTaskStatuses } from '../../../../supabase/functions/_shared/central-task-status.ts';
-import { whoTaskMoveConcerns } from '../../../../supabase/functions/_shared/announce-task.ts';
+import { whoTaskMoveConcerns, whoTaskWasAskedOf } from '../../../../supabase/functions/_shared/announce-task.ts';
 
 const task = {
 	id: 'task-one',
@@ -59,5 +59,15 @@ describe('a task move concerns everyone but whoever moved it', () => {
 			'member-two',
 			'member-one'
 		]);
+	});
+});
+
+describe('a task request reaches only the people it names who are on the task', () => {
+	test('the mover is never asked, and nobody is asked twice', () => {
+		expect(whoTaskWasAskedOf(task, ['member-two', 'member-three', 'member-three'], 'member-two')).toEqual(['member-three']);
+	});
+
+	test('a name the task does not carry is not asked', () => {
+		expect(whoTaskWasAskedOf(task, ['member-four'], 'member-two')).toEqual([]);
 	});
 });
