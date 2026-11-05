@@ -191,7 +191,11 @@ class Deliveries:
         sent_at = time.time() - 5
         print(f"  → {request['name']}", flush=True)
         session = self.plane.member_session(
-            self.rig.company_id, request["text"], attachments=request["attachments"], member_id=self.member_id
+            self.rig.company_id,
+            request["text"],
+            attachments=request["attachments"],
+            member_id=self.member_id,
+            time_zone=request.get("timeZone", ""),
         )
         sent = session.get("sent") or {}
         message_id = sent.get("messageID") or ""

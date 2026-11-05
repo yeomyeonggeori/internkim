@@ -381,6 +381,10 @@
     "process": "tools/native-install-member-session.ts",
     "description": "a JSON list of {path, filename, contentType} the native-install rig's member session uploads the way the web app does and sends with its message; defaults to none"
   },
+  "MEMBER_SESSION_TIME_ZONE": {
+    "process": "tools/native-install-member-session.ts",
+    "description": "the IANA time zone the native-install rig's member session names on its message, the way the web app names the device's; defaults to this computer's"
+  },
   "MESSENGER_RELAY_URL": {
     "process": "relay",
     "description": "the company's Buzz relay on loopback, which the relay dials for every native app the gateway carries; defaults to ws://127.0.0.1:3000"
