@@ -4,9 +4,6 @@
 	import * as Select from '$lib/components/ui/select';
 	import PersonChip from '$lib/components/person-chip.svelte';
 	import {
-		taskStatus,
-		isTaskStatusInProgress,
-		isTaskStatusPlanned,
 		isTaskStatusRejected,
 		isTaskStatusRequested,
 		isTaskStatusStopped
@@ -50,17 +47,6 @@
 
 	function updateType(value: string): void {
 		taskDraft.type = taskDefinitionValueFromOption(value);
-	}
-
-	function completeWhenEndDatePassed(): void {
-		if (!isTaskStatusPlanned(taskDraft.status) && !isTaskStatusInProgress(taskDraft.status)) return;
-		if (!taskDraft.endDate || taskDraft.endDate > localTodayISO()) return;
-		taskDraft.status = taskStatus.completed;
-	}
-
-	function localTodayISO(): string {
-		const now = new Date();
-		return new Date(now.getTime() - now.getTimezoneOffset() * 60_000).toISOString().slice(0, 10);
 	}
 </script>
 
@@ -142,6 +128,6 @@
 	</label>
 	<label class="grid gap-1 text-xs font-medium text-muted-foreground">
 		{text.endDate}
-		<DatePicker bind:value={taskDraft.endDate} disabled={!canEditTask} onValueChange={completeWhenEndDatePassed} clearable />
+		<DatePicker bind:value={taskDraft.endDate} disabled={!canEditTask} clearable />
 	</label>
 </div>
