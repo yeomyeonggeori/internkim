@@ -45,7 +45,26 @@ describe('liveWorkAfterEvent', () => {
 
 		expect(liveWorkShownIn(works, conversationID, nothingLoaded)).toEqual([
 			{ key: 'turn-A', steps: [{ title: 'event_list', status: 'in_progress' }] },
-			{ key: 'turn-B', steps: [{ title: 'mail_message_search', status: 'pending' }] }
+			{ key: 'turn-B', steps: [{ title: 'mail_message_search', status: 'in_progress' }] }
+		]);
+	});
+
+	test('a step the host reported as started but not finished is shown running, and finished or failed steps keep their result', () => {
+		const works = heard([
+			working({
+				deliveryID: 'turn-A',
+				steps: [
+					{ title: 'equip', status: 'completed' },
+					{ title: 'event_add', status: 'failed' },
+					{ title: 'company_settings_get', status: 'pending' }
+				]
+			})
+		]);
+
+		expect(liveWorkShownIn(works, conversationID, nothingLoaded)[0].steps.map((step) => step.status)).toEqual([
+			'completed',
+			'failed',
+			'in_progress'
 		]);
 	});
 
