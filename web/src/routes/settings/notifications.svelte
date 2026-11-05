@@ -65,6 +65,12 @@
 
 	const attendanceOptions = [...attendanceReaches, attendanceOff] as const;
 
+	const shownCategories = $derived(
+		settings.categories
+			.filter((choice) => choice.isChoosable)
+			.toSorted((left, right) => Number(right.category === 'attendance') - Number(left.category === 'attendance'))
+	);
+
 	async function loadReachability() {
 		try {
 			const next = await reachability();
@@ -192,7 +198,7 @@
 			<div role="status" aria-label={text.notifications} aria-busy="true" class="grid gap-3">{#each [0, 1, 2] as row (row)}<div aria-hidden="true" class="flex items-center justify-between gap-4"><Skeleton class="h-4 w-40 max-w-[70%]" /><Skeleton class="h-5 w-9 rounded-full" /></div>{/each}</div>
 		{:else}
 			<div class="grid gap-3" class:opacity-50={isLoadingReachability || reach !== 'on'}>
-				{#each settings.categories.filter((choice) => choice.isChoosable) as choice (choice.category)}
+				{#each shownCategories as choice (choice.category)}
 					<div class="flex items-center justify-between gap-4">
 						<Label for="{fieldID}-{choice.category}" class="text-sm font-normal">
 							{categoryLabels[choice.category]}
