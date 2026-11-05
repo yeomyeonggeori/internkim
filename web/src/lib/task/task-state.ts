@@ -4,7 +4,6 @@ import { taskSnapshotGeneration } from '../../routes/task/task-snapshot-storage'
 import { supabaseMember } from '$lib/supabase-session';
 import { isRefusalCode } from '$lib/public-api-call';
 import { companyDirectory, type RecordPerson } from '$lib/record/person-directory';
-import { announceTaskMoved } from '$lib/task/announce-task';
 import { centralStatusFromWord, centralStatusWord, centralTaskStatusOptions } from '$lib/task/central-task';
 import {
 	addTask,
@@ -171,7 +170,6 @@ export function changedTaskFields(task: Task, originalTask: Task): Partial<Writt
 
 export async function saveTask(
 	task: Task,
-	statusBefore: string | null,
 	originalTask?: Task,
 	childTaskIDs: string[] = []
 ): Promise<void> {
@@ -187,14 +185,10 @@ export async function saveTask(
 			...(childTaskIDs.length > 0 ? { childTaskHints: childTaskIDs } : {})
 		});
 	}
-	if (statusBefore !== null && statusBefore !== centralStatusFromWord(task.status)) {
-		void announceTaskMoved(task.id);
-	}
 }
 
 export async function moveTask(taskID: string, status: string): Promise<void> {
 	await updateTask(taskID, { status: centralStatusFromWord(status) });
-	void announceTaskMoved(taskID);
 }
 
 export async function removeTask(taskID: string): Promise<void> {

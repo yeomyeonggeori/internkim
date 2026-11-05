@@ -38,7 +38,6 @@ describe('the editor closes once the record answers, without waiting for the lis
 		const result = await settledBeforeTheReload(
 			saveTaskDraft({
 				task: taskWith({ id: '' }),
-				statusBefore: null,
 				canUpdateTask: alwaysAllowed,
 				loadTask: reloadsForever,
 				weekCode: '2026-W36',

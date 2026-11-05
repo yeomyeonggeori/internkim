@@ -5,6 +5,7 @@ import { teamAttendance, legacyTeamAttendance } from './team-attendance';
 import { NoSuchAttendanceRecord } from './attendance';
 import { exchangeRatesOf } from '$lib/server/configured-exchange-rates';
 import { recordContextOf, type RecordContext, type ToolPlace } from './company';
+import type { TaskChangeAnnouncer } from './task-change';
 import {
 	attendanceLeavePolicyGet,
 	attendanceLeavePolicySet,
@@ -108,7 +109,7 @@ import { readWithNullAsAbsent } from '../null-as-absent';
 import { sentencesOfSchemaRefusal } from '../schema-sentences';
 
 type ToolInput = Record<string, unknown>;
-type CallCarried = { files: CarriedWorkspaceFile[]; place?: ToolPlace };
+type CallCarried = { files: CarriedWorkspaceFile[]; place?: ToolPlace; announceTaskChange?: TaskChangeAnnouncer };
 type ToolRun = (context: RecordContext, input: ToolInput, carried: CallCarried) => Promise<unknown> | unknown;
 
 function exactAttendancePersonIDs(name: string, input: ToolInput): string[] | undefined {
@@ -131,8 +132,8 @@ function placeTheAppAnswersAt(name: string, place: ToolPlace | undefined): ToolP
 }
 
 const toolsOverTheRecord: Record<string, ToolRun> = {
-	task_add: (context, input) => taskAdd(context, input),
-	task_update: (context, input) => taskUpdate(context, input),
+	task_add: (context, input, { announceTaskChange }) => taskAdd(context, input, announceTaskChange),
+	task_update: (context, input, { announceTaskChange }) => taskUpdate(context, input, announceTaskChange),
 	task_list: (context, input) => taskList(context, taskListInputSchema.parse(input)),
 	task_board_get: (context, input) => taskBoard(context, taskBoardInputSchema.parse(input)),
 	task_delete: (context, input) => taskDelete(context, input),
@@ -292,7 +293,8 @@ export async function runToolOverTheRecord(
 	now: Date,
 	decideTaskLabels: TaskLabelDecider,
 	files: CarriedWorkspaceFile[] = [],
-	place?: ToolPlace
+	place?: ToolPlace,
+	announceTaskChange?: TaskChangeAnnouncer
 ): Promise<ToolAnswer> {
 	const run = toolsOverTheRecord[name];
 	if (!run) return { status: 404, body: { error: `no tool here goes by ${name}` } };
@@ -305,7 +307,7 @@ export async function runToolOverTheRecord(
 			: name === 'attendance_team_dashboard_get'
 				? await teamAttendance(caller,input)
 				: await run(await recordContextOf(caller, accountDirectory, requesterID, now, decideTaskLabels,
-					!readsWithoutPeople.has(name) && !((name === 'attendance_list' || name === 'attendance_changes_page_get') && input.handWrittenOnly === true && input.pageOffset !== undefined && input.scope === 'all' && !input.personHints) && !((name === 'attendance_update' || name === 'attendance_delete') && input.undoOnly === true), exactAttendancePersonIDs(name, input)), input, { files, place });
+					!readsWithoutPeople.has(name) && !((name === 'attendance_list' || name === 'attendance_changes_page_get') && input.handWrittenOnly === true && input.pageOffset !== undefined && input.scope === 'all' && !input.personHints) && !((name === 'attendance_update' || name === 'attendance_delete') && input.undoOnly === true), exactAttendancePersonIDs(name, input)), input, { files, place, announceTaskChange });
 		noteWhereTheAnswerLeftItsContract(name, result);
 		return { status: 200, body: { tool: name, result } };
 	} catch (refusal) {

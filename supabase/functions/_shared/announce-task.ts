@@ -22,31 +22,50 @@ export function whoTaskMoveConcerns(task: TaskRow, moverID: string): string[] {
 	return [...concerned];
 }
 
-export async function announceTaskMove(
+export type TaskChange = { taskID: string; moved: boolean; askedMemberIDs: string[] };
+
+export function whoTaskWasAskedOf(task: TaskRow, askedMemberIDs: string[], moverID: string): string[] {
+	const participants = new Set((task.task_participant ?? []).map((participant) => participant.member_id));
+	return [...new Set(askedMemberIDs)].filter((memberID) => memberID !== moverID && participants.has(memberID));
+}
+
+export async function announceTaskChange(
 	caller: SupabaseClient,
 	record: SupabaseClient,
 	moverID: string,
-	taskID: string,
+	change: TaskChange,
 	pushKeys: PushKeys,
 	nowInSeconds: number
 ): Promise<Announced> {
-	const task = await taskOf(caller, taskID);
+	const task = await taskOf(caller, change.taskID);
 	if (!task) return { told: 0, reached: 0 };
 
 	const [mover, moverPicture] = await Promise.all([
 		nameOfMember(record, moverID),
 		pictureURLOfMember(record, moverID)
 	]);
-	const notification: Notification = {
-		title: `${centralStatusWord(task.status)}: ${task.title}`,
-		body: `${mover}님이 옮겼습니다`,
-		openPath: '/task/',
-		tag: `task-${task.id}`,
-		senderID: moverID,
-		senderName: mover,
-		icon: moverPicture
+	const fromMover = { openPath: '/task/', tag: `task-${task.id}`, senderID: moverID, senderName: mover, icon: moverPicture };
+	const asked = whoTaskWasAskedOf(task, change.askedMemberIDs, moverID);
+	const askedAnnounced = await tellEach(
+		record,
+		asked,
+		{ ...fromMover, title: task.title, body: `${mover}님이 업무를 요청했습니다` },
+		pushKeys,
+		nowInSeconds
+	);
+	if (!change.moved) return askedAnnounced;
+
+	const moveAnnounced = await tellEach(
+		record,
+		whoTaskMoveConcerns(task, moverID).filter((memberID) => !asked.includes(memberID)),
+		{ ...fromMover, title: `${centralStatusWord(task.status)}: ${task.title}`, body: `${mover}님이 옮겼습니다` },
+		pushKeys,
+		nowInSeconds
+	);
+	return {
+		told: askedAnnounced.told + moveAnnounced.told,
+		reached: askedAnnounced.reached + moveAnnounced.reached
 	};
-	return tellEach(record, whoTaskMoveConcerns(task, moverID), notification, pushKeys, nowInSeconds);
 }
 
 function centralStatusWord(status: string): string {

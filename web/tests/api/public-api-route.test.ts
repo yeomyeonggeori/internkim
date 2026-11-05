@@ -570,6 +570,83 @@ describe('a tool whose rows live in the record', () => {
 	});
 });
 
+describe('a task write tells the people it reaches', () => {
+	async function announcementsOf(write: () => Promise<RouteAnswer>): Promise<{ answered: RouteAnswer; told: unknown[] }> {
+		const originalFetch = globalThis.fetch;
+		const told: unknown[] = [];
+		globalThis.fetch = createMockFetch(async (input, options) => {
+			const url = new URL(input instanceof Request ? input.url : String(input));
+			if (url.pathname === '/functions/v1/announce-task') {
+				told.push(input instanceof Request ? await input.clone().json() : JSON.parse(String(options?.body)));
+				return Response.json({ told: 0, reached: 0 });
+			}
+			return originalFetch(input, options);
+		});
+		try {
+			return { answered: await write(), told };
+		} finally {
+			globalThis.fetch = originalFetch;
+		}
+	}
+
+	async function administratorID(): Promise<string> {
+		const { data, error } = await client
+			.from('member')
+			.select('id')
+			.eq('company_id', companyID)
+			.eq('email', `${slug}-admin@example.test`)
+			.single<{ id: string }>();
+		if (error) throw new Error(error.message);
+		return data.id;
+	}
+
+	test('a task added for someone else asks them, and moves nothing', async () => {
+		const asked = await administratorID();
+		const { answered, told } = await announcementsOf(() =>
+			invoke('task_add', holdersToken, {
+				title: '알림을 거치는 요청 업무',
+				participantPersonHints: [`${slug}-admin@example.test`]
+			})
+		);
+		expect(answered.status).toBe(200);
+		expect(told).toEqual([{ taskID: resultOf(answered).taskID, moved: false, askedMemberIDs: [asked] }]);
+	});
+
+	test('a task the writer keeps for themselves tells nobody', async () => {
+		const { answered, told } = await announcementsOf(() => invoke('task_add', holdersToken, { title: '혼자 하는 업무' }));
+		expect(answered.status).toBe(200);
+		expect(told).toEqual([]);
+	});
+
+	test('a status change is a move, and a title change is not', async () => {
+		const added = await invoke('task_add', holdersToken, { title: '옮겨지는 업무', status: 'planned' });
+		const taskID = resultOf(added).taskID as string;
+
+		const renamed = await announcementsOf(() => invoke('task_update', holdersToken, { taskHint: taskID, title: '이름만 바뀐 업무' }));
+		expect(renamed.answered.status).toBe(200);
+		expect(renamed.told).toEqual([]);
+
+		const moved = await announcementsOf(() => invoke('task_update', holdersToken, { taskHint: taskID, status: 'in_progress' }));
+		expect(moved.answered.status).toBe(200);
+		expect(moved.told).toEqual([{ taskID, moved: true, askedMemberIDs: [] }]);
+	});
+
+	test('someone added to a task already standing is asked', async () => {
+		const asked = await administratorID();
+		const added = await invoke('task_add', holdersToken, { title: '나중에 함께하는 업무' });
+		const taskID = resultOf(added).taskID as string;
+
+		const { answered, told } = await announcementsOf(() =>
+			invoke('task_update', holdersToken, {
+				taskHint: taskID,
+				participantPersonHints: [`${slug}-holder@example.test`, `${slug}-admin@example.test`]
+			})
+		);
+		expect(answered.status).toBe(200);
+		expect(told).toEqual([{ taskID, moved: false, askedMemberIDs: [asked] }]);
+	});
+});
+
 describe('a tool the company machine runs', () => {
 	test('is refused with no gateway configured rather than answered here', async () => {
 		const answered = await invoke('message_send', holdersToken, {
