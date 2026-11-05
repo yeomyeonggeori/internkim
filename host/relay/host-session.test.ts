@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { confirmStillServing, keepHostSession, NoLongerServes, type HostSession } from './host-session';
+import { confirmStillServing, keepHostSession, letGoUnlessStillServing, NoLongerServes, type HostSession, type RoleAnswer } from './host-session';
 
 function sessionFor(credential: string, expiresAt: number): HostSession {
 	return { companyID: 'company', accessToken: `session-of-${credential}`, expiresAt };
@@ -67,5 +67,35 @@ describe('confirmStillServing', () => {
 		const unreachable = confirmStillServing(async () => ({ data: null, error: { message: 'fetch failed' }, status: 0 }));
 		await expect(unreachable).rejects.toThrow('fetch failed');
 		await expect(unreachable).rejects.not.toBeInstanceOf(NoLongerServes);
+	});
+});
+
+describe('letGoUnlessStillServing', () => {
+	async function reasonsLetGoAfter(answer: () => Promise<RoleAnswer>): Promise<string[]> {
+		const reasons: string[] = [];
+		await letGoUnlessStillServing(answer, (reason) => reasons.push(reason));
+		return reasons;
+	}
+
+	test('keeps serving when the record cannot be reached', async () => {
+		const unreachable = async () => ({ data: null, error: { message: 'TypeError: Unable to connect' }, status: 0 });
+		expect(await reasonsLetGoAfter(unreachable)).toEqual([]);
+	});
+
+	test('keeps serving when asking the record throws', async () => {
+		const failing = async (): Promise<RoleAnswer> => {
+			throw new TypeError('Unable to connect');
+		};
+		expect(await reasonsLetGoAfter(failing)).toEqual([]);
+	});
+
+	test('lets go once the record refuses the session', async () => {
+		const refused = async () => ({ data: null, error: { message: 'JWT expired' }, status: 401 });
+		expect(await reasonsLetGoAfter(refused)).toHaveLength(1);
+	});
+
+	test('lets go once the record answers that this computer stands by', async () => {
+		const standby = async () => ({ data: 'standby', error: null, status: 200 });
+		expect(await reasonsLetGoAfter(standby)).toHaveLength(1);
 	});
 });
