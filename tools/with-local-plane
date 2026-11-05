@@ -431,10 +431,16 @@ stopStack() {
   reclaimStack "$1" "its stop failed or did not finish within ${stopTimeoutSeconds}s"
 }
 
+stackRunsAnything() {
+  [ -n "$(stackProcessIdentifiers "$1")" ]
+}
+
 freePortsFromOtherCheckouts() {
   local stackIdentifier
   for stackIdentifier in $(stacksOfThisRepository other-checkouts); do
-    stopStack "$stackIdentifier" "held by another checkout or branch that is not running a command"
+    if stackRunsAnything "$stackIdentifier"; then
+      stopStack "$stackIdentifier" "held by another checkout or branch that is not running a command"
+    fi
   done
   for stackIdentifier in $(stacksOfThisRepository removed-checkouts); do
     destroyStack "$stackIdentifier" "its checkout no longer exists"
