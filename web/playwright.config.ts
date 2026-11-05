@@ -1,6 +1,7 @@
 import { execFileSync } from 'node:child_process';
 import { availableParallelism } from 'node:os';
 import { defineConfig, devices } from '@playwright/test';
+import { warmPath } from './dev-warm-signal-plugin';
 import { workerCompanyCount } from './tests/e2e/support/worker-company';
 
 const companyTimeZone = 'Asia/Seoul';
@@ -87,14 +88,22 @@ function serverCommandFor(plane: Plane, port: string, isFirstBuiltPlane: boolean
 	return isFirstBuiltPlane ? `bun run build && ${preview}` : preview;
 }
 
+function readinessURLOf(plane: Plane): string {
+	return planesServedFromDevelopment.includes(plane) ? `${baseURLOf(plane)}${warmPath}` : baseURLOf(plane);
+}
+
+function compilesBeforeReady(plane: Plane, firstBuiltPlane: Plane | undefined): boolean {
+	return plane === firstBuiltPlane || planesServedFromDevelopment.includes(plane);
+}
+
 function webServersFor(selected: Plane[]) {
 	const firstBuiltPlane = selected.find((plane) => !planesServedFromDevelopment.includes(plane));
 	return selected.map((plane) => {
 		const url = baseURLOf(plane);
 		return {
 			command: serverCommandFor(plane, new URL(url).port, plane === firstBuiltPlane),
-			url,
-			timeout: plane === firstBuiltPlane ? 600_000 : 120_000,
+			url: readinessURLOf(plane),
+			timeout: compilesBeforeReady(plane, firstBuiltPlane) ? 600_000 : 120_000,
 			reuseExistingServer: false,
 			env: { VITE_ADMIND_TARGET: '', FRANKFURTER_URL: exchangeRateStandInURL, ...planeEnvironments[plane] }
 		};

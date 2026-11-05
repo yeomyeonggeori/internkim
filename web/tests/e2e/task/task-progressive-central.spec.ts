@@ -226,7 +226,7 @@ test('initial and retained relationship failures retry without replacing the edi
 		await sheet.getByRole('button', { name: '업무 수정' }).click();
 		await sheet.getByPlaceholder('업무 내용').fill('재시도 뒤에도 남아 있는 수정');
 		await page.route('**/task_list/invoke', async route => {
-			historyReads++;
+			if (!route.request().postDataJSON().input.cursor) historyReads++;
 			if (historyReads === 1 || historyReads === 3) await route.fulfill({ status: 503, json: { error: 'Temporarily unavailable' } });
 			else await route.continue();
 		});
