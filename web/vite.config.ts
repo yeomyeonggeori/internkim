@@ -5,6 +5,7 @@ import { devFilesMockPlugin } from './dev-files-mock-plugin';
 import { devMailMockPlugin } from './dev-mail-mock-plugin';
 import { devMemoryMockPlugin } from './dev-memory-mock-plugin';
 import { devTasksMockPlugin } from './dev-tasks-mock-plugin';
+import { devWarmSignalPlugin } from './dev-warm-signal-plugin';
 import type { DevAdminMockUserRole } from './dev-admin-mock';
 import { isMemberRole } from './src/lib/member-vocabulary';
 
@@ -65,6 +66,7 @@ export default defineConfig(({ mode }) => {
 				isEnabled: env.VITE_MOCK_MEMORY === '1',
 				userEmail: env.VITE_DEV_USER_EMAIL ?? 'kim@example.com'
 			}),
+			devWarmSignalPlugin(),
 			tailwindcss(),
 			sveltekit()
 		],
