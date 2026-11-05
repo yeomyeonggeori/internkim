@@ -59,6 +59,7 @@ description: "PostgREST가 /rest/v1/rpc로 노출하는 함수 전부와, 누가
 | `company_of_task` | `target_task uuid` | `uuid` | invoker | authenticated, service_role |
 | `company_of_team` | `target_team uuid` | `uuid` | invoker | authenticated, service_role |
 | `company_representative_set` | `representative uuid` | `void` | definer | authenticated, service_role |
+| `company_served_by_connection_file` | `served_company uuid` | `boolean` | definer | service_role |
 | `company_subscription_changed` | `target_company uuid, target_customer text, target_subscription text, target_status text, status_at timestamp with time zone` | `void` | definer | service_role |
 | `company_subscription_invoice_paid` | `target_company uuid, target_event text, target_customer text, target_subscription text, granted_credits bigint, opens_period boolean, period_ends_at timestamp with time zone` | `void` | definer | service_role |
 | `company_topic` | `target_company uuid` | `text` | invoker | anon, authenticated, service_role |
