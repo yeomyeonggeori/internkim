@@ -44,3 +44,15 @@ export async function confirmStillServing(askRole: () => PromiseLike<RoleAnswer>
 		throw new NoLongerServes(`the central plane answers that this computer is ${answer.data ?? 'no longer its company\'s'}`);
 	}
 }
+
+export async function letGoUnlessStillServing(askRole: () => PromiseLike<RoleAnswer>, letGo: (reason: string) => void): Promise<void> {
+	try {
+		await confirmStillServing(askRole);
+	} catch (refusal) {
+		if (!(refusal instanceof NoLongerServes)) {
+			console.error(`${refusal instanceof Error ? refusal.message : refusal}; still serving, and asking again in a minute`);
+			return;
+		}
+		letGo(refusal.message);
+	}
+}
