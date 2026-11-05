@@ -200,6 +200,43 @@ describe('task_board_get over real company rows', () => {
 			}
 		}
 	}, networkHookTimeout);
+
+	test('shows a planned task in every week from its start week to its end week', async () => {
+		const thisMonday = new Date(`${taskWeekOfDate(new Date()).startISO}T00:00:00Z`);
+		const mondayOf = (weeksAhead: number) => new Date(thisMonday.getTime() + weeksAhead * 7 * 86_400_000);
+		const wednesdayOf = (weeksAhead: number) => new Date(mondayOf(weeksAhead).getTime() + 2 * 86_400_000 + 12 * 3_600_000).toISOString();
+		const prefix = `board-span-${Date.now()}`;
+		const ids = {
+			endsInTwoWeeks: crypto.randomUUID(),
+			startsNextWeek: crypto.randomUUID(),
+			startsNextWeekOpenEnded: crypto.randomUUID(),
+			undated: crypto.randomUUID()
+		};
+		const rows = [
+			{ id: ids.endsInTwoWeeks, starts_at: null, ends_at: wednesdayOf(2) },
+			{ id: ids.startsNextWeek, starts_at: wednesdayOf(1), ends_at: wednesdayOf(1) },
+			{ id: ids.startsNextWeekOpenEnded, starts_at: wednesdayOf(1), ends_at: null },
+			{ id: ids.undated, starts_at: null, ends_at: null }
+		].map(row => ({ ...row, company_id: companyID, title: prefix, status: 'planned' }));
+		const plannedIn = async (weeksAhead: number) => {
+			const boardWeek = mondayOf(weeksAhead).toISOString().slice(0, 10);
+			const page = resultOf(await run('task_board_get', { boardWeek, query: prefix, limit: 100 }));
+			return (page.tasks as { taskID: string }[]).map(task => task.taskID).sort();
+		};
+		try {
+			const { error } = await client.from('task').insert(rows);
+			if (error) throw new Error(error.message);
+			const participants = await client.from('task_participant').insert(rows.map(row => ({ task_id: row.id, member_id: sampleID })));
+			if (participants.error) throw new Error(participants.error.message);
+			expect(await plannedIn(0)).toEqual([ids.endsInTwoWeeks, ids.undated].sort());
+			expect(await plannedIn(1)).toEqual(Object.values(ids).sort());
+			expect(await plannedIn(2)).toEqual([ids.endsInTwoWeeks, ids.startsNextWeekOpenEnded, ids.undated].sort());
+			expect(await plannedIn(3)).toEqual([ids.startsNextWeekOpenEnded, ids.undated].sort());
+		} finally {
+			const { error } = await client.from('task').delete().in('id', Object.values(ids));
+			if (error) throw new Error(error.message);
+		}
+	}, networkHookTimeout);
 });
 
 describe('a task written through the record', () => {

@@ -75,10 +75,11 @@ function matchesBoardColumnWeek(task: TaskBoardDates, status: TaskBoardStatus, o
 	if (status === 'in_progress') return weekPosition(options) === 'current';
 	if (!options.weekStartISO || !options.weekEndISO) return true;
 	if (status === 'completed') return isInSelectedWeek(task.endDate, options);
-	const plannedDate = task.endDate?.trim() || task.startDate?.trim() || '';
-	if (!plannedDate) return weekPosition(options) === 'current';
-	if (plannedDate < options.weekStartISO) return weekPosition(options) === 'current';
-	return isInSelectedWeek(plannedDate, options);
+	const startDate = task.startDate?.trim() ?? '';
+	const endDate = task.endDate?.trim() ?? '';
+	if (startDate && startDate > options.weekEndISO) return false;
+	if (weekPosition(options) === 'current') return true;
+	return !endDate || endDate >= options.weekStartISO;
 }
 
 function weekPosition(options: TaskBoardOptions): TaskBoardWeekPosition {

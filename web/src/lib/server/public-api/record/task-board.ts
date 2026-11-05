@@ -57,12 +57,13 @@ export function taskBoardDatePredicate(window: TaskBoardWindow): string {
 		'status.in.(requested,paused)',
 		`and(status.eq.completed,${endsThisWeek})`
 	];
+	const startedByWeekEnd = `or(starts_at.is.null,starts_at.lt.${window.until})`;
 	if (window.position === 'current') {
 		clauses.push('status.eq.in_progress');
-		clauses.push(`and(status.eq.planned,or(${lastDayOnOrBefore(window.timeZone, weekEnd)},and(ends_at.is.null,or(starts_at.lt.${window.until},starts_at.is.null))))`);
+		clauses.push(`and(status.eq.planned,${startedByWeekEnd})`);
 	}
 	if (window.position === 'future') {
-		clauses.push(`and(status.eq.planned,or(and(${endsThisWeek}),and(ends_at.is.null,starts_at.gte.${window.from},starts_at.lt.${window.until})))`);
+		clauses.push(`and(status.eq.planned,${startedByWeekEnd},or(ends_at.is.null,${lastDayOnOrAfter(window.timeZone, window.week)}))`);
 	}
 	return clauses.join(',');
 }
