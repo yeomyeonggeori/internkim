@@ -292,7 +292,7 @@ async function refusalForNothingDeleted(
 	const { data } = await caller.from('task').select('id').eq('id', taskID).returns<{ id: string }[]>();
 	if ((data ?? []).length > 0) {
 		return new RecordRefusedTheWrite(
-			'only an admin, the member who asked for it, or the people taking part in it can delete it, and work several people share is deleted by an admin or the member who asked for it',
+			'only an admin, the member who asked for it, or the people taking part in it can delete it',
 			403,
 			'task_write_forbidden'
 		);
