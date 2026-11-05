@@ -178,7 +178,7 @@ test('the member who asked for the work may change it and delete it', async ({ p
 	await expect(sheet.getByRole('button', { name: '업무 삭제' })).toBeVisible();
 });
 
-test('somebody sharing work may change it but not delete it', async ({ page }) => {
+test('somebody sharing work may change it and delete it', async ({ page }) => {
 	const taskID = await seedOne({ title: 'E2E 상세 함께 맡은 업무', participantIDs: [member1ID, member3ID] });
 	await signInToTheTaskBoard(page, member3Email);
 	await openTaskCard(page, taskID);
@@ -186,7 +186,7 @@ test('somebody sharing work may change it but not delete it', async ({ page }) =
 	const sheet = taskSheet(page);
 	await sheet.getByRole('button', { name: '업무 수정' }).click();
 	await expect(sheet.getByRole('button', { name: '업무 저장' })).toBeVisible();
-	await expect(sheet.getByRole('button', { name: '업무 삭제' })).toHaveCount(0);
+	await expect(sheet.getByRole('button', { name: '업무 삭제' })).toBeVisible();
 });
 
 test('a participant added in the sheet is on the record', async ({ page }) => {

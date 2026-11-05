@@ -103,10 +103,10 @@ select results_eq(
     ('admin', 'asked task'), ('admin', 'event of two'), ('admin', 'one person task'), ('admin', 'open event'), ('admin', 'shared task'),
     ('colleague', 'open event'),
     ('requester', 'asked task'), ('requester', 'open event'),
-    ('sharer', 'asked task'), ('sharer', 'event of two'), ('sharer', 'open event'),
-    ('sole', 'event of two'), ('sole', 'one person task'), ('sole', 'open event')
+    ('sharer', 'asked task'), ('sharer', 'event of two'), ('sharer', 'open event'), ('sharer', 'shared task'),
+    ('sole', 'event of two'), ('sole', 'one person task'), ('sole', 'open event'), ('sole', 'shared task')
   $$,
-  'a task is deleted by its only participant, its requester or an admin; an event by its participants, its requester or an admin; an open event by any colleague'
+  'a task or an event is deleted by any of its participants, its requester or an admin; an open event by any colleague'
 );
 
 select ok(
