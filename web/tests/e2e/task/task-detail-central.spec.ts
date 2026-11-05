@@ -10,6 +10,7 @@ import {
 } from '../support/central-test-utils';
 import {
 	chooseEditorOption,
+	editorSelect,
 	openEditorSelectOptions,
 	openTaskCard,
 	removeTasks,
@@ -92,6 +93,23 @@ test('an edit saved from the sheet is on the record', async ({ page }) => {
 	expect(saved?.type).toBe('회의');
 	expect(saved?.status).toBe('in_progress');
 	expect(saved?.business).toBe('사업둘');
+});
+
+test('a task whose end date is today stays open when saved from the sheet', async ({ page }) => {
+	const taskID = await seedOne({ title: 'E2E 오늘 끝나는 업무' });
+	await signInToTheTaskBoard(page);
+	await openTaskCard(page, taskID);
+
+	const sheet = taskSheet(page);
+	await sheet.getByRole('button', { name: '업무 수정' }).click();
+	await sheet.locator('label').filter({ hasText: '종료일' }).getByRole('button').click();
+	await page.locator('[data-bits-day][data-today]').click();
+	await expect(editorSelect(sheet, '상태')).toHaveText('예정');
+	await sheet.getByRole('button', { name: '업무 저장' }).click();
+	await expect(sheet).not.toBeVisible();
+
+	const saved = await taskRowOf(taskID);
+	expect(saved?.status).toBe('planned');
 });
 
 test('the save button stays on the sheet and shows it is saving while the edit is written', async ({ page }) => {
