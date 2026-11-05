@@ -58,7 +58,7 @@
 	let canDrag = $derived(isInteractive && isDraggable && !isPending && !isReadOnly);
 	let isDragging = $state(false);
 	let cardClass = $derived([
-		'task-board-card gap-0 rounded-md border border-border/80 bg-card p-0',
+		'task-board-card gap-0 rounded-md border border-border/80 bg-card p-0 select-none',
 		'outline-none ring-0 shadow-xs transition-[background-color,box-shadow,opacity]',
 		isPending
 			? 'cursor-progress opacity-60 ring-1 ring-primary/20'

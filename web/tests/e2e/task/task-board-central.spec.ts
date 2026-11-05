@@ -220,6 +220,25 @@ test('a card the signed-in member may not change cannot be dragged', async ({ pa
 	await expect(card).toHaveAttribute('draggable', 'false');
 });
 
+test('pressing and pulling across a card that cannot move selects none of its text', async ({ page }) => {
+	const [othersTaskID] = await seedForThisRun([
+		{ title: 'E2E 보드 끌어도 선택 안 됨', status: 'planned', participantIDs: [member2ID] }
+	]);
+	await signInToTheTaskBoard(page, member3Email);
+	await showEveryParticipant(page);
+
+	const card = taskCard(page, othersTaskID);
+	await expect(card).toHaveAttribute('draggable', 'false');
+	const bounds = await card.boundingBox();
+	if (!bounds) throw new Error(`card ${othersTaskID} has no layout box to pull across`);
+	await page.mouse.move(bounds.x + 4, bounds.y + bounds.height / 2);
+	await page.mouse.down();
+	await page.mouse.move(bounds.x + bounds.width - 4, bounds.y + bounds.height / 2, { steps: 8 });
+	await page.mouse.up();
+
+	expect(await page.evaluate(() => window.getSelection()?.toString() ?? '')).toBe('');
+});
+
 test('a card the signed-in member participates in can be dragged', async ({ page }) => {
 	const [ownTaskID] = await seedForThisRun([
 		{ title: 'E2E 보드 내 업무', status: 'planned', participantIDs: [member3ID] }
