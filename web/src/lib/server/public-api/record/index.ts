@@ -184,7 +184,8 @@ const toolsOverTheRecord: Record<string, ToolRun> = {
 	company_holiday_add: (context, input) => companyHolidayAdd(context, input),
 	company_holiday_update: (context, input) => companyHolidayUpdate(context, input),
 	company_holiday_delete: (context, input) => companyHolidayDelete(context, input),
-	company_metric_record: (context, input) => companyMetricRecord(context, input),
+	company_metric_record: (context, input, { place }) =>
+		companyMetricRecord(context, input, exchangeRatesOf(place?.environment ?? {})),
 	company_metric_list: (context, input) => companyMetricList(context, input),
 	company_record_add: (context, input) => companyRecordAdd(context, input),
 	company_record_list: (context, input) => companyRecordList(context, input),
