@@ -3,7 +3,7 @@ import { isTaskStatusFinished } from '../../../../routes/task/task-status';
 import { WorkspaceTaskStatus } from '../catalog/workspace-task';
 import { fetchedPageSize, pageOfFetched, positionOfCursor, type ListPage, type ListPageInput } from './list-page';
 import { cardColumns, type TaskCardRow } from './task-board';
-import { workColumn } from './tasks';
+import { RecordReadFailed, workColumn } from './tasks';
 import type { WhoseRecords } from './whose';
 
 export type TaskSearch = { text: string; soleParticipantIDs: string[] };
@@ -37,7 +37,7 @@ export async function taskPage(caller: SupabaseClient, scope: TaskPageScope, inp
 		scopedTasks(caller, scope, countSelectionOf(scope), { count: 'exact', head: true })
 			.not('status', 'in', `(${finishedStatuses.join(',')})`)
 	]);
-	for (const answer of [page, total, unfinished]) if (answer.error) throw new Error(answer.error.message);
+	for (const answer of [page, total, unfinished]) if (answer.error) throw new RecordReadFailed(answer);
 	return {
 		...pageOfFetched(page.data ?? [], total.count ?? 0, (row) => [row.updated_at, row.id], input),
 		unfinishedCount: unfinished.count ?? 0
