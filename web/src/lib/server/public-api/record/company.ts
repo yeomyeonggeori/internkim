@@ -23,6 +23,7 @@ export type RecordContext = {
 export type ToolPlace = {
 	environment: Environment;
 	appAddress: string;
+	backgroundWork?: (work: Promise<unknown>) => void;
 };
 
 type CompanyRow = {

@@ -52,14 +52,14 @@ test('an original snapshot cannot be used for another task', () => {
 test('saving an existing edit transmits only changed fields', async () => {
 	const original = task();
 	const update = spyOn(record, 'updateTask').mockResolvedValue({ taskID: original.id });
-	await saveTask({ ...original, content: 'Edited title' }, original.status, original);
+	await saveTask({ ...original, content: 'Edited title' }, original);
 	expect(update).toHaveBeenCalledWith(original.id, { title: 'Edited title' });
 });
 
 test('saving an unchanged draft performs no update', async () => {
 	const original = task();
 	const update = spyOn(record, 'updateTask').mockResolvedValue({ taskID: original.id });
-	await saveTask({ ...original, participantIDs: [...original.participantIDs] }, original.status, original);
+	await saveTask({ ...original, participantIDs: [...original.participantIDs] }, original);
 	expect(update).not.toHaveBeenCalled();
 });
 

@@ -18,7 +18,7 @@ key, so their other devices and the Buzz apps agree on it.
 | `message` | the relay sees a message addressed to someone | those addressed |
 | `attendance` | a member clocks in or out | everyone else in the company, or as far as each listener narrowed it |
 | `leave` | a member asks for leave | the administrators, minus the asker |
-| `task` | a task moves between statuses | the requester and the participants, minus whoever moved it |
+| `task` | a task moves between statuses, or someone is added to one | for a move, the requester and the participants; for an addition, whoever was added. Never whoever wrote it |
 | `calendar` | an event's reminder lead time is reached | the members on that event |
 | `approval` | an agent run needs a person | the requester |
 | `mail` | new mail arrives | the account's owner |

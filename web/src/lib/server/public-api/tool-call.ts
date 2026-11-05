@@ -1,6 +1,7 @@
 import { error, isHttpError } from '@sveltejs/kit';
 import { askWhoAnswersFor, type AttendanceAsked } from '$lib/server/ask-who-answers';
 import { askTheProject } from '$lib/server/project-function';
+import { taskChangesAnnouncedAs } from './task-announcement';
 import { fullPublicAPIPermission, reachesPermission } from '$lib/public-api-permission';
 import { callCompany } from '$lib/server/public-api/company-call';
 import { answererOfTool, objectTypesWrittenBy, permissionForTool, toolReachableBy } from '$lib/server/public-api/catalog';
@@ -89,7 +90,8 @@ export async function toolCalledByMember(
 		new Date(),
 		taskLabelsDecidedByTheCompany(environment, member),
 		workspaceFilesCarriedBy(payload),
-		place
+		place,
+		taskChangesAnnouncedAs(environment, member.accessToken, place.backgroundWork)
 	);
 	if (answered.status < 300) await tellTheCompanyWhatItMirrorsChanged(environment, member, name);
 	return {
