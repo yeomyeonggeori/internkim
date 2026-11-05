@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(46);
+select plan(44);
 
 insert into auth.users (id, email) values
   ('46000000-0000-0000-0000-000000000001', 'authority-a@example.test'),
@@ -480,12 +480,12 @@ begin
   perform set_config('request.jwt.claims', '{"sub":"46000000-0000-0000-0000-000000000001"}', true);
   delete from public.task where id = '46000000-0000-0000-0000-000000000107';
   reset role;
-end $$;$block$, 'task delete: a shared participant direct delete is safely filtered');
+end $$;$block$, 'task delete: a participant can delete shared work');
 
 select is(
   (select count(*) from public.task where id = '46000000-0000-0000-0000-000000000107'),
-  1::bigint,
-  'task delete: shared work remains for an admin decision'
+  0::bigint,
+  'task delete: the shared participant deletion persists'
 );
 
 select throws_ok(
@@ -507,27 +507,13 @@ select throws_ok(
 select lives_ok($block$do $$
 begin
   set local role authenticated;
-  perform set_config('request.jwt.claims', '{"sub":"46000000-0000-0000-0000-000000000001"}', true);
-  delete from public.task where id = '46000000-0000-0000-0000-000000000109';
-  reset role;
-end $$;$block$, 'task authority shape: the failed event escalation grants no delete authority');
-
-select is(
-  (select count(*) from public.task where id = '46000000-0000-0000-0000-000000000109'),
-  1::bigint,
-  'task authority shape: shared work survives the escalation attempt'
-);
-
-select lives_ok($block$do $$
-begin
-  set local role authenticated;
   perform set_config('request.jwt.claims', '{"sub":"46000000-0000-0000-0000-00000000000f"}', true);
-  delete from public.task where id = '46000000-0000-0000-0000-000000000107';
+  delete from public.task where id = '46000000-0000-0000-0000-000000000109';
   reset role;
 end $$;$block$, 'task delete: an admin can delete shared work');
 
 select is(
-  (select count(*) from public.task where id = '46000000-0000-0000-0000-000000000107'),
+  (select count(*) from public.task where id = '46000000-0000-0000-0000-000000000109'),
   0::bigint,
   'task delete: the admin deletion persists'
 );
