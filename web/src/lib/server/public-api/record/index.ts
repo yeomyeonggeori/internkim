@@ -79,7 +79,7 @@ import { channelOrderGet, channelOrderSet, channelPin, channelUnpin } from './ch
 import { channelOrderSetInputSchema, channelPinInputSchema } from '../catalog/channel-order';
 import { LabelUnresolved } from './labels';
 import { WhoseRecordsContradicted } from './whose';
-import { RecordRefusedTheWrite, WriteNotReadBack } from './tasks';
+import { RecordReadFailed, RecordRefusedTheWrite, WriteNotReadBack } from './tasks';
 import { NoSuchLeave, NoSuchLeaveKind } from './leave';
 import {
 	leaveBalance,
@@ -360,6 +360,18 @@ function refusalAnswer(name: string, refusal: unknown): ToolAnswer {
 	if (refusal instanceof WriteNotReadBack) {
 		return {
 			status: 502,
+			body: {
+				error: refusal.message,
+				errorCode: refusal.errorCode,
+				failureStage: refusal.failureStage,
+				retryable: refusal.retryable,
+				safeRetry: refusal.safeRetry
+			}
+		};
+	}
+	if (refusal instanceof RecordReadFailed) {
+		return {
+			status: 503,
 			body: {
 				error: refusal.message,
 				errorCode: refusal.errorCode,
