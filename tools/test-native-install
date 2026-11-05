@@ -2436,8 +2436,9 @@ def main():
     )
     parser.add_argument(
         "--requests",
-        help="a JSON list of {name, text, attachments, snippet, timeoutSeconds} the member sends once the host answers "
-        "(attachments are paths relative to the file); for each, the replies, the task's event log, every delivered "
+        help="a JSON list of {name, text, attachments, snippet, timeoutSeconds, timeZone} the member sends once the host answers "
+        "(attachments are paths relative to the file; timeZone is the IANA zone the message is sent from, "
+        "this Mac's when absent); for each, the replies, the task's event log, every delivered "
         "file and the workspace files the replies did not carry are kept under --deliveries/<name>, "
         "and no later step runs",
     )
