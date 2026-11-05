@@ -73,21 +73,31 @@ describe('flow task board model', () => {
 		expect(progressColumn?.tasks.map((task) => task.id)).toEqual(['task-a', 'task-b', 'task-c']);
 	});
 
-	test('keeps planned tasks in the week of their end date, or their start date when open ended', () => {
-		const board = buildTaskBoard([
+	test('shows a planned task in every week from its start week to its end week', () => {
+		const tasks = [
 			task({ id: 'ends-this-week', status: 'planned', startDate: '2026-05-25', endDate: '2026-06-03' }),
-			task({ id: 'ends-next-week', status: 'planned', startDate: '2026-06-02', endDate: '2026-06-10' }),
-			task({ id: 'starts-this-week-open-ended', status: 'planned', startDate: '2026-06-04', endDate: '' })
-		], {
-			weekStartISO: '2026-06-01',
-			weekEndISO: '2026-06-07',
-			weekPosition: 'future'
-		});
+			task({ id: 'spans-into-next-week', status: 'planned', startDate: '2026-06-02', endDate: '2026-06-10' }),
+			task({ id: 'ends-in-two-weeks', status: 'planned', startDate: '', endDate: '2026-06-17' }),
+			task({ id: 'starts-next-week', status: 'planned', startDate: '2026-06-08', endDate: '2026-06-12' }),
+			task({ id: 'starts-next-week-open-ended', status: 'planned', startDate: '2026-06-09', endDate: '' }),
+			task({ id: 'started-open-ended', status: 'planned', startDate: '2026-05-20', endDate: '' }),
+			task({ id: 'undated', status: 'planned', startDate: '', endDate: '' })
+		];
+		const plannedIn = (weekStartISO: string, weekEndISO: string, weekPosition: 'current' | 'future') =>
+			buildTaskBoard(tasks, { weekStartISO, weekEndISO, weekPosition })
+				.find((column) => column.status === 'planned')
+				?.tasks.map((task) => task.id)
+				.sort();
 
-		expect(board.find((column) => column.status === 'planned')?.tasks.map((task) => task.id)).toEqual([
-			'ends-this-week',
-			'starts-this-week-open-ended'
-		]);
+		expect(plannedIn('2026-06-01', '2026-06-07', 'current')).toEqual(
+			['ends-in-two-weeks', 'ends-this-week', 'spans-into-next-week', 'started-open-ended', 'undated'].sort()
+		);
+		expect(plannedIn('2026-06-08', '2026-06-14', 'future')).toEqual(
+			['ends-in-two-weeks', 'spans-into-next-week', 'started-open-ended', 'starts-next-week', 'starts-next-week-open-ended', 'undated'].sort()
+		);
+		expect(plannedIn('2026-06-15', '2026-06-21', 'future')).toEqual(
+			['ends-in-two-weeks', 'started-open-ended', 'starts-next-week-open-ended', 'undated'].sort()
+		);
 	});
 
 	test('hides the planned column in past weeks and carries overdue plans into the current week', () => {
