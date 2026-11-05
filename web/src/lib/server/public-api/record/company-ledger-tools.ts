@@ -6,6 +6,8 @@ import { HintRefused, normalized, resolveHint, type HintMatcher } from './hint-r
 import { RecordRefusedTheWrite, statusOfPostgresCode } from './tasks';
 import type { RecordContext } from './company';
 import { moneySchema, type Money } from '$lib/money';
+import { convertedAmount } from '$lib/server/converted-amount';
+import type { ExchangeRateProvider } from '$lib/server/exchange-rates';
 import type {
 	CompanyDocumentDownloadResult,
 	CompanyDocumentListResult,
@@ -309,30 +311,56 @@ function attributeText(value: RecordAttributeValue): string {
 
 type StoredMetricValue = { value: number; currencyCode: string | null; valueUSD: number | null; unit: string | null };
 
-function storedMetricValueOf(input: CompanyMetricRecordInput): StoredMetricValue {
+async function storedMetricValueOf(
+	input: CompanyMetricRecordInput,
+	exchangeRates: ExchangeRateProvider
+): Promise<StoredMetricValue> {
 	if (input.amount && input.value !== undefined) {
 		throw new Error('a metric is money in amount or a number in value, never both');
 	}
-	if (input.amount) return storedMetricAmountOf(input.amount, input);
+	if (input.amount) return storedMetricAmountOf(input.amount, input, exchangeRates);
 	if (input.value === undefined) throw new Error('a metric records money in amount or a number in value');
 	if (input.usdEquivalent !== undefined) throw new Error('a USD equivalent belongs to money, and this metric is a number');
 	return { value: input.value, currencyCode: null, valueUSD: null, unit: orNull(input.unit) };
 }
 
-function storedMetricAmountOf(amount: Money, input: CompanyMetricRecordInput): StoredMetricValue {
+async function storedMetricAmountOf(
+	amount: Money,
+	input: CompanyMetricRecordInput,
+	exchangeRates: ExchangeRateProvider
+): Promise<StoredMetricValue> {
 	if (orNull(input.unit) !== null) throw new Error('money carries its currency, not a unit');
-	const valueUSD = amount.currency === 'USD' ? amount.amount : input.usdEquivalent;
-	if (valueUSD === undefined) throw new Error(`a USD equivalent is required when the amount is in ${amount.currency}`);
+	const valueUSD = await usdEquivalentOf(amount, input.usdEquivalent, exchangeRates);
 	return { value: amount.amount, currencyCode: amount.currency, valueUSD, unit: null };
+}
+
+async function usdEquivalentOf(
+	amount: Money,
+	given: number | undefined,
+	exchangeRates: ExchangeRateProvider
+): Promise<number> {
+	if (amount.currency === 'USD') return amount.amount;
+	if (given !== undefined) return given;
+	try {
+		return (await convertedAmount(exchangeRates, amount, 'USD')).amount.amount;
+	} catch (cause) {
+		const reason = cause instanceof Error ? cause.message : String(cause);
+		throw new RecordRefusedTheWrite(
+			`nothing was recorded: the current ${amount.currency} to USD rate could not be read (${reason}). Give usdEquivalent only if the person stated one`,
+			503,
+			'exchange_rate_unavailable'
+		);
+	}
 }
 
 export async function companyMetricRecord(
 	context: RecordContext,
-	input: CompanyMetricRecordInput
+	input: CompanyMetricRecordInput,
+	exchangeRates: ExchangeRateProvider
 ): Promise<CompanyMetricResult> {
 	const metric = textOf(input.metric, 'a metric call names the metric it records');
 	const period = textOf(input.period, 'a metric names the period it covers, such as 2025, 2026-H1 or 2026-Q3');
-	const stored = storedMetricValueOf(input);
+	const stored = await storedMetricValueOf(input, exchangeRates);
 
 	const { data, error } = await context.caller
 		.from('company_metric')
