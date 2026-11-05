@@ -1,12 +1,11 @@
 <script lang="ts">
 	import * as Bubble from '$lib/components/ui/bubble/index.js';
-	import CircleDashedIcon from '@lucide/svelte/icons/circle-dashed';
 	import LoaderCircleIcon from '@lucide/svelte/icons/loader-circle';
 	import CheckIcon from '@lucide/svelte/icons/check';
 	import XIcon from '@lucide/svelte/icons/x';
-	import type { ToolStep } from '$lib/messenger/agent-work';
+	import type { ShownStep } from '$lib/messenger/agent-work';
 
-	let { steps, label }: { steps: ToolStep[]; label: string } = $props();
+	let { steps, label }: { steps: ShownStep[]; label: string } = $props();
 </script>
 
 <Bubble.Root variant="muted" class="max-w-[min(80%,32rem)]">
@@ -18,9 +17,7 @@
 						data-status={step.status}
 						class="text-muted-foreground data-[status=in_progress]:text-foreground flex min-w-0 items-center gap-2 font-mono text-xs"
 					>
-						{#if step.status === 'pending'}
-							<CircleDashedIcon class="size-3.5 shrink-0" />
-						{:else if step.status === 'in_progress'}
+						{#if step.status === 'in_progress'}
 							<LoaderCircleIcon class="size-3.5 shrink-0 animate-spin motion-reduce:animate-none" />
 						{:else if step.status === 'completed'}
 							<CheckIcon class="text-brand size-3.5 shrink-0" />
