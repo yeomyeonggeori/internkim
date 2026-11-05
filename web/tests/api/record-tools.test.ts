@@ -943,13 +943,17 @@ describe('deleting', () => {
 		const canDeleteOf = (content: string) =>
 			(listed.tasks as { content: string; canDelete: boolean }[]).find((task) => task.content === content)?.canDelete;
 
-		expect(canDeleteOf('둘이 맡은 정리')).toBe(false);
-		const refused = await run('task_delete', { taskHint: '둘이 맡은 정리' });
+		expect(canDeleteOf('남이 맡은 정리')).toBe(false);
+		const refused = await run('task_delete', { taskHint: '남이 맡은 정리' });
 		expect(refused.status).toBe(403);
 
 		expect(canDeleteOf('혼자 맡은 정리')).toBe(true);
 		const gone = resultOf(await run('task_delete', { taskHint: '혼자 맡은 정리' }));
 		expect(gone.deleted).toBe(true);
+
+		expect(canDeleteOf('둘이 맡은 정리')).toBe(true);
+		const sharedGone = resultOf(await run('task_delete', { taskHint: '둘이 맡은 정리' }));
+		expect(sharedGone.deleted).toBe(true);
 	});
 
 	test('says on each task whether a change to it would go through', async () => {
