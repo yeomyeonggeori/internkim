@@ -60,7 +60,8 @@
 				text: nextText,
 				loadTask: nextLoadTask,
 				setPageErrorMessage: nextSetPageErrorMessage,
-				announceMove: (message) => toast.success(message)
+				announceMove: (message) => toast.success(message),
+				announceMoveFailure: (message) => toast.error(message)
 			});
 		});
 	});

@@ -2,8 +2,8 @@ begin;
 create extension if not exists pgtap with schema extensions;
 select plan(11);
 
-select has_function('public', 'start_ended_task_on_its_last_day', 'end came: the filling function exists');
-select has_trigger('public', 'task', 'task_whose_end_came_has_a_start', 'end came: the trigger is wired');
+select has_function('public', 'keep_task_status_and_dates_agreeing', 'end came: the filling function exists');
+select has_trigger('public', 'task', 'task_status_and_dates_agree', 'end came: the trigger is wired');
 
 insert into public.company (id, name, slug, country, locale, timezone) values
   ('99800000-0000-0000-0000-0000000000a0', 'End Came Company', 'end-came-company', 'KR', 'ko', 'Asia/Seoul');
@@ -54,12 +54,12 @@ select is(
   'end came: pulling a startless end into the past completes the task and starts it at its end');
 
 set constraints all immediate;
-alter table public.task disable trigger task_whose_end_came_has_a_start;
+alter table public.task disable trigger task_status_and_dates_agree;
 insert into public.task (id, company_id, title, status, starts_at, ends_at) values
   ('99800000-0000-0000-0000-0000000000b7', '99800000-0000-0000-0000-0000000000a0', 'Startless task left past its end', 'planned',
     null, ((now() at time zone 'Asia/Seoul')::date - 3)::timestamp at time zone 'Asia/Seoul' + interval '15 hours');
 set constraints all immediate;
-alter table public.task enable trigger task_whose_end_came_has_a_start;
+alter table public.task enable trigger task_status_and_dates_agree;
 
 select public.complete_tasks_past_their_end();
 select is(

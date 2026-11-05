@@ -36,6 +36,7 @@ type TasksControllerInput = {
 	loadTask: LoadTask;
 	setPageErrorMessage: (message: string) => void;
 	announceMove?: (message: string) => void;
+	announceMoveFailure?: (message: string) => void;
 	relationshipsReady?: boolean;
 };
 
@@ -104,7 +105,8 @@ class TasksController {
 				this.summary = summary;
 			},
 			setPageErrorMessage: this.setPageErrorMessage,
-			announceMove: input.announceMove
+			announceMove: input.announceMove,
+			announceMoveFailure: input.announceMoveFailure
 		});
 		this.editor.sync({
 			summary: this.summary,

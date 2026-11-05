@@ -391,10 +391,10 @@ describe('a task written through the record', () => {
 	});
 
 	test('refuses a rule of the record as something to fix, not as a permission', async () => {
-		await run('task_add', { title: '이미 끝난 기간', startsAt: '2020-01-06', endsAt: '2020-01-10' });
-		const refused = await run('task_update', { taskHint: '이미 끝난 기간', status: 'in_progress' });
+		await run('task_add', { title: '아무도 요청하지 않은 일' });
+		const refused = await run('task_update', { taskHint: '아무도 요청하지 않은 일', status: 'requested' });
 		expect(refused.status).toBe(422);
-		expect(String((refused.body as { error: string }).error)).toContain('end');
+		expect(String((refused.body as { error: string }).error)).toContain('nobody asked for');
 	});
 });
 

@@ -189,6 +189,7 @@ export const taskText = {
 			saving: '저장 중...',
 			deleting: '삭제 중...',
 			saveError: '업무를 저장하지 못했습니다.',
+			requestNeedsRequester: '요청한 사람이 없는 업무는 요청으로 옮길 수 없습니다.',
 			empty: '조건에 맞는 업무가 없습니다.',
 			noTasks: '아직 업무가 없습니다.',
 			viewTabs: {
@@ -442,6 +443,7 @@ export const taskText = {
 			saving: 'Saving...',
 			deleting: 'Deleting...',
 			saveError: 'Could not save the task.',
+			requestNeedsRequester: 'Work nobody asked for cannot move to Requested.',
 			empty: 'No tasks match these filters.',
 			noTasks: 'No tasks yet.',
 			viewTabs: {

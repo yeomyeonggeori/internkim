@@ -2,7 +2,7 @@ import { feelHaptic } from '$lib/native-shell/haptics';
 import { createTaskBoardMove, type TaskBoardMoveRequest } from './task-board-drag';
 import { saveTaskBoardMove } from './task-board-save';
 import type { LoadTask } from './task-load-tracker';
-import { isTaskStatusCompleted } from './task-status';
+import { isTaskStatusCompleted, isTaskStatusRequested } from './task-status';
 import { canUpdateTask } from './task-workspace-model';
 import { taskText } from './text';
 import type { TaskSummary } from './task-types';
@@ -18,6 +18,7 @@ type TaskBoardControllerInput = {
 	setSummary: (summary: TaskSummary) => void;
 	setPageErrorMessage: (message: string) => void;
 	announceMove?: (message: string) => void;
+	announceMoveFailure?: (message: string) => void;
 };
 
 export class TaskBoardController {
@@ -30,6 +31,7 @@ export class TaskBoardController {
 	private setSummary: (summary: TaskSummary) => void;
 	private setPageErrorMessage: (message: string) => void;
 	private announceMove: (message: string) => void = () => {};
+	private announceMoveFailure: (message: string) => void = () => {};
 
 	constructor() {
 		this.loadTask = async () => false;
@@ -47,6 +49,7 @@ export class TaskBoardController {
 		this.setSummary = input.setSummary;
 		this.setPageErrorMessage = input.setPageErrorMessage;
 		this.announceMove = input.announceMove ?? (() => {});
+		this.announceMoveFailure = input.announceMoveFailure ?? this.setPageErrorMessage;
 	};
 
 	moveTaskOnBoard = async (request: TaskBoardMoveRequest): Promise<void> => {
@@ -54,6 +57,10 @@ export class TaskBoardController {
 		if (!summary || this.pendingTaskIDs.length > 0) return;
 		const task = summary.tasks.find((candidate) => candidate.id === request.taskID);
 		if (!task || !canUpdateTask(task)) return;
+		if (isTaskStatusRequested(request.targetStatus) && !task.requesterID) {
+			this.announceMoveFailure(this.text.task.requestNeedsRequester);
+			return;
+		}
 		const move = createTaskBoardMove(summary.tasks, request);
 		if (!move) return;
 
@@ -69,7 +76,9 @@ export class TaskBoardController {
 				week,
 				currentWeek: this.currentWeek,
 				loadTask: this.loadTask,
-				setPageErrorMessage: this.setPageErrorMessage,
+				setPageErrorMessage: (message) => {
+					if (message) this.announceMoveFailure(message);
+				},
 				saveErrorMessage: this.text.task.saveError,
 				loadErrorMessage: this.text.loadError
 			});

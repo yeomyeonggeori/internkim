@@ -193,20 +193,22 @@ select throws_ok(
   'request provenance: a normal participant cannot attach self provenance by update'
 );
 
-select lives_ok($block$do $$
+select throws_ok($block$do $$
 begin
   set local role authenticated;
   perform set_config('request.jwt.claims', '{"sub":"46000000-0000-0000-0000-000000000001"}', true);
   update public.task
   set status = 'requested'
   where id = '46000000-0000-0000-0000-000000000104';
-  reset role;
-end $$;$block$, 'request provenance: an authorized participant can request existing work');
+end $$;$block$,
+  '23514',
+  'a task nobody asked for cannot be requested',
+  'request provenance: moving existing work nobody asked for into requested is refused');
 
 select is(
   (select requester_id from public.task where id = '46000000-0000-0000-0000-000000000104'),
-  '46000000-0000-0000-0000-0000000000a1'::uuid,
-  'request provenance: an authorized transition records its actor'
+  null::uuid,
+  'request provenance: the refused move names nobody as the one who asked'
 );
 
 select lives_ok($block$do $$

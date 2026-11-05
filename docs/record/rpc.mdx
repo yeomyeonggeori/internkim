@@ -92,6 +92,7 @@ The record answers these directly. A caller reaches one at `POST /rest/v1/rpc/<n
 | `digest_target_keep` | `new_project_url text` | `void` | definer | service_role |
 | `expired_transfer_copies` | `kept_days integer` | `SETOF text` | definer | authenticated, service_role |
 | `fcm_key_keep` | `new_project_id text, new_client_email text, new_private_key text` | `void` | definer | service_role |
+| `forget_a_request_of_oneself` | `target_task_id uuid` | `void` | definer | nobody |
 | `is_a_scheduled_job` | `presented text` | `boolean` | definer | service_role |
 | `is_company_admin` | — | `boolean` | definer | anon, authenticated, service_role |
 | `is_company_profile` | `profile jsonb` | `boolean` | invoker | anon, authenticated, service_role |
@@ -149,6 +150,7 @@ The record answers these directly. A caller reaches one at `POST /rest/v1/rpc/<n
 | `task_deletable` | `task task` | `boolean` | invoker | authenticated |
 | `task_end_of_day` | `task task, day date` | `timestamp with time zone` | invoker | nobody |
 | `task_first_day` | `task task` | `date` | invoker | authenticated |
+| `task_is_asked_of_its_asker` | `target_task_id uuid, asker uuid` | `boolean` | definer | nobody |
 | `task_is_work` | `task task` | `boolean` | invoker | authenticated |
 | `task_last_day` | `task task` | `date` | invoker | authenticated |
 | `task_parent_set` | `target_task_id uuid, target_parent_task_id uuid` | `void` | definer | authenticated |
@@ -183,11 +185,11 @@ These run when a row changes. Nobody calls them.
 | `bind_member_to_new_user` |
 | `data_room_guard_category` |
 | `data_room_guard_document` |
-| `derive_task_status_from_dates` |
 | `enforce_crm_reference_consistency` |
 | `follow_children_completion` |
+| `forget_requests_of_oneself` |
 | `guard_task_authority_shape` |
-| `guard_task_status_against_dates` |
+| `keep_task_status_and_dates_agreeing` |
 | `leave_carries_the_terms_of_its_kind` |
 | `leave_granted_to_a_new_member` |
 | `leave_grants_restart_when_the_opening_rule_changes` |
@@ -207,7 +209,6 @@ These run when a row changes. Nobody calls them.
 | `stamp_crm_record` |
 | `stamp_task_on_participant_change` |
 | `stamp_task_update` |
-| `start_ended_task_on_its_last_day` |
 | `sync_member_email_from_user` |
 | `validate_attendance_correction` |
 | `validate_attendance_update_order` |
