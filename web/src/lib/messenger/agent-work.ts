@@ -27,7 +27,9 @@ export type LiveWork = {
 	isStillWorking?: boolean;
 };
 
-export type ShownWork = { key: string; steps: ToolStep[] };
+export type ShownStep = { title: string; status: Exclude<ToolStepStatus, 'pending'> };
+
+export type ShownWork = { key: string; steps: ShownStep[] };
 
 const promptKeyPrefix = 'prompt:';
 
@@ -80,10 +82,14 @@ export function liveWorkShownInTimeline(
 function worksStillShown(works: LiveWork[], loadedMessageIDs: ReadonlySet<string>): ShownWork[] {
 	return works.flatMap((work) => {
 		if (work.becomingMessageID === undefined || !loadedMessageIDs.has(work.becomingMessageID)) {
-			return [{ key: work.key, steps: work.steps }];
+			return [{ key: work.key, steps: work.steps.map(stepAsShown) }];
 		}
 		return work.isStillWorking ? [{ key: work.key, steps: [] }] : [];
 	});
+}
+
+function stepAsShown(step: ToolStep): ShownStep {
+	return { title: step.title, status: step.status === 'pending' ? 'in_progress' : step.status };
 }
 
 function worksAfterWorking(works: LiveWork[], report: WorkReport, now: number): LiveWork[] {
