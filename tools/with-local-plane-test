@@ -277,13 +277,24 @@ cat > "$fakeState/stacks.json" <<STACKS
 {"stacks": [
   {"id": "own", "project_root": "$checkoutRoot", "branch_context": "", "runtime": "native"},
   {"id": "other-checkout", "project_root": "$otherCheckout", "branch_context": "refs/heads/other", "runtime": "native"},
+  {"id": "stopped-checkout", "project_root": "$otherCheckout", "branch_context": "refs/heads/stopped", "runtime": "native"},
   {"id": "removed-checkout", "project_root": "$runDirectory/removed", "branch_context": "refs/heads/gone", "runtime": "docker"},
   {"id": "unrelated", "project_root": "$unrelatedProject", "branch_context": "refs/heads/main", "runtime": "docker"}
 ]}
 STACKS
+bash -c 'sleep 600; :' supabase-stack-id=other-checkout > /dev/null 2>&1 &
+otherCheckoutService=$!
+until pgrep -f "supabase-stack-id=other-checkout" > /dev/null; do
+  sleep 0.05
+done
 "$withLocalPlane" true 2> /dev/null
+pkill -P "$otherCheckoutService" 2>/dev/null || true
+kill "$otherCheckoutService" 2>/dev/null || true
 if ! called "supabase stack stop --stack-id other-checkout --output-format text"; then
   fail "the lock left another checkout's stack holding the plane's ports"
+fi
+if called "supabase stack stop --stack-id stopped-checkout --output-format text"; then
+  fail "the lock stopped another checkout's stack that runs nothing"
 fi
 if called "supabase stack destroy --stack-id other-checkout --yes --output-format text"; then
   fail "the lock destroyed the data of a stack that belongs to a checkout that still exists"
