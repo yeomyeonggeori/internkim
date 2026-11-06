@@ -76,6 +76,8 @@ type CapabilitydPlaneArguments = {
 	deviceBrowserStateDirectory: string;
 	fileReadPythonPath: string;
 	admindSocketPath: string;
+	relayURL: string;
+	centralPlaneURL: string;
 };
 
 type BlueclawPlaneArguments = {
@@ -135,7 +137,9 @@ export function capabilitydArgumentsForPlane(argumentsForPlane: CapabilitydPlane
 			'--device-browser-first-port': '9230',
 			'--device-browser-capacity': '1',
 			'--device-browser-user': 'blueclaw',
-			'--file-read-python': argumentsForPlane.fileReadPythonPath
+			'--file-read-python': argumentsForPlane.fileReadPythonPath,
+			'--relay-url': argumentsForPlane.relayURL,
+			'--central-plane-url': argumentsForPlane.centralPlaneURL
 		}
 	);
 }
@@ -472,7 +476,9 @@ export async function aCompanyPlane(request: PlaneRequest = {}): Promise<ACompan
 						deviceBrowserPath: join(binaryDirectory, 'moli'),
 						deviceBrowserStateDirectory: join(runDirectory, 'state', 'device-browsers'),
 						fileReadPythonPath: 'python3',
-						admindSocketPath: requesterSocketPath
+						admindSocketPath: requesterSocketPath,
+						relayURL: `http://127.0.0.1:${arrivalsPort}`,
+						centralPlaneURL: projectURL
 					})
 				],
 				{ ...logsTo(join(runDirectory, 'capabilityd.log')), cwd: runDirectory, env: theBoxEnvironment() }

@@ -21,7 +21,9 @@ test('the plane starts every daemon with the current company-box contract', () =
 		deviceBrowserStateDirectory: '/tmp/device-browsers',
 		fileReadPythonPath: 'python3',
 		admindSocketPath: '/tmp/admind.sock',
-		serviceTokenPath: '/tmp/service-token'
+		serviceTokenPath: '/tmp/service-token',
+		relayURL: 'http://127.0.0.1:18091',
+		centralPlaneURL: 'http://127.0.0.1:54321'
 	});
 
 	expect(argumentsForCapabilityd).toContain('--device-browser');
