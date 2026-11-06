@@ -161,6 +161,20 @@ test('tapping attach while typing keeps the composer focused and its draft', asy
 	await expect(composer).toHaveText('첨부하기 전에 쓰던 글');
 });
 
+test('mobile More keeps its settings and account at the bottom of the sheet', async ({ page }) => {
+	await openConversation(page, 390, 844);
+	await page.getByRole('button', { name: '더보기', exact: true }).click();
+	const sheet = page.getByRole('dialog', { name: '더보기' });
+	const logOut = sheet.getByRole('button', { name: '로그아웃' });
+	await expect(logOut).toBeVisible();
+	await sheet.evaluate((element) => Promise.all(element.getAnimations({ subtree: true }).map((animation) => animation.finished)));
+
+	const sheetBox = await sheet.boundingBox();
+	const logOutBox = await logOut.boundingBox();
+	if (!sheetBox || !logOutBox) throw new Error('the More sheet or its log out button has no layout box');
+	expect(sheetBox.y + sheetBox.height - (logOutBox.y + logOutBox.height)).toBeLessThanOrEqual(40);
+});
+
 test('mobile More retains global actions and returns focus', async ({ page }) => {
 	await openConversation(page, 390);
 	const more = page.getByRole('button', { name: '더보기', exact: true });
