@@ -29,6 +29,7 @@ import native_install_agent_update as agent_update  # noqa: E402
 import native_install_messenger as messenger  # noqa: E402
 from native_install_rig import (  # noqa: E402
     AGENT_HEALTH,
+    RELAY_UNIT_NAME,
     GuestMessenger,
     READINESS_COMMAND,
     RELAY_ROSTER_COMMAND,
@@ -90,7 +91,6 @@ from native_install_rig import (  # noqa: E402
 
 
 DEFAULT_PACKAGE_DIRECTORY = Path(".artifacts/native-package")
-RELAY_UNIT_NAME = "internkim-relay.service"
 BOX_UNIT_NAME = "internkim-box.service"
 ADMIND_UNIT_NAME = "internkim-admind.service"
 AGENT_UNIT_NAME = "blueclaw.service"

@@ -752,6 +752,24 @@ printf 'host=%%s\n' "$host"
 printf 'roster=%%s\n' "$(psql "$url" -tAc "select case when count(*) > 0 then 'yes' else 'no' end from relay_members member join communities community on community.id = member.community_id where lower(community.host) = lower('$host') and lower(member.pubkey) = lower('%(pubkey)s')" 2>&1 | tr -d ' \n')"
 """
 
+RELAY_UNIT_NAME = "internkim-relay.service"
+RELAY_REACHED_THE_GATEWAY_COMMAND = (
+    "journalctl -u " + RELAY_UNIT_NAME + " --since @%(since)s --no-pager 2>/dev/null"
+    " | grep -c 'gateway connected for company %(company)s' || true"
+)
+
+
+def wait_until_the_relay_reaches_the_gateway(machine, company_id, since, timeout_seconds=300):
+    """Since `since`, a moment read off the guest's own clock, the relay said it holds the company's gateway socket."""
+    reached = machine.wait_until(
+        RELAY_REACHED_THE_GATEWAY_COMMAND % {"since": since, "company": company_id},
+        lambda reported: reported.strip() not in ("", "0"),
+        timeout_seconds=timeout_seconds,
+    )
+    if reached.stdout.strip() in ("", "0"):
+        raise RigFailure(f"the guest's relay did not reach the gateway for company {company_id} within {timeout_seconds}s")
+
+
 MESSENGER_PROBE_COMMAND = HOST_PYTHON_PATH + " " + SHARE_PATH + "/native_install_messenger.py %(action)s %(arguments)s"
 LONGEST_WAIT_FOR_A_DELIVERY_SECONDS = 180
 

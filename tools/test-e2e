@@ -37,6 +37,7 @@ from native_install_rig import (  # noqa: E402
     every_probe_answered,
     install_the_company,
     rig_model_key,
+    wait_until_the_relay_reaches_the_gateway,
 )
 
 TASKS_DIRECTORY = REPOSITORY_ROOT / "web" / "tests" / "e2e" / "tasks"
@@ -111,11 +112,13 @@ def return_to_the_kept_host(held):
     machine.wait_until_running()
     plane = CompanyPlane(STATE_DIRECTORY / "plane", held["address"], held=held["plane"])
     status, document = plane.read_record(f"/rest/v1/company?select=id&id=eq.{held['companyID']}")
-    if status != 200 or held["companyID"] not in document:
+    if status != 200 or not json.loads(document):
         raise RigFailure("the kept host's company is gone from the local plane, which a db reset does; run with --fresh")
+    guest_moment = machine.checked_shell("date +%s").stdout.strip()
     plane.start()
     if machine.shell("systemctl is-active rig-record-forward").returncode != 0:
         plane.reach_the_record_from(machine)
+    wait_until_the_relay_reaches_the_gateway(machine, held["companyID"], guest_moment)
     return machine, plane, held["companyID"]
 
 
