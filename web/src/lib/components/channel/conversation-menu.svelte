@@ -16,7 +16,7 @@
 	import type { HTMLLiAttributes } from 'svelte/elements';
 	import { MediaQuery } from 'svelte/reactivity';
 	import { holdToReorder, type HoldToReorderMoves } from './hold-to-reorder';
-	import { openConversationMenu } from './open-conversation-menu.svelte';
+	import { openContextMenu } from './open-context-menu.svelte';
 	import { swallowClickAfterTouchHold } from './swallow-click-after-touch-hold';
 
 	type Props = {
@@ -63,8 +63,8 @@
 
 	const canHover = new MediaQuery('hover: hover', true);
 	const menuID = $props.id();
-	const isContextMenuOpen = $derived(openConversationMenu.isOpen(menuID));
-	const setContextMenuOpen = (isOpen: boolean): void => openConversationMenu.setOpen(menuID, isOpen);
+	const isContextMenuOpen = $derived(openContextMenu.isOpen(menuID));
+	const setContextMenuOpen = (isOpen: boolean): void => openContextMenu.setOpen(menuID, isOpen);
 </script>
 
 {#snippet switchPinnedLabel()}

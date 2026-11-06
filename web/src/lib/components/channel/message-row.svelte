@@ -6,6 +6,8 @@
 	import { openThreadOnTap } from './open-thread-on-tap';
 	import { swallowClickAfterTouchHold } from './swallow-click-after-touch-hold';
 	import { openContextMenuOnTouchHold } from './touch-hold';
+	import { openContextMenu } from './open-context-menu.svelte';
+	import { closeOnOutsidePress } from './outside-press-swallow';
 	import { swipeToReply } from './swipe-to-reply';
 	import type { ChannelMessage } from './channel-api';
 	import type { MessageCopy } from './message-copy';
@@ -64,7 +66,9 @@
 	let measuredNameWidthPixels = $state(0);
 	let isAnchoredPickerOpen = $state(false);
 	let pickerAnchor = $state<HTMLElement | null>(null);
-	let isContextMenuOpen = $state(false);
+	const menuID = $props.id();
+	const isContextMenuOpen = $derived(openContextMenu.isOpen(menuID));
+	const setContextMenuOpen = (isOpen: boolean): void => openContextMenu.setOpen(menuID, isOpen);
 	let isMenuFromBar = $state(false);
 	let pictureUnderPointer = $state('');
 
@@ -89,6 +93,15 @@
 
 	$effect(() => {
 		if (!isContextMenuOpen) isMenuFromBar = false;
+	});
+
+	function isWithinMenu(target: Node): boolean {
+		return target instanceof Element && target.closest('[data-slot="context-menu-content"], [data-slot="context-menu-sub-content"]') !== null;
+	}
+
+	$effect(() => {
+		if (!isContextMenuOpen) return;
+		return closeOnOutsidePress(isWithinMenu, () => setContextMenuOpen(false));
 	});
 
 	function openMenuAt(anchor: HTMLElement): void {
@@ -122,7 +135,7 @@
 		canCopyPicture={pictureToCopy !== ''}
 		canDownloadPicture={pictureToDownload !== undefined}
 		disabled={!isSettled || !hasActions}
-		bind:open={isContextMenuOpen}
+		bind:open={() => isContextMenuOpen, setContextMenuOpen}
 		omitsWhatTheBarOffers={isMenuFromBar}
 		onQuickReact={onReact}
 		onOpenPicker={openPickerOnceTheMenuHasClosed}
