@@ -277,6 +277,25 @@ test('on a phone a chosen search result closes the search and shows its message'
 	await expect(page.getByText('배포 일정 공유드려요')).toBeInViewport();
 });
 
+test('on a phone dragging the search results puts the keyboard away', async ({ page }) => {
+	await openMessenger(page, 390, new ConversationSearchFixture());
+	await inboxPanel(page).locator('[data-inbox-entry="mention-1"]').click();
+	await page.getByRole('button', { name: '대화 검색' }).click();
+	const search = page.getByRole('complementary', { name: '대화 검색' });
+	const field = search.getByRole('textbox');
+	await field.fill('배포');
+	await expect(search.getByRole('button', { name: /배포 일정/ })).toBeVisible();
+	await expect(field).toBeFocused();
+
+	await search.getByRole('list').evaluate((list) => {
+		const at = (clientY: number) => [new Touch({ identifier: 1, target: list, clientX: 100, clientY })];
+		list.dispatchEvent(new TouchEvent('touchstart', { touches: at(300), bubbles: true }));
+		list.dispatchEvent(new TouchEvent('touchmove', { touches: at(280), bubbles: true }));
+	});
+
+	await expect(field).not.toBeFocused();
+});
+
 test('on a phone the conversation behind the inbox is not marked read', async ({ page }) => {
 	const fixture = await openMessenger(page, 390);
 	await expect(inboxPanel(page).locator('[data-inbox-entry]')).toHaveCount(3);

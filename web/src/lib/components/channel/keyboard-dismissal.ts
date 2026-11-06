@@ -1,4 +1,5 @@
 const scrollBackToDismissPixels = 120;
+const dragToDismissPixels = 10;
 const typingElements = 'input, textarea, [contenteditable="true"]';
 
 export function typingElementOutside(node: HTMLElement): HTMLElement | null {
@@ -7,7 +8,7 @@ export function typingElementOutside(node: HTMLElement): HTMLElement | null {
 	return node.contains(active) ? null : active;
 }
 
-export function dismissKeyboardOnScrollBack(node: HTMLElement): { destroy(): void } {
+function dismissKeyboardOnceDragged(node: HTMLElement, isFarEnough: (draggedPixels: number) => boolean): () => void {
 	let startClientY: number | undefined;
 
 	const handleTouchStart = (event: TouchEvent): void => {
@@ -16,7 +17,7 @@ export function dismissKeyboardOnScrollBack(node: HTMLElement): { destroy(): voi
 
 	const handleTouchMove = (event: TouchEvent): void => {
 		if (startClientY === undefined || event.touches.length !== 1) return;
-		if (event.touches[0].clientY - startClientY < scrollBackToDismissPixels) return;
+		if (!isFarEnough(event.touches[0].clientY - startClientY)) return;
 		startClientY = undefined;
 		typingElementOutside(node)?.blur();
 	};
@@ -24,10 +25,16 @@ export function dismissKeyboardOnScrollBack(node: HTMLElement): { destroy(): voi
 	node.addEventListener('touchstart', handleTouchStart, { passive: true });
 	node.addEventListener('touchmove', handleTouchMove, { passive: true });
 
-	return {
-		destroy() {
-			node.removeEventListener('touchstart', handleTouchStart);
-			node.removeEventListener('touchmove', handleTouchMove);
-		}
+	return () => {
+		node.removeEventListener('touchstart', handleTouchStart);
+		node.removeEventListener('touchmove', handleTouchMove);
 	};
+}
+
+export function dismissKeyboardOnScrollBack(node: HTMLElement): { destroy(): void } {
+	return { destroy: dismissKeyboardOnceDragged(node, (draggedPixels) => draggedPixels >= scrollBackToDismissPixels) };
+}
+
+export function dismissKeyboardOnDrag(node: HTMLElement): () => void {
+	return dismissKeyboardOnceDragged(node, (draggedPixels) => Math.abs(draggedPixels) >= dragToDismissPixels);
 }
