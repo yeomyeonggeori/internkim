@@ -15,6 +15,7 @@ import os
 import posixpath
 import re
 import secrets
+import shlex
 import shutil
 import socket
 import subprocess
@@ -63,6 +64,7 @@ OFFICE_COMMAND_PATH = SKILLS_PATH + "/office/scripts/office"
 CAPABILITYD_UNIT = "internkim-capabilityd.service"
 PACKAGE_NAME = "internkim"
 SHARE_PATH = "/srv/internkim-rig"
+MESSENGER_PROBE_SOURCE = Path(__file__).resolve().parent / "native_install_messenger.py"
 STATE_DIRECTORY = "/var/lib/internkim"
 CONFIGURATION_DIRECTORY = "/etc/internkim"
 # Where anything asks whether a service is up, and which of those answers
@@ -672,6 +674,14 @@ class Machine:
                 f"the guest did not answer within {timeout_seconds}s: {script.strip().splitlines()[0]}"
             ) from expired
 
+    def wait_until(self, script, is_ready, timeout_seconds=300):
+        deadline = time.monotonic() + timeout_seconds
+        while True:
+            reading = self.shell(script)
+            if is_ready(reading.stdout) or time.monotonic() > deadline:
+                return reading
+            time.sleep(5)
+
     def checked_shell(self, script, **keywords):
         completed = self.shell(script, **keywords)
         if completed.returncode != 0:
@@ -716,6 +726,91 @@ class Machine:
 CONNECTION_FILE_NAME = "internkim-host.json"
 MESSENGER_DATABASE_PATH = f"{STATE_DIRECTORY}/current/secrets/buzz-database.env"
 MODEL_KEY_FILE_NAME = "rig-model-key"
+
+READINESS_COMMAND = "; ".join(
+    f"printf '%s %s\\n' {port}{path} "
+    f"\"$(curl -s -o /dev/null -w '%{{http_code}}' --max-time 10 http://127.0.0.1:{port}{path})\""
+    for port, path in READINESS_PROBES
+)
+
+
+def every_probe_answered(reading):
+    lines = [line for line in reading.splitlines() if line.strip()]
+    return bool(lines) and all(line.split()[-1] == "200" for line in lines)
+
+
+# Whether the messenger will take anything this person signs. admind derives
+# each member's key and puts it in the relay's roster, once at boot and again
+# whenever the directory changes, so a box seconds old has a member the
+# messenger does not know yet.
+RELAY_ROSTER_COMMAND = r"""
+url="$(sed -n 's/^DATABASE_URL=//p' %(path)s 2>/dev/null | head -1)"
+[ -n "$url" ] || { echo "roster=no-database-url"; exit 0; }
+host="$(sed -n 's/^RELAY_URL=//p' %(host_path)s 2>/dev/null | head -1 | sed 's#^[a-z]*://##; s#/.*##')"
+[ -n "$host" ] || { echo "roster=no-relay-url"; exit 0; }
+printf 'host=%%s\n' "$host"
+printf 'roster=%%s\n' "$(psql "$url" -tAc "select case when count(*) > 0 then 'yes' else 'no' end from relay_members member join communities community on community.id = member.community_id where lower(community.host) = lower('$host') and lower(member.pubkey) = lower('%(pubkey)s')" 2>&1 | tr -d ' \n')"
+"""
+
+RELAY_UNIT_NAME = "internkim-relay.service"
+RELAY_REACHED_THE_GATEWAY_COMMAND = (
+    "journalctl -u " + RELAY_UNIT_NAME + " --since @%(since)s --no-pager 2>/dev/null"
+    " | grep -c 'gateway connected for company %(company)s' || true"
+)
+
+
+def wait_until_the_relay_reaches_the_gateway(machine, company_id, since, timeout_seconds=300):
+    """Since `since`, a moment read off the guest's own clock, the relay said it holds the company's gateway socket."""
+    reached = machine.wait_until(
+        RELAY_REACHED_THE_GATEWAY_COMMAND % {"since": since, "company": company_id},
+        lambda reported: reported.strip() not in ("", "0"),
+        timeout_seconds=timeout_seconds,
+    )
+    if reached.stdout.strip() in ("", "0"):
+        raise RigFailure(f"the guest's relay did not reach the gateway for company {company_id} within {timeout_seconds}s")
+
+
+MESSENGER_PROBE_COMMAND = HOST_PYTHON_PATH + " " + SHARE_PATH + "/native_install_messenger.py %(action)s %(arguments)s"
+LONGEST_WAIT_FOR_A_DELIVERY_SECONDS = 180
+
+
+class GuestMessenger:
+    """The messenger inside the guest, asked through native_install_messenger.py on the guest's own loopback."""
+
+    def __init__(self, machine):
+        self.machine = machine
+
+    def give_the_probe(self, *companions):
+        for source in (MESSENGER_PROBE_SOURCE, *companions):
+            shutil.copyfile(source, self.machine.share_directory / Path(source).name)
+
+    def ask(self, action, timeout_seconds=300, **arguments):
+        completed = self.machine.shell(
+            MESSENGER_PROBE_COMMAND % {"action": action, "arguments": shlex.quote(json.dumps(arguments))},
+            timeout_seconds=timeout_seconds,
+        )
+        for line in reversed(completed.stdout.splitlines()):
+            if line.startswith("{"):
+                return json.loads(line)
+        return {"refused": (completed.stderr.strip() or completed.stdout.strip() or "no answer")[-600:]}
+
+    def wait_for(self, action, is_ready, timeout_seconds=LONGEST_WAIT_FOR_A_DELIVERY_SECONDS, **arguments):
+        deadline = time.monotonic() + timeout_seconds
+        while True:
+            answer = self.ask(action, **arguments)
+            if is_ready(answer) or time.monotonic() > deadline:
+                return answer
+            time.sleep(5)
+
+    def wait_until_the_relay_knows(self, email):
+        pubkey = self.ask("identity", email=email).get("externalID", "")
+        roster = self.machine.wait_until(
+            RELAY_ROSTER_COMMAND
+            % {"path": MESSENGER_DATABASE_PATH, "host_path": COMPANY_CONDITION_PATH, "pubkey": pubkey or "nobody"},
+            lambda reported: "roster=yes" in reported,
+            timeout_seconds=600,
+        )
+        return pubkey, roster.stdout.strip()
 
 # The agent answers a member only through a model. Run under
 # `monkeys run OPENROUTER_API_KEY` to give the guest a key that reaches one;
@@ -1009,7 +1104,7 @@ class CompanyPlane:
     connection document the guest is handed carries one the guest can route to.
     """
 
-    def __init__(self, working_directory, guest_reachable_address):
+    def __init__(self, working_directory, guest_reachable_address, held=None):
         self.working_directory = Path(working_directory)
         self.working_directory.mkdir(parents=True, exist_ok=True)
         self.address = guest_reachable_address
@@ -1019,11 +1114,22 @@ class CompanyPlane:
         # The app holds this to make its own calls to a company, and no
         # assertion here uses it: a call carrying it reaches the company as the
         # plane rather than as a member, which is not the wire a person is on.
-        self.admin_token = secrets.token_hex(16)
-        self.gateway_port = free_port()
-        self.application_port = free_port()
+        held = held or {}
+        self.admin_token = held.get("adminToken") or secrets.token_hex(16)
+        self.gateway_port = held.get("gatewayPort") or free_port()
+        self.application_port = held.get("applicationPort") or free_port()
+        self.record_forward_port = held.get("recordForwardPort") or 0
         self.processes = []
         self.record_forward = None
+
+    def held(self):
+        """What a guest given this plane's company keeps pointing at, so the plane can come back where it was."""
+        return {
+            "adminToken": self.admin_token,
+            "gatewayPort": self.gateway_port,
+            "applicationPort": self.application_port,
+            "recordForwardPort": self.record_forward.port,
+        }
 
     @property
     def gateway_url(self):
@@ -1059,7 +1165,7 @@ class CompanyPlane:
         )
 
     def start(self):
-        self.record_forward = RecordForward((self.address, 0), ("127.0.0.1", self.record_port))
+        self.record_forward = RecordForward((self.address, self.record_forward_port), ("127.0.0.1", self.record_port))
         self.start_gateway()
         self.start_application()
 

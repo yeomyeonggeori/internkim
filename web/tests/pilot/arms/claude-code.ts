@@ -2,7 +2,8 @@ import { mkdtempSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync
 import { tmpdir } from 'node:os';
 import { extname, join } from 'node:path';
 import { callsInLedger, startPromptMeter, withProviders } from '../prompt-meter';
-import type { ArmRunContext, DeliveredFile, HarnessOutcome } from './arm';
+import type { DeliveredFile } from '../../e2e/record';
+import type { ArmRunContext, HarnessOutcome } from './arm';
 
 const meterPort = 8331;
 const serverName = 'internkim-plane';

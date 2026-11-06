@@ -1,3 +1,5 @@
+import type { DeliveredFile, RunStatus } from '../../e2e/record';
+
 export interface ModelCall {
 	kind: string;
 	promptTokens: number;
@@ -9,18 +11,8 @@ export interface ModelCall {
 	generationID?: string;
 }
 
-export type HarnessStatus = 'completed' | 'failed' | 'timed_out' | 'waiting_user_input';
-
-export interface DeliveredFile {
-	filename: string;
-	contentType: string;
-	sizeBytes: number;
-	devicePath: string;
-	isZipContainer: boolean | null;
-}
-
 export interface HarnessOutcome {
-	status: HarnessStatus;
+	status: RunStatus;
 	reachedTheLoop: boolean;
 	turns: number;
 	toolCalls: string[];

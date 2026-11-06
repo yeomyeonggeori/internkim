@@ -2,8 +2,7 @@
 
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import type { DeliveredFile, HarnessStatus } from '../pilot/arms/arm';
-import { cleanUp, judge, localRecord, type JudgedOutcome, type PilotTask } from '../pilot/record';
+import { cleanUp, judge, localRecord, type AgentTask, type DeliveredFile, type JudgedOutcome, type RunStatus } from './record';
 
 interface KeptFile {
 	name: string;
@@ -22,7 +21,7 @@ interface KeptDelivery {
 
 const zipSignature = 'PK';
 
-function statusOf(outcome: string): HarnessStatus {
+function statusOf(outcome: string): RunStatus {
 	if (outcome === 'completed' || outcome === 'waiting_user_input') return outcome;
 	if (outcome === 'running' || outcome === 'planned') return 'timed_out';
 	return 'failed';
@@ -60,7 +59,7 @@ function readJSON<T>(path: string): T {
 async function main(): Promise<void> {
 	const caseDirectory = process.argv[2];
 	if (!caseDirectory) throw new Error('usage: judge-delivery.ts <case directory>');
-	const task = readJSON<PilotTask>(join(caseDirectory, 'task.json'));
+	const task = readJSON<AgentTask>(join(caseDirectory, 'task.json'));
 	const delivery = readJSON<KeptDelivery>(join(caseDirectory, 'result.json'));
 	const record = await localRecord();
 	const judgement = await judge(record, task.assertions, outcomeOf(caseDirectory, delivery));

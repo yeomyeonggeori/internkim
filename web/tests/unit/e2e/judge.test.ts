@@ -1,13 +1,13 @@
 import { describe, expect, test } from 'bun:test';
-import type { DeliveredFile } from '../../pilot/arms/arm';
 import {
 	deliveredFileFinding,
 	inboxFinding,
 	judge,
 	replyMentionsFinding,
 	waitingForAnswerFinding,
+	type DeliveredFile,
 	type JudgedOutcome,
-} from '../../pilot/record';
+} from '../../e2e/record';
 
 function deliveredFile(overrides: Partial<DeliveredFile>): DeliveredFile {
 	return {

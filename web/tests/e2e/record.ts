@@ -1,6 +1,15 @@
 import { readFileSync, readdirSync } from 'node:fs';
 import { extname, join } from 'node:path';
-import type { DeliveredFile, HarnessOutcome } from './arms/arm';
+
+export type RunStatus = 'completed' | 'failed' | 'timed_out' | 'waiting_user_input';
+
+export interface DeliveredFile {
+	filename: string;
+	contentType: string;
+	sizeBytes: number;
+	devicePath: string;
+	isZipContainer: boolean | null;
+}
 
 export interface RecordAccess {
 	apiURL: string;
@@ -48,7 +57,7 @@ export type CleanupStep =
 	| { delete: string; where: Where }
 	| { update: string; where: Where; set: Record<string, unknown> };
 
-export interface PilotTask {
+export interface AgentTask {
 	name: string;
 	requesterEmail: string;
 	instruction: string;
@@ -69,9 +78,12 @@ export interface Judgement {
 	findings: Finding[];
 }
 
-export type JudgedOutcome = Pick<HarnessOutcome, 'status' | 'reply' | 'deliveredFiles'> & {
+export interface JudgedOutcome {
+	status: RunStatus;
+	reply: string;
+	deliveredFiles: DeliveredFile[];
 	inboxes?: Record<string, string[]>;
-};
+}
 
 export function isRecordAssertion(assertion: Assertion): assertion is RecordAssertion {
 	return 'table' in assertion;
@@ -89,11 +101,11 @@ export function isInboxAssertion(assertion: Assertion): assertion is InboxAssert
 	return 'inboxOf' in assertion;
 }
 
-export function loadTasks(directory: string, only?: string): PilotTask[] {
+export function loadTasks(directory: string, only?: string): AgentTask[] {
 	return readdirSync(directory)
 		.filter((name) => name.endsWith('.json'))
 		.sort()
-		.map((name) => JSON.parse(readFileSync(join(directory, name), 'utf8')) as PilotTask)
+		.map((name) => JSON.parse(readFileSync(join(directory, name), 'utf8')) as AgentTask)
 		.filter((task) => !only || task.name === only);
 }
 
