@@ -80,8 +80,11 @@ END_TO_END_DIRECTORY = WEB_DIRECTORY / "tests" / "e2e"
 ENTRY_POINT_ROOTS = ("web/src/routes/", "web/tests/e2e/")
 IMPORTING_SOURCE_PATTERNS = ("src/**/*.ts", "src/**/*.js", "src/**/*.svelte", "tests/e2e/**/*.ts")
 IMPORT_SPECIFIER = re.compile(r"""\b(?:from|import)\s*\(?\s*['"]([^'"]+)['"]""")
+TYPE_ONLY_IMPORT = re.compile(r"""\b(?:import|export)\s+type\s+[^;]*?\bfrom\s*['"][^'"]+['"]""")
 RESOLUTION_SUFFIXES = ("", ".ts", ".js", ".svelte", "/index.ts", "/index.js")
 EVERY_AREA = "every area"
+SHELL_AREA = "shell"
+ROUTES_EVERY_AREA_GOES_THROUGH = ("api", "auth")
 DATABASE_PATTERNS = ("supabase/migrations/*", "supabase/seed.dev.sql")
 PLANES_WITHOUT_THE_DATABASE = ("fixture", "mocked", "standalone")
 
@@ -95,7 +98,8 @@ def importers_by_source():
     importers = {}
     for pattern in IMPORTING_SOURCE_PATTERNS:
         for importer in WEB_DIRECTORY.glob(pattern):
-            for specifier in IMPORT_SPECIFIER.findall(importer.read_text(errors="replace")):
+            source = TYPE_ONLY_IMPORT.sub("", importer.read_text(errors="replace"))
+            for specifier in IMPORT_SPECIFIER.findall(source):
                 imported = resolved_import(importer, specifier)
                 if imported is not None:
                     importers.setdefault(imported, set()).add(repository_path(importer))
@@ -135,8 +139,12 @@ def entry_point_area(path, areas):
     root = next((root for root in ENTRY_POINT_ROOTS if path.startswith(root)), None)
     if root is None:
         return None
-    area = path[len(root):].split("/", 1)[0]
-    return area if area in areas else EVERY_AREA
+    area, _, inside = path[len(root):].partition("/")
+    if area in areas:
+        return area
+    if not inside or root != "web/src/routes/" or area in ROUTES_EVERY_AREA_GOES_THROUGH:
+        return EVERY_AREA
+    return SHELL_AREA
 
 
 def end_to_end_areas_reaching(path, areas, importers):
