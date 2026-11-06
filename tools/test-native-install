@@ -26,10 +26,13 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from native_install_families import FAMILIES  # noqa: E402
 import native_install_agent_update as agent_update  # noqa: E402
-from native_install_deliveries import Deliveries, load_requests  # noqa: E402
 import native_install_messenger as messenger  # noqa: E402
 from native_install_rig import (  # noqa: E402
     AGENT_HEALTH,
+    GuestMessenger,
+    READINESS_COMMAND,
+    RELAY_ROSTER_COMMAND,
+    every_probe_answered,
     release_version_of,
     ARCHITECTURE,
     BACKUP_TIMER_NAME,
@@ -251,19 +254,6 @@ case "$found" in
 esac
 """
 
-# Whether the messenger will take anything this person signs. admind derives
-# each member's key and puts it in the relay's roster, once at boot and again
-# whenever the directory changes, so a box seconds old has a member the
-# messenger does not know yet.
-RELAY_ROSTER_COMMAND = r"""
-url="$(sed -n 's/^DATABASE_URL=//p' %(path)s 2>/dev/null | head -1)"
-[ -n "$url" ] || { echo "roster=no-database-url"; exit 0; }
-host="$(sed -n 's/^RELAY_URL=//p' %(host_path)s 2>/dev/null | head -1 | sed 's#^[a-z]*://##; s#/.*##')"
-[ -n "$host" ] || { echo "roster=no-relay-url"; exit 0; }
-printf 'host=%%s\n' "$host"
-printf 'roster=%%s\n' "$(psql "$url" -tAc "select case when count(*) > 0 then 'yes' else 'no' end from relay_members member join communities community on community.id = member.community_id where lower(community.host) = lower('$host') and lower(member.pubkey) = lower('%(pubkey)s')" 2>&1 | tr -d ' \n')"
-"""
-
 RELAY_MEMBERSHIP_EVIDENCE_COMMAND = r"""
 url="$(sed -n 's/^DATABASE_URL=//p' %(path)s 2>/dev/null | head -1)"
 [ -n "$url" ] || { echo "no DATABASE_URL in %(path)s"; exit 0; }
@@ -399,22 +389,8 @@ MERGED_USR_ALIASES = [("/lib/", "/usr/lib/"), ("/bin/", "/usr/bin/"), ("/sbin/",
 
 APT_PROGRESS = ("(Reading database", "Selecting previously", "Adding 'diversion")
 
-READINESS_COMMAND = "; ".join(
-    f"printf '%s %s\\n' {port}{path} "
-    f"\"$(curl -s -o /dev/null -w '%{{http_code}}' --max-time 10 http://127.0.0.1:{port}{path})\""
-    for port, path in READINESS_PROBES
-)
-
-
-def every_probe_answered(reading):
-    lines = [line for line in reading.splitlines() if line.strip()]
-    return bool(lines) and all(line.split()[-1] == "200" for line in lines)
-
-
 MESSENGER_PICTURE_SOURCE = Path(__file__).resolve().parent / "native_install_assets" / messenger.PICTURE_NAME
-MESSENGER_PROBE_COMMAND = HOST_PYTHON_PATH + " " + SHARE_PATH + "/native_install_messenger.py %(action)s %(arguments)s"
 LONGEST_WAIT_FOR_THE_AGENT_SECONDS = 600
-LONGEST_WAIT_FOR_A_DELIVERY_SECONDS = 180
 
 
 def message_asking_for_an_answer(occasion):
@@ -625,6 +601,7 @@ class Rig:
         self.options = options
         self.steps = []
         self.machine = None
+        self.messenger = None
         self.release = None
         self.working_directory = None
         self.installed_version = None
@@ -683,6 +660,7 @@ class Rig:
         self.machine.preflight()
         self.machine.create()
         self.machine.wait_until_running()
+        self.messenger = GuestMessenger(self.machine)
 
     def install_declared_dependencies(self, package_path):
         """Bring the guest to a machine that already satisfies `Depends:`.
@@ -1124,7 +1102,7 @@ class Rig:
             "\n".join(f"{name}={state}" for name, state in sorted(states.items())),
         )
 
-        answers = self.wait_in_the_guest(READINESS_COMMAND, every_probe_answered, timeout_seconds=180)
+        answers = self.machine.wait_until(READINESS_COMMAND, every_probe_answered, timeout_seconds=180)
         step.observe(
             "the services answer their readiness endpoints",
             "an HTTP GET inside the guest to "
@@ -1184,7 +1162,7 @@ class Rig:
         fail: a relay with a server key is connected without ever minting a
         token, and a relay with neither is unconnected with nothing to show.
         """
-        connecting = self.wait_in_the_guest(
+        connecting = self.machine.wait_until(
             HOST_SOCKET_COMMAND % {"unit": RELAY_UNIT_NAME, "company": self.company_id},
             lambda reported: "connected=0" not in reported,
         )
@@ -1219,11 +1197,11 @@ class Rig:
             plane.wait_until_the_member_holds_a_messenger_credential(member_id) if member_id else ""
         )
         bridge_port, bridge_path = MESSENGER_BRIDGE
-        bridge = self.wait_in_the_guest(
+        bridge = self.machine.wait_until(
             BRIDGE_COMMAND % {"port": bridge_port, "path": bridge_path},
             lambda reported: reported.strip().endswith("=200"),
         )
-        roster = self.wait_in_the_guest(
+        roster = self.machine.wait_until(
             RELAY_ROSTER_COMMAND
             % {
                 "path": MESSENGER_DATABASE_PATH,
@@ -1332,7 +1310,7 @@ class Rig:
         return self.sent_messages[-1][0] if self.sent_messages else ""
 
     def observe_the_agent_answered(self, step):
-        answered = self.wait_in_the_guest(
+        answered = self.machine.wait_until(
             AGENT_ANSWER_COMMAND % {
                 "agent_path": COMPANY_CONDITION_PATH,
                 "messenger_path": MESSENGER_DATABASE_PATH,
@@ -1361,7 +1339,7 @@ class Rig:
         sent = plane.member_session(self.company_id, self.message_text).get("sent") or {}
         message_id = sent.get("messageID") or ""
         self.sent_messages.append((message_id, self.message_text))
-        reported = self.wait_in_the_guest(
+        reported = self.machine.wait_until(
             AGENT_PDF_COMMAND % {"messenger_path": MESSENGER_DATABASE_PATH, "message": message_id or "no-message"},
             the_agent_sent_a_pdf,
             timeout_seconds=900,
@@ -1396,7 +1374,7 @@ class Rig:
             AGENT_TASK_STATUS_COMMAND % {"agent_path": COMPANY_CONDITION_PATH, "marker": self.message_text.split()[-1]}
             + RELAY_QUEUE_COMMAND % {"relay": RELAY_UNIT_NAME, "seconds": 0}
         )
-        settled = self.wait_in_the_guest(script, the_turn_has_settled, timeout_seconds=900)
+        settled = self.machine.wait_until(script, the_turn_has_settled, timeout_seconds=900)
         step.observe(
             "the turn that sent the PDF is finished before the next step touches the agent",
             "the agent's task ledger entry for the message and the relay's inbound queue on disk",
@@ -1446,24 +1424,6 @@ class Rig:
         self.machine.checked_shell(f"systemctl start {ADMIND_UNIT_NAME}")
         self.observe_the_agent_answered(step)
 
-    def ask_the_messenger(self, action, timeout_seconds=300, **arguments):
-        completed = self.machine.shell(
-            MESSENGER_PROBE_COMMAND % {"action": action, "arguments": shlex.quote(json.dumps(arguments))},
-            timeout_seconds=timeout_seconds,
-        )
-        for line in reversed(completed.stdout.splitlines()):
-            if line.startswith("{"):
-                return json.loads(line)
-        return {"refused": (completed.stderr.strip() or completed.stdout.strip() or "no answer")[-600:]}
-
-    def wait_for_the_messenger(self, action, is_ready, timeout_seconds=LONGEST_WAIT_FOR_A_DELIVERY_SECONDS, **arguments):
-        deadline = time.monotonic() + timeout_seconds
-        while True:
-            answer = self.ask_the_messenger(action, **arguments)
-            if is_ready(answer) or time.monotonic() > deadline:
-                return answer
-            time.sleep(5)
-
     def what_the_messenger_services_said(self):
         return self.machine.shell(
             "journalctl -u chatd.service -u blueclaw.service --no-pager -n 400 2>/dev/null "
@@ -1473,25 +1433,11 @@ class Rig:
     def recording(self, observation, passed, detail):
         observation.record(passed, detail if passed else detail + "\n" + self.what_the_messenger_services_said())
 
-    def give_the_guest_the_messenger_probe(self):
-        for source in (Path(messenger.__file__), MESSENGER_PICTURE_SOURCE):
-            shutil.copyfile(source, self.machine.share_directory / source.name)
-
-    def wait_until_the_relay_knows(self, email):
-        pubkey = self.ask_the_messenger("identity", email=email).get("externalID", "")
-        roster = self.wait_in_the_guest(
-            RELAY_ROSTER_COMMAND
-            % {"path": MESSENGER_DATABASE_PATH, "host_path": COMPANY_CONDITION_PATH, "pubkey": pubkey or "nobody"},
-            lambda reported: "roster=yes" in reported,
-            timeout_seconds=600,
-        )
-        return pubkey, roster.stdout.strip()
-
     def observe_the_messenger_paths(self, step, plane):
         """What the buzz fleet scenarios proved on a device, proved on the installed host."""
-        self.give_the_guest_the_messenger_probe()
+        self.messenger.give_the_probe(MESSENGER_PICTURE_SOURCE)
         company_emails = plane.active_member_emails(self.company_id)
-        listed = self.wait_for_the_messenger(
+        listed = self.messenger.wait_for(
             "people",
             lambda answer: {person["email"].lower() for person in answer.get("people", [])} >= {plane.administrator_email.lower()},
             timeout_seconds=300,
@@ -1519,21 +1465,21 @@ class Rig:
         self.observe_an_inbound_mention(step, requester)
 
     def observe_a_picture_reaches_the_agent(self, step, requester):
-        self.wait_until_the_relay_knows(requester["email"])
+        self.messenger.wait_until_the_relay_knows(requester["email"])
         filename = f"rig-{uuid.uuid4().hex[:10]}-{messenger.PICTURE_NAME}"
-        sent = self.ask_the_messenger(
+        sent = self.messenger.ask(
             "send_picture", email=requester["email"], body=messenger.PICTURE_QUESTION,
             filename=filename, picturePath=f"{SHARE_PATH}/{messenger.PICTURE_NAME}",
         )
         message_id = sent.get("messageID", "")
-        ledger = self.wait_for_the_messenger(
+        ledger = self.messenger.wait_for(
             "ledger",
             lambda answer: (answer.get("run") or {}).get("status") in messenger.SETTLED_STATUSES,
             timeout_seconds=LONGEST_WAIT_FOR_THE_AGENT_SECONDS,
             messageID=message_id or "none",
         )
         run = ledger.get("run") or {}
-        kept = self.ask_the_messenger("find_file", filename=filename).get("file") or {}
+        kept = self.messenger.ask("find_file", filename=filename).get("file") or {}
         observation = step.observe(
             "a picture a person sends the agent becomes a task of theirs and a file in their workspace",
             "the agent's task ledger row whose reply target carries the sent message's id, and a file of the "
@@ -1565,10 +1511,10 @@ class Rig:
             ).record(messenger.WORD_THE_PICTURE_CARRIES.lower() in reply.lower(), reply[:300] or f"status {run.get('status')}")
 
     def observe_the_api_messages_a_colleague(self, step, requester, recipient):
-        self.wait_until_the_relay_knows(requester["email"])
-        self.wait_until_the_relay_knows(recipient["email"])
+        self.messenger.wait_until_the_relay_knows(requester["email"])
+        self.messenger.wait_until_the_relay_knows(recipient["email"])
         marker = f"rig direct message through the api {uuid.uuid4().hex}"
-        invoked = self.ask_the_messenger(
+        invoked = self.messenger.ask(
             "invoke_direct_message", requesterEmail=requester["email"], recipientEmail=recipient["email"], message=marker
         )
         answer = invoked.get("answer") or {}
@@ -1581,7 +1527,7 @@ class Rig:
             invoked.get("status") == "200" and not answer.get("isError"),
             json.dumps(invoked)[:500],
         )
-        inbox = self.wait_for_the_messenger(
+        inbox = self.messenger.wait_for(
             "read_inbox",
             lambda reading: reading.get("isDelivered") is True,
             recipientEmail=recipient["email"], senderEmail=requester["email"], marker=marker,
@@ -1594,13 +1540,13 @@ class Rig:
         ).record(inbox.get("isDelivered") is True, json.dumps(inbox)[:300])
 
     def observe_an_inbound_mention(self, step, requester):
-        self.wait_until_the_relay_knows(requester["email"])
-        mention = self.ask_the_messenger(
+        self.messenger.wait_until_the_relay_knows(requester["email"])
+        mention = self.messenger.ask(
             "open_mention", email=requester["email"], channelName=f"rig-inbound-mention-{uuid.uuid4().hex[:10]}",
             body="Please reply in this channel with the word acknowledged.",
         )
         message_id = mention.get("messageID", "")
-        ledger = self.wait_for_the_messenger(
+        ledger = self.messenger.wait_for(
             "ledger", lambda reading: bool(reading.get("run")), messageID=message_id or "none"
         )
         run = ledger.get("run") or {}
@@ -1813,7 +1759,7 @@ class Rig:
         status, answer = self.plane.ask_as_administrator("PATCH", "/api/company/box", {"publicKey": public_key})
         started = time.monotonic()
         with self.driving(machine, self.files_command):
-            connected = self.wait_in_the_guest(
+            connected = self.machine.wait_until(
                 HOST_SOCKET_COMMAND % {"unit": RELAY_UNIT_NAME, "company": self.company_id},
                 lambda reported: "connected=0" not in reported,
                 timeout_seconds=1800,
@@ -1842,7 +1788,7 @@ class Rig:
 
     def wait_in_machine(self, machine, script, is_ready, timeout_seconds=300):
         with self.driving(machine, self.files_command):
-            return self.wait_in_the_guest(script, is_ready, timeout_seconds)
+            return self.machine.wait_until(script, is_ready, timeout_seconds)
 
     def observe_people_hold_homes(self, step):
         people = self.machine.shell(LIST_PEOPLE_COMMAND).stdout.split()
@@ -1945,14 +1891,14 @@ class Rig:
         )
 
         attempt_while_away = self.send_while_the_services_are_away(plane)
-        finished = self.wait_in_the_guest(
+        finished = self.machine.wait_until(
             f"systemctl is-active {agent_update.UPDATE_UNIT_NAME}; dpkg-query -W -f 'version=${{Version}}\\n' {PACKAGE_NAME}",
             lambda reading: f"version={newer_package}" in reading
             and reading.split("\n")[0].strip() not in ("active", "activating", "deactivating"),
             timeout_seconds=2400,
         )
         update_seconds = time.monotonic() - started_at
-        reported = self.wait_in_the_guest(
+        reported = self.machine.wait_until(
             f"test -e {agent_update.NOTE_PATH} && echo pending || echo cleared",
             lambda reading: "cleared" in reading,
             timeout_seconds=900,
@@ -1983,7 +1929,7 @@ class Rig:
             and (attempt_while_away["status"] not in (None, 200) or self.was_answered(attempt_while_away)),
             json.dumps({key: value for key, value in attempt_while_away.items() if key != "text"}),
         )
-        outcome = self.wait_in_the_guest(
+        outcome = self.machine.wait_until(
             agent_update.OUTCOME_COMMAND % {
                 "agent_path": COMPANY_CONDITION_PATH,
                 "messenger_path": MESSENGER_DATABASE_PATH,
@@ -2036,7 +1982,7 @@ class Rig:
             f"install -d {Path(path).parent}\nprintf '%s' {shlex.quote(contents)} > {path}\n" for path, contents in drop_ins.items()
         )
         self.machine.checked_shell(f"set -eu\n{written}systemctl daemon-reload\nsystemctl restart {ADMIND_UNIT_NAME}\n")
-        self.wait_in_the_guest(READINESS_COMMAND, every_probe_answered)
+        self.machine.wait_until(READINESS_COMMAND, every_probe_answered)
 
     def ask_admind(self, path, email, body):
         return agent_update.answer_of(self.machine.shell(agent_update.ask_admind_command(path, email, body)).stdout)
@@ -2079,7 +2025,7 @@ class Rig:
     def was_answered(self, attempt):
         if not attempt.get("messageID"):
             return False
-        reading = self.wait_in_the_guest(
+        reading = self.machine.wait_until(
             AGENT_ANSWER_COMMAND % {
                 "agent_path": COMPANY_CONDITION_PATH,
                 "messenger_path": MESSENGER_DATABASE_PATH,
@@ -2090,14 +2036,6 @@ class Rig:
             timeout_seconds=600,
         )
         return the_agent_answered(reading.stdout)
-
-    def wait_in_the_guest(self, script, is_ready, timeout_seconds=300):
-        deadline = time.monotonic() + timeout_seconds
-        while True:
-            reading = self.machine.shell(script)
-            if is_ready(reading.stdout) or time.monotonic() > deadline:
-                return reading
-            time.sleep(5)
 
     def relay_reported_of_the_gateway(self):
         reported = self.machine.shell(
@@ -2322,23 +2260,6 @@ def judge_what_the_release_under_test_does(rig, step_five):
     rig.observe_the_messenger_paths(step_twelve, rig.plane)
 
 
-def judge_the_deliveries(step, delivered):
-    for record in delivered:
-        if "judgement" not in record and record.get("outcome") != "not sent":
-            continue
-        judgement = record.get("judgement") or {}
-        failed = [finding for finding in judgement.get("findings", []) if finding.get("mismatches")]
-        step.observe(
-            f"{record['name']}: the agent did what was asked",
-            "the task's assertions against the record, the files the agent posted and the inboxes of the people "
-            "it was asked to write to, judged by web/tests/e2e/judge-delivery.ts",
-            "the agent's own reply saying it is done is the claim under test, never the evidence",
-        ).record(
-            judgement.get("passed") is True,
-            json.dumps(failed or judgement.get("refused") or record.get("outcome"), ensure_ascii=False)[:600],
-        )
-
-
 def run_every_step(rig, options, releases, baseline):
     is_an_upgrade = len(releases) > 1
     step_two = rig.step(2, "the machine is in the state the package manager would have left it")
@@ -2363,10 +2284,6 @@ def run_every_step(rig, options, releases, baseline):
         rig.observe_the_host_holds_the_gateway_socket(step_five)
         rig.observe_the_member_round_trip(step_five, rig.plane, is_watching_for_typing=not is_an_upgrade)
         rig.observe_the_agent_answered(step_five)
-        if options.requests:
-            delivered = Deliveries(rig, rig.plane, options.deliveries).deliver_all(load_requests(options.requests, options.only))
-            judge_the_deliveries(rig.step(14, "the agent does what members ask over the messenger"), delivered)
-            return
         revision_before = rig.build_identity_the_guest_reports()
         if not is_an_upgrade:
             judge_what_the_release_under_test_does(rig, step_five)
@@ -2451,21 +2368,6 @@ def main():
         help="judge only whether a second box joins the company by its code, keeps up with it, takes over when the "
         "first goes dark, and leaves the first standing by when it comes back (step 13 in place of every other step "
         "after the install)",
-    )
-    parser.add_argument(
-        "--requests",
-        help="a JSON list of {name, instruction, requesterEmail, answers, attachments, timeoutSeconds, timeZone} sent once "
-        "the host answers, or a directory of task files such as web/tests/e2e/tasks "
-        "(attachments are paths relative to the file; requesterEmail is a seeded member, the administrator when absent; "
-        "timeZone is the IANA zone the message is sent from, this Mac's when absent); for each, the replies, the task's "
-        "event log, every delivered file and the workspace files the replies did not carry are kept under "
-        "--deliveries/<name>, a request carrying assertions is judged and its cleanup run (step 14), and no later step runs",
-    )
-    parser.add_argument("--only", help="comma-separated request names to send from --requests")
-    parser.add_argument(
-        "--deliveries",
-        default=".artifacts/native-install-deliveries",
-        help="where --requests keeps what the agent delivered (default: %(default)s)",
     )
     parser.add_argument("--name", default=f"internkim-installrig-{uuid.uuid4().hex[:8]}")
     parser.add_argument("--keep", action="store_true", help="leave the guest running for autopsy")

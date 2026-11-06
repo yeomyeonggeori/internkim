@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 import { readFileSync, readdirSync } from 'node:fs';
 import { join, resolve } from 'node:path';
-import { isDeliveredFileAssertion, isRecordAssertion, loadTasks, type PilotTask } from '../../pilot/record';
+import { isDeliveredFileAssertion, isRecordAssertion, loadTasks, type AgentTask } from '../../e2e/record';
 
 const repositoryRoot = resolve(import.meta.dir, '../../../..');
 const tasksDirectory = resolve(import.meta.dir, '../../e2e/tasks');
@@ -24,12 +24,12 @@ function tablesInMigrations(): Set<string> {
 	return tables;
 }
 
-function identitiesIn(task: PilotTask): string[] {
+function identitiesIn(task: AgentTask): string[] {
 	const identity = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/g;
 	return [...JSON.stringify(task).matchAll(identity)].map((found) => found[0]);
 }
 
-function isLong(task: PilotTask): boolean {
+function isLong(task: AgentTask): boolean {
 	return task.assertions.some(isDeliveredFileAssertion);
 }
 

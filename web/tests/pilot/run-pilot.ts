@@ -12,7 +12,7 @@ import { memberOfCompanyByEmail } from '../../src/lib/server/member-credential';
 import { armNames, isArmName, type ArmName, type ArmRunContext, type HarnessOutcome } from './arms/arm';
 import { runBluecollar } from './arms/bluecollar';
 import { runClaudeCode } from './arms/claude-code';
-import { cleanUp, judge, loadTasks, localRecord, seedCompanyID, type Judgement, type PilotTask } from './record';
+import { cleanUp, judge, loadTasks, localRecord, seedCompanyID, type Judgement, type AgentTask } from '../e2e/record';
 
 const model = 'z-ai/glm-5.3-flash';
 

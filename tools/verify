@@ -533,10 +533,10 @@ GROUPS = [
             "tools/test-native-install-family",
             "tools/native_install_families.py",
             "tools/native_install_agent_update.py",
-            "tools/native_install_deliveries.py",
-            "tools/native-install-requests-example/*",
+            "tools/e2e_tasks.py",
+            "tools/test-e2e",
             "web/tests/e2e/tasks/*",
-            "tools/tests/test_native_install_deliveries.py",
+            "tools/tests/test_e2e_tasks.py",
             "tools/native_install_messenger.py",
             "tools/native_install_assets/*",
             "internal/admind/host_update.go",
@@ -552,7 +552,7 @@ GROUPS = [
         # tools/test-native-install-family --family <family>
         [
             ["python3", "-m", "unittest", "discover", "-s", "tools/tests", "-p", "test_native_install_rig.py"],
-            ["python3", "-m", "unittest", "discover", "-s", "tools/tests", "-p", "test_native_install_deliveries.py"],
+            ["python3", "-m", "unittest", "discover", "-s", "tools/tests", "-p", "test_e2e_tasks.py"],
         ],
     ),
     Group(

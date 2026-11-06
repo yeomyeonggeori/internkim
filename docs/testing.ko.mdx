@@ -106,21 +106,22 @@ API 테스트와 `-central` UI 테스트는 `tools/with-local-plane`으로 로�
 
 엔드투엔드 과제는 구성원이 에이전트에게 보내는 메시지 하나와, 그 뒤 기록과 파일과
 다른 사람의 받은편지함에 남은 것입니다. 과제는 `web/tests/e2e/tasks/`에 한 파일씩
-있고, 누가 보내는지, 지시, 에이전트가 멈춰서 물으면 그 스레드에 달 대답, 판정 항목, 끝난 뒤 지울 행을
-적습니다.
-`tools/test-native-install`이 일회용 Linux 머신에 패키지를 설치하고 시드 회사를
-붙인 뒤, 과제마다 그 구성원으로 메신저에 보내고 `web/tests/e2e/judge-delivery.ts`로
-판정합니다(14단계). `web/tests/pilot/`의 모델 파일럿도 같은 과제를 읽습니다.
+있고, 누가 보내는지, 지시, 에이전트가 멈춰서 물으면 그 스레드에 달 대답, 판정 항목,
+끝난 뒤 지울 행을 적습니다. `tools/test-e2e`가 과제마다 그 구성원으로 설치된 회사
+호스트에 메신저로 보내고 `web/tests/e2e/judge-delivery.ts`로 판정합니다.
+`web/tests/pilot/`의 모델 파일럿도 같은 과제를 읽습니다.
 
 ```bash
 internkim release packages --format deb --architecture arm64
-monkeys run @test tools/test-native-install --requests web/tests/e2e/tasks --only remote-work-clock-in
+monkeys run @test tools/test-e2e --only remote-work-clock-in
 ```
 
-한 번 돌리면 모델 호출 비용이 들고 첫 과제까지 15분쯤 걸립니다. 그래서 UI 영역처럼
-골라서 돌립니다. 프롬프트, 툴, 에이전트 런타임을 바꾼 변경은 그 변경이 깨뜨릴 수
-있는 과제를 돌리고 어느 것을 돌렸는지 풀 리퀘스트에 적습니다. 에이전트가 만든
-결과물은 `.artifacts/native-install-deliveries/<과제>/`에 남습니다.
+처음 실행하면 일회용 Linux 게스트에 패키지를 설치하고 시드 회사를 붙이느라 15분쯤
+걸립니다. 게스트는 남겨 두므로 다음 실행부터는 바로 과제를 보냅니다. 새 패키지를
+시험할 때는 `--fresh`, 게스트를 내릴 때는 `--remove`를 붙입니다. 과제마다 모델 호출
+비용이 들어서 UI 영역처럼 골라 돌립니다. 프롬프트, 툴, 에이전트 런타임을 바꾼 변경은
+그 변경이 깨뜨릴 수 있는 과제를 돌리고 어느 것을 돌렸는지 풀 리퀘스트에 적습니다.
+에이전트가 만든 결과물은 `.artifacts/e2e/deliveries/<과제>/`에 남습니다.
 
 ## 모델 평가
 

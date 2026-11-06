@@ -558,7 +558,7 @@ class RecordingRig:
 class WhatTheRigJudgesIsTheReleaseUnderTest(unittest.TestCase):
     JUDGMENTS = ["typing", "pdf", "before the roster", "messenger"]
 
-    def judged_in(self, releases, is_an_agent_update=False, requests=None):
+    def judged_in(self, releases, is_an_agent_update=False):
         options = type(
             "Options",
             (),
@@ -567,9 +567,6 @@ class WhatTheRigJudgesIsTheReleaseUnderTest(unittest.TestCase):
                 "without_company": False,
                 "agent_update": is_an_agent_update,
                 "restore_family": "fedora",
-                "requests": requests,
-                "only": None,
-                "deliveries": "deliveries",
             },
         )()
         recording = RecordingRig(releases)
@@ -586,47 +583,6 @@ class WhatTheRigJudgesIsTheReleaseUnderTest(unittest.TestCase):
 
     def test_an_agent_update_judges_the_release_it_moves_to(self):
         self.assertEqual(self.judged_in(["older", "newer"], is_an_agent_update=True), [("pdf", "newer"), ("before the roster", "newer"), ("messenger", "newer")])
-
-    def test_a_batch_of_requests_is_delivered_after_the_member_round_trip_and_nothing_is_judged_after_it(self):
-        delivered = []
-
-        class RecordingDeliveries:
-            def __init__(self, machine, plane, directory):
-                delivered.append(("directory", directory))
-
-            def deliver_all(self, requests):
-                delivered.append(("requests", requests))
-                return []
-
-        requests_path = repository_root / "tools" / "native-install-requests-example" / "requests.json"
-        with mock.patch.object(rig_driver, "Deliveries", RecordingDeliveries):
-            judged = self.judged_in(["release"], requests=str(requests_path))
-        self.assertEqual(judged, [("typing", "release")])
-        self.assertEqual([kind for kind, _ in delivered], ["directory", "requests"])
-        self.assertEqual([request["name"] for request in delivered[1][1]], ["weekly-report", "summarize-notes"])
-
-
-class DeliveryJudgementTests(unittest.TestCase):
-    def verdicts_of(self, delivered):
-        step = rig_driver.Step(14, "the agent does what members ask over the messenger")
-        rig_driver.judge_the_deliveries(step, delivered)
-        return [(observation.name, observation.passed) for observation in step.observations]
-
-    def test_a_judged_task_is_observed_by_its_judgement(self):
-        delivered = [
-            {"name": "remote-work-clock-in", "outcome": "completed", "judgement": {"passed": True, "findings": []}},
-            {"name": "message-a-colleague", "outcome": "completed", "judgement": {"passed": False, "findings": [{"mismatches": ["no message"]}]}},
-        ]
-        self.assertEqual(
-            self.verdicts_of(delivered),
-            [("remote-work-clock-in: the agent did what was asked", True), ("message-a-colleague: the agent did what was asked", False)],
-        )
-
-    def test_a_request_without_assertions_is_kept_and_not_judged(self):
-        self.assertEqual(self.verdicts_of([{"name": "weekly-report", "outcome": "completed"}]), [])
-
-    def test_a_request_the_member_could_not_send_fails(self):
-        self.assertEqual(self.verdicts_of([{"name": "weekly-report", "outcome": "not sent"}]), [("weekly-report: the agent did what was asked", False)])
 
 
 class ArchivedModeTests(unittest.TestCase):
@@ -736,8 +692,9 @@ class MessengerRigTests(unittest.TestCase):
         self.assertNotIn(messenger.WORD_THE_PICTURE_CARRIES.lower(), messenger.PICTURE_QUESTION.lower())
 
     def test_every_action_the_rig_asks_the_guest_for_exists(self):
-        driver_source = (repository_root / "tools" / "test-native-install").read_text()
-        asked = set(re.findall(r'ask_the_messenger\(\s*"(\w+)"', driver_source)) | set(re.findall(r'wait_for_the_messenger\(\s*"(\w+)"', driver_source))
+        callers = ("test-native-install", "native_install_rig.py", "e2e_tasks.py")
+        sources = "".join((repository_root / "tools" / name).read_text() for name in callers)
+        asked = set(re.findall(r'(?:messenger|self)\.(?:ask|wait_for)\(\s*"(\w+)"', sources))
         self.assertTrue(asked)
         self.assertLessEqual(asked, set(messenger.ACTIONS))
 

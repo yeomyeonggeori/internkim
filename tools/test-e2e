@@ -1,0 +1,172 @@
+#!/usr/bin/env python3
+"""Send the e2e tasks to an installed company host as its members, and judge what the agent did.
+
+    monkeys run @test tools/test-e2e [--only <task,...>] [--fresh | --remove]
+
+The first run installs the package under test in a disposable Linux guest and
+gives it the seeded company, about fifteen minutes. The guest is kept, so a
+later run brings this Mac's half of the plane back where the guest expects it
+and sends the tasks at once. --fresh installs anew, which a new package needs;
+--remove takes the guest down.
+"""
+
+import argparse
+import json
+import os
+import subprocess
+import sys
+import uuid
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
+from e2e_tasks import CompanyHost, TaskRunner, load_tasks  # noqa: E402
+from native_install_rig import (  # noqa: E402
+    ARCHITECTURE,
+    DEFAULT_DISTRIBUTION,
+    KERNEL_IMAGE_PATH,
+    READINESS_COMMAND,
+    REPOSITORY_ROOT,
+    RIG_MODEL_KEY,
+    RUNTIME_KERNEL,
+    CompanyPlane,
+    GuestMessenger,
+    Machine,
+    Release,
+    RigFailure,
+    every_probe_answered,
+    install_the_company,
+    rig_model_key,
+)
+
+TASKS_DIRECTORY = REPOSITORY_ROOT / "web" / "tests" / "e2e" / "tasks"
+STATE_DIRECTORY = REPOSITORY_ROOT / ".artifacts" / "e2e"
+HOST_FILE = STATE_DIRECTORY / "host.json"
+DEFAULT_PACKAGE_DIRECTORY = REPOSITORY_ROOT / ".artifacts" / "native-package"
+KERNEL = RUNTIME_KERNEL if ARCHITECTURE == "amd64" else KERNEL_IMAGE_PATH
+
+
+def kept_host():
+    return json.loads(HOST_FILE.read_text()) if HOST_FILE.is_file() else None
+
+
+def machine_named(name):
+    machine = Machine(name, STATE_DIRECTORY / "share", kernel_image_path=KERNEL, distribution=DEFAULT_DISTRIBUTION)
+    machine.created = True
+    return machine
+
+
+def remove_kept_host():
+    held = kept_host()
+    if held:
+        machine_named(held["name"]).destroy()
+        HOST_FILE.unlink()
+
+
+def install_a_company_host(package_directory):
+    remove_kept_host()
+    subprocess.run(["supabase", "db", "reset"], cwd=REPOSITORY_ROOT, check=True)
+    machine = Machine(
+        f"internkim-e2e-{uuid.uuid4().hex[:8]}", STATE_DIRECTORY / "share",
+        kernel_image_path=KERNEL, distribution=DEFAULT_DISTRIBUTION,
+    )
+    (machine.share_directory / "scripts").mkdir(parents=True, exist_ok=True)
+    machine.preflight()
+    machine.create()
+    machine.wait_until_running()
+    install_the_package(machine, package_directory)
+    plane = CompanyPlane(STATE_DIRECTORY / "plane", machine.host_gateway())
+    plane.start()
+    plane.reach_the_record_from(machine)
+    company_id = give_the_company(machine, plane)
+    HOST_FILE.write_text(json.dumps({
+        "name": machine.name, "companyID": company_id, "address": plane.address, "plane": plane.held(),
+    }, indent=2))
+    return machine, plane, company_id
+
+
+def install_the_package(machine, package_directory):
+    release = Release(STATE_DIRECTORY / "release")
+    release.publish(package_directory)
+    release.serve()
+    try:
+        machine.checked_shell(release.install_line(machine.host_gateway()), timeout_seconds=1800)
+    finally:
+        release.stop()
+
+
+def give_the_company(machine, plane):
+    connection = plane.connection_document()
+    company_id = connection["company"]["id"]
+    plane.forget_the_messenger_credentials(company_id)
+    installed = install_the_company(machine, connection)
+    if installed.returncode != 0:
+        raise RigFailure(f"the box did not take the company:\n{installed.stdout}{installed.stderr}")
+    return company_id
+
+
+def return_to_the_kept_host(held):
+    machine = machine_named(held["name"])
+    subprocess.run(["container", "start", machine.name], capture_output=True)
+    machine.wait_until_running()
+    plane = CompanyPlane(STATE_DIRECTORY / "plane", held["address"], held=held["plane"])
+    status, document = plane.read_record(f"/rest/v1/company?select=id&id=eq.{held['companyID']}")
+    if status != 200 or held["companyID"] not in document:
+        raise RigFailure("the kept host's company is gone from the local plane, which a db reset does; run with --fresh")
+    plane.start()
+    if machine.shell("systemctl is-active rig-record-forward").returncode != 0:
+        plane.reach_the_record_from(machine)
+    return machine, plane, held["companyID"]
+
+
+def judged(record):
+    judgement = record.get("judgement") or {}
+    findings = [finding for finding in judgement.get("findings", []) if finding.get("mismatches")]
+    return judgement.get("passed") is True, findings or judgement.get("refused") or record.get("outcome")
+
+
+def report(records):
+    passed_count = 0
+    for record in records:
+        passed, detail = judged(record)
+        passed_count += passed
+        print(f"{'✓' if passed else '✗'} {record['name']}")
+        if not passed:
+            print(f"    {json.dumps(detail, ensure_ascii=False)[:600]}")
+    print(f"\n{passed_count} of {len(records)} passed; what each delivered is under {STATE_DIRECTORY / 'deliveries'}")
+    return passed_count == len(records)
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser.add_argument("--only", help="comma-separated task names; every task when absent")
+    parser.add_argument("--package-directory", default=str(DEFAULT_PACKAGE_DIRECTORY), help="the package --fresh installs")
+    parser.add_argument("--fresh", action="store_true", help="install a new host instead of returning to the kept one")
+    parser.add_argument("--remove", action="store_true", help="take the kept host down and stop")
+    options = parser.parse_args()
+    if not os.environ.get("LOCAL_PLANE_LOCK_HOLDER"):
+        with_local_plane = str(REPOSITORY_ROOT / "tools" / "with-local-plane")
+        os.execv(with_local_plane, [with_local_plane, str(Path(__file__).resolve()), *sys.argv[1:]])
+    if options.remove:
+        remove_kept_host()
+        return 0
+    if rig_model_key() == RIG_MODEL_KEY:
+        print("✗ the agent answers through a model; run under `monkeys run @test tools/test-e2e`", file=sys.stderr)
+        return 2
+    tasks = load_tasks(TASKS_DIRECTORY, options.only)
+    held = None if options.fresh else kept_host()
+    machine, plane, company_id = (
+        return_to_the_kept_host(held) if held else install_a_company_host(Path(options.package_directory))
+    )
+    try:
+        machine.wait_until(READINESS_COMMAND, every_probe_answered, timeout_seconds=600)
+        host = CompanyHost(machine, GuestMessenger(machine), company_id)
+        records = TaskRunner(host, plane, STATE_DIRECTORY / "deliveries").run_all(tasks)
+    finally:
+        plane.stop()
+    print(f"the host {machine.name} stays up for the next run; --fresh installs anew, --remove takes it down\n")
+    return 0 if report(records) else 1
+
+
+if __name__ == "__main__":
+    sys.exit(main())
