@@ -568,6 +568,7 @@ class WhatTheRigJudgesIsTheReleaseUnderTest(unittest.TestCase):
                 "agent_update": is_an_agent_update,
                 "restore_family": "fedora",
                 "requests": requests,
+                "only": None,
                 "deliveries": "deliveries",
             },
         )()
@@ -595,6 +596,7 @@ class WhatTheRigJudgesIsTheReleaseUnderTest(unittest.TestCase):
 
             def deliver_all(self, requests):
                 delivered.append(("requests", requests))
+                return []
 
         requests_path = repository_root / "tools" / "native-install-requests-example" / "requests.json"
         with mock.patch.object(rig_driver, "Deliveries", RecordingDeliveries):
@@ -602,6 +604,29 @@ class WhatTheRigJudgesIsTheReleaseUnderTest(unittest.TestCase):
         self.assertEqual(judged, [("typing", "release")])
         self.assertEqual([kind for kind, _ in delivered], ["directory", "requests"])
         self.assertEqual([request["name"] for request in delivered[1][1]], ["weekly-report", "summarize-notes"])
+
+
+class DeliveryJudgementTests(unittest.TestCase):
+    def verdicts_of(self, delivered):
+        step = rig_driver.Step(14, "the agent does what members ask over the messenger")
+        rig_driver.judge_the_deliveries(step, delivered)
+        return [(observation.name, observation.passed) for observation in step.observations]
+
+    def test_a_judged_task_is_observed_by_its_judgement(self):
+        delivered = [
+            {"name": "remote-work-clock-in", "outcome": "completed", "judgement": {"passed": True, "findings": []}},
+            {"name": "message-a-colleague", "outcome": "completed", "judgement": {"passed": False, "findings": [{"mismatches": ["no message"]}]}},
+        ]
+        self.assertEqual(
+            self.verdicts_of(delivered),
+            [("remote-work-clock-in: the agent did what was asked", True), ("message-a-colleague: the agent did what was asked", False)],
+        )
+
+    def test_a_request_without_assertions_is_kept_and_not_judged(self):
+        self.assertEqual(self.verdicts_of([{"name": "weekly-report", "outcome": "completed"}]), [])
+
+    def test_a_request_the_member_could_not_send_fails(self):
+        self.assertEqual(self.verdicts_of([{"name": "weekly-report", "outcome": "not sent"}]), [("weekly-report: the agent did what was asked", False)])
 
 
 class ArchivedModeTests(unittest.TestCase):

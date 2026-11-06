@@ -1,0 +1,12 @@
+{
+	"name": "message-a-colleague",
+	"requesterEmail": "member2@example.com",
+	"instruction": "박예시님한테 내일 주간회의가 오후 4시로 옮겨졌다고 전해줘.",
+	"answers": ["응, 보내줘."],
+	"assertions": [
+		{
+			"inboxOf": { "email": "member3@example.com", "mentions": ["4시"] }
+		}
+	],
+	"cleanup": []
+}

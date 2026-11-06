@@ -95,8 +95,8 @@ patterns a promise: they name every file the group reads.
 cd web
 bun run test                       # unit and conventions
 bun run test:api                   # API, against the local plane reset to this checkout
-bun run test:ui                   # every UI test
-bun run test:ui tests/ui/crm     # one area
+bun run test:ui                    # every UI test
+bun run test:ui tests/ui/crm       # one area
 go test ./...                      # Go, from the repository root
 .dependency/internkim-plugin/tests/run
 ```
@@ -104,6 +104,28 @@ go test ./...                      # Go, from the repository root
 The API and `-central` UI tests take the local plane with
 `tools/with-local-plane`, which starts it if it is stopped and makes a second
 checkout wait its turn.
+
+## End to end
+
+An end-to-end task is a message a member sends the agent, and what the record,
+the files and other people's inboxes hold after it. The tasks live in
+`web/tests/e2e/tasks/`, one file each: who sends it, the instruction, what
+they answer if the agent stops to ask, the assertions and the rows to remove
+afterwards. `tools/test-native-install`
+installs the package in a disposable Linux machine, gives it the seeded company,
+sends each task over the messenger as its member, and judges it with
+`web/tests/e2e/judge-delivery.ts` (step 14). The model pilot in
+`web/tests/pilot/` reads the same tasks.
+
+```bash
+internkim release packages --format deb --architecture arm64
+monkeys run @test tools/test-native-install --requests web/tests/e2e/tasks --only remote-work-clock-in
+```
+
+A run costs model calls and about fifteen minutes before the first task, so it
+is chosen like the UI areas: a change to a prompt, a tool or the agent's runtime
+runs the tasks it can break and says which in the pull request. What the agent
+delivered is kept under `.artifacts/native-install-deliveries/<task>/`.
 
 ## Model evaluations
 
