@@ -377,6 +377,10 @@
     "process": "tools/native-install-member-session.ts",
     "description": "the member row the session's attachments are kept under in the object store; empty when the session sends no attachment"
   },
+  "MEMBER_SESSION_PARENT_ID": {
+    "process": "tools/native-install-member-session.ts",
+    "description": "the message the session's message replies to in its thread, as a person answering the agent's question does; empty for a new message"
+  },
   "MEMBER_SESSION_ATTACHMENTS": {
     "process": "tools/native-install-member-session.ts",
     "description": "a JSON list of {path, filename, contentType} the native-install rig's member session uploads the way the web app does and sends with its message; defaults to none"
