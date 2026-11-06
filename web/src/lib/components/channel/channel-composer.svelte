@@ -42,6 +42,7 @@
 	import SmilePlusIcon from '@lucide/svelte/icons/smile-plus';
 	import XIcon from '@lucide/svelte/icons/x';
 	import { feelHaptic } from '$lib/native-shell/haptics';
+	import { hideKeyboardAccessoryBarInside } from '$lib/native-shell/keyboard-accessory-bar';
 	import { onDestroy, onMount } from 'svelte';
 	import { MediaQuery } from 'svelte/reactivity';
 
@@ -192,7 +193,7 @@
 	onDestroy(() => pendingAttachments.clear());
 </script>
 
-<form bind:this={form} onsubmit={submit} class="channel-composer relative px-3 py-2 sm:p-3">
+<form bind:this={form} onsubmit={submit} use:hideKeyboardAccessoryBarInside class="channel-composer relative px-3 py-2 sm:p-3">
 	<input bind:this={fileInput} type="file" multiple class="hidden" onchange={handleFilesSelected} />
 	{#if mentions.isOpen}
 		<MentionPopup

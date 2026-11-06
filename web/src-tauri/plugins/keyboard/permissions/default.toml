@@ -1,3 +1,3 @@
 [default]
-description = "Lets the web app hear when the on-screen keyboard opens and closes"
-permissions = ["allow-register-listener", "allow-remove-listener"]
+description = "Lets the web app hear when the on-screen keyboard opens and closes, and hide the iOS keyboard accessory bar"
+permissions = ["allow-register-listener", "allow-remove-listener", "allow-set-accessory-bar"]
