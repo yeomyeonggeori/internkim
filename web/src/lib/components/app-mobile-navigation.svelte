@@ -154,7 +154,7 @@
 			<Sheet.Title>{text.more}</Sheet.Title>
 			<Sheet.Description class="sr-only">{text.moreDescription}</Sheet.Description>
 		</Sheet.Header>
-		<div class="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto p-3">
+		<div class="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto p-3 pb-[calc(env(safe-area-inset-bottom)+0.75rem)]">
 			{#if onSearch}
 				<Button variant="outline" class="justify-start" onclick={() => void searchFromMobile()}>
 					<SearchIcon data-icon="inline-start" />{shellText.search}
@@ -165,15 +165,17 @@
 					{@render moreSheetNavigationLink(item)}
 				{/each}
 			</nav>
-			<div class="h-px bg-sidebar-border" aria-hidden="true"></div>
-			<div class="flex items-center gap-2">
-				<Button variant="ghost" size="icon" aria-label={shellText.refresh} onclick={refreshFromMobile}>
-					<RefreshCwIcon class={pageActions.isRefreshing ? 'animate-spin' : ''} />
-				</Button>
-				<LanguageSwitcher variant="ghost" languages={localeOptions.map((option) => ({ code: option.value, label: option.label }))} value={currentLocale.value} ariaLabel={shellText.changeLanguage} onChange={selectLocale} />
-				<LightSwitch variant="ghost" />
+			<div class="mt-auto flex flex-col gap-4">
+				<div class="h-px bg-sidebar-border" aria-hidden="true"></div>
+				<div class="flex items-center gap-2">
+					<Button variant="ghost" size="icon" aria-label={shellText.refresh} onclick={refreshFromMobile}>
+						<RefreshCwIcon class={pageActions.isRefreshing ? 'animate-spin' : ''} />
+					</Button>
+					<LanguageSwitcher variant="ghost" languages={localeOptions.map((option) => ({ code: option.value, label: option.label }))} value={currentLocale.value} ariaLabel={shellText.changeLanguage} onChange={selectLocale} />
+					<LightSwitch variant="ghost" />
+				</div>
+				{@render mobileAccountActions()}
 			</div>
-			{@render mobileAccountActions()}
 		</div>
 	</Sheet.Content>
 </Sheet.Root>
