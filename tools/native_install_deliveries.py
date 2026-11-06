@@ -250,7 +250,8 @@ class Deliveries:
                 break
             print(f"    {status_of_latest(tasks)}, answering {answer!r}", flush=True)
             self.plane.member_session(
-                self.rig.company_id, answer, member_id=member_id, time_zone=request.get("timeZone", ""), email=email
+                self.rig.company_id, answer, member_id=member_id, time_zone=request.get("timeZone", ""), email=email,
+                parent_id=message_id,
             )
             tasks = self.follow_the_task(conversation, posted_at, message_id, timeout_seconds, before=ledger_state(tasks))
         time.sleep(SETTLE_SECONDS)
