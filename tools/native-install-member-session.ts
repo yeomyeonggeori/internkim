@@ -34,6 +34,7 @@ const settings = {
 	answerTimeoutMilliseconds: Number(process.env.MEMBER_SESSION_ANSWER_TIMEOUT_MS ?? 60_000),
 	typingWaitMilliseconds: Number(process.env.MEMBER_SESSION_TYPING_WAIT_MS ?? 0),
 	memberID: process.env.MEMBER_SESSION_MEMBER_ID?.trim() ?? '',
+	parentID: process.env.MEMBER_SESSION_PARENT_ID?.trim() ?? '',
 	timeZone: process.env.MEMBER_SESSION_TIME_ZONE?.trim() || Intl.DateTimeFormat().resolvedOptions().timeZone,
 	attachmentFiles: JSON.parse(process.env.MEMBER_SESSION_ATTACHMENTS ?? '[]') as AttachmentFile[]
 };
@@ -224,6 +225,7 @@ const conversationID = answerField(conversation, 'id');
 const sent = await connection.ask('person.message.send', {
 	conversationID,
 	body: settings.messageText,
+	...(settings.parentID ? { parentID: settings.parentID } : {}),
 	...(attachments.length > 0 ? { attachments } : {}),
 	timeZone: settings.timeZone
 });
