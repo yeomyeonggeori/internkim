@@ -145,7 +145,9 @@
 	}
 
 	async function revealSearchMatch(match: ConversationSearchMatch): Promise<boolean> {
-		return (await channelView?.revealMessage(match.id, match.threadRootId)) ?? false;
+		const isRevealed = (await channelView?.revealMessage(match.id, match.threadRootId)) ?? false;
+		if (isRevealed && isMobile.current) isSearchOpen = false;
+		return isRevealed;
 	}
 	let cacheGeneration = $state(0);
 	let isNewDirectMessageOpen = $state(false);
