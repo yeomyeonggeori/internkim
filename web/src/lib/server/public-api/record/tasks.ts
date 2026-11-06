@@ -62,6 +62,25 @@ export class WriteNotReadBack extends Error {
 	}
 }
 
+type FailedRead = { status: number; statusText: string; error: { message: string; code?: string } };
+
+export class RecordReadFailed extends Error {
+	readonly errorCode = 'record_read_failed';
+	readonly failureStage = 'record_read';
+	readonly retryable = true;
+	readonly safeRetry = true;
+
+	constructor(answer: FailedRead) {
+		super(descriptionOfFailedRead(answer));
+		this.name = 'RecordReadFailed';
+	}
+}
+
+function descriptionOfFailedRead({ status, statusText, error }: FailedRead): string {
+	const code = error.code ? ` (${error.code})` : '';
+	return `the record answered ${status} ${statusText}${code}: ${error.message || 'with no message'}`;
+}
+
 export function rowOfSavedID(rows: TaskRow[], savedID: string, subject: 'task' | 'event'): TaskRow {
 	const saved = rows.find((row) => row.id === savedID);
 	if (!saved) throw new WriteNotReadBack(subject);
