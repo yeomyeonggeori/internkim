@@ -1,9 +1,11 @@
 import { z } from 'zod';
-import type { UnitAmountOfPrice } from './stripe-billing-events';
+import type { InvoicePaidBy, StripeLookups, UnitAmountOfPrice } from './stripe-event-contract';
 
 const stripeAPI = 'https://api.stripe.com/v1';
 
 const price = z.object({ unit_amount_decimal: z.string() });
+
+const invoicePayments = z.object({ data: z.array(z.object({ invoice: z.unknown() })) });
 
 export class StripeRefusal extends Error {
 	constructor(
@@ -38,4 +40,21 @@ export async function askStripe(
 
 export function unitAmountOfStripePrice(secretKey: string): UnitAmountOfPrice {
 	return async (priceID) => Number(price.parse(await askStripe(secretKey, 'GET', `/prices/${priceID}`)).unit_amount_decimal);
+}
+
+export function invoicePaidByStripePayment(secretKey: string): InvoicePaidBy {
+	return async (paymentIntentID) => {
+		const query = new URLSearchParams({
+			'payment[type]': 'payment_intent',
+			'payment[payment_intent]': paymentIntentID,
+			'expand[]': 'data.invoice',
+			limit: '1'
+		});
+		const payments = invoicePayments.parse(await askStripe(secretKey, 'GET', `/invoice_payments?${query}`));
+		return payments.data[0]?.invoice ?? null;
+	};
+}
+
+export function stripeLookups(secretKey: string): StripeLookups {
+	return { unitAmountOfPrice: unitAmountOfStripePrice(secretKey), invoicePaidBy: invoicePaidByStripePayment(secretKey) };
 }

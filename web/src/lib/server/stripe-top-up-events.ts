@@ -2,7 +2,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { z } from 'zod';
 import { creditsBoughtWith } from './stripe-top-up';
 
-const topUpInvoice = z.object({
+export const topUpInvoice = z.object({
 	id: z.string(),
 	currency: z.string(),
 	amount_paid: z.number().int(),
