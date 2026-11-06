@@ -149,6 +149,18 @@ for (const width of everyPhoneScreen) {
 	});
 }
 
+test('tapping attach while typing keeps the composer focused and its draft', async ({ page }) => {
+	await openConversation(page, narrowestWidth);
+	const composer = page.getByRole('combobox', { name: '메시지를 입력하세요' });
+	await composer.fill('첨부하기 전에 쓰던 글');
+	await composer.focus();
+	const chooser = page.waitForEvent('filechooser');
+	await page.getByRole('button', { name: '파일 첨부' }).click();
+	await chooser;
+	await expect(composer).toBeFocused();
+	await expect(composer).toHaveText('첨부하기 전에 쓰던 글');
+});
+
 test('mobile More retains global actions and returns focus', async ({ page }) => {
 	await openConversation(page, 390);
 	const more = page.getByRole('button', { name: '더보기', exact: true });
