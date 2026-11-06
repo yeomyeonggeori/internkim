@@ -349,6 +349,7 @@
 		size="icon-sm"
 		class={className}
 		onclick={() => feelHaptic('touch')}
+		onpointerdown={(event) => event.preventDefault()}
 		disabled={disabled || (value.trim().length === 0 && pendingAttachments.items.length === 0) || isSending}
 	>
 		<ArrowUpIcon />
