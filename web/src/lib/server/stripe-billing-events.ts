@@ -1,5 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { z } from 'zod';
+import { applyFailedTopUp, applyPaidTopUp, isTopUpInvoice } from './stripe-top-up-events';
 
 export const subscriptionCreditsPerMember = 10_000;
 
@@ -66,9 +67,25 @@ export async function applyStripeEvent(
 ): Promise<StripeEventOutcome> {
 	const event = stripeEvent.safeParse(payload);
 	if (!event.success) throw new StripeEventRefused('the body is not a Stripe event');
+	if (isTopUpInvoice(event.data.data.object)) return applyTopUpEvent(client, event.data);
 	if (event.data.type === 'invoice.paid') return applyPaidInvoice(client, event.data.id, event.data.data.object, unitAmountOfPrice);
 	if (event.data.type.startsWith('customer.subscription.')) {
 		return applySubscriptionChange(client, event.data, event.data.data.object);
+	}
+	return 'ignored';
+}
+
+async function applyTopUpEvent(
+	client: SupabaseClient,
+	event: { id: string; type: string; data: { object: unknown } }
+): Promise<StripeEventOutcome> {
+	if (event.type === 'invoice.paid') {
+		await applyPaidTopUp(client, event.id, event.data.object);
+		return 'applied';
+	}
+	if (event.type === 'invoice.payment_failed') {
+		await applyFailedTopUp(client, event.id, event.data.object);
+		return 'applied';
 	}
 	return 'ignored';
 }
