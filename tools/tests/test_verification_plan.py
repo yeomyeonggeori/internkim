@@ -109,6 +109,7 @@ AN_IMPORT_GRAPH = {
     "web/src/lib/components/app-rail.svelte": {"web/src/routes/+layout.svelte"},
     "web/src/app.css": {"web/src/routes/+layout.svelte"},
     "web/src/lib/crm/money.ts": {"web/src/routes/crm/+page.svelte", "web/src/routes/api/v1/tools/+server.ts"},
+    "web/src/lib/components/channel/channel.svelte": {"web/src/routes/crm/+page.svelte", "web/src/routes/assistant/+page.svelte"},
     "web/tests/e2e/support/central-test-utils.ts": {"web/tests/e2e/crm/crm-central.spec.ts"},
 }
 
@@ -147,12 +148,18 @@ class VerificationPlanTests(unittest.TestCase):
                 "web/src/routes/+layout.svelte",
                 "web/src/routes/crm/crm-search.svelte.ts",
                 "web/src/lib/crm/money.ts",
-                "web/src/routes/admin/admin-page.svelte",
+                "web/src/routes/auth/claim/+page.svelte",
+                "web/src/routes/api/v1/tools/+server.ts",
                 "web/tests/e2e/support/central-test-utils.ts",
                 "web/playwright.config.ts",
                 "web/bun.lock",
             ]:
                 self.assertEqual(group.narrowed_to(["web/src/routes/crm/text.ts", shared]).commands, [["scripts/e2e.sh"]], shared)
+
+    def test_a_route_no_spec_covers_runs_the_shell_beside_the_areas_it_reaches(self):
+        with selecting_end_to_end_areas_from(AN_IMPORT_GRAPH) as group:
+            self.assertEqual(group.narrowed_to(["web/src/routes/admin/admin-page.svelte"]).commands, [["scripts/e2e.sh", "tests/e2e/shell"]])
+            self.assertEqual(group.narrowed_to(["web/src/lib/components/channel/channel.svelte"]).commands, [["scripts/e2e.sh", "tests/e2e/crm", "tests/e2e/shell"]])
 
     def test_a_database_change_runs_only_the_specs_on_the_local_plane(self):
         with selecting_end_to_end_areas_from(AN_IMPORT_GRAPH) as group:
@@ -177,6 +184,7 @@ class VerificationPlanTests(unittest.TestCase):
                 "web/src/lib/i18n/page-text.svelte.ts": "export const text = 1;\n",
                 "web/src/lib/utils.ts": "export const cn = 1;\n",
                 "web/src/lib/crm/index.ts": "export * from '../task/task-board';\n",
+                "web/src/lib/crm/types.ts": "import type { board } from '../task/task-board';\nexport type {\n\tboard\n} from '../task/task-board';\n",
                 "web/src/routes/crm/+page.svelte": "<script lang=\"ts\">\n\timport { board } from '$lib/task/task-board';\n\timport { text } from '$lib/i18n/page-text.svelte';\n\timport { cn } from '$lib/utils.js';\n\tconst lazy = import('$lib/crm');\n</script>\n",
                 "web/tests/e2e/crm/crm-central.spec.ts": "import { test } from '@playwright/test';\nimport '../../../src/lib/utils';\n",
             }
