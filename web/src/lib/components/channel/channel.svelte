@@ -124,7 +124,7 @@
 	let agentWorkingSince = $state<number | null>(null);
 	const isAgentWorking = $derived(agentWorkingSince !== null);
 	let liveWork = $state<LiveWork[]>([]);
-	const agent = $derived(participants.find((person) => person.isAgent));
+	let agent = $state<ChannelParticipant | undefined>();
 	const nameByExternalID = $derived(new Map(participants.map((person) => [person.externalID, person.name])));
 	const typing = createChannelTyping(
 		() => channelId,
@@ -295,6 +295,7 @@
 			await requireCurrentMessengerScope(scope);
 			if (!isCurrentRead(requestedChannelID, generation, messageCacheGeneration, readSequence)) return;
 			currentUserID = conversation.currentUserID;
+			agent = conversation.agent ?? agent;
 			setCachedReaderID(conversation.currentUserID);
 			const latestIncoming = conversation.messages.at(-1);
 			if (latestIncoming && !isMine(latestIncoming) && latestIncoming.id !== messages.at(-1)?.id) {
@@ -904,13 +905,7 @@
 		<div class="py-1">
 			<Message.Root align="start">
 				{#if agent}
-					{@render senderAvatar({
-						id: agent.externalID,
-						name: agent.name,
-						externalID: agent.externalID,
-						memberID: agent.memberID,
-						avatarURL: agent.avatarURL
-					})}
+					{@render senderAvatar(agent)}
 				{:else}
 					<Message.Avatar />
 				{/if}
