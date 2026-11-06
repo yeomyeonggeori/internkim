@@ -20,7 +20,7 @@ describe('first-read request dependencies', () => {
 		expect(await outcome('disconnect')).toEqual({ sent: 2, failures: ['HostUnreachableError', 'HostUnreachableError'] });
 	}, ownProcessTimeoutMilliseconds);
 	test('conversation posts load alongside the directory and render before emoji', async () => {
-		expect(await outcome('conversation')).toEqual({ postsStarted: true, text: 'Message text', emojiBefore: 0, emojiAfter: 1 });
+		expect(await outcome('conversation')).toEqual({ postsStarted: true, text: 'Message text', agent: 'agent', emojiBefore: 0, emojiAfter: 1 });
 	}, ownProcessTimeoutMilliseconds);
 	test('concurrent emoji callers share the pending name request', async () => {
 		expect(await outcome('emoji')).toEqual({ requests: 1, secondResolvedEarly: false, image: 'data:image/png;base64,test' });
