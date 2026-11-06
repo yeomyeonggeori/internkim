@@ -1,15 +1,17 @@
-"""Send a list of requests as the member and keep what the agent delivers for each.
+"""Send each e2e task to an installed company host as its member, and judge what the agent did.
 
-Each request is answered in turn: its message is sent over the member's own
-socket, with any attachments carried the way the web app carries them, the
-agent's task for it is followed to an end, and every file the agent posted in
-reply is copied out of the guest under the request's name, beside the request,
-the replies and the task's own ledger. Files the agent wrote in the workspace
-during the request and did not post are kept beside them, under workspace/.
+A task is one file under web/tests/e2e/tasks. Its instruction goes over the
+member's own socket, the agent's runs in that conversation are followed to an
+end, and when the agent stops to ask, the task's answers go in the thread under
+the request. What came back is kept under the task's name: the replies, the
+ledger, every file the agent posted and the workspace files it wrote. Then
+web/tests/e2e/judge-delivery.ts judges it against the record and removes what
+the task asks to remove.
 """
 
 import hashlib
 import json
+from dataclasses import dataclass
 import mimetypes
 import os
 import shlex
@@ -19,7 +21,14 @@ import time
 import urllib.parse
 from pathlib import Path
 
-from native_install_rig import COMPANY_CONDITION_PATH, MESSENGER_DATABASE_PATH, REPOSITORY_ROOT, SHARE_PATH
+from native_install_rig import (
+    COMPANY_CONDITION_PATH,
+    MESSENGER_DATABASE_PATH,
+    REPOSITORY_ROOT,
+    SHARE_PATH,
+    GuestMessenger,
+    Machine,
+)
 
 ENDED_STATUSES = {"completed", "failed", "cancelled", "waiting_user_input", "blocked", "interrupted", "waiting_approval"}
 STILL_OPEN_STATUSES = {"waiting_user_input", "blocked", "waiting_approval", "interrupted"}
@@ -29,14 +38,13 @@ RELAY_ADDRESS = "http://127.0.0.1:3000"
 WORKSPACE_ROOT = "/workspace"
 WORKSPACE_DIRECTORY_NAME = "workspace"
 JUDGE_SCRIPT = "tests/e2e/judge-delivery.ts"
-MESSENGER = "buzz"
 TASK_FIELDS = ("name", "requesterEmail", "instruction", "answers", "assertions", "cleanup")
 
 TASK_QUERY = """
 select coalesce(json_agg(row_to_json(found)), '[]'::json) from (
   select task_run_id, status, created_at, updated_at, failure_reason, left(coalesce(result, ''), 4000) as result
   from task_run
-  where origin_conversation_id = :'messenger' || ':' || :'conversation' and created_at >= (:'posted_at')::timestamptz
+  where split_part(origin_conversation_id, ':', 2) = :'conversation' and created_at >= (:'posted_at')::timestamptz
   order by created_at
 ) found
 """
@@ -85,7 +93,7 @@ set -u
 target=%(target)s
 skipped=" %(carried)s "
 mkdir -p "$target"
-find %(root)s -xdev -type f -newermt @%(since)s \
+find %(root)s -xdev -type f -newermt %(since)s \
   -not -path '%(root)s/.blueclaw/*' -not -path '*/.venv/*' -not -path '*/node_modules/*' -not -path '*/.git/*' 2>/dev/null |
 while IFS= read -r file; do
   digest="$(sha256sum "$file" | cut -d' ' -f1)"
@@ -95,33 +103,27 @@ done
 """
 
 
-def load_requests(path, only=None):
-    source = Path(path).resolve()
-    if source.is_dir():
-        base = source
-        document = [json.loads(task.read_text()) for task in sorted(source.glob("*.json"))]
-    else:
-        base = source.parent
-        document = json.loads(source.read_text())
-    if not isinstance(document, list):
-        raise ValueError(f"{path} must hold a JSON list of requests or be a directory of tasks")
-    requests = [parse_request(base, entry) for entry in document]
+def load_tasks(directory, only=None):
+    source = Path(directory).resolve()
+    tasks = [parse_task(source, json.loads(path.read_text())) for path in sorted(source.glob("*.json"))]
     if not only:
-        return requests
+        return tasks
     chosen = set(only.split(","))
-    unknown = chosen - {request["name"] for request in requests}
+    unknown = chosen - {task["name"] for task in tasks}
     if unknown:
-        raise ValueError(f"no request named {', '.join(sorted(unknown))} in {path}")
-    return [request for request in requests if request["name"] in chosen]
+        raise ValueError(f"no task named {', '.join(sorted(unknown))} in {directory}")
+    return [task for task in tasks if task["name"] in chosen]
 
 
-def parse_request(base, entry):
+def parse_task(base, entry):
     name = entry.get("name") if isinstance(entry, dict) else None
-    instruction = entry.get("instruction") if isinstance(entry, dict) else None
     if not isinstance(name, str) or Path(name).name != name or name in ("", ".", ".."):
-        raise ValueError(f"a request needs a name that is a single path segment, got {name!r}")
-    if not isinstance(instruction, str) or not instruction.strip():
-        raise ValueError(f"request {name} needs an instruction")
+        raise ValueError(f"a task needs a name that is a single path segment, got {name!r}")
+    for field in ("requesterEmail", "instruction"):
+        if not isinstance(entry.get(field), str) or not entry[field].strip():
+            raise ValueError(f"task {name} needs {field}")
+    if not entry.get("assertions"):
+        raise ValueError(f"task {name} needs at least one assertion")
     return {
         **entry,
         "attachments": [attachment_file(base, attachment) for attachment in entry.get("attachments", [])],
@@ -136,12 +138,12 @@ def ledger_state(tasks):
     return [(task.get("task_run_id"), task.get("status"), task.get("updated_at")) for task in tasks if isinstance(task, dict)]
 
 
-def workspace_snapshot_command(target, since_epoch, carried_digests):
+def workspace_snapshot_command(target, since, carried_digests):
     return WORKSPACE_SNAPSHOT_COMMAND % {
         "target": shlex.quote(target),
         "carried": " ".join(sorted(digest for digest in carried_digests if digest)),
         "root": WORKSPACE_ROOT,
-        "since": int(since_epoch),
+        "since": shlex.quote(since),
     }
 
 
@@ -173,17 +175,21 @@ def media_of(tags):
     return found
 
 
-class Deliveries:
-    def __init__(self, rig, plane, deliveries_directory):
-        self.rig = rig
+@dataclass
+class CompanyHost:
+    machine: Machine
+    messenger: GuestMessenger
+    company_id: str
+
+
+class TaskRunner:
+    def __init__(self, host, plane, deliveries_directory):
+        self.host = host
+        self.machine = host.machine
         self.plane = plane
         self.directory = Path(deliveries_directory).resolve()
         self.directory.mkdir(parents=True, exist_ok=True)
-        rig.give_the_guest_the_messenger_probe()
-
-    @property
-    def machine(self):
-        return self.rig.machine
+        host.messenger.give_the_probe()
 
     def query(self, environment_path, sql, **variables):
         query_name = f"query-{hashlib.sha256((sql + json.dumps(variables, sort_keys=True)).encode()).hexdigest()[:16]}.sql"
@@ -198,29 +204,29 @@ class Deliveries:
         except (json.JSONDecodeError, IndexError):
             return [{"unreadable": text[-1000:]}]
 
-    def deliver_all(self, requests):
+    def run_all(self, tasks):
         summary = []
-        for request in requests:
-            summary.append(self.deliver(request))
+        for task in tasks:
+            summary.append(self.run(task))
             (self.directory / "summary.json").write_text(json.dumps(summary, ensure_ascii=False, indent=2))
         return summary
 
     def requester_ready_to_send(self, email):
-        member_id = self.plane.member_identity(self.rig.company_id, email)
+        member_id = self.plane.member_identity(self.host.company_id, email)
         self.plane.wait_until_the_member_holds_a_messenger_credential(member_id)
-        self.rig.wait_until_the_relay_knows(email)
+        self.host.messenger.wait_until_the_relay_knows(email)
         return member_id
 
-    def deliver(self, request):
+    def run(self, request):
         case_directory = self.directory / request["name"]
         case_directory.mkdir(parents=True, exist_ok=True)
         (case_directory / "request.txt").write_text(request["instruction"])
-        email = request.get("requesterEmail") or self.plane.administrator_email
+        email = request["requesterEmail"]
         member_id = self.requester_ready_to_send(email)
-        sent_at = time.time() - 5
+        started = time.monotonic()
         print(f"  → {request['name']} as {email}", flush=True)
         session = self.plane.member_session(
-            self.rig.company_id,
+            self.host.company_id,
             request["instruction"],
             attachments=request["attachments"],
             member_id=member_id,
@@ -250,12 +256,12 @@ class Deliveries:
                 break
             print(f"    {status_of_latest(tasks)}, answering {answer!r}", flush=True)
             self.plane.member_session(
-                self.rig.company_id, answer, member_id=member_id, time_zone=request.get("timeZone", ""), email=email,
+                self.host.company_id, answer, member_id=member_id, time_zone=request.get("timeZone", ""), email=email,
                 parent_id=message_id,
             )
             tasks = self.follow_the_task(conversation, posted_at, message_id, timeout_seconds, before=ledger_state(tasks))
         time.sleep(SETTLE_SECONDS)
-        tasks = self.query(COMPANY_CONDITION_PATH, TASK_QUERY, messenger=MESSENGER, conversation=conversation, posted_at=posted_at) or tasks
+        tasks = self.query(COMPANY_CONDITION_PATH, TASK_QUERY, conversation=conversation, posted_at=posted_at) or tasks
         replies = self.query(MESSENGER_DATABASE_PATH, REPLIES_QUERY, message=message_id)
         record["tasks"] = tasks
         record["replies"] = replies
@@ -265,23 +271,22 @@ class Deliveries:
             if isinstance(task, dict) and task.get("task_run_id")
         }
         record["files"] = self.fetch_media(case_directory, replies)
-        record["workspaceFiles"] = self.snapshot_workspace(case_directory, sent_at, record["files"])
-        record["elapsedSeconds"] = round(time.time() - sent_at)
+        record["workspaceFiles"] = self.snapshot_workspace(case_directory, posted_at, record["files"])
+        record["elapsedSeconds"] = round(time.monotonic() - started)
         record["outcome"] = status_of_latest(tasks)
         if record["outcome"] in STILL_OPEN_STATUSES or record["outcome"] in ("running", "planned", "no task"):
-            self.plane.member_session(self.rig.company_id, "/stop-all", member_id=member_id, email=email)
+            self.plane.member_session(self.host.company_id, "/stop-all", member_id=member_id, email=email)
             time.sleep(10)
         print(f"    {record['outcome']} in {record['elapsedSeconds']}s, files {[file.get('name') for file in record['files']]}", flush=True)
-        if "assertions" in request:
-            record["inboxes"] = self.read_inboxes(request["assertions"], posted_at)
-            self.keep(case_directory, record)
-            record["judgement"] = self.judge(case_directory, request)
-            print(f"    {'passed' if record['judgement'].get('passed') else 'failed'}", flush=True)
+        record["inboxes"] = self.read_inboxes(request["assertions"], posted_at)
+        self.keep(case_directory, record)
+        record["judgement"] = self.judge(case_directory, request)
+        print(f"    {'passed' if record['judgement'].get('passed') else 'failed'}", flush=True)
         return self.keep(case_directory, record)
 
     def read_inboxes(self, assertions, since):
         emails = sorted({assertion["inboxOf"]["email"] for assertion in assertions if "inboxOf" in assertion})
-        return {email: self.rig.ask_the_messenger("inbox_since", email=email, since=since).get("bodies", []) for email in emails}
+        return {email: self.host.messenger.ask("inbox_since", email=email, since=since).get("bodies", []) for email in emails}
 
     def judge(self, case_directory, request):
         task = {field: request[field] for field in TASK_FIELDS if field in request}
@@ -296,10 +301,10 @@ class Deliveries:
                 return json.loads(line)
         return {"passed": False, "refused": (completed.stderr.strip() or completed.stdout.strip())[-900:]}
 
-    def snapshot_workspace(self, case_directory, sent_at, delivered_files):
+    def snapshot_workspace(self, case_directory, since, delivered_files):
         staged = f"deliveries/{case_directory.name}/{WORKSPACE_DIRECTORY_NAME}"
         carried = [file.get("x", "") for file in delivered_files]
-        completed = self.machine.shell(workspace_snapshot_command(f"{SHARE_PATH}/{staged}", sent_at, carried))
+        completed = self.machine.shell(workspace_snapshot_command(f"{SHARE_PATH}/{staged}", since, carried))
         source = self.machine.share_directory / staged
         if source.is_dir():
             shutil.copytree(source, case_directory / WORKSPACE_DIRECTORY_NAME, dirs_exist_ok=True)
@@ -310,7 +315,7 @@ class Deliveries:
         started = time.monotonic()
         tasks = []
         while time.monotonic() < started + timeout_seconds:
-            tasks = self.query(COMPANY_CONDITION_PATH, TASK_QUERY, messenger=MESSENGER, conversation=conversation, posted_at=posted_at)
+            tasks = self.query(COMPANY_CONDITION_PATH, TASK_QUERY, conversation=conversation, posted_at=posted_at)
             statuses = [task.get("status") for task in tasks if isinstance(task, dict)]
             has_moved = before is None or ledger_state(tasks) != before
             if statuses and all(status in ENDED_STATUSES for status in statuses) and has_moved:

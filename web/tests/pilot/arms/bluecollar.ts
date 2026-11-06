@@ -1,6 +1,7 @@
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import type { ArmRunContext, DeliveredFile, HarnessOutcome, HarnessStatus, ModelCall } from './arm';
+import type { DeliveredFile, RunStatus } from '../../e2e/record';
+import type { ArmRunContext, HarnessOutcome, ModelCall } from './arm';
 
 const guestScriptPath = '/mnt/shared/workspace/lab/scripts/pilot-bluecollar-task.py';
 const resultMarker = 'PILOT-RESULT ';
@@ -59,13 +60,13 @@ function deliveredFileOf(record: GuestDeliveredFile): DeliveredFile {
 	};
 }
 
-function harnessStatusOf(guestStatus: string): HarnessStatus {
+function harnessStatusOf(guestStatus: string): RunStatus {
 	if (guestStatus === 'completed') return 'completed';
 	if (guestStatus === 'waiting_user_input') return 'waiting_user_input';
 	return 'failed';
 }
 
-function unstartedOutcome(status: HarnessStatus, reply: string): HarnessOutcome {
+function unstartedOutcome(status: RunStatus, reply: string): HarnessOutcome {
 	return { status, reachedTheLoop: false, turns: 0, toolCalls: [], reply, deliveredFiles: [], calls: [] };
 }
 
