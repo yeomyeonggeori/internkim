@@ -12,6 +12,7 @@
 	import ReactionPeopleSheet from './reaction-people-sheet.svelte';
 	import ReactionPeoplePopover from './reaction-people-popover.svelte';
 	import { reactionChipHold } from './reaction-chip-hold';
+	import { swallowClickAfterOutsidePress } from './outside-press-swallow';
 	import SmilePlusIcon from '@lucide/svelte/icons/smile-plus';
 	import UserIcon from '@lucide/svelte/icons/user';
 
@@ -34,6 +35,12 @@
 	let isPopoverOpen = $state(false);
 	let shownReaction = $state('');
 	let reactionRow = $state<HTMLElement | null>(null);
+	let popoverContent = $state<HTMLElement | null>(null);
+
+	$effect(() => {
+		if (!isPopoverOpen) return;
+		return swallowClickAfterOutsidePress(isWithinPopover);
+	});
 
 	function toggleWhenJoinable(reaction: ChannelMessageReaction): void {
 		if (canChange) onToggle(reaction);
@@ -43,6 +50,10 @@
 		shownReaction = reaction.value;
 		if (isMobile.current) isSheetOpen = true;
 		else isPopoverOpen = true;
+	}
+
+	function isWithinPopover(target: Node): boolean {
+		return Boolean(reactionRow?.contains(target) || popoverContent?.contains(target));
 	}
 
 	function stayOpenForReactions(event: PointerEvent): void {
@@ -111,7 +122,7 @@
 			</Popover.Trigger>
 		{/if}
 	</div>
-	<ReactionPeoplePopover {reactions} bind:selected={shownReaction} onInteractOutside={stayOpenForReactions} />
+	<ReactionPeoplePopover {reactions} bind:selected={shownReaction} bind:ref={popoverContent} onInteractOutside={stayOpenForReactions} />
 </Popover.Root>
 <ReactionPeopleSheet {reactions} bind:open={isSheetOpen} bind:selected={shownReaction} />
 
