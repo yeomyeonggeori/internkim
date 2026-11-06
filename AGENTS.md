@@ -45,13 +45,13 @@ the codebase. Keep it short, concrete, and updated when workflows change.
 Nothing lands on `main` by direct push. Branch, run
 `tools/verify`, open a pull request, merge.
 
-`tools/verify` is the whole check. It reads what your diff touches and runs
-only the groups that diff can break, at once; the groups, and what each one
-runs, are declared at the top of the file. `--all` runs every group, as
-`make check` does, and `--only <names>` runs the ones you name. Nothing runs it
-for you after you push: a private repository on the free plan cannot require a
-GitHub Actions check, so there are no workflows and a push that skipped
-`verify` is a push nobody checked.
+`tools/verify` is the whole check. It runs, at once, the groups your diff can
+break; the top of the file declares each group and its commands. `--all` runs
+every group, as `make check` does, `--only <names>` the ones named, and
+`--e2e <area,...>` the UI test areas you judge it can break; no UI test runs
+otherwise. Nothing runs it for you after you push: the free plan cannot
+require a GitHub Actions check, so a push that skipped `verify` is a push
+nobody checked.
 
 ### Branch names
 
@@ -160,7 +160,7 @@ EOF
 
 One reviewable change per pull request. The description says what the reader
 should look at and what evidence exists that it works — the test that fails
-without the change, the scenario that was run, the screenshot. A pull request
+without the change, the UI areas run and why, the scenario, the screenshot. A pull request
 that touches unrelated files should be split.
 
 A change to a skill, a tool descriptor, or a prompt says what the model now sees
