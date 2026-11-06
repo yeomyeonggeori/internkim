@@ -3,7 +3,8 @@ import { SQL } from 'bun';
 import { isHttpError } from '@sveltejs/kit';
 import { localDatabaseURL } from '../../../supabase/scripts/local-database-url';
 import { controlPlane, provisionCompany } from '../../src/lib/server/control-plane';
-import { applyStripeEvent, subscriptionCreditsPerMember } from '../../src/lib/server/stripe-billing-events';
+import { applyStripeEvent } from '../../src/lib/server/stripe-billing-events';
+import { subscriptionCreditsPerMember } from '../../src/lib/server/stripe-subscription-invoice';
 import { projectURL, publishableKey, serviceRoleKey, signingKey } from '../support/supabase-environment';
 
 mock.module('$env/dynamic/private', () => ({
@@ -131,9 +132,12 @@ describe('the Stripe webhook', () => {
 					}
 				}
 			},
-			async (askedPrice) => {
-				pricesAsked.push(askedPrice);
-				return unitAmount;
+			{
+				unitAmountOfPrice: async (askedPrice) => {
+					pricesAsked.push(askedPrice);
+					return unitAmount;
+				},
+				invoicePaidBy: async () => null
 			}
 		);
 		expect(outcome).toBe('applied');
@@ -186,6 +190,81 @@ describe('the Stripe webhook', () => {
 		await deliver(event);
 		const { data } = await client.from('company').select('permanent_credits').eq('id', companyID).single<{ permanent_credits: number }>();
 		expect(data?.permanent_credits).toBe(12000);
+	});
+
+	test('takes back the part of a period a refund returns, once', async () => {
+		const before = await subscriptionCreditsOfCompany();
+		const invoice = { ...paidInvoice('unused', 'subscription_cycle', 3 * unitAmount).data.object, amount_paid: 3 * unitAmount };
+		const invoicesAsked: string[] = [];
+		const lookups = {
+			unitAmountOfPrice: async () => unitAmount,
+			invoicePaidBy: async (paymentIntentID: string) => {
+				invoicesAsked.push(paymentIntentID);
+				return invoice;
+			}
+		};
+		const event = {
+			id: `evt_refunded_${stamp}`,
+			type: 'charge.refunded',
+			created: periodEnd,
+			data: {
+				object: { id: `ch_route_${stamp}`, currency: 'krw', amount_refunded: 2 * unitAmount, payment_intent: `pi_route_${stamp}` },
+				previous_attributes: { amount_refunded: unitAmount }
+			}
+		};
+		expect(await applyStripeEvent(client, event, lookups)).toBe('applied');
+		expect(await applyStripeEvent(client, event, lookups)).toBe('applied');
+		expect(invoicesAsked).toEqual([`pi_route_${stamp}`, `pi_route_${stamp}`]);
+		expect(await subscriptionCreditsOfCompany()).toBe(before - subscriptionCreditsPerMember);
+	});
+
+	test('takes back the permanent credits of a refunded top-up', async () => {
+		const { data: before } = await client.from('company').select('permanent_credits').eq('id', companyID).single<{ permanent_credits: number }>();
+		const outcome = await applyStripeEvent(
+			client,
+			{
+				id: `evt_top_up_refunded_${stamp}`,
+				type: 'charge.refunded',
+				created: periodEnd,
+				data: { object: { id: `ch_top_up_${stamp}`, currency: 'krw', amount_refunded: 10000, payment_intent: `pi_top_up_${stamp}` } }
+			},
+			{
+				unitAmountOfPrice: async () => unitAmount,
+				invoicePaidBy: async () => ({
+					id: `in_top_up_${stamp}`,
+					currency: 'krw',
+					amount_paid: 30000,
+					metadata: { top_up_id: crypto.randomUUID(), company_id: companyID }
+				})
+			}
+		);
+		expect(outcome).toBe('applied');
+		const { data: after } = await client.from('company').select('permanent_credits').eq('id', companyID).single<{ permanent_credits: number }>();
+		expect((before?.permanent_credits ?? 0) - (after?.permanent_credits ?? 0)).toBe(4000);
+	});
+
+	test('expires what a subscription left when it ends', async () => {
+		await deliver({
+			id: `evt_ended_${stamp}`,
+			type: 'customer.subscription.deleted',
+			created: periodEnd + 60,
+			data: { object: { id: `sub_route_${stamp}`, customer: `cus_route_${stamp}`, status: 'canceled', metadata: { company_id: companyID } } }
+		});
+		expect(await subscriptionCreditsOfCompany()).toBe(0);
+	});
+
+	test('ignores a refunded charge no invoice of ours paid', async () => {
+		const outcome = await applyStripeEvent(
+			client,
+			{
+				id: `evt_refund_other_${stamp}`,
+				type: 'charge.refunded',
+				created: periodEnd,
+				data: { object: { id: 'ch_other', currency: 'krw', amount_refunded: 5000, payment_intent: 'pi_other' } }
+			},
+			{ unitAmountOfPrice: async () => unitAmount, invoicePaidBy: async () => null }
+		);
+		expect(outcome).toBe('ignored');
 	});
 
 	test('ignores an event for another product that names no company', async () => {
