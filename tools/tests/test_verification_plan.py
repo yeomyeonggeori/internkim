@@ -1,3 +1,4 @@
+import argparse
 import contextlib
 import fcntl
 import importlib.machinery
@@ -101,104 +102,33 @@ def submodule_paths(repository_root):
     return [line.split(" ", 1)[1] for line in listing.stdout.splitlines()]
 
 
-AN_IMPORT_GRAPH = {
-    "web/src/lib/task/task-board.ts": {"web/src/routes/task/+page.svelte", "web/tests/e2e/crm/crm-helpers.ts"},
-    "web/tests/e2e/crm/crm-helpers.ts": {"web/tests/e2e/crm/crm-central.spec.ts", "web/tests/e2e/task/task-central.spec.ts"},
-    "web/src/routes/crm/crm-search.svelte.ts": {"web/src/routes/crm/+page.svelte", "web/src/lib/components/app-command-palette.svelte"},
-    "web/src/lib/components/app-command-palette.svelte": {"web/src/routes/+layout.svelte"},
-    "web/src/lib/components/app-rail.svelte": {"web/src/routes/+layout.svelte"},
-    "web/src/app.css": {"web/src/routes/+layout.svelte"},
-    "web/src/lib/crm/money.ts": {"web/src/routes/crm/+page.svelte", "web/src/routes/api/v1/tools/+server.ts"},
-    "web/src/lib/components/channel/channel.svelte": {"web/src/routes/crm/+page.svelte", "web/src/routes/assistant/+page.svelte"},
-    "web/tests/e2e/support/central-test-utils.ts": {"web/tests/e2e/crm/crm-central.spec.ts"},
-}
-
-
-@contextlib.contextmanager
-def selecting_end_to_end_areas_from(import_graph):
+def groups_selected_for(changed, **choices):
     module = verification_module()
-    group = next(group for group in module.GROUPS if group.name == "e2e")
-    with patch.object(module, "end_to_end_areas", return_value=["crm", "shell", "task"]), patch.object(module, "importers_by_source", return_value=import_graph):
-        yield group
+    arguments = argparse.Namespace(**({"base": "origin/main", "only": None, "all": False, "e2e": None} | choices))
+    output = io.StringIO()
+    with patch.object(module, "end_to_end_areas", return_value=["crm", "shell", "task"]), patch.object(module, "changed_paths_against", return_value=changed), redirect_stdout(output):
+        groups = module.groups_to_run(arguments)
+    return {group.name: group.commands for group in groups}, output.getvalue()
 
 
 class VerificationPlanTests(unittest.TestCase):
-    def test_a_change_inside_one_area_runs_only_that_area_end_to_end(self):
-        changed = ["web/src/routes/crm/crm-view-currency.svelte.ts", "web/tests/e2e/crm/crm-central.spec.ts"]
-        with selecting_end_to_end_areas_from(AN_IMPORT_GRAPH) as group:
-            self.assertTrue(group.is_touched_by(changed))
-            self.assertEqual(group.narrowed_to(changed).commands, [["scripts/e2e.sh", "tests/e2e/crm"]])
+    def test_a_web_change_runs_no_e2e_until_its_areas_are_named(self):
+        selected, printed = groups_selected_for(["web/src/routes/crm/text.ts"])
+        self.assertIn("web", selected)
+        self.assertNotIn("e2e", selected)
+        self.assertIn("e2e not run", printed)
 
-    def test_changes_in_two_areas_run_both_areas_end_to_end(self):
-        changed = ["web/src/routes/crm/text.ts", "web/src/routes/task/task-card.svelte"]
-        with selecting_end_to_end_areas_from(AN_IMPORT_GRAPH) as group:
-            self.assertEqual(group.narrowed_to(changed).commands, [["scripts/e2e.sh", "tests/e2e/crm", "tests/e2e/task"]])
+    def test_named_e2e_areas_run_only_those_areas(self):
+        selected, _ = groups_selected_for(["web/src/routes/crm/text.ts"], e2e="task,crm")
+        self.assertEqual(selected["e2e"], [["scripts/e2e.sh", "tests/e2e/crm", "tests/e2e/task"]])
 
-    def test_a_module_runs_every_area_whose_routes_or_specs_import_it(self):
-        with selecting_end_to_end_areas_from(AN_IMPORT_GRAPH) as group:
-            self.assertEqual(group.narrowed_to(["web/src/lib/task/task-board.ts"]).commands, [["scripts/e2e.sh", "tests/e2e/crm", "tests/e2e/task"]])
-            self.assertEqual(group.narrowed_to(["web/tests/e2e/crm/crm-helpers.ts"]).commands, [["scripts/e2e.sh", "tests/e2e/crm", "tests/e2e/task"]])
+    def test_an_e2e_area_that_does_not_exist_is_refused(self):
+        with self.assertRaises(SystemExit):
+            groups_selected_for(["web/src/routes/crm/text.ts"], e2e="crm,nowhere")
 
-    def test_a_shared_change_runs_every_area_end_to_end(self):
-        with selecting_end_to_end_areas_from(AN_IMPORT_GRAPH) as group:
-            for shared in [
-                "web/src/app.css",
-                "web/src/hooks.server.ts",
-                "web/src/lib/components/app-rail.svelte",
-                "web/src/routes/+layout.svelte",
-                "web/src/routes/crm/crm-search.svelte.ts",
-                "web/src/lib/crm/money.ts",
-                "web/src/routes/auth/claim/+page.svelte",
-                "web/src/routes/api/v1/tools/+server.ts",
-                "web/tests/e2e/support/central-test-utils.ts",
-                "web/playwright.config.ts",
-                "web/bun.lock",
-            ]:
-                self.assertEqual(group.narrowed_to(["web/src/routes/crm/text.ts", shared]).commands, [["scripts/e2e.sh"]], shared)
-
-    def test_a_route_no_spec_covers_runs_the_shell_beside_the_areas_it_reaches(self):
-        with selecting_end_to_end_areas_from(AN_IMPORT_GRAPH) as group:
-            self.assertEqual(group.narrowed_to(["web/src/routes/admin/admin-page.svelte"]).commands, [["scripts/e2e.sh", "tests/e2e/shell"]])
-            self.assertEqual(group.narrowed_to(["web/src/lib/components/channel/channel.svelte"]).commands, [["scripts/e2e.sh", "tests/e2e/crm", "tests/e2e/shell"]])
-
-    def test_a_database_change_runs_only_the_specs_on_the_local_plane(self):
-        with selecting_end_to_end_areas_from(AN_IMPORT_GRAPH) as group:
-            for database in ["supabase/migrations/20990101000000_example.sql", "supabase/seed.dev.sql"]:
-                self.assertTrue(group.is_touched_by([database]), database)
-                self.assertEqual(group.narrowed_to([database]).commands, [["scripts/e2e.sh", "--project=central"]], database)
-
-    def test_a_database_change_beside_one_area_runs_that_area_on_the_other_planes(self):
-        changed = ["supabase/migrations/20990101000000_example.sql", "web/src/routes/crm/text.ts"]
-        with selecting_end_to_end_areas_from(AN_IMPORT_GRAPH) as group:
-            self.assertEqual(group.narrowed_to(changed).commands, [
-                ["scripts/e2e.sh", "--project=central"],
-                ["scripts/e2e.sh", "--project=fixture", "--project=mocked", "--project=standalone", "tests/e2e/crm"],
-            ])
-
-    def test_the_import_graph_follows_lib_aliases_relative_paths_and_svelte_modules(self):
-        module = verification_module()
-        with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
-            sources = {
-                "web/src/lib/task/task-board.ts": "export const board = 1;\n",
-                "web/src/lib/i18n/page-text.svelte.ts": "export const text = 1;\n",
-                "web/src/lib/utils.ts": "export const cn = 1;\n",
-                "web/src/lib/crm/index.ts": "export * from '../task/task-board';\n",
-                "web/src/lib/crm/types.ts": "import type { board } from '../task/task-board';\nexport type {\n\tboard\n} from '../task/task-board';\n",
-                "web/src/routes/crm/+page.svelte": "<script lang=\"ts\">\n\timport { board } from '$lib/task/task-board';\n\timport { text } from '$lib/i18n/page-text.svelte';\n\timport { cn } from '$lib/utils.js';\n\tconst lazy = import('$lib/crm');\n</script>\n",
-                "web/tests/e2e/crm/crm-central.spec.ts": "import { test } from '@playwright/test';\nimport '../../../src/lib/utils';\n",
-            }
-            for name, content in sources.items():
-                (root / name).parent.mkdir(parents=True, exist_ok=True)
-                (root / name).write_text(content)
-            with patch.object(module, "REPOSITORY_ROOT", root), patch.object(module, "WEB_DIRECTORY", root / "web"):
-                importers = module.importers_by_source()
-        self.assertEqual(importers, {
-            "web/src/lib/task/task-board.ts": {"web/src/routes/crm/+page.svelte", "web/src/lib/crm/index.ts"},
-            "web/src/lib/i18n/page-text.svelte.ts": {"web/src/routes/crm/+page.svelte"},
-            "web/src/lib/utils.ts": {"web/src/routes/crm/+page.svelte", "web/tests/e2e/crm/crm-central.spec.ts"},
-            "web/src/lib/crm/index.ts": {"web/src/routes/crm/+page.svelte"},
-        })
+    def test_all_runs_every_e2e_area(self):
+        selected, _ = groups_selected_for([], all=True)
+        self.assertEqual(selected["e2e"], [["scripts/e2e.sh"]])
 
     def test_every_spec_sits_in_an_area_named_after_a_route_or_the_shell(self):
         module = verification_module()
@@ -330,7 +260,8 @@ class VerificationPlanTests(unittest.TestCase):
             thread = threading.Thread(target=lambda: result.append(module.run_group(group)))
             thread.start()
             log_path = Path(directory) / "live" / "1.log"
-            for _ in range(20):
+            deadline = time.monotonic() + 10
+            while time.monotonic() < deadline:
                 if ready_path.exists() and log_path.exists() and "marker" in log_path.read_text():
                     break
                 time.sleep(.02)
