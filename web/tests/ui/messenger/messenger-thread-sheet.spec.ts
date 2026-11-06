@@ -207,6 +207,18 @@ test.describe('messenger thread sheet on a touch screen', () => {
 		await mockThreadChannel(page);
 	});
 
+	test('a half-second hold on a message opens its menu', async ({ page }) => {
+		await page.goto(`/messenger?channel=${channelID}`);
+		const box = await page.getByText(unansweredText).boundingBox();
+		if (!box) throw new Error('the message has no box to press');
+		const session = await page.context().newCDPSession(page);
+		await session.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: box.x + box.width / 2, y: box.y + box.height / 2 }] });
+		await page.waitForTimeout(500);
+
+		await expect(page.getByRole('menu')).toBeVisible({ timeout: 100 });
+		await session.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+	});
+
 	test('keeps a long press for the message menu instead of text selection', async ({ page }) => {
 		await page.goto(`/messenger?channel=${channelID}`);
 
