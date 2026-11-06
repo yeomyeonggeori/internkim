@@ -77,6 +77,25 @@ test.describe('on a computer', () => {
 		await expect(popover).toHaveCount(0);
 	});
 
+	test('clicking elsewhere only closes the list, and the next click reaches what was clicked', async ({ page }) => {
+		await mockReactions(page);
+		await page.goto(`/messenger?channel=${channelID}`);
+		const replies = page.getByRole('button', { name: /1개 답글/ });
+		const reply = page.getByText('저는 2번이요');
+		await expect(reply).toHaveCount(0);
+		await page.getByRole('button', { name: '공감한 사람 보기' }).click();
+		const popover = page.getByRole('dialog', { name: '공감 6개' });
+		await expect(popover).toBeVisible();
+
+		await replies.click();
+
+		await expect(popover).toHaveCount(0);
+		await expect(reply).toHaveCount(0);
+
+		await replies.click();
+		await expect(reply).toBeVisible();
+	});
+
 	test('right-clicking a reaction opens the same list on that reaction, and another reaction switches to it', async ({ page }) => {
 		await mockReactions(page);
 		await page.goto(`/messenger?channel=${channelID}`);
