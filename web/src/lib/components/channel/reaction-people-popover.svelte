@@ -9,10 +9,12 @@
 	let {
 		reactions,
 		selected = $bindable(''),
+		ref = $bindable(null),
 		onInteractOutside
 	}: {
 		reactions: ChannelMessageReaction[];
 		selected?: string;
+		ref?: HTMLElement | null;
 		onInteractOutside: PopoverPrimitive.ContentProps['onInteractOutside'];
 	} = $props();
 
@@ -22,7 +24,7 @@
 	);
 </script>
 
-<Popover.Content side="right" role="dialog" aria-label={title} {onInteractOutside}>
+<Popover.Content side="right" role="dialog" aria-label={title} bind:ref {onInteractOutside}>
 	<Popover.Header>
 		<Popover.Title>{title}</Popover.Title>
 	</Popover.Header>
