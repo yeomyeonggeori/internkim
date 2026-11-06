@@ -18,7 +18,7 @@
 		record: UserRecord | undefined;
 		canEditOwnProfile?: boolean;
 		isSavingOwnProfile?: boolean;
-		onSaveOwnProfile?: (profile: { phoneNumber: string; hireDate: string }) => void | Promise<void>;
+		onSaveOwnProfile?: (profile: { phoneNumber: string; hireDate: string }) => Promise<boolean>;
 		groups: OrgGroup[];
 		text: PageText<typeof organizationDirectoryText>;
 		canEdit?: boolean;
@@ -39,7 +39,7 @@
 		text,
 		canEditOwnProfile = false,
 		isSavingOwnProfile = false,
-		onSaveOwnProfile = () => {},
+		onSaveOwnProfile = async () => false,
 		canEdit = false,
 		isEditing = false,
 		editingRecord,
@@ -128,6 +128,7 @@
 					{#if ownProfileDraft === undefined}
 						<Button
 							type="button"
+							disabled={isSavingOwnProfile}
 							onclick={() => (ownProfileDraft = { phoneNumber: record.phoneNumber ?? '', hireDate: record.hireDate ?? '' })}
 						>
 							{text.editPerson}
@@ -141,8 +142,10 @@
 								type="button"
 								disabled={isSavingOwnProfile}
 								onclick={async () => {
-									if (ownProfileDraft) await onSaveOwnProfile(ownProfileDraft);
+									const draft = ownProfileDraft;
+									if (!draft) return;
 									ownProfileDraft = undefined;
+									if (!(await onSaveOwnProfile(draft))) ownProfileDraft = draft;
 								}}
 							>
 								{adminText?.organization.save}
@@ -159,7 +162,7 @@
 						</Button>
 					</div>
 				{:else}
-					<Button type="button" onclick={onEdit}>{text.editPerson}</Button>
+					<Button type="button" disabled={isSaving} onclick={onEdit}>{text.editPerson}</Button>
 				{/if}
 			</div>
 		{/if}

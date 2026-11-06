@@ -3,6 +3,7 @@ import type { Locale } from '../../lib/i18n/locale.svelte';
 import { signedInEmail } from '$lib/signed-in-email';
 import { isSupabaseConfigured, supabaseMemberRole } from '$lib/supabase-session';
 import { ToolRefused } from '$lib/tool-answer';
+import { toast } from 'svelte-sonner';
 import { apiErrorMessage, fetchAdminSession } from '../admin/admin-api';
 import { adminSessionRole, canManageOrganization } from '../admin/admin-role-policy';
 import {
@@ -32,7 +33,8 @@ import {
 	removeOrganizationProfileEdit,
 	type OrgProfileSnapshot
 } from './organization-profile-edit-controller';
-import { orgProfileUpdate } from '../admin/organization-profile-model';
+import { normalizeOrgProfileRecord, orgProfileUpdate } from '../admin/organization-profile-model';
+import { replaceOrganizationRecord } from './organization-background-save';
 import { organizationOrganizationSections, type OrganizationOrganizationSection } from './organization-model';
 import type { OrgGroup, UserRecord, UsersResponse } from '../../lib/organization/types';
 import type { organizationDirectoryText } from './text';
@@ -179,18 +181,20 @@ export class OrganizationDirectoryController {
 		return record.email.trim().toLowerCase() === this.sessionEmail;
 	}
 
-	async saveOwnProfile(profile: OwnOrganizationProfile): Promise<void> {
+	async saveOwnProfile(profile: OwnOrganizationProfile): Promise<boolean> {
 		const record = this.selectedRecord;
-		if (!record || !this.isOwnRecord(record)) return;
+		if (!record || !this.isOwnRecord(record)) return false;
 		this.isSavingOwnProfile = true;
+		this.records = replaceOrganizationRecord(this.records, { ...record, ...profile });
 		try {
 			const saved = await saveOwnOrganizationProfile(record.memberID, profile);
-			this.records = this.records.map((candidate) =>
-				candidate.memberID === record.memberID ? { ...candidate, ...saved } : candidate
-			);
+			this.records = replaceOrganizationRecord(this.records, { ...record, ...saved });
 			this.errorMessage = '';
+			return true;
 		} catch (error) {
-			this.errorMessage = organizationApiErrorMessage(error, this.text.loadError);
+			this.records = replaceOrganizationRecord(this.records, record);
+			toast.error(organizationApiErrorMessage(error, this.adminPageText.messages.userSaveError));
+			return false;
 		} finally {
 			this.isSavingOwnProfile = false;
 		}
@@ -251,14 +255,20 @@ export class OrganizationDirectoryController {
 			this.cancelProfileEdit(memberID);
 			return;
 		}
+		const previous = this.records.find((candidate) => candidate.memberID === memberID);
+		if (!previous) return;
 		this.savingProfileUserIDs = markOrganizationProfileSaving(this.savingProfileUserIDs, memberID);
 		this.errorMessage = '';
+		this.records = replaceOrganizationRecord(this.records, normalizeOrgProfileRecord(record));
+		this.removeEditingRecord(memberID);
+		if (this.editingUserID === memberID) this.editingUserID = '';
 		try {
 			this.applyUsersResponse(await saveOrganizationProfiles([orgProfileUpdate(record)]));
-			this.removeEditingRecord(memberID);
-			this.editingUserID = '';
 		} catch (error) {
-			this.errorMessage = apiErrorMessage(error, this.adminPageText.messages.userSaveError);
+			this.records = replaceOrganizationRecord(this.records, previous);
+			this.editingRecordsByUserID = { ...this.editingRecordsByUserID, [memberID]: record };
+			if (this.selectedUserID === memberID && !this.editingUserID) this.editingUserID = memberID;
+			toast.error(apiErrorMessage(error, this.adminPageText.messages.userSaveError));
 		} finally {
 			this.savingProfileUserIDs = clearOrganizationProfileSaving(this.savingProfileUserIDs, memberID);
 		}
