@@ -39,7 +39,7 @@
 </script>
 
 <Sheet.Root bind:open>
-	<Sheet.Content side="right" class="gap-0 p-0 sm:max-w-sm" closeLabel={text.closePersonProfile}>
+	<Sheet.Content side="right" class="z-(--layer-panel-popout) gap-0 p-0 sm:max-w-sm" closeLabel={text.closePersonProfile}>
 		<Sheet.Header class="border-b">
 			<Sheet.Title>{text.personProfile}</Sheet.Title>
 		</Sheet.Header>
