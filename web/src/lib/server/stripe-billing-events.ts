@@ -1,12 +1,11 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { z } from 'zod';
+import { StripeEventRefused, type StripeEventOutcome, type StripeLookups, type UnitAmountOfPrice } from './stripe-event-contract';
+import { applyRefundedCharge } from './stripe-refund-events';
+import { companyMetadata, creditsPaidFor, paidInvoice } from './stripe-subscription-invoice';
 import { applyFailedTopUp, applyPaidTopUp, isTopUpInvoice } from './stripe-top-up-events';
 
-export const subscriptionCreditsPerMember = 10_000;
-
 const periodOpeningReasons = new Set(['subscription_create', 'subscription_cycle']);
-
-const companyMetadata = z.object({ company_id: z.guid() });
 
 const namedCompany = z.object({ company_id: z.string() });
 
@@ -15,25 +14,6 @@ const invoiceNamingACompany = z.object({
 });
 
 const subscriptionNamingACompany = z.object({ metadata: namedCompany });
-
-const paidInvoice = z.object({
-	customer: z.string(),
-	billing_reason: z.string().nullable(),
-	parent: z.object({
-		subscription_details: z.object({ subscription: z.string(), metadata: companyMetadata })
-	}),
-	lines: z.object({
-		data: z.array(
-			z.object({
-				amount: z.number().int(),
-				period: z.object({ end: z.number().int() }),
-				pricing: z
-					.object({ price_details: z.object({ price: z.string() }), unit_amount_decimal: z.string().nullable() })
-					.nullable()
-			})
-		).min(1)
-	})
-});
 
 const subscription = z.object({
 	id: z.string(),
@@ -46,29 +26,19 @@ const stripeEvent = z.object({
 	id: z.string(),
 	type: z.string(),
 	created: z.number().int(),
-	data: z.object({ object: z.unknown() })
+	data: z.object({ object: z.unknown(), previous_attributes: z.unknown().optional() })
 });
-
-export type StripeEventOutcome = 'applied' | 'ignored';
-
-export type UnitAmountOfPrice = (priceID: string) => Promise<number>;
-
-export class StripeEventRefused extends Error {
-	constructor(message: string) {
-		super(message);
-		this.name = 'StripeEventRefused';
-	}
-}
 
 export async function applyStripeEvent(
 	client: SupabaseClient,
 	payload: unknown,
-	unitAmountOfPrice: UnitAmountOfPrice
+	lookups: StripeLookups
 ): Promise<StripeEventOutcome> {
 	const event = stripeEvent.safeParse(payload);
 	if (!event.success) throw new StripeEventRefused('the body is not a Stripe event');
 	if (isTopUpInvoice(event.data.data.object)) return applyTopUpEvent(client, event.data);
-	if (event.data.type === 'invoice.paid') return applyPaidInvoice(client, event.data.id, event.data.data.object, unitAmountOfPrice);
+	if (event.data.type === 'invoice.paid') return applyPaidInvoice(client, event.data.id, event.data.data.object, lookups.unitAmountOfPrice);
+	if (event.data.type === 'charge.refunded') return applyRefundedCharge(client, event.data, lookups);
 	if (event.data.type.startsWith('customer.subscription.')) {
 		return applySubscriptionChange(client, event.data, event.data.data.object);
 	}
@@ -130,20 +100,6 @@ async function applySubscriptionChange(
 	});
 	if (error) throw new Error(`subscription ${changed.data.id}: ${error.message}`);
 	return 'applied';
-}
-
-type PaidLine = { amount: number; pricing: { price_details: { price: string }; unit_amount_decimal: string | null } | null };
-
-async function creditsPaidFor(lines: PaidLine[], unitAmountOfPrice: UnitAmountOfPrice): Promise<number> {
-	let seatsPaidFor = 0;
-	for (const line of lines) {
-		if (!line.pricing) continue;
-		const unitAmount = line.pricing.unit_amount_decimal === null
-			? await unitAmountOfPrice(line.pricing.price_details.price)
-			: Number(line.pricing.unit_amount_decimal);
-		if (unitAmount > 0) seatsPaidFor += line.amount / unitAmount;
-	}
-	return Math.max(0, Math.round(subscriptionCreditsPerMember * seatsPaidFor));
 }
 
 function latestPeriodEnd(lines: { period: { end: number } }[]): number {

@@ -48,7 +48,11 @@ The record answers these directly. A caller reaches one at `POST /rest/v1/rpc/<n
 | `circle_set` | `target_company uuid, circle_id text, circle_name text, readable_categories text[]` | `void` | definer | authenticated, service_role |
 | `claim_empty_box` | `claiming_company uuid, box_key text, ticket_hash text, fresh_since timestamp with time zone, is_replacing boolean` | `TABLE(outcome text, given_role text)` | definer | service_role |
 | `company_billed_seats` | `target_company uuid` | `integer` | definer | service_role |
+| `company_credit_top_up_configured` | `target_company uuid, is_enabled boolean, threshold bigint, charged_amount bigint` | `void` | definer | service_role |
+| `company_credit_top_up_failed` | `target_top_up uuid, target_invoice text, reason text` | `void` | definer | service_role |
+| `company_credit_top_up_paid` | `target_top_up uuid, target_event text, target_invoice text, granted_credits bigint` | `void` | definer | service_role |
 | `company_credit_usage_charged` | `target_company uuid, target_member uuid, used_credits bigint` | `void` | definer | service_role |
+| `company_credits_refunded` | `target_company uuid, target_event text, refunded_kind text, refunded_credits bigint` | `bigint` | definer | service_role |
 | `company_documents_matching` | `target_query text, target_limit integer, minimum_relevance real DEFAULT 0` | `SETOF company_document` | invoker | authenticated |
 | `company_holidays_merge` | `target_company uuid, target_holidays jsonb` | `jsonb` | invoker | service_role |
 | `company_holidays_save` | `target_holidays jsonb` | `jsonb` | definer | authenticated |

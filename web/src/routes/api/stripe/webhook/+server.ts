@@ -1,7 +1,8 @@
 import { environmentOfPlatform } from '$lib/server/agent-request';
 import { controlPlane } from '$lib/server/control-plane';
-import { unitAmountOfStripePrice } from '$lib/server/stripe-api';
-import { applyStripeEvent, StripeEventRefused } from '$lib/server/stripe-billing-events';
+import { stripeLookups } from '$lib/server/stripe-api';
+import { applyStripeEvent } from '$lib/server/stripe-billing-events';
+import { StripeEventRefused } from '$lib/server/stripe-event-contract';
 import { isSignedByStripe } from '$lib/server/stripe-signature';
 import { error, json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
@@ -22,7 +23,7 @@ export const POST: RequestHandler = async ({ request, platform }) => {
 		const outcome = await applyStripeEvent(
 			controlPlane({ projectURL, serviceRoleKey }),
 			JSON.parse(payload),
-			unitAmountOfStripePrice(secretKey)
+			stripeLookups(secretKey)
 		);
 		return json({ outcome });
 	} catch (caughtError) {

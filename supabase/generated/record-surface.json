@@ -396,9 +396,45 @@
       ]
     },
     {
+      "name": "company_credit_top_up_configured",
+      "arguments": "target_company uuid, is_enabled boolean, threshold bigint, charged_amount bigint",
+      "returns": "void",
+      "security": "definer",
+      "callableBy": [
+        "service_role"
+      ]
+    },
+    {
+      "name": "company_credit_top_up_failed",
+      "arguments": "target_top_up uuid, target_invoice text, reason text",
+      "returns": "void",
+      "security": "definer",
+      "callableBy": [
+        "service_role"
+      ]
+    },
+    {
+      "name": "company_credit_top_up_paid",
+      "arguments": "target_top_up uuid, target_event text, target_invoice text, granted_credits bigint",
+      "returns": "void",
+      "security": "definer",
+      "callableBy": [
+        "service_role"
+      ]
+    },
+    {
       "name": "company_credit_usage_charged",
       "arguments": "target_company uuid, target_member uuid, used_credits bigint",
       "returns": "void",
+      "security": "definer",
+      "callableBy": [
+        "service_role"
+      ]
+    },
+    {
+      "name": "company_credits_refunded",
+      "arguments": "target_company uuid, target_event text, refunded_kind text, refunded_credits bigint",
+      "returns": "bigint",
       "security": "definer",
       "callableBy": [
         "service_role"
