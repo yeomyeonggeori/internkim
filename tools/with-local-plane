@@ -488,6 +488,25 @@ failToStart() {
   exit 1
 }
 
+ownerLogOf() {
+  printf '%s/.supabase/stacks/%s/owner.log' "$HOME" "$1"
+}
+
+describeAnUnwellPlane() {
+  local notReady stackIdentifier ownerLog
+  notReady="$(servicesNotReady)"
+  if [ -z "$notReady" ]; then
+    return 0
+  fi
+  printf 'the command failed while the local plane was not ready: %s\n' "$notReady" >&2
+  stackIdentifier="$(recordedStackIdentifier)"
+  ownerLog="$(ownerLogOf "$stackIdentifier")"
+  if [ -n "$stackIdentifier" ] && [ -f "$ownerLog" ]; then
+    printf 'the last lines of its owner log, %s:\n' "$ownerLog" >&2
+    tail -n 40 "$ownerLog" >&2
+  fi
+}
+
 scheduleStopWhenIdle() {
   local stackIdentifier
   stackIdentifier="$(servingStackIdentifier)"
@@ -532,4 +551,9 @@ export SUPABASE_AUTH_SIGNING_KEYS_PATH="$signingKeysPath"
 startStackWhenDown
 
 export LOCAL_PLANE_LOCK_HOLDER="$$"
-"$@"
+commandStatus=0
+"$@" || commandStatus=$?
+if [ "$commandStatus" -ne 0 ]; then
+  describeAnUnwellPlane
+fi
+exit "$commandStatus"

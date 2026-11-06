@@ -53,6 +53,7 @@ storage=running
 [ -e "$fakeState/asleep" ] && storage=sleeping
 services='[{"service":"storage","state":"'\$storage'"}]'
 [ -e "$fakeState/start-hangs" ] && services='[{"service":"db","state":"running"},{"service":"auth","state":"starting"},{"service":"realtime","state":"stopped"}]'
+[ -e "$fakeState/auth-down" ] && services='[{"service":"storage","state":"running"},{"service":"auth","state":"stopped"}]'
 case "\$1 \${2:-}" in
   "--version "*) cat "$fakeState/version" 2>/dev/null || echo 2.119.0 ;;
   "status "*) printf '{"identity":{"id":"fake-stack"},"owner":"%s","services":%s}\n' "\$owner" "\$services" ;;
@@ -428,6 +429,27 @@ rm -rf "$movedCheckout"
 wait "$idleStopFromTheRemovedCheckout" || true
 if [ -e "$fakeState/stack" ]; then
   fail "an idle stop left the plane up once the checkout that scheduled it was removed"
+fi
+
+fakeHome="$runDirectory/home"
+mkdir -p "$fakeHome/.supabase/stacks/fake-stack"
+printf 'ERROR the owner lost its control route\n' > "$fakeHome/.supabase/stacks/fake-stack/owner.log"
+resetFakes stack
+HOME="$fakeHome" "$withLocalPlane" sh -c "touch '$fakeState/auth-down'; exit 3" 2> "$runDirectory/unwell-diagnostics" && unwellStatus=0 || unwellStatus=$?
+if [ "$unwellStatus" -ne 3 ]; then
+  fail "the lock answered $unwellStatus for a command that exited 3"
+fi
+if ! grep -q "not ready: auth (stopped)" "$runDirectory/unwell-diagnostics"; then
+  fail "a command that failed on an unwell plane did not name the service that was down"
+  cat "$runDirectory/unwell-diagnostics" >&2
+fi
+if ! grep -q "ERROR the owner lost its control route" "$runDirectory/unwell-diagnostics"; then
+  fail "a command that failed on an unwell plane did not show the stack owner's log"
+fi
+resetFakes stack
+HOME="$fakeHome" "$withLocalPlane" sh -c 'exit 3' 2> "$runDirectory/ordinary-failure-diagnostics" || true
+if grep -q "not ready" "$runDirectory/ordinary-failure-diagnostics"; then
+  fail "a command that failed on a healthy plane was reported as a plane that was not ready"
 fi
 
 if [ "$failures" -ne 0 ]; then
