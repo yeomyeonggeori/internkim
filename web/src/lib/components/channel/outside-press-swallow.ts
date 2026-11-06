@@ -19,3 +19,13 @@ export function swallowClickAfterOutsidePress(isInside: (target: Node) => boolea
 	window.addEventListener('pointerdown', handlePointerDown, true);
 	return () => window.removeEventListener('pointerdown', handlePointerDown, true);
 }
+
+export function closeOnOutsidePress(isInside: (target: Node) => boolean, close: () => void): () => void {
+	const handlePointerDown = (event: PointerEvent): void => {
+		if (!(event.target instanceof Node) || isInside(event.target)) return;
+		swallowNextClick();
+		close();
+	};
+	window.addEventListener('pointerdown', handlePointerDown, true);
+	return () => window.removeEventListener('pointerdown', handlePointerDown, true);
+}
