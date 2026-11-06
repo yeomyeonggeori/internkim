@@ -1,4 +1,4 @@
-const scrollBackToDismissPixels = 40;
+const scrollBackToDismissPixels = 120;
 const typingElements = 'input, textarea, [contenteditable="true"]';
 
 export function typingElementOutside(node: HTMLElement): HTMLElement | null {

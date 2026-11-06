@@ -1,0 +1,13 @@
+# Automatically generated - DO NOT EDIT!
+
+"$schema" = "../../schemas/schema.json"
+
+[[permission]]
+identifier = "allow-set-accessory-bar"
+description = "Enables the set_accessory_bar command without any pre-configured scope."
+commands.allow = ["set_accessory_bar"]
+
+[[permission]]
+identifier = "deny-set-accessory-bar"
+description = "Denies the set_accessory_bar command without any pre-configured scope."
+commands.deny = ["set_accessory_bar"]
