@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { exampleCompanySlug, member1ID, member2ID } from '../support/central-test-utils';
+import { exampleCompanySlug, member1ID, member2ID, member3Email, member3ID } from '../support/central-test-utils';
 import { signInToTheCentralPlane } from '../support/central-plane-sign-in';
 
 test.describe.configure({ mode: 'serial', timeout: 60_000 });
@@ -8,6 +8,10 @@ test.use({ locale: 'ko-KR' });
 const ownMemberID = member1ID;
 const colleagueMemberID = member2ID;
 const editedJobTitle = 'E2E 중앙 직책';
+const backgroundJobTitle = 'E2E 백그라운드 직책';
+const failedJobTitle = 'E2E 저장 실패 직책';
+const memberWithoutAdminID = member3ID;
+const failedPhoneNumber = '010-0000-0000';
 const addedOrganizationName = 'E2E 중앙 조직';
 
 async function signIn(page: Page): Promise<void> {
@@ -46,10 +50,66 @@ test('an administrator saves their own job title', async ({ page }) => {
 
 	await expect(panel).toContainText(editedJobTitle);
 	await expect(page.getByText('저장하지 않은 조직도 변경사항이 있습니다.')).toHaveCount(0);
+	await expect(panel.getByRole('button', { name: '수정하기' })).toBeEnabled();
 
 	await page.reload();
 	await page.getByTestId(`organization-person-node-${ownMemberID}`).waitFor({ state: 'visible', timeout: 20000 });
 	await expect(page.getByTestId(`organization-person-node-${ownMemberID}`)).toContainText(editedJobTitle);
+});
+
+test('saving closes the edit at once while the save finishes behind it', async ({ page }) => {
+	await signIn(page);
+	const panel = await openPerson(page, ownMemberID);
+	let releaseWrite = () => {};
+	const writeHeld = new Promise<void>((resolve) => (releaseWrite = resolve));
+	await page.route('**/api/v1/tools/person_update/invoke', async (route) => {
+		await writeHeld;
+		await route.continue();
+	});
+
+	await panel.getByRole('button', { name: '수정하기' }).click();
+	await panel.getByLabel('직책', { exact: true }).fill(backgroundJobTitle);
+	await panel.getByRole('button', { name: '저장', exact: true }).click();
+
+	await expect(panel.getByLabel('직책', { exact: true })).toHaveCount(0);
+	await expect(panel).toContainText(backgroundJobTitle);
+	await expect(panel.getByRole('button', { name: '수정하기' })).toBeDisabled();
+
+	const written = page.waitForResponse('**/api/v1/tools/person_update/invoke');
+	releaseWrite();
+	await written;
+	await expect(panel.getByRole('button', { name: '수정하기' })).toBeEnabled();
+
+	await page.reload();
+	await page.getByTestId(`organization-person-node-${ownMemberID}`).waitFor({ state: 'visible', timeout: 20000 });
+	await expect(page.getByTestId(`organization-person-node-${ownMemberID}`)).toContainText(backgroundJobTitle);
+});
+
+test('a save that fails puts the old value back and reopens the edit', async ({ page }) => {
+	await signIn(page);
+	const panel = await openPerson(page, ownMemberID);
+	await page.route('**/api/v1/tools/person_update/invoke', (route) => route.abort());
+
+	await panel.getByRole('button', { name: '수정하기' }).click();
+	await panel.getByLabel('직책', { exact: true }).fill(failedJobTitle);
+	await panel.getByRole('button', { name: '저장', exact: true }).click();
+
+	await expect(page.getByText('사용자 저장에 실패했습니다.')).toBeVisible();
+	await expect(panel.getByLabel('직책', { exact: true })).toHaveValue(failedJobTitle);
+	await expect(page.getByTestId(`organization-person-node-${ownMemberID}`)).not.toContainText(failedJobTitle);
+});
+
+test('a member whose own save fails gets their typed phone number back', async ({ page }) => {
+	await signInToTheCentralPlane(page, `/${exampleCompanySlug}/organization`, member3Email);
+	const panel = await openPerson(page, memberWithoutAdminID);
+	await page.route('**/api/v1/tools/person_update/invoke', (route) => route.abort());
+
+	await panel.getByRole('button', { name: '수정하기' }).click();
+	await panel.getByLabel('전화번호', { exact: true }).fill(failedPhoneNumber);
+	await panel.getByRole('button', { name: '저장', exact: true }).click();
+
+	await expect(page.getByText('사용자 저장에 실패했습니다.')).toBeVisible();
+	await expect(panel.getByLabel('전화번호', { exact: true })).toHaveValue(failedPhoneNumber);
 });
 
 test('a person can contact a colleague but is offered no way to contact themselves', async ({ page }) => {
@@ -79,7 +139,7 @@ test('an administrator moves a colleague into a newly added organization', async
 	await page.getByRole('option', { name: addedOrganizationName, exact: true }).click();
 	await panel.getByRole('button', { name: '저장', exact: true }).click();
 
-	await expect(panel.getByRole('button', { name: '수정하기', exact: true })).toBeVisible();
+	await expect(panel.getByRole('button', { name: '수정하기', exact: true })).toBeEnabled();
 	await expect(panel).toContainText(addedOrganizationName);
 
 	await page.reload();
