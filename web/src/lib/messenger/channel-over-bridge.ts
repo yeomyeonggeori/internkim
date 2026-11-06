@@ -23,6 +23,7 @@ import {
 	type OutgoingAttachment,
 	type MessengerChannel,
 	type MessengerInboxReason,
+	type MessengerInboxPageBefore,
 	type MessengerInboxWindow,
 	type MessengerPerson,
 	type MessengerPost,
@@ -335,9 +336,9 @@ export type InboxEntry = {
 
 export type HeldInboxEntry = { id: string; text: string; isUnread: boolean };
 
-export type BridgedInbox = { entries: InboxEntry[]; held?: HeldInboxEntry[] };
+export type BridgedInbox = { entries: InboxEntry[]; held?: HeldInboxEntry[]; hasMoreBefore: boolean };
 
-export async function bridgeInbox(window?: MessengerInboxWindow): Promise<BridgedInbox> {
+export async function bridgeInbox(window?: MessengerInboxWindow | MessengerInboxPageBefore): Promise<BridgedInbox> {
 	const [people, inbox] = await Promise.all([fetchMessengerPeople(), fetchInbox(window)]);
 	void personPicture.rememberExternals(inbox.items.map((item) => externalIDOf(item.message.author, people)));
 	const entries = inbox.items.map(({ reason, isUnread, message }) => ({
@@ -351,7 +352,7 @@ export async function bridgeInbox(window?: MessengerInboxWindow): Promise<Bridge
 		sentAt: message.postedAt
 	}));
 	const held = inbox.held?.map(({ id, body, isUnread }) => ({ id, text: emojifyText(body), isUnread }));
-	return { entries, held };
+	return { entries, held, hasMoreBefore: inbox.hasMoreBefore };
 }
 
 export async function bridgeSendMessage(

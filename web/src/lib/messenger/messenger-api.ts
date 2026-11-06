@@ -320,7 +320,7 @@ export async function fetchPosts(channelID: string, before?: string): Promise<Me
 	return { posts: answer.messages.map(asPost), hasMoreBefore: answer.hasMoreBefore };
 }
 
-export type MessengerInboxReason = 'mention' | 'direct' | 'thread_reply';
+export type MessengerInboxReason = 'mention' | 'direct' | 'thread_reply' | 'channel';
 
 export type MessengerInboxItem = {
 	reason: MessengerInboxReason;
@@ -330,21 +330,25 @@ export type MessengerInboxItem = {
 
 export type MessengerInboxWindow = { since: string; heldIDs: string[] };
 
+export type MessengerInboxPageBefore = { until: string };
+
 export type MessengerHeldInboxItem = { id: string; body: string; isUnread: boolean };
 
-export type MessengerInbox = { items: MessengerInboxItem[]; held?: MessengerHeldInboxItem[] };
+export type MessengerInbox = { items: MessengerInboxItem[]; held?: MessengerHeldInboxItem[]; hasMoreBefore: boolean };
 
-export async function fetchInbox(window?: MessengerInboxWindow): Promise<MessengerInbox> {
+export async function fetchInbox(window?: MessengerInboxWindow | MessengerInboxPageBefore): Promise<MessengerInbox> {
 	const answer = await ask<{
 		items: { reason: MessengerInboxReason; isUnread: boolean; message: PersonalMessageMatch }[];
 		held?: MessengerHeldInboxItem[];
+		hasMoreBefore?: boolean;
 	}>('person.inbox.list', window);
 	const items = answer.items.map((item) => ({
 		reason: item.reason,
 		isUnread: item.isUnread,
 		message: asSearchMatch(item.message)
 	}));
-	return { items, held: window ? answer.held : undefined };
+	const isRefresh = window !== undefined && 'since' in window;
+	return { items, held: isRefresh ? answer.held : undefined, hasMoreBefore: answer.hasMoreBefore ?? false };
 }
 
 export async function markThreadRead(channelID: string, threadRootID: string, readAt: string): Promise<void> {
