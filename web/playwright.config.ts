@@ -2,7 +2,7 @@ import { execFileSync } from 'node:child_process';
 import { availableParallelism } from 'node:os';
 import { defineConfig, devices } from '@playwright/test';
 import { warmPath } from './dev-warm-signal-plugin';
-import { workerCompanyCount } from './tests/e2e/support/worker-company';
+import { workerCompanyCount } from './tests/ui/support/worker-company';
 
 const companyTimeZone = 'Asia/Seoul';
 process.env.TZ = companyTimeZone;
@@ -45,8 +45,8 @@ console.log(servers.map((server) => server.port).join(','));
 for (const server of servers) server.stop(true);
 `;
 
-process.env.E2E_SERVER_PORTS ??= execFileSync('bun', ['-e', freePortsProgram], { encoding: 'utf8' }).trim();
-const serverPorts = process.env.E2E_SERVER_PORTS.split(',');
+process.env.UI_SERVER_PORTS ??= execFileSync('bun', ['-e', freePortsProgram], { encoding: 'utf8' }).trim();
+const serverPorts = process.env.UI_SERVER_PORTS.split(',');
 
 function baseURLOf(plane: Plane): string {
 	return `http://127.0.0.1:${serverPorts[planes.indexOf(plane)]}`;
@@ -111,7 +111,7 @@ function webServersFor(selected: Plane[]) {
 }
 
 export default defineConfig({
-	testDir: './tests/e2e',
+	testDir: './tests/ui',
 	workers: Math.max(1, Math.min(workerCompanyCount, Math.floor(availableParallelism() * 0.3))),
 	timeout: 30_000,
 	expect: { timeout: 10_000 },

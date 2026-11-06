@@ -48,7 +48,7 @@ Nothing lands on `main` by direct push. Branch, run
 `tools/verify` is the whole check. It runs, at once, the groups your diff can
 break; the top of the file declares each group and its commands. `--all` runs
 every group, like `make check`, `--only <names>` the ones named, and
-`--test <paths>` and `--e2e <areas>` the tests and UI areas you judge it can
+`--test <paths>` and `--ui <areas>` the tests and UI areas you judge it can
 break; neither runs otherwise. Nothing runs it for you after you push: the free plan cannot
 require a GitHub Actions check, so a push that skipped `verify` is a push
 nobody checked.
@@ -373,7 +373,7 @@ and delete the duplicates.
   `tools/tests` file is run by nothing.
 - Each worker running `-central` specs signs in to a company of its own,
   seeded by `supabase/seed.dev.sql` as a copy of the example company and
-  named by `web/tests/e2e/support/worker-company.ts`. The specs one worker
+  named by `web/tests/ui/support/worker-company.ts`. The specs one worker
   runs share that company, so a spec that changes company state restores it
   in `afterAll`.
 - Test what a person or a caller sees, never the text of the source. A test
@@ -451,7 +451,7 @@ and delete the duplicates.
 - One machine has one local stack, so anything using it, dev servers too, runs
   under `tools/with-local-plane <command>`. It queues a second worktree behind
   the first, starts the stack, and stops it after fifteen idle minutes.
-  `tools/verify`'s stack groups, `test:api`, `test:e2e`, `./internkim dev plane`
+  `tools/verify`'s stack groups, `test:api`, `test:ui`, `./internkim dev plane`
   and `dev fleet run` already do.
 - `supabase/seed.dev.sql` is the only place local fixtures live, wired through
   `[db.seed]` in `config.toml`. Do not write a second seeding script; a reset

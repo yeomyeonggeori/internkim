@@ -3,7 +3,7 @@ import { Glob } from 'bun';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
-const endToEndDirectory = fileURLToPath(new URL('../e2e/', import.meta.url));
+const endToEndDirectory = fileURLToPath(new URL('../ui/', import.meta.url));
 const numericWidthLoop = /for\s*\(\s*const\s+width\s+of\s+\[\s*\d/g;
 
 function lineOf(source: string, index: number): number {
