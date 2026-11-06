@@ -104,7 +104,7 @@ def submodule_paths(repository_root):
 
 def groups_selected_for(changed, **choices):
     module = verification_module()
-    arguments = argparse.Namespace(**({"base": "origin/main", "only": None, "all": False, "e2e": None} | choices))
+    arguments = argparse.Namespace(**({"base": "origin/main", "only": None, "all": False, "e2e": None, "test": None} | choices))
     output = io.StringIO()
     with patch.object(module, "end_to_end_areas", return_value=["crm", "shell", "task"]), patch.object(module, "changed_paths_against", return_value=changed), redirect_stdout(output):
         groups = module.groups_to_run(arguments)
@@ -129,6 +129,36 @@ class VerificationPlanTests(unittest.TestCase):
     def test_all_runs_every_e2e_area(self):
         selected, _ = groups_selected_for([], all=True)
         self.assertEqual(selected["e2e"], [["scripts/e2e.sh"]])
+
+    def test_a_web_change_runs_only_the_type_check_until_its_tests_are_named(self):
+        selected, printed = groups_selected_for(["web/src/lib/components/channel/channel.svelte"])
+        self.assertEqual(selected["web"][-1], ["bun", "run", "check"])
+        self.assertNotIn("web-tests", selected)
+        self.assertNotIn("web-build", selected)
+        self.assertIn("web-tests not run", printed)
+
+    def test_named_web_tests_run_alone_or_against_the_local_plane(self):
+        module = verification_module()
+        selected, _ = groups_selected_for(["web/src/routes/api/v1/tools/+server.ts"], test="tests/api/public-api-route.test.ts,tests/unit/messenger")
+        self.assertEqual(selected["web-tests"], [
+            ["bun", "test", "tests/unit/messenger"],
+            module.holding_the_local_plane(["scripts/test-against-local-plane.sh", "tests/api/public-api-route.test.ts"]),
+        ])
+
+    def test_a_named_path_outside_the_web_tests_is_refused(self):
+        for path in ["tests/unit/no-such-test.test.ts", "src/lib/utils.ts"]:
+            with self.assertRaises(SystemExit, msg=path):
+                groups_selected_for(["web/src/lib/utils.ts"], test=path)
+
+    def test_a_route_file_or_build_configuration_runs_the_build(self):
+        for path in ["web/src/routes/crm/+page.ts", "web/src/routes/api/v1/tools/+server.ts", "web/vite.config.ts", "web/bun.lock"]:
+            selected, _ = groups_selected_for([path])
+            self.assertIn("web-build", selected, path)
+
+    def test_all_runs_every_web_test(self):
+        module = verification_module()
+        selected, _ = groups_selected_for([], all=True)
+        self.assertEqual(selected["web-tests"], [["bun", "run", "test"], module.holding_the_local_plane(["bun", "run", "test:api"])])
 
     def test_every_spec_sits_in_an_area_named_after_a_route_or_the_shell(self):
         module = verification_module()

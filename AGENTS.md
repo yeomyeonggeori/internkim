@@ -47,9 +47,9 @@ Nothing lands on `main` by direct push. Branch, run
 
 `tools/verify` is the whole check. It runs, at once, the groups your diff can
 break; the top of the file declares each group and its commands. `--all` runs
-every group, as `make check` does, `--only <names>` the ones named, and
-`--e2e <area,...>` the UI test areas you judge it can break; no UI test runs
-otherwise. Nothing runs it for you after you push: the free plan cannot
+every group, like `make check`, `--only <names>` the ones named, and
+`--test <paths>` and `--e2e <areas>` the tests and UI areas you judge it can
+break; neither runs otherwise. Nothing runs it for you after you push: the free plan cannot
 require a GitHub Actions check, so a push that skipped `verify` is a push
 nobody checked.
 
@@ -160,7 +160,7 @@ EOF
 
 One reviewable change per pull request. The description says what the reader
 should look at and what evidence exists that it works — the test that fails
-without the change, the UI areas run and why, the scenario, the screenshot. A pull request
+without the change, the tests run and why, the scenario, the screenshot. A pull request
 that touches unrelated files should be split.
 
 A change to a skill, a tool descriptor, or a prompt says what the model now sees
