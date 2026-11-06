@@ -73,6 +73,15 @@ describe('the inbox over the company bridge', () => {
 		expect(inbox.held).toEqual([{ id: 'reply-0', body: '다시 썼어요', isUnread: false }]);
 	});
 
+	test('asked for the page before a moment, sends that moment and treats the answer as no refresh', async () => {
+		asked.length = 0;
+
+		const inbox = await fetchInbox({ until: '2026-10-12T04:00:00.000Z' });
+
+		expect(asked).toEqual([{ capability: 'person.inbox.list', body: { until: '2026-10-12T04:00:00.000Z' } }]);
+		expect(inbox.held).toBeUndefined();
+	});
+
 	test('marks a thread read by naming its root alongside its conversation', async () => {
 		asked.length = 0;
 

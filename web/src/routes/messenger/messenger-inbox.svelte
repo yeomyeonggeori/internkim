@@ -40,6 +40,14 @@
 	const text = createPageText(messengerInboxText);
 
 	const conversationOf = $derived(new Map(conversations.map((conversation) => [conversation.id, conversation])));
+
+	function loadOlderOnReach(sentinel: HTMLElement) {
+		const observer = new IntersectionObserver((entries) => {
+			if (entries.some((entry) => entry.isIntersecting)) void inbox.loadOlder();
+		});
+		observer.observe(sentinel);
+		return { destroy: () => observer.disconnect() };
+	}
 </script>
 
 <aside class={cn('flex min-h-0 flex-col', className)} aria-label={text.inbox}>
@@ -93,9 +101,9 @@
 								</Item.Title>
 								{#if place?.kind === 'direct'}
 									<p class="text-muted-foreground truncate text-xs">{text.directFrom} {place.personName}</p>
-								{:else if place?.kind === 'thread'}
+								{:else if place}
 									<p class="text-muted-foreground flex min-w-0 items-center gap-1 text-xs">
-										{text.threadIn}
+										{place.kind === 'thread' ? text.threadIn : text.channelIn}
 										<Badge variant="secondary" class="h-4 min-w-0 truncate px-1.5 py-0"># {place.channelName}</Badge>
 									</p>
 								{/if}
@@ -105,6 +113,13 @@
 					{/snippet}
 				</Item.Root>
 			{/each}
+			{#if inbox.hasMoreBefore}
+				<div use:loadOlderOnReach class="p-2">
+					<Button variant="outline" size="sm" class="w-full" onclick={() => inbox.loadOlder()} disabled={inbox.isLoadingOlder}>
+						{inbox.isLoadingOlder ? text.loadingMore : text.loadMore}
+					</Button>
+				</div>
+			{/if}
 		</Item.Group>
 	{/if}
 </aside>
