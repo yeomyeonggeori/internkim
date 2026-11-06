@@ -47,8 +47,13 @@
 
 <div bind:this={host} aria-hidden="true" class="pointer-events-none absolute inset-0 z-[5] overflow-hidden" data-capture-overlay>
 	{#if frame}
+		<div class="absolute inset-x-0 top-0 bg-black/55" style:height="{Math.max(frame.top, 0)}px"></div>
 		<div
-			class="absolute shadow-[0_0_0_100vmax_rgb(0_0_0/0.55)]"
+			class="absolute inset-x-0 bottom-0 bg-black/55"
+			style:top="{frame.top + frame.height}px"
+		></div>
+		<div
+			class="absolute"
 			style:top="{frame.top}px"
 			style:left="{frame.left}px"
 			style:width="{frame.width}px"
