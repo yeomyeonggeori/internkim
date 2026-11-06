@@ -152,8 +152,8 @@
     "process": "docs site",
     "description": "Vite's own build-mode flag (import.meta.env.DEV, true outside a production build), not a deployment setting"
   },
-  "E2E_SERVER_PORTS": {
-    "process": "web e2e tests",
+  "UI_SERVER_PORTS": {
+    "process": "web UI tests",
     "description": "the dev server ports web/playwright.config.ts picks on its first load and hands to its workers, one per plane as central,fixture,mocked,standalone and then the exchange-rate stand-in's; set it to choose them yourself"
   },
   "EMPTY_CAPTURE_DIR": {
@@ -398,7 +398,7 @@
     "description": "the Blueclaw migrations directory rendered into the company plane's runtime document; defaults to /opt/blueclaw/migrations"
   },
   "MOBILE_UX_SCREENSHOTS": {
-    "process": "web e2e tests",
+    "process": "web UI tests",
     "description": "optional output directory for the mobile route and messenger screenshot fixtures; unset skips screenshots"
   },
   "MODEL_API_KEY_PATH": {
@@ -522,11 +522,11 @@
     "isInVault": true
   },
   "TEST_PARALLEL_INDEX": {
-    "process": "web e2e tests",
-    "description": "the Playwright worker's parallel index, which web/tests/e2e/support/worker-company.ts turns into the seeded company that worker runs against; Playwright sets it"
+    "process": "web UI tests",
+    "description": "the Playwright worker's parallel index, which web/tests/ui/support/worker-company.ts turns into the seeded company that worker runs against; Playwright sets it"
   },
   "TILES_SCREENSHOT": {
-    "process": "web e2e tests",
+    "process": "web UI tests",
     "description": "optional path for the messenger attachment tiles screenshot; unset skips it"
   },
   "TMPDIR": {

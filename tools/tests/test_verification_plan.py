@@ -104,31 +104,31 @@ def submodule_paths(repository_root):
 
 def groups_selected_for(changed, **choices):
     module = verification_module()
-    arguments = argparse.Namespace(**({"base": "origin/main", "only": None, "all": False, "e2e": None, "test": None} | choices))
+    arguments = argparse.Namespace(**({"base": "origin/main", "only": None, "all": False, "ui": None, "test": None} | choices))
     output = io.StringIO()
-    with patch.object(module, "end_to_end_areas", return_value=["crm", "shell", "task"]), patch.object(module, "changed_paths_against", return_value=changed), redirect_stdout(output):
+    with patch.object(module, "user_interface_areas", return_value=["crm", "shell", "task"]), patch.object(module, "changed_paths_against", return_value=changed), redirect_stdout(output):
         groups = module.groups_to_run(arguments)
     return {group.name: group.commands for group in groups}, output.getvalue()
 
 
 class VerificationPlanTests(unittest.TestCase):
-    def test_a_web_change_runs_no_e2e_until_its_areas_are_named(self):
+    def test_a_web_change_runs_no_ui_until_its_areas_are_named(self):
         selected, printed = groups_selected_for(["web/src/routes/crm/text.ts"])
         self.assertIn("web", selected)
-        self.assertNotIn("e2e", selected)
-        self.assertIn("e2e not run", printed)
+        self.assertNotIn("ui", selected)
+        self.assertIn("ui not run", printed)
 
-    def test_named_e2e_areas_run_only_those_areas(self):
-        selected, _ = groups_selected_for(["web/src/routes/crm/text.ts"], e2e="task,crm")
-        self.assertEqual(selected["e2e"], [["scripts/e2e.sh", "tests/e2e/crm", "tests/e2e/task"]])
+    def test_named_ui_areas_run_only_those_areas(self):
+        selected, _ = groups_selected_for(["web/src/routes/crm/text.ts"], ui="task,crm")
+        self.assertEqual(selected["ui"], [["scripts/ui.sh", "tests/ui/crm", "tests/ui/task"]])
 
-    def test_an_e2e_area_that_does_not_exist_is_refused(self):
+    def test_a_ui_area_that_does_not_exist_is_refused(self):
         with self.assertRaises(SystemExit):
-            groups_selected_for(["web/src/routes/crm/text.ts"], e2e="crm,nowhere")
+            groups_selected_for(["web/src/routes/crm/text.ts"], ui="crm,nowhere")
 
-    def test_all_runs_every_e2e_area(self):
+    def test_all_runs_every_ui_area(self):
         selected, _ = groups_selected_for([], all=True)
-        self.assertEqual(selected["e2e"], [["scripts/e2e.sh"]])
+        self.assertEqual(selected["ui"], [["scripts/ui.sh"]])
 
     def test_a_web_change_runs_only_the_type_check_until_its_tests_are_named(self):
         selected, printed = groups_selected_for(["web/src/lib/components/channel/channel.svelte"])
@@ -163,8 +163,8 @@ class VerificationPlanTests(unittest.TestCase):
     def test_every_spec_sits_in_an_area_named_after_a_route_or_the_shell(self):
         module = verification_module()
         routes = {path.name for path in (module.REPOSITORY_ROOT / "web" / "src" / "routes").iterdir() if path.is_dir()}
-        self.assertEqual(sorted(module.END_TO_END_DIRECTORY.glob("*.spec.ts")), [])
-        self.assertEqual(set(module.end_to_end_areas()) - routes, {"shell"})
+        self.assertEqual(sorted(module.USER_INTERFACE_DIRECTORY.glob("*.spec.ts")), [])
+        self.assertEqual(set(module.user_interface_areas()) - routes, {"shell"})
 
     def test_every_python_test_under_tools_is_run_by_a_group(self):
         module = verification_module()
@@ -185,7 +185,7 @@ class VerificationPlanTests(unittest.TestCase):
         named_scripts = {name for command in commands for name in re.findall(r"bun run ([\w:-]+)", command)}
         expanded = commands + [scripts[name] for name in named_scripts if name in scripts]
         for directory in sorted(path.name for path in (module.REPOSITORY_ROOT / "web" / "tests").iterdir() if path.is_dir()):
-            if directory in run_elsewhere or directory == "e2e":
+            if directory in run_elsewhere or directory == "ui":
                 continue
             self.assertTrue(any(f"tests/{directory}" in command for command in expanded), f"no group runs web/tests/{directory}")
 
@@ -244,9 +244,9 @@ class VerificationPlanTests(unittest.TestCase):
     def test_a_script_line_in_the_package_reaches_no_browser(self):
         groups = verification_module().GROUPS
         selected = {group.name for group in groups if group.is_touched_by(["web/package.json"])}
-        self.assertNotIn("e2e", selected)
+        self.assertNotIn("ui", selected)
         selected = {group.name for group in groups if group.is_touched_by(["web/bun.lock"])}
-        self.assertIn("e2e", selected)
+        self.assertIn("ui", selected)
 
     def test_internkim_plugin_changes_select_the_plugin_group(self):
         groups = verification_module().GROUPS
@@ -393,9 +393,9 @@ class VerificationPlanTests(unittest.TestCase):
         self.assertEqual(heavy.command_to_run(command), [*holder, *command])
         self.assertEqual(heavy.command_to_run(module.holding_the_local_plane(command)), [module.WITH_LOCAL_PLANE, *holder, *module.holding_the_local_plane(command)[1:]])
         self.assertEqual(light.command_to_run(module.holding_the_local_plane(command)), module.holding_the_local_plane(command))
-        end_to_end = next(group for group in module.GROUPS if group.name == "e2e")
-        with patch.object(type(end_to_end), "needs_the_local_plane", return_value=True):
-            self.assertEqual(end_to_end.command_to_run(["scripts/e2e.sh"]), [module.WITH_LOCAL_PLANE, *module.machine_slot_holder("e2e"), "scripts/e2e.sh"])
+        user_interface = next(group for group in module.GROUPS if group.name == "ui")
+        with patch.object(type(user_interface), "needs_the_local_plane", return_value=True):
+            self.assertEqual(user_interface.command_to_run(["scripts/ui.sh"]), [module.WITH_LOCAL_PLANE, *module.machine_slot_holder("ui"), "scripts/ui.sh"])
 
     def test_a_command_waiting_for_a_machine_slot_says_so_on_the_console(self):
         module = verification_module()

@@ -72,11 +72,11 @@ class Group:
 
 
 WEB_DIRECTORY = REPOSITORY_ROOT / "web"
-END_TO_END_DIRECTORY = WEB_DIRECTORY / "tests" / "e2e"
+USER_INTERFACE_DIRECTORY = WEB_DIRECTORY / "tests" / "ui"
 
 
-def end_to_end_areas():
-    return sorted(path.name for path in END_TO_END_DIRECTORY.iterdir() if path.is_dir() and path.name != "support")
+def user_interface_areas():
+    return sorted(path.name for path in USER_INTERFACE_DIRECTORY.iterdir() if path.is_dir() and path.name != "support")
 
 
 CHOSEN_TEST_ROOTS = ("tests/unit/", "tests/conventions/", "tests/api/")
@@ -95,8 +95,8 @@ class ChosenGroup(Group):
         return limited
 
 
-class EndToEndGroup(ChosenGroup):
-    option = "e2e"
+class UserInterfaceGroup(ChosenGroup):
+    option = "ui"
     hint = "<area,...>"
 
     def needs_the_local_plane(self, command):
@@ -104,10 +104,10 @@ class EndToEndGroup(ChosenGroup):
         return asked.returncode == 0
 
     def commands_for(self, areas):
-        unknown = [area for area in areas if area not in end_to_end_areas()]
+        unknown = [area for area in areas if area not in user_interface_areas()]
         if unknown:
-            raise SystemExit(f"no such e2e area: {', '.join(unknown)}; the areas are {', '.join(end_to_end_areas())}")
-        return [["scripts/e2e.sh", *(f"tests/e2e/{area}" for area in areas)]]
+            raise SystemExit(f"no such UI area: {', '.join(unknown)}; the areas are {', '.join(user_interface_areas())}")
+        return [["scripts/ui.sh", *(f"tests/ui/{area}" for area in areas)]]
 
 
 class WebTestGroup(ChosenGroup):
@@ -416,21 +416,21 @@ GROUPS = [
         working_directory="web",
         lane="web",
     ),
-    EndToEndGroup(
-        "e2e",
+    UserInterfaceGroup(
+        "ui",
         [
             "web/src/*",
             "web/static/*",
-            "web/tests/e2e/*",
+            "web/tests/ui/*",
             "web/playwright.config.ts",
             "web/vite.config.ts",
             "web/svelte.config.js",
             "web/bun.lock",
-            "web/scripts/e2e.sh",
+            "web/scripts/ui.sh",
             "supabase/migrations/*",
             "supabase/seed.dev.sql",
         ],
-        [["scripts/e2e.sh"]],
+        [["scripts/ui.sh"]],
         lane="web",
     ),
     Group(
@@ -541,7 +541,7 @@ GROUPS = [
             "internal/admind/host_update.go",
             "internal/hostupdate/*",
             "web/static/install.sh",
-            "web/tests/e2e/support/central-test-utils.ts",
+            "web/tests/ui/support/central-test-utils.ts",
             "web/scripts/local-plane-signing-key.sh",
             "workers/connection-gateway/*",
         ],
@@ -787,7 +787,7 @@ def main():
     parser.add_argument("--base", default="origin/main", help="what to compare against")
     parser.add_argument("--all", action="store_true", help="run every group, not only the touched ones")
     parser.add_argument("--only", help="comma-separated group names")
-    parser.add_argument("--e2e", help="comma-separated e2e areas to run, chosen by reading the diff")
+    parser.add_argument("--ui", help="comma-separated UI areas to run, chosen by reading the diff")
     parser.add_argument("--test", help="comma-separated web test files or directories to run, chosen by reading the diff")
     parser.add_argument("--plan", action="store_true", help="show selected groups and commands without running them")
     arguments = parser.parse_args()
