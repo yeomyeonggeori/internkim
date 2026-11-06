@@ -42,4 +42,8 @@ if [ "${runsOnThisCheckoutsStack:-0}" -eq 1 ]; then
 fi
 cd "$repository/web"
 bun -e 'await import("../supabase/scripts/local-database-url.ts")'
+if [ "${1:-}" = "--run" ]; then
+  shift
+  exec "$@"
+fi
 exec bun test "$@"

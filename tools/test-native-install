@@ -2454,7 +2454,7 @@ def main():
     )
     parser.add_argument(
         "--requests",
-        help="a JSON list of {name, instruction, requesterEmail, attachments, snippet, timeoutSeconds, timeZone} sent once "
+        help="a JSON list of {name, instruction, requesterEmail, answers, attachments, timeoutSeconds, timeZone} sent once "
         "the host answers, or a directory of task files such as web/tests/e2e/tasks "
         "(attachments are paths relative to the file; requesterEmail is a seeded member, the administrator when absent; "
         "timeZone is the IANA zone the message is sent from, this Mac's when absent); for each, the replies, the task's "

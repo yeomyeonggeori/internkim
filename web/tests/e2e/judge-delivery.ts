@@ -62,7 +62,7 @@ async function main(): Promise<void> {
 	if (!caseDirectory) throw new Error('usage: judge-delivery.ts <case directory>');
 	const task = readJSON<PilotTask>(join(caseDirectory, 'task.json'));
 	const delivery = readJSON<KeptDelivery>(join(caseDirectory, 'result.json'));
-	const record = localRecord();
+	const record = await localRecord();
 	const judgement = await judge(record, task.assertions, outcomeOf(caseDirectory, delivery));
 	await cleanUp(record, task.cleanup);
 	writeFileSync(join(caseDirectory, 'judgement.json'), JSON.stringify(judgement, null, 2));

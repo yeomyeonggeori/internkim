@@ -1,4 +1,4 @@
-//   monkeys run @pilot bun run tests/pilot/run-pilot.ts --arm <bluecollar|bluecollar-pi-shaped|bluecollar-reply-action|claude-code> [--repetitions 3] [--tasks tests/e2e/tasks] [--run-id <id>] [--only <task name>]
+//   bun run pilot --arm <bluecollar|bluecollar-pi-shaped|bluecollar-reply-action|claude-code> [--repetitions 3] [--tasks tests/e2e/tasks] [--run-id <id>] [--only <task name>]
 //
 //   PILOT_APP_URL          the local app the external harness reaches over MCP (claude-code)
 //   PILOT_FLEET_CONFIG     the kept Local Fleet's config.json (bluecollar arms)
@@ -106,7 +106,7 @@ async function forgetCredentials(client: SupabaseClient, credentials: Map<string
 async function main(): Promise<void> {
 	const chosen = options();
 	const repositoryRoot = resolve(import.meta.dir, '../../..');
-	const record = localRecord();
+	const record = await localRecord();
 	const tasks = loadTasks(chosen.tasksDirectory, chosen.only);
 	if (tasks.length === 0) throw new Error(`no task in ${chosen.tasksDirectory}`);
 	const evidenceRoot = join(repositoryRoot, '.artifacts/pilot', chosen.runID, chosen.arm);

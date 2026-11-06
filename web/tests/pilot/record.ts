@@ -97,18 +97,9 @@ export function loadTasks(directory: string, only?: string): PilotTask[] {
 		.filter((task) => !only || task.name === only);
 }
 
-export function localRecord(): RecordAccess {
-	const status = Bun.spawnSync(['supabase', 'status', '--env', '--output-format', 'text'], { stdout: 'pipe', stderr: 'pipe' });
-	const lines = new TextDecoder().decode(status.stdout).split('\n');
-	const valueOf = (name: string) =>
-		lines
-			.find((line) => line.startsWith(`${name}=`))
-			?.slice(name.length + 1)
-			.replace(/^["']|["']$/g, '');
-	const apiURL = valueOf('API_URL');
-	const secretKey = valueOf('SECRET_KEY') ?? valueOf('SERVICE_ROLE_KEY');
-	if (!apiURL || !secretKey) throw new Error('the local record is not running: supabase status names no API_URL and SECRET_KEY');
-	return { apiURL, secretKey };
+export async function localRecord(): Promise<RecordAccess> {
+	const { projectURL, serviceRoleKey } = await import('../support/supabase-environment');
+	return { apiURL: projectURL, secretKey: serviceRoleKey };
 }
 
 function tableRequest(record: RecordAccess, table: string, where: Where, select?: string): { url: string; headers: Record<string, string> } {

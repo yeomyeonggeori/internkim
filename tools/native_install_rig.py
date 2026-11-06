@@ -1254,6 +1254,15 @@ class CompanyPlane:
                 return ""
             time.sleep(5)
 
+    def test_environment(self):
+        """What web/tests/support/supabase-environment.ts reads, for a test the rig runs against this plane."""
+        return {
+            "SUPABASE_URL": self.settings["API_URL"],
+            "SUPABASE_SECRET_KEY": self.settings["SECRET_KEY"],
+            "SUPABASE_PUBLISHABLE_KEY": self.settings["PUBLISHABLE_KEY"],
+            "SUPABASE_JWT_SIGNING_KEY": self.signing_key,
+        }
+
     def read_record(self, path):
         return answered(self.settings["API_URL"] + path, self.record_headers())
 

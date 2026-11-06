@@ -8,10 +8,10 @@ the replies and the task's own ledger. Files the agent wrote in the workspace
 during the request and did not post are kept beside them, under workspace/.
 """
 
-import datetime
 import hashlib
 import json
 import mimetypes
+import os
 import shlex
 import shutil
 import subprocess
@@ -35,7 +35,7 @@ TASK_QUERY = """
 select coalesce(json_agg(row_to_json(found)), '[]'::json) from (
   select task_run_id, status, created_at, updated_at, failure_reason, left(coalesce(result, ''), 4000) as result
   from task_run
-  where position(:'snippet' in prompt) > 0 and created_at >= to_timestamp(:sent_at)
+  where origin_conversation_id = :'conversation' and created_at >= (:'posted_at')::timestamptz
   order by created_at
 ) found
 """
@@ -131,15 +131,8 @@ def status_of_latest(tasks):
     return tasks[-1].get("status") if tasks and isinstance(tasks[-1], dict) else "no task"
 
 
-def was_updated_after(tasks, moment):
-    if not moment:
-        return True
-    latest = tasks[-1].get("updated_at") if isinstance(tasks[-1], dict) else None
-    return bool(latest) and datetime.datetime.fromisoformat(latest).timestamp() >= moment
-
-
-def first_line_snippet(request):
-    return request.get("snippet") or request["instruction"].strip().splitlines()[0][:40]
+def ledger_state(tasks):
+    return [(task.get("task_run_id"), task.get("status"), task.get("updated_at")) for task in tasks if isinstance(task, dict)]
 
 
 def workspace_snapshot_command(target, since_epoch, carried_digests):
@@ -247,20 +240,20 @@ class Deliveries:
             record["outcome"] = "not sent"
             print(f"    not sent: {sent.get('status')} {json.dumps(sent.get('body'), ensure_ascii=False)[:300]}", flush=True)
             return self.keep(case_directory, record)
-        snippet = first_line_snippet(request)
+        conversation = (sent.get("body") or {}).get("conversationID") or ""
+        posted_at = (sent.get("body") or {}).get("postedAt") or ""
         timeout_seconds = request.get("timeoutSeconds", 1800)
-        tasks = self.follow_the_task(snippet, sent_at, message_id, timeout_seconds)
+        tasks = self.follow_the_task(conversation, posted_at, message_id, timeout_seconds)
         for answer in request.get("answers", []):
             if status_of_latest(tasks) not in STILL_OPEN_STATUSES:
                 break
-            answered_at = time.time()
             print(f"    {status_of_latest(tasks)}, answering {answer!r}", flush=True)
             self.plane.member_session(
                 self.rig.company_id, answer, member_id=member_id, time_zone=request.get("timeZone", ""), email=email
             )
-            tasks = self.follow_the_task(snippet, sent_at, message_id, timeout_seconds, moved_after=answered_at)
+            tasks = self.follow_the_task(conversation, posted_at, message_id, timeout_seconds, before=ledger_state(tasks))
         time.sleep(SETTLE_SECONDS)
-        tasks = self.query(COMPANY_CONDITION_PATH, TASK_QUERY, snippet=snippet, sent_at=int(sent_at)) or tasks
+        tasks = self.query(COMPANY_CONDITION_PATH, TASK_QUERY, conversation=conversation, posted_at=posted_at) or tasks
         replies = self.query(MESSENGER_DATABASE_PATH, REPLIES_QUERY, message=message_id)
         record["tasks"] = tasks
         record["replies"] = replies
@@ -278,14 +271,13 @@ class Deliveries:
             time.sleep(10)
         print(f"    {record['outcome']} in {record['elapsedSeconds']}s, files {[file.get('name') for file in record['files']]}", flush=True)
         if "assertions" in request:
-            record["inboxes"] = self.read_inboxes(request["assertions"], sent_at)
+            record["inboxes"] = self.read_inboxes(request["assertions"], posted_at)
             self.keep(case_directory, record)
             record["judgement"] = self.judge(case_directory, request)
             print(f"    {'passed' if record['judgement'].get('passed') else 'failed'}", flush=True)
         return self.keep(case_directory, record)
 
-    def read_inboxes(self, assertions, sent_at):
-        since = datetime.datetime.fromtimestamp(sent_at, datetime.timezone.utc).isoformat()
+    def read_inboxes(self, assertions, since):
         emails = sorted({assertion["inboxOf"]["email"] for assertion in assertions if "inboxOf" in assertion})
         return {email: self.rig.ask_the_messenger("inbox_since", email=email, since=since).get("bodies", []) for email in emails}
 
@@ -294,7 +286,8 @@ class Deliveries:
         (case_directory / "task.json").write_text(json.dumps(task, ensure_ascii=False, indent=2))
         completed = subprocess.run(
             ["bun", "run", JUDGE_SCRIPT, str(case_directory)],
-            cwd=REPOSITORY_ROOT / "web", capture_output=True, text=True, timeout=300,
+            cwd=REPOSITORY_ROOT / "web", env=os.environ | self.plane.test_environment(),
+            capture_output=True, text=True, timeout=300,
         )
         for line in reversed(completed.stdout.splitlines()):
             if line.startswith("{"):
@@ -311,17 +304,18 @@ class Deliveries:
             shutil.rmtree(source)
         return kept_paths(completed.stdout)
 
-    def follow_the_task(self, snippet, sent_at, message_id, timeout_seconds, moved_after=0):
+    def follow_the_task(self, conversation, posted_at, message_id, timeout_seconds, before=None):
         started = time.monotonic()
         tasks = []
         while time.monotonic() < started + timeout_seconds:
-            tasks = self.query(COMPANY_CONDITION_PATH, TASK_QUERY, snippet=snippet, sent_at=int(sent_at))
+            tasks = self.query(COMPANY_CONDITION_PATH, TASK_QUERY, conversation=conversation, posted_at=posted_at)
             statuses = [task.get("status") for task in tasks if isinstance(task, dict)]
-            if statuses and all(status in ENDED_STATUSES for status in statuses) and was_updated_after(tasks, moved_after):
+            has_moved = before is None or ledger_state(tasks) != before
+            if statuses and all(status in ENDED_STATUSES for status in statuses) and has_moved:
                 return tasks
             if not statuses and time.monotonic() > started + 300:
                 if self.query(MESSENGER_DATABASE_PATH, REPLIES_QUERY, message=message_id):
-                    print("    no task carries the request's first line; the agent replied, so the wait ends", flush=True)
+                    print("    no task runs in the conversation; the agent replied, so the wait ends", flush=True)
                     return tasks
             time.sleep(POLL_SECONDS)
         return tasks
