@@ -322,10 +322,10 @@ test.describe('the keyboard on a touch screen', () => {
 		await openConversation(page, 390);
 		await page.getByRole('combobox', { name: '메시지를 입력하세요' }).focus();
 
-		await dragConversation(page, [300, 320]);
+		await dragConversation(page, [300, 400]);
 		expect(await composerHasFocus(page)).toBe(true);
 
-		await dragConversation(page, [300, 360]);
+		await dragConversation(page, [300, 440]);
 		expect(await composerHasFocus(page)).toBe(false);
 	});
 
