@@ -94,6 +94,7 @@ func TestThePlaneAsksTheDecisionModelBesideTheChatModels(t *testing.T) {
 	cases := map[string]string{
 		"":                               "https://openrouter.ai" + DecisionsPath,
 		"https://gateway.example/api/v1": "https://gateway.example" + DecisionsPath,
+		"http://127.0.0.1:8080/v1":       "http://127.0.0.1:8080" + DecisionsPath,
 	}
 	for endpointURL, expectedDecisionsURL := range cases {
 		decision := LanguageModelDocument(endpointURL, "/run/example-key").Decision

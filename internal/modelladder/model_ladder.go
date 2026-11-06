@@ -80,8 +80,12 @@ func apiRootOf(rawURL string) string {
 	if errorValue != nil || parsed.Scheme == "" || parsed.Host == "" {
 		return ""
 	}
-	prefix, _, _ := strings.Cut(parsed.Path, chatAPIPath)
-	return parsed.Scheme + "://" + parsed.Host + strings.TrimSuffix(prefix, "/")
+	origin := parsed.Scheme + "://" + parsed.Host
+	prefix, _, isUnderTheChatAPI := strings.Cut(parsed.Path, chatAPIPath)
+	if !isUnderTheChatAPI {
+		return origin
+	}
+	return origin + strings.TrimSuffix(prefix, "/")
 }
 
 func ModelNames() []string {
