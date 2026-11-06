@@ -52,6 +52,7 @@ export interface PilotTask {
 	name: string;
 	requesterEmail: string;
 	instruction: string;
+	answers?: string[];
 	assertions: Assertion[];
 	cleanup: CleanupStep[];
 }
@@ -97,13 +98,13 @@ export function loadTasks(directory: string, only?: string): PilotTask[] {
 }
 
 export function localRecord(): RecordAccess {
-	const status = Bun.spawnSync(['supabase', 'status', '-o', 'env'], { stdout: 'pipe', stderr: 'pipe' });
+	const status = Bun.spawnSync(['supabase', 'status', '--env', '--output-format', 'text'], { stdout: 'pipe', stderr: 'pipe' });
 	const lines = new TextDecoder().decode(status.stdout).split('\n');
 	const valueOf = (name: string) =>
 		lines
 			.find((line) => line.startsWith(`${name}=`))
 			?.slice(name.length + 1)
-			.replace(/^"|"$/g, '');
+			.replace(/^["']|["']$/g, '');
 	const apiURL = valueOf('API_URL');
 	const secretKey = valueOf('SECRET_KEY') ?? valueOf('SERVICE_ROLE_KEY');
 	if (!apiURL || !secretKey) throw new Error('the local record is not running: supabase status names no API_URL and SECRET_KEY');

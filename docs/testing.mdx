@@ -109,8 +109,9 @@ checkout wait its turn.
 
 An end-to-end task is a message a member sends the agent, and what the record,
 the files and other people's inboxes hold after it. The tasks live in
-`web/tests/e2e/tasks/`, one file each: who sends it, the instruction, the
-assertions and the rows to remove afterwards. `tools/test-native-install`
+`web/tests/e2e/tasks/`, one file each: who sends it, the instruction, what
+they answer if the agent stops to ask, the assertions and the rows to remove
+afterwards. `tools/test-native-install`
 installs the package in a disposable Linux machine, gives it the seeded company,
 sends each task over the messenger as its member, and judges it with
 `web/tests/e2e/judge-delivery.ts` (step 14). The model pilot in

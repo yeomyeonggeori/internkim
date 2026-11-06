@@ -71,6 +71,21 @@ class RequestBatchTests(unittest.TestCase):
         self.assertEqual(deliveries.first_line_snippet({"instruction": "이샘플", "snippet": "박예시"}), "박예시")
 
 
+class FollowingATaskTests(unittest.TestCase):
+    def test_the_latest_task_names_the_outcome(self):
+        self.assertEqual(deliveries.status_of_latest([{"status": "completed"}, {"status": "waiting_approval"}]), "waiting_approval")
+        self.assertEqual(deliveries.status_of_latest([]), "no task")
+
+    def test_a_task_still_holding_its_question_has_not_moved_after_the_answer(self):
+        tasks = [{"status": "waiting_approval", "updated_at": "2026-11-06T13:32:01+09:00"}]
+        answered_at = deliveries.datetime.datetime.fromisoformat("2026-11-06T13:33:00+09:00").timestamp()
+        self.assertFalse(deliveries.was_updated_after(tasks, answered_at))
+        self.assertTrue(deliveries.was_updated_after([{**tasks[0], "updated_at": "2026-11-06T13:34:00+09:00"}], answered_at))
+
+    def test_the_first_wait_needs_no_movement(self):
+        self.assertTrue(deliveries.was_updated_after([{"status": "completed"}], 0))
+
+
 class DeliveredMediaTests(unittest.TestCase):
     def test_media_is_read_from_imeta_tags_that_carry_a_url(self):
         tags = [

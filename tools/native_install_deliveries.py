@@ -29,7 +29,7 @@ RELAY_ADDRESS = "http://127.0.0.1:3000"
 WORKSPACE_ROOT = "/workspace"
 WORKSPACE_DIRECTORY_NAME = "workspace"
 JUDGE_SCRIPT = "tests/e2e/judge-delivery.ts"
-TASK_FIELDS = ("name", "requesterEmail", "instruction", "assertions", "cleanup")
+TASK_FIELDS = ("name", "requesterEmail", "instruction", "answers", "assertions", "cleanup")
 
 TASK_QUERY = """
 select coalesce(json_agg(row_to_json(found)), '[]'::json) from (
@@ -125,6 +125,17 @@ def parse_request(base, entry):
         **entry,
         "attachments": [attachment_file(base, attachment) for attachment in entry.get("attachments", [])],
     }
+
+
+def status_of_latest(tasks):
+    return tasks[-1].get("status") if tasks and isinstance(tasks[-1], dict) else "no task"
+
+
+def was_updated_after(tasks, moment):
+    if not moment:
+        return True
+    latest = tasks[-1].get("updated_at") if isinstance(tasks[-1], dict) else None
+    return bool(latest) and datetime.datetime.fromisoformat(latest).timestamp() >= moment
 
 
 def first_line_snippet(request):
@@ -237,7 +248,17 @@ class Deliveries:
             print(f"    not sent: {sent.get('status')} {json.dumps(sent.get('body'), ensure_ascii=False)[:300]}", flush=True)
             return self.keep(case_directory, record)
         snippet = first_line_snippet(request)
-        tasks = self.follow_the_task(snippet, sent_at, message_id, request.get("timeoutSeconds", 1800))
+        timeout_seconds = request.get("timeoutSeconds", 1800)
+        tasks = self.follow_the_task(snippet, sent_at, message_id, timeout_seconds)
+        for answer in request.get("answers", []):
+            if status_of_latest(tasks) not in STILL_OPEN_STATUSES:
+                break
+            answered_at = time.time()
+            print(f"    {status_of_latest(tasks)}, answering {answer!r}", flush=True)
+            self.plane.member_session(
+                self.rig.company_id, answer, member_id=member_id, time_zone=request.get("timeZone", ""), email=email
+            )
+            tasks = self.follow_the_task(snippet, sent_at, message_id, timeout_seconds, moved_after=answered_at)
         time.sleep(SETTLE_SECONDS)
         tasks = self.query(COMPANY_CONDITION_PATH, TASK_QUERY, snippet=snippet, sent_at=int(sent_at)) or tasks
         replies = self.query(MESSENGER_DATABASE_PATH, REPLIES_QUERY, message=message_id)
@@ -251,7 +272,7 @@ class Deliveries:
         record["files"] = self.fetch_media(case_directory, replies)
         record["workspaceFiles"] = self.snapshot_workspace(case_directory, sent_at, record["files"])
         record["elapsedSeconds"] = round(time.time() - sent_at)
-        record["outcome"] = tasks[-1].get("status") if tasks and isinstance(tasks[-1], dict) else "no task"
+        record["outcome"] = status_of_latest(tasks)
         if record["outcome"] in STILL_OPEN_STATUSES or record["outcome"] in ("running", "planned", "no task"):
             self.plane.member_session(self.rig.company_id, "/stop-all", member_id=member_id, email=email)
             time.sleep(10)
@@ -290,13 +311,13 @@ class Deliveries:
             shutil.rmtree(source)
         return kept_paths(completed.stdout)
 
-    def follow_the_task(self, snippet, sent_at, message_id, timeout_seconds):
+    def follow_the_task(self, snippet, sent_at, message_id, timeout_seconds, moved_after=0):
         started = time.monotonic()
         tasks = []
         while time.monotonic() < started + timeout_seconds:
             tasks = self.query(COMPANY_CONDITION_PATH, TASK_QUERY, snippet=snippet, sent_at=int(sent_at))
             statuses = [task.get("status") for task in tasks if isinstance(task, dict)]
-            if statuses and all(status in ENDED_STATUSES for status in statuses):
+            if statuses and all(status in ENDED_STATUSES for status in statuses) and was_updated_after(tasks, moved_after):
                 return tasks
             if not statuses and time.monotonic() > started + 300:
                 if self.query(MESSENGER_DATABASE_PATH, REPLIES_QUERY, message=message_id):
