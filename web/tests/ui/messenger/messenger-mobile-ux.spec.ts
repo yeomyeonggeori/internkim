@@ -322,11 +322,24 @@ test.describe('the keyboard on a touch screen', () => {
 		await openConversation(page, 390);
 		await page.getByRole('combobox', { name: '메시지를 입력하세요' }).focus();
 
-		await dragConversation(page, [300, 320]);
+		await dragConversation(page, [300, 400]);
 		expect(await composerHasFocus(page)).toBe(true);
 
-		await dragConversation(page, [300, 360]);
+		await dragConversation(page, [300, 440]);
 		expect(await composerHasFocus(page)).toBe(false);
+	});
+
+	test('the phone app hides the keyboard accessory bar only while the composer is in use', async ({ page }) => {
+		await insideThePhoneApp(page);
+		await openConversation(page, 390);
+
+		await page.getByRole('combobox', { name: '메시지를 입력하세요' }).focus();
+		await expect.poll(() => accessoryBarChoices(page)).toEqual([false]);
+
+		await page.evaluate(() => {
+			if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
+		});
+		await expect.poll(() => accessoryBarChoices(page)).toEqual([false, true]);
 	});
 
 	test('the phone app taps back on every composer tap and when a message is sent', async ({ page }) => {
@@ -347,16 +360,26 @@ test.describe('the keyboard on a touch screen', () => {
 async function insideThePhoneApp(page: Page) {
 	await page.addInitScript(() => {
 		const felt: string[] = [];
+		const accessoryBarShown: boolean[] = [];
 		Reflect.set(window, 'hapticsFelt', felt);
+		Reflect.set(window, 'accessoryBarShown', accessoryBarShown);
 		Reflect.set(window, 'isTauri', true);
 		Reflect.set(window, '__TAURI_OS_PLUGIN_INTERNALS__', { platform: 'ios' });
 		Reflect.set(window, '__TAURI_INTERNALS__', {
-			invoke: async (command: string) => {
+			invoke: async (command: string, args: { isShown?: boolean } = {}) => {
 				if (command.startsWith('plugin:haptics|')) felt.push(command);
+				if (command === 'plugin:keyboard|set_accessory_bar' && typeof args.isShown === 'boolean') accessoryBarShown.push(args.isShown);
 				return null;
 			},
 			transformCallback: () => 0
 		});
+	});
+}
+
+async function accessoryBarChoices(page: Page): Promise<boolean[]> {
+	return page.evaluate(() => {
+		const recorded: unknown = Reflect.get(window, 'accessoryBarShown');
+		return Array.isArray(recorded) ? recorded.filter((choice): choice is boolean => typeof choice === 'boolean') : [];
 	});
 }
 
