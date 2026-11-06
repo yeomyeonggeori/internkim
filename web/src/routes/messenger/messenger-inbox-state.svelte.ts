@@ -1,6 +1,6 @@
 import { bridgeInbox, type InboxEntry } from '$lib/messenger/channel-over-bridge';
 import { messengerCacheScope, requireCurrentMessengerScope } from '$lib/messenger/cache-scope';
-import { keepCachedInbox, mergeInbox } from '$lib/messenger/inbox-cache';
+import { INBOX_PAGE_SIZE, appendOlderInbox, keepCachedInbox, mergeInbox } from '$lib/messenger/inbox-cache';
 import { markThreadRead, type MessengerInboxWindow } from '$lib/messenger/messenger-api';
 
 export type InboxFilter = 'all' | 'unread';
@@ -11,6 +11,8 @@ export class MessengerInboxState {
 	hasLoaded = $state(false);
 	error = $state('');
 	filter = $state<InboxFilter>('all');
+	hasMoreBefore = $state(true);
+	isLoadingOlder = $state(false);
 
 	readonly unreadCount = $derived(this.entries.filter((entry) => entry.isUnread).length);
 	readonly shown = $derived(this.filter === 'unread' ? this.entries.filter((entry) => entry.isUnread) : this.entries);
@@ -30,10 +32,16 @@ export class MessengerInboxState {
 		this.error = '';
 		try {
 			const scope = await messengerCacheScope();
-			const answer = await bridgeInbox(this.windowSinceNewest());
+			const window = this.windowSinceNewest();
+			const answer = await bridgeInbox(window);
 			await requireCurrentMessengerScope(scope);
 			if (sequence !== this.readSequence) return;
-			this.entries = mergeInbox(this.entries, answer);
+			if (!window || answer.hasMoreBefore) {
+				this.entries = answer.entries;
+				this.hasMoreBefore = answer.hasMoreBefore;
+			} else {
+				this.entries = mergeInbox(this.entries, answer, window.heldIDs);
+			}
 			this.hasLoaded = true;
 			keepCachedInbox(scope, this.entries);
 		} catch (failure) {
@@ -41,6 +49,22 @@ export class MessengerInboxState {
 			if (sequence === this.readSequence) this.error = failure instanceof Error ? failure.message : String(failure);
 		} finally {
 			if (sequence === this.readSequence) this.isLoading = false;
+		}
+	}
+
+	async loadOlder(): Promise<void> {
+		const oldest = this.entries.at(-1);
+		if (this.isLoadingOlder || !this.hasMoreBefore || !oldest) return;
+		this.isLoadingOlder = true;
+		try {
+			const answer = await bridgeInbox({ until: oldest.sentAt });
+			if (this.entries.at(-1)?.id !== oldest.id) return;
+			this.entries = appendOlderInbox(this.entries, answer.entries);
+			this.hasMoreBefore = answer.hasMoreBefore;
+		} catch (failure) {
+			console.warn('the older inbox did not load', failure);
+		} finally {
+			this.isLoadingOlder = false;
 		}
 	}
 
@@ -68,12 +92,14 @@ export class MessengerInboxState {
 		this.entries = [];
 		this.hasLoaded = false;
 		this.isLoading = false;
+		this.isLoadingOlder = false;
+		this.hasMoreBefore = true;
 		this.error = '';
 	}
 
 	private windowSinceNewest(): MessengerInboxWindow | undefined {
 		const newest = this.entries[0];
 		if (!this.hasLoaded || !newest) return undefined;
-		return { since: newest.sentAt, heldIDs: this.entries.map((entry) => entry.id) };
+		return { since: newest.sentAt, heldIDs: this.entries.slice(0, INBOX_PAGE_SIZE).map((entry) => entry.id) };
 	}
 }

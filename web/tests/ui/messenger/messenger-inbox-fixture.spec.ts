@@ -69,6 +69,18 @@ class LongInboxFixture extends MessengerInboxFixture {
 	}
 }
 
+class PagedInboxFixture extends MessengerInboxFixture {
+	readonly pagesAsked: unknown[] = [];
+
+	host(capability: string, body: Record<string, unknown>): { status: number; body: unknown } {
+		if (capability !== 'person.inbox.list') return super.host(capability, body);
+		if (!body.until) return { status: 200, body: { items: inbox, hasMoreBefore: true } };
+		this.pagesAsked.push(body.until);
+		const older = { reason: 'channel', isUnread: true, message: { id: 'channel-older-1', conversationID: 'channel-1', authorExternalID: 'pk-choi', body: '지난주 회의록이에요', postedAt: '2026-10-01T01:00:00.000Z' } };
+		return { status: 200, body: { items: [older], hasMoreBefore: false } };
+	}
+}
+
 async function openMessenger(page: Page, width: number, fixture = new MessengerInboxFixture(), path = '/messenger'): Promise<MessengerInboxFixture> {
 	await page.setViewportSize({ width, height: 900 });
 	await prepareWorkspaceLoading(page, fixture);
@@ -92,7 +104,7 @@ test('the inbox opens first and gathers threads, mentions and direct messages ne
 	await openMessenger(page, 1280);
 
 	const panel = inboxPanel(page);
-	await expect(panel.locator('[data-inbox-entry]')).toHaveText([/박예시.*Thread in # 광장.*로그인 화면 고쳤어요/s, /최견본.*Thread in # 광장/s, /박예시.*DM from 박예시.*감사합니다/s]);
+	await expect(panel.locator('[data-inbox-entry]')).toHaveText([/박예시.*Thread in # 광장.*로그인 화면 고쳤어요/s, /최견본.*Channel # 광장/s, /박예시.*DM from 박예시.*감사합니다/s]);
 	const inboxButton = page.getByRole('button', { name: '수신함', exact: true });
 	await expect(inboxButton).toHaveAttribute('data-active', 'true');
 	await expect(page.getByText('항목을 고르세요')).toBeVisible();
@@ -101,6 +113,16 @@ test('the inbox opens first and gathers threads, mentions and direct messages ne
 
 	await panel.getByRole('tab', { name: '안 읽음' }).click();
 	await expect(panel.locator('[data-inbox-entry]')).toHaveCount(2);
+});
+
+test('reaching the end of the inbox brings the page before its oldest entry, then stops offering more', async ({ page }) => {
+	const fixture = new PagedInboxFixture();
+	await openMessenger(page, 1280, fixture);
+
+	const panel = inboxPanel(page);
+	await expect(panel.locator('[data-inbox-entry="channel-older-1"]')).toHaveText(/최견본.*Channel # 광장.*지난주 회의록이에요/s);
+	expect(fixture.pagesAsked).toEqual(['2026-10-05T01:00:00.000Z']);
+	await expect(panel.getByRole('button', { name: '이전 소식 더 보기' })).toBeHidden();
 });
 
 test('choosing a thread reply shows only that thread beside the inbox and marks only that thread read', async ({ page }) => {
@@ -159,7 +181,7 @@ test('the inbox waits for the channel list so every entry names its place', asyn
 
 	fixture.release('person.conversations.list');
 
-	await expect(inboxPanel(page).locator('[data-inbox-entry]')).toHaveText([/Thread in # 광장/, /Thread in # 광장/, /DM from 박예시/]);
+	await expect(inboxPanel(page).locator('[data-inbox-entry]')).toHaveText([/Thread in # 광장/, /Channel # 광장/, /DM from 박예시/]);
 });
 
 test('choosing a channel from the sidebar leaves the inbox', async ({ page }) => {
