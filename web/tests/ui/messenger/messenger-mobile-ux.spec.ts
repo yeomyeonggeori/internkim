@@ -220,6 +220,22 @@ test('mobile search opens from More and follows the keyboard viewport', async ({
 	await expect(search).toBeHidden();
 });
 
+test('dragging the mobile search results puts the keyboard away', async ({ page }) => {
+	await openConversation(page, 320);
+	await page.getByRole('button', { name: '더보기', exact: true }).click();
+	await page.getByRole('dialog', { name: '더보기' }).getByRole('button', { name: '검색', exact: true }).click();
+	const field = page.getByRole('dialog', { name: '검색', exact: true }).getByRole('combobox');
+	await expect(field).toBeFocused();
+
+	await page.locator('[data-slot="command-list"]').evaluate((list) => {
+		const at = (clientY: number) => [new Touch({ identifier: 1, target: list, clientX: 100, clientY })];
+		list.dispatchEvent(new TouchEvent('touchstart', { touches: at(200), bubbles: true }));
+		list.dispatchEvent(new TouchEvent('touchmove', { touches: at(220), bubbles: true }));
+	});
+
+	await expect(field).not.toBeFocused();
+});
+
 test('desktop retains its global header and direct composer tools', async ({ page }) => {
 	await openConversation(page, 1280, 800);
 	await expect(page.locator('.internkim-app-header')).toBeVisible();

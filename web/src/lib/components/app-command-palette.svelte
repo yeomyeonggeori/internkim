@@ -37,6 +37,7 @@
 	import { isSupabaseConfigured } from '$lib/supabase-session';
 	import { isPasskeySupported, passkeyFailureText, refusalOf, registerPasskey } from '$lib/supabase-passkey';
 	import { toast } from 'svelte-sonner';
+	import { dismissKeyboardOnDrag } from '$lib/components/channel/keyboard-dismissal';
 
 	let { open = $bindable(false) }: { open?: boolean } = $props();
 
@@ -186,7 +187,7 @@
 
 <Command.Dialog bind:open title={text.search} description={text.search} filter={koreanSearchScore} onkeydown={handleShortcut}>
 	<Command.Input placeholder={text.search} bind:value={searchValue} />
-	<Command.List>
+	<Command.List {@attach dismissKeyboardOnDrag}>
 		{#if !mailMessageSearch.results.length && !taskResults.length && !calendarResults.length && !hasCRMResults}
 			<Command.Empty>{text.searchNoResults}</Command.Empty>
 		{/if}
