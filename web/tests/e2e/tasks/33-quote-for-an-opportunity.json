@@ -1,0 +1,11 @@
+{
+	"name": "quote-for-an-opportunity",
+	"requesterEmail": "member2@example.com",
+	"instruction": "'신제품 공급 견적' 거래로 견적서를 PDF로 만들어 줘.",
+	"assertions": [
+		{
+			"deliveredFile": { "filenameEndsWith": ".pdf", "minBytes": 1000 }
+		}
+	],
+	"cleanup": []
+}

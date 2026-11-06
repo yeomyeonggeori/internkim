@@ -264,6 +264,12 @@ def act_read_inbox(arguments):
     return {"isDelivered": holds_text(messages, arguments["marker"]), "conversationID": conversation["id"]}
 
 
+def act_inbox_since(arguments):
+    recipient = actor_of(secret_of(arguments["email"]))
+    inbox = ask_chatd("person.inbox.list", {"actor": recipient, "since": arguments["since"]})
+    return {"bodies": [item["message"]["body"] for item in inbox.get("items", []) if item.get("message", {}).get("body")]}
+
+
 def act_open_mention(arguments):
     sender = ask_chatd("person.identity", {"actor": actor_of(secret_of(arguments["email"]))})
     agent = ask_chatd("identity.self", {})["pubkeyHex"]
@@ -295,6 +301,7 @@ ACTIONS = {
     "find_file": act_find_file,
     "invoke_direct_message": act_invoke_direct_message,
     "read_inbox": act_read_inbox,
+    "inbox_since": act_inbox_since,
     "open_mention": act_open_mention,
 }
 

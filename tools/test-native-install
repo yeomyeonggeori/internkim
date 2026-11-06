@@ -2322,6 +2322,23 @@ def judge_what_the_release_under_test_does(rig, step_five):
     rig.observe_the_messenger_paths(step_twelve, rig.plane)
 
 
+def judge_the_deliveries(step, delivered):
+    for record in delivered:
+        if "judgement" not in record and record.get("outcome") != "not sent":
+            continue
+        judgement = record.get("judgement") or {}
+        failed = [finding for finding in judgement.get("findings", []) if finding.get("mismatches")]
+        step.observe(
+            f"{record['name']}: the agent did what was asked",
+            "the task's assertions against the record, the files the agent posted and the inboxes of the people "
+            "it was asked to write to, judged by web/tests/e2e/judge-delivery.ts",
+            "the agent's own reply saying it is done is the claim under test, never the evidence",
+        ).record(
+            judgement.get("passed") is True,
+            json.dumps(failed or judgement.get("refused") or record.get("outcome"), ensure_ascii=False)[:600],
+        )
+
+
 def run_every_step(rig, options, releases, baseline):
     is_an_upgrade = len(releases) > 1
     step_two = rig.step(2, "the machine is in the state the package manager would have left it")
@@ -2347,7 +2364,8 @@ def run_every_step(rig, options, releases, baseline):
         rig.observe_the_member_round_trip(step_five, rig.plane, is_watching_for_typing=not is_an_upgrade)
         rig.observe_the_agent_answered(step_five)
         if options.requests:
-            Deliveries(rig, rig.plane, options.deliveries).deliver_all(load_requests(options.requests))
+            delivered = Deliveries(rig, rig.plane, options.deliveries).deliver_all(load_requests(options.requests, options.only))
+            judge_the_deliveries(rig.step(14, "the agent does what members ask over the messenger"), delivered)
             return
         revision_before = rig.build_identity_the_guest_reports()
         if not is_an_upgrade:
@@ -2436,12 +2454,14 @@ def main():
     )
     parser.add_argument(
         "--requests",
-        help="a JSON list of {name, text, attachments, snippet, timeoutSeconds, timeZone} the member sends once the host answers "
-        "(attachments are paths relative to the file; timeZone is the IANA zone the message is sent from, "
-        "this Mac's when absent); for each, the replies, the task's event log, every delivered "
-        "file and the workspace files the replies did not carry are kept under --deliveries/<name>, "
-        "and no later step runs",
+        help="a JSON list of {name, instruction, requesterEmail, answers, attachments, timeoutSeconds, timeZone} sent once "
+        "the host answers, or a directory of task files such as web/tests/e2e/tasks "
+        "(attachments are paths relative to the file; requesterEmail is a seeded member, the administrator when absent; "
+        "timeZone is the IANA zone the message is sent from, this Mac's when absent); for each, the replies, the task's "
+        "event log, every delivered file and the workspace files the replies did not carry are kept under "
+        "--deliveries/<name>, a request carrying assertions is judged and its cleanup run (step 14), and no later step runs",
     )
+    parser.add_argument("--only", help="comma-separated request names to send from --requests")
     parser.add_argument(
         "--deliveries",
         default=".artifacts/native-install-deliveries",
