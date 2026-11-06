@@ -1,5 +1,7 @@
 import { afterAll, beforeAll, describe, expect, mock, test } from 'bun:test';
+import { SQL } from 'bun';
 import { isHttpError } from '@sveltejs/kit';
+import { localDatabaseURL } from '../../../supabase/scripts/local-database-url';
 import { controlPlane, provisionCompany } from '../../src/lib/server/control-plane';
 import { applyStripeEvent, subscriptionCreditsPerMember } from '../../src/lib/server/stripe-billing-events';
 import { projectURL, publishableKey, serviceRoleKey, signingKey } from '../support/supabase-environment';
@@ -167,6 +169,23 @@ describe('the Stripe webhook', () => {
 	test('refuses an invoice that names a company but is not shaped as one of ours', async () => {
 		const event = paidInvoice(`evt_malformed_${stamp}`, 'subscription_cycle', unitAmount, 'not-a-company');
 		expect(await statusOfDelivery(event)).toBe(400);
+	});
+
+	test('grants a paid top-up its permanent credits once, at the price of the currency it was paid in', async () => {
+		const database = new SQL(localDatabaseURL);
+		const [topUp] = await database`insert into public.company_credit_top_up (company_id) values (${companyID}) returning id`;
+		await database.close();
+		const event = {
+			id: `evt_top_up_${stamp}`,
+			type: 'invoice.paid',
+			created: periodEnd,
+			data: { object: { id: `in_top_up_${stamp}`, currency: 'krw', amount_paid: 30000, metadata: { top_up_id: topUp.id, company_id: companyID } } }
+		};
+		const answer: unknown = await (await deliver(event)).json();
+		expect(answer).toEqual({ outcome: 'applied' });
+		await deliver(event);
+		const { data } = await client.from('company').select('permanent_credits').eq('id', companyID).single<{ permanent_credits: number }>();
+		expect(data?.permanent_credits).toBe(12000);
 	});
 
 	test('ignores an event for another product that names no company', async () => {
