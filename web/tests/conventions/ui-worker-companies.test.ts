@@ -1,15 +1,15 @@
 import { describe, expect, test } from 'bun:test';
 import { readFileSync } from 'node:fs';
-import { emailInCompany, idInCompany, slugOfCompany, workerCompanyCount } from '../e2e/support/worker-company';
+import { emailInCompany, idInCompany, slugOfCompany, workerCompanyCount } from '../ui/support/worker-company';
 
 function seed(): string {
 	return readFileSync(new URL('../../../supabase/seed.dev.sql', import.meta.url), 'utf8');
 }
 
-describe('supabase/seed.dev.sql seeds the companies the e2e workers sign in to', () => {
+describe('supabase/seed.dev.sql seeds the companies the UI test workers sign in to', () => {
 	const seeded = seed();
 
-	test('it seeds one company per worker the e2e config may start', () => {
+	test('it seeds one company per worker the UI test config may start', () => {
 		const copies = seeded.match(/seed_worker_company\(company_number\) from generate_series\(1, (\d+)\)/);
 		expect(copies).not.toBeNull();
 		expect(Number(copies?.[1]) + 1).toBe(workerCompanyCount);
