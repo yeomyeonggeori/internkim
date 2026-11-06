@@ -34,9 +34,52 @@
 			addEventListener('load', () => sessionStorage.removeItem('internkim-reloaded-for-release'));
 		</script>
 		<script id="central-plane" type="application/json">{}</script>
+		<style>
+			#launch-video {
+				position: fixed;
+				inset: 0;
+				z-index: 2147483647;
+				background: #fdfdfd;
+				transition: opacity 300ms ease;
+			}
+			.dark #launch-video {
+				background: #000000;
+			}
+			#launch-video.leaving {
+				opacity: 0;
+			}
+			#launch-video video {
+				width: 100%;
+				height: 100%;
+				object-fit: cover;
+			}
+		</style>
 		%sveltekit.head%
 	</head>
 	<body data-sveltekit-preload-data="hover">
+		<script>
+			(() => {
+				const playedKey = 'internkim-launch-video-played';
+				if (!window.isTauri || sessionStorage.getItem(playedKey)) return;
+				sessionStorage.setItem(playedKey, '1');
+				const overlay = document.createElement('div');
+				overlay.id = 'launch-video';
+				const video = document.createElement('video');
+				video.src = document.documentElement.classList.contains('dark') ? '/splash-logo-dark.mp4' : '/splash-logo.mp4';
+				video.muted = true;
+				video.playsInline = true;
+				overlay.append(video);
+				document.body.prepend(overlay);
+				const leave = () => {
+					overlay.classList.add('leaving');
+					setTimeout(() => overlay.remove(), 300);
+				};
+				video.addEventListener('ended', leave, { once: true });
+				video.addEventListener('error', leave, { once: true });
+				video.play().catch(leave);
+				setTimeout(leave, 5000);
+			})();
+		</script>
 		<div style="display: contents">%sveltekit.body%</div>
 	</body>
 </html>
