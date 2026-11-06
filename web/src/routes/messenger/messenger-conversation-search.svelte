@@ -14,6 +14,7 @@
 	import { bridgeSearchConversation, type ConversationSearchMatch } from '$lib/messenger/channel-over-bridge';
 	import { searchExcerpt, searchMatchTime } from '$lib/messenger/conversation-search';
 	import { cn } from '$lib/utils.js';
+	import { dismissKeyboardOnDrag } from '$lib/components/channel/keyboard-dismissal';
 	import { toast } from 'svelte-sonner';
 
 	let {
@@ -125,7 +126,7 @@
 			</Empty.Header>
 		</Empty.Root>
 	{:else if !failed}
-		<Item.Group class="min-h-0 flex-1 gap-1 overflow-y-auto px-2 pb-2">
+		<Item.Group class="min-h-0 flex-1 gap-1 overflow-y-auto px-2 pb-2" {@attach dismissKeyboardOnDrag}>
 			{#each matches as match (match.id)}
 				{@const excerpt = searchExcerpt(messagePlainText(match.text), searchedQuery)}
 				<Item.Root size="sm" class={cn('hover:bg-muted text-left', match.id === chosenID && 'bg-muted')}>
