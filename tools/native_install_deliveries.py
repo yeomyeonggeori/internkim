@@ -29,13 +29,14 @@ RELAY_ADDRESS = "http://127.0.0.1:3000"
 WORKSPACE_ROOT = "/workspace"
 WORKSPACE_DIRECTORY_NAME = "workspace"
 JUDGE_SCRIPT = "tests/e2e/judge-delivery.ts"
+MESSENGER = "buzz"
 TASK_FIELDS = ("name", "requesterEmail", "instruction", "answers", "assertions", "cleanup")
 
 TASK_QUERY = """
 select coalesce(json_agg(row_to_json(found)), '[]'::json) from (
   select task_run_id, status, created_at, updated_at, failure_reason, left(coalesce(result, ''), 4000) as result
   from task_run
-  where origin_conversation_id = :'conversation' and created_at >= (:'posted_at')::timestamptz
+  where origin_conversation_id = :'messenger' || ':' || :'conversation' and created_at >= (:'posted_at')::timestamptz
   order by created_at
 ) found
 """
@@ -253,7 +254,7 @@ class Deliveries:
             )
             tasks = self.follow_the_task(conversation, posted_at, message_id, timeout_seconds, before=ledger_state(tasks))
         time.sleep(SETTLE_SECONDS)
-        tasks = self.query(COMPANY_CONDITION_PATH, TASK_QUERY, conversation=conversation, posted_at=posted_at) or tasks
+        tasks = self.query(COMPANY_CONDITION_PATH, TASK_QUERY, messenger=MESSENGER, conversation=conversation, posted_at=posted_at) or tasks
         replies = self.query(MESSENGER_DATABASE_PATH, REPLIES_QUERY, message=message_id)
         record["tasks"] = tasks
         record["replies"] = replies
@@ -308,7 +309,7 @@ class Deliveries:
         started = time.monotonic()
         tasks = []
         while time.monotonic() < started + timeout_seconds:
-            tasks = self.query(COMPANY_CONDITION_PATH, TASK_QUERY, conversation=conversation, posted_at=posted_at)
+            tasks = self.query(COMPANY_CONDITION_PATH, TASK_QUERY, messenger=MESSENGER, conversation=conversation, posted_at=posted_at)
             statuses = [task.get("status") for task in tasks if isinstance(task, dict)]
             has_moved = before is None or ledger_state(tasks) != before
             if statuses and all(status in ENDED_STATUSES for status in statuses) and has_moved:
