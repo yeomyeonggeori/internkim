@@ -10,6 +10,7 @@ sys.path.insert(0, str(repository_root / "tools"))
 import native_install_deliveries as deliveries  # noqa: E402
 
 EXAMPLE_DIRECTORY = repository_root / "tools" / "native-install-requests-example"
+E2E_TASKS_DIRECTORY = repository_root / "web" / "tests" / "e2e" / "tasks"
 
 
 class RequestBatchTests(unittest.TestCase):
@@ -40,21 +41,34 @@ class RequestBatchTests(unittest.TestCase):
 
     def test_a_batch_that_is_not_a_list_is_refused(self):
         with self.assertRaises(ValueError):
-            deliveries.load_requests(self.write_batch({"name": "a", "text": "b"}))
+            deliveries.load_requests(self.write_batch({"name": "a", "instruction": "b"}))
 
     def test_a_name_that_would_leave_the_deliveries_directory_is_refused(self):
         for name in ("../escape", "nested/name", "", ".."):
             with self.subTest(name=name), self.assertRaises(ValueError):
-                deliveries.load_requests(self.write_batch([{"name": name, "text": "이샘플"}]))
+                deliveries.load_requests(self.write_batch([{"name": name, "instruction": "이샘플"}]))
 
-    def test_a_request_without_text_is_refused(self):
+    def test_a_request_without_an_instruction_is_refused(self):
         with self.assertRaises(ValueError):
-            deliveries.load_requests(self.write_batch([{"name": "empty", "text": "  "}]))
+            deliveries.load_requests(self.write_batch([{"name": "empty", "instruction": "  "}]))
+
+    def test_the_e2e_task_directory_loads_as_requests_carrying_their_assertions(self):
+        requests = deliveries.load_requests(E2E_TASKS_DIRECTORY)
+        self.assertGreaterEqual(len(requests), 30)
+        self.assertTrue(all(request["requesterEmail"] and request["assertions"] for request in requests))
+
+    def test_only_sends_the_named_requests(self):
+        requests = deliveries.load_requests(E2E_TASKS_DIRECTORY, only="remote-work-clock-in,message-a-colleague")
+        self.assertEqual([request["name"] for request in requests], ["remote-work-clock-in", "message-a-colleague"])
+
+    def test_only_refuses_a_name_no_request_carries(self):
+        with self.assertRaises(ValueError):
+            deliveries.load_requests(E2E_TASKS_DIRECTORY, only="remote-work-clock-in,nowhere")
 
     def test_the_snippet_defaults_to_the_first_line_of_the_text(self):
-        self.assertEqual(deliveries.first_line_snippet({"text": "\n이샘플 보고서\n둘째 줄"}), "이샘플 보고서")
-        self.assertEqual(deliveries.first_line_snippet({"text": "x" * 80}), "x" * 40)
-        self.assertEqual(deliveries.first_line_snippet({"text": "이샘플", "snippet": "박예시"}), "박예시")
+        self.assertEqual(deliveries.first_line_snippet({"instruction": "\n이샘플 보고서\n둘째 줄"}), "이샘플 보고서")
+        self.assertEqual(deliveries.first_line_snippet({"instruction": "x" * 80}), "x" * 40)
+        self.assertEqual(deliveries.first_line_snippet({"instruction": "이샘플", "snippet": "박예시"}), "박예시")
 
 
 class DeliveredMediaTests(unittest.TestCase):

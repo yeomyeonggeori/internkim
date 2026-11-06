@@ -11,7 +11,7 @@ export const seedCompanyID = '000000cc-0000-0000-0000-000000000001';
 const companyTimeZone = 'Asia/Seoul';
 
 type Scalar = string | number | boolean | null;
-type FilterValue = Scalar | { gte?: string; lte?: string };
+type FilterValue = Scalar | { gte?: string; lte?: string } | { dayInZone: string };
 export type Where = Record<string, FilterValue>;
 
 export interface RecordAssertion {
@@ -38,7 +38,11 @@ export interface WaitingForAnswerAssertion {
 	waitingForAnswer: { mentions: string[] };
 }
 
-export type Assertion = RecordAssertion | DeliveredFileAssertion | ReplyMentionsAssertion | WaitingForAnswerAssertion;
+export interface InboxAssertion {
+	inboxOf: { email: string; mentions: string[] };
+}
+
+export type Assertion = RecordAssertion | DeliveredFileAssertion | ReplyMentionsAssertion | WaitingForAnswerAssertion | InboxAssertion;
 
 export type CleanupStep =
 	| { delete: string; where: Where }
@@ -46,7 +50,7 @@ export type CleanupStep =
 
 export interface PilotTask {
 	name: string;
-	requesterEmail?: string;
+	requesterEmail: string;
 	instruction: string;
 	assertions: Assertion[];
 	cleanup: CleanupStep[];
@@ -64,7 +68,9 @@ export interface Judgement {
 	findings: Finding[];
 }
 
-export type JudgedOutcome = Pick<HarnessOutcome, 'status' | 'reply' | 'deliveredFiles'>;
+export type JudgedOutcome = Pick<HarnessOutcome, 'status' | 'reply' | 'deliveredFiles'> & {
+	inboxes?: Record<string, string[]>;
+};
 
 export function isRecordAssertion(assertion: Assertion): assertion is RecordAssertion {
 	return 'table' in assertion;
@@ -76,6 +82,10 @@ export function isDeliveredFileAssertion(assertion: Assertion): assertion is Del
 
 export function isReplyMentionsAssertion(assertion: Assertion): assertion is ReplyMentionsAssertion {
 	return 'replyMentions' in assertion;
+}
+
+export function isInboxAssertion(assertion: Assertion): assertion is InboxAssertion {
+	return 'inboxOf' in assertion;
 }
 
 export function loadTasks(directory: string, only?: string): PilotTask[] {
@@ -105,6 +115,12 @@ function tableRequest(record: RecordAccess, table: string, where: Where, select?
 	if (select) parameters.set('select', select);
 	parameters.set('company_id', `eq.${seedCompanyID}`);
 	for (const [column, value] of Object.entries(where)) {
+		if (value !== null && typeof value === 'object' && 'dayInZone' in value) {
+			const bounds = boundsOfDay(resolvedDay(value.dayInZone));
+			parameters.append(column, `gte.${bounds.start}`);
+			parameters.append(column, `lt.${bounds.end}`);
+			continue;
+		}
 		if (value !== null && typeof value === 'object') {
 			if (value.gte !== undefined) parameters.append(column, `gte.${value.gte}`);
 			if (value.lte !== undefined) parameters.append(column, `lte.${value.lte}`);
@@ -129,7 +145,7 @@ async function rowsOf(record: RecordAccess, table: string, where: Where, select:
 	return (await answer.json()) as Record<string, unknown>[];
 }
 
-const tablesWithoutCompanyColumn = new Set(['leave', 'task_participant']);
+const tablesWithoutCompanyColumn = new Set(['attendance', 'leave', 'task_participant']);
 
 function withoutCompanyFilter(url: string): string {
 	const parsed = new URL(url);
@@ -149,6 +165,23 @@ function dayInCompanyZone(instant: string): string {
 	return new Intl.DateTimeFormat('en-CA', { timeZone: companyTimeZone, year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date(instant));
 }
 
+function resolvedDay(day: string): string {
+	return day === 'today' ? dayInCompanyZone(new Date().toISOString()) : day;
+}
+
+function companyZoneOffset(day: string): string {
+	const named = new Intl.DateTimeFormat('en-US', { timeZone: companyTimeZone, timeZoneName: 'longOffset' })
+		.formatToParts(new Date(`${day}T12:00:00Z`))
+		.find((part) => part.type === 'timeZoneName')?.value;
+	return named === 'GMT' || !named ? '+00:00' : named.replace('GMT', '');
+}
+
+function boundsOfDay(day: string): { start: string; end: string } {
+	const start = new Date(`${day}T00:00:00${companyZoneOffset(day)}`);
+	const end = new Date(start.getTime() + 24 * 60 * 60 * 1000);
+	return { start: start.toISOString(), end: end.toISOString() };
+}
+
 function isPredicate(expected: unknown): expected is Record<string, unknown> {
 	if (expected === null || typeof expected !== 'object' || Array.isArray(expected)) return false;
 	const keys = Object.keys(expected);
@@ -157,7 +190,7 @@ function isPredicate(expected: unknown): expected is Record<string, unknown> {
 
 export function matches(expected: unknown, actual: unknown): boolean {
 	if (isPredicate(expected)) {
-		if ('dayInZone' in expected) return typeof actual === 'string' && dayInCompanyZone(actual) === expected.dayInZone;
+		if ('dayInZone' in expected) return typeof actual === 'string' && dayInCompanyZone(actual) === resolvedDay(String(expected.dayInZone));
 		if ('instant' in expected) return typeof actual === 'string' && Date.parse(actual) === Date.parse(String(expected.instant));
 		return Array.isArray(actual) && actual.some((element) => matches(expected.contains, element));
 	}
@@ -244,6 +277,22 @@ export function replyMentionsFinding(assertion: ReplyMentionsAssertion, reply: s
 	};
 }
 
+export function inboxFinding(assertion: InboxAssertion, inboxes: JudgedOutcome['inboxes']): Finding {
+	const { email, mentions } = assertion.inboxOf;
+	const received = inboxes?.[email];
+	if (!received) {
+		return { subject: `inbox of ${email}`, rowCount: 0, mismatches: [`no inbox of ${email} was read; only the installed host reads one`], notes: [] };
+	}
+	const holdsEveryMention = (body: string) => mentions.every((value) => body.includes(value));
+	const matching = received.filter(holdsEveryMention);
+	return {
+		subject: `inbox of ${email}`,
+		rowCount: matching.length,
+		mismatches: matching.length > 0 ? [] : [`no message ${email} received since the request mentions all of ${JSON.stringify(mentions)}`],
+		notes: [],
+	};
+}
+
 const statusesThatCanCarryAQuestion: JudgedOutcome['status'][] = ['waiting_user_input', 'completed'];
 
 export function waitingForAnswerFinding(assertion: WaitingForAnswerAssertion, outcome: JudgedOutcome): Finding {
@@ -267,6 +316,7 @@ async function findingOf(record: RecordAccess, assertion: Assertion, outcome: Ju
 	if (isRecordAssertion(assertion)) return recordFinding(record, assertion);
 	if (isDeliveredFileAssertion(assertion)) return deliveredFileFinding(assertion, outcome.deliveredFiles);
 	if (isReplyMentionsAssertion(assertion)) return replyMentionsFinding(assertion, outcome.reply);
+	if (isInboxAssertion(assertion)) return inboxFinding(assertion, outcome.inboxes);
 	return waitingForAnswerFinding(assertion, outcome);
 }
 

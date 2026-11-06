@@ -1,4 +1,4 @@
-//   monkeys run @pilot bun run tests/pilot/run-pilot.ts --arm <bluecollar|bluecollar-pi-shaped|bluecollar-reply-action|claude-code> [--repetitions 3] [--tasks tests/pilot/tasks] [--run-id <id>] [--only <task name>]
+//   monkeys run @pilot bun run tests/pilot/run-pilot.ts --arm <bluecollar|bluecollar-pi-shaped|bluecollar-reply-action|claude-code> [--repetitions 3] [--tasks tests/e2e/tasks] [--run-id <id>] [--only <task name>]
 //
 //   PILOT_APP_URL          the local app the external harness reaches over MCP (claude-code)
 //   PILOT_FLEET_CONFIG     the kept Local Fleet's config.json (bluecollar arms)
@@ -15,7 +15,6 @@ import { runClaudeCode } from './arms/claude-code';
 import { cleanUp, judge, loadTasks, localRecord, seedCompanyID, type Judgement, type PilotTask } from './record';
 
 const model = 'z-ai/glm-5.3-flash';
-const defaultRequesterEmail = 'member3@example.com';
 
 interface Options {
 	arm: ArmName;
@@ -57,7 +56,7 @@ function options(): Options {
 	return {
 		arm,
 		repetitions: Number(argument('repetitions') ?? 3),
-		tasksDirectory: resolve(argument('tasks') ?? join(import.meta.dir, 'tasks')),
+		tasksDirectory: resolve(argument('tasks') ?? join(import.meta.dir, '../e2e/tasks')),
 		runID: argument('run-id') ?? new Date().toISOString().replace(/[-:]/g, '').replace(/\..*/, '').toLowerCase(),
 		only: argument('only'),
 	};
@@ -75,10 +74,6 @@ function armRunner(arm: ArmName): (context: ArmRunContext) => Promise<HarnessOut
 
 function tokenSum(calls: HarnessOutcome['calls']): number {
 	return calls.reduce((sum, call) => sum + call.promptTokens, 0);
-}
-
-function requesterOf(task: PilotTask): string {
-	return task.requesterEmail ?? defaultRequesterEmail;
 }
 
 async function issueCredential(client: SupabaseClient, email: string, runID: string): Promise<RequesterCredential> {
@@ -135,7 +130,7 @@ async function main(): Promise<void> {
 				const evidenceDirectory = join(evidenceRoot, task.name, String(repetition));
 				if (existsSync(join(evidenceDirectory, 'result.json'))) continue;
 				mkdirSync(evidenceDirectory, { recursive: true });
-				const requesterEmail = requesterOf(task);
+				const requesterEmail = task.requesterEmail;
 				const credential = await credentialFor(client, credentials, requesterEmail, chosen.runID);
 				await cleanUp(record, task.cleanup);
 				const startedAt = new Date();

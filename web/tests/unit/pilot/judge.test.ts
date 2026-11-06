@@ -2,6 +2,7 @@ import { describe, expect, test } from 'bun:test';
 import type { DeliveredFile } from '../../pilot/arms/arm';
 import {
 	deliveredFileFinding,
+	inboxFinding,
 	judge,
 	replyMentionsFinding,
 	waitingForAnswerFinding,
@@ -91,6 +92,26 @@ describe('the reply mentions assertion', () => {
 	test('names the value the reply left out', () => {
 		const finding = replyMentionsFinding({ replyMentions: ['정견본', '재무 이사'] }, '견본 물산 창구는 정견본입니다.');
 		expect(finding.mismatches).toEqual(['the reply does not mention "재무 이사"']);
+	});
+});
+
+describe('the inbox assertion', () => {
+	const assertion = { inboxOf: { email: 'member3@example.com', mentions: ['4시'] } };
+
+	test('accepts an inbox holding a message with every value', () => {
+		const finding = inboxFinding(assertion, { 'member3@example.com': ['내일 주간회의가 오후 4시로 옮겨졌습니다.'] });
+		expect(finding.mismatches).toEqual([]);
+	});
+
+	test('refuses an inbox where no message carries the value', () => {
+		const finding = inboxFinding(assertion, { 'member3@example.com': ['내일 주간회의가 옮겨졌습니다.'] });
+		expect(finding.mismatches).toHaveLength(1);
+	});
+
+	test('refuses a harness that read no inbox instead of passing it', () => {
+		expect(inboxFinding(assertion, undefined).mismatches).toEqual([
+			'no inbox of member3@example.com was read; only the installed host reads one',
+		]);
 	});
 });
 

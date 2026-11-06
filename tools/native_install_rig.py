@@ -1185,7 +1185,7 @@ class CompanyPlane:
         issued["centralPlane"]["projectURL"] = self.project_url
         return issued
 
-    def member_session(self, company_id, message_text, typing_wait_seconds=0, attachments=(), member_id="", time_zone=""):
+    def member_session(self, company_id, message_text, typing_wait_seconds=0, attachments=(), member_id="", time_zone="", email=""):
         """What a member does in a browser: sign in, open the wire, say something.
 
         Run in its own process because the browser's half of this wire is a
@@ -1201,7 +1201,7 @@ class CompanyPlane:
                 "MEMBER_SESSION_PUBLISHABLE_KEY": self.settings["PUBLISHABLE_KEY"],
                 "MEMBER_SESSION_GATEWAY_URL": self.gateway_url,
                 "MEMBER_SESSION_COMPANY_ID": company_id,
-                "MEMBER_SESSION_EMAIL": self.administrator_email,
+                "MEMBER_SESSION_EMAIL": email or self.administrator_email,
                 "MEMBER_SESSION_PASSWORD": self.administrator_password,
                 "MEMBER_SESSION_MESSAGE": message_text,
                 "MEMBER_SESSION_TYPING_WAIT_MS": str(typing_wait_seconds * 1000),
@@ -1223,11 +1223,11 @@ class CompanyPlane:
         rows = json.loads(document) if status == 200 and document else []
         return sorted(row["email"].lower() for row in rows if row.get("email"))
 
-    def member_identity(self, company_id):
-        """The member row the seeded address belongs to on this company."""
+    def member_identity(self, company_id, email=""):
+        """The member row a seeded address belongs to on this company, the administrator's by default."""
         status, document = self.read_record(
             f"/rest/v1/member?select=id&company_id=eq.{company_id}"
-            f"&email=eq.{urllib.parse.quote(self.administrator_email)}"
+            f"&email=eq.{urllib.parse.quote(email or self.administrator_email)}"
         )
         rows = json.loads(document) if status == 200 and document else []
         return rows[0]["id"] if rows else ""

@@ -177,6 +177,7 @@ class VerificationPlanTests(unittest.TestCase):
         run_elsewhere = {
             "plane": "./internkim dev plane runs it in a disposable Linux VM",
             "pilot": "a model pilot harness run by `bun run pilot`, not a test suite",
+            "e2e": "tasks tools/test-native-install --requests sends to an installed host, not a test suite",
             "support": "helpers the suites import",
             "fixtures": "data the suites read",
         }

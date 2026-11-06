@@ -1,0 +1,25 @@
+{
+	"name": "remote-work-clock-in",
+	"requesterEmail": "member4@example.com",
+	"instruction": "오늘 재택으로 출근 찍어줘.",
+	"assertions": [
+		{
+			"table": "attendance",
+			"where": {
+				"member_id": "000000ee-0000-0000-0000-000000000004",
+				"kind": "clock_in",
+				"occurred_at": { "dayInZone": "today" }
+			},
+			"expect": { "location": "재택" }
+		}
+	],
+	"cleanup": [
+		{
+			"delete": "attendance",
+			"where": {
+				"member_id": "000000ee-0000-0000-0000-000000000004",
+				"occurred_at": { "dayInZone": "today" }
+			}
+		}
+	]
+}

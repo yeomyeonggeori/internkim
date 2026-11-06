@@ -93,14 +93,33 @@ Go 테스트, 웹 스위트, UI 테스트처럼 모든 코어를 쓰는 그룹�
 cd web
 bun run test                       # 유닛과 conventions
 bun run test:api                   # API, 이 체크아웃으로 초기화한 로컬 plane에 대고
-bun run test:ui                   # UI 전부
-bun run test:ui tests/ui/crm     # 한 영역
+bun run test:ui                    # UI 전부
+bun run test:ui tests/ui/crm       # 한 영역
 go test ./...                      # Go, 저장소 루트에서
 .dependency/internkim-plugin/tests/run
 ```
 
 API 테스트와 `-central` UI 테스트는 `tools/with-local-plane`으로 로컬 plane을
 잡습니다. plane이 꺼져 있으면 켜고, 다른 체크아웃이 쓰고 있으면 차례를 기다립니다.
+
+## 엔드투엔드
+
+엔드투엔드 과제는 구성원이 에이전트에게 보내는 메시지 하나와, 그 뒤 기록과 파일과
+다른 사람의 받은편지함에 남은 것입니다. 과제는 `web/tests/e2e/tasks/`에 한 파일씩
+있고, 누가 보내는지, 지시, 판정 항목, 끝난 뒤 지울 행을 적습니다.
+`tools/test-native-install`이 일회용 Linux 머신에 패키지를 설치하고 시드 회사를
+붙인 뒤, 과제마다 그 구성원으로 메신저에 보내고 `web/tests/e2e/judge-delivery.ts`로
+판정합니다(14단계). `web/tests/pilot/`의 모델 파일럿도 같은 과제를 읽습니다.
+
+```bash
+internkim release packages --format deb --architecture arm64
+monkeys run @test tools/test-native-install --requests web/tests/e2e/tasks --only remote-work-clock-in
+```
+
+한 번 돌리면 모델 호출 비용이 들고 첫 과제까지 15분쯤 걸립니다. 그래서 UI 영역처럼
+골라서 돌립니다. 프롬프트, 툴, 에이전트 런타임을 바꾼 변경은 그 변경이 깨뜨릴 수
+있는 과제를 돌리고 어느 것을 돌렸는지 풀 리퀘스트에 적습니다. 에이전트가 만든
+결과물은 `.artifacts/native-install-deliveries/<과제>/`에 남습니다.
 
 ## 모델 평가
 

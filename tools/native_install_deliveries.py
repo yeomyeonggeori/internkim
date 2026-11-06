@@ -8,16 +8,18 @@ the replies and the task's own ledger. Files the agent wrote in the workspace
 during the request and did not post are kept beside them, under workspace/.
 """
 
+import datetime
 import hashlib
 import json
 import mimetypes
 import shlex
 import shutil
+import subprocess
 import time
 import urllib.parse
 from pathlib import Path
 
-from native_install_rig import COMPANY_CONDITION_PATH, MESSENGER_DATABASE_PATH, SHARE_PATH
+from native_install_rig import COMPANY_CONDITION_PATH, MESSENGER_DATABASE_PATH, REPOSITORY_ROOT, SHARE_PATH
 
 ENDED_STATUSES = {"completed", "failed", "cancelled", "waiting_user_input", "blocked", "interrupted", "waiting_approval"}
 STILL_OPEN_STATUSES = {"waiting_user_input", "blocked", "waiting_approval", "interrupted"}
@@ -26,6 +28,8 @@ SETTLE_SECONDS = 45
 RELAY_ADDRESS = "http://127.0.0.1:3000"
 WORKSPACE_ROOT = "/workspace"
 WORKSPACE_DIRECTORY_NAME = "workspace"
+JUDGE_SCRIPT = "tests/e2e/judge-delivery.ts"
+TASK_FIELDS = ("name", "requesterEmail", "instruction", "assertions", "cleanup")
 
 TASK_QUERY = """
 select coalesce(json_agg(row_to_json(found)), '[]'::json) from (
@@ -90,21 +94,33 @@ done
 """
 
 
-def load_requests(path):
-    document = json.loads(Path(path).read_text())
+def load_requests(path, only=None):
+    source = Path(path).resolve()
+    if source.is_dir():
+        base = source
+        document = [json.loads(task.read_text()) for task in sorted(source.glob("*.json"))]
+    else:
+        base = source.parent
+        document = json.loads(source.read_text())
     if not isinstance(document, list):
-        raise ValueError(f"{path} must hold a JSON list of requests")
-    base = Path(path).resolve().parent
-    return [parse_request(base, entry) for entry in document]
+        raise ValueError(f"{path} must hold a JSON list of requests or be a directory of tasks")
+    requests = [parse_request(base, entry) for entry in document]
+    if not only:
+        return requests
+    chosen = set(only.split(","))
+    unknown = chosen - {request["name"] for request in requests}
+    if unknown:
+        raise ValueError(f"no request named {', '.join(sorted(unknown))} in {path}")
+    return [request for request in requests if request["name"] in chosen]
 
 
 def parse_request(base, entry):
     name = entry.get("name") if isinstance(entry, dict) else None
-    text = entry.get("text") if isinstance(entry, dict) else None
+    instruction = entry.get("instruction") if isinstance(entry, dict) else None
     if not isinstance(name, str) or Path(name).name != name or name in ("", ".", ".."):
         raise ValueError(f"a request needs a name that is a single path segment, got {name!r}")
-    if not isinstance(text, str) or not text.strip():
-        raise ValueError(f"request {name} needs a text")
+    if not isinstance(instruction, str) or not instruction.strip():
+        raise ValueError(f"request {name} needs an instruction")
     return {
         **entry,
         "attachments": [attachment_file(base, attachment) for attachment in entry.get("attachments", [])],
@@ -112,7 +128,7 @@ def parse_request(base, entry):
 
 
 def first_line_snippet(request):
-    return request.get("snippet") or request["text"].strip().splitlines()[0][:40]
+    return request.get("snippet") or request["instruction"].strip().splitlines()[0][:40]
 
 
 def workspace_snapshot_command(target, since_epoch, carried_digests):
@@ -158,7 +174,7 @@ class Deliveries:
         self.plane = plane
         self.directory = Path(deliveries_directory).resolve()
         self.directory.mkdir(parents=True, exist_ok=True)
-        self.member_id = plane.member_identity(rig.company_id)
+        rig.give_the_guest_the_messenger_probe()
 
     @property
     def machine(self):
@@ -184,18 +200,27 @@ class Deliveries:
             (self.directory / "summary.json").write_text(json.dumps(summary, ensure_ascii=False, indent=2))
         return summary
 
+    def requester_ready_to_send(self, email):
+        member_id = self.plane.member_identity(self.rig.company_id, email)
+        self.plane.wait_until_the_member_holds_a_messenger_credential(member_id)
+        self.rig.wait_until_the_relay_knows(email)
+        return member_id
+
     def deliver(self, request):
         case_directory = self.directory / request["name"]
         case_directory.mkdir(parents=True, exist_ok=True)
-        (case_directory / "request.txt").write_text(request["text"])
+        (case_directory / "request.txt").write_text(request["instruction"])
+        email = request.get("requesterEmail") or self.plane.administrator_email
+        member_id = self.requester_ready_to_send(email)
         sent_at = time.time() - 5
-        print(f"  → {request['name']}", flush=True)
+        print(f"  → {request['name']} as {email}", flush=True)
         session = self.plane.member_session(
             self.rig.company_id,
-            request["text"],
+            request["instruction"],
             attachments=request["attachments"],
-            member_id=self.member_id,
+            member_id=member_id,
             time_zone=request.get("timeZone", ""),
+            email=email,
         )
         sent = session.get("sent") or {}
         message_id = sent.get("messageID") or ""
@@ -228,10 +253,32 @@ class Deliveries:
         record["elapsedSeconds"] = round(time.time() - sent_at)
         record["outcome"] = tasks[-1].get("status") if tasks and isinstance(tasks[-1], dict) else "no task"
         if record["outcome"] in STILL_OPEN_STATUSES or record["outcome"] in ("running", "planned", "no task"):
-            self.plane.member_session(self.rig.company_id, "/stop-all")
+            self.plane.member_session(self.rig.company_id, "/stop-all", member_id=member_id, email=email)
             time.sleep(10)
         print(f"    {record['outcome']} in {record['elapsedSeconds']}s, files {[file.get('name') for file in record['files']]}", flush=True)
+        if "assertions" in request:
+            record["inboxes"] = self.read_inboxes(request["assertions"], sent_at)
+            self.keep(case_directory, record)
+            record["judgement"] = self.judge(case_directory, request)
+            print(f"    {'passed' if record['judgement'].get('passed') else 'failed'}", flush=True)
         return self.keep(case_directory, record)
+
+    def read_inboxes(self, assertions, sent_at):
+        since = datetime.datetime.fromtimestamp(sent_at, datetime.timezone.utc).isoformat()
+        emails = sorted({assertion["inboxOf"]["email"] for assertion in assertions if "inboxOf" in assertion})
+        return {email: self.rig.ask_the_messenger("inbox_since", email=email, since=since).get("bodies", []) for email in emails}
+
+    def judge(self, case_directory, request):
+        task = {field: request[field] for field in TASK_FIELDS if field in request}
+        (case_directory / "task.json").write_text(json.dumps(task, ensure_ascii=False, indent=2))
+        completed = subprocess.run(
+            ["bun", "run", JUDGE_SCRIPT, str(case_directory)],
+            cwd=REPOSITORY_ROOT / "web", capture_output=True, text=True, timeout=300,
+        )
+        for line in reversed(completed.stdout.splitlines()):
+            if line.startswith("{"):
+                return json.loads(line)
+        return {"passed": False, "refused": (completed.stderr.strip() or completed.stdout.strip())[-900:]}
 
     def snapshot_workspace(self, case_directory, sent_at, delivered_files):
         staged = f"deliveries/{case_directory.name}/{WORKSPACE_DIRECTORY_NAME}"
