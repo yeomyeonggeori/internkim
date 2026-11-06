@@ -64,7 +64,10 @@ repository-wide rule, are guards. They live in
 
 `tools/verify` reads what a change touches and runs what it can break:
 
-- Unit and API tests run in full for any change to the code they cover.
+- The type check runs for every web change, and the build for a change to a
+  route file or the build's configuration.
+- Unit and API tests run only for the files or directories named with
+  `tools/verify --test <path,...>`. API tests run against the local plane.
 - UI tests run only for the areas named with `tools/verify --e2e <area,...>`.
   Whoever makes the change reads the diff, names the areas whose screens it can
   break, and says in the pull request which ran and why. A web change run
