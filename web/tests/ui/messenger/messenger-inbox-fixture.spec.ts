@@ -296,6 +296,24 @@ test('on a phone dragging the search results puts the keyboard away', async ({ p
 	await expect(field).not.toBeFocused();
 });
 
+for (const width of [390, 1280]) {
+	test(`a profile opened from a thread shows in front of the thread at ${width}px`, async ({ page }) => {
+		await openMessenger(page, width, new MessengerInboxFixture(), '/messenger?channel=channel-1');
+		await page.getByRole('button', { name: /1개 답글/ }).click();
+		const reply = page.getByText('로그인 화면 고쳤어요');
+		await expect(reply).toBeVisible();
+
+		await page.locator('[data-message-id="reply-1"]').getByRole('button', { name: /: 박예시$/ }).click();
+
+		const profile = page.getByTestId('messenger-person-profile');
+		await expect(profile).toBeVisible();
+		await expect.poll(() => profile.evaluate((element) => {
+			const box = element.getBoundingClientRect();
+			return element.contains(document.elementFromPoint(box.x + box.width / 2, box.y + 40));
+		})).toBe(true);
+	});
+}
+
 test('on a phone the conversation behind the inbox is not marked read', async ({ page }) => {
 	const fixture = await openMessenger(page, 390);
 	await expect(inboxPanel(page).locator('[data-inbox-entry]')).toHaveCount(3);
