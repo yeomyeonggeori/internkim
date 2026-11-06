@@ -142,7 +142,7 @@ if (scenario === 'mail') {
 	}));
 	mock.module('$lib/messenger/messenger-api', () => ({
 		addReaction: async () => {}, deletePost: async () => {}, editPost: async () => {},
-		fetchChannels: async () => ({}), fetchPeople: async () => [], openDirectChannel: async () => ({}),
+		fetchChannels: async () => ({}), fetchPeople: async () => ({ people: [], agentExternalID: 'agent' }), openDirectChannel: async () => ({}),
 		removeReaction: async () => {}, searchPosts: async () => [], fetchInbox: async () => [], writePost: async () => {}, keepAttachmentForSending: async () => ({}),
 		fetchPosts: async () => {
 			postsStarted = true;
@@ -161,7 +161,7 @@ if (scenario === 'mail') {
 	const emojiBefore = drawn;
 	releaseEmoji();
 	await nextTurn();
-	console.log(JSON.stringify({ postsStarted: postsBeforeDirectory, text: result.messages[0]?.text, emojiBefore, emojiAfter: drawn }));
+	console.log(JSON.stringify({ postsStarted: postsBeforeDirectory, text: result.messages[0]?.text, agent: result.agent?.externalID, emojiBefore, emojiAfter: drawn }));
 } else if (scenario === 'asset-scope') {
 	Reflect.set(globalThis, '$state', <Value>(value: Value): Value => value);
 	const resets: (() => void)[] = [];
