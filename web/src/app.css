@@ -9,6 +9,7 @@
 	src: url('./lib/fonts/Freesentation-4Regular.woff2') format('woff2');
 	font-weight: 400;
 	font-display: swap;
+	unicode-range: U+0000-2025, U+2027-10FFFF;
 }
 
 @font-face {
@@ -16,6 +17,7 @@
 	src: url('./lib/fonts/Freesentation-5Medium.woff2') format('woff2');
 	font-weight: 500;
 	font-display: swap;
+	unicode-range: U+0000-2025, U+2027-10FFFF;
 }
 
 @font-face {
@@ -23,6 +25,7 @@
 	src: url('./lib/fonts/Freesentation-6SemiBold.woff2') format('woff2');
 	font-weight: 600;
 	font-display: swap;
+	unicode-range: U+0000-2025, U+2027-10FFFF;
 }
 
 @font-face {
@@ -30,6 +33,7 @@
 	src: url('./lib/fonts/Freesentation-7Bold.woff2') format('woff2');
 	font-weight: 700;
 	font-display: swap;
+	unicode-range: U+0000-2025, U+2027-10FFFF;
 }
 
 
