@@ -86,6 +86,7 @@ type Conversation = {
 	messages: Message[];
 	hasMoreBefore: boolean;
 	historyCursor: string;
+	agent?: Participant;
 };
 
 // key is the one name this app knows the reader by; names is every name they
@@ -255,8 +256,14 @@ function conversationPageOf(
 		currentUserID: viewer.key,
 		messages: posts.map((post) => messageOf(post, people, viewer)),
 		hasMoreBefore,
-		historyCursor: posts[0]?.id ?? ''
+		historyCursor: posts[0]?.id ?? '',
+		agent: agentOf(people)
 	};
+}
+
+function agentOf(people: MessengerPeople): Participant | undefined {
+	const externalID = people.accounts.agentExternalID;
+	return externalID ? participantOf({ externalID }, people) : undefined;
 }
 
 function messageOf(post: MessengerPost, people: MessengerPeople, viewer: Viewer): Message {

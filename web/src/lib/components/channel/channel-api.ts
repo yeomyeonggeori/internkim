@@ -104,6 +104,7 @@ export type ChannelConversation = {
 	messages: ChannelMessage[];
 	hasMoreBefore: boolean;
 	historyCursor: string;
+	agent?: ChannelParticipant;
 };
 
 export function applyCustomEmoji(
