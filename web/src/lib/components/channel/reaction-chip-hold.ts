@@ -1,11 +1,9 @@
 import { feelHaptic } from '$lib/native-shell/haptics';
+import { touchHoldDriftPixels, touchHoldMilliseconds } from './touch-hold';
 
 export type ReactionChipHoldOptions = {
 	onHold: () => void;
 };
-
-const holdMilliseconds = 700;
-const allowedDriftPixels = 10;
 
 export function reactionChipHold(
 	node: HTMLElement,
@@ -36,12 +34,12 @@ export function reactionChipHold(
 		startX = event.clientX;
 		startY = event.clientY;
 		cancelHold();
-		holdTimer = setTimeout(hold, holdMilliseconds);
+		holdTimer = setTimeout(hold, touchHoldMilliseconds);
 	};
 
 	const handlePointerMove = (event: PointerEvent): void => {
 		if (holdTimer === undefined) return;
-		if (Math.hypot(event.clientX - startX, event.clientY - startY) > allowedDriftPixels) cancelHold();
+		if (Math.hypot(event.clientX - startX, event.clientY - startY) > touchHoldDriftPixels) cancelHold();
 	};
 
 	const handleContextMenu = (event: MouseEvent): void => {

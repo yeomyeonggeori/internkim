@@ -5,6 +5,7 @@
 	import MessageHoverBar from './message-hover-bar.svelte';
 	import { openThreadOnTap } from './open-thread-on-tap';
 	import { swallowClickAfterTouchHold } from './swallow-click-after-touch-hold';
+	import { openContextMenuOnTouchHold } from './touch-hold';
 	import { swipeToReply } from './swipe-to-reply';
 	import type { ChannelMessage } from './channel-api';
 	import type { MessageCopy } from './message-copy';
@@ -137,6 +138,7 @@
 			bind:this={contentElement}
 			class="translate-x-(--swipe-offset,0px) group-[:not([data-swipe-armed])]/row:transition-transform"
 			use:swallowClickAfterTouchHold={{ isMenuOpen: isContextMenuOpen }}
+			use:openContextMenuOnTouchHold
 			use:openThreadOnTap={{ onOpen: onReply, disabled: !canReply || !isSettled }}
 		>
 			<Message.Root align={mine ? 'end' : 'start'}>
