@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import type { InboxEntry } from '../../../src/lib/messenger/channel-over-bridge';
-import { mergeInbox } from '../../../src/lib/messenger/inbox-cache';
+import { appendOlderInbox, mergeInbox } from '../../../src/lib/messenger/inbox-cache';
 
 function entry(id: string, sentAt: string, text = id, isUnread = true): InboxEntry {
 	return {
@@ -16,6 +16,7 @@ function entry(id: string, sentAt: string, text = id, isUnread = true): InboxEnt
 
 describe('an inbox brought up to date', () => {
 	const held = [entry('second', '2026-10-12T05:02:00.000Z'), entry('first', '2026-10-12T05:01:00.000Z')];
+	const heldIDs = held.map((each) => each.id);
 
 	test('puts what arrived above what it held, and takes the held wording and read state from the answer', () => {
 		const merged = mergeInbox(held, {
@@ -24,7 +25,7 @@ describe('an inbox brought up to date', () => {
 				{ id: 'second', text: 'second, reworded', isUnread: false },
 				{ id: 'first', text: 'first', isUnread: true }
 			]
-		});
+		}, heldIDs);
 
 		expect(merged.map((each) => [each.id, each.text, each.isUnread])).toEqual([
 			['third', 'third', true],
@@ -34,7 +35,7 @@ describe('an inbox brought up to date', () => {
 	});
 
 	test('drops a held entry the answer no longer holds, as when it was taken back', () => {
-		const merged = mergeInbox(held, { entries: [], held: [{ id: 'first', text: 'first', isUnread: true }] });
+		const merged = mergeInbox(held, { entries: [], held: [{ id: 'first', text: 'first', isUnread: true }] }, heldIDs);
 
 		expect(merged.map((each) => each.id)).toEqual(['first']);
 	});
@@ -46,14 +47,32 @@ describe('an inbox brought up to date', () => {
 				{ id: 'second', text: 'second', isUnread: true },
 				{ id: 'first', text: 'first', isUnread: true }
 			]
-		});
+		}, heldIDs);
 
 		expect(merged.map((each) => each.id)).toEqual(['second', 'first']);
 	});
 
 	test('takes an answer without held entries as the whole inbox', () => {
-		const merged = mergeInbox(held, { entries: [entry('third', '2026-10-12T05:03:00.000Z')] });
+		const merged = mergeInbox(held, { entries: [entry('third', '2026-10-12T05:03:00.000Z')] }, heldIDs);
 
 		expect(merged.map((each) => each.id)).toEqual(['third']);
+	});
+
+	test('keeps an older entry it did not ask about, as one loaded by scrolling', () => {
+		const answer = { entries: [entry('third', '2026-10-12T05:03:00.000Z')], held: [{ id: 'second', text: 'second', isUnread: true }] };
+
+		const merged = mergeInbox(held, answer, ['second']);
+
+		expect(merged.map((each) => each.id)).toEqual(['third', 'second', 'first']);
+	});
+});
+
+describe('an inbox scrolled to its older entries', () => {
+	test('puts the older page below what it holds and shows the entry on the page boundary once', () => {
+		const held = [entry('second', '2026-10-12T05:02:00.000Z'), entry('first', '2026-10-12T05:01:00.000Z')];
+
+		const appended = appendOlderInbox(held, [entry('first', '2026-10-12T05:01:00.000Z'), entry('zeroth', '2026-10-12T05:00:00.000Z')]);
+
+		expect(appended.map((each) => each.id)).toEqual(['second', 'first', 'zeroth']);
 	});
 });
