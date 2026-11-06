@@ -258,6 +258,25 @@ test('on a phone a thread reply still opens its thread', async ({ page }) => {
 	await expect(page.getByRole('region', { name: '글타래' }).getByText('로그인 화면 고쳤어요')).toBeVisible();
 });
 
+class ConversationSearchFixture extends MessengerInboxFixture {
+	host(capability: string, body: Record<string, unknown>): { status: number; body: unknown } {
+		if (capability !== 'person.messages.search') return super.host(capability, body);
+		return { status: 200, body: { matches: [messages['channel-1'][0]] } };
+	}
+}
+
+test('on a phone a chosen search result closes the search and shows its message', async ({ page }) => {
+	await openMessenger(page, 390, new ConversationSearchFixture());
+	await inboxPanel(page).locator('[data-inbox-entry="mention-1"]').click();
+	await page.getByRole('button', { name: '대화 검색' }).click();
+	const search = page.getByRole('complementary', { name: '대화 검색' });
+	await search.getByRole('textbox').fill('배포');
+	await search.getByRole('button', { name: /배포 일정/ }).click();
+
+	await expect(search).toBeHidden();
+	await expect(page.getByText('배포 일정 공유드려요')).toBeInViewport();
+});
+
 test('on a phone the conversation behind the inbox is not marked read', async ({ page }) => {
 	const fixture = await openMessenger(page, 390);
 	await expect(inboxPanel(page).locator('[data-inbox-entry]')).toHaveCount(3);
