@@ -260,6 +260,7 @@
 				size="icon-sm"
 				aria-label={text.addAttachment}
 				onclick={() => fileInput?.click()}
+				onpointerdown={(event) => event.preventDefault()}
 				{disabled}
 			>
 				<PlusIcon />
