@@ -219,6 +219,37 @@ test.describe('messenger thread sheet on a touch screen', () => {
 		await session.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
 	});
 
+	async function touchCentre(page: Page, text: string, holdMilliseconds: number): Promise<void> {
+		const box = await page.getByText(text, { exact: true }).boundingBox();
+		if (!box) throw new Error(`the message ${text} has no box to press`);
+		const session = await page.context().newCDPSession(page);
+		await session.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: box.x + box.width / 2, y: box.y + box.height / 2 }] });
+		await page.waitForTimeout(holdMilliseconds);
+		await session.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+	}
+
+	test('holding a second message leaves only its menu open', async ({ page }) => {
+		await page.goto(`/messenger?channel=${channelID}`);
+		await touchCentre(page, unansweredText, 600);
+		await expect(page.getByRole('menu')).toHaveCount(1);
+
+		await touchCentre(page, '스레드 원글', 600);
+
+		await expect(page.getByRole('menu')).toHaveCount(1);
+	});
+
+	test('a tap outside an open message menu only closes the menu', async ({ page }) => {
+		await page.goto(`/messenger?channel=${channelID}`);
+		await touchCentre(page, unansweredText, 600);
+		await expect(page.getByRole('menu')).toBeVisible();
+
+		await touchCentre(page, '스레드 원글', 50);
+
+		await expect(page.getByRole('menu')).toHaveCount(0);
+		await expect(page.getByText(replyText)).toBeHidden();
+		await expect(page.getByRole('dialog', { name: '글타래' })).toHaveCount(0);
+	});
+
 	test('keeps a long press for the message menu instead of text selection', async ({ page }) => {
 		await page.goto(`/messenger?channel=${channelID}`);
 

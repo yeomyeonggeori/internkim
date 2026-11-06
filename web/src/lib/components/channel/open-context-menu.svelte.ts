@@ -1,4 +1,4 @@
-class OpenConversationMenu {
+class OpenContextMenu {
 	menuID = $state<string | null>(null);
 
 	isOpen(menuID: string): boolean {
@@ -14,4 +14,4 @@ class OpenConversationMenu {
 	}
 }
 
-export const openConversationMenu = new OpenConversationMenu();
+export const openContextMenu = new OpenContextMenu();
