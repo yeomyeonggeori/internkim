@@ -272,6 +272,18 @@ export async function saveTask(
 	return data;
 }
 
+export async function saveTaskCompletingChildren(
+	caller: SupabaseClient,
+	argumentsOfSave: Record<string, unknown>
+): Promise<string> {
+	const { data, error } = await caller.rpc('task_save_completing_children', { save_arguments: argumentsOfSave });
+	if (error) {
+		throw refusedWriteOf(error.message, error.code);
+	}
+	if (typeof data !== 'string') throw new RecordRefusedTheWrite('the record named no task it saved', 502);
+	return data;
+}
+
 export async function saveTaskWithChildren(
 	caller: SupabaseClient,
 	argumentsOfSave: Record<string, unknown>,

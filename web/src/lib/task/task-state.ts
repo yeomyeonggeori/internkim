@@ -187,8 +187,8 @@ export async function saveTask(
 	}
 }
 
-export async function moveTask(taskID: string, status: string): Promise<void> {
-	await updateTask(taskID, { status: centralStatusFromWord(status) });
+export async function moveTask(taskID: string, status: string, completeChildren = false): Promise<void> {
+	await updateTask(taskID, { status: centralStatusFromWord(status), ...(completeChildren ? { completeChildren } : {}) });
 }
 
 export async function removeTask(taskID: string): Promise<void> {

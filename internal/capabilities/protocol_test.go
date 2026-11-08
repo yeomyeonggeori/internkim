@@ -219,14 +219,14 @@ func TestTaskBoardDescriptorKeepsHistoryReadSeparate(t *testing.T) {
 func TestFlowDescriptorIncludesTaskUpdateInput(t *testing.T) {
 	schema := descriptorSchema(t, TaskToolDescriptors(), "task_update")
 
-	assertSchemaHasProperties(t, schema, "taskHint", "title", "status", "size", "business", "type", "startsAt", "endsAt", "participantPersonHints", "parentTaskHint", "childTaskHints")
+	assertSchemaHasProperties(t, schema, "taskHint", "title", "status", "size", "business", "type", "startsAt", "endsAt", "participantPersonHints", "parentTaskHint", "childTaskHints", "completeChildren")
 	assertSchemaOmitsProperties(t, schema, "query", "targetPersonHint", "ownerPersonHint", "requestReason", "decisionReason", "weekCode", "prompt", "allowDuplicate", "content", "taskID")
 	assertSchemaRequires(t, schema, "taskHint")
 	if schema.MinProperties != 2 {
 		t.Fatalf("task_update minProperties = %d", schema.MinProperties)
 	}
-	if descriptorForTool(t, TaskToolDescriptors(), "task_update").Version != "6" {
-		t.Fatal("task_update descriptor must use the canonical-result v6 contract")
+	if descriptorForTool(t, TaskToolDescriptors(), "task_update").Version != "7" {
+		t.Fatal("task_update descriptor must use the v7 contract that completes the work under a task")
 	}
 	assertDescriptorCompletionEvidence(t, TaskToolDescriptors(), "task_update", "success", "write_task", "task")
 }

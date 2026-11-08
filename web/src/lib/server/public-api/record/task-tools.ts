@@ -25,6 +25,7 @@ import {
 	participantsOfHints,
 	RecordRefusedTheWrite,
 	saveTask,
+	saveTaskCompletingChildren,
 	saveTaskWithChildren,
 	savedTaskByID,
 	statusOfPostgresCode,
@@ -299,7 +300,7 @@ function isNewMoment(written: string | null | undefined, held: string | null): b
 	return held === null || !isTheSameMoment(held, written);
 }
 
-type TaskUpdateInput = TaskWritten & { taskHint?: string; childTaskHints?: string[] };
+type TaskUpdateInput = TaskWritten & { taskHint?: string; childTaskHints?: string[]; completeChildren?: boolean };
 
 // Everything else the caller can name is a column task_save writes. These three
 // are not, so an update naming only these has no column to write.
@@ -322,7 +323,8 @@ export async function taskUpdate(
 	if (!namesAColumn(input)) return answeredTask(context, await taskByID(context, row.id));
 
 	const written = writtenFields(context, input, row);
-	const saved = await saveTask(context.caller, taskWriteArguments(row, written));
+	const save = input.completeChildren ? saveTaskCompletingChildren : saveTask;
+	const saved = await save(context.caller, taskWriteArguments(row, written));
 	await writeCRMColumns(context, saved, await crmColumnsWritten(context, input, row));
 	const patched = await taskByID(context, saved);
 	refuseUnlessPatched(written, patched);

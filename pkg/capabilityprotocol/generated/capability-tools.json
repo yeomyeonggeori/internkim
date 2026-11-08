@@ -2656,6 +2656,10 @@
             },
             "type": "array"
           },
+          "completeChildren": {
+            "description": "true completes every unfinished task under this one in the same write; the task itself must end up completed. Without it, completing a task leaves the work under it as it is.",
+            "type": "boolean"
+          },
           "endsAt": {
             "description": "When the work is due. ISO 8601 with timezone for a moment, or YYYY-MM-DD for a whole day. An empty string takes the date off.",
             "type": "string"
@@ -2737,6 +2741,10 @@
               "type": "string"
             },
             "type": "array"
+          },
+          "completeChildren": {
+            "description": "true completes every unfinished task under this one in the same write; the task itself must end up completed. Without it, completing a task leaves the work under it as it is.",
+            "type": "boolean"
           },
           "endsAt": {
             "description": "When the work is due. ISO 8601 with timezone for a moment, or YYYY-MM-DD for a whole day. An empty string takes the date off.",
@@ -3040,7 +3048,7 @@
       },
       "sideEffect": "workspace_write",
       "sideEffectClass": "workspace_write",
-      "version": "6",
+      "version": "7",
       "worksOffline": false
     },
     {
