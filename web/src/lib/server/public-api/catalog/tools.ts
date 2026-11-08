@@ -317,7 +317,7 @@ const scheduleToolDefinitions: CapabilityToolDefinition[] = [
     answeredBy: CapabilityAnsweredBy.Company,
     privacyClass: 'workspace_schedule',
     policyResource: 'tool:schedule_create',
-    description: 'Schedule a reminder or a recurring alert: work the agent does later, once at a time you name or on a repeat. It arrives in the conversation it was asked in, so it can only be created from one. Use schedule_update to change one that already exists.',
+    description: 'Schedule a reminder or a recurring alert: work the agent does later, once at a time you name or on a repeat. It arrives in the conversation it was asked in, so it can only be created from one. The requester approves it once when it is created, and its runs then do what the instruction says without asking again, so the instruction names everything they will do. Use schedule_update to change one that already exists.',
     version: '1',
     estimatedLatency: CapabilityEstimatedLatency.Medium,
     inputSchema: scheduleCreateInputSchema,
@@ -332,6 +332,7 @@ const scheduleToolDefinitions: CapabilityToolDefinition[] = [
       }],
     },
     sideEffect: CapabilitySideEffect.WorkspaceWrite,
+    requiresApproval: true,
     completionEvidence: { mode: 'success', action: 'write_schedule', targetKind: 'schedule' },
   },
   {
@@ -355,6 +356,7 @@ const scheduleToolDefinitions: CapabilityToolDefinition[] = [
       }],
     },
     sideEffect: CapabilitySideEffect.WorkspaceWrite,
+    requiresApproval: true,
     completionEvidence: { mode: 'success', action: 'write_schedule', targetKind: 'schedule' },
   },
   {

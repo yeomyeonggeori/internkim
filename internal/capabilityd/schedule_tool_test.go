@@ -87,6 +87,42 @@ func TestScheduleCreateCarriesTheConversationItWasAskedIn(t *testing.T) {
 	}
 }
 
+func TestWritingAScheduleAsksItsRequesterAndCancellingOneDoesNot(t *testing.T) {
+	for toolName, isAsked := range map[string]bool{"schedule_create": true, "schedule_update": true, "schedule_cancel": false} {
+		if descriptorForCapabilityToolTest(t, toolName).RequiresApproval != isAsked {
+			t.Fatalf("%s asks its requester=%v, expected %v: a schedule answers its runs' questions with the approval it was written with", toolName, !isAsked, isAsked)
+		}
+	}
+}
+
+func TestScheduleCreateSaysWhetherItsRequesterApprovedIt(t *testing.T) {
+	for _, testCase := range []struct {
+		name       string
+		context    func(*capabilities.ToolInvokeRequest)
+		isApproved bool
+	}{
+		{"a call nobody approved", func(*capabilities.ToolInvokeRequest) {}, false},
+		{"a call on the hold its requester approved", func(request *capabilities.ToolInvokeRequest) { request.Context.HoldID = "held-1" }, true},
+		{"a call the requester made through the API", func(request *capabilities.ToolInvokeRequest) {
+			request.Context.TaskSource = capabilities.TaskSourcePublicAPI
+		}, true},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			var reachedPath, reachedBody string
+			service := Service{Configuration: Configuration{AdmindSocketPath: admindWritingASchedule(t, &reachedPath, &reachedBody)}}
+			request := scheduleRequestInAConversation("schedule_create", `{"taskInstruction":"주간 보고를 팀 채널에 올린다","kind":"cron","cronExpression":"0 17 * * 5","repeatPolicy":"unbounded"}`)
+			testCase.context(&request)
+
+			if _, errorValue := service.invokeScheduleTool(context.Background(), request); errorValue != nil {
+				t.Fatal(errorValue)
+			}
+			if carried := scheduleBodyReaching(t, reachedBody); carried["isApproved"] != testCase.isApproved {
+				t.Fatalf("admind was told isApproved=%v: %s", carried["isApproved"], reachedBody)
+			}
+		})
+	}
+}
+
 func TestScheduleCreateOutsideAConversationBindsNothing(t *testing.T) {
 	var reachedPath, reachedBody string
 	service := Service{Configuration: Configuration{AdmindSocketPath: admindWritingASchedule(t, &reachedPath, &reachedBody)}}
