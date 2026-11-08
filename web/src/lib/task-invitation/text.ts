@@ -1,0 +1,83 @@
+export const taskInvitationText = {
+	ko: {
+		open: '외부 초대',
+		title: '외부 초대',
+		description: '회사 밖 사람이 이메일로 로그인해 고른 사업의 업무를 읽기 전용으로 봅니다.',
+		email: '이메일',
+		businesses: '보여줄 사업',
+		scope: '고른 사업의 업무만, 앞으로 추가되는 업무까지 보입니다. 메모는 보이지 않습니다.',
+		noBusinesses: '정의 탭에서 사업을 먼저 만들어 주세요.',
+		send: '초대 보내기',
+		sent: '{email}에게 초대를 보냈습니다',
+		invitations: '보낸 초대',
+		noInvitations: '보낸 초대가 없습니다',
+		accepted: '수락함',
+		pending: '수락 대기',
+		resend: '다시 보내기',
+		revoke: '회수',
+		revoked: '{email}의 초대를 회수했습니다',
+		failure: '초대를 처리하지 못했습니다'
+	},
+	en: {
+		open: 'Invite outside',
+		title: 'Invite someone outside',
+		description: 'A person outside the company signs in with their email and reads the chosen businesses\' tasks.',
+		email: 'Email',
+		businesses: 'Businesses to show',
+		scope: 'Only these businesses\' tasks are shown, including ones added later. Notes are never shown.',
+		noBusinesses: 'Add a business on the Definitions tab first.',
+		send: 'Send invitation',
+		sent: 'Invitation sent to {email}',
+		invitations: 'Sent invitations',
+		noInvitations: 'No invitations sent',
+		accepted: 'Accepted',
+		pending: 'Not accepted yet',
+		resend: 'Send again',
+		revoke: 'Revoke',
+		revoked: 'Revoked the invitation to {email}',
+		failure: 'The invitation could not be handled'
+	}
+} as const;
+
+export const sharedTasksText = {
+	ko: {
+		pageTitle: '공유된 업무',
+		invitationTitle: '업무 초대',
+		invitationDescription: '초대받은 이메일로 로그인하세요. 메일로 받은 코드를 입력하면 업무가 열립니다.',
+		email: '이메일',
+		code: '이메일로 받은 코드',
+		sendCode: '코드 받기',
+		signIn: '로그인',
+		signInWithPasskey: '패스키로 로그인',
+		signInAgain: '이 업무를 보려면 초대받은 이메일로 로그인하세요.',
+		passkeyOffer: '다음에는 메일 없이 들어오도록 이 기기에 패스키를 등록하세요.',
+		registerPasskey: '패스키 등록',
+		passkeyRegistered: '패스키를 등록했습니다',
+		refresh: '새로고침',
+		empty: '공유된 업무가 없습니다',
+		moreTasks: '외 {count}건',
+		viewer: '{email}로 보는 중',
+		signOut: '로그아웃',
+		failure: '업무를 불러오지 못했습니다'
+	},
+	en: {
+		pageTitle: 'Shared tasks',
+		invitationTitle: 'Task invitation',
+		invitationDescription: 'Sign in with the email that was invited. Enter the code it receives to open the tasks.',
+		email: 'Email',
+		code: 'Code from the email',
+		sendCode: 'Send code',
+		signIn: 'Sign in',
+		signInWithPasskey: 'Sign in with a passkey',
+		signInAgain: 'Sign in with the invited email to see these tasks.',
+		passkeyOffer: 'Register a passkey on this device to come back without an email.',
+		registerPasskey: 'Register passkey',
+		passkeyRegistered: 'Passkey registered',
+		refresh: 'Refresh',
+		empty: 'No tasks are shared',
+		moreTasks: '{count} more',
+		viewer: 'Viewing as {email}',
+		signOut: 'Sign out',
+		failure: 'The tasks could not be loaded'
+	}
+} as const;

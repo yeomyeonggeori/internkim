@@ -1469,6 +1469,46 @@
       ]
     },
     {
+      "name": "task_invitation_accept",
+      "arguments": "target_invitation uuid",
+      "returns": "uuid",
+      "security": "definer",
+      "callableBy": [
+        "authenticated",
+        "service_role"
+      ]
+    },
+    {
+      "name": "task_invitation_board",
+      "arguments": "target_company uuid",
+      "returns": "jsonb",
+      "security": "definer",
+      "callableBy": [
+        "authenticated",
+        "service_role"
+      ]
+    },
+    {
+      "name": "task_invitation_revoke",
+      "arguments": "target_invitation uuid",
+      "returns": "void",
+      "security": "definer",
+      "callableBy": [
+        "authenticated",
+        "service_role"
+      ]
+    },
+    {
+      "name": "task_invite",
+      "arguments": "target_company uuid, recipient_email text, invited_businesses text[]",
+      "returns": "uuid",
+      "security": "definer",
+      "callableBy": [
+        "authenticated",
+        "service_role"
+      ]
+    },
+    {
       "name": "task_is_asked_of_its_asker",
       "arguments": "target_task_id uuid, asker uuid",
       "returns": "boolean",

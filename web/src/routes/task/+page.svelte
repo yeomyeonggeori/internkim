@@ -5,6 +5,8 @@
 	import { page } from '$app/state';
 	import { onMount, untrack } from 'svelte';
 	import TaskTabRow from './task-tab-row.svelte';
+	import TaskInvitations from './task-invitations.svelte';
+	import { taskBusinessColor } from './task-definition-colors';
 	import TasksView from './tasks-view.svelte';
 	import TaskContentSkeleton from './task-content-skeleton.svelte';
 	import { taskWeeklySummaryOf, mergeTaskSummary, fetchTaskState, forgetTaskStateRead } from './task-api';
@@ -348,7 +350,10 @@
 			</div>
 		{/if}
 
-		<TaskTabRow activeTab={activeTab} labels={text.tabs} disabled={isLoading || (!isStateFresh && !cacheSavedAt)} onSelectTab={selectTab} />
+		<div class="flex items-end justify-between gap-3">
+			<TaskTabRow activeTab={activeTab} labels={text.tabs} disabled={isLoading || (!isStateFresh && !cacheSavedAt)} onSelectTab={selectTab} />
+			{#if summary?.isAdmin}<TaskInvitations businesses={definitions().categories} businessColor={(business) => taskBusinessColor(business, definitions())} />{/if}
+		</div>
 		{#if pendingTaskID && historyError}
 			<p role="status" class="text-sm text-destructive">{historyError}</p>
 			<button class="text-left text-sm underline" onclick={ensureFullState}>{text.retryHistory}</button>
