@@ -10,17 +10,18 @@ import (
 	"github.com/yeomyeonggeori/internkim/internal/capabilities"
 )
 
-// Where a schedule tool is answered, and whether the schedule it writes has to
-// carry the conversation this turn is happening in. That binding is a fact the
-// runtime holds, so the model is never asked for it.
+// Where a schedule tool is answered, and whether it writes a new schedule. A
+// new schedule carries the conversation this turn is happening in and whether
+// its requester approved it. Both are facts the runtime holds, so the model is
+// never asked for them.
 type scheduleToolUpstream struct {
-	admindPath    string
-	bindsDelivery bool
+	admindPath      string
+	writesASchedule bool
 }
 
 var scheduleToolUpstreams = map[string]scheduleToolUpstream{
 	"schedule_list":   {admindPath: "/memory/api/schedules/tool-list"},
-	"schedule_create": {admindPath: "/memory/api/schedules/tool-create", bindsDelivery: true},
+	"schedule_create": {admindPath: "/memory/api/schedules/tool-create", writesASchedule: true},
 	"schedule_update": {admindPath: "/memory/api/schedules/tool-update"},
 	"schedule_cancel": {admindPath: "/memory/api/schedules/tool-cancel"},
 }
@@ -46,20 +47,17 @@ func scheduleToolBody(request capabilities.ToolInvokeRequest, upstream scheduleT
 	if len(bytes.TrimSpace(input)) == 0 {
 		input = json.RawMessage("{}")
 	}
-	if !upstream.bindsDelivery {
+	if !upstream.writesASchedule {
 		return input, nil
 	}
-	document := map[string]json.RawMessage{}
+	document := map[string]any{}
 	if errorValue := json.Unmarshal(input, &document); errorValue != nil {
 		return nil, errorValue
 	}
 	for field, value := range scheduleDeliveryBinding(request.Context) {
-		encoded, errorValue := json.Marshal(value)
-		if errorValue != nil {
-			return nil, errorValue
-		}
-		document[field] = encoded
+		document[field] = value
 	}
+	document["isApproved"] = requesterApprovedThisCall(request)
 	return json.Marshal(document)
 }
 

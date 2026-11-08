@@ -9,6 +9,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"os/exec"
+	"reflect"
 	"strconv"
 	"strings"
 	"sync"
@@ -155,6 +156,14 @@ func (ledger *approvalLedger) ServeHTTP(writer http.ResponseWriter, request *htt
 	}
 	ledger.redeemed[redemption.HoldID] = true
 	_, _ = io.WriteString(writer, `{}`)
+}
+
+func isSameJSON(first json.RawMessage, second json.RawMessage) bool {
+	var firstValue, secondValue any
+	if json.Unmarshal(emptyObjectIfBlank(first), &firstValue) != nil || json.Unmarshal(emptyObjectIfBlank(second), &secondValue) != nil {
+		return false
+	}
+	return reflect.DeepEqual(firstValue, secondValue)
 }
 
 func TestAnInjectedPageCannotMakeTheBrowserSendAFormWithoutApproval(t *testing.T) {

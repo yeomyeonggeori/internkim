@@ -46,19 +46,15 @@ func carriedApproval(t *testing.T, body string) bool {
 
 func TestTheHostUpdateTellsAdmindWhetherTheRequesterApprovedThisCall(t *testing.T) {
 	input := `{"targetVersion":"v2026.10.02.090000"}`
-	scheduledCall := func(toolName string, toolInput string) *capabilityprotocol.ScheduledApprovedCall {
-		return &capabilityprotocol.ScheduledApprovedCall{ToolName: toolName, ToolInput: json.RawMessage(toolInput), ApproverPersonID: "person-1"}
-	}
 	for _, testCase := range []struct {
 		name       string
 		context    capabilityprotocol.ToolInvokeContext
 		isApproved bool
 	}{
 		{"an unapproved call", capabilityprotocol.ToolInvokeContext{}, false},
-		{"a scheduled run that carries no approved call", capabilityprotocol.ToolInvokeContext{IsScheduledRun: true}, false},
+		{"a scheduled run on no hold", capabilityprotocol.ToolInvokeContext{IsScheduledRun: true}, false},
 		{"a held call spent", capabilityprotocol.ToolInvokeContext{HoldID: "held-1"}, true},
-		{"the scheduled run of exactly this call", capabilityprotocol.ToolInvokeContext{IsScheduledRun: true, ScheduledApprovedCall: scheduledCall("host_update", `{ "targetVersion": "v2026.10.02.090000" }`)}, true},
-		{"a scheduled run that approved another tool", capabilityprotocol.ToolInvokeContext{IsScheduledRun: true, ScheduledApprovedCall: scheduledCall("message_send", input)}, false},
+		{"a scheduled run on the hold its schedule approved", capabilityprotocol.ToolInvokeContext{IsScheduledRun: true, HoldID: "held-2"}, true},
 	} {
 		t.Run(testCase.name, func(t *testing.T) {
 			admind := &admindStandIn{status: http.StatusForbidden, answer: `{"errorCode":"approval_required","message":"host_update requires the requester's approval before it runs"}`}
