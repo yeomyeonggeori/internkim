@@ -6,20 +6,19 @@
 	import { channelText } from '$lib/i18n/channel-text';
 	import { createPageText } from '$lib/i18n/page-text.svelte';
 	import { attachmentSource } from '$lib/stores/attachment-source.svelte';
-	import FileIcon from '@lucide/svelte/icons/file';
 	import ImageOffIcon from '@lucide/svelte/icons/image-off';
 	import RotateCwIcon from '@lucide/svelte/icons/rotate-cw';
-	import DownloadIcon from '@lucide/svelte/icons/download';
 	import type { ChannelMessageAttachment } from './channel-api';
-	import { attachmentStateOf, formatAttachmentMeta, preparingLabel } from './channel-attachments';
-	import { startDownload } from './attachment-download';
+	import { previewKindOf } from '$lib/files/preview/kind';
+	import { attachmentStateOf, preparingLabel } from './channel-attachments';
+	import ChannelFileAttachment from './channel-file-attachment.svelte';
 
 	let {
 		attachments,
-		openPicture
+		openSource
 	}: {
 		attachments: ChannelMessageAttachment[];
-		openPicture: (source: string) => void;
+		openSource: (source: string) => void;
 	} = $props();
 
 	const text = createPageText(channelText);
@@ -49,7 +48,7 @@
 								type="button"
 								class="block h-full w-full cursor-zoom-in"
 								aria-label={notShown ? `${text.attachmentUnavailable} · ${text.retry}` : (attachment.filename ?? '이미지 크게 보기')}
-								onclick={() => (notShown ? attachmentSource.retry(attachment.url) : openPicture(source))}
+								onclick={() => (notShown ? attachmentSource.retry(attachment.url) : openSource(source))}
 							>
 								<LoadingImage
 									messagePicture
@@ -85,54 +84,11 @@
 		</Attachment.Group>
 	{/if}
 	{#each files as attachment (attachment.url)}
-		{@const attachmentState = stateOf(attachment)}
-		<Attachment.Root state={attachmentState}>
-			<Attachment.Media>
-				<FileIcon />
-			</Attachment.Media>
-			<Attachment.Content>
-				<Attachment.Title>
-					{#if attachment.source && attachmentState !== 'uploading'}
-						<a href={attachment.source} target="_blank" rel="noreferrer">
-							{attachment.filename ?? attachment.url}
-						</a>
-					{:else}
-						{attachment.filename ?? attachment.url}
-					{/if}
-				</Attachment.Title>
-				{#if attachmentState === 'uploading'}
-					<Attachment.Description>{text.attachmentUploading}</Attachment.Description>
-				{:else if attachmentState === 'error'}
-					<Attachment.Description title={attachmentSource.failure(attachment.url)}>
-						{text.attachmentUnavailable}
-					</Attachment.Description>
-				{:else if attachmentState === 'processing'}
-					<Attachment.Description>
-						{preparingLabel(text.attachmentPreparing, attachmentSource.progress(attachment.url))}
-					</Attachment.Description>
-				{:else if formatAttachmentMeta(attachment)}
-					<Attachment.Description>
-						{formatAttachmentMeta(attachment)}
-					</Attachment.Description>
-				{/if}
-			</Attachment.Content>
-			{#if attachmentState === 'error'}
-				<Attachment.Actions>
-					<Attachment.Action aria-label={text.retry} onclick={() => attachmentSource.retry(attachment.url)}>
-						<RotateCwIcon />
-					</Attachment.Action>
-				</Attachment.Actions>
-			{:else if attachment.source && attachmentState !== 'uploading'}
-				{@const source = attachment.source}
-				<Attachment.Actions>
-					<Attachment.Action
-						aria-label={text.downloadAttachment}
-						onclick={() => startDownload(source, attachment.filename ?? '')}
-					>
-						<DownloadIcon />
-					</Attachment.Action>
-				</Attachment.Actions>
-			{/if}
-		</Attachment.Root>
+		{@const source = attachment.source}
+		<ChannelFileAttachment
+			{attachment}
+			attachmentState={stateOf(attachment)}
+			onOpen={source && previewKindOf(attachment.filename ?? '') !== 'none' ? () => openSource(source) : undefined}
+		/>
 	{/each}
 </div>

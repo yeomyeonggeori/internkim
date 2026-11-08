@@ -8,12 +8,16 @@
 				default: "gap-2 has-data-[slot=attachment-content]:px-2.5 has-data-[slot=attachment-content]:py-2 has-data-[slot=attachment-media]:p-2 text-sm",
 				sm: "gap-2.5 has-data-[slot=attachment-content]:px-2 has-data-[slot=attachment-content]:py-1.5 has-data-[slot=attachment-media]:p-1.5 text-xs",
 				xs: "gap-1.5 has-data-[slot=attachment-content]:px-1.5 has-data-[slot=attachment-content]:py-1 has-data-[slot=attachment-media]:p-1 text-xs rounded-lg",
+				lg: "gap-2 has-data-[slot=attachment-content]:px-2.5 has-data-[slot=attachment-content]:py-2 has-data-[slot=attachment-media]:p-2 text-sm",
 			},
 			orientation: {
 				horizontal: "min-w-40 items-center",
 				vertical: "w-24 has-data-[slot=attachment-content]:w-30 flex-col",
 			},
 		},
+		compoundVariants: [
+			{ orientation: "vertical", size: "lg", class: "w-52 has-data-[slot=attachment-content]:w-52" },
+		],
 	});
 
 	export type AttachmentSize = VariantProps<typeof attachmentVariants>["size"];
