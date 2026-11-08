@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(13);
+select plan(15);
 
 insert into public.company (id, name, slug, country, locale, timezone) values
   ('99700000-0000-0000-0000-0000000000a0', 'Board Move Company', 'board-move-company', 'KR', 'ko', 'Asia/Seoul');
@@ -59,6 +59,22 @@ select is(
   (select (status::text, public.task_last_day(task), starts_at = ends_at) from public.task where id = '99700000-0000-0000-0000-0000000000b4'),
   ('completed'::text, (select day from today_in_seoul), true),
   'named status: completing a task due later ends it today');
+
+insert into public.task (id, company_id, title, status, starts_at, ends_at) values
+  ('99700000-0000-0000-0000-0000000000b9', '99700000-0000-0000-0000-0000000000a0', 'Begins in two hours, running', 'in_progress', now() + interval '2 hours', now() + interval '3 hours'),
+  ('99700000-0000-0000-0000-0000000000ba', '99700000-0000-0000-0000-0000000000a0', 'Begins in two hours, planned', 'planned', now() + interval '2 hours', now() + interval '3 hours');
+
+update public.task set status = 'planned' where id = '99700000-0000-0000-0000-0000000000b9';
+select is(
+  (select (status::text, starts_at = now() + interval '2 hours') from public.task where id = '99700000-0000-0000-0000-0000000000b9'),
+  ('planned'::text, true),
+  'named status: planning a task whose start is still ahead keeps that start, even later today');
+
+update public.task set status = 'in_progress' where id = '99700000-0000-0000-0000-0000000000ba';
+select is(
+  (select (status::text, starts_at = now()) from public.task where id = '99700000-0000-0000-0000-0000000000ba'),
+  ('in_progress'::text, true),
+  'named status: starting a task due later today moves its start to now');
 
 select throws_ok(
   $$update public.task set status = 'requested' where id = '99700000-0000-0000-0000-0000000000b6'$$,
