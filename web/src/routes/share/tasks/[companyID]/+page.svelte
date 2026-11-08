@@ -5,7 +5,6 @@
 	import { toast } from 'svelte-sonner';
 	import { Button } from '$lib/components/ui/button';
 	import { Skeleton } from '$lib/components/ui/skeleton';
-	import * as Tooltip from '$lib/components/ui/tooltip';
 	import RefreshButton from '$lib/components/refresh-button.svelte';
 	import { supabase } from '$lib/supabase';
 	import { isPasskeySupported, listPasskeys, refusalOf, registerPasskey } from '$lib/supabase-passkey';
@@ -105,7 +104,6 @@
 </script>
 
 <svelte:head><title>{board ? `${board.company.name} · ${text.pageTitle}` : text.pageTitle}</title><meta name="robots" content="noindex" /></svelte:head>
-<Tooltip.Provider>
 <main class="mx-auto grid max-w-5xl grid-cols-[minmax(0,1fr)] gap-6 px-4 py-10 md:px-6">
 	<header class="flex flex-wrap items-end justify-between gap-3">
 		<div class="grid gap-1">
@@ -154,4 +152,3 @@
 		</div>
 	{/if}
 </main>
-</Tooltip.Provider>

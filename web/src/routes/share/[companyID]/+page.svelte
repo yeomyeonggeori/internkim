@@ -1,6 +1,5 @@
 <script lang="ts">
 	import { Skeleton } from '$lib/components/ui/skeleton';
-	import * as Tooltip from '$lib/components/ui/tooltip';
 	import RefreshButton from '$lib/components/refresh-button.svelte';
 	import { onMount } from 'svelte';
 	import { page } from '$app/state';
@@ -54,7 +53,7 @@
 			<div class="mx-auto flex w-full max-w-5xl items-center gap-3 px-4 py-3">
 				<Skeleton class="size-8 shrink-0" />
 				<div class="grid min-w-0 flex-1 gap-1"><Skeleton class="h-4 w-40" /><Skeleton class="h-3 w-56 max-w-full" /></div>
-				<Tooltip.Provider><RefreshButton label={text.refresh} variant="ghost" size="icon-sm" refresh={load} disabled /></Tooltip.Provider>
+				<RefreshButton label={text.refresh} variant="ghost" size="icon-sm" refresh={load} disabled />
 			</div>
 		</header>
 		<div aria-hidden="true" class="mx-auto grid w-full max-w-5xl gap-4 px-4 py-6">
