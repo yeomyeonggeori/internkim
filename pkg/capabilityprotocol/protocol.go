@@ -196,29 +196,21 @@ const (
 )
 
 type ToolInvokeContext struct {
-	RequesterPersonID       string                 `json:"requesterPersonID,omitempty"`
-	RequesterEmail          string                 `json:"requesterEmail,omitempty"`
-	RequesterName           string                 `json:"requesterName,omitempty"`
-	RequesterPlatformUserID string                 `json:"requesterPlatformUserID,omitempty"`
-	TaskSource              string                 `json:"taskSource,omitempty"`
-	IsScheduledRun          bool                   `json:"isScheduledRun,omitempty"`
-	HoldID                  string                 `json:"holdID,omitempty"`
-	TaskRunID               string                 `json:"taskRunID,omitempty"`
-	ScheduledApprovedCall   *ScheduledApprovedCall `json:"scheduledApprovedCall,omitempty"`
-	ConversationID          string                 `json:"conversationID,omitempty"`
-	ConversationType        string                 `json:"conversationType,omitempty"`
-	ChannelID               string                 `json:"channelID,omitempty"`
-	ChannelName             string                 `json:"channelName,omitempty"`
-	ReplyTargetID           string                 `json:"replyTargetID,omitempty"`
-	Platform                string                 `json:"platform,omitempty"`
-	ResponseLanguage        string                 `json:"responseLanguage,omitempty"`
-}
-
-type ScheduledApprovedCall struct {
-	ToolName         string          `json:"toolName"`
-	ToolInput        json.RawMessage `json:"toolInput,omitempty"`
-	ApproverPersonID string          `json:"approverPersonID,omitempty"`
-	ApprovedAt       string          `json:"approvedAt,omitempty"`
+	RequesterPersonID       string `json:"requesterPersonID,omitempty"`
+	RequesterEmail          string `json:"requesterEmail,omitempty"`
+	RequesterName           string `json:"requesterName,omitempty"`
+	RequesterPlatformUserID string `json:"requesterPlatformUserID,omitempty"`
+	TaskSource              string `json:"taskSource,omitempty"`
+	IsScheduledRun          bool   `json:"isScheduledRun,omitempty"`
+	HoldID                  string `json:"holdID,omitempty"`
+	TaskRunID               string `json:"taskRunID,omitempty"`
+	ConversationID          string `json:"conversationID,omitempty"`
+	ConversationType        string `json:"conversationType,omitempty"`
+	ChannelID               string `json:"channelID,omitempty"`
+	ChannelName             string `json:"channelName,omitempty"`
+	ReplyTargetID           string `json:"replyTargetID,omitempty"`
+	Platform                string `json:"platform,omitempty"`
+	ResponseLanguage        string `json:"responseLanguage,omitempty"`
 }
 
 type ActorContext struct {

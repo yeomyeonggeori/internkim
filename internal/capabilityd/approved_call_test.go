@@ -7,7 +7,6 @@ import (
 	"testing"
 
 	"github.com/yeomyeonggeori/internkim/internal/capabilities"
-	"github.com/yeomyeonggeori/internkim/pkg/capabilityprotocol"
 )
 
 func aCallToApprove(toolContext capabilities.ToolInvokeContext) capabilities.ToolInvokeRequest {
@@ -31,21 +30,6 @@ func assertCallIsAllowed(t *testing.T, toolContext capabilities.ToolInvokeContex
 	}
 }
 
-func scheduledRunApproving(toolName string, toolInput string) capabilities.ToolInvokeContext {
-	return capabilities.ToolInvokeContext{
-		RequesterPersonID:     "person-sample",
-		IsScheduledRun:        true,
-		ScheduledApprovedCall: &capabilityprotocol.ScheduledApprovedCall{ToolName: toolName, ToolInput: json.RawMessage(toolInput), ApproverPersonID: "person-sample"},
-	}
-}
-
-func TestAScheduledRunOfExactlyTheApprovedCallRuns(t *testing.T) {
-	call := aCallToApprove(capabilities.ToolInvokeContext{})
-	assertCallIsAllowed(t,
-		scheduledRunApproving(call.ToolName, ` {"message":"확인 부탁드립니다", "personHint":"박예시", "targetType":"directMessage"} `),
-		"the requester approved this exact call when they deferred it")
-}
-
 func TestACallTheAPITokenOrThePlaneMakesRunsOnTheirAuthority(t *testing.T) {
 	for _, taskSource := range []string{capabilities.TaskSourcePublicAPI, capabilities.TaskSourcePlaneTelling} {
 		assertCallIsAllowed(t,
@@ -54,21 +38,8 @@ func TestACallTheAPITokenOrThePlaneMakesRunsOnTheirAuthority(t *testing.T) {
 	}
 }
 
-func TestAScheduledRunWithNoApprovedCallIsRefused(t *testing.T) {
+func TestAScheduledRunCarriesNoApprovalOfItsOwn(t *testing.T) {
 	assertCallIsRefused(t, capabilities.ToolInvokeContext{RequesterPersonID: "person-sample", IsScheduledRun: true})
-}
-
-func TestAScheduledRunOfADifferentCallThanTheApprovedOneIsRefused(t *testing.T) {
-	call := aCallToApprove(capabilities.ToolInvokeContext{})
-	assertCallIsRefused(t, scheduledRunApproving(call.ToolName, `{"targetType":"directMessage","personHint":"박예시","message":"다른 내용"}`))
-	assertCallIsRefused(t, scheduledRunApproving("mail_send", string(call.Input)))
-}
-
-func TestAnApprovedCallOnARunThatIsNotScheduledIsRefused(t *testing.T) {
-	call := aCallToApprove(capabilities.ToolInvokeContext{})
-	toolContext := scheduledRunApproving(call.ToolName, string(call.Input))
-	toolContext.IsScheduledRun = false
-	assertCallIsRefused(t, toolContext)
 }
 
 func TestACallNamingAnApprovalRunsOnlyWhenTheLedgerRedeemsIt(t *testing.T) {

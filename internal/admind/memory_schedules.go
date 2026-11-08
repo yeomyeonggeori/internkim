@@ -39,6 +39,7 @@ type scheduleToolCreateInput struct {
 	Platform        *string `json:"platform"`
 	ConversationID  *string `json:"conversationID"`
 	ReplyTargetID   *string `json:"replyTargetID"`
+	IsApproved      bool    `json:"isApproved"`
 }
 
 type scheduleToolUpdateInput struct {

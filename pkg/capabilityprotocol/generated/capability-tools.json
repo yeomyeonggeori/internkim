@@ -218,7 +218,7 @@
         "mode": "success",
         "targetKind": "schedule"
       },
-      "description": "Schedule a reminder or a recurring alert: work the agent does later, once at a time you name or on a repeat. It arrives in the conversation it was asked in, so it can only be created from one. Use schedule_update to change one that already exists.",
+      "description": "Schedule a reminder or a recurring alert: work the agent does later, once at a time you name or on a repeat. It arrives in the conversation it was asked in, so it can only be created from one. The requester approves it once when it is created, and its runs then do what the instruction says without asking again, so the instruction names everything they will do. Use schedule_update to change one that already exists.",
       "estimatedLatency": "medium",
       "idempotency": {
         "required": false,
@@ -444,6 +444,7 @@
       "outputSchemaStrict": true,
       "policyResource": "tool:schedule_create",
       "privacyClass": "workspace_schedule",
+      "requiresApproval": true,
       "requiresUserPresence": false,
       "resultContract": {
         "effects": [
@@ -780,6 +781,7 @@
       "outputSchemaStrict": true,
       "policyResource": "tool:schedule_update",
       "privacyClass": "workspace_schedule",
+      "requiresApproval": true,
       "requiresUserPresence": false,
       "resultContract": {
         "effects": [
