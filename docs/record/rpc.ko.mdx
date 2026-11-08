@@ -155,6 +155,10 @@ description: "PostgREST가 /rest/v1/rpc로 노출하는 함수 전부와, 누가
 | `task_deletable` | `task task` | `boolean` | invoker | authenticated |
 | `task_end_of_day` | `task task, day date` | `timestamp with time zone` | invoker | 없음 |
 | `task_first_day` | `task task` | `date` | invoker | authenticated |
+| `task_invitation_accept` | `target_invitation uuid` | `uuid` | definer | authenticated, service_role |
+| `task_invitation_board` | `target_company uuid` | `jsonb` | definer | authenticated, service_role |
+| `task_invitation_revoke` | `target_invitation uuid` | `void` | definer | authenticated, service_role |
+| `task_invite` | `target_company uuid, recipient_email text, invited_businesses text[]` | `uuid` | definer | authenticated, service_role |
 | `task_is_asked_of_its_asker` | `target_task_id uuid, asker uuid` | `boolean` | definer | 없음 |
 | `task_is_work` | `task task` | `boolean` | invoker | authenticated |
 | `task_last_day` | `task task` | `date` | invoker | authenticated |

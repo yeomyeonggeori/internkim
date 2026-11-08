@@ -906,6 +906,26 @@ function createPaths(copy: ApiCopy) {
 				responses: { '200': { description: 'Invitation email sent' }, '403': { description: 'Administrator required or invitation inactive' }, '404': { description: 'Invitation unavailable' } }
 			}
 		},
+		'/tasks/invitations/{invitationID}': {
+			post: {
+				operationId: 'acceptTaskInvitation', summary: 'Accept a task invitation as its verified email recipient',
+				description: 'The signed-in account must hold the verified email the invitation names. Creates no company membership.',
+				security: [{ memberToken: [] }],
+				parameters: [{ name: 'invitationID', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }],
+				responses: { '200': { description: 'companyID of the inviting company' },
+					'401': errorResponse(copy.errors.unauthorized), '403': { description: 'Invitation unavailable to this account' } }
+			}
+		},
+		'/tasks/shared/{companyID}': {
+			get: {
+				operationId: 'readSharedTasks', summary: 'Read the tasks of the businesses an accepted invitation shares',
+				description: 'Answers only the tasks, businesses, types, counts and people of the businesses the caller was invited to. The filtering happens in the database, so a task of another business is never sent, masked or otherwise.',
+				security: [{ memberToken: [] }],
+				parameters: [{ name: 'companyID', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }],
+				responses: { '200': { description: 'company, businesses, types, counts, tasks and people' },
+					'401': errorResponse(copy.errors.unauthorized), '403': { description: 'No accepted invitation of this company reaches the caller' } }
+			}
+		},
 		'/company/profile-image': companyPicturePath(copy),
 		'/member/profile-image': memberPicturePath(copy),
 		'/agent/messages': agentMessagePath(copy),

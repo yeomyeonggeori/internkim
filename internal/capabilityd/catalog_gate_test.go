@@ -1309,6 +1309,24 @@ func gateCases() map[string]catalogGateCase {
 				expectResultHolds(t, answered, `"personID":"person-1"`)
 			},
 		},
+		"task_invite": {
+			kind:    provesCarrying,
+			reaches: map[gateBackend]*standingIn{admindOverTheSocket: answering(`{"tool":"task_invite","result":{"invitationID":"71000000-0000-4000-8000-000000000001","sent":true}}`)},
+			input:   `{"email":"partner@example.com","businesses":["\uc0ac\uc5c5\ud558\ub098"]}`,
+			expect:  func(t *testing.T, answered capabilities.ToolInvokeResponse) { expectSucceeded(t, answered) },
+		},
+		"task_invitation_list": {
+			kind:    provesCarrying,
+			reaches: map[gateBackend]*standingIn{admindOverTheSocket: answering(`{"tool":"task_invitation_list","result":{"invitations":[{"invitationID":"71000000-0000-4000-8000-000000000001","email":"partner@example.com","businesses":["\uc0ac\uc5c5\ud558\ub098"],"createdAt":"2026-11-08T00:00:00Z","acceptedAt":null}]}}`)},
+			input:   `{}`,
+			expect:  func(t *testing.T, answered capabilities.ToolInvokeResponse) { expectSucceeded(t, answered) },
+		},
+		"task_invitation_delete": {
+			kind:    provesCarrying,
+			reaches: map[gateBackend]*standingIn{admindOverTheSocket: answering(`{"tool":"task_invitation_delete","result":{"invitationID":"71000000-0000-4000-8000-000000000001"}}`)},
+			input:   `{"invitationID":"71000000-0000-4000-8000-000000000001"}`,
+			expect:  func(t *testing.T, answered capabilities.ToolInvokeResponse) { expectSucceeded(t, answered) },
+		},
 		"person_invite": {
 			kind:    provesCarrying,
 			reaches: map[gateBackend]*standingIn{admindOverTheSocket: answering(`{"tool":"person_invite","result":{"personID":"person-2","email":"newcomer@example.com","name":"\ubc15\uc608\uc2dc","employmentStatus":"active","temporaryPassword":"one-time-password"}}`)},

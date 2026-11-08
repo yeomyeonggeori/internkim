@@ -1,0 +1,50 @@
+---
+title: Sharing tasks
+description: Letting someone outside the company read the tasks of chosen businesses, by email.
+icon: Share2
+---
+
+An administrator invites an email address to read the tasks of one or more
+businesses: the labels the company files its work under, kept on the task
+page's Definitions tab. The invited person signs in with that address and sees
+those businesses' tasks, read-only and unmasked. An invitation names at least
+one business, and nothing else is shared by it.
+
+## What the guest sees [#shown]
+
+| Shown | Never shown |
+|---|---|
+| title, status, dates, type, size | notes and who asked for the task |
+| the names of the people taking part | anyone's email |
+| a parent task in an invited business | a task linked to a CRM deal, or a calendar event |
+| how many tasks each status holds | anything from a business that was not invited |
+
+The answer is assembled in the database from the invited businesses alone.
+Another business's task, its name, its count and the people working on it are
+never sent, masked or otherwise. The board is live: a task added to an invited
+business appears at the guest's next read, and a task moved to another
+business leaves it. Each status shows its hundred most recently changed tasks
+and says how many more it holds.
+
+## Inviting [#inviting]
+
+On the task page, **Invite outside** opens the invitation dialog. Enter the
+address, choose the businesses, and send. The agent does the same with
+`task_invite`, after approval.
+
+The email is the guest's sign-in. Following its link signs them in and opens
+the shared tasks; the page then offers to register a passkey, so a later visit
+needs no email at all. Without one, the guest enters the address again and
+receives a code. Only an invited address can request a code: the guest page
+never creates an account.
+
+Inviting an address that already holds an invitation replaces its businesses
+and sends the email again. **Send again** in the list does that with the same
+businesses. A business an open invitation names cannot be removed from the
+task vocabulary until the invitation is revoked.
+
+## Revoking [#revoking]
+
+**Revoke** in the list, or `task_invitation_delete`, ends the invitation. The
+guest sees nothing from their next read. Accepting creates no company member,
+circle or host account, so there is nothing else to remove.

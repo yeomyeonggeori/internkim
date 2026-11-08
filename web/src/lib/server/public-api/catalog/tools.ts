@@ -16,6 +16,7 @@ import {
 import { browserControlToolDefinitions, browserWithheldRequestSchema } from './browser';
 import { companyToolDefinitions } from './company';
 import { dataRoomToolDefinitions } from './data-room';
+import { taskInvitationToolDefinitions } from './task-invitation';
 import { calendarSubscriptionToolDefinitions } from './calendar-subscription';
 import { circleToolDefinitions } from './circle';
 import { hostToolDefinitions } from './host';
@@ -2141,6 +2142,7 @@ const capabilityToolDefinitions: CapabilityToolDefinition[] = [
   ...artifactToolDefinitions,
   ...companyToolDefinitions,
   ...dataRoomToolDefinitions,
+  ...taskInvitationToolDefinitions,
   ...circleToolDefinitions,
   ...crmToolDefinitions,
   ...settingsToolDefinitions,
