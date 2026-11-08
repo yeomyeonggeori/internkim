@@ -11,7 +11,7 @@
         "@capacitor/ios": "^8.5.1",
         "@capacitor/keyboard": "^8.0.6",
         "@capacitor/push-notifications": "^8.1.2",
-        "@choochmeque/tauri-plugin-notifications-api": "0.5.0-rc.14",
+        "@choochmeque/tauri-plugin-notifications-api": "0.5.0-rc.16",
         "@hpke/core": "1.9.0",
         "@hpke/dhkem-x25519": "1.8.0",
         "@humanspeak/svelte-markdown": "^1.6.0",
@@ -105,7 +105,7 @@
 
     "@capacitor/push-notifications": ["@capacitor/push-notifications@8.1.2", "", { "peerDependencies": { "@capacitor/core": ">=8.0.0" } }, "sha512-TQl4XxqJfNF+KbSYBFMXYYT5WXUaleVKXlByhh/8+KySMVNjp+l5OqAUoGe/sY1IAnGXEuUeCjA/WLZEVvGwrA=="],
 
-    "@choochmeque/tauri-plugin-notifications-api": ["@choochmeque/tauri-plugin-notifications-api@0.5.0-rc.14", "", { "dependencies": { "@tauri-apps/api": "^2.8.0" } }, "sha512-kst+PhQ+vawT9rs6oRJoQZ5A/ljtIEN/A0/j/z1joCOPFRCR6X5l7LBRg3ChaZEk7FPk0TT+v7Z3FX1N2Wm+6g=="],
+    "@choochmeque/tauri-plugin-notifications-api": ["@choochmeque/tauri-plugin-notifications-api@0.5.0-rc.16", "", { "dependencies": { "@tauri-apps/api": "^2.8.0" } }, "sha512-zVcxcxDqGDB298T6ltP5PSeky+ghkf9y3uFkFw0RgwSXPzjyUY2QNVRyVtygxabNkqpAmUjAjE55vI4HuNngnw=="],
 
     "@cloudflare/kv-asset-handler": ["@cloudflare/kv-asset-handler@0.4.2", "", {}, "sha512-SIOD2DxrRRwQ+jgzlXCqoEFiKOFqaPjhnNTGKXSRLvp1HiOvapLaFG2kEr9dYQTYe8rKrd9uvDUzmAITeNyaHQ=="],
 
