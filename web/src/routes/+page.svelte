@@ -1,23 +1,32 @@
 <script lang="ts">
 	import ArrowRightIcon from '@lucide/svelte/icons/arrow-right';
+	import CodeXmlIcon from '@lucide/svelte/icons/code-xml';
+	import HandIcon from '@lucide/svelte/icons/hand';
+	import ShieldCheckIcon from '@lucide/svelte/icons/shield-check';
 	import { onMount } from 'svelte';
-	import { appSectionIcons, type AppSection } from '$lib/components/app-section-icons';
+	import type { AppSection } from '$lib/components/app-section-icons';
 	import { Button } from '$lib/components/ui/button';
 	import * as Card from '$lib/components/ui/card';
 	import * as Code from '$lib/components/ui/code';
-	import * as Item from '$lib/components/ui/item';
-	import { appShellText } from '$lib/i18n/app-shell-text';
 	import { currentLocale } from '$lib/i18n/locale.svelte';
 	import { createPageText } from '$lib/i18n/page-text.svelte';
+	import LandingAttendance from '$lib/landing/landing-attendance.svelte';
+	import LandingDataRoom from '$lib/landing/landing-data-room.svelte';
 	import LandingDemo from '$lib/landing/landing-demo.svelte';
 	import LandingHeader from '$lib/landing/landing-header.svelte';
+	import LandingTasks from '$lib/landing/landing-tasks.svelte';
+	import LandingWindow from '$lib/landing/landing-window.svelte';
 	import { heldWhileSignedInAttribute, holdWhileSignedInScript } from '$lib/landing/hold-while-signed-in';
 	import { docsURL, installCommands, makerURL, repositoryURL, signInPath, startCompanyPath } from '$lib/landing/links';
 	import { landingText } from '$lib/landing/text';
 
 	const text = createPageText(landingText);
-	const shellText = createPageText(appShellText);
-	const workspaceSections: AppSection[] = ['task', 'calendar', 'attendance', 'messenger', 'mail', 'dataRoom', 'crm', 'organization', 'files'];
+	const stories: { key: 'attendance' | 'work' | 'record'; section: AppSection; scene: typeof LandingAttendance }[] = [
+		{ key: 'attendance', section: 'attendance', scene: LandingAttendance },
+		{ key: 'work', section: 'task', scene: LandingTasks },
+		{ key: 'record', section: 'dataRoom', scene: LandingDataRoom }
+	];
+	const trustIcons = [ShieldCheckIcon, HandIcon, CodeXmlIcon];
 
 	onMount(() => document.documentElement.removeAttribute(heldWhileSignedInAttribute));
 </script>
@@ -38,14 +47,24 @@
 	</Button>
 {/snippet}
 
+{#snippet sectionHeading(id: string, kicker: string, title: string, body: string)}
+	<div class="grid gap-x-12 gap-y-4 md:grid-cols-[minmax(0,5fr)_minmax(0,6fr)] md:items-end">
+		<div class="grid gap-3">
+			{#if kicker}<p class="text-brand text-sm font-semibold">{kicker}</p>{/if}
+			<h2 {id} class="text-3xl leading-tight font-bold tracking-tight break-keep text-balance sm:text-4xl">{title}</h2>
+		</div>
+		{#if body}<p class="text-muted-foreground max-w-xl text-lg leading-8 break-keep">{body}</p>{/if}
+	</div>
+{/snippet}
+
 <div class="landing bg-background text-foreground min-h-dvh">
 	<LandingHeader />
 
 	<main>
 		<section class="mx-auto grid w-full max-w-6xl items-center gap-12 px-4 pt-14 pb-20 sm:px-6 sm:pt-20 lg:grid-cols-[minmax(0,1fr)_minmax(0,31rem)] lg:pt-24 lg:pb-28">
 			<div class="grid content-start gap-7">
-				<h1 class="text-[2.6rem] leading-[1.12] font-bold tracking-tight break-keep text-balance sm:text-6xl">{text.hero.headline}</h1>
-				<p class="text-muted-foreground max-w-xl text-lg leading-8">{text.hero.lead}</p>
+				<h1 class="text-[2.5rem] leading-[1.15] font-bold tracking-tight break-keep text-balance sm:text-[3.4rem]">{text.hero.headline}</h1>
+				<p class="text-muted-foreground max-w-xl text-lg leading-8 break-keep">{text.hero.lead}</p>
 				<div class="flex flex-wrap items-center gap-3">
 					{@render startButton()}
 					<Button size="lg" variant="outline" href={signInPath}>{text.hero.signIn}</Button>
@@ -57,76 +76,80 @@
 			<LandingDemo />
 		</section>
 
-		<section class="bg-muted/40 border-y" aria-labelledby="landing-workspace">
-			<div class="mx-auto grid w-full max-w-6xl items-center gap-10 px-4 py-20 sm:px-6 md:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]">
-				<div class="grid content-start gap-4">
-					<h2 id="landing-workspace" class="text-3xl font-bold tracking-tight">{text.workspace.title}</h2>
-					<p class="text-muted-foreground leading-7">{text.workspace.body}</p>
-					<p class="text-sm font-medium">{text.workspace.channels}</p>
-				</div>
-				<Item.Group class="grid grid-cols-2 gap-2 sm:grid-cols-3">
-					{#each workspaceSections as section (section)}
-						{@const SectionIcon = appSectionIcons[section]}
-						<Item.Root variant="outline" class="bg-card">
-							<Item.Media variant="icon"><SectionIcon /></Item.Media>
-							<Item.Content><Item.Title>{shellText[section]}</Item.Title></Item.Content>
-						</Item.Root>
+		<section class="bg-muted/40 border-y" aria-labelledby="landing-problems">
+			<div class="mx-auto grid w-full max-w-6xl gap-12 px-4 py-20 sm:px-6">
+				<h2 id="landing-problems" class="max-w-2xl text-3xl leading-tight font-bold tracking-tight break-keep text-balance sm:text-4xl">{text.problems.title}</h2>
+				<ol class="grid gap-10 md:grid-cols-3 md:gap-8">
+					{#each text.problems.items as item, index (item.answer)}
+						<li class="grid content-start gap-3 border-t pt-6">
+							<p class="text-muted-foreground text-sm tabular-nums"><span class="text-foreground font-semibold">0{index + 1}</span> · {item.problem}</p>
+							<h3 class="text-xl font-semibold break-keep">{item.answer}</h3>
+							<p class="text-muted-foreground leading-7 break-keep">{item.body}</p>
+						</li>
 					{/each}
-				</Item.Group>
+				</ol>
 			</div>
 		</section>
 
-		<section class="mx-auto grid w-full max-w-6xl gap-10 px-4 py-20 sm:px-6" aria-labelledby="landing-reasons">
-			<h2 id="landing-reasons" class="text-3xl font-bold tracking-tight">{text.reasons.title}</h2>
-			<div class="grid gap-8 md:grid-cols-3">
-				{#each text.reasons.items as reason (reason.title)}
-					<div class="grid content-start gap-2 border-t pt-5">
-						<h3 class="text-lg font-semibold">{reason.title}</h3>
-						<p class="text-muted-foreground leading-7">{reason.body}</p>
-					</div>
-				{/each}
-			</div>
-		</section>
+		{#each stories as story (story.key)}
+			{@const copy = text.stories[story.key]}
+			<section class="mx-auto grid w-full max-w-6xl gap-10 px-4 py-20 sm:px-6 sm:py-24" aria-labelledby={`landing-${story.key}`}>
+				{@render sectionHeading(`landing-${story.key}`, copy.kicker, copy.title, copy.body)}
+				<LandingWindow section={story.section} title={copy.window}>
+					<story.scene />
+				</LandingWindow>
+			</section>
+		{/each}
 
-		<section class="mx-auto grid w-full max-w-6xl gap-10 px-4 pb-20 sm:px-6" aria-labelledby="landing-trust">
-			<h2 id="landing-trust" class="text-3xl font-bold tracking-tight">{text.trust.title}</h2>
-			<div class="grid gap-3 md:grid-cols-3">
-				{#each text.trust.items as item (item.title)}
-					<Card.Root>
-						<Card.Header>
-							<Card.Title>{item.title}</Card.Title>
-							<Card.Description>{item.body}</Card.Description>
-						</Card.Header>
-					</Card.Root>
-				{/each}
-			</div>
-		</section>
-
-		<section class="border-t" aria-labelledby="landing-hosting">
-			<div class="mx-auto grid w-full max-w-6xl gap-10 px-4 py-20 sm:px-6">
-				<h2 id="landing-hosting" class="text-3xl font-bold tracking-tight">{text.hosting.title}</h2>
-				<div class="grid gap-3 md:grid-cols-[2fr_3fr]">
-					{#each text.hosting.items as option, index (option.label)}
-						<Card.Root class="min-w-0">
-							<Card.Header>
-								<Card.Description>{option.label}</Card.Description>
-								<Card.Title>{option.title}</Card.Title>
-								<Card.Description>{option.body}</Card.Description>
-							</Card.Header>
-							{#if index === 1}
-								<Card.Content>
-									<Code.Root lang="bash" hideLines code={installCommands.join('\n')}>
-										<Code.CopyButton />
-									</Code.Root>
-								</Card.Content>
-							{/if}
-						</Card.Root>
+		<section class="bg-muted/40 border-y" aria-labelledby="landing-trust">
+			<div class="mx-auto grid w-full max-w-6xl gap-12 px-4 py-20 sm:px-6">
+				<h2 id="landing-trust" class="text-3xl leading-tight font-bold tracking-tight break-keep sm:text-4xl">{text.trust.title}</h2>
+				<ul class="grid gap-10 md:grid-cols-3 md:gap-8">
+					{#each text.trust.items as item, index (item.title)}
+						{@const TrustIcon = trustIcons[index]}
+						<li class="grid content-start gap-3">
+							<TrustIcon class="text-muted-foreground size-5" />
+							<h3 class="text-lg font-semibold break-keep">{item.title}</h3>
+							<p class="text-muted-foreground leading-7 break-keep">{item.body}</p>
+						</li>
 					{/each}
-				</div>
-				<p class="text-muted-foreground text-sm">
-					{text.hosting.selfHosting} ·
-					<a href={docsURL(currentLocale.value, 'self-hosting')} class="text-foreground font-medium underline-offset-4 hover:underline">{text.hosting.guide}</a>
-				</p>
+				</ul>
+			</div>
+		</section>
+
+		<section class="mx-auto grid w-full max-w-6xl gap-10 px-4 py-20 sm:px-6 sm:py-24" aria-labelledby="landing-plans">
+			{@render sectionHeading('landing-plans', '', text.plans.title, text.plans.lead)}
+			<div class="grid gap-4 lg:grid-cols-2">
+				<Card.Root>
+					<Card.Header><Card.Title class="text-lg">{text.plans.pay.title}</Card.Title></Card.Header>
+					<Card.Content>
+						<dl class="divide-y">
+							{#each text.plans.pay.items as item (item.title)}
+								<div class="grid gap-1 py-3 first:pt-0 last:pb-0 sm:grid-cols-[9rem_minmax(0,1fr)] sm:gap-4">
+									<dt class="font-medium">{item.title}</dt>
+									<dd class="text-muted-foreground break-keep">{item.body}</dd>
+								</div>
+							{/each}
+						</dl>
+					</Card.Content>
+				</Card.Root>
+				<Card.Root>
+					<Card.Header><Card.Title class="text-lg">{text.plans.run.title}</Card.Title></Card.Header>
+					<Card.Content class="grid gap-4">
+						<dl class="divide-y">
+							{#each text.plans.run.items as item (item.title)}
+								<div class="grid gap-1 py-3 first:pt-0 last:pb-0 sm:grid-cols-[9rem_minmax(0,1fr)] sm:gap-4">
+									<dt class="font-medium">{item.title}</dt>
+									<dd class="text-muted-foreground break-keep">{item.body}</dd>
+								</div>
+							{/each}
+						</dl>
+						<Code.Root lang="bash" hideLines code={installCommands.join('\n')} class="text-xs">
+							<Code.CopyButton />
+						</Code.Root>
+						<a href={docsURL(currentLocale.value, 'self-hosting')} class="text-sm font-medium underline-offset-4 hover:underline">{text.plans.run.guide} →</a>
+					</Card.Content>
+				</Card.Root>
 			</div>
 		</section>
 
