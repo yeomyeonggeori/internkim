@@ -707,8 +707,8 @@ describe('canonical capability tools', () => {
     expect(cancelTool?.resultContract?.effects).toEqual([
       { objectType: 'schedule', effect: 'deleted', resultField: 'scheduleIDs', effectIdentity: ResourceEffectIdentity.ID },
     ]);
-    expect(createTool?.requiresApproval).toBeUndefined();
-    expect(updateTool?.requiresApproval).toBeUndefined();
+    expect(createTool?.requiresApproval).toBe(true);
+    expect(updateTool?.requiresApproval).toBe(true);
     expect(cancelTool?.requiresApproval).toBeUndefined();
     expect(createTool?.sideEffectClass).toBe(CapabilitySideEffect.WorkspaceWrite);
     expect(updateTool?.sideEffectClass).toBe(CapabilitySideEffect.WorkspaceWrite);

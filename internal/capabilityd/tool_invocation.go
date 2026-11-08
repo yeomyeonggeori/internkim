@@ -7,7 +7,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"reflect"
 	"strings"
 
 	"github.com/yeomyeonggeori/internkim/internal/capabilities"
@@ -431,29 +430,7 @@ func isCarriedOutOnAHold(request capabilities.ToolInvokeRequest) bool {
 
 func isApprovedWithoutAHold(request capabilities.ToolInvokeRequest) bool {
 	taskSource := request.Context.TaskSource
-	if taskSource == capabilities.TaskSourcePublicAPI || taskSource == capabilities.TaskSourcePlaneTelling {
-		return true
-	}
-	return isScheduledRunOfExactlyThisCall(request)
-}
-
-func isScheduledRunOfExactlyThisCall(request capabilities.ToolInvokeRequest) bool {
-	approvedCall := request.Context.ScheduledApprovedCall
-	if !request.Context.IsScheduledRun || approvedCall == nil {
-		return false
-	}
-	if strings.TrimSpace(approvedCall.ToolName) != strings.TrimSpace(request.ToolName) {
-		return false
-	}
-	return isSameJSON(approvedCall.ToolInput, request.Input)
-}
-
-func isSameJSON(first json.RawMessage, second json.RawMessage) bool {
-	var firstValue, secondValue any
-	if json.Unmarshal(emptyObjectIfBlank(first), &firstValue) != nil || json.Unmarshal(emptyObjectIfBlank(second), &secondValue) != nil {
-		return false
-	}
-	return reflect.DeepEqual(firstValue, secondValue)
+	return taskSource == capabilities.TaskSourcePublicAPI || taskSource == capabilities.TaskSourcePlaneTelling
 }
 
 func emptyObjectIfBlank(document json.RawMessage) []byte {

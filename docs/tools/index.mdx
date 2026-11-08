@@ -76,6 +76,13 @@ answering does not need a second yes. That is `currentThread` and
 conversation. A direct message to anyone else, or to the requester from a
 channel, still asks.
 
+Scheduled work is asked about once, when it is scheduled. `schedule_create`
+and `schedule_update` are gated, and the question reads the instruction and
+how often it runs back to you. Each run of a schedule you approved then
+carries out whatever its instruction needs without asking again, whether it
+runs once or every week. A run acts as you, so it can do nothing you could not
+do yourself.
+
 Browser calls ask by what the page would send in your name. While the agent's
 browser runs, a request with a method other than GET, HEAD, OPTIONS or TRACE
 (the safe methods of RFC 9110) is stopped before it leaves when the browser
