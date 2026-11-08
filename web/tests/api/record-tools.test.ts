@@ -96,7 +96,7 @@ function previewOf(name: string, input: Record<string, unknown>) {
 }
 
 function resultOf(answer: { status: number; body: unknown }): Record<string, unknown> {
-	expect(answer.status).toBe(200);
+	expect({ status: answer.status, body: answer.status === 200 ? 'answered' : answer.body }).toEqual({ status: 200, body: 'answered' });
 	return (answer.body as { result: Record<string, unknown> }).result;
 }
 
