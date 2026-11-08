@@ -10,6 +10,7 @@
 	import { localDateISO, taskRoadmapMonthOf } from './task-roadmap-model';
 	import TaskBoard from './task-board.svelte';
 	import TaskBoardSkeleton from './task-board-skeleton.svelte';
+	import TaskChildCompletionDialog from './task-child-completion-dialog.svelte';
 	import TaskContentSkeleton from './task-content-skeleton.svelte';
 	import { taskBoardWeekPosition } from './task-board-week-position';
 	import * as Tabs from '$lib/components/ui/tabs';
@@ -214,6 +215,8 @@
 		</Tabs.Content>
 	</Tabs.Root>
 </div>
+
+<TaskChildCompletionDialog question={page.board.childCompletionQuestion} text={text.task.childCompletion} />
 
 {#if page.editor.taskDraft === null}
 	<TaskQuickAdd
