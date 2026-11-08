@@ -757,7 +757,7 @@
 		</div>
 	{:else if attachments.length > 0}
 		<div class={`relative w-fit max-w-[80%] self-start group-data-[align=end]/message:self-end`}>
-			<ChannelAttachmentGroup {attachments} openPicture={(source) => openLightbox(attachments, source)} />
+			<ChannelAttachmentGroup {attachments} openSource={(source) => openLightbox(attachments, source)} />
 			{@render timeStamp(message)}
 		</div>
 	{/if}
