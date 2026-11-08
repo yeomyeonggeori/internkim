@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, mock, test } from 'bun:test';
 import { z } from 'zod';
+import { createClient } from '@supabase/supabase-js';
 import {
 	addMember,
 	asMember,
@@ -33,6 +34,8 @@ const { GET: previewDataRoomCircle } = await import('../../src/routes/api/v1/dat
 const { GET: readDataRoomCompany } = await import('../../src/routes/api/v1/data-room/company/+server');
 const { POST: acceptDataRoom } = await import('../../src/routes/api/v1/data-room/invitations/[shareID]/+server');
 const { POST: sendDataRoomInvitation } = await import('../../src/routes/api/v1/data-room/invitations/[shareID]/send/+server');
+const { POST: acceptTaskInvitation } = await import('../../src/routes/api/v1/tasks/invitations/[invitationID]/+server');
+const { GET: readSharedTasks } = await import('../../src/routes/api/v1/tasks/shared/[companyID]/+server');
 
 const networkHookTimeout = 60_000;
 const client = controlPlane({ projectURL, serviceRoleKey });
@@ -126,6 +129,18 @@ function previewAs(token: string, circleID: string, query = ''): Promise<RouteAn
 	const request = asking(`/data-room/preview/${circleID}${query}`, token);
 	return answerOf(() => Promise.resolve(previewDataRoomCircle({ request, url: new URL(request.url),
 		params: { circleID }, platform: undefined } as Parameters<typeof previewDataRoomCircle>[0])));
+}
+
+function acceptTaskInvitationAs(token: string, invitationID: string): Promise<RouteAnswer> {
+	const request = asking(`/tasks/invitations/${invitationID}`, token, { method: 'POST' });
+	return answerOf(() => Promise.resolve(acceptTaskInvitation({ request, url: new URL(request.url),
+		params: { invitationID }, platform: undefined } as Parameters<typeof acceptTaskInvitation>[0])));
+}
+
+function sharedTasksAs(token: string): Promise<RouteAnswer> {
+	const request = asking(`/tasks/shared/${companyID}`, token);
+	return answerOf(() => Promise.resolve(readSharedTasks({ request, url: new URL(request.url),
+		params: { companyID }, platform: undefined } as Parameters<typeof readSharedTasks>[0])));
 }
 
 function companyAs(token: string): Promise<RouteAnswer> {
@@ -1083,6 +1098,8 @@ function reachDocumented(operation: Operation, revocableName: string): Promise<R
 		return answerOf(() => Promise.resolve(sendDataRoomInvitation({ request, url: new URL(request.url),
 			params: { shareID: dataRoomInvitationID }, platform: undefined } as Parameters<typeof sendDataRoomInvitation>[0])));
 	}
+	if (operation.path === '/tasks/invitations/{invitationID}') return acceptTaskInvitationAs(sessionToken, crypto.randomUUID());
+	if (operation.path === '/tasks/shared/{companyID}') return sharedTasksAs(sessionToken);
 	if (path === '/token' && method === 'POST') return mint(holdersToken, {});
 	if (path === '/token' && method === 'DELETE') return revoke(holdersToken, revocableName);
 	return reach(path, holdersToken, {
@@ -1160,7 +1177,9 @@ describe('the documented endpoints', () => {
 			'post /data-room/invitations/{shareID}',
 			'post /data-room/invitations/{shareID}/send',
 			'get /data-room/links/{linkID}',
-			'post /data-room/links/{linkID}'
+			'post /data-room/links/{linkID}',
+			'post /tasks/invitations/{invitationID}',
+			'get /tasks/shared/{companyID}'
 		];
 		expect(served.filter((operation) => !documented.has(operation))).toEqual([]);
 	});
@@ -1404,4 +1423,61 @@ describe('a data room invitation through the tools', () => {
 		expect(answered.status).toBe(200);
 		expect(resultOf(answered)).toEqual({ shareID, sent: true });
 	});
+});
+
+describe('a task invitation', () => {
+	const guestEmail = `${slug}-task-guest@example.test`;
+	const guestPassword = `guest-${crypto.randomUUID()}`;
+	let guestSession = '';
+
+	beforeAll(async () => {
+		const vocabulary = { businesses: [{ name: 'Grant work' }, { name: 'Office' }], types: [] };
+		const saved = await client.from('company').update({ task_vocabulary: vocabulary }).eq('id', companyID);
+		if (saved.error) throw new Error(saved.error.message);
+		const tasks = await client.from('task').insert([
+			{ company_id: companyID, title: 'Grant interim report', status: 'in_progress', business: 'Grant work' },
+			{ company_id: companyID, title: 'Office move quote', status: 'planned', business: 'Office' }
+		]);
+		if (tasks.error) throw new Error(tasks.error.message);
+		const created = await client.auth.admin.createUser({ email: guestEmail, password: guestPassword, email_confirm: true });
+		if (created.error) throw new Error(created.error.message);
+		const signedIn = await createClient(projectURL, publishableKey, { auth: { persistSession: false } })
+			.auth.signInWithPassword({ email: guestEmail, password: guestPassword });
+		if (signedIn.error) throw new Error(signedIn.error.message);
+		guestSession = signedIn.data.session.access_token;
+	}, networkHookTimeout);
+
+	afterAll(async () => {
+		await client.from('task').delete().eq('company_id', companyID).in('business', ['Grant work', 'Office']);
+		const { data } = await client.auth.admin.listUsers();
+		const guest = data.users.find((user) => user.email === guestEmail);
+		if (guest) await client.auth.admin.deleteUser(guest.id);
+	}, networkHookTimeout);
+
+	test('shows its recipient the invited business and nothing of another, until it is deleted', async () => {
+		const refused = await invoke('task_invite', administratorsToken, { email: guestEmail, businesses: [] });
+		expect(refused.status).toBe(400);
+
+		const invited = await invoke('task_invite', administratorsToken, { email: guestEmail, businesses: ['Grant work'] });
+		expect(invited.status).toBe(200);
+		const invitationID = z.string().uuid().parse(resultOf(invited).invitationID);
+		expect(resultOf(invited)).toEqual({ invitationID, sent: true });
+
+		const listed = await invoke('task_invitation_list', administratorsToken, {});
+		expect(resultOf(listed).invitations).toEqual([expect.objectContaining({ invitationID, email: guestEmail, businesses: ['Grant work'], acceptedAt: null })]);
+
+		expect((await sharedTasksAs(guestSession)).status).toBe(403);
+		expect((await acceptTaskInvitationAs(sessionToken, invitationID)).status).toBe(403);
+		const accepted = await acceptTaskInvitationAs(guestSession, invitationID);
+		expect(accepted).toEqual({ status: 200, body: { companyID } });
+
+		const shared = await sharedTasksAs(guestSession);
+		expect(shared.status).toBe(200);
+		expect(JSON.stringify(shared.body)).not.toContain('Office');
+		expect((shared.body as { tasks: { title: string }[] }).tasks.map((task) => task.title)).toEqual(['Grant interim report']);
+
+		const deleted = await invoke('task_invitation_delete', administratorsToken, { invitationID });
+		expect(resultOf(deleted)).toEqual({ invitationID });
+		expect((await sharedTasksAs(guestSession)).status).toBe(403);
+	}, networkHookTimeout);
 });
