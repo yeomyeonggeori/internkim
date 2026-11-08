@@ -4,7 +4,8 @@ const minimumBoardHeight = 320;
 const bottomSpacing = 24;
 const scrollableOverflowValues = new Set(['auto', 'scroll', 'overlay']);
 
-export const taskBoardViewportHeight: Action<HTMLElement> = (node) => {
+export const taskBoardViewportHeight: Action<HTMLElement, boolean | undefined> = (node, fitsViewport = true) => {
+	if (!fitsViewport) return {};
 	let animationFrameID = 0;
 	const scrollTarget = findVerticalScrollTarget(node);
 	const updateHeight = () => {
