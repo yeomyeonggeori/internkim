@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Cut every tab favicon from assets/internkim.favicon.png and the bot avatar
-from assets/internkim.square.png.
+from assets/internkim.square.png, for the messenger and for the web pages that
+show the agent speaking.
 
 assets/internkim.favicon.png is the round mark, drawn for the sizes a browser
 draws a tab at: the sprout, the head and the glasses, with the eyes and mouth
@@ -59,6 +60,7 @@ def main() -> None:
 
     square = Image.open(SQUARE_MASTER).convert("RGB")
     save(square, "assets/internkim.png", 512, "RGB")
+    save(square, "web/static/agent-avatar.png", 256, "RGB")
 
 
 if __name__ == "__main__":
