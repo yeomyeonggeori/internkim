@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { fly } from 'svelte/transition';
+	import { isAppSection } from '$lib/components/app-section-icons';
 	import ChannelAttachmentGroup from '$lib/components/channel/channel-attachment-group.svelte';
 	import type { ChannelMessageAttachment } from '$lib/components/channel/channel-api';
 	import { lightboxItemsOf } from '$lib/components/channel/channel-attachments';
@@ -13,11 +14,13 @@
 	import * as Card from '$lib/components/ui/card';
 	import * as Message from '$lib/components/ui/message';
 	import * as Tabs from '$lib/components/ui/tabs';
+	import { appShellText } from '$lib/i18n/app-shell-text';
 	import { createPageText } from '$lib/i18n/page-text.svelte';
 	import type { ShownStep } from '$lib/messenger/agent-work';
 	import { landingText } from './text';
 
 	const text = createPageText(landingText);
+	const shellText = createPageText(appShellText);
 	const agentPicture = '/agent-avatar.png';
 	const personTurnMilliseconds = 900;
 	const stepMilliseconds = 650;
@@ -192,7 +195,7 @@
 		<Tabs.Root value={shownID} onValueChange={choose} class="w-full">
 			<Tabs.List class="w-full">
 				{#each text.demo.scenarios as item (item.id)}
-					<Tabs.Trigger value={item.id}>{item.tab}</Tabs.Trigger>
+					<Tabs.Trigger value={item.id}>{isAppSection(item.id) ? shellText[item.id] : item.id}</Tabs.Trigger>
 				{/each}
 			</Tabs.List>
 		</Tabs.Root>

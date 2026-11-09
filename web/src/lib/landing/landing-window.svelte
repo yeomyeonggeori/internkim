@@ -1,11 +1,15 @@
 <script lang="ts">
 	import type { Snippet } from 'svelte';
 	import { appSectionIcons, type AppSection } from '$lib/components/app-section-icons';
+	import { appShellText } from '$lib/i18n/app-shell-text';
+	import { createPageText } from '$lib/i18n/page-text.svelte';
 	import { cn } from '$lib/utils';
 
-	let { section, title, class: className, children }: { section: AppSection; title: string; class?: string; children: Snippet } = $props();
+	let { section, class: className, children }: { section: AppSection; class?: string; children: Snippet } = $props();
 
+	const shellText = createPageText(appShellText);
 	const SectionIcon = $derived(appSectionIcons[section]);
+	const title = $derived(shellText[section]);
 </script>
 
 <figure aria-label={title} class={cn('bg-background overflow-hidden rounded-xl border shadow-sm', className)}>
