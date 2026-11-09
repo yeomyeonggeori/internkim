@@ -189,7 +189,7 @@ func CompanyHostSystemdUnits(layout CompanyHostLayout) []CompanyPackageUnit {
 		units = append(units, CompanyPackageUnit{Name: service.Name, Contents: systemdUnitFor(layout, service)})
 	}
 	if layout.OwnsItsDataServices() {
-		units = append(units, companyHostWALFollowUnit(layout))
+		units = append(units, companyHostFollowUnits(layout)...)
 	}
 	return units
 }

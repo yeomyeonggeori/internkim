@@ -129,7 +129,7 @@ func runRestore(arguments []string) error {
 			return errorValue
 		}
 		request.Replace, request.KeepsThisBox, request.BeforeStarting = holdsACompany, true, markThisBoxInstalled
-		request.RebuildFromWAL = rebuildTheDatabaseFromKeptWAL
+		request.RebuildFromWAL, request.ReplayFiles = rebuildTheDatabaseFromKeptWAL, replayTheFileJournal
 	}
 	result, errorValue := companyhost.Restore(request, thisComputer{}, os.Stdout)
 	if errorValue != nil {

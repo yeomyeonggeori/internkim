@@ -20,6 +20,7 @@ type RestoreRequest struct {
 	Replace        bool
 	KeepsThisBox   bool
 	RebuildFromWAL func(dataDirectoryPath string) error
+	ReplayFiles    FileJournalReplay
 	BeforeStarting func(companyID string) error
 	Now            time.Time
 }
@@ -77,7 +78,7 @@ func restoreWhileLocked(platform backupPlatform, request RestoreRequest, backupD
 		return RestoreResult{}, errorValue
 	}
 	fmt.Fprintln(progress, "4/6 Restoring the files and the people's accounts…")
-	extracted, unresolved, errorValue := restoreTheFiles(platform, archive, machine, request.KeepsThisBox)
+	extracted, unresolved, errorValue := restoreTheFiles(platform, archive, machine, request, progress)
 	if errorValue != nil {
 		return RestoreResult{}, errorValue
 	}
@@ -232,20 +233,26 @@ func containsRole(roles []string, wanted string) bool {
 	return false
 }
 
-func restoreTheFiles(platform backupPlatform, archive hostbackup.Archive, machine Machine, keepsThisBox bool) (hostbackup.ExtractionReport, []hostbackup.Ownership, error) {
+func restoreTheFiles(platform backupPlatform, archive hostbackup.Archive, machine Machine, request RestoreRequest, progress io.Writer) (hostbackup.ExtractionReport, []hostbackup.Ownership, error) {
 	var extracted hostbackup.ExtractionReport
 	extract := func() error {
 		destinations, errorValue := emptiedDestinations(platform, archive)
 		if errorValue != nil {
 			return errorValue
 		}
-		return archive.ReadMember(hostbackup.FilesMemberName, func(input io.Reader) error {
+		if errorValue := archive.ReadMember(hostbackup.FilesMemberName, func(input io.Reader) error {
 			report, errorValue := hostbackup.ExtractFiles(input, destinations)
 			extracted = report
 			return errorValue
-		})
+		}); errorValue != nil {
+			return errorValue
+		}
+		if request.ReplayFiles == nil {
+			return nil
+		}
+		return replayTheFileJournal(request.ReplayFiles, destinations, &extracted, progress)
 	}
-	errorValue := extractKeepingThisBoxIf(keepsThisBox, extract)
+	errorValue := extractKeepingThisBoxIf(request.KeepsThisBox, extract)
 	if errorValue != nil {
 		return hostbackup.ExtractionReport{}, nil, errorValue
 	}
