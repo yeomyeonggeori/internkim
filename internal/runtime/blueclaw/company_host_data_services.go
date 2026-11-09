@@ -41,11 +41,12 @@ const (
 	CompanyHostDataServiceProgramName = "data-service"
 	CompanyHostDataServiceMode        = 0o755
 
-	companyHostDataDirectoryMode = "0750"
-	companyHostDataSocketMode    = "0660"
-	CompanyHostDatabasePort      = "5432"
-	companyHostDatabaseIdentMap  = "internkim"
-	companyHostDatabaseCollation = "C.UTF-8"
+	companyHostDataDirectoryMode       = "0750"
+	companyHostDataSocketMode          = "0660"
+	CompanyHostDatabasePort            = "5432"
+	companyHostDatabaseIdentMap        = "internkim"
+	companyHostDatabaseRecoverySeconds = "86400"
+	companyHostDatabaseCollation       = "C.UTF-8"
 )
 
 // IsDataService is true of the database and the cache. Restarting one restarts
@@ -185,6 +186,7 @@ func CompanyHostDataServiceScript() string {
 		"@COLLATION@", companyHostDatabaseCollation,
 		"@ROLE@", CompanyHostDatabaseUser,
 		"@IDENT_MAP@", companyHostDatabaseIdentMap,
+		"@RECOVERY_SECONDS@", companyHostDatabaseRecoverySeconds,
 		"@CACHE_SOCKET@", CompanyHostCacheSocketPath,
 		"@CACHE_DATA@", CompanyHostCacheDataPath,
 	)
@@ -288,6 +290,14 @@ postgres_ready() {
   wait_until postgres_answers || fail "PostgreSQL did not accept connections on $socket_directory"
 }
 
+recover_postgres() {
+  directory="$(postgres_directory)"
+  write_access_rules
+  "$directory/pg_ctl" --pgdata "$data" --wait --timeout @RECOVERY_SECONDS@ --silent \
+    --options "-c listen_addresses= -c port=@PORT@ -c unix_socket_directories=$data" start
+  "$directory/pg_ctl" --pgdata "$data" --wait --mode fast --silent stop
+}
+
 cache_program() {
   for name in valkey-server redis-server; do
     if command -v "$name"; then return 0; fi
@@ -316,12 +326,13 @@ cache_answers() {
 case "${1:-}" in
   postgres) run_postgres ;;
   postgres-ready) postgres_ready ;;
+  postgres-recover) recover_postgres ;;
   psql) directory="$(postgres_directory)"; shift; exec "$directory/psql" --host "$socket_directory" --no-psqlrc "$@" ;;
   pg_dump|pg_restore) directory="$(postgres_directory)"; program="$1"; shift; exec "$directory/$program" --host "$socket_directory" "$@" ;;
   postgres-major) directory="$(postgres_directory)"; major_of "$directory" ;;
   cache) run_cache ;;
   cache-ready) wait_until cache_answers || fail "the cache did not answer on $cache_socket" ;;
   cache-ping) client="$(cache_client)"; exec "$client" -s "$cache_socket" ping ;;
-  *) fail "usage: data-service postgres|postgres-ready|psql|pg_dump|pg_restore|postgres-major|cache|cache-ready|cache-ping" ;;
+  *) fail "usage: data-service postgres|postgres-ready|postgres-recover|psql|pg_dump|pg_restore|postgres-major|cache|cache-ready|cache-ping" ;;
 esac
 `
