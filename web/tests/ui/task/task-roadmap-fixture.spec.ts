@@ -9,6 +9,8 @@ const parentID = '30000000-0000-4000-8000-000000000011';
 const childID = '30000000-0000-4000-8000-000000000012';
 const siblingID = '30000000-0000-4000-8000-000000000013';
 const strangerID = '30000000-0000-4000-8000-000000000014';
+const undatedID = '30000000-0000-4000-8000-000000000015';
+const holidayDay = 10;
 
 function dayOfThisMonth(day: number): string {
 	const today = new Date();
@@ -31,7 +33,8 @@ class TaskRoadmapFixture {
 		taskFixture(parentID, 'Fixture 로드맵 부모 업무', { startDate: dayOfThisMonth(2), endDate: dayOfThisMonth(20) }),
 		taskFixture(childID, 'Fixture 로드맵 자녀 업무', { parentTaskID: parentID, startDate: dayOfThisMonth(5), endDate: dayOfThisMonth(12) }),
 		taskFixture(siblingID, 'Fixture 로드맵 형제 업무', { parentTaskID: parentID, status: 'planned', startDate: dayOfThisMonth(13), endDate: dayOfThisMonth(18) }),
-		taskFixture(strangerID, 'Fixture 로드맵 관계없는 업무', { startDate: dayOfThisMonth(3), endDate: dayOfThisMonth(7) })
+		taskFixture(strangerID, 'Fixture 로드맵 관계없는 업무', { startDate: dayOfThisMonth(3), endDate: dayOfThisMonth(7) }),
+		taskFixture(undatedID, 'Fixture 로드맵 날짜 없는 업무', { status: 'planned' })
 	];
 	writes: TaskDateWrite[] = [];
 
@@ -50,6 +53,10 @@ class TaskRoadmapFixture {
 		}
 		if (toolName === 'task_list' || toolName === 'task_board_get') {
 			await route.fulfill({ json: { result: this.listed() } });
+			return;
+		}
+		if (toolName === 'company_settings_get') {
+			await route.fulfill({ json: { result: { timeZone: 'Asia/Seoul' } } });
 			return;
 		}
 		if (toolName === 'task_update') {
@@ -86,6 +93,7 @@ async function openRoadmap(page: Page, fixture: TaskRoadmapFixture): Promise<Loc
 	await page.route('**/api/member/me', route => route.fulfill({ json: { member: { memberID } } }));
 	await page.route('**/agent/api/**', route => route.fulfill({ json: {} }));
 	await page.route('**/api/v1/tools/*/invoke', route => fixture.answer(route));
+	await page.route('**/api/calendar/holidays**', route => route.fulfill({ json: { holidays: [{ id: 'holiday:holiday_api:kr:fixture', title: 'Fixture 공휴일', date: dayOfThisMonth(holidayDay), source: 'holiday_api', readOnly: true, color: '#dc2626' }] } }));
 	await page.goto('/example-co/task');
 	await expect(page.locator('[data-task-ready="true"]')).toBeVisible();
 	await page.getByRole('tab', { name: '로드맵' }).click();
@@ -106,6 +114,51 @@ test('supplementary fixture: the roadmap shows a month selector and child progre
 	await expect(page.getByRole('button', { name: '날짜로 주차 이동' })).toHaveCount(0);
 	await expect(roadmapRow(roadmap, parentID).locator('[data-roadmap-progress]')).toContainText('자녀 업무 0 / 2 완료');
 	await expect(roadmapRow(roadmap, childID).locator('[data-roadmap-progress]')).toHaveCount(0);
+	await expect(roadmapRow(roadmap, parentID).locator('[data-roadmap-parent-icon]')).toHaveCount(1);
+	await expect(roadmap.locator(`[data-roadmap-bar="${childID}"]`)).toHaveText('Fixture 로드맵 자녀 업무');
+});
+
+test('supplementary fixture: holidays and weekends are red, and add-dates waits for the pointer', async ({ page }) => {
+	const roadmap = await openRoadmap(page, new TaskRoadmapFixture());
+	await expect(roadmap.locator(`[title="Fixture 공휴일"]`)).toHaveAttribute('data-roadmap-red-day', 'true');
+	const addDates = roadmap.locator(`[data-roadmap-add-dates="${undatedID}"]`);
+	await expect(addDates).toHaveCSS('opacity', '0');
+	await roadmapRow(roadmap, undatedID).hover();
+	await expect(addDates).toHaveCSS('opacity', '1');
+});
+
+test('supplementary fixture: the month selector and the horizontal scroll follow each other', async ({ page }) => {
+	const roadmap = await openRoadmap(page, new TaskRoadmapFixture());
+	const monthButton = page.getByRole('button', { name: '월 선택' });
+	const shownMonth = await monthButton.innerText();
+	const scrolledBefore = await roadmap.evaluate(element => element.scrollLeft);
+	await page.getByRole('button', { name: '다음 달' }).click();
+	await expect.poll(() => roadmap.evaluate(element => element.scrollLeft)).toBeGreaterThan(scrolledBefore);
+	const nextMonth = await monthButton.innerText();
+	expect(nextMonth).not.toBe(shownMonth);
+	await roadmap.evaluate(element => { element.scrollLeft = 0; });
+	await expect.poll(() => monthButton.innerText()).not.toBe(nextMonth);
+	await expect(page.getByRole('button', { name: '이전 달' })).toBeDisabled();
+});
+
+test('supplementary fixture: opening the roadmap late in the month keeps today in view', async ({ page }) => {
+	const today = new Date();
+	await page.clock.setFixedTime(new Date(today.getFullYear(), today.getMonth(), 28, 12));
+	const roadmap = await openRoadmap(page, new TaskRoadmapFixture());
+	await expect(roadmap.locator('[data-roadmap-today]')).toBeInViewport();
+	await expect(page.getByRole('button', { name: '월 선택' })).toContainText(`${today.getMonth() + 1}월`);
+});
+
+test('supplementary fixture: pressing a bar leaves it where it is', async ({ page }) => {
+	const roadmap = await openRoadmap(page, new TaskRoadmapFixture());
+	const bar = roadmap.locator(`[data-roadmap-bar="${strangerID}"]`);
+	const before = await bar.boundingBox();
+	if (!before) throw new Error('The roadmap draws the bar');
+	await page.mouse.move(before.x + before.width / 2, before.y + before.height / 2);
+	await page.mouse.down();
+	const pressed = await bar.boundingBox();
+	await page.mouse.up();
+	expect(pressed?.y).toBe(before.y);
 });
 
 test('supplementary fixture: choosing a related task dims the others, and choosing it again opens it', async ({ page }) => {
