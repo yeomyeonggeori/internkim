@@ -48,7 +48,9 @@ func runWalFollow(arguments []string) error {
 	defer stop()
 	return walstream.Follower{
 		ReplicationConnection: companyReplicationConnection(),
-		Kept:                  walstream.KeptPieces{Destination: destination},
+		KeptFor: func(systemID string) walstream.Keeper {
+			return walstream.KeptPieces{Destination: destination, SystemID: systemID}
+		},
 		OnStreaming: func(ctx context.Context) error {
 			if errorValue := walstream.RequireTheStandby(ctx, companyDatabaseConnection()); errorValue != nil {
 				return errorValue

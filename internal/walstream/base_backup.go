@@ -43,6 +43,7 @@ type BaseBackup struct {
 	Name       string              `json:"name"`
 	SealingKey string              `json:"sealingKey"`
 	CreatedAt  time.Time           `json:"createdAt"`
+	SystemID   string              `json:"systemID"`
 	Timeline   int32               `json:"timeline"`
 	Start      string              `json:"start"`
 	End        string              `json:"end"`
@@ -79,6 +80,10 @@ func TakeBaseBackup(ctx context.Context, replicationConnection string, destinati
 	defer connection.Close(context.Background())
 	if errorValue := requireStreamingBaseBackup(connection); errorValue != nil {
 		return BaseBackup{}, errorValue
+	}
+	system, errorValue := pglogrepl.IdentifySystem(ctx, connection)
+	if errorValue != nil {
+		return BaseBackup{}, fmt.Errorf("identifying the company database for a base backup: %w", errorValue)
 	}
 	chunked := BaseBackupDestination(destination)
 	snapshot, errorValue := offsite.StartSnapshot(ctx, chunked, keyring)
@@ -117,6 +122,7 @@ func TakeBaseBackup(ctx context.Context, replicationConnection string, destinati
 		Name:       baseBackupNamePrefix + now.UTC().Format(baseBackupTimeLayout) + baseBackupNameSuffix,
 		SealingKey: destination.SealingKey,
 		CreatedAt:  now.UTC(),
+		SystemID:   system.SystemID,
 		Timeline:   started.TimelineID,
 		Start:      started.LSN.String(),
 		End:        finished.LSN.String(),
@@ -242,7 +248,7 @@ func readBaseBackup(ctx context.Context, destination offsite.Destination, name s
 		return BaseBackup{}, false
 	}
 	var backup BaseBackup
-	if json.Unmarshal(document, &backup) != nil || backup.Version != baseBackupVersion || backup.Name != name {
+	if json.Unmarshal(document, &backup) != nil || backup.Version != baseBackupVersion || backup.Name != name || backup.SystemID == "" {
 		return BaseBackup{}, false
 	}
 	return backup, true

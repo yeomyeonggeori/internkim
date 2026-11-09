@@ -22,10 +22,11 @@ const (
 
 type KeptPieces struct {
 	Destination offsite.Destination
+	SystemID    string
 }
 
 func (kept KeptPieces) folder() string {
-	return kept.Destination.CompanyID + "/" + pieceFolder + "/"
+	return kept.Destination.CompanyID + "/" + pieceFolder + "/" + kept.SystemID + "/"
 }
 
 func (kept KeptPieces) pathOf(name string) string {
@@ -35,7 +36,7 @@ func (kept KeptPieces) pathOf(name string) string {
 func (kept KeptPieces) Keep(ctx context.Context, piece Piece) error {
 	name := piece.Name()
 	var sealed bytes.Buffer
-	sealing, errorValue := box.SealStreamTo(&sealed, kept.Destination.SealingKey, box.WALPiecePurpose(kept.Destination.CompanyID, name))
+	sealing, errorValue := box.SealStreamTo(&sealed, kept.Destination.SealingKey, box.WALPiecePurpose(kept.Destination.CompanyID, kept.SystemID+"/"+name))
 	if errorValue != nil {
 		return errorValue
 	}
@@ -90,7 +91,7 @@ func (kept KeptPieces) Read(ctx context.Context, name PieceName, keyring box.Key
 	if errorValue != nil {
 		return Piece{}, errorValue
 	}
-	opened, errorValue := keyring.OpenStream(bytes.NewReader(sealed), box.WALPiecePurpose(kept.Destination.CompanyID, name.String()))
+	opened, errorValue := keyring.OpenStream(bytes.NewReader(sealed), box.WALPiecePurpose(kept.Destination.CompanyID, kept.SystemID+"/"+name.String()))
 	if errorValue != nil {
 		return Piece{}, fmt.Errorf("opening the WAL piece %s: %w", name, errorValue)
 	}

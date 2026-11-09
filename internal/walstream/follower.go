@@ -28,7 +28,7 @@ type Keeper interface {
 
 type Follower struct {
 	ReplicationConnection string
-	Kept                  Keeper
+	KeptFor               func(systemID string) Keeper
 	OnStreaming           func(ctx context.Context) error
 }
 
@@ -42,7 +42,8 @@ func (follower Follower) Run(ctx context.Context) error {
 	if errorValue != nil {
 		return fmt.Errorf("identifying the company database: %w", errorValue)
 	}
-	start, errorValue := follower.startingPoint(ctx, connection, system)
+	kept := follower.KeptFor(system.SystemID)
+	start, errorValue := follower.startingPoint(ctx, connection, system, kept)
 	if errorValue != nil {
 		return errorValue
 	}
@@ -58,17 +59,17 @@ func (follower Follower) Run(ctx context.Context) error {
 			return errorValue
 		}
 	}
-	stream := walStream{connection: connection, kept: follower.Kept, pending: Piece{Timeline: system.Timeline, Start: start}}
+	stream := walStream{connection: connection, kept: kept, pending: Piece{Timeline: system.Timeline, Start: start}}
 	return stream.follow(ctx)
 }
 
-func (follower Follower) startingPoint(ctx context.Context, connection *pgconn.PgConn, system pglogrepl.IdentifySystemResult) (pglogrepl.LSN, error) {
-	newestEnd, isFound, errorValue := follower.Kept.NewestEnd(ctx, system.Timeline)
+func (follower Follower) startingPoint(ctx context.Context, connection *pgconn.PgConn, system pglogrepl.IdentifySystemResult, kept Keeper) (pglogrepl.LSN, error) {
+	newestEnd, isFound, errorValue := kept.NewestEnd(ctx, system.Timeline)
 	if errorValue != nil {
 		return 0, fmt.Errorf("reading where the company's kept WAL ends: %w", errorValue)
 	}
 	if !isFound {
-		return follower.firstPositionOn(ctx, connection, system)
+		return firstPositionOn(ctx, connection, system, kept)
 	}
 	if newestEnd > system.XLogPos {
 		return 0, fmt.Errorf("the company's kept WAL runs to %s on timeline %d, past this database's %s; this database is older than what the company keeps, so it must take over from the kept WAL instead of serving", newestEnd, system.Timeline, system.XLogPos)
@@ -76,7 +77,7 @@ func (follower Follower) startingPoint(ctx context.Context, connection *pgconn.P
 	return newestEnd, nil
 }
 
-func (follower Follower) firstPositionOn(ctx context.Context, connection *pgconn.PgConn, system pglogrepl.IdentifySystemResult) (pglogrepl.LSN, error) {
+func firstPositionOn(ctx context.Context, connection *pgconn.PgConn, system pglogrepl.IdentifySystemResult, kept Keeper) (pglogrepl.LSN, error) {
 	if system.Timeline == 1 {
 		return segmentStartOf(system.XLogPos), nil
 	}
@@ -89,7 +90,7 @@ func (follower Follower) firstPositionOn(ctx context.Context, connection *pgconn
 	if errorValue != nil {
 		return 0, errorValue
 	}
-	if errorValue := follower.Kept.KeepHistory(ctx, history); errorValue != nil {
+	if errorValue := kept.KeepHistory(ctx, history); errorValue != nil {
 		return 0, errorValue
 	}
 	return segmentStartOf(began), nil
