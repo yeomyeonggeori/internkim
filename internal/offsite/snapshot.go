@@ -102,6 +102,22 @@ func StartSnapshot(ctx context.Context, destination Destination, keyring box.Key
 }
 
 func (snapshot *Snapshot) AddMember(name string, produce func(io.Writer) error) error {
+	kept, errorValue := snapshot.KeepContent(produce)
+	if errorValue != nil {
+		return fmt.Errorf("snapshotting %s: %w", name, errorValue)
+	}
+	snapshot.members = append(snapshot.members, hostbackup.Member{Name: name, Size: kept.Size, SHA256: kept.SHA256})
+	snapshot.chunks[name] = kept.Chunks
+	return nil
+}
+
+type KeptContent struct {
+	Chunks []string
+	Size   int64
+	SHA256 string
+}
+
+func (snapshot *Snapshot) KeepContent(produce func(io.Writer) error) (KeptContent, error) {
 	hasher := sha256.New()
 	counter := &byteCounter{}
 	identifiers := []string{}
@@ -111,14 +127,18 @@ func (snapshot *Snapshot) AddMember(name string, produce func(io.Writer) error) 
 		return errorValue
 	})
 	if errorValue := produce(io.MultiWriter(splitter, hasher, counter)); errorValue != nil {
-		return fmt.Errorf("snapshotting %s: %w", name, errorValue)
+		return KeptContent{}, errorValue
 	}
 	if errorValue := splitter.Close(); errorValue != nil {
-		return fmt.Errorf("snapshotting %s: %w", name, errorValue)
+		return KeptContent{}, errorValue
 	}
-	snapshot.members = append(snapshot.members, hostbackup.Member{Name: name, Size: counter.size, SHA256: hex.EncodeToString(hasher.Sum(nil))})
-	snapshot.chunks[name] = identifiers
-	return nil
+	return KeptContent{Chunks: identifiers, Size: counter.size, SHA256: hex.EncodeToString(hasher.Sum(nil))}, nil
+}
+
+func (snapshot *Snapshot) Forget(chunkIDs []string) {
+	for _, identifier := range chunkIDs {
+		delete(snapshot.kept, identifier)
+	}
 }
 
 func (snapshot *Snapshot) keepChunk(chunk []byte) (string, error) {

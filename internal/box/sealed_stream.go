@@ -40,6 +40,13 @@ func WALPiecePurpose(companyID, pieceName string) SealPurpose {
 	}
 }
 
+func FileJournalPurpose(companyID, entryName string) SealPurpose {
+	return SealPurpose{
+		Information:    backupSealInformation,
+		AdditionalData: additionalDataOf(companyID, entryName, "file-journal"),
+	}
+}
+
 type streamSealer struct {
 	destination io.Writer
 	sender      *hpke.Sender
