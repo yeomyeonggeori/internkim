@@ -132,6 +132,7 @@
 					</Card.Content>
 				</Card.Root>
 				<Card.Root>
+					<img src="/landing/kim-mini.webp" alt={text.plans.run.kimMini} width="1200" height="800" loading="lazy" class="-mt-6 aspect-[3/2] w-full rounded-t-xl border-b object-cover" />
 					<Card.Header><Card.Title class="text-lg">{text.plans.run.title}</Card.Title></Card.Header>
 					<Card.Content class="grid gap-4">
 						<dl class="divide-y">
@@ -164,7 +165,7 @@
 
 	<footer class="border-t">
 		<div class="text-muted-foreground mx-auto flex w-full max-w-6xl flex-wrap items-center gap-x-6 gap-y-2 px-4 py-8 text-sm sm:px-6">
-			<a href={makerURL} class="hover:text-foreground mr-auto">{text.footer.madeBy}</a>
+			<a href={makerURL} class="hover:text-foreground mr-auto">© {new Date().getFullYear()} {text.footer.owner}. {text.footer.rights}</a>
 			<a href={docsURL(currentLocale.value)} class="hover:text-foreground">{text.navigation.docs}</a>
 			<a href={repositoryURL} class="hover:text-foreground">{text.navigation.github}</a>
 			<span>{text.footer.license}</span>
