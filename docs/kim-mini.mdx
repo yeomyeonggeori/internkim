@@ -182,13 +182,15 @@ one behind. The setup page shows when the newest one was made, and
 `SNAPSHOTS_KEPT` in `/etc/internkim/company-host.env` says how many are kept,
 eight unless set.
 
-Between snapshots nothing waits fifteen minutes. The service box streams its
+Between snapshots nothing waits fifteen minutes. While the company runs on more
+than one box, the service box streams its
 database's WAL to the hosted service, sealed to the company key, and PostgreSQL
 does not report a write done until that upload is kept, so a message or a memory
 that was saved is already off the box. A base backup each day gives that WAL a
 starting point. Files are watched as they change and kept the same way. The
 messenger reports an attachment sent, and the agent sends its reply, only once
-what they wrote is kept. When the hosted service cannot be reached, writes wait
+what they wrote is kept. A company on one box keeps none of this, so its writes
+never wait on the internet. When the hosted service cannot be reached, writes wait
 and then fail. They are never kept on the box alone. `internkim wal-follow
 release` lets the database commit without the company's other boxes.
 

@@ -7,6 +7,7 @@ const (
 	CompanyHostFileFollowServiceName = "internkim-file-follow"
 	CompanyHostFileJournalSocketPath = "/run/" + CompanyHostFileFollowServiceName + "/barrier.sock"
 	companyHostFollowRestartWait     = "5s"
+	CompanyHostSeveralBoxesPath      = CompanyHostBoxStatePath + "/several-boxes"
 )
 
 type companyHostFollower struct {
