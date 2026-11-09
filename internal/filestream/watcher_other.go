@@ -5,6 +5,8 @@ package filestream
 import (
 	"context"
 	"errors"
+	"io/fs"
+	"time"
 
 	"github.com/yeomyeonggeori/internkim/internal/hostbackup"
 )
@@ -23,4 +25,8 @@ func (watcher *Watcher) Close() error {
 
 func (watcher *Watcher) Next(ctx context.Context) ([]Change, error) {
 	return nil, errWatchingNeedsLinux
+}
+
+func lastChangeOf(information fs.FileInfo) time.Time {
+	return information.ModTime()
 }

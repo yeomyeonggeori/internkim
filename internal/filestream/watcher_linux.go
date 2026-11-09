@@ -9,6 +9,7 @@ import (
 	"io/fs"
 	"path"
 	"path/filepath"
+	"time"
 	"unsafe"
 
 	"golang.org/x/sys/unix"
@@ -192,4 +193,16 @@ func nameLength(bytes []byte) int {
 		}
 	}
 	return len(bytes)
+}
+
+func lastChangeOf(information fs.FileInfo) time.Time {
+	status, isUnix := information.Sys().(*unix.Stat_t)
+	if !isUnix {
+		return information.ModTime()
+	}
+	changed := time.Unix(status.Ctim.Unix())
+	if changed.After(information.ModTime()) {
+		return changed
+	}
+	return information.ModTime()
 }

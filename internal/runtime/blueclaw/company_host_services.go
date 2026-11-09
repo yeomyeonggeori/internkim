@@ -216,8 +216,6 @@ func companyHostMediaService(layout CompanyHostLayout) CompanyHostService {
 	}
 }
 
-// The gate answers the messenger on the store's address and waits, on a box,
-// until an attachment the store took is kept off the box before saying so.
 func companyHostMediaGateService(layout CompanyHostLayout) CompanyHostService {
 	return CompanyHostService{
 		Name:                  BuzzMediaGateServiceName,
