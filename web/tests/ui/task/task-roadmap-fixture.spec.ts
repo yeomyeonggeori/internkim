@@ -37,6 +37,7 @@ class TaskRoadmapFixture {
 		taskFixture(undatedID, 'Fixture 로드맵 날짜 없는 업무', { status: 'planned' })
 	];
 	writes: TaskDateWrite[] = [];
+	heldList: Promise<void> | null = null;
 
 	listed(): RecordTaskList {
 		return {
@@ -51,6 +52,7 @@ class TaskRoadmapFixture {
 			await route.fulfill({ json: { result: { requesterID: memberID, count: 1, people: [{ personID: memberID, name: '이샘플', email: 'member@example.com', isAdmin: true, hireDate: '2026-01-01' }] } } });
 			return;
 		}
+		if (toolName === 'task_list' && this.heldList) await this.heldList;
 		if (toolName === 'task_list' || toolName === 'task_board_get') {
 			await route.fulfill({ json: { result: this.listed() } });
 			return;
@@ -71,6 +73,16 @@ class TaskRoadmapFixture {
 		}
 		await route.fulfill({ status: 503, json: { error: 'Tool has no supplementary UI fixture' } });
 	}
+}
+
+async function dragBarByDays(page: Page, roadmap: Locator, taskID: string, days: number): Promise<void> {
+	const box = await roadmap.locator(`[data-roadmap-bar="${taskID}"]`).boundingBox();
+	const dayWidth = await roadmap.locator('[data-roadmap-today]').evaluate(element => element.parentElement?.getBoundingClientRect().width ?? 0);
+	if (!box || dayWidth === 0) throw new Error('The roadmap draws the bar and its day columns');
+	await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+	await page.mouse.down();
+	await page.mouse.move(box.x + box.width / 2 + dayWidth * days, box.y + box.height / 2, { steps: 8 });
+	await page.mouse.up();
 }
 
 async function openRoadmap(page: Page, fixture: TaskRoadmapFixture): Promise<Locator> {
@@ -95,6 +107,10 @@ async function openRoadmap(page: Page, fixture: TaskRoadmapFixture): Promise<Loc
 	await page.route('**/api/v1/tools/*/invoke', route => fixture.answer(route));
 	await page.route('**/api/calendar/holidays**', route => route.fulfill({ json: { holidays: [{ id: 'holiday:holiday_api:kr:fixture', title: 'Fixture 공휴일', date: dayOfThisMonth(holidayDay), source: 'holiday_api', readOnly: true, color: '#dc2626' }] } }));
 	await page.goto('/example-co/task');
+	return showRoadmapTab(page);
+}
+
+async function showRoadmapTab(page: Page): Promise<Locator> {
 	await expect(page.locator('[data-task-ready="true"]')).toBeVisible();
 	await page.getByRole('tab', { name: '로드맵' }).click();
 	const roadmap = page.locator('[data-task-roadmap]');
@@ -181,14 +197,38 @@ test('supplementary fixture: a task with no relations opens on the first click',
 test('supplementary fixture: dragging a bar moves both dates and saves them', async ({ page }) => {
 	const fixture = new TaskRoadmapFixture();
 	const roadmap = await openRoadmap(page, fixture);
-	const bar = roadmap.locator(`[data-roadmap-bar="${childID}"]`);
-	const box = await bar.boundingBox();
-	const dayWidth = await roadmap.locator('[data-roadmap-today]').evaluate(element => element.parentElement?.getBoundingClientRect().width ?? 0);
-	if (!box || dayWidth === 0) throw new Error('The roadmap draws the bar and its day columns');
-	await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
-	await page.mouse.down();
-	await page.mouse.move(box.x + box.width / 2 + dayWidth * 3, box.y + box.height / 2, { steps: 8 });
-	await page.mouse.up();
+	await dragBarByDays(page, roadmap, childID, 3);
 	await expect.poll(() => fixture.writes).toEqual([{ taskHint: childID, startsAt: dayOfThisMonth(8), endsAt: dayOfThisMonth(15) }]);
 	await expect(taskSheet(page)).not.toBeVisible();
+});
+
+test('supplementary fixture: sliding a bar with a finger moves nothing and saves nothing', async ({ page }) => {
+	const fixture = new TaskRoadmapFixture();
+	const roadmap = await openRoadmap(page, fixture);
+	const bar = roadmap.locator(`[data-roadmap-bar="${childID}"]`);
+	const before = await bar.boundingBox();
+	if (!before) throw new Error('The roadmap draws the bar');
+	const touch = { pointerType: 'touch', pointerId: 7, isPrimary: true, button: 0, clientY: before.y + before.height / 2 };
+	await bar.dispatchEvent('pointerdown', { ...touch, clientX: before.x + 4 });
+	for (const step of [20, 60, 120]) await bar.dispatchEvent('pointermove', { ...touch, clientX: before.x + 4 + step });
+	await bar.dispatchEvent('pointerup', { ...touch, clientX: before.x + 124 });
+	expect((await bar.boundingBox())?.x).toBe(before.x);
+	await dragBarByDays(page, roadmap, childID, 3);
+	await expect.poll(() => fixture.writes).toEqual([{ taskHint: childID, startsAt: dayOfThisMonth(8), endsAt: dayOfThisMonth(15) }]);
+});
+
+test('supplementary fixture: the stored history draws the roadmap first, and bars drag only once the full history arrives', async ({ page }) => {
+	const fixture = new TaskRoadmapFixture();
+	await openRoadmap(page, fixture);
+	let releaseList = () => {};
+	fixture.heldList = new Promise(resolve => { releaseList = resolve; });
+	await page.reload();
+	const roadmap = await showRoadmapTab(page);
+	await expect(roadmap.locator(`[data-roadmap-bar="${childID}"]`)).toBeVisible();
+	await dragBarByDays(page, roadmap, childID, 3);
+	releaseList();
+	fixture.heldList = null;
+	await expect(roadmap.locator(`[data-roadmap-bar="${childID}"]`)).toHaveClass(/cursor-grab/);
+	await dragBarByDays(page, roadmap, childID, 3);
+	await expect.poll(() => fixture.writes).toEqual([{ taskHint: childID, startsAt: dayOfThisMonth(8), endsAt: dayOfThisMonth(15) }]);
 });
