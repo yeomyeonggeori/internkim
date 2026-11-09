@@ -18,7 +18,7 @@ export const taskRoadmapDrag: Action<HTMLElement, TaskRoadmapDragOptions> = (ele
 	let dayOffset = 0;
 
 	function pointerDown(event: PointerEvent): void {
-		if (!options.enabled || event.button !== 0) return;
+		if (!options.enabled || event.pointerType !== 'mouse' || event.button !== 0) return;
 		pointerID = event.pointerId;
 		originX = event.clientX;
 		dragged = false;
