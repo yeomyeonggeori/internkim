@@ -22,3 +22,25 @@ func holdsKey(path string) bool {
 	document, errorValue := os.ReadFile(path)
 	return errorValue == nil && strings.TrimSpace(string(document)) != ""
 }
+
+func CompanyLanguageModelDocument(centralPlaneURL string, gatewayKeyPath string, companyEndpoint string, companyKeyPath string) Document {
+	companyDocument := LanguageModelDocument(companyEndpoint, companyKeyPath)
+	if strings.TrimSpace(centralPlaneURL) == "" || runsItsOwnModels(companyEndpoint) {
+		return companyDocument
+	}
+	gatewayDocument := LanguageModelDocument(GatewayEndpoint(centralPlaneURL), gatewayKeyPath)
+	if !holdsKey(companyKeyPath) {
+		return gatewayDocument
+	}
+	for tier, rungs := range gatewayDocument.Tiers {
+		gatewayDocument.Tiers[tier] = append(rungs, companyDocument.Tiers[tier]...)
+	}
+	gatewayDocument.Decision = companyDocument.Decision
+	gatewayDocument.VisualReview = companyDocument.VisualReview
+	return gatewayDocument
+}
+
+func runsItsOwnModels(companyEndpoint string) bool {
+	endpoint := strings.TrimRight(strings.TrimSpace(companyEndpoint), "/")
+	return endpoint != "" && endpoint != Endpoint
+}

@@ -144,8 +144,11 @@ legitimately disagree: a Friday to Monday leave spans four days and costs two.
 
 ## Credits [#credits]
 
-A company without its own OpenRouter key subscribes through Stripe and spends
-credits through ours. One credit is a thousandth of a dollar of AI cost. Stripe
+A company subscribes through Stripe and spends credits through our OpenRouter
+key. Its computer reaches the gateway first and its own key, when it has one,
+only after a call is refused, so a subscription pays before the company does.
+The setup page asks for a key only while no subscription is `active` or
+`trialing`. One credit is a thousandth of a dollar of AI cost. Stripe
 holds the money and the subscription; the company row keeps the Stripe
 identifiers, `subscription_status` as Stripe names it, and
 `subscription_ends_at`.

@@ -41,3 +41,49 @@ func TestTheGatewayEndpointIsTheModelGatewayFunctionsOpenAIRoot(t *testing.T) {
 		t.Fatalf("the decisions route must stay behind the gateway, got %q", DecisionsURL(endpoint))
 	}
 }
+
+func TestSubscriptionCreditsPayBeforeTheCompanysOwnKey(t *testing.T) {
+	keyPath := filepath.Join(t.TempDir(), "openrouter-key")
+	if errorValue := os.WriteFile(keyPath, []byte("sk-or-example\n"), 0o600); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	document := CompanyLanguageModelDocument("https://plane.example", "/run/session", "", keyPath)
+	gateway := GatewayEndpoint("https://plane.example")
+	for _, tier := range Tiers {
+		rungs := document.Tiers[tier]
+		modelCount := len(ModelNames())
+		if len(rungs) != 2*modelCount {
+			t.Fatalf("tier %s has %d rungs, want the gateway's and then the company's own", tier, len(rungs))
+		}
+		for index, rung := range rungs {
+			wantEndpoint, wantKey := gateway, "/run/session"
+			if index >= modelCount {
+				wantEndpoint, wantKey = Endpoint, keyPath
+			}
+			if rung.Endpoint != wantEndpoint || rung.APIKeyPath != wantKey {
+				t.Fatalf("tier %s rung %d reaches %s with %s, want %s with %s", tier, index, rung.Endpoint, rung.APIKeyPath, wantEndpoint, wantKey)
+			}
+		}
+	}
+	if document.Decision.APIKeyPath != keyPath {
+		t.Fatalf("a decision has no rung to fall back to, so it is paid with the company's key, got %q", document.Decision.APIKeyPath)
+	}
+}
+
+func TestACompanyWithoutItsOwnKeyReachesOnlyTheGateway(t *testing.T) {
+	document := CompanyLanguageModelDocument("https://plane.example", "/run/session", "", filepath.Join(t.TempDir(), "openrouter-key"))
+	for _, rung := range document.Tiers["medium"] {
+		if rung.Endpoint != GatewayEndpoint("https://plane.example") {
+			t.Fatalf("a company with no key of its own reached %s", rung.Endpoint)
+		}
+	}
+}
+
+func TestACompanyRunningItsOwnModelsNeverReachesTheGateway(t *testing.T) {
+	document := CompanyLanguageModelDocument("https://plane.example", "/run/session", "https://models.example.com/v1", "/run/example-key")
+	for _, rung := range document.Tiers["medium"] {
+		if rung.Endpoint != "https://models.example.com/v1" {
+			t.Fatalf("a company that runs its own models reached %s", rung.Endpoint)
+		}
+	}
+}

@@ -32,6 +32,7 @@ import {
 	type HostSession,
 	type SigningCredentials
 } from './control-plane';
+import { subscriptionPaysForModels } from './subscription-pays-for-models';
 
 export const boxAssertionAudience = 'internkim-box';
 const boxAssertionLifetime = '2m';
@@ -446,7 +447,8 @@ export async function companyBoxesOf(client: SupabaseClient, companyID: string):
 		hasModelKey: Boolean(keyring?.sealedModelKey),
 		newestBackupAt: keyring ? await newestKeptBackupAt(client, companyID, keyring.sealingKey) : null,
 		takeOver: await takeOverOf(client, companyID),
-		isServedByConnectionFile: await companyServedByConnectionFile(client, companyID)
+		isServedByConnectionFile: await companyServedByConnectionFile(client, companyID),
+		subscriptionPaysForModels: await subscriptionPaysForModels(client, companyID)
 	};
 }
 
