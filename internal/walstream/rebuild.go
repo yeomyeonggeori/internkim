@@ -40,7 +40,7 @@ func RebuildDataDirectory(ctx context.Context, destination offsite.Destination, 
 	if errorValue != nil {
 		return Rebuilt{}, errorValue
 	}
-	kept := KeptPieces{Destination: destination}
+	kept := KeptPieces{Destination: destination, SystemID: backup.SystemID}
 	plan, errorValue := planTheReplay(ctx, kept, backup, keyring)
 	if errorValue != nil {
 		return Rebuilt{}, errorValue

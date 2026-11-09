@@ -67,12 +67,12 @@ func (history TimelineHistory) Began() (pglogrepl.LSN, error) {
 }
 
 func (kept KeptPieces) historyPath(timeline int32) string {
-	return kept.Destination.CompanyID + "/" + historyFolder + "/" + TimelineHistory{Timeline: timeline}.FileName()
+	return kept.Destination.CompanyID + "/" + historyFolder + "/" + kept.SystemID + "/" + TimelineHistory{Timeline: timeline}.FileName()
 }
 
 func (kept KeptPieces) KeepHistory(ctx context.Context, history TimelineHistory) error {
 	var sealed bytes.Buffer
-	sealing, errorValue := box.SealStreamTo(&sealed, kept.Destination.SealingKey, box.WALPiecePurpose(kept.Destination.CompanyID, history.FileName()))
+	sealing, errorValue := box.SealStreamTo(&sealed, kept.Destination.SealingKey, box.WALPiecePurpose(kept.Destination.CompanyID, kept.SystemID+"/"+history.FileName()))
 	if errorValue != nil {
 		return errorValue
 	}
@@ -94,7 +94,7 @@ func (kept KeptPieces) ReadHistory(ctx context.Context, timeline int32, keyring 
 	if errorValue != nil {
 		return TimelineHistory{}, fmt.Errorf("reading the history of timeline %d: %w", timeline, errorValue)
 	}
-	opened, errorValue := keyring.OpenStream(bytes.NewReader(sealed), box.WALPiecePurpose(kept.Destination.CompanyID, history.FileName()))
+	opened, errorValue := keyring.OpenStream(bytes.NewReader(sealed), box.WALPiecePurpose(kept.Destination.CompanyID, kept.SystemID+"/"+history.FileName()))
 	if errorValue != nil {
 		return TimelineHistory{}, fmt.Errorf("opening the history of timeline %d: %w", timeline, errorValue)
 	}

@@ -36,12 +36,12 @@ func KeepBaseBackups(ctx context.Context, replicationConnection string, destinat
 }
 
 func keepABaseBackupWhenDue(ctx context.Context, replicationConnection string, destination offsite.Destination, keyring box.Keyring, now time.Time) error {
-	timeline, errorValue := currentTimeline(ctx, replicationConnection)
+	system, errorValue := identify(ctx, replicationConnection)
 	if errorValue != nil {
 		return errorValue
 	}
 	newest, errorValue := NewestBaseBackup(ctx, destination)
-	isDue := errors.Is(errorValue, ErrNoBaseBackup) || newest.Timeline != timeline || now.Sub(newest.CreatedAt) >= baseBackupEvery
+	isDue := errors.Is(errorValue, ErrNoBaseBackup) || newest.SystemID != system.SystemID || newest.Timeline != system.Timeline || now.Sub(newest.CreatedAt) >= baseBackupEvery
 	if errorValue != nil && !errors.Is(errorValue, ErrNoBaseBackup) {
 		return errorValue
 	}
@@ -56,17 +56,17 @@ func keepABaseBackupWhenDue(ctx context.Context, replicationConnection string, d
 	return PruneBehindBaseBackups(ctx, destination, now)
 }
 
-func currentTimeline(ctx context.Context, replicationConnection string) (int32, error) {
+func identify(ctx context.Context, replicationConnection string) (pglogrepl.IdentifySystemResult, error) {
 	connection, errorValue := pgconn.Connect(ctx, replicationConnection)
 	if errorValue != nil {
-		return 0, fmt.Errorf("connecting to the company database for replication: %w", errorValue)
+		return pglogrepl.IdentifySystemResult{}, fmt.Errorf("connecting to the company database for replication: %w", errorValue)
 	}
 	defer connection.Close(context.Background())
 	system, errorValue := pglogrepl.IdentifySystem(ctx, connection)
 	if errorValue != nil {
-		return 0, fmt.Errorf("identifying the company database: %w", errorValue)
+		return pglogrepl.IdentifySystemResult{}, fmt.Errorf("identifying the company database: %w", errorValue)
 	}
-	return system.Timeline, nil
+	return system, nil
 }
 
 func PruneBehindBaseBackups(ctx context.Context, destination offsite.Destination, now time.Time) error {
@@ -103,7 +103,7 @@ func prunePiecesBefore(ctx context.Context, destination offsite.Destination, old
 	if errorValue != nil {
 		return fmt.Errorf("the base backup %s names no start: %w", oldestKept.Name, errorValue)
 	}
-	kept := KeptPieces{Destination: destination}
+	kept := KeptPieces{Destination: destination, SystemID: oldestKept.SystemID}
 	names, errorValue := kept.Names(ctx)
 	if errorValue != nil {
 		return errorValue
