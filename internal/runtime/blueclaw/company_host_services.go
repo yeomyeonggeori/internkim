@@ -122,6 +122,7 @@ func CompanyHostServices(layout CompanyHostLayout) []CompanyHostService {
 		companyHostRelayService(layout),
 		companyHostPrepareService(layout),
 		companyHostMediaService(layout),
+		companyHostMediaGateService(layout),
 		companyHostMessengerService(layout),
 		companyHostEmbeddingService(layout),
 		companyHostCapabilityService(layout),
@@ -205,11 +206,22 @@ func companyHostMediaService(layout CompanyHostLayout) CompanyHostService {
 		Description: "Buzz Media Store",
 		Command: []string{
 			layout.BinaryPath(BuzzMediaProgramName),
-			"--port", BuzzMediaAddress,
+			"--port", BuzzMediaServerAddress,
 			"--health", BuzzMediaHealthPath,
 			"posix", CompanyHostMediaRootPath,
 		},
 		Environment:           withCommonEnvironment(environmentFile(CompanyHostMediaSecretPath)),
+		RestartAfterSeconds:   5,
+		WaitsForTheFileAtPath: CompanyHostMediaSecretPath,
+	}
+}
+
+func companyHostMediaGateService(layout CompanyHostLayout) CompanyHostService {
+	return CompanyHostService{
+		Name:                  BuzzMediaGateServiceName,
+		Description:           "internkim attachment store gate",
+		Command:               []string{layout.BinaryPath(CompanyPackageName), "media-gate"},
+		Environment:           withCommonEnvironment(),
 		RestartAfterSeconds:   5,
 		WaitsForTheFileAtPath: CompanyHostMediaSecretPath,
 	}
@@ -293,7 +305,7 @@ func companyHostCapabilityService(layout CompanyHostLayout) CompanyHostService {
 }
 
 func companyHostAgentService(layout CompanyHostLayout) CompanyHostService {
-	return CompanyHostService{
+	service := CompanyHostService{
 		Name:        BlueclawServiceName,
 		Description: "Blueclaw",
 		Command: []string{
@@ -313,6 +325,10 @@ func companyHostAgentService(layout CompanyHostLayout) CompanyHostService {
 		StopTimeoutSeconds:    30,
 		WaitsForTheFileAtPath: layout.RuntimeDocumentPath(),
 	}
+	if layout.OwnsItsDataServices() {
+		service.Command = append(service.Command, "-file-journal-socket", CompanyHostFileJournalSocketPath)
+	}
+	return service
 }
 
 func companyHostAdminService(layout CompanyHostLayout) CompanyHostService {

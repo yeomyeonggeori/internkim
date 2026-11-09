@@ -188,6 +188,9 @@ func CompanyHostSystemdUnits(layout CompanyHostLayout) []CompanyPackageUnit {
 		}
 		units = append(units, CompanyPackageUnit{Name: service.Name, Contents: systemdUnitFor(layout, service)})
 	}
+	if layout.OwnsItsDataServices() {
+		units = append(units, companyHostFollowUnits(layout)...)
+	}
 	return units
 }
 
@@ -218,10 +221,15 @@ func companyHostOrderingFor(serviceName string) companyHostUnitOrdering {
 		}
 	case BuzzMediaServiceName:
 		return companyHostUnitOrdering{}
+	case BuzzMediaGateServiceName:
+		return companyHostUnitOrdering{
+			After: []string{BuzzMediaServiceName + ".service"},
+			Wants: []string{BuzzMediaServiceName + ".service"},
+		}
 	case BuzzRelayServiceName:
 		return companyHostUnitOrdering{
-			After:   []string{companyHostDatabaseUnitName, companyHostCacheUnitName, BuzzMediaServiceName + ".service"},
-			Wants:   []string{companyHostCacheUnitName, BuzzMediaServiceName + ".service"},
+			After:   []string{companyHostDatabaseUnitName, companyHostCacheUnitName, BuzzMediaServiceName + ".service", BuzzMediaGateServiceName + ".service"},
+			Wants:   []string{companyHostCacheUnitName, BuzzMediaServiceName + ".service", BuzzMediaGateServiceName + ".service"},
 			BindsTo: []string{companyHostDatabaseUnitName},
 		}
 	case CapabilitydServiceName:

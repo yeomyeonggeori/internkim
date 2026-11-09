@@ -37,6 +37,7 @@ type Places struct {
 	CredentialPaths           []string
 	StagedCredentialPaths     []string
 	WorkQueuePath             string
+	SeveralBoxesPath          string
 	ModelKeyPath              string
 	ResetRequestPath          string
 	CompanyStateDirectoryPath func(companyID string) string
@@ -172,6 +173,7 @@ func (daemon Daemon) serveClaimed(ctx context.Context, session Session, identity
 		return daemon.standBy(ctx, session)
 	}
 	daemon.keepTheQueueAddress(session)
+	daemon.noteSeveralBoxes(session.HasSeveralBoxes)
 	if daemon.installedCompany() == session.Configuration.Company.ID {
 		return daemon.untilNextCheck(session.Session), daemon.keepServing(session, keyring)
 	}
@@ -273,6 +275,15 @@ func (daemon Daemon) keepTheQueueAddress(session Session) {
 	address := workqueue.Address{GatewayURL: session.Configuration.GatewayURL, CompanyID: session.Configuration.Company.ID}
 	if errorValue := workqueue.Write(daemon.Places.WorkQueuePath, address); errorValue != nil {
 		log.Printf("writing the company's work queue address: %v; this box runs all its work itself until the next check", errorValue)
+	}
+}
+
+func (daemon Daemon) noteSeveralBoxes(hasSeveralBoxes bool) {
+	if daemon.Places.SeveralBoxesPath == "" {
+		return
+	}
+	if errorValue := NoteSeveralBoxes(daemon.Places.SeveralBoxesPath, hasSeveralBoxes); errorValue != nil {
+		log.Printf("noting whether the company runs on several boxes: %v; trying again at the next check", errorValue)
 	}
 }
 

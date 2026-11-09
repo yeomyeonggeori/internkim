@@ -19,6 +19,8 @@ type RestoreRequest struct {
 	ArchivePath    string
 	Replace        bool
 	KeepsThisBox   bool
+	RebuildFromWAL func(dataDirectoryPath string) error
+	ReplayFiles    FileJournalReplay
 	BeforeStarting func(companyID string) error
 	Now            time.Time
 }
@@ -76,7 +78,7 @@ func restoreWhileLocked(platform backupPlatform, request RestoreRequest, backupD
 		return RestoreResult{}, errorValue
 	}
 	fmt.Fprintln(progress, "4/6 Restoring the files and the people's accounts…")
-	extracted, unresolved, errorValue := restoreTheFiles(platform, archive, machine, request.KeepsThisBox)
+	extracted, unresolved, errorValue := restoreTheFiles(platform, archive, machine, request, progress)
 	if errorValue != nil {
 		return RestoreResult{}, errorValue
 	}
@@ -87,7 +89,7 @@ func restoreWhileLocked(platform backupPlatform, request RestoreRequest, backupD
 	}
 	result.Connection = connection
 	fmt.Fprintln(progress, "5/6 Restoring the databases…")
-	if errorValue := restoreTheDatabases(platform, archive, machine, directoryPath, connection, progress); errorValue != nil {
+	if errorValue := restoreTheDatabases(platform, archive, machine, directoryPath, connection, request, progress); errorValue != nil {
 		return RestoreResult{}, errorValue
 	}
 	if request.BeforeStarting != nil {
@@ -231,20 +233,26 @@ func containsRole(roles []string, wanted string) bool {
 	return false
 }
 
-func restoreTheFiles(platform backupPlatform, archive hostbackup.Archive, machine Machine, keepsThisBox bool) (hostbackup.ExtractionReport, []hostbackup.Ownership, error) {
+func restoreTheFiles(platform backupPlatform, archive hostbackup.Archive, machine Machine, request RestoreRequest, progress io.Writer) (hostbackup.ExtractionReport, []hostbackup.Ownership, error) {
 	var extracted hostbackup.ExtractionReport
 	extract := func() error {
 		destinations, errorValue := emptiedDestinations(platform, archive)
 		if errorValue != nil {
 			return errorValue
 		}
-		return archive.ReadMember(hostbackup.FilesMemberName, func(input io.Reader) error {
+		if errorValue := archive.ReadMember(hostbackup.FilesMemberName, func(input io.Reader) error {
 			report, errorValue := hostbackup.ExtractFiles(input, destinations)
 			extracted = report
 			return errorValue
-		})
+		}); errorValue != nil {
+			return errorValue
+		}
+		if request.ReplayFiles == nil {
+			return nil
+		}
+		return replayTheFileJournal(request.ReplayFiles, destinations, &extracted, progress)
 	}
-	errorValue := extractKeepingThisBoxIf(keepsThisBox, extract)
+	errorValue := extractKeepingThisBoxIf(request.KeepsThisBox, extract)
 	if errorValue != nil {
 		return hostbackup.ExtractionReport{}, nil, errorValue
 	}
@@ -344,7 +352,7 @@ func restoredCompany(manifest hostbackup.Manifest) (Connection, string, error) {
 	return connection, directoryPath, nil
 }
 
-func restoreTheDatabases(platform backupPlatform, archive hostbackup.Archive, machine Machine, directoryPath string, connection Connection, progress io.Writer) error {
+func restoreTheDatabases(platform backupPlatform, archive hostbackup.Archive, machine Machine, directoryPath string, connection Connection, request RestoreRequest, progress io.Writer) error {
 	if _, errorValue := PrepareStateDirectory(directoryPath, connection); errorValue != nil {
 		return errorValue
 	}
@@ -355,13 +363,25 @@ func restoreTheDatabases(platform backupPlatform, archive hostbackup.Archive, ma
 	if errorValue != nil {
 		return errorValue
 	}
+	settings := companyHostSettings{DirectoryPath: directoryPath, Connection: connection, DatabasePassword: password}
+	if request.RebuildFromWAL != nil {
+		isRebuilt, errorValue := rebuildTheDatabaseFromKeptWAL(platform, machine, request.RebuildFromWAL, request.Now, progress)
+		if errorValue != nil {
+			return errorValue
+		}
+		if isRebuilt {
+			if errorValue := prepareDatabases(platform, machine, settings, progress); errorValue != nil {
+				return errorValue
+			}
+			return rehomeTheMessengerCommunity(platform, machine, connection, progress)
+		}
+	}
 	if errorValue := platform.StartTheDatabaseAndTheCache(machine); errorValue != nil {
 		return errorValue
 	}
 	if errorValue := platform.RunDatabaseStatements(machine, databaseRemovalStatements(), progress); errorValue != nil {
 		return fmt.Errorf("the host's databases could not be emptied for the restore: %w", errorValue)
 	}
-	settings := companyHostSettings{DirectoryPath: directoryPath, Connection: connection, DatabasePassword: password}
 	if errorValue := prepareDatabases(platform, machine, settings, progress); errorValue != nil {
 		return errorValue
 	}

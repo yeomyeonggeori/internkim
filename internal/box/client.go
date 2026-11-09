@@ -43,6 +43,7 @@ type Session struct {
 	SealedModelKey          *SealedModelKey `json:"sealedModelKey"`
 	BoxesAwaitingCompanyKey []AwaitingBox   `json:"boxesAwaitingCompanyKey"`
 	KeepsBackups            bool            `json:"keepsBackups"`
+	HasSeveralBoxes         bool            `json:"hasSeveralBoxes"`
 	TakeOver                TakeOverPolicy  `json:"takeOver"`
 	TargetVersion           string          `json:"targetVersion"`
 }
