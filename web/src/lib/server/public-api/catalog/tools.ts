@@ -43,6 +43,7 @@ import { notificationToolDefinitions } from './notifications';
 import { peopleToolDefinitions } from './people';
 import { personaToolDefinitions } from './persona';
 import { settingsToolDefinitions } from './settings';
+import { creditsToolDefinitions } from './credits';
 import {
   WorkspaceTaskInitialStatus,
   WorkspaceTaskScope,
@@ -2148,6 +2149,7 @@ const capabilityToolDefinitions: CapabilityToolDefinition[] = [
   ...circleToolDefinitions,
   ...crmToolDefinitions,
   ...settingsToolDefinitions,
+  ...creditsToolDefinitions,
   ...notificationToolDefinitions,
   ...mailToolDefinitions,
   ...hostToolDefinitions,

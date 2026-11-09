@@ -703,6 +703,15 @@ func gateCases() map[string]catalogGateCase {
 				expectResultHolds(t, answered, `"timeZone":"Asia/Seoul"`)
 			},
 		},
+		"company_credits_get": {
+			kind:    provesCarrying,
+			reaches: map[gateBackend]*standingIn{admindOverTheSocket: answering(`{"tool":"company_credits_get","result":{"paidBy":"subscription","subscriptionStatus":"active","periodEndsAt":"2026-12-05T00:00:00Z","billedSeats":null,"creditsPerSeat":10000,"subscriptionCredits":24600,"permanentCredits":0,"usageLimit":10000,"myCreditsUsed":2300,"members":[]}}`)},
+			input:   `{}`,
+			expect: func(t *testing.T, answered capabilities.ToolInvokeResponse) {
+				expectSucceeded(t, answered)
+				expectResultHolds(t, answered, `"myCreditsUsed":2300`)
+			},
+		},
 		"company_settings_update": {
 			kind:    provesCarrying,
 			reaches: map[gateBackend]*standingIn{admindOverTheSocket: answering(`{"tool":"company_settings_update","result":{"name":"\uc5ec\uba85\uac70\ub9ac","country":"KR","locale":"ko","timeZone":"Asia/Tokyo","currencyCode":"KRW","workLocations":[],"leaveDays":15,"teamViewVisibleToAll":true,"profileImageURL":null}}`)},
