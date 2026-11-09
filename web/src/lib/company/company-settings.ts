@@ -20,6 +20,7 @@ export type CompanySettingsChange = {
 	currencyCode?: string;
 	workLocations?: { name: string; color?: string }[];
 	leaveDays?: number;
+	creditUsageLimit?: number;
 };
 
 export function companySettings(): Promise<CompanySettings> {
