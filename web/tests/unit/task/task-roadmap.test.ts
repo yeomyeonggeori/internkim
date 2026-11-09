@@ -2,14 +2,16 @@ import { describe, expect, test } from 'bun:test';
 import { relatedTaskIDs } from '../../../src/routes/task/task-roadmap-focus';
 import {
 	buildTaskRoadmap,
-	shiftTaskDateRange,
+	isTaskRoadmapWeekend,
+	moveTaskDateRange,
 	taskRoadmapBar,
-	taskRoadmapMonthDays
+	taskRoadmapDays,
+	taskRoadmapMonthSegments
 } from '../../../src/routes/task/task-roadmap-model';
 import type { Task } from '../../../src/routes/task/task-types';
 
 const november = { year: 2026, month: 11 };
-const novemberDays = taskRoadmapMonthDays(november);
+const novemberDays = taskRoadmapDays(november, 0);
 
 function task(id: string, fields: Partial<Task> = {}): Task {
 	return {
@@ -49,7 +51,7 @@ describe('roadmap groups', () => {
 			task('undated'),
 			task('early', { startDate: '2026-11-02' }),
 			task('planned', { status: 'planned', startDate: '2026-11-10' })
-		], november, new Map());
+		], novemberDays, new Map());
 		expect(groups.map((group) => [group.status, group.rows.map((row) => row.task.id)])).toEqual([
 			['planned', ['planned']],
 			['in_progress', ['early', 'late', 'undated']]
@@ -60,27 +62,32 @@ describe('roadmap groups', () => {
 		const groups = buildTaskRoadmap([
 			task('old done', { status: 'completed', startDate: '2026-09-01' }),
 			task('old open', { status: 'planned', startDate: '2026-09-01' })
-		], november, new Map());
+		], novemberDays, new Map());
 		expect(groups.flatMap((group) => group.rows.map((row) => row.task.id))).toEqual(['old open']);
 	});
 
 	test('only parents carry child progress', () => {
 		const progress = { completed: 1, total: 3, percent: 33 };
-		const [group] = buildTaskRoadmap([task('parent', { startDate: '2026-11-02' }), task('child', { startDate: '2026-11-03', parentTaskID: 'parent' })], november, new Map([['parent', progress]]));
+		const [group] = buildTaskRoadmap([task('parent', { startDate: '2026-11-02' }), task('child', { startDate: '2026-11-03', parentTaskID: 'parent' })], novemberDays, new Map([['parent', progress]]));
 		expect(group?.rows.map((row) => row.childProgress)).toEqual([progress, undefined]);
 	});
 });
 
 describe('dragging dates', () => {
-	const range = { startDate: '2026-11-09', endDate: '2026-11-27' };
-
 	test('moving keeps the length', () => {
-		expect(shiftTaskDateRange(range, 3, 3)).toEqual({ startDate: '2026-11-12', endDate: '2026-11-30' });
+		expect(moveTaskDateRange({ startDate: '2026-11-09', endDate: '2026-11-27' }, 3)).toEqual({ startDate: '2026-11-12', endDate: '2026-11-30' });
+	});
+});
+
+describe('timeline', () => {
+	test('one continuous run of days spans the months around the centre, cut into month segments', () => {
+		const days = taskRoadmapDays(november, 1);
+		expect([days[0], days.at(-1), days.length]).toEqual(['2026-10-01', '2026-12-31', 92]);
+		expect(taskRoadmapMonthSegments(days).map((segment) => [segment.month.month, segment.firstDay, segment.dayCount])).toEqual([[10, 0, 31], [11, 31, 30], [12, 61, 31]]);
 	});
 
-	test('resizing an end past the other end collapses to one day', () => {
-		expect(shiftTaskDateRange(range, 30, 0)).toEqual({ startDate: '2026-11-27', endDate: '2026-11-27' });
-		expect(shiftTaskDateRange(range, 0, -30)).toEqual({ startDate: '2026-11-09', endDate: '2026-11-09' });
+	test('weekends are red days', () => {
+		expect(['2026-11-07', '2026-11-08', '2026-11-09'].map(isTaskRoadmapWeekend)).toEqual([true, true, false]);
 	});
 });
 
