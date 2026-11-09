@@ -7,6 +7,7 @@
 	import {
 		formatTaskRoadmapMonth,
 		shiftTaskRoadmapMonth,
+		taskRoadmapMonthRadius,
 		taskRoadmapMonthFromKey,
 		taskRoadmapMonthKey,
 		type TaskRoadmapMonth
@@ -36,14 +37,14 @@
 		class: className
 	}: Props = $props();
 
-	const monthChoiceRadius = 6;
 	const monthChoices = $derived(
-		Array.from({ length: monthChoiceRadius * 2 + 1 }, (_, index) => {
-			const offset = index - monthChoiceRadius;
+		Array.from({ length: taskRoadmapMonthRadius * 2 + 1 }, (_, index) => {
+			const offset = index - taskRoadmapMonthRadius;
 			const choice = shiftTaskRoadmapMonth(currentMonth, offset);
 			return { value: taskRoadmapMonthKey(choice), label: offset === 0 ? currentMonthLabel : formatTaskRoadmapMonth(choice, locale) };
 		})
 	);
+	const monthOffset = $derived((month.year - currentMonth.year) * 12 + month.month - currentMonth.month);
 	let selectedMonthKey = $state('');
 
 	$effect(() => {
@@ -57,7 +58,7 @@
 </script>
 
 <div class={cn('flex shrink-0 items-center gap-1', className)}>
-	<TooltipIconButton label={previousMonthLabel} variant="outline" size="icon-sm" class="max-sm:hidden" onclick={() => onSelectMonth(shiftTaskRoadmapMonth(month, -1))}>
+	<TooltipIconButton label={previousMonthLabel} variant="outline" size="icon-sm" class="max-sm:hidden" disabled={monthOffset <= -taskRoadmapMonthRadius} onclick={() => onSelectMonth(shiftTaskRoadmapMonth(month, -1))}>
 		<ChevronLeftIcon />
 	</TooltipIconButton>
 	<Select.Root type="single" bind:value={selectedMonthKey} onValueChange={selectMonthKey}>
@@ -70,7 +71,7 @@
 			{/each}
 		</Select.Group></Select.Content>
 	</Select.Root>
-	<TooltipIconButton label={nextMonthLabel} variant="outline" size="icon-sm" class="max-sm:hidden" onclick={() => onSelectMonth(shiftTaskRoadmapMonth(month, 1))}>
+	<TooltipIconButton label={nextMonthLabel} variant="outline" size="icon-sm" class="max-sm:hidden" disabled={monthOffset >= taskRoadmapMonthRadius} onclick={() => onSelectMonth(shiftTaskRoadmapMonth(month, 1))}>
 		<ChevronRightIcon />
 	</TooltipIconButton>
 </div>

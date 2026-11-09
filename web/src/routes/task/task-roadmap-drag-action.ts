@@ -1,44 +1,28 @@
 import type { Action } from 'svelte/action';
 
-export type TaskRoadmapDragOffsets = {
-	startOffset: number;
-	endOffset: number;
-};
-
 export type TaskRoadmapDragOptions = {
 	enabled: boolean;
 	dayWidth: () => number;
-	onPreview: (offsets: TaskRoadmapDragOffsets) => void;
-	onCommit: (offsets: TaskRoadmapDragOffsets) => void;
+	onPreview: (dayOffset: number) => void;
+	onCommit: (dayOffset: number) => void;
 	onCancel: () => void;
 };
-
-type DragMode = 'move' | 'start' | 'end';
 
 const dragThresholdPixels = 4;
 
 export const taskRoadmapDrag: Action<HTMLElement, TaskRoadmapDragOptions> = (element, initialOptions) => {
 	let options = initialOptions;
 	let pointerID: number | undefined;
-	let mode: DragMode = 'move';
 	let originX = 0;
 	let dragged = false;
-	let offsets: TaskRoadmapDragOffsets = { startOffset: 0, endOffset: 0 };
-
-	function offsetsFor(dayDelta: number): TaskRoadmapDragOffsets {
-		if (mode === 'start') return { startOffset: dayDelta, endOffset: 0 };
-		if (mode === 'end') return { startOffset: 0, endOffset: dayDelta };
-		return { startOffset: dayDelta, endOffset: dayDelta };
-	}
+	let dayOffset = 0;
 
 	function pointerDown(event: PointerEvent): void {
 		if (!options.enabled || event.button !== 0) return;
-		const handle = event.target instanceof Element ? event.target.closest('[data-roadmap-handle]')?.getAttribute('data-roadmap-handle') : null;
-		mode = handle === 'start' || handle === 'end' ? handle : 'move';
 		pointerID = event.pointerId;
 		originX = event.clientX;
 		dragged = false;
-		offsets = { startOffset: 0, endOffset: 0 };
+		dayOffset = 0;
 		element.setPointerCapture(event.pointerId);
 	}
 
@@ -47,10 +31,10 @@ export const taskRoadmapDrag: Action<HTMLElement, TaskRoadmapDragOptions> = (ele
 		const deltaX = event.clientX - originX;
 		if (!dragged && Math.abs(deltaX) < dragThresholdPixels) return;
 		dragged = true;
-		const next = offsetsFor(Math.round(deltaX / Math.max(1, options.dayWidth())));
-		if (next.startOffset === offsets.startOffset && next.endOffset === offsets.endOffset) return;
-		offsets = next;
-		options.onPreview(offsets);
+		const next = Math.round(deltaX / Math.max(1, options.dayWidth()));
+		if (next === dayOffset) return;
+		dayOffset = next;
+		options.onPreview(dayOffset);
 	}
 
 	function pointerUp(event: PointerEvent): void {
@@ -58,8 +42,8 @@ export const taskRoadmapDrag: Action<HTMLElement, TaskRoadmapDragOptions> = (ele
 		pointerID = undefined;
 		if (!dragged) return;
 		element.addEventListener('click', swallowClick, { capture: true, once: true });
-		if (offsets.startOffset === 0 && offsets.endOffset === 0) options.onCancel();
-		else options.onCommit(offsets);
+		if (dayOffset === 0) options.onCancel();
+		else options.onCommit(dayOffset);
 	}
 
 	function pointerCancel(event: PointerEvent): void {

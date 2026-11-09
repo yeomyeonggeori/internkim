@@ -199,6 +199,7 @@ export const taskText = {
 			},
 			roadmap: {
 				dateLocale: 'ko-KR',
+				holidayLocale: 'ko',
 				taskColumn: '업무',
 				previousMonth: '이전 달',
 				nextMonth: '다음 달',
@@ -206,8 +207,7 @@ export const taskText = {
 				selectMonth: '월 선택',
 				addDates: '날짜 추가',
 				openAgain: '한 번 더 누르면 상세 열기',
-				resizeStart: '시작일 조절',
-				resizeEnd: '종료일 조절'
+				loading: '로드맵을 준비하고 있습니다'
 			},
 			board: {
 				addTask: '{status} 업무 추가'
@@ -466,6 +466,7 @@ export const taskText = {
 			},
 			roadmap: {
 				dateLocale: 'en-US',
+				holidayLocale: 'en',
 				taskColumn: 'Task',
 				previousMonth: 'Previous month',
 				nextMonth: 'Next month',
@@ -473,8 +474,7 @@ export const taskText = {
 				selectMonth: 'Choose month',
 				addDates: 'Add dates',
 				openAgain: 'Click again to open',
-				resizeStart: 'Adjust start date',
-				resizeEnd: 'Adjust end date'
+				loading: 'Preparing the roadmap'
 			},
 			board: {
 				addTask: 'Add {status} task'

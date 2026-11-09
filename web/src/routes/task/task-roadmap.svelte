@@ -8,16 +8,25 @@
 	import ArrowLeftIcon from '@lucide/svelte/icons/arrow-left';
 	import ArrowRightIcon from '@lucide/svelte/icons/arrow-right';
 	import ChevronRightIcon from '@lucide/svelte/icons/chevron-right';
+	import ListTreeIcon from '@lucide/svelte/icons/list-tree';
 	import PlusIcon from '@lucide/svelte/icons/plus';
-	import { taskRoadmapDrag, type TaskRoadmapDragOffsets } from './task-roadmap-drag-action';
+	import { onMount, untrack } from 'svelte';
+	import { taskRoadmapDrag } from './task-roadmap-drag-action';
 	import { hasRelatedTasks, relatedTaskIDs } from './task-roadmap-focus';
+	import { loadTaskRoadmapHolidays, noTaskRoadmapHolidays } from './task-roadmap-holidays';
 	import {
 		buildTaskRoadmap,
-		shiftTaskDateRange,
+		formatTaskRoadmapMonth,
+		formatTaskRoadmapWeekday,
+		isTaskRoadmapWeekend,
+		moveTaskDateRange,
 		taskDateRange,
 		taskRoadmapBar,
-		taskRoadmapMonthDays,
+		taskRoadmapDays,
+		taskRoadmapMonthFromKey,
+		taskRoadmapMonthKey,
 		taskRoadmapMonthOf,
+		taskRoadmapMonthSegments,
 		type TaskDateRange,
 		type TaskRoadmapBar,
 		type TaskRoadmapMonth
@@ -34,6 +43,7 @@
 		tasks: Task[];
 		allTasks: Task[];
 		serverChildProgress?: Record<string, TaskChildProgress>;
+		centerMonth: TaskRoadmapMonth;
 		month: TaskRoadmapMonth;
 		todayISO: string;
 		text: TaskRoadmapText;
@@ -44,22 +54,78 @@
 		selectMonth: (month: TaskRoadmapMonth) => void;
 	};
 
-	let { tasks, allTasks, serverChildProgress, month, todayISO, text, statusLabel, openTask, canUpdateTask, updateTaskDates, selectMonth }: Props = $props();
+	let { tasks, allTasks, serverChildProgress, centerMonth, month, todayISO, text, statusLabel, openTask, canUpdateTask, updateTaskDates, selectMonth }: Props = $props();
 
 	const dayWidthRem = 2;
+	const leftColumnClass = 'w-80 max-sm:w-56';
+	const visibleMonthProbe = 1 / 3;
 	let childProgressByParent = $derived(serverChildProgress ? new Map(Object.entries(serverChildProgress)) : buildTaskChildProgressByParent(allTasks));
-	let days = $derived(taskRoadmapMonthDays(month));
+	let days = $derived(taskRoadmapDays(centerMonth));
+	let monthSegments = $derived(taskRoadmapMonthSegments(days));
 	let todayIndex = $derived(days.indexOf(todayISO));
-	let groups = $derived(buildTaskRoadmap(tasks, month, childProgressByParent));
+	let groups = $derived(buildTaskRoadmap(tasks, days, childProgressByParent));
+	let holidays = $state(noTaskRoadmapHolidays);
 	let collapsedStatuses = $state(new Set(['completed']));
 	let selectedTaskID = $state('');
 	let highlightedTaskIDs = $derived(selectedTaskID ? relatedTaskIDs(selectedTaskID, allTasks) : null);
 	let movedRanges = $state(new Map<string, TaskDateRange>());
+	let scrollerElement = $state<HTMLElement | null>(null);
 	let timelineElement = $state<HTMLElement | null>(null);
-	let roadmapElement = $state<HTMLElement | null>(null);
+	let leftColumnElement = $state<HTMLElement | null>(null);
+
+	onMount(() => {
+		scrollToToday();
+		const firstDayISO = days[0];
+		const lastDayISO = days.at(-1);
+		if (!firstDayISO || !lastDayISO) return;
+		loadTaskRoadmapHolidays(firstDayISO, lastDayISO, text.roadmap.holidayLocale === 'en' ? 'en' : 'ko')
+			.then((loaded) => { holidays = loaded; })
+			.catch((error: unknown) => { console.warn('task roadmap holidays unavailable', { error }); });
+	});
+
+	$effect(() => {
+		const selectedKey = taskRoadmapMonthKey(month);
+		untrack(() => {
+			if (selectedKey !== visibleMonthKey()) scrollToMonth(month);
+		});
+	});
 
 	function dayWidthPixels(): number {
 		return timelineElement ? timelineElement.clientWidth / Math.max(1, days.length) : 32;
+	}
+
+	function timelineViewportWidth(): number {
+		return (scrollerElement?.clientWidth ?? 0) - (leftColumnElement?.offsetWidth ?? 0);
+	}
+
+	function scrollToDay(dayIndex: number): void {
+		if (!scrollerElement) return;
+		scrollerElement.scrollLeft = Math.max(0, dayIndex) * dayWidthPixels();
+	}
+
+	function scrollToToday(): void {
+		const todayDay = Math.max(todayIndex, 0);
+		const todaySegment = monthSegments.find((segment) => todayDay >= segment.firstDay && todayDay < segment.firstDay + segment.dayCount);
+		const probeOffset = Math.floor((timelineViewportWidth() / dayWidthPixels()) * visibleMonthProbe);
+		scrollToDay(Math.max(todaySegment?.firstDay ?? 0, todayDay - probeOffset));
+	}
+
+	function scrollToMonth(target: TaskRoadmapMonth): void {
+		const segment = monthSegments.find((candidate) => taskRoadmapMonthKey(candidate.month) === taskRoadmapMonthKey(target));
+		if (segment) scrollToDay(segment.firstDay);
+	}
+
+	function visibleMonthKey(): string {
+		if (!scrollerElement) return '';
+		const probeDay = Math.floor((scrollerElement.scrollLeft + timelineViewportWidth() * visibleMonthProbe) / dayWidthPixels());
+		const dayISO = days[Math.min(Math.max(probeDay, 0), days.length - 1)];
+		return dayISO ? taskRoadmapMonthKey(taskRoadmapMonthOf(dayISO)) : '';
+	}
+
+	function followScroll(): void {
+		const key = visibleMonthKey();
+		const visible = taskRoadmapMonthFromKey(key);
+		if (visible && key !== taskRoadmapMonthKey(month)) selectMonth(visible);
 	}
 
 	function shownBar(task: Task, bar: TaskRoadmapBar): TaskRoadmapBar {
@@ -76,7 +142,7 @@
 	}
 
 	function clearSelectionOutsideTasks(event: MouseEvent): void {
-		if (!selectedTaskID || !(event.target instanceof Element) || !roadmapElement?.contains(event.target)) return;
+		if (!selectedTaskID || !(event.target instanceof Element) || !scrollerElement?.contains(event.target)) return;
 		if (!event.target.closest('button')) selectedTaskID = '';
 	}
 
@@ -94,15 +160,15 @@
 		movedRanges = next;
 	}
 
-	function previewDrag(task: Task, offsets: TaskRoadmapDragOffsets): void {
+	function previewMove(task: Task, dayOffset: number): void {
 		const range = taskDateRange(task);
-		if (range) setMovedRange(task.id, shiftTaskDateRange(range, offsets.startOffset, offsets.endOffset));
+		if (range) setMovedRange(task.id, moveTaskDateRange(range, dayOffset));
 	}
 
-	async function commitDrag(task: Task, offsets: TaskRoadmapDragOffsets): Promise<void> {
+	async function commitMove(task: Task, dayOffset: number): Promise<void> {
 		const range = taskDateRange(task);
 		if (!range) return;
-		const next = shiftTaskDateRange(range, offsets.startOffset, offsets.endOffset);
+		const next = moveTaskDateRange(range, dayOffset);
 		setMovedRange(task.id, next);
 		await updateTaskDates(task, next.startDate, next.endDate);
 		setMovedRange(task.id, undefined);
@@ -114,14 +180,12 @@
 		return 'outline';
 	}
 
-	function shortDate(dateISO: string): string {
-		return new Intl.DateTimeFormat(text.roadmap.dateLocale, { month: 'numeric', day: 'numeric', timeZone: 'UTC' }).format(new Date(`${dateISO}T00:00:00Z`));
+	function isRedDay(dayISO: string): boolean {
+		return isTaskRoadmapWeekend(dayISO) || holidays.dates.has(dayISO);
 	}
 
-	function dateRangeLabel(task: Task): string {
-		const range = movedRanges.get(task.id) ?? taskDateRange(task);
-		if (!range) return '';
-		return range.startDate === range.endDate ? shortDate(range.startDate) : `${shortDate(range.startDate)} – ${shortDate(range.endDate)}`;
+	function shortDate(dateISO: string): string {
+		return new Intl.DateTimeFormat(text.roadmap.dateLocale, { month: 'numeric', day: 'numeric', timeZone: 'UTC' }).format(new Date(`${dateISO}T00:00:00Z`));
 	}
 
 	function progressLabel(progress: TaskChildProgress): string {
@@ -139,16 +203,27 @@
 
 <svelte:window onclick={clearSelectionOutsideTasks} />
 
-<div bind:this={roadmapElement} class="overflow-x-auto rounded-lg border" data-task-roadmap>
+<div bind:this={scrollerElement} class="overflow-x-auto overscroll-x-contain rounded-lg border" onscroll={followScroll} data-task-roadmap>
 	<div class="w-max min-w-full">
 		<div class="flex border-b">
-			<div class="sticky left-0 z-20 flex w-80 shrink-0 items-end border-r bg-background px-3 pb-2 text-xs font-medium text-muted-foreground max-sm:w-56">{text.roadmap.taskColumn}</div>
-			<div bind:this={timelineElement} class="grid shrink-0" style={`${laneStyle()}; grid-template-columns: repeat(${days.length}, minmax(0, 1fr))`}>
-				{#each days as dayISO, index (dayISO)}
-					<div class="flex h-14 items-end justify-center pb-2 text-xs tabular-nums text-muted-foreground">
-						<span class={cn('inline-flex size-6 items-center justify-center rounded-full', index === todayIndex && 'bg-primary font-semibold text-primary-foreground')} data-roadmap-today={index === todayIndex ? 'true' : undefined}>{index + 1}</span>
-					</div>
-				{/each}
+			<div bind:this={leftColumnElement} class={cn('sticky left-0 z-20 flex shrink-0 items-end border-r bg-background px-3 pb-2 text-xs font-medium text-muted-foreground', leftColumnClass)}>{text.roadmap.taskColumn}</div>
+			<div bind:this={timelineElement} class="shrink-0" style={laneStyle()}>
+				<div class="flex h-5">
+					{#each monthSegments as segment (taskRoadmapMonthKey(segment.month))}
+						<div class="border-l px-2 text-xs leading-5 font-semibold whitespace-nowrap first:border-l-0" style={`width: ${segment.dayCount * dayWidthRem}rem`} data-roadmap-month={taskRoadmapMonthKey(segment.month)}>
+							<span class="sticky left-82 max-sm:left-58">{formatTaskRoadmapMonth(segment.month, text.roadmap.dateLocale)}</span>
+						</div>
+					{/each}
+				</div>
+				<div class="grid h-9" style={`grid-template-columns: repeat(${days.length}, minmax(0, 1fr))`}>
+					{#each days as dayISO, index (dayISO)}
+						{@const red = isRedDay(dayISO)}
+						<div class={cn('flex flex-col items-center justify-center text-xs leading-none tabular-nums', red ? 'text-destructive' : 'text-muted-foreground')} title={holidays.titles.get(dayISO)} data-roadmap-red-day={red ? 'true' : undefined}>
+							<span class="text-[0.625rem]">{formatTaskRoadmapWeekday(dayISO, text.roadmap.dateLocale)}</span>
+							<span class={cn('mt-0.5 inline-flex size-5 items-center justify-center rounded-full', index === todayIndex && 'bg-primary font-semibold text-primary-foreground')} data-roadmap-today={index === todayIndex ? 'true' : undefined}>{Number(dayISO.slice(8))}</span>
+						</div>
+					{/each}
+				</div>
 			</div>
 		</div>
 
@@ -156,7 +231,7 @@
 			{@const open = !collapsedStatuses.has(group.status)}
 			<Collapsible.Root {open} onOpenChange={(next) => toggleGroup(group.status, next)}>
 				<div class="flex border-b bg-muted/60">
-					<div class="sticky left-0 z-20 flex h-10 w-80 shrink-0 items-center bg-muted px-2 max-sm:w-56">
+					<div class={cn('sticky left-0 z-20 flex h-10 shrink-0 items-center bg-muted px-2', leftColumnClass)}>
 						<Collapsible.Trigger class={cn(buttonVariants({ variant: 'ghost', size: 'sm' }), 'gap-2')} data-roadmap-group={group.status}>
 							<ChevronRightIcon class={cn('transition-transform', open && 'rotate-90')} />
 							<span class="font-semibold">{statusLabel(group.status)}</span>
@@ -170,11 +245,14 @@
 						{@const bar = shownBar(row.task, row.bar)}
 						{@const dimmed = highlightedTaskIDs !== null && !highlightedTaskIDs.has(row.task.id)}
 						{@const selected = selectedTaskID === row.task.id}
-						<div class={cn('flex border-b transition-opacity', dimmed && 'opacity-40', selected && 'bg-muted/50')} data-roadmap-task={row.task.id} data-roadmap-dimmed={dimmed ? 'true' : undefined}>
-							<button type="button" class={cn('sticky left-0 z-10 flex w-80 shrink-0 items-center gap-2.5 border-r bg-background py-2 pr-3 pl-9 text-left max-sm:w-56 max-sm:pl-4', selected && 'bg-muted')} onclick={() => chooseTask(row.task)}>
+						<div class={cn('group flex border-b transition-opacity', dimmed && 'opacity-40', selected && 'bg-muted/50')} data-roadmap-task={row.task.id} data-roadmap-dimmed={dimmed ? 'true' : undefined}>
+							<button type="button" class={cn('sticky left-0 z-10 flex shrink-0 items-center gap-2.5 border-r bg-background py-2 pr-3 pl-9 text-left max-sm:pl-4', leftColumnClass, selected && 'bg-muted')} onclick={() => chooseTask(row.task)}>
 								<PersonAvatar name={row.task.ownerName} seed={row.task.ownerID || row.task.ownerName} memberID={row.task.ownerID} class="size-6" />
 								<span class="flex min-w-0 flex-1 flex-col gap-1.5">
-									<span class="truncate text-sm">{row.task.content}</span>
+									<span class="flex min-w-0 items-center gap-1.5">
+										{#if row.childProgress}<ListTreeIcon class="size-3.5 shrink-0 text-muted-foreground" aria-hidden="true" data-roadmap-parent-icon />{/if}
+										<span class="truncate text-sm">{row.task.content}</span>
+									</span>
 									{#if selected}
 										<span class="text-xs text-muted-foreground" data-roadmap-open-hint>{text.roadmap.openAgain}</span>
 									{/if}
@@ -189,38 +267,36 @@
 							</button>
 							<div class="relative shrink-0" style={laneStyle()}>
 								{#if todayIndex >= 0}
-									<div class="pointer-events-none absolute inset-y-0 z-0 w-0.5 -translate-x-1/2 bg-primary" style={`left: ${(todayIndex + 0.5) * dayWidthRem}rem`}></div>
+									<div class="pointer-events-none absolute inset-y-0 z-0 w-px bg-primary/25" style={`left: ${(todayIndex + 0.5) * dayWidthRem}rem`} data-roadmap-today-line></div>
 								{/if}
 								{#if bar.kind === 'span'}
 									<button
 										type="button"
-										class={cn(buttonVariants({ variant: barVariant(row.task.status), size: 'sm' }), 'absolute top-1/2 z-[1] -translate-y-1/2 justify-start overflow-hidden', canUpdateTask(row.task) ? 'cursor-grab active:cursor-grabbing' : '', selected && 'ring-2 ring-ring', isTaskStatusCompleted(row.task.status) && 'line-through')}
+										class={cn(buttonVariants({ variant: barVariant(row.task.status), size: 'sm' }), 'absolute top-1/2 z-[1] -mt-3.5 justify-start overflow-hidden active:not-aria-[haspopup]:translate-y-0', canUpdateTask(row.task) && 'cursor-grab active:cursor-grabbing', selected && 'ring-2 ring-ring', isTaskStatusCompleted(row.task.status) && 'line-through')}
 										style={spanStyle(bar)}
+										title={row.task.content}
 										data-roadmap-bar={row.task.id}
 										onclick={() => chooseTask(row.task)}
 										use:taskRoadmapDrag={{
 											enabled: canUpdateTask(row.task),
 											dayWidth: dayWidthPixels,
-											onPreview: (offsets) => previewDrag(row.task, offsets),
-											onCommit: (offsets) => void commitDrag(row.task, offsets),
+											onPreview: (dayOffset) => previewMove(row.task, dayOffset),
+											onCommit: (dayOffset) => void commitMove(row.task, dayOffset),
 											onCancel: () => setMovedRange(row.task.id, undefined)
 										}}
 									>
-										{#if canUpdateTask(row.task) && !bar.startsBefore}<span class="absolute inset-y-1 left-0.5 w-1.5 cursor-ew-resize rounded-full opacity-0 hover:opacity-60 bg-current" data-roadmap-handle="start" title={text.roadmap.resizeStart}></span>{/if}
 										<span class="truncate">{row.task.content}</span>
-										<span class="truncate font-normal opacity-70">{dateRangeLabel(row.task)}</span>
-										{#if canUpdateTask(row.task) && !bar.endsAfter}<span class="absolute inset-y-1 right-0.5 w-1.5 cursor-ew-resize rounded-full opacity-0 hover:opacity-60 bg-current" data-roadmap-handle="end" title={text.roadmap.resizeEnd}></span>{/if}
 									</button>
 								{:else if bar.kind === 'before'}
-									<button type="button" class={cn(buttonVariants({ variant: 'outline', size: 'sm' }), 'absolute top-1/2 left-2 -translate-y-1/2')} onclick={() => selectMonth(taskRoadmapMonthOf(bar.dateISO))}>
+									<button type="button" class={cn(buttonVariants({ variant: 'outline', size: 'sm' }), 'absolute top-1/2 left-2 -mt-3.5')} onclick={() => scrollToDay(0)}>
 										<ArrowLeftIcon />{row.task.content} · {shortDate(bar.dateISO)}
 									</button>
 								{:else if bar.kind === 'after'}
-									<button type="button" class={cn(buttonVariants({ variant: 'outline', size: 'sm' }), 'absolute top-1/2 right-2 -translate-y-1/2')} onclick={() => selectMonth(taskRoadmapMonthOf(bar.dateISO))}>
+									<button type="button" class={cn(buttonVariants({ variant: 'outline', size: 'sm' }), 'absolute top-1/2 right-2 -mt-3.5')} onclick={() => scrollToDay(days.length)}>
 										{row.task.content} · {shortDate(bar.dateISO)}<ArrowRightIcon />
 									</button>
 								{:else}
-									<button type="button" class={cn(buttonVariants({ variant: 'ghost', size: 'sm' }), 'absolute top-1/2 -translate-y-1/2 border-dashed border-border text-muted-foreground')} style={`left: ${(Math.max(todayIndex, 0) + 1) * dayWidthRem}rem`} onclick={() => openTask(row.task)}>
+									<button type="button" class={cn(buttonVariants({ variant: 'ghost', size: 'sm' }), 'absolute top-1/2 -mt-3.5 border-dashed border-border text-muted-foreground opacity-0 group-hover:opacity-100 focus-visible:opacity-100')} style={`left: ${(Math.max(todayIndex, 0) + 1) * dayWidthRem}rem`} onclick={() => openTask(row.task)} data-roadmap-add-dates={row.task.id}>
 										<PlusIcon />{text.roadmap.addDates}
 									</button>
 								{/if}
