@@ -23,14 +23,13 @@
 		taskDateRange,
 		taskRoadmapBar,
 		taskRoadmapDays,
-		taskRoadmapMonthFromKey,
 		taskRoadmapMonthKey,
-		taskRoadmapMonthOf,
 		taskRoadmapMonthSegments,
 		type TaskDateRange,
 		type TaskRoadmapBar,
 		type TaskRoadmapMonth
 	} from './task-roadmap-model';
+	import { taskRoadmapMonthScrollDay, taskRoadmapTodayScrollDay, taskRoadmapVisibleMonth } from './task-roadmap-scroll';
 	import { buildTaskChildProgressByParent, type TaskChildProgress } from './task-relationships';
 	import { isTaskStatusCompleted, isTaskStatusInProgress } from './task-status';
 	import type { Task } from './task-types';
@@ -58,7 +57,6 @@
 
 	const dayWidthRem = 2;
 	const leftColumnClass = 'w-80 max-sm:w-56';
-	const visibleMonthProbe = 1 / 3;
 	let childProgressByParent = $derived(serverChildProgress ? new Map(Object.entries(serverChildProgress)) : buildTaskChildProgressByParent(allTasks));
 	let days = $derived(taskRoadmapDays(centerMonth));
 	let monthSegments = $derived(taskRoadmapMonthSegments(days));
@@ -86,7 +84,8 @@
 	$effect(() => {
 		const selectedKey = taskRoadmapMonthKey(month);
 		untrack(() => {
-			if (selectedKey !== visibleMonthKey()) scrollToMonth(month);
+			const visible = visibleMonth();
+			if (!visible || selectedKey !== taskRoadmapMonthKey(visible)) scrollToMonth(month);
 		});
 	});
 
@@ -103,29 +102,27 @@
 		scrollerElement.scrollLeft = Math.max(0, dayIndex) * dayWidthPixels();
 	}
 
+	function visibleDays(): number {
+		return timelineViewportWidth() / dayWidthPixels();
+	}
+
 	function scrollToToday(): void {
-		const todayDay = Math.max(todayIndex, 0);
-		const todaySegment = monthSegments.find((segment) => todayDay >= segment.firstDay && todayDay < segment.firstDay + segment.dayCount);
-		const probeOffset = Math.floor((timelineViewportWidth() / dayWidthPixels()) * visibleMonthProbe);
-		scrollToDay(Math.max(todaySegment?.firstDay ?? 0, todayDay - probeOffset));
+		scrollToDay(taskRoadmapTodayScrollDay(monthSegments, todayIndex, visibleDays()));
 	}
 
 	function scrollToMonth(target: TaskRoadmapMonth): void {
-		const segment = monthSegments.find((candidate) => taskRoadmapMonthKey(candidate.month) === taskRoadmapMonthKey(target));
-		if (segment) scrollToDay(segment.firstDay);
+		const firstDay = taskRoadmapMonthScrollDay(monthSegments, target);
+		if (firstDay !== undefined) scrollToDay(firstDay);
 	}
 
-	function visibleMonthKey(): string {
-		if (!scrollerElement) return '';
-		const probeDay = Math.floor((scrollerElement.scrollLeft + timelineViewportWidth() * visibleMonthProbe) / dayWidthPixels());
-		const dayISO = days[Math.min(Math.max(probeDay, 0), days.length - 1)];
-		return dayISO ? taskRoadmapMonthKey(taskRoadmapMonthOf(dayISO)) : '';
+	function visibleMonth(): TaskRoadmapMonth | undefined {
+		if (!scrollerElement) return undefined;
+		return taskRoadmapVisibleMonth(days, scrollerElement.scrollLeft / dayWidthPixels(), visibleDays());
 	}
 
 	function followScroll(): void {
-		const key = visibleMonthKey();
-		const visible = taskRoadmapMonthFromKey(key);
-		if (visible && key !== taskRoadmapMonthKey(month)) selectMonth(visible);
+		const visible = visibleMonth();
+		if (visible && taskRoadmapMonthKey(visible) !== taskRoadmapMonthKey(month)) selectMonth(visible);
 	}
 
 	function shownBar(task: Task, bar: TaskRoadmapBar): TaskRoadmapBar {

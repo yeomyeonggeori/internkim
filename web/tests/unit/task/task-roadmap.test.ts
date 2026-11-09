@@ -8,6 +8,7 @@ import {
 	taskRoadmapDays,
 	taskRoadmapMonthSegments
 } from '../../../src/routes/task/task-roadmap-model';
+import { taskRoadmapMonthScrollDay, taskRoadmapTodayScrollDay, taskRoadmapVisibleMonth } from '../../../src/routes/task/task-roadmap-scroll';
 import type { Task } from '../../../src/routes/task/task-types';
 
 const november = { year: 2026, month: 11 };
@@ -88,6 +89,30 @@ describe('timeline', () => {
 
 	test('weekends are red days', () => {
 		expect(['2026-11-07', '2026-11-08', '2026-11-09'].map(isTaskRoadmapWeekend)).toEqual([true, true, false]);
+	});
+});
+
+describe('timeline scroll', () => {
+	const days = taskRoadmapDays(november, 1);
+	const segments = taskRoadmapMonthSegments(days);
+
+	test('today opens at the start of its month while it fits in the first third of the view', () => {
+		expect(taskRoadmapTodayScrollDay(segments, days.indexOf('2026-11-09'), 30)).toBe(31);
+	});
+
+	test('late in the month today is kept a third into the view rather than pushed off it', () => {
+		expect(taskRoadmapTodayScrollDay(segments, days.indexOf('2026-11-28'), 30)).toBe(48);
+	});
+
+	test('a month scrolls to its first day, and a month outside the timeline does not scroll', () => {
+		expect(taskRoadmapMonthScrollDay(segments, { year: 2026, month: 12 })).toBe(61);
+		expect(taskRoadmapMonthScrollDay(segments, { year: 2027, month: 1 })).toBeUndefined();
+	});
+
+	test('the shown month is the one a third into the view, clamped to the timeline', () => {
+		expect(taskRoadmapVisibleMonth(days, 31, 30)).toEqual(november);
+		expect(taskRoadmapVisibleMonth(days, 0, 30)).toEqual({ year: 2026, month: 10 });
+		expect(taskRoadmapVisibleMonth(days, 500, 30)).toEqual({ year: 2026, month: 12 });
 	});
 });
 
