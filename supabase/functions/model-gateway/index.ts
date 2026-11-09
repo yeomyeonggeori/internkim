@@ -1,11 +1,11 @@
 import { callingAgent } from '../_shared/agent-caller.ts';
+import { defaultCreditUsageLimit } from '../_shared/credit-policy.ts';
 import { askedObject, refuse, serveRefusals } from '../_shared/http.ts';
 import { costOfAnswer, creditsOfCost, streamCostReader } from '../_shared/model-call-cost.ts';
 import { modelGatewayRoute } from '../_shared/model-gateway-route.ts';
 import type { SupabaseClient } from '../_shared/service-client.ts';
 
 const openRouterOrigin = 'https://openrouter.ai';
-const defaultUsageLimit = 10_000;
 const memberHeader = 'x-internkim-member';
 const guidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -31,7 +31,7 @@ Deno.serve(
 		const { data: refusal, error } = await client.rpc('company_member_credit_refusal', {
 			target_company: companyID,
 			target_member: memberID,
-			default_usage_limit: defaultUsageLimit
+			default_usage_limit: defaultCreditUsageLimit
 		});
 		if (error) refuse(502, `the record could not say whether this call may start: ${error.message}`);
 		if (refusal === 'not_a_member') refuse(403, 'that member is not one of this company');

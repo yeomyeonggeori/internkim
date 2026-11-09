@@ -69,6 +69,7 @@ export const companySettingsUpdateInputSchema = z.strictObject({
   workLocations: z.array(workLocationSchema).describe('The work locations attendance can be recorded at, in the order the screens list them. Replaces the whole list.').optional(),
   leaveDays: z.number().describe("The annual leave a person is granted, in days. It is the leave policy's annual grant, so this writes that, and attendance_leave_policy_set is where the rest of the policy is written.").optional(),
   teamViewVisibleToAll: z.boolean().describe("Whether everybody sees the whole company's attendance, or only the administrators do.").optional(),
+  creditUsageLimit: z.number().int().positive().describe('The most credits one member may spend in a subscription period. The same limit holds for every member.').optional(),
   profileImage: z.string().describe(`The picture the app shows beside the company's name: the storagePath company_image_upload answered for image '${companyPictureImage}', once the picture was PUT to its uploadURL. An empty string takes the picture down.`).optional(),
 });
 

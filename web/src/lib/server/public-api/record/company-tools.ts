@@ -37,6 +37,7 @@ export type CompanySettingsUpdateInput = {
 	workLocations?: { name?: string; color?: string }[];
 	leaveDays?: number;
 	teamViewVisibleToAll?: boolean;
+	creditUsageLimit?: number;
 	profileImage?: string;
 };
 
@@ -163,9 +164,13 @@ export async function companySettingsUpdate(
 			...(location.color?.trim() ? { color: location.color.trim() } : {})
 		}));
 	}
-	if (input.teamViewVisibleToAll !== undefined) {
+	if (input.teamViewVisibleToAll !== undefined || input.creditUsageLimit !== undefined) {
 		const held = await companyRow(context.caller);
-		change.rules = { ...(held.rules ?? {}), teamViewVisibleToAll: input.teamViewVisibleToAll };
+		change.rules = {
+			...(held.rules ?? {}),
+			...(input.teamViewVisibleToAll === undefined ? {} : { teamViewVisibleToAll: input.teamViewVisibleToAll }),
+			...(input.creditUsageLimit === undefined ? {} : { creditPolicy: { usageLimit: input.creditUsageLimit } })
+		};
 	}
 	if (input.leaveDays === undefined && input.profileImage === undefined && Object.keys(change).length === 0) {
 		throw new Error('a settings change names at least one setting to change');

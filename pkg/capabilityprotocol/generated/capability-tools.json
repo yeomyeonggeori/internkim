@@ -33656,6 +33656,12 @@
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
         "properties": {
+          "creditUsageLimit": {
+            "description": "The most credits one member may spend in a subscription period. The same limit holds for every member.",
+            "exclusiveMinimum": 0,
+            "maximum": 9007199254740991,
+            "type": "integer"
+          },
           "currencyCode": {
             "description": "The currency amounts are held in, as an ISO 4217 code, e.g. 'KRW'.",
             "maxLength": 3,
@@ -33723,6 +33729,12 @@
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
         "properties": {
+          "creditUsageLimit": {
+            "description": "The most credits one member may spend in a subscription period. The same limit holds for every member.",
+            "exclusiveMinimum": 0,
+            "maximum": 9007199254740991,
+            "type": "integer"
+          },
           "currencyCode": {
             "description": "The currency amounts are held in, as an ISO 4217 code, e.g. 'KRW'.",
             "maxLength": 3,
@@ -36508,6 +36520,262 @@
       },
       "sideEffect": "workspace_write",
       "sideEffectClass": "workspace_write",
+      "version": "1",
+      "worksOffline": false
+    },
+    {
+      "answeredBy": "record",
+      "availability": {
+        "state": "ok"
+      },
+      "canonicalName": "company_credits_get",
+      "description": "How the company pays for AI and what it has left: whether a subscription, the company's own key or nothing pays, the subscription credits left this period, when it ends and how many credits each billed seat brings, the purchased credits left, the most one member may spend in a period, and what the requester spent. An administrator also gets the billed seats and every member's spending; anybody else gets an empty members list and no seat count. Read this to answer 'how many credits are left' or 'how much have I used'.",
+      "estimatedLatency": "low",
+      "idempotency": {
+        "required": false,
+        "scope": "operation",
+        "supported": false
+      },
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {},
+        "type": "object"
+      },
+      "inputSchemaStrict": true,
+      "modelName": "company_credits_get",
+      "modelVisibility": "visible",
+      "modelVisible": true,
+      "name": "company_credits_get",
+      "namespace": "company",
+      "namespaceSummary": "The company's own record: its profile and settings, holidays, metrics over time, milestones and assets, and a data room of registered documents searchable by question.",
+      "outputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "billedSeats": {
+            "anyOf": [
+              {
+                "maximum": 9007199254740991,
+                "minimum": -9007199254740991,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "creditsPerSeat": {
+            "maximum": 9007199254740991,
+            "minimum": -9007199254740991,
+            "type": "integer"
+          },
+          "members": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "creditsUsed": {
+                  "maximum": 9007199254740991,
+                  "minimum": -9007199254740991,
+                  "type": "integer"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "personID": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "personID",
+                "name",
+                "creditsUsed"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "myCreditsUsed": {
+            "maximum": 9007199254740991,
+            "minimum": -9007199254740991,
+            "type": "integer"
+          },
+          "paidBy": {
+            "enum": [
+              "subscription",
+              "company_key",
+              "nothing"
+            ],
+            "type": "string"
+          },
+          "periodEndsAt": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "permanentCredits": {
+            "maximum": 9007199254740991,
+            "minimum": -9007199254740991,
+            "type": "integer"
+          },
+          "subscriptionCredits": {
+            "maximum": 9007199254740991,
+            "minimum": -9007199254740991,
+            "type": "integer"
+          },
+          "subscriptionStatus": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "usageLimit": {
+            "maximum": 9007199254740991,
+            "minimum": -9007199254740991,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "paidBy",
+          "subscriptionStatus",
+          "periodEndsAt",
+          "billedSeats",
+          "creditsPerSeat",
+          "subscriptionCredits",
+          "permanentCredits",
+          "usageLimit",
+          "myCreditsUsed",
+          "members"
+        ],
+        "type": "object"
+      },
+      "outputSchemaStrict": true,
+      "policyResource": "tool:company_credits_get",
+      "privacyClass": "workspace_company",
+      "requiresUserPresence": false,
+      "resultContract": {
+        "effects": [],
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "additionalProperties": false,
+          "properties": {
+            "billedSeats": {
+              "anyOf": [
+                {
+                  "maximum": 9007199254740991,
+                  "minimum": -9007199254740991,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "creditsPerSeat": {
+              "maximum": 9007199254740991,
+              "minimum": -9007199254740991,
+              "type": "integer"
+            },
+            "members": {
+              "items": {
+                "additionalProperties": false,
+                "properties": {
+                  "creditsUsed": {
+                    "maximum": 9007199254740991,
+                    "minimum": -9007199254740991,
+                    "type": "integer"
+                  },
+                  "name": {
+                    "type": "string"
+                  },
+                  "personID": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "personID",
+                  "name",
+                  "creditsUsed"
+                ],
+                "type": "object"
+              },
+              "type": "array"
+            },
+            "myCreditsUsed": {
+              "maximum": 9007199254740991,
+              "minimum": -9007199254740991,
+              "type": "integer"
+            },
+            "paidBy": {
+              "enum": [
+                "subscription",
+                "company_key",
+                "nothing"
+              ],
+              "type": "string"
+            },
+            "periodEndsAt": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "permanentCredits": {
+              "maximum": 9007199254740991,
+              "minimum": -9007199254740991,
+              "type": "integer"
+            },
+            "subscriptionCredits": {
+              "maximum": 9007199254740991,
+              "minimum": -9007199254740991,
+              "type": "integer"
+            },
+            "subscriptionStatus": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "usageLimit": {
+              "maximum": 9007199254740991,
+              "minimum": -9007199254740991,
+              "type": "integer"
+            }
+          },
+          "required": [
+            "paidBy",
+            "subscriptionStatus",
+            "periodEndsAt",
+            "billedSeats",
+            "creditsPerSeat",
+            "subscriptionCredits",
+            "permanentCredits",
+            "usageLimit",
+            "myCreditsUsed",
+            "members"
+          ],
+          "type": "object"
+        }
+      },
+      "sideEffect": "read",
+      "sideEffectClass": "read",
       "version": "1",
       "worksOffline": false
     },
