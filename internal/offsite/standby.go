@@ -91,7 +91,7 @@ func (cache ChunkCache) Materialize(ctx context.Context, destination Destination
 	}
 	for _, member := range manifest.Archive.Members {
 		if errorValue := writer.AddMember(member.Name, func(output io.Writer) error {
-			return cache.writeMember(ctx, destination, manifest, member, keyring, output)
+			return cache.WriteMember(ctx, destination, manifest, member, keyring, output)
 		}); errorValue != nil {
 			writer.Abandon()
 			return errorValue
@@ -106,7 +106,7 @@ func (cache ChunkCache) Materialize(ctx context.Context, destination Destination
 	return os.Rename(partialPath, archivePath)
 }
 
-func (cache ChunkCache) writeMember(ctx context.Context, destination Destination, manifest Manifest, member hostbackup.Member, keyring box.Keyring, output io.Writer) error {
+func (cache ChunkCache) WriteMember(ctx context.Context, destination Destination, manifest Manifest, member hostbackup.Member, keyring box.Keyring, output io.Writer) error {
 	hasher := sha256.New()
 	counter := &byteCounter{}
 	checked := io.MultiWriter(output, hasher, counter)

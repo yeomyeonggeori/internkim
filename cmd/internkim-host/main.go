@@ -110,6 +110,8 @@ func main() {
 		stopOnFailure("Restore stopped", runRestore(os.Args[2:]))
 	case "snapshot":
 		stopOnFailure("The snapshot was not kept", runSnapshot(os.Args[2:]))
+	case "wal-follow":
+		stopOnFailure("The company's WAL is no longer kept", runWalFollow(os.Args[2:]))
 	case "refresh":
 		stopOnFailure("The company was not brought back", runRefresh())
 	case blueclaw.SkillPreparationVerb:

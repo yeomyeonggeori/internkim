@@ -19,6 +19,7 @@ type RestoreRequest struct {
 	ArchivePath    string
 	Replace        bool
 	KeepsThisBox   bool
+	RebuildFromWAL func(dataDirectoryPath string) error
 	BeforeStarting func(companyID string) error
 	Now            time.Time
 }
@@ -87,7 +88,7 @@ func restoreWhileLocked(platform backupPlatform, request RestoreRequest, backupD
 	}
 	result.Connection = connection
 	fmt.Fprintln(progress, "5/6 Restoring the databases…")
-	if errorValue := restoreTheDatabases(platform, archive, machine, directoryPath, connection, progress); errorValue != nil {
+	if errorValue := restoreTheDatabases(platform, archive, machine, directoryPath, connection, request, progress); errorValue != nil {
 		return RestoreResult{}, errorValue
 	}
 	if request.BeforeStarting != nil {
@@ -344,7 +345,7 @@ func restoredCompany(manifest hostbackup.Manifest) (Connection, string, error) {
 	return connection, directoryPath, nil
 }
 
-func restoreTheDatabases(platform backupPlatform, archive hostbackup.Archive, machine Machine, directoryPath string, connection Connection, progress io.Writer) error {
+func restoreTheDatabases(platform backupPlatform, archive hostbackup.Archive, machine Machine, directoryPath string, connection Connection, request RestoreRequest, progress io.Writer) error {
 	if _, errorValue := PrepareStateDirectory(directoryPath, connection); errorValue != nil {
 		return errorValue
 	}
@@ -355,13 +356,25 @@ func restoreTheDatabases(platform backupPlatform, archive hostbackup.Archive, ma
 	if errorValue != nil {
 		return errorValue
 	}
+	settings := companyHostSettings{DirectoryPath: directoryPath, Connection: connection, DatabasePassword: password}
+	if request.RebuildFromWAL != nil {
+		isRebuilt, errorValue := rebuildTheDatabaseFromKeptWAL(platform, machine, request.RebuildFromWAL, request.Now, progress)
+		if errorValue != nil {
+			return errorValue
+		}
+		if isRebuilt {
+			if errorValue := prepareDatabases(platform, machine, settings, progress); errorValue != nil {
+				return errorValue
+			}
+			return rehomeTheMessengerCommunity(platform, machine, connection, progress)
+		}
+	}
 	if errorValue := platform.StartTheDatabaseAndTheCache(machine); errorValue != nil {
 		return errorValue
 	}
 	if errorValue := platform.RunDatabaseStatements(machine, databaseRemovalStatements(), progress); errorValue != nil {
 		return fmt.Errorf("the host's databases could not be emptied for the restore: %w", errorValue)
 	}
-	settings := companyHostSettings{DirectoryPath: directoryPath, Connection: connection, DatabasePassword: password}
 	if errorValue := prepareDatabases(platform, machine, settings, progress); errorValue != nil {
 		return errorValue
 	}

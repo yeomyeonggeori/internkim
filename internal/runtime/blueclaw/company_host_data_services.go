@@ -43,7 +43,8 @@ const (
 
 	companyHostDataDirectoryMode = "0750"
 	companyHostDataSocketMode    = "0660"
-	companyHostDatabasePort      = "5432"
+	CompanyHostDatabasePort      = "5432"
+	companyHostDatabaseIdentMap  = "internkim"
 	companyHostDatabaseCollation = "C.UTF-8"
 )
 
@@ -180,9 +181,10 @@ func CompanyHostDataServiceScript() string {
 		"@DATA@", CompanyHostDatabaseDataPath,
 		"@SOCKET_DIRECTORY@", CompanyHostDatabaseSocketDirectory,
 		"@SOCKET_MODE@", companyHostDataSocketMode,
-		"@PORT@", companyHostDatabasePort,
+		"@PORT@", CompanyHostDatabasePort,
 		"@COLLATION@", companyHostDatabaseCollation,
 		"@ROLE@", CompanyHostDatabaseUser,
+		"@IDENT_MAP@", companyHostDatabaseIdentMap,
 		"@CACHE_SOCKET@", CompanyHostCacheSocketPath,
 		"@CACHE_DATA@", CompanyHostCacheDataPath,
 	)
@@ -244,14 +246,22 @@ initialize_cluster() {
   if [ -r "$data/PG_VERSION" ]; then return 0; fi
   "$directory/initdb" --pgdata "$data" --username @ROLE@ --auth-local=peer --auth-host=reject \
     --encoding UTF8 --locale @COLLATION@ --data-checksums >/dev/null
+}
+
+write_access_rules() {
   printf '%s\n' \
-    'local all @ROLE@ peer' \
+    'local all @ROLE@ peer map=@IDENT_MAP@' \
+    'local replication @ROLE@ peer map=@IDENT_MAP@' \
     'local all all scram-sha-256' > "$data/pg_hba.conf"
+  printf '%s\n' \
+    '@IDENT_MAP@ @ROLE@ @ROLE@' \
+    '@IDENT_MAP@ root @ROLE@' > "$data/pg_ident.conf"
 }
 
 run_postgres() {
   directory="$(postgres_directory)"
   initialize_cluster "$directory"
+  write_access_rules
   exec "$directory/postgres" -D "$data" \
     -c listen_addresses= \
     -c logging_collector=off \

@@ -33,6 +33,13 @@ func BackupChunkPurpose(companyID, chunkID string) SealPurpose {
 	}
 }
 
+func WALPiecePurpose(companyID, pieceName string) SealPurpose {
+	return SealPurpose{
+		Information:    backupSealInformation,
+		AdditionalData: additionalDataOf(companyID, pieceName, "wal-piece"),
+	}
+}
+
 type streamSealer struct {
 	destination io.Writer
 	sender      *hpke.Sender
