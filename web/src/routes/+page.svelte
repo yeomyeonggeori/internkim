@@ -4,29 +4,20 @@
 	import HandIcon from '@lucide/svelte/icons/hand';
 	import ShieldCheckIcon from '@lucide/svelte/icons/shield-check';
 	import { onMount } from 'svelte';
-	import type { AppSection } from '$lib/components/app-section-icons';
 	import { hostInstallCommands } from '$lib/company/host-setup';
 	import { Button } from '$lib/components/ui/button';
 	import * as Card from '$lib/components/ui/card';
 	import * as Code from '$lib/components/ui/code';
 	import { currentLocale } from '$lib/i18n/locale.svelte';
 	import { createPageText } from '$lib/i18n/page-text.svelte';
-	import LandingAttendance from '$lib/landing/landing-attendance.svelte';
-	import LandingDataRoom from '$lib/landing/landing-data-room.svelte';
+	import LandingDay from '$lib/landing/landing-day.svelte';
 	import LandingDemo from '$lib/landing/landing-demo.svelte';
 	import LandingHeader from '$lib/landing/landing-header.svelte';
-	import LandingTasks from '$lib/landing/landing-tasks.svelte';
-	import LandingWindow from '$lib/landing/landing-window.svelte';
 	import { heldWhileSignedInAttribute, holdWhileSignedInScript } from '$lib/landing/hold-while-signed-in';
 	import { docsURL, makerURL, repositoryURL, signInPath, startCompanyPath } from '$lib/landing/links';
 	import { landingText } from '$lib/landing/text';
 
 	const text = createPageText(landingText);
-	const stories: { key: 'attendance' | 'work' | 'record'; section: AppSection; scene: typeof LandingAttendance }[] = [
-		{ key: 'attendance', section: 'attendance', scene: LandingAttendance },
-		{ key: 'work', section: 'task', scene: LandingTasks },
-		{ key: 'record', section: 'dataRoom', scene: LandingDataRoom }
-	];
 	const trustIcons = [ShieldCheckIcon, HandIcon, CodeXmlIcon];
 
 	onMount(() => document.documentElement.removeAttribute(heldWhileSignedInAttribute));
@@ -74,30 +65,10 @@
 			<LandingDemo />
 		</section>
 
-		<section class="bg-muted/40 border-y" aria-labelledby="landing-problems">
-			<div class="mx-auto grid w-full max-w-6xl gap-12 px-4 py-20 sm:px-6">
-				<h2 id="landing-problems" class="max-w-2xl text-3xl leading-tight font-bold tracking-tight break-keep text-balance sm:text-4xl">{text.problems.title}</h2>
-				<ol class="grid gap-10 md:grid-cols-3 md:gap-8">
-					{#each text.problems.items as item, index (item.answer)}
-						<li class="grid content-start gap-3 border-t pt-6">
-							<p class="text-muted-foreground text-sm tabular-nums"><span class="text-foreground font-semibold">0{index + 1}</span> · {item.problem}</p>
-							<h3 class="text-xl font-semibold break-keep">{item.answer}</h3>
-							<p class="text-muted-foreground leading-7 break-keep">{item.body}</p>
-						</li>
-					{/each}
-				</ol>
-			</div>
+		<section class="mx-auto grid w-full max-w-6xl gap-10 px-4 py-20 sm:px-6 sm:py-24" aria-labelledby="landing-day">
+			{@render sectionHeading('landing-day', text.day.title, text.day.lead)}
+			<LandingDay />
 		</section>
-
-		{#each stories as story (story.key)}
-			{@const copy = text.stories[story.key]}
-			<section class="mx-auto grid w-full max-w-6xl gap-10 px-4 py-20 sm:px-6 sm:py-24" aria-labelledby={`landing-${story.key}`}>
-				{@render sectionHeading(`landing-${story.key}`, copy.title, copy.body)}
-				<LandingWindow section={story.section}>
-					<story.scene />
-				</LandingWindow>
-			</section>
-		{/each}
 
 		<section class="bg-muted/40 border-y" aria-labelledby="landing-trust">
 			<div class="mx-auto grid w-full max-w-6xl gap-12 px-4 py-20 sm:px-6">
@@ -117,37 +88,39 @@
 
 		<section class="mx-auto grid w-full max-w-6xl gap-10 px-4 py-20 sm:px-6 sm:py-24" aria-labelledby="landing-plans">
 			{@render sectionHeading('landing-plans', text.plans.title, text.plans.lead)}
-			<div class="grid gap-4 lg:grid-cols-2">
+			<div class="grid gap-4">
 				<Card.Root>
 					<Card.Header><Card.Title class="text-lg">{text.plans.pay.title}</Card.Title></Card.Header>
 					<Card.Content>
-						<dl class="divide-y">
+						<dl class="grid gap-6 md:grid-cols-3 md:gap-0 md:divide-x">
 							{#each text.plans.pay.items as item (item.title)}
-								<div class="grid gap-1 py-3 first:pt-0 last:pb-0 sm:grid-cols-[9rem_minmax(0,1fr)] sm:gap-4">
+								<div class="grid content-start gap-1.5 md:px-6 md:first:pl-0 md:last:pr-0">
 									<dt class="font-medium">{item.title}</dt>
-									<dd class="text-muted-foreground break-keep">{item.body}</dd>
+									<dd class="text-muted-foreground leading-7 break-keep">{item.body}</dd>
 								</div>
 							{/each}
 						</dl>
 					</Card.Content>
 				</Card.Root>
-				<Card.Root>
-					<img src="/landing/kim-mini.webp" alt={text.plans.run.kimMini} width="1200" height="800" loading="lazy" class="-mt-6 aspect-[3/2] w-full rounded-t-xl border-b object-cover" />
-					<Card.Header><Card.Title class="text-lg">{text.plans.run.title}</Card.Title></Card.Header>
-					<Card.Content class="grid gap-4">
-						<dl class="divide-y">
-							{#each text.plans.run.items as item (item.title)}
-								<div class="grid gap-1 py-3 first:pt-0 last:pb-0 sm:grid-cols-[9rem_minmax(0,1fr)] sm:gap-4">
-									<dt class="font-medium">{item.title}</dt>
-									<dd class="text-muted-foreground break-keep">{item.body}</dd>
-								</div>
-							{/each}
-						</dl>
-						<Code.Root lang="bash" hideLines code={hostInstallCommands} class="text-xs">
-							<Code.CopyButton />
-						</Code.Root>
-						<a href={docsURL(currentLocale.value, 'self-hosting')} class="text-sm font-medium underline-offset-4 hover:underline">{text.plans.run.guide} →</a>
-					</Card.Content>
+				<Card.Root class="gap-0 overflow-hidden py-0 md:grid md:grid-cols-2">
+					<img src="/landing/kim-mini.webp" alt={text.plans.run.kimMini} width="1200" height="800" loading="lazy" class="aspect-[3/2] h-full w-full object-cover max-md:border-b md:border-r" />
+					<div class="grid content-start gap-6 py-6">
+						<Card.Header><Card.Title class="text-lg">{text.plans.run.title}</Card.Title></Card.Header>
+						<Card.Content class="grid gap-4">
+							<dl class="divide-y">
+								{#each text.plans.run.items as item (item.title)}
+									<div class="grid gap-1 py-3 first:pt-0 last:pb-0 sm:grid-cols-[7rem_minmax(0,1fr)] sm:gap-4">
+										<dt class="font-medium">{item.title}</dt>
+										<dd class="text-muted-foreground break-keep">{item.body}</dd>
+									</div>
+								{/each}
+							</dl>
+							<Code.Root lang="bash" hideLines code={hostInstallCommands} class="text-xs">
+								<Code.CopyButton />
+							</Code.Root>
+							<a href={docsURL(currentLocale.value, 'self-hosting')} class="text-sm font-medium underline-offset-4 hover:underline">{text.plans.run.guide} →</a>
+						</Card.Content>
+					</div>
 				</Card.Root>
 			</div>
 		</section>

@@ -17,11 +17,11 @@
 	import { appShellText } from '$lib/i18n/app-shell-text';
 	import { createPageText } from '$lib/i18n/page-text.svelte';
 	import type { ShownStep } from '$lib/messenger/agent-work';
+	import { agentPicture } from './links';
 	import { landingText } from './text';
 
 	const text = createPageText(landingText);
 	const shellText = createPageText(appShellText);
-	const agentPicture = '/agent-avatar.png';
 	const personTurnMilliseconds = 900;
 	const stepMilliseconds = 650;
 	const replyMilliseconds = 700;
