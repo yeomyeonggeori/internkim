@@ -21,6 +21,7 @@ import {
 	companySettingsUpdate
 } from './company-tools';
 import { companyImageUpload } from './service-files';
+import { companyCreditsGet } from './company-credits';
 import { crmActivityList, crmActivitySave } from './crm-activity-tools';
 import {
 	crmContactAdd,
@@ -182,6 +183,7 @@ const toolsOverTheRecord: Record<string, ToolRun> = {
 	attendance_leave_policy_set: (context, input) => attendanceLeavePolicySet(context, input),
 	company_settings_get: (context, input) => companySettingsGet(context, input),
 	company_settings_update: (context, input) => companySettingsUpdate(context, input),
+	company_credits_get: (context) => companyCreditsGet(context),
 	company_info_get: (context, input) => companyInfoGet(context, input),
 	company_info_set: (context, input) => companyInfoSet(context, input),
 	company_image_upload: (context, input) => companyImageUpload(context, input),
