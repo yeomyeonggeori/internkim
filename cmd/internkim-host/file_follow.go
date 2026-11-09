@@ -42,7 +42,10 @@ func runFileFollow(arguments []string) error {
 		return filestream.NewUnjournaledBarrier().Serve(ctx, blueclaw.CompanyHostFileJournalSocketPath, fileJournalSocketMode)
 	}
 	outer := ctx
-	hasSeveralBoxes := companyRunsOnSeveralBoxes()
+	hasSeveralBoxes, errorValue := untilTheBoxCountIsKnown(ctx)
+	if errorValue != nil {
+		return errorValue
+	}
 	watched, cancel := whileSeveralBoxesIs(ctx, hasSeveralBoxes)
 	defer cancel()
 	if !hasSeveralBoxes {
