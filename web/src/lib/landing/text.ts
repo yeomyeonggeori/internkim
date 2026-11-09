@@ -87,11 +87,12 @@ export const landingText = {
 					{ title: '회사 컴퓨터', body: '늘 켜 둘 리눅스 서버나 Mac에 명령 두 줄로 설치합니다.' },
 					{ title: '직접 운영', body: '앱과 데이터베이스까지 회사가 직접 운영합니다.' }
 				],
-				guide: '셀프호스팅 안내'
+				guide: '셀프호스팅 안내',
+				kimMini: '안테나가 달린 은색 정사각형 상자 앞면에 김인턴 얼굴이 새겨진 김미니'
 			}
 		},
 		closing: { title: '회사를 만들고 동료를 초대하세요', quickstart: '빠른 시작 읽기' },
-		footer: { madeBy: '여명거리가 만듭니다', license: 'Apache-2.0' }
+		footer: { owner: '여명거리', rights: '모든 권리 보유.', license: 'Apache-2.0' }
 	},
 	en: {
 		title: 'Intern Kim · A back office with an AI coworker',
@@ -181,10 +182,11 @@ export const landingText = {
 					{ title: 'Your computer', body: 'Install with two commands on a Linux server or Mac that stays on.' },
 					{ title: 'Self-hosting', body: 'Run the app and database yourself.' }
 				],
-				guide: 'Self-hosting guide'
+				guide: 'Self-hosting guide',
+				kimMini: 'Kim mini, a square silver box with an antenna and the Intern Kim face on the front'
 			}
 		},
 		closing: { title: 'Create a company and invite your team', quickstart: 'Read the quickstart' },
-		footer: { madeBy: 'Made by Yeomyeonggeori', license: 'Apache-2.0' }
+		footer: { owner: 'Yeomyeonggeori', rights: 'All rights reserved.', license: 'Apache-2.0' }
 	}
 } as const;
