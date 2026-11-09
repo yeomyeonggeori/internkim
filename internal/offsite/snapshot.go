@@ -32,9 +32,18 @@ const (
 var ErrNoBackup = errors.New("the company keeps no snapshot this box can open")
 
 type Destination struct {
-	Store      Store
-	CompanyID  string
-	SealingKey string
+	Store       Store
+	CompanyID   string
+	SealingKey  string
+	ChunkFolder string
+}
+
+func (destination Destination) chunkFolderPath() string {
+	folder := destination.ChunkFolder
+	if folder == "" {
+		folder = chunkFolder
+	}
+	return destination.CompanyID + "/" + folder + "/"
 }
 
 type Manifest struct {
@@ -59,7 +68,7 @@ func (destination Destination) snapshotPath(name string) string {
 }
 
 func (destination Destination) chunkPath(chunkID string) string {
-	return destination.CompanyID + "/" + chunkFolder + "/" + chunkID
+	return destination.chunkFolderPath() + chunkID
 }
 
 func snapshotNameAt(now time.Time) string {
@@ -81,7 +90,7 @@ func StartSnapshot(ctx context.Context, destination Destination, keyring box.Key
 	if errorValue != nil {
 		return nil, errorValue
 	}
-	listed, errorValue := destination.Store.List(ctx, destination.CompanyID+"/"+chunkFolder+"/")
+	listed, errorValue := destination.Store.List(ctx, destination.chunkFolderPath())
 	if errorValue != nil {
 		return nil, errorValue
 	}
@@ -155,6 +164,18 @@ func (snapshot *Snapshot) Finish(archive hostbackup.Manifest, now time.Time) (Ma
 		return Manifest{}, errorValue
 	}
 	return manifest, snapshot.destination.Store.Put(snapshot.ctx, snapshot.destination.snapshotPath(manifest.Name), document)
+}
+
+func (snapshot *Snapshot) Members() []hostbackup.Member {
+	return slices.Clone(snapshot.members)
+}
+
+func (snapshot *Snapshot) Chunks() map[string][]string {
+	chunks := make(map[string][]string, len(snapshot.chunks))
+	for name, identifiers := range snapshot.chunks {
+		chunks[name] = slices.Clone(identifiers)
+	}
+	return chunks
 }
 
 func (snapshot *Snapshot) UploadedChunks() int {
@@ -242,7 +263,7 @@ func sweepUnreferencedChunks(ctx context.Context, destination Destination, keptN
 			referenced[identifier] = true
 		}
 	}
-	listed, errorValue := destination.Store.List(ctx, destination.CompanyID+"/"+chunkFolder+"/")
+	listed, errorValue := destination.Store.List(ctx, destination.chunkFolderPath())
 	if errorValue != nil {
 		return errorValue
 	}

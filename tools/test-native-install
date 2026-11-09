@@ -240,6 +240,12 @@ printf 'serverkey=%%s\n' "$(tr '\0' '\n' < /proc/${pid:-0}/environ 2>/dev/null |
 printf 'connected=%%s\n' "$(journalctl -u %(unit)s --no-pager -n 500 2>/dev/null | grep -c 'gateway connected for company %(company)s' || true)"
 """
 
+WAL_FOLLOW_UNIT_NAME = "internkim-wal-follow"
+
+KEPT_WAL_COMMAND = r"""
+journalctl -u %(unit)s --no-pager -n 200 2>&1 | grep -E 'following the company|kept the base backup|keeping a base backup' || systemctl status %(unit)s --no-pager 2>&1 | tail -20
+"""
+
 # The messenger keeps its own store on the company's machine, and a message that
 # crossed the gateway is a row in it. Read with the credentials the box wrote for
 # the relay, by a path that did not write the row.
@@ -1619,12 +1625,16 @@ class Rig:
         self.observe_the_standby_takes_work(step, second)
         self.keep_a_snapshot(step)
         self.observe_the_standby_keeps_up(step, second)
+        self.observe_the_company_keeps_wal(step)
+        self.message_text = message_asking_for_an_answer("after the newest snapshot, just before the first box goes dark")
+        self.observe_the_member_round_trip(step, self.plane)
 
         first.power_off()
         self.take_over_with(step, second, second_key)
         with self.driving(second, self.files_command):
             self.observe_running_services(step)
             self.observe_the_message_came_across(step)
+            self.observe_the_message_came_across(step, newest=True)
             self.observe_the_host_holds_the_gateway_socket(step)
             self.message_text = message_asking_for_an_answer("after the second box took over")
             self.observe_the_member_round_trip(step, self.plane)
@@ -1775,16 +1785,37 @@ class Rig:
             f"make serve answered {status}: {str(answer)[:300]}\nthe relay connected {seconds}s later\n{connected.stdout.strip()}",
         )
 
-    def observe_the_message_came_across(self, step):
-        message_id, message_text = self.sent_messages[0] if self.sent_messages else ("", "")
+    def observe_the_message_came_across(self, step, newest=False):
+        sent = self.sent_messages[-1 if newest else 0] if self.sent_messages else ("", "")
+        message_id, message_text = sent
         stored = self.machine.shell(
             MESSENGER_STORE_COMMAND % {"path": MESSENGER_DATABASE_PATH, "message": message_id or "no-message"}
         )
+        if newest:
+            observation = step.observe(
+                "the message sent moments before the first box went dark is in the second box's messenger",
+                f"the row the last message id sent to the first box names, read on the second guest through {MESSENGER_DATABASE_PATH}",
+                "it was sent after the newest snapshot, so only WAL kept before the commit counted can have carried it",
+            )
+        else:
+            observation = step.observe(
+                "the message sent to the first box is in the second box's messenger",
+                f"the row the earlier message id names, read on the second guest through {MESSENGER_DATABASE_PATH}",
+                "a take-over that brings the services up on an empty messenger is a new company with the old name",
+            )
+        observation.record(bool(message_id) and message_text in stored.stdout, stored.stdout.strip()[-300:])
+
+    def observe_the_company_keeps_wal(self, step):
+        reading = self.machine.wait_until(
+            KEPT_WAL_COMMAND % {"unit": WAL_FOLLOW_UNIT_NAME},
+            lambda said: "kept the base backup" in said,
+            timeout_seconds=600,
+        )
         step.observe(
-            "the message sent to the first box is in the second box's messenger",
-            f"the row the earlier message id names, read on the second guest through {MESSENGER_DATABASE_PATH}",
-            "a take-over that brings the services up on an empty messenger is a new company with the old name",
-        ).record(bool(message_id) and message_text in stored.stdout, stored.stdout.strip()[-300:])
+            "the serving box keeps a base backup and follows its database's WAL off the box",
+            f"what {WAL_FOLLOW_UNIT_NAME} on the serving box logged",
+            "without a base backup the standby can only take over from the snapshot, which misses what came after it",
+        ).record("kept the base backup" in reading.stdout, reading.stdout.strip()[-600:] or "it logged nothing")
 
     def wait_in_machine(self, machine, script, is_ready, timeout_seconds=300):
         with self.driving(machine, self.files_command):
