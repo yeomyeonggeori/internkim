@@ -85,6 +85,7 @@
 		"jose": "^6.2.11",
 		"jszip": "3.10.1",
 		"marked": "^18.0.4",
+		"mediabunny": "^1.65.2",
 		"nostr-tools": "^2.24.1",
 		"pdf-lib": "1.17.1",
 		"pdfjs-dist": "6.3.289",

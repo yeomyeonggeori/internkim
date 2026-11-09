@@ -105,7 +105,7 @@
 		event.preventDefault();
 		const trimmed = value.trim();
 		const attachments = pendingAttachments.outgoing;
-		if ((!trimmed && attachments.length === 0) || isSending) return;
+		if ((!trimmed && attachments.length === 0) || !pendingAttachments.isReady || isSending) return;
 		const outgoingMentions = mentions.mentionsIn(trimmed);
 		isSending = true;
 		value = '';
@@ -210,7 +210,7 @@
 			<InputGroup.Addon align="block-start" class="composer-attachments">
 				<Attachment.Group class="w-full">
 					{#each pendingAttachments.items as pending (pending.id)}
-						<Attachment.Root size="sm">
+						<Attachment.Root size="sm" state={pending.state}>
 							{#if pending.isImage}
 								<Attachment.Media variant="image">
 									<img src={pending.previewURL} alt="" />
@@ -221,14 +221,22 @@
 								</Attachment.Media>
 							{/if}
 							<Attachment.Content>
-								<Attachment.Title>{pending.attachment.filename}</Attachment.Title>
-								<Attachment.Description>
-									{formatAttachmentMeta({
-										mimeType: pending.attachment.contentType,
-										filename: pending.attachment.filename,
-										sizeBytes: pending.sizeBytes
-									})}
-								</Attachment.Description>
+								<Attachment.Title>{pending.filename}</Attachment.Title>
+								{#if pending.state === 'processing'}
+									<Attachment.Description>{text.attachmentPreparing}</Attachment.Description>
+								{:else if pending.state === 'error'}
+									<Attachment.Description title={pending.failure}>
+										{text.attachmentCannotBeSent}
+									</Attachment.Description>
+								{:else}
+									<Attachment.Description>
+										{formatAttachmentMeta({
+											mimeType: pending.contentType,
+											filename: pending.filename,
+											sizeBytes: pending.sizeBytes
+										})}
+									</Attachment.Description>
+								{/if}
 							</Attachment.Content>
 							<Attachment.Actions>
 								<Attachment.Action aria-label={text.removeAttachment} onclick={() => pendingAttachments.remove(pending.id)}>
@@ -351,7 +359,10 @@
 		class={className}
 		onclick={() => feelHaptic('touch')}
 		onpointerdown={(event) => event.preventDefault()}
-		disabled={disabled || (value.trim().length === 0 && pendingAttachments.items.length === 0) || isSending}
+		disabled={disabled ||
+			(value.trim().length === 0 && pendingAttachments.items.length === 0) ||
+			!pendingAttachments.isReady ||
+			isSending}
 	>
 		<ArrowUpIcon />
 		<span class="sr-only">{text.send}</span>

@@ -86,6 +86,10 @@ const reencodedImageTypes = new Set(['image/png', 'image/jpeg', 'image/webp']);
 
 export async function fileToAttachment(file: File): Promise<ChannelOutgoingAttachment> {
 	if (reencodedImageTypes.has(file.type)) return reencodeImage(file);
+	if (file.type.startsWith('video/')) {
+		const { convertVideoForRelay } = await import('./channel-video-conversion');
+		return convertVideoForRelay(file);
+	}
 	return {
 		filename: file.name,
 		contentType: file.type || 'application/octet-stream',
