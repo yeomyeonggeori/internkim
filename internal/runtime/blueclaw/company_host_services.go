@@ -307,7 +307,7 @@ func companyHostCapabilityService(layout CompanyHostLayout) CompanyHostService {
 }
 
 func companyHostAgentService(layout CompanyHostLayout) CompanyHostService {
-	return CompanyHostService{
+	service := CompanyHostService{
 		Name:        BlueclawServiceName,
 		Description: "Blueclaw",
 		Command: []string{
@@ -327,6 +327,10 @@ func companyHostAgentService(layout CompanyHostLayout) CompanyHostService {
 		StopTimeoutSeconds:    30,
 		WaitsForTheFileAtPath: layout.RuntimeDocumentPath(),
 	}
+	if layout.OwnsItsDataServices() {
+		service.Command = append(service.Command, "-file-journal-socket", CompanyHostFileJournalSocketPath)
+	}
+	return service
 }
 
 func companyHostAdminService(layout CompanyHostLayout) CompanyHostService {
