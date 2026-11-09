@@ -28,6 +28,7 @@
 		newestBackupAt: null,
 		takeOver: { isAutomatic: false, lapseSeconds: 300 },
 		isServedByConnectionFile: false,
+		subscriptionPaysForModels: false,
 		empty: []
 	});
 	let modelKey = $state('');
@@ -237,7 +238,9 @@
 				<BoxTakeOver takeOver={boxes.takeOver} onKept={(kept) => (boxes = { ...kept, empty: boxes.empty })} />
 			{/if}
 		{/if}
-		{#if step === 'connected' && !isChangingModelKey}
+		{#if boxes.subscriptionPaysForModels}
+			<p class="text-sm text-muted-foreground">{text.subscriptionPaysForModels}</p>
+		{:else if step === 'connected' && !isChangingModelKey}
 			<Button variant="outline" class="justify-self-start" onclick={() => (isChangingModelKey = true)}>{text.changeModelKey}</Button>
 		{/if}
 	{/if}
@@ -285,7 +288,7 @@
 		{@render waitingBoxes()}
 	{/if}
 
-	{#if step === 'givingModelKey' || isChangingModelKey}
+	{#if !boxes.subscriptionPaysForModels && (step === 'givingModelKey' || isChangingModelKey)}
 		<form onsubmit={sendModelKey}>
 			<Field.Field>
 				<Field.Label for="box-model-key">{text.modelKey}</Field.Label>

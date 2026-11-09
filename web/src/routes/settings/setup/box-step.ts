@@ -4,7 +4,7 @@ import type { Boxes } from './host-setup-client';
 export type BoxStep = 'searching' | 'choosing' | 'givingModelKey' | 'connected';
 
 export function boxStepOf(boxes: Boxes): BoxStep {
-	if (boxes.boxes.length > 0 && boxes.hasModelKey) return 'connected';
+	if (boxes.boxes.length > 0 && (boxes.hasModelKey || boxes.subscriptionPaysForModels)) return 'connected';
 	if (boxes.boxes.length > 0) return 'givingModelKey';
 	if (boxes.empty.length > 0) return 'choosing';
 	return 'searching';
