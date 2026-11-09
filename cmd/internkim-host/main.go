@@ -327,6 +327,7 @@ func boxDaemon(appURL string) box.Daemon {
 			CredentialPaths:           []string{blueclaw.CompanyHostAgentKeyPath, blueclaw.RelayAgentKeyPath},
 			StagedCredentialPaths:     []string{blueclaw.LinuxCompanyHostLayout().RunAgentKeyPath()},
 			WorkQueuePath:             blueclaw.CompanyHostWorkQueuePath,
+			SeveralBoxesPath:          blueclaw.CompanyHostSeveralBoxesPath,
 			ModelKeyPath:              blueclaw.CompanyHostModelKeyPath,
 			ResetRequestPath:          blueclaw.CompanyHostBoxResetRequestPath,
 			CompanyStateDirectoryPath: companyhost.DefaultStateDirectoryPath,

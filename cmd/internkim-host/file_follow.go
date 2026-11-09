@@ -41,6 +41,14 @@ func runFileFollow(arguments []string) error {
 		}
 		return filestream.NewUnjournaledBarrier().Serve(ctx, blueclaw.CompanyHostFileJournalSocketPath, fileJournalSocketMode)
 	}
+	outer := ctx
+	hasSeveralBoxes := companyRunsOnSeveralBoxes()
+	watched, cancel := whileSeveralBoxesIs(ctx, hasSeveralBoxes)
+	defer cancel()
+	if !hasSeveralBoxes {
+		return endedByTheBoxCount(filestream.NewUnjournaledBarrier().Serve(watched, blueclaw.CompanyHostFileJournalSocketPath, fileJournalSocketMode), outer)
+	}
+	ctx = watched
 	barrier := filestream.NewBarrier(blueclaw.CompanyHostStateRoot, companyhost.BarrierRole)
 	if errorValue := barrier.Prepare(); errorValue != nil {
 		return errorValue
@@ -61,10 +69,17 @@ func runFileFollow(arguments []string) error {
 	}()
 	select {
 	case errorValue := <-serving:
-		return errorValue
+		return endedByTheBoxCount(errorValue, outer)
 	case errorValue := <-following:
-		return errorValue
+		return endedByTheBoxCount(errorValue, outer)
 	}
+}
+
+func endedByTheBoxCount(errorValue error, outer context.Context) error {
+	if outer.Err() == nil && errors.Is(errorValue, context.Canceled) {
+		return nil
+	}
+	return errorValue
 }
 
 func replayTheFileJournal(apply companyhost.FileJournalApplier) (int, error) {

@@ -46,7 +46,18 @@ func runWalFollow(arguments []string) error {
 	}
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGTERM, os.Interrupt)
 	defer stop()
-	return walstream.Follower{
+	if !companyRunsOnSeveralBoxes() {
+		if errorValue := walstream.ReleaseTheStandby(ctx, companyDatabaseConnection()); errorValue != nil {
+			return errorValue
+		}
+		watched, cancel := whileSeveralBoxesIs(ctx, false)
+		defer cancel()
+		<-watched.Done()
+		return nil
+	}
+	watched, cancel := whileSeveralBoxesIs(ctx, true)
+	defer cancel()
+	errorValue = walstream.Follower{
 		ReplicationConnection: companyReplicationConnection(),
 		KeptFor: func(systemID string) walstream.Keeper {
 			return walstream.KeptPieces{Destination: destination, SystemID: systemID}
@@ -58,7 +69,11 @@ func runWalFollow(arguments []string) error {
 			go walstream.KeepBaseBackups(ctx, companyReplicationConnection(), destination, keyring)
 			return nil
 		},
-	}.Run(ctx)
+	}.Run(watched)
+	if ctx.Err() == nil && watched.Err() != nil {
+		return walstream.ReleaseTheStandby(ctx, companyDatabaseConnection())
+	}
+	return errorValue
 }
 
 func rebuildTheDatabaseFromKeptWAL(dataDirectoryPath string) error {

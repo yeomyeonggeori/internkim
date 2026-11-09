@@ -472,13 +472,15 @@ describe('connecting an empty box', () => {
 		const second = await aBox();
 		const stranger = await aBox();
 		await claimWithCode(switching.companyID, first.publicKey, await announcedCode(first));
+		expect(await boxSessionFor(credentials, first.publicKey, environment, appURL)).toMatchObject({ hasSeveralBoxes: false });
 		await claimWithCode(switching.companyID, second.publicKey, await announcedCode(second), 'add');
 
 		expect(await makeBoxServe(client, switching.companyID, stranger.publicKey)).toBe('not_its_box');
 		expect(await makeBoxServe(client, switching.companyID, second.publicKey)).toBe('no_backup');
 		expect(await boxSessionFor(credentials, second.publicKey, environment, appURL)).toMatchObject({
 			role: 'standby',
-			keepsBackups: false
+			keepsBackups: false,
+			hasSeveralBoxes: true
 		});
 
 		const keptManifest = `${switching.companyID}/snapshots/internkim-snapshot-20261020T000000Z.json`;
