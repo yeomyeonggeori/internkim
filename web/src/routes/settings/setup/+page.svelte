@@ -6,10 +6,11 @@
 	import { Button } from '$lib/components/ui/button';
 	import * as Card from '$lib/components/ui/card';
 	import * as AlertDialog from '$lib/components/ui/alert-dialog';
+	import * as Code from '$lib/components/ui/code';
 	import * as Collapsible from '$lib/components/ui/collapsible';
 	import { isCompanyAppRunning } from '$lib/host-bridge';
 	import { companyPathOf } from '$lib/company-path';
-	import type { HostConfiguration, HostSetupStatus } from '$lib/company/host-setup';
+	import { hostInstallCommands, type HostConfiguration, type HostSetupStatus } from '$lib/company/host-setup';
 	import { createPageText } from '$lib/i18n/page-text.svelte';
 	import { currentLocale } from '$lib/i18n/locale.svelte';
 	import CompanyMembers from '../company-members.svelte';
@@ -134,7 +135,9 @@
 							<div class="grid gap-2 rounded-md border border-dashed p-4">
 								<p class="text-sm font-medium">{text.install}</p>
 								<p class="text-sm text-muted-foreground">{text.installDescription}</p>
-								<pre aria-label={text.install} class="max-w-full overflow-x-auto rounded-md bg-muted p-3 text-xs"><code>{text.installCommand}{'\n'}{text.configureCommand}</code></pre>
+								<Code.Root lang="bash" hideLines code={hostInstallCommands} class="text-xs">
+									<Code.CopyButton />
+								</Code.Root>
 								<a class="inline-flex min-h-11 items-center justify-self-start text-sm underline" href={currentLocale.value === 'ko' ? 'https://docs.intern.kim/ko/quickstart' : 'https://docs.intern.kim/quickstart'}>{text.guide}</a>
 							</div>
 							<p class="text-sm text-muted-foreground">{text.installHint}</p>

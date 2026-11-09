@@ -5,6 +5,7 @@
 	import ShieldCheckIcon from '@lucide/svelte/icons/shield-check';
 	import { onMount } from 'svelte';
 	import type { AppSection } from '$lib/components/app-section-icons';
+	import { hostInstallCommands } from '$lib/company/host-setup';
 	import { Button } from '$lib/components/ui/button';
 	import * as Card from '$lib/components/ui/card';
 	import * as Code from '$lib/components/ui/code';
@@ -17,7 +18,7 @@
 	import LandingTasks from '$lib/landing/landing-tasks.svelte';
 	import LandingWindow from '$lib/landing/landing-window.svelte';
 	import { heldWhileSignedInAttribute, holdWhileSignedInScript } from '$lib/landing/hold-while-signed-in';
-	import { docsURL, installCommands, makerURL, repositoryURL, signInPath, startCompanyPath } from '$lib/landing/links';
+	import { docsURL, makerURL, repositoryURL, signInPath, startCompanyPath } from '$lib/landing/links';
 	import { landingText } from '$lib/landing/text';
 
 	const text = createPageText(landingText);
@@ -144,7 +145,7 @@
 								</div>
 							{/each}
 						</dl>
-						<Code.Root lang="bash" hideLines code={installCommands.join('\n')} class="text-xs">
+						<Code.Root lang="bash" hideLines code={hostInstallCommands} class="text-xs">
 							<Code.CopyButton />
 						</Code.Root>
 						<a href={docsURL(currentLocale.value, 'self-hosting')} class="text-sm font-medium underline-offset-4 hover:underline">{text.plans.run.guide} →</a>
