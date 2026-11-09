@@ -6,6 +6,7 @@
 	import TaskWeekSelector from './task-week-selector.svelte';
 	import TaskMonthSelector from './task-month-selector.svelte';
 	import TaskRoadmap from './task-roadmap.svelte';
+	import TaskRoadmapSkeleton from './task-roadmap-skeleton.svelte';
 	import { localDateISO, taskRoadmapMonthOf } from './task-roadmap-model';
 	import TaskBoard from './task-board.svelte';
 	import TaskBoardSkeleton from './task-board-skeleton.svelte';
@@ -190,22 +191,24 @@
 		<Tabs.Content value="roadmap" class="min-h-[36rem]">
 			{#if taskViewTab === 'roadmap'}
 			{#if historyError}<p role="alert" class="text-sm text-destructive">{historyError}</p><button class="mt-2 text-sm underline" onclick={ensureFullState}>{text.retryHistory}</button>{/if}
-			{#if summary?.completeness === 'full'}
+			{#if summary?.completeness === 'full' || relationshipSnapshotTasks}
+			{@const isHistoryFresh = summary?.completeness === 'full'}
 			<TaskRoadmap
-				tasks={page.filteredTasks()}
-				allTasks={page.tasks()}
-				serverChildProgress={summary.childProgressByParent}
+				tasks={page.filters.tasks(relationshipTasks)}
+				allTasks={relationshipTasks}
+				serverChildProgress={isHistoryFresh ? summary?.childProgressByParent : undefined}
+				centerMonth={currentRoadmapMonth}
 				month={roadmapMonth}
 				{todayISO}
 				text={text.task}
 				statusLabel={page.statusLabel}
 				openTask={page.openTask}
-				canUpdateTask={isLoading ? () => false : page.canUpdateTask}
+				canUpdateTask={isLoading || !isHistoryFresh ? () => false : page.canUpdateTask}
 				updateTaskDates={page.updateTaskDates}
 				selectMonth={(month) => { roadmapMonth = month; }}
 			/>
 			{:else if !historyError && !loadError}
-				<TaskContentSkeleton label={text.loadingHistory} {text} />
+				<TaskRoadmapSkeleton label={text.task.roadmap.loading} />
 			{/if}
 			{/if}
 		</Tabs.Content>
