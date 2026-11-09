@@ -2,6 +2,9 @@ import type { TeamCardStatus } from '../../routes/attendance/team/team-card-stat
 import type { Task } from '../../routes/task/task-types';
 import type { DataRoomCompany } from '$lib/data-room/company';
 import type { Locale } from '$lib/i18n/locale';
+import { colorPickerPalette } from '$lib/color-picker-palette';
+import { startOfCalendarGridWeek } from '../../routes/calendar/grid/calendar-grid-dates';
+import type { CalendarGridEvent } from '../../routes/calendar/grid/calendar-grid-layout';
 
 export type SamplePerson = { name: string };
 
@@ -168,4 +171,36 @@ function isoDate(date: Date): string {
 function monthOf(today: Date, offset: number): string {
 	const month = new Date(today.getFullYear(), today.getMonth() + offset, 1);
 	return `${month.getFullYear()}-${String(month.getMonth() + 1).padStart(2, '0')}`;
+}
+
+const eventTitles = {
+	ko: { weekly: '주간 회의', client: '예시상사 미팅', investor: '투자사 미팅', lunch: '팀 점심' },
+	en: { weekly: 'Weekly meeting', client: 'Example Co. meeting', investor: 'Investor meeting', lunch: 'Team lunch' }
+};
+
+export function sampleEvents(locale: Locale, today: Date): CalendarGridEvent[] {
+	const title = eventTitles[locale];
+	const person = peopleNames[locale];
+	const weekStart = startOfCalendarGridWeek(today);
+	const at = (dayOffset: number, hour: number) => {
+		const moment = addDays(weekStart, dayOffset);
+		moment.setHours(hour, 0, 0, 0);
+		return moment;
+	};
+	const event = (id: string, eventTitle: string, dayOffset: number, startHour: number, endHour: number, color: string, names: string[]): CalendarGridEvent => ({
+		id,
+		title: eventTitle,
+		start: at(dayOffset, startHour),
+		end: at(dayOffset, endHour),
+		isAllDay: false,
+		color,
+		participants: names.map((name) => ({ personID: name, name })),
+		readOnly: true
+	});
+	return [
+		event('weekly', title.weekly, 2, 10, 11, colorPickerPalette[18], [person.lee, person.park, person.choi]),
+		event('client', title.client, 3, 14, 15, colorPickerPalette[21], [person.lee, person.park]),
+		event('lunch', title.lunch, 4, 12, 13, colorPickerPalette[12], [person.lee, person.kim, person.han]),
+		event('investor', title.investor, 5, 16, 17, colorPickerPalette[15], [person.lee])
+	];
 }

@@ -7,5 +7,5 @@
 </script>
 
 <div class="max-h-[50rem] overflow-hidden p-4 [mask-image:linear-gradient(to_bottom,black_88%,transparent)] sm:p-6">
-	<CompanyOverview {company} />
+	<CompanyOverview {company} asRecorded />
 </div>

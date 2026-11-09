@@ -48,18 +48,68 @@ export const landingText = {
 				}
 			]
 		},
-		problems: {
-			title: '회사에서 AI를 쓰려면',
-			items: [
-				{ problem: '회사 설명은 매번 처음부터', answer: '회사 기록을 보고 일합니다', body: '업무, 일정, 고객, 문서가 한 앱에 있습니다. 김인턴은 부탁한 사람이 볼 수 있는 기록을 읽고 일합니다.' },
-				{ problem: '도구마다 따로 내는 AI 구독', answer: '좌석 구독에 AI 크레딧이 들어 있습니다', body: '일마다 맞는 모델을 골라 씁니다. 크레딧이 모자라면 더 사거나, 회사 OpenRouter 키를 연결해 모델 비용을 직접 낼 수 있습니다.' },
-				{ problem: '파일은 여기저기', answer: '문서는 데이터룸에 모입니다', body: '업무 중에 만든 계약서, 견적서, 보고서가 분류되어 저장됩니다. 투자자에게는 데이터룸 링크를 보냅니다.' }
+		day: {
+			title: '김인턴과 보내는 하루',
+			lead: '메신저로 부탁하면 김인턴이 회사 기록을 보고 처리합니다. 결과는 팀이 쓰는 화면에 그대로 남습니다.',
+			moments: [
+				{
+					section: 'attendance',
+					time: '08:13',
+					note: '',
+					caption: '답은 팀이 보는 근태 기록에서 나옵니다.',
+					turns: [
+						{ from: 'person', text: '오늘 누구누구 출근했어?' },
+						{ from: 'agent', text: '오늘 6명 중 4명이 근무 중입니다.\n\n- **근무 중**: 이샘플, 박예시, 정예시 (제품팀), 최견본 (디자인팀)\n- **휴가**: 김예시\n- **출근 전**: 한샘플' }
+					]
+				},
+				{
+					section: 'calendar',
+					time: '09:30',
+					note: '',
+					caption: '일정을 물으면 팀 캘린더를 보고 답합니다.',
+					turns: [
+						{ from: 'person', text: '이번 주 내 일정 알려 줘.' },
+						{ from: 'agent', text: '이번 주 일정은 4개입니다.\n\n- **화 10:00** 주간 회의\n- **수 14:00** 예시상사 미팅\n- **목 12:00** 팀 점심\n- **금 16:00** 투자사 미팅' }
+					]
+				},
+				{
+					section: 'task',
+					time: '11:20',
+					note: '',
+					caption: '맡긴 일은 팀의 업무 보드에 올라갑니다.',
+					turns: [
+						{ from: 'person', text: '예시상사 견적서 회신을 박예시님 업무로 올려 줘.' },
+						{ from: 'agent', text: '박예시님 업무로 등록했습니다.\n\n- **업무**: 예시상사 견적서 회신\n- **사업**: 영업\n- **상태**: 예정' }
+					]
+				},
+				{
+					section: 'messenger',
+					time: '14:10',
+					caption: '팀 채널에서 동료와 이야기하다가 김인턴을 부르면, 그 자리에서 일을 받습니다.',
+					note: '채널, 1:1 대화, 스레드, 파일 공유를 갖춘 사내 메신저입니다. 김인턴이 처리한 결과는 채널에 있는 모두가 함께 봅니다.',
+					turns: []
+				},
+				{
+					section: 'dataRoom',
+					time: '17:40',
+					note: '',
+					caption: '기록한 지표는 투자자가 보는 데이터룸에 바로 반영됩니다.',
+					turns: [
+						{ from: 'person', text: '지난달 매출 4,800만 원으로 기록해 줘.' },
+						{ from: 'agent', text: '지난달 월매출을 4,800만 원으로 기록했습니다. 전월보다 6.7% 늘었습니다.' }
+					]
+				}
 			]
 		},
-		stories: {
-			attendance: { title: '메신저로 출근을 기록합니다', body: '재택 출근을 기록해 달라고 하면 김인턴이 근태에 남깁니다. 오늘 누가 출근했는지 물으면 팀이 보는 그 기록을 보고 답합니다.' },
-			work: { title: '고객 등록부터 회의 예약까지', body: '고객 등록, 회의 예약, 업무 추가를 메신저로 부탁하세요. 김인턴이 한 일은 팀이 쓰는 CRM, 일정, 업무 보드에 그대로 남습니다.' },
-			record: { title: '투자자에게 데이터룸 링크를 보냅니다', body: '출근 기록, 고객 정보, 회의 기록, 김인턴이 만든 문서가 데이터룸에 모입니다. 투자자가 자료를 요청하면 링크를 보내세요.' }
+		channel: {
+			name: '영업',
+			viewer: '이샘플',
+			messages: [
+				{ sender: '박예시', text: '예시상사 미팅 끝났어요. 다음 주에 시안을 먼저 보고 싶다고 하네요.' },
+				{ sender: '이샘플', text: '@김인턴 방금 미팅 내용 CRM에 남기고, 다음 주 시안 공유를 내 업무로 올려 줘.' },
+				{ sender: '김인턴', text: 'CRM에 미팅 기록을 남기고 업무를 등록했습니다.\n\n- **고객**: 예시상사\n- **활동**: 미팅, 다음 주 시안 검토 요청\n- **업무**: 예시상사 시안 공유 (이샘플)' },
+				{ sender: '박예시', text: '고마워요 👍' }
+			]
 		},
 		trust: {
 			title: '권한과 운영 방식',
@@ -143,18 +193,68 @@ export const landingText = {
 				}
 			]
 		},
-		problems: {
-			title: 'Using AI at a small company',
-			items: [
-				{ problem: 'Explaining the company every time', answer: 'It reads your company records', body: 'Tasks, calendar, customers and documents are all in the app. Intern Kim reads the records the person asking is allowed to see.' },
-				{ problem: 'An AI subscription for every tool', answer: 'AI credits come with each seat', body: 'Intern Kim picks a model for each job. Buy more credits when you run low, or connect your OpenRouter key and pay model costs directly.' },
-				{ problem: 'Files scattered everywhere', answer: 'Documents land in the data room', body: 'Contracts, quotes and reports made at work are filed by category. When an investor asks, send a data room link.' }
+		day: {
+			title: 'A day with Intern Kim',
+			lead: 'Ask in the messenger and Intern Kim works from your company records. The result stays on the screens your team already uses.',
+			moments: [
+				{
+					section: 'attendance',
+					time: '08:13',
+					note: '',
+					caption: 'The answer comes from the attendance records your team sees.',
+					turns: [
+						{ from: 'person', text: "Who's in today?" },
+						{ from: 'agent', text: '4 of 6 people are working today.\n\n- **Working**: Lee Sample, Park Example, Jung Example (Product), Choi Specimen (Design)\n- **On leave**: Kim Example\n- **Not in yet**: Han Sample' }
+					]
+				},
+				{
+					section: 'calendar',
+					time: '09:30',
+					note: '',
+					caption: "Ask about your schedule and it answers from the team calendar.",
+					turns: [
+						{ from: 'person', text: "What's on my calendar this week?" },
+						{ from: 'agent', text: 'You have 4 events this week.\n\n- **Tue 10:00** Weekly meeting\n- **Wed 14:00** Example Co. meeting\n- **Thu 12:00** Team lunch\n- **Fri 16:00** Investor meeting' }
+					]
+				},
+				{
+					section: 'task',
+					time: '11:20',
+					note: '',
+					caption: "Work you hand over lands on the team's task board.",
+					turns: [
+						{ from: 'person', text: "Put the reply to Example Co. on the quote on Park Example's list." },
+						{ from: 'agent', text: "Added it to Park Example's tasks.\n\n- **Task**: Reply to Example Co. on the quote\n- **Business**: Sales\n- **Status**: Planned" }
+					]
+				},
+				{
+					section: 'messenger',
+					time: '14:10',
+					caption: 'Mention Intern Kim in a team channel and it picks up the work right there.',
+					note: 'A company messenger with channels, direct messages, threads and file sharing. Everyone in the channel sees what Intern Kim did.',
+					turns: []
+				},
+				{
+					section: 'dataRoom',
+					time: '17:40',
+					note: '',
+					caption: 'Metrics you record show up in the data room investors see.',
+					turns: [
+						{ from: 'person', text: "Record last month's revenue as $35,500." },
+						{ from: 'agent', text: "Recorded last month's revenue: $35,500, up 6.0% from the month before." }
+					]
+				}
 			]
 		},
-		stories: {
-			attendance: { title: 'Clock in from the messenger', body: "Ask Intern Kim to clock you in from home and it records your attendance. Ask who's in today and it answers from the records your team sees." },
-			work: { title: 'From new customer to booked meeting', body: 'Ask Intern Kim to add a customer, book a meeting or create a task. The result shows up in the CRM, calendar and task board your team already uses.' },
-			record: { title: 'Send investors a data room link', body: 'Attendance, customers, meetings and the documents Intern Kim makes are collected in the data room. When an investor asks for materials, send a link.' }
+		channel: {
+			name: 'sales',
+			viewer: 'Lee Sample',
+			messages: [
+				{ sender: 'Park Example', text: 'Just finished the Example Co. meeting. They want to see a draft next week.' },
+				{ sender: 'Lee Sample', text: '@Intern Kim log that meeting in the CRM and put sharing the draft next week on my list.' },
+				{ sender: 'Intern Kim', text: 'Logged the meeting in the CRM and added the task.\n\n- **Customer**: Example Co.\n- **Activity**: Meeting, asked to review a draft next week\n- **Task**: Share the draft with Example Co. (Lee Sample)' },
+				{ sender: 'Park Example', text: 'Thanks 👍' }
+			]
 		},
 		trust: {
 			title: 'Permissions and hosting',
