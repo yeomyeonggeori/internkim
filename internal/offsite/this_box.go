@@ -23,7 +23,7 @@ type Shipment struct {
 	Pruned         []string
 }
 
-func (place ThisBox) destination() (Destination, box.Keyring, bool, error) {
+func (place ThisBox) Destination() (Destination, box.Keyring, bool, error) {
 	connected, errorValue := box.LoadConnected(place.BoxStatePath)
 	if errorValue != nil {
 		return Destination{}, box.Keyring{}, false, nil
@@ -56,7 +56,7 @@ func (place ThisBox) readAccessToken() (string, error) {
 }
 
 func (place ThisBox) Ship(ctx context.Context, keep int, now time.Time, snapshotTo func(*Snapshot) (companyhost.Snapshot, error)) (Shipment, bool, error) {
-	destination, keyring, isConnected, errorValue := place.destination()
+	destination, keyring, isConnected, errorValue := place.Destination()
 	if errorValue != nil || !isConnected {
 		return Shipment{}, false, errorValue
 	}

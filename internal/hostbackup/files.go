@@ -42,6 +42,26 @@ func WriteFiles(output io.Writer, roots []FileRoot, snapshots Snapshotter) (File
 	return writer.report, writer.tarWriter.Close()
 }
 
+type ChangedEntry struct {
+	Root     FileRoot
+	Relative string
+}
+
+func WriteEntries(output io.Writer, entries []ChangedEntry, snapshots Snapshotter) (FilesReport, error) {
+	writer := &fileTreeWriter{tarWriter: tar.NewWriter(output), snapshots: snapshots, companions: map[string]bool{}}
+	for _, entry := range entries {
+		filePath := filepath.Join(entry.Root.Path, filepath.FromSlash(entry.Relative))
+		if errorValue := writer.writeEntry(filePath, path.Join(entry.Root.Role, entry.Relative)); errorValue != nil {
+			return FilesReport{}, errorValue
+		}
+	}
+	return writer.report, writer.tarWriter.Close()
+}
+
+func (root FileRoot) Excludes(relative string) bool {
+	return isExcluded(relative, root.Excluded)
+}
+
 func (writer *fileTreeWriter) writeRoot(root FileRoot) error {
 	resolved, errorValue := filepath.EvalSymlinks(root.Path)
 	if errorValue != nil {

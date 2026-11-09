@@ -41,10 +41,12 @@ const (
 	CompanyHostDataServiceProgramName = "data-service"
 	CompanyHostDataServiceMode        = 0o755
 
-	companyHostDataDirectoryMode = "0750"
-	companyHostDataSocketMode    = "0660"
-	companyHostDatabasePort      = "5432"
-	companyHostDatabaseCollation = "C.UTF-8"
+	companyHostDataDirectoryMode       = "0750"
+	companyHostDataSocketMode          = "0660"
+	CompanyHostDatabasePort            = "5432"
+	companyHostDatabaseIdentMap        = "internkim"
+	companyHostDatabaseRecoverySeconds = "86400"
+	companyHostDatabaseCollation       = "C.UTF-8"
 )
 
 // IsDataService is true of the database and the cache. Restarting one restarts
@@ -180,9 +182,11 @@ func CompanyHostDataServiceScript() string {
 		"@DATA@", CompanyHostDatabaseDataPath,
 		"@SOCKET_DIRECTORY@", CompanyHostDatabaseSocketDirectory,
 		"@SOCKET_MODE@", companyHostDataSocketMode,
-		"@PORT@", companyHostDatabasePort,
+		"@PORT@", CompanyHostDatabasePort,
 		"@COLLATION@", companyHostDatabaseCollation,
 		"@ROLE@", CompanyHostDatabaseUser,
+		"@IDENT_MAP@", companyHostDatabaseIdentMap,
+		"@RECOVERY_SECONDS@", companyHostDatabaseRecoverySeconds,
 		"@CACHE_SOCKET@", CompanyHostCacheSocketPath,
 		"@CACHE_DATA@", CompanyHostCacheDataPath,
 	)
@@ -244,14 +248,22 @@ initialize_cluster() {
   if [ -r "$data/PG_VERSION" ]; then return 0; fi
   "$directory/initdb" --pgdata "$data" --username @ROLE@ --auth-local=peer --auth-host=reject \
     --encoding UTF8 --locale @COLLATION@ --data-checksums >/dev/null
+}
+
+write_access_rules() {
   printf '%s\n' \
-    'local all @ROLE@ peer' \
+    'local all @ROLE@ peer map=@IDENT_MAP@' \
+    'local replication @ROLE@ peer map=@IDENT_MAP@' \
     'local all all scram-sha-256' > "$data/pg_hba.conf"
+  printf '%s\n' \
+    '@IDENT_MAP@ @ROLE@ @ROLE@' \
+    '@IDENT_MAP@ root @ROLE@' > "$data/pg_ident.conf"
 }
 
 run_postgres() {
   directory="$(postgres_directory)"
   initialize_cluster "$directory"
+  write_access_rules
   exec "$directory/postgres" -D "$data" \
     -c listen_addresses= \
     -c logging_collector=off \
@@ -276,6 +288,14 @@ postgres_answers() {
 
 postgres_ready() {
   wait_until postgres_answers || fail "PostgreSQL did not accept connections on $socket_directory"
+}
+
+recover_postgres() {
+  directory="$(postgres_directory)"
+  write_access_rules
+  "$directory/pg_ctl" --pgdata "$data" --wait --timeout @RECOVERY_SECONDS@ --silent \
+    --options "-c listen_addresses= -c port=@PORT@ -c unix_socket_directories=$data" start
+  "$directory/pg_ctl" --pgdata "$data" --wait --mode fast --silent stop
 }
 
 cache_program() {
@@ -306,12 +326,13 @@ cache_answers() {
 case "${1:-}" in
   postgres) run_postgres ;;
   postgres-ready) postgres_ready ;;
+  postgres-recover) recover_postgres ;;
   psql) directory="$(postgres_directory)"; shift; exec "$directory/psql" --host "$socket_directory" --no-psqlrc "$@" ;;
   pg_dump|pg_restore) directory="$(postgres_directory)"; program="$1"; shift; exec "$directory/$program" --host "$socket_directory" "$@" ;;
   postgres-major) directory="$(postgres_directory)"; major_of "$directory" ;;
   cache) run_cache ;;
   cache-ready) wait_until cache_answers || fail "the cache did not answer on $cache_socket" ;;
   cache-ping) client="$(cache_client)"; exec "$client" -s "$cache_socket" ping ;;
-  *) fail "usage: data-service postgres|postgres-ready|psql|pg_dump|pg_restore|postgres-major|cache|cache-ready|cache-ping" ;;
+  *) fail "usage: data-service postgres|postgres-ready|postgres-recover|psql|pg_dump|pg_restore|postgres-major|cache|cache-ready|cache-ping" ;;
 esac
 `

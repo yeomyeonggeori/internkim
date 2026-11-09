@@ -32,9 +32,18 @@ const (
 var ErrNoBackup = errors.New("the company keeps no snapshot this box can open")
 
 type Destination struct {
-	Store      Store
-	CompanyID  string
-	SealingKey string
+	Store       Store
+	CompanyID   string
+	SealingKey  string
+	ChunkFolder string
+}
+
+func (destination Destination) chunkFolderPath() string {
+	folder := destination.ChunkFolder
+	if folder == "" {
+		folder = chunkFolder
+	}
+	return destination.CompanyID + "/" + folder + "/"
 }
 
 type Manifest struct {
@@ -59,7 +68,7 @@ func (destination Destination) snapshotPath(name string) string {
 }
 
 func (destination Destination) chunkPath(chunkID string) string {
-	return destination.CompanyID + "/" + chunkFolder + "/" + chunkID
+	return destination.chunkFolderPath() + chunkID
 }
 
 func snapshotNameAt(now time.Time) string {
@@ -81,7 +90,7 @@ func StartSnapshot(ctx context.Context, destination Destination, keyring box.Key
 	if errorValue != nil {
 		return nil, errorValue
 	}
-	listed, errorValue := destination.Store.List(ctx, destination.CompanyID+"/"+chunkFolder+"/")
+	listed, errorValue := destination.Store.List(ctx, destination.chunkFolderPath())
 	if errorValue != nil {
 		return nil, errorValue
 	}
@@ -93,6 +102,22 @@ func StartSnapshot(ctx context.Context, destination Destination, keyring box.Key
 }
 
 func (snapshot *Snapshot) AddMember(name string, produce func(io.Writer) error) error {
+	kept, errorValue := snapshot.KeepContent(produce)
+	if errorValue != nil {
+		return fmt.Errorf("snapshotting %s: %w", name, errorValue)
+	}
+	snapshot.members = append(snapshot.members, hostbackup.Member{Name: name, Size: kept.Size, SHA256: kept.SHA256})
+	snapshot.chunks[name] = kept.Chunks
+	return nil
+}
+
+type KeptContent struct {
+	Chunks []string
+	Size   int64
+	SHA256 string
+}
+
+func (snapshot *Snapshot) KeepContent(produce func(io.Writer) error) (KeptContent, error) {
 	hasher := sha256.New()
 	counter := &byteCounter{}
 	identifiers := []string{}
@@ -102,14 +127,18 @@ func (snapshot *Snapshot) AddMember(name string, produce func(io.Writer) error) 
 		return errorValue
 	})
 	if errorValue := produce(io.MultiWriter(splitter, hasher, counter)); errorValue != nil {
-		return fmt.Errorf("snapshotting %s: %w", name, errorValue)
+		return KeptContent{}, errorValue
 	}
 	if errorValue := splitter.Close(); errorValue != nil {
-		return fmt.Errorf("snapshotting %s: %w", name, errorValue)
+		return KeptContent{}, errorValue
 	}
-	snapshot.members = append(snapshot.members, hostbackup.Member{Name: name, Size: counter.size, SHA256: hex.EncodeToString(hasher.Sum(nil))})
-	snapshot.chunks[name] = identifiers
-	return nil
+	return KeptContent{Chunks: identifiers, Size: counter.size, SHA256: hex.EncodeToString(hasher.Sum(nil))}, nil
+}
+
+func (snapshot *Snapshot) Forget(chunkIDs []string) {
+	for _, identifier := range chunkIDs {
+		delete(snapshot.kept, identifier)
+	}
 }
 
 func (snapshot *Snapshot) keepChunk(chunk []byte) (string, error) {
@@ -155,6 +184,18 @@ func (snapshot *Snapshot) Finish(archive hostbackup.Manifest, now time.Time) (Ma
 		return Manifest{}, errorValue
 	}
 	return manifest, snapshot.destination.Store.Put(snapshot.ctx, snapshot.destination.snapshotPath(manifest.Name), document)
+}
+
+func (snapshot *Snapshot) Members() []hostbackup.Member {
+	return slices.Clone(snapshot.members)
+}
+
+func (snapshot *Snapshot) Chunks() map[string][]string {
+	chunks := make(map[string][]string, len(snapshot.chunks))
+	for name, identifiers := range snapshot.chunks {
+		chunks[name] = slices.Clone(identifiers)
+	}
+	return chunks
 }
 
 func (snapshot *Snapshot) UploadedChunks() int {
@@ -242,7 +283,7 @@ func sweepUnreferencedChunks(ctx context.Context, destination Destination, keptN
 			referenced[identifier] = true
 		}
 	}
-	listed, errorValue := destination.Store.List(ctx, destination.CompanyID+"/"+chunkFolder+"/")
+	listed, errorValue := destination.Store.List(ctx, destination.chunkFolderPath())
 	if errorValue != nil {
 		return errorValue
 	}
