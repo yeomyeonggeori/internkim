@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { groupConsecutiveMessages } from '../../src/lib/components/channel/channel-message-groups';
+import { datedTimeline, groupConsecutiveMessages } from '../../src/lib/components/channel/channel-message-groups';
 import type {
 	ChannelMessage,
 	ChannelParticipant,
@@ -15,13 +15,14 @@ function makeMessage(
 	senderID: string,
 	senderName: string,
 	text: string,
-	thread?: ThreadSummary
+	thread?: ThreadSummary,
+	sentAt = '2026-09-20T09:00:00.000Z'
 ): ChannelMessage {
 	return {
 		id,
 		sender: makeParticipant(senderID, senderName),
 		text,
-		sentAt: '2026-09-20T09:00:00.000Z',
+		sentAt,
 		thread
 	};
 }
@@ -89,5 +90,32 @@ describe('groupConsecutiveMessages', () => {
 
 		expect(groups.map((group) => group.id)).toEqual(['m1', 'm2', 'm3', 'm4']);
 		expect(groups.map((group) => group.items.length)).toEqual([1, 1, 1, 1]);
+	});
+});
+
+describe('datedTimeline', () => {
+	const firstDay = '2026-09-20T03:00:00.000Z';
+	const nextDay = '2026-09-21T03:00:00.000Z';
+
+	test('the same sender on two days gets a date divider between the days', () => {
+		const messages = [
+			makeMessage('m1', 'sender1', '이샘플', 'first day', undefined, firstDay),
+			makeMessage('m2', 'sender1', '이샘플', 'next day', undefined, nextDay)
+		];
+
+		const timeline = datedTimeline(groupConsecutiveMessages(messages));
+
+		expect(timeline.map((item) => (item.kind === 'date' ? 'date' : item.id))).toEqual(['date', 'm1', 'date', 'm2']);
+	});
+
+	test('messages on one day get a single divider before them', () => {
+		const messages = [
+			makeMessage('m1', 'sender1', '이샘플', 'hello', undefined, firstDay),
+			makeMessage('m2', 'sender2', '박예시', 'hi', undefined, firstDay)
+		];
+
+		const timeline = datedTimeline(groupConsecutiveMessages(messages));
+
+		expect(timeline.map((item) => (item.kind === 'date' ? 'date' : item.id))).toEqual(['date', 'm1', 'm2']);
 	});
 });

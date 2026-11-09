@@ -30,7 +30,7 @@
 	import { firstLinkIn } from './channel-link';
 	import { ConversationFileDrag, receivesFileDrag } from './conversation-file-drag.svelte';
 	import ConversationFileDropOverlay from './conversation-file-drop-overlay.svelte';
-	import { clockTime, dateKeyOf, dateLabel, relativeTime } from './channel-time';
+	import { clockTime, relativeTime } from './channel-time';
 	import { threadRepliesByRoot, timelineMessages } from './channel-threads';
 	import PersonAvatar from '$lib/components/person-avatar.svelte';
 	import LoadingImage from '$lib/components/loading-image.svelte';
@@ -68,7 +68,12 @@
 		setCachedMessages,
 		setCachedReaderID
 	} from './channel-message-cache';
-	import { groupConsecutiveMessages } from './channel-message-groups';
+	import {
+		datedTimeline,
+		groupConsecutiveMessages,
+		standaloneGroup,
+		type ChannelTimelineItem
+	} from './channel-message-groups';
 	import { jumpToLatestLabel } from './channel-unseen-messages';
 	import { createLatestAnchor } from './latest-anchor.svelte';
 	import JumpToLatestButton from './jump-to-latest-button.svelte';
@@ -242,7 +247,7 @@
 
 	const visibleMessages = $derived(timelineMessages(shownMessages, repliesByRoot));
 
-	const messageGroups = $derived(groupConsecutiveMessages(visibleMessages));
+	const timeline = $derived(datedTimeline(groupConsecutiveMessages(visibleMessages)));
 
 	const capture = createMessageCapture(() => visibleMessages.map((message) => message.id));
 
@@ -251,29 +256,13 @@
 		untrack(() => capture.end());
 	});
 
-	type TimelineItem =
-		| { kind: 'date'; id: string; label: string }
-		| { kind: 'group'; id: string; senderID: string; items: ChannelMessage[] };
-
-	const timeline = $derived.by(() => {
-		const items: TimelineItem[] = [];
-		let previousDateKey = '';
-		for (const group of messageGroups) {
-			const dateKey = dateKeyOf(group.items[0].sentAt);
-			if (dateKey !== previousDateKey) {
-				items.push({ kind: 'date', id: `date-${dateKey}`, label: dateLabel(group.items[0].sentAt) });
-				previousDateKey = dateKey;
-			}
-			items.push({ kind: 'group', ...group });
-		}
-		return items;
-	});
-
 	const threadReplies = $derived(
 		openThreadRoot ? (repliesByRoot.get(openThreadRoot.id) ?? []) : []
 	);
 
-	const threadReplyGroups = $derived(groupConsecutiveMessages(threadReplies));
+	const threadTimeline = $derived(
+		openThreadRoot ? datedTimeline([standaloneGroup(openThreadRoot), ...groupConsecutiveMessages(threadReplies)]) : []
+	);
 
 	const loadedMessageIDs = $derived(new Set(messages.map((message) => message.id)));
 	const workShownInTimeline = $derived(liveWorkShownInTimeline(liveWork, openThreadRoot?.id, loadedMessageIDs));
@@ -341,7 +330,7 @@
 	let scrollContainer = $state<HTMLDivElement | null>(null);
 	let threadScroller = $state<HTMLDivElement | null>(null);
 	const reversedTimeline = $derived(timeline.slice().reverse());
-	const reversedThreadReplyGroups = $derived(threadReplyGroups.slice().reverse());
+	const reversedThreadTimeline = $derived(threadTimeline.slice().reverse());
 	let isPageVisible = $state(typeof document === 'undefined' || document.visibilityState === 'visible');
 	const latestSettledSentAt = $derived(latestSentAtOf(messages));
 	const conversationAnchor = createLatestAnchor({
@@ -917,6 +906,22 @@
 	{/each}
 {/snippet}
 
+{#snippet timelineRows(items: ChannelTimelineItem[], isInTimeline: boolean)}
+	{#each items as item (item.id)}
+		{#if item.kind === 'date'}
+			<Marker.Root variant="separator">
+				<Marker.Content>{item.label}</Marker.Content>
+			</Marker.Root>
+		{:else}
+			<Message.Group class="gap-0">
+				{#each item.items as message, index (message.id)}
+					{@render messageRow(message, index === 0, isInTimeline)}
+				{/each}
+			</Message.Group>
+		{/if}
+	{/each}
+{/snippet}
+
 {#snippet threadBody()}
 	<div class="relative flex min-h-0 flex-1 flex-col">
 		<div
@@ -927,14 +932,7 @@
 		>
 			{#if openThreadRoot}
 				{@render liveWorkRows(workShownInThread)}
-				{#each reversedThreadReplyGroups as group (group.id)}
-					<Message.Group class="gap-0">
-						{#each group.items as reply, index (reply.id)}
-							{@render messageRow(reply, index === 0, false)}
-						{/each}
-					</Message.Group>
-				{/each}
-				{@render messageRow(openThreadRoot, true, false)}
+				{@render timelineRows(reversedThreadTimeline, false)}
 			{/if}
 		</div>
 		<div class="pointer-events-none absolute inset-x-0 bottom-3 z-10 flex justify-center">
@@ -999,19 +997,7 @@
 					class="@container/conversation isolate flex min-h-0 flex-1 flex-col-reverse gap-4 [&>:first-child]:mb-auto overflow-x-hidden overflow-y-auto overscroll-y-none px-4 pt-12 pb-[calc(var(--dock-height)+2.5rem)] [scrollbar-gutter:stable]"
 				>
 					{@render liveWorkRows(workShownInTimeline)}
-					{#each reversedTimeline as item (item.id)}
-						{#if item.kind === 'date'}
-							<Marker.Root variant="separator">
-								<Marker.Content>{item.label}</Marker.Content>
-							</Marker.Root>
-						{:else}
-							<Message.Group class="gap-0">
-								{#each item.items as message, index (message.id)}
-									{@render messageRow(message, index === 0, true)}
-								{/each}
-							</Message.Group>
-						{/if}
-					{/each}
+					{@render timelineRows(reversedTimeline, true)}
 				</div>
 				{#if capture.isCapturing}
 					<MessageCaptureOverlay scroller={scrollContainer} firstID={capture.firstID} lastID={capture.lastID} />
