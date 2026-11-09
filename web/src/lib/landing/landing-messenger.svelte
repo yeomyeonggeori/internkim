@@ -27,7 +27,7 @@
 					<SenderAvatar><PersonAvatar name={message.sender} image={isAgent ? agentPicture : ''} /></SenderAvatar>
 				{/if}
 				<Message.Content>
-					{#if !isMine}<Message.Header>{message.sender}</Message.Header>{/if}
+					{#if !isMine}<Message.Header class="-mb-2 px-0">{message.sender}</Message.Header>{/if}
 					<ChannelTextBubble mine={isMine} source={message.text} {mentionLabels} />
 				</Message.Content>
 			</Message.Root>
