@@ -23,3 +23,7 @@ export const appSectionIcons = {
 } as const;
 
 export type AppSection = keyof typeof appSectionIcons;
+
+export function isAppSection(value: string): value is AppSection {
+	return value in appSectionIcons;
+}

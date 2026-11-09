@@ -48,12 +48,9 @@
 	</Button>
 {/snippet}
 
-{#snippet sectionHeading(id: string, kicker: string, title: string, body: string)}
+{#snippet sectionHeading(id: string, title: string, body: string)}
 	<div class="grid gap-x-12 gap-y-4 md:grid-cols-[minmax(0,5fr)_minmax(0,6fr)] md:items-end">
-		<div class="grid gap-3">
-			{#if kicker}<p class="text-brand text-sm font-semibold">{kicker}</p>{/if}
-			<h2 {id} class="text-3xl leading-tight font-bold tracking-tight break-keep text-balance sm:text-4xl">{title}</h2>
-		</div>
+		<h2 {id} class="text-3xl leading-tight font-bold tracking-tight break-keep text-balance sm:text-4xl">{title}</h2>
 		{#if body}<p class="text-muted-foreground max-w-xl text-lg leading-8 break-keep">{body}</p>{/if}
 	</div>
 {/snippet}
@@ -95,8 +92,8 @@
 		{#each stories as story (story.key)}
 			{@const copy = text.stories[story.key]}
 			<section class="mx-auto grid w-full max-w-6xl gap-10 px-4 py-20 sm:px-6 sm:py-24" aria-labelledby={`landing-${story.key}`}>
-				{@render sectionHeading(`landing-${story.key}`, copy.kicker, copy.title, copy.body)}
-				<LandingWindow section={story.section} title={copy.window}>
+				{@render sectionHeading(`landing-${story.key}`, copy.title, copy.body)}
+				<LandingWindow section={story.section}>
 					<story.scene />
 				</LandingWindow>
 			</section>
@@ -119,7 +116,7 @@
 		</section>
 
 		<section class="mx-auto grid w-full max-w-6xl gap-10 px-4 py-20 sm:px-6 sm:py-24" aria-labelledby="landing-plans">
-			{@render sectionHeading('landing-plans', '', text.plans.title, text.plans.lead)}
+			{@render sectionHeading('landing-plans', text.plans.title, text.plans.lead)}
 			<div class="grid gap-4 lg:grid-cols-2">
 				<Card.Root>
 					<Card.Header><Card.Title class="text-lg">{text.plans.pay.title}</Card.Title></Card.Header>
