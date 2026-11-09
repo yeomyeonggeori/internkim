@@ -86,8 +86,9 @@ test('an administrator of a subscribed company sees the credits and sets one lim
 	await expect(page.getByText('31,600 남음')).toBeVisible();
 	await expect(page.getByText('8,400 / 10,000')).toBeVisible();
 
-	await page.getByLabel('1인 한도').fill('12000');
-	await page.getByRole('button', { name: '저장', exact: true }).last().click();
+	const memberUsage = page.locator('[data-slot="card"]').filter({ has: page.getByText('팀원별 사용량', { exact: true }) });
+	await memberUsage.getByLabel('1인 한도').fill('12000');
+	await memberUsage.getByRole('button', { name: '저장', exact: true }).click();
 	await expect(page.getByText('8,400 / 12,000')).toBeVisible();
 
 	await page.reload();
