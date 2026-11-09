@@ -45,7 +45,7 @@ func main() {
 	shouldPrintCapabilities := flag.Bool("print-capabilities", false, "print the capabilities block the agent's runtime document needs, and exit")
 	modelLadderKeyPath := flag.String("print-model-ladder", "", "print the languageModel block the agent's runtime document needs, with this path named as each endpoint's key file, and exit")
 	modelLadderEndpoint := flag.String("model-endpoint", "", "the OpenAI-compatible endpoint the printed ladder reaches, when this company runs its models somewhere of its own")
-	modelLadderGateway := flag.String("model-gateway", "", "the company's central plane, whose model gateway the printed ladder reaches when the --print-model-ladder file holds no key")
+	modelLadderGateway := flag.String("model-gateway", "", "the company's central plane, whose model gateway the printed ladder reaches first, so subscription credits pay before the key in the --print-model-ladder file")
 	modelLadderGatewayKeyPath := flag.String("model-gateway-key", "", "the file holding this computer's credential, named as each endpoint's key file when the ladder reaches the model gateway")
 	flag.Parse()
 	if *shouldPrintCapabilities {
@@ -53,11 +53,7 @@ func main() {
 		return
 	}
 	if strings.TrimSpace(*modelLadderKeyPath) != "" {
-		if modelladder.PaysThroughGateway(*modelLadderKeyPath, *modelLadderGateway) {
-			printModelLadder(modelladder.GatewayEndpoint(*modelLadderGateway), *modelLadderGatewayKeyPath)
-			return
-		}
-		printModelLadder(*modelLadderEndpoint, *modelLadderKeyPath)
+		printJSONDocument(modelladder.CompanyLanguageModelDocument(*modelLadderGateway, *modelLadderGatewayKeyPath, *modelLadderEndpoint, *modelLadderKeyPath))
 		return
 	}
 	if strings.TrimSpace(configuration.ChatdPlatform) == "" {
@@ -69,10 +65,6 @@ func main() {
 		fmt.Fprintln(os.Stderr, errorValue.Error())
 		os.Exit(1)
 	}
-}
-
-func printModelLadder(endpointURL string, apiKeyPath string) {
-	printJSONDocument(modelladder.LanguageModelDocument(endpointURL, apiKeyPath))
 }
 
 func printCapabilities(socketPath string) {
