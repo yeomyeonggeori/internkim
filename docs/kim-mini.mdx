@@ -182,12 +182,22 @@ one behind. The setup page shows when the newest one was made, and
 `SNAPSHOTS_KEPT` in `/etc/internkim/company-host.env` says how many are kept,
 eight unless set.
 
+Between snapshots nothing waits fifteen minutes. The service box streams its
+database's WAL to the hosted service, sealed to the company key, and PostgreSQL
+does not report a write done until that upload is kept, so a message or a memory
+that was saved is already off the box. A base backup each day gives that WAL a
+starting point. Files are watched as they change and kept the same way. The
+messenger reports an attachment sent, and the agent sends its reply, only once
+what they wrote is kept. When the hosted service cannot be reached, writes wait
+and then fail. They are never kept on the box alone. `internkim wal-follow
+release` lets the database commit without the company's other boxes.
+
 When the service box's building loses power or its line, an administrator chooses
 Make this box serve on a standby box. The serving box, if it is still up, stops
 its services and stands by. The new service box rebuilds the newest snapshot
-from the chunks it holds, restores it while keeping its own identity, and starts
-the company from it. What the old box held after that snapshot stays on the old
-box. While the company keeps no snapshot, the switch is refused, since the new
+from the chunks it holds, restores it while keeping its own identity, rebuilds
+the database from the newest base backup and every piece of WAL kept after it,
+replays the file journal over the files, and starts the company from them. While the company keeps no snapshot, the switch is refused, since the new
 box would have nothing to start from, and a box that cannot open the snapshots
 the company keeps stops with an error instead of starting the company empty. A
 take-over that fails is not retried until
@@ -205,7 +215,7 @@ its own services once half the lapse passes without the hosted service seeing it
 and starts them again when it is seen and still serves, so a box cut off from the
 internet and the box that took its place never serve at once. It is off
 until an administrator turns it on, since a lapse that was only a slow router
-costs what the old box held after the newest snapshot, up to fifteen minutes.
+still moves the company to another box, with the take-over's minute of outage.
 
 Standby boxes also share the work. The service box runs a browser call itself
 while one of its four browsers is free. When all four are busy it puts the call
