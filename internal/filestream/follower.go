@@ -57,7 +57,7 @@ func (follower Follower) Run(ctx context.Context) error {
 	if len(sequences) > 0 {
 		state.next = slices.Max(sequences) + 1
 	}
-	if errorValue := state.keepFull(ctx); errorValue != nil {
+	if errorValue := state.catchUp(ctx); errorValue != nil {
 		return errorValue
 	}
 	changes := make(chan []Change)

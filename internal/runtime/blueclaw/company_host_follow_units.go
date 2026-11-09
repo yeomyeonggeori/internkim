@@ -17,9 +17,6 @@ type companyHostFollower struct {
 	runtimeDirectory string
 }
 
-// The WAL follower runs only on a box. The file follower runs on every Linux
-// host because it also answers the agent's barrier: a box keeps the files
-// before answering, any other host answers that it keeps no journal.
 var companyHostFollowers = []companyHostFollower{
 	{name: CompanyHostWALFollowServiceName, description: "keeps every commit with the company's other boxes before it counts", verb: "wal-follow", isBoxOnly: true},
 	{name: CompanyHostFileFollowServiceName, description: "keeps every changed file with the company's other boxes", verb: "file-follow", runtimeDirectory: CompanyHostFileFollowServiceName},
