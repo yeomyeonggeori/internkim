@@ -138,7 +138,7 @@ export const landingText = {
 					{ title: '직접 운영', body: '앱과 데이터베이스까지 회사가 직접 운영합니다.' }
 				],
 				guide: '셀프호스팅 안내',
-				kimMini: '안테나가 달린 은색 정사각형 상자 앞면에 김인턴 얼굴이 새겨진 김미니'
+				kimMini: '김미니 세 대. 윗면에 김인턴 얼굴이 새겨진 은색 정사각형 상자에 짧은 안테나가 달려 있습니다.'
 			}
 		},
 		closing: { title: '회사를 만들고 동료를 초대하세요', quickstart: '빠른 시작 읽기' },
@@ -283,7 +283,7 @@ export const landingText = {
 					{ title: 'Self-hosting', body: 'Run the app and database yourself.' }
 				],
 				guide: 'Self-hosting guide',
-				kimMini: 'Kim mini, a square silver box with an antenna and the Intern Kim face on the front'
+				kimMini: 'Three Kim minis: square silver boxes with the Intern Kim face on top and a short antenna.'
 			}
 		},
 		closing: { title: 'Create a company and invite your team', quickstart: 'Read the quickstart' },

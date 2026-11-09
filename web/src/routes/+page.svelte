@@ -103,7 +103,7 @@
 					</Card.Content>
 				</Card.Root>
 				<Card.Root class="gap-0 overflow-hidden py-0 md:grid md:grid-cols-2">
-					<img src="/landing/kim-mini.webp" alt={text.plans.run.kimMini} width="1200" height="800" loading="lazy" class="aspect-[3/2] h-full w-full object-cover max-md:border-b md:border-r" />
+					<img src="/landing/kim-mini.webp" alt={text.plans.run.kimMini} width="1440" height="990" loading="lazy" class="aspect-[16/11] h-full w-full object-cover max-md:border-b md:border-r" />
 					<div class="grid content-start gap-6 py-6">
 						<Card.Header><Card.Title class="text-lg">{text.plans.run.title}</Card.Title></Card.Header>
 						<Card.Content class="grid gap-4">
