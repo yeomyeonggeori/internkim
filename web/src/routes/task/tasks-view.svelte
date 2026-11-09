@@ -4,6 +4,9 @@
 	import TaskEditor from './task-editor.svelte';
 	import TaskQuickAdd from './task-quick-add.svelte';
 	import TaskWeekSelector from './task-week-selector.svelte';
+	import TaskMonthSelector from './task-month-selector.svelte';
+	import TaskRoadmap from './task-roadmap.svelte';
+	import { localDateISO, taskRoadmapMonthOf } from './task-roadmap-model';
 	import TaskBoard from './task-board.svelte';
 	import TaskBoardSkeleton from './task-board-skeleton.svelte';
 	import TaskContentSkeleton from './task-content-skeleton.svelte';
@@ -44,8 +47,11 @@
 	const page = createTasksController();
 	let relationshipTasks = $derived(summary?.completeness !== 'full' && relationshipSnapshotTasks ? relationshipTasksWithSnapshot(page.tasks(), relationshipSnapshotTasks) : page.tasks());
 	let taskViewTab = $state('board');
+	const todayISO = localDateISO(new Date());
+	const currentRoadmapMonth = taskRoadmapMonthOf(todayISO);
+	let roadmapMonth = $state(currentRoadmapMonth);
 	$effect(() => {
-		if (taskViewTab === 'list') untrack(() => { void ensureFullState(); });
+		if (taskViewTab === 'list' || taskViewTab === 'roadmap') untrack(() => { void ensureFullState(); });
 	});
 	$effect(() => {
 		const nextSummary = summary;
@@ -85,7 +91,21 @@
 			<Tabs.List>
 				<Tabs.Trigger value="board">{text.task.viewTabs.board}</Tabs.Trigger>
 				<Tabs.Trigger value="list" disabled={!summary}>{text.task.viewTabs.list}</Tabs.Trigger>
+				<Tabs.Trigger value="roadmap" disabled={!summary}>{text.task.viewTabs.roadmap}</Tabs.Trigger>
 			</Tabs.List>
+			{#if taskViewTab === 'roadmap'}
+			<TaskMonthSelector
+				class="ml-auto"
+				month={roadmapMonth}
+				currentMonth={currentRoadmapMonth}
+				locale={text.task.roadmap.dateLocale}
+				selectMonthLabel={text.task.roadmap.selectMonth}
+				currentMonthLabel={text.task.roadmap.currentMonth}
+				previousMonthLabel={text.task.roadmap.previousMonth}
+				nextMonthLabel={text.task.roadmap.nextMonth}
+				onSelectMonth={(month) => { roadmapMonth = month; }}
+			/>
+			{:else}
 			<TaskWeekSelector
 				class="ml-auto"
 				week={shownWeek}
@@ -98,6 +118,7 @@
 				nextWeekLabel={text.nextWeek}
 				onSelectWeek={selectWeek}
 			/>
+			{/if}
 			<TaskFilters
 				class="justify-end"
 				bind:searchText={page.filters.searchText}
@@ -164,6 +185,28 @@
 			/>
 			{:else if !historyError && !loadError}
 				<TaskContentSkeleton label={text.loadingHistory} {text} />
+			{/if}
+		</Tabs.Content>
+		<Tabs.Content value="roadmap" class="min-h-[36rem]">
+			{#if taskViewTab === 'roadmap'}
+			{#if historyError}<p role="alert" class="text-sm text-destructive">{historyError}</p><button class="mt-2 text-sm underline" onclick={ensureFullState}>{text.retryHistory}</button>{/if}
+			{#if summary?.completeness === 'full'}
+			<TaskRoadmap
+				tasks={page.filteredTasks()}
+				allTasks={page.tasks()}
+				serverChildProgress={summary.childProgressByParent}
+				month={roadmapMonth}
+				{todayISO}
+				text={text.task}
+				statusLabel={page.statusLabel}
+				openTask={page.openTask}
+				canUpdateTask={isLoading ? () => false : page.canUpdateTask}
+				updateTaskDates={page.updateTaskDates}
+				selectMonth={(month) => { roadmapMonth = month; }}
+			/>
+			{:else if !historyError && !loadError}
+				<TaskContentSkeleton label={text.loadingHistory} {text} />
+			{/if}
 			{/if}
 		</Tabs.Content>
 	</Tabs.Root>

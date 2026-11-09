@@ -80,6 +80,28 @@ export async function updateTaskStatus(input: UpdateTaskStatusInput): Promise<Ta
 	}
 }
 
+type UpdateTaskDatesInput = {
+	task: Task;
+	startDate: string;
+	endDate: string;
+	canUpdateTask: (task: Task) => boolean;
+	loadTask: LoadTask;
+	weekCode: string;
+	saveErrorMessage: string;
+};
+
+export async function updateTaskDates(input: UpdateTaskDatesInput): Promise<TaskStatusResult> {
+	if (!input.task.id || !input.canUpdateTask(input.task)) return { status: 'ignored' };
+	if (input.startDate === input.task.startDate && input.endDate === input.task.endDate) return { status: 'ignored' };
+	try {
+		await saveTask({ ...input.task, startDate: input.startDate, endDate: input.endDate }, input.task);
+		await input.loadTask(input.weekCode);
+		return { status: 'saved' };
+	} catch (error) {
+		return { status: 'failed', errorMessage: errorMessageFrom(error, input.saveErrorMessage) };
+	}
+}
+
 function errorMessageFrom(error: unknown, fallbackMessage: string): string {
 	return error instanceof Error ? error.message : fallbackMessage;
 }
