@@ -6,7 +6,7 @@ import { TaskEditorController } from './task-editor-controller.svelte';
 import { TaskFiltersController } from './task-filters-controller.svelte';
 import { taskBoardParticipantScope } from './task-board-participant-scope';
 import { taskBusinessColor, taskTypeColor } from './task-definition-colors';
-import { updateTaskStatus } from './task-persistence';
+import { updateTaskDates, updateTaskStatus } from './task-persistence';
 import { isTaskStatusCompleted } from './task-status';
 import { TaskQuickCreateController } from './task-quick-create-controller.svelte';
 import { TaskRelationshipController } from './task-relationship-controller.svelte';
@@ -199,6 +199,21 @@ class TasksController {
 		if (result.status === 'failed') this.setPageErrorMessage(result.errorMessage);
 		if (result.status === 'saved' && isTaskStatusCompleted(nextStatus)) feelHaptic('success');
 		this.pendingStatusTaskID = '';
+	};
+
+	updateTaskDates = async (task: Task, startDate: string, endDate: string): Promise<boolean> => {
+		this.setPageErrorMessage('');
+		const result = await updateTaskDates({
+			task,
+			startDate,
+			endDate,
+			canUpdateTask: this.canUpdateTask,
+			loadTask: this.loadTask,
+			weekCode: this.currentWeek(),
+			saveErrorMessage: this.text.task.saveError
+		});
+		if (result.status === 'failed') this.setPageErrorMessage(result.errorMessage);
+		return result.status === 'saved';
 	};
 
 	moveTaskOnBoard = async (request: TaskBoardMoveRequest): Promise<void> => {
