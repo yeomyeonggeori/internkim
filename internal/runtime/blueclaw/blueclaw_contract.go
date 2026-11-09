@@ -75,6 +75,8 @@ const (
 	BuzzMediaVersion               = "1.8.0"
 	BuzzMediaRootPath              = "/var/lib/buzz-media"
 	BuzzMediaAddress               = "127.0.0.1:9000"
+	BuzzMediaServerAddress         = "127.0.0.1:9002"
+	BuzzMediaGateServiceName       = "internkim-media-gate"
 	BuzzMediaHealthPath            = "/_health"
 	BuzzMediaEnvironmentFilePath   = "/root/.internkim/secrets/buzz-media-env"
 	BuzzMediaPasswordPath          = "/root/.internkim/secrets/buzz-media-pass"

@@ -112,6 +112,8 @@ func main() {
 		stopOnFailure("The snapshot was not kept", runSnapshot(os.Args[2:]))
 	case "wal-follow":
 		stopOnFailure("The company's WAL is no longer kept", runWalFollow(os.Args[2:]))
+	case "media-gate":
+		stopOnFailure("The attachment store's gate stopped", runMediaGate(os.Args[2:]))
 	case "file-follow":
 		stopOnFailure("The company's files are no longer kept as they change", runFileFollow(os.Args[2:]))
 	case "refresh":

@@ -122,6 +122,7 @@ func CompanyHostServices(layout CompanyHostLayout) []CompanyHostService {
 		companyHostRelayService(layout),
 		companyHostPrepareService(layout),
 		companyHostMediaService(layout),
+		companyHostMediaGateService(layout),
 		companyHostMessengerService(layout),
 		companyHostEmbeddingService(layout),
 		companyHostCapabilityService(layout),
@@ -205,11 +206,24 @@ func companyHostMediaService(layout CompanyHostLayout) CompanyHostService {
 		Description: "Buzz Media Store",
 		Command: []string{
 			layout.BinaryPath(BuzzMediaProgramName),
-			"--port", BuzzMediaAddress,
+			"--port", BuzzMediaServerAddress,
 			"--health", BuzzMediaHealthPath,
 			"posix", CompanyHostMediaRootPath,
 		},
 		Environment:           withCommonEnvironment(environmentFile(CompanyHostMediaSecretPath)),
+		RestartAfterSeconds:   5,
+		WaitsForTheFileAtPath: CompanyHostMediaSecretPath,
+	}
+}
+
+// The gate answers the messenger on the store's address and waits, on a box,
+// until an attachment the store took is kept off the box before saying so.
+func companyHostMediaGateService(layout CompanyHostLayout) CompanyHostService {
+	return CompanyHostService{
+		Name:                  BuzzMediaGateServiceName,
+		Description:           "internkim attachment store gate",
+		Command:               []string{layout.BinaryPath(CompanyPackageName), "media-gate"},
+		Environment:           withCommonEnvironment(),
 		RestartAfterSeconds:   5,
 		WaitsForTheFileAtPath: CompanyHostMediaSecretPath,
 	}
