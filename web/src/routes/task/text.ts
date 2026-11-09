@@ -194,7 +194,20 @@ export const taskText = {
 			noTasks: '아직 업무가 없습니다.',
 			viewTabs: {
 				board: '보드',
-				list: '표'
+				list: '표',
+				roadmap: '로드맵'
+			},
+			roadmap: {
+				dateLocale: 'ko-KR',
+				taskColumn: '업무',
+				previousMonth: '이전 달',
+				nextMonth: '다음 달',
+				currentMonth: '이번 달',
+				selectMonth: '월 선택',
+				addDates: '날짜 추가',
+				openAgain: '한 번 더 누르면 상세 열기',
+				resizeStart: '시작일 조절',
+				resizeEnd: '종료일 조절'
 			},
 			board: {
 				addTask: '{status} 업무 추가'
@@ -448,7 +461,20 @@ export const taskText = {
 			noTasks: 'No tasks yet.',
 			viewTabs: {
 				board: 'Board',
-				list: 'Table'
+				list: 'Table',
+				roadmap: 'Roadmap'
+			},
+			roadmap: {
+				dateLocale: 'en-US',
+				taskColumn: 'Task',
+				previousMonth: 'Previous month',
+				nextMonth: 'Next month',
+				currentMonth: 'This month',
+				selectMonth: 'Choose month',
+				addDates: 'Add dates',
+				openAgain: 'Click again to open',
+				resizeStart: 'Adjust start date',
+				resizeEnd: 'Adjust end date'
 			},
 			board: {
 				addTask: 'Add {status} task'
