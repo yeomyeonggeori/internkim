@@ -257,7 +257,6 @@ func (daemon Daemon) stopServing(reason string) error {
 	}
 	log.Printf("%s, so this box stops the company's services", reason)
 	daemon.forgetTheQueueAddress()
-	daemon.noteSeveralBoxes(false)
 	if daemon.StandDown != nil {
 		if errorValue := daemon.StandDown(); errorValue != nil {
 			return fmt.Errorf("stopping the company's services: %w", errorValue)

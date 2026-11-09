@@ -46,8 +46,12 @@ func runWalFollow(arguments []string) error {
 	}
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGTERM, os.Interrupt)
 	defer stop()
-	if !companyRunsOnSeveralBoxes() {
-		if errorValue := walstream.ReleaseTheStandby(ctx, companyDatabaseConnection()); errorValue != nil {
+	hasSeveralBoxes, errorValue := untilTheBoxCountIsKnown(ctx)
+	if errorValue != nil {
+		return errorValue
+	}
+	if !hasSeveralBoxes {
+		if errorValue := releaseAndForgetTheKeptWAL(ctx, destination); errorValue != nil {
 			return errorValue
 		}
 		watched, cancel := whileSeveralBoxesIs(ctx, false)
@@ -71,9 +75,16 @@ func runWalFollow(arguments []string) error {
 		},
 	}.Run(watched)
 	if ctx.Err() == nil && watched.Err() != nil {
-		return walstream.ReleaseTheStandby(ctx, companyDatabaseConnection())
+		return releaseAndForgetTheKeptWAL(ctx, destination)
 	}
 	return errorValue
+}
+
+func releaseAndForgetTheKeptWAL(ctx context.Context, destination offsite.Destination) error {
+	if errorValue := walstream.ReleaseTheStandby(ctx, companyDatabaseConnection()); errorValue != nil {
+		return errorValue
+	}
+	return walstream.ForgetKeptWAL(ctx, companyReplicationConnection(), destination)
 }
 
 func rebuildTheDatabaseFromKeptWAL(dataDirectoryPath string) error {

@@ -30,7 +30,7 @@ func runMediaGate(arguments []string) error {
 	}
 	if isABox {
 		gate.KeepFiles = func(ctx context.Context) error {
-			if !companyRunsOnSeveralBoxes() {
+			if hasSeveralBoxes, isKnown := companyBoxCount(); isKnown && !hasSeveralBoxes {
 				return nil
 			}
 			return filestream.AskToKeep(ctx, blueclaw.CompanyHostFileJournalSocketPath)

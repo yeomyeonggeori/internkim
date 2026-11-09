@@ -16,7 +16,10 @@ func RequireTheStandby(ctx context.Context, databaseConnection string) error {
 }
 
 func ReleaseTheStandby(ctx context.Context, databaseConnection string) error {
-	return changeSettings(ctx, databaseConnection, "ALTER SYSTEM RESET synchronous_standby_names")
+	return changeSettings(ctx, databaseConnection,
+		"ALTER SYSTEM RESET synchronous_standby_names",
+		"SELECT pg_drop_replication_slot(slot_name) FROM pg_replication_slots WHERE slot_name = '"+StandbyName+"'",
+	)
 }
 
 func changeSettings(ctx context.Context, databaseConnection string, statements ...string) error {
