@@ -29,11 +29,18 @@ func runFileFollow(arguments []string) error {
 	if errorValue != nil {
 		return errorValue
 	}
-	if !isConnected {
-		return errNotAServingBox
-	}
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGTERM, os.Interrupt)
 	defer stop()
+	if !isConnected {
+		isABox, errorValue := thisComputerIsABox()
+		if errorValue != nil {
+			return errorValue
+		}
+		if isABox {
+			return errNotAServingBox
+		}
+		return filestream.NewUnjournaledBarrier().Serve(ctx, blueclaw.CompanyHostFileJournalSocketPath, fileJournalSocketMode)
+	}
 	barrier := filestream.NewBarrier(blueclaw.CompanyHostStateRoot, companyhost.BarrierRole)
 	if errorValue := barrier.Prepare(); errorValue != nil {
 		return errorValue

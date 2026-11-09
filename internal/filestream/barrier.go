@@ -21,6 +21,15 @@ type Barrier struct {
 	Role    string
 	mutex   sync.Mutex
 	waiting map[string]chan struct{}
+
+	isUnjournaled bool
+}
+
+// NewUnjournaledBarrier answers every writer at once that this host keeps no
+// file journal, which is the truth on a host that is not one of a company's
+// boxes: there is nowhere off the box to keep a file.
+func NewUnjournaledBarrier() *Barrier {
+	return &Barrier{isUnjournaled: true}
 }
 
 func NewBarrier(rootPath, role string) *Barrier {

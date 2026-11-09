@@ -13,9 +13,10 @@ import (
 )
 
 const (
-	barrierRequest   = "wait"
-	barrierKept      = "kept"
-	barrierWaitLimit = 30 * time.Second
+	barrierRequest     = "wait"
+	barrierKept        = "kept"
+	barrierUnjournaled = "unjournaled"
+	barrierWaitLimit   = 30 * time.Second
 )
 
 func (barrier *Barrier) Serve(ctx context.Context, socketPath string, mode os.FileMode) error {
@@ -51,6 +52,10 @@ func (barrier *Barrier) answer(ctx context.Context, connection net.Conn) {
 	request, errorValue := bufio.NewReader(connection).ReadString('\n')
 	if errorValue != nil || strings.TrimSpace(request) != barrierRequest {
 		fmt.Fprintf(connection, "refused: send %q and a newline\n", barrierRequest)
+		return
+	}
+	if barrier.isUnjournaled {
+		fmt.Fprintln(connection, barrierUnjournaled)
 		return
 	}
 	waiting, cancel := context.WithTimeout(ctx, barrierWaitLimit)
