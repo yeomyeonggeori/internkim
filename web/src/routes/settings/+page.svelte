@@ -12,6 +12,8 @@
 	import LearningSoulSection from '../admin/learning-soul-section.svelte';
 	import AgentIdentitySection from '../admin/agent-identity-section.svelte';
 	import CompanyMembers from './company-members.svelte';
+	import BillingSection from './billing-section.svelte';
+	import MyCreditUsage from './my-credit-usage.svelte';
 	import Circles from './circles.svelte';
 	import CompanyFields from './company-fields.svelte';
 	import AttendanceWorkSettingsSection from '../admin/attendance-work-settings-section.svelte';
@@ -69,6 +71,9 @@
 		<ConnectedApps />
 	{/if}
 	<Notifications />
+	{#if isSupabaseConfigured()}
+		<MyCreditUsage />
+	{/if}
 	<MyAgent />
 	<Collapsible.Root bind:open={isMessengerAccountOpen} class="grid gap-3">
 		<Collapsible.Trigger class={buttonVariants({ variant: 'ghost', size: 'sm', class: 'w-fit' })}>
@@ -103,6 +108,9 @@
 	<CompanyBaseCurrency />
 	<LearningSoulSection />
 	<AgentIdentitySection />
+	{#if isSupabaseConfigured()}
+		<BillingSection />
+	{/if}
 	<header class="grid gap-1 pt-2">
 		<h2 class="text-xl font-semibold">{text.members}</h2>
 		<p class="text-sm text-muted-foreground">{text.membersDescription}</p>
