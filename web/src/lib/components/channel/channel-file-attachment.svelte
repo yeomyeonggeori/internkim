@@ -3,6 +3,7 @@
 	import RotateCwIcon from '@lucide/svelte/icons/rotate-cw';
 	import type { Attachment as ElementAttachment } from 'svelte/attachments';
 	import * as Attachment from '$lib/components/ui/attachment/index.js';
+	import { Skeleton } from '$lib/components/ui/skeleton';
 	import type { AttachmentState } from '$lib/components/ui/attachment/index.js';
 	import { previewKindOf } from '$lib/files/preview/kind';
 	import SheetGridTable from '$lib/files/preview/sheet-grid-table.svelte';
@@ -27,6 +28,8 @@
 	const FileTypeIcon = $derived(visual.icon);
 	const wantsThumbnail = $derived(hasThumbnail(filename, attachment.sizeBytes));
 	let thumbnail = $state.raw<Thumbnail | null>(null);
+	let hasThumbnailSettled = $state(false);
+	const isAwaitingThumbnail = $derived(wantsThumbnail && !hasThumbnailSettled && attachmentState !== 'error');
 	const pageAspectRatio = $derived(pageAspectRatioOf(thumbnail));
 	const description = $derived([formatAttachmentMeta(attachment), countOf(thumbnail)].filter(Boolean).join(' · '));
 
@@ -48,10 +51,12 @@
 				([entry]) => {
 					if (!entry?.isIntersecting) return;
 					observer.disconnect();
-					thumbnailOf(attachment.url, () => source, filename).then(
-						(drawn) => (thumbnail = drawn),
-						(error: unknown) => console.warn('attachment thumbnail failed', error)
-					);
+					thumbnailOf(attachment.url, () => source, filename)
+						.then(
+							(drawn) => (thumbnail = drawn),
+							(error: unknown) => console.warn('attachment thumbnail failed', error)
+						)
+						.finally(() => (hasThumbnailSettled = true));
 				},
 				{ rootMargin: '400px 0px' }
 			);
@@ -76,6 +81,8 @@
 			<div aria-hidden="true" class="bg-background pointer-events-none absolute inset-0 overflow-hidden">
 				<div style="zoom: 0.55"><SheetGridTable grid={thumbnail.grid} /></div>
 			</div>
+		{:else if isAwaitingThumbnail}
+			<Skeleton class="absolute inset-0 rounded-none" />
 		{:else}
 			<FileTypeIcon class={visual.colorClass} />
 		{/if}
