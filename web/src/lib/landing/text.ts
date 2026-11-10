@@ -6,10 +6,10 @@ export const landingText = {
 		navigation: { docs: '문서', github: 'GitHub', signIn: '로그인', changeLanguage: '언어 바꾸기' },
 		hero: {
 			headline: 'AI 동료와 쓰는 백오피스',
-			lead: '근태, 업무, 일정, 고객, 문서를 한 앱에서 관리합니다. 메신저로 일을 부탁하면 김인턴이 회사 기록을 보고 처리합니다.',
+			lead: '근태, 업무, 일정, 고객, 문서를 한 앱에서 관리합니다. 메신저로 부탁하면 김인턴이 회사 기록을 보고 처리하고, 그 기록은 투자자에게 바로 보낼 수 있는 데이터룸이 됩니다.',
 			start: '회사 만들기',
 			signIn: '로그인',
-			openSource: '모든 소프트웨어가 오픈 소스입니다'
+			facts: ['Apache-2.0 오픈 소스', '대화는 회사 컴퓨터에', 'AI 사용료는 원가 그대로']
 		},
 		demo: {
 			label: '김인턴과 나눈 대화 예시',
@@ -111,22 +111,59 @@ export const landingText = {
 				{ sender: '박예시', text: '고마워요 👍' }
 			]
 		},
-		trust: {
-			title: '권한과 운영 방식',
+		investors: {
+			title: '투자자가 원하는 자료를 준비 없이 보냅니다',
+			lead: '일하며 남긴 기록과 김인턴이 만든 문서가 데이터룸에 분류되어 쌓입니다. 자료 요청이 오면 받는 사람에게 맞는 범위로 링크를 보냅니다.',
+			company: {
+				title: '회사는',
+				items: [
+					{ title: '자료를 따로 모으지 않습니다', body: '김인턴이 만든 계약서, 견적서, 보고서는 분류되어 데이터룸에 보관됩니다.' },
+					{ title: '회사 소개가 기록에서 만들어집니다', body: '매출 같은 지표와 연혁, 지분 구조를 기록하면 데이터룸의 회사 소개에 그래프와 표로 나옵니다.' },
+					{ title: '받는 사람마다 범위를 고릅니다', body: '링크는 서클 하나가 읽는 분류만 엽니다. 투자자, 회계·세무 자문, 법률 자문, 금융기관 서클이 처음부터 있습니다.' }
+				]
+			},
+			investor: {
+				title: '투자자는',
+				items: [
+					{ title: '링크와 코드로 바로 엽니다', body: '계정 없이 6자리 코드를 넣고 기밀유지 안내에 동의하면 됩니다.' },
+					{ title: '열 때마다 지금의 기록을 봅니다', body: '링크는 열 때마다 데이터룸을 새로 읽습니다. 그사이 기록한 지표와 문서가 바로 보입니다.' },
+					{ title: '필요한 만큼 깊이 봅니다', body: '실사가 진행되어 회사가 서클 범위를 넓히면, 같은 링크에서 더 많은 분류를 이어서 봅니다.' }
+				]
+			},
+			scope: '서클마다 열리는 분류',
+			guard: '링크는 길어야 7일 열리고 원본 다운로드는 따로 허용합니다. 내려받은 PDF의 모든 쪽에는 어느 링크로 언제 받았는지 찍힙니다.'
+		},
+		ownership: {
+			title: '회사의 데이터는 회사가 쥡니다',
+			lead: '대화와 작업 파일은 처음부터 회사 컴퓨터에 있습니다. 기록과 앱까지 직접 운영할지는 회사의 단계에 맞춰 정합니다.',
+			table: {
+				caption: '무엇이 어디에 있는지',
+				what: '무엇',
+				hosted: 'intern.kim과 함께',
+				selfHosted: '전부 직접',
+				rows: [
+					{ what: 'AI 동료, 대화, 작업 파일', hosted: '회사 컴퓨터', selfHosted: '회사 컴퓨터' },
+					{ what: '회사 기록과 파일 저장소', hosted: 'intern.kim', selfHosted: '회사의 Supabase' },
+					{ what: '웹 앱과 로그인 주소', hosted: 'intern.kim', selfHosted: '회사의 도메인' }
+				],
+				note: 'intern.kim의 회사 기록에는 메시지를 저장하는 테이블이 없습니다. 대화는 회사 컴퓨터에만 저장됩니다.'
+			},
 			items: [
+				{ title: '운영이 멈춰도 계속 씁니다', body: '모든 소프트웨어가 Apache-2.0 오픈 소스입니다. 여명거리가 서비스를 멈춰도 회사가 직접 운영하며 계속 쓸 수 있습니다.' },
+				{ title: '보안을 직접 검증하고 고칩니다', body: '코드를 누구나 읽을 수 있습니다. 회사나 보안 감사인이 직접 검증하고, 찾은 문제는 고쳐서 배포할 수 있습니다.' },
 				{ title: '부탁한 사람의 권한으로만', body: '김인턴은 부탁한 사람이 볼 수 있는 기록만 읽고, 할 수 있는 일만 합니다. 남긴 기록에는 그 사람의 이름이 붙습니다.' },
-				{ title: '되돌리기 어려운 일은 먼저 확인합니다', body: '데이터룸 링크 만들기처럼 되돌리기 어려운 일은 부탁한 사람에게 먼저 묻습니다.' },
-				{ title: '회사 컴퓨터에서 실행합니다', body: '모든 소프트웨어가 Apache-2.0 오픈 소스이고, AI 동료는 회사가 가진 컴퓨터에서 돌아갑니다.' }
-			]
+				{ title: '되돌리기 어려운 일은 먼저 묻습니다', body: '데이터룸 링크 만들기처럼 되돌리기 어려운 일은 부탁한 사람에게 먼저 확인합니다.' }
+			],
+			source: 'GitHub에서 코드 보기'
 		},
 		plans: {
-			title: '요금과 설치',
-			lead: '구성원 수만큼 구독하고, AI 동료가 일할 컴퓨터를 고르세요.',
+			title: '사내 AI 동료를 과한 비용 없이',
+			lead: '서버를 빌리거나 개발자를 두지 않아도 됩니다. 회사에 둔 컴퓨터 한 대에서 김인턴이 모든 구성원의 부탁을 처리합니다.',
 			pay: {
-				title: '구독과 AI 크레딧',
+				title: '구독과 AI 사용료',
 				items: [
-					{ title: '좌석 구독', body: '구성원 수만큼 구독합니다. 구독에 AI 크레딧이 들어 있습니다.' },
-					{ title: '크레딧 추가', body: '크레딧이 모자라면 더 살 수 있습니다.' },
+					{ title: '좌석 구독', body: '구성원 수만큼 구독합니다. 구독에 AI 크레딧이 들어 있고, 모자라면 더 살 수 있습니다.' },
+					{ title: '원가 그대로', body: 'AI 호출은 실제 비용만큼 크레딧에서 빠집니다. 김인턴은 일마다 맞는 모델을 골라 씁니다.' },
 					{ title: '회사 OpenRouter 키', body: 'OpenRouter 키를 연결하면 모델 비용을 직접 냅니다.' }
 				]
 			},
@@ -151,10 +188,10 @@ export const landingText = {
 		navigation: { docs: 'Docs', github: 'GitHub', signIn: 'Sign in', changeLanguage: 'Change language' },
 		hero: {
 			headline: 'A back office with an AI coworker',
-			lead: 'Attendance, tasks, calendar, customers and documents in one app. Ask in the messenger, and Intern Kim reads your company records and does the work.',
+			lead: 'Attendance, tasks, calendar, customers and documents in one app. Ask in the messenger and Intern Kim does the work from your company records, and those records become a data room you can send to investors.',
 			start: 'Create a company',
 			signIn: 'Sign in',
-			openSource: 'Every piece is open source'
+			facts: ['Open source under Apache-2.0', 'Conversations stay on your computer', 'AI billed at cost']
 		},
 		demo: {
 			label: 'A sample conversation with Intern Kim',
@@ -256,22 +293,59 @@ export const landingText = {
 				{ sender: 'Park Example', text: 'Thanks 👍' }
 			]
 		},
-		trust: {
-			title: 'Permissions and hosting',
+		investors: {
+			title: 'Send investors what they ask for, with nothing to prepare',
+			lead: 'The records your work leaves and the documents Intern Kim writes are filed in the data room as you go. When someone asks for materials, send a link scoped to who they are.',
+			company: {
+				title: 'For your company',
+				items: [
+					{ title: 'Nothing to gather', body: 'Contracts, quotes and reports Intern Kim writes are filed in the data room.' },
+					{ title: 'The company profile builds itself', body: 'Record metrics like revenue, your history and your cap table, and the data room shows them as charts and tables.' },
+					{ title: 'A scope for each recipient', body: 'A link opens only the categories one circle reads. Investor, accountant, legal adviser and lender circles are there from day one.' }
+				]
+			},
+			investor: {
+				title: 'For investors',
+				items: [
+					{ title: 'Open it with a link and a code', body: 'No account. Enter the six-digit code and accept the confidentiality notice.' },
+					{ title: 'Always the current records', body: 'The link reads the data room each time it opens, so new metrics and documents show up right away.' },
+					{ title: 'As deep as you need', body: 'When diligence moves on and the company widens the circle, the same link shows more categories.' }
+				]
+			},
+			scope: 'What each circle opens',
+			guard: 'Links last at most 7 days, and downloading originals is a separate choice. Every page of a downloaded PDF is stamped with the link and the time.'
+		},
+		ownership: {
+			title: 'Your company keeps its data',
+			lead: 'Conversations and working files live on your company computer from the start. How much more you run yourself is up to you.',
+			table: {
+				caption: 'What lives where',
+				what: 'What',
+				hosted: 'With intern.kim',
+				selfHosted: 'All yours',
+				rows: [
+					{ what: 'AI coworker, conversations, working files', hosted: 'Your computer', selfHosted: 'Your computer' },
+					{ what: 'Company records and file storage', hosted: 'intern.kim', selfHosted: 'Your Supabase' },
+					{ what: 'Web app and sign-in address', hosted: 'intern.kim', selfHosted: 'Your domain' }
+				],
+				note: 'The company record on intern.kim has no table for messages. Conversations are stored only on your company computer.'
+			},
 			items: [
+				{ title: 'Keeps running if we stop', body: 'All software is open source under Apache-2.0. If Yeomyeonggeori stops the service, your company can run it and keep going.' },
+				{ title: 'Audit and patch it yourself', body: 'Anyone can read the code. Your team or a security auditor can verify it, fix what they find and deploy the fix.' },
 				{ title: 'Only with your permissions', body: 'Intern Kim reads only the records the person asking can see, and does only what they can do. What it records carries their name.' },
-				{ title: 'Asks before anything hard to undo', body: 'Before something hard to undo, like creating a data room link, it asks the person who made the request.' },
-				{ title: "Runs on your company's computer", body: 'All software is open source under Apache-2.0, and the AI coworker runs on a computer your company owns.' }
-			]
+				{ title: 'Asks before anything hard to undo', body: 'Before something hard to undo, like creating a data room link, it asks the person who made the request.' }
+			],
+			source: 'Read the code on GitHub'
 		},
 		plans: {
-			title: 'Pricing and setup',
-			lead: 'Subscribe per member and pick the computer your AI coworker runs on.',
+			title: 'An in-house AI coworker without the big bill',
+			lead: 'No servers to rent and no developer to hire. One computer at your company handles requests from everyone on the team.',
 			pay: {
-				title: 'Seats and AI credits',
+				title: 'Seats and AI usage',
 				items: [
-					{ title: 'Per seat', body: 'Pay per member. AI credits are included.' },
-					{ title: 'More credits', body: 'Buy more when you run low.' },
+					{ title: 'Per seat', body: 'Pay per member. AI credits are included, and you can buy more when you run low.' },
+					{ title: 'At cost', body: 'Each AI call takes its actual cost from your credits. Intern Kim picks the right model for each job.' },
 					{ title: 'Your OpenRouter key', body: 'Connect it and pay model costs directly.' }
 				]
 			},

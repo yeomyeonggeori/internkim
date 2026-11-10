@@ -1,8 +1,6 @@
 <script lang="ts">
 	import ArrowRightIcon from '@lucide/svelte/icons/arrow-right';
-	import CodeXmlIcon from '@lucide/svelte/icons/code-xml';
-	import HandIcon from '@lucide/svelte/icons/hand';
-	import ShieldCheckIcon from '@lucide/svelte/icons/shield-check';
+	import CheckIcon from '@lucide/svelte/icons/check';
 	import { onMount } from 'svelte';
 	import { hostInstallCommands } from '$lib/company/host-setup';
 	import { Button } from '$lib/components/ui/button';
@@ -13,12 +11,13 @@
 	import LandingDay from '$lib/landing/landing-day.svelte';
 	import LandingDemo from '$lib/landing/landing-demo.svelte';
 	import LandingHeader from '$lib/landing/landing-header.svelte';
+	import LandingInvestors from '$lib/landing/landing-investors.svelte';
+	import LandingOwnership from '$lib/landing/landing-ownership.svelte';
 	import { heldWhileSignedInAttribute, holdWhileSignedInScript } from '$lib/landing/hold-while-signed-in';
 	import { docsURL, makerURL, repositoryURL, signInPath, startCompanyPath } from '$lib/landing/links';
 	import { landingText } from '$lib/landing/text';
 
 	const text = createPageText(landingText);
-	const trustIcons = [ShieldCheckIcon, HandIcon, CodeXmlIcon];
 
 	onMount(() => document.documentElement.removeAttribute(heldWhileSignedInAttribute));
 </script>
@@ -58,9 +57,11 @@
 					{@render startButton()}
 					<Button size="lg" variant="outline" href={signInPath}>{text.hero.signIn}</Button>
 				</div>
-				<a href={repositoryURL} class="text-muted-foreground hover:text-foreground w-fit text-sm underline-offset-4 hover:underline">
-					{text.hero.openSource}
-				</a>
+				<ul class="text-muted-foreground flex flex-wrap gap-x-5 gap-y-2 text-sm">
+					{#each text.hero.facts as fact (fact)}
+						<li class="flex items-center gap-1.5"><CheckIcon class="size-3.5" />{fact}</li>
+					{/each}
+				</ul>
 			</div>
 			<LandingDemo />
 		</section>
@@ -70,21 +71,19 @@
 			<LandingDay />
 		</section>
 
-		<section class="bg-muted/40 border-y" aria-labelledby="landing-trust">
-			<div class="mx-auto grid w-full max-w-6xl gap-12 px-4 py-20 sm:px-6">
-				<h2 id="landing-trust" class="text-3xl leading-tight font-bold tracking-tight break-keep sm:text-4xl">{text.trust.title}</h2>
-				<ul class="grid gap-10 md:grid-cols-3 md:gap-8">
-					{#each text.trust.items as item, index (item.title)}
-						{@const TrustIcon = trustIcons[index]}
-						<li class="grid content-start gap-3">
-							<TrustIcon class="text-muted-foreground size-5" />
-							<h3 class="text-lg font-semibold break-keep">{item.title}</h3>
-							<p class="text-muted-foreground leading-7 break-keep">{item.body}</p>
-						</li>
-					{/each}
-				</ul>
+		<section class="bg-muted/40 border-y" aria-labelledby="landing-investors">
+			<div class="mx-auto grid w-full max-w-6xl gap-12 px-4 py-20 sm:px-6 sm:py-24">
+				{@render sectionHeading('landing-investors', text.investors.title, text.investors.lead)}
+				<LandingInvestors />
 			</div>
 		</section>
+
+		<section class="mx-auto grid w-full max-w-6xl gap-12 px-4 py-20 sm:px-6 sm:py-24" aria-labelledby="landing-ownership">
+			{@render sectionHeading('landing-ownership', text.ownership.title, text.ownership.lead)}
+			<LandingOwnership />
+		</section>
+
+		<div class="border-t"></div>
 
 		<section class="mx-auto grid w-full max-w-6xl gap-10 px-4 py-20 sm:px-6 sm:py-24" aria-labelledby="landing-plans">
 			{@render sectionHeading('landing-plans', text.plans.title, text.plans.lead)}
