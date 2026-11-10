@@ -11,6 +11,8 @@ const siblingID = '30000000-0000-4000-8000-000000000013';
 const strangerID = '30000000-0000-4000-8000-000000000014';
 const undatedID = '30000000-0000-4000-8000-000000000015';
 const holidayDay = 10;
+const businessName = 'Fixture 사업';
+const completedID = '30000000-0000-4000-8000-000000000016';
 
 function dayOfThisMonth(day: number): string {
 	const today = new Date();
@@ -33,7 +35,8 @@ class TaskRoadmapFixture {
 		taskFixture(parentID, 'Fixture 로드맵 부모 업무', { startDate: dayOfThisMonth(2), endDate: dayOfThisMonth(20) }),
 		taskFixture(childID, 'Fixture 로드맵 자녀 업무', { parentTaskID: parentID, startDate: dayOfThisMonth(5), endDate: dayOfThisMonth(12) }),
 		taskFixture(siblingID, 'Fixture 로드맵 형제 업무', { parentTaskID: parentID, status: 'planned', startDate: dayOfThisMonth(13), endDate: dayOfThisMonth(18) }),
-		taskFixture(strangerID, 'Fixture 로드맵 관계없는 업무', { startDate: dayOfThisMonth(3), endDate: dayOfThisMonth(7) }),
+		taskFixture(strangerID, 'Fixture 로드맵 관계없는 업무', { business: businessName, startDate: dayOfThisMonth(3), endDate: dayOfThisMonth(7) }),
+		taskFixture(completedID, 'Fixture 로드맵 완료 업무', { status: 'completed', startDate: dayOfThisMonth(1), endDate: dayOfThisMonth(4) }),
 		taskFixture(undatedID, 'Fixture 로드맵 날짜 없는 업무', { status: 'planned' })
 	];
 	writes: TaskDateWrite[] = [];
@@ -42,7 +45,7 @@ class TaskRoadmapFixture {
 	listed(): RecordTaskList {
 		return {
 			scope: 'all', count: this.tasks.length, tasks: this.tasks,
-			registeredLabels: { businesses: [], types: [], sizes: ['S', 'M', 'L'], statuses: ['requested', 'planned', 'in_progress', 'completed', 'paused', 'rejected', 'stopped'] }
+			registeredLabels: { businesses: [{ name: businessName }], types: [], sizes: ['S', 'M', 'L'], statuses: ['requested', 'planned', 'in_progress', 'completed', 'paused', 'rejected', 'stopped'] }
 		};
 	}
 
@@ -231,4 +234,42 @@ test('supplementary fixture: the stored history draws the roadmap first, and bar
 	await expect(roadmap.locator(`[data-roadmap-bar="${childID}"]`)).toHaveClass(/cursor-grab/);
 	await dragBarByDays(page, roadmap, childID, 3);
 	await expect.poll(() => fixture.writes).toEqual([{ taskHint: childID, startsAt: dayOfThisMonth(8), endsAt: dayOfThisMonth(15) }]);
+});
+
+test('supplementary fixture: the roadmap business badge is the one the list tab shows', async ({ page }) => {
+	const roadmap = await openRoadmap(page, new TaskRoadmapFixture());
+	const roadmapBadge = roadmapRow(roadmap, strangerID).locator('[data-slot="badge"]').filter({ hasText: businessName });
+	const roadmapLook = await roadmapBadge.evaluate(element => { const style = getComputedStyle(element); return [style.backgroundColor, style.color, style.borderRadius, style.fontSize, style.height]; });
+	await page.getByRole('tab', { name: '표' }).click();
+	const listBadge = page.getByRole('tabpanel', { name: '표' }).locator('[data-slot="badge"]').filter({ hasText: businessName }).first();
+	await expect(listBadge).toBeVisible();
+	const listLook = await listBadge.evaluate(element => { const style = getComputedStyle(element); return [style.backgroundColor, style.color, style.borderRadius, style.fontSize, style.height]; });
+	expect(roadmapLook).toEqual(listLook);
+});
+
+test('supplementary fixture: choosing a date in the header scrolls the roadmap to it', async ({ page }) => {
+	const roadmap = await openRoadmap(page, new TaskRoadmapFixture());
+	const nextMonth = new Date(new Date().getFullYear(), new Date().getMonth() + 1, 20);
+	const targetISO = `${nextMonth.getFullYear()}-${String(nextMonth.getMonth() + 1).padStart(2, '0')}-20`;
+	await page.getByRole('button', { name: '다음 달' }).click();
+	const target = roadmap.locator(`[data-roadmap-day="${targetISO}"]`);
+	await expect(target).toBeInViewport();
+	const scrolledBefore = await roadmap.evaluate(element => element.scrollLeft);
+	await target.click();
+	await expect.poll(() => roadmap.evaluate(element => element.scrollLeft)).toBeGreaterThan(scrolledBefore);
+	await expect(target).toBeInViewport();
+});
+
+test('supplementary fixture: choosing a task in the list scrolls the roadmap to its bar', async ({ page }) => {
+	const roadmap = await openRoadmap(page, new TaskRoadmapFixture());
+	await roadmap.evaluate(element => { element.scrollLeft = element.scrollWidth; });
+	const bar = roadmap.locator(`[data-roadmap-bar="${siblingID}"]`);
+	await expect(bar).not.toBeInViewport();
+	await roadmapRow(roadmap, siblingID).getByRole('button', { name: /Fixture 로드맵 형제 업무/ }).first().click();
+	await expect(bar).toBeInViewport();
+});
+
+test('supplementary fixture: the completed group starts open', async ({ page }) => {
+	const roadmap = await openRoadmap(page, new TaskRoadmapFixture());
+	await expect(roadmap.locator(`[data-roadmap-bar="${completedID}"]`)).toBeVisible();
 });
