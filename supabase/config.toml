@@ -88,10 +88,10 @@ otp_expiry = 3600
 enabled = false
 
 [auth.email.template.magic_link]
-subject = "Your internkim code: {{ .Token }}"
+subject = "{{ if eq .Data.locale \"ko\" }}김인턴 로그인 코드: {{ .Token }}{{ else }}Your Intern Kim code: {{ .Token }}{{ end }}"
 
 [auth.email.template.confirmation]
-subject = "Your internkim code: {{ .Token }}"
+subject = "{{ if eq .Data.locale \"ko\" }}김인턴 로그인 코드: {{ .Token }}{{ else }}Your Intern Kim code: {{ .Token }}{{ end }}"
 
 [auth.email.template.invite]
 subject = "{{ if eq .Data.locale \"ko\" }}{{ .Data.companyName }}에서 업무를 공유했습니다{{ else }}{{ .Data.companyName }} shared work with you{{ end }}"

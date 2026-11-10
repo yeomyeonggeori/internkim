@@ -8,7 +8,7 @@ export const POST: RequestHandler = async ({ request, platform, url }) => {
 	const parsed = companySignupRequest.safeParse(await request.json().catch(() => null));
 	if (!parsed.success) error(400, 'a valid email address is required');
 	try {
-		await requestCompanySignupEmail(environment, parsed.data.email, url.origin);
+		await requestCompanySignupEmail(environment, parsed.data.email, parsed.data.locale, url.origin);
 	} catch (caughtError) {
 		if (caughtError instanceof CompanySignupError) error(caughtError.status, caughtError.message);
 		throw caughtError;
