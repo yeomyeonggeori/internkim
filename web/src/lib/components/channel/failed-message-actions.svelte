@@ -4,7 +4,11 @@
 	import { createPageText } from '$lib/i18n/page-text.svelte';
 	import CircleAlertIcon from '@lucide/svelte/icons/circle-alert';
 
-	let { onRetry, onDiscard }: { onRetry: () => void; onDiscard: () => void } = $props();
+	let {
+		isTooLarge = false,
+		onRetry,
+		onDiscard
+	}: { isTooLarge?: boolean; onRetry: () => void; onDiscard: () => void } = $props();
 
 	const text = createPageText(channelText);
 	const labelID = $props.id();
@@ -16,7 +20,9 @@
 	class="group-data-[align=end]/message:self-end flex w-fit items-center gap-1 text-xs"
 >
 	<CircleAlertIcon class="text-destructive size-4 shrink-0" aria-hidden="true" />
-	<span id={labelID} class="text-destructive">{text.sendFailed}</span>
-	<Button variant="ghost" size="sm" onclick={onRetry}>{text.sendAgain}</Button>
+	<span id={labelID} class="text-destructive">{isTooLarge ? text.sendTooLarge : text.sendFailed}</span>
+	{#if !isTooLarge}
+		<Button variant="ghost" size="sm" onclick={onRetry}>{text.sendAgain}</Button>
+	{/if}
 	<Button variant="ghost" size="sm" onclick={onDiscard}>{text.discardFailedMessage}</Button>
 </div>
