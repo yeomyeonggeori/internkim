@@ -35,10 +35,7 @@ CUT_WITHOUT_SAYING_SO = {
     "attendance_list": "answers at most limit rows and nothing says more exist",
 }
 
-UNBOUNDED_PAGES = {
-    "mail_message_list": "a page has no maximum, so one call can carry a whole mailbox into the context",
-    "mail_message_search": "a page has no maximum, so one call can carry every match into the context",
-}
+UNBOUNDED_PAGES = {}
 
 
 def schema_of(value):
