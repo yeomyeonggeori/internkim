@@ -24,7 +24,6 @@
 		etcLabel={text.task.etcLabel}
 		statusLabel={(status) => statusLabels[status] ?? status}
 		openTask={() => {}}
-		createTask={() => {}}
 		moveTask={() => {}}
 		pendingTaskIDs={[]}
 		canUpdateTask={() => false}
