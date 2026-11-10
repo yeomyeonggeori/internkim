@@ -26,6 +26,7 @@
   --color-warning-subtle-foreground: var(--warning-subtle-foreground);
   --color-info: var(--info);
   --color-brand: var(--brand);
+  --color-brand-foreground: var(--brand-foreground);
   --color-info-foreground: var(--info-foreground);
   --color-ring: var(--ring);
   --color-sidebar: var(--sidebar);
@@ -80,6 +81,7 @@
     --warning-subtle-foreground: oklch(0.42 0.11 70);
     --info: hsl(199 89% 48%);
     --brand: hsl(213 86% 38%);
+    --brand-foreground: hsl(0 0% 100%);
     --info-foreground: hsl(0 0% 100%);
     --ring: oklch(0.705 0.015 286.1);
     --radius: 0.5rem;
@@ -118,7 +120,6 @@
     --warning-subtle: oklch(0.26 0.07 75);
     --warning-subtle-foreground: oklch(0.86 0.13 80);
     --info: hsl(199 90% 60%);
-    --brand: hsl(213 80% 64%);
     --info-foreground: hsl(240 10% 3.9%);
     --ring: oklch(0.552 0.016 285.9);
     --sidebar: hsl(240 5.9% 10%);

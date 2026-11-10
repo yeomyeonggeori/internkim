@@ -5,7 +5,6 @@
 	import { Button } from '$lib/components/ui/button';
 	import * as ButtonGroup from '$lib/components/ui/button-group';
 	import * as Popover from '$lib/components/ui/popover';
-	import * as Tooltip from '$lib/components/ui/tooltip';
 	import { createPageText } from '$lib/i18n/page-text.svelte';
 	import { ViewType } from '../calendar-view-type';
 	import ChevronDownIcon from '@lucide/svelte/icons/chevron-down';
@@ -129,8 +128,6 @@
 			{/snippet}
 		</FilterCombobox>
 {/snippet}
-
-<Tooltip.Provider delayDuration={120}>
 <header class="calendar-toolbar bg-background border-border/50 sticky top-0 z-20 flex min-h-14 flex-wrap items-center gap-2 border-b py-2 pr-4 pl-6 max-sm:flex-nowrap max-sm:gap-1 max-sm:py-1 max-sm:pr-2 max-sm:pl-3">
 	<Popover.Root bind:open={isDatePickerOpen}>
 		<Popover.Trigger>
@@ -193,4 +190,3 @@
 		</Popover.Content>
 	</Popover.Root>
 </header>
-</Tooltip.Provider>

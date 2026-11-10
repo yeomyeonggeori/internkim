@@ -41,13 +41,13 @@
 
 	type Highlight = { key: string; label: string; value: string; note: string };
 
-	let { company: recordedCompany, sharedWith }: { company: DataRoomCompany; sharedWith?: string | null } = $props();
+	let { company: recordedCompany, sharedWith, asRecorded = false }: { company: DataRoomCompany; sharedWith?: string | null; asRecorded?: boolean } = $props();
 
 	let exchangeRates = $state<ExchangeRates>(new Map());
 
 	const locale = $derived(currentLocale.value);
 	const text = $derived(dataRoomCompanyText[locale]);
-	const currency = $derived(displayCurrency.value);
+	const currency = $derived(asRecorded ? '' : displayCurrency.value);
 	const company = $derived(currency ? companyIn(recordedCompany, currency, exchangeRates) : recordedCompany);
 	const conversionDate = $derived([...exchangeRates.values()].map((rate) => rate.asOf).toSorted().at(-1));
 	const conversionNotice = $derived(currency && conversionDate ? text.currency.converted(currency, conversionDate) : '');

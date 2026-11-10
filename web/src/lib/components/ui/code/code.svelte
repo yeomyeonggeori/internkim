@@ -63,6 +63,11 @@
 		box-decoration-break: clone;
 	}
 
+	:global(:has(> button[name='copy']) > pre.shiki code) {
+		width: max-content;
+		padding-inline-end: 2.75rem;
+	}
+
 	:global(pre.line-numbers) {
 		counter-reset: step;
 		counter-increment: step 0;

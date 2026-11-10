@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { attachmentStateOf } from '../../../src/lib/components/channel/channel-attachments';
+import { attachmentStateOf, formatAttachmentMeta } from '../../../src/lib/components/channel/channel-attachments';
 
 describe('what an attachment card says while its file is fetched', () => {
 	test('shimmers while the relay is still copying the file', () => {
@@ -17,5 +17,16 @@ describe('what an attachment card says while its file is fetched', () => {
 	test('a file the message itself addresses never shimmers', () => {
 		expect(attachmentStateOf('https://relay.example.com/file.png', 'unasked')).toBe('done');
 		expect(attachmentStateOf(undefined, 'unasked')).toBe('done');
+	});
+});
+
+describe('what an attachment card says the file is', () => {
+	test('names an office file by its extension, never its long media type', () => {
+		const spreadsheetType = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+		expect(formatAttachmentMeta({ mimeType: spreadsheetType, filename: 'quote-items.xlsx', sizeBytes: 18_432 })).toBe('XLSX · 18 KB');
+	});
+
+	test('falls back to the media type when the file has no extension', () => {
+		expect(formatAttachmentMeta({ mimeType: 'application/pdf', filename: 'quote' })).toBe('PDF');
 	});
 });

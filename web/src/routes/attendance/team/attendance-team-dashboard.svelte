@@ -31,7 +31,6 @@
 	import * as InputGroup from '$lib/components/ui/input-group';
 	import * as Select from '$lib/components/ui/select';
 	import * as Sheet from '$lib/components/ui/sheet';
-	import * as Tooltip from '$lib/components/ui/tooltip';
 	import { myAttendanceToday } from '$lib/attendance/my-attendance-today.svelte';
 	import type { AttendanceTeamPage } from '$lib/attendance/team-page';
 	import { createPageText } from '$lib/i18n/page-text.svelte';
@@ -202,8 +201,6 @@
 		};
 	});
 </script>
-
-<Tooltip.Provider>
 	<div class="mx-auto flex w-full max-w-7xl flex-col gap-6 max-sm:gap-4" data-testid="attendance-team-dashboard" aria-busy={teamState.isLoadingTeams || teamState.isLoadingMembers}>
 
         {#if myAttendanceToday.loadFailure && !myAttendanceToday.isShowingStored}<p role="alert" class="text-sm text-destructive">{myAttendanceToday.loadFailure}</p>{/if}
@@ -336,4 +333,3 @@
 			{/if}
 		</Sheet.Content>
 	</Sheet.Root>
-</Tooltip.Provider>

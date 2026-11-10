@@ -7,6 +7,7 @@
 	import { Spinner } from '$lib/components/ui/spinner';
 	import TooltipIconButton from '$lib/components/tooltip-icon-button.svelte';
 	import { createPageText } from '$lib/i18n/page-text.svelte';
+	import { loadPdfLibrary } from './pdf-library';
 	import { previewText } from './text';
 
 	let { bytes, onFailure }: { bytes: ArrayBuffer; onFailure: (error: unknown) => void } = $props();
@@ -37,10 +38,8 @@
 
 	async function openDocument(source: ArrayBuffer, opening: { task: PDFDocumentLoadingTask | null; isClosed: boolean }) {
 		try {
-			const pdfjs = await import('pdfjs-dist');
-			const { default: workerURL } = await import('pdfjs-dist/build/pdf.worker.min.mjs?url');
+			const pdfjs = await loadPdfLibrary();
 			if (opening.isClosed) return;
-			pdfjs.GlobalWorkerOptions.workerSrc = workerURL;
 			opening.task = pdfjs.getDocument({ data: new Uint8Array(source.slice(0)) });
 			const opened = await opening.task.promise;
 			const firstPage = (await opened.getPage(1)).getViewport({ scale: 1 });

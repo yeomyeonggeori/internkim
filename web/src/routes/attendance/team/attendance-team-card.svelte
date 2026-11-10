@@ -101,7 +101,7 @@
 					<span class="truncate">{name}</span>
 					{#if isCallerTeam}<span class="text-muted-foreground shrink-0 rounded-full border px-1.5 text-[11px] font-normal">{text.teamMine}</span>{/if}
 				</Card.Title>
-				<p class="text-muted-foreground mt-1 text-xs">{team.memberCount}명</p>
+				<p class="text-muted-foreground mt-1 text-xs">{text.peopleCountTemplate.replace('{count}', String(team.memberCount))}</p>
 			</div>
 			<div class="shrink-0 text-right" aria-label={`${team.working}/${team.memberCount} ${text.working}`}>
 				<span class="text-2xl leading-none font-semibold tabular-nums">{Math.round(proportion(team.working, team.memberCount))}%</span>

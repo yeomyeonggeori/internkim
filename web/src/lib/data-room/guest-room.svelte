@@ -2,7 +2,6 @@
 	import RefreshButton from '$lib/components/refresh-button.svelte';
 	import SearchIcon from '@lucide/svelte/icons/search';
 	import * as InputGroup from '$lib/components/ui/input-group';
-	import * as Tooltip from '$lib/components/ui/tooltip';
 	import AnimatedHeight from '$lib/components/animated-height.svelte';
 	import FileBrowserList, { type FileBrowserEntry } from '$lib/components/file-browser-list.svelte';
 	import CurrencySwitcher from '$lib/components/currency-switcher.svelte';
@@ -140,8 +139,6 @@
 		openID = entry.id;
 	}
 </script>
-
-<Tooltip.Provider delayDuration={120}>
 <div class={cn('bg-muted/40 flex flex-1 flex-col', fillsViewport && 'min-h-dvh')}>
 	<header class="bg-background sticky top-0 z-10 border-b">
 		<div class="mx-auto flex w-full max-w-5xl items-center gap-3 px-4 py-3">
@@ -208,4 +205,3 @@
 	{isDownloading}
 	{watermark}
 />
-</Tooltip.Provider>
