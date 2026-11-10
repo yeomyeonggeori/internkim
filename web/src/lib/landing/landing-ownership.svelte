@@ -13,7 +13,7 @@
 	const itemIcons = [CodeXmlIcon, BadgeCheckIcon, ShieldCheckIcon, HandIcon];
 </script>
 
-<div class="grid gap-12 lg:grid-cols-[minmax(0,6fr)_minmax(0,5fr)] lg:gap-12">
+<div class="grid gap-12 lg:grid-cols-[minmax(0,5fr)_minmax(0,6fr)] lg:gap-12">
 	<div class="grid content-start gap-3">
 		<Card.Root class="gap-0 py-0">
 			<Table.Root>

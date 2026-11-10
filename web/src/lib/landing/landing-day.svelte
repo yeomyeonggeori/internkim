@@ -1,4 +1,8 @@
 <script lang="ts">
+	import FileTextIcon from '@lucide/svelte/icons/file-text';
+	import HistoryIcon from '@lucide/svelte/icons/history';
+	import MailIcon from '@lucide/svelte/icons/mail';
+	import RepeatIcon from '@lucide/svelte/icons/repeat';
 	import type { Component } from 'svelte';
 	import { isAppSection, type AppSection } from '$lib/components/app-section-icons';
 	import { createPageText } from '$lib/i18n/page-text.svelte';
@@ -12,6 +16,7 @@
 	import { landingText } from './text';
 
 	const text = createPageText(landingText);
+	const moreIcons = [MailIcon, RepeatIcon, FileTextIcon, HistoryIcon];
 	const scenes: Partial<Record<AppSection, Component>> = {
 		attendance: LandingAttendance,
 		calendar: LandingCalendar,
@@ -51,4 +56,17 @@
 			</li>
 		{/each}
 	</ol>
+	<div class="grid gap-6 border-t pt-12">
+		<h3 class="text-lg font-semibold">{text.day.more.title}</h3>
+		<ul class="grid gap-8 sm:grid-cols-2 lg:grid-cols-4">
+			{#each text.day.more.items as item, index (item.title)}
+				{@const MoreIcon = moreIcons[index]}
+				<li class="grid content-start gap-2">
+					<MoreIcon class="text-muted-foreground size-5" />
+					<p class="font-semibold">{item.title}</p>
+					<p class="text-muted-foreground leading-7 break-keep">{item.body}</p>
+				</li>
+			{/each}
+		</ul>
+	</div>
 </div>
