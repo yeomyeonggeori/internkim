@@ -29,7 +29,8 @@
 		type TaskRoadmapBar,
 		type TaskRoadmapMonth
 	} from './task-roadmap-model';
-	import { taskRoadmapMonthScrollDay, taskRoadmapTodayScrollDay, taskRoadmapVisibleMonth } from './task-roadmap-scroll';
+	import { taskRoadmapFocusScrollDay, taskRoadmapMonthScrollDay, taskRoadmapTodayScrollDay, taskRoadmapVisibleMonth } from './task-roadmap-scroll';
+	import TaskListBusinessCell from './task-list-business-cell.svelte';
 	import { buildTaskChildProgressByParent, type TaskChildProgress } from './task-relationships';
 	import { isTaskStatusCompleted, isTaskStatusInProgress } from './task-status';
 	import type { Task } from './task-types';
@@ -47,13 +48,14 @@
 		todayISO: string;
 		text: TaskRoadmapText;
 		statusLabel: (status: string) => string;
+		businessColor: (business: string | null) => string;
 		openTask: (task: Task) => void;
 		canUpdateTask: (task: Task) => boolean;
 		updateTaskDates: (task: Task, startDate: string, endDate: string) => Promise<boolean>;
 		selectMonth: (month: TaskRoadmapMonth) => void;
 	};
 
-	let { tasks, allTasks, serverChildProgress, centerMonth, month, todayISO, text, statusLabel, openTask, canUpdateTask, updateTaskDates, selectMonth }: Props = $props();
+	let { tasks, allTasks, serverChildProgress, centerMonth, month, todayISO, text, statusLabel, businessColor, openTask, canUpdateTask, updateTaskDates, selectMonth }: Props = $props();
 
 	const dayWidthRem = 2;
 	const leftColumnClass = 'w-80 max-sm:w-56';
@@ -63,7 +65,7 @@
 	let todayIndex = $derived(days.indexOf(todayISO));
 	let groups = $derived(buildTaskRoadmap(tasks, days, childProgressByParent));
 	let holidays = $state(noTaskRoadmapHolidays);
-	let collapsedStatuses = $state(new Set(['completed']));
+	let collapsedStatuses = $state(new Set<string>());
 	let selectedTaskID = $state('');
 	let highlightedTaskIDs = $derived(selectedTaskID ? relatedTaskIDs(selectedTaskID, allTasks) : null);
 	let movedRanges = $state(new Map<string, TaskDateRange>());
@@ -108,6 +110,21 @@
 
 	function scrollToToday(): void {
 		scrollToDay(taskRoadmapTodayScrollDay(monthSegments, todayIndex, visibleDays()));
+	}
+
+	function focusDay(dayIndex: number): void {
+		scrollToDay(taskRoadmapFocusScrollDay(dayIndex, visibleDays()));
+	}
+
+	function focusBar(bar: TaskRoadmapBar): void {
+		if (bar.kind === 'span') focusDay(bar.firstDay);
+		else if (bar.kind === 'before') scrollToDay(0);
+		else if (bar.kind === 'after') scrollToDay(days.length);
+	}
+
+	function chooseTaskFromList(task: Task, bar: TaskRoadmapBar): void {
+		focusBar(bar);
+		chooseTask(task);
 	}
 
 	function scrollToMonth(target: TaskRoadmapMonth): void {
@@ -215,10 +232,10 @@
 				<div class="grid h-9" style={`grid-template-columns: repeat(${days.length}, minmax(0, 1fr))`}>
 					{#each days as dayISO, index (dayISO)}
 						{@const red = isRedDay(dayISO)}
-						<div class={cn('flex flex-col items-center justify-center text-xs leading-none tabular-nums', red ? 'text-destructive' : 'text-muted-foreground')} title={holidays.titles.get(dayISO)} data-roadmap-red-day={red ? 'true' : undefined}>
+						<button type="button" class={cn('flex flex-col items-center justify-center rounded-md text-xs leading-none tabular-nums hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none', red ? 'text-destructive' : 'text-muted-foreground')} title={holidays.titles.get(dayISO)} onclick={() => focusDay(index)} data-roadmap-day={dayISO} data-roadmap-red-day={red ? 'true' : undefined}>
 							<span class="text-[0.625rem]">{formatTaskRoadmapWeekday(dayISO, text.roadmap.dateLocale)}</span>
 							<span class={cn('mt-0.5 inline-flex size-5 items-center justify-center rounded-full', index === todayIndex && 'bg-primary font-semibold text-primary-foreground')} data-roadmap-today={index === todayIndex ? 'true' : undefined}>{Number(dayISO.slice(8))}</span>
-						</div>
+						</button>
 					{/each}
 				</div>
 			</div>
@@ -243,7 +260,7 @@
 						{@const dimmed = highlightedTaskIDs !== null && !highlightedTaskIDs.has(row.task.id)}
 						{@const selected = selectedTaskID === row.task.id}
 						<div class={cn('group flex border-b transition-opacity', dimmed && 'opacity-40', selected && 'bg-muted/50')} data-roadmap-task={row.task.id} data-roadmap-dimmed={dimmed ? 'true' : undefined}>
-							<button type="button" class={cn('sticky left-0 z-10 flex shrink-0 items-center gap-2.5 border-r bg-background py-2 pr-3 pl-9 text-left max-sm:pl-4', leftColumnClass, selected && 'bg-muted')} onclick={() => chooseTask(row.task)}>
+							<button type="button" class={cn('sticky left-0 z-10 flex shrink-0 items-center gap-2.5 border-r bg-background py-2 pr-3 pl-9 text-left max-sm:pl-4', leftColumnClass, selected && 'bg-muted')} onclick={() => chooseTaskFromList(row.task, bar)}>
 								<PersonAvatar name={row.task.ownerName} seed={row.task.ownerID || row.task.ownerName} memberID={row.task.ownerID} class="size-6" />
 								<span class="flex min-w-0 flex-1 flex-col gap-1.5">
 									<span class="flex min-w-0 items-center gap-1.5">
@@ -260,7 +277,7 @@
 										</span>
 									{/if}
 								</span>
-								{#if row.task.business}<Badge variant="outline">{row.task.business}</Badge>{/if}
+								{#if row.task.business}<TaskListBusinessCell label={row.task.business} color={businessColor(row.task.business)} />{/if}
 							</button>
 							<div class="relative shrink-0" style={laneStyle()}>
 								{#if todayIndex >= 0}

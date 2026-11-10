@@ -203,6 +203,7 @@
 				{todayISO}
 				text={text.task}
 				statusLabel={page.statusLabel}
+				businessColor={page.businessColor}
 				openTask={page.openTask}
 				canUpdateTask={isLoading || !isHistoryFresh ? () => false : page.canUpdateTask}
 				updateTaskDates={page.updateTaskDates}
