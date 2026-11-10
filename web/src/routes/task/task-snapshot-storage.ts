@@ -35,9 +35,13 @@ export function storeTaskSnapshot(scope: string, state: TaskState, savedAt = Dat
 	try { window.localStorage.setItem(storageKey, JSON.stringify({ version: 1, scope, savedAt, state })); } catch {}
 }
 
-export function clearStoredTaskSnapshot(scope?: string): void {
+export function markTaskSnapshotStale(): void {
 	generation++;
 	for (const listener of invalidationListeners) listener();
+}
+
+export function clearStoredTaskSnapshot(scope?: string): void {
+	markTaskSnapshotStale();
 	if (typeof window === 'undefined') return;
 	try {
 		if (!scope || JSON.parse(window.localStorage.getItem(storageKey) ?? 'null')?.scope === scope) window.localStorage.removeItem(storageKey);
