@@ -23,6 +23,7 @@ type OpenRouterBackend struct {
 	FallbackModelNames  []string
 	GatewaySecretPath   string
 	GatewaySecretHeader string
+	NamesRequester      bool
 	ProviderSort        string
 	HTTPClient          *http.Client
 }
@@ -45,6 +46,7 @@ func (backend OpenRouterBackend) Ping(ctx context.Context) error {
 }
 
 func (backend OpenRouterBackend) CompleteStructured(ctx context.Context, request StructuredRequest) (Response, error) {
+	ctx = ContextWithRequesterEmail(ctx, request.Context.RequesterEmail)
 	apiKey, errorValue := backend.resolveAPIKey()
 	if errorValue != nil {
 		return Response{}, errorValue
@@ -293,6 +295,7 @@ func (backend OpenRouterBackend) completeStructuredDocument(ctx context.Context,
 }
 
 func (backend OpenRouterBackend) CompleteText(ctx context.Context, request TextRequest) (Response, error) {
+	ctx = ContextWithRequesterEmail(ctx, request.Context.RequesterEmail)
 	apiKey, errorValue := backend.resolveAPIKey()
 	if errorValue != nil {
 		return Response{}, errorValue
@@ -315,6 +318,7 @@ func (backend OpenRouterBackend) CompleteText(ctx context.Context, request TextR
 }
 
 func (backend OpenRouterBackend) CompleteChat(ctx context.Context, request ChatRequest) (ChatResponse, error) {
+	ctx = ContextWithRequesterEmail(ctx, request.Context.RequesterEmail)
 	apiKey, errorValue := backend.resolveAPIKey()
 	if errorValue != nil {
 		return ChatResponse{}, errorValue
@@ -482,6 +486,7 @@ func (backend OpenRouterBackend) sendWhole(ctx context.Context, apiKey string, r
 	httpRequest.Header.Set("Content-Type", "application/json")
 	setSessionAffinityHeader(httpRequest, request.SessionID)
 	backend.setGatewaySecretHeader(httpRequest)
+	backend.nameRequester(httpRequest)
 
 	httpResponse, errorValue := backend.HTTPClient.Do(httpRequest)
 	if errorValue != nil {

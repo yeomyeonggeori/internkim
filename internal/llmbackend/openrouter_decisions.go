@@ -147,6 +147,7 @@ func (backend OpenRouterBackend) sendDecisions(ctx context.Context, apiKey strin
 	httpRequest.Header.Set("Authorization", "Bearer "+apiKey)
 	httpRequest.Header.Set("Content-Type", "application/json")
 	backend.setGatewaySecretHeader(httpRequest)
+	backend.nameRequester(httpRequest)
 
 	httpResponse, errorValue := backend.HTTPClient.Do(httpRequest)
 	if errorValue != nil {

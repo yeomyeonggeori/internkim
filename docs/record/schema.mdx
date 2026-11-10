@@ -186,9 +186,10 @@ prorated lines net to. A seat given up is not refunded; the next period bills
 the lower count.
 
 A model call spends them through the `model-gateway` edge function. The
-company's computer signs in with its agent key or host session and, when a
-member asked, names them in the `x-internkim-member` header. A call no member
-asked for is held only to the company's balance.
+company's computer signs in with its agent key or host session and names the
+email of the person who asked in the `x-internkim-requester-email` header. The
+gateway charges the company member with that email; a call nobody asked for, or
+one whose email matches no member, is held only to the company's balance.
 `company_member_credit_refusal` says whether that member may start a call, and
 names the reason when not. The call goes to OpenRouter with our key, and
 `company_credit_usage_charged` writes what it cost once it finishes: subscription

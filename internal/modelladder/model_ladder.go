@@ -46,12 +46,13 @@ func ReasoningEffort(tier string) string {
 }
 
 type Rung struct {
-	Endpoint        string `json:"endpoint,omitempty"`
-	Model           string `json:"model"`
-	Dimensions      int    `json:"dimensions,omitempty"`
-	APIKeyPath      string `json:"apiKeyPath,omitempty"`
-	ProviderSort    string `json:"providerSort,omitempty"`
-	ReasoningEffort string `json:"reasoningEffort,omitempty"`
+	Endpoint             string `json:"endpoint,omitempty"`
+	Model                string `json:"model"`
+	Dimensions           int    `json:"dimensions,omitempty"`
+	APIKeyPath           string `json:"apiKeyPath,omitempty"`
+	ProviderSort         string `json:"providerSort,omitempty"`
+	ReasoningEffort      string `json:"reasoningEffort,omitempty"`
+	RequesterEmailHeader string `json:"requesterEmailHeader,omitempty"`
 }
 
 type Document struct {

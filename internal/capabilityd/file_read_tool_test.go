@@ -233,7 +233,7 @@ func TestAMissingConversionEnvironmentSaysToReinstallAndTriesNoOtherPython(t *te
 		}.WithDefaults(),
 	}
 
-	_, _, _, errorValue := service.convertDocument(context.Background(), filepath.Join(workspacePath, "report.docx"), 0)
+	_, _, _, errorValue := service.convertDocument(context.Background(), filepath.Join(workspacePath, "report.docx"), 0, "")
 	if errorValue == nil {
 		t.Fatal("a conversion with no environment succeeded")
 	}

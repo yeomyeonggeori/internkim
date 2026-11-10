@@ -99,6 +99,7 @@ def build_openai_client(request):
     return OpenAI(
         api_key=request.get("openRouterAPIKey"),
         base_url=request.get("openRouterBaseURL"),
+        default_headers=request.get("openRouterHeaders") or None,
     )
 
 def render_page_image(document, index):

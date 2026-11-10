@@ -121,6 +121,7 @@ func (backend OpenRouterBackend) readStream(ctx context.Context, apiKey string, 
 	httpRequest.Header.Set("Accept", "text/event-stream")
 	setSessionAffinityHeader(httpRequest, sessionID)
 	backend.setGatewaySecretHeader(httpRequest)
+	backend.nameRequester(httpRequest)
 
 	httpResponse, errorValue := backend.HTTPClient.Do(httpRequest)
 	if errorValue != nil {

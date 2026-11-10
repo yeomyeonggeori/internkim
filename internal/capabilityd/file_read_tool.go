@@ -47,13 +47,14 @@ type imageReadInput struct {
 }
 
 type fileReadHelperRequest struct {
-	PythonPath        string `json:"-"`
-	Path              string `json:"path"`
-	OCRMode           string `json:"ocrMode"`
-	MaxPages          int    `json:"maxPages,omitempty"`
-	OpenRouterAPIKey  string `json:"openRouterAPIKey,omitempty"`
-	OpenRouterBaseURL string `json:"openRouterBaseURL,omitempty"`
-	OpenRouterModel   string `json:"openRouterModel,omitempty"`
+	PythonPath        string            `json:"-"`
+	Path              string            `json:"path"`
+	OCRMode           string            `json:"ocrMode"`
+	MaxPages          int               `json:"maxPages,omitempty"`
+	OpenRouterAPIKey  string            `json:"openRouterAPIKey,omitempty"`
+	OpenRouterBaseURL string            `json:"openRouterBaseURL,omitempty"`
+	OpenRouterModel   string            `json:"openRouterModel,omitempty"`
+	OpenRouterHeaders map[string]string `json:"openRouterHeaders,omitempty"`
 }
 
 type fileReadHelperResponse struct {
@@ -113,7 +114,7 @@ func (service Service) invokeDocumentReadTool(ctx context.Context, request capab
 	if strings.HasPrefix(contentType, "image/") {
 		return fileReadErrorResponse(request.ToolName, "image files must be read with image_read", "use_image_read", "content_type", false), nil
 	}
-	helperResponse, backend, model, errorValue := service.convertDocument(ctx, hostPath, input.MaxPages)
+	helperResponse, backend, model, errorValue := service.convertDocument(ctx, hostPath, input.MaxPages, request.Context.RequesterEmail)
 	if errorValue != nil {
 		return fileReadErrorResponse(request.ToolName, errorValue.Error(), "document_read_failed", "document_conversion", true), nil
 	}
@@ -351,7 +352,7 @@ func (service Service) runFileReadHelperOnTheConversionPython(ctx context.Contex
 	return service.runFileReadHelper(ctx, request)
 }
 
-func (service Service) convertDocument(ctx context.Context, hostPath string, maxPages int) (fileReadHelperResponse, string, string, error) {
+func (service Service) convertDocument(ctx context.Context, hostPath string, maxPages int, requesterEmail string) (fileReadHelperResponse, string, string, error) {
 	localResponse, localError := service.runFileReadHelperOnTheConversionPython(ctx, fileReadHelperRequest{
 		Path:     hostPath,
 		OCRMode:  "never",
@@ -361,7 +362,7 @@ func (service Service) convertDocument(ctx context.Context, hostPath string, max
 		return localResponse, documentBackendLocal, "", nil
 	}
 	localFailure := documentBackendLocal + ": " + documentConversionFailure(localResponse, localError)
-	attempt, hasAttempt := service.documentOCRAttempt(hostPath, maxPages)
+	attempt, hasAttempt := service.documentOCRAttempt(hostPath, maxPages, requesterEmail)
 	if localResponse.ErrorCode != documentOCRRequiredErrorCode || !hasAttempt {
 		return fileReadHelperResponse{}, "", "", errors.New(localFailure)
 	}
@@ -379,7 +380,7 @@ func documentConversionFailure(response fileReadHelperResponse, errorValue error
 	return response.ErrorCode + ": " + response.Message
 }
 
-func (service Service) documentOCRAttempt(hostPath string, maxPages int) (documentConversionAttempt, bool) {
+func (service Service) documentOCRAttempt(hostPath string, maxPages int, requesterEmail string) (documentConversionAttempt, bool) {
 	configuration := service.Configuration.WithDefaults()
 	apiKey := readSecretValue(configuration.OpenRouterKeyPath)
 	if configuration.LocalOnly || strings.TrimSpace(apiKey) == "" || isPlaceholderOpenRouterKey(apiKey) {
@@ -395,6 +396,7 @@ func (service Service) documentOCRAttempt(hostPath string, maxPages int) (docume
 			OpenRouterAPIKey:  apiKey,
 			OpenRouterBaseURL: openRouterClientBaseURL(configuration.OpenRouterBaseURL),
 			OpenRouterModel:   configuration.OpenRouterModel,
+			OpenRouterHeaders: service.requesterHeadersToTheGateway(requesterEmail),
 		},
 	}, true
 }
