@@ -31,9 +31,7 @@ PAGES_WITHOUT_A_TOTAL = {
     "mail_message_search": "IMAP answers a page of matches without counting what the cursor has not reached",
 }
 
-CUT_WITHOUT_SAYING_SO = {
-    "attendance_list": "answers at most limit rows and nothing says more exist",
-}
+CUT_WITHOUT_SAYING_SO = {}
 
 UNBOUNDED_PAGES = {
     "mail_message_list": "a page has no maximum, so one call can carry a whole mailbox into the context",

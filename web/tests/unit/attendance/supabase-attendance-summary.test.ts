@@ -121,6 +121,9 @@ mock.module('../../../src/lib/public-api-call', () => ({
 			};
 		}
 		if (name === 'attendance_list') {
+			const shown = Number(input.cursor ?? 0);
+			const newestFirst = attendanceOfTheCompany.toReversed();
+			const page = newestFirst.slice(shown, shown + Number(input.limit ?? 50)).toReversed();
 			return {
 				scope: 'everyone',
 				personID: null,
@@ -129,8 +132,10 @@ mock.module('../../../src/lib/public-api-call', () => ({
 				to: String(input.to),
 				serverTime: databaseServerTime,
 				backdatedAfterMinutes: 60,
-				count: attendanceOfTheCompany.length,
-				attendance: attendanceOfTheCompany
+				count: page.length,
+				attendance: page,
+				totalCount: attendanceOfTheCompany.length,
+				...(shown + page.length < newestFirst.length ? { nextCursor: String(shown + page.length) } : {})
 			};
 		}
 		if (name === 'leave_list') {
@@ -164,7 +169,19 @@ describe('supabaseAttendanceSummary', () => {
 	test('asks the record for the month and the day before it, for everybody', async () => {
 		await supabaseAttendanceSummary('2026-09');
 
-		expect(attendanceListInput()).toEqual({ scope: 'all', from: '2026-08-31', to: '2026-09-30' });
+		expect(attendanceListInput()).toEqual({ scope: 'all', from: '2026-08-31', to: '2026-09-30', limit: 100 });
+	});
+
+	test('reads every page of the month and keeps the rows in time order', async () => {
+		attendanceOfTheCompany = Array.from({ length: 250 }, (_, index) => answeredAttendance({
+			eventID: `attendance-${String(index).padStart(3, '0')}`,
+			occurredAt: new Date(Date.parse('2026-09-01T00:00:00.000Z') + index * 60_000).toISOString()
+		}));
+
+		const summary = await supabaseAttendanceSummary('2026-09');
+
+		expect(asked.filter((one) => one.name === 'attendance_list')).toHaveLength(3);
+		expect(summary.events.map((event) => event.id)).toEqual(attendanceOfTheCompany.map((row) => row.eventID));
 	});
 
 	test('asks for the approved leave the month covers', async () => {
