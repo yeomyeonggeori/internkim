@@ -12,7 +12,7 @@ import {
 	updateTaskParents as setTaskParentsOnRecord
 } from '$lib/task/task-state';
 import { callCompanyApp } from '$lib/host-bridge';
-import { clearStoredTaskSnapshot } from './task-snapshot-storage';
+import { markTaskSnapshotStale } from './task-snapshot-storage';
 
 export type TaskQuickTaskRequest = {
 	prompt: string;
@@ -67,7 +67,7 @@ export async function createQuickTask(
 	request: TaskQuickTaskRequest,
 	fallbackMessage: string
 ): Promise<TaskQuickTaskResult> {
-	clearStoredTaskSnapshot();
+	markTaskSnapshotStale();
 	const answer = await callCompanyApp({
 		capability: 'person.task.quick_task',
 		body: {
@@ -76,7 +76,7 @@ export async function createQuickTask(
 		}
 	});
 	if (answer.status >= 400) throw new Error(companyAppErrorMessage(answer.body, fallbackMessage));
-	clearStoredTaskSnapshot();
+	markTaskSnapshotStale();
 	return quickTaskResultFromResponse(answer.body);
 }
 

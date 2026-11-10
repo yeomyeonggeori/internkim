@@ -17,7 +17,7 @@
 	import { supersededLoadIsNotAFailure, type TaskLoadOptions } from './task-load-tracker';
 	import { createTaskReadSession, readCoversWrite, sameTaskReadContext, type TaskReadContext } from './task-read-session';
 	import { rememberTask, forgetLastSeenTask } from './task-last-seen';
-	import { clearStoredTaskSnapshot, taskSnapshotGeneration, subscribeTaskSnapshotInvalidation } from './task-snapshot-storage';
+	import { markTaskSnapshotStale, taskSnapshotGeneration, subscribeTaskSnapshotInvalidation } from './task-snapshot-storage';
 	import { storedRelationshipTasks } from './task-relationship-snapshot';
 	import type { Task, TaskState, TaskSummary } from './task-types';
 	import { taskText } from './text';
@@ -170,7 +170,7 @@
 		}
 		if (options.reloadState !== false) {
 			forgetTaskStateRead(taskScope);
-			clearStoredTaskSnapshot(taskScope);
+			markTaskSnapshotStale();
 			fullRequest = null;
 			boardRequest = null;
 			historyAfterPeople = null;
@@ -226,7 +226,7 @@
 		const ticket = readSession.start(readGeneration);
 		let settled = false;
 		const isCurrent = () => !isDisposed && readSession.isCurrent(ticket, taskSnapshotGeneration()) && scope === taskScope && week === selectedWeek;
-		isLoading = !full || !taskState;
+		isLoading = !taskState || (!full && summary?.week.code !== week);
 		isHistoryLoading = full;
 		isRefreshing = true;
 		errorMessage = '';
@@ -351,7 +351,7 @@
 		{/if}
 
 		<div class="flex items-end justify-between gap-3">
-			<TaskTabRow activeTab={activeTab} labels={text.tabs} disabled={isLoading || (!isStateFresh && !cacheSavedAt)} onSelectTab={selectTab} />
+			<TaskTabRow activeTab={activeTab} labels={text.tabs} disabled={!summary} onSelectTab={selectTab} />
 			{#if summary?.isAdmin}<TaskInvitations businesses={definitions().categories} businessColor={(business) => taskBusinessColor(business, definitions())} />{/if}
 		</div>
 		{#if pendingTaskID && historyError}
@@ -409,7 +409,7 @@
 		<div class={activeTab === 'members' ? '' : 'hidden'}>
 			{#if TaskMembersView && summary?.completeness === 'full' && summary.week.code === selectedWeek}
 				<div aria-busy={isRefreshing || isHistoryLoading}>
-					<TaskMembersView members={members()} text={text.members} isLoading={isLoading || isRefreshing || isHistoryLoading} hasLoadError={Boolean(errorMessage || historyError) || (!isStateFresh && !cacheSavedAt)} />
+					<TaskMembersView members={members()} text={text.members} isLoading={isLoading || isRefreshing || isHistoryLoading} hasLoadError={Boolean(errorMessage || historyError)} />
 				</div>
 			{/if}
 			{#if activeTab === 'members'}
