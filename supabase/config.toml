@@ -246,7 +246,7 @@ port = 465
 user = "api_token"
 pass = "env(CLOUDFLARE_EMAIL_TOKEN)"
 admin_email = "noreply@intern.kim"
-sender_name = "internkim"
+sender_name = "Intern Kim"
 
 [remotes.production.auth.email.template.magic_link]
 content_path = "./supabase/templates/magic-link.html"
