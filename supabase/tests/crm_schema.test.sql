@@ -53,8 +53,7 @@ insert into public.opportunity (
   name,
   pipeline_id,
   stage_id,
-  amount_minor,
-  currency_code
+  amount
 ) values
   (
     '59400000-0000-0000-0000-000000000121',
@@ -64,8 +63,7 @@ insert into public.opportunity (
     'Sample Opportunity A1',
     'partnership',
     'review',
-    18000000,
-    'KRW'
+    '(18000000,KRW)'
   ),
   (
     '59400000-0000-0000-0000-000000000122',
@@ -75,8 +73,7 @@ insert into public.opportunity (
     'Sample Opportunity A2',
     'sponsorship',
     'in_progress',
-    8500000,
-    'KRW'
+    '(8500000,KRW)'
   );
 
 set constraints all immediate;

@@ -33,7 +33,7 @@ internkim uses a restrained, neutral interface built from the shared shadcn-svel
 
 - `/company/` is a password-protected company page for any intended recipient, without an audience-specific label.
 - The locked state is a single focused card. The unlocked page uses a company thesis, key metrics, trends, facts, milestones, contact action, and publication date.
-- Monetary metrics default to USD. A local-currency toggle appears only when the published data includes one non-USD currency with a stored USD equivalent.
+- Monetary metrics show in the currency they were recorded in. Another currency is a conversion at the day's rate, never a stored copy.
 - Only an administrator-published snapshot appears. Empty sections remain quiet or are omitted so the page never resembles an internal dashboard.
 - Team activity uses only administrator-approved aggregates. Reuse the existing avatar component with published surname and job title, and derive pulse, activity-grid, and work-distribution shapes from actual snapshot counts.
 - Present recorded metrics, selected milestones, and evidence documents before the team signal. Team activity confirms that the organization is operating but never leads the evaluation hierarchy.

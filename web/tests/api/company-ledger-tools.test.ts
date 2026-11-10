@@ -31,15 +31,6 @@ let adminID = '';
 let sample: ReturnType<typeof asMember>;
 let colleague: ReturnType<typeof asMember>;
 let admin: ReturnType<typeof asMember>;
-const ratesAsked: string[] = [];
-const answeringRates = Bun.serve({
-	port: 0,
-	fetch(request) {
-		ratesAsked.push(new URL(request.url).search);
-		return Response.json([{ date: '2026-09-03', base: 'KRW', quote: 'USD', rate: 0.00072 }]);
-	}
-});
-const failingRates = Bun.serve({ port: 0, fetch: () => new Response('unavailable', { status: 503 }) });
 
 async function signedInMember(memberID: string, email: string): Promise<ReturnType<typeof asMember>> {
 	const { data: account } = await client.auth.admin.createUser({ email, email_confirm: true });
@@ -68,8 +59,6 @@ beforeAll(async () => {
 }, networkHookTimeout);
 
 afterAll(async () => {
-	answeringRates.stop(true);
-	failingRates.stop(true);
 	if (!companyID) return;
 	const { data: members } = await client.from('member').select('user_id').eq('company_id', companyID);
 	await client.from('company').delete().eq('id', companyID);
@@ -88,11 +77,6 @@ async function asColleague(name: string, input: Record<string, unknown> = {}) {
 
 async function asAdmin(name: string, input: Record<string, unknown> = {}) {
 	return heldToTheContract(name, await runToolOverTheRecord(admin, client, adminID, name, input, now, leavesTaskLabelsUndecided, [], place));
-}
-
-async function asAdminWithRates(rates: ReturnType<typeof Bun.serve>, name: string, input: Record<string, unknown>) {
-	const placeWithRates = { ...place, environment: { ...place.environment, FRANKFURTER_URL: rates.url.origin } };
-	return heldToTheContract(name, await runToolOverTheRecord(admin, client, adminID, name, input, now, leavesTaskLabelsUndecided, [], placeWithRates));
 }
 
 function resultOf(answer: { body: unknown }): Record<string, unknown> {
@@ -145,25 +129,23 @@ describe('what the company states about itself', () => {
 		const refused = await asSample('company_metric_record', {
 			metric: 'annualRevenue',
 			period: '2025',
-			amount: { amount: 1_200_000_000, currency: 'KRW' },
-			usdEquivalent: 870_000
+			amount: { amount: 1_200_000_000, currency: 'KRW' }
 		});
 
 		expect(refused.status).toBe(403);
 		expect(errorOf(refused)).toContain('administrator');
 	});
 
-	test('records money with the USD equivalent a reader can compare', async () => {
+	test('records money as an amount in its own currency', async () => {
 		const written = await asAdmin('company_metric_record', {
 			metric: 'annualRevenue',
 			period: '2025',
-			amount: { amount: 1_200_000_000, currency: 'KRW' },
-			usdEquivalent: 870_000
+			amount: { amount: 1_200_000_000, currency: 'KRW' }
 		});
 
 		expect(written.status).toBe(200);
 		expect(resultOf(written).amount).toEqual({ amount: 1_200_000_000, currency: 'KRW' });
-		expect(resultOf(written).usdEquivalent).toBe(870_000);
+		expect(resultOf(written)).not.toHaveProperty('usdEquivalent');
 		expect(resultOf(written).value).toBeNull();
 		expect(resultOf(written).period).toBe('2025');
 	});
@@ -172,49 +154,23 @@ describe('what the company states about itself', () => {
 		const written = await asAdmin('company_metric_record', {
 			metric: 'vietnamRevenue',
 			period: '2023',
-			amount: { amount: 25_000_000_000, currency: 'VND' },
-			usdEquivalent: 1_000_000
+			amount: { amount: 25_000_000_000, currency: 'VND' }
 		});
 
 		expect(written.status).toBe(200);
 		expect(resultOf(written).amount).toEqual({ amount: 25_000_000_000, currency: 'VND' });
 	});
 
-	test('converts money whose USD equivalent nobody gave at the rate the provider quotes', async () => {
-		const written = await asAdminWithRates(answeringRates, 'company_metric_record', {
-			metric: 'monthlyRevenue',
-			period: '2026-10',
-			amount: { amount: 48_000_000, currency: 'KRW' }
-		});
-
-		expect(written.status).toBe(200);
-		expect(resultOf(written).amount).toEqual({ amount: 48_000_000, currency: 'KRW' });
-		expect(resultOf(written).usdEquivalent).toBe(34_560);
-		expect(ratesAsked).toEqual(['?base=KRW&quotes=USD']);
-	});
-
-	test('keeps the USD equivalent the caller gave over the rate', async () => {
-		const written = await asAdminWithRates(answeringRates, 'company_metric_record', {
-			metric: 'monthlyRevenue',
-			period: '2026-10',
-			amount: { amount: 48_000_000, currency: 'KRW' },
-			usdEquivalent: 35_000
-		});
-
-		expect(resultOf(written).usdEquivalent).toBe(35_000);
-	});
-
-	test('records nothing and says why when the rate cannot be read', async () => {
-		const refused = await asAdminWithRates(failingRates, 'company_metric_record', {
+	test('refuses a USD equivalent, which the record does not keep', async () => {
+		const refused = await asAdmin('company_metric_record', {
 			metric: 'operatingProfit',
 			period: '2025',
-			amount: { amount: 1_000, currency: 'KRW' }
+			amount: { amount: 1_000, currency: 'KRW' },
+			usdEquivalent: 1
 		});
 		const listed = await asAdmin('company_metric_list', { metric: 'operatingProfit' });
 
-		expect(refused.status).toBe(503);
-		expect((refused.body as { errorCode?: string }).errorCode).toBe('exchange_rate_unavailable');
-		expect(errorOf(refused)).toContain('KRW to USD rate could not be read');
+		expect(refused.status).toBe(422);
 		expect(resultOf(listed).count).toBe(0);
 	});
 

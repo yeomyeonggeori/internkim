@@ -1,5 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { crmStageKeys, crmStageOutcomes, type CRMStage } from '$lib/crm/crm-stage';
+import type { Money } from '$lib/money';
 import { emailNearness, titleNearness, typoNearness } from './hint-nearness';
 import { HintRefused, normalized, resolveHint, type HintCandidate, type HintMatcher } from './hint-resolution';
 import type { CRMVocabularyResult } from '../catalog/crm';
@@ -48,10 +49,8 @@ export type OpportunityRow = CRMAuditColumns & {
 	stage_position: number;
 	stage_changed_at: string;
 	owner_id: string | null;
-	amount_minor: number | null;
-	currency_code: string | null;
-	base_amount_minor: number | null;
-	base_currency_code: string | null;
+	amount: Money | null;
+	base_amount: Money | null;
 	importance: string;
 	due_at: string | null;
 	due_time_zone: string | null;
@@ -74,7 +73,7 @@ export const organizationColumns =
 export const contactColumns =
 	'id, organization_id, name, email, phone, title, department, description, created_at, created_by, updated_at, updated_by, archived_at, archived_by';
 export const opportunityColumns =
-	'id, organization_id, contact_id, funding_record_id, name, business, pipeline_id, stage_id, stage_position, stage_changed_at, owner_id, amount_minor, currency_code, base_amount_minor, base_currency_code, importance, due_at, due_time_zone, lost_reason, description, created_at, created_by, updated_at, updated_by, archived_at, archived_by';
+	'id, organization_id, contact_id, funding_record_id, name, business, pipeline_id, stage_id, stage_position, stage_changed_at, owner_id, amount, base_amount, importance, due_at, due_time_zone, lost_reason, description, created_at, created_by, updated_at, updated_by, archived_at, archived_by';
 
 export async function crmCompanyRow(caller: SupabaseClient): Promise<CRMCompanyRow> {
 	const { data, error } = await caller

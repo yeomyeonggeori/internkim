@@ -173,13 +173,12 @@ type companyShareProfile struct {
 }
 
 type companyShareMetric struct {
-	Metric   string   `json:"metric"`
-	Period   string   `json:"period"`
-	Value    float64  `json:"value"`
-	Currency string   `json:"currency,omitempty"`
-	ValueUSD *float64 `json:"valueUSD,omitempty"`
-	Unit     string   `json:"unit,omitempty"`
-	Source   string   `json:"source,omitempty"`
+	Metric   string  `json:"metric"`
+	Period   string  `json:"period"`
+	Value    float64 `json:"value"`
+	Currency string  `json:"currency,omitempty"`
+	Unit     string  `json:"unit,omitempty"`
+	Source   string  `json:"source,omitempty"`
 }
 
 type companyShareRecord struct {
@@ -481,10 +480,9 @@ func (service *Service) readCompanyShareMetrics(ctx context.Context, metricNames
 			continue
 		}
 		metric := companyShareMetric{
-			Metric:   held.Metric,
-			Period:   held.Period,
-			ValueUSD: held.USDEquivalent,
-			Unit:     strings.TrimSpace(held.Unit),
+			Metric: held.Metric,
+			Period: held.Period,
+			Unit:   strings.TrimSpace(held.Unit),
 		}
 		if held.Amount != nil {
 			metric.Value, metric.Currency = held.Amount.Amount, held.Amount.Currency

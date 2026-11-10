@@ -423,6 +423,16 @@
       ]
     },
     {
+      "name": "company_credit_usage",
+      "arguments": "",
+      "returns": "TABLE(member_id uuid, credits_used bigint, takes_a_seat boolean)",
+      "security": "definer",
+      "callableBy": [
+        "authenticated",
+        "service_role"
+      ]
+    },
+    {
       "name": "company_credit_usage_charged",
       "arguments": "target_company uuid, target_member uuid, used_credits bigint",
       "returns": "void",
@@ -625,7 +635,7 @@
     },
     {
       "name": "crm_opportunity_close",
-      "arguments": "target_opportunity_id uuid, target_stage_id crm_stage, target_stage_position integer, target_stage_changed_at timestamp with time zone, target_lost_reason text, target_base_amount_minor bigint, target_base_currency_code text",
+      "arguments": "target_opportunity_id uuid, target_stage_id crm_stage, target_stage_position integer, target_stage_changed_at timestamp with time zone, target_lost_reason text, target_base_amount currency_amount",
       "returns": "opportunity",
       "security": "invoker",
       "callableBy": [
