@@ -1,4 +1,4 @@
-import { chromium, expect, test } from '@playwright/test';
+import { chromium, expect, test, type Response } from '@playwright/test';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -127,9 +127,10 @@ test('ordinary task editing avoids 1501 historical rows until relationships are 
 	let historyReads = 0;
 	const historyPages: Promise<{ tasks: { taskID: string }[]; nextCursor?: string }>[] = [];
 	page.on('request', request => { if (request.url().endsWith('/task_list/invoke')) historyReads++; });
-	page.on('response', response => {
+	const collectHistoryPage = (response: Response) => {
 		if (response.url().endsWith('/task_list/invoke') && response.ok()) historyPages.push(response.json().then(body => body.result));
-	});
+	};
+	page.on('response', collectHistoryPage);
 	let releaseHistory = () => {};
 	const readBoard = () => page.waitForResponse(response => response.url().endsWith('/task_board_get/invoke') && response.ok());
 	try {
@@ -187,6 +188,7 @@ test('ordinary task editing avoids 1501 historical rows until relationships are 
 		await expect(sheet.getByLabel('자녀 업무 1 / 1 완료, 100%', { exact: true })).toBeVisible();
 		await expect.poll(() => page.evaluate(() => localStorage.getItem('internkim:task-snapshot:v1'))).not.toBeNull();
 		const pages = await Promise.all(historyPages);
+		page.off('response', collectHistoryPage);
 		const historicalTasks = pages.flatMap(historyPage => historyPage.tasks);
 		expect(historicalIDs.every(historicalID => historicalTasks.some(task => task.taskID === historicalID))).toBe(true);
 		expect(pages.at(-1)?.nextCursor).toBeUndefined();
