@@ -189,7 +189,7 @@ allow_dynamic_registration = true
 
 [storage]
 enabled = true
-file_size_limit = "500MiB"
+file_size_limit = "200MiB"
 
 [storage.image_transformation]
 enabled = true
