@@ -43,12 +43,11 @@ describe('the company a data room shows', () => {
 		const groups = companyFactGroups({
 			capital: { amount: 500000000, currency: 'KRW' },
 			representative: '샘플 이',
-			representativeTitle: '대표이사',
 			phone: '02-0000-0000',
 			legalAttributes: { ko: { '사업자등록번호': '123-45-67890' } }
 		}, 'ko');
 		expect(groups).toEqual([
-			{ group: 'company', facts: [{ field: 'representative', value: '대표이사 이샘플' }] },
+			{ group: 'company', facts: [{ field: 'representative', value: '이샘플' }] },
 			{ group: 'entity', facts: [{ field: 'capital', value: '₩500,000,000' }] },
 			{ group: 'registration', facts: [{ field: '사업자등록번호', value: '123-45-67890' }] }
 		]);
