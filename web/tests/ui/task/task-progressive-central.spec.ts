@@ -293,3 +293,38 @@ test('a restored snapshot lets the report tab open before the fresh read lands',
 		await expect(page.getByText('이번 주간 업무 일별 종류 거리 분포', { exact: true })).toBeVisible();
 	} finally { release(); }
 });
+
+test('saving a task never locks the tabs or brings back a skeleton', async ({ page }) => {
+	const [id] = await seedTasks([{ title: '전환 중에도 보이는 업무', status: 'planned', participantIDs: [member1ID], startsAtISO: weekStartInstant(), endsAtISO: weekStartInstant() }]);
+	try {
+		await signInToTheCentralPlane(page, `/${exampleCompanySlug}/task`);
+		await expect(page.locator('[data-task-ready="true"]')).toBeVisible();
+		await page.getByRole('tab', { name: '로드맵', exact: true }).click();
+		await expect(page.locator('[data-task-roadmap]')).toBeVisible();
+		await page.getByRole('tab', { name: '보드', exact: true }).click();
+		await page.getByRole('tab', { name: '보고', exact: true }).click();
+		await expect(page.locator('[data-task-content-skeleton]')).toHaveCount(0);
+		await page.getByRole('tab', { name: '업무', exact: true }).click();
+		await expect(page.locator('[data-task-ready="true"]')).toBeVisible();
+		await page.evaluate(() => {
+			const interruptions = '[data-task-skeleton], [data-task-roadmap-skeleton], [data-task-content-skeleton], [data-task-active-tab] [role="tab"]:disabled';
+			const seen = window as Window & { taskInterrupted?: boolean };
+			seen.taskInterrupted = false;
+			new MutationObserver(() => { if (document.querySelector(interruptions)) seen.taskInterrupted = true; }).observe(document.body, { childList: true, subtree: true, attributes: true });
+		});
+		await openTaskCard(page, id);
+		const sheet = taskSheet(page);
+		await sheet.getByRole('button', { name: '업무 수정' }).click();
+		await sheet.getByPlaceholder('업무 내용').fill('저장한 뒤에도 보이는 업무');
+		const saving = page.waitForResponse(response => response.url().endsWith('/task_update/invoke'));
+		await sheet.getByRole('button', { name: '업무 저장' }).click();
+		expect((await saving).ok()).toBe(true);
+		await expect(sheet).not.toBeVisible();
+		await page.getByRole('tab', { name: '보고', exact: true }).click();
+		await page.getByRole('tab', { name: '업무', exact: true }).click();
+		await page.getByRole('tab', { name: '로드맵', exact: true }).click();
+		await page.getByRole('tab', { name: '보드', exact: true }).click();
+		await expect(taskCard(page, id)).toContainText('저장한 뒤에도 보이는 업무');
+		expect(await page.evaluate(() => (window as Window & { taskInterrupted?: boolean }).taskInterrupted)).toBe(false);
+	} finally { await removeTasks([id]); }
+});
