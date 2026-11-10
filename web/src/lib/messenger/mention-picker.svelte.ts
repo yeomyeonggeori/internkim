@@ -45,6 +45,16 @@ export function createMentionPicker(people: () => MentionPerson[], isGroup: () =
 			chosen = [];
 			close();
 		},
+		remember(mentions: DraftMentions | undefined): void {
+			if (!mentions) return;
+			chosen = mentionCandidates(people(), isGroup())
+				.filter((candidate) =>
+					candidate.isEveryone
+						? mentions.isEveryone
+						: mentions.externalIDs.includes(candidate.person?.externalID ?? '')
+				)
+				.map(asChosen);
+		},
 		reopen(text: string, cursor: number): void {
 			const opening = mentionFragmentAt(text, cursor);
 			if (!opening) return close();

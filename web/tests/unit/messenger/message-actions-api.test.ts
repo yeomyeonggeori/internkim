@@ -30,6 +30,15 @@ describe('what the message-action capabilities are asked to carry', () => {
 		expect(call?.body).toEqual({ conversationID: 'channel-1', messageID: 'message-1', body: '고친 문장' });
 	});
 
+	test('editPost carries the people the edited message calls on', async () => {
+		asked.length = 0;
+
+		await editPost('channel-1', 'message-1', '@박예시 확인 부탁드립니다', { externalIDs: ['person-1'], isEveryone: false });
+
+		const call = asked.find((entry) => entry.capability === 'person.message.edit');
+		expect(call?.body.mentions).toEqual({ externalIDs: ['person-1'], isEveryone: false });
+	});
+
 	test('deletePost asks person.message.delete with the conversation and message it names', async () => {
 		asked.length = 0;
 
