@@ -155,7 +155,7 @@ func TestCompanyShareSnapshotContainsOnlyPublishedProjection(t *testing.T) {
 			t.Fatalf("snapshot exposed %q: %s", sensitiveValue, serialized)
 		}
 	}
-	if !strings.Contains(serialized, "한국어 소개") || !strings.Contains(serialized, "annualRevenue") || !strings.Contains(serialized, `"currency":"KRW"`) || !strings.Contains(serialized, `"valueUSD":870000`) || !strings.Contains(serialized, "공개 이력") {
+	if !strings.Contains(serialized, "한국어 소개") || !strings.Contains(serialized, "annualRevenue") || !strings.Contains(serialized, `"currency":"KRW"`) || !strings.Contains(serialized, "공개 이력") {
 		t.Fatalf("snapshot omitted selected content: %s", serialized)
 	}
 }
@@ -502,9 +502,9 @@ func TestCompanyShareCountsTheClocksTheCompanyHolds(t *testing.T) {
 const (
 	companyShareLedgerMetrics = `{"count":2,"metrics":[` +
 		`{"metricID":"metric-revenue","metric":"annualRevenue","year":2025,"quarter":0,"month":0,"amount":{"amount":1200000000,"currency":"KRW"},` +
-		`"usdEquivalent":870000,"value":null,"unit":null,"note":"internal note","updatedAt":"2026-01-01T00:00:00Z"},` +
+		`"value":null,"unit":null,"note":"internal note","updatedAt":"2026-01-01T00:00:00Z"},` +
 		`{"metricID":"metric-mau","metric":"mau","year":2025,"quarter":0,"month":12,"amount":null,` +
-		`"usdEquivalent":null,"value":9000,"unit":"\uba85","note":"do not publish","updatedAt":"2026-01-01T00:00:00Z"}]}`
+		`"value":9000,"unit":"\uba85","note":"do not publish","updatedAt":"2026-01-01T00:00:00Z"}]}`
 	companyShareLedgerRecords = `{"count":2,"records":[` +
 		`{"recordID":"public-record","category":"milestone","date":"2025-12-01","title":"\uacf5\uac1c \uc774\ub825",` +
 		`"detail":"\uacf5\uac1c \uc0c1\uc138","attributes":[{"label":"round","value":"Seed"},{"label":"secret","value":"secret-attribute"}],"updatedAt":"2026-01-01T00:00:00Z"},` +

@@ -36,9 +36,9 @@ insert into public.organization (id, company_id, name) values
 insert into public.contact (id, company_id, organization_id, name, email, phone) values
   ('5a200000-0000-0000-0000-0000000000c1', '5a200000-0000-0000-0000-0000000000a0', '5a200000-0000-0000-0000-0000000000b1', '이샘플', 'sample@example.com', '010-0000-0000');
 
-insert into public.opportunity (id, company_id, organization_id, contact_id, name, pipeline_id, stage_id, owner_id, created_by, amount_minor, currency_code) values
-  ('5a200000-0000-0000-0000-000000000101', '5a200000-0000-0000-0000-0000000000a0', '5a200000-0000-0000-0000-0000000000b1', '5a200000-0000-0000-0000-0000000000c1', '영업팀 딜', 'sales', 'waiting', '5a200000-0000-0000-0000-000000000002', '5a200000-0000-0000-0000-000000000001', 50000000, 'KRW'),
-  ('5a200000-0000-0000-0000-000000000102', '5a200000-0000-0000-0000-0000000000a0', '5a200000-0000-0000-0000-0000000000b1', null, '담당자 없는 딜', 'sales', 'waiting', null, '5a200000-0000-0000-0000-000000000005', 7000000, 'KRW');
+insert into public.opportunity (id, company_id, organization_id, contact_id, name, pipeline_id, stage_id, owner_id, created_by, amount) values
+  ('5a200000-0000-0000-0000-000000000101', '5a200000-0000-0000-0000-0000000000a0', '5a200000-0000-0000-0000-0000000000b1', '5a200000-0000-0000-0000-0000000000c1', '영업팀 딜', 'sales', 'waiting', '5a200000-0000-0000-0000-000000000002', '5a200000-0000-0000-0000-000000000001', '(50000000,KRW)'),
+  ('5a200000-0000-0000-0000-000000000102', '5a200000-0000-0000-0000-0000000000a0', '5a200000-0000-0000-0000-0000000000b1', null, '담당자 없는 딜', 'sales', 'waiting', null, '5a200000-0000-0000-0000-000000000005', '(7000000,KRW)');
 
 insert into public.task (id, company_id, title, organization_id, opportunity_id) values
   ('5a200000-0000-0000-0000-000000000201', '5a200000-0000-0000-0000-0000000000a0', '영업팀 딜 미팅', '5a200000-0000-0000-0000-0000000000b1', '5a200000-0000-0000-0000-000000000101'),
@@ -91,7 +91,7 @@ select lives_ok($block$do $$
 declare
   organizations_seen integer;
   contacts_seen integer;
-  amount_seen bigint;
+  amount_seen numeric;
   tasks_seen text[];
   rows_changed integer;
   close_refused boolean := false;
@@ -105,7 +105,7 @@ begin
   select count(*) into contacts_seen from public.contact where email = 'sample@example.com';
   assert contacts_seen = 1, 'business contact details stay company-wide';
 
-  select coalesce(sum(amount_minor), 0) into amount_seen from public.opportunity;
+  select coalesce(sum((amount).amount), 0) into amount_seen from public.opportunity;
   assert amount_seen = 0, 'a total counts only the deals the reader may see';
 
   select array_agg(title order by title) into tasks_seen from public.task
@@ -117,7 +117,7 @@ begin
   assert rows_changed = 0, 'a member who cannot see a deal cannot edit it';
 
   begin
-    perform public.crm_opportunity_close('5a200000-0000-0000-0000-000000000101', 'done', 0, now(), null, null, null);
+    perform public.crm_opportunity_close('5a200000-0000-0000-0000-000000000101', 'done', 0, now(), null, null);
   exception when no_data_found then
     close_refused := true;
   end;

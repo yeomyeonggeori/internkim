@@ -2,8 +2,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { crmStageSettles, isCRMStage, type CRMStage } from '$lib/crm/crm-stage';
 import { convertedAmount } from '$lib/server/converted-amount';
 import type { ExchangeRateProvider } from '$lib/server/exchange-rates';
-import { minorOfMoney, storedMoneyOf } from '$lib/server/stored-money';
-import type { Money } from '$lib/money';
+import { roundedMoney, type Money } from '$lib/money';
 import {
 	activityCountByOpportunity,
 	answeredVocabulary,
@@ -176,8 +175,8 @@ function answeredOpportunity(row: OpportunityRow, activityCount: number): CRMOpp
 		stagePosition: row.stage_position,
 		stageChangedAt: row.stage_changed_at,
 		ownerPersonID: row.owner_id ?? '',
-		amount: storedMoneyOf(row.amount_minor, row.currency_code),
-		settledAmount: storedMoneyOf(row.base_amount_minor, row.base_currency_code),
+		amount: row.amount,
+		settledAmount: row.base_amount,
 		importance: row.importance,
 		expectedCloseAt: row.due_at ?? '',
 		expectedCloseTimeZone: row.due_time_zone ?? '',
@@ -456,10 +455,7 @@ async function opportunityChange(
 	if (input.business !== undefined) change.business = trimmedOr(input.business, null);
 	if (input.importance !== undefined) change.importance = input.importance.trim();
 	if (input.description !== undefined) change.description = trimmedOr(input.description, null);
-	if (input.amount !== undefined) {
-		change.amount_minor = minorOfMoney(input.amount);
-		change.currency_code = input.amount.currency;
-	}
+	if (input.amount !== undefined) change.amount = roundedMoney(input.amount.amount, input.amount.currency);
 	if (input.ownerPersonHint !== undefined) {
 		change.owner_id = ownerOf(context, input.ownerPersonHint, row?.owner_id ?? null);
 	}
@@ -593,8 +589,7 @@ export async function crmOpportunityMove(
 			? instantWritten(context.labels.timezone, input.closedAt)
 			: context.now.toISOString(),
 		target_lost_reason: input.reason?.trim() || null,
-		target_base_amount_minor: settled?.amountMinor ?? null,
-		target_base_currency_code: settled?.currencyCode ?? null
+		target_base_amount: settled
 	});
 	if (error) throw new RecordRefusedTheWrite(error.message, statusOfPostgresCode(error.code));
 	if (!data) throw new RecordRefusedTheWrite('the record named no deal it moved', 502);
@@ -624,21 +619,19 @@ async function settledAmountOf(
 	row: OpportunityRow,
 	companyCurrency: string,
 	finalAmount: Money | undefined
-): Promise<{ amountMinor: number; currencyCode: string } | null> {
+): Promise<Money | null> {
 	if (finalAmount !== undefined) {
 		if (finalAmount.currency !== companyCurrency) {
 			throw new RecordRefusedTheWrite(`a final amount is in the company currency ${companyCurrency}, and this one is in ${finalAmount.currency}`, 422);
 		}
-		return { amountMinor: minorOfMoney(finalAmount), currencyCode: companyCurrency };
+		return roundedMoney(finalAmount.amount, companyCurrency);
 	}
-	if (row.base_amount_minor !== null) return null;
-	if (row.amount_minor === null || row.currency_code === null) return null;
-	if (row.currency_code === companyCurrency) return null;
+	if (row.base_amount !== null) return null;
+	if (row.amount === null) return null;
+	if (row.amount.currency === companyCurrency) return null;
 
-	const amount = storedMoneyOf(row.amount_minor, row.currency_code);
-	if (!amount) return null;
-	const converted = await convertedAmount(exchangeRates, amount, companyCurrency);
-	return { amountMinor: minorOfMoney(converted.amount), currencyCode: companyCurrency };
+	const converted = await convertedAmount(exchangeRates, row.amount, companyCurrency);
+	return converted.amount;
 }
 
 export async function crmOpportunityArchive(

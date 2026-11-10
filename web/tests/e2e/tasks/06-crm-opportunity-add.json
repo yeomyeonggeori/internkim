@@ -9,8 +9,7 @@
 			"expect": {
 				"organization_id": "000000a0-0000-0000-0000-000000000004",
 				"pipeline_id": "sales",
-				"amount_minor": 30000000,
-				"currency_code": "KRW",
+				"amount": { "amount": 30000000, "currency": "KRW" },
 				"archived_at": null
 			}
 		}

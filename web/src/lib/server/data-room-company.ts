@@ -1,7 +1,6 @@
 import { error } from '@sveltejs/kit';
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { storedCompanySchema, type DataRoomCompany, type StoredCompany } from '$lib/data-room/company';
-import { storedMoneyOf } from './stored-money';
+import { storedCompanySchema, type DataRoomCompany } from '$lib/data-room/company';
 import type { CompanyActivity, StoredActivity } from '$lib/data-room/activity';
 import { controlPlane, type ControlPlaneCredentials } from './control-plane';
 
@@ -27,10 +26,10 @@ export async function companyShownToCircle(
 
 async function shownCompany({ data, error: refusal }: Answer, plane: ControlPlaneCredentials): Promise<DataRoomCompany> {
 	if (refusal) error(502, 'the company could not be read');
-	const { activity, records, logoPath, ...company } = storedCompanySchema.parse(data);
+	const { activity, logoPath, ...company } = storedCompanySchema.parse(data);
 	const service = controlPlane(plane);
 	const logo = logoPath ? await readableLogoURL(service, logoPath) : undefined;
-	const shown = { ...company, records: records.map(withCommittedMoney), ...(logo ? { logo } : {}) };
+	const shown = { ...company, ...(logo ? { logo } : {}) };
 	if (!activity) return shown;
 	return { ...shown, activity: await withThumbnails(activity, service) };
 }
@@ -40,11 +39,6 @@ async function readableLogoURL(service: SupabaseClient, logoPath: string): Promi
 		transform: { width: logoSide, height: logoSide, resize: 'contain' }
 	});
 	return data?.signedUrl;
-}
-
-function withCommittedMoney({ committedMinor, ...record }: StoredCompany['records'][number]): DataRoomCompany['records'][number] {
-	const committed = committedMinor ? storedMoneyOf(committedMinor.amountMinor, committedMinor.currency) : null;
-	return committed ? { ...record, committed } : record;
 }
 
 async function withThumbnails(activity: StoredActivity, service: SupabaseClient): Promise<CompanyActivity> {
