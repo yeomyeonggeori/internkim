@@ -3,6 +3,7 @@ package capabilityd
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"strings"
@@ -10,6 +11,7 @@ import (
 
 	"github.com/yeomyeonggeori/internkim/internal/capabilities"
 	"github.com/yeomyeonggeori/internkim/internal/mail"
+	capabilityschema "github.com/yeomyeonggeori/internkim/pkg/capabilityprotocol/jsonschema"
 )
 
 func TestMailMessageSendRequiresDescriptorApproval(t *testing.T) {
@@ -121,10 +123,19 @@ func TestMailMessageSearchForwardsQueryAndCursor(t *testing.T) {
 	}
 }
 
-func TestMailMessageListRejectsTooLargeLimit(t *testing.T) {
-	_, errorValue := decodeMailMessageListInput([]byte(`{"limit":51}`))
-	if errorValue == nil || !strings.Contains(errorValue.Error(), "limit must be between 1 and 50") {
-		t.Fatalf("expected limit error, got %v", errorValue)
+func TestMailPagesRefuseMoreThanFiftyMessages(t *testing.T) {
+	pages := map[string]string{"mail_message_list": `{%s}`, "mail_message_search": `{"query":"invoice",%s}`}
+	for _, descriptor := range capabilities.MailDescriptors() {
+		page, isPage := pages[descriptor.Name]
+		if !isPage {
+			continue
+		}
+		if errorValue := capabilityschema.ValidateInput(descriptor.InputSchema, []byte(fmt.Sprintf(page, `"limit":50`))); errorValue != nil {
+			t.Fatalf("%s refused a page of 50: %v", descriptor.Name, errorValue)
+		}
+		if errorValue := capabilityschema.ValidateInput(descriptor.InputSchema, []byte(fmt.Sprintf(page, `"limit":51`))); errorValue == nil {
+			t.Fatalf("%s accepted a page of 51", descriptor.Name)
+		}
 	}
 }
 
