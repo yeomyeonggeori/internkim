@@ -33,7 +33,6 @@ type Service struct {
 	RunCommand    func(context.Context, string, ...string) ([]byte, error)
 
 	mutex                   sync.Mutex
-	adminSeating            sync.Mutex
 	circleChannelKeeping    sync.Mutex
 	centralPlaneOnce        sync.Once
 	centralPlaneClient      *centralplane.Client
@@ -134,7 +133,6 @@ func (service *Service) startBackgroundWork(ctx context.Context) {
 	service.startBuzzAccountLinkSync(ctx)
 	service.startMemberChannelMembershipSync(ctx)
 	service.startJoiningNoticePruning(ctx)
-	service.startAdminChannelSeatSync(ctx)
 	service.startCircleChannelSync(ctx)
 }
 

@@ -46,27 +46,3 @@ func TestASweepCarriesADeadlineIntoTheSharedPool(t *testing.T) {
 		t.Fatalf("the deadline is %s away, past the %s budget", remaining, buzzDatabaseSweepBudget)
 	}
 }
-
-// The pass holds a mutex across every query it makes. Waiting for that mutex is
-// what turned one queued pass into every later pass, and an empty plan would
-// read to whoever asked as every seat already taken.
-func TestASeatingPassAskedForWhileOneRunsIsRefusedRatherThanQueued(t *testing.T) {
-	service := NewService(Configuration{})
-	service.adminSeating.Lock()
-	defer service.adminSeating.Unlock()
-
-	refused := make(chan bool, 1)
-	go func() {
-		_, ran := service.seatAdministratorsEverywhere(context.Background(), false)
-		refused <- ran
-	}()
-
-	select {
-	case ran := <-refused:
-		if ran {
-			t.Fatal("a second pass reported that it ran while the first still held the lock")
-		}
-	case <-time.After(5 * time.Second):
-		t.Fatal("a second seating pass queued behind the first instead of being refused")
-	}
-}
