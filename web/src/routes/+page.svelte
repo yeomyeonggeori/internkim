@@ -33,7 +33,7 @@
 </svelte:head>
 
 {#snippet startButton()}
-	<Button size="lg" href={startCompanyPath} class="bg-brand hover:bg-brand/90 dark:text-background text-white">
+	<Button size="lg" href={startCompanyPath} class="bg-brand hover:bg-brand/90 text-brand-foreground">
 		{text.hero.start}
 		<ArrowRightIcon />
 	</Button>
