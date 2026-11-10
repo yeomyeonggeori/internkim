@@ -22,8 +22,7 @@ function directory(): MessengerDirectory {
 		memberOfEmail: new Map([
 			['sample@example.com', 'member1'],
 			['example@example.com', 'member2']
-		]),
-		adminMemberIDs: new Set()
+		])
 	};
 }
 

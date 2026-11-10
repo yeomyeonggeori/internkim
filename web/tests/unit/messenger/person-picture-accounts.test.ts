@@ -12,8 +12,7 @@ const directory: MessengerDirectory = {
 		['buzz-account', 'member-1']
 	]),
 	externalsOfMember: new Map([['member-1', ['mattermost-account', 'buzz-account']]]),
-	memberOfEmail: new Map([['sample@example.com', 'member-1']]),
-	adminMemberIDs: new Set<string>()
+	memberOfEmail: new Map([['sample@example.com', 'member-1']])
 };
 
 describe('accountsHeldBy', () => {
