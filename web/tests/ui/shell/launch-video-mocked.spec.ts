@@ -50,6 +50,26 @@ test('the app in dark mode plays the logo video on black', async ({ page }) => {
 	await expect(page.locator(launchVideo)).toHaveCount(0, { timeout: 7000 });
 });
 
+test('a logo video that arrives late still plays to its end', async ({ page }) => {
+	await insideTheIPhoneApp(page);
+	const releaseTheVideo = await holdTheLaunchVideo(page);
+
+	await page.goto('/settings/', { waitUntil: 'domcontentloaded' });
+	await page.waitForTimeout(4000);
+	releaseTheVideo();
+	await page.locator(`${launchVideo} video`).evaluate(
+		(video: HTMLVideoElement) =>
+			new Promise((resolve) => {
+				if (video.currentTime > 0) resolve(null);
+				video.addEventListener('playing', resolve, { once: true });
+			})
+	);
+
+	await page.waitForTimeout(1500);
+	await expect(page.locator(launchVideo)).not.toHaveClass(/leaving/);
+	await expect(page.locator(launchVideo)).toHaveCount(0, { timeout: 7000 });
+});
+
 test('a browser opens straight to the page without the logo video', async ({ page }) => {
 	await page.goto('/settings/', { waitUntil: 'domcontentloaded' });
 	await expect(page.locator(launchVideo)).toHaveCount(0);
