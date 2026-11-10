@@ -34,7 +34,7 @@ insert into public.organization (id, company_id, name) values
 insert into public.task (company_id, title, business, type) values
   ('59500000-0000-0000-0000-0000000000a0', 'Vocabulary task', 'Business One', 'Type One');
 
-insert into public.opportunity (id, company_id, organization_id, name, business, pipeline_id, stage_id, amount_minor, currency_code) values
+insert into public.opportunity (id, company_id, organization_id, name, business, pipeline_id, stage_id, amount) values
   (
     '59500000-0000-0000-0000-000000000121',
     '59500000-0000-0000-0000-0000000000a0',
@@ -43,8 +43,7 @@ insert into public.opportunity (id, company_id, organization_id, name, business,
     'Business Two',
     'partnership',
     'review',
-    1000000,
-    'KRW'
+    '(1000000,KRW)'
   );
 
 set constraints all immediate;

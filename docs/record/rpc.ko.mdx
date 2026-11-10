@@ -51,6 +51,7 @@ description: "PostgREST가 /rest/v1/rpc로 노출하는 함수 전부와, 누가
 | `company_credit_top_up_configured` | `target_company uuid, is_enabled boolean, threshold bigint, charged_amount bigint` | `void` | definer | service_role |
 | `company_credit_top_up_failed` | `target_top_up uuid, target_invoice text, reason text` | `void` | definer | service_role |
 | `company_credit_top_up_paid` | `target_top_up uuid, target_event text, target_invoice text, granted_credits bigint` | `void` | definer | service_role |
+| `company_credit_usage` | — | `TABLE(member_id uuid, credits_used bigint, takes_a_seat boolean)` | definer | authenticated, service_role |
 | `company_credit_usage_charged` | `target_company uuid, target_member uuid, used_credits bigint` | `void` | definer | service_role |
 | `company_credits_refunded` | `target_company uuid, target_event text, refunded_kind text, refunded_credits bigint` | `bigint` | definer | service_role |
 | `company_documents_matching` | `target_query text, target_limit integer, minimum_relevance real DEFAULT 0` | `SETOF company_document` | invoker | authenticated |
@@ -72,7 +73,7 @@ description: "PostgREST가 /rest/v1/rpc로 노출하는 함수 전부와, 누가
 | `conversation_mute` | `conversation text` | `void` | definer | anon, authenticated, service_role |
 | `conversation_mute_for` | `muted_member uuid, conversation text` | `void` | definer | service_role |
 | `conversation_unmute` | `conversation text` | `void` | definer | anon, authenticated, service_role |
-| `crm_opportunity_close` | `target_opportunity_id uuid, target_stage_id crm_stage, target_stage_position integer, target_stage_changed_at timestamp with time zone, target_lost_reason text, target_base_amount_minor bigint, target_base_currency_code text` | `opportunity` | invoker | authenticated |
+| `crm_opportunity_close` | `target_opportunity_id uuid, target_stage_id crm_stage, target_stage_position integer, target_stage_changed_at timestamp with time zone, target_lost_reason text, target_base_amount currency_amount` | `opportunity` | invoker | authenticated |
 | `crm_opportunity_hand_over` | `target_opportunity_id uuid, target_owner_id uuid` | `opportunity` | definer | authenticated |
 | `crm_vocabulary_save` | `target_vocabulary jsonb` | `jsonb` | definer | authenticated |
 | `data_room_administrator` | `target_company uuid` | `boolean` | definer | anon, authenticated, service_role |

@@ -207,9 +207,10 @@ covers. A credit is $0.001, and part of one is charged as a whole one.
 | the organization types and pipelines | `company.crm_vocabulary` |
 
 Every pipeline moves through the same six stages: `waiting`, `in_progress`,
-`review`, `done`, `on_hold`, `lost`. Money is stored in minor units, with the
-amount and its currency present together or not at all. A deal may be in any
-currency the rate provider serves, around a hundred and sixty.
+`review`, `done`, `on_hold`, `lost`. A deal's amount is a `currency_amount`,
+the type every amount on the record has: the amount in the currency's own unit
+(`10.5` for $10.50) and its ISO code, present whole or not at all. A deal may be
+in any currency the rate provider serves, around a hundred and sixty.
 
 `crm_opportunity_close` settles a deal against the company's base currency. A
 foreign-currency deal closed without a converted amount is refused, and so is
@@ -238,11 +239,9 @@ what the company expects, and the data room labels it a projection. Writing the
 same metric and period again once the period is over replaces it with the
 result.
 
-An amount in money keeps its USD equivalent beside it, so metrics compare
-across currencies. When the writer states none, `company_metric_record`
-converts the amount at the rate of the day it is written, from the provider
-CRM deals settle with. Writing the period again converts it again. If the
-provider cannot answer, nothing is written.
+A metric is money or a count. Money is a `currency_amount` in `amount`; a
+count is `value`, with its `unit`. Nothing stores a converted copy: the data
+room converts at the day's rate where it shows a number in another currency.
 
 ## The seal and logo are data room documents [#service-files]
 

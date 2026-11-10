@@ -19,8 +19,8 @@ do $$
 begin
   set local role authenticated;
   perform set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-0000000000c9","role":"authenticated"}', true);
-  insert into public.company_metric (company_id, metric, period, value, currency_code, value_usd)
-  values ('00000000-0000-0000-0000-0000000000c0', 'annualRevenue', '2025', 1200000000, 'KRW', 870000);
+  insert into public.company_metric (company_id, metric, period, amount)
+  values ('00000000-0000-0000-0000-0000000000c0', 'annualRevenue', '2025', '(1200000000,KRW)');
   insert into public.company_record (company_id, category, record_date, title, attributes)
   values ('00000000-0000-0000-0000-0000000000c0', 'funding', '2025-12-01', 'Seed round closed', '{"round":"Seed"}');
 end;
@@ -29,8 +29,8 @@ $$;
 reset role;
 
 select is(
-  (select value_usd from public.company_metric where metric = 'annualRevenue'),
-  870000::numeric,
+  (select amount from public.company_metric where metric = 'annualRevenue'),
+  '(1200000000,KRW)'::public.currency_amount,
   'an administrator records a company metric'
 );
 
@@ -56,10 +56,10 @@ select throws_ok($block$do $$
 begin
   set local role authenticated;
   perform set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-0000000000c9","role":"authenticated"}', true);
-  insert into public.company_metric (company_id, metric, period, value, currency_code)
-  values ('00000000-0000-0000-0000-0000000000c0', 'operatingProfit', '2025', 99, 'KRW');
+  insert into public.company_metric (company_id, metric, period, amount, value)
+  values ('00000000-0000-0000-0000-0000000000c0', 'operatingProfit', '2025', '(99,KRW)', 99);
   reset role;
-end $$;$block$, '23514', null, 'money carries the USD equivalent a reader can compare');
+end $$;$block$, '23514', null, 'a metric is money or a count, never both');
 
 select throws_ok($block$do $$
 begin
