@@ -3,125 +3,82 @@ package admind
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"log"
 	"net/http"
 	"sort"
 	"strings"
 	"time"
 
-	"github.com/lib/pq"
 	"github.com/yeomyeonggeori/internkim/internal/buzzidentity"
 )
 
-const adminSeatSyncInterval = 6 * time.Hour
-
 const buzzSeatPacing = 60 * time.Millisecond
 
-func (service *Service) startAdminChannelSeatSync(ctx context.Context) {
-	if !service.canWriteToBuzzRelay() {
-		return
-	}
-	log.Printf("buzz admin seats: every %s, every administrator is given an owner seat in every channel", adminSeatSyncInterval)
-	go func() {
-		if errorValue := service.waitUntilBlueclawAnswers(ctx, "buzz admin seats"); errorValue != nil {
-			return
-		}
-		ticker := time.NewTicker(adminSeatSyncInterval)
-		defer ticker.Stop()
-		for {
-			service.seatAdministratorsEverywhereWithinItsBudget(ctx)
-			select {
-			case <-ctx.Done():
-				return
-			case <-ticker.C:
-			}
-		}
-	}()
-}
-
-type adminSeatPlan struct {
-	ChannelID string   `json:"channelID"`
-	Pubkeys   []string `json:"pubkeys"`
-	Unseated  int      `json:"unseated,omitempty"`
-}
-
-func adminsMissingTheirSeat(heldRoles map[string]string, adminPubkeys []string) []string {
-	missing := make([]string, 0, len(adminPubkeys))
-	for _, pubkey := range adminPubkeys {
-		if heldRoles[pubkey] == buzzChannelOwnerRole {
-			continue
-		}
-		missing = append(missing, pubkey)
-	}
-	sort.Strings(missing)
-	return missing
-}
-
-// The relay refuses every write to an archived room, and an add to a room only
-// from someone already in it, so a room archived or left empty is one no
-// administrator can ever be seated in. A private room the agent opened seats
-// exactly the people the company names for it, such as a circle's channel.
-const everyStreamChannelQuery = `
-SELECT c.id::text FROM channels c
-WHERE c.community_id = ANY($1::uuid[]) AND c.channel_type = 'stream'
+const seatableChannelQuery = `
+SELECT EXISTS (SELECT 1 FROM channels c
+WHERE c.id = $1::uuid AND c.channel_type = 'stream'
   AND c.deleted_at IS NULL AND c.archived_at IS NULL
-  AND NOT (c.visibility = 'private' AND c.created_by = decode($2, 'hex'))
-  AND EXISTS (SELECT 1 FROM channel_members m WHERE m.channel_id = c.id AND m.removed_at IS NULL)
-ORDER BY c.id`
+  AND NOT (c.visibility = 'private' AND c.created_by = decode($2, 'hex')))`
 
-func (service *Service) buzzCommunities(ctx context.Context, database *sql.DB) []string {
-	if named := strings.TrimSpace(service.Configuration.BuzzCommunityID); named != "" {
-		return []string{named}
-	}
-	rows, errorValue := database.QueryContext(ctx, `SELECT DISTINCT community_id::text FROM channels WHERE deleted_at IS NULL`)
-	if errorValue != nil {
-		log.Printf("buzz admin seats: the communities could not be read: %v", errorValue)
-		return nil
-	}
-	defer rows.Close()
-	communities := make([]string, 0)
-	for rows.Next() {
-		var communityID string
-		if errorValue := rows.Scan(&communityID); errorValue != nil {
-			return nil
-		}
-		communities = append(communities, communityID)
-	}
-	return communities
+const everSeatedQuery = `SELECT encode(pubkey, 'hex') FROM channel_members WHERE channel_id = $1::uuid`
+
+type seatableAdministrator struct {
+	Pubkey   string
+	MemberID string
 }
 
-func everyStreamChannel(
-	ctx context.Context,
-	database *sql.DB,
-	communities []string,
-	agentPubkey string,
-) ([]string, error) {
-	if len(communities) == 0 {
-		return nil, nil
-	}
-	rows, errorValue := database.QueryContext(
-		ctx, everyStreamChannelQuery, pq.Array(communities), agentPubkey)
+type administratorSeating struct {
+	Seated   []string `json:"seated"`
+	Unseated int      `json:"unseated"`
+	Unmuted  int      `json:"unmuted"`
+}
+
+func channelTakesAdministrators(ctx context.Context, database *sql.DB, channelID string, agentPubkey string) (bool, error) {
+	var isSeatable bool
+	errorValue := database.QueryRowContext(ctx, seatableChannelQuery, channelID, agentPubkey).Scan(&isSeatable)
+	return isSeatable, errorValue
+}
+
+func everSeatedPubkeys(ctx context.Context, database *sql.DB, channelID string) (map[string]bool, error) {
+	rows, errorValue := database.QueryContext(ctx, everSeatedQuery, channelID)
 	if errorValue != nil {
 		return nil, errorValue
 	}
 	defer rows.Close()
-	channelIDs := make([]string, 0)
+	seated := map[string]bool{}
 	for rows.Next() {
-		var channelID string
-		if errorValue := rows.Scan(&channelID); errorValue != nil {
+		var pubkey string
+		if errorValue := rows.Scan(&pubkey); errorValue != nil {
 			return nil, errorValue
 		}
-		channelIDs = append(channelIDs, channelID)
+		seated[pubkey] = true
 	}
-	return channelIDs, rows.Err()
+	return seated, rows.Err()
 }
 
-func seatsNotTaken(planned []adminSeatPlan) int {
-	total := 0
-	for _, plan := range planned {
-		total += plan.Unseated
+type administratorSeatPlan struct {
+	Newcomers []seatableAdministrator
+	Raised    []seatableAdministrator
+}
+
+func planAdministratorSeats(heldRoles map[string]string, everSeated map[string]bool, administrators []seatableAdministrator) administratorSeatPlan {
+	plan := administratorSeatPlan{Newcomers: []seatableAdministrator{}, Raised: []seatableAdministrator{}}
+	for _, administrator := range administrators {
+		role, isSeated := heldRoles[administrator.Pubkey]
+		switch {
+		case !everSeated[administrator.Pubkey]:
+			plan.Newcomers = append(plan.Newcomers, administrator)
+		case isSeated && !isElevatedBuzzRole(role):
+			plan.Raised = append(plan.Raised, administrator)
+		}
 	}
-	return total
+	byPubkey := func(administrators []seatableAdministrator) func(int, int) bool {
+		return func(left, right int) bool { return administrators[left].Pubkey < administrators[right].Pubkey }
+	}
+	sort.Slice(plan.Newcomers, byPubkey(plan.Newcomers))
+	sort.Slice(plan.Raised, byPubkey(plan.Raised))
+	return plan
 }
 
 func seatedOwnerPubkeys(heldRoles map[string]string) []string {
@@ -146,10 +103,17 @@ func (service *Service) ownerSecretFor(ctx context.Context, heldRoles map[string
 	return ""
 }
 
-func (service *Service) administratorPubkeys(ctx context.Context) []string {
-	pubkeys := make([]string, 0)
-	for email := range service.buzzAdminEmails(ctx) {
-		secret, errorValue := service.personBuzzSecret(ctx, email)
+func (service *Service) seatableAdministrators(ctx context.Context) ([]seatableAdministrator, error) {
+	members, errorValue := service.companyMembers(ctx)
+	if errorValue != nil {
+		return nil, errorValue
+	}
+	administrators := make([]seatableAdministrator, 0)
+	for _, member := range members {
+		if member.HasLeftTheCompany() || normalizeAdminUserRole(member.Role) != adminUserRoleAdmin {
+			continue
+		}
+		secret, errorValue := service.personBuzzSecret(ctx, normalizedRosterEmail(member.Email))
 		if errorValue != nil {
 			log.Printf("buzz admin seats: no buzz key for an administrator: %v", errorValue)
 			continue
@@ -158,95 +122,85 @@ func (service *Service) administratorPubkeys(ctx context.Context) []string {
 		if errorValue != nil {
 			continue
 		}
-		pubkeys = append(pubkeys, pubkey)
+		administrators = append(administrators, seatableAdministrator{Pubkey: pubkey, MemberID: strings.TrimSpace(member.MemberID)})
 	}
-	sort.Strings(pubkeys)
-	return pubkeys
+	return administrators, nil
 }
 
-func (service *Service) seatAdministratorsEverywhereWithinItsBudget(ctx context.Context) {
-	passContext, cancel := context.WithTimeout(ctx, buzzDatabaseSweepBudget)
-	defer cancel()
-	planned, ran := service.seatAdministratorsEverywhere(passContext, true)
-	if !ran {
-		log.Printf("buzz admin seats: a pass was already running, so this tick was skipped")
-		return
-	}
-	if unseated := seatsNotTaken(planned); unseated > 0 {
-		log.Printf("buzz admin seats: %d seats the relay would not take; the rooms are named above", unseated)
-	}
-}
-
-// Seating reconciles against the roster as it stands, so a second pass behind
-// the one already running reaches the same answer. One asked for while another
-// runs is refused and says so, because a caller that waits holds whatever
-// started it for as long as the database makes the pass in front of it take,
-// and an empty plan would read to whoever asked as every seat already taken.
-func (service *Service) seatAdministratorsEverywhere(ctx context.Context, apply bool) ([]adminSeatPlan, bool) {
-	if !service.adminSeating.TryLock() {
-		return nil, false
-	}
-	defer service.adminSeating.Unlock()
-	if !service.canWriteToBuzzRelay() {
-		return nil, true
-	}
+func (service *Service) seatAdministratorsInNewChannel(ctx context.Context, channelID string, requesterEmail string) (administratorSeating, int, string) {
 	seed := service.buzzKeySeed()
 	if seed == "" {
-		return nil, true
-	}
-	adminPubkeys := service.administratorPubkeys(ctx)
-	if len(adminPubkeys) == 0 {
-		return nil, true
+		return administratorSeating{}, http.StatusServiceUnavailable, "this device holds no messenger key seed"
 	}
 	database, errorValue := service.buzzDatabase()
 	if errorValue != nil {
-		log.Printf("buzz admin seats: cannot reach the relay database: %v", errorValue)
-		return nil, true
+		return administratorSeating{}, http.StatusServiceUnavailable, "the relay database cannot be reached: " + errorValue.Error()
 	}
 	agentPubkey, errorValue := buzzPublicKey(buzzidentity.Secret(seed, buzzidentity.AgentSubject))
 	if errorValue != nil {
-		log.Printf("buzz admin seats: the agent has no key: %v", errorValue)
-		return nil, true
+		return administratorSeating{}, http.StatusServiceUnavailable, "the agent has no messenger key: " + errorValue.Error()
 	}
-	channelIDs, errorValue := everyStreamChannel(ctx, database, service.buzzCommunities(ctx, database), agentPubkey)
+	isSeatable, errorValue := channelTakesAdministrators(ctx, database, channelID, agentPubkey)
 	if errorValue != nil {
-		log.Printf("buzz admin seats: cannot read the channels: %v", errorValue)
-		return nil, true
+		return administratorSeating{}, http.StatusBadRequest, "the channel could not be read: " + errorValue.Error()
+	}
+	if !isSeatable {
+		return administratorSeating{Seated: []string{}}, http.StatusOK, ""
+	}
+	heldRoles, errorValue := buzzChannelMemberRoles(ctx, database, channelID)
+	if errorValue != nil {
+		return administratorSeating{}, http.StatusServiceUnavailable, "who is in the channel could not be read: " + errorValue.Error()
+	}
+	if !service.ownsChannel(ctx, heldRoles, requesterEmail) {
+		return administratorSeating{}, http.StatusForbidden, "only an owner of the channel may seat its administrators"
+	}
+	administrators, errorValue := service.seatableAdministrators(ctx)
+	if errorValue != nil {
+		return administratorSeating{}, http.StatusServiceUnavailable, "the company's administrators could not be read: " + errorValue.Error()
+	}
+	everSeated, errorValue := everSeatedPubkeys(ctx, database, channelID)
+	if errorValue != nil {
+		return administratorSeating{}, http.StatusServiceUnavailable, "who has been in the channel could not be read: " + errorValue.Error()
+	}
+	plan := planAdministratorSeats(heldRoles, everSeated, administrators)
+	missing := append(append([]seatableAdministrator{}, plan.Newcomers...), plan.Raised...)
+	seating := administratorSeating{Seated: []string{}}
+	if len(missing) == 0 {
+		return seating, http.StatusOK, ""
+	}
+	isNewcomer := map[string]bool{}
+	for _, administrator := range plan.Newcomers {
+		isNewcomer[administrator.Pubkey] = true
 	}
 	connections := service.newBuzzActorConnections()
 	defer connections.closeAll()
-	planned := make([]adminSeatPlan, 0)
-	seated := make([]string, 0)
-	for _, channelID := range channelIDs {
-		select {
-		case <-ctx.Done():
-			return planned, true
-		default:
-		}
-		heldRoles, errorValue := buzzChannelMemberRoles(ctx, database, channelID)
-		if errorValue != nil {
-			log.Printf("buzz admin seats: %s: who is in it could not be read: %v", channelID, errorValue)
+	seated := service.seatAdministratorsIn(ctx, connections, channelID, heldRoles, missing, seed)
+	seating.Unseated = len(missing) - len(seated)
+	for _, administrator := range seated {
+		seating.Seated = append(seating.Seated, administrator.Pubkey)
+		if !isNewcomer[administrator.Pubkey] {
 			continue
 		}
-		missing := adminsMissingTheirSeat(heldRoles, adminPubkeys)
-		if len(missing) == 0 {
-			continue
+		if errorValue := service.centralPlane().MuteConversation(ctx, administrator.MemberID, channelID); errorValue != nil {
+			log.Printf("buzz admin seats: %s: a seated administrator was not muted: %v", channelID, errorValue)
+			seating.Unmuted++
 		}
-		plan := adminSeatPlan{ChannelID: channelID, Pubkeys: missing}
-		if apply {
-			plan.Unseated = service.seatAdministratorsIn(ctx, connections, channelID, heldRoles, missing, seed)
-			if plan.Unseated < len(missing) {
-				seated = append(seated, channelID)
-			}
-		}
-		planned = append(planned, plan)
 	}
 	if len(seated) > 0 {
-		if errorValue := service.tellClientsWhoIsInTheRoom(ctx, database, seated[0]); errorValue != nil {
-			log.Printf("buzz admin seats: %d rooms changed and no client was told: %v", len(seated), errorValue)
+		if errorValue := service.tellClientsWhoIsInTheRoom(ctx, database, channelID); errorValue != nil {
+			log.Printf("buzz admin seats: %s changed and no client was told: %v", channelID, errorValue)
 		}
 	}
-	return planned, true
+	return seating, http.StatusOK, ""
+}
+
+func (service *Service) ownsChannel(ctx context.Context, heldRoles map[string]string, requesterEmail string) bool {
+	secret, errorValue := service.personBuzzSecret(ctx, requesterEmail)
+	if errorValue != nil {
+		return false
+	}
+	pubkey, errorValue := buzzPublicKey(secret)
+	return errorValue == nil && isElevatedBuzzRole(heldRoles[pubkey])
 }
 
 func (service *Service) seatAdministratorsIn(
@@ -254,9 +208,9 @@ func (service *Service) seatAdministratorsIn(
 	connections *buzzActorConnections,
 	channelID string,
 	heldRoles map[string]string,
-	missing []string,
+	missing []seatableAdministrator,
 	seed string,
-) int {
+) []seatableAdministrator {
 	actorSecret := service.buzzRoomActorSecret(ctx, heldRoles, seed)
 	if actorSecret == buzzidentity.Secret(seed, buzzidentity.BootstrapSubject) {
 		if owned := service.ownerSecretFor(ctx, heldRoles); owned != "" {
@@ -266,49 +220,56 @@ func (service *Service) seatAdministratorsIn(
 	publisher, errorValue := connections.as(ctx, actorSecret)
 	if errorValue != nil {
 		log.Printf("buzz admin seats: %s: the relay would not take a connection: %v", channelID, errorValue)
-		return len(missing)
+		return nil
 	}
-	failed := 0
-	for _, pubkey := range missing {
-		errorValue := publisher.AddMember(ctx, actorSecret, channelID, pubkey, buzzChannelOwnerRole)
+	seated := make([]seatableAdministrator, 0, len(missing))
+	for _, administrator := range missing {
+		errorValue := publisher.AddMember(ctx, actorSecret, channelID, administrator.Pubkey, buzzChannelOwnerRole)
 		if errorValue != nil && strings.Contains(errorValue.Error(), "connection closed") {
 			connections.drop(actorSecret)
 			reopened, reconnectError := connections.as(ctx, actorSecret)
 			if reconnectError != nil {
 				log.Printf("buzz admin seats: %s: the relay would not take the connection back: %v", channelID, reconnectError)
-				return failed + len(missing)
+				return seated
 			}
 			publisher = reopened
-			errorValue = publisher.AddMember(ctx, actorSecret, channelID, pubkey, buzzChannelOwnerRole)
+			errorValue = publisher.AddMember(ctx, actorSecret, channelID, administrator.Pubkey, buzzChannelOwnerRole)
 		}
 		if errorValue != nil {
-			log.Printf("buzz admin seats: %s: %s was not seated: %v", channelID, pubkey, errorValue)
-			failed++
+			log.Printf("buzz admin seats: %s: %s was not seated: %v", channelID, administrator.Pubkey, errorValue)
 			continue
 		}
+		seated = append(seated, administrator)
 		time.Sleep(buzzSeatPacing)
 	}
-	return failed
+	return seated
 }
 
 func (service *Service) handleBuzzSeatAdmins(responseWriter http.ResponseWriter, request *http.Request) {
-	if !service.authorizeInternalOrWebMemberRequest(request) {
-		http.Error(responseWriter, "member access required", http.StatusForbidden)
+	if request.Method != http.MethodPost {
+		http.Error(responseWriter, "seating administrators is a POST naming the new channel", http.StatusMethodNotAllowed)
+		return
+	}
+	requesterEmail := service.actorEmailAllowingAssertedRequester(request)
+	if requesterEmail == "" {
+		http.Error(responseWriter, "seating administrators names the channel owner who asks", http.StatusForbidden)
 		return
 	}
 	if !service.canWriteToBuzzRelay() {
 		http.Error(responseWriter, "this device cannot write to the buzz relay", http.StatusNotImplemented)
 		return
 	}
-	apply := request.URL.Query().Get("apply") == "true"
-	planned, ran := service.seatAdministratorsEverywhere(request.Context(), apply)
-	if !ran {
-		http.Error(responseWriter, "a seating pass is already running; ask again once it has finished", http.StatusConflict)
+	var asked struct {
+		ChannelID string `json:"channelID"`
+	}
+	if errorValue := json.NewDecoder(request.Body).Decode(&asked); errorValue != nil || strings.TrimSpace(asked.ChannelID) == "" {
+		http.Error(responseWriter, "seating administrators names the channel that was just opened as channelID", http.StatusBadRequest)
 		return
 	}
-	service.writeJSON(responseWriter, map[string]any{
-		"applied":  apply,
-		"channels": planned,
-		"unseated": seatsNotTaken(planned),
-	})
+	seating, status, failure := service.seatAdministratorsInNewChannel(request.Context(), strings.TrimSpace(asked.ChannelID), requesterEmail)
+	if failure != "" {
+		http.Error(responseWriter, failure, status)
+		return
+	}
+	service.writeJSON(responseWriter, seating)
 }

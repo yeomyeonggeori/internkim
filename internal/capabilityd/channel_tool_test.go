@@ -119,3 +119,47 @@ func TestAChannelChangeIsApprovedAgainstTheChannelTheHintNames(t *testing.T) {
 		t.Fatal("resolving a target must not delete anything")
 	}
 }
+
+func TestAChannelTheAgentOpensAsksAdmindToSeatTheAdministrators(t *testing.T) {
+	chatd := answeringPerCall(answeringChannelsAsTheRequester)
+	admindSocket := answering(`{"seated":[],"unseated":0,"unmuted":0}`)
+	service := serviceReaching(t, map[gateBackend]*standingIn{
+		chatdOverHTTP:       chatd,
+		blueclawOverHTTP:    answering(memberPolicyFor("person-1", "member@example.com")),
+		admindOverHTTP:      answeringPerCall(answeringTheDirectory),
+		admindOverTheSocket: admindSocket,
+	})
+
+	answered, errorValue := service.invokeChannelTool(context.Background(),
+		channelToolCall(channelAddToolName, `{"name":"launch","visibility":"open"}`))
+
+	if errorValue != nil || answered.IsError {
+		t.Fatalf("expected the channel to be opened, got %+v %v", answered, errorValue)
+	}
+	if len(admindSocket.asked) != 1 || admindSocket.asked[0].Path != seatAdministratorsAdmindPath || admindSocket.asked[0].Body != `{"channelID":"channel-9"}` {
+		t.Fatalf("expected admind to be asked once to seat the administrators in channel-9, got %+v", admindSocket.asked)
+	}
+}
+
+func TestAChannelChatdRefusesToOpenSeatsNobody(t *testing.T) {
+	chatd := answeringPerCall(func(request *http.Request) (int, string) {
+		if strings.HasSuffix(request.URL.Path, "/requester.channel.create") {
+			return http.StatusConflict, `{"error":"a channel by that name exists"}`
+		}
+		return answeringChannelsAsTheRequester(request)
+	})
+	admindSocket := answering(`{}`)
+	service := serviceReaching(t, map[gateBackend]*standingIn{
+		chatdOverHTTP:       chatd,
+		blueclawOverHTTP:    answering(memberPolicyFor("person-1", "member@example.com")),
+		admindOverHTTP:      answeringPerCall(answeringTheDirectory),
+		admindOverTheSocket: admindSocket,
+	})
+
+	answered, _ := service.invokeChannelTool(context.Background(),
+		channelToolCall(channelAddToolName, `{"name":"launch","visibility":"open"}`))
+
+	if !answered.IsError || len(admindSocket.asked) != 0 {
+		t.Fatalf("a channel never opened seats nobody, got %+v and %+v", answered, admindSocket.asked)
+	}
+}
