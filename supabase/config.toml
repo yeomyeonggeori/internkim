@@ -93,6 +93,9 @@ subject = "Your internkim code: {{ .Token }}"
 [auth.email.template.confirmation]
 subject = "Your internkim code: {{ .Token }}"
 
+[auth.email.template.invite]
+subject = "{{ if eq .Data.locale \"ko\" }}{{ .Data.companyName }}에서 업무를 공유했습니다{{ else }}{{ .Data.companyName }} shared work with you{{ end }}"
+
 [auth.mfa]
 max_enrolled_factors = 10
 
@@ -250,6 +253,10 @@ content_path = "./supabase/templates/magic-link.html"
 
 [remotes.production.auth.email.template.confirmation]
 content_path = "./supabase/templates/magic-link.html"
+
+[remotes.production.auth.email.template.invite]
+subject = "{{ if eq .Data.locale \"ko\" }}{{ .Data.companyName }}에서 업무를 공유했습니다{{ else }}{{ .Data.companyName }} shared work with you{{ end }}"
+content_path = "./supabase/templates/task-invitation.html"
 
 [remotes.production.storage.analytics]
 enabled = true

@@ -17,7 +17,13 @@
 		await goto(`/share/tasks/${acceptedTaskInvitationSchema.parse(answer).companyID}`);
 	}
 
+	function expiredLinkNotice(): string {
+		const hash = new URLSearchParams(window.location.hash.slice(1));
+		return hash.get('error_code') ? text.linkExpired : '';
+	}
+
 	onMount(async () => {
+		failure = expiredLinkNotice();
 		try {
 			if (await signedInEmail()) await accept();
 		} catch (error) {

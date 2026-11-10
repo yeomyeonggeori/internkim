@@ -17,6 +17,8 @@
 	let email = $state('');
 	let code = $state('');
 	let isCodeSent = $state(false);
+	let isEnteringCode = $state(false);
+	const asksForCode = $derived(isCodeSent || isEnteringCode);
 	let isBusy = $state(false);
 	let failure = $state('');
 	let canUsePasskey = $state(false);
@@ -40,7 +42,7 @@
 	function submit(event: SubmitEvent) {
 		event.preventDefault();
 		void attempt(async () => {
-			if (!isCodeSent) {
+			if (!asksForCode) {
 				await requestGuestCode(email.trim());
 				isCodeSent = true;
 				return;
@@ -67,8 +69,9 @@
 	<Field.Field>
 		<Field.Label for="{fieldID}-email">{text.email}</Field.Label>
 		<Input id="{fieldID}-email" type="email" required autocomplete="email" bind:value={email} disabled={isCodeSent || isBusy} />
+		{#if isCodeSent}<Field.Description>{text.codeSent.replace('{email}', email.trim())}</Field.Description>{/if}
 	</Field.Field>
-	{#if isCodeSent}
+	{#if asksForCode}
 		<Field.Field>
 			<Field.Label for="{fieldID}-code">{text.code}</Field.Label>
 			<InputOTP.Root inputId="{fieldID}-code" pushPasswordManagerStrategy="none" maxlength={emailCodeLength} required
@@ -87,10 +90,13 @@
 	{/if}
 	{#if failure}<p role="alert" class="text-sm text-destructive">{failure}</p>{/if}
 	<div class="flex flex-wrap gap-2">
-		<Button type="submit" disabled={isBusy || (isCodeSent && code.length !== emailCodeLength)}>
-			{isCodeSent ? text.signIn : text.sendCode}
+		<Button type="submit" disabled={isBusy || (asksForCode && code.length !== emailCodeLength)}>
+			{asksForCode ? text.signIn : text.sendCode}
 		</Button>
-		{#if canUsePasskey && !isCodeSent}
+		{#if !asksForCode}
+			<Button type="button" variant="link" disabled={isBusy} onclick={() => (isEnteringCode = true)}>{text.haveCode}</Button>
+		{/if}
+		{#if canUsePasskey && !asksForCode}
 			<Button type="button" variant="outline" disabled={isBusy} onclick={signInByPasskey}>{text.signInWithPasskey}</Button>
 		{/if}
 	</div>
