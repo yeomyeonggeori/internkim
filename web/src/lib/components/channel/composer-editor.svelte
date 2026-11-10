@@ -7,6 +7,8 @@
 	import StarterKit from '@tiptap/starter-kit';
 	import Link from '@tiptap/extension-link';
 	import { MarkdownManager } from '@tiptap/markdown';
+	import type { Slice } from '@tiptap/pm/model';
+	import type { EditorView } from '@tiptap/pm/view';
 	import { onDestroy, onMount } from 'svelte';
 	import {
 		applyComposerFormat,
@@ -17,6 +19,7 @@
 	import type { WrittenMention } from '$lib/messenger/mention-draft';
 	import { feelHaptic } from '$lib/native-shell/haptics';
 	import { filesToAttachFromClipboard } from './clipboard-files';
+	import { pastedParagraphsAsCopiedLines, pastedTextSlice } from './composer-paste';
 
 	let {
 		value = $bindable(''),
@@ -127,10 +130,16 @@
 		return false;
 	}
 
-	function handlePaste(event: ClipboardEvent): boolean {
+	function handlePaste(view: EditorView, event: ClipboardEvent, slice: Slice): boolean {
 		const files = filesToAttachFromClipboard(event.clipboardData);
-		if (files.length === 0) return false;
-		onPasteFiles(files);
+		if (files.length > 0) {
+			onPasteFiles(files);
+			return true;
+		}
+		const plainText = event.clipboardData?.getData('text/plain') ?? '';
+		const lines = pastedParagraphsAsCopiedLines(slice, plainText, view.state.selection.$from, view.state.schema);
+		if (!lines) return false;
+		view.dispatch(view.state.tr.replaceSelection(lines).scrollIntoView().setMeta('paste', true));
 		return true;
 	}
 
@@ -150,7 +159,8 @@
 			editorProps: {
 				attributes: { ...ariaAttributes, class: editorClass, 'aria-multiline': 'true' },
 				handleKeyDown: (_view, event) => handleKeyDown(event),
-				handlePaste: (_view, event) => handlePaste(event),
+				handlePaste: (view, event, slice) => handlePaste(view, event, slice),
+				clipboardTextParser: (text, context, _plain, view) => pastedTextSlice(text, context, view.state.schema),
 				handleDrop: () => !acceptsDrop,
 				handleDOMEvents: { pointerdown: (_view, event) => feelTap(event) }
 			},
