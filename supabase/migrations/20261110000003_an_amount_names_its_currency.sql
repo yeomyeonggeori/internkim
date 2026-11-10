@@ -38,7 +38,7 @@ begin
     return amount_minor;
   end if;
   if currency in ('USD', 'EUR', 'GBP', 'CNY', 'HKD', 'SGD', 'AUD', 'CAD', 'CHF', 'INR') then
-    return amount_minor / 100.0;
+    return trim_scale(amount_minor / 100.0);
   end if;
   raise exception 'an opportunity holds % in minor units and this migration does not know its decimal places', currency;
 end;
