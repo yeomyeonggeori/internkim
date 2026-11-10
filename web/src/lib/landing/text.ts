@@ -49,8 +49,9 @@ export const landingText = {
 			]
 		},
 		day: {
-			title: '김인턴과 보내는 하루',
-			lead: '메신저로 부탁하면 김인턴이 회사 기록을 보고 처리합니다. 결과는 팀이 쓰는 화면에 그대로 남습니다.',
+			title: '익숙한 화면으로도, 말 한마디로도',
+			lead: '늘 쓰던 방식대로 화면에서 눌러 처리해도 되고, 클릭 없이 메신저로 김인턴에게 말만 해도 됩니다. 어느 쪽으로 하든 같은 기록에 남습니다.',
+			columns: { ask: '김인턴에게 말로', screen: '앱 화면에서 직접' },
 			moments: [
 				{
 					section: 'attendance',
@@ -231,8 +232,9 @@ export const landingText = {
 			]
 		},
 		day: {
-			title: 'A day with Intern Kim',
-			lead: 'Ask in the messenger and Intern Kim works from your company records. The result stays on the screens your team already uses.',
+			title: 'Click through it, or just ask',
+			lead: 'Work the screens the way you always have, or skip the clicks and tell Intern Kim in the messenger. Either way, it lands in the same records.',
+			columns: { ask: 'Ask Intern Kim', screen: 'Or do it on screen' },
 			moments: [
 				{
 					section: 'attendance',
