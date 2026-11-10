@@ -9,6 +9,10 @@ export function taskRoadmapTodayScrollDay(segments: TaskRoadmapMonthSegment[], t
 	return Math.max(todaySegment?.firstDay ?? 0, todayDay - probeOffset);
 }
 
+export function taskRoadmapFocusScrollDay(dayIndex: number, visibleDays: number): number {
+	return Math.max(0, dayIndex - Math.floor(visibleDays * visibleMonthProbe));
+}
+
 export function taskRoadmapMonthScrollDay(segments: TaskRoadmapMonthSegment[], month: TaskRoadmapMonth): number | undefined {
 	const key = taskRoadmapMonthKey(month);
 	return segments.find((segment) => taskRoadmapMonthKey(segment.month) === key)?.firstDay;
