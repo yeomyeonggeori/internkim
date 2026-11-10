@@ -189,7 +189,7 @@ allow_dynamic_registration = true
 
 [storage]
 enabled = true
-file_size_limit = "200MiB"
+file_size_limit = "500MiB"
 
 [storage.image_transformation]
 enabled = true
@@ -257,6 +257,9 @@ content_path = "./supabase/templates/magic-link.html"
 [remotes.production.auth.email.template.invite]
 subject = "{{ if eq .Data.locale \"ko\" }}{{ .Data.companyName }}에서 업무를 공유했습니다{{ else }}{{ .Data.companyName }} shared work with you{{ end }}"
 content_path = "./supabase/templates/task-invitation.html"
+
+[remotes.production.storage]
+file_size_limit = "200MiB"
 
 [remotes.production.storage.analytics]
 enabled = true
