@@ -6,7 +6,7 @@ export const landingText = {
 		navigation: { docs: '문서', github: 'GitHub', signIn: '로그인', changeLanguage: '언어 바꾸기' },
 		hero: {
 			headline: 'AI 동료와 쓰는 백오피스',
-			lead: '근태, 업무, 일정, 고객, 문서를 한 앱에서 관리합니다. 메신저로 부탁하면 김인턴이 회사 기록을 보고 처리하고, 그 기록은 투자자에게 바로 보낼 수 있는 데이터룸이 됩니다.',
+			lead: '근태부터 문서까지 한 앱에서 관리합니다. 메신저로 부탁하면 김인턴이 처리하고, 쌓인 기록은 그대로 투자자에게 보낼 데이터룸이 됩니다.',
 			start: '회사 만들기',
 			signIn: '로그인',
 			facts: ['Apache-2.0 오픈 소스', '대화는 회사 컴퓨터에', 'AI 사용료는 원가 그대로']
@@ -50,8 +50,17 @@ export const landingText = {
 		},
 		day: {
 			title: '익숙한 화면으로도, 말 한마디로도',
-			lead: '늘 쓰던 방식대로 화면에서 눌러 처리해도 되고, 클릭 없이 메신저로 김인턴에게 말만 해도 됩니다. 어느 쪽으로 하든 같은 기록에 남습니다.',
+			lead: '늘 쓰던 화면에서 눌러도 되고, 클릭 없이 메신저로 말만 해도 됩니다. 어느 쪽이든 같은 기록에 남습니다.',
 			columns: { ask: '김인턴에게 말로', screen: '앱 화면에서 직접' },
+			more: {
+				title: '이런 일도 맡깁니다',
+				items: [
+					{ title: '메일', body: '연결한 메일함을 읽고 답할 메일을 추립니다. 보내기 전에는 확인을 받습니다.' },
+					{ title: '반복 업무', body: '매주 월요일 9시에 지난주 업무 정리처럼 정해 두면 그때마다 처리합니다.' },
+					{ title: '문서', body: '보고서, 엑셀, 발표자료와 회사 양식 문서를 만들고 고칩니다.' },
+					{ title: '기억', body: '지난 부탁과 결과를 기억하고 이어서 일합니다. 개인, 서클, 회사의 기억은 따로 보관합니다.' }
+				]
+			},
 			moments: [
 				{
 					section: 'attendance',
@@ -86,7 +95,7 @@ export const landingText = {
 				{
 					section: 'messenger',
 					time: '14:10',
-					caption: '팀 채널에서 동료와 이야기하다가 김인턴을 부르면, 그 자리에서 일을 받습니다.',
+					caption: '팀 채널에서 김인턴을 부르면 그 자리에서 일을 받습니다.',
 					note: '채널, 1:1 대화, 스레드, 파일 공유를 갖춘 사내 메신저입니다. 김인턴이 처리한 결과는 채널에 있는 모두가 함께 봅니다.',
 					turns: []
 				},
@@ -114,11 +123,11 @@ export const landingText = {
 		},
 		investors: {
 			title: '투자자가 원하는 자료를 준비 없이 보냅니다',
-			lead: '일하며 남긴 기록과 김인턴이 만든 문서가 데이터룸에 분류되어 쌓입니다. 자료 요청이 오면 받는 사람에게 맞는 범위로 링크를 보냅니다.',
+			lead: '일하며 남긴 기록과 김인턴이 만든 문서가 데이터룸에 쌓입니다. 자료 요청이 오면 받는 사람에 맞는 범위로 링크만 보내세요.',
 			company: {
 				title: '회사는',
 				items: [
-					{ title: '자료를 따로 모으지 않습니다', body: '김인턴이 만든 계약서, 견적서, 보고서는 분류되어 데이터룸에 보관됩니다.' },
+					{ title: '자료를 따로 모으지 않습니다', body: '김인턴이 회사 양식으로 만든 견적서, 계약서, 청구서는 문서번호를 받아 데이터룸에 올라갑니다.' },
 					{ title: '회사 소개가 기록에서 만들어집니다', body: '매출 같은 지표와 연혁, 지분 구조를 기록하면 데이터룸의 회사 소개에 그래프와 표로 나옵니다.' },
 					{ title: '받는 사람마다 범위를 고릅니다', body: '링크는 서클 하나가 읽는 분류만 엽니다. 투자자, 회계·세무 자문, 법률 자문, 금융기관 서클이 처음부터 있습니다.' }
 				]
@@ -128,7 +137,7 @@ export const landingText = {
 				items: [
 					{ title: '링크와 코드로 바로 엽니다', body: '계정 없이 6자리 코드를 넣고 기밀유지 안내에 동의하면 됩니다.' },
 					{ title: '열 때마다 지금의 기록을 봅니다', body: '링크는 열 때마다 데이터룸을 새로 읽습니다. 그사이 기록한 지표와 문서가 바로 보입니다.' },
-					{ title: '필요한 만큼 깊이 봅니다', body: '실사가 진행되어 회사가 서클 범위를 넓히면, 같은 링크에서 더 많은 분류를 이어서 봅니다.' }
+					{ title: '필요한 만큼 깊이 봅니다', body: '실사가 진행되어 회사가 서클 범위를 넓히면 같은 링크로 더 많은 분류를 봅니다. 링크를 만든 사람이 볼 수 있는 범위까지입니다.' }
 				]
 			},
 			scope: '서클마다 열리는 분류',
@@ -141,37 +150,38 @@ export const landingText = {
 				caption: '무엇이 어디에 있는지',
 				what: '무엇',
 				hosted: 'intern.kim과 함께',
-				selfHosted: '전부 직접',
+				selfHosted: '직접 운영',
 				rows: [
 					{ what: 'AI 동료, 대화, 작업 파일', hosted: '회사 컴퓨터', selfHosted: '회사 컴퓨터' },
 					{ what: '회사 기록과 파일 저장소', hosted: 'intern.kim', selfHosted: '회사의 Supabase' },
 					{ what: '웹 앱과 로그인 주소', hosted: 'intern.kim', selfHosted: '회사의 도메인' }
 				],
-				note: 'intern.kim의 회사 기록에는 메시지를 저장하는 테이블이 없습니다. 대화는 회사 컴퓨터에만 저장됩니다.'
+				note: 'intern.kim의 회사 기록에는 메시지가 저장되지 않습니다. 김미니의 복구본은 회사 키로 암호화한 뒤에 보관합니다.'
 			},
 			items: [
-				{ title: '운영이 멈춰도 계속 씁니다', body: '모든 소프트웨어가 Apache-2.0 오픈 소스입니다. 여명거리가 서비스를 멈춰도 회사가 직접 운영하며 계속 쓸 수 있습니다.' },
+				{ title: '운영이 멈춰도 계속 씁니다', body: '김인턴의 소스 코드는 Apache-2.0으로 공개되어 있습니다. 여명거리가 서비스를 멈춰도 회사가 직접 운영하며 계속 쓸 수 있습니다.' },
 				{ title: '보안을 직접 검증하고 고칩니다', body: '코드를 누구나 읽을 수 있습니다. 회사나 보안 감사인이 직접 검증하고, 찾은 문제는 고쳐서 배포할 수 있습니다.' },
-				{ title: '부탁한 사람의 권한으로만', body: '김인턴은 부탁한 사람이 볼 수 있는 기록만 읽고, 할 수 있는 일만 합니다. 남긴 기록에는 그 사람의 이름이 붙습니다.' },
-				{ title: '되돌리기 어려운 일은 먼저 묻습니다', body: '데이터룸 링크 만들기처럼 되돌리기 어려운 일은 부탁한 사람에게 먼저 확인합니다.' }
+				{ title: '부탁한 사람의 계정으로 일합니다', body: '구성원마다 회사 컴퓨터에 따로 계정이 있고, 김인턴은 부탁한 사람의 계정과 권한으로 일합니다. 그 사람이 열 수 없는 기록과 파일은 김인턴도 열지 못합니다.' },
+				{ title: '보내고 지우고 바꾸기 전에 묻습니다', body: '메일 발송, 휴가 승인, 기록 삭제, 회사 규정 변경은 실행 직전에 멈추고 부탁한 사람의 확인을 기다립니다. 반복 업무는 만들 때 한 번 확인합니다.' }
 			],
 			source: 'GitHub에서 코드 보기'
 		},
 		plans: {
 			title: '사내 AI 동료를 과한 비용 없이',
-			lead: '서버를 빌리거나 개발자를 두지 않아도 됩니다. 회사에 둔 컴퓨터 한 대에서 김인턴이 모든 구성원의 부탁을 처리합니다.',
+			lead: '회사에 둔 컴퓨터 한 대에서 김인턴이 모든 구성원의 부탁을 처리합니다. 따로 빌릴 서버가 없습니다.',
 			pay: {
 				title: '구독과 AI 사용료',
 				items: [
 					{ title: '좌석 구독', body: '구성원 수만큼 구독합니다. 구독에 AI 크레딧이 들어 있고, 모자라면 더 살 수 있습니다.' },
-					{ title: '원가 그대로', body: 'AI 호출은 실제 비용만큼 크레딧에서 빠집니다. 김인턴은 일마다 맞는 모델을 골라 씁니다.' },
+					{ title: '원가 그대로', body: 'AI 호출은 실제 비용을 1크레딧 단위로 올려 뺍니다. 가벼운 판단은 판단 전용 모델이 맡습니다.' },
 					{ title: '회사 OpenRouter 키', body: 'OpenRouter 키를 연결하면 모델 비용을 직접 냅니다.' }
 				]
 			},
 			run: {
 				title: 'AI 동료가 일할 컴퓨터',
 				items: [
-					{ title: '김미니', body: '김인턴이 설치된 채로 도착하는 작은 컴퓨터입니다. 전원과 인터넷만 연결하면 됩니다.' },
+					{ title: '김미니', body: '김인턴이 설치된 채로 도착하는 작은 컴퓨터입니다. 전원과 인터넷을 연결하고 회사에 등록하면 됩니다.' },
+					{ title: '김미니 여러 대', body: '회사 키로 암호화한 복구본이 15분마다 저장되어, 한 대가 멈추면 다른 김미니가 이어받을 수 있습니다.' },
 					{ title: '회사 컴퓨터', body: '늘 켜 둘 리눅스 서버나 Mac에 명령 두 줄로 설치합니다.' },
 					{ title: '직접 운영', body: '앱과 데이터베이스까지 회사가 직접 운영합니다.' }
 				],
@@ -183,16 +193,16 @@ export const landingText = {
 		footer: { owner: '여명거리', rights: '모든 권리 보유.', license: 'Apache-2.0' }
 	},
 	en: {
-		title: 'Intern Kim · A back office with an AI coworker',
+		title: 'Intern Kim · A back office and AI coworker for small companies',
 		description: 'Attendance, tasks, calendar, customers and documents in one app. Ask in the messenger, and Intern Kim reads your company records and does the work.',
 		brand: 'Intern Kim',
 		navigation: { docs: 'Docs', github: 'GitHub', signIn: 'Sign in', changeLanguage: 'Change language' },
 		hero: {
-			headline: 'A back office with an AI coworker',
-			lead: 'Attendance, tasks, calendar, customers and documents in one app. Ask in the messenger and Intern Kim does the work from your company records, and those records become a data room you can send to investors.',
+			headline: 'A back office and AI coworker for small companies',
+			lead: 'Manage attendance, tasks, calendar, customers and documents in one app. Ask Intern Kim in the company messenger to do the work, and the records add up to a data room you can send investors.',
 			start: 'Create a company',
 			signIn: 'Sign in',
-			facts: ['Open source under Apache-2.0', 'Conversations stay on your computer', 'AI billed at cost']
+			facts: ['Open source under Apache-2.0', 'Conversations stay on your company computer', 'AI billed at cost']
 		},
 		demo: {
 			label: 'A sample conversation with Intern Kim',
@@ -232,9 +242,18 @@ export const landingText = {
 			]
 		},
 		day: {
-			title: 'Click through it, or just ask',
-			lead: 'Work the screens the way you always have, or skip the clicks and tell Intern Kim in the messenger. Either way, it lands in the same records.',
+			title: 'Use the app or ask Intern Kim',
+			lead: 'Use the screens you know, or skip the clicks and ask Intern Kim in the messenger. Both work on the same company records.',
 			columns: { ask: 'Ask Intern Kim', screen: 'Or do it on screen' },
+			more: {
+				title: 'More you can hand over',
+				items: [
+					{ title: 'Mail', body: 'Reads your connected inbox and picks out what needs a reply. It asks before sending.' },
+					{ title: 'Recurring work', body: 'Set something like a weekly summary every Monday at 9, and it runs on time.' },
+					{ title: 'Documents', body: 'Writes and edits reports, spreadsheets, decks and company forms.' },
+					{ title: 'Memory', body: 'Remembers past requests and results and picks up from there. Personal, circle and company memories are kept apart.' }
+				]
+			},
 			moments: [
 				{
 					section: 'attendance',
@@ -296,14 +315,14 @@ export const landingText = {
 			]
 		},
 		investors: {
-			title: 'Send investors what they ask for, with nothing to prepare',
-			lead: 'The records your work leaves and the documents Intern Kim writes are filed in the data room as you go. When someone asks for materials, send a link scoped to who they are.',
+			title: 'Send investors what they ask for, already in order',
+			lead: 'Company records and the documents Intern Kim makes collect in your data room as you work. When someone asks, send a link with access set for who they are.',
 			company: {
 				title: 'For your company',
 				items: [
-					{ title: 'Nothing to gather', body: 'Contracts, quotes and reports Intern Kim writes are filed in the data room.' },
-					{ title: 'The company profile builds itself', body: 'Record metrics like revenue, your history and your cap table, and the data room shows them as charts and tables.' },
-					{ title: 'A scope for each recipient', body: 'A link opens only the categories one circle reads. Investor, accountant, legal adviser and lender circles are there from day one.' }
+					{ title: 'Documents filed as you work', body: 'Quotes, contracts and invoices Intern Kim makes on your letterhead get a document number and go into the data room.' },
+					{ title: 'Company records become charts and tables', body: 'Record metrics like revenue, your history and your cap table, and the data room shows them as charts and tables.' },
+					{ title: 'Choose what each recipient can see', body: 'Each link shows the categories its circle can access. Circles for investors, accountants, legal advisers and lenders are included.' }
 				]
 			},
 			investor: {
@@ -311,10 +330,10 @@ export const landingText = {
 				items: [
 					{ title: 'Open it with a link and a code', body: 'No account. Enter the six-digit code and accept the confidentiality notice.' },
 					{ title: 'Always the current records', body: 'The link reads the data room each time it opens, so new metrics and documents show up right away.' },
-					{ title: 'As deep as you need', body: 'When diligence moves on and the company widens the circle, the same link shows more categories.' }
+					{ title: 'More as diligence moves on', body: 'Widen the circle as diligence moves on, and the same link shows more categories, up to what the person who made the link can see.' }
 				]
 			},
-			scope: 'What each circle opens',
+			scope: 'What each circle can see',
 			guard: 'Links last at most 7 days, and downloading originals is a separate choice. Every page of a downloaded PDF is stamped with the link and the time.'
 		},
 		ownership: {
@@ -324,37 +343,38 @@ export const landingText = {
 				caption: 'What lives where',
 				what: 'What',
 				hosted: 'With intern.kim',
-				selfHosted: 'All yours',
+				selfHosted: 'Self-hosted',
 				rows: [
 					{ what: 'AI coworker, conversations, working files', hosted: 'Your computer', selfHosted: 'Your computer' },
 					{ what: 'Company records and file storage', hosted: 'intern.kim', selfHosted: 'Your Supabase' },
 					{ what: 'Web app and sign-in address', hosted: 'intern.kim', selfHosted: 'Your domain' }
 				],
-				note: 'The company record on intern.kim has no table for messages. Conversations are stored only on your company computer.'
+				note: 'Messages are never stored in the company record on intern.kim. Kim mini recovery snapshots are encrypted to your company key.'
 			},
 			items: [
-				{ title: 'Keeps running if we stop', body: 'All software is open source under Apache-2.0. If Yeomyeonggeori stops the service, your company can run it and keep going.' },
+				{ title: 'Run it yourself if we ever stop', body: "Intern Kim's source code is open under Apache-2.0. If Yeomyeonggeori stops the service, your company can run it and keep going." },
 				{ title: 'Audit and patch it yourself', body: 'Anyone can read the code. Your team or a security auditor can verify it, fix what they find and deploy the fix.' },
-				{ title: 'Only with your permissions', body: 'Intern Kim reads only the records the person asking can see, and does only what they can do. What it records carries their name.' },
-				{ title: 'Asks before anything hard to undo', body: 'Before something hard to undo, like creating a data room link, it asks the person who made the request.' }
+				{ title: 'Works as the person who asked', body: "Each member has their own account on the company computer, and Intern Kim works under the account and permissions of whoever asked. What they can't open, it can't either." },
+				{ title: 'Asks before it sends, deletes or changes rules', body: 'Intern Kim waits for your confirmation before sending email, approving leave, deleting records or changing company policies. Recurring work is confirmed once, when you set it up.' }
 			],
 			source: 'Read the code on GitHub'
 		},
 		plans: {
 			title: 'An in-house AI coworker without the big bill',
-			lead: 'No servers to rent and no developer to hire. One computer at your company handles requests from everyone on the team.',
+			lead: 'One computer at your company handles requests from the whole team. There are no servers to rent.',
 			pay: {
 				title: 'Seats and AI usage',
 				items: [
 					{ title: 'Per seat', body: 'Pay per member. AI credits are included, and you can buy more when you run low.' },
-					{ title: 'At cost', body: 'Each AI call takes its actual cost from your credits. Intern Kim picks the right model for each job.' },
+					{ title: 'At cost', body: 'Each AI call takes its actual cost from your credits, rounded up to whole credits. Light decisions go to a dedicated decision model.' },
 					{ title: 'Your OpenRouter key', body: 'Connect it and pay model costs directly.' }
 				]
 			},
 			run: {
 				title: 'A computer for your AI coworker',
 				items: [
-					{ title: 'Kim mini', body: 'A small computer that arrives with Intern Kim installed. Connect power and internet.' },
+					{ title: 'Kim mini', body: 'A small computer that arrives with Intern Kim installed. Connect power and internet, then link it to your company.' },
+					{ title: 'Several Kim minis', body: 'Recovery snapshots encrypted to your company key are saved every 15 minutes, so another Kim mini can take over if one stops.' },
 					{ title: 'Your computer', body: 'Install with two commands on a Linux server or Mac that stays on.' },
 					{ title: 'Self-hosting', body: 'Run the app and database yourself.' }
 				],
