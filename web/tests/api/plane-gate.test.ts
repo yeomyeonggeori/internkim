@@ -14,22 +14,25 @@ const { toolsTheRecordRuns } = await import('../../src/lib/server/public-api/rec
 // suite for the calls it makes is cruder than a registry of cases would be, and
 // it is also the thing that cannot go stale: a test that stops calling a tool
 // stops covering it, and this notices.
-function toolsTheSuiteCalls(): Set<string> {
+function toolsTheSuiteCallsWith(calls: RegExp): Set<string> {
 	const here = join(import.meta.dir);
 	const called = new Set<string>();
 	for (const entry of readdirSync(here)) {
 		if (!entry.endsWith('.test.ts') || entry === 'plane-gate.test.ts') continue;
 		const source = readFileSync(join(here, entry), 'utf8');
-		for (const [, name] of source.matchAll(/\b(?:run|asSample|asAdmin)\('([a-z_]+)'/g)) {
+		for (const [, name] of source.matchAll(calls)) {
 			called.add(name);
 		}
 	}
 	return called;
 }
 
+const recordCalls = /\b(?:run|asSample|asAdmin)\('([a-z_]+)'/g;
+const recordOrRouteCalls = /\b(?:run|asSample|asAdmin|invoke)\('([a-z_]+)'/g;
+
 describe('the gate over the tools the record runs', () => {
 	test('every one of them is called by this suite', () => {
-		const called = toolsTheSuiteCalls();
+		const called = toolsTheSuiteCallsWith(recordOrRouteCalls);
 		const uncalled = toolsTheRecordRuns()
 			.filter((name) => !called.has(name))
 			.sort();
@@ -39,7 +42,7 @@ describe('the gate over the tools the record runs', () => {
 
 	test('the suite calls nothing the record does not run', () => {
 		const runs = new Set(toolsTheRecordRuns());
-		const invented = [...toolsTheSuiteCalls()].filter((name) => !runs.has(name)).sort();
+		const invented = [...toolsTheSuiteCallsWith(recordCalls)].filter((name) => !runs.has(name)).sort();
 
 		expect(invented).toEqual([]);
 	});
