@@ -116,6 +116,7 @@ func (service Service) openRouterBackend() OpenRouterBackend {
 		FallbackModelNames:  service.openRouterActionFallbackModelNames(),
 		GatewaySecretPath:   service.Configuration.OpenRouterGatewaySecretPath,
 		GatewaySecretHeader: service.Configuration.OpenRouterGatewaySecretHeader,
+		NamesRequester:      service.Configuration.ModelGatewayNamesRequester,
 		ProviderSort:        modelladder.ProviderSort,
 		HTTPClient:          service.providerHTTPClient(),
 	}

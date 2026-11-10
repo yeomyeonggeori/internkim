@@ -87,3 +87,34 @@ func TestACompanyRunningItsOwnModelsNeverReachesTheGateway(t *testing.T) {
 		}
 	}
 }
+
+func TestOnlyTheGatewayIsToldWhoAskedForACall(t *testing.T) {
+	directory := t.TempDir()
+	companyKeyPath := filepath.Join(directory, "openrouter-key")
+	if errorValue := os.WriteFile(companyKeyPath, []byte("sk-or-example\n"), 0o600); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	gateway := GatewayEndpoint("https://plane.example")
+
+	document := CompanyLanguageModelDocument("https://plane.example", filepath.Join(directory, "host-session"), "", companyKeyPath)
+
+	for tier, rungs := range document.Tiers {
+		for _, rung := range rungs {
+			isGateway := rung.Endpoint == gateway
+			if isGateway && rung.RequesterEmailHeader != RequesterEmailHeader {
+				t.Fatalf("tier %s: a gateway rung must name the requester, got %+v", tier, rung)
+			}
+			if !isGateway && rung.RequesterEmailHeader != "" {
+				t.Fatalf("tier %s: a rung that reaches OpenRouter with the company's key must not send who asked, got %+v", tier, rung)
+			}
+		}
+	}
+	if document.Decision.RequesterEmailHeader != "" {
+		t.Fatalf("a company with its own key decides with it and names no requester, got %+v", document.Decision)
+	}
+
+	keyless := CompanyLanguageModelDocument("https://plane.example", filepath.Join(directory, "host-session"), "", filepath.Join(directory, "absent"))
+	if keyless.Decision.RequesterEmailHeader != RequesterEmailHeader || keyless.VisualReview.RequesterEmailHeader != RequesterEmailHeader {
+		t.Fatalf("decisions through the gateway must name the requester, got %+v and %+v", keyless.Decision, keyless.VisualReview)
+	}
+}

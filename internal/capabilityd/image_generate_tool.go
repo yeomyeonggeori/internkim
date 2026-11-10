@@ -14,6 +14,7 @@ import (
 	"strings"
 
 	"github.com/yeomyeonggeori/internkim/internal/capabilities"
+	"github.com/yeomyeonggeori/internkim/internal/llmbackend"
 )
 
 const maximumImageGeneratePromptLength = 4000
@@ -42,7 +43,7 @@ func (service Service) invokeImageGenerateTool(ctx context.Context, request capa
 	if strings.TrimSpace(apiKey) == "" || isPlaceholderOpenRouterKey(apiKey) {
 		return imageGenerateErrorResponse(request.ToolName, "OpenRouter API key is not configured", "missing_openrouter_key", false), nil
 	}
-	imageBytes, errorValue := service.generateOpenRouterImage(ctx, input, apiKey)
+	imageBytes, errorValue := service.generateOpenRouterImage(llmbackend.ContextWithRequesterEmail(ctx, request.Context.RequesterEmail), input, apiKey)
 	if errorValue != nil {
 		return imageGenerateErrorResponse(request.ToolName, errorValue.Error(), "image_generation_failed", true), nil
 	}
@@ -144,6 +145,7 @@ func (service Service) generateOpenRouterImage(ctx context.Context, input imageG
 	}
 	httpRequest.Header.Set("Authorization", "Bearer "+apiKey)
 	httpRequest.Header.Set("Content-Type", "application/json")
+	service.nameRequesterToTheGateway(httpRequest)
 	httpResponse, errorValue := service.httpClient().Do(httpRequest)
 	if errorValue != nil {
 		return nil, errorValue
