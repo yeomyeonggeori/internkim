@@ -44,6 +44,8 @@ begin
 end;
 $$;
 
+set constraints all immediate;
+
 alter table public.opportunity
   drop constraint opportunity_amount_has_currency,
   drop constraint opportunity_base_amount_has_currency,
