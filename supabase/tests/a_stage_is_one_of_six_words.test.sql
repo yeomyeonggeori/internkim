@@ -58,8 +58,8 @@ insert into public.member (id, company_id, email, user_id, status, is_admin) val
 insert into public.organization (id, company_id, name) values
   ('59700000-0000-0000-0000-000000000101', '59700000-0000-0000-0000-0000000000a0', 'Stage Organization');
 
-insert into public.opportunity (id, company_id, organization_id, name, pipeline_id, stage_id, amount_minor, currency_code) values
-  ('59700000-0000-0000-0000-000000000201', '59700000-0000-0000-0000-0000000000a0', '59700000-0000-0000-0000-000000000101', 'Stage deal', 'partnership', 'review', 18000000, 'KRW');
+insert into public.opportunity (id, company_id, organization_id, name, pipeline_id, stage_id, amount) values
+  ('59700000-0000-0000-0000-000000000201', '59700000-0000-0000-0000-0000000000a0', '59700000-0000-0000-0000-000000000101', 'Stage deal', 'partnership', 'review', '(18000000,KRW)');
 
 set constraints all immediate;
 
@@ -82,9 +82,9 @@ select lives_ok($block$do $$
 begin
   set local role authenticated;
   perform set_config('request.jwt.claims', '{"sub":"59700000-0000-0000-0000-000000000001","role":"authenticated"}', true);
-  perform public.crm_opportunity_close('59700000-0000-0000-0000-000000000201', 'done', 1024, now(), null, null, null);
+  perform public.crm_opportunity_close('59700000-0000-0000-0000-000000000201', 'done', 1024, now(), null, null);
   assert (
-    select stage_id = 'done' and base_amount_minor = 18000000
+    select stage_id = 'done' and base_amount = '(18000000,KRW)'::public.currency_amount
     from public.opportunity
     where id = '59700000-0000-0000-0000-000000000201'
   ), 'the close settles the amount it won';

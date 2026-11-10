@@ -16,10 +16,10 @@ insert into public.member (id, company_id, email, user_id, status, is_admin, nam
    '44400000-0000-0000-0000-000000000002', 'active', false, '박예시');
 insert into public.organization (id, company_id, name) values
   ('44400000-0000-0000-0000-000000000021', '44400000-0000-0000-0000-000000000000', '샘플벤처스');
-insert into public.company_record (id, company_id, category, record_date, title, amount, currency_code, status) values
-  ('44400000-0000-0000-0000-000000000031', '44400000-0000-0000-0000-000000000000', 'funding', '2025-05-20', '시리즈 A', 1000, 'KRW', 'completed'),
-  ('44400000-0000-0000-0000-000000000032', '44400000-0000-0000-0000-000000000000', 'funding', '2026-12-31', '시리즈 B', 5000, 'KRW', 'in_progress'),
-  ('44400000-0000-0000-0000-00000000003f', '44400000-0000-0000-0000-00000000000f', 'funding', '2026-12-31', '남의 라운드', 1, 'KRW', 'in_progress');
+insert into public.company_record (id, company_id, category, record_date, title, amount, status) values
+  ('44400000-0000-0000-0000-000000000031', '44400000-0000-0000-0000-000000000000', 'funding', '2025-05-20', '시리즈 A', '(1000,KRW)', 'completed'),
+  ('44400000-0000-0000-0000-000000000032', '44400000-0000-0000-0000-000000000000', 'funding', '2026-12-31', '시리즈 B', '(5000,KRW)', 'in_progress'),
+  ('44400000-0000-0000-0000-00000000003f', '44400000-0000-0000-0000-00000000000f', 'funding', '2026-12-31', '남의 라운드', '(1,KRW)', 'in_progress');
 
 select is((select status from public.company_record where id = '44400000-0000-0000-0000-000000000031'), 'completed',
   'a record is completed unless it says it is still in progress');
@@ -27,23 +27,23 @@ select throws_ok($$insert into public.company_record (company_id, category, titl
   values ('44400000-0000-0000-0000-000000000000', 'funding', 'x', 'underway')$$, '23514', null,
   'a record is in progress or completed, nothing else');
 
-insert into public.opportunity (company_id, organization_id, name, pipeline_id, stage_id, amount_minor, currency_code, funding_record_id) values
-  ('44400000-0000-0000-0000-000000000000', '44400000-0000-0000-0000-000000000021', '샘플벤처스 B', 'investment', 'done', 1200, 'KRW', '44400000-0000-0000-0000-000000000032'),
-  ('44400000-0000-0000-0000-000000000000', '44400000-0000-0000-0000-000000000021', '견본캐피탈 B', 'investment', 'review', 900, 'KRW', '44400000-0000-0000-0000-000000000032'),
-  ('44400000-0000-0000-0000-000000000000', '44400000-0000-0000-0000-000000000021', '예시파트너스 B', 'investment', 'done', 300, 'USD', '44400000-0000-0000-0000-000000000032');
+insert into public.opportunity (company_id, organization_id, name, pipeline_id, stage_id, amount, funding_record_id) values
+  ('44400000-0000-0000-0000-000000000000', '44400000-0000-0000-0000-000000000021', '샘플벤처스 B', 'investment', 'done', '(1200,KRW)', '44400000-0000-0000-0000-000000000032'),
+  ('44400000-0000-0000-0000-000000000000', '44400000-0000-0000-0000-000000000021', '견본캐피탈 B', 'investment', 'review', '(900,KRW)', '44400000-0000-0000-0000-000000000032'),
+  ('44400000-0000-0000-0000-000000000000', '44400000-0000-0000-0000-000000000021', '예시파트너스 B', 'investment', 'done', '(3,USD)', '44400000-0000-0000-0000-000000000032');
 
 select throws_ok($$insert into public.opportunity (company_id, organization_id, name, pipeline_id, stage_id, funding_record_id) values
   ('44400000-0000-0000-0000-000000000000', '44400000-0000-0000-0000-000000000021', 'x', 'investment', 'waiting', '44400000-0000-0000-0000-00000000003f')$$,
   '23503', null, 'a deal is for a round of its own company');
 
 select is(
-  (select record -> 'committedMinor' from jsonb_array_elements(
+  (select record -> 'committed' from jsonb_array_elements(
     internal.data_room_company_shown('44400000-0000-0000-0000-000000000000', array['RP']) -> 'records') record
    where record ->> 'title' = '시리즈 B'),
-  jsonb_build_object('amountMinor', 1200, 'currency', 'KRW'),
+  jsonb_build_object('amount', 1200, 'currency', 'KRW'),
   'a round being raised has committed what its won deals in its own currency add up to');
 select ok(
-  (select not (record ? 'committedMinor') from jsonb_array_elements(
+  (select not (record ? 'committed') from jsonb_array_elements(
     internal.data_room_company_shown('44400000-0000-0000-0000-000000000000', array['RP']) -> 'records') record
    where record ->> 'title' = '시리즈 A'),
   'a closed round carries no commitment');

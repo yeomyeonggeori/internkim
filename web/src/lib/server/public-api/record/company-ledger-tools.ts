@@ -6,8 +6,6 @@ import { HintRefused, normalized, resolveHint, type HintMatcher } from './hint-r
 import { RecordRefusedTheWrite, statusOfPostgresCode } from './tasks';
 import type { RecordContext } from './company';
 import { moneySchema, type Money } from '$lib/money';
-import { convertedAmount } from '$lib/server/converted-amount';
-import type { ExchangeRateProvider } from '$lib/server/exchange-rates';
 import type {
 	CompanyDocumentDownloadResult,
 	CompanyDocumentListResult,
@@ -25,7 +23,6 @@ export type CompanyMetricRecordInput = {
 	metric?: string;
 	period?: string;
 	amount?: Money;
-	usdEquivalent?: number;
 	value?: number;
 	unit?: string;
 	note?: string;
@@ -108,8 +105,8 @@ const sha256Pattern = /^[0-9a-f]{64}$/;
 const inboxCategoryCode = 'X';
 
 const metricColumns =
-	'id, metric, period, value, currency_code, value_usd, unit, note, updated_at';
-const recordColumns = 'id, category, record_date, title, detail, status, amount, currency_code, attributes, updated_at';
+	'id, metric, period, amount, value, unit, note, updated_at';
+const recordColumns = 'id, category, record_date, title, detail, status, amount, attributes, updated_at';
 const documentColumns =
 	'id, document_number, kind, document_type, title, counterpart, language, file_path, summary, requester_id, created_at, updated_at, category_code, document_date, period, status, supersedes, sha256, tags, storage_path, size_bytes, published_from, published_at, published_by';
 
@@ -140,9 +137,8 @@ type MetricRow = {
 	id: string;
 	metric: string;
 	period: string;
-	value: number;
-	currency_code: string | null;
-	value_usd: number | null;
+	amount: Money | null;
+	value: number | null;
 	unit: string | null;
 	note: string | null;
 	updated_at: string;
@@ -155,8 +151,7 @@ type RecordRow = {
 	title: string;
 	detail: string | null;
 	status: CompanyRecordStatus;
-	amount: number | null;
-	currency_code: string | null;
+	amount: Money | null;
 	attributes: Record<string, RecordAttributeValue> | null;
 	updated_at: string;
 };
@@ -193,9 +188,8 @@ function answeredMetric(row: MetricRow): CompanyMetricResult {
 		metricID: row.id,
 		metric: row.metric,
 		period: row.period,
-		amount: row.currency_code === null ? null : { amount: Number(row.value), currency: row.currency_code },
-		usdEquivalent: row.value_usd === null ? null : Number(row.value_usd),
-		value: row.currency_code === null ? Number(row.value) : null,
+		amount: row.amount,
+		value: row.value === null ? null : Number(row.value),
 		unit: row.unit,
 		note: row.note,
 		updatedAt: row.updated_at
@@ -210,7 +204,7 @@ function answeredRecord(row: RecordRow): CompanyRecordResult {
 		title: row.title,
 		detail: row.detail,
 		status: row.status,
-		amount: row.amount === null || row.currency_code === null ? null : { amount: Number(row.amount), currency: row.currency_code },
+		amount: row.amount,
 		attributes: Object.entries(row.attributes ?? {}).map(([label, value]) => ({ label, value: attributeText(value) })),
 		updatedAt: row.updated_at
 	};
@@ -309,58 +303,27 @@ function attributeText(value: RecordAttributeValue): string {
 	return typeof value === 'string' ? value : `${value.amount} ${value.currency}`;
 }
 
-type StoredMetricValue = { value: number; currencyCode: string | null; valueUSD: number | null; unit: string | null };
+type StoredMetricValue = { amount: Money | null; value: number | null; unit: string | null };
 
-async function storedMetricValueOf(
-	input: CompanyMetricRecordInput,
-	exchangeRates: ExchangeRateProvider
-): Promise<StoredMetricValue> {
+function storedMetricValueOf(input: CompanyMetricRecordInput): StoredMetricValue {
 	if (input.amount && input.value !== undefined) {
 		throw new Error('a metric is money in amount or a number in value, never both');
 	}
-	if (input.amount) return storedMetricAmountOf(input.amount, input, exchangeRates);
-	if (input.value === undefined) throw new Error('a metric records money in amount or a number in value');
-	if (input.usdEquivalent !== undefined) throw new Error('a USD equivalent belongs to money, and this metric is a number');
-	return { value: input.value, currencyCode: null, valueUSD: null, unit: orNull(input.unit) };
-}
-
-async function storedMetricAmountOf(
-	amount: Money,
-	input: CompanyMetricRecordInput,
-	exchangeRates: ExchangeRateProvider
-): Promise<StoredMetricValue> {
-	if (orNull(input.unit) !== null) throw new Error('money carries its currency, not a unit');
-	const valueUSD = await usdEquivalentOf(amount, input.usdEquivalent, exchangeRates);
-	return { value: amount.amount, currencyCode: amount.currency, valueUSD, unit: null };
-}
-
-async function usdEquivalentOf(
-	amount: Money,
-	given: number | undefined,
-	exchangeRates: ExchangeRateProvider
-): Promise<number> {
-	if (amount.currency === 'USD') return amount.amount;
-	if (given !== undefined) return given;
-	try {
-		return (await convertedAmount(exchangeRates, amount, 'USD')).amount.amount;
-	} catch (cause) {
-		const reason = cause instanceof Error ? cause.message : String(cause);
-		throw new RecordRefusedTheWrite(
-			`nothing was recorded: the current ${amount.currency} to USD rate could not be read (${reason}). Give usdEquivalent only if the person stated one`,
-			503,
-			'exchange_rate_unavailable'
-		);
+	if (input.amount) {
+		if (orNull(input.unit) !== null) throw new Error('money carries its currency, not a unit');
+		return { amount: input.amount, value: null, unit: null };
 	}
+	if (input.value === undefined) throw new Error('a metric records money in amount or a number in value');
+	return { amount: null, value: input.value, unit: orNull(input.unit) };
 }
 
 export async function companyMetricRecord(
 	context: RecordContext,
-	input: CompanyMetricRecordInput,
-	exchangeRates: ExchangeRateProvider
+	input: CompanyMetricRecordInput
 ): Promise<CompanyMetricResult> {
 	const metric = textOf(input.metric, 'a metric call names the metric it records');
 	const period = textOf(input.period, 'a metric names the period it covers, such as 2025, 2026-H1 or 2026-Q3');
-	const stored = await storedMetricValueOf(input, exchangeRates);
+	const stored = storedMetricValueOf(input);
 
 	const { data, error } = await context.caller
 		.from('company_metric')
@@ -369,9 +332,8 @@ export async function companyMetricRecord(
 				company_id: context.companyID,
 				metric,
 				period,
+				amount: stored.amount,
 				value: stored.value,
-				currency_code: stored.currencyCode,
-				value_usd: stored.valueUSD,
 				unit: stored.unit,
 				note: orNull(input.note),
 				updated_at: context.now.toISOString()
@@ -469,8 +431,7 @@ export async function companyRecordAdd(
 			title,
 			detail: orNull(input.detail),
 			status: input.status ?? 'completed',
-			amount: input.amount?.amount ?? null,
-			currency_code: input.amount?.currency ?? null,
+			amount: input.amount ?? null,
 			attributes: decodedAttributes(input.attributes) ?? {},
 			updated_at: context.now.toISOString()
 		})
@@ -493,7 +454,7 @@ export async function companyRecordUpdate(
 	if (input.detail !== undefined) change.detail = orNull(input.detail);
 	if (attributes) change.attributes = attributes;
 	if (input.status) change.status = input.status;
-	if (input.amount) Object.assign(change, { amount: input.amount.amount, currency_code: input.amount.currency });
+	if (input.amount) change.amount = input.amount;
 
 	const { data, error } = await context.caller
 		.from('company_record')

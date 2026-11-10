@@ -11,9 +11,9 @@ insert into public.company (id, name, slug, country, locale, timezone)
 insert into public.member (id, company_id, user_id, email, status, is_admin) values
   ('67000000-0000-0000-0000-000000000011', '67000000-0000-0000-0000-000000000010',
    '67000000-0000-0000-0000-000000000001', 'round-admin@example.com', 'active', true);
-insert into public.company_record (company_id, category, record_date, title, amount, currency_code, status) values
-  ('67000000-0000-0000-0000-000000000010', 'funding', '2025-03-01', '시드', 300000000, 'KRW', 'completed'),
-  ('67000000-0000-0000-0000-000000000010', 'funding', '2026-12-31', '시리즈 A', 3000000000, 'KRW', 'in_progress');
+insert into public.company_record (company_id, category, record_date, title, amount, status) values
+  ('67000000-0000-0000-0000-000000000010', 'funding', '2025-03-01', '시드', '(300000000,KRW)', 'completed'),
+  ('67000000-0000-0000-0000-000000000010', 'funding', '2026-12-31', '시리즈 A', '(3000000000,KRW)', 'in_progress');
 
 set local role authenticated;
 select set_config('request.jwt.claims', '{"sub":"67000000-0000-0000-0000-000000000001"}', true);

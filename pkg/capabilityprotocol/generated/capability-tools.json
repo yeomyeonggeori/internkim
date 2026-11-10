@@ -21974,16 +21974,6 @@
                 "updatedAt": {
                   "type": "string"
                 },
-                "usdEquivalent": {
-                  "anyOf": [
-                    {
-                      "type": "number"
-                    },
-                    {
-                      "type": "null"
-                    }
-                  ]
-                },
                 "value": {
                   "anyOf": [
                     {
@@ -22000,7 +21990,6 @@
                 "metric",
                 "period",
                 "amount",
-                "usdEquivalent",
                 "value",
                 "unit",
                 "note",
@@ -22096,16 +22085,6 @@
                   "updatedAt": {
                     "type": "string"
                   },
-                  "usdEquivalent": {
-                    "anyOf": [
-                      {
-                        "type": "number"
-                      },
-                      {
-                        "type": "null"
-                      }
-                    ]
-                  },
                   "value": {
                     "anyOf": [
                       {
@@ -22122,7 +22101,6 @@
                   "metric",
                   "period",
                   "amount",
-                  "usdEquivalent",
                   "value",
                   "unit",
                   "note",
@@ -22156,7 +22134,7 @@
         "mode": "success",
         "targetKind": "company"
       },
-      "description": "Record or correct one company metric value for a period — annual revenue, operating profit, MAU, employee count, GMV and similar time-series numbers. Money goes in amount, and the record adds its USD equivalent; anything else goes in value with a unit. The period is a year, half, quarter, month or day. Same call overwrites the same period.",
+      "description": "Record or correct one company metric value for a period — annual revenue, operating profit, MAU, employee count, GMV and similar time-series numbers. Money goes in amount; anything else goes in value with a unit. The period is a year, half, quarter, month or day. Same call overwrites the same period.",
       "estimatedLatency": "low",
       "idempotency": {
         "required": false,
@@ -22203,10 +22181,6 @@
           "unit": {
             "description": "Unit of a value that is not money, e.g. 'people', 'orders', 'sites'.",
             "type": "string"
-          },
-          "usdEquivalent": {
-            "description": "The amount in US dollars, only when the person stated it. Leave it out otherwise: the record converts amount at the current exchange rate.",
-            "type": "number"
           },
           "value": {
             "description": "The value when the metric is not money, e.g. 26400 for MAU. Use the raw number, not a formatted string.",
@@ -22255,10 +22229,6 @@
           "unit": {
             "description": "Unit of a value that is not money, e.g. 'people', 'orders', 'sites'.",
             "type": "string"
-          },
-          "usdEquivalent": {
-            "description": "The amount in US dollars, only when the person stated it. Leave it out otherwise: the record converts amount at the current exchange rate.",
-            "type": "number"
           },
           "value": {
             "description": "The value when the metric is not money, e.g. 26400 for MAU. Use the raw number, not a formatted string.",
@@ -22342,16 +22312,6 @@
           "updatedAt": {
             "type": "string"
           },
-          "usdEquivalent": {
-            "anyOf": [
-              {
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
           "value": {
             "anyOf": [
               {
@@ -22368,7 +22328,6 @@
           "metric",
           "period",
           "amount",
-          "usdEquivalent",
           "value",
           "unit",
           "note",
@@ -22453,16 +22412,6 @@
             "updatedAt": {
               "type": "string"
             },
-            "usdEquivalent": {
-              "anyOf": [
-                {
-                  "type": "number"
-                },
-                {
-                  "type": "null"
-                }
-              ]
-            },
             "value": {
               "anyOf": [
                 {
@@ -22479,7 +22428,6 @@
             "metric",
             "period",
             "amount",
-            "usdEquivalent",
             "value",
             "unit",
             "note",

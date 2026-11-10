@@ -52,7 +52,6 @@ export const dataRoomCompanySchema = z.object({
 		metric: z.string(),
 		period: momentSchema,
 		amount: moneySchema.optional(),
-		usdEquivalent: z.number().optional(),
 		value: z.number().optional(),
 		unit: z.string().optional(),
 		note: z.string().optional(),
@@ -65,15 +64,11 @@ export const dataRoomCompanySchema = z.object({
 });
 
 export const storedCompanySchema = dataRoomCompanySchema.extend({
-	records: z.array(recordSchema.omit({ committed: true }).extend({
-		committedMinor: z.object({ amountMinor: z.number(), currency: z.string() }).optional()
-	})),
 	activity: storedActivitySchema.optional(),
 	logoPath: z.string().optional()
 });
 
 export type DataRoomCompany = z.infer<typeof dataRoomCompanySchema>;
-export type StoredCompany = z.infer<typeof storedCompanySchema>;
 export type CompanyProfile = DataRoomCompany['profile'];
 export type CompanyMetric = DataRoomCompany['metrics'][number];
 export type CompanyRecord = DataRoomCompany['records'][number];
