@@ -1,14 +1,17 @@
 import { createClient } from '@supabase/supabase-js';
 import { z } from 'zod';
+import type { Locale } from '$lib/i18n/locale';
 
 export type CompanySignupEnvironment = Record<string, string | undefined>;
 
 type SignupError = { message: string; status?: number };
-export const companySignupRequest = z.object({ email: z.string().trim().toLowerCase().email() }).strict();
+export const companySignupRequest = z
+	.object({ email: z.string().trim().toLowerCase().email(), locale: z.enum(['ko', 'en']).default('en') })
+	.strict();
 
 export type CompanySignupOTPRequest = {
 	email: string;
-	options: { shouldCreateUser: true; emailRedirectTo: string };
+	options: { shouldCreateUser: true; emailRedirectTo: string; data: { locale: Locale } };
 };
 type SendSignupEmail = (request: CompanySignupOTPRequest) => Promise<{ error: SignupError | null }>;
 
@@ -25,6 +28,7 @@ export class CompanySignupError extends Error {
 export async function requestCompanySignupEmail(
 	environment: CompanySignupEnvironment,
 	email: string,
+	locale: Locale,
 	origin: string,
 	sendEmail: SendSignupEmail = defaultSendSignupEmail(environment)
 ): Promise<void> {
@@ -34,7 +38,7 @@ export async function requestCompanySignupEmail(
 
 	const response = await sendEmail({
 		email,
-		options: { shouldCreateUser: true, emailRedirectTo: `${origin}/auth/claim?new-company=1` }
+		options: { shouldCreateUser: true, emailRedirectTo: `${origin}/auth/claim?new-company=1`, data: { locale } }
 	});
 	if (!response.error) return;
 	const status = response.error.status && response.error.status >= 400 && response.error.status < 600
