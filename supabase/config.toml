@@ -258,6 +258,9 @@ content_path = "./supabase/templates/magic-link.html"
 subject = "{{ if eq .Data.locale \"ko\" }}{{ .Data.companyName }}에서 업무를 공유했습니다{{ else }}{{ .Data.companyName }} shared work with you{{ end }}"
 content_path = "./supabase/templates/task-invitation.html"
 
+[remotes.production.storage]
+file_size_limit = "200MiB"
+
 [remotes.production.storage.analytics]
 enabled = true
 max_namespaces = 10
