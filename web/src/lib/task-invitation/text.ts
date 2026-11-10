@@ -43,7 +43,10 @@ export const sharedTasksText = {
 	ko: {
 		pageTitle: '공유된 업무',
 		invitationTitle: '업무 초대',
-		invitationDescription: '초대받은 이메일로 로그인하세요. 메일로 받은 코드를 입력하면 업무가 열립니다.',
+		invitationDescription: '초대받은 이메일 주소로 코드를 받아 들어오세요. 가입은 필요 없습니다.',
+		linkExpired: '초대 링크가 만료되었거나 이미 쓰였습니다. 초대받은 이메일 주소로 코드를 받아 들어오세요.',
+		haveCode: '받은 코드가 있어요',
+		codeSent: '{email}로 코드를 보냈습니다. 메일에 있는 숫자를 아래에 넣으세요.',
 		email: '이메일',
 		code: '이메일로 받은 코드',
 		sendCode: '코드 받기',
@@ -63,7 +66,10 @@ export const sharedTasksText = {
 	en: {
 		pageTitle: 'Shared tasks',
 		invitationTitle: 'Task invitation',
-		invitationDescription: 'Sign in with the email that was invited. Enter the code it receives to open the tasks.',
+		invitationDescription: 'Get a code at the email address that was invited. No account needed.',
+		linkExpired: 'This invitation link has expired or was already used. Get a code at the invited email address to come in.',
+		haveCode: 'I have a code',
+		codeSent: 'We sent a code to {email}. Enter the digits from that email below.',
 		email: 'Email',
 		code: 'Code from the email',
 		sendCode: 'Send code',

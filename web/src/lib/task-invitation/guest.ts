@@ -23,7 +23,9 @@ export async function sharedTasksRequest(path: string, method = 'GET'): Promise<
 }
 
 export async function requestGuestCode(email: string): Promise<void> {
-	const { error } = await supabase().auth.signInWithOtp({ email, options: { shouldCreateUser: false } });
+	const { error } = await supabase().auth.signInWithOtp({
+		email, options: { shouldCreateUser: false, emailRedirectTo: window.location.href.split('#')[0] }
+	});
 	if (error) throw error;
 }
 

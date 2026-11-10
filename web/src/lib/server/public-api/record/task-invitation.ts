@@ -1,9 +1,10 @@
 import { z } from 'zod';
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { personName } from '$lib/person-name';
 import { taskInviteInputSchema, taskInvitationDeleteInputSchema, taskInvitationListResultSchema } from '../catalog/task-invitation';
 import type { RecordContext, ToolPlace } from './company';
 import { RecordRefusedTheWrite, statusOfPostgresCode } from './tasks';
-import { sendGuestSignInEmail } from './guest-sign-in-email';
+import { sendGuestInvitationEmail } from './guest-sign-in-email';
 import { sharedTaskBoardSchema, type SharedTaskBoard } from '$lib/task-invitation/board';
 
 const noDataFound = 'P0002';
@@ -31,8 +32,20 @@ export async function taskInvite(context: RecordContext, value: unknown, place: 
 		recipient_email: invitation.email,
 		invited_businesses: invitation.businesses
 	}));
-	await sendGuestSignInEmail(place, invitation.email.trim().toLowerCase(), taskInvitationLandingPath(invitationID));
+	await sendGuestInvitationEmail(place, {
+		email: invitation.email.trim().toLowerCase(),
+		landingPath: taskInvitationLandingPath(invitationID),
+		companyName: await companyNameOf(context),
+		inviterName: personName(context.people.find((person) => person.personID === context.requesterID)?.name ?? '', context.locale),
+		locale: context.locale
+	});
 	return { invitationID, sent: true };
+}
+
+async function companyNameOf(context: RecordContext): Promise<string> {
+	const { data, error } = await context.caller.from('company').select('name').eq('id', context.companyID).single();
+	if (error) throw new RecordRefusedTheWrite(error.message, statusOfPostgresCode(error.code));
+	return z.object({ name: z.string() }).parse(data).name;
 }
 
 export async function taskInvitationList(context: RecordContext) {
