@@ -3,10 +3,36 @@
     <td align="center" style="padding:40px 20px;">
       <table role="presentation" width="480" cellpadding="0" cellspacing="0" border="0" style="width:480px;max-width:100%;">
         <tr>
-          <td><img src="https://intern.kim/mark-192.png" width="40" height="40" alt="internkim" style="display:block;width:40px;height:40px;border:0;"></td>
+          <td><img src="https://intern.kim/mark-192.png" width="40" height="40" alt="Intern Kim" style="display:block;width:40px;height:40px;border:0;"></td>
+        </tr>
+{{ if eq .Data.locale "ko" }}
+        <tr>
+          <td style="padding-top:32px;font-size:22px;line-height:1.35;font-weight:600;letter-spacing:-0.01em;color:#18181b;">김인턴 로그인 코드</td>
         </tr>
         <tr>
-          <td style="padding-top:32px;font-size:22px;line-height:1.35;font-weight:600;letter-spacing:-0.01em;color:#18181b;">Your internkim code</td>
+          <td style="padding-top:12px;font-size:15px;line-height:1.6;color:#52525b;">아래 코드를 넣으면 로그인이 이어집니다.</td>
+        </tr>
+        <tr>
+          <td style="padding-top:24px;">
+            <table role="presentation" cellpadding="0" cellspacing="0" border="0">
+              <tr>
+                <td style="background:#f4f4f5;border-radius:8px;padding:14px 22px;font-size:30px;line-height:1;font-weight:600;letter-spacing:0.12em;font-variant-numeric:tabular-nums;color:#18181b;">{{ .Token }}</td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+        <tr>
+          <td style="padding-top:24px;font-size:15px;line-height:1.6;color:#52525b;">로그인하려는 기기에서는 코드 대신 <a href="{{ .ConfirmationURL }}" style="color:#0753b1;font-weight:500;text-decoration:underline;">이 링크로 로그인</a>할 수도 있습니다.</td>
+        </tr>
+        <tr>
+          <td style="padding-top:40px;">
+            <div style="border-top:1px solid #e4e4e7;padding-top:20px;font-size:13px;line-height:1.6;color:#71717a;">코드와 링크는 1시간 안에 한 번만 쓸 수 있습니다. 요청한 적이 없다면 이 메일은 무시하셔도 됩니다.</div>
+            <div style="padding-top:12px;font-size:13px;line-height:1.6;color:#a1a1aa;">김인턴 · <a href="https://intern.kim" style="color:#a1a1aa;text-decoration:none;">intern.kim</a></div>
+          </td>
+        </tr>
+{{ else }}
+        <tr>
+          <td style="padding-top:32px;font-size:22px;line-height:1.35;font-weight:600;letter-spacing:-0.01em;color:#18181b;">Your Intern Kim code</td>
         </tr>
         <tr>
           <td style="padding-top:12px;font-size:15px;line-height:1.6;color:#52525b;">Enter this code to continue signing in.</td>
@@ -26,9 +52,10 @@
         <tr>
           <td style="padding-top:40px;">
             <div style="border-top:1px solid #e4e4e7;padding-top:20px;font-size:13px;line-height:1.6;color:#71717a;">The code and link work once, within an hour. If you did not ask for this, you can ignore it.</div>
-            <div style="padding-top:12px;font-size:13px;line-height:1.6;color:#a1a1aa;">internkim · <a href="https://intern.kim" style="color:#a1a1aa;text-decoration:none;">intern.kim</a></div>
+            <div style="padding-top:12px;font-size:13px;line-height:1.6;color:#a1a1aa;">Intern Kim · <a href="https://intern.kim" style="color:#a1a1aa;text-decoration:none;">intern.kim</a></div>
           </td>
         </tr>
+{{ end }}
       </table>
     </td>
   </tr>

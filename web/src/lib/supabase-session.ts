@@ -8,6 +8,7 @@ import { clearChannelMessageCache } from '$lib/components/channel/channel-messag
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { isSupabaseConfigured, supabase } from '$lib/supabase';
 import { memberRoleOf, type MemberRole } from '$lib/member-vocabulary';
+import type { Locale } from '$lib/i18n/locale';
 import { forgetLastSeenTask } from '../routes/task/task-last-seen';
 import { forgetLastSeenDirectory } from '../routes/organization/organization-last-seen';
 import { signedOutSession, type WebAuthSession } from '$lib/web-auth-session';
@@ -99,18 +100,18 @@ export type ClaimOutcome =
 	| { kind: 'failed' };
 
 export function askToClaim(email: string): Promise<ClaimOutcome> {
-	return askForCode('/api/auth/claim', email);
+	return askForCode('/api/auth/claim', { email: email.trim().toLowerCase() });
 }
 
-export function askToStartCompany(email: string): Promise<ClaimOutcome> {
-	return askForCode('/api/auth/signup', email);
+export function askToStartCompany(email: string, locale: Locale): Promise<ClaimOutcome> {
+	return askForCode('/api/auth/signup', { email: email.trim().toLowerCase(), locale });
 }
 
-async function askForCode(path: string, email: string): Promise<ClaimOutcome> {
+async function askForCode(path: string, body: Record<string, string>): Promise<ClaimOutcome> {
 	const response = await fetch(path, {
 		method: 'POST',
 		headers: { 'Content-Type': 'application/json' },
-		body: JSON.stringify({ email: email.trim().toLowerCase() })
+		body: JSON.stringify(body)
 	});
 	if (response.status === 429) return { kind: 'tooManyLately' };
 	if (!response.ok) return { kind: 'failed' };

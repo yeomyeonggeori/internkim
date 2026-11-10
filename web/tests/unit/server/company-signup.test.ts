@@ -15,21 +15,25 @@ function recordOf(value: unknown): Record<string, unknown> {
 describe('company sign-up email', () => {
 	test('requires exactly one valid email field', () => {
 		expect(companySignupRequest.safeParse({ email: 'founder@example.com' }).success).toBe(true);
+		expect(companySignupRequest.safeParse({ email: 'founder@example.com', locale: 'ko' }).success).toBe(true);
+		expect(companySignupRequest.safeParse({ email: 'founder@example.com', locale: 'fr' }).success).toBe(false);
 		expect(companySignupRequest.safeParse({ email: 'founder@example.com', extra: true }).success).toBe(false);
 		expect(companySignupRequest.safeParse({ email: 'not-an-email' }).success).toBe(false);
 	});
 
-	test('sends a Supabase OTP that creates the founder account', async () => {
-		let received: { email: string; redirectURL: string; shouldCreateUser: boolean } | undefined;
+	test('sends a Supabase OTP that creates the founder account in the language of the page', async () => {
+		let received: { email: string; redirectURL: string; shouldCreateUser: boolean; locale: string } | undefined;
 		await requestCompanySignupEmail(
 			{ SUPABASE_URL: 'https://project.supabase.co', SUPABASE_PUBLISHABLE_KEY: 'publishable' },
 			'founder@example.com',
+			'ko',
 			'https://intern.example.com',
 			async (request) => {
 				received = {
 					email: request.email,
 					redirectURL: request.options.emailRedirectTo,
-					shouldCreateUser: request.options.shouldCreateUser
+					shouldCreateUser: request.options.shouldCreateUser,
+					locale: request.options.data.locale
 				};
 				return { error: null };
 			}
@@ -38,7 +42,8 @@ describe('company sign-up email', () => {
 		expect(received).toEqual({
 			email: 'founder@example.com',
 			redirectURL: 'https://intern.example.com/auth/claim?new-company=1',
-			shouldCreateUser: true
+			shouldCreateUser: true,
+			locale: 'ko'
 		});
 	});
 
@@ -57,7 +62,7 @@ describe('company sign-up email', () => {
 
 	test('requires the hosted Supabase settings before contacting auth', async () => {
 		let wasCalled = false;
-		const attempt = requestCompanySignupEmail({}, 'founder@example.com', 'https://intern.example.com', async () => {
+		const attempt = requestCompanySignupEmail({}, 'founder@example.com', 'en', 'https://intern.example.com', async () => {
 			wasCalled = true;
 			return { error: null };
 		});
@@ -70,6 +75,7 @@ describe('company sign-up email', () => {
 		const attempt = requestCompanySignupEmail(
 			{ SUPABASE_URL: 'https://project.supabase.co', SUPABASE_PUBLISHABLE_KEY: 'publishable' },
 			'founder@example.com',
+			'en',
 			'https://intern.example.com',
 			async () => ({ error: { status: 429, message: 'rate limit reached' } })
 		);

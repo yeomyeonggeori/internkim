@@ -11,6 +11,7 @@
 	import { returnPathOf } from '$lib/return-path';
 	import { appShellText } from '$lib/i18n/app-shell-text';
 	import { createPageText } from '$lib/i18n/page-text.svelte';
+	import { currentLocale } from '$lib/i18n/locale.svelte';
 	import { isPasskeySupported, refusalOf, registerPasskey } from '$lib/supabase-passkey';
 	import { askToClaim, askToStartCompany, setSupabasePassword, verifyClaimCode } from '$lib/supabase-session';
 	import { isSupabaseConfigured, supabase } from '$lib/supabase';
@@ -64,7 +65,7 @@
 		run(async () => {
 			code = '';
 			hasChosenAnAddress = true;
-			const outcome = await (isStartingCompany ? askToStartCompany(email) : askToClaim(email));
+			const outcome = await (isStartingCompany ? askToStartCompany(email, currentLocale.value) : askToClaim(email));
 			if (outcome.kind === 'sent') {
 				step = 'sent';
 				return;
