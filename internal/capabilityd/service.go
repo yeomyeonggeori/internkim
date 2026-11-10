@@ -37,6 +37,7 @@ type Configuration struct {
 	OpenRouterGatewaySecretPath   string
 	OpenRouterGatewaySecretHeader string
 	OpenRouterWebBaseURL          string
+	ModelGatewayNamesRequester    bool
 	EmbeddingServerURL            string
 	OpenRouterImageModel          string
 	SocketGroupName               string

@@ -2,12 +2,12 @@ import { callingAgent } from '../_shared/agent-caller.ts';
 import { defaultCreditUsageLimit } from '../_shared/credit-policy.ts';
 import { askedObject, refuse, serveRefusals } from '../_shared/http.ts';
 import { costOfAnswer, creditsOfCost, streamCostReader } from '../_shared/model-call-cost.ts';
+import { membersOfCompanyByEmail } from '../_shared/member-directory.ts';
 import { modelGatewayRoute } from '../_shared/model-gateway-route.ts';
 import type { SupabaseClient } from '../_shared/service-client.ts';
 
 const openRouterOrigin = 'https://openrouter.ai';
-const memberHeader = 'x-internkim-member';
-const guidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const requesterEmailHeader = 'x-internkim-requester-email';
 
 type Charge = { client: SupabaseClient; companyID: string; memberID: string | null };
 
@@ -27,7 +27,7 @@ Deno.serve(
 			return new Response(listed.body, { status: listed.status, headers: { 'Content-Type': 'application/json' } });
 		}
 
-		const memberID = requestingMember(request);
+		const memberID = await requestingMember(request, client, companyID);
 		const { data: refusal, error } = await client.rpc('company_member_credit_refusal', {
 			target_company: companyID,
 			target_member: memberID,
@@ -56,11 +56,15 @@ Deno.serve(
 	})
 );
 
-function requestingMember(request: Request): string | null {
-	const presented = request.headers.get(memberHeader);
-	if (presented === null) return null;
-	if (!guidPattern.test(presented)) refuse(400, `the ${memberHeader} header carries a member id`);
-	return presented;
+async function requestingMember(request: Request, client: SupabaseClient, companyID: string): Promise<string | null> {
+	const email = (request.headers.get(requesterEmailHeader) ?? '').trim().toLowerCase();
+	if (email === '') return null;
+	const members = await membersOfCompanyByEmail(client, companyID).catch((failure: unknown) =>
+		refuse(502, `the record could not say who asked for this call: ${failure instanceof Error ? failure.message : String(failure)}`)
+	);
+	const memberID = members.get(email) ?? null;
+	if (memberID === null) console.warn(JSON.stringify({ event: 'model_gateway.requester_not_a_member', companyID }));
+	return memberID;
 }
 
 function streamedAndCharged(upstream: ReadableStream<Uint8Array>, charge: Charge): Response {

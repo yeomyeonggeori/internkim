@@ -15,6 +15,7 @@ type DecideLLMRequest struct {
 	State     json.RawMessage                        `json:"state"`
 	Questions map[string]llmbackend.DecisionQuestion `json:"questions"`
 	SessionID string                                 `json:"sessionID,omitempty"`
+	Context   llmbackend.RequestContext              `json:"context,omitempty"`
 }
 
 type DecideLLMUsage struct {
@@ -38,7 +39,7 @@ func (service Service) decide(ctx context.Context, request DecideLLMRequest) (De
 	}
 	backend := service.openRouterBackend()
 	startedAt := time.Now()
-	decisions, errorValue := backend.Decide(ctx, llmbackend.DecisionsRequest{
+	decisions, errorValue := backend.Decide(llmbackend.ContextWithRequesterEmail(ctx, request.Context.RequesterEmail), llmbackend.DecisionsRequest{
 		Model:     request.Model,
 		State:     request.State,
 		Questions: request.Questions,
