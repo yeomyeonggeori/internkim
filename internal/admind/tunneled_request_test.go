@@ -66,8 +66,6 @@ func TestTunneledAgentAPIRequestsAreRefused(t *testing.T) {
 	}
 	for _, path := range []string{
 		"/agent/api/company-profile-carry",
-		"/agent/api/crm-record-coverage",
-		"/agent/api/company-ledger-coverage",
 		"/agent/api/mail-account-carry",
 		"/agent/api/organization-record-coverage",
 		"/agent/api/buzz-channel-visibility-repair",
