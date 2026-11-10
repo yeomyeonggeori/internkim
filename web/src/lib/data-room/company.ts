@@ -34,7 +34,6 @@ export const dataRoomCompanySchema = z.object({
 		slogan: localizedTextSchema.optional(),
 		description: localizedTextSchema.optional(),
 		representative: z.string().optional(),
-		representativeTitle: z.string().optional(),
 		address: localizedTextSchema.optional(),
 		officeAddress: localizedTextSchema.optional(),
 		jurisdiction: localizedTextSchema.optional(),
@@ -109,8 +108,7 @@ export function localized(text: Record<string, string> | undefined, locale: stri
 }
 
 export function companyFactGroups(profile: CompanyProfile, locale: string): CompanyFactGroup[] {
-	const representative = [profile.representativeTitle ?? '', personName(profile.representative ?? '', locale === 'ko' ? 'ko' : 'en')]
-		.filter(Boolean).join(' ');
+	const representative = personName(profile.representative ?? '', locale === 'ko' ? 'ko' : 'en');
 	const groups: CompanyFactGroup[] = [
 		{
 			group: 'company',
