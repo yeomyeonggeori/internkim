@@ -259,7 +259,7 @@
 						{@const bar = shownBar(row.task, row.bar)}
 						{@const dimmed = highlightedTaskIDs !== null && !highlightedTaskIDs.has(row.task.id)}
 						{@const selected = selectedTaskID === row.task.id}
-						<div class={cn('group flex border-b transition-opacity', dimmed && 'opacity-40', selected && 'bg-muted/50')} data-roadmap-task={row.task.id} data-roadmap-dimmed={dimmed ? 'true' : undefined}>
+						<div class={cn('group flex border-b transition-opacity [contain-intrinsic-size:auto_3rem] [content-visibility:auto]', dimmed && 'opacity-40', selected && 'bg-muted/50')} data-roadmap-task={row.task.id} data-roadmap-dimmed={dimmed ? 'true' : undefined}>
 							<button type="button" class={cn('sticky left-0 z-10 flex shrink-0 items-center gap-2.5 border-r bg-background py-2 pr-3 pl-9 text-left max-sm:pl-4', leftColumnClass, selected && 'bg-muted')} onclick={() => chooseTaskFromList(row.task, bar)}>
 								<PersonAvatar name={row.task.ownerName} seed={row.task.ownerID || row.task.ownerName} memberID={row.task.ownerID} class="size-6" />
 								<span class="flex min-w-0 flex-1 flex-col gap-1.5">
