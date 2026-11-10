@@ -150,9 +150,8 @@ test('ordinary task editing avoids 1501 historical rows until relationships are 
 		}
 		const participants = await admin.from('task_participant').insert(historicalIDs.slice(0, 2).map(taskID => ({ task_id: taskID, member_id: member1ID })));
 		if (participants.error) throw new Error(participants.error.message);
-		const next = readBoard();
-		await page.reload();
-		const after = (await (await next).json()).result;
+		await page.reload({ waitUntil: 'commit' });
+		const after = (await (await readBoard()).json()).result;
 		expect(after.tasks.map((task: { taskID: string }) => task.taskID).sort()).toEqual(before.tasks.map((task: { taskID: string }) => task.taskID).sort());
 		await expect(page.locator('[data-task-ready="true"]')).toBeVisible();
 		await expect(taskCard(page, id).locator('[data-task-child-progress]')).toContainText('1/1');
