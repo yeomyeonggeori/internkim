@@ -66,6 +66,12 @@ async function sendChunk(session: StoreSession, location: string, file: Blob, of
 	return Number(response.headers.get('upload-offset'));
 }
 
+const tooLargeStatus = 413;
+
+export function isRefusedAsTooLarge(failure: unknown): boolean {
+	return failure instanceof TransferFailed && failure.status === tooLargeStatus;
+}
+
 function isWorthRetrying(failure: unknown): boolean {
 	return !(failure instanceof TransferFailed) || failure.status >= 500;
 }

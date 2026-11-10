@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, test } from 'bun:test';
-import { uploadChunkBytes, uploadToStore } from '$lib/transfer/store-upload';
+import { isRefusedAsTooLarge, uploadChunkBytes, uploadToStore } from '$lib/transfer/store-upload';
 
 const realFetch = globalThis.fetch;
 const session = {
@@ -80,5 +80,19 @@ describe('a file put in the store from the browser', () => {
 		expect(failure).toMatchObject({ status: 403 });
 		expect(String(failure)).toContain('row-level security');
 		expect(methods).toEqual(['POST', 'PATCH']);
+		expect(isRefusedAsTooLarge(failure)).toBe(false);
+	});
+
+	test('a file over the store\'s size limit is refused as too large before any bytes are sent', async () => {
+		const methods: string[] = [];
+		globalThis.fetch = (async (_input: RequestInfo | URL, init?: RequestInit) => {
+			methods.push(init?.method ?? 'GET');
+			return new Response('Maximum size exceeded\n', { status: 413 });
+		}) as typeof fetch;
+
+		const failure = await uploadToStore(session, new Blob([new Uint8Array(10)]), 'video/quicktime').catch((thrown: unknown) => thrown);
+
+		expect(isRefusedAsTooLarge(failure)).toBe(true);
+		expect(methods).toEqual(['POST']);
 	});
 });

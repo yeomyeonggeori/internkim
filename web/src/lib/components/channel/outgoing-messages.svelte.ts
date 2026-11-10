@@ -1,5 +1,6 @@
 import { feelHaptic } from '$lib/native-shell/haptics';
 import { attachmentKindOf } from '$lib/messenger/attachment-kind';
+import { isRefusedAsTooLarge } from '$lib/transfer/store-upload';
 import type { ChannelMessage, ChannelMessageAttachment, ChannelParticipant } from './channel-api';
 import type { OutgoingMessage } from './channel-composer.svelte';
 
@@ -9,6 +10,7 @@ export type OutgoingEntry = {
 	channelID: string | undefined;
 	threadRootID: string | undefined;
 	hasFailed: boolean;
+	isTooLarge: boolean;
 	deliveredSerial?: number;
 };
 
@@ -58,8 +60,8 @@ export function createOutgoingMessages(options: {
 	async function attempt(entry: OutgoingEntry): Promise<void> {
 		try {
 			await options.deliver(entry);
-		} catch {
-			replace(entry.message.id, { hasFailed: true });
+		} catch (failure) {
+			replace(entry.message.id, { hasFailed: true, isTooLarge: isRefusedAsTooLarge(failure) });
 			feelHaptic('failure');
 			return;
 		}
@@ -81,6 +83,9 @@ export function createOutgoingMessages(options: {
 		hasFailed(messageID: string): boolean {
 			return entries.some((entry) => entry.message.id === messageID && entry.hasFailed);
 		},
+		isTooLarge(messageID: string): boolean {
+			return entries.some((entry) => entry.message.id === messageID && entry.hasFailed && entry.isTooLarge);
+		},
 		send(draft: OutgoingMessage, channelID: string | undefined, threadRootID?: string): Promise<void> {
 			const messageID = `pending-${serial++}`;
 			const entry: OutgoingEntry = {
@@ -95,7 +100,8 @@ export function createOutgoingMessages(options: {
 				draft,
 				channelID,
 				threadRootID,
-				hasFailed: false
+				hasFailed: false,
+				isTooLarge: false
 			};
 			entries = [...entries, entry];
 			return attempt(entry);
@@ -103,8 +109,8 @@ export function createOutgoingMessages(options: {
 		retry(messageID: string): Promise<void> {
 			const entry = entries.find((candidate) => candidate.message.id === messageID && candidate.hasFailed);
 			if (!entry) return Promise.resolve();
-			replace(messageID, { hasFailed: false });
-			return attempt({ ...entry, hasFailed: false });
+			replace(messageID, { hasFailed: false, isTooLarge: false });
+			return attempt({ ...entry, hasFailed: false, isTooLarge: false });
 		},
 		discard(messageID: string): void {
 			keepOnly((entry) => entry.message.id !== messageID);
