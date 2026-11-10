@@ -24,10 +24,6 @@ export class NoSuchAttendanceRecord extends Error {
 	}
 }
 
-export function attendanceWrittenByHand(rows: AttendanceRow[]): AttendanceRow[] {
-	return rows.filter((row) => row.edit_reason !== null || row.original_occurred_at !== null);
-}
-
 export function timeOfInstant(timezone: string, instant: string): string {
 	return new Intl.DateTimeFormat('en-GB', {
 		timeZone: timezone,
@@ -37,7 +33,7 @@ export function timeOfInstant(timezone: string, instant: string): string {
 	}).format(new Date(instant));
 }
 
-const heldColumns = 'id, member_id, kind, location, occurred_at, original_occurred_at, edit_reason';
+export const heldColumns = 'id, member_id, kind, location, occurred_at, original_occurred_at, edit_reason';
 
 // The newest rows are the ones a hint refers to and the ones a month view
 // shows, and a company of any age has more than a page of them, so the read

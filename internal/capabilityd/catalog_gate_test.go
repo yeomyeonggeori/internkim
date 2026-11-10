@@ -630,7 +630,7 @@ func gateCases() map[string]catalogGateCase {
 		},
 		"attendance_list": {
 			kind:    provesCarrying,
-			reaches: map[gateBackend]*standingIn{admindOverTheSocket: answering(`{"tool":"attendance_list","result":{"scope":"person","personID":"p1","personName":"이샘플","from":"2026-08-02","to":"2026-09-01","serverTime":"2026-09-01T00:02:00Z","backdatedAfterMinutes":4320,"count":1,"attendance":[{"eventID":"a1","personID":"p1","person":"이샘플","kind":"clock_in","date":"2026-09-01","time":"09:02","occurredAt":"2026-09-01T00:02:00Z","location":"본사","wasCorrected":false,"originalDate":null,"originalTime":null,"originalOccurredAt":null,"reason":null}]}}`)},
+			reaches: map[gateBackend]*standingIn{admindOverTheSocket: answering(`{"tool":"attendance_list","result":{"scope":"person","personID":"p1","personName":"이샘플","from":"2026-08-02","to":"2026-09-01","serverTime":"2026-09-01T00:02:00Z","backdatedAfterMinutes":4320,"count":1,"totalCount":1,"attendance":[{"eventID":"a1","personID":"p1","person":"이샘플","kind":"clock_in","date":"2026-09-01","time":"09:02","occurredAt":"2026-09-01T00:02:00Z","location":"본사","wasCorrected":false,"originalDate":null,"originalTime":null,"originalOccurredAt":null,"reason":null}]}}`)},
 			input:   `{"scope":"self","handWrittenOnly":true}`,
 			expect: func(t *testing.T, answered capabilities.ToolInvokeResponse) {
 				expectSucceeded(t, answered)
