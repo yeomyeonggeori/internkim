@@ -44,6 +44,8 @@ export type RecordAttendanceList = {
 	backdatedAfterMinutes: number;
 	count: number;
 	attendance: RecordAttendance[];
+	totalCount: number;
+	nextCursor?: string;
 };
 
 export type RecordLeaveStatus = 'requested' | 'approved' | 'rejected';
@@ -100,7 +102,13 @@ export function companySettings(): Promise<RecordCompanySettings> {
 }
 
 export function attendanceBetween(from: string, to: string): Promise<RecordAttendanceList> {
-	return invokeTool('attendance_list', { scope: 'all', from, to });
+	return everyAttendanceOf({ scope: 'all', from, to });
+}
+
+export async function everyAttendanceOf(input: Record<string, unknown>): Promise<RecordAttendanceList> {
+	const pages = await everyPageOf<RecordAttendanceList>('attendance_list', input);
+	const attendance = pages.toReversed().flatMap((page) => page.attendance);
+	return { ...pages[0], count: attendance.length, attendance, nextCursor: undefined };
 }
 
 export function approvedLeaveBetween(from: string, to: string): Promise<RecordLeaveList> {

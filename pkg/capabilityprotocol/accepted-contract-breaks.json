@@ -1198,5 +1198,15 @@
 		"path": "schedule_list.result.nextCursor",
 		"reason": "schedule_list answered at most twenty schedules, cut again by limit, with nothing saying more existed. It now reads a page at a time with a cursor and says how many match, the shape the other list tools answer.",
 		"release": "the host release carrying blueclaw's paged schedule list and this catalog reaches company hosts before the web/API catalog deploys; schedule_list is answered on the host, so the answer and its contract travel in the same package"
+	},
+	{
+		"path": "attendance_list.result.totalCount",
+		"reason": "attendance_list answered the newest limit rows of its window with nothing saying more existed. It now answers a page at a time, so it says how many records match across every page.",
+		"release": "the release carrying this catalog reaches company hosts by ship-host before the web/API deploy that answers attendance_list a page at a time; a host still on the older catalog refuses these answers until it takes the catalog"
+	},
+	{
+		"path": "attendance_list.result.nextCursor",
+		"reason": "attendance_list answered the newest limit rows of its window with nothing saying more existed. It now answers a page at a time, and nextCursor reaches the older records.",
+		"release": "the release carrying this catalog reaches company hosts by ship-host before the web/API deploy that answers attendance_list a page at a time; a host still on the older catalog refuses these answers until it takes the catalog"
 	}
 ]

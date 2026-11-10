@@ -10783,7 +10783,7 @@
         "state": "ok"
       },
       "canonicalName": "attendance_list",
-      "description": "List clock-ins and clock-outs as the record holds them. Use this to answer 'when did I come in', 'was anybody late this week', or to find the record another attendance tool is about to correct. Dates are yyyy-mm-dd and times are 24-hour HH:MM, both in the company time zone. Without from and to it covers the last thirty days. It reads the requester's own attendance unless personHints names other people or scope is all. Each row says whether it was written by hand: reason is what the writer gave, and originalDate with originalTime are the moment it was moved from, both null when it was never moved. handWrittenOnly keeps those rows alone. serverTime is the record's own clock, which is the one to compare a moment against rather than the caller's; backdatedAfterMinutes is how far into the past a moment has to be before writing it counts as writing after the fact.",
+      "description": "List clock-ins and clock-outs as the record holds them. Use this to answer 'when did I come in', 'was anybody late this week', or to find the record another attendance tool is about to correct. Dates are yyyy-mm-dd and times are 24-hour HH:MM, both in the company time zone. Without from and to it covers the last thirty days. Each page is the newest records not yet shown, listed oldest first, and nextCursor reaches the older ones: while it is present, the records shown are not all the window holds. It reads the requester's own attendance unless personHints names other people or scope is all. Each row says whether it was written by hand: reason is what the writer gave, and originalDate with originalTime are the moment it was moved from, both null when it was never moved. handWrittenOnly keeps those rows alone. serverTime is the record's own clock, which is the one to compare a moment against rather than the caller's; backdatedAfterMinutes is how far into the past a moment has to be before writing it counts as writing after the fact.",
       "estimatedLatency": "low",
       "idempotency": {
         "required": false,
@@ -10798,6 +10798,11 @@
             "maxLength": 128,
             "type": "string"
           },
+          "cursor": {
+            "description": "Pagination cursor from a previous attendance_list result. Omit on the first call.",
+            "minLength": 1,
+            "type": "string"
+          },
           "from": {
             "description": "Earliest day to include. The day it happened, as yyyy-mm-dd in the company time zone. Omit to start thirty days ago.",
             "type": "string"
@@ -10807,8 +10812,10 @@
             "type": "boolean"
           },
           "limit": {
-            "description": "Maximum number of rows to return.",
-            "type": "number"
+            "description": "Maximum attendance records to return. Defaults to 50.",
+            "maximum": 100,
+            "minimum": 1,
+            "type": "integer"
           },
           "pageLimit": {
             "maximum": 100,
@@ -10979,6 +10986,10 @@
           "from": {
             "type": "string"
           },
+          "nextCursor": {
+            "description": "Cursor for the next page. Absent when no more attendance records match.",
+            "type": "string"
+          },
           "personID": {
             "anyOf": [
               {
@@ -11000,6 +11011,12 @@
           },
           "to": {
             "type": "string"
+          },
+          "totalCount": {
+            "description": "How many attendance records match the filters across every page.",
+            "maximum": 9007199254740991,
+            "minimum": -9007199254740991,
+            "type": "integer"
           }
         },
         "required": [
@@ -11011,7 +11028,8 @@
           "serverTime",
           "backdatedAfterMinutes",
           "count",
-          "attendance"
+          "attendance",
+          "totalCount"
         ],
         "type": "object"
       },
@@ -11138,6 +11156,10 @@
             "from": {
               "type": "string"
             },
+            "nextCursor": {
+              "description": "Cursor for the next page. Absent when no more attendance records match.",
+              "type": "string"
+            },
             "personID": {
               "anyOf": [
                 {
@@ -11159,6 +11181,12 @@
             },
             "to": {
               "type": "string"
+            },
+            "totalCount": {
+              "description": "How many attendance records match the filters across every page.",
+              "maximum": 9007199254740991,
+              "minimum": -9007199254740991,
+              "type": "integer"
             }
           },
           "required": [
@@ -11170,14 +11198,15 @@
             "serverTime",
             "backdatedAfterMinutes",
             "count",
-            "attendance"
+            "attendance",
+            "totalCount"
           ],
           "type": "object"
         }
       },
       "sideEffect": "read",
       "sideEffectClass": "read",
-      "version": "3",
+      "version": "4",
       "worksOffline": false
     },
     {
@@ -11201,6 +11230,11 @@
             "maxLength": 128,
             "type": "string"
           },
+          "cursor": {
+            "description": "Pagination cursor from a previous attendance_list result. Omit on the first call.",
+            "minLength": 1,
+            "type": "string"
+          },
           "from": {
             "description": "Earliest day to include. The day it happened, as yyyy-mm-dd in the company time zone. Omit to start thirty days ago.",
             "type": "string"
@@ -11210,8 +11244,10 @@
             "type": "boolean"
           },
           "limit": {
-            "description": "Maximum number of rows to return.",
-            "type": "number"
+            "description": "Maximum attendance records to return. Defaults to 50.",
+            "maximum": 100,
+            "minimum": 1,
+            "type": "integer"
           },
           "pageLimit": {
             "maximum": 100,
