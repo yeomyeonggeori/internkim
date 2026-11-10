@@ -519,6 +519,9 @@ const taskUpdateObjectSchema = z.strictObject({
   childTaskHints: z.array(z.string())
     .describe('Tasks to move under taskHint, each an exact task ID or exact CURRENT title from a task_list result. Every one of them must stand on its own already; the whole set moves or none of it does.')
     .optional(),
+  completeChildren: z.boolean()
+    .describe('true completes every unfinished task under this one in the same write; the task itself must end up completed. Without it, completing a task leaves the work under it as it is.')
+    .optional(),
   organizationHint: z.string().max(256).describe(`${crmOrganizationHintDescription} An empty string takes the work off the organization it was for.`).optional(),
   opportunityHint: z.string().max(256).describe(`${crmOpportunityHintDescription} An empty string takes the work off the deal it belonged to.`).optional(),
 });
@@ -1062,7 +1065,7 @@ const taskToolDefinitions: CapabilityToolDefinition[] = [
     privacyClass: 'workspace_task',
     policyResource: 'tool:task_update',
     description: 'Update explicit fields on an existing task, including who takes part in it, when canUpdate in task_list says the caller may change it. Classification fields use registeredLabels from task_list: business is a workspace label, while organizationHint and opportunityHint link CRM records. Choose classification values from those labels and the work context when the requester delegates that judgment. taskHint is the exact task ID or exact task title from a task_list result, resolved server-side to the canonical task; use task_list first when neither is known. At least one mutable field is required.',
-    version: '6',
+    version: '7',
     estimatedLatency: CapabilityEstimatedLatency.Medium,
     inputSchema: taskUpdateInputSchema,
     inputIntentSchema: taskUpdateInputIntentSchema,

@@ -4,6 +4,7 @@ import type { Task } from './task-types';
 export type TaskBoardMoveRequest = {
 	taskID: string;
 	targetStatus: string;
+	completeChildren?: boolean;
 };
 
 export type TaskBoardMoveResult = {

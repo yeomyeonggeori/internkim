@@ -96,7 +96,7 @@ function previewOf(name: string, input: Record<string, unknown>) {
 }
 
 function resultOf(answer: { status: number; body: unknown }): Record<string, unknown> {
-	expect(answer.status).toBe(200);
+	expect({ status: answer.status, body: answer.status === 200 ? 'answered' : answer.body }).toEqual({ status: 200, body: 'answered' });
 	return (answer.body as { result: Record<string, unknown> }).result;
 }
 
@@ -1099,6 +1099,32 @@ describe('a task put under another', () => {
 
 		const alone = resultOf(await run('task_update', { taskHint: child.taskID as string, parentTaskHint: '' }));
 		expect(alone.parentTaskID).toBe('');
+	});
+
+	test('completes the work under it only when asked to', async () => {
+		const statusesOf = async (ids: string[]) => {
+			const { data, error } = await client.from('task').select('id, status').in('id', ids).returns<{ id: string; status: string }[]>();
+			if (error) throw new Error(error.message);
+			return Object.fromEntries((data ?? []).map((row) => [row.id, row.status]));
+		};
+		const addFamily = async (name: string) => {
+			const parent = resultOf(await run('task_add', { title: `${name} 상위` })).taskID as string;
+			const child = resultOf(await run('task_add', { title: `${name} 하위`, parentTaskHint: parent })).taskID as string;
+			return { parent, child };
+		};
+
+		const alone = await addFamily('혼자 끝나는 일');
+		await run('task_update', { taskHint: alone.parent, status: 'completed' });
+		expect(await statusesOf([alone.parent, alone.child])).toEqual({ [alone.parent]: 'completed', [alone.child]: 'planned' });
+
+		const together = await addFamily('함께 끝나는 일');
+		await run('task_update', { taskHint: together.parent, status: 'completed', completeChildren: true });
+		expect(await statusesOf([together.parent, together.child])).toEqual({ [together.parent]: 'completed', [together.child]: 'completed' });
+
+		const unfinished = await addFamily('끝나지 않는 일');
+		const refused = await run('task_update', { taskHint: unfinished.parent, status: 'in_progress', completeChildren: true });
+		expect(refused.status).toBe(422);
+		expect(await statusesOf([unfinished.child])).toEqual({ [unfinished.child]: 'planned' });
 	});
 
 	test('changes nothing else about the task it moves', async () => {
