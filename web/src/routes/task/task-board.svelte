@@ -20,6 +20,8 @@
 
 	type BoardText = {
 		addTask: string;
+		addTaskShort: string;
+		taskCount: string;
 	};
 
 	type Props = {
@@ -30,7 +32,7 @@
 		etcLabel: string;
 		statusLabel: (status: string) => string;
 		openTask: (task: Task) => void;
-		createTask: (status?: string) => void;
+		createTask?: (status?: string) => void;
 		moveTask: (request: TaskBoardMoveRequest) => void | Promise<void>;
 		pendingTaskIDs: string[];
 		canUpdateTask: (task: Task) => boolean;
@@ -75,7 +77,7 @@
 	].join(' ');
 	const boardScrollClass = [
 		'h-[var(--task-board-height,32rem)] min-h-80 min-w-0',
-		'overflow-x-auto overflow-y-hidden px-4 pb-2 scroll-px-4 md:px-8 md:scroll-px-8',
+		'overflow-x-auto overflow-y-hidden px-[var(--task-board-gutter,1rem)] pb-2 scroll-px-[var(--task-board-gutter,1rem)] md:px-[var(--task-board-gutter,2rem)] md:scroll-px-[var(--task-board-gutter,2rem)]',
 		'snap-x snap-mandatory',
 		'max-sm:h-auto max-sm:min-h-0 max-sm:overflow-visible max-sm:snap-none max-sm:pb-0'
 	].join(' ');
@@ -103,18 +105,18 @@
 	}
 
 	function taskCountLabel(count: number): string {
-		return `업무 ${count}개`;
+		return boardText.taskCount.replace('{count}', String(count));
 	}
 
 	function createTaskInColumn(status: string): void {
-		if (!isTaskBoardStatus(status) || !canCreateTaskInColumn(status, participantScope)) return;
+		if (!createTask || !isTaskBoardStatus(status) || !canCreateTaskInColumn(status, participantScope)) return;
 		createTask(status);
 	}
 </script>
 
-<div class="sticky top-0 -mx-4 min-w-0 bg-background max-sm:static md:-mx-8">
+<div class="sticky top-0 -mx-[var(--task-board-gutter,1rem)] min-w-0 bg-background max-sm:static md:-mx-[var(--task-board-gutter,2rem)]">
 	<div class={boardScrollClass} data-task-board-scroll use:taskBoardViewportHeight={fitsViewport}>
-		<div class="flex h-full min-w-max gap-3 pr-4 max-sm:min-w-0 max-sm:flex-col max-sm:gap-3 max-sm:pr-0 md:pr-8">
+		<div class="flex h-full min-w-max gap-3 pr-[var(--task-board-gutter,1rem)] max-sm:min-w-0 max-sm:flex-col max-sm:gap-3 max-sm:pr-0 md:pr-[var(--task-board-gutter,2rem)]">
 			{#each columns as column (column.status)}
 				{@const StatusIcon = taskStatusIcon(column.status)}
 				<section
@@ -142,18 +144,20 @@
 								{column.tasks.length}
 							</span>
 						</div>
-						<Button
-							type="button"
-							variant="ghost"
-							size="icon-xs"
-							class="shrink-0"
-							aria-label={addTaskLabel(column.status)}
-							title={addTaskLabel(column.status)}
-							disabled={!canCreateTaskInColumn(column.status, participantScope)}
-							onclick={() => createTaskInColumn(column.status)}
-						>
-							<PlusIcon class="size-3.5" />
-						</Button>
+						{#if createTask}
+							<Button
+								type="button"
+								variant="ghost"
+								size="icon-xs"
+								class="shrink-0"
+								aria-label={addTaskLabel(column.status)}
+								title={addTaskLabel(column.status)}
+								disabled={!canCreateTaskInColumn(column.status, participantScope)}
+								onclick={() => createTaskInColumn(column.status)}
+							>
+								<PlusIcon class="size-3.5" />
+							</Button>
+						{/if}
 					</header>
 
 					<div
@@ -191,20 +195,22 @@
 								ondragover={(event) => boardDrag.handleColumnDragOver(event, column.status, column.tasks)}
 								ondrop={(event) => boardDrag.handleColumnDrop(event, column.status, column.tasks)}
 							>
-								<Button
-									type="button"
-									variant="ghost"
-									size="sm"
-									class="h-8 w-full justify-center text-muted-foreground transition-opacity hover:bg-muted hover:text-foreground focus-visible:opacity-100 focus-visible:pointer-events-auto sm:opacity-0 sm:pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto group-focus-within:opacity-100 group-focus-within:pointer-events-auto"
-									aria-label={addTaskLabel(column.status)}
-									title={addTaskLabel(column.status)}
-									data-task-board-footer-add-task={column.status}
-									disabled={!canCreateTaskInColumn(column.status, participantScope)}
-									onclick={() => createTaskInColumn(column.status)}
-								>
-									<PlusIcon class="size-4" />
-									<span>업무 추가</span>
-								</Button>
+								{#if createTask}
+									<Button
+										type="button"
+										variant="ghost"
+										size="sm"
+										class="h-8 w-full justify-center text-muted-foreground transition-opacity hover:bg-muted hover:text-foreground focus-visible:opacity-100 focus-visible:pointer-events-auto sm:opacity-0 sm:pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto group-focus-within:opacity-100 group-focus-within:pointer-events-auto"
+										aria-label={addTaskLabel(column.status)}
+										title={addTaskLabel(column.status)}
+										data-task-board-footer-add-task={column.status}
+										disabled={!canCreateTaskInColumn(column.status, participantScope)}
+										onclick={() => createTaskInColumn(column.status)}
+									>
+										<PlusIcon class="size-4" />
+										<span>{boardText.addTaskShort}</span>
+									</Button>
+								{/if}
 							</div>
 
 						</div>

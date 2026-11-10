@@ -5,6 +5,7 @@
 	import { toast } from 'svelte-sonner';
 	import { Button } from '$lib/components/ui/button';
 	import { Skeleton } from '$lib/components/ui/skeleton';
+	import * as Tabs from '$lib/components/ui/tabs';
 	import RefreshButton from '$lib/components/refresh-button.svelte';
 	import { supabase } from '$lib/supabase';
 	import { isPasskeySupported, listPasskeys, refusalOf, registerPasskey } from '$lib/supabase-passkey';
@@ -13,6 +14,7 @@
 	import { sharedTaskBoardSchema, sharedTasks, sharedTaskTotal, type SharedTaskBoard } from '$lib/task-invitation/board';
 	import { SharedTasksRefused, sharedTasksRequest, signedInEmail } from '$lib/task-invitation/guest';
 	import { sharedTasksText } from '$lib/task-invitation/text';
+	import TaskBoard from '../../../task/task-board.svelte';
 	import TaskListView from '../../../task/task-list-view.svelte';
 	import { taskText } from '../../../task/text';
 	import { taskBusinessColor, taskTypeColor } from '../../../task/task-definition-colors';
@@ -26,6 +28,7 @@
 	let isLoading = $state(true);
 	let failure = $state('');
 	let offersPasskey = $state(false);
+	let view = $state('board');
 	const tasks = $derived(board ? sharedTasks(board) : []);
 	const hiddenCount = $derived(board ? sharedTaskTotal(board) - tasks.length : 0);
 	const definitions = $derived(definitionsOf(board));
@@ -100,11 +103,14 @@
 
 	async function ignoreStatusChange(): Promise<void> {}
 
+	function ignoreTask(): void {}
+
 	onMount(load);
 </script>
 
 <svelte:head><title>{board ? `${board.company.name} · ${text.pageTitle}` : text.pageTitle}</title><meta name="robots" content="noindex" /></svelte:head>
-<main class="mx-auto grid max-w-5xl grid-cols-[minmax(0,1fr)] gap-6 px-4 py-10 md:px-6">
+<div class="overflow-x-clip">
+<main class="mx-auto grid max-w-5xl grid-cols-[minmax(0,1fr)] gap-6 px-4 py-10 [--task-board-gutter:1rem] md:px-6 md:[--task-board-gutter:max(1.5rem,calc((100vw-64rem)/2+1.5rem))]">
 	<header class="flex flex-wrap items-end justify-between gap-3">
 		<div class="grid gap-1">
 			{#if isLoading}<Skeleton class="h-7 w-48" />{:else}<h1 class="text-2xl font-semibold">{board?.company.name ?? text.pageTitle}</h1>{/if}
@@ -132,6 +138,30 @@
 	{:else if isLoading}
 		<div class="grid gap-2">{#each [0, 1, 2] as row (row)}<Skeleton class="h-10 w-full" />{/each}</div>
 	{:else if board}
+		<Tabs.Root bind:value={view} class="grid gap-4">
+			<Tabs.List>
+				<Tabs.Trigger value="board">{pageText.task.viewTabs.board}</Tabs.Trigger>
+				<Tabs.Trigger value="list">{pageText.task.viewTabs.list}</Tabs.Trigger>
+			</Tabs.List>
+		</Tabs.Root>
+		{#if view === 'board'}
+			<TaskBoard
+				{tasks}
+				allTasks={tasks}
+				boardText={pageText.task.board}
+				etcLabel={pageText.task.etcLabel}
+				{statusLabel}
+				openTask={ignoreTask}
+				moveTask={ignoreTask}
+				pendingTaskIDs={[]}
+				canUpdateTask={cannotUpdate}
+				businessColor={(business) => taskBusinessColor(business, definitions)}
+				taskTypeColor={(type) => taskTypeColor(type, definitions)}
+				childProgressLabel={pageText.task.relationships.progressLabel}
+				memberEmail={noEmail}
+				participantScope="other"
+			/>
+		{:else}
 		<div class="grid gap-2">
 			<TaskListView
 				{tasks}
@@ -148,7 +178,9 @@
 				businessColor={(business) => taskBusinessColor(business, definitions)}
 				taskTypeColor={(type) => taskTypeColor(type, definitions)}
 			/>
-			{#if hiddenCount > 0}<p class="text-xs text-muted-foreground tabular-nums">{text.moreTasks.replace('{count}', String(hiddenCount))}</p>{/if}
 		</div>
+		{/if}
+		{#if hiddenCount > 0}<p class="text-xs text-muted-foreground tabular-nums">{text.moreTasks.replace('{count}', String(hiddenCount))}</p>{/if}
 	{/if}
 </main>
+</div>
