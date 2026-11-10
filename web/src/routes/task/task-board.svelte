@@ -42,6 +42,7 @@
 		childProgressLabel: string;
 		memberEmail: (memberID: string) => string;
 		participantScope: TaskBoardParticipantScope;
+		fitsViewport?: boolean;
 	};
 
 	let {
@@ -63,7 +64,8 @@
 		taskTypeColor,
 		childProgressLabel,
 		memberEmail,
-		participantScope
+		participantScope,
+		fitsViewport = true
 	}: Props = $props();
 
 	const columnClass = [
@@ -111,7 +113,7 @@
 </script>
 
 <div class="sticky top-0 -mx-4 min-w-0 bg-background max-sm:static md:-mx-8">
-	<div class={boardScrollClass} data-task-board-scroll use:taskBoardViewportHeight>
+	<div class={boardScrollClass} data-task-board-scroll use:taskBoardViewportHeight={fitsViewport}>
 		<div class="flex h-full min-w-max gap-3 pr-4 max-sm:min-w-0 max-sm:flex-col max-sm:gap-3 max-sm:pr-0 md:pr-8">
 			{#each columns as column (column.status)}
 				{@const StatusIcon = taskStatusIcon(column.status)}

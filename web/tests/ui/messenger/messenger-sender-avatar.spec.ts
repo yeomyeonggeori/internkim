@@ -21,16 +21,20 @@ async function boxOf(locator: Locator): Promise<{ y: number; height: number }> {
 	return box;
 }
 
-async function openConversation(page: Page, messages: object[]): Promise<void> {
-	await mockDeviceMessenger(page, reader, [{ id: 'channel-avatar', name: '사진 채널', kind: 'group', myRole: 'member' }], messages);
+function headerOf(page: Page, messageID: string): Locator {
+	return page.locator(`[data-message-id="${messageID}"] [data-slot="message-header"]`);
+}
+
+async function openConversation(page: Page, messages: object[], kind: 'dm' | 'group' = 'group'): Promise<void> {
+	await mockDeviceMessenger(page, reader, [{ id: 'channel-avatar', name: '사진 채널', kind, myRole: 'member' }], messages);
 	await page.setViewportSize({ width: 390, height: 760 });
 	await page.goto('/messenger?channel=channel-avatar');
 	await expect(page.locator(`[data-message-id="last"]`)).toBeVisible();
 }
 
-test('the sender picture sits beside the first message of a group, centered on a one-line bubble', async ({ page }) => {
+test('in a group the sender picture lines up with the name, and the bubble starts below the name', async ({ page }) => {
 	await openConversation(page, [
-		{ id: 'first', sender: author, text: '안녕하세요.', sentAt: '2026-10-07T01:01:00Z' },
+		{ id: 'first', sender: author, text: longText, sentAt: '2026-10-07T01:01:00Z' },
 		{ id: 'last', sender: author, text: '확인 부탁드려요.', sentAt: '2026-10-07T01:01:10Z' }
 	]);
 
@@ -38,21 +42,26 @@ test('the sender picture sits beside the first message of a group, centered on a
 	await expect(avatarOf(page, 'last')).toHaveCount(0);
 
 	const avatar = await boxOf(avatarOf(page, 'first'));
+	const header = await boxOf(headerOf(page, 'first'));
 	const bubble = await boxOf(bubbleOf(page, 'first'));
-	expect(Math.abs(avatar.y + avatar.height / 2 - (bubble.y + bubble.height / 2))).toBeLessThanOrEqual(1);
+	expect(Math.abs(avatar.y - header.y)).toBeLessThanOrEqual(1);
+	expect(bubble.y).toBeGreaterThanOrEqual(header.y + header.height - 1);
 });
 
-test('beside a long first message the picture stays on the top line of the bubble', async ({ page }) => {
-	await openConversation(page, [
-		{ id: 'first', sender: author, text: longText, sentAt: '2026-10-07T01:01:00Z' },
-		{ id: 'last', sender: author, text: '확인 부탁드려요.', sentAt: '2026-10-07T01:01:10Z' }
-	]);
+test('in a direct conversation the sender picture sits centered on a one-line bubble', async ({ page }) => {
+	await openConversation(
+		page,
+		[
+			{ id: 'first', sender: author, text: '안녕하세요.', sentAt: '2026-10-07T01:01:00Z' },
+			{ id: 'last', sender: author, text: '확인 부탁드려요.', sentAt: '2026-10-07T01:01:10Z' }
+		],
+		'dm'
+	);
 
+	await expect(headerOf(page, 'first')).toHaveCount(0);
 	const avatar = await boxOf(avatarOf(page, 'first'));
 	const bubble = await boxOf(bubbleOf(page, 'first'));
-	expect(bubble.height).toBeGreaterThan(avatar.height * 2);
-	expect(avatar.y).toBeGreaterThanOrEqual(bubble.y);
-	expect(avatar.y - bubble.y).toBeLessThanOrEqual(8);
+	expect(Math.abs(avatar.y + avatar.height / 2 - (bubble.y + bubble.height / 2))).toBeLessThanOrEqual(1);
 });
 
 test('a message with a file shows its text above the file', async ({ page }) => {

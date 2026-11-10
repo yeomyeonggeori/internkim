@@ -10,7 +10,7 @@
 	const profile = getContext<PersonProfileActions | undefined>(personProfileContext);
 	const text = createPageText(channelText);
 	const avatarClass =
-		'bg-muted mt-[5px] flex w-fit min-w-8 shrink-0 items-center justify-center self-start overflow-hidden rounded-full group-has-data-[slot=message-header]/message:mt-[23px]';
+		'bg-muted mt-[5px] flex w-fit min-w-8 shrink-0 items-center justify-center self-start overflow-hidden rounded-full group-has-data-[slot=message-header]/message:mt-0';
 </script>
 
 {#if profile && person}

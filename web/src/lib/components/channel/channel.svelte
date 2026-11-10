@@ -9,7 +9,7 @@
 	import ConversationDock from './conversation-dock.svelte';
 	import { createChannelTyping } from './channel-typing.svelte';
 	import { agentWorkingRefreshIntervalMs, stillWorkingSince } from './agent-working';
-	import ChannelMessageBody from './channel-message-body.svelte';
+	import ChannelTextBubble from './channel-text-bubble.svelte';
 	import ChannelComposer, { type OutgoingMessage } from './channel-composer.svelte';
 	import ChannelLightbox, { type LightboxView } from './channel-lightbox.svelte';
 	import ChannelVideoPlayer from './channel-video-player.svelte';
@@ -701,22 +701,13 @@
 			onCancel={() => (editingMessageID = '')}
 		/>
 	{:else if bodyText}
-		<Bubble.Root
-			variant={mine ? 'default' : 'muted'}
-			class="max-w-[min(80%,32rem)]"
+		<ChannelTextBubble
+			{mine}
+			source={applyCustomEmoji(bodyText, message.customEmoji, customEmoji.nameToURL)}
+			mentionLabels={mentionLabelsOf(message.mentions, (externalID) => nameByExternalID.get(externalID))}
 		>
-			<Bubble.Content>
-				<div class="chat-markdown prose prose-sm dark:prose-invert max-w-none">
-					<ChannelMessageBody
-						source={applyCustomEmoji(bodyText, message.customEmoji, customEmoji.nameToURL)}
-						mentionLabels={mentionLabelsOf(message.mentions, (externalID) =>
-							nameByExternalID.get(externalID)
-						)}
-					/>
-				</div>
-			</Bubble.Content>
 			{#if attachments.length === 0}{@render timeStamp(message)}{/if}
-		</Bubble.Root>
+		</ChannelTextBubble>
 		{#if firstLinkIn(bodyText)}
 			<ChannelLinkPreview url={firstLinkIn(bodyText)} />
 		{/if}
@@ -766,7 +757,7 @@
 		</div>
 	{:else if attachments.length > 0}
 		<div class={`relative w-fit max-w-[80%] self-start group-data-[align=end]/message:self-end`}>
-			<ChannelAttachmentGroup {attachments} openPicture={(source) => openLightbox(attachments, source)} />
+			<ChannelAttachmentGroup {attachments} openSource={(source) => openLightbox(attachments, source)} />
 			{@render timeStamp(message)}
 		</div>
 	{/if}
@@ -1108,49 +1099,3 @@
 		</Sheet.Content>
 	</Sheet.Root>
 {/if}
-
-<style>
-	.chat-markdown {
-		overflow-wrap: anywhere;
-	}
-	.chat-markdown,
-	.chat-markdown :global(*) {
-		color: inherit;
-	}
-	.chat-markdown :global(p:first-child) {
-		margin-top: 0;
-	}
-	.chat-markdown :global(p:last-child) {
-		margin-bottom: 0;
-	}
-	.chat-markdown :global(table) {
-		display: block;
-		max-width: 100%;
-		overflow-x: auto;
-		border-collapse: collapse;
-		margin: 0.5rem 0;
-		font-size: 0.9em;
-		border: 1px solid currentColor;
-	}
-	.chat-markdown :global(th),
-	.chat-markdown :global(td) {
-		border: 1px solid currentColor;
-		padding: 0.375rem 0.625rem;
-		text-align: left;
-		white-space: nowrap;
-	}
-	.chat-markdown :global(thead th) {
-		background: color-mix(in srgb, currentColor 12%, transparent);
-		font-weight: 600;
-	}
-	.chat-markdown :global(tbody tr:nth-child(even)) {
-		background: color-mix(in srgb, currentColor 6%, transparent);
-	}
-	.chat-markdown :global(img) {
-		display: inline-block;
-		height: 1.4em;
-		width: auto;
-		margin: 0;
-		vertical-align: text-bottom;
-	}
-</style>

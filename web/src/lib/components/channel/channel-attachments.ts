@@ -2,6 +2,7 @@ import type { ChannelMessageAttachment, ChannelOutgoingAttachment } from './chan
 import type { AttachmentState } from '$lib/components/ui/attachment/index.js';
 import type { AttachmentProgress, AttachmentSourceStatus } from '$lib/stores/attachment-source.svelte';
 import type { LightboxItem } from './channel-lightbox.svelte';
+import { previewKindOf } from '$lib/files/preview/kind';
 import { withoutPictureMetadata } from './picture-metadata';
 
 export function openableAttachments(
@@ -43,10 +44,11 @@ export function messagePicturesOf(attachments: ChannelMessageAttachment[]): Mess
 export function lightboxItemsOf(attachments: ChannelMessageAttachment[]): LightboxItem[] {
 	return attachments.flatMap((attachment) => {
 		if (!attachment.source) return [];
-		if (attachment.kind !== 'image' && attachment.kind !== 'video') return [];
+		const kind = lightboxKindOf(attachment);
+		if (!kind) return [];
 		return [
 			{
-				kind: attachment.kind,
+				kind,
 				source: attachment.source,
 				filename: attachment.filename ?? '',
 				width: attachment.widthPixels,
@@ -54,6 +56,11 @@ export function lightboxItemsOf(attachments: ChannelMessageAttachment[]): Lightb
 			}
 		];
 	});
+}
+
+function lightboxKindOf(attachment: ChannelMessageAttachment): LightboxItem['kind'] | undefined {
+	if (attachment.kind === 'image' || attachment.kind === 'video') return attachment.kind;
+	return previewKindOf(attachment.filename ?? '') === 'none' ? undefined : 'document';
 }
 
 export function formatAttachmentMeta(attachment: {
@@ -69,10 +76,9 @@ export function formatAttachmentMeta(attachment: {
 }
 
 function attachmentTypeLabel(mimeType?: string, filename?: string): string {
-	const subtype = mimeType?.split('/')[1];
-	if (subtype) return subtype.toUpperCase();
 	const extension = filename?.split('.').pop();
-	return extension && extension !== filename ? extension.toUpperCase() : '';
+	if (extension && extension !== filename) return extension.toUpperCase();
+	return mimeType?.split('/')[1]?.toUpperCase() ?? '';
 }
 
 function formatBytes(bytes: number): string {

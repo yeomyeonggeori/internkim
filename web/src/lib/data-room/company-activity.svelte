@@ -1,5 +1,4 @@
 <script lang="ts">
-	import * as Tooltip from '$lib/components/ui/tooltip';
 	import AttendanceCompanyMetrics from '../../routes/attendance/team/attendance-company-metrics.svelte';
 	import AttendanceTeamCard from '../../routes/attendance/team/attendance-team-card.svelte';
 	import ActivityAvatar from './activity-avatar.svelte';
@@ -35,8 +34,6 @@
 	const asOf = $derived(new Intl.DateTimeFormat(locale, { month: 'long', day: 'numeric', weekday: 'short', timeZone: 'UTC' })
 		.format(new Date(`${activity.today}T00:00:00Z`)));
 </script>
-
-<Tooltip.Provider>
 	<section class="grid gap-6" aria-labelledby="company-activity">
 		<div class="grid gap-1">
 			<div class="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
@@ -76,4 +73,3 @@
 			<ActivityTaskList {activity} {locale} />
 		</div>
 	</section>
-</Tooltip.Provider>

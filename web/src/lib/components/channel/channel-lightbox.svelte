@@ -1,6 +1,6 @@
 <script lang="ts" module>
 	export type LightboxItem = {
-		kind: 'image' | 'video';
+		kind: 'image' | 'video' | 'document';
 		source: string;
 		filename: string;
 		width?: number;
@@ -18,6 +18,7 @@
 	import ZoomOutIcon from '@lucide/svelte/icons/zoom-out';
 	import { fade } from 'svelte/transition';
 	import LoadingImage from '$lib/components/loading-image.svelte';
+	import DocumentPreview from '$lib/files/preview/document-preview.svelte';
 	import { Slider } from '$lib/components/ui/slider/index.js';
 	import { channelText } from '$lib/i18n/channel-text';
 	import { createPageText } from '$lib/i18n/page-text.svelte';
@@ -125,6 +126,15 @@
 						height={currentItem.height}
 						variant="viewer"
 					/>
+				</div>
+			{:else if currentItem.kind === 'document'}
+				<div
+					class="bg-background text-foreground z-10 h-full w-[min(64rem,calc(100vw-1.5rem))] overflow-hidden rounded-lg"
+					role="presentation"
+					ontouchstart={keepTouchOnPlayer}
+					ontouchend={keepTouchOnPlayer}
+				>
+					<DocumentPreview fileName={currentItem.filename} readURL={() => Promise.resolve(currentItem.source)} />
 				</div>
 			{:else}
 				<LightboxPictureMenu source={currentItem.source} filename={currentItem.filename}>

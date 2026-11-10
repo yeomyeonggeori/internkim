@@ -112,7 +112,7 @@
 
 {#snippet undoControl(record: HandWrittenRecord)}
 	<AlertDialog.Root>
-		<Tooltip.Provider><Tooltip.Root><Tooltip.Trigger>
+		<Tooltip.Root><Tooltip.Trigger>
             {#snippet child({ props })}
         <AlertDialog.Trigger
             {...props}
@@ -124,7 +124,7 @@
             <Undo2Icon class="size-4" />
 		</AlertDialog.Trigger>
             {/snippet}
-        </Tooltip.Trigger><Tooltip.Content>{canUndoHandWrittenRecord(record) ? text.handWritten.undo : text.handWritten.unknownPreviousRecord}</Tooltip.Content></Tooltip.Root></Tooltip.Provider>
+        </Tooltip.Trigger><Tooltip.Content>{canUndoHandWrittenRecord(record) ? text.handWritten.undo : text.handWritten.unknownPreviousRecord}</Tooltip.Content></Tooltip.Root>
 		<AlertDialog.Content data-testid="hand-written-undo-dialog">
 			<AlertDialog.Header>
 				<AlertDialog.Title>{undoTitle(record)}</AlertDialog.Title>

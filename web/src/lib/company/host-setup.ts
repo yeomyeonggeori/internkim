@@ -2,6 +2,11 @@ import { z } from 'zod';
 
 export const companyComputerName = 'company-computer';
 
+export const hostInstallCommands = [
+	'curl -fsSL https://intern.kim/install.sh | sh -s -- host',
+	'sudo internkim install ~/Downloads/internkim-host.json'
+].join('\n');
+
 export const hostSetupRequestSchema = z.object({
 	replaceExisting: z.boolean().default(false)
 }).strict();

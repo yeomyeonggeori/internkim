@@ -1,4 +1,3 @@
-import FlameIcon from '@lucide/svelte/icons/flame';
 import { attendancePreviewEnabled } from '$lib/attendance/attendance-preview';
 import { page } from '$app/state';
 import { adminApiFetch } from '$lib/admin-api';
@@ -14,17 +13,9 @@ import { hostUpdate } from '$lib/host/host-update.svelte';
 import type { UserRole } from '$lib/types';
 import type { WebAuthSession } from '$lib/web-auth-session';
 import ActivityIcon from '@lucide/svelte/icons/activity';
-import CalendarIcon from '@lucide/svelte/icons/calendar';
+import { appSectionIcons } from '$lib/components/app-section-icons';
 import CircleHelpIcon from '@lucide/svelte/icons/circle-help';
 import CogIcon from '@lucide/svelte/icons/cog';
-import FolderOpenIcon from '@lucide/svelte/icons/folder-open';
-import LibraryBigIcon from '@lucide/svelte/icons/library-big';
-import HeartHandshakeIcon from '@lucide/svelte/icons/heart-handshake';
-import SquareCheckBigIcon from '@lucide/svelte/icons/square-check-big';
-import MailIcon from '@lucide/svelte/icons/mail';
-import MessageCircleIcon from '@lucide/svelte/icons/message-circle';
-import BrainIcon from '@lucide/svelte/icons/brain';
-import NetworkIcon from '@lucide/svelte/icons/network';
 import { withReturnPath } from '$lib/return-path';
 
 type AdminSession = {
@@ -52,19 +43,19 @@ class AppNavigation {
 	displayUserName = $derived(this.userName || text.workspace);
 
 	apps = $derived<AppRailItem[]>([
-		{ href: this.link('/messenger/'), label: text.messenger, icon: MessageCircleIcon },
-		{ href: this.link('/task/'), label: text.task, icon: SquareCheckBigIcon, badgeCount: appBadgeCounts.requestedTasks },
-		{ href: this.link('/calendar/'), label: text.calendar, icon: CalendarIcon, badgeCount: appBadgeCounts.participatingEvents },
-		{ href: this.link('/mail/'), label: text.mail, icon: MailIcon },
-		{ href: this.link('/attendance/'), label: text.attendance, icon: FlameIcon },
-		{ href: this.link('/organization/'), label: text.organization, icon: NetworkIcon },
-		{ href: this.link('/crm/'), label: text.crm, icon: HeartHandshakeIcon },
-		{ href: this.link('/data-room/'), label: text.dataRoom, icon: LibraryBigIcon }
+		{ href: this.link('/messenger/'), label: text.messenger, icon: appSectionIcons.messenger },
+		{ href: this.link('/task/'), label: text.task, icon: appSectionIcons.task, badgeCount: appBadgeCounts.requestedTasks },
+		{ href: this.link('/calendar/'), label: text.calendar, icon: appSectionIcons.calendar, badgeCount: appBadgeCounts.participatingEvents },
+		{ href: this.link('/mail/'), label: text.mail, icon: appSectionIcons.mail },
+		{ href: this.link('/attendance/'), label: text.attendance, icon: appSectionIcons.attendance },
+		{ href: this.link('/organization/'), label: text.organization, icon: appSectionIcons.organization },
+		{ href: this.link('/crm/'), label: text.crm, icon: appSectionIcons.crm },
+		{ href: this.link('/data-room/'), label: text.dataRoom, icon: appSectionIcons.dataRoom }
 	]);
 
 	workspace = $derived<AppRailItem[]>([
-		{ href: this.link('/memory/'), label: text.memory, icon: BrainIcon },
-		{ href: this.link('/files/'), label: text.files, icon: FolderOpenIcon },
+		{ href: this.link('/memory/'), label: text.memory, icon: appSectionIcons.memory },
+		{ href: this.link('/files/'), label: text.files, icon: appSectionIcons.files },
 		...(this.canViewTasks
 			? [
 					{ href: this.link('/runs/'), label: text.tasks, icon: ActivityIcon }
