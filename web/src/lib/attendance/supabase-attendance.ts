@@ -13,10 +13,10 @@ import {
 	attendanceBetween,
 	companyDirectory,
 	companySettings,
+	everyAttendanceOf,
 	leaveOf,
 	orderablePersonOf,
 	type RecordAttendance,
-	type RecordAttendanceList,
 	type RecordLeave,
 	type RecordLeaveList,
 	type RecordWorkLocation
@@ -115,10 +115,9 @@ export async function supabaseAttendanceTodaySummary(members: AttendanceMember[]
  const today = companyDateOf(new Date(), requester.timeZone);
  const personHints = members.map(member => member.memberID);
  const [attendance, leave] = await Promise.all([
-  invokeTool<RecordAttendanceList>('attendance_list', {personHints, from: shiftedDay(today, -1), to: today}),
+  everyAttendanceOf({personHints, from: shiftedDay(today, -1), to: today}),
   leaveOf({personHints, status:'approved', from:today, to:today})
  ]);
- if (attendance.count >= 20000) throw new Error('Today attendance exceeded the supported page');
  const emails = new Map(members.map(member => [member.memberID, member.email]));
  return {...requester, readScope:'person', month:today.slice(0,7), members,
   events:attendance.attendance.map(row => eventOf(row, emails.get(row.personID) ?? '', requester.timeZone)),
@@ -139,14 +138,13 @@ export async function supabaseAttendancePersonSummary(
 	const lastDay = lastDayOfMonth(month);
 	const personHints = [member.memberID];
 	const [attendance, leave] = await Promise.all([
-		invokeTool<RecordAttendanceList>('attendance_list', {
+		everyAttendanceOf({
 			personHints, from: shiftedDay(firstDay, -1), to: lastDay
 		}),
 		leaveOf({
 			personHints, status: 'approved', from: firstDay, to: lastDay
 		})
 	]);
-	if (attendance.count >= 20000) throw new Error('Attendance history exceeds the supported page; narrow the period');
 	const events = attendance.attendance.map((row) => eventOf(row, member.email, requester.timeZone));
 	return {
 		readScope: 'person',
