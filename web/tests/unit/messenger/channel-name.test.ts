@@ -11,8 +11,7 @@ const directory: MessengerDirectory = {
 	]),
 	memberOfExternal: new Map([['external-1', 'member-1']]),
 	externalsOfMember: new Map([['member-1', ['external-1']]]),
-	memberOfEmail: new Map(),
-		adminMemberIDs: new Set()
+	memberOfEmail: new Map()
 };
 
 // The reader holds an account on each messenger the company uses, and a
