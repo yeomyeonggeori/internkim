@@ -25,9 +25,6 @@ func (service *Service) handleDirectoryChanged(responseWriter http.ResponseWrite
 		service.nameEveryoneTheDirectoryNames(request.Context())
 	}
 	inTheBackgroundWithin(buzzDatabaseRequestBudget, service.showOutWhoeverLeftTheCompany)
-	inTheBackgroundWithin(buzzDatabaseSweepBudget, func(ctx context.Context) {
-		service.seatAdministratorsEverywhere(ctx, true)
-	})
 
 	// Answering 202 whatever happened is how somebody stayed unanswerable behind
 	// an invitation that reported success. Nobody got a key when nobody could:

@@ -6,6 +6,12 @@ import { MessengerAnswered } from './person-picture';
 import { reasonOf } from './failure';
 import { chatdRestartWaitMilliseconds, fetchWhenChatdListens } from './chatd-reach';
 import { channelOwnerAddCapability, seatedOwnerOf, type SeatedOwner } from './seated-owner';
+import {
+	channelCreateCapability,
+	createdChannelIDOf,
+	seatAdministratorsInCreatedChannel,
+	seatAdministratorsPath
+} from './channel-administrators';
 
 export type Call = {
 	callID?: string;
@@ -300,6 +306,12 @@ async function serveAsActor(
 		}
 		return sent;
 	}
+	if (capability === channelCreateCapability) {
+		const created = await dispatch.askChatd(channelCreateCapability, { ...body, actor });
+		const channelID = createdChannelIDOf(created);
+		if (channelID) void seatAdministratorsInCreatedChannel(administratorSeatingFor(dispatch, memberID), channelID);
+		return created;
+	}
 	if (capability === channelOwnerAddCapability) {
 		const added = await dispatch.askChatd(channelOwnerAddCapability, { ...body, actor });
 		const seated = seatedOwnerOf(body, added);
@@ -395,6 +407,20 @@ export function tellCallOf(body: Record<string, unknown>): AdmindCall | null {
 		requester: recipientEmail,
 		contentType: 'application/json',
 		body: JSON.stringify({ recipientEmail, message })
+	};
+}
+
+function administratorSeatingFor(dispatch: Dispatch, memberID: string) {
+	return {
+		emailOf: () => dispatch.emailOfMember(memberID),
+		ask: (requesterEmail: string, channelID: string) =>
+			dispatch.askAdmindAsRequester({
+				method: 'POST',
+				url: `${admindHost}${seatAdministratorsPath}`,
+				requester: requesterEmail,
+				contentType: 'application/json',
+				body: JSON.stringify({ channelID })
+			})
 	};
 }
 

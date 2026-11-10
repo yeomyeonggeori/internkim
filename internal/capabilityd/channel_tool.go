@@ -95,6 +95,7 @@ func (service Service) addChannel(ctx context.Context, request capabilities.Tool
 	if errorValue := service.askChatdAsTheRequester(ctx, "requester.channel.create", requesterPubkeyHex, fields, &created); errorValue != nil {
 		return channelChangeRefusedResponse(request.ToolName, errorValue), nil
 	}
+	service.seatAdministratorsInCreatedChannel(ctx, request.Context.RequesterEmail, created.ID)
 	return platformToolSuccessResponse(request.ToolName, "created", channelToolResult{
 		ChannelID:           created.ID,
 		ChannelName:         created.Name,

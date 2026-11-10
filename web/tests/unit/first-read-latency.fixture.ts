@@ -125,7 +125,7 @@ if (scenario === 'mail') {
 	let releaseEmoji = () => {};
 	let postsStarted = false;
 	let drawn = 0;
-	const directory = { nameOfMember: new Map(), nameOfExternal: new Map(), memberOfExternal: new Map(), externalsOfMember: new Map(), memberOfEmail: new Map(), adminMemberIDs: new Set() };
+	const directory = { nameOfMember: new Map(), nameOfExternal: new Map(), memberOfExternal: new Map(), externalsOfMember: new Map(), memberOfEmail: new Map() };
 	const people = new Promise<typeof directory>((resolve) => { releaseDirectory = () => resolve(directory); });
 	const emoji = new Promise<void>((resolve) => { releaseEmoji = resolve; });
 	mock.module('$lib/i18n/locale.svelte', () => ({ currentLocale: { value: 'en' } }));
@@ -219,7 +219,7 @@ if (scenario === 'mail') {
 			auth: { getSession: async () => ({ data: { session } }), onAuthStateChange: (listener: typeof authChanged) => { authChanged = listener; return {}; } },
 			from: (table: string) => {
 				const name = session?.user.id ?? '';
-				const query = { select: () => query, neq: () => query, returns: async () => ({ error: null, data: table === 'member' ? [{ id: 'member', name, email: 'sample@example.com', messenger: null, is_admin: false }] : [] }) };
+				const query = { select: () => query, neq: () => query, returns: async () => ({ error: null, data: table === 'member' ? [{ id: 'member', name, email: 'sample@example.com', messenger: null }] : [] }) };
 				return query;
 			}
 		})
