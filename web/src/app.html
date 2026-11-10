@@ -77,7 +77,15 @@
 				video.addEventListener('ended', leave, { once: true });
 				video.addEventListener('error', leave, { once: true });
 				video.play().catch(leave);
-				setTimeout(leave, 5000);
+				let giveUp = setTimeout(leave, 5000);
+				video.addEventListener(
+					'playing',
+					() => {
+						clearTimeout(giveUp);
+						giveUp = setTimeout(leave, (video.duration - video.currentTime) * 1000 + 2000);
+					},
+					{ once: true }
+				);
 			})();
 		</script>
 		<div style="display: contents">%sveltekit.body%</div>
