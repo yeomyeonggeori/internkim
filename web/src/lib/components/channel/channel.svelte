@@ -874,7 +874,11 @@
 			{#if (message.reactions ?? []).length > 0}{@render ownReactions(message, openPicker)}{/if}
 			{#if replyChip}{@render threadChip(message, replyChip)}{/if}
 			{#if isUnsent}
-				<FailedMessageActions onRetry={() => void sendAgain(message.id)} onDiscard={() => outgoing.discard(message.id)} />
+				<FailedMessageActions
+					isTooLarge={outgoing.isTooLarge(message.id)}
+					onRetry={() => void sendAgain(message.id)}
+					onDiscard={() => outgoing.discard(message.id)}
+				/>
 			{/if}
 		{/snippet}
 	</MessageRow>
