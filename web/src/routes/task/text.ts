@@ -210,7 +210,9 @@ export const taskText = {
 				loading: '로드맵을 준비하고 있습니다'
 			},
 			board: {
-				addTask: '{status} 업무 추가'
+				addTask: '{status} 업무 추가',
+				addTaskShort: '업무 추가',
+				taskCount: '업무 {count}개'
 			}
 		},
 		table: {
@@ -477,7 +479,9 @@ export const taskText = {
 				loading: 'Preparing the roadmap'
 			},
 			board: {
-				addTask: 'Add {status} task'
+				addTask: 'Add {status} task',
+				addTaskShort: 'Add task',
+				taskCount: 'Tasks: {count}'
 			}
 		},
 		table: {
