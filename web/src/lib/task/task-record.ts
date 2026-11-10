@@ -76,7 +76,7 @@ export function addTask(written: WrittenTask & { parentTaskHint?: string; childT
 	return invokeTool<RecordTask>('task_add', written).then(afterTaskWrite);
 }
 
-export function updateTask(taskID: string, written: Partial<WrittenTask>): Promise<RecordTask> {
+export function updateTask(taskID: string, written: Partial<WrittenTask> & { completeChildren?: boolean }): Promise<RecordTask> {
 	clearStoredTaskSnapshot();
 	return invokeTool<RecordTask>('task_update', { taskHint: taskID, ...written }).then(afterTaskWrite);
 }

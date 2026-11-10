@@ -94,7 +94,7 @@ export function saveTask(
 }
 
 export function moveTaskOnBoard(request: TaskBoardMoveRequest): Promise<void> {
-	return moveTask(request.taskID, request.targetStatus);
+	return moveTask(request.taskID, request.targetStatus, request.completeChildren);
 }
 
 export function deleteTask(taskID: string): Promise<void> {

@@ -3,12 +3,21 @@ import { createTaskBoardMove, type TaskBoardMoveRequest } from './task-board-dra
 import { saveTaskBoardMove } from './task-board-save';
 import type { LoadTask } from './task-load-tracker';
 import { isTaskStatusCompleted, isTaskStatusRequested } from './task-status';
+import { buildTaskChildProgressByParent } from './task-relationships';
 import { canUpdateTask } from './task-workspace-model';
 import { taskText } from './text';
-import type { TaskSummary } from './task-types';
+import type { Task, TaskSummary } from './task-types';
 import type { PageText } from '$lib/i18n/page-text.svelte';
 
 type TaskPageText = PageText<typeof taskText>;
+
+export type ChildCompletionChoice = 'with_children' | 'alone' | 'cancelled';
+
+export type ChildCompletionQuestion = {
+	taskTitle: string;
+	unfinishedChildren: number;
+	answer: (choice: ChildCompletionChoice) => void;
+};
 
 type TaskBoardControllerInput = {
 	text: TaskPageText;
@@ -23,6 +32,7 @@ type TaskBoardControllerInput = {
 
 export class TaskBoardController {
 	pendingTaskIDs = $state<string[]>([]);
+	childCompletionQuestion = $state<ChildCompletionQuestion | null>(null);
 
 	private text: TaskPageText = taskText.ko;
 	private loadTask: LoadTask;
@@ -53,14 +63,21 @@ export class TaskBoardController {
 	};
 
 	moveTaskOnBoard = async (request: TaskBoardMoveRequest): Promise<void> => {
-		const summary = this.getSummary();
-		if (!summary || this.pendingTaskIDs.length > 0) return;
-		const task = summary.tasks.find((candidate) => candidate.id === request.taskID);
-		if (!task || !canUpdateTask(task)) return;
-		if (isTaskStatusRequested(request.targetStatus) && !task.requesterID) {
+		const asked = this.getSummary();
+		if (!asked || this.pendingTaskIDs.length > 0 || this.childCompletionQuestion) return;
+		const askedTask = asked.tasks.find((candidate) => candidate.id === request.taskID);
+		if (!askedTask || !canUpdateTask(askedTask)) return;
+		if (isTaskStatusRequested(request.targetStatus) && !askedTask.requesterID) {
 			this.announceMoveFailure(this.text.task.requestNeedsRequester);
 			return;
 		}
+		const completeChildren = await this.whetherChildrenComplete(askedTask, request.targetStatus, asked);
+		if (completeChildren === null) return;
+
+		const summary = this.getSummary();
+		if (!summary || this.pendingTaskIDs.length > 0) return;
+		const task = summary.tasks.find((candidate) => candidate.id === request.taskID);
+		if (!task) return;
 		const move = createTaskBoardMove(summary.tasks, request);
 		if (!move) return;
 
@@ -72,7 +89,7 @@ export class TaskBoardController {
 
 		try {
 			const saveResult = await saveTaskBoardMove({
-				request,
+				request: { ...request, completeChildren },
 				week,
 				currentWeek: this.currentWeek,
 				loadTask: this.loadTask,
@@ -99,4 +116,21 @@ export class TaskBoardController {
 	};
 
 	isTaskPending = (taskID: string): boolean => this.pendingTaskIDs.includes(taskID);
+
+	private async whetherChildrenComplete(task: Task, targetStatus: string, summary: TaskSummary): Promise<boolean | null> {
+		if (!isTaskStatusCompleted(targetStatus)) return false;
+		const unfinishedChildren = unfinishedChildrenOf(task, summary);
+		if (unfinishedChildren === 0) return false;
+		const choice = await new Promise<ChildCompletionChoice>((answer) => {
+			this.childCompletionQuestion = { taskTitle: task.content, unfinishedChildren, answer };
+		});
+		this.childCompletionQuestion = null;
+		if (choice === 'cancelled') return null;
+		return choice === 'with_children';
+	}
+}
+
+function unfinishedChildrenOf(task: Task, summary: TaskSummary): number {
+	const progress = summary.childProgressByParent?.[task.id] ?? buildTaskChildProgressByParent(summary.tasks).get(task.id);
+	return progress ? progress.total - progress.completed : 0;
 }
