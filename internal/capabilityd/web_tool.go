@@ -12,6 +12,7 @@ import (
 	"strings"
 
 	"github.com/yeomyeonggeori/internkim/internal/capabilities"
+	"github.com/yeomyeonggeori/internkim/internal/llmbackend"
 )
 
 type webSearchInput struct {
@@ -38,7 +39,7 @@ func (service Service) invokeWebTool(ctx context.Context, request capabilities.T
 	if strings.TrimSpace(apiKey) == "" || isPlaceholderOpenRouterKey(apiKey) {
 		return webToolErrorResponse(request.ToolName, "OpenRouter API key is not configured", "missing_openrouter_key", false), nil
 	}
-	result, errorValue := service.invokeOpenRouterWebTool(ctx, request, apiKey)
+	result, errorValue := service.invokeOpenRouterWebTool(llmbackend.ContextWithRequesterEmail(ctx, request.Context.RequesterEmail), request, apiKey)
 	if errorValue != nil {
 		return webToolErrorResponse(request.ToolName, errorValue.Error(), "openrouter_web_tool_failed", true), nil
 	}
@@ -230,6 +231,7 @@ func (service Service) sendOpenRouterWebRequest(ctx context.Context, apiKey stri
 	}
 	httpRequest.Header.Set("Authorization", "Bearer "+apiKey)
 	httpRequest.Header.Set("Content-Type", "application/json")
+	service.nameRequesterToTheGateway(httpRequest)
 	httpResponse, errorValue := service.httpClient().Do(httpRequest)
 	if errorValue != nil {
 		return nil, errorValue
