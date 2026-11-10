@@ -4,6 +4,7 @@
 	import { LightSwitch } from '$lib/components/ui/light-switch';
 	import { currentLocale, localeOptions, setLocale } from '$lib/i18n/locale.svelte';
 	import { createPageText } from '$lib/i18n/page-text.svelte';
+	import GithubMark from './github-mark.svelte';
 	import { docsURL, repositoryURL, signInPath } from './links';
 	import { landingText } from './text';
 
@@ -21,7 +22,7 @@
 			{text.brand}
 		</a>
 		<Button variant="ghost" size="sm" href={docsURL(currentLocale.value)} class="max-sm:hidden">{text.navigation.docs}</Button>
-		<Button variant="ghost" size="sm" href={repositoryURL} class="max-sm:hidden">{text.navigation.github}</Button>
+		<Button variant="ghost" size="icon-sm" href={repositoryURL} aria-label={text.navigation.github}><GithubMark /></Button>
 		<LanguageSwitcher
 			variant="ghost"
 			languages={localeOptions.map((option) => ({ code: option.value, label: option.label }))}

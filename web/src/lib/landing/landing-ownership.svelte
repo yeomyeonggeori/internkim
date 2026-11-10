@@ -6,6 +6,7 @@
 	import * as Card from '$lib/components/ui/card';
 	import * as Table from '$lib/components/ui/table';
 	import { createPageText } from '$lib/i18n/page-text.svelte';
+	import GithubMark from './github-mark.svelte';
 	import { repositoryURL } from './links';
 	import { landingText } from './text';
 
@@ -49,6 +50,6 @@
 				</li>
 			{/each}
 		</ul>
-		<a href={repositoryURL} class="w-fit text-sm font-medium underline-offset-4 hover:underline">{text.ownership.source} →</a>
+		<a href={repositoryURL} class="flex w-fit items-center gap-2 text-sm font-medium underline-offset-4 hover:underline"><GithubMark />{text.ownership.source} →</a>
 	</div>
 </div>

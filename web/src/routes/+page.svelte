@@ -10,6 +10,7 @@
 	import { createPageText } from '$lib/i18n/page-text.svelte';
 	import LandingDay from '$lib/landing/landing-day.svelte';
 	import LandingDemo from '$lib/landing/landing-demo.svelte';
+	import GithubMark from '$lib/landing/github-mark.svelte';
 	import LandingHeader from '$lib/landing/landing-header.svelte';
 	import LandingInvestors from '$lib/landing/landing-investors.svelte';
 	import LandingOwnership from '$lib/landing/landing-ownership.svelte';
@@ -102,7 +103,9 @@
 					</Card.Content>
 				</Card.Root>
 				<Card.Root class="gap-0 overflow-hidden py-0 md:grid md:grid-cols-2">
-					<img src="/landing/kim-mini.webp" alt={text.plans.run.kimMini} width="1440" height="990" loading="lazy" class="aspect-[16/11] h-full w-full object-cover max-md:border-b md:border-r" />
+					<div class="max-md:border-b md:border-r">
+						<img src="/landing/kim-mini.webp" alt={text.plans.run.kimMini} width="1440" height="990" loading="lazy" class="aspect-[16/11] h-full w-full object-cover" />
+					</div>
 					<div class="grid content-start gap-6 py-6">
 						<Card.Header><Card.Title class="text-lg">{text.plans.run.title}</Card.Title></Card.Header>
 						<Card.Content class="grid gap-4">
@@ -139,7 +142,7 @@
 		<div class="text-muted-foreground mx-auto flex w-full max-w-6xl flex-wrap items-center gap-x-6 gap-y-2 px-4 py-8 text-sm sm:px-6">
 			<a href={makerURL} class="hover:text-foreground mr-auto">© {new Date().getFullYear()} {text.footer.owner}. {text.footer.rights}</a>
 			<a href={docsURL(currentLocale.value)} class="hover:text-foreground">{text.navigation.docs}</a>
-			<a href={repositoryURL} class="hover:text-foreground">{text.navigation.github}</a>
+			<a href={repositoryURL} class="hover:text-foreground flex items-center gap-1.5"><GithubMark class="size-3.5" />{text.navigation.github}</a>
 			<span>{text.footer.license}</span>
 		</div>
 	</footer>
