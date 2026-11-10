@@ -55,6 +55,7 @@
 	import ChannelAttachmentGroup from './channel-attachment-group.svelte';
 	import { messageActionsFor } from './channel-message-actions';
 	import type { MentionPerson } from '$lib/messenger/mention-candidates';
+	import type { DraftMentions } from '$lib/messenger/mention-draft';
 	import { latestSentAtOf } from '$lib/messenger/conversation-read-marker';
 	import { mentionLabelsOf } from '$lib/messenger/mention-picker.svelte';
 	import { activityLabel } from '$lib/messenger/typing-signal';
@@ -625,8 +626,15 @@
 		scheduleRefresh();
 	});
 
-	async function saveInlineEdit(messageID: string, originalText: string, editedText: string): Promise<void> {
-		const outcome = await saveEditing(messageID, originalText, editedText, messageActions.saveEdit);
+	async function saveInlineEdit(
+		messageID: string,
+		originalText: string,
+		editedText: string,
+		mentions: DraftMentions
+	): Promise<void> {
+		const outcome = await saveEditing(messageID, originalText, editedText, (id, text) =>
+			messageActions.saveEdit(id, text, mentions)
+		);
 		if (outcome !== 'failed') editingMessageID = '';
 	}
 
@@ -697,7 +705,10 @@
 	{:else if bodyText && message.id === editingMessageID}
 		<MessageInlineEditor
 			originalText={bodyText}
-			onSave={(editedText) => saveInlineEdit(message.id, bodyText, editedText)}
+			originalMentions={message.mentions}
+			{participants}
+			{isGroup}
+			onSave={(editedText, mentions) => saveInlineEdit(message.id, bodyText, editedText, mentions)}
 			onCancel={() => (editingMessageID = '')}
 		/>
 	{:else if bodyText}

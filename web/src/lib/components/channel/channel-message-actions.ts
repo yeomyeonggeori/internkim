@@ -9,6 +9,7 @@ import {
 	deleteChannelMessage,
 	editChannelMessage,
 	removeChannelReaction,
+	type ChannelMentions,
 	type ChannelMessage,
 	type ChannelMessageReaction,
 	type ChannelParticipant
@@ -47,7 +48,7 @@ export type MessageActions = {
 	toggleReaction: (message: ChannelMessage, reaction: ChannelMessageReaction) => Promise<void>;
 	copy: (wanted: MessageCopy) => Promise<void>;
 	askToDelete: (message: ChannelMessage) => void;
-	saveEdit: (messageID: string, text: string) => Promise<boolean>;
+	saveEdit: (messageID: string, text: string, mentions?: ChannelMentions) => Promise<boolean>;
 };
 
 export function messageActionsFor(host: MessageActionHost): MessageActions {
@@ -105,9 +106,9 @@ export function messageActionsFor(host: MessageActionHost): MessageActions {
 			if (outcome === 'success') toast.success(text.messageCopied);
 			else toast.error(text.copyFailed);
 		},
-		async saveEdit(messageID, text) {
+		async saveEdit(messageID, text, mentions) {
 			try {
-				await editChannelMessage(messageID, text, host.channelID());
+				await editChannelMessage(messageID, text, host.channelID(), mentions);
 			} catch (failure) {
 				console.warn('the messenger did not take the edit', failure);
 				toast.error(host.text().editMessageFailed);
