@@ -368,9 +368,14 @@ export async function bridgeSendMessage(
 	await writePost(channelID, text, replyToRootID, kept, mentions);
 }
 
-export async function bridgeEditMessage(channelID: string | undefined, messageID: string, text: string): Promise<void> {
+export async function bridgeEditMessage(
+	channelID: string | undefined,
+	messageID: string,
+	text: string,
+	mentions?: Mentions
+): Promise<void> {
 	if (!channelID) throw new Error('choose a conversation first');
-	await editPost(channelID, messageID, text);
+	await editPost(channelID, messageID, text, mentions);
 }
 
 export async function bridgeDeleteMessage(channelID: string | undefined, messageID: string): Promise<void> {

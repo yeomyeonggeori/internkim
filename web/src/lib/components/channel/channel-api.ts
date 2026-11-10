@@ -314,9 +314,14 @@ export function canChangeMessages(): boolean {
 	return isSupabaseConfigured();
 }
 
-export async function editChannelMessage(messageID: string, text: string, channelID?: string): Promise<void> {
+export async function editChannelMessage(
+	messageID: string,
+	text: string,
+	channelID?: string,
+	mentions?: ChannelMentions
+): Promise<void> {
 	if (!isSupabaseConfigured()) throw new Error('this messenger cannot change a message here');
-	await bridgeEditMessage(channelID, messageID, text);
+	await bridgeEditMessage(channelID, messageID, text, mentions);
 }
 
 export async function deleteChannelMessage(messageID: string, channelID?: string): Promise<void> {
