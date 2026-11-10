@@ -392,6 +392,60 @@ describe('an owner the app adds to a channel', () => {
 	});
 });
 
+describe('administrators of a channel a member opens', () => {
+	function createAnswered(answer: { status: number; body: unknown }) {
+		const fake = dispatchThatKnows({});
+		const dispatch = {
+			...fake.dispatch,
+			askChatd: async (capability: string, body: Record<string, unknown>) => {
+				fake.asked.push({ capability, body });
+				return answer;
+			}
+		};
+		return { ...fake, dispatch };
+	}
+
+	function settled(): Promise<void> {
+		return new Promise((resolve) => setTimeout(resolve, 0));
+	}
+
+	test('are seated by admind in the channel the messenger opened, as the member who opened it', async () => {
+		const { dispatch, admindCalls } = createAnswered({ status: 200, body: { id: 'channel-new', name: 'sample' } });
+
+		const served = await serveCallForMember(
+			dispatch,
+			{ callID: 'c1', capability: 'person.channel.create', body: { name: 'sample', visibility: 'open' } },
+			'member-1'
+		);
+		await settled();
+
+		expect(served).toEqual({ status: 200, body: { id: 'channel-new', name: 'sample' }, replyTo: 'member-1' });
+		expect(admindCalls).toEqual([
+			{
+				method: 'POST',
+				url: 'http://internkim/agent/api/buzz-seat-admins',
+				requester: 'sample@example.test',
+				contentType: 'application/json',
+				body: JSON.stringify({ channelID: 'channel-new' })
+			}
+		]);
+	});
+
+	test('are seated nowhere when the messenger refused to open the channel', async () => {
+		const { dispatch, admindCalls } = createAnswered({ status: 403, body: { error: 'refused' } });
+
+		const served = await serveCallForMember(
+			dispatch,
+			{ callID: 'c1', capability: 'person.channel.create', body: { name: 'sample', visibility: 'open' } },
+			'member-1'
+		);
+		await settled();
+
+		expect(served.status).toBe(403);
+		expect(admindCalls).toEqual([]);
+	});
+});
+
 describe('a file moving between a browser and this machine', () => {
 	test('is prepared for reading as the member who asked, with their own messenger credential', async () => {
 		const { dispatch, transfers } = dispatchThatKnows({});

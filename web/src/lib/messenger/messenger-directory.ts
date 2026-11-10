@@ -10,7 +10,6 @@ export type MessengerDirectory = {
 	memberOfExternal: Map<string, string>;
 	externalsOfMember: Map<string, string[]>;
 	memberOfEmail: Map<string, string>;
-	adminMemberIDs: Set<string>;
 };
 
 type ContactRow = { name: string; messenger: Record<string, string> | null };
@@ -19,7 +18,6 @@ type MemberRow = {
 	name: string | null;
 	email: string | null;
 	messenger: Record<string, string> | null;
-	is_admin: boolean;
 };
 
 let loading: { key: string; generation: number; value: Promise<MessengerDirectory> } | null = null;
@@ -54,7 +52,7 @@ async function readMessengerDirectory(): Promise<MessengerDirectory> {
 	const client = supabase();
 
 	const [members, people] = await Promise.all([
-		client.from('member').select('id, name, email, messenger, is_admin').neq('status', 'withdrawn').returns<MemberRow[]>(),
+		client.from('member').select('id, name, email, messenger').neq('status', 'withdrawn').returns<MemberRow[]>(),
 		client.from('contact').select('name, messenger').returns<ContactRow[]>()
 	]);
 	if (members.error) throw new Error(members.error.message);
@@ -79,8 +77,7 @@ async function readMessengerDirectory(): Promise<MessengerDirectory> {
 		externalsOfMember: externalsByMember(accounts),
 		memberOfEmail: new Map(
 			members.data.filter((member) => member.email).map((member) => [(member.email as string).toLowerCase(), member.id])
-		),
-		adminMemberIDs: new Set(members.data.filter((member) => member.is_admin).map((member) => member.id))
+		)
 	};
 }
 
