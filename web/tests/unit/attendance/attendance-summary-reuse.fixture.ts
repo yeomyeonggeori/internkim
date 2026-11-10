@@ -15,7 +15,7 @@ const snapshot: AttendanceSummaryRecords = {
 	},
 	attendance: {
 		from: '2026-07-31', to: '2026-08-31', serverTime: '2026-08-20T00:00:00Z',
-		backdatedAfterMinutes: 60, count: 1,
+		backdatedAfterMinutes: 60, count: 1, totalCount: 1,
 		attendance: [{
 			eventID: 'clock-one', personID: 'member-one', person: '이샘플', kind: 'clock_in',
 			date: '2026-08-20', time: '09:00', occurredAt: '2026-08-20T00:00:00Z', location: null,
@@ -76,7 +76,7 @@ describe('attendance summary record reuse', () => {
 			{ period: 'week', anchor: '2026-08-31' }, { period: 'month', anchor: '2026-08-31' }
 		], snapshot);
 		expect(asked.find((call) => call.name === 'attendance_list')?.input).toEqual({
-			scope: 'all', from: '2026-07-31', to: '2026-09-06'
+			scope: 'all', from: '2026-07-31', to: '2026-09-06', limit: 100
 		});
 		expect(asked.find((call) => call.name === 'leave_list')?.input).toEqual({
 			scope: 'all', status: 'approved', from: '2026-08-01', to: '2026-09-06', limit: 100

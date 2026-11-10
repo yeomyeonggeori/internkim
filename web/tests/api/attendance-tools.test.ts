@@ -78,6 +78,7 @@ function resultOf(answer: { body: unknown }): Record<string, unknown> {
 }
 
 type AnsweredRecord = {
+	occurredAt: string;
 	eventID: string;
 	person: string;
 	time: string;
@@ -410,9 +411,79 @@ describe('compatible dashboard and change pages', () => {
   const refused=await asSample('attendance_changes_page_get',{scope:'all',handWrittenOnly:true,pageOffset:0});
   expect(refused.status).toBe(403);
   const legacy=resultOf(await asAdmin('attendance_list',{scope:'all',handWrittenOnly:true,from:dayShiftedBy(-2),to:dayShiftedBy(-2)}));
-  expect(legacy).not.toHaveProperty('totalCount');
+  expect(legacy).not.toHaveProperty('pageOffset');
+  expect(legacy).not.toHaveProperty('pageLimit');
   const old=(legacy.attendance as Record<string,unknown>[]).find(record=>record.eventID===eventID);
   expect(old).toBeDefined();
   expect(old).not.toHaveProperty('changedByID');
  });
+});
+
+describe('attendance_list pages', () => {
+	const seeded = 121;
+	let pagedIDs: string[] = [];
+	let seededIDs: string[] = [];
+
+	beforeAll(async () => {
+		pagedIDs = [
+			await addMember(client, companyID, `${slug}-paged-one@example.test`),
+			await addMember(client, companyID, `${slug}-paged-two@example.test`)
+		];
+		const firstMoment = Date.parse(`${dayShiftedBy(-20)}T09:00:00+09:00`);
+		const rows = Array.from({ length: seeded }, (_, index) => {
+			const turn = Math.floor(index / 2);
+			return {
+				id: crypto.randomUUID(),
+				member_id: pagedIDs[index % 2],
+				kind: turn % 2 ? 'clock_out' : 'clock_in',
+				occurred_at: new Date(firstMoment + turn * 60 * 60 * 1000).toISOString(),
+				location: turn % 2 ? null : '사무실'
+			};
+		});
+		const { error } = await client.from('attendance').insert(rows);
+		if (error) throw error;
+		seededIDs = rows.map((row) => row.id);
+	}, networkHookTimeout);
+
+	test('walks from the newest page back, each page in time order, with nothing missed or repeated', async () => {
+		const pages: { attendance: AnsweredRecord[]; totalCount: number; nextCursor?: string }[] = [];
+		let cursor: string | undefined;
+		do {
+			const answered = await asAdmin('attendance_list', { personHints: pagedIDs, from: dayShiftedBy(-25), limit: 50, ...(cursor ? { cursor } : {}) });
+			expect(answered.status).toBe(200);
+			const page = resultOf(answered) as unknown as (typeof pages)[number];
+			pages.push(page);
+			cursor = page.nextCursor;
+		} while (cursor);
+
+		expect(pages.map((page) => page.attendance.length)).toEqual([50, 50, 21]);
+		expect(pages.every((page) => page.totalCount === seeded)).toBe(true);
+		for (const page of pages) {
+			const moments = page.attendance.map((record) => record.occurredAt);
+			expect(moments).toEqual(moments.toSorted());
+		}
+		const inTimeOrder = pages.toReversed().flatMap((page) => page.attendance);
+		expect(new Set(inTimeOrder.map((record) => record.eventID)).size).toBe(seeded);
+		expect(inTimeOrder.map((record) => record.eventID).toSorted()).toEqual(seededIDs.toSorted());
+		const moments = inTimeOrder.map((record) => record.occurredAt);
+		expect(moments).toEqual(moments.toSorted());
+	});
+
+	test('answers fifty records by default and says more remain', async () => {
+		const page = resultOf(await asAdmin('attendance_list', { personHints: pagedIDs, from: dayShiftedBy(-25) }));
+		expect(page.count).toBe(50);
+		expect(page.totalCount).toBe(seeded);
+		expect(typeof page.nextCursor).toBe('string');
+	});
+
+	test('counts only the records written by hand when asked for them', async () => {
+		const page = resultOf(await asAdmin('attendance_list', { personHints: pagedIDs, from: dayShiftedBy(-25), handWrittenOnly: true }));
+		expect(page.totalCount).toBe(0);
+		expect(page.nextCursor).toBeUndefined();
+	});
+
+	test('refuses a cursor no attendance_list page gave', async () => {
+		const answered = await asAdmin('attendance_list', { personHints: pagedIDs, cursor: 'not-a-cursor' });
+		expect(answered.status).toBe(400);
+	});
 });
