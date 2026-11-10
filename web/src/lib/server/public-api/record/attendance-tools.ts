@@ -1,6 +1,7 @@
 import { attendanceChangeReasonText, type AttendanceChangeReason } from '$lib/attendance/change-reason';
 import { dayIn, dayOfInstant, dayShifted, instantOfDay } from './days';
 import { personName } from '$lib/person-name';
+import { attendancePage } from './attendance-page';
 import { personOfHint } from './people';
 import { ownerNamedBy, whoseRecords, whoseRecordsHolds } from './whose';
 import { statusOfPostgresCode, RecordRefusedTheWrite } from './tasks';
@@ -9,7 +10,6 @@ import {
 	attendanceByID,
 	attendanceClock,
 	attendanceOfCompany,
-	attendanceWrittenByHand,
 	timeOfInstant,
 	NoSuchAttendanceRecord,
 	type AttendanceRow
@@ -128,6 +128,7 @@ export type AttendanceListInput = {
 	handWrittenOnly?: boolean;
     pageOffset?: number; pageLimit?: number; teamSearch?: string; changedBySearch?: string; selectedTeamKey?: string; selectedChangedByID?: string;
 	limit?: number;
+	cursor?: string;
 };
 
 export async function attendanceList(context: RecordContext, input: AttendanceListInput) {
@@ -143,25 +144,28 @@ export async function attendanceList(context: RecordContext, input: AttendanceLi
         return {scope:'everyone', personID:null, personName:'', from:window.firstDay, to:window.lastDay, serverTime, backdatedAfterMinutes, count:page.attendance.length, ...page};
     }
 
-	const [found, serverTime, backdatedAfterMinutes] = await Promise.all([
-		rowsInWindow(context, input.personHints, input.scope, input.from, input.to),
+	const window = windowOf(context, input.from, input.to);
+	const whose = whoseRecords(context.people, input.personHints, input.scope, context.requesterID);
+	const memberID = ownerNamedBy(whose) || null;
+	const [page, serverTime, backdatedAfterMinutes] = await Promise.all([
+		attendancePage(context.caller, { whose, from: window.from, to: window.to, handWrittenOnly: input.handWrittenOnly === true }, input),
 		attendanceClock(context.caller),
 		attendanceBackdatedAfterMinutes(context.caller)
 	]);
-	const written = input.handWrittenOnly ? attendanceWrittenByHand(found.rows) : found.rows;
-	const kept = input.limit && input.limit > 0 ? written.slice(-input.limit) : written;
 	return {
-		scope: found.memberID ? 'person' : 'everyone',
-		personID: found.memberID,
-		personName: found.memberID
-			? personName(context.people.find((one) => one.personID === found.memberID)?.name ?? '', context.locale)
+		scope: memberID ? 'person' : 'everyone',
+		personID: memberID,
+		personName: memberID
+			? personName(context.people.find((one) => one.personID === memberID)?.name ?? '', context.locale)
 			: '',
-		from: found.firstDay,
-		to: found.lastDay,
+		from: window.firstDay,
+		to: window.lastDay,
 		serverTime,
 		backdatedAfterMinutes,
-		count: kept.length,
-		attendance: kept.map((row) => answeredAttendance(context, row))
+		count: page.items.length,
+		attendance: page.items.map((row) => answeredAttendance(context, row)),
+		totalCount: page.totalCount,
+		...(page.nextCursor ? { nextCursor: page.nextCursor } : {})
 	};
 }
 

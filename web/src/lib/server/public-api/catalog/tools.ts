@@ -1297,7 +1297,8 @@ export const attendanceListInputSchema = z.strictObject({
   selectedTeamKey: z.string().max(100).optional(),
   selectedChangedByID: z.string().uuid().optional(),
   handWrittenOnly: z.boolean().describe('Keep only the records somebody wrote or changed by hand, and drop the ones clocked live. A hand-written record carries the reason it was written, or the moment it was moved from, or both; a live clock carries neither. Use it for "what has been written by hand this month" or to review what an administrator entered for somebody. Omit for every record in the window.').optional(),
-  limit: z.number().describe('Maximum number of rows to return.').optional(),
+  limit: listLimitSchema('attendance records').optional(),
+  cursor: listCursorSchema('attendance_list').optional(),
 });
 
 export const attendanceAddInputSchema = z.strictObject({
@@ -1412,6 +1413,8 @@ export const legacyAttendanceListResultSchema = z.object({
   backdatedAfterMinutes: z.number().int(),
   count: z.number().int(),
   attendance: z.array(legacyAttendanceResultSchema),
+  totalCount: listTotalCountSchema('attendance records'),
+  nextCursor: listNextCursorSchema('attendance records').optional(),
 });
 
 export const attendanceWriteResultSchema = z.strictObject({
@@ -2063,8 +2066,8 @@ const attendanceToolDefinitions: CapabilityToolDefinition[] = [
     answeredBy: CapabilityAnsweredBy.Record,
     privacyClass: 'workspace_attendance',
     policyResource: 'tool:attendance_list',
-    description: "List clock-ins and clock-outs as the record holds them. Use this to answer 'when did I come in', 'was anybody late this week', or to find the record another attendance tool is about to correct. Dates are yyyy-mm-dd and times are 24-hour HH:MM, both in the company time zone. Without from and to it covers the last thirty days. It reads the requester's own attendance unless personHints names other people or scope is all. Each row says whether it was written by hand: reason is what the writer gave, and originalDate with originalTime are the moment it was moved from, both null when it was never moved. handWrittenOnly keeps those rows alone. serverTime is the record's own clock, which is the one to compare a moment against rather than the caller's; backdatedAfterMinutes is how far into the past a moment has to be before writing it counts as writing after the fact.",
-    version: '3',
+    description: "List clock-ins and clock-outs as the record holds them. Use this to answer 'when did I come in', 'was anybody late this week', or to find the record another attendance tool is about to correct. Dates are yyyy-mm-dd and times are 24-hour HH:MM, both in the company time zone. Without from and to it covers the last thirty days. Each page is the newest records not yet shown, listed oldest first, and nextCursor reaches the older ones: while it is present, the records shown are not all the window holds. It reads the requester's own attendance unless personHints names other people or scope is all. Each row says whether it was written by hand: reason is what the writer gave, and originalDate with originalTime are the moment it was moved from, both null when it was never moved. handWrittenOnly keeps those rows alone. serverTime is the record's own clock, which is the one to compare a moment against rather than the caller's; backdatedAfterMinutes is how far into the past a moment has to be before writing it counts as writing after the fact.",
+    version: '4',
     estimatedLatency: CapabilityEstimatedLatency.Low,
     inputSchema: attendanceListInputSchema,
     result: { schema: legacyAttendanceListResultSchema, effects: [] },
