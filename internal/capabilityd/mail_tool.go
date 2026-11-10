@@ -166,9 +166,6 @@ func decodeMailMessageListInput(document json.RawMessage) (mailMessageListInput,
 	if input.Limit == 0 {
 		input.Limit = 20
 	}
-	if input.Limit < 1 || input.Limit > 50 {
-		return mailMessageListInput{}, fmt.Errorf("limit must be between 1 and 50")
-	}
 	return input, nil
 }
 

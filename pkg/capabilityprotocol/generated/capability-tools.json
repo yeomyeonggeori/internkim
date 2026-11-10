@@ -37752,9 +37752,9 @@
             "type": "string"
           },
           "limit": {
-            "description": "Maximum number of messages to return. Defaults to 20.",
-            "maximum": 9007199254740991,
-            "minimum": -9007199254740991,
+            "description": "Maximum number of messages to return, at most 50. Defaults to 20.",
+            "maximum": 50,
+            "minimum": 1,
             "type": "integer"
           },
           "mailbox": {
@@ -38347,9 +38347,9 @@
             "type": "string"
           },
           "limit": {
-            "description": "Maximum number of matching messages to return. Defaults to 20.",
-            "maximum": 9007199254740991,
-            "minimum": -9007199254740991,
+            "description": "Maximum number of matching messages to return, at most 50. Defaults to 20.",
+            "maximum": 50,
+            "minimum": 1,
             "type": "integer"
           },
           "mailbox": {

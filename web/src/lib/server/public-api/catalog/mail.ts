@@ -19,7 +19,7 @@ const mailMailboxListInputSchema = z.strictObject({});
 
 const mailMessageListInputSchema = z.strictObject({
   cursor: z.string().describe("Pagination cursor from a previous list response. Omit on the first call.").optional(),
-  limit: z.int().describe("Maximum number of messages to return. Defaults to 20.").optional(),
+  limit: z.int().min(1).max(50).describe("Maximum number of messages to return, at most 50. Defaults to 20.").optional(),
   mailbox: z.string().describe("IMAP mailbox folder to list, e.g. 'INBOX', 'Sent', 'Archive'. Defaults to INBOX when omitted.").optional(),
 });
 
@@ -47,7 +47,7 @@ const mailMessageReadInputSchema = z.strictObject({
 
 const mailMessageSearchInputSchema = z.strictObject({
   cursor: z.string().describe("Pagination cursor from a previous search response. Omit on the first call.").optional(),
-  limit: z.int().describe("Maximum number of matching messages to return. Defaults to 20.").optional(),
+  limit: z.int().min(1).max(50).describe("Maximum number of matching messages to return, at most 50. Defaults to 20.").optional(),
   mailbox: z.string().describe("IMAP mailbox folder to search, e.g. 'INBOX'. Defaults to all folders when omitted.").optional(),
   query: z.string().describe("Search terms matched against subject, sender, and body, e.g. 'invoice Q2 2026'. Required."),
 });
