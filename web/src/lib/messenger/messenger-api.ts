@@ -6,6 +6,7 @@ import {
 	type TransferProgress
 } from '$lib/transfer/company-transfer';
 import { callCompanyApp } from '$lib/host-bridge';
+import { z } from 'zod';
 
 export type MessengerPerson = {
 	memberID?: string;
@@ -57,6 +58,16 @@ export type MessengerMentions = {
 	isEveryone: boolean;
 };
 
+const messengerAskSchema = z.object({
+	interactionID: z.string().min(1),
+	kind: z.enum(['choice', 'approval']),
+	targetExternalID: z.string(),
+	options: z.array(z.object({ key: z.string().min(1), label: z.string(), isRecommended: z.boolean() })).min(1),
+	resolution: z.object({ key: z.string().optional() }).optional()
+});
+
+export type MessengerAsk = z.infer<typeof messengerAskSchema>;
+
 export type MessengerPost = {
 	id: string;
 	channelID: string;
@@ -68,6 +79,8 @@ export type MessengerPost = {
 	mentions?: MessengerMentions;
 	reactions: MessengerReaction[];
 	attachments: MessengerAttachment[];
+	ask?: MessengerAsk;
+	isError?: boolean;
 };
 
 export type MessengerSearchMatch = Pick<MessengerPost, 'id' | 'channelID' | 'parentID' | 'author' | 'body' | 'postedAt'>;
@@ -123,6 +136,8 @@ type PersonalMessage = {
 	mentions?: MessengerMentions;
 	reactions: PersonalReaction[];
 	attachments: PersonalAttachment[];
+	ask?: unknown;
+	isFailure?: unknown;
 };
 
 type PersonalMessageMatch = Pick<
@@ -190,6 +205,14 @@ export function asChannel(conversation: PersonalConversation, position: number):
 	};
 }
 
+function askOf(message: PersonalMessage): MessengerAsk | undefined {
+	if (message.ask === undefined) return undefined;
+	const parsed = messengerAskSchema.safeParse(message.ask);
+	if (parsed.success) return parsed.data;
+	console.warn('a message asked a question in a shape this app cannot draw', { messageID: message.id, issues: parsed.error.issues });
+	return undefined;
+}
+
 function asPost(message: PersonalMessage): MessengerPost {
 	return {
 		id: message.id,
@@ -213,7 +236,9 @@ function asPost(message: PersonalMessage): MessengerPost {
 			digest: attachment.digest ?? '',
 			widthPixels: attachment.widthPixels,
 			heightPixels: attachment.heightPixels
-		}))
+		})),
+		ask: askOf(message),
+		isError: message.isFailure === true
 	};
 }
 
@@ -419,12 +444,15 @@ export async function keepAttachmentForSending(
 	return keptAttachmentOf(result);
 }
 
+export type MessengerAnswer = { interactionID: string; key: string };
+
 export async function writePost(
 	channelID: string,
 	body: string,
 	parentID?: string,
 	attachments: KeptAttachment[] = [],
-	mentions?: MessengerMentions
+	mentions?: MessengerMentions,
+	answer?: MessengerAnswer
 ): Promise<MessengerPost> {
 	const message = await ask<PersonalMessage>('person.message.send', {
 		conversationID: channelID,
@@ -432,6 +460,7 @@ export async function writePost(
 		parentID,
 		attachments,
 		mentions,
+		answer,
 		timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone
 	});
 	return asPost(message);

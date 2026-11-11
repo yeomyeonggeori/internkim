@@ -3,7 +3,6 @@
 	import * as Empty from '$lib/components/ui/empty/index.js';
 	import * as Marker from '$lib/components/ui/marker/index.js';
 	import * as Message from '$lib/components/ui/message/index.js';
-	import * as Popover from '$lib/components/ui/popover/index.js';
 	import * as Sheet from '$lib/components/ui/sheet/index.js';
 	import { Button } from '$lib/components/ui/button/index.js';
 	import ConversationDock from './conversation-dock.svelte';
@@ -15,6 +14,15 @@
 	import ChannelVideoPlayer from './channel-video-player.svelte';
 	import ChannelLinkPreview from './channel-link-preview.svelte';
 	import FailedMessageActions from './failed-message-actions.svelte';
+	import ChoiceCard from './choice-card.svelte';
+	import {
+		choiceCardOf,
+		pressedChoicesStillAwaited,
+		textWithoutOptionLines,
+		type ChoiceCardOption,
+		type PressedChoice
+	} from './choice-card';
+	import { toast } from 'svelte-sonner';
 	import { createOutgoingMessages } from './outgoing-messages.svelte';
 	import MessageReactions from './message-reactions.svelte';
 	import MessageRow from './message-row.svelte';
@@ -42,7 +50,9 @@
 		canChangeMessages,
 		fetchChannelConversation,
 		applyCustomEmoji,
+		sendChannelAnswer,
 		sendChannelMessage,
+		type ChannelInteraction,
 		type ChannelMessage,
 		type ChannelParticipant,
 		type ThreadSummary
@@ -81,7 +91,6 @@
 	import JumpToLatestButton from './jump-to-latest-button.svelte';
 	import { leaveOpenedThreadThroughHistory, rememberOpenedThread, threadRootIDInHistory } from './thread-history';
 	import CornerDownRightIcon from '@lucide/svelte/icons/corner-down-right';
-	import InfoIcon from '@lucide/svelte/icons/info';
 	import MessageSquareIcon from '@lucide/svelte/icons/message-square';
 	import MessageCircleDashedIcon from '@lucide/svelte/icons/message-circle-dashed';
 	import XIcon from '@lucide/svelte/icons/x';
@@ -130,6 +139,7 @@
 	let currentUserImage = $state('');
 	let agentWorkingSince = $state<number | null>(null);
 	const isAgentWorking = $derived(agentWorkingSince !== null);
+	let pressedChoices = $state<ReadonlyMap<string, PressedChoice>>(new Map());
 	let liveWork = $state<LiveWork[]>([]);
 	let agent = $state<ChannelParticipant | undefined>();
 	const nameByExternalID = $derived(new Map(participants.map((person) => [person.externalID, person.name])));
@@ -451,7 +461,9 @@
 		return list
 			.map((message) => {
 				const reactionTotal = (message.reactions ?? []).reduce((sum, reaction) => sum + reaction.count, 0);
-				return `${message.id}:${message.sentAt}:${message.text.length}:${reactionTotal}:${(message.attachments ?? []).length}`;
+				const resolution = message.interaction?.resolution;
+				const answeredKey = resolution ? `answered=${resolution.key ?? ''}` : '';
+				return `${message.id}:${message.sentAt}:${message.text.length}:${reactionTotal}:${(message.attachments ?? []).length}:${answeredKey}`;
 			})
 			.join('~');
 	}
@@ -492,6 +504,7 @@
 		clearTimeout(refreshTimer);
 		if (isDestroyed) return;
 		agentWorkingSince = stillWorkingSince(agentWorkingSince, Date.now());
+		pressedChoices = pressedChoicesStillAwaited(pressedChoices, Date.now());
 		liveWork = liveWorkStillHeard(liveWork, Date.now());
 		if (!isActive) return;
 		const delay = isAgentWorking || liveWork.length > 0 ? agentWorkingRefreshIntervalMs : idleRefreshIntervalMs;
@@ -557,19 +570,20 @@
 		if (threadRootIDInHistory() === undefined && untrack(() => openThreadRoot) !== null) dismissThread();
 	});
 
-	async function answerChoice(optionLabel: string) {
-		if (isSending) return;
-		isSending = true;
+	async function answerChoice(question: ChannelMessage, interaction: ChannelInteraction, option: ChoiceCardOption) {
+		const { interactionID } = interaction;
+		if (pressedChoices.has(interactionID)) return;
+		pressedChoices = new Map([...pressedChoices, [interactionID, { key: option.key, pressedAt: Date.now() }]]);
 		try {
-			await sendChannelMessage(optionLabel, [], channelId);
-			agentWorkingSince = isWithTheAgent ? Date.now() : null;
-			await loadConversation();
+			await sendChannelAnswer(option.label, { interactionID, key: option.key }, channelId, question.threadRootId);
 		} catch {
-			loadFailed = true;
-		} finally {
-			isSending = false;
-			scheduleRefresh();
+			pressedChoices = new Map([...pressedChoices].filter(([pressedID]) => pressedID !== interactionID));
+			toast.error(text.sendFailed);
+			return;
 		}
+		agentWorkingSince = isWithTheAgent ? Date.now() : null;
+		await loadConversation();
+		scheduleRefresh();
 	}
 
 	$effect(() => {
@@ -616,6 +630,7 @@
 			lightbox = null;
 			agentWorkingSince = null;
 			liveWork = [];
+			pressedChoices = new Map();
 			isLoadingOlder = false;
 			hasMoreBefore = false;
 			historyCursor = '';
@@ -660,12 +675,14 @@
 
 {#snippet messageBody(message: ChannelMessage, nameWidthPixels: number)}
 	{@const attachments = openableAttachments(message.attachments ?? [], openableAddressOf)}
-	{@const bodyText = messageTextBeside(
-		message.text,
-		attachments.map((attachment) => attachment.url)
+	{@const bodyText = textWithoutOptionLines(
+		messageTextBeside(
+			message.text,
+			attachments.map((attachment) => attachment.url)
+		),
+		message.interaction?.options ?? []
 	)}
 	{@const mine = isMine(message)}
-	{@const reactionAlign = mine ? 'start' : 'end'}
 	{@const loneImage =
 		attachments.length === 1 && attachments[0].kind === 'image' && attachments[0].source && !attachments[0].isUploading
 			? attachments[0]
@@ -676,32 +693,7 @@
 			: undefined}
 	{#if message.isError}
 		<Bubble.Root variant="destructive" class="max-w-[min(80%,32rem)]">
-			<Bubble.Content>{text.errorSummary}</Bubble.Content>
-			<Bubble.Reactions align={reactionAlign}>
-				<Popover.Root>
-					<Popover.Trigger>
-						{#snippet child({ props })}
-							<Button
-								{...props}
-								variant="ghost"
-								size="icon-xs"
-								aria-label={text.errorDetailsLabel}
-								class="aria-expanded:text-destructive"
-							>
-								<InfoIcon />
-							</Button>
-						{/snippet}
-					</Popover.Trigger>
-					<Popover.Content class="max-w-sm">
-						<Popover.Header>
-							<Popover.Title class="text-sm">{text.errorDetailsTitle}</Popover.Title>
-							<Popover.Description class="text-sm break-words whitespace-pre-wrap">
-								{bodyText}
-							</Popover.Description>
-						</Popover.Header>
-					</Popover.Content>
-				</Popover.Root>
-			</Bubble.Reactions>
+			<Bubble.Content class="break-words whitespace-pre-wrap">{bodyText}</Bubble.Content>
 			{@render timeStamp(message)}
 		</Bubble.Root>
 	{:else if bodyText && message.id === editingMessageID}
@@ -775,18 +767,14 @@
 		</div>
 	{/if}
 	{#if message.interaction}
-		<div class="flex flex-wrap gap-2">
-			{#each message.interaction.options as option (option.key)}
-				<Button
-					size="sm"
-					variant={option.key === message.interaction.recommendedOptionKey ? 'default' : 'outline'}
-					disabled={isSending}
-					onclick={() => answerChoice(option.label)}
-				>
-					{option.label}
-				</Button>
-			{/each}
-		</div>
+		{@const interaction = message.interaction}
+		<ChoiceCard
+			card={choiceCardOf(interaction, currentUserID, pressedChoices.get(interaction.interactionID), {
+				approve: text.approvalApprove,
+				reject: text.approvalReject
+			})}
+			onChoose={(option) => answerChoice(message, interaction, option)}
+		/>
 	{/if}
 {/snippet}
 
