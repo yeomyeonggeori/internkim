@@ -4,6 +4,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -51,13 +52,16 @@ func runTheUpgradeBranch(t *testing.T, hasACompany bool, refreshSucceeds bool) p
 
 func TestAnUpgradeBringsTheConnectedCompanyBackThroughRefresh(t *testing.T) {
 	run := runTheUpgradeBranch(t, true, true)
-	if !run.exitedCleanly || len(run.calls) == 0 || run.calls[0] != "refresh" {
-		t.Fatalf("an upgrade of a connected host did not refresh its company first, so the files the install rendered keep the last release's values and nothing waits for the services: %v\n%s", run.calls, run.output)
+	expected := []string{"systemctl restart " + boxUnitFileName(), "refresh"}
+	if !run.exitedCleanly || !slices.Equal(run.calls, expected) {
+		t.Fatalf("an upgrade of a connected host ran %v, expected %v: the box daemon restarts onto this release first, because the bundle waits on what it writes, and the refresh then rewrites the rendered files, restarts the bundle and waits for it\n%s", run.calls, expected, run.output)
 	}
-	for _, call := range run.calls[1:] {
-		if call != "systemctl restart "+boxUnitFileName() {
-			t.Errorf("an upgrade of a connected host also ran %q; the refresh restarts the bundle itself once its files are rewritten", call)
-		}
+}
+
+func TestAnUpgradeRestartsTheBoxEvenWhenTheCompanyDoesNotComeBack(t *testing.T) {
+	run := runTheUpgradeBranch(t, true, false)
+	if len(run.calls) == 0 || run.calls[0] != "systemctl restart "+boxUnitFileName() {
+		t.Fatalf("a failed refresh left the box daemon on the last release, so a retry waits on a daemon that never writes what this release's units need: %v", run.calls)
 	}
 }
 
