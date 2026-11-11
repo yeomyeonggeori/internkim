@@ -26,7 +26,7 @@ async function mockSettingsPage(page: Page, userResponse: (route: Route, request
 	await page.route('**/persona/api/identity', (route) =>
 		route.fulfill({ json: { schemaVersion: 1, names: ['Intern Kim'] } })
 	);
-	await page.goto('/settings/');
+	await page.goto('/settings/my-agent/');
 }
 
 function personalSettings(page: Page) {
@@ -48,7 +48,7 @@ test('resolving the admin role preserves general settings and does not reload th
 	await expect(settings.getByLabel('What to call me')).toHaveValue('Sample');
 	await settings.getByLabel('What to call me').fill('Unsaved edit');
 	releaseRole();
-	await expect(page.getByRole('tab')).toHaveCount(2);
+	await expect(page.getByRole('navigation', { name: 'Settings' }).getByRole('link', { name: 'Members' })).toBeVisible();
 	await expect(settings.getByLabel('What to call me')).toHaveValue('Unsaved edit');
 	expect(requests).toBe(1);
 });

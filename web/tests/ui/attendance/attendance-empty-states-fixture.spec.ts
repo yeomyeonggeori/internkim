@@ -184,8 +184,7 @@ for (const width of everyScreen) {
 		fixture.holidays.fail = true;
 		await fixture.install(page);
 		await page.route('**/api/v1/tokens', route => route.fulfill({ json: { tokens: [] } }));
-		await page.goto('/example-co/settings');
-		await page.getByRole('tab', { name: '관리자', exact: true }).click();
+		await page.goto('/example-co/settings/attendance');
 		const holidays = page.getByTestId('company-holiday-settings');
 		await expect(holidays.getByText(fixtureFailure, { exact: true })).toBeVisible();
 		if (phase !== 'before') await expect(holidays.getByText('등록된 회사 휴일이 없습니다.', { exact: true })).toHaveCount(0);
