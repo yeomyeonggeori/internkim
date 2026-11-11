@@ -8,6 +8,8 @@ export type ArrivedMessage = {
 	recipientExternalIDs: string[];
 	preview: string;
 	attachmentKinds: string[];
+	pictureDigest: string;
+	pictureContentType: string;
 };
 
 export type Told = {
@@ -35,7 +37,9 @@ export function readArrivedMessage(offered: unknown): ArrivedMessage | null {
 		authorName: text(held.authorName),
 		recipientExternalIDs: externalIDs(held.recipientExternalIDs, authorExternalID),
 		preview: limitedPreviewOf(text(held.preview)),
-		attachmentKinds: words(held.attachmentKinds)
+		attachmentKinds: words(held.attachmentKinds),
+		pictureDigest: text(held.pictureDigest),
+		pictureContentType: text(held.pictureContentType)
 	};
 }
 
@@ -49,6 +53,7 @@ export type NotifyRequest = Told & {
 	withdrawnMessageIDs: string[];
 	senderPicturePath: string;
 	attachmentKinds: string[];
+	messagePicturePath: string;
 };
 
 export function tellingOf(arrived: ArrivedMessage, authorName: string): Told {
@@ -70,7 +75,8 @@ export function notifyRequestOf(
 	authorName: string,
 	platform: string,
 	senderPicturePath: string,
-	withdrawnMessageIDs: string[]
+	withdrawnMessageIDs: string[],
+	messagePicturePath: string
 ): NotifyRequest {
 	return {
 		platform,
@@ -82,6 +88,7 @@ export function notifyRequestOf(
 		withdrawnMessageIDs,
 		senderPicturePath,
 		attachmentKinds: arrived.attachmentKinds,
+		messagePicturePath,
 		...tellingOf(arrived, authorName)
 	};
 }
