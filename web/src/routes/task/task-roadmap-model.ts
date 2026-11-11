@@ -1,5 +1,4 @@
 import { addTaskWeekDays, taskWeekDateFromISO, taskWeekDateISO } from '$lib/task/task-week-code';
-import { BOARD_STATUS_VALUES, type TaskBoardStatus } from './task-board-model';
 import type { TaskChildProgress } from './task-relationships';
 import { isTaskStatusCompleted } from './task-status';
 import type { Task } from './task-types';
@@ -9,16 +8,10 @@ export type TaskRoadmapMonth = {
 	month: number;
 };
 
-export type TaskRoadmapMonthSegment = {
-	month: TaskRoadmapMonth;
-	firstDay: number;
-	dayCount: number;
-};
-
 export type TaskRoadmapBar =
-	| { kind: 'span'; firstDay: number; lastDay: number; startsBefore: boolean; endsAfter: boolean }
-	| { kind: 'before'; dateISO: string }
-	| { kind: 'after'; dateISO: string }
+	| { kind: 'span'; startDate: string; endDate: string; firstDay: number; lastDay: number; startsBefore: boolean; endsAfter: boolean }
+	| { kind: 'before'; startDate: string; endDate: string }
+	| { kind: 'after'; startDate: string; endDate: string }
 	| { kind: 'undated' };
 
 export type TaskRoadmapRow = {
@@ -27,17 +20,13 @@ export type TaskRoadmapRow = {
 	childProgress: TaskChildProgress | undefined;
 };
 
-export type TaskRoadmapGroup = {
-	status: TaskBoardStatus;
-	rows: TaskRoadmapRow[];
-};
-
 export type TaskDateRange = {
 	startDate: string;
 	endDate: string;
 };
 
 export const taskRoadmapMonthRadius = 6;
+const millisecondsPerDay = 86_400_000;
 
 export function localDateISO(date: Date): string {
 	return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
@@ -76,37 +65,19 @@ export function isTaskRoadmapWeekend(dateISO: string): boolean {
 	return weekday === 0 || weekday === 6;
 }
 
-export function taskRoadmapDays(centerMonth: TaskRoadmapMonth, monthRadius = taskRoadmapMonthRadius): string[] {
-	const first = new Date(Date.UTC(centerMonth.year, centerMonth.month - 1 - monthRadius, 1));
-	const afterLast = new Date(Date.UTC(centerMonth.year, centerMonth.month + monthRadius, 1));
-	const dayCount = Math.round((afterLast.getTime() - first.getTime()) / 86_400_000);
-	return Array.from({ length: dayCount }, (_, index) => taskWeekDateISO(addTaskWeekDays(first, index)));
+export function taskRoadmapDays(startISO: string, dayCount: number): string[] {
+	return Array.from({ length: dayCount }, (_, index) => shiftTaskRoadmapDate(startISO, index));
 }
 
-export function taskRoadmapMonthSegments(days: string[]): TaskRoadmapMonthSegment[] {
-	return days.reduce<TaskRoadmapMonthSegment[]>((segments, dayISO, index) => {
-		const month = taskRoadmapMonthOf(dayISO);
-		const last = segments.at(-1);
-		if (last && taskRoadmapMonthKey(last.month) === taskRoadmapMonthKey(month)) {
-			return [...segments.slice(0, -1), { ...last, dayCount: last.dayCount + 1 }];
-		}
-		return [...segments, { month, firstDay: index, dayCount: 1 }];
-	}, []);
-}
-
-export function buildTaskRoadmap(
+export function buildTaskRoadmapRows(
 	tasks: Task[],
 	days: string[],
 	childProgressByParent: ReadonlyMap<string, TaskChildProgress>
-): TaskRoadmapGroup[] {
-	return BOARD_STATUS_VALUES.map((status) => ({
-		status,
-		rows: tasks
-			.filter((task) => task.status === status)
-			.map((task) => ({ task, bar: taskRoadmapBar(task, days), childProgress: childProgressByParent.get(task.id) }))
-			.filter((row) => isShownInRange(row))
-			.toSorted(compareTaskRoadmapRows)
-	})).filter((group) => group.rows.length > 0);
+): TaskRoadmapRow[] {
+	return tasks
+		.map((task) => ({ task, bar: taskRoadmapBar(task, days), childProgress: childProgressByParent.get(task.id) }))
+		.filter((row) => isShownInRange(row))
+		.toSorted(compareTaskRoadmapRows);
 }
 
 export function taskRoadmapBar(task: Task, days: string[]): TaskRoadmapBar {
@@ -114,12 +85,13 @@ export function taskRoadmapBar(task: Task, days: string[]): TaskRoadmapBar {
 	const firstDayISO = days[0];
 	const lastDayISO = days.at(-1);
 	if (!range || !firstDayISO || !lastDayISO) return { kind: 'undated' };
-	if (range.endDate < firstDayISO) return { kind: 'before', dateISO: range.endDate };
-	if (range.startDate > lastDayISO) return { kind: 'after', dateISO: range.startDate };
+	if (range.endDate < firstDayISO) return { kind: 'before', ...range };
+	if (range.startDate > lastDayISO) return { kind: 'after', ...range };
 	const startsBefore = range.startDate < firstDayISO;
 	const endsAfter = range.endDate > lastDayISO;
 	return {
 		kind: 'span',
+		...range,
 		firstDay: startsBefore ? 0 : days.indexOf(range.startDate),
 		lastDay: endsAfter ? days.length - 1 : days.indexOf(range.endDate),
 		startsBefore,
@@ -135,12 +107,43 @@ export function taskDateRange(task: Pick<Task, 'startDate' | 'endDate'>): TaskDa
 }
 
 export function moveTaskDateRange(range: TaskDateRange, dayOffset: number): TaskDateRange {
-	return { startDate: shiftDateISO(range.startDate, dayOffset), endDate: shiftDateISO(range.endDate, dayOffset) };
+	return { startDate: shiftTaskRoadmapDate(range.startDate, dayOffset), endDate: shiftTaskRoadmapDate(range.endDate, dayOffset) };
 }
 
-function shiftDateISO(dateISO: string, offset: number): string {
+export function clampTaskRoadmapMove(range: TaskDateRange, days: string[], dayOffset: number): number {
+	const firstDayISO = days[0];
+	const lastDayISO = days.at(-1);
+	if (!firstDayISO || !lastDayISO) return dayOffset;
+	const earliest = taskRoadmapDaysBetween(range.endDate, firstDayISO);
+	const latest = taskRoadmapDaysBetween(range.startDate, lastDayISO);
+	return Math.min(Math.max(dayOffset, earliest), latest);
+}
+
+export function shiftTaskRoadmapDate(dateISO: string, offset: number): string {
 	const date = taskWeekDateFromISO(dateISO);
 	return date ? taskWeekDateISO(addTaskWeekDays(date, offset)) : dateISO;
+}
+
+export function taskRoadmapDaysBetween(fromISO: string, toISO: string): number {
+	const from = taskWeekDateFromISO(fromISO);
+	const to = taskWeekDateFromISO(toISO);
+	if (!from || !to) return 0;
+	return Math.round((to.getTime() - from.getTime()) / millisecondsPerDay);
+}
+
+export function formatTaskRoadmapShortDate(dateISO: string): string {
+	return `${Number(dateISO.slice(5, 7))}/${Number(dateISO.slice(8, 10))}`;
+}
+
+export function formatTaskRoadmapDayNumber(dateISO: string): string {
+	const day = Number(dateISO.slice(8, 10));
+	return day === 1 ? formatTaskRoadmapShortDate(dateISO) : String(day);
+}
+
+export function formatTaskRoadmapPeriod(range: TaskDateRange): string {
+	const start = formatTaskRoadmapShortDate(range.startDate);
+	if (range.startDate === range.endDate) return start;
+	return `${start} – ${formatTaskRoadmapShortDate(range.endDate)}`;
 }
 
 function validDateISO(value: string | undefined): string | undefined {

@@ -8,6 +8,7 @@
 	import TaskRoadmap from './task-roadmap.svelte';
 	import TaskRoadmapSkeleton from './task-roadmap-skeleton.svelte';
 	import { localDateISO, taskRoadmapMonthOf } from './task-roadmap-model';
+	import { taskRoadmapMonthStart, taskRoadmapShownMonth, taskRoadmapWeekStart } from './task-roadmap-window';
 	import TaskBoard from './task-board.svelte';
 	import TaskBoardSkeleton from './task-board-skeleton.svelte';
 	import TaskChildCompletionDialog from './task-child-completion-dialog.svelte';
@@ -51,7 +52,8 @@
 	let taskViewTab = $state('board');
 	const todayISO = localDateISO(new Date());
 	const currentRoadmapMonth = taskRoadmapMonthOf(todayISO);
-	let roadmapMonth = $state(currentRoadmapMonth);
+	let roadmapStartISO = $state(taskRoadmapWeekStart(todayISO));
+	let roadmapMonth = $derived(taskRoadmapShownMonth(roadmapStartISO));
 	$effect(() => {
 		if (taskViewTab === 'list' || taskViewTab === 'roadmap') untrack(() => { void ensureFullState(); });
 	});
@@ -105,7 +107,7 @@
 				currentMonthLabel={text.task.roadmap.currentMonth}
 				previousMonthLabel={text.task.roadmap.previousMonth}
 				nextMonthLabel={text.task.roadmap.nextMonth}
-				onSelectMonth={(month) => { roadmapMonth = month; }}
+				onSelectMonth={(month) => { roadmapStartISO = taskRoadmapMonthStart(month, todayISO); }}
 			/>
 			{:else}
 			<TaskWeekSelector
@@ -198,16 +200,16 @@
 				tasks={page.filters.tasks(relationshipTasks)}
 				allTasks={relationshipTasks}
 				serverChildProgress={isHistoryFresh ? summary?.childProgressByParent : undefined}
-				centerMonth={currentRoadmapMonth}
-				month={roadmapMonth}
+				startISO={roadmapStartISO}
 				{todayISO}
 				text={text.task}
 				statusLabel={page.statusLabel}
 				businessColor={page.businessColor}
+				taskTypeColor={page.taskTypeColor}
 				openTask={page.openTask}
 				canUpdateTask={isLoading || !isHistoryFresh ? () => false : page.canUpdateTask}
 				updateTaskDates={page.updateTaskDates}
-				selectMonth={(month) => { roadmapMonth = month; }}
+				selectStart={(startISO) => { roadmapStartISO = startISO; }}
 			/>
 			{:else if !historyError && !loadError}
 				<TaskRoadmapSkeleton label={text.task.roadmap.loading} />
