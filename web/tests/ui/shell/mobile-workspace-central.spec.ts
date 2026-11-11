@@ -119,8 +119,7 @@ for (const width of everyLayoutBand) {
 		await expect(page.getByRole('dialog')).toBeVisible();
 		await fits(page, 'data-room-share');
 		await page.keyboard.press('Escape');
-		await page.goto(`/${exampleCompanySlug}/settings`);
-		await page.getByRole('tab', { name: '관리자', exact: true }).click();
+		await page.goto(`/${exampleCompanySlug}/settings/members`);
 		await page.getByRole('button', { name: '서클 추가', exact: true }).click();
 		await expect(page.getByRole('dialog').getByRole('checkbox').first()).toBeVisible();
 		await fits(page, 'circle-editor');

@@ -148,7 +148,7 @@ for (const viewport of [{ width: 320, height: 760 }, { width: 360, height: 760 }
 		await fits(page);
 		await screenshot(page, `run-detail-${viewport.width}`);
 		await page.goto('/settings/');
-		await expect(page.getByRole('tab').first()).toBeVisible();
+		await expect(page.getByRole('link', { name: '로그인·보안', exact: true }).first()).toBeVisible();
 		await fits(page);
 		await screenshot(page, `settings-${viewport.width}`);
 		await page.goto('/settings/setup/');
