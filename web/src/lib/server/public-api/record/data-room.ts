@@ -1,17 +1,23 @@
 import { z } from 'zod';
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { dataRoomGetResultSchema, dataRoomCategorySetInputSchema, dataRoomFieldSetInputSchema,
+import { dataRoomGetResultSchema, dataRoomCategorySetInputSchema, dataRoomFieldSetInputSchema, dataRoomFieldNameSetInputSchema,
 	dataRoomShareCreateInputSchema, dataRoomShareRevokeInputSchema,
 	dataRoomInvitationAcceptInputSchema, dataRoomInvitationSendInputSchema } from '../catalog/data-room';
 import { sendGuestSignInEmail } from './guest-sign-in-email';
 import type { RecordContext, ToolPlace } from './company';
 import { RecordRefusedTheWrite, statusOfPostgresCode } from './tasks';
+import { companyFieldKindSchema, type CompanyFieldKind } from '$lib/data-room/model';
+import { fieldNamesOf, fieldNamesSchema } from '$lib/data-room/schemas';
 import { dataRoomLinkInputSchema, dataRoomLinkRevokeSchema, dataRoomLinksSchema, generateDataRoomCode } from '$lib/data-room/links';
 
 const categoryRowSchema = z.object({
 	code: z.string(), parent: z.string().nullable(), slug: z.string(),
-	name: z.string(), name_ko: z.string(), description: z.string(), fields: z.array(z.string()),
+	name: z.string(), name_ko: z.string(), description: z.string(),
 	choice_group: z.number().nullable()
+});
+const fieldRowSchema = z.object({
+	kind: companyFieldKindSchema, field: z.string(), category_code: z.string().nullable(),
+	names: fieldNamesSchema.nullable(), unit: z.string().nullable()
 });
 const shareRowSchema = z.object({
 	id: z.string(), circle_id: z.string(), audience: z.enum(['email', 'public']),
@@ -34,8 +40,9 @@ export async function dataRoomCall(client: SupabaseClient, name: string, paramet
 }
 
 export async function companyDataRoomGet(context: RecordContext) {
-	const [categories, shares, canManage] = await Promise.all([
+	const [categories, fields, shares, canManage] = await Promise.all([
 		companyRows(context.caller, context.companyID, 'data_room_category'),
+		companyRows(context.caller, context.companyID, 'company_field'),
 		companyRows(context.caller, context.companyID, 'data_room_share'),
 		dataRoomCall(context.caller, 'data_room_administrator', { target_company: context.companyID })
 	]);
@@ -43,8 +50,13 @@ export async function companyDataRoomGet(context: RecordContext) {
 		categories: categories.map((value) => {
 			const row = categoryRowSchema.parse(value);
 			return { code: row.code, parent: row.parent, slug: row.slug,
-				name: row.name, nameKO: row.name_ko, description: row.description, fields: row.fields,
+				name: row.name, nameKO: row.name_ko, description: row.description,
 				choiceGroup: row.choice_group };
+		}),
+		fields: fields.map((value) => {
+			const row = fieldRowSchema.parse(value);
+			return { kind: row.kind, field: row.field, categoryCode: row.category_code,
+				name: row.names?.en ?? null, nameKO: row.names?.ko ?? null, unit: row.unit };
 		}),
 		shares: shares.map(answeredShare), canManage
 	});
@@ -71,10 +83,27 @@ export async function companyDataRoomCategorySet(context: RecordContext, value: 
 
 export async function companyDataRoomFieldSet(context: RecordContext, value: unknown) {
 	const input = dataRoomFieldSetInputSchema.parse(value);
-	await dataRoomCall(context.caller, 'data_room_field_set', {
-		target_company: context.companyID, target_field: input.field, target_category: input.categoryCode ?? null
-	});
+	await upsertCompanyField(context, { kind: input.kind, field: input.field, category_code: input.categoryCode ?? null });
 	return { saved: true };
+}
+
+export async function companyDataRoomFieldNameSet(context: RecordContext, value: unknown) {
+	const input = dataRoomFieldNameSetInputSchema.parse(value);
+	await upsertCompanyField(context, { kind: input.kind, field: input.field, names: fieldNamesOf(input) });
+	return { saved: true };
+}
+
+type CompanyFieldWrite = {
+	kind: CompanyFieldKind;
+	field: string;
+	category_code?: string | null;
+	names?: Record<string, string> | null;
+};
+
+async function upsertCompanyField(context: RecordContext, write: CompanyFieldWrite) {
+	const { error } = await context.caller.from('company_field')
+		.upsert({ company_id: context.companyID, ...write }, { onConflict: 'company_id,kind,field' });
+	if (error) throw new RecordRefusedTheWrite(error.message, statusOfPostgresCode(error.code));
 }
 
 export async function companyDataRoomShareCreate(context: RecordContext, value: unknown) {

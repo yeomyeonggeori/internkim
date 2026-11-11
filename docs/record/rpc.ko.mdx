@@ -82,7 +82,6 @@ description: "PostgREST가 /rest/v1/rpc로 노출하는 함수 전부와, 누가
 | `data_room_company` | `target_company uuid` | `jsonb` | definer | anon, authenticated, service_role |
 | `data_room_document_readable` | `document company_document` | `boolean` | definer | anon, authenticated, service_role |
 | `data_room_document_writable` | `document company_document` | `boolean` | definer | anon, authenticated, service_role |
-| `data_room_field_set` | `target_company uuid, target_field text, target_category text` | `void` | invoker | anon, authenticated, service_role |
 | `data_room_link_create` | `target_company uuid, circle_id text, label text, access_code text, lifetime_hours integer DEFAULT 72, can_download boolean DEFAULT false` | `uuid` | definer | authenticated, service_role |
 | `data_room_link_revoke` | `target_link uuid` | `void` | definer | authenticated, service_role |
 | `data_room_link_unlock` | `target_link uuid, access_code text, notice_version text, client_fingerprint text` | `jsonb` | definer | service_role |

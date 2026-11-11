@@ -22215,7 +22215,7 @@
             "type": "string"
           },
           "unit": {
-            "description": "Unit of a value that is not money, e.g. 'people', 'orders', 'sites'.",
+            "description": "Unit of a value that is not money, e.g. 'people', 'orders', 'sites'. One unit holds for the metric across its periods; omit it to keep the one already recorded.",
             "type": "string"
           },
           "value": {
@@ -22263,7 +22263,7 @@
             "type": "string"
           },
           "unit": {
-            "description": "Unit of a value that is not money, e.g. 'people', 'orders', 'sites'.",
+            "description": "Unit of a value that is not money, e.g. 'people', 'orders', 'sites'. One unit holds for the metric across its periods; omit it to keep the one already recorded.",
             "type": "string"
           },
           "value": {
@@ -25051,14 +25051,6 @@
                 "description": {
                   "type": "string"
                 },
-                "fields": {
-                  "description": "What the company page shows to readers of this category: company_info keys, company_metric keys, company_record categories 'activity' (attendance and work with names masked) and 'ownership' (the equity ledger summed by kind of holder), e.g. ['capital'] or ['annualRevenue']. A field belongs to one category; one no category names is shown only to readers of X. Move one with dataroom_field_update.",
-                  "items": {
-                    "minLength": 1,
-                    "type": "string"
-                  },
-                  "type": "array"
-                },
                 "name": {
                   "minLength": 1,
                   "type": "string"
@@ -25089,6 +25081,80 @@
                 "nameKO",
                 "parent",
                 "description"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "fields": {
+            "description": "The company page fields placed in a category, named, or given a unit. A field absent here is shown only to readers of X, under the product name.",
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "categoryCode": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "The category whose readers see it; null shows it only to readers of X"
+                },
+                "field": {
+                  "type": "string"
+                },
+                "kind": {
+                  "description": "profile: a company_info key, 'activity' or 'ownership'; metric: a company_metric key; record: a company_record category",
+                  "enum": [
+                    "profile",
+                    "metric",
+                    "record"
+                  ],
+                  "type": "string"
+                },
+                "name": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "What the company calls it in English; null shows the product's name"
+                },
+                "nameKO": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "What the company calls it in Korean; null shows the product's name"
+                },
+                "unit": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "The unit of a metric counted in value; null for money and for every other kind"
+                }
+              },
+              "required": [
+                "kind",
+                "field",
+                "categoryCode",
+                "name",
+                "nameKO",
+                "unit"
               ],
               "type": "object"
             },
@@ -25172,6 +25238,7 @@
         },
         "required": [
           "categories",
+          "fields",
           "shares",
           "canManage"
         ],
@@ -25213,14 +25280,6 @@
                   "description": {
                     "type": "string"
                   },
-                  "fields": {
-                    "description": "What the company page shows to readers of this category: company_info keys, company_metric keys, company_record categories 'activity' (attendance and work with names masked) and 'ownership' (the equity ledger summed by kind of holder), e.g. ['capital'] or ['annualRevenue']. A field belongs to one category; one no category names is shown only to readers of X. Move one with dataroom_field_update.",
-                    "items": {
-                      "minLength": 1,
-                      "type": "string"
-                    },
-                    "type": "array"
-                  },
                   "name": {
                     "minLength": 1,
                     "type": "string"
@@ -25251,6 +25310,80 @@
                   "nameKO",
                   "parent",
                   "description"
+                ],
+                "type": "object"
+              },
+              "type": "array"
+            },
+            "fields": {
+              "description": "The company page fields placed in a category, named, or given a unit. A field absent here is shown only to readers of X, under the product name.",
+              "items": {
+                "additionalProperties": false,
+                "properties": {
+                  "categoryCode": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "description": "The category whose readers see it; null shows it only to readers of X"
+                  },
+                  "field": {
+                    "type": "string"
+                  },
+                  "kind": {
+                    "description": "profile: a company_info key, 'activity' or 'ownership'; metric: a company_metric key; record: a company_record category",
+                    "enum": [
+                      "profile",
+                      "metric",
+                      "record"
+                    ],
+                    "type": "string"
+                  },
+                  "name": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "description": "What the company calls it in English; null shows the product's name"
+                  },
+                  "nameKO": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "description": "What the company calls it in Korean; null shows the product's name"
+                  },
+                  "unit": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "description": "The unit of a metric counted in value; null for money and for every other kind"
+                  }
+                },
+                "required": [
+                  "kind",
+                  "field",
+                  "categoryCode",
+                  "name",
+                  "nameKO",
+                  "unit"
                 ],
                 "type": "object"
               },
@@ -25334,6 +25467,7 @@
           },
           "required": [
             "categories",
+            "fields",
             "shares",
             "canManage"
           ],
@@ -25540,6 +25674,15 @@
             "description": "Exact field as stored: a company_info key such as 'capital', a company_metric key such as 'annualRevenue', or a company_record category such as 'funding'.",
             "minLength": 1,
             "type": "string"
+          },
+          "kind": {
+            "description": "What the field is: 'profile' for a company_info key, 'activity' or 'ownership'; 'metric' for a company_metric key; 'record' for a company_record category",
+            "enum": [
+              "profile",
+              "metric",
+              "record"
+            ],
+            "type": "string"
           }
         },
         "type": "object"
@@ -25557,9 +25700,19 @@
             "description": "Exact field as stored: a company_info key such as 'capital', a company_metric key such as 'annualRevenue', or a company_record category such as 'funding'.",
             "minLength": 1,
             "type": "string"
+          },
+          "kind": {
+            "description": "What the field is: 'profile' for a company_info key, 'activity' or 'ownership'; 'metric' for a company_metric key; 'record' for a company_record category",
+            "enum": [
+              "profile",
+              "metric",
+              "record"
+            ],
+            "type": "string"
           }
         },
         "required": [
+          "kind",
           "field"
         ],
         "type": "object"
@@ -25586,6 +25739,137 @@
       },
       "outputSchemaStrict": true,
       "policyResource": "tool:dataroom_field_update",
+      "privacyClass": "workspace_company",
+      "requiresApproval": true,
+      "requiresUserPresence": false,
+      "resultContract": {
+        "effects": [
+          {
+            "effect": "updated",
+            "effectIdentity": "singleton",
+            "objectType": "data_room"
+          }
+        ],
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "additionalProperties": false,
+          "properties": {
+            "saved": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "saved"
+          ],
+          "type": "object"
+        }
+      },
+      "sideEffect": "workspace_write",
+      "sideEffectClass": "workspace_write",
+      "version": "1",
+      "worksOffline": false
+    },
+    {
+      "answeredBy": "record",
+      "availability": {
+        "state": "ok"
+      },
+      "canonicalName": "dataroom_field_name_update",
+      "description": "Company dataroom: Name one company page field the way the company says it, in English and in Korean. Each call sets both names; a language left out shows the product's name, or the field as written when the product has none.",
+      "estimatedLatency": "low",
+      "idempotency": {
+        "required": false,
+        "scope": "operation",
+        "supported": false
+      },
+      "inputIntentSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "field": {
+            "description": "Exact field as stored: a company_info key such as 'capital', a company_metric key such as 'annualRevenue', or a company_record category such as 'funding'.",
+            "minLength": 1,
+            "type": "string"
+          },
+          "kind": {
+            "description": "What the field is: 'profile' for a company_info key, 'activity' or 'ownership'; 'metric' for a company_metric key; 'record' for a company_record category",
+            "enum": [
+              "profile",
+              "metric",
+              "record"
+            ],
+            "type": "string"
+          },
+          "name": {
+            "description": "What the company page calls the field in English, e.g. 'Installed units'. Omit to show the product's English name.",
+            "minLength": 1,
+            "type": "string"
+          },
+          "nameKO": {
+            "description": "What the company page calls the field in Korean. Omit to show the product's Korean name.",
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "field": {
+            "description": "Exact field as stored: a company_info key such as 'capital', a company_metric key such as 'annualRevenue', or a company_record category such as 'funding'.",
+            "minLength": 1,
+            "type": "string"
+          },
+          "kind": {
+            "description": "What the field is: 'profile' for a company_info key, 'activity' or 'ownership'; 'metric' for a company_metric key; 'record' for a company_record category",
+            "enum": [
+              "profile",
+              "metric",
+              "record"
+            ],
+            "type": "string"
+          },
+          "name": {
+            "description": "What the company page calls the field in English, e.g. 'Installed units'. Omit to show the product's English name.",
+            "minLength": 1,
+            "type": "string"
+          },
+          "nameKO": {
+            "description": "What the company page calls the field in Korean. Omit to show the product's Korean name.",
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "field"
+        ],
+        "type": "object"
+      },
+      "inputSchemaStrict": true,
+      "modelName": "dataroom_field_name_update",
+      "modelVisibility": "visible",
+      "modelVisible": true,
+      "name": "dataroom_field_name_update",
+      "namespace": "dataroom",
+      "namespaceSummary": "The company document archive: categories, sharing with people outside the company, and revocable links.",
+      "outputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "saved": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "saved"
+        ],
+        "type": "object"
+      },
+      "outputSchemaStrict": true,
+      "policyResource": "tool:dataroom_field_name_update",
       "privacyClass": "workspace_company",
       "requiresApproval": true,
       "requiresUserPresence": false,

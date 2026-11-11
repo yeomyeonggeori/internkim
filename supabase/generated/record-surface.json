@@ -726,17 +726,6 @@
       ]
     },
     {
-      "name": "data_room_field_set",
-      "arguments": "target_company uuid, target_field text, target_category text",
-      "returns": "void",
-      "security": "invoker",
-      "callableBy": [
-        "anon",
-        "authenticated",
-        "service_role"
-      ]
-    },
-    {
       "name": "data_room_link_create",
       "arguments": "target_company uuid, circle_id text, label text, access_code text, lifetime_hours integer DEFAULT 72, can_download boolean DEFAULT false",
       "returns": "uuid",

@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { circleIDSchema, dataRoomCategorySchema } from './model';
+import { circleIDSchema, companyFieldKindSchema, dataRoomCategorySchema } from './model';
 import { dataRoomCompanySchema } from './company';
 
 export const sharedDocumentColumns = 'id,title,summary,category_code,document_date,status,storage_path';
@@ -64,8 +64,30 @@ export const dataRoomShareSchema = z.strictObject({
  canDownload: z.boolean()
 });
 
+export const fieldNamesSchema = z.record(z.string().regex(/^[a-z]{2}$/), z.string().trim().min(1));
+
+export const companyFieldSchema = z.strictObject({
+ kind: companyFieldKindSchema.describe("profile: a company_info key, 'activity' or 'ownership'; metric: a company_metric key; record: a company_record category"),
+ field: z.string(),
+ categoryCode: z.string().nullable().describe('The category whose readers see it; null shows it only to readers of X'),
+ name: z.string().nullable().describe("What the company calls it in English; null shows the product's name"),
+ nameKO: z.string().nullable().describe("What the company calls it in Korean; null shows the product's name"),
+ unit: z.string().nullable().describe('The unit of a metric counted in value; null for money and for every other kind')
+});
+
+export type CompanyFieldNameColumns = { name?: string | null; nameKO?: string | null };
+
+export function fieldNamesOf(columns: CompanyFieldNameColumns): Record<string, string> | null {
+ const names = Object.fromEntries(
+  [['en', columns.name], ['ko', columns.nameKO]].flatMap(([language, name]) => (name?.trim() ? [[language, name.trim()]] : []))
+ );
+ return Object.keys(names).length > 0 ? names : null;
+}
+
 export const dataRoomGetResultSchema = z.strictObject({
- categories: z.array(dataRoomCategorySchema), shares: z.array(dataRoomShareSchema), canManage: z.boolean()
+ categories: z.array(dataRoomCategorySchema.omit({ fields: true })),
+ fields: z.array(companyFieldSchema).describe('The company page fields placed in a category, named, or given a unit. A field absent here is shown only to readers of X, under the product name.'),
+ shares: z.array(dataRoomShareSchema), canManage: z.boolean()
 });
 
 export const circleListResultSchema = z.strictObject({

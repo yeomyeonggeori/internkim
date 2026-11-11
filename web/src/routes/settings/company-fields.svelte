@@ -9,21 +9,23 @@
 	import { currentLocale } from '$lib/i18n/locale.svelte';
 	import { dataRoomRequest } from '$lib/data-room/guest';
 	import { categoryName, circleName } from '$lib/data-room/model';
-	import { circleListResultSchema, dataRoomGetResultSchema } from '$lib/data-room/schemas';
-	import { dataRoomCompanySchema, humanizedKey } from '$lib/data-room/company';
+	import { circleListResultSchema, dataRoomGetResultSchema, fieldNamesOf } from '$lib/data-room/schemas';
+	import { dataRoomCompanySchema } from '$lib/data-room/company';
 	import { dataRoomCompanyText } from '$lib/data-room/company-text';
+	import { companyFieldName } from '$lib/data-room/company-field-name';
 	import {
 		circlesReading,
+		companyFieldIdentity,
 		companyFieldRows,
 		unlistedCategory,
-		type CompanyFieldKind,
+		type CompanyFieldGroup,
 		type CompanyFieldRow
 	} from '$lib/data-room/company-fields';
 
 	type Room = z.infer<typeof dataRoomGetResultSchema>;
 	type Circle = z.infer<typeof circleListResultSchema>['circles'][number];
 
-	const kinds: CompanyFieldKind[] = ['profile', 'metric', 'record', 'empty'];
+	const groups: CompanyFieldGroup[] = ['profile', 'metric', 'record', 'empty'];
 	const text = $derived(dataRoomCompanyText[currentLocale.value]);
 	let room = $state<Room | null>(null);
 	let circles = $state<Circle[]>([]);
@@ -42,7 +44,8 @@
 			]);
 			room = dataRoomGetResultSchema.parse(roomAnswer);
 			circles = circleListResultSchema.parse(circleAnswer).circles;
-			rows = companyFieldRows(room.categories, dataRoomCompanySchema.parse(companyAnswer));
+			const placed = room.fields.map((field) => ({ ...field, names: fieldNamesOf(field) }));
+			rows = companyFieldRows(placed, dataRoomCompanySchema.parse(companyAnswer));
 		} catch (error) {
 			errorMessage = error instanceof Error ? error.message : text.loadFailed;
 		}
@@ -51,10 +54,11 @@
 	async function move(row: CompanyFieldRow, categoryCode: string) {
 		const previous = row.categoryCode;
 		row.categoryCode = categoryCode;
-		savingField = row.field;
+		savingField = companyFieldIdentity(row);
 		errorMessage = '';
 		try {
 			await invokeTool('dataroom_field_update', {
+				kind: row.kind,
 				field: row.field,
 				...(categoryCode === unlistedCategory ? {} : { categoryCode })
 			});
@@ -66,8 +70,8 @@
 		}
 	}
 
-	function fieldLabel(field: string): string {
-		return text.fields[field] ?? text.metricNames[field] ?? text.recordCategories[field] ?? humanizedKey(field);
+	function fieldLabel(row: CompanyFieldRow): string {
+		return companyFieldName(row.kind, row.field, row.names, text, currentLocale.value);
 	}
 
 	function categoryLabel(code: string): string {
@@ -90,9 +94,9 @@
 		type="single"
 		value={row.categoryCode}
 		onValueChange={(value) => move(row, value)}
-		disabled={savingField === row.field || !canManage}
+		disabled={savingField === companyFieldIdentity(row) || !canManage}
 	>
-		<Select.Trigger class="w-full md:w-64" aria-label={fieldLabel(row.field)}>
+		<Select.Trigger class="w-full md:w-64" aria-label={fieldLabel(row)}>
 			<span class="truncate">{categoryLabel(row.categoryCode)}</span>
 		</Select.Trigger>
 		<Select.Content class="max-h-80">
@@ -147,16 +151,16 @@
 					</Table.Row>
 				</Table.Header>
 				<Table.Body>
-					{#each kinds as kind (kind)}
-						{@const kindRows = rows.filter((row) => row.kind === kind)}
-						{#if kindRows.length > 0}
+					{#each groups as group (group)}
+						{@const groupRows = rows.filter((row) => row.group === group)}
+						{#if groupRows.length > 0}
 							<Table.Row class="hover:bg-transparent">
-								<Table.Cell colspan={3} class="text-muted-foreground pt-5 pb-1 text-xs font-medium">{text.settings.kinds[kind]}</Table.Cell>
+								<Table.Cell colspan={3} class="text-muted-foreground pt-5 pb-1 text-xs font-medium">{text.settings.kinds[group]}</Table.Cell>
 							</Table.Row>
-							{#each kindRows as row (row.field)}
+							{#each groupRows as row (companyFieldIdentity(row))}
 								<Table.Row>
 									<Table.Cell>
-										<p class="truncate font-medium">{fieldLabel(row.field)}</p>
+										<p class="truncate font-medium">{fieldLabel(row)}</p>
 										<p class="text-muted-foreground truncate font-mono text-xs">{row.field}</p>
 										<div class="mt-2 grid gap-1 md:hidden">
 											{@render categorySelect(row, room.canManage)}

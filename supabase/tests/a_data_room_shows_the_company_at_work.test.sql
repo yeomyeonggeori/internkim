@@ -32,8 +32,8 @@ select is(internal.masked_person_name('Sample'), '••••••', 'a one-wo
 select is(internal.masked_task_title('투자자 미팅 자료 정리'), '••• •• •• ••', 'a title keeps none of its letters, only the length of each word');
 select is(internal.masked_task_title('온보딩'), '•••', 'a one-word title is redacted whole');
 
-select ok(exists (select 1 from public.data_room_category
-    where company_id = '44300000-0000-0000-0000-000000000000' and code = 'GP' and 'activity' = any(fields)),
+select ok(exists (select 1 from public.company_field
+    where company_id = '44300000-0000-0000-0000-000000000000' and kind = 'profile' and field = 'activity' and category_code = 'GP'),
   'a new company files its activity under the company profile');
 
 select ok(internal.data_room_company_shown('44300000-0000-0000-0000-000000000000', array['GP']) ? 'activity',

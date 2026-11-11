@@ -1,12 +1,13 @@
 <script lang="ts">
 	import CompanyMetricChart from './company-metric-chart.svelte';
 	import { dataRoomCompanyText } from './company-text';
-	import { formatMetricValue, humanizedKey, isProjected, periodLabel, periodYear, subPeriodLabel, type CompanyMetricSeries } from './company';
+	import { formatMetricValue, isProjected, periodLabel, periodYear, subPeriodLabel, type CompanyMetricSeries } from './company';
+	import type { FieldName } from './company-field-name';
 
-	let { series, locale, note, projectionNote, span }: { series: CompanyMetricSeries; locale: 'ko' | 'en'; note: string; projectionNote: string; span: number } = $props();
+	let { series, locale, note, projectionNote, span, fieldName }: { series: CompanyMetricSeries; locale: 'ko' | 'en'; note: string; projectionNote: string; span: number; fieldName: FieldName } = $props();
 
 	const text = $derived(dataRoomCompanyText[locale]);
-	const label = $derived(text.metricNames[series.metric] ?? humanizedKey(series.metric));
+	const label = $derived(fieldName('metric', series.metric));
 	const isOnlyProjected = $derived(isProjected(series.latest));
 	const chartedPeriods = $derived(series.points.length + (series.projection ? 1 : 0));
 </script>

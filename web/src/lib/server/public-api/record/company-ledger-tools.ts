@@ -104,8 +104,7 @@ const downloadableForTenMinutes = 10 * 60;
 const sha256Pattern = /^[0-9a-f]{64}$/;
 const inboxCategoryCode = 'X';
 
-const metricColumns =
-	'id, metric, period, amount, value, unit, note, updated_at';
+const metricColumns = 'id, metric, period, amount, value, note, updated_at';
 const recordColumns = 'id, category, record_date, title, detail, status, amount, attributes, updated_at';
 const documentColumns =
 	'id, document_number, kind, document_type, title, counterpart, language, file_path, summary, requester_id, created_at, updated_at, category_code, document_date, period, status, supersedes, sha256, tags, storage_path, size_bytes, published_from, published_at, published_by';
@@ -139,10 +138,11 @@ type MetricRow = {
 	period: string;
 	amount: Money | null;
 	value: number | null;
-	unit: string | null;
 	note: string | null;
 	updated_at: string;
 };
+
+type MetricUnitRow = { field: string; unit: string | null };
 
 type RecordRow = {
 	id: string;
@@ -183,14 +183,14 @@ type DocumentRow = {
 	published_by: string | null;
 };
 
-function answeredMetric(row: MetricRow): CompanyMetricResult {
+function answeredMetric(row: MetricRow, unit: string | null): CompanyMetricResult {
 	return {
 		metricID: row.id,
 		metric: row.metric,
 		period: row.period,
 		amount: row.amount,
 		value: row.value === null ? null : Number(row.value),
-		unit: row.unit,
+		unit: row.amount ? null : unit,
 		note: row.note,
 		updatedAt: row.updated_at
 	};
@@ -303,7 +303,7 @@ function attributeText(value: RecordAttributeValue): string {
 	return typeof value === 'string' ? value : `${value.amount} ${value.currency}`;
 }
 
-type StoredMetricValue = { amount: Money | null; value: number | null; unit: string | null };
+type StoredMetricValue = { amount: Money | null; value: number | null };
 
 function storedMetricValueOf(input: CompanyMetricRecordInput): StoredMetricValue {
 	if (input.amount && input.value !== undefined) {
@@ -311,10 +311,30 @@ function storedMetricValueOf(input: CompanyMetricRecordInput): StoredMetricValue
 	}
 	if (input.amount) {
 		if (orNull(input.unit) !== null) throw new Error('money carries its currency, not a unit');
-		return { amount: input.amount, value: null, unit: null };
+		return { amount: input.amount, value: null };
 	}
 	if (input.value === undefined) throw new Error('a metric records money in amount or a number in value');
-	return { amount: null, value: input.value, unit: orNull(input.unit) };
+	return { amount: null, value: input.value };
+}
+
+async function recordMetricUnit(context: RecordContext, metric: string, unit: string): Promise<void> {
+	const { error } = await context.caller
+		.from('company_field')
+		.upsert({ company_id: context.companyID, kind: 'metric', field: metric, unit }, { onConflict: 'company_id,kind,field' });
+	if (error) throw refuseTheWrite(error, onlyAnAdministratorWritesMetrics);
+}
+
+async function metricUnits(context: RecordContext, metric: string | null): Promise<Map<string, string>> {
+	let query = context.caller
+		.from('company_field')
+		.select('field, unit')
+		.eq('company_id', context.companyID)
+		.eq('kind', 'metric')
+		.not('unit', 'is', null);
+	if (metric) query = query.eq('field', metric);
+	const { data, error } = await query.returns<MetricUnitRow[]>();
+	if (error) throw new Error(error.message);
+	return new Map((data ?? []).flatMap((row) => (row.unit ? [[row.field, row.unit] as const] : [])));
 }
 
 export async function companyMetricRecord(
@@ -324,6 +344,8 @@ export async function companyMetricRecord(
 	const metric = textOf(input.metric, 'a metric call names the metric it records');
 	const period = textOf(input.period, 'a metric names the period it covers, such as 2025, 2026-H1 or 2026-Q3');
 	const stored = storedMetricValueOf(input);
+	const unit = orNull(input.unit);
+	if (unit) await recordMetricUnit(context, metric, unit);
 
 	const { data, error } = await context.caller
 		.from('company_metric')
@@ -334,7 +356,6 @@ export async function companyMetricRecord(
 				period,
 				amount: stored.amount,
 				value: stored.value,
-				unit: stored.unit,
 				note: orNull(input.note),
 				updated_at: context.now.toISOString()
 			},
@@ -343,7 +364,8 @@ export async function companyMetricRecord(
 		.select(metricColumns)
 		.single<MetricRow>();
 	if (error) throw refuseTheWrite(error, onlyAnAdministratorWritesMetrics);
-	return answeredMetric(data);
+	const units = await metricUnits(context, metric);
+	return answeredMetric(data, units.get(metric) ?? null);
 }
 
 function byMetricThenPeriod(left: MetricRow, right: MetricRow): number {
@@ -365,9 +387,9 @@ export async function companyMetricList(
 	if (input.fromYear !== undefined) query = query.gte('period', String(input.fromYear));
 	if (input.toYear !== undefined) query = query.lt('period', String(input.toYear + 1));
 
-	const { data, error } = await query.order('metric').returns<MetricRow[]>();
+	const [{ data, error }, units] = await Promise.all([query.order('metric').returns<MetricRow[]>(), metricUnits(context, metric)]);
 	if (error) throw new Error(error.message);
-	const metrics = (data ?? []).toSorted(byMetricThenPeriod).map(answeredMetric);
+	const metrics = (data ?? []).toSorted(byMetricThenPeriod).map((row) => answeredMetric(row, units.get(row.metric) ?? null));
 	return { count: metrics.length, metrics };
 }
 

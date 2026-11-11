@@ -114,6 +114,20 @@ const ledgerToolNames = [
 	'company_document_download'
 ];
 
+const placedFieldSchema = z.object({
+	kind: z.string(), field: z.string(), categoryCode: z.string().nullable(),
+	name: z.string().nullable(), nameKO: z.string().nullable(), unit: z.string().nullable()
+});
+
+function placedFields(value: unknown) {
+	return z.array(placedFieldSchema).parse(value).toSorted((left, right) => left.kind.localeCompare(right.kind));
+}
+
+async function revenueField() {
+	return placedFields(resultOf(await asAdmin('dataroom_get')).fields)
+		.find((placed) => placed.kind === 'metric' && placed.field === 'annualRevenue');
+}
+
 describe('the ledger is the record answering', () => {
 	test('every ledger tool says the record answers it and carries a typed result', () => {
 		for (const name of ledgerToolNames) {
@@ -190,6 +204,16 @@ describe('what the company states about itself', () => {
 		expect(listed.status).toBe(200);
 		expect(resultOf(listed).count).toBe(1);
 		expect(z.array(z.object({ amount: z.object({ amount: z.number() }) })).parse(resultOf(listed).metrics)[0].amount.amount).toBe(1_300_000_000);
+	});
+
+	test('keeps one unit for a counted metric across its periods', async () => {
+		await asAdmin('company_metric_record', { metric: 'installedUnits', period: '2024', value: 120, unit: 'sites' });
+		const later = await asAdmin('company_metric_record', { metric: 'installedUnits', period: '2025', value: 340 });
+		const listed = await asColleague('company_metric_list', { metric: 'installedUnits' });
+
+		expect(resultOf(later).unit).toBe('sites');
+		expect((resultOf(listed).metrics as { unit: string | null }[]).map((metric) => metric.unit)).toEqual(['sites', 'sites']);
+		await client.from('company_metric').delete().eq('company_id', companyID).eq('metric', 'installedUnits');
 	});
 
 	test('is read by anybody who works here, and filtered by year', async () => {
@@ -402,15 +426,38 @@ describe('the category data room', () => {
 	});
 
 	test('lets an administrator, and nobody else, choose who sees a company field', async () => {
-		const refused = await asSample('dataroom_field_update', { field: 'capital', categoryCode: 'GP' });
+		const refused = await asSample('dataroom_field_update', { kind: 'profile', field: 'capital', categoryCode: 'GP' });
 		expect(refused.status).toBeGreaterThanOrEqual(400);
-		const moved = await asAdmin('dataroom_field_update', { field: 'capital', categoryCode: 'GP' });
+		const moved = await asAdmin('dataroom_field_update', { kind: 'profile', field: 'capital', categoryCode: 'GP' });
 		expect(moved.status).toBe(200);
-		const categories = z.array(z.object({ code: z.string(), fields: z.array(z.string()) }))
-			.parse(resultOf(await asAdmin('dataroom_get')).categories);
-		expect(categories.filter((category) => category.fields.includes('capital')).map((category) => category.code)).toEqual(['GP']);
-		const restored = await asAdmin('dataroom_field_update', { field: 'capital', categoryCode: 'CO' });
+		expect(placedFields(resultOf(await asAdmin('dataroom_get')).fields).filter((placed) => placed.field === 'capital'))
+			.toEqual([{ kind: 'profile', field: 'capital', categoryCode: 'GP', name: null, nameKO: null, unit: null }]);
+		const restored = await asAdmin('dataroom_field_update', { kind: 'profile', field: 'capital', categoryCode: 'CO' });
 		expect(restored.status).toBe(200);
+	});
+
+	test('a metric and a record category of one key are placed apart', async () => {
+		const moved = await asAdmin('dataroom_field_update', { kind: 'metric', field: 'history', categoryCode: 'FS' });
+		expect(moved.status).toBe(200);
+		const history = placedFields(resultOf(await asAdmin('dataroom_get')).fields).filter((placed) => placed.field === 'history');
+		expect(history.map((placed) => [placed.kind, placed.categoryCode])).toEqual([['metric', 'FS'], ['record', 'GP']]);
+		const unplaced = await asAdmin('dataroom_field_update', { kind: 'metric', field: 'history' });
+		expect(unplaced.status).toBe(200);
+	});
+
+	test('names a field the way the company says it, keeping where it is shown', async () => {
+		const refused = await asSample('dataroom_field_name_update', { kind: 'metric', field: 'annualRevenue', nameKO: '연 매출액' });
+		expect(refused.status).toBeGreaterThanOrEqual(400);
+		const named = await asAdmin('dataroom_field_name_update', {
+			kind: 'metric', field: 'annualRevenue', name: 'Yearly revenue', nameKO: '연 매출액'
+		});
+		expect(named.status).toBe(200);
+		expect(await revenueField()).toEqual({ kind: 'metric', field: 'annualRevenue', categoryCode: 'FS', name: 'Yearly revenue', nameKO: '연 매출액', unit: null });
+		const blank = await asAdmin('dataroom_field_name_update', { kind: 'metric', field: 'annualRevenue', nameKO: ' ' });
+		expect(blank.status).toBe(400);
+		const cleared = await asAdmin('dataroom_field_name_update', { kind: 'metric', field: 'annualRevenue' });
+		expect(cleared.status).toBe(200);
+		expect(await revenueField()).toMatchObject({ categoryCode: 'FS', name: null, nameKO: null });
 	});
 
 	test('lends what a circle reads to someone outside the company, and takes it back', async () => {

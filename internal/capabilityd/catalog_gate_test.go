@@ -114,7 +114,13 @@ func gateCases() map[string]catalogGateCase {
 		"dataroom_field_update": {
 			kind:    provesCarrying,
 			reaches: map[gateBackend]*standingIn{admindOverTheSocket: answering(`{"tool":"dataroom_field_update","result":{"saved":true}}`)},
-			input:   `{"field":"capital","categoryCode":"CO"}`,
+			input:   `{"kind":"profile","field":"capital","categoryCode":"CO"}`,
+			expect:  func(t *testing.T, answered capabilities.ToolInvokeResponse) { expectSucceeded(t, answered) },
+		},
+		"dataroom_field_name_update": {
+			kind:    provesCarrying,
+			reaches: map[gateBackend]*standingIn{admindOverTheSocket: answering(`{"tool":"dataroom_field_name_update","result":{"saved":true}}`)},
+			input:   `{"kind":"metric","field":"installedUnits","name":"Installed units","nameKO":"누적 설치 대수"}`,
 			expect:  func(t *testing.T, answered capabilities.ToolInvokeResponse) { expectSucceeded(t, answered) },
 		},
 		"circle_channel_add": {
