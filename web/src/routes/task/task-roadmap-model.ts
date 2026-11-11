@@ -1,6 +1,5 @@
 import { addTaskWeekDays, taskWeekDateFromISO, taskWeekDateISO } from '$lib/task/task-week-code';
 import type { TaskChildProgress } from './task-relationships';
-import { isTaskStatusCompleted } from './task-status';
 import type { Task } from './task-types';
 
 export type TaskRoadmapMonth = {
@@ -76,7 +75,6 @@ export function buildTaskRoadmapRows(
 ): TaskRoadmapRow[] {
 	return tasks
 		.map((task) => ({ task, bar: taskRoadmapBar(task, days), childProgress: childProgressByParent.get(task.id) }))
-		.filter((row) => isShownInRange(row))
 		.toSorted(compareTaskRoadmapRows);
 }
 
@@ -149,11 +147,6 @@ export function formatTaskRoadmapPeriod(range: TaskDateRange): string {
 function validDateISO(value: string | undefined): string | undefined {
 	const trimmed = value?.trim() ?? '';
 	return taskWeekDateFromISO(trimmed) ? trimmed : undefined;
-}
-
-function isShownInRange(row: TaskRoadmapRow): boolean {
-	if (row.bar.kind === 'span') return true;
-	return !isTaskStatusCompleted(row.task.status);
 }
 
 function compareTaskRoadmapRows(left: TaskRoadmapRow, right: TaskRoadmapRow): number {

@@ -239,16 +239,17 @@ test('supplementary fixture: holidays and weekends are red, and child progress s
 test('supplementary fixture: tasks are one list in start order, with no status groups and no title inside a bar', async ({ page }) => {
 	const roadmap = await openRoadmap(page, new TaskRoadmapFixture());
 	const order = await roadmap.locator('[data-roadmap-task]').evaluateAll(rows => rows.map(row => row.getAttribute('data-roadmap-task')));
-	expect(order).toEqual([parentID, childID, completedID, strangerID, siblingID, laterID, undatedID]);
+	expect(order).toEqual([oldCompletedID, parentID, childID, completedID, strangerID, siblingID, laterID, undatedID]);
 	await expect(roadmap.getByRole('button', { name: '진행', exact: true })).toHaveCount(0);
 	await expect(roadmap.locator(`[data-roadmap-bar="${childID}"]`)).toHaveText('');
 	await expect(roadmapRow(roadmap, childID).getByRole('img', { name: '진행' })).toBeVisible();
 });
 
-test('supplementary fixture: completed work outside the window stays out of it', async ({ page }) => {
+test('supplementary fixture: completed work outside the window keeps its row and says when it was', async ({ page }) => {
 	const roadmap = await openRoadmap(page, new TaskRoadmapFixture());
 	await expect(roadmap.locator(`[data-roadmap-bar="${completedID}"]`)).toBeVisible();
-	await expect(roadmapRow(roadmap, oldCompletedID)).toHaveCount(0);
+	await expect(roadmap.locator(`[data-roadmap-bar="${oldCompletedID}"]`)).toHaveCount(0);
+	await expect(roadmap.locator(`[data-roadmap-away="${oldCompletedID}"]`)).toHaveText('11/1 – 11/4');
 	await page.getByRole('button', { name: '이전 주' }).click();
 	await expect(roadmap.locator(`[data-roadmap-bar="${oldCompletedID}"]`)).toBeVisible();
 });

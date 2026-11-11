@@ -62,12 +62,12 @@ describe('roadmap rows', () => {
 		expect(rows.map((row) => row.task.id)).toEqual(['early', 'planned', 'late', 'undated']);
 	});
 
-	test('completed work outside the window stays out, open work outside it stays in', () => {
+	test('completed work outside the window keeps its row, like open work outside it', () => {
 		const rows = buildTaskRoadmapRows([
 			task('old done', { status: 'completed', startDate: '2026-11-01' }),
 			task('old open', { status: 'planned', startDate: '2026-11-01' })
 		], twoWeeks, new Map());
-		expect(rows.map((row) => row.task.id)).toEqual(['old open']);
+		expect(rows.map((row) => [row.task.id, row.bar.kind])).toEqual([['old done', 'before'], ['old open', 'before']]);
 	});
 
 	test('only parents carry child progress', () => {
