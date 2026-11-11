@@ -1,11 +1,11 @@
 import { callingAgent } from '../_shared/agent-caller.ts';
 import { notificationCategories, type NotificationCategory } from '../_shared/categories.ts';
 import { askedObject, json, refuse, serveRefusals } from '../_shared/http.ts';
-import { membersOfCompanyByEmail, membersOfCompanyByExternalID } from '../_shared/member-directory.ts';
+import { membersOfCompanyByEmail, membersOfCompanyByExternalID, signedPictureURL } from '../_shared/member-directory.ts';
 import { addressedIn } from '../_shared/notify-recipients.ts';
 import { bodyWithAttachmentLabels } from '../_shared/attachment-labels.ts';
 import { localeOfMember } from '../_shared/member-locale.ts';
-import { pictureURLOfSender } from '../_shared/sender-picture.ts';
+import { isCompanySharedPath, pictureURLOfSender } from '../_shared/sender-picture.ts';
 import { notifyMember, type Delivery, type Notification } from '../_shared/notify-member.ts';
 import type { SupabaseClient } from '../_shared/service-client.ts';
 import { pushKeysFromVault, reachesSomeDevice } from '../_shared/push-keys.ts';
@@ -26,6 +26,7 @@ type NotifyRequest = {
 	senderExternalID?: unknown;
 	senderPicturePath?: unknown;
 	attachmentKinds?: unknown;
+	messagePicturePath?: unknown;
 };
 
 Deno.serve(
@@ -56,7 +57,8 @@ Deno.serve(
 			{
 				...askedNotification(asked),
 				senderID: sender ?? '',
-				icon: await pictureURLOfSender(client, companyID, asked.senderPicturePath, sender ?? '')
+				icon: await pictureURLOfSender(client, companyID, asked.senderPicturePath, sender ?? ''),
+				...(await messagePictureOf(client, companyID, asked.messagePicturePath))
 			},
 			pushKeys,
 			conversationID,
@@ -98,6 +100,16 @@ async function notificationFor(
 	if (attachmentKinds.length === 0) return notification;
 	const locale = await localeOfMember(client, memberID);
 	return { ...notification, body: bodyWithAttachmentLabels(notification.body, attachmentKinds, locale) };
+}
+
+async function messagePictureOf(
+	client: SupabaseClient,
+	companyID: string,
+	path: unknown
+): Promise<Pick<Notification, 'imageURL'>> {
+	if (!isCompanySharedPath(companyID, path)) return {};
+	const imageURL = await signedPictureURL(client, path);
+	return imageURL ? { imageURL } : {};
 }
 
 function askedAttachmentKinds(asked: NotifyRequest): string[] {

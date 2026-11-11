@@ -54,14 +54,14 @@ worker.addEventListener('fetch', (event) => {
 
 worker.addEventListener('push', (event) => {
 	const arriving = readArriving(readPushedJSON(event.data));
-	event.waitUntil(
-		worker.registration.showNotification(arriving.title, {
-			body: arriving.body,
-			tag: arriving.tag,
-			icon: arriving.icon || '/icon-192.png',
-			data: { openPath: arriving.openPath }
-		})
-	);
+	const options: NotificationOptions & { image?: string } = {
+		body: arriving.body,
+		tag: arriving.tag,
+		icon: arriving.icon || '/icon-192.png',
+		data: { openPath: arriving.openPath },
+		...(arriving.imageURL ? { image: arriving.imageURL } : {})
+	};
+	event.waitUntil(worker.registration.showNotification(arriving.title, options));
 });
 
 function readPushedJSON(pushed: PushMessageData | null): unknown {

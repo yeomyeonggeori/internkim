@@ -1,6 +1,6 @@
 import { pkcs8FromPEM, signedJWT } from './jwt.ts';
 import { sayPushNotDelivered } from './push-diagnostics.ts';
-import { senderOf, type Notification, type PushOutcome } from './push-vocabulary.ts';
+import { secureImageURLOf, senderOf, type Notification, type PushOutcome } from './push-vocabulary.ts';
 
 export type FcmKey = {
 	projectID: string;
@@ -23,6 +23,7 @@ export function outcomeOfFcmAnswer(status: number, errorCode: string): PushOutco
 
 export function fcmMessage(deviceToken: string, notification: Notification): Record<string, unknown> {
 	const sender = senderOf(notification);
+	const imageURL = secureImageURLOf(notification);
 	return {
 		message: {
 			token: deviceToken,
@@ -32,7 +33,8 @@ export function fcmMessage(deviceToken: string, notification: Notification): Rec
 				openPath: notification.openPath,
 				tag: notification.tag,
 				...(sender ? { senderName: sender.name, pictureURL: sender.pictureURL } : {}),
-				...(sender?.id ? { senderID: sender.id } : {})
+				...(sender?.id ? { senderID: sender.id } : {}),
+				...(imageURL ? { imageURL } : {})
 			},
 			android: { priority: 'HIGH' }
 		}

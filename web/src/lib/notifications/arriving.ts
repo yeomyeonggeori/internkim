@@ -7,6 +7,7 @@ export type Arriving = {
 	openPath: string;
 	tag: string;
 	icon: string;
+	imageURL: string;
 };
 
 const somethingHappened: Arriving = {
@@ -14,7 +15,8 @@ const somethingHappened: Arriving = {
 	body: '',
 	openPath: homePath,
 	tag: 'internkim',
-	icon: ''
+	icon: '',
+	imageURL: ''
 };
 
 export function readArriving(pushed: unknown): Arriving {
@@ -26,7 +28,8 @@ export function readArriving(pushed: unknown): Arriving {
 		body: text(held.body),
 		openPath: ownPath(held.openPath) || somethingHappened.openPath,
 		tag: text(held.tag) || somethingHappened.tag,
-		icon: secureURL(held.icon)
+		icon: secureURL(held.icon),
+		imageURL: secureURL(held.imageURL)
 	};
 }
 
