@@ -1,3 +1,5 @@
+import { plainPreviewOf } from './plain-preview';
+
 export type ArrivedMessage = {
 	conversationID: string;
 	messageID: string;
@@ -16,6 +18,7 @@ export type Told = {
 };
 
 const previewLimit = 140;
+const cutMark = '…';
 
 export function readArrivedMessage(offered: unknown): ArrivedMessage | null {
 	if (typeof offered !== 'object' || offered === null) return null;
@@ -31,7 +34,7 @@ export function readArrivedMessage(offered: unknown): ArrivedMessage | null {
 		authorExternalID,
 		authorName: text(held.authorName),
 		recipientExternalIDs: externalIDs(held.recipientExternalIDs, authorExternalID),
-		preview: text(held.preview).slice(0, previewLimit),
+		preview: limitedPreviewOf(text(held.preview)),
 		attachmentKinds: words(held.attachmentKinds)
 	};
 }
@@ -81,6 +84,12 @@ export function notifyRequestOf(
 		attachmentKinds: arrived.attachmentKinds,
 		...tellingOf(arrived, authorName)
 	};
+}
+
+function limitedPreviewOf(message: string): string {
+	const characters = Array.from(plainPreviewOf(message));
+	if (characters.length <= previewLimit) return characters.join('');
+	return characters.slice(0, previewLimit - 1).join('').trimEnd() + cutMark;
 }
 
 function text(offered: unknown): string {

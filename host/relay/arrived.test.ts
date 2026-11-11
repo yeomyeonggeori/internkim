@@ -44,7 +44,32 @@ describe('readArrivedMessage', () => {
 	test('a long message is cut before it travels, because a push has a ceiling', () => {
 		const arrived = readArrivedMessage({ ...posted, preview: '가'.repeat(500) });
 
-		expect(arrived?.preview.length).toBe(140);
+		expect(arrived?.preview).toBe(`${'가'.repeat(139)}…`);
+	});
+
+	test('a message that fits the ceiling travels whole, with no cut mark', () => {
+		const arrived = readArrivedMessage({ ...posted, preview: '가'.repeat(140) });
+
+		expect(arrived?.preview).toBe('가'.repeat(140));
+	});
+
+	test('the ceiling counts what the person reads, not the markdown around it', () => {
+		const arrived = readArrivedMessage({ ...posted, preview: `**${'가'.repeat(140)}**` });
+
+		expect(arrived?.preview).toBe('가'.repeat(140));
+	});
+
+	test('the preview carries the words without the markdown', () => {
+		const arrived = readArrivedMessage({ ...posted, preview: '## 회의\n\n**30분** 미뤄도 될까요' });
+
+		expect(arrived?.preview).toBe('회의\n30분 미뤄도 될까요');
+	});
+
+	test('a cut never splits an emoji', () => {
+		const arrived = readArrivedMessage({ ...posted, preview: `${'가'.repeat(138)}😀😀😀` });
+
+		expect(arrived?.preview).toBe(`${'가'.repeat(138)}😀…`);
+		expect(Array.from(arrived?.preview ?? '').length).toBe(140);
 	});
 
 	test('an older messenger that reports no files reports a message without any', () => {
