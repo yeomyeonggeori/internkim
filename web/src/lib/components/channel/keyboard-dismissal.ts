@@ -38,3 +38,15 @@ export function dismissKeyboardOnScrollBack(node: HTMLElement): { destroy(): voi
 export function dismissKeyboardOnDrag(node: HTMLElement): () => void {
 	return dismissKeyboardOnceDragged(node, (draggedPixels) => Math.abs(draggedPixels) >= dragToDismissPixels);
 }
+
+const keyboardDismissalMilliseconds = 200;
+
+export function openOnceKeyboardDismissed(open: () => void): void {
+	const active = document.activeElement;
+	if (!(active instanceof HTMLElement) || !active.matches(typingElements)) {
+		open();
+		return;
+	}
+	active.blur();
+	setTimeout(open, keyboardDismissalMilliseconds);
+}
