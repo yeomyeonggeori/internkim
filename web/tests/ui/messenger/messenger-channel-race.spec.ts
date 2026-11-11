@@ -21,6 +21,11 @@ function readGate() {
 	return { opened, release };
 }
 
+async function sendFromComposer(page: Page) {
+	await page.getByRole('combobox', { name: '메시지를 입력하세요' }).fill('응답');
+	await page.getByRole('button', { name: '보내기' }).click();
+}
+
 function emptyRead(channelID: string) {
 	return { json: { conversationID: channelID, currentUserId: reader.id, messages: [], hasMoreBefore: false, historyCursor: '' } };
 }
@@ -91,10 +96,7 @@ test('an older empty read cannot replace a newer successful read in the active c
 	const reopenedReads = readGate();
 	let isHoldingReads = false;
 	let readCount = 0;
-	const knownMessage = {
-		...message('known-message'),
-		interaction: { kind: 'choice', question: '', options: [{ key: 'answer', label: '응답' }] }
-	};
+	const knownMessage = message('known-message');
 	await page.route('**/agent/api/dm?*', async (route) => {
 		if (route.request().method() === 'POST') {
 			await route.fulfill({ json: {} });
@@ -126,7 +128,7 @@ test('an older empty read cannot replace a newer successful read in the active c
 	await page.goto('/messenger?channel=channel-a');
 	await expect(page.getByText('known-message')).toBeVisible();
 	await oldReadIsStarted;
-	await page.getByRole('button', { name: '응답' }).click();
+	await sendFromComposer(page);
 	await expect(page.getByText('newer-message')).toBeVisible();
 	const oldResponse = page.waitForResponse((response) =>
 		response.url().includes('channelId=channel-a') && response.status() === 200
@@ -156,10 +158,7 @@ for (const newerRead of ['pending', 'failed']) {
 		const reopenedReads = readGate();
 		let isHoldingReads = false;
 		let readCount = 0;
-		const knownMessage = {
-			...message('known-message'),
-			interaction: { kind: 'choice', question: '', options: [{ key: 'answer', label: '응답' }] }
-		};
+		const knownMessage = message('known-message');
 		await page.route('**/agent/api/dm?*', async (route) => {
 			if (route.request().method() === 'POST') {
 				await route.fulfill({ json: {} });
@@ -193,7 +192,7 @@ for (const newerRead of ['pending', 'failed']) {
 		const failedResponse = newerRead === 'failed'
 			? page.waitForResponse((response) => response.url().includes('channelId=channel-a') && response.status() === 503)
 			: null;
-		await page.getByRole('button', { name: '응답' }).click();
+		await sendFromComposer(page);
 		await expect.poll(() => readCount).toBe(3);
 		if (failedResponse) await failedResponse;
 		const olderResponse = page.waitForResponse((response) =>
