@@ -1,6 +1,10 @@
 import { z } from 'zod';
 import defaultTemplate from './template.json';
 
+export const companyFieldKinds = ['profile', 'metric', 'record'] as const;
+export const companyFieldKindSchema = z.enum(companyFieldKinds);
+export type CompanyFieldKind = z.infer<typeof companyFieldKindSchema>;
+
 export const dataRoomCategorySchema = z.strictObject({
 	code: z.string().regex(/^[A-Z]{1,2}$/),
 	slug: z.string().min(1),
@@ -8,7 +12,7 @@ export const dataRoomCategorySchema = z.strictObject({
 	nameKO: z.string().min(1),
 	parent: z.string().nullable(),
 	description: z.string(),
-	fields: z.array(z.string().min(1)).describe("What the company page shows to readers of this category: company_info keys, company_metric keys, company_record categories 'activity' (attendance and work with names masked) and 'ownership' (the equity ledger summed by kind of holder), e.g. ['capital'] or ['annualRevenue']. A field belongs to one category; one no category names is shown only to readers of X. Move one with dataroom_field_update.").optional(),
+	fields: z.partialRecord(companyFieldKindSchema, z.array(z.string().min(1))).optional(),
 	choiceGroup: z.number().int().min(1).max(2).nullable().optional()
 });
 

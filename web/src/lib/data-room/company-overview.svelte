@@ -14,6 +14,7 @@
 	import { displayCurrency } from '$lib/currency/display-currency.svelte';
 	import { companyIn, loadExchangeRates, recordedCurrencies, type ExchangeRates } from './company-currency';
 	import { dataRoomCompanyText } from './company-text';
+	import { fieldNamer } from './company-field-name';
 	import {
 		changeFromPrevious,
 		projectedChange,
@@ -47,6 +48,7 @@
 
 	const locale = $derived(currentLocale.value);
 	const text = $derived(dataRoomCompanyText[locale]);
+	const fieldName = $derived(fieldNamer(recordedCompany.fieldNames ?? [], text, locale));
 	const currency = $derived(asRecorded ? '' : displayCurrency.value);
 	const company = $derived(currency ? companyIn(recordedCompany, currency, exchangeRates) : recordedCompany);
 	const conversionDate = $derived([...exchangeRates.values()].map((rate) => rate.asOf).toSorted().at(-1));
@@ -164,6 +166,7 @@
 							note={changeNote(changeFromPrevious(series), series)}
 							projectionNote={changeNote(projectedChange(series), series)}
 							span={index === metrics.length - 1 ? lastRowSpan(metrics.length, metricColumns) : 1}
+							{fieldName}
 						/>
 					{/each}
 				</div>
@@ -171,13 +174,13 @@
 		{/if}
 
 		{#if fundingRecords.length > 0}
-			<CompanyRecordList id="company-funding" title={text.funding} records={fundingRecords} plainCategory="funding" {locale} />
+			<CompanyRecordList id="company-funding" title={text.funding} records={fundingRecords} plainCategory="funding" {locale} {fieldName} />
 		{/if}
 		{#if company.ownership}<CompanyOwnership ownership={company.ownership} {locale} />{/if}
 		{#if timeline.length > 0}
-			<CompanyRecordList id="company-timeline" title={text.records} records={timeline} plainCategory="history" {locale} />
+			<CompanyRecordList id="company-timeline" title={text.records} records={timeline} plainCategory="history" {locale} {fieldName} />
 		{/if}
-		{#if proof.length > 0}<CompanyProof groups={proof} {locale} />{/if}
+		{#if proof.length > 0}<CompanyProof groups={proof} {locale} {fieldName} />{/if}
 		{#if company.activity}<CompanyActivity activity={company.activity} {locale} />{/if}
 
 		{#if factGroups.length > 0}
@@ -190,7 +193,7 @@
 							<dl class="grid gap-2">
 								{#each group.facts as fact (fact.field)}
 									<div class="grid grid-cols-[auto_minmax(0,1fr)] gap-3 text-sm">
-										<dt class="text-muted-foreground">{text.fields[fact.field] ?? fact.field}</dt>
+										<dt class="text-muted-foreground">{group.group === 'registration' ? fact.field : fieldName('profile', fact.field)}</dt>
 										<dd class="text-right break-words tabular-nums">{fact.value}</dd>
 									</div>
 								{/each}

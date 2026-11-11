@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(14);
+select plan(20);
 
 insert into auth.users (id, email) values
   ('65000000-0000-0000-0000-000000000001', 'company-admin@example.com'),
@@ -18,13 +18,26 @@ insert into public.company_record (company_id, category, record_date, title) val
   ('65000000-0000-0000-0000-000000000010', 'funding', '2025-03-01', 'Seed round closed'),
   ('65000000-0000-0000-0000-000000000010', 'history', '2024-01-02', 'Company founded');
 
-select ok((select fields @> array['brandName', 'history'] from public.data_room_category
-  where company_id = '65000000-0000-0000-0000-000000000010' and code = 'GP'),
-  'a new company takes the company fields its template names');
-select throws_ok($$update public.data_room_category set fields = array['capital']
-  where company_id = '65000000-0000-0000-0000-000000000010' and code = 'FC'$$,
-  '23505', 'a company field belongs to one data room category',
-  'a field is shown under one category');
+select is((select array_agg(kind || ':' || field order by kind, field) from public.company_field
+  where company_id = '65000000-0000-0000-0000-000000000010' and category_code = 'GP' and field in ('brandName', 'history')),
+  array['profile:brandName', 'record:history'],
+  'a new company takes the company fields its template names, each by its kind');
+select throws_ok($$insert into public.company_field (company_id, kind, field, category_code)
+  values ('65000000-0000-0000-0000-000000000010', 'profile', 'capital', 'FC')$$,
+  '23505', null, 'a field is shown under one category');
+select lives_ok($$insert into public.company_field (company_id, kind, field, category_code)
+  values ('65000000-0000-0000-0000-000000000010', 'metric', 'history', 'FS')$$,
+  'a metric may share its key with a record category without sharing its audience');
+select throws_ok($$insert into public.company_field (company_id, kind, field, category_code)
+  values ('65000000-0000-0000-0000-000000000010', 'metric', 'cashRunway', 'ZZ')$$,
+  '23503', null, 'a field is placed only in a category the company has');
+select throws_ok($$insert into public.company_field (company_id, kind, field, unit)
+  values ('65000000-0000-0000-0000-000000000010', 'record', 'award', 'awards')$$,
+  '23514', null, 'only a metric carries a unit');
+select throws_ok($$insert into public.company_field (company_id, kind, field, names)
+  values ('65000000-0000-0000-0000-000000000010', 'metric', 'cashRunway', '{"ko": " "}')$$,
+  '23514', null, 'a name is written, never blank');
+delete from public.company_field where company_id = '65000000-0000-0000-0000-000000000010' and kind = 'metric' and field = 'history';
 
 set local role authenticated;
 select set_config('request.jwt.claims', '{"sub":"65000000-0000-0000-0000-000000000002"}', true);
@@ -65,19 +78,27 @@ select is(public.data_room_company('65000000-0000-0000-0000-000000000010'),
 
 set local role authenticated;
 select set_config('request.jwt.claims', '{"sub":"65000000-0000-0000-0000-000000000002"}', true);
-select throws_ok($$select public.data_room_field_set('65000000-0000-0000-0000-000000000010', 'burnRate', 'GP')$$,
-  '42501', 'only a data room administrator decides who sees a company field',
+select is_empty($$update public.company_field set category_code = 'GP'
+  where company_id = '65000000-0000-0000-0000-000000000010' and kind = 'profile' and field = 'capital' returning field$$,
   'a member cannot decide who sees a field');
 
 select set_config('request.jwt.claims', '{"sub":"65000000-0000-0000-0000-000000000001"}', true);
-select public.data_room_field_set('65000000-0000-0000-0000-000000000010', 'capital', 'GP');
-select public.data_room_field_set('65000000-0000-0000-0000-000000000010', 'burnRate', 'FS');
+update public.company_field set category_code = 'GP'
+  where company_id = '65000000-0000-0000-0000-000000000010' and kind = 'profile' and field = 'capital';
+insert into public.company_field (company_id, kind, field, category_code, names)
+  values ('65000000-0000-0000-0000-000000000010', 'metric', 'burnRate', 'FS', '{"ko": "월 소진액", "en": "Monthly burn"}');
 select is(jsonb_path_query_array(public.data_room_circle_company('65000000-0000-0000-0000-000000000010', 'member'), '$.profile.keyvalue().key'),
   '["capital", "brandName", "employeeCount"]'::jsonb,
   'an administrator moves a field into a category the member circle reads');
 select ok(public.data_room_circle_company('65000000-0000-0000-0000-000000000010', 'investor') -> 'metrics' @> '[{"metric": "burnRate"}]',
   'a field named by no category becomes visible once one names it');
-select public.data_room_field_set('65000000-0000-0000-0000-000000000010', 'capital', null);
+select is(public.data_room_circle_company('65000000-0000-0000-0000-000000000010', 'investor') -> 'fieldNames',
+  '[{"kind": "metric", "field": "burnRate", "names": {"ko": "월 소진액", "en": "Monthly burn"}}]'::jsonb,
+  'a reader of a field sees what the company calls it');
+select ok(not public.data_room_circle_company('65000000-0000-0000-0000-000000000010', 'member') ? 'fieldNames',
+  'a reader who cannot see a field is not told its name');
+update public.company_field set category_code = null
+  where company_id = '65000000-0000-0000-0000-000000000010' and kind = 'profile' and field = 'capital';
 select ok(not public.data_room_circle_company('65000000-0000-0000-0000-000000000010', 'investor') -> 'profile' ? 'capital',
   'a field taken out of every category falls back to X, which no investor reads');
 

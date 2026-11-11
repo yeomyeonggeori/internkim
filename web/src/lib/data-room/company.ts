@@ -3,6 +3,7 @@ import { personName } from '$lib/person-name';
 import { compareMomentsNewestFirst, momentLabel, momentSchema, momentSpanOf, type Moment, type MomentPrecision, type MomentSpan } from '$lib/moment';
 import { formatCompactMoney, formatMoney, moneySchema, type Money } from '$lib/money';
 import { companyActivitySchema, storedActivitySchema } from './activity';
+import { companyFieldKindSchema } from './model';
 
 const localizedTextSchema = z.record(z.string(), z.string());
 
@@ -58,6 +59,7 @@ export const dataRoomCompanySchema = z.object({
 		recordedAt: z.string().optional()
 	})),
 	records: z.array(recordSchema),
+	fieldNames: z.array(z.object({ kind: companyFieldKindSchema, field: z.string(), names: z.record(z.string(), z.string()) })).optional(),
 	activity: companyActivitySchema.optional(),
 	ownership: ownershipSchema.optional(),
 	logo: z.string().optional()
@@ -73,6 +75,7 @@ export type CompanyProfile = DataRoomCompany['profile'];
 export type CompanyMetric = DataRoomCompany['metrics'][number];
 export type CompanyRecord = DataRoomCompany['records'][number];
 export type CompanyOwnership = NonNullable<DataRoomCompany['ownership']>;
+export type CompanyFieldNames = NonNullable<DataRoomCompany['fieldNames']>;
 export type HolderKind = (typeof holderKinds)[number];
 export type CompanyMetricSeries = {
 	metric: string;

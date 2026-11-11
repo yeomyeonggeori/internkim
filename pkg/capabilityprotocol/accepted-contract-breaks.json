@@ -1,5 +1,15 @@
 [
 	{
+		"path": "dataroom_field_update.input.kind",
+		"reason": "A company page field is one row keyed by its kind as well as its key, so a metric and a record category that share a key no longer share an audience. The caller names which one it moves; a bare key could mean either.",
+		"release": "the company_field release carries the updated catalog to company hosts before the web/API deployment"
+	},
+	{
+		"path": "dataroom_get.result.fields",
+		"reason": "Which category's readers see a field, what the company calls it and a metric's unit now live on one row per field, answered as a top-level fields list beside the categories, which no longer carry the keys they show.",
+		"release": "the company_field release carries the updated catalog to company hosts before the web/API deployment"
+	},
+	{
 		"path": "company_metric_record.input.usdEquivalent",
 		"reason": "A metric that is money is an amount in its own currency and nothing else. The stored USD equivalent was a second copy with two sources, a figure a person stated or a conversion at the rate of the day it was recorded, and the company page converts at the current rate instead.",
 		"release": "the currency_amount release carries the updated catalog to company hosts before the web/API deployment"

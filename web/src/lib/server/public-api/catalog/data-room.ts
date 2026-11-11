@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { dataRoomCategorySchema } from '$lib/data-room/model';
+import { companyFieldKindSchema, dataRoomCategorySchema } from '$lib/data-room/model';
 import { dataRoomGetResultSchema } from '$lib/data-room/schemas';
 import { dataRoomLinkInputSchema, dataRoomLinksSchema, dataRoomLinkCreatedSchema, dataRoomLinkRevokeSchema } from '$lib/data-room/links';
 export { dataRoomGetResultSchema, dataRoomShareSchema } from '$lib/data-room/schemas';
@@ -8,9 +8,18 @@ import { ResourceMutationEffect, type CapabilityToolDefinition } from './definit
 import type { CapabilityNamespace } from './namespaces';
 
 export const dataRoomCategorySetInputSchema = dataRoomCategorySchema.omit({ fields: true });
+const companyFieldIdentity = {
+	kind: companyFieldKindSchema.describe("What the field is: 'profile' for a company_info key, 'activity' or 'ownership'; 'metric' for a company_metric key; 'record' for a company_record category"),
+	field: z.string().min(1).describe("Exact field as stored: a company_info key such as 'capital', a company_metric key such as 'annualRevenue', or a company_record category such as 'funding'.")
+};
 export const dataRoomFieldSetInputSchema = z.strictObject({
-	field: z.string().min(1).describe("Exact field as stored: a company_info key such as 'capital', a company_metric key such as 'annualRevenue', or a company_record category such as 'funding'."),
+	...companyFieldIdentity,
 	categoryCode: z.string().regex(/^[A-Z]{1,2}$/).describe('Exact code from dataroom_get whose readers should see the field. Omit to show it only to readers of X.').optional()
+});
+export const dataRoomFieldNameSetInputSchema = z.strictObject({
+	...companyFieldIdentity,
+	name: z.string().trim().min(1).describe("What the company page calls the field in English, e.g. 'Installed units'. Omit to show the product's English name.").optional(),
+	nameKO: z.string().trim().min(1).describe("What the company page calls the field in Korean. Omit to show the product's Korean name.").optional()
 });
 export const dataRoomShareCreateInputSchema = z.strictObject({
 	circleID: z.string(),
@@ -72,6 +81,9 @@ export const dataRoomToolDefinitions: CapabilityToolDefinition[] = [
 	dataRoomTool('dataroom_field_update',
 		'Choose who sees one company page field by naming the category whose readers see it; the field leaves the category that held it. Confirm the audience first: every circle and share that reads the category sees the value.',
 		dataRoomFieldSetInputSchema, recordSavedSchema, true),
+	dataRoomTool('dataroom_field_name_update',
+		"Name one company page field the way the company says it, in English and in Korean. Each call sets both names; a language left out shows the product's name, or the field as written when the product has none.",
+		dataRoomFieldNameSetInputSchema, recordSavedSchema, true),
 	dataRoomTool('dataroom_share_add',
 		'Share live data room categories with someone outside the company by lending them what one circle reads: an external email or an explicitly public audience. Current and future documents in those categories become readable. Confirm the audience and scope first. Recipients must accept using their verified email; do not invite them as company members. Company members read through the circles they belong to, set with circle_member_update. Public publication is a distinct explicit request and never includes X.',
 		dataRoomShareCreateInputSchema, dataRoomShareCreatedSchema, true),
