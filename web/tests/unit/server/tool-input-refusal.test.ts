@@ -29,6 +29,17 @@ describe('the input gate refuses only what the record would refuse', () => {
 	test('a field the tool does not take is named back', () => {
 		expect(refusalOfToolInput('attendance_add', { kind: 'clock_in', mood: 'cheerful' })).toContain('input.mood');
 	});
+
+	test('a USD equivalent, which a metric no longer keeps, is named back', () => {
+		expect(
+			refusalOfToolInput('company_metric_record', {
+				metric: 'operatingProfit',
+				period: '2025',
+				amount: { amount: 1_000, currency: 'KRW' },
+				usdEquivalent: 1
+			})
+		).toContain('input.usdEquivalent');
+	});
 });
 
 // A model gets one call to recover with, and it spends it on whatever the
