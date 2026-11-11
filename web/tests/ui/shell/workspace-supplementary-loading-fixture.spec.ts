@@ -59,7 +59,7 @@ async function prepare(page: Page, fixture: SupplementaryFixture) {
 
 type Scene = { name: string; path: string; gates: string[]; ready: string; action?: (page: Page) => Promise<void>; focus?: (page: Page) => Promise<void> };
 const scenes: Scene[] = [
-	{ name: 'settings-security', path: '/example-co/settings', gates: ['tokens'], ready: 'text=fixture-review-token', focus: async page => { await page.getByText('개인 액세스 토큰', { exact: true }).scrollIntoViewIfNeeded(); } },
+	{ name: 'settings-developer', path: '/example-co/settings/developer', gates: ['tokens'], ready: 'text=fixture-review-token', focus: async page => { await page.getByText('개인 액세스 토큰', { exact: true }).scrollIntoViewIfNeeded(); } },
 	{ name: 'settings-setup', path: '/example-co/settings/setup', gates: ['host-setup'], ready: 'text=예시 회사' },
 	{ name: 'settings-members', path: '/example-co/settings/setup', gates: ['person_list'], ready: 'text=member1@example.com', focus: async page => { await page.getByRole('button', { name: '구성원 초대', exact: true }).scrollIntoViewIfNeeded(); } },
 	{ name: 'data-room', path: '/example-co/data-room', gates: ['dataroom_get', 'company_document_list'], ready: 'button:has-text("회사 소개")' },
@@ -76,8 +76,8 @@ const scenes: Scene[] = [
 test.use({ locale: 'ko-KR', colorScheme: 'light', contextOptions: { reducedMotion: 'reduce' } });
 async function capture(page: Page, scene: string, width: number, state: string) {
 	if (!output) return;
-	const securityDesktop = scene === 'settings-security' && width === desktopWidth;
-	const stableScroll = scene === 'settings-members' || securityDesktop;
+	const developerDesktop = scene === 'settings-developer' && width === desktopWidth;
+	const stableScroll = scene === 'settings-members' || developerDesktop;
 	if (stableScroll) await page.evaluate(async () => {
 		await document.fonts.ready;
 		if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
@@ -86,8 +86,7 @@ async function capture(page: Page, scene: string, width: number, state: string) 
 		window.scrollTo(0, 0);
 	});
 	let targetGeometry: { x: number; y: number; width: number; height: number } | null = null;
-	if (securityDesktop) {
-		await expect(page.getByText('Sample computer', { exact: true })).toBeVisible();
+	if (developerDesktop) {
 		const tokenCard = page.locator('[data-slot="card"]').filter({ has: page.locator('#personal-access-token-name') });
 		await tokenCard.evaluate(card => {
 			const main = card.closest('main');
@@ -107,14 +106,14 @@ async function capture(page: Page, scene: string, width: number, state: string) 
 	await page.screenshot({ path: `${output}/${phase}/${scene}-${width}-${state}.png`, animations: stableScroll ? 'allow' : 'disabled', caret: 'initial' });
 	const afterScroll = await page.evaluate(() => ({ windowY: window.scrollY, regions: Array.from(document.querySelectorAll('main,[data-app-shell-scroll],[role="tabpanel"]')).map(element => ({ tag: element.tagName, role: element.getAttribute('role'), top: element.scrollTop, left: element.scrollLeft })) }));
 	if (stableScroll) expect(afterScroll).toEqual(scroll);
-	await writeFile(`${output}/${phase}/${scene}-${width}-${state}.json`, JSON.stringify({ route: new URL(page.url()).pathname, viewport: page.viewportSize(), reducedMotionVerified: motion, animations: stableScroll ? 'allow after finite animations settled' : 'disabled', scroll, afterScroll, postScreenshotScrollVerified: stableScroll, targetGeometry, tokenCardFullyInViewport: securityDesktop }, null, 2));
+	await writeFile(`${output}/${phase}/${scene}-${width}-${state}.json`, JSON.stringify({ route: new URL(page.url()).pathname, viewport: page.viewportSize(), reducedMotionVerified: motion, animations: stableScroll ? 'allow after finite animations settled' : 'disabled', scroll, afterScroll, postScreenshotScrollVerified: stableScroll, targetGeometry, tokenCardFullyInViewport: developerDesktop }, null, 2));
 }
 
 for (const width of everyScreen) for (const scene of scenes) {
 	test(`${scene.name} supplementary pending and ready at ${width}px`, async ({ page }) => {
 		await page.setViewportSize({ width, height: 900 });
 		const fixture = new SupplementaryFixture();
-		if (scene.name === 'settings-security') fixture.isAdmin = false;
+		if (scene.name === 'settings-developer') fixture.isAdmin = false;
 		for (const gate of scene.gates) fixture.hold(gate);
 		await prepare(page, fixture);
 		await page.goto(scene.path);
@@ -198,18 +197,18 @@ for (const status of [401, 403]) for (const target of ['memory', 'files', 'mail'
 	});
 }
 
-test('security and public data-room first-read failures do not masquerade as empty', async ({ page }) => {
+test('developer and public data-room first-read failures do not masquerade as empty', async ({ page }) => {
 	await page.setViewportSize({ width: 1280, height: 900 });
 	const fixture = new SupplementaryFixture();
 	fixture.isAdmin = false;
 	fixture.statuses.set('tokens', 503);
 	fixture.statuses.set('public-data-room', 503);
 	await prepare(page, fixture);
-	await page.goto('/example-co/settings');
+	await page.goto('/example-co/settings/developer');
 	await expect(page.getByText('토큰 목록을 불러오지 못했습니다.', { exact: true }).first()).toBeVisible();
 	if (phase === 'after') await expect(page.getByText('아직 만든 토큰이 없습니다.', { exact: true })).toHaveCount(0);
 	await page.getByText('개인 액세스 토큰', { exact: true }).scrollIntoViewIfNeeded();
-	await capture(page, 'settings-security', 1280, 'error');
+	await capture(page, 'settings-developer', 1280, 'error');
 	await page.goto(`/share/${companyID}`);
 	await expect(page.getByRole('alert')).toBeVisible();
 	if (phase === 'after') {

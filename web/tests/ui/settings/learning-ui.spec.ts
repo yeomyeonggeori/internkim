@@ -25,9 +25,8 @@ async function mockLearningSettings(page: Page): Promise<void> {
 }
 
 async function openAdminSettings(page: Page): Promise<void> {
-	await page.goto('/settings/');
+	await page.goto('/settings/agent/');
 	await page.evaluate(() => window.dispatchEvent(new Event('focus')));
-	await page.getByRole('tab', { name: '관리자' }).click();
 }
 
 async function dismissUnrelatedToasts(page: Page): Promise<void> {

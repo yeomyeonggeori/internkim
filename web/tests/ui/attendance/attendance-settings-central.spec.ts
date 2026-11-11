@@ -23,12 +23,11 @@ test.afterAll(async () => {
 });
 
 async function openSettings(page: Page): Promise<void> {
-	await signInToTheCentralPlane(page, `/${exampleCompanySlug}/settings`);
-	await switchToAdministratorTab(page);
+	await signInToTheCentralPlane(page, `/${exampleCompanySlug}/settings/attendance`);
+	await waitForAttendanceSettings(page);
 }
 
-async function switchToAdministratorTab(page: Page): Promise<void> {
-	await page.getByRole('tab', { name: '관리자' }).click();
+async function waitForAttendanceSettings(page: Page): Promise<void> {
 	await page
 		.getByTestId('attendance-work-settings')
 		.waitFor({ state: 'visible', timeout: 20000 });
@@ -46,7 +45,7 @@ test('an administrator changes the work mode and it survives a reload', async ({
 	await expect(page.getByText('근무 설정을 저장했습니다.')).toBeVisible({ timeout: 20000 });
 
 	await page.reload();
-	await switchToAdministratorTab(page);
+	await waitForAttendanceSettings(page);
 	await expect(workSettings.getByRole('button', { name: '자율 근무제' })).toHaveAttribute(
 		'aria-pressed',
 		'true'
@@ -79,7 +78,7 @@ test('a leave type nobody has taken leave under disappears when it is removed', 
 	await expect(page.getByText('휴가 종류를 삭제했습니다.')).toBeVisible({ timeout: 20000 });
 
 	await page.reload();
-	await switchToAdministratorTab(page);
+	await waitForAttendanceSettings(page);
 	await expect(settings.getByRole('button', { name: customLeaveTypeName })).toHaveCount(0);
 });
 
@@ -93,6 +92,6 @@ test('a company holiday an administrator adds survives a reload', async ({ page 
 	await expect(holidays.getByText('회사 휴일을 저장했습니다.')).toBeVisible({ timeout: 20000 });
 
 	await page.reload();
-	await switchToAdministratorTab(page);
+	await waitForAttendanceSettings(page);
 	await expect(holidays.getByText(companyHolidayName)).toBeVisible();
 });
