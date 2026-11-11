@@ -159,7 +159,7 @@
 						seed={keyOf(owner)}
 						memberID={owner.memberID ?? ''}
 						externalID={owner.externalID ?? ''}
-						{...avatarPresenceOf(owner.memberID, text)}
+						{...avatarPresenceOf(owner, text)}
 						class="size-7"
 					/>
 					<span class="truncate text-sm font-medium">{nameOf(owner)}</span>
