@@ -378,6 +378,7 @@ func (daemon Daemon) InstallWithConnectionFile(ctx context.Context, connectionKe
 	if errorValue := rememberAppURL(daemon.Places.StateDirectoryPath, session.Configuration.AppURL); errorValue != nil {
 		return errorValue
 	}
+	daemon.noteSeveralBoxes(session.HasSeveralBoxes)
 	return daemon.installFor(session, modelKey)
 }
 
