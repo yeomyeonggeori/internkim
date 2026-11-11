@@ -25,9 +25,9 @@
 							<Item.Root size="sm">
 								{#snippet child({ props })}
 									<a href={settingsPath(page.url.pathname, section.id)} {...props}>
-										<Item.Media><Icon /></Item.Media>
+										<Item.Media variant="icon"><Icon /></Item.Media>
 										<Item.Content><Item.Title>{text.sections[section.id]}</Item.Title></Item.Content>
-										<Item.Actions><ChevronRightIcon class="text-muted-foreground" /></Item.Actions>
+										<Item.Actions><ChevronRightIcon class="size-4 text-muted-foreground" /></Item.Actions>
 									</a>
 								{/snippet}
 							</Item.Root>
