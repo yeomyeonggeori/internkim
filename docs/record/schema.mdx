@@ -240,8 +240,22 @@ same metric and period again once the period is over replaces it with the
 result.
 
 A metric is money or a count. Money is a `currency_amount` in `amount`; a
-count is `value`, with its `unit`. Nothing stores a converted copy: the data
-room converts at the day's rate where it shows a number in another currency.
+count is `value`. Nothing stores a converted copy: the data room converts at the
+day's rate where it shows a number in another currency.
+
+## A company page field is one row [#company-fields]
+
+`company_field` holds what the company page knows about one field: the category
+whose readers see it, what the company calls it, and a metric's unit. Its key
+is the company, the kind and the field, so a metric and a record category that
+share a key are two fields. The kinds are `profile` (a `company.profile` key,
+`activity` or `ownership`), `metric` (a `company_metric` key) and `record` (a
+`company_record` category).
+
+A field with no row, or a row with no `category_code`, is shown only to readers
+of X. `names` holds only what the company chose. The product's own name for a
+field stays in the app, and a field the product does not name shows its key.
+A new company takes rows for the fields its data room template places.
 
 ## The seal and logo are data room documents [#service-files]
 

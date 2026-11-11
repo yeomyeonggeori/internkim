@@ -7,9 +7,10 @@
 	import type { Component } from 'svelte';
 	import { Button } from '$lib/components/ui/button';
 	import { dataRoomCompanyText } from './company-text';
-	import { humanizedKey, type RecordGroup } from './company';
+	import type { RecordGroup } from './company';
+	import type { FieldName } from './company-field-name';
 
-	let { groups, locale }: { groups: RecordGroup[]; locale: 'ko' | 'en' } = $props();
+	let { groups, locale, fieldName }: { groups: RecordGroup[]; locale: 'ko' | 'en'; fieldName: FieldName } = $props();
 
 	const visibleCount = 4;
 	const text = $derived(dataRoomCompanyText[locale]);
@@ -41,7 +42,7 @@
 			<article class="bg-background grid content-start gap-3 p-5" style:grid-column={index === groups.length - 1 && groups.length % columns !== 0 ? `span ${columns - (groups.length % columns) + 1}` : undefined}>
 				<header class="flex items-center gap-2">
 					<Icon class="text-muted-foreground size-4" />
-					<h4 class="text-sm font-semibold">{text.recordCategories[group.category] ?? humanizedKey(group.category)}</h4>
+					<h4 class="text-sm font-semibold">{fieldName('record', group.category)}</h4>
 					<span class="text-muted-foreground text-sm tabular-nums">{group.records.length}</span>
 				</header>
 				<ul class="grid gap-2">

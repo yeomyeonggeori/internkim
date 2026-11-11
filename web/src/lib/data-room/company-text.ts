@@ -1,7 +1,7 @@
 import type { Locale } from '$lib/i18n/locale.svelte';
 import type { HolderKind, PeriodKind } from './company';
 
-type CompanyText = {
+export type CompanyText = {
 	documents: string;
 	currency: { label: string; asRecorded: string; converted: (currency: string, date: string) => string };
 	company: string;
@@ -152,7 +152,6 @@ export const dataRoomCompanyText: Record<Locale, CompanyText> = {
 			brandName: '브랜드명',
 			slogan: '슬로건',
 			description: '회사 소개',
-			representativeTitle: '대표자 직함',
 			legalAttributes: '법적 등록 정보',
 			email: '대표 이메일',
 			fax: '팩스',
@@ -265,7 +264,6 @@ export const dataRoomCompanyText: Record<Locale, CompanyText> = {
 			brandName: 'Brand',
 			slogan: 'Slogan',
 			description: 'Description',
-			representativeTitle: 'Representative title',
 			legalAttributes: 'Legal registration',
 			email: 'Email',
 			fax: 'Fax',

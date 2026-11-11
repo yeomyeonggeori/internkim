@@ -4,14 +4,16 @@
 	import { momentLabel } from '$lib/moment';
 	import { dataRoomCompanyText } from './company-text';
 	import { humanizedKey, isInProgress, recordAttributes, type CompanyRecord } from './company';
+	import type { FieldName } from './company-field-name';
 
 	let {
 		id,
 		title,
 		records,
 		plainCategory,
-		locale
-	}: { id: string; title: string; records: CompanyRecord[]; plainCategory: string; locale: 'ko' | 'en' } = $props();
+		locale,
+		fieldName
+	}: { id: string; title: string; records: CompanyRecord[]; plainCategory: string; locale: 'ko' | 'en'; fieldName: FieldName } = $props();
 
 	const text = $derived(dataRoomCompanyText[locale]);
 
@@ -30,7 +32,7 @@
 				<div class="min-w-0">
 					<div class="flex flex-wrap items-center gap-2">
 						<p class="font-medium">{record.title}</p>
-						{#if record.category !== plainCategory}<Badge variant="secondary">{text.recordCategories[record.category] ?? humanizedKey(record.category)}</Badge>{/if}
+						{#if record.category !== plainCategory}<Badge variant="secondary">{fieldName('record', record.category)}</Badge>{/if}
 						{#if isInProgress(record)}<Badge variant="outline">{text.inProgress}</Badge>{/if}
 					</div>
 					{#if record.detail}<p class="text-muted-foreground mt-0.5 text-sm text-pretty">{record.detail}</p>{/if}
