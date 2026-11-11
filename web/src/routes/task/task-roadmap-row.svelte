@@ -2,6 +2,7 @@
 	import DefinitionBadge from '$lib/components/definition-badge.svelte';
 	import PersonAvatar from '$lib/components/person-avatar.svelte';
 	import { Button } from '$lib/components/ui/button';
+	import * as Item from '$lib/components/ui/item';
 	import { Meter } from '$lib/components/ui/meter';
 	import { cn } from '$lib/utils';
 	import ArrowLeftIcon from '@lucide/svelte/icons/arrow-left';
@@ -67,24 +68,34 @@
 </script>
 
 <div class={cn(taskRoadmapColumnsClass, 'group border-b transition-opacity [contain-intrinsic-size:auto_3rem] [content-visibility:auto] max-sm:grid-rows-[auto_auto]', dimmed && 'opacity-40')} data-roadmap-task={row.task.id} data-roadmap-dimmed={dimmed ? 'true' : undefined}>
-	<button type="button" class={cn('flex min-w-0 items-center gap-2.5 border-r px-3 py-2 text-left hover:bg-muted max-sm:col-span-3 max-sm:gap-2 max-sm:border-r-0 max-sm:pb-0 max-sm:hover:bg-transparent', selected && 'bg-muted max-sm:bg-transparent')} onclick={openTask} data-roadmap-title={row.task.id}>
-		<span class="flex shrink-0" role="img" aria-label={statusLabel}><StatusIcon class={cn('size-3.5', statusIconClass(row.task.status))} aria-hidden="true" /></span>
-		<PersonAvatar name={row.task.ownerName} seed={row.task.ownerID || row.task.ownerName} memberID={row.task.ownerID} class="size-6" />
-		<span class="flex min-w-0 flex-1 flex-col gap-1.5">
-			<span class="flex min-w-0 items-center gap-1.5">
-				{#if row.childProgress}<ListTreeIcon class="size-3.5 shrink-0 text-muted-foreground" aria-hidden="true" data-roadmap-parent-icon />{/if}
-				<span class="truncate text-sm">{row.task.content}</span>
-			</span>
-			{#if row.childProgress}
-				<span class="flex items-center gap-2" data-roadmap-progress>
-					<Meter value={row.childProgress.percent} class="h-1 max-w-24" aria-label={progressLabel(row.childProgress)} />
-					<span class="text-xs whitespace-nowrap text-muted-foreground">{progressLabel(row.childProgress)}</span>
-				</span>
-			{/if}
-		</span>
-		{#if row.task.business}<span class="flex shrink-0 sm:max-lg:hidden"><TaskListBusinessCell label={row.task.business} color={businessColor} /></span>{/if}
-		<span class="flex shrink-0 max-sm:hidden"><DefinitionBadge label={typeLabel} color={typeColor} /></span>
-	</button>
+	<div class="min-w-0 border-r p-0.5 max-sm:col-span-3 max-sm:border-r-0 max-sm:pb-0">
+		<Item.Root size="xs" class={cn('min-w-0 text-left hover:bg-muted', selected && 'bg-muted')}>
+			{#snippet child({ props })}
+				<button type="button" {...props} onclick={openTask} data-roadmap-title={row.task.id}>
+					<Item.Media>
+						<span class="flex shrink-0" role="img" aria-label={statusLabel}><StatusIcon class={cn('size-3.5', statusIconClass(row.task.status))} aria-hidden="true" /></span>
+						<PersonAvatar name={row.task.ownerName} seed={row.task.ownerID || row.task.ownerName} memberID={row.task.ownerID} class="size-6" />
+					</Item.Media>
+					<Item.Content class="min-w-0">
+						<span class="flex min-w-0 items-center gap-1.5">
+							{#if row.childProgress}<ListTreeIcon class="size-3.5 shrink-0 text-muted-foreground" aria-hidden="true" data-roadmap-parent-icon />{/if}
+							<span class="truncate text-sm">{row.task.content}</span>
+						</span>
+						{#if row.childProgress}
+							<span class="flex items-center gap-2" data-roadmap-progress>
+								<Meter value={row.childProgress.percent} class="h-1 max-w-24" aria-label={progressLabel(row.childProgress)} />
+								<span class="text-xs whitespace-nowrap text-muted-foreground">{progressLabel(row.childProgress)}</span>
+							</span>
+						{/if}
+					</Item.Content>
+					<Item.Actions>
+						{#if row.task.business}<span class="flex shrink-0 sm:max-lg:hidden"><TaskListBusinessCell label={row.task.business} color={businessColor} /></span>{/if}
+						<span class="flex shrink-0 max-sm:hidden"><DefinitionBadge label={typeLabel} color={typeColor} /></span>
+					</Item.Actions>
+				</button>
+			{/snippet}
+		</Item.Root>
+	</div>
 	<div></div>
 	<div class="relative h-12 overflow-hidden max-sm:h-9 sm:[background-image:var(--roadmap-red-days)]" style={`--roadmap-red-days: ${redDayBackground}`} bind:clientWidth={laneWidth}>
 		{#if todayIndex >= 0}
