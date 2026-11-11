@@ -8,7 +8,9 @@ const posted = {
 	authorName: '이샘플',
 	recipientExternalIDs: ['U-first', 'U-second'],
 	preview: '오늘 회의 30분 미뤄도 될까요',
-	attachmentKinds: ['image']
+	attachmentKinds: ['image'],
+	pictureDigest: 'a'.repeat(64),
+	pictureContentType: 'image/png'
 };
 
 describe('readArrivedMessage', () => {
@@ -78,6 +80,21 @@ describe('readArrivedMessage', () => {
 		expect(readArrivedMessage(withoutFiles)?.attachmentKinds).toEqual([]);
 	});
 
+	test('an older messenger that reports no picture reports a message without one', () => {
+		const { pictureDigest: _digest, pictureContentType: _contentType, ...withoutPicture } = posted;
+		const arrived = readArrivedMessage(withoutPicture);
+
+		expect(arrived?.pictureDigest).toBe('');
+		expect(arrived?.pictureContentType).toBe('');
+	});
+
+	test('a picture field of the wrong type is treated as absent', () => {
+		const arrived = readArrivedMessage({ ...posted, pictureDigest: 7, pictureContentType: ['image/png'] });
+
+		expect(arrived?.pictureDigest).toBe('');
+		expect(arrived?.pictureContentType).toBe('');
+	});
+
 	test('a recipient list of the wrong shape leaves nobody to tell', () => {
 		expect(readArrivedMessage({ ...posted, recipientExternalIDs: 'U-first' })?.recipientExternalIDs).toEqual([]);
 		expect(readArrivedMessage({ ...posted, recipientExternalIDs: [7, null] })?.recipientExternalIDs).toEqual([]);
@@ -111,7 +128,10 @@ describe('tellingOf', () => {
 describe('notifyRequestOf', () => {
 	test('the project is told who wrote the message, so it can show their picture', () => {
 		const picturePath = '43000000-0000-0000-0000-0000000000a0/shared/sender-picture/ab.png';
-		expect(notifyRequestOf(readArrivedMessage(posted)!, '이샘플', 'buzz', picturePath, ['post-3'])).toEqual({
+		const messagePicturePath = `43000000-0000-0000-0000-0000000000a0/shared/transfer/${'a'.repeat(64)}`;
+		expect(
+			notifyRequestOf(readArrivedMessage(posted)!, '이샘플', 'buzz', picturePath, ['post-3'], messagePicturePath)
+		).toEqual({
 			platform: 'buzz',
 			externalIDs: ['U-first', 'U-second'],
 			senderExternalID: 'U-author',
@@ -121,6 +141,7 @@ describe('notifyRequestOf', () => {
 			withdrawnMessageIDs: ['post-3'],
 			senderPicturePath: picturePath,
 			attachmentKinds: ['image'],
+			messagePicturePath,
 			title: '이샘플',
 			body: '오늘 회의 30분 미뤄도 될까요',
 			openPath: '/messenger/?channel=channel-1&message=post-7',

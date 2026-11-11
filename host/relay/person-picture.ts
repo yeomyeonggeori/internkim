@@ -1,11 +1,11 @@
 import { reasonOf } from './failure';
+import { readTimeLimitMilliseconds, withinTimeLimit } from './time-limit';
 import type { ActorCredential } from './forward';
 
 export const personPictureKind = 'person-picture';
 
 const pictureCapability = 'person.picture';
 const rememberedForMilliseconds = 60 * 60 * 1000;
-const readTimeLimitMilliseconds = 3000;
 
 export type PersonPictureSources = {
 	keptAlready: (digest: string) => Promise<string | null>;
@@ -98,18 +98,6 @@ export function digestInURL(url: string): string {
 	}
 	const beforeExtension = lastSegment.split('.')[0] ?? '';
 	return /^[a-f0-9]{64}$/.test(beforeExtension) ? beforeExtension : '';
-}
-
-async function withinTimeLimit<Value>(work: Promise<Value>, milliseconds: number): Promise<Value> {
-	let timer: ReturnType<typeof setTimeout> | undefined;
-	const expired = new Promise<never>((_, reject) => {
-		timer = setTimeout(() => reject(new Error(`no answer within ${milliseconds}ms`)), milliseconds);
-	});
-	try {
-		return await Promise.race([work, expired]);
-	} finally {
-		clearTimeout(timer);
-	}
 }
 
 export function pictureOf(body: unknown): { bytes: Uint8Array; contentType: string } | null {

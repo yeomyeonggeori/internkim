@@ -8,6 +8,7 @@ export type Notification = {
 	senderID?: string;
 	messageID?: string;
 	withdrawnMessageIDs?: string[];
+	imageURL?: string;
 };
 
 export type NotificationSender = {
@@ -24,6 +25,10 @@ export function senderOf(notification: Notification): NotificationSender | null 
 		name: notification.senderName?.trim() || notification.title,
 		pictureURL
 	};
+}
+
+export function secureImageURLOf(notification: Notification): string {
+	return notification.imageURL?.startsWith('https://') ? notification.imageURL : '';
 }
 
 export type PushOutcome = 'delivered' | 'gone' | 'refused';
