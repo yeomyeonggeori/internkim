@@ -1,7 +1,7 @@
 <script lang="ts">
 	import DefinitionBadge from '$lib/components/definition-badge.svelte';
 	import PersonAvatar from '$lib/components/person-avatar.svelte';
-	import { Button, buttonVariants } from '$lib/components/ui/button';
+	import { Button } from '$lib/components/ui/button';
 	import { Meter } from '$lib/components/ui/meter';
 	import { cn } from '$lib/utils';
 	import ArrowLeftIcon from '@lucide/svelte/icons/arrow-left';
@@ -94,7 +94,7 @@
 			<div class="absolute inset-y-0 z-[1] my-auto h-7" style={`${taskRoadmapSpanStyle(bar, dayCount)}; ${barColorStyle}`} data-roadmap-slide="move">
 				<button
 					type="button"
-					class={cn(buttonVariants({ variant: 'outline', size: 'sm' }), 'absolute inset-0 h-full min-h-0 w-full min-w-0 active:not-aria-[haspopup]:translate-y-0', canUpdate && 'cursor-grab active:cursor-grabbing', selected && 'ring-2 ring-[var(--roadmap-bar-color)]')}
+					class={cn('absolute inset-0 rounded-[min(var(--radius-md),12px)] border bg-clip-padding transition-shadow outline-none select-none focus-visible:ring-3 focus-visible:ring-ring/50', canUpdate && 'cursor-grab active:cursor-grabbing', selected && 'ring-2 ring-[var(--roadmap-bar-color)]')}
 					style={barFillStyle}
 					title={row.task.content}
 					aria-label={`${row.task.content}, ${formatTaskRoadmapPeriod(bar)}`}
