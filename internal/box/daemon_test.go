@@ -465,6 +465,25 @@ func TestAConnectionFileClaimsThisComputerAndInstallsFromItsSession(t *testing.T
 	}
 }
 
+func TestAConnectionFileTellsTheMediaGateHowManyBoxesBeforeTheServicesStart(t *testing.T) {
+	plane := &fakePlane{accessToken: "file.session.token"}
+	daemon, places := daemonFor(t, plane, &installs{})
+	daemon.Places.SeveralBoxesPath = filepath.Join(places.StateDirectoryPath, "several-boxes")
+	isKnownWhileInstalling := false
+	daemon.Install = func(request companyhost.Request) error {
+		_, isKnownWhileInstalling = CompanyBoxCount(daemon.Places.SeveralBoxesPath)
+		return nil
+	}
+
+	if errorValue := daemon.InstallWithConnectionFile(context.Background(), "connection-file-key", "sk-or-v1-typed"); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+
+	if !isKnownWhileInstalling {
+		t.Fatal("the services were started before the box noted how many boxes the company runs on, so the media gate refused every write")
+	}
+}
+
 func TestABoxRemembersTheAppOfTheCompanyThatClaimedIt(t *testing.T) {
 	claimedByCode := &fakePlane{isClaimed: true, accessToken: "header.claims.signature"}
 	daemon, places := daemonFor(t, claimedByCode, &installs{})
