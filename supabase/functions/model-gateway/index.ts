@@ -18,7 +18,7 @@ Deno.serve(
 		const { client, companyID } = await callingAgent(request);
 
 		const openRouterKey = Deno.env.get('OPENROUTER_API_KEY') ?? '';
-		if (!openRouterKey) refuse(503, 'this deployment holds no OpenRouter key');
+		if (!openRouterKey) refuse(402, 'this deployment holds no OpenRouter key, so it sells no model calls');
 		const upstreamURL = openRouterOrigin + route.upstreamPath;
 		const authorization = { Authorization: `Bearer ${openRouterKey}` };
 
