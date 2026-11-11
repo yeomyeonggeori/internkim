@@ -27,6 +27,7 @@
 	import { canChangeMessages } from './channel-api';
 	import { formatAttachmentMeta } from './channel-attachments';
 	import { PendingAttachments } from './composer-pending-attachments.svelte';
+	import { openOnceKeyboardDismissed } from './keyboard-dismissal';
 	import type { MentionCandidate, MentionPerson } from '$lib/messenger/mention-candidates';
 	import { mentionKeyAction } from '$lib/messenger/mention-draft';
 	import { createMentionPicker } from '$lib/messenger/mention-picker.svelte';
@@ -267,7 +268,7 @@
 				variant="ghost"
 				size="icon-sm"
 				aria-label={text.addAttachment}
-				onclick={() => fileInput?.click()}
+				onclick={() => openOnceKeyboardDismissed(() => fileInput?.click())}
 				onpointerdown={(event) => event.preventDefault()}
 				{disabled}
 			>
