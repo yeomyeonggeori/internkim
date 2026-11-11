@@ -6,7 +6,8 @@ const sentJustBeforeMilliseconds = 2_000;
 export type Typer = { externalID: string; heardAt: number };
 
 export type TypingText = {
-	typingDirect: string;
+	typingAgent: string;
+	typingUnnamed: string;
 	typingOne: string;
 	typingTwo: string;
 	typingMany: string;
@@ -14,10 +15,10 @@ export type TypingText = {
 
 export type ActivityText = TypingText & { working: string };
 
+export type Typist = { name: string; isAgent: boolean };
+
 export type ConversationActivity = {
-	typerExternalIDs: string[];
-	nameOf: (externalID: string) => string | undefined;
-	isGroup: boolean;
+	typists: Typist[];
 	isAgentWorking: boolean;
 };
 
@@ -43,9 +44,11 @@ export function isTimeToAnnounceTyping(lastAnnouncedAt: number | null, now: numb
 	return lastAnnouncedAt === null || now - lastAnnouncedAt >= typingAnnounceIntervalMilliseconds;
 }
 
-export function typingLabel(names: string[], isDirect: boolean, text: TypingText): string {
-	if (names.length === 0) return '';
-	if (isDirect) return text.typingDirect;
+export function typingLabel(typists: Typist[], text: TypingText): string {
+	if (typists.length === 0) return '';
+	if (typists.length === 1 && typists[0].isAgent) return text.typingAgent;
+	const names = typists.flatMap((typist) => typist.name || []);
+	if (names.length === 0) return text.typingUnnamed;
 	const [first, second] = names;
 	if (names.length === 1) return text.typingOne.replace('{first}', first);
 	const named = text.typingTwo.replace('{first}', first).replace('{second}', second);
@@ -57,8 +60,5 @@ export function typingLabel(names: string[], isDirect: boolean, text: TypingText
 }
 
 export function activityLabel(activity: ConversationActivity, text: ActivityText): string {
-	const working = activity.isAgentWorking ? text.working : '';
-	if (!activity.isGroup) return working || typingLabel(activity.typerExternalIDs, true, text);
-	const names = activity.typerExternalIDs.flatMap((externalID) => activity.nameOf(externalID) ?? []);
-	return typingLabel(names, false, text) || working;
+	return typingLabel(activity.typists, text) || (activity.isAgentWorking ? text.working : '');
 }

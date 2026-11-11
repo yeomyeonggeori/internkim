@@ -149,17 +149,6 @@
 		() => channelId,
 		() => messages.map((message) => ({ senderExternalID: message.sender.externalID, sentAt: message.sentAt }))
 	);
-	const activity = $derived(
-		activityLabel(
-			{
-				typerExternalIDs: typing.typerExternalIDs,
-				nameOf: (externalID) => nameByExternalID.get(externalID),
-				isGroup,
-				isAgentWorking
-			},
-			text
-		)
-	);
 	let isSending = $state(false);
 	let dockHeight = $state(0);
 	let editingMessageID = $state('');
@@ -285,6 +274,18 @@
 	const peopleShownTyping = $derived(
 		typingPeople(typing.typerExternalIDs, messages, participants).filter(
 			(person) => workShownInTimeline.length === 0 || person.externalID !== agent?.externalID
+		)
+	);
+	const activity = $derived(
+		activityLabel(
+			{
+				typists: peopleShownTyping.map((person) => ({
+					name: person.name,
+					isAgent: person.externalID !== undefined && person.externalID === agent?.externalID
+				})),
+				isAgentWorking
+			},
+			text
 		)
 	);
 

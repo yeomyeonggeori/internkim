@@ -63,71 +63,55 @@ describe('isTimeToAnnounceTyping', () => {
 	});
 });
 
+const person = (name: string) => ({ name, isAgent: false });
+const theAgent = { name: '김인턴', isAgent: true };
+
 describe('typingLabel', () => {
-	test('a direct conversation names nobody', () => {
-		expect(typingLabel(['박예시'], true, channelText.ko)).toBe('입력 중이에요');
+	test('names the one person typing, in a direct conversation as in a channel', () => {
+		expect(typingLabel([person('박예시')], channelText.ko)).toBe('박예시님이 입력 중이에요');
 	});
 
-	test('a channel names up to two people and counts the rest', () => {
-		expect(typingLabel(['박예시'], false, channelText.ko)).toBe('박예시님이 입력 중이에요');
-		expect(typingLabel(['박예시', '최견본'], false, channelText.ko)).toBe('박예시, 최견본님이 입력 중이에요');
-		expect(typingLabel(['박예시', '최견본', '이샘플'], false, channelText.ko)).toBe(
+	test('names the agent the way its working label does', () => {
+		expect(typingLabel([theAgent], channelText.ko)).toBe('김인턴이 입력 중이에요');
+		expect(typingLabel([theAgent], channelText.en)).toBe('internkim is typing…');
+	});
+
+	test('names up to two people and counts the rest', () => {
+		expect(typingLabel([person('박예시'), person('최견본')], channelText.ko)).toBe('박예시, 최견본님이 입력 중이에요');
+		expect(typingLabel([person('박예시'), person('최견본'), person('이샘플')], channelText.ko)).toBe(
 			'박예시, 최견본 외 1명이 입력 중이에요'
 		);
 	});
 
 	test('reads the same in English', () => {
-		expect(typingLabel(['박예시', '최견본'], false, channelText.en)).toBe('박예시 and 최견본 are typing…');
-		expect(typingLabel(['박예시', '최견본', '이샘플'], false, channelText.en)).toBe(
+		expect(typingLabel([person('박예시'), person('최견본')], channelText.en)).toBe('박예시 and 최견본 are typing…');
+		expect(typingLabel([person('박예시'), person('최견본'), person('이샘플')], channelText.en)).toBe(
 			'박예시, 최견본 and 1 more are typing…'
 		);
 	});
 
+	test('leaves out a typer it cannot name, and says typing when it can name nobody', () => {
+		expect(typingLabel([person(''), person('최견본')], channelText.ko)).toBe('최견본님이 입력 중이에요');
+		expect(typingLabel([person('')], channelText.ko)).toBe('입력 중이에요');
+	});
+
 	test('nobody typing is no label', () => {
-		expect(typingLabel([], false, channelText.ko)).toBe('');
+		expect(typingLabel([], channelText.ko)).toBe('');
 	});
 });
 
 describe('activityLabel', () => {
-	const names = new Map([
-		['person-1', '박예시'],
-		['person-2', '최견본']
-	]);
-	const nameOf = (externalID: string) => names.get(externalID);
-
-	test('a channel shows who is typing ahead of the agent working', () => {
-		const activity = { typerExternalIDs: ['person-1'], nameOf, isGroup: true, isAgentWorking: true };
-
-		expect(activityLabel(activity, channelText.ko)).toBe('박예시님이 입력 중이에요');
+	test('shows who is typing ahead of the agent working', () => {
+		expect(activityLabel({ typists: [person('박예시')], isAgentWorking: true }, channelText.ko)).toBe(
+			'박예시님이 입력 중이에요'
+		);
 	});
 
-	test('a channel falls back to the agent working when nobody is typing', () => {
-		const activity = { typerExternalIDs: [], nameOf, isGroup: true, isAgentWorking: true };
-
-		expect(activityLabel(activity, channelText.ko)).toBe('김인턴이 작업 중이에요');
-	});
-
-	test('a channel leaves out a typer it cannot name', () => {
-		const activity = { typerExternalIDs: ['person-9', 'person-2'], nameOf, isGroup: true, isAgentWorking: false };
-
-		expect(activityLabel(activity, channelText.ko)).toBe('최견본님이 입력 중이에요');
-	});
-
-	test('a direct conversation shows the agent working ahead of typing', () => {
-		const activity = { typerExternalIDs: ['person-1'], nameOf, isGroup: false, isAgentWorking: true };
-
-		expect(activityLabel(activity, channelText.ko)).toBe('김인턴이 작업 중이에요');
-	});
-
-	test('a direct conversation shows typing without needing a name', () => {
-		const activity = { typerExternalIDs: ['person-9'], nameOf, isGroup: false, isAgentWorking: false };
-
-		expect(activityLabel(activity, channelText.ko)).toBe('입력 중이에요');
+	test('falls back to the agent working when nobody is typing', () => {
+		expect(activityLabel({ typists: [], isAgentWorking: true }, channelText.ko)).toBe('김인턴이 작업 중이에요');
 	});
 
 	test('nothing happening is no label', () => {
-		const activity = { typerExternalIDs: [], nameOf, isGroup: true, isAgentWorking: false };
-
-		expect(activityLabel(activity, channelText.ko)).toBe('');
+		expect(activityLabel({ typists: [], isAgentWorking: false }, channelText.ko)).toBe('');
 	});
 });
