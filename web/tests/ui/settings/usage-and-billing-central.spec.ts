@@ -77,6 +77,32 @@ test('an administrator of an unsubscribed company is offered the subscription', 
 	await openAdminTab(page);
 	await expect(page.getByRole('button', { name: '구독 시작' })).toBeVisible();
 	await expect(page.getByText('회사 크레딧', { exact: true })).toHaveCount(0);
+	await expect(page.getByText('청구서', { exact: true })).toHaveCount(0);
+});
+
+test('an administrator of a company that no longer subscribes still sees what it was billed', async ({ page }) => {
+	await page.route('**/api/stripe/invoices', (route) =>
+		route.fulfill({
+			json: {
+				invoices: [
+					{
+						id: 'in_sample_refunded',
+						issuedAt: '2026-10-05T00:00:00.000Z',
+						description: '2 × 샘플 구독',
+						amount: 40000,
+						currency: 'krw',
+						status: 'refunded',
+						receiptURL: 'https://invoice.example.test/in_sample_refunded'
+					}
+				]
+			}
+		})
+	);
+	await openAdminTab(page);
+	await expect(page.getByRole('button', { name: '구독 시작' })).toBeVisible();
+	const invoices = page.locator('[data-slot="card"]').filter({ has: page.getByText('청구서', { exact: true }) });
+	await expect(invoices.getByRole('row', { name: /2026.*10.*5.*₩40,000.*환불/ })).toBeVisible();
+	await expect(invoices.getByRole('link', { name: '영수증' })).toHaveAttribute('href', 'https://invoice.example.test/in_sample_refunded');
 });
 
 test('an administrator of a subscribed company sees the credits and sets one limit for everybody', async ({ page }) => {
@@ -85,6 +111,8 @@ test('an administrator of a subscribed company sees the credits and sets one lim
 	await expect(page.getByText('이용 중', { exact: true })).toBeVisible();
 	await expect(page.getByText('31,600 남음')).toBeVisible();
 	await expect(page.getByText('8,400 / 10,000')).toBeVisible();
+	await expect(page.getByRole('button', { name: '결제 관리' })).toBeVisible();
+	await expect(page.getByText('청구서', { exact: true })).toBeVisible();
 
 	const memberUsage = page.locator('[data-slot="card"]').filter({ has: page.getByText('팀원별 사용량', { exact: true }) });
 	await memberUsage.getByLabel('1인 한도').fill('12000');
@@ -115,4 +143,5 @@ test('an administrator whose card was declined is not offered a second subscript
 	await openAdminTab(page);
 	await expect(page.getByText('결제 확인 필요', { exact: true })).toBeVisible();
 	await expect(page.getByRole('button', { name: '구독 시작' })).toHaveCount(0);
+	await expect(page.getByRole('button', { name: '결제 관리' })).toBeVisible();
 });

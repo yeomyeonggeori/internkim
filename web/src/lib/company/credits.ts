@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { invokeTool, memberAccessToken } from '$lib/public-api-call';
 import { saveCompanySettings } from './company-settings';
 import { companyCreditsResultSchema } from './credits-contract';
+import { companyInvoicesSchema, type CompanyInvoice } from './invoice-contract';
 
 export type CompanyCredits = z.infer<typeof companyCreditsResultSchema>;
 
@@ -44,4 +45,12 @@ export async function saveCreditTopUpSetting(setting: CreditTopUpSetting): Promi
 
 export async function subscriptionCheckoutURL(): Promise<string> {
 	return checkoutAnswer.parse(await askBilling('/api/stripe/checkout', { method: 'POST' })).url;
+}
+
+export async function companyInvoices(): Promise<CompanyInvoice[]> {
+	return companyInvoicesSchema.parse(await askBilling('/api/stripe/invoices')).invoices;
+}
+
+export async function billingPortalURL(): Promise<string> {
+	return checkoutAnswer.parse(await askBilling('/api/stripe/portal', { method: 'POST' })).url;
 }

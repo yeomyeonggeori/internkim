@@ -3,7 +3,7 @@
 	import { Button, buttonVariants } from '$lib/components/ui/button';
 	import * as Card from '$lib/components/ui/card';
 	import type { CompanyCredits } from '$lib/company/credits';
-	import { subscriptionCheckoutURL } from '$lib/company/credits';
+	import { billingPortalURL, subscriptionCheckoutURL } from '$lib/company/credits';
 	import { holdsAnOpenSubscription } from '$lib/company/credits-contract';
 	import { currentLocale } from '$lib/i18n/locale.svelte';
 	import { createPageText } from '$lib/i18n/page-text.svelte';
@@ -15,6 +15,7 @@
 
 	const text = createPageText(billingText);
 	let isOpeningCheckout = $state(false);
+	let isOpeningPortal = $state(false);
 
 	const perSeat = $derived(creditCount(credits.creditsPerSeat, currentLocale.value));
 
@@ -27,7 +28,21 @@
 			isOpeningCheckout = false;
 		}
 	}
+
+	async function managePayment() {
+		isOpeningPortal = true;
+		try {
+			window.location.assign(await billingPortalURL());
+		} catch (error) {
+			toast.error(error instanceof Error ? error.message : text.managePaymentFailed);
+			isOpeningPortal = false;
+		}
+	}
 </script>
+
+{#snippet managePaymentButton(variant: 'default' | 'outline')}
+	<Button {variant} onclick={managePayment} disabled={isOpeningPortal}>{text.managePayment}</Button>
+{/snippet}
 
 {#if credits.paidBy === 'subscription'}
 	<Card.Root>
@@ -40,8 +55,11 @@
 				{filled(text.subscriptionSeats, { seats: String(credits.billedSeats ?? 0), credits: perSeat })}
 			</Card.Description>
 		</Card.Header>
-		<Card.Footer class="text-sm text-muted-foreground">
-			{filled(text.subscriptionRenews, { date: billingDay(credits.periodEndsAt, currentLocale.value) })}
+		<Card.Footer class="flex flex-wrap items-center justify-between gap-3">
+			<span class="text-sm text-muted-foreground">
+				{filled(text.subscriptionRenews, { date: billingDay(credits.periodEndsAt, currentLocale.value) })}
+			</span>
+			{@render managePaymentButton('outline')}
 		</Card.Footer>
 	</Card.Root>
 {:else if holdsAnOpenSubscription(credits.subscriptionStatus)}
@@ -53,6 +71,9 @@
 			</Card.Title>
 			<Card.Description>{text.subscriptionNeedsPayment}</Card.Description>
 		</Card.Header>
+		<Card.Footer class="justify-end">
+			{@render managePaymentButton('default')}
+		</Card.Footer>
 	</Card.Root>
 {:else if credits.paidBy === 'company_key'}
 	<Card.Root>
