@@ -1,6 +1,6 @@
 import { pkcs8FromPEM, signedJWT } from './jwt.ts';
 import { sayPushNotDelivered } from './push-diagnostics.ts';
-import { senderOf, type Notification, type PushOutcome } from './push-vocabulary.ts';
+import { secureImageURLOf, senderOf, type Notification, type PushOutcome } from './push-vocabulary.ts';
 
 export type ApnsKey = {
 	keyID: string;
@@ -32,7 +32,7 @@ export function apnsCollapseID(notification: Notification): string {
 }
 
 export function apnsPayload(notification: Notification): Record<string, unknown> {
-	const payload = alertPayload(notification);
+	const payload = withImage(alertPayload(notification), secureImageURLOf(notification));
 	const withdrawnMessageIDs = notification.withdrawnMessageIDs ?? [];
 	if (withdrawnMessageIDs.length === 0) return payload;
 	return {
@@ -40,6 +40,12 @@ export function apnsPayload(notification: Notification): Record<string, unknown>
 		aps: { ...(payload.aps as Record<string, unknown>), 'mutable-content': 1 },
 		withdrawnMessageIDs
 	};
+}
+
+function withImage(payload: Record<string, unknown>, imageURL: string): Record<string, unknown> {
+	if (!imageURL) return payload;
+	const aps = typeof payload.aps === 'object' && payload.aps !== null ? payload.aps : {};
+	return { ...payload, aps: { ...aps, 'mutable-content': 1 }, imageURL };
 }
 
 function alertPayload(notification: Notification): Record<string, unknown> {

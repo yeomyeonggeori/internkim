@@ -64,6 +64,42 @@ describe('the APNs payload for a notification with a sender picture', () => {
 		});
 	});
 
+	test('carries the message picture beside the open path and asks the phone to attach it', () => {
+		const imageURL = 'https://example.com/message-picture.png';
+		const payload = apnsPayload({ ...message, imageURL });
+		expect(payload).toEqual({
+			aps: {
+				alert: { title: '이샘플', body: '보냈어요' },
+				sound: 'default',
+				'thread-id': 'message:channel-a',
+				'mutable-content': 1
+			},
+			openPath: '/messenger/',
+			imageURL
+		});
+	});
+
+	test('carries the message picture beside the sender picture', () => {
+		const payload = apnsPayload({
+			...message,
+			icon: 'https://example.com/picture.png',
+			imageURL: 'https://example.com/message-picture.png'
+		});
+		expect(payload).toMatchObject({
+			aps: { 'mutable-content': 1 },
+			pictureURL: 'https://example.com/picture.png',
+			imageURL: 'https://example.com/message-picture.png'
+		});
+	});
+
+	test('ignores a message picture address that is not https', () => {
+		const payload = apnsPayload({ ...message, imageURL: 'http://example.com/message-picture.png' });
+		expect(payload).toEqual({
+			aps: { alert: { title: '이샘플', body: '보냈어요' }, sound: 'default', 'thread-id': 'message:channel-a' },
+			openPath: '/messenger/'
+		});
+	});
+
 	test('ignores a picture address that is not https', () => {
 		const payload = apnsPayload({ ...message, icon: 'http://example.com/picture.png' });
 		expect(payload).not.toHaveProperty('pictureURL');

@@ -22,9 +22,10 @@ import {
 	type KeptFileReference,
 	type WorkspaceFile
 } from './file-transfer';
-import type { RangedSource, StoreAccess } from './transfer-store';
+import { keptSizeOf, type RangedSource, type StoreAccess } from './transfer-store';
 import { Transfers } from './transfers';
 import { PersonPictures, type PictureRequest } from './person-picture';
+import { notificationPicturePathOf, type NotificationPictureSources } from './notification-picture';
 import { defaultAnswerByteCeiling, largestRawBytesThatFit } from './answer-size';
 import { positiveNumberSetting } from './settings';
 import { keepHostSession, letGoUnlessStillServing, type HostSession } from './host-session';
@@ -393,16 +394,30 @@ async function previewOf(link: string): Promise<LinkPreview | null> {
 
 async function tellThoseAddressed(arrived: ArrivedMessage): Promise<number> {
 	if (arrived.recipientExternalIDs.length === 0) return 0;
-	const [authorName, senderPicturePath] = await Promise.all([
+	const [authorName, senderPicturePath, messagePicturePath] = await Promise.all([
 		authorNameOf(arrived),
-		personPictures.pathForNotification(arrived.authorExternalID)
+		personPictures.pathForNotification(arrived.authorExternalID),
+		notificationPicturePathOf(arrived, notificationPictureSources)
 	]);
 	const spoken = await askTheProject<{ told?: number }>(
 		'notify',
-		notifyRequestOf(arrived, authorName, messengerPlatform, senderPicturePath, withdrawnMessages.in(arrived.conversationID))
+		notifyRequestOf(
+			arrived,
+			authorName,
+			messengerPlatform,
+			senderPicturePath,
+			withdrawnMessages.in(arrived.conversationID),
+			messagePicturePath
+		)
 	);
 	return spoken.told ?? 0;
 }
+
+const notificationPictureSources: NotificationPictureSources = {
+	pathOf: (digest) => messengerCopies.pathOf(digest),
+	keptSizeOf: (path) => keptSizeOf(hostAccess, path),
+	report: (line) => console.log(line)
+};
 
 const withdrawnMessages = new WithdrawnMessages();
 

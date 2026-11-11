@@ -57,6 +57,22 @@ describe('the FCM message for a notification with a sender picture', () => {
 		expect(dataOf(message)).not.toHaveProperty('pictureURL');
 	});
 
+	test('carries the message picture to the app as data', () => {
+		const message = fcmMessage(token, { ...taskMove, imageURL: 'https://example.com/message-picture.png' });
+		expect(dataOf(message)).toEqual({
+			title: '진행 중: 예시프로젝트 정리',
+			body: '박예시님이 옮겼습니다',
+			openPath: '/task/',
+			tag: 'task-a',
+			imageURL: 'https://example.com/message-picture.png'
+		});
+	});
+
+	test('ignores a message picture address that is not https', () => {
+		const message = fcmMessage(token, { ...taskMove, imageURL: 'http://example.com/message-picture.png' });
+		expect(dataOf(message)).not.toHaveProperty('imageURL');
+	});
+
 	test('keeps every data value a string, as FCM requires', () => {
 		const message = fcmMessage(token, { ...taskMove, senderName: '박예시', icon: 'https://example.com/picture.png' });
 		for (const value of Object.values(dataOf(message))) expect(typeof value).toBe('string');

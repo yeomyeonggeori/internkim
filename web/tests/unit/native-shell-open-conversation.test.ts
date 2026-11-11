@@ -12,7 +12,9 @@ describe('the tag the shell holds back while a conversation is open', () => {
 				authorName: '이샘플',
 				recipientExternalIDs: ['reader-1'],
 				preview: '보냈어요',
-				attachmentKinds: []
+				attachmentKinds: [],
+				pictureDigest: '',
+				pictureContentType: ''
 			},
 			'이샘플'
 		);
