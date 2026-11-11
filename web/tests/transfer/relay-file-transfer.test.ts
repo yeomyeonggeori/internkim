@@ -162,6 +162,7 @@ function workspaceOwnerOf(path: string): Member | null {
 function serveAdmind(socketPath: string): ReturnType<typeof Bun.serve> {
 	return Bun.serve({
 		unix: socketPath,
+		maxRequestBodySize: fileBytes * 2,
 		async fetch(request) {
 			const url = new URL(request.url);
 			const requester = request.headers.get('x-internkim-requester-email') ?? '';
