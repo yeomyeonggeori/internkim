@@ -44,9 +44,14 @@ export async function* rangesOf(source: RangedSource): AsyncGenerator<Range> {
 		const totalBytes = totalBytesOf(response);
 		const bytes = new Uint8Array(await response.arrayBuffer());
 		yield { bytes, totalBytes };
+		collectSpentRanges();
 		firstByte += bytes.byteLength;
 		if (bytes.byteLength === 0 || firstByte >= totalBytes) return;
 	}
+}
+
+function collectSpentRanges(): void {
+	Bun.gc(true);
 }
 
 async function wholeBodyWithinOneRange(response: Response): Promise<Range> {
