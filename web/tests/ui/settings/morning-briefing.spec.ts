@@ -19,7 +19,7 @@ async function openSettingsKeeping(page: Page, stored: StoredPersona): Promise<v
 		}
 		await route.fulfill({ json: stored.document });
 	});
-	await page.goto('/settings/');
+	await page.goto('/settings/my-agent/');
 }
 
 test('a member moves the morning briefing, turns it off, and finds it that way after a reload', async ({ page }) => {

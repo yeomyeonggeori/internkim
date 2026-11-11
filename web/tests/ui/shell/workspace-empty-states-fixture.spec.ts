@@ -190,8 +190,7 @@ for (const status of [503, 403]) for (const kind of ['skills', 'learned-skills']
 		const fixture = new EmptyWorkspaceFixture();
 		fixture.empty = false;
 		await prepareAdmin(page, fixture);
-		await page.goto('/example-co/settings');
-		await page.getByRole('tab', { name: '관리자', exact: true }).click();
+		await page.goto('/example-co/settings/agent');
 		const title = kind === 'skills' ? '스킬' : '배운 절차';
 		const name = kind === 'skills' ? 'fixture-loaded-skill' : 'fixture-learned-skill';
 		const card = page.locator('[data-slot="card"]').filter({ has: page.locator('[data-slot="card-title"]').filter({ hasText: new RegExp(`^${title}$`) }) });
@@ -249,8 +248,7 @@ for (const deniedBy of ['newer-refresh', 'history']) {
 			await wait(name);
 		};
 		await prepareAdmin(page, fixture);
-		await page.goto('/example-co/settings');
-		await page.getByRole('tab', { name: '관리자', exact: true }).click();
+		await page.goto('/example-co/settings/agent');
 		const card = page.locator('[data-slot="card"]').filter({ has: page.getByText('배운 절차', { exact: true }) });
 		const skill = card.getByText('fixture-learned-skill', { exact: true });
 		await expect(skill).toBeVisible();
@@ -293,8 +291,7 @@ test('learned skills denial ends loading while a sibling hangs and allows a new 
 		await wait(name);
 	};
 	await prepareAdmin(page, fixture);
-	await page.goto('/example-co/settings');
-	await page.getByRole('tab', { name: '관리자', exact: true }).click();
+	await page.goto('/example-co/settings/agent');
 	const card = page.locator('[data-slot="card"]').filter({ has: page.getByText('배운 절차', { exact: true }) });
 	const skill = card.getByText('fixture-learned-skill', { exact: true });
 	await expect(skill).toBeVisible();
