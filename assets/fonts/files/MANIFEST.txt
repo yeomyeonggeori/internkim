@@ -3,16 +3,17 @@ Generated for assets/fonts/catalog.json family collection task
 
 ## a2z
 Source: https://github.com/Freesentation/A2Z (에이투지체-woff2.zip)
-  a2z/A2Z-100.woff2	126244 bytes
-  a2z/A2Z-200.woff2	130552 bytes
-  a2z/A2Z-300.woff2	160128 bytes
-  a2z/A2Z-400.woff2	161700 bytes
-  a2z/A2Z-500.woff2	135056 bytes
-  a2z/A2Z-600.woff2	135724 bytes
-  a2z/A2Z-700.woff2	162488 bytes
-  a2z/A2Z-800.woff2	144708 bytes
-  a2z/A2Z-900.woff2	162920 bytes
-  subtotal: 9 files, 1319520 bytes (1.26 MB)
+Modified: the 8,392 Hangul syllables the release maps to empty glyphs, and the 67 conjoining jamo it maps without the ljmo/vjmo/tjmo features that compose them, are left out of cmap; glyphs and metrics unchanged.
+  a2z/A2Z-100.woff2	157568 bytes
+  a2z/A2Z-200.woff2	140500 bytes
+  a2z/A2Z-300.woff2	140940 bytes
+  a2z/A2Z-400.woff2	141552 bytes
+  a2z/A2Z-500.woff2	140720 bytes
+  a2z/A2Z-600.woff2	145448 bytes
+  a2z/A2Z-700.woff2	171456 bytes
+  a2z/A2Z-800.woff2	154696 bytes
+  a2z/A2Z-900.woff2	145156 bytes
+  subtotal: 9 files, 1338036 bytes (1.28 MB)
 
 ## d2coding
 Source: https://github.com/naver/d2codingfont releases/download/VER1.3.2/D2Coding-Ver1.3.2-20180524.zip (TTF only, woff2_compress unavailable on this machine)
@@ -332,16 +333,17 @@ Source: https://hangeul.naver.com/font/maru -> https://hangeul.naver.com/css/fon
 
 ## paperlogy
 Source: https://github.com/Freesentation/paperlogy (woff2/ directory, main branch)
-  paperlogy/Paperlogy-100.woff2	432068 bytes
-  paperlogy/Paperlogy-200.woff2	428912 bytes
-  paperlogy/Paperlogy-300.woff2	434052 bytes
-  paperlogy/Paperlogy-400.woff2	438072 bytes
-  paperlogy/Paperlogy-500.woff2	439492 bytes
-  paperlogy/Paperlogy-600.woff2	440828 bytes
-  paperlogy/Paperlogy-700.woff2	440468 bytes
-  paperlogy/Paperlogy-800.woff2	430124 bytes
-  paperlogy/Paperlogy-900.woff2	446224 bytes
-  subtotal: 9 files, 3930240 bytes (3.75 MB)
+Modified: the 8,392 Hangul syllables the release maps to empty glyphs are left out of cmap; glyphs and metrics unchanged.
+  paperlogy/Paperlogy-100.woff2	440428 bytes
+  paperlogy/Paperlogy-200.woff2	436820 bytes
+  paperlogy/Paperlogy-300.woff2	445200 bytes
+  paperlogy/Paperlogy-400.woff2	447372 bytes
+  paperlogy/Paperlogy-500.woff2	448568 bytes
+  paperlogy/Paperlogy-600.woff2	449500 bytes
+  paperlogy/Paperlogy-700.woff2	450316 bytes
+  paperlogy/Paperlogy-800.woff2	439384 bytes
+  paperlogy/Paperlogy-900.woff2	455768 bytes
+  subtotal: 9 files, 4013356 bytes (3.83 MB)
 
 ## pretendard
 Source: https://github.com/orioncactus/pretendard (release v1.3.9, packages/pretendard/dist/web/static/woff2 + variable/woff2)
@@ -357,4 +359,4 @@ Source: https://github.com/orioncactus/pretendard (release v1.3.9, packages/pret
   pretendard/PretendardVariable.woff2	2057688 bytes
   subtotal: 10 files, 8959164 bytes (8.54 MB)
 
-TOTAL: 324 files, 30262076 bytes (28.86 MB)
+TOTAL: 324 files, 30363708 bytes (28.96 MB)
