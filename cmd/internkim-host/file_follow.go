@@ -25,21 +25,18 @@ func runFileFollow(arguments []string) error {
 	if errorValue := companyhost.RequireAdministrator(); errorValue != nil {
 		return errorValue
 	}
-	destination, keyring, isConnected, errorValue := thisBox().Destination()
+	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGTERM, os.Interrupt)
+	defer stop()
+	isABox, errorValue := thisComputerIsABox()
 	if errorValue != nil {
 		return errorValue
 	}
-	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGTERM, os.Interrupt)
-	defer stop()
-	if !isConnected {
-		isABox, errorValue := thisComputerIsABox()
-		if errorValue != nil {
-			return errorValue
-		}
-		if isABox {
-			return errNotAServingBox
-		}
+	if !isABox {
 		return filestream.NewUnjournaledBarrier().Serve(ctx, blueclaw.CompanyHostFileJournalSocketPath, fileJournalSocketMode)
+	}
+	destination, keyring, errorValue := untilThisBoxServes(ctx, thisBox())
+	if errorValue != nil {
+		return errorValue
 	}
 	outer := ctx
 	hasSeveralBoxes, errorValue := untilTheBoxCountIsKnown(ctx)
