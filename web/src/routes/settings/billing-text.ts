@@ -41,7 +41,23 @@ export const billingText = {
 		myUsageDescription: '이번 기간 김인턴에게 맡긴 일에 쓴 양입니다.',
 		myUsagePercent: '{percent}% 사용',
 		myUsageResets: '{date}에 초기화됩니다.',
-		myUsageAtLimit: '한도에 닿으면 김인턴이 새 일을 멈춥니다. 한도를 늘리려면 회사 관리자에게 요청하세요.'
+		myUsageAtLimit: '한도에 닿으면 김인턴이 새 일을 멈춥니다. 한도를 늘리려면 회사 관리자에게 요청하세요.',
+		managePayment: '결제 관리',
+		managePaymentFailed: '결제 관리 화면을 열지 못했습니다.',
+		invoices: '청구서',
+		invoicesDescription: '최근 청구서와 영수증입니다.',
+		invoicesEmpty: '아직 청구서가 없습니다.',
+		invoicesLoadFailed: '청구서를 불러오지 못했습니다.',
+		invoiceDate: '날짜',
+		invoiceDescription: '내용',
+		invoiceAmount: '금액',
+		invoiceStatus: '상태',
+		invoiceReceipt: '영수증',
+		invoicePaid: '결제 완료',
+		invoicePartiallyRefunded: '부분 환불',
+		invoiceRefunded: '환불',
+		invoiceOpen: '결제 대기',
+		invoiceVoid: '취소'
 	},
 	en: {
 		title: 'Usage and billing',
@@ -85,6 +101,22 @@ export const billingText = {
 		myUsageDescription: 'What the work you gave InternKim used this period.',
 		myUsagePercent: '{percent}% used',
 		myUsageResets: 'Resets on {date}.',
-		myUsageAtLimit: 'At the limit InternKim stops taking new work. Ask an administrator to raise it.'
+		myUsageAtLimit: 'At the limit InternKim stops taking new work. Ask an administrator to raise it.',
+		managePayment: 'Manage payment',
+		managePaymentFailed: 'Could not open payment management.',
+		invoices: 'Invoices',
+		invoicesDescription: 'Recent invoices and their receipts.',
+		invoicesEmpty: 'No invoices yet.',
+		invoicesLoadFailed: 'Could not load invoices.',
+		invoiceDate: 'Date',
+		invoiceDescription: 'Description',
+		invoiceAmount: 'Amount',
+		invoiceStatus: 'Status',
+		invoiceReceipt: 'Receipt',
+		invoicePaid: 'Paid',
+		invoicePartiallyRefunded: 'Partially refunded',
+		invoiceRefunded: 'Refunded',
+		invoiceOpen: 'Awaiting payment',
+		invoiceVoid: 'Void'
 	}
 };

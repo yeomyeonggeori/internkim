@@ -1,9 +1,11 @@
 <script lang="ts">
 	import { Skeleton } from '$lib/components/ui/skeleton';
 	import { companyCredits, type CompanyCredits } from '$lib/company/credits';
+	import { holdsAnOpenSubscription } from '$lib/company/credits-contract';
 	import { createPageText } from '$lib/i18n/page-text.svelte';
 	import { onMount } from 'svelte';
 	import BillingCreditsCard from './billing-credits-card.svelte';
+	import BillingInvoicesCard from './billing-invoices-card.svelte';
 	import BillingMemberUsageCard from './billing-member-usage-card.svelte';
 	import BillingPlanCard from './billing-plan-card.svelte';
 	import BillingTopUpCard from './billing-top-up-card.svelte';
@@ -44,4 +46,5 @@
 		<BillingTopUpCard />
 		<BillingMemberUsageCard {credits} onchange={load} />
 	{/if}
+	<BillingInvoicesCard showsWhenEmpty={credits.paidBy === 'subscription' || holdsAnOpenSubscription(credits.subscriptionStatus)} />
 {/if}
