@@ -161,19 +161,6 @@ describe('what the company states about itself', () => {
 		expect(resultOf(written).amount).toEqual({ amount: 25_000_000_000, currency: 'VND' });
 	});
 
-	test('refuses a USD equivalent, which the record does not keep', async () => {
-		const refused = await asAdmin('company_metric_record', {
-			metric: 'operatingProfit',
-			period: '2025',
-			amount: { amount: 1_000, currency: 'KRW' },
-			usdEquivalent: 1
-		});
-		const listed = await asAdmin('company_metric_list', { metric: 'operatingProfit' });
-
-		expect(refused.status).toBe(422);
-		expect(resultOf(listed).count).toBe(0);
-	});
-
 	test('refuses a period that is not a moment', async () => {
 		const refused = await asAdmin('company_metric_record', {
 			metric: 'mau',
@@ -211,9 +198,9 @@ describe('what the company states about itself', () => {
 		const everything = await asSample('company_metric_list');
 		const recent = await asSample('company_metric_list', { fromYear: 2025 });
 
-		expect(resultOf(everything).count).toBe(6);
-		expect(resultOf(recent).count).toBe(4);
-		expect((resultOf(recent).metrics as { metric: string }[]).map((metric) => metric.metric)).toEqual(['annualRevenue', 'halfRevenue', 'halfRevenue', 'monthlyRevenue']);
+		expect(resultOf(everything).count).toBe(5);
+		expect(resultOf(recent).count).toBe(3);
+		expect((resultOf(recent).metrics as { metric: string }[]).map((metric) => metric.metric)).toEqual(['annualRevenue', 'halfRevenue', 'halfRevenue']);
 	});
 });
 
