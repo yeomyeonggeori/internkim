@@ -158,7 +158,7 @@
 
 <svelte:window onresize={updateScrollFade} />
 
-<Card.Root class="min-h-0 max-sm:mb-20 lg:h-full">
+<Card.Root class="min-h-0 lg:h-full">
 	<Card.Header>
 		<div class="flex items-center gap-2">
 			<Card.Title>{draftName().trim() || text.attendanceSettings.newLeave}</Card.Title>
@@ -171,7 +171,7 @@
 		<div class="relative h-full min-h-0">
 			<div
 				bind:this={scrollViewport}
-				class="h-full min-h-0 overflow-x-clip overflow-y-auto overscroll-contain pb-8 pr-1"
+				class="h-full min-h-0 overflow-x-clip overflow-y-auto overscroll-contain pb-8 pr-1 max-sm:pb-0"
 				data-testid="leave-policy-editor-scroll"
 				onscroll={updateScrollFade}
 			>

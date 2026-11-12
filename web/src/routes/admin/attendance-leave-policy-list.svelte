@@ -93,7 +93,7 @@
 			<div class="relative min-h-0 lg:flex-1">
 				<div
 					bind:this={scrollViewport}
-					class="grid max-h-[min(45vh,42rem)] gap-2 overflow-y-auto overscroll-contain pb-8 pr-1 sm:max-h-[min(65vh,42rem)] lg:h-full lg:max-h-none"
+					class="grid max-h-[min(45vh,42rem)] gap-2 overflow-y-auto overscroll-contain pb-8 pr-1 max-sm:pb-0 sm:max-h-[min(65vh,42rem)] lg:h-full lg:max-h-none"
 					data-testid="leave-policy-list-scroll"
 					onscroll={updateScrollFade}
 				>
