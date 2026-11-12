@@ -47,8 +47,7 @@ func (service *Service) saveCompanyUserRecord(ctx context.Context, write central
 	if client == nil {
 		return errNoCompanyDirectory
 	}
-	_, errorValue := client.SaveMember(ctx, write)
-	return errorValue
+	return client.SaveMember(ctx, write)
 }
 
 // A handle is an identifier the company issues, not something a messenger hands

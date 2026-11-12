@@ -99,7 +99,7 @@ func startPlaneHoldingMailAccounts(t *testing.T) *httptest.Server {
 			_, _ = writer.Write([]byte(`{"memberID":"member-` + asked.ExternalID + `","accessToken":"token-` + asked.ExternalID + `","expiresAt":99999999999}`))
 		case request.URL.Path == "/api/agent/member":
 			email := request.URL.Query().Get("email")
-			_, _ = writer.Write([]byte(`{"member":{"memberID":"member-` + email + `","email":"` + email + `"}}`))
+			_, _ = writer.Write([]byte(`{"member":{"memberID":"member-` + email + `","email":"` + email + `","isWorking":true,"canReadTheCompany":true}}`))
 		case request.URL.Path == "/api/agent/mail-account":
 			email := strings.TrimPrefix(request.URL.Query().Get("memberID"), "member-")
 			writeHeldMailAccount(writer, heldByEmail[email])
