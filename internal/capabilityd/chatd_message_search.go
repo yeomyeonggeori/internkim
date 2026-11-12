@@ -15,6 +15,7 @@ type chatdMessageSearchRequest struct {
 	MessageIDs         []string `json:"messageIDs,omitempty"`
 	AuthoredBy         string   `json:"authoredBy,omitempty"`
 	RequesterPubkeyHex string   `json:"requesterPubkeyHex,omitempty"`
+	ReadAsRequester    bool     `json:"readAsRequester,omitempty"`
 	Queries            []string `json:"queries"`
 	Limit              int      `json:"limit,omitempty"`
 }
@@ -42,6 +43,14 @@ func (service Service) invokeChatdPlatformMessageSearch(ctx context.Context, req
 	if isAsking {
 		return question, nil
 	}
+	input, refusal, isRefused := service.withRequesterKnown(ctx, request, input)
+	if isRefused {
+		return refusal, nil
+	}
+	input, refusal, isRefused = service.withDirectConversationResolved(ctx, request, input)
+	if isRefused {
+		return refusal, nil
+	}
 	searchRequest, scope, failure, hasFailure := chatdMessageSearchRequestFromInput(request.Context, input)
 	if hasFailure {
 		return platformToolErrorResponse(request.ToolName, failure), nil
@@ -51,8 +60,102 @@ func (service Service) invokeChatdPlatformMessageSearch(ctx context.Context, req
 		failure := platformToolStaticFailure("message_search_failed", "platform_search", errorValue.Error())
 		return platformToolErrorResponse(request.ToolName, failure), nil
 	}
-	result := canonicalChatdMessageSearchResult(response, input, scope, request.Context.RequesterPlatformUserID)
+	response = service.withMessagesOnlyTheRequesterReads(ctx, request, searchRequest, response)
+	result := canonicalChatdMessageSearchResult(response, input, scope, searchRequest.RequesterPubkeyHex)
 	return platformToolSuccessResponse(request.ToolName, "ok", result)
+}
+
+func (service Service) withRequesterKnown(ctx context.Context, request capabilities.ToolInvokeRequest, input platformMessageSearchInput) (platformMessageSearchInput, capabilities.ToolInvokeResponse, bool) {
+	input.RequesterPubkeyHex = strings.TrimSpace(request.Context.RequesterPlatformUserID)
+	if input.RequesterPubkeyHex != "" || !readsAsTheRequester(request.Context, input) {
+		return input, capabilities.ToolInvokeResponse{}, false
+	}
+	requesterPubkeyHex, refusal, isRefused := service.requesterMessengerKey(ctx, request)
+	input.RequesterPubkeyHex = requesterPubkeyHex
+	return input, refusal, isRefused
+}
+
+func readsAsTheRequester(toolContext capabilities.ToolInvokeContext, input platformMessageSearchInput) bool {
+	return input.AuthoredBy == "requester" || normalizedChatdMessageSearchScope(input.Scope, toolContext, input) == "directMessage"
+}
+
+func (service Service) withDirectConversationResolved(ctx context.Context, request capabilities.ToolInvokeRequest, input platformMessageSearchInput) (platformMessageSearchInput, capabilities.ToolInvokeResponse, bool) {
+	if normalizedChatdMessageSearchScope(input.Scope, request.Context, input) != "directMessage" || len(input.MessageIDs) > 0 {
+		return input, capabilities.ToolInvokeResponse{}, false
+	}
+	if input.DeliveryTarget.PersonHint != "" && !isAskedByTheRequesterThemself(request.Context) {
+		failure := platformToolStaticFailure("requester_only", "authorization",
+			"a direct conversation between two people is read only by one of them, calling the API as themself; the agent reads its own direct conversation with the requester, with personHint left out")
+		return input, platformToolErrorResponse(request.ToolName, failure), true
+	}
+	counterpart, refusal, isRefused := service.directMessageCounterpart(ctx, request, input.DeliveryTarget.PersonHint)
+	if isRefused {
+		return input, refusal, true
+	}
+	conversationID, failure, hasFailure := service.directConversationWith(ctx, input.RequesterPubkeyHex, counterpart)
+	if hasFailure {
+		return input, platformToolErrorResponse(request.ToolName, failure), true
+	}
+	input.DeliveryTarget.ChannelID = conversationID
+	return input, capabilities.ToolInvokeResponse{}, false
+}
+
+func isAskedByTheRequesterThemself(toolContext capabilities.ToolInvokeContext) bool {
+	return strings.TrimSpace(toolContext.TaskSource) == capabilities.TaskSourcePublicAPI
+}
+
+func (service Service) directMessageCounterpart(ctx context.Context, request capabilities.ToolInvokeRequest, personHint string) (messengerPerson, capabilities.ToolInvokeResponse, bool) {
+	if personHint != "" {
+		counterparts, refusal, isRefused := service.messengerPeople(ctx, request, []string{personHint})
+		if isRefused {
+			return messengerPerson{}, refusal, true
+		}
+		return counterparts[0], capabilities.ToolInvokeResponse{}, false
+	}
+	var agent chatdIdentitySelfResponse
+	if errorValue := service.chatdRequest(ctx, "identity.self", map[string]any{}, &agent); errorValue != nil {
+		return messengerPerson{}, platformToolErrorResponse(request.ToolName, platformToolFailureForError("bot_lookup", "platform_unavailable", errorValue)), true
+	}
+	return messengerPerson{PersonHint: agent.Name, PubkeyHex: agent.PubkeyHex}, capabilities.ToolInvokeResponse{}, false
+}
+
+func (service Service) withMessagesOnlyTheRequesterReads(ctx context.Context, request capabilities.ToolInvokeRequest, searchRequest chatdMessageSearchRequest, response chatdMessageSearchResponse) chatdMessageSearchResponse {
+	unread := messageIDsNotAmong(searchRequest.MessageIDs, response.Candidates)
+	if len(unread) == 0 || searchRequest.ReadAsRequester || !isAskedByTheRequesterThemself(request.Context) {
+		return response
+	}
+	if searchRequest.RequesterPubkeyHex == "" && strings.TrimSpace(request.Context.RequesterEmail) == "" {
+		return response
+	}
+	if searchRequest.RequesterPubkeyHex == "" {
+		requesterPubkeyHex, _, isRefused := service.requesterMessengerKey(ctx, request)
+		if isRefused {
+			return response
+		}
+		searchRequest.RequesterPubkeyHex = requesterPubkeyHex
+	}
+	searchRequest.MessageIDs = unread
+	searchRequest.ReadAsRequester = true
+	var readAsRequester chatdMessageSearchResponse
+	if service.chatdRequest(ctx, "message.search", searchRequest, &readAsRequester) != nil {
+		return response
+	}
+	response.Candidates = append(response.Candidates, readAsRequester.Candidates...)
+	return response
+}
+
+func messageIDsNotAmong(messageIDs []string, candidates []chatdMessageSearchCandidate) []string {
+	read := map[string]bool{}
+	for _, candidate := range candidates {
+		read[candidate.MessageID] = true
+	}
+	unread := []string{}
+	for _, messageID := range messageIDs {
+		if !read[messageID] {
+			unread = append(unread, messageID)
+		}
+	}
+	return unread
 }
 
 func (service Service) withSearchedChannelResolved(ctx context.Context, request capabilities.ToolInvokeRequest, input platformMessageSearchInput) (platformMessageSearchInput, capabilities.ToolInvokeResponse, bool) {
@@ -77,16 +180,18 @@ func chatdMessageSearchRequestFromInput(toolContext capabilities.ToolInvokeConte
 	searchRequest := chatdMessageSearchRequest{
 		MessageIDs:         input.MessageIDs,
 		AuthoredBy:         input.AuthoredBy,
-		RequesterPubkeyHex: strings.TrimSpace(toolContext.RequesterPlatformUserID),
+		RequesterPubkeyHex: input.RequesterPubkeyHex,
 		Queries:            input.Queries,
 		Limit:              input.Limit,
 	}
 	scope := normalizedChatdMessageSearchScope(input.Scope, toolContext, input)
+	searchRequest.ReadAsRequester = scope == "directMessage" && isAskedByTheRequesterThemself(toolContext)
+	if len(input.MessageIDs) > 0 {
+		return searchRequest, scope, platformToolFailure{}, false
+	}
 	switch scope {
 	case "directMessage":
-		failure := platformToolStaticFailure("unsupported_scope", "platform_route",
-			"scope=directMessage is not yet routed; search the current conversation or a named channel")
-		return chatdMessageSearchRequest{}, scope, failure, true
+		searchRequest.ChannelID = input.DeliveryTarget.ChannelID
 	case "channel":
 		if input.DeliveryTarget.ChannelID == "" && input.DeliveryTarget.ChannelName == "" {
 			failure := platformToolStaticFailure("invalid_input", "input_decode", "scope=channel needs channelID or channelName")
@@ -107,7 +212,7 @@ func chatdMessageSearchRequestFromInput(toolContext capabilities.ToolInvokeConte
 		searchRequest.ChannelID = strings.TrimSpace(toolContext.ChannelID)
 		if searchRequest.ReplyTargetID == "" && searchRequest.ChannelID == "" {
 			failure := platformToolStaticFailure("channel_not_available", "context",
-				"name a channelName or channelID to search; the current conversation is not available")
+				"this request did not arrive on a conversation; name a channelName or channelID, or search a direct conversation with scope=directMessage")
 			return chatdMessageSearchRequest{}, scope, failure, true
 		}
 	}

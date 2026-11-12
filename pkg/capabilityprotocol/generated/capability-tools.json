@@ -12680,7 +12680,7 @@
             "type": "array"
           },
           "scope": {
-            "description": "Where to search. Current conversation scopes use the channel or thread this request is running in.",
+            "description": "Where to search. Current conversation scopes use the channel or thread this request is running in. directMessage is the requester's direct conversation with the agent; with personHint it is theirs with that person, which only the requester's own API call may read.",
             "enum": [
               "currentThread",
               "currentChannel",
@@ -12991,7 +12991,7 @@
             "type": "string"
           },
           "personHint": {
-            "description": "Name, @handle, or email of one direct-message recipient. Omit for a direct message to the requester themself.",
+            "description": "Name, @handle, or email of one direct-message recipient. Omit for the requester's own direct conversation with the agent.",
             "type": "string"
           },
           "personHints": {
@@ -13052,7 +13052,7 @@
             "type": "string"
           },
           "personHint": {
-            "description": "Name, @handle, or email of one direct-message recipient. Omit for a direct message to the requester themself.",
+            "description": "Name, @handle, or email of one direct-message recipient. Omit for the requester's own direct conversation with the agent.",
             "type": "string"
           },
           "personHints": {
