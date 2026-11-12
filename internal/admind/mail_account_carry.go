@@ -145,3 +145,12 @@ func (service *Service) handleMailAccountCarry(responseWriter http.ResponseWrite
 	service.sweepTheMailAccountsTheRecordNowHolds(request.Context())
 	service.writeJSON(responseWriter, report)
 }
+
+func countRowsInTable(ctx context.Context, database *sql.DB, tableName string) (int, bool) {
+	var rowCount int
+	errorValue := database.QueryRowContext(ctx, "SELECT COUNT(*) FROM "+tableName).Scan(&rowCount)
+	if errorValue != nil {
+		return 0, false
+	}
+	return rowCount, true
+}

@@ -39,49 +39,17 @@
     "process": "cli tests",
     "description": "overrides the model provider internal/cli/test_command.go's scenario runner uses"
   },
-  "BUZZ_IMPORT_KEEP": {
-    "process": "buzzimport live tests",
-    "description": "when \"1\", keeps the imported rows after internal/buzzimport's live end-to-end test instead of cleaning up"
-  },
-  "BUZZ_IMPORT_KEEP_AUTHOR_SECRET": {
-    "process": "buzzimport live tests",
-    "description": "a Buzz author's signing secret used by internal/buzzimport/inject_visibility_test.go (a live/manual test)"
-  },
-  "BUZZ_IMPORT_KEEP_CHANNEL_ID": {
-    "process": "buzzimport live tests",
-    "description": "the Buzz channel ID internal/buzzimport/inject_visibility_test.go (a live/manual test) injects into"
-  },
-  "BUZZ_IMPORT_KEEP_DATABASE_URL": {
-    "process": "buzzimport live tests",
-    "description": "the Buzz relay database internal/buzzimport/inject_visibility_test.go (a live/manual test) connects to"
-  },
-  "BUZZ_IMPORT_TEST_AUTHOR_SECRET": {
-    "process": "buzzimport live tests",
-    "description": "a Buzz author's signing secret used by internal/buzzimport's live end-to-end and inject-probe tests"
-  },
-  "BUZZ_IMPORT_TEST_CHANNEL_ID": {
-    "process": "buzzimport live tests",
-    "description": "the Buzz channel ID internal/buzzimport's live end-to-end and inject-probe tests inject into"
-  },
-  "BUZZ_IMPORT_TEST_DATABASE_URL": {
-    "process": "buzzimport live tests",
-    "description": "the Buzz relay database internal/buzzimport's live end-to-end and inject-probe tests connect to"
-  },
-  "BUZZ_IMPORT_TEST_SECOND_AUTHOR_SECRET": {
-    "process": "buzzimport live tests",
-    "description": "a second Buzz author's signing secret used by internal/buzzimport/end_to_end_live_test.go (a live/manual test)"
-  },
   "BUZZ_MEDIA_TEST_ACTOR_SECRET": {
-    "process": "buzzimport live tests",
-    "description": "the Buzz actor's signing secret used by internal/buzzimport/media's live upload test"
+    "process": "relaymedia live tests",
+    "description": "the Buzz actor's signing secret used by internal/relaymedia's live upload test"
   },
   "BUZZ_MEDIA_TEST_HTTP_URL": {
-    "process": "buzzimport live tests",
-    "description": "the Buzz media HTTP base URL internal/buzzimport/media's live upload test uploads to"
+    "process": "relaymedia live tests",
+    "description": "the Buzz media HTTP base URL internal/relaymedia's live upload test uploads to"
   },
   "BUZZ_MEDIA_TEST_IMAGE": {
-    "process": "buzzimport live tests",
-    "description": "path to an image file internal/buzzimport/media's live upload test uploads; optional"
+    "process": "relaymedia live tests",
+    "description": "path to an image file internal/relaymedia's live upload test uploads; optional"
   },
   "BUZZ_RELAY_TEST_DATABASE_URL": {
     "process": "admind relay tests",
@@ -204,11 +172,6 @@
     "process": "relay, host",
     "description": "where everyone signs in (https://<zone> unless the company serves the app itself); required by the relay, and handed to the host's admind from its environment file"
   },
-  "INTERNKIM_BUZZ_KEY_SEED": {
-    "process": "tools/mirror-local",
-    "description": "the Buzz identity seed every imported identity and channel is derived from; tools/mirror-local writes it to the local bridge's seed file; from the @host vault profile",
-    "isInVault": true
-  },
   "INTERNKIM_CF_ACCESS_CLIENT_ID": {
     "process": "tools/cloudflared-access-ssh",
     "description": "the client id half of the Cloudflare Access service token that admits ssh to the company host, from the @host vault profile; tools/cloudflared-access-ssh authenticates with it where an operator would answer a browser login",
@@ -264,10 +227,6 @@
     "process": "llmbackend live tests",
     "description": "the directory internal/llmbackend's live OpenRouter truncation test writes its request and response evidence into; the test skips when it is unset"
   },
-  "INTERNKIM_MM_ADMIN_PASSWORD_PATH": {
-    "process": "tools/mirror-local",
-    "description": "path to the local Mattermost admin password file, passed to admind's -mattermost-admin-password flag"
-  },
   "INTERNKIM_REAL_CHROME_BROWSER_TEST": {
     "process": "internal/browser tests",
     "description": "when \"1\", internal/browser/runtime_test.go launches a real Chrome instead of skipping"
@@ -320,14 +279,6 @@
   "MAILD_BASE_URL": {
     "process": "relay",
     "description": "maild's base URL the relay calls to answer mail; defaults to http://127.0.0.1:18092"
-  },
-  "MATTERMOST_IMPORT_TEST_DATABASE_URL": {
-    "process": "buzzimport live tests",
-    "description": "the Mattermost database internal/buzzimport's live end-to-end and mattermost-import tests read from"
-  },
-  "MATTERMOST_IMPORT_TEST_TEAM": {
-    "process": "buzzimport live tests",
-    "description": "the Mattermost team internal/buzzimport's live end-to-end and mattermost-import tests import"
   },
   "MEASURE_ACCESS_TOKEN": {
     "process": "relay diagnostics",

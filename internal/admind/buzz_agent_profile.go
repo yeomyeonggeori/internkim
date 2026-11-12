@@ -10,7 +10,7 @@ import (
 	"strings"
 
 	"github.com/yeomyeonggeori/internkim/internal/buzzidentity"
-	"github.com/yeomyeonggeori/internkim/internal/buzzimport/media"
+	"github.com/yeomyeonggeori/internkim/internal/relaymedia"
 )
 
 var errAgentPictureIsNotAnImage = errors.New("the agent's default picture is not an image")
@@ -29,7 +29,7 @@ func giveTheAgentADefaultPicture(ctx context.Context, messenger agentProfileMess
 	if held.Picture != "" {
 		return false, nil
 	}
-	content, mimeType, isImage := media.StripMetadata(picture, http.DetectContentType(picture))
+	content, mimeType, isImage := relaymedia.StripMetadata(picture, http.DetectContentType(picture))
 	if !isImage {
 		return false, errAgentPictureIsNotAnImage
 	}
@@ -98,7 +98,7 @@ func (messenger relayAgentProfile) heldProfile(ctx context.Context) (buzzProfile
 }
 
 func (messenger relayAgentProfile) uploadPicture(ctx context.Context, content []byte, mimeType string) (string, error) {
-	uploader := media.Uploader{HTTPBaseURL: messenger.service.buzzMediaOrigin(), RelayHost: messenger.service.buzzRelayPublicHost()}
+	uploader := relaymedia.Uploader{HTTPBaseURL: messenger.service.buzzMediaOrigin(), RelayHost: messenger.service.buzzRelayPublicHost()}
 	blob, errorValue := uploader.Upload(ctx, messenger.agentSecret, content, mimeType)
 	if errorValue != nil {
 		return "", errorValue

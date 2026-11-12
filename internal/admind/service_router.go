@@ -70,17 +70,9 @@ func (service *Service) registerAgentRoutes(multiplexer *http.ServeMux) {
 	multiplexer.HandleFunc("/agent/api/buzz-mm-mirrored", service.handleBuzzMMMirrored)
 	multiplexer.HandleFunc("/agent/api/buzz-admin-wipe", service.handleBuzzAdminWipe)
 	multiplexer.HandleFunc("/agent/api/buzz-admin-reset", service.handleBuzzAdminReset)
-	multiplexer.HandleFunc("/agent/api/buzz-repair-orphans", service.handleBuzzRepairOrphans)
-	multiplexer.HandleFunc("/agent/api/buzz-stranger-members", service.handleBuzzStrangerMembers)
 	multiplexer.HandleFunc("/agent/api/buzz-sweep-seats", service.handleBuzzSweepSeats)
 	multiplexer.HandleFunc("/agent/api/buzz-seat-admins", service.handleBuzzSeatAdmins)
-	multiplexer.HandleFunc("/agent/api/buzz-ghost-rooms", service.handleBuzzGhostRooms)
-	multiplexer.HandleFunc("/agent/api/buzz-identity-report", service.handleBuzzIdentityReport)
 	multiplexer.HandleFunc("/agent/api/person-pictures", service.handlePersonPictures)
-	multiplexer.HandleFunc("/agent/api/calendar-record-coverage", service.handleCalendarRecordCoverage)
-	multiplexer.HandleFunc("/agent/api/attendance-record-coverage", service.handleAttendanceRecordCoverage)
-	multiplexer.HandleFunc("/agent/api/task-record-coverage", service.handleTaskRecordCoverage)
-	multiplexer.HandleFunc("/agent/api/organization-record-coverage", localCallersOnly(service.handleOrganizationRecordCoverage))
 	multiplexer.HandleFunc("/agent/api/company-profile-carry", localCallersOnly(service.handleCompanyProfileCarry))
 	multiplexer.HandleFunc("/agent/api/mail-account-carry", localCallersOnly(service.handleMailAccountCarry))
 	multiplexer.HandleFunc("/agent/api/buzz-channel-visibility-repair", localCallersOnly(service.handleBuzzChannelVisibilityRepair))
@@ -113,7 +105,6 @@ func (service *Service) registerOrganizationRoutes(multiplexer *http.ServeMux) {
 
 func (service *Service) registerBuzzRoutes(multiplexer *http.ServeMux) {
 	multiplexer.HandleFunc("/buzz/api/", service.handleBuzz)
-	multiplexer.HandleFunc("/bridge/api/", service.handleBridgeMap)
 }
 
 func (service *Service) registerFileRoutes(multiplexer *http.ServeMux) {

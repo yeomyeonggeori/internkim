@@ -59,20 +59,6 @@ each subsystem as it comes up — Postgres, migrations, Redis, media storage,
 search, the git object store — so a partial failure is visible there rather than
 in a request much later.
 
-## Bringing a Mattermost workspace across
-
-`buzz-migrate`, which the package ships, imports a Mattermost team into the
-relay. It takes the Mattermost address and a file holding its session token, the
-relay's database, `buzz-admin`, the key seed, and the bridge that keeps what each
-imported message became. `--channels 광장` imports one channel while you check the result, and
-`--since <unix-millis>` picks up where a previous run stopped.
-
-**The seed is read from the file rather than passed in, and that is the point.**
-`cmd/buzz-migrate` derives every person's key and every channel id from it, so a
-second import under a different seed does not update the first: it derives
-different channel ids and lands a complete duplicate set of channels beside the
-originals.
-
 ## The identity seed
 
 The Buzz key seed is a root secret. `internal/buzzidentity` derives everything
@@ -82,19 +68,16 @@ from it and nothing else:
 - a mirrored channel's id is `sha256(seed + "|channel|" + sourceChannelID)`,
   shaped as a UUID
 
-Every consumer must hold the same seed: the importer (`-key-seed-path`), `admind`
-(`-buzz-key-seed-path`, a file), and chatd's mirror, which repeats the formulas
-in TypeScript and is held to them by a cross-language test. A mismatch is
-silent. History signed under one seed belongs to keys a person signing in under
+Every consumer must hold the same seed: `admind` (`-buzz-key-seed-path`, a
+file) and chatd's mirror, which repeats the formulas in TypeScript and is held
+to them by a cross-language test. A mismatch is silent. History signed under one seed belongs to keys a person signing in under
 another seed never derives, so they cannot see or own it.
 
-- Keep it in one place a reader can find: `INTERNKIM_BUZZ_KEY_SEED` in the
-  vault on a development machine, the host's secrets directory on the host,
-  and a copy in the operations vault off the host. A second local copy that
-  disagrees derives identities nobody can sign in as.
-- Never set it inline for one command. `tools/mirror-local` writes it to a seed
-  file only when the variable is set, and an inline value is not persisted
-  anywhere, so losing every copy leaves imported history unownable.
+- It lives in one place: `secrets/buzz-key-seed` in the company's directory
+  under `/var/lib/internkim`. `internkim-host backup` carries that directory
+  and `internkim-host restore` puts it back, so a restored host derives the
+  same identities. A second copy that disagrees derives identities nobody can
+  sign in as.
 - Never swap the seed to rotate. It re-keys everybody at once and detaches all
   existing history; one person is rotated through the identity version
   (`buzz-admin-reset`).

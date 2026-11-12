@@ -11,7 +11,6 @@ import (
 
 	nostr "github.com/nbd-wtf/go-nostr"
 	"github.com/yeomyeonggeori/internkim/internal/buzzidentity"
-	"github.com/yeomyeonggeori/internkim/internal/buzzimport"
 
 	_ "github.com/lib/pq"
 )
@@ -130,7 +129,7 @@ func (service *Service) reattributeBuzzMessages(ctx context.Context, oldSecretHe
 	if errorValue != nil {
 		return 0, errorValue
 	}
-	injector := buzzimport.ChannelInjector{Database: database, CommunityID: communityID}
+	injector := buzzMessageInjector{Database: database, CommunityID: communityID}
 
 	newEventIDByOld := map[string]string{}
 	reattributed := 0
@@ -145,7 +144,7 @@ func (service *Service) reattributeBuzzMessages(ctx context.Context, oldSecretHe
 			continue
 		}
 		newEventIDByOld[oldEvent.ID] = newEvent.ID
-		if errorValue := injector.InjectMessage(ctx, channelIDOfEvent(oldEvent), newEvent); errorValue != nil {
+		if errorValue := injector.injectMessage(ctx, channelIDOfEvent(oldEvent), newEvent); errorValue != nil {
 			continue
 		}
 		deleteEvent := nostr.Event{
