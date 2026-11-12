@@ -27,7 +27,8 @@
 	import MessageReactions from './message-reactions.svelte';
 	import MessageRow from './message-row.svelte';
 	import LiveWorkBubble from './live-work-bubble.svelte';
-	import TypingDots from './typing-dots.svelte';
+	import TypingBubble from './typing-bubble.svelte';
+	import AgentErrorBubble from './agent-error-bubble.svelte';
 	import { typingPeople } from './typing-people';
 	import SenderAvatar from './sender-avatar.svelte';
 	import MessageCaptureBar from './message-capture-bar.svelte';
@@ -700,10 +701,9 @@
 			? attachments[0]
 			: undefined}
 	{#if message.isError}
-		<Bubble.Root variant="destructive" class="max-w-[min(80%,32rem)]">
-			<Bubble.Content class="break-words whitespace-pre-wrap">{bodyText}</Bubble.Content>
+		<AgentErrorBubble text={bodyText}>
 			{@render timeStamp(message)}
-		</Bubble.Root>
+		</AgentErrorBubble>
 	{:else if bodyText && message.id === editingMessageID}
 		<MessageInlineEditor
 			originalText={bodyText}
@@ -916,11 +916,7 @@
 			<Message.Root align="start">
 				{@render senderAvatar(person)}
 				<Message.Content>
-					<Bubble.Root variant="muted">
-						<Bubble.Content role="status" aria-label={activity} class="py-2.5">
-							<TypingDots />
-						</Bubble.Content>
-					</Bubble.Root>
+					<TypingBubble label={activity} />
 				</Message.Content>
 			</Message.Root>
 		</div>
