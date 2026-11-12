@@ -21,6 +21,7 @@ const (
 	quietWait      = 300 * time.Millisecond
 	longestWait    = 2 * time.Second
 	fullEntryEvery = 24 * time.Hour
+	fullEntryAfter = 2000
 )
 
 type Follower struct {
@@ -33,10 +34,11 @@ type Follower struct {
 
 type following struct {
 	Follower
-	uploader   *offsite.Snapshot
-	next       int64
-	referenced map[string]bool
-	lastFull   time.Time
+	uploader    *offsite.Snapshot
+	next        int64
+	referenced  map[string]bool
+	lastFull    time.Time
+	entriesKept int
 }
 
 func (follower Follower) Run(ctx context.Context) error {
@@ -45,19 +47,8 @@ func (follower Follower) Run(ctx context.Context) error {
 		return errorValue
 	}
 	defer watcher.Close()
-	uploader, errorValue := offsite.StartSnapshot(ctx, follower.Journal.chunkDestination(), follower.Keyring)
+	state, errorValue := follower.start(ctx)
 	if errorValue != nil {
-		return errorValue
-	}
-	sequences, errorValue := follower.Journal.Sequences(ctx)
-	if errorValue != nil {
-		return errorValue
-	}
-	state := &following{Follower: follower, uploader: uploader, next: 1}
-	if len(sequences) > 0 {
-		state.next = slices.Max(sequences) + 1
-	}
-	if errorValue := state.catchUp(ctx); errorValue != nil {
 		return errorValue
 	}
 	changes := make(chan []Change)
@@ -78,6 +69,25 @@ func (follower Follower) Run(ctx context.Context) error {
 		}
 	}()
 	return state.follow(ctx, changes, watching)
+}
+
+func (follower Follower) start(ctx context.Context) (*following, error) {
+	uploader, errorValue := offsite.StartSnapshot(ctx, follower.Journal.chunkDestination(), follower.Keyring)
+	if errorValue != nil {
+		return nil, errorValue
+	}
+	sequences, errorValue := follower.Journal.Sequences(ctx)
+	if errorValue != nil {
+		return nil, errorValue
+	}
+	state := &following{Follower: follower, uploader: uploader, next: 1, entriesKept: len(sequences)}
+	if len(sequences) > 0 {
+		state.next = slices.Max(sequences) + 1
+	}
+	if errorValue := state.catchUp(ctx); errorValue != nil {
+		return nil, errorValue
+	}
+	return state, nil
 }
 
 type gathering struct {
@@ -146,7 +156,7 @@ func (state *following) keepWhatChanged(ctx context.Context, gathered gathering)
 		if errorValue := state.keepFull(ctx); errorValue != nil {
 			return errorValue
 		}
-	case time.Since(state.lastFull) >= fullEntryEvery:
+	case time.Since(state.lastFull) >= fullEntryEvery, state.entriesKept > fullEntryAfter:
 		if errorValue := state.keepFull(ctx); errorValue != nil {
 			return errorValue
 		}
@@ -200,7 +210,11 @@ func (state *following) keepFull(ctx context.Context) error {
 		return errorValue
 	}
 	state.lastFull = time.Now()
-	return state.pruneBehindTheFullEntry(ctx)
+	if errorValue := state.pruneBehindTheFullEntry(ctx); errorValue != nil {
+		return errorValue
+	}
+	state.entriesKept = 1
+	return nil
 }
 
 func (state *following) keep(ctx context.Context, isFull bool, removed []string, write func(io.Writer, hostbackup.Snapshotter) error) error {
@@ -224,6 +238,7 @@ func (state *following) keep(ctx context.Context, isFull bool, removed []string,
 		return errorValue
 	}
 	state.next++
+	state.entriesKept++
 	for _, identifier := range kept.Chunks {
 		state.referenced[identifier] = true
 	}
