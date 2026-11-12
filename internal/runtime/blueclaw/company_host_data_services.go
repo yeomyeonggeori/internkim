@@ -113,6 +113,7 @@ func companyHostDatabaseUnit(layout CompanyHostLayout) string {
 		RuntimeDirectory: CompanyHostDatabaseRuntimeDirectoryName,
 		ExecStart:        program + " postgres",
 		ExecStartPost:    program + " postgres-ready",
+		ExecReload:       program + " postgres-access",
 		StopTimeout:      60,
 	})
 }
@@ -137,6 +138,7 @@ type dataServiceUnitSettings struct {
 	RuntimeDirectory string
 	ExecStart        string
 	ExecStartPost    string
+	ExecReload       string
 	StopTimeout      int
 }
 
@@ -156,7 +158,7 @@ RuntimeDirectory=%s
 RuntimeDirectoryMode=%s
 ExecStart=%s
 ExecStartPost=%s
-TimeoutStartSec=120
+%sTimeoutStartSec=120
 TimeoutStopSec=%d
 Restart=on-failure
 RestartSec=5
@@ -169,7 +171,14 @@ ProtectHome=true
 WantedBy=multi-user.target
 `, settings.Description, CompanyHostAgentKeyPath, settings.Account,
 		settings.StateDirectory, settings.RuntimeDirectory, companyHostDataDirectoryMode,
-		settings.ExecStart, settings.ExecStartPost, settings.StopTimeout)
+		settings.ExecStart, settings.ExecStartPost, settings.reloadLine(), settings.StopTimeout)
+}
+
+func (settings dataServiceUnitSettings) reloadLine() string {
+	if settings.ExecReload == "" {
+		return ""
+	}
+	return "ExecReload=" + settings.ExecReload + "\n"
 }
 
 // CompanyHostDataServiceScript is the one program both data units run. It finds
@@ -260,6 +269,12 @@ write_access_rules() {
     '@IDENT_MAP@ root @ROLE@' > "$data/pg_ident.conf"
 }
 
+reload_access_rules() {
+  directory="$(postgres_directory)"
+  write_access_rules
+  exec "$directory/pg_ctl" --pgdata "$data" --silent reload
+}
+
 run_postgres() {
   directory="$(postgres_directory)"
   initialize_cluster "$directory"
@@ -326,6 +341,7 @@ cache_answers() {
 case "${1:-}" in
   postgres) run_postgres ;;
   postgres-ready) postgres_ready ;;
+  postgres-access) reload_access_rules ;;
   postgres-recover) recover_postgres ;;
   psql) directory="$(postgres_directory)"; shift; exec "$directory/psql" --host "$socket_directory" --no-psqlrc "$@" ;;
   pg_dump|pg_restore) directory="$(postgres_directory)"; program="$1"; shift; exec "$directory/$program" --host "$socket_directory" "$@" ;;
@@ -333,6 +349,6 @@ case "${1:-}" in
   cache) run_cache ;;
   cache-ready) wait_until cache_answers || fail "the cache did not answer on $cache_socket" ;;
   cache-ping) client="$(cache_client)"; exec "$client" -s "$cache_socket" ping ;;
-  *) fail "usage: data-service postgres|postgres-ready|postgres-recover|psql|pg_dump|pg_restore|postgres-major|cache|cache-ready|cache-ping" ;;
+  *) fail "usage: data-service postgres|postgres-ready|postgres-access|postgres-recover|psql|pg_dump|pg_restore|postgres-major|cache|cache-ready|cache-ping" ;;
 esac
 `

@@ -309,6 +309,18 @@ func TestTheRelayCanReadTheTwoFilesItsUnitNames(t *testing.T) {
 	}
 }
 
+func TestADatabaseAlreadyRunningTakesThisReleasesAccessRules(t *testing.T) {
+	machine := &recordedMachine{}
+	if errorValue := (linuxPlatform{}).StartTheDatabaseAndTheCache(machine); errorValue != nil {
+		t.Fatalf("start the database and the cache: %v", errorValue)
+	}
+	last := machine.runs[len(machine.runs)-1]
+	reload := []string{"systemctl", "reload", blueclaw.CompanyHostDatabaseServiceName + ".service"}
+	if strings.Join(last, " ") != strings.Join(reload, " ") {
+		t.Fatalf("an upgrade leaves the database running, so its access rules arrive by reload; the last command was %v", last)
+	}
+}
+
 func TestTheBundleIsRestartedWithoutTheUnitsItIsBoundTo(t *testing.T) {
 	machine := &recordedMachine{}
 	platform := linuxPlatform{}

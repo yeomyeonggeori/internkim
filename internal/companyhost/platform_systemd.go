@@ -44,6 +44,12 @@ func (linuxPlatform) StartTheDatabaseAndTheCache(machine Machine) error {
 			"%s could not be started. They are this package's own database and cache, run from the PostgreSQL and Redis or Valkey servers this machine installed, and the company server keeps everything it knows in them: %w",
 			strings.Join(units, " and "), errorValue)
 	}
+	database := linuxDataServiceUnits[databaseServiceName]
+	if errorValue := machine.Run("systemctl", []string{"reload", database}, nil, io.Discard); errorValue != nil {
+		return fmt.Errorf(
+			"%s would not take this release's access rules, so the services that reach the database as root would be refused: %w",
+			database, errorValue)
+	}
 	return nil
 }
 
