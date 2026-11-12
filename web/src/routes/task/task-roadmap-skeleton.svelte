@@ -1,5 +1,7 @@
 <script lang="ts">
 	import { Skeleton } from '$lib/components/ui/skeleton';
+	import { cn } from '$lib/utils';
+	import { taskRoadmapColumnsClass } from './task-roadmap-layout';
 
 	let { label }: { label: string } = $props();
 
@@ -14,21 +16,25 @@
 </script>
 
 <div class="overflow-hidden rounded-lg border" role="status" aria-label={label} data-task-roadmap-skeleton>
-	<div class="flex h-14 border-b">
-		<div class="w-80 shrink-0 border-r max-sm:w-56"></div>
-		<div class="flex flex-1 items-end gap-3 px-3 pb-2">
-			{#each { length: 20 }, index (index)}<Skeleton class="h-4 w-5" />{/each}
+	<div class={cn(taskRoadmapColumnsClass, 'h-12 border-b')}>
+		<div class="border-r max-sm:hidden"></div>
+		<div class="grid place-items-center"><Skeleton class="size-7 rounded-md" /></div>
+		<div class="flex items-center justify-around">
+			{#each { length: 14 }, index (index)}<Skeleton class={cn('h-6 w-4', index >= 7 && 'max-sm:hidden')} />{/each}
 		</div>
+		<div class="grid place-items-center"><Skeleton class="size-7 rounded-md" /></div>
 	</div>
 	{#each barRows as bar, index (index)}
-		<div class="flex h-12 border-b last:border-b-0">
-			<div class="flex w-80 shrink-0 items-center gap-2.5 border-r pr-3 pl-9 max-sm:w-56 max-sm:pl-4">
+		<div class={cn(taskRoadmapColumnsClass, 'border-b last:border-b-0')}>
+			<div class="flex h-12 min-w-0 items-center gap-2.5 border-r px-3 max-sm:col-span-3 max-sm:h-10 max-sm:border-r-0">
 				<Skeleton class="size-6 rounded-full" />
 				<Skeleton class="h-4 flex-1" />
 			</div>
-			<div class="relative flex-1">
-				<Skeleton class="absolute top-1/2 -mt-3.5 h-7" style={`left: ${bar.left}%; width: ${bar.width}%`} />
+			<div></div>
+			<div class="relative h-12 max-sm:h-9">
+				<Skeleton class="absolute inset-y-0 my-auto h-7" style={`left: ${bar.left}%; width: ${bar.width}%`} />
 			</div>
+			<div></div>
 		</div>
 	{/each}
 </div>
