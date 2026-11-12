@@ -45,6 +45,12 @@ async function until(satisfied: () => Promise<boolean>, seconds: number): Promis
 	return satisfied();
 }
 
+async function takesWork(plane: ACompanyPlane): Promise<boolean> {
+	const answer = await fetch(`${plane.blueclawURL}/admin/api/quiesce`, { headers: hostServiceHeaders(plane.serviceToken) });
+	const intake = (await answer.json()) as { quiesced: boolean };
+	return !intake.quiesced;
+}
+
 async function theFirstAsk(plane: ACompanyPlane, kind: Ask['kind']): Promise<Ask | undefined> {
 	const asked = await plane.model.asked();
 	return asked.find((ask) => ask.kind === kind);
@@ -102,6 +108,7 @@ test('the agent asks that endpoint for a model its ladder names', async () => {
 		await plane.model.answerNext(turnRouterSchemaName, turnWordsOwingOnlyTheReply);
 		await plane.model.answerNext(expectedChangesSchemaName, changingNothingTheCheckCanRead);
 		await plane.model.callNext('reply', replyingAndFinishing('안녕하세요'));
+		expect(await until(() => takesWork(plane), 60), 'blueclaw never trusted its clock enough to take work').toBe(true);
 		const started = await fetch(`${plane.blueclawURL}/admin/api/run/start`, {
 			method: 'POST',
 			headers: hostServiceHeaders(plane.serviceToken, { 'content-type': 'application/json' }),
