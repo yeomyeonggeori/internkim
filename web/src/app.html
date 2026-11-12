@@ -39,7 +39,7 @@
 				position: fixed;
 				inset: 0;
 				z-index: 2147483647;
-				background: #fdfdfd;
+				background: #ffffff;
 				transition: opacity 300ms ease;
 			}
 			.dark #launch-video {
@@ -51,7 +51,7 @@
 			#launch-video video {
 				width: 100%;
 				height: 100%;
-				object-fit: cover;
+				object-fit: contain;
 			}
 		</style>
 		%sveltekit.head%
@@ -61,7 +61,6 @@
 			(() => {
 				const playedKey = 'internkim-launch-video-played';
 				if (!window.isTauri || sessionStorage.getItem(playedKey)) return;
-				sessionStorage.setItem(playedKey, '1');
 				const overlay = document.createElement('div');
 				overlay.id = 'launch-video';
 				const video = document.createElement('video');
@@ -71,6 +70,7 @@
 				overlay.append(video);
 				document.body.prepend(overlay);
 				const leave = () => {
+					sessionStorage.setItem(playedKey, '1');
 					overlay.classList.add('leaving');
 					setTimeout(() => overlay.remove(), 300);
 				};

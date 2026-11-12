@@ -70,6 +70,20 @@ test('a logo video that arrives late still plays to its end', async ({ page }) =
 	await expect(page.locator(launchVideo)).toHaveCount(0, { timeout: 7000 });
 });
 
+test('a reload before the logo video ends plays it again', async ({ page }) => {
+	await insideTheIPhoneApp(page);
+	const releaseTheVideo = await holdTheLaunchVideo(page);
+
+	await page.goto('/settings/', { waitUntil: 'domcontentloaded' });
+	await expect(page.locator(launchVideo)).toBeVisible();
+
+	await page.reload({ waitUntil: 'domcontentloaded' });
+	await expect(page.locator(launchVideo)).toBeVisible();
+
+	releaseTheVideo();
+	await expect(page.locator(launchVideo)).toHaveCount(0, { timeout: 7000 });
+});
+
 test('a browser opens straight to the page without the logo video', async ({ page }) => {
 	await page.goto('/settings/', { waitUntil: 'domcontentloaded' });
 	await expect(page.locator(launchVideo)).toHaveCount(0);
