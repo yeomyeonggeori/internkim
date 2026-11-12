@@ -4,6 +4,7 @@
 	import { Button } from '$lib/components/ui/button';
 	import * as ButtonGroup from '$lib/components/ui/button-group';
 	import * as InputGroup from '$lib/components/ui/input-group';
+	import { IsMobile } from '$lib/hooks/is-mobile.svelte';
 
 	type LeaveDayCountInputProps = {
 		id: string;
@@ -34,6 +35,8 @@
 		decreaseLabel,
 		onChange
 	}: LeaveDayCountInputProps = $props();
+
+	const isMobile = new IsMobile();
 
 	const decimals = $derived(String(step).split('.')[1]?.length ?? 0);
 	const atLeast = $derived(value === null ? min : value);
@@ -81,12 +84,12 @@
 			<InputGroup.Text>{unit}</InputGroup.Text>
 		</InputGroup.Addon>
 	</InputGroup.Root>
-	<ButtonGroup.Root orientation="vertical" class="h-fit shrink-0">
+	<ButtonGroup.Root orientation={isMobile.current ? 'horizontal' : 'vertical'} class="h-fit shrink-0">
 		<Button
 			type="button"
 			variant="outline"
 			size="icon"
-			class="size-4 rounded-b-none"
+			class={isMobile.current ? '' : 'size-4 rounded-b-none'}
 			aria-label={increaseLabel}
 			aria-controls={id}
 			disabled={!canIncrease}
@@ -98,7 +101,7 @@
 			type="button"
 			variant="outline"
 			size="icon"
-			class="size-4 rounded-t-none"
+			class={isMobile.current ? '' : 'size-4 rounded-t-none'}
 			aria-label={decreaseLabel}
 			aria-controls={id}
 			disabled={!canDecrease}

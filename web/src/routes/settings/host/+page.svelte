@@ -14,7 +14,7 @@
 
 <SettingsSectionPage section="host">
 	{#if role.isAdmin}
-		<a href={settingsPath(page.url.pathname, 'setup')} class={buttonVariants({ variant: 'outline', class: 'w-fit' })}>{setupText.title}</a>
+		<a href={settingsPath(page.url.pathname, 'setup')} class={buttonVariants({ variant: 'outline', class: 'w-fit max-sm:w-full' })}>{setupText.title}</a>
 	{/if}
 	<CompanyHost isAdmin={role.isAdmin} />
 </SettingsSectionPage>

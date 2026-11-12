@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { Skeleton } from '$lib/components/ui/skeleton';
+	import { IsMobile } from '$lib/hooks/is-mobile.svelte';
 	import { Button } from '$lib/components/ui/button';
 	import * as Card from '$lib/components/ui/card';
 	import { apiErrorMessage } from './admin-api';
@@ -25,6 +26,7 @@
 	};
 
 	let { adminBaseURL, text }: Props = $props();
+	const isMobile = new IsMobile();
 	let policy = $state<AttendanceWorkPolicy | null>(null);
 	let draft = $state<AttendanceWorkPolicyRevision | null>(null);
 	let hasLoaded = $state(false);
@@ -116,10 +118,16 @@
 	}
 </script>
 
+{#snippet saveButton(buttonClass: string)}
+	<Button class={buttonClass} disabled={!hasChanges || isLoading || isSaving} onclick={() => void savePolicy()}>
+		{text.workSettings.save}
+	</Button>
+{/snippet}
+
 <div class="@container space-y-5" data-testid="attendance-work-settings">
 	<div>
-		<h2 class="text-lg font-semibold">{text.workSettings.title}</h2>
-		<p class="mt-1 text-sm text-muted-foreground">{text.workSettings.description}</p>
+		<h2 class="text-lg font-semibold max-sm:sr-only">{text.workSettings.title}</h2>
+		<p class="mt-1 text-sm text-muted-foreground max-sm:mt-0">{text.workSettings.description}</p>
 	</div>
 
 	{#if isLoading && !draft}
@@ -170,14 +178,11 @@
 					<Card.Header>
 						<Card.Title>{text.workSettings.workMode}</Card.Title>
 						<Card.Description>{text.workSettings.workModeDescription}</Card.Description>
-						<Card.Action>
-							<Button
-								disabled={!hasChanges || isLoading || isSaving}
-								onclick={() => void savePolicy()}
-							>
-								{text.workSettings.save}
-							</Button>
-						</Card.Action>
+						{#if !isMobile.current}
+							<Card.Action>
+								{@render saveButton('')}
+							</Card.Action>
+						{/if}
 					</Card.Header>
 					<Card.Content>
 						<AttendanceWorkModeSelector
@@ -187,6 +192,11 @@
 							onChange={(mode) => (draft = setAttendanceWorkMode(draft!, mode))}
 						/>
 					</Card.Content>
+					{#if isMobile.current}
+						<Card.Footer>
+							{@render saveButton('w-full')}
+						</Card.Footer>
+					{/if}
 				</Card.Root>
 				<Card.Root>
 					<Card.Header>

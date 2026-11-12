@@ -31,8 +31,8 @@
 	onMount(load);
 </script>
 
-<header class="grid gap-1 pt-2">
-	<h2 class="text-xl font-semibold">{text.title}</h2>
+<header class="grid gap-1 pt-2 max-sm:pt-0">
+	<h2 class="text-xl font-semibold max-sm:sr-only">{text.title}</h2>
 	<p class="text-sm text-muted-foreground">{text.description}</p>
 </header>
 {#if isLoading}
