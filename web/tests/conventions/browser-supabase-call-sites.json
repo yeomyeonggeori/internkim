@@ -1,12 +1,106 @@
 {
- "record": {},
+ "record": {
+  "src/lib/notifications/self-test.ts": {
+   "functions.invoke('notify-test')": 1
+  }
+ },
  "allowed": {
   "auth": {
+   "src/lib/attendance/attendance-holidays.ts": {
+    "auth.getSession": 1
+   },
+   "src/lib/cached-read.svelte.ts": {
+    "auth.onAuthStateChange": 1
+   },
+   "src/lib/calendar/supabase-calendar-holidays.ts": {
+    "auth.getSession": 1
+   },
+   "src/lib/central-buzz-identity.ts": {
+    "auth.onAuthStateChange": 1
+   },
+   "src/lib/company/found-company.ts": {
+    "auth.getSession": 2
+   },
    "src/lib/company-session-scope.ts": {
+    "auth.getSession": 2,
+    "auth.getUser": 1,
     "from('member')": 1
    },
+   "src/lib/connected-apps.ts": {
+    "auth.oauth.getAuthorizationDetails": 1,
+    "auth.getSession": 1,
+    "auth.oauth": 1,
+    "auth.oauth.listGrants": 1,
+    "auth.oauth.revokeGrant": 1
+   },
+   "src/lib/data-room/guest.ts": {
+    "auth.getSession": 2
+   },
+   "src/lib/host-bridge.ts": {
+    "auth.getSession": 2,
+    "auth.onAuthStateChange": 1
+   },
+   "src/lib/member/personal-access-tokens.ts": {
+    "auth.getSession": 1
+   },
+   "src/lib/messenger/cache-scope.ts": {
+    "auth.getSession": 3,
+    "auth.onAuthStateChange": 1
+   },
+   "src/lib/messenger/messenger-directory.ts": {
+    "auth.getSession": 1
+   },
+   "src/lib/notifications/self-test.ts": {
+    "auth.getSession": 1
+   },
+   "src/lib/organization/invite-member.ts": {
+    "auth.getSession": 3
+   },
+   "src/lib/public-api-call.ts": {
+    "auth.getSession": 1
+   },
+   "src/lib/signed-in-email.ts": {
+    "auth.getSession": 1
+   },
+   "src/lib/supabase-passkey.ts": {
+    "auth.registerPasskey": 1,
+    "auth.signInWithPasskey": 1,
+    "auth.passkey.list": 1,
+    "auth.passkey.delete": 1
+   },
    "src/lib/supabase-session.ts": {
-    "from('member')": 1
+    "auth.getSession": 3,
+    "from('member')": 1,
+    "auth.signOut": 1,
+    "auth.verifyOtp": 1,
+    "auth.updateUser": 1,
+    "auth.signInWithPassword": 1
+   },
+   "src/lib/task-invitation/guest.ts": {
+    "auth.getSession": 2,
+    "auth.signInWithOtp": 1,
+    "auth.verifyOtp": 1
+   },
+   "src/lib/transfer/company-transfer.ts": {
+    "auth.getSession": 1
+   },
+   "src/routes/auth/claim/+page.svelte": {
+    "auth.getSession": 1,
+    "auth.getClaims": 1
+   },
+   "src/routes/mail/mail-account-api.ts": {
+    "auth.getSession": 1
+   },
+   "src/routes/settings/setup/host-setup-client.ts": {
+    "auth.getSession": 1
+   },
+   "src/routes/share/invitations/[shareID]/+page.svelte": {
+    "auth.signInWithOtp": 1,
+    "auth.verifyOtp": 1,
+    "auth.getSession": 1
+   },
+   "src/routes/share/tasks/[companyID]/+page.svelte": {
+    "auth.signOut": 1
    }
   },
   "messenger": {
@@ -17,15 +111,17 @@
   },
   "realtime": {
    "src/lib/company-channel.ts": {
-    "rpc('my_company_topic')": 1
+    "rpc('my_company_topic')": 1,
+    "channel": 1,
+    "removeChannel": 1
    }
   },
   "storage": {
    "src/lib/stores/person-picture.svelte.ts": {
-    "from(assetBucket)": 1
+    "storage.from(assetBucket)": 1
    },
    "src/lib/transfer/company-transfer.ts": {
-    "from(assetBucket)": 1
+    "storage.from(assetBucket)": 1
    }
   }
  }

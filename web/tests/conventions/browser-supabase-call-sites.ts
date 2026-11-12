@@ -7,7 +7,10 @@ type RecordedInventory = { record: CallSiteCounts; allowed: Record<string, CallS
 const webRoot = join(import.meta.dir, '..', '..');
 const sourceRoot = join(webRoot, 'src');
 const inventoryPath = join(import.meta.dir, 'browser-supabase-call-sites.json');
-const dataCall = /\.(from|rpc)\s*(?:<[^>]*>)?\s*\(/g;
+const theBrowserClient = 'supabase()';
+const nameBoundToTheClient = /\b([A-Za-z_$][\w$]*)\s*(?::\s*SupabaseClient\s*)?=\s*supabase\(\)(?!\s*\.)/g;
+const memberChain = /^\s*\.\s*([A-Za-z_$][\w$]*(?:\s*\.\s*[A-Za-z_$][\w$]*)*)\s*(?:<[^>]*>)?\s*(\()?/;
+const namedByTheirFirstArgument = new Set(['from', 'rpc', 'invoke']);
 
 function everySourceFile(directory: string): string[] {
 	return readdirSync(directory)
@@ -25,18 +28,6 @@ export function isBrowserReachable(path: string): boolean {
 	return !path.endsWith('/+server.ts');
 }
 
-function precedingToken(source: string, before: number): string {
-	let index = before;
-	while (index > 0 && /\s/.test(source[index - 1])) index -= 1;
-	const end = index;
-	while (index > 0 && /[A-Za-z0-9_$]/.test(source[index - 1])) index -= 1;
-	return source.slice(index, end);
-}
-
-function isCollectionConstructor(token: string): boolean {
-	return /^(Array|Buffer|Fragment|[A-Za-z0-9]+Array)$/.test(token);
-}
-
 function firstArgumentText(source: string, openParenthesis: number): string {
 	let depth = 0;
 	for (let index = openParenthesis; index < source.length; index += 1) {
@@ -50,16 +41,31 @@ function firstArgumentText(source: string, openParenthesis: number): string {
 	return source.slice(openParenthesis + 1);
 }
 
-export function dataCallsIn(source: string): string[] {
-	const calls: string[] = [];
-	for (const found of source.matchAll(dataCall)) {
-		if (isCollectionConstructor(precedingToken(source, found.index))) continue;
-		const argument = firstArgumentText(source, found.index + found[0].length - 1)
-			.replace(/\s+/g, ' ')
-			.trim();
-		calls.push(`${found[1]}(${argument})`);
-	}
-	return calls;
+function namesOfTheClient(source: string): string[] {
+	return [...new Set([theBrowserClient, ...[...source.matchAll(nameBoundToTheClient)].map((bound) => bound[1])])];
+}
+
+function referencesTo(source: string, name: string): number[] {
+	const pattern = new RegExp(`(?<![\\w$.])${name.replace(/[()$]/g, '\\$&')}`, 'g');
+	return [...source.matchAll(pattern)].map((found) => found.index + name.length);
+}
+
+function accessAt(source: string, after: number): string | null {
+	const chain = memberChain.exec(source.slice(after));
+	if (!chain) return null;
+	const members = chain[1].split(/\s*\.\s*/).join('.');
+	const last = members.split('.').at(-1) ?? '';
+	if (!chain[2] || !namedByTheirFirstArgument.has(last)) return members;
+	const argument = firstArgumentText(source, after + chain[0].length - 1).replace(/\s+/g, ' ').trim();
+	return `${members}(${argument})`;
+}
+
+export function clientAccessesIn(source: string): string[] {
+	return namesOfTheClient(source)
+		.flatMap((name) => referencesTo(source, name))
+		.sort((first, second) => first - second)
+		.map((after) => accessAt(source, after))
+		.filter((access): access is string => access !== null);
 }
 
 export function browserSupabaseCallSites(): CallSiteCounts {
@@ -67,7 +73,7 @@ export function browserSupabaseCallSites(): CallSiteCounts {
 	for (const absolutePath of everySourceFile(sourceRoot)) {
 		const path = relative(webRoot, absolutePath);
 		if (!isBrowserReachable(path)) continue;
-		for (const call of dataCallsIn(readFileSync(absolutePath, 'utf8'))) {
+		for (const call of clientAccessesIn(readFileSync(absolutePath, 'utf8'))) {
 			callSites[path] ??= {};
 			callSites[path][call] = (callSites[path][call] ?? 0) + 1;
 		}
