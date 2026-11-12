@@ -23,14 +23,14 @@ export async function attendancePage(caller: SupabaseClient, scope: AttendancePa
 			.order('id', { ascending: false })
 			.limit(fetchedPageSize(input))
 			.returns<AttendanceRow[]>(),
-		scopedAttendance(caller, scope, 'id', { count: 'exact', head: true })
+		scopedAttendance(caller, scope, 'id', { count: 'exact' }).limit(1)
 	]);
 	for (const answer of [page, total]) if (answer.error) throw new RecordReadFailed(answer);
 	const newestFirst = pageOfFetched(page.data ?? [], total.count ?? 0, (row) => [row.occurred_at, row.id], input);
 	return { ...newestFirst, items: newestFirst.items.toReversed() };
 }
 
-function scopedAttendance(caller: SupabaseClient, scope: AttendancePageScope, columns: string, options?: { count: 'exact'; head: true }) {
+function scopedAttendance(caller: SupabaseClient, scope: AttendancePageScope, columns: string, options?: { count: 'exact' }) {
 	const inWindow = caller.from('attendance').select(columns, options).gte('occurred_at', scope.from).lte('occurred_at', scope.to);
 	const written = scope.handWrittenOnly ? inWindow.or('edit_reason.not.is.null,original_occurred_at.not.is.null') : inWindow;
 	return scope.whose.everyone ? written : written.in('member_id', scope.whose.personIDs);
