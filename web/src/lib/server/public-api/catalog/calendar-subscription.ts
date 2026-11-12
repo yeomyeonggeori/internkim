@@ -2,7 +2,7 @@ import { z } from 'zod';
 import { CapabilityAnsweredBy, CapabilityEstimatedLatency, CapabilitySideEffect, ResourceEffectIdentity } from './protocol';
 import { ResourceMutationEffect, type CapabilityToolDefinition } from './definition';
 
-const noInputSchema = z.strictObject({});
+export const calendarSubscriptionInputSchema = z.strictObject({});
 export const calendarSubscriptionGetResultSchema = z.strictObject({ registered: z.boolean() });
 export const calendarSubscriptionAddResultSchema = z.strictObject({ address: z.string() });
 export const calendarSubscriptionDeleteResultSchema = z.strictObject({ deleted: z.boolean() });
@@ -19,12 +19,12 @@ function calendarSubscriptionTool(
 		answeredBy: CapabilityAnsweredBy.Record,
 		privacyClass: 'workspace_calendar', policyResource: `tool:${name}`,
 		version: '1', estimatedLatency: CapabilityEstimatedLatency.Low,
-		inputSchema: noInputSchema,
+		inputSchema: calendarSubscriptionInputSchema,
 		result: { schema: resultSchema, effects: effect ? [{
 			objectType: 'calendar_subscription', effect, effectIdentity: ResourceEffectIdentity.Singleton
 		}] : [] },
 		sideEffect,
-		...(effect ? { requiresApproval: true, inputIntentSchema: noInputSchema } : {})
+		...(effect ? { requiresApproval: true, inputIntentSchema: calendarSubscriptionInputSchema } : {})
 	};
 }
 

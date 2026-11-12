@@ -1,3 +1,5 @@
+import type { z } from 'zod';
+import type { attendanceAddInputSchema, attendanceDeleteInputSchema, attendanceListInputSchema, attendanceUpdateInputSchema } from '../catalog/tools';
 import { attendanceChangeReasonText, type AttendanceChangeReason } from '$lib/attendance/change-reason';
 import { dayIn, dayOfInstant, dayShifted, instantOfDay } from './days';
 import { personName } from '$lib/person-name';
@@ -120,16 +122,7 @@ async function attendanceOfHint(context: RecordContext, hint: string): Promise<A
 	);
 }
 
-export type AttendanceListInput = {
-	personHints?: string[];
-	scope?: string;
-	from?: string;
-	to?: string;
-	handWrittenOnly?: boolean;
-    pageOffset?: number; pageLimit?: number; teamSearch?: string; changedBySearch?: string; selectedTeamKey?: string; selectedChangedByID?: string;
-	limit?: number;
-	cursor?: string;
-};
+export type AttendanceListInput = z.infer<typeof attendanceListInputSchema>;
 
 export async function attendanceList(context: RecordContext, input: AttendanceListInput) {
     if (input.handWrittenOnly && input.pageOffset !== undefined) {
@@ -169,15 +162,7 @@ export async function attendanceList(context: RecordContext, input: AttendanceLi
 	};
 }
 
-export type AttendanceAddInput = {
-	personHint?: string;
-	kind?: WorkspaceAttendanceKind;
-	date?: string;
-	time?: string;
-	location?: string;
-	reason?: string;
-	reasonCode?: AttendanceChangeReason;
-};
+export type AttendanceAddInput = z.infer<typeof attendanceAddInputSchema>;
 
 export async function attendanceAdd(
 	context: RecordContext,
@@ -209,7 +194,7 @@ export type AttendanceCorrection = {
 	location?: string;
 };
 
-export type AttendanceUpdateInput = { corrections?: AttendanceCorrection[]; reason?: string; reasonCode?: AttendanceChangeReason; undoOnly?: boolean };
+export type AttendanceUpdateInput = z.infer<typeof attendanceUpdateInputSchema>;
 
 export async function attendanceUpdate(context: RecordContext, input: AttendanceUpdateInput) {
  if (input.undoOnly) {
@@ -236,7 +221,7 @@ export async function attendanceUpdate(context: RecordContext, input: Attendance
 	return { ...answeredWrite(data), eventID: corrections[0].event_id };
 }
 
-export type AttendanceDeleteInput = { eventHint?: string; reason?: string; reasonCode?: AttendanceChangeReason; undoOnly?: boolean };
+export type AttendanceDeleteInput = z.infer<typeof attendanceDeleteInputSchema>;
 
 export async function attendanceDelete(context: RecordContext, input: AttendanceDeleteInput) {
  if (input.undoOnly) return undoAttendanceChange(context, input.eventHint ?? '');

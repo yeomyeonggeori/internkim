@@ -1,3 +1,5 @@
+import type { z } from 'zod';
+import type { leaveBalanceInputSchema, leaveDecideInputSchema, leaveDeleteInputSchema, leaveGrantSetInputSchema, leaveListInputSchema, leaveRequestInputSchema, leaveReturnEarlyInputSchema, leaveUpdateInputSchema } from '../catalog/tools';
 import { leaveYearOf } from '$lib/attendance/leave-year-share';
 import { dayIn, dayOfInstant, dayShifted, instantOfDay, instantWritten } from './days';
 import { personName } from '$lib/person-name';
@@ -99,15 +101,7 @@ function targetMember(context: RecordContext, personHint: string | undefined): s
 	return personHint ? personOfHint(context.people, personHint).personID : context.requesterID;
 }
 
-export type LeaveListInput = {
-	personHints?: string[];
-	scope?: string;
-	from?: string;
-	to?: string;
-	status?: string;
-	limit?: number;
-	cursor?: string;
-};
+export type LeaveListInput = z.infer<typeof leaveListInputSchema>;
 
 const leaveNewestFirst = {
 	positionOf: (row: LeaveRow) => [row.starts_at, row.id],
@@ -178,7 +172,7 @@ async function balanceOfOne(
 	return answeredBalance(context, memberID, granted, remaining);
 }
 
-export type LeaveBalanceInput = { personHints?: string[]; scope?: string; year?: number };
+export type LeaveBalanceInput = z.infer<typeof leaveBalanceInputSchema>;
 
 export async function leaveBalance(context: RecordContext, input: LeaveBalanceInput) {
 	const accrued = await context.caller.rpc('leave_accrue_due');
@@ -205,7 +199,7 @@ export async function leaveBalance(context: RecordContext, input: LeaveBalanceIn
 	};
 }
 
-export type LeaveGrantSetInput = { personHint?: string; days?: number };
+export type LeaveGrantSetInput = z.infer<typeof leaveGrantSetInputSchema>;
 
 export async function leaveGrantSet(
 	context: RecordContext,
@@ -222,7 +216,7 @@ export async function leaveGrantSet(
 	return balanceOfOne(context, memberID, year);
 }
 
-export type LeaveReturnEarlyInput = { location?: string };
+export type LeaveReturnEarlyInput = z.infer<typeof leaveReturnEarlyInputSchema>;
 
 type ReturnedEarly = {
 	shortened?: boolean;
@@ -251,14 +245,7 @@ export async function leaveReturnEarly(
 	};
 }
 
-export type LeaveRequestInput = {
-	personHint?: string;
-	kind?: string;
-	startsAt?: string;
-	endsAt?: string;
-	days?: number;
-	note?: string;
-};
+export type LeaveRequestInput = z.infer<typeof leaveRequestInputSchema>;
 
 export async function leaveRequest(
 	context: RecordContext,
@@ -291,14 +278,7 @@ export async function leaveRequest(
 	return answeredLeave(context, await leaveByID(context, data.id));
 }
 
-export type LeaveUpdateInput = {
-	leaveHint?: string;
-	kind?: string;
-	startsAt?: string;
-	endsAt?: string;
-	days?: number;
-	note?: string;
-};
+export type LeaveUpdateInput = z.infer<typeof leaveUpdateInputSchema>;
 
 export async function leaveUpdate(
 	context: RecordContext,
@@ -337,7 +317,7 @@ export async function leaveUpdate(
 	return answeredLeave(context, await leaveByID(context, row.id));
 }
 
-export type LeaveDeleteInput = { leaveHint?: string };
+export type LeaveDeleteInput = z.infer<typeof leaveDeleteInputSchema>;
 
 export async function leaveDelete(
 	context: RecordContext,
@@ -355,7 +335,7 @@ export async function leaveDelete(
 	return taken;
 }
 
-export type LeaveDecideInput = { leaveHint?: string; decision?: WorkspaceDecision };
+export type LeaveDecideInput = z.infer<typeof leaveDecideInputSchema>;
 
 export async function leaveDecide(
 	context: RecordContext,

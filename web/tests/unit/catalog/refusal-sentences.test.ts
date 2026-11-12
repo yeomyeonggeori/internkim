@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test';
 import refusedCalls from '../../../../pkg/capabilityprotocol/refusal-sentences.json';
-import { refusalOfToolInput } from '../../../src/lib/server/public-api/tool-input';
+import { refusalOfToolInput } from '../support/refusal-of-tool-input';
 
 // The other half of pkg/capabilityprotocol's
 // TestRefusalSentencesAreTheOnesTheCatalogPromises. A call is refused here

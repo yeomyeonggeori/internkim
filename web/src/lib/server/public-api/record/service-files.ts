@@ -1,3 +1,5 @@
+import type { z } from 'zod';
+import type { companyImageUploadInputSchema } from '../catalog/company';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { assetBucket } from '../asset-address';
 import { companyPictureImage, largestPictureACompanyCanHave } from '$lib/company/company-picture';
@@ -20,7 +22,7 @@ import type { CompanyImageUploadResult } from '../catalog/company';
 import { companyPictureUploadPlace } from '../company-picture-keep';
 import { Refusal, InputRefused, AccessRefused, RecordMoved, refusalOfPostgresError, refusalOfServiceError, type PostgresError } from '../refusal';
 
-export type CompanyImageUploadInput = { image?: string; fileName?: string; date?: string };
+export type CompanyImageUploadInput = z.infer<typeof companyImageUploadInputSchema>;
 
 export type KeptServiceFile = ServiceFileVersion & { storagePath: string };
 

@@ -70,8 +70,7 @@ function answeredShare(value: unknown) {
 		canDownload: row.can_download };
 }
 
-export async function companyDataRoomCategorySet(context: RecordContext, value: unknown) {
-	const category = dataRoomCategorySetInputSchema.parse(value);
+export async function companyDataRoomCategorySet(context: RecordContext, category: z.infer<typeof dataRoomCategorySetInputSchema>) {
 	const { error } = await context.caller.from('data_room_category').upsert({
 		company_id: context.companyID, code: category.code, parent: category.parent, slug: category.slug,
 		name: category.name, name_ko: category.nameKO, description: category.description,
@@ -81,14 +80,12 @@ export async function companyDataRoomCategorySet(context: RecordContext, value: 
 	return { saved: true };
 }
 
-export async function companyDataRoomFieldSet(context: RecordContext, value: unknown) {
-	const input = dataRoomFieldSetInputSchema.parse(value);
+export async function companyDataRoomFieldSet(context: RecordContext, input: z.infer<typeof dataRoomFieldSetInputSchema>) {
 	await upsertCompanyField(context, { kind: input.kind, field: input.field, category_code: input.categoryCode ?? null });
 	return { saved: true };
 }
 
-export async function companyDataRoomFieldNameSet(context: RecordContext, value: unknown) {
-	const input = dataRoomFieldNameSetInputSchema.parse(value);
+export async function companyDataRoomFieldNameSet(context: RecordContext, input: z.infer<typeof dataRoomFieldNameSetInputSchema>) {
 	await upsertCompanyField(context, { kind: input.kind, field: input.field, names: fieldNamesOf(input) });
 	return { saved: true };
 }
@@ -106,8 +103,7 @@ async function upsertCompanyField(context: RecordContext, write: CompanyFieldWri
 	if (error) throw refusalOfPostgresError(error);
 }
 
-export async function companyDataRoomShareCreate(context: RecordContext, value: unknown) {
-	const share = dataRoomShareCreateInputSchema.parse(value);
+export async function companyDataRoomShareCreate(context: RecordContext, share: z.infer<typeof dataRoomShareCreateInputSchema>) {
 	const shareID = await dataRoomCall(context.caller, 'data_room_share_create', {
 		target_company: context.companyID, circle_id: share.circleID, audience: share.audience,
 		recipient_email: share.email,
@@ -116,8 +112,7 @@ export async function companyDataRoomShareCreate(context: RecordContext, value: 
 	return { shareID: z.string().uuid().parse(shareID) };
 }
 
-export async function companyDataRoomShareRevoke(context: RecordContext, value: unknown) {
-	const share = dataRoomShareRevokeInputSchema.parse(value);
+export async function companyDataRoomShareRevoke(context: RecordContext, share: z.infer<typeof dataRoomShareRevokeInputSchema>) {
 	await dataRoomCall(context.caller, 'data_room_share_revoke', { target_share: share.shareID });
 	return { saved: true };
 }
@@ -137,8 +132,7 @@ export async function companyDataRoomLinksGet(context: RecordContext) {
 	})) });
 }
 
-export async function companyDataRoomLinkCreate(context: RecordContext, value: unknown) {
-	const link = dataRoomLinkInputSchema.parse(value);
+export async function companyDataRoomLinkCreate(context: RecordContext, link: z.infer<typeof dataRoomLinkInputSchema>) {
 	const accessCode = generateDataRoomCode();
 	const linkID = await dataRoomCall(context.caller, 'data_room_link_create', {
 		target_company: context.companyID, circle_id: link.circleID, label: link.label,
@@ -147,8 +141,7 @@ export async function companyDataRoomLinkCreate(context: RecordContext, value: u
 	return { linkID: z.string().uuid().parse(linkID), accessCode };
 }
 
-export async function companyDataRoomLinkRevoke(context: RecordContext, value: unknown) {
-	const link = dataRoomLinkRevokeSchema.parse(value);
+export async function companyDataRoomLinkRevoke(context: RecordContext, link: z.infer<typeof dataRoomLinkRevokeSchema>) {
 	await dataRoomCall(context.caller, 'data_room_link_revoke', { target_link: link.linkID });
 	return { saved: true };
 }
@@ -184,12 +177,10 @@ function isInvitationActive(invitation: z.infer<typeof invitationRowSchema>): bo
 	return !invitation.expires_at || new Date(invitation.expires_at) > new Date();
 }
 
-export async function companyDataRoomInvitationSend(context: RecordContext, value: unknown, place: ToolPlace) {
-	const { shareID } = dataRoomInvitationSendInputSchema.parse(value);
+export async function companyDataRoomInvitationSend(context: RecordContext, { shareID }: z.infer<typeof dataRoomInvitationSendInputSchema>, place: ToolPlace) {
 	return dataRoomInvitationSend(context.caller, place, shareID);
 }
 
-export async function companyDataRoomInvitationAccept(context: RecordContext, value: unknown) {
-	const { shareID } = dataRoomInvitationAcceptInputSchema.parse(value);
+export async function companyDataRoomInvitationAccept(context: RecordContext, { shareID }: z.infer<typeof dataRoomInvitationAcceptInputSchema>) {
 	return dataRoomShareAccept(context.caller, shareID);
 }

@@ -1,3 +1,4 @@
+import type { z } from 'zod';
 import { holidayOfCompanyHint } from './company-tools';
 import { companyRecordOfHint } from './company-ledger-tools';
 import { contactOfCRMHint, opportunityOfCRMHint, organizationOfCRMHint } from './crm-tools';
@@ -6,10 +7,16 @@ import { eventOfHint } from './event-tools';
 import { personOfHint } from './people';
 import { taskRowOfHint } from './task-tools';
 import type { RecordContext } from './company';
-import type { CarriedWorkspaceFile } from '../carried-files';
-import { crmRecordImportInputSchema } from '../catalog/crm';
-import { crmRecordImportPreview } from './crm-import-file';
 import type { TaskRow } from './tasks';
+import type { calendarDeleteInputSchema, taskDeleteInputSchema } from '../catalog/tools';
+import type { companyHolidayDeleteInputSchema } from '../catalog/settings';
+import type { companyRecordDeleteInputSchema } from '../catalog/company';
+import type {
+	crmContactArchiveInputSchema,
+	crmOpportunityArchiveInputSchema,
+	crmOrganizationArchiveInputSchema
+} from '../catalog/crm';
+import type { personWithdrawInputSchema } from '../catalog/people';
 
 export type PreviewedTarget = {
 	inputField: string;
@@ -20,58 +27,66 @@ export type PreviewedTarget = {
 	preview?: string;
 };
 
-type Preview = (
+export async function taskDeleteTarget(
 	context: RecordContext,
-	input: Record<string, unknown>,
-	files: CarriedWorkspaceFile[]
-) => Promise<PreviewedTarget | null>;
-
-// inputField is what blueclaw's narrowedToolInput replaces with the identity
-// before it runs an approved call; without it the call replays the hint and
-// resolves a second time.
-const previewsOverTheRecord: Record<string, Preview> = {
-	task_delete: async (context, input) =>
-		targetOf('taskHint', await taskRowOfHint(context, hintOf(input, 'taskHint')), context),
-	event_delete: async (context, input) =>
-		targetOf('eventHint', await eventOfHint(context, hintOf(input, 'eventHint')), context),
-	company_holiday_delete: async (context, input) => {
-		const holiday = await holidayOfCompanyHint(context, hintOf(input, 'holidayHint'));
-		return { inputField: 'holidayHint', id: holiday.id, title: `${holiday.date} ${holiday.title}` };
-	},
-	company_record_delete: async (context, input) => {
-		const record = await companyRecordOfHint(context, hintOf(input, 'recordHint'));
-		return { inputField: 'recordHint', id: record.id, title: record.title };
-	},
-	crm_organization_archive: async (context, input) => {
-		const organization = await organizationOfCRMHint(context, hintOf(input, 'organizationHint'));
-		return { inputField: 'organizationHint', id: organization.id, title: organization.name };
-	},
-	crm_contact_archive: async (context, input) => {
-		const contact = await contactOfCRMHint(context, hintOf(input, 'contactHint'));
-		return { inputField: 'contactHint', id: contact.id, title: contact.name };
-	},
-	person_withdraw: (context, input) => personTargetOf(context, input),
-	person_password_reset: (context, input) => personTargetOf(context, input),
-	crm_record_import: (context, input, files) =>
-		crmRecordImportPreview(context, crmRecordImportInputSchema.parse(input), files),
-	crm_opportunity_archive: async (context, input) => {
-		const opportunity = await opportunityOfCRMHint(context, hintOf(input, 'opportunityHint'));
-		return { inputField: 'opportunityHint', id: opportunity.id, title: opportunity.name };
-	}
-};
-
-export function previewOfTool(name: string): Preview | undefined {
-	return previewsOverTheRecord[name];
+	input: z.infer<typeof taskDeleteInputSchema>
+): Promise<PreviewedTarget> {
+	return targetOf('taskHint', await taskRowOfHint(context, input.taskHint), context);
 }
 
-async function personTargetOf(context: RecordContext, input: Record<string, unknown>): Promise<PreviewedTarget> {
-	const person = personOfHint(context.people, hintOf(input, 'personHint'));
+export async function eventDeleteTarget(
+	context: RecordContext,
+	input: z.infer<typeof calendarDeleteInputSchema>
+): Promise<PreviewedTarget> {
+	return targetOf('eventHint', await eventOfHint(context, input.eventHint), context);
+}
+
+export async function companyHolidayDeleteTarget(
+	context: RecordContext,
+	input: z.infer<typeof companyHolidayDeleteInputSchema>
+): Promise<PreviewedTarget> {
+	const holiday = await holidayOfCompanyHint(context, input.holidayHint);
+	return { inputField: 'holidayHint', id: holiday.id, title: `${holiday.date} ${holiday.title}` };
+}
+
+export async function companyRecordDeleteTarget(
+	context: RecordContext,
+	input: z.infer<typeof companyRecordDeleteInputSchema>
+): Promise<PreviewedTarget> {
+	const record = await companyRecordOfHint(context, input.recordHint);
+	return { inputField: 'recordHint', id: record.id, title: record.title };
+}
+
+export async function crmOrganizationArchiveTarget(
+	context: RecordContext,
+	input: z.infer<typeof crmOrganizationArchiveInputSchema>
+): Promise<PreviewedTarget> {
+	const organization = await organizationOfCRMHint(context, input.organizationHint);
+	return { inputField: 'organizationHint', id: organization.id, title: organization.name };
+}
+
+export async function crmContactArchiveTarget(
+	context: RecordContext,
+	input: z.infer<typeof crmContactArchiveInputSchema>
+): Promise<PreviewedTarget> {
+	const contact = await contactOfCRMHint(context, input.contactHint);
+	return { inputField: 'contactHint', id: contact.id, title: contact.name };
+}
+
+export async function crmOpportunityArchiveTarget(
+	context: RecordContext,
+	input: z.infer<typeof crmOpportunityArchiveInputSchema>
+): Promise<PreviewedTarget> {
+	const opportunity = await opportunityOfCRMHint(context, input.opportunityHint);
+	return { inputField: 'opportunityHint', id: opportunity.id, title: opportunity.name };
+}
+
+export async function personTarget(
+	context: RecordContext,
+	input: z.infer<typeof personWithdrawInputSchema>
+): Promise<PreviewedTarget> {
+	const person = personOfHint(context.people, input.personHint);
 	return { inputField: 'personHint', id: person.personID, title: `${person.name} <${person.email}>` };
-}
-
-function hintOf(input: Record<string, unknown>, field: string): string {
-	const hint = input[field];
-	return typeof hint === 'string' ? hint : '';
 }
 
 function targetOf(inputField: string, row: TaskRow, context: RecordContext): PreviewedTarget {
