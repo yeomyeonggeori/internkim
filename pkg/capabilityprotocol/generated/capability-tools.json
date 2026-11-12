@@ -17806,6 +17806,341 @@
       "worksOffline": false
     },
     {
+      "answeredBy": "local",
+      "availability": {
+        "state": "ok"
+      },
+      "canonicalName": "desktop_read",
+      "description": "Read the requester's own computer through agent-desktop, which runs inside the internkim desktop app they have open: running apps and windows, an app's accessibility tree with refs, one element's state, a screenshot. It reaches only the computer of the person who asked, never a colleague's and never the company computer. Before the first call in a task, run [\"skills\", \"get\", \"desktop\"] and then [\"skills\", \"get\", \"platform\"]: the guide is compiled into the version installed there and names every command and flag. For a web page use program agent-browser, whose guide is [\"skills\", \"get\", \"core\"]: desktop_act [\"open\", url] opens the page in a browser window of its own, and [\"snapshot\", \"-i\"] reads it.",
+      "estimatedLatency": "interactive",
+      "idempotency": {
+        "required": false,
+        "scope": "operation",
+        "supported": false
+      },
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "arguments": {
+            "description": "One command line of the program without its name, one word per entry: [\"snapshot\", \"--app\", \"Finder\", \"-i\", \"--compact\"]. The first entry is the command.",
+            "items": {
+              "type": "string"
+            },
+            "minItems": 1,
+            "type": "array"
+          },
+          "program": {
+            "description": "agent-desktop (the default) operates apps and windows. agent-browser operates web pages in a browser window of its own on that computer, which starts signed in to nothing.",
+            "enum": [
+              "agent-desktop",
+              "agent-browser"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "arguments"
+        ],
+        "type": "object"
+      },
+      "inputSchemaStrict": true,
+      "modelName": "desktop_read",
+      "modelVisibility": "visible",
+      "modelVisible": true,
+      "name": "desktop_read",
+      "namespace": "desktop",
+      "namespaceSummary": "Operate the requester's own computer through the desktop app they have open: read apps and windows, click, type, press keys, and screenshot.",
+      "outputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "attachments": {
+            "description": "The picture a screenshot command took. The envelope then carries its size without the picture.",
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "contentBase64": {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "contentType": {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "filename": {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "sizeBytes": {
+                  "maximum": 9007199254740991,
+                  "minimum": 0,
+                  "type": "integer"
+                }
+              },
+              "required": [
+                "filename",
+                "contentType",
+                "sizeBytes",
+                "contentBase64"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "output": {
+            "description": "The program's JSON envelope for the command, as it printed it.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "output"
+        ],
+        "type": "object"
+      },
+      "outputSchemaStrict": true,
+      "policyResource": "tool:desktop_read",
+      "privacyClass": "requester_desktop",
+      "requiresUserPresence": true,
+      "resultContract": {
+        "effects": [],
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "additionalProperties": false,
+          "properties": {
+            "attachments": {
+              "description": "The picture a screenshot command took. The envelope then carries its size without the picture.",
+              "items": {
+                "additionalProperties": false,
+                "properties": {
+                  "contentBase64": {
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  "contentType": {
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  "filename": {
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  "sizeBytes": {
+                    "maximum": 9007199254740991,
+                    "minimum": 0,
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "filename",
+                  "contentType",
+                  "sizeBytes",
+                  "contentBase64"
+                ],
+                "type": "object"
+              },
+              "type": "array"
+            },
+            "output": {
+              "description": "The program's JSON envelope for the command, as it printed it.",
+              "type": "string"
+            }
+          },
+          "required": [
+            "output"
+          ],
+          "type": "object"
+        }
+      },
+      "sideEffect": "read",
+      "sideEffectClass": "read",
+      "version": "1",
+      "worksOffline": false
+    },
+    {
+      "answeredBy": "local",
+      "availability": {
+        "state": "ok"
+      },
+      "canonicalName": "desktop_act",
+      "description": "Operate the requester's own computer through agent-desktop: click, type into or set a ref from the latest desktop_read snapshot, press keys, launch or close an app, move a window, write the clipboard. The requester sees it happen on their screen. Take a new snapshot after every act, because refs belong to the snapshot that printed them. Never type a password or a one-time code; ask the requester to enter it themselves.",
+      "estimatedLatency": "interactive",
+      "idempotency": {
+        "required": false,
+        "scope": "operation",
+        "supported": false
+      },
+      "inputIntentSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "arguments": {
+            "description": "One command line of the program without its name, one word per entry: [\"click\", \"@s8f3k2p9:e4\"]. The first entry is the command; a ref is copied exactly from the latest snapshot.",
+            "items": {
+              "type": "string"
+            },
+            "minItems": 1,
+            "type": "array"
+          },
+          "program": {
+            "description": "agent-desktop (the default) operates apps and windows. agent-browser operates web pages in a browser window of its own on that computer, which starts signed in to nothing.",
+            "enum": [
+              "agent-desktop",
+              "agent-browser"
+            ],
+            "type": "string"
+          },
+          "text": {
+            "description": "The text a type, set-value, clipboard-set or fill command writes. Give it here and leave it out of arguments.",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "arguments": {
+            "description": "One command line of the program without its name, one word per entry: [\"click\", \"@s8f3k2p9:e4\"]. The first entry is the command; a ref is copied exactly from the latest snapshot.",
+            "items": {
+              "type": "string"
+            },
+            "minItems": 1,
+            "type": "array"
+          },
+          "program": {
+            "description": "agent-desktop (the default) operates apps and windows. agent-browser operates web pages in a browser window of its own on that computer, which starts signed in to nothing.",
+            "enum": [
+              "agent-desktop",
+              "agent-browser"
+            ],
+            "type": "string"
+          },
+          "text": {
+            "description": "The text a type, set-value, clipboard-set or fill command writes. Give it here and leave it out of arguments.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "arguments"
+        ],
+        "type": "object"
+      },
+      "inputSchemaStrict": true,
+      "modelName": "desktop_act",
+      "modelVisibility": "visible",
+      "modelVisible": true,
+      "name": "desktop_act",
+      "namespace": "desktop",
+      "namespaceSummary": "Operate the requester's own computer through the desktop app they have open: read apps and windows, click, type, press keys, and screenshot.",
+      "outputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "attachments": {
+            "description": "The picture a screenshot command took. The envelope then carries its size without the picture.",
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "contentBase64": {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "contentType": {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "filename": {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "sizeBytes": {
+                  "maximum": 9007199254740991,
+                  "minimum": 0,
+                  "type": "integer"
+                }
+              },
+              "required": [
+                "filename",
+                "contentType",
+                "sizeBytes",
+                "contentBase64"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "output": {
+            "description": "The program's JSON envelope for the command, as it printed it.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "output"
+        ],
+        "type": "object"
+      },
+      "outputSchemaStrict": true,
+      "policyResource": "tool:desktop_act",
+      "privacyClass": "requester_desktop",
+      "requiresUserPresence": true,
+      "resultContract": {
+        "effects": [],
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "additionalProperties": false,
+          "properties": {
+            "attachments": {
+              "description": "The picture a screenshot command took. The envelope then carries its size without the picture.",
+              "items": {
+                "additionalProperties": false,
+                "properties": {
+                  "contentBase64": {
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  "contentType": {
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  "filename": {
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  "sizeBytes": {
+                    "maximum": 9007199254740991,
+                    "minimum": 0,
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "filename",
+                  "contentType",
+                  "sizeBytes",
+                  "contentBase64"
+                ],
+                "type": "object"
+              },
+              "type": "array"
+            },
+            "output": {
+              "description": "The program's JSON envelope for the command, as it printed it.",
+              "type": "string"
+            }
+          },
+          "required": [
+            "output"
+          ],
+          "type": "object"
+        }
+      },
+      "sideEffect": "external_write",
+      "sideEffectClass": "external_write",
+      "version": "1",
+      "worksOffline": false
+    },
+    {
       "answeredBy": "company",
       "availability": {
         "state": "ok"

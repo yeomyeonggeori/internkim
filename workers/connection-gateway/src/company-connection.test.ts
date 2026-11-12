@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { streamAddressHeader, streamHostHeader, streamPathHeader, workerBoxHeader } from './company-connection';
+import { desktopOwnerHeader, streamAddressHeader, streamHostHeader, streamPathHeader, workerBoxHeader } from './company-connection';
 import { largestStreamFrameBytes, pingFrame, pongFrame } from './host-protocol';
 import { ConnectionObject, TestSocket, TestState, socketHeldByTheObject } from './test-durable-object';
 
@@ -355,5 +355,95 @@ describe('work taken from the company queue', () => {
 		const annex = await connectWorker(object, 'annex');
 		annex.receive(JSON.stringify({ kind: 'deliver', event: { kind: 'forged' } }));
 		expect(member.documents().filter(isRecordOfKind('deliver'))).toEqual([]);
+	});
+});
+
+async function connectDesktop(object: ConnectionObject, ownerEmail: string): Promise<TestSocket> {
+	const accepted = await object.fetch(
+		new Request(`https://connection-gateway/company/${companyID}/desktop-session`, {
+			headers: { Upgrade: 'websocket', [desktopOwnerHeader]: ownerEmail }
+		})
+	);
+	expect(accepted.status).toBe(101);
+	return heldSocket();
+}
+
+function postDesktopWork(object: ConnectionObject, requestID: string, desktopOwner: string): Promise<Response> {
+	return object.fetch(
+		new Request(`https://connection-gateway/company/${companyID}/work`, {
+			method: 'POST',
+			body: JSON.stringify({ requestID, affinityKey: `desktop:${desktopOwner}`, desktopOwner, work: { arguments: ['snapshot'] } })
+		})
+	);
+}
+
+describe('work for a person\'s own desktop', () => {
+	test('goes to the desktop that person signed into and comes back as its answer', async () => {
+		const object = new ConnectionObject(new TestState());
+		const desktop = await connectDesktop(object, 'sample@example.com');
+		sayFree(desktop, 1);
+
+		const answered = postDesktopWork(object, 'desk-1', 'sample@example.com');
+		expect(await untilWorkIsSent(desktop)).toEqual({ kind: 'work', requestID: 'desk-1', work: { arguments: ['snapshot'] } });
+		desktop.receive(JSON.stringify({ kind: 'result', requestID: 'desk-1', status: 200, body: { exitCode: 0 } }));
+		expect(await (await answered).json()).toMatchObject({ requestID: 'desk-1', status: 200, body: { exitCode: 0 } });
+	});
+
+	test('never reaches another person\'s desktop or a company box, however much room they have', async () => {
+		const object = new ConnectionObject(new TestState());
+		const colleague = await connectDesktop(object, 'colleague@example.com');
+		const annex = await connectWorker(object, 'annex');
+		sayFree(colleague, 1);
+		sayFree(annex, 4);
+
+		const response = await postDesktopWork(object, 'desk-2', 'sample@example.com');
+		expect(await response.json()).toMatchObject({ requestID: 'desk-2', status: 503, body: { error: 'this person has no desktop connected' } });
+		expect(colleague.documents()).toEqual([]);
+		expect(annex.documents()).toEqual([]);
+	});
+
+	test('keeps company work off every desktop', async () => {
+		const object = new ConnectionObject(new TestState());
+		const desktop = await connectDesktop(object, 'sample@example.com');
+		sayFree(desktop, 1);
+		const response = await postWork(object, 'work-9');
+		expect(await response.json()).toMatchObject({ requestID: 'work-9', status: 503 });
+		expect(desktop.documents()).toEqual([]);
+	}, 10_000);
+
+	test('follows the person to the desktop they opened last', async () => {
+		const object = new ConnectionObject(new TestState());
+		const earlier = await connectDesktop(object, 'sample@example.com');
+		sayFree(earlier, 1);
+		const later = await connectDesktop(object, 'sample@example.com');
+		sayFree(later, 1);
+		await earlier.drop();
+
+		void postDesktopWork(object, 'desk-3', 'sample@example.com');
+		expect((await untilWorkIsSent(later)).requestID).toBe('desk-3');
+	});
+
+	test('waits its turn on a desktop that is busy, because no other machine may take it', async () => {
+		const object = new ConnectionObject(new TestState());
+		const desktop = await connectDesktop(object, 'sample@example.com');
+		sayFree(desktop, 0);
+
+		const answered = postDesktopWork(object, 'desk-4', 'sample@example.com');
+		await Bun.sleep(3_200);
+		expect(desktop.documents()).toEqual([]);
+		sayFree(desktop, 1);
+		expect((await untilWorkIsSent(desktop)).requestID).toBe('desk-4');
+		desktop.receive(JSON.stringify({ kind: 'result', requestID: 'desk-4', status: 200, body: { output: '{}' } }));
+		expect(await (await answered).json()).toMatchObject({ requestID: 'desk-4', status: 200 });
+	}, 10_000);
+
+	test('is refused at once when the desktop it waits for closes', async () => {
+		const object = new ConnectionObject(new TestState());
+		const desktop = await connectDesktop(object, 'sample@example.com');
+		sayFree(desktop, 0);
+
+		const answered = postDesktopWork(object, 'desk-5', 'sample@example.com');
+		await desktop.drop();
+		expect(await (await answered).json()).toMatchObject({ requestID: 'desk-5', status: 503 });
 	});
 });

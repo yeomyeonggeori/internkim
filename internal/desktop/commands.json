@@ -1,0 +1,44 @@
+{
+  "programs": {
+    "agent-desktop": {
+      "version": "1.2.0",
+      "integrity": "sha512-sp8hHs8JfnuZe8ZQwiKZrqSOlu26SSeZXkjDog4KsU31L09G3uZJa8pITGN2vORif9uuh0iOSJHD146CEyTqag==",
+      "textTravelsBy": "standardInput",
+      "appendedArguments": [],
+      "read": [
+        "snapshot", "find", "get", "is", "screenshot", "wait",
+        "list-apps", "list-windows", "list-displays", "list-surfaces", "list-notifications",
+        "clipboard-get", "status", "version", "skills"
+      ],
+      "act": [
+        "click", "double-click", "triple-click", "right-click",
+        "type", "set-value", "clear", "focus", "select", "toggle", "check", "uncheck",
+        "expand", "collapse", "scroll", "scroll-to", "press",
+        "hover", "drag", "mouse-move", "mouse-click", "mouse-wheel",
+        "launch", "close-app", "focus-window", "resize-window", "move-window",
+        "minimize", "maximize", "restore", "open-system-surface",
+        "dismiss-notification", "dismiss-all-notifications", "notification-action",
+        "clipboard-set", "clipboard-clear", "permissions"
+      ],
+      "refusedOptions": ["--trace", "--trace-strict", "--screenshot", "--debug", "--session", "--agent-id"]
+    },
+    "agent-browser": {
+      "version": "0.37.1",
+      "integrity": "sha512-NDojTSXrIq7zS090T0VwI1uzBryZWvewgxXvS0swj8/5GGnziBZLmyhEkfETO8n4n3DsJpZbZkq9F/MV2rIQKw==",
+      "textTravelsBy": "lastArgument",
+      "appendedArguments": ["--json", "--headed"],
+      "read": ["snapshot", "get", "is", "wait", "console", "errors", "skills"],
+      "act": [
+        "connect", "close", "open", "back", "forward", "reload", "tab",
+        "click", "dblclick", "type", "fill", "press", "keyboard", "hover", "focus",
+        "check", "uncheck", "select", "drag", "scroll", "scrollintoview", "find"
+      ],
+      "refusedOptions": [
+        "--session", "--namespace", "--config", "--cdp", "--provider", "-p", "--engine", "--device",
+        "--executable-path", "--extension", "--init-script", "--enable", "--args",
+        "--proxy", "--proxy-bypass", "--ignore-https-errors", "--ca-cert", "--no-ca-cert", "--allow-file-access",
+        "--download-path", "--screenshot-dir", "--action-policy", "--allowed-domains", "--model", "--debug"
+      ]
+    }
+  }
+}

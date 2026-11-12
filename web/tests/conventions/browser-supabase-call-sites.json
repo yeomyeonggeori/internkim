@@ -50,6 +50,9 @@
    "src/lib/messenger/messenger-directory.ts": {
     "auth.getSession": 1
    },
+   "src/lib/native-shell/desktop-control.ts": {
+    "auth.getSession": 1
+   },
    "src/lib/notifications/self-test.ts": {
     "auth.getSession": 1
    },

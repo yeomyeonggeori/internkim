@@ -38,6 +38,7 @@
 	import { keepShellStatusBarOnPageTheme } from '$lib/native-shell/page-theme';
 	import { keepBackGestureOffOnMainPages } from '$lib/components/main-page-back-gesture.svelte';
 	import { openLinksLeavingTheAppInBrowser } from '$lib/native-shell/external-links';
+	import { keepDesktopControlled } from '$lib/native-shell/desktop-control';
 	import { goWhereNativeNotificationsPoint, keepNativeDeviceClaimed } from '$lib/notifications/native-device';
 	import { askToBeReachedOnce } from '$lib/notifications/ask-once';
 	import { keepWidgetSupplied } from '$lib/widget/attendance-widget-supply';
@@ -77,6 +78,11 @@
 	$effect(() => {
 		if (!data.session?.authenticated) return;
 		return memberPresence.keepMineShared();
+	});
+	$effect(() => {
+		const signedInEmail = data.session?.authenticated ? data.session.email : '';
+		if (!signedInEmail) return;
+		return untrack(keepDesktopControlled);
 	});
 	$effect(() => {
 		if (!data.session?.authenticated) return;

@@ -228,7 +228,7 @@ Five things, deployed by us.
 | the control plane | server routes holding the service key | `web/src/routes/api/agent/` |
 | the app | a SvelteKit build on Cloudflare Pages, serving the pages people sign into | `web/` |
 | the public API | server routes in the same build, answering tokens and MCP clients | `web/src/routes/api/v1/` |
-| the connection gateway | a Worker with one Durable Object per company, carrying browser calls, API calls and the native messenger apps | `workers/connection-gateway/` |
+| the connection gateway | a Worker with one Durable Object per company, carrying browser calls, API calls, the native messenger apps and desktop work for a person's own computer | `workers/connection-gateway/` |
 
 The record answers every read and write as some member, never as an
 administrator. Which rows a session sees is decided by the database itself.
@@ -262,7 +262,7 @@ answers it:
 |---|---|---|
 | `record` | the app itself, against the record, as the calling member | tasks, the calendar, people, leave, attendance, CRM |
 | `company` | the company's computer, reached through the gateway | messages, mail, web search, reading a document |
-| `local` | only the agent's own machine; the API refuses it | the browser, model calls, embeddings |
+| `local` | only the agent's own machine; the API refuses it | the browser, the requester's desktop, model calls, embeddings |
 
 `/api/v1/mcp` serves the same catalog to any MCP client, and it is also how the
 agent itself reaches its tools, as the sections below show. The
@@ -278,6 +278,16 @@ from its side and stays connected, authenticated by a server key the Durable
 Object stores. The object forwards calls one way and answers the other, pushes
 `message.arrived` to open chat screens when the relay reports a new message,
 and tells browsers whether the company's computer has a live connection.
+
+The internkim desktop app dials `/company/<id>/desktop` with the signed-in
+member's session token once its person lets internkim use that computer. The
+Worker resolves the member as it does for `/client` and keys the socket on
+their email address. Work the company's computer posts for a person's desktop
+names that address, and the Durable Object hands it to that person's socket
+alone, or answers `503` when they have none open. It never goes to another
+person's desktop or to a box serving the company, and company work never goes
+to a desktop. [Your own computer](/docs/tools#desktop) says what the desktop
+tools do there.
 
 A native messenger app on a phone or a desktop dials the company's messenger
 address, `<slug>.<zone>`, which is a route on the same Worker and not a Pages

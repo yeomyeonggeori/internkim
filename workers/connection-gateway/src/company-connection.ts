@@ -17,6 +17,7 @@ import {
 } from './routing';
 import {
 	clientTag,
+	desktopTagOf,
 	hostTag,
 	memberTagOf,
 	socketAttachmentOf,
@@ -54,6 +55,7 @@ export const streamHostHeader = 'x-internkim-stream-host';
 export const streamAddressHeader = 'x-internkim-stream-address';
 export const streamPathHeader = 'x-internkim-stream-path';
 export const workerBoxHeader = 'x-internkim-worker-box';
+export const desktopOwnerHeader = 'x-internkim-desktop-owner';
 export const hostLacksHeader = 'x-internkim-host-lacks';
 export const workerCallsPerCompany = 64;
 export const workerCallBoundMilliseconds = 120_000;
@@ -88,6 +90,8 @@ export function jsonResponse(document: unknown, status: number): Response {
 	});
 }
 
+type WorkerPool = { queue: WorkQueue; tagOf: (key: string) => string };
+
 type Presence = { kind: 'presence'; isServerConnected: boolean; serverSeenAt: number };
 
 export class CompanyConnectionObject {
@@ -96,7 +100,8 @@ export class CompanyConnectionObject {
 	private readonly waitingCalls = new WaitingCalls();
 	private readonly messengerCalls = new WaitingCalls(messengerCallsPerCompany, messengerCallBoundMilliseconds);
 	private readonly workerCalls = new WaitingCalls(workerCallsPerCompany, workerCallBoundMilliseconds);
-	private readonly workQueue = new WorkQueue();
+	private readonly boxes: WorkerPool = { queue: new WorkQueue(), tagOf: workerTagOf };
+	private readonly desktops: WorkerPool = { queue: new WorkQueue(), tagOf: desktopTagOf };
 	private readonly mediaReads = new MediaReads((document) => this.isSentToHost(document));
 
 	constructor(private readonly state: DurableObjectState) {
@@ -118,6 +123,7 @@ export class CompanyConnectionObject {
 		}
 		if (url.pathname.endsWith('/host-session')) return this.acceptConnectedServer(request);
 		if (url.pathname.endsWith('/worker-session')) return this.acceptWorker(request);
+		if (url.pathname.endsWith('/desktop-session')) return this.acceptDesktop(request);
 		if (url.pathname.endsWith('/stream-session')) return this.acceptStream(request);
 		if (url.pathname.endsWith('/server')) return this.acceptServer(request);
 		return this.acceptClient(request);
@@ -128,7 +134,8 @@ export class CompanyConnectionObject {
 		if (attachment?.role === 'host') return this.onServerMessage(socket, attachment, message);
 		if (attachment?.role === 'client') return this.onClientMessage(attachment.memberID, socket, message);
 		if (attachment?.role === 'stream') return this.onAppFrame(socket, attachment, message);
-		if (attachment?.role === 'worker') return this.onWorkerMessage(attachment.boxKey, message);
+		if (attachment?.role === 'worker') return this.onWorkerMessage(this.boxes, attachment.boxKey, message);
+		if (attachment?.role === 'desktop') return this.onWorkerMessage(this.desktops, attachment.ownerEmail, message);
 	}
 
 	async webSocketClose(socket: WebSocket, code: number, reason: string): Promise<void> {
@@ -136,7 +143,8 @@ export class CompanyConnectionObject {
 		const attachment = socketAttachmentOf(socket);
 		if (attachment?.role === 'host') return this.onServerClose(socket, attachment);
 		if (attachment?.role === 'stream') this.onAppClose(attachment, code, reason);
-		if (attachment?.role === 'worker') this.workQueue.forget(attachment.boxKey);
+		if (attachment?.role === 'worker') this.forgetWorker(this.boxes, socket, attachment.boxKey);
+		if (attachment?.role === 'desktop') this.forgetWorker(this.desktops, socket, attachment.ownerEmail);
 	}
 
 	webSocketError(socket: WebSocket): Promise<void> {
@@ -236,40 +244,70 @@ export class CompanyConnectionObject {
 	private acceptWorker(request: Request): Response {
 		const boxKey = request.headers.get(workerBoxHeader);
 		if (!boxKey) return jsonResponse({ error: 'a worker names its box' }, 400);
-		for (const earlier of this.state.getWebSockets(workerTagOf(boxKey))) {
-			this.closeQuietly(earlier, streamCloseCode.normal, 'the same box connected again');
+		const server = this.replaceWorker(this.boxes, boxKey, 'the same box connected again');
+		server.accepted.serializeAttachment({ role: 'worker', boxKey });
+		return new Response(null, { status: 101, webSocket: server.offered });
+	}
+
+	private acceptDesktop(request: Request): Response {
+		const ownerEmail = request.headers.get(desktopOwnerHeader);
+		if (!ownerEmail) return jsonResponse({ error: 'a desktop names the person it belongs to' }, 400);
+		const server = this.replaceWorker(this.desktops, ownerEmail, 'the same person opened another desktop');
+		server.accepted.serializeAttachment({ role: 'desktop', ownerEmail });
+		const spoken = request.headers.get('Sec-WebSocket-Protocol')?.split(',')[0]?.trim();
+		return new Response(null, {
+			status: 101,
+			webSocket: server.offered,
+			headers: spoken ? { 'Sec-WebSocket-Protocol': spoken } : undefined
+		});
+	}
+
+	private replaceWorker(pool: WorkerPool, key: string, reason: string): { accepted: WebSocket; offered: WebSocket } {
+		for (const earlier of this.state.getWebSockets(pool.tagOf(key))) {
+			this.closeQuietly(earlier, streamCloseCode.normal, reason);
 		}
 		const { client, server } = newSocketPair();
-		this.state.acceptWebSocket(server, [workerTagOf(boxKey)]);
-		server.serializeAttachment({ role: 'worker', boxKey });
-		return new Response(null, { status: 101, webSocket: client });
+		this.state.acceptWebSocket(server, [pool.tagOf(key)]);
+		return { accepted: server, offered: client };
+	}
+
+	private forgetWorker(pool: WorkerPool, closed: WebSocket, key: string): void {
+		const isReplaced = this.state.getWebSockets(pool.tagOf(key)).some((socket) => socket !== closed);
+		if (isReplaced) return;
+		for (const stranded of pool.queue.forget(key)) {
+			this.workerCalls.settle(noBoxTookTheWork(stranded.requestID, 'the box went away before it took the work'));
+		}
 	}
 
 	private async takeWork(request: Request): Promise<Response> {
 		const call = parseWork(await readJSONBody(request));
 		if (!call) return jsonResponse({ error: 'work names a request identifier, whose it is and what to do' }, 400);
 		if (this.workerCalls.isFull) return answerResponse(tooManyWaitingCallsAnswer(call.requestID));
+		const pool = call.onlyBoxKey ? this.desktops : this.boxes;
+		if (call.onlyBoxKey && this.state.getWebSockets(desktopTagOf(call.onlyBoxKey)).length === 0) {
+			return answerResponse(noBoxTookTheWork(call.requestID, 'this person has no desktop connected'));
+		}
 		const waited = this.workerCalls.waitFor(call.requestID);
-		const dispatched = this.workQueue.post({ ...call, deadline: Date.now() + workHoldMilliseconds });
-		if (dispatched) this.sendWork(dispatched.boxKey, call.requestID, call.work);
-		else this.letGoIfNoBoxTakesIt(call.requestID);
+		const dispatched = pool.queue.post({ ...call, deadline: Date.now() + workHoldMilliseconds });
+		if (dispatched) this.sendWork(pool, dispatched.boxKey, call.requestID, call.work);
+		else if (!call.onlyBoxKey) this.letGoIfNoBoxTakesIt(pool, call.requestID);
 		return answerResponse(await waited);
 	}
 
-	private letGoIfNoBoxTakesIt(requestID: string): void {
+	private letGoIfNoBoxTakesIt(pool: WorkerPool, requestID: string): void {
 		setTimeout(() => {
-			if (!this.workQueue.withdraw(requestID)) return;
-			this.workerCalls.settle({ kind: 'result', requestID, status: noBoxTookTheWorkStatus, body: { error: 'no box had room for this work' } });
+			if (!pool.queue.withdraw(requestID)) return;
+			this.workerCalls.settle(noBoxTookTheWork(requestID, 'no box had room for this work'));
 		}, workHoldMilliseconds);
 	}
 
-	private sendWork(boxKey: string, requestID: string, work: unknown): void {
-		if (this.isSentTo(boxKey, JSON.stringify({ kind: 'work', requestID, work }))) return;
-		this.workerCalls.settle({ kind: 'result', requestID, status: noBoxTookTheWorkStatus, body: { error: 'the box went away before it took the work' } });
+	private sendWork(pool: WorkerPool, boxKey: string, requestID: string, work: unknown): void {
+		if (this.isSentTo(pool, boxKey, JSON.stringify({ kind: 'work', requestID, work }))) return;
+		this.workerCalls.settle(noBoxTookTheWork(requestID, 'the box went away before it took the work'));
 	}
 
-	private isSentTo(boxKey: string, document: string): boolean {
-		const worker = this.state.getWebSockets(workerTagOf(boxKey))[0];
+	private isSentTo(pool: WorkerPool, boxKey: string, document: string): boolean {
+		const worker = this.state.getWebSockets(pool.tagOf(boxKey))[0];
 		if (!worker) return false;
 		try {
 			worker.send(document);
@@ -279,12 +317,12 @@ export class CompanyConnectionObject {
 		}
 	}
 
-	private onWorkerMessage(boxKey: string, message: string | ArrayBuffer): void {
+	private onWorkerMessage(pool: WorkerPool, boxKey: string, message: string | ArrayBuffer): void {
 		const payload = readJSON(message);
 		const free = freeSlotsOf(payload);
 		if (free !== null) {
-			for (const dispatched of this.workQueue.setFree(boxKey, free)) {
-				this.sendWork(dispatched.boxKey, dispatched.item.requestID, dispatched.item.work);
+			for (const dispatched of pool.queue.setFree(boxKey, free)) {
+				this.sendWork(pool, dispatched.boxKey, dispatched.item.requestID, dispatched.item.work);
 			}
 			return;
 		}
@@ -538,16 +576,22 @@ async function readJSONBody(request: Request): Promise<unknown> {
 	}
 }
 
-type Work = { requestID: string; affinityKey: string; work: unknown };
+type Work = { requestID: string; affinityKey: string; onlyBoxKey?: string; work: unknown };
+
+function noBoxTookTheWork(requestID: string, error: string): ServerAnswer {
+	return { kind: 'result', requestID, status: noBoxTookTheWorkStatus, body: { error } };
+}
 
 function parseWork(payload: unknown): Work | null {
 	if (typeof payload !== 'object' || payload === null) return null;
 	const record: Record<string, unknown> = { ...payload };
-	const { requestID, affinityKey, work } = record;
+	const { requestID, affinityKey, desktopOwner, work } = record;
 	if (typeof requestID !== 'string' || requestID === '') return null;
 	if (typeof affinityKey !== 'string' || affinityKey === '') return null;
 	if (typeof work !== 'object' || work === null) return null;
-	return { requestID, affinityKey, work };
+	if (desktopOwner === undefined) return { requestID, affinityKey, work };
+	if (typeof desktopOwner !== 'string' || desktopOwner === '') return null;
+	return { requestID, affinityKey, onlyBoxKey: desktopOwner.trim().toLowerCase(), work };
 }
 
 function supportedCapabilitiesOf(headers: Headers): string[] {

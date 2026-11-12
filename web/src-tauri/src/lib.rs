@@ -9,6 +9,10 @@ pub fn run() {
         .plugin(tauri_plugin_page_theme::init())
         .plugin(tauri_plugin_keyboard::init())
         .plugin(tauri_plugin_haptics::init());
+    #[cfg(desktop)]
+    let builder = builder
+        .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_desktop_control::init());
     #[cfg(any(target_os = "android", target_os = "ios", target_os = "macos"))]
     let builder = builder.plugin(tauri_plugin_notifications::init());
     #[cfg(mobile)]
