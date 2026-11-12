@@ -51,6 +51,9 @@ func (service Service) invokeChatdPlatformMessageSend(ctx context.Context, reque
 	if input.DeliveryTarget.Type == "directMessage" && !addressesOnlyTheRequester(input.DeliveryTarget) {
 		return service.invokeChatdDirectMessageSend(ctx, request, input)
 	}
+	if input.DeliveryTarget.Type == "directMessage" && !hasArrivedOnAConversation(request.Context) && speaksAsTheRequester(request.Context) {
+		return service.invokeChatdMessageToTheAgent(ctx, request, input)
+	}
 	if input.Pin {
 		failure := platformToolStaticFailure("invalid_input", "platform_route",
 			"pin is not supported on "+service.companyMessenger()+"; send without pin")

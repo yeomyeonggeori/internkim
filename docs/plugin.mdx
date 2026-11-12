@@ -44,6 +44,16 @@ A client without MCP authorization sends a personal access token instead,
 issued from your account settings, as `Authorization: Bearer ik_…`. What each
 token's permission opens is under [Permissions](/docs/api#permissions).
 
+## Hand the agent work [#hand-the-agent-work]
+
+Your coding agent can write to the company's agent the way you would in the
+messenger. A `message_send` with `targetType` `directMessage` and no
+`personHint` goes out under your name into your direct conversation with the
+agent, which takes it up as it would a message typed there.
+`message_search` with `scope` `directMessage` reads that conversation, and with
+a `personHint` it reads your direct conversation with that colleague. Both are
+read with your account, so they show what the messenger shows you.
+
 ## What runs where [#what-runs-where]
 
 A few skills, such as the calculator and the weather, run entirely on your

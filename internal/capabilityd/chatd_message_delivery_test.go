@@ -758,6 +758,40 @@ func TestADirectMessageAskedForGoesOutAsThePersonWhoAskedForIt(testContext *test
 	}
 }
 
+func TestAPersonWritingFromOutsideAConversationAndNamingNobodyWritesToTheAgent(testContext *testing.T) {
+	var sentDocument map[string]string
+	admindServer := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		if request.URL.Path != "/admin/api/directory/direct-message" {
+			http.NotFound(writer, request)
+			return
+		}
+		json.NewDecoder(request.Body).Decode(&sentDocument)
+		json.NewEncoder(writer).Encode(map[string]string{"channelID": "dm-uuid", "messageID": "event-13"})
+	}))
+	defer admindServer.Close()
+	chatdServer := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		testContext.Fatalf("the agent wrote to itself at %s", request.URL.Path)
+	}))
+	defer chatdServer.Close()
+
+	service := Service{Configuration: Configuration{ChatdEndpoint: chatdServer.URL, ChatdPlatform: "buzz", AdmindBaseURL: admindServer.URL}}
+	response, errorValue := service.invokePlatformMessageSend(context.Background(), capabilities.ToolInvokeRequest{
+		ToolName: "message_send",
+		Input:    json.RawMessage(`{"targetType":"directMessage","message":"이번 주 회의록을 정리해 주세요"}`),
+		Context:  capabilities.ToolInvokeContext{RequesterEmail: "asker@example.com", TaskSource: capabilities.TaskSourcePublicAPI},
+	})
+
+	if errorValue != nil || response.Outcome == capabilities.ToolOutcomeFailed {
+		testContext.Fatalf("send answered %s %v", response.Content, errorValue)
+	}
+	if sentDocument["senderEmail"] != "asker@example.com" || sentDocument["recipientEmail"] != "" {
+		testContext.Fatalf("the message went out as %+v", sentDocument)
+	}
+	if !strings.Contains(string(response.Result), `"event-13"`) {
+		testContext.Fatalf("the sent message is not named in %s", response.Result)
+	}
+}
+
 // The runtime speaks for itself when it tells somebody about a decision the
 // company made, so a telling keeps the agent's own name.
 func TestATellingKeepsTheAgentsOwnName(testContext *testing.T) {

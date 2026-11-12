@@ -31,6 +31,18 @@ func (service Service) invokeChatdDirectMessageSend(ctx context.Context, request
 	})
 }
 
+func (service Service) invokeChatdMessageToTheAgent(ctx context.Context, request capabilities.ToolInvokeRequest, input platformMessageSendInput) (capabilities.ToolInvokeResponse, error) {
+	senderEmail := strings.TrimSpace(request.Context.RequesterEmail)
+	result, failure, hasFailure := service.sendChatdDirectMessageAsRequester(ctx, senderEmail, directoryPerson{}, input.Message)
+	if hasFailure {
+		return platformDMErrorResponse(request.ToolName, failure), nil
+	}
+	return platformToolSuccessResponse(request.ToolName, "sent", platformMessageSendResult{
+		MessageIDs:     []string{result.DispatchID},
+		DeliveryStatus: "sent",
+	})
+}
+
 func (service Service) invokeChatdDirectMessageBroadcast(ctx context.Context, request capabilities.ToolInvokeRequest, input platformMessageSendInput) (capabilities.ToolInvokeResponse, error) {
 	results := make([]platformMessageBroadcastResult, 0, len(input.DeliveryTarget.PersonHints))
 	for _, personHint := range input.DeliveryTarget.PersonHints {
@@ -68,9 +80,8 @@ func (service Service) sendChatdDirectMessageToHint(ctx context.Context, request
 	if hasFailure {
 		return platformMessageBroadcastResult{}, failure, true
 	}
-	senderEmail := strings.TrimSpace(request.Context.RequesterEmail)
-	if senderEmail != "" && strings.TrimSpace(request.Context.TaskSource) != capabilities.TaskSourcePlaneTelling {
-		return service.sendChatdDirectMessageAsRequester(ctx, senderEmail, named, message)
+	if speaksAsTheRequester(request.Context) {
+		return service.sendChatdDirectMessageAsRequester(ctx, strings.TrimSpace(request.Context.RequesterEmail), named, message)
 	}
 	pubkeyHex, errorValue := service.directoryBuzzKey(ctx, named.Email)
 	if errorValue != nil {
@@ -91,6 +102,10 @@ func (service Service) sendChatdDirectMessageToHint(ctx context.Context, request
 		DispatchID:  response.MessageID,
 		Status:      "sent",
 	}, platformDMFailure{}, false
+}
+
+func speaksAsTheRequester(toolContext capabilities.ToolInvokeContext) bool {
+	return strings.TrimSpace(toolContext.RequesterEmail) != "" && strings.TrimSpace(toolContext.TaskSource) != capabilities.TaskSourcePlaneTelling
 }
 
 // The company derives Buzz identity from a member's address, and only the host
