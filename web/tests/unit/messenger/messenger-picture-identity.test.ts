@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { externalIDFor, type MessengerDirectory } from '../../../src/lib/messenger/messenger-directory';
+import { externalIDFor, personKey, personOfKey, type MessengerDirectory } from '../../../src/lib/messenger/messenger-directory';
 
 function directoryOf(): MessengerDirectory {
 	return {
@@ -24,5 +24,17 @@ describe('externalIDFor', () => {
 		expect(externalIDFor({ email: 'stranger@example.com' }, directoryOf())).toBe('');
 		expect(externalIDFor({ memberID: 'm2' }, directoryOf())).toBe('');
 		expect(externalIDFor({}, directoryOf())).toBe('');
+	});
+});
+
+describe('personOfKey', () => {
+	test('the reader key a message is sent under reaches their picture before the messenger answers', () => {
+		expect(externalIDFor(personOfKey(personKey({ memberID: 'm1' })), directoryOf())).toBe('U1');
+		expect(personOfKey(personKey({ externalID: 'U1' }))).toEqual({ externalID: 'U1' });
+	});
+
+	test('a key in no grammar this app writes names nobody', () => {
+		expect(personOfKey('')).toEqual({});
+		expect(personOfKey('host-user-7')).toEqual({});
 	});
 });
