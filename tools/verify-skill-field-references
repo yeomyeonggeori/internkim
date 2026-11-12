@@ -4,6 +4,7 @@
 The model-facing schemas are strict, so a call carrying a field the descriptor
 dropped is rejected before dispatch and costs a recovery turn on every task.
 A skill's prose is the only place naming those fields that nothing validated.
+A value a field's enum offers is carried the same way its field is.
 
 Every answer arrives in the invoke envelope, so its fields are carried by every
 tool and are read from the envelope's own schema rather than from any one of
@@ -69,17 +70,19 @@ def field_names_in(text: str) -> set[str]:
     return {word for word in WORD.findall(text) if is_field_name(word)}
 
 
-def schema_property_names(node, found: set[str]) -> None:
+def schema_vocabulary(node, found: set[str]) -> None:
     if isinstance(node, dict):
         for key, value in node.items():
             if key == "properties" and isinstance(value, dict):
                 found.update(value.keys())
+            if key == "enum" and isinstance(value, list):
+                found.update(option for option in value if isinstance(option, str))
             if isinstance(value, (dict, list)):
-                schema_property_names(value, found)
+                schema_vocabulary(value, found)
         return
     if isinstance(node, list):
         for item in node:
-            schema_property_names(item, found)
+            schema_vocabulary(item, found)
 
 
 def catalog_vocabulary() -> dict[str, set[str]]:
@@ -87,7 +90,7 @@ def catalog_vocabulary() -> dict[str, set[str]]:
     for tool in json.loads(GENERATED_CATALOG.read_text())["tools"]:
         found: set[str] = set()
         for key in SCHEMA_KEYS:
-            schema_property_names(tool.get(key), found)
+            schema_vocabulary(tool.get(key), found)
         found |= field_names_in(tool.get("description", ""))
         vocabulary[tool["canonicalName"]] = found
     return vocabulary
@@ -120,7 +123,7 @@ def runtime_vocabulary() -> dict[str, set[str]]:
         for name, body in GO_RAW_SCHEMA.findall(source):
             found: set[str] = set()
             try:
-                schema_property_names(json.loads(body), found)
+                schema_vocabulary(json.loads(body), found)
             except json.JSONDecodeError:
                 continue
             schemas[name] = found
@@ -141,7 +144,7 @@ def runtime_vocabulary() -> dict[str, set[str]]:
 
 def envelope_field_names() -> set[str]:
     found: set[str] = set()
-    schema_property_names(json.loads(INVOKE_RESPONSE_SCHEMA.read_text()), found)
+    schema_vocabulary(json.loads(INVOKE_RESPONSE_SCHEMA.read_text()), found)
     return found
 
 
