@@ -14,9 +14,9 @@ import {
 	type AttendanceRow
 } from './attendance';
 import type { RecordContext } from './company';
-import type { SupabaseClient } from '@supabase/supabase-js';
+import type { AttendanceAnnouncer } from './attendance-announcement';
 import { attendanceAddResultSchema, WorkspaceAttendanceKind } from '../catalog/tools';
-import { CallerUnrecognized, InputRefused, refusalOfPostgresError } from '../refusal';
+import { InputRefused, refusalOfPostgresError } from '../refusal';
 
 const defaultWindowDays = 30;
 const hintWindowDays = 90;
@@ -179,21 +179,27 @@ export type AttendanceAddInput = {
 	reasonCode?: AttendanceChangeReason;
 };
 
-export async function attendanceAdd(context: RecordContext, input: AttendanceAddInput) {
-	return addAttendanceFor(context.caller, targetMember(context, input.personHint), input);
-}
-
-export async function addAttendanceFor(caller: SupabaseClient, memberID: string | null, input: AttendanceAddInput) {
-	const { data, error, status } = await caller.rpc('attendance_add', {
-		target_member: memberID,
+export async function attendanceAdd(
+	context: RecordContext,
+	input: AttendanceAddInput,
+	announceAttendance?: AttendanceAnnouncer
+) {
+	const { data, error } = await context.caller.rpc('attendance_add', {
+		target_member: targetMember(context, input.personHint),
 		kind: input.kind,
 		local_date: input.date?.trim() || null,
 		local_time: input.time?.trim() || null,
 		location: input.location?.trim() || null,
 		reason: input.reasonCode ? attendanceChangeReasonText(input.reasonCode) : input.reason?.trim() || null
 	});
-	if (error) throw status === 401 ? new CallerUnrecognized(error.message) : refusalOfPostgresError(error);
-	return attendanceAddResultSchema.parse(data);
+	if (error) throw refusalOfPostgresError(error);
+	const added = attendanceAddResultSchema.parse(data);
+	if (clocksTheRequesterNow(input)) await announceAttendance?.({ what: 'clock', colleagues: added.status === 'added' });
+	return added;
+}
+
+function clocksTheRequesterNow(input: AttendanceAddInput): boolean {
+	return !input.personHint && !input.date && !input.time;
 }
 
 export type AttendanceCorrection = {

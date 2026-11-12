@@ -14,6 +14,7 @@ import {
 	type LeaveRow
 } from './leave';
 import type { RecordContext } from './company';
+import type { AttendanceAnnouncer } from './attendance-announcement';
 import type { WorkspaceDecision } from '../catalog/tools';
 import { InputRefused, refusalOfPostgresError } from '../refusal';
 
@@ -230,11 +231,16 @@ type ReturnedEarly = {
 	days?: number | string | null;
 };
 
-export async function leaveReturnEarly(context: RecordContext, input: LeaveReturnEarlyInput) {
+export async function leaveReturnEarly(
+	context: RecordContext,
+	input: LeaveReturnEarlyInput,
+	announceAttendance?: AttendanceAnnouncer
+) {
 	const { data, error } = await context.caller.rpc('leave_return_early', {
 		work_location: input.location?.trim() || ''
 	});
 	if (error) throw refusalOfPostgresError(error);
+	await announceAttendance?.({ what: 'clock', colleagues: true });
 
 	const answered = (data ?? {}) as ReturnedEarly;
 	return {
@@ -256,7 +262,8 @@ export type LeaveRequestInput = {
 
 export async function leaveRequest(
 	context: RecordContext,
-	input: LeaveRequestInput
+	input: LeaveRequestInput,
+	announceAttendance?: AttendanceAnnouncer
 ): Promise<AnsweredLeave> {
 	if (!input.startsAt || !input.endsAt) throw new InputRefused('a leave request names the days it covers');
 	const days = input.days ?? 0;
@@ -280,6 +287,7 @@ export async function leaveRequest(
 
 	const { data, error } = await context.caller.from('leave').insert(written).select('id').single<{ id: string }>();
 	if (error) throw refusalOfPostgresError(error);
+	if (written.member_id === context.requesterID) await announceAttendance?.({ what: 'leave' });
 	return answeredLeave(context, await leaveByID(context, data.id));
 }
 

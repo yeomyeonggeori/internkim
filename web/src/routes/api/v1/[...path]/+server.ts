@@ -28,7 +28,6 @@ import {
 } from '$lib/server/public-api/files';
 import { apiRequestCapability, toolCalledByMember, toolPreviewedByMember } from '$lib/server/public-api/tool-call';
 import { error, json } from '@sveltejs/kit';
-import { clockAttendance } from '$lib/server/public-api/attendance-clock';
 import type { RequestHandler } from './$types';
 import { Refusal } from '$lib/server/public-api/refusal';
 
@@ -38,10 +37,6 @@ const catalogHeader = 'X-INTERNKIM-CATALOG';
 export const fallback: RequestHandler = async ({ request, url, params, platform }) => {
 	const environment = environmentOf(platform);
 	const path = `/${params.path}`;
-	if (request.method === 'POST' && path === '/tools/attendance_add/invoke') {
-		const clocked = await clockAttendance(request, environment, platform?.context?.waitUntil.bind(platform.context));
-		if (clocked) return clocked;
-	}
 	const member = await callingMember(request, environment);
 
 	if (request.method === 'POST' && path === filesPath) {

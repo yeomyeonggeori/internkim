@@ -1,5 +1,4 @@
 import { isAttendanceChangeReason } from './change-reason';
-import { announceToTheCompany } from './announce-attendance';
 import { companyDateOf, companyTimeOf } from '$lib/company-time';
 import { shiftedDay } from './supabase-work-status-range';
 import {
@@ -177,7 +176,6 @@ export async function recordSupabaseAttendance(
 ): Promise<AttendanceWriteResult | void> {
 	if (confirmedEarlyReturn && kind === 'clock_in') {
 		await returnEarlyFromSupabaseLeave(locationID);
-		void announceToTheCompany('clock');
 		return;
 	}
 	return attendanceWriteResultFrom(await invokeTool('attendance_add', {

@@ -60,14 +60,6 @@ export class ToolOutOfReach extends Refusal {
 	readonly safeRetry = true;
 }
 
-export class CallerUnrecognized extends Refusal {
-	readonly status = 401;
-	readonly errorCode = 'unauthenticated';
-	readonly failureStage = 'authorization';
-	readonly retryable = false;
-	readonly safeRetry = true;
-}
-
 export class AccessRefused extends Refusal {
 	readonly status = 403;
 	readonly failureStage = 'authorization';

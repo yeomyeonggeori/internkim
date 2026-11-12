@@ -240,16 +240,12 @@ describe('a call that names nobody', () => {
 });
 
 describe('clocking attendance', () => {
-	test('records with one database request and returns before its announcement completes', async () => {
+	test('records through the one tool path and returns before its announcement completes', async () => {
 		const originalFetch = globalThis.fetch;
-		const databaseRequests: string[] = [];
 		const backgroundWork: Promise<unknown>[] = [];
 		let finishAnnouncement: (() => void) | undefined;
 		globalThis.fetch = createMockFetch(async (input, options) => {
 			const url = new URL(input instanceof Request ? input.url : String(input));
-			if (url.pathname.startsWith('/rest/') || url.pathname.startsWith('/auth/')) {
-				databaseRequests.push(url.pathname);
-			}
 			if (url.pathname === '/functions/v1/announce-attendance') {
 				await new Promise<void>((resolve) => { finishAnnouncement = resolve; });
 				return Response.json({ told: 0, reached: 0 });
@@ -263,7 +259,6 @@ describe('clocking attendance', () => {
 				body: JSON.stringify({ input: { kind: 'clock_in' } })
 			}, (work) => backgroundWork.push(work));
 			expect(answered.status).toBe(200);
-			expect(databaseRequests).toEqual(['/rest/v1/rpc/attendance_add']);
 			expect(backgroundWork).toHaveLength(1);
 			expect(answered.body).not.toHaveProperty('notified');
 			const event = savedAttendanceEventSchema.parse(
@@ -292,7 +287,9 @@ describe('clocking attendance', () => {
 		expect(answered.body).toMatchObject({
 			result: { status: 'added', event: { personID: memberID, kind: 'clock_out', location: null } }
 		});
-		expect((await invoke('attendance_add', holdersToken, { kind: 'clock_out' })).status).toBe(422);
+		const refused = await invoke('attendance_add', holdersToken, { kind: 'clock_out' });
+		expect(refused.status).toBe(422);
+		expect(refused.body).toMatchObject({ errorCode: 'record_refused', failureStage: 'execution', retryable: false, safeRetry: true });
 	});
 
 	test('is refused for the token it does not carry before its body is read', async () => {
