@@ -27,6 +27,14 @@ export type ToolPlace = {
 	backgroundWork?: (work: Promise<unknown>) => void;
 };
 
+export type PeopleRead = 'everyone' | 'nobody' | { personIDs: string[] };
+
+function peopleOf(caller: SupabaseClient, peopleRead: PeopleRead): Promise<RecordPerson[]> {
+	if (peopleRead === 'nobody') return Promise.resolve([]);
+	if (peopleRead === 'everyone') return peopleOfCompany(caller);
+	return peopleOfCompanyByIDs(caller, peopleRead.personIDs);
+}
+
 type CompanyRow = {
 	id: string;
 	task_vocabulary: unknown;
@@ -41,8 +49,7 @@ export async function recordContextOf(
 	requesterID: string,
 	now: Date,
 	decideTaskLabels: TaskLabelDecider,
-	includePeople = true,
-	personIDs?: string[]
+	peopleRead: PeopleRead
 ): Promise<RecordContext> {
 	const [company, people] = await Promise.all([
 		caller
@@ -50,9 +57,7 @@ export async function recordContextOf(
 			.select('id, task_vocabulary, timezone, locale, rules')
 			.limit(1)
 			.single<CompanyRow>(),
-		includePeople
-			? personIDs ? peopleOfCompanyByIDs(caller, personIDs) : peopleOfCompany(caller)
-			: Promise.resolve([])
+		peopleOf(caller, peopleRead)
 	]);
 	if (company.error) throw refusalOfPostgresError(company.error);
 
