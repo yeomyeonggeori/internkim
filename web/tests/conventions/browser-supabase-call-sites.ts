@@ -33,8 +33,8 @@ function precedingToken(source: string, before: number): string {
 	return source.slice(index, end);
 }
 
-function isArrayConstructor(token: string): boolean {
-	return /^(Array|Buffer|[A-Za-z0-9]+Array)$/.test(token);
+function isCollectionConstructor(token: string): boolean {
+	return /^(Array|Buffer|Fragment|[A-Za-z0-9]+Array)$/.test(token);
 }
 
 function firstArgumentText(source: string, openParenthesis: number): string {
@@ -53,7 +53,7 @@ function firstArgumentText(source: string, openParenthesis: number): string {
 export function dataCallsIn(source: string): string[] {
 	const calls: string[] = [];
 	for (const found of source.matchAll(dataCall)) {
-		if (isArrayConstructor(precedingToken(source, found.index))) continue;
+		if (isCollectionConstructor(precedingToken(source, found.index))) continue;
 		const argument = firstArgumentText(source, found.index + found[0].length - 1)
 			.replace(/\s+/g, ' ')
 			.trim();
