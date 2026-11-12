@@ -495,7 +495,7 @@ func TestChatdPlatformDeletesAMessageThroughChatd(testContext *testing.T) {
 	response, errorValue := service.invokePlatformMessageDelete(context.Background(), capabilities.ToolInvokeRequest{
 		ToolName: "message_delete",
 		Input:    json.RawMessage(`{"messageIDs":["message-1"]}`),
-		Context:  capabilities.ToolInvokeContext{Platform: "buzz", ReplyTargetID: "buzz:channel-1:message-0"},
+		Context:  capabilities.ToolInvokeContext{Platform: "buzz", ReplyTargetID: "buzz:channel-1:message-0", RequesterPlatformUserID: strings.Repeat("a", 64)},
 	})
 	if errorValue != nil {
 		testContext.Fatal(errorValue)

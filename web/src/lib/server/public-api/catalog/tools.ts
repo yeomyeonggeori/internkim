@@ -716,7 +716,7 @@ export const messageSearchInputSchema = z.strictObject({
   authoredBy: z.enum(MessageAuthor).describe('Message author filter. Defaults to anyone.').optional(),
   queries: z.array(z.string().min(1)).describe('Keyword queries matched against message content.').optional(),
   limit: z.number().int().min(1).max(25).describe('Maximum messages to return. Defaults to 20.').optional(),
-  cursor: z.string().describe('Pagination cursor from a previous message_search result.').optional(),
+  cursor: z.string().describe('nextCursor from a previous message_search result, to read what that page did not hold. Repeat every other field as it was.').optional(),
 });
 
 export const messageSendInputSchema = z.strictObject({
@@ -726,7 +726,6 @@ export const messageSendInputSchema = z.strictObject({
   channelID: resourceIDSchema.describe('Exact channel ID from message_context or a prior result.').optional(),
   personHint: z.string().describe('Name, @handle, or email of one direct-message recipient. Omit for the requester\'s own direct conversation with the agent.').optional(),
   personHints: z.array(z.string().min(1)).max(50).describe('Direct-message recipients for one fan-out send.').optional(),
-  pin: z.boolean().describe('Whether to pin the created message. Defaults to false.').optional(),
   attachments: z.array(z.string().min(1)).describe('Workspace file paths to upload with the message, copied exactly from the attachment catalog or a file tool result. Use this to deliver an original file, such as an inbound image, to the target.').optional(),
   reason: z.string().describe('Reason shown to the approver.').optional(),
 });
@@ -738,7 +737,6 @@ const messageUpdateObjectSchema = z.strictObject({
   oldText: z.string().min(1).regex(/\S/, 'oldText must contain a non-whitespace character.').describe('Exact text as it currently appears in that message, copied verbatim from a message_search preview or from the message you sent. Must occur exactly once in the message. Quote only the span that changes, never the whole message.').optional(),
   newText: z.string().describe('Text that replaces oldText. Empty string removes the span.').optional(),
   text: z.string().min(1).regex(/\S/, 'text must contain a non-whitespace character.').describe('The whole new text of the message, replacing everything it said. Give this instead of oldText and newText when the message is rewritten rather than corrected in one place.').optional(),
-  isPinned: z.boolean().describe('Whether the message should be pinned.').optional(),
   attachments: z.array(z.string().min(1)).describe('Workspace file paths to upload into the edited message, copied exactly from the attachment catalog or a file tool result. Use this to add an original file, such as an inbound image, to a message already sent. The message keeps its text when no oldText is given.').optional(),
 });
 
@@ -831,7 +829,6 @@ export const messageUpdateResultSchema = z.strictObject({
   messageID: resourceIDSchema,
   deliveryStatus: z.literal(MessageDeliveryStatus.Updated),
   messageUpdated: z.boolean(),
-  isPinned: z.boolean().optional(),
 });
 
 export const messageDeleteResultSchema = z.strictObject({
@@ -1535,7 +1532,7 @@ const messageToolDefinitions: CapabilityToolDefinition[] = [
     answeredBy: CapabilityAnsweredBy.Company,
     privacyClass: 'platform_message',
     policyResource: 'tool:message_search',
-    description: 'Find messages in an exact conversation scope, or read known ones in full. Searching by queries returns message IDs with a short preview around the match. Passing messageIDs instead returns those messages complete, which is what you need before rewriting or summarising a long message rather than a phrase inside it. Through the agent this reads only conversations both the requester and the agent can open; the requester\'s own API call reads everything the requester can.',
+    description: 'Find messages in an exact conversation scope, or read known ones in full. Searching by queries returns message IDs with a short preview around the match. Passing messageIDs instead returns those messages complete, which is what you need before rewriting or summarising a long message rather than a phrase inside it. Through the agent this reads only conversations both the requester and the agent can open; the requester\'s own API call reads everything the requester can. A search reads the conversation newest first, a window at a time; a nextCursor means older messages remain, so read on before concluding a message is not there.',
     version: '2',
     estimatedLatency: CapabilityEstimatedLatency.Low,
     inputSchema: messageSearchInputSchema,
