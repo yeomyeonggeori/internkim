@@ -42,8 +42,9 @@ ship_host = load_script()
 
 
 class ScriptedCommands:
-    def __init__(self, host_answers=None, failing=()):
+    def __init__(self, host_answers=None, failing=(), web_build='{"version":"2000000"}'):
         self.calls = []
+        self.web_build = web_build
         self.host_answers = {
             "dpkg --print-architecture": "arm64\n",
             "dpkg-query": [package_line(HOST_TAG), package_line(NEW_TAG)],
@@ -73,6 +74,10 @@ class ScriptedCommands:
             return self.read_version(arguments)
         if arguments[:2] == ["git", "rev-parse"]:
             return "0123456789abcdef\n"
+        if arguments[:2] == ["git", "log"]:
+            return "1000\n"
+        if arguments[0] == "curl":
+            return self.web_build
         if "--channel testing" in line:
             return f"released {NEW_TAG} on testing: https://example.com\n"
         if arguments[:3] == ["gh", "release", "download"]:
@@ -221,7 +226,7 @@ class PlanTest(unittest.TestCase):
         output = ship_quietly(shipment_with(commands, options))
         self.assertIn(NEW_TAG, output)
         self.assertIn(PREVIOUS_TAG, output)
-        self.assertEqual(len([line for line in output.splitlines() if line[:1].isdigit()]), 7)
+        self.assertEqual(len([line for line in output.splitlines() if line[:1].isdigit()]), 8)
         self.assertEqual(
             [call[1:3] for call in commands.calls], [["release", "view"], ["fetch", "--quiet"], ["release", "version"]]
         )
@@ -248,7 +253,7 @@ class PlanTest(unittest.TestCase):
         output = ship_quietly(shipment_with(ScriptedCommands(), options))
         steps = [line for line in output.splitlines() if line[:1].isdigit()]
         self.assertIn(f"upgrade our own host to {NEW_TAG} while it is on testing", steps[-2])
-        self.assertEqual(steps[-1], f"7. promote {NEW_TAG} to stable")
+        self.assertEqual(steps[-1], f"8. promote {NEW_TAG} to stable")
 
 
 class OrderTest(unittest.TestCase):
@@ -403,6 +408,42 @@ class RollbackTest(unittest.TestCase):
         self.assertFalse(commands.matching("release edit"))
 
 
+class WebOrderTest(unittest.TestCase):
+    def refused(self, commands, options):
+        with tempfile.TemporaryDirectory() as directory, self.assertRaises(ship_host.ShipFailure) as raised:
+            ship_quietly(shipment_with(commands, options, directory))
+        return raised.exception
+
+    def test_a_web_built_before_what_a_host_asks_it_changed_stops_the_host_install_before_anything_is_built(self):
+        commands = ScriptedCommands(web_build='{"version":"999999"}')
+        refusal = self.refused(commands, HOST_ONLY)
+        self.assertEqual(refusal.step, "check the web")
+        self.assertIn("deploy the web app first", refusal.detail)
+        self.assertFalse(commands.matching("release packages"))
+        self.assertFalse(commands.matching("apt-get install"))
+
+    def test_a_release_checks_the_web_after_the_rigs_and_before_our_host(self):
+        commands = ScriptedCommands(web_build='{"version":"999999"}')
+        refusal = self.refused(commands, FULL_RELEASE)
+        self.assertEqual(refusal.step, "check the web")
+        self.assertTrue(commands.matching("--people-upgrade"))
+        self.assertFalse(commands.matching("apt-get install"))
+        self.assertFalse(commands.matching("--channel stable"))
+
+    def test_a_web_that_does_not_say_when_it_was_built_is_not_assumed_current(self):
+        for answer in ["<html>", '{"version":"0f3c1a9"}', "{}"]:
+            refusal = self.refused(ScriptedCommands(web_build=answer), HOST_ONLY)
+            self.assertEqual(refusal.step, "check the web")
+
+    def test_the_question_is_what_a_host_asks_the_web(self):
+        commands = host_only_commands()
+        with tempfile.TemporaryDirectory() as directory:
+            ship_quietly(shipment_with(commands, HOST_ONLY, directory))
+        asked = commands.calls[commands.matching("git log")[0]]
+        self.assertEqual(asked[-2:], ["web/src/routes/api/agent", "supabase/migrations"])
+        self.assertIn("--first-parent", asked)
+
+
 class HostOnlyTest(unittest.TestCase):
     def ship_host_only(self, commands):
         with tempfile.TemporaryDirectory() as directory:
@@ -412,7 +453,7 @@ class HostOnlyTest(unittest.TestCase):
         options = ship_host.Options(skip_host=False, is_plan=True, is_host_only=True)
         output = ship_quietly(shipment_with(host_only_commands(), options))
         steps = [line for line in output.splitlines() if line[:1].isdigit()]
-        self.assertEqual(len(steps), 4)
+        self.assertEqual(len(steps), 5)
         self.assertNotIn("release", " ".join(steps[1:]))
 
     def test_the_package_built_here_is_the_one_our_host_installs(self):
