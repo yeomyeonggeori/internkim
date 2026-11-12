@@ -1,34 +1,20 @@
 <script lang="ts">
 	import { Skeleton } from '$lib/components/ui/skeleton';
 	import { onMount } from 'svelte';
-	import { goto } from '$app/navigation';
-	import { ensureAgentConversation } from '$lib/components/channel/channel-api';
-	import { Button } from '$lib/components/ui/button';
-	import * as Card from '$lib/components/ui/card';
-	import * as AlertDialog from '$lib/components/ui/alert-dialog';
-	import * as Code from '$lib/components/ui/code';
-	import * as Collapsible from '$lib/components/ui/collapsible';
-	import { isCompanyAppRunning } from '$lib/host-bridge';
-	import { companyPathOf } from '$lib/company-path';
-	import { hostInstallCommands, type HostConfiguration, type HostSetupStatus } from '$lib/company/host-setup';
+	import type { HostSetupStatus } from '$lib/company/host-setup';
 	import { createPageText } from '$lib/i18n/page-text.svelte';
-	import { currentLocale } from '$lib/i18n/locale.svelte';
 	import CompanyMembers from '../company-members.svelte';
-	import BoxConnection from './box-connection.svelte';
-	import { downloadHostConfiguration, fetchHostSetupStatus, requestHostConfiguration } from './host-setup-client';
+	import CompanyComputerCard from './company-computer-card.svelte';
+	import CompanyComputerCardSkeleton from './company-computer-card-skeleton.svelte';
+	import FirstMessage from './first-message.svelte';
+	import { fetchHostSetupStatus } from './host-setup-client';
+	import { stepHeading } from './step-heading';
 	import { hostSetupText } from './text';
 
 	const text = createPageText(hostSetupText);
 	let status = $state<HostSetupStatus | null>(null);
-	let configuration = $state<HostConfiguration | null>(null);
 	let isLoading = $state(true);
-	let isDownloading = $state(false);
-	let isChecking = $state(false);
-	let isReplacing = $state(false);
-	let isOpeningMessenger = $state(false);
 	let errorMessage = $state('');
-	let connection = $state<'unchecked' | 'connected' | 'offline' | 'unavailable'>('unchecked');
-	let isCompanyComputerOnline = $state(false);
 
 	onMount(async () => {
 		try {
@@ -38,53 +24,7 @@
 		} finally {
 			isLoading = false;
 		}
-		if (status) isCompanyComputerOnline = await isCompanyAppRunning().catch(() => false);
 	});
-
-	function askForDownload() {
-		if (configuration) return downloadHostConfiguration(configuration);
-		if (status?.hasConfiguration) { isReplacing = true; return; }
-		void download(false);
-	}
-
-	async function download(replaceExisting: boolean) {
-		isDownloading = true;
-		errorMessage = '';
-		try {
-			configuration = await requestHostConfiguration(replaceExisting);
-			downloadHostConfiguration(configuration);
-			status = await fetchHostSetupStatus();
-		} catch (error) {
-			errorMessage = error instanceof Error ? error.message : text.failed;
-		} finally {
-			isDownloading = false;
-		}
-	}
-
-	async function checkConnection() {
-		isChecking = true;
-		try {
-			isCompanyComputerOnline = await isCompanyAppRunning();
-			connection = isCompanyComputerOnline ? 'connected' : 'offline';
-		} catch {
-			connection = 'unavailable';
-		} finally {
-			isChecking = false;
-		}
-	}
-
-	async function openMessenger() {
-		if (!status) return;
-		isOpeningMessenger = true;
-		try {
-			const channelID = await ensureAgentConversation();
-			await goto(`${companyPathOf(status.company.slug, '/messenger')}?channel=${encodeURIComponent(channelID)}`);
-		} catch {
-			errorMessage = text.unavailable;
-		} finally {
-			isOpeningMessenger = false;
-		}
-	}
 </script>
 
 <svelte:head><title>{text.title}</title></svelte:head>
@@ -99,80 +39,17 @@
 		{#if isLoading}
 			<div role="status" aria-label={text.loading} aria-busy="true" class="grid gap-6">
 				<p aria-hidden="true" class="flex items-center gap-1 text-sm"><Skeleton class="h-4 w-24" /> · {text.accountReady}</p>
-				<Card.Root aria-hidden="true">
-					<Card.Header>
-						<Card.Title>{text.computer}</Card.Title>
-						<Card.Description>{text.computerDescription}</Card.Description>
-					</Card.Header>
-					<Card.Content class="grid min-w-0 gap-6">
-						<Skeleton class="h-16 w-full rounded-lg" />
-						<span class="inline-flex min-h-11 items-center justify-self-start text-sm underline">{text.otherComputer}</span>
-					</Card.Content>
-					<Card.Footer class="flex-col items-start gap-3">
-						<Button variant="outline" disabled>{text.check}</Button>
-					</Card.Footer>
-				</Card.Root>
+				<CompanyComputerCardSkeleton step={1} />
 			</div>
 		{:else if status}
 			<p class="text-sm">{status.company.name} · {text.accountReady}</p>
-			<Card.Root>
-				<Card.Header>
-					<Card.Title>{text.computer}</Card.Title>
-					<Card.Description>{text.computerDescription}</Card.Description>
-				</Card.Header>
-				<Card.Content class="grid min-w-0 gap-6">
-					<BoxConnection {isCompanyComputerOnline} />
-					<Collapsible.Root class="grid gap-4">
-						<Collapsible.Trigger class="inline-flex min-h-11 items-center justify-self-start text-sm underline">{text.otherComputer}</Collapsible.Trigger>
-						<Collapsible.Content class="grid min-w-0 gap-4">
-							<p class="text-sm text-muted-foreground">{text.otherComputerDescription}</p>
-							<div class="grid justify-items-start gap-2">
-								<Button variant="outline" onclick={askForDownload} disabled={isDownloading}>
-									{isDownloading ? text.downloading : configuration ? text.downloadAgain : text.download}
-								</Button>
-								<p class="text-sm text-muted-foreground">{text.fileHint}</p>
-							</div>
-							<div class="grid gap-2 rounded-md border border-dashed p-4">
-								<p class="text-sm font-medium">{text.install}</p>
-								<p class="text-sm text-muted-foreground">{text.installDescription}</p>
-								<Code.Root lang="bash" hideLines code={hostInstallCommands} class="text-xs">
-									<Code.CopyButton />
-								</Code.Root>
-								<a class="inline-flex min-h-11 items-center justify-self-start text-sm underline" href={currentLocale.value === 'ko' ? 'https://docs.intern.kim/ko/quickstart' : 'https://docs.intern.kim/quickstart'}>{text.guide}</a>
-							</div>
-							<p class="text-sm text-muted-foreground">{text.installHint}</p>
-						</Collapsible.Content>
-					</Collapsible.Root>
-				</Card.Content>
-				<Card.Footer class="flex-col items-start gap-3">
-					<Button variant="outline" onclick={checkConnection} disabled={isChecking}>{isChecking ? text.checking : text.check}</Button>
-					{#if connection !== 'unchecked'}<p role="status" class="text-sm">{text[connection]}</p>{/if}
-				</Card.Footer>
-			</Card.Root>
+			<CompanyComputerCard bind:status bind:errorMessage step={1} />
 			<section class="grid gap-3">
-				<h2 class="text-xl font-semibold">{text.invite}</h2>
+				<h2 class="text-xl font-semibold">{stepHeading(text.invite, 2)}</h2>
 				<p class="text-sm text-muted-foreground">{text.inviteDescription}</p>
 				<CompanyMembers />
 			</section>
-			<section class="grid justify-items-start gap-3">
-				<h2 class="text-xl font-semibold">{text.tryIt}</h2>
-				<p class="text-sm text-muted-foreground">{text.tryItDescription}</p>
-				<blockquote class="border-l-2 pl-4 text-sm">{text.firstMessage}</blockquote>
-				<Button onclick={openMessenger} disabled={isOpeningMessenger}>{text.openMessenger}</Button>
-			</section>
+			<FirstMessage companySlug={status.company.slug} bind:errorMessage step={3} />
 		{/if}
 	</div>
 </main>
-
-<AlertDialog.Root bind:open={isReplacing}>
-	<AlertDialog.Content>
-		<AlertDialog.Header>
-			<AlertDialog.Title>{text.replaceTitle}</AlertDialog.Title>
-			<AlertDialog.Description>{text.replaceDescription}</AlertDialog.Description>
-		</AlertDialog.Header>
-		<AlertDialog.Footer>
-			<AlertDialog.Cancel>{text.cancel}</AlertDialog.Cancel>
-			<AlertDialog.Action onclick={() => download(true)}>{text.replace}</AlertDialog.Action>
-		</AlertDialog.Footer>
-	</AlertDialog.Content>
-</AlertDialog.Root>
