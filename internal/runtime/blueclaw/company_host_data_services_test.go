@@ -107,6 +107,21 @@ func TestTheDatabaseListensOnNoNetworkAddressAndTheCacheOnNoPort(t *testing.T) {
 	}
 }
 
+func TestTheDatabaseRewritesItsAccessRulesWhenReloaded(t *testing.T) {
+	layout := LinuxCompanyHostLayout()
+	if !strings.Contains(companyHostDatabaseUnit(layout), "ExecReload="+layout.DataServicePath()+" postgres-access\n") {
+		t.Error("the database unit has no reload, so a database an upgrade leaves running keeps the access rules it started with")
+	}
+	if strings.Contains(companyHostCacheUnit(layout), "ExecReload=") {
+		t.Error("the cache has no access rules to reload")
+	}
+	script := CompanyHostDataServiceScript()
+	rewritesThenReloads := "write_access_rules\n  exec \"$directory/pg_ctl\" --pgdata \"$data\" --silent reload"
+	if !strings.Contains(script, "postgres-access) reload_access_rules ;;") || !strings.Contains(script, rewritesThenReloads) {
+		t.Error("postgres-access does not write the access rules and then ask the server to read them")
+	}
+}
+
 func TestEveryClientIsGivenASocketAddressOnALinuxHost(t *testing.T) {
 	layout := LinuxCompanyHostLayout()
 	url := layout.DatabaseURL("internkim", "pass word", "blueclaw")
