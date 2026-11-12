@@ -253,8 +253,8 @@
     "description": "set by the CLI on the run it starts through `monkeys run`, so that run knows the vault environment already arrived and does not start another"
   },
   "INTERNKIM_GATE_MODEL": {
-    "process": "tools/verify-api",
-    "description": "overrides which model tools/verify-api asks a live question through, gating the paid check behind an explicit opt-in"
+    "process": "capabilityd llmeval tests",
+    "description": "the model internal/capabilityd's llmeval build asks each catalog tool's live question through; that build fails without it"
   },
   "INTERNKIM_INSTALL_RELEASE_URL": {
     "process": "install script",

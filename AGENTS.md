@@ -48,8 +48,8 @@ Nothing lands on `main` by direct push. Branch, run
 `tools/verify` is the whole check. It runs, at once, the groups your diff can
 break; the top of the file declares each group and its commands. `--all` runs
 every group, like `make check`, `--only <names>` the ones named, and
-`--test <paths>` and `--ui <areas>` the tests and UI areas you judge it can
-break; neither runs otherwise. Nothing runs it for you after you push: the free plan cannot
+`--ui <areas>` the browser tests of the areas you judge it can break; they
+run no other way. Nothing runs it for you after you push: the free plan cannot
 require a GitHub Actions check, so a push that skipped `verify` is a push
 nobody checked.
 
@@ -420,9 +420,8 @@ and delete the duplicates.
   is a bucket handle, `messenger` reads the account-routing map
   `record/people.ts` and `record/crm.ts` deliberately never select). The test
   fails when a call appears that its file does not hold or names an undeclared
-  reason, and is edited by hand when one changes. Most of `record` needs a
-  tool designed before the screen can move. Migrate the domain you are already
-  working in; never add a direct-Supabase call site outside `allowed`.
+  reason, and is edited by hand when one changes. Never add a direct-Supabase
+  call site outside `allowed`.
 
 ## Central Plane (Supabase)
 

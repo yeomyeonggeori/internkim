@@ -60,6 +60,9 @@ class Group:
     def needs_the_local_plane(self, command):
         return command[0] == WITH_LOCAL_PLANE
 
+    def for_changes(self, changed_paths):
+        return self
+
     def command_to_run(self, command):
         if not self.fills_the_machine:
             return command
@@ -79,51 +82,42 @@ def user_interface_areas():
     return sorted(path.name for path in USER_INTERFACE_DIRECTORY.iterdir() if path.is_dir() and path.name != "support")
 
 
-CHOSEN_TEST_ROOTS = ("tests/unit/", "tests/conventions/", "tests/api/")
-
-
-class ChosenGroup(Group):
-    option = ""
-    hint = ""
-
+class UserInterfaceGroup(Group):
     def __init__(self, name, patterns, commands, lane):
         super().__init__(name, patterns, commands, working_directory="web", lane=lane, fills_the_machine=True)
-
-    def chosen(self, names):
-        limited = type(self)(self.name, self.patterns, self.commands, self.lane)
-        limited.commands = self.commands_for(sorted(set(names.split(","))))
-        return limited
-
-
-class UserInterfaceGroup(ChosenGroup):
-    option = "ui"
-    hint = "<area,...>"
 
     def needs_the_local_plane(self, command):
         asked = subprocess.run([command[0], NEEDS_THE_LOCAL_PLANE, *command[1:]], cwd=REPOSITORY_ROOT / self.working_directory, capture_output=True)
         return asked.returncode == 0
 
-    def commands_for(self, areas):
+    def chosen(self, names):
+        areas = sorted(set(names.split(",")))
         unknown = [area for area in areas if area not in user_interface_areas()]
         if unknown:
             raise SystemExit(f"no such UI area: {', '.join(unknown)}; the areas are {', '.join(user_interface_areas())}")
-        return [["scripts/ui.sh", *(f"tests/ui/{area}" for area in areas)]]
+        return UserInterfaceGroup(self.name, self.patterns, [["scripts/ui.sh", *(f"tests/ui/{area}" for area in areas)]], self.lane)
 
 
-class WebTestGroup(ChosenGroup):
-    option = "test"
-    hint = f"<path,...> under web/{', web/'.join(CHOSEN_TEST_ROOTS)}"
+class ImportingGroup(Group):
+    def __init__(self, name, patterns, commands, imported_files, **options):
+        super().__init__(name, patterns, commands, **options)
+        self.imported_files = imported_files
 
-    def commands_for(self, paths):
-        refused = [path for path in paths if not path.startswith(CHOSEN_TEST_ROOTS) or not (WEB_DIRECTORY / path).exists()]
-        if refused:
-            raise SystemExit(f"not a web test path: {', '.join(refused)}; name files or directories under web/{', web/'.join(CHOSEN_TEST_ROOTS)}")
-        against_the_plane = [path for path in paths if path.startswith("tests/api/")]
-        alone = [path for path in paths if path not in against_the_plane]
-        commands = [["bun", "test", *alone]] if alone else []
-        if against_the_plane:
-            commands.append(holding_the_local_plane(["scripts/test-against-local-plane.sh", *against_the_plane]))
-        return commands
+    def matches(self, path):
+        return super().matches(path) or path in self.imported_files()
+
+
+class LocalPlaneGroup(Group):
+    def __init__(self, name, suites, lane):
+        command = " && ".join(f"(cd ../{suite.working_directory} && {shlex.join(suite_command)})" for suite in suites for suite_command in suite.commands)
+        super().__init__(name, [], [holding_the_local_plane(["scripts/test-against-local-plane.sh", "--run", "sh", "-c", command])], working_directory="web", lane=lane, fills_the_machine=True)
+        self.suites = suites
+
+    def matches(self, path):
+        return any(suite.matches(path) for suite in self.suites)
+
+    def for_changes(self, changed_paths):
+        return LocalPlaneGroup(self.name, [suite for suite in self.suites if suite.is_touched_by(changed_paths)], self.lane)
 
 
 BUN_INSTALL = ["bun", "install", "--frozen-lockfile"]
@@ -169,13 +163,37 @@ def holding_the_local_plane(*commands):
     return [WITH_LOCAL_PLANE, "sh", "-c", " && ".join(shlex.join(command) for command in commands)]
 
 
+API_SUITE_INPUTS = [
+    "web/src/routes/api/*",
+    "web/src/lib/server/*",
+    "web/tests/api/*",
+    "web/scripts/files-the-api-suite-imports.ts",
+    "web/package.json",
+    "web/bun.lock",
+    "web/tsconfig.json",
+    "web/svelte.config.js",
+]
+LOCAL_PLANE_INPUTS = [
+    "supabase/*",
+    "tools/with-local-plane",
+    "web/scripts/test-against-local-plane.sh",
+    "web/scripts/local-plane-signing-key.sh",
+]
+
+
+@functools.cache
+def files_the_api_suite_imports():
+    listed = subprocess.run(["bun", "scripts/files-the-api-suite-imports.ts"], cwd=WEB_DIRECTORY, capture_output=True, text=True)
+    if listed.returncode != 0:
+        raise SystemExit(f"cannot list what the API suite imports: {listed.stderr.strip()}")
+    submodules = [path for path, mode in repository_entries() if mode == "160000"]
+    return frozenset(next((submodule for submodule in submodules if path.startswith(f"{submodule}/")), path) for path in listed.stdout.split())
+
+
 GROUPS = [
     Group(
         "verification-plan",
-        [
-            "tools/verify",
-            "tools/tests/test_verification_plan.py",
-        ],
+        ["*"],
         [
             ["python3", "-m", "unittest", "discover", "-s", "tools/tests", "-p", "test_verification_plan.py"],
         ],
@@ -208,6 +226,7 @@ GROUPS = [
             "internal/capabilities/*",
             "pkg/capabilityprotocol/*",
             "tools/tool_name_sources.py",
+            "tools/skill_paths.py",
             "tools/verify-tool-name-collisions",
             "tools/verify-tool-naming",
             "tools/verify-list-tool-pages",
@@ -328,21 +347,14 @@ GROUPS = [
     Group(
         "schema",
         [
-            "supabase/*",
+            "supabase/migrations/*",
             "tools/verify-migration-versions",
             "tools/tests/test_verify_migration_versions.py",
-            "tools/with-local-plane*",
         ],
         [
             ["tools/verify-migration-versions"],
             ["python3", "-m", "unittest", "discover", "-s", "tools/tests", "-p", "test_verify_migration_versions.py"],
-            holding_the_local_plane(
-                ["supabase", "db", "reset"],
-                ["supabase", "test", "db"],
-                ["bun", "test", "./supabase/tests/concurrency"],
-            ),
         ],
-        lane="web",
     ),
     Group(
         "web",
@@ -352,10 +364,30 @@ GROUPS = [
         lane="web",
         fills_the_machine=True,
     ),
-    WebTestGroup(
+    Group(
         "web-tests",
         WEB_PATTERNS,
-        [["bun", "run", "test"], holding_the_local_plane(["bun", "run", "test:api"])],
+        [["bun", "run", "test"]],
+        working_directory="web",
+        lane="web",
+        fills_the_machine=True,
+    ),
+    LocalPlaneGroup(
+        "plane",
+        [
+            Group(
+                "database-tests",
+                LOCAL_PLANE_INPUTS,
+                [["supabase", "test", "db"], ["bun", "test", "./supabase/tests/concurrency"]],
+            ),
+            ImportingGroup(
+                "api-suite",
+                [*LOCAL_PLANE_INPUTS, *API_SUITE_INPUTS],
+                [["bun", "test", "tests/api"]],
+                files_the_api_suite_imports,
+                working_directory="web",
+            ),
+        ],
         lane="web",
     ),
     Group(
@@ -575,16 +607,23 @@ GROUPS = [
         [
             "*.go",
             "*.ts",
+            "*.tsx",
+            "*.svelte",
             "*.sh",
+            "supabase/config.toml",
             "tools/*",
             "host/*",
-            "tools/environment.json",
             ".monkeys",
         ],
         [
             ["tools/verify-environment-declarations"],
             ["tools/render-environment-documents", "--check"],
         ],
+    ),
+    Group(
+        "vendored-downloads",
+        ["internal/runtime/blueclaw/*.go", "tools/verify-vendored-downloads"],
+        [["tools/verify-vendored-downloads"]],
     ),
 ]
 
@@ -761,13 +800,13 @@ def groups_to_run(arguments):
     if arguments.all:
         return GROUPS
     changed = changed_paths_against(arguments.base)
-    touched = [group for group in GROUPS if group.is_touched_by(changed)]
-    choosable = [group for group in GROUPS if isinstance(group, ChosenGroup)]
-    for group in touched:
-        if group in choosable and not getattr(arguments, group.option):
-            print(f"{group.name} not run: name what this change can break with --{group.option} {group.hint}", flush=True)
-    chosen = [group.chosen(getattr(arguments, group.option)) for group in choosable if getattr(arguments, group.option)]
-    return [*(group for group in touched if group not in choosable), *chosen]
+    user_interface = next(group for group in GROUPS if isinstance(group, UserInterfaceGroup))
+    touched = [group.for_changes(changed) for group in GROUPS if group is not user_interface and group.is_touched_by(changed)]
+    if arguments.ui:
+        return [*touched, user_interface.chosen(arguments.ui)]
+    if user_interface.is_touched_by(changed):
+        print("ui not run: name what this change can break with --ui <area,...>", flush=True)
+    return touched
 
 
 def print_plan(groups):
@@ -789,7 +828,6 @@ def main():
     parser.add_argument("--all", action="store_true", help="run every group, not only the touched ones")
     parser.add_argument("--only", help="comma-separated group names")
     parser.add_argument("--ui", help="comma-separated UI areas to run, chosen by reading the diff")
-    parser.add_argument("--test", help="comma-separated web test files or directories to run, chosen by reading the diff")
     parser.add_argument("--plan", action="store_true", help="show selected groups and commands without running them")
     arguments = parser.parse_args()
     groups = groups_to_run(arguments)
