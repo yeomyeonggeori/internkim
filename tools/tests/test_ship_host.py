@@ -236,11 +236,19 @@ class PlanTest(unittest.TestCase):
         self.assertIn(f"tag       {HOST_ONLY_TAG}", ship_quietly(shipment_with(commands, options)))
         self.assertFalse(commands.matching("--bump"))
 
-    def test_skip_host_plans_no_host_step(self):
+    def test_skip_host_plans_neither_our_host_nor_stable(self):
         options = ship_host.Options(skip_host=True, is_plan=True)
         output = ship_quietly(shipment_with(ScriptedCommands(), options))
         self.assertNotIn("our own host", output)
-        self.assertEqual(len([line for line in output.splitlines() if line[:1].isdigit()]), 6)
+        self.assertNotIn("stable", output.split("\n", 2)[2])
+        self.assertEqual(len([line for line in output.splitlines() if line[:1].isdigit()]), 5)
+
+    def test_the_plan_runs_the_release_on_our_host_before_promoting_it(self):
+        options = ship_host.Options(skip_host=False, is_plan=True)
+        output = ship_quietly(shipment_with(ScriptedCommands(), options))
+        steps = [line for line in output.splitlines() if line[:1].isdigit()]
+        self.assertIn(f"upgrade our own host to {NEW_TAG} while it is on testing", steps[-2])
+        self.assertEqual(steps[-1], f"7. promote {NEW_TAG} to stable")
 
 
 class OrderTest(unittest.TestCase):
@@ -261,18 +269,21 @@ class OrderTest(unittest.TestCase):
             commands.matching("gh release download")[0],
             commands.matching("test-native-install")[0],
             commands.matching("--people-upgrade")[0],
-            commands.matching("--channel stable")[0],
             commands.matching("install.sh")[0],
+            commands.matching("NRestarts")[-1],
+            commands.matching("--channel stable")[0],
         ]
         self.assertEqual(positions, sorted(positions))
 
-    def test_skip_host_stops_after_promotion(self):
+    def test_skip_host_leaves_the_release_on_testing(self):
         commands = ScriptedCommands()
         options = ship_host.Options(skip_host=True, is_plan=False)
         with tempfile.TemporaryDirectory() as directory:
-            ship_quietly(shipment_with(commands, options, directory))
-        self.assertTrue(commands.matching("--channel stable"))
+            output = ship_quietly(shipment_with(commands, options, directory))
+        self.assertTrue(commands.matching("--people-upgrade"))
+        self.assertFalse(commands.matching("--channel stable"))
         self.assertFalse(commands.matching("@host"))
+        self.assertIn(f"released {NEW_TAG} on testing; stable stays {PREVIOUS_TAG}", output)
 
     def test_a_tree_that_is_not_origin_main_cuts_nothing(self):
         commands = ScriptedCommands()
@@ -326,20 +337,19 @@ class RollbackTest(unittest.TestCase):
                 ship_quietly(shipment_with(commands, directory=directory))
         return commands, raised.exception
 
-    def test_a_restarting_agent_rolls_the_host_and_stable_back_in_order(self):
+    def test_a_restarting_agent_rolls_back_only_our_host_and_promotes_nothing(self):
         readings = iter(["0\n", "3\n"])
         commands = ScriptedCommands({"dpkg-query": [package_line(HOST_TAG), package_line(NEW_TAG), package_line(HOST_TAG)]})
         original = commands.host_answer
         commands.host_answer = lambda script: "SSH: x\n" + next(readings) if "NRestarts" in script else original(script)
-        with tempfile.TemporaryDirectory() as directory, self.assertRaises(ship_host.ShipFailure) as raised:
-            ship_quietly(shipment_with(commands, directory=directory))
-        order = [
-            commands.matching("--allow-downgrades")[0],
-            commands.matching("release edit " + NEW_TAG + " --repo")[0],
-            commands.matching("--channel stable --version " + PREVIOUS_TAG)[0],
-            commands.matching("release edit " + PREVIOUS_TAG + " --repo")[0],
-        ]
-        self.assertEqual(order, sorted(order))
+        output = io.StringIO()
+        with tempfile.TemporaryDirectory() as directory, self.assertRaises(ship_host.ShipFailure) as raised, contextlib.redirect_stdout(output):
+            ship_host.ship(shipment_with(commands, directory=directory))
+        rollback = [line for line in output.getvalue().splitlines() if "rollback:" in line]
+        self.assertEqual(rollback, [f"  rollback: roll the host back to {HOST_TAG}"])
+        after_install = commands.calls[commands.matching("install.sh")[0] + 1:]
+        self.assertEqual(len([call for call in after_install if "--allow-downgrades" in call[-1]]), 1)
+        self.assertFalse([call for call in after_install if call[0] == "gh" or call[1:3] == ["release", "host"]])
         self.assertIn("restarted 3 times", str(raised.exception))
         self.assertIn("rolled back", str(raised.exception))
         self.assertNotIn("rollback left undone", str(raised.exception))
@@ -349,12 +359,7 @@ class RollbackTest(unittest.TestCase):
         downgrade = commands.calls[commands.matching("--allow-downgrades")[0]][-1]
         self.assertIn(f"{HOST_TAG}/internkim-amd64.deb", downgrade)
         self.assertNotIn(f"download/{PREVIOUS_TAG}/", downgrade)
-        self.assertTrue(commands.matching("--channel stable --version " + PREVIOUS_TAG))
-
-    def test_a_host_without_the_package_is_not_downgraded(self):
-        commands, _ = self.failing_host({"dpkg-query": ["\n", "0.0.0\n"]})
-        self.assertFalse(commands.matching("--allow-downgrades"))
-        self.assertTrue(commands.matching("--prerelease"))
+        self.assertFalse(commands.matching("--channel stable"))
 
     def test_a_host_that_does_not_come_back_on_the_release_it_ran_is_named(self):
         _, failure = self.failing_host({"dpkg-query": [package_line(HOST_TAG), "0.0.0\n"]})
@@ -375,11 +380,6 @@ class RollbackTest(unittest.TestCase):
         version_read = commands.calls[commands.matching("dpkg-query")[0]][-1]
         self.assertIn("${Version}\\n", version_read)
 
-    def test_the_failed_tag_is_marked_a_prerelease(self):
-        commands, _ = self.failing_host({"dpkg-query": wrong_version_then_back()})
-        edit = commands.calls[commands.matching("release edit " + NEW_TAG)[0]]
-        self.assertIn("--prerelease", edit)
-
     def test_a_wrong_version_names_what_failed(self):
         _, failure = self.failing_host({"dpkg-query": [package_line(HOST_TAG), "2026.10.02.172114\n", package_line(HOST_TAG)]})
         self.assertIn("upgrade our own host", str(failure))
@@ -389,11 +389,10 @@ class RollbackTest(unittest.TestCase):
         _, failure = self.failing_host({"systemctl list-unit-files": HEALTHY_UNITS.replace("chatd.service active success", "chatd.service failed exit-code")})
         self.assertIn("chatd.service is failed", str(failure))
 
-    def test_every_rollback_action_is_tried_and_the_ones_that_failed_are_named(self):
+    def test_a_rollback_that_fails_is_named(self):
         commands = ScriptedCommands({"dpkg-query": wrong_version_then_back()}, failing=("--allow-downgrades",))
         with tempfile.TemporaryDirectory() as directory, self.assertRaises(ship_host.ShipFailure) as raised:
             ship_quietly(shipment_with(commands, directory=directory))
-        self.assertTrue(commands.matching("--prerelease"))
         self.assertIn("rollback left undone", str(raised.exception))
         self.assertIn("roll the host back", str(raised.exception))
 
