@@ -1,13 +1,19 @@
 import { InputRefused } from '../refusal';
 const millisecondsInADay = 24 * 60 * 60 * 1000;
 
+const dayFormatters = new Map<string, Intl.DateTimeFormat>();
+const wallClockFormatters = new Map<string, Intl.DateTimeFormat>();
+
+function formatterIn(formatters: Map<string, Intl.DateTimeFormat>, timezone: string, options: Intl.DateTimeFormatOptions): Intl.DateTimeFormat {
+	const known = formatters.get(timezone);
+	if (known) return known;
+	const formatter = new Intl.DateTimeFormat('en-CA', { ...options, timeZone: timezone });
+	formatters.set(timezone, formatter);
+	return formatter;
+}
+
 export function dayIn(timezone: string, instant: Date): string {
-	return new Intl.DateTimeFormat('en-CA', {
-		timeZone: timezone,
-		year: 'numeric',
-		month: '2-digit',
-		day: '2-digit'
-	}).format(instant);
+	return formatterIn(dayFormatters, timezone, { year: 'numeric', month: '2-digit', day: '2-digit' }).format(instant);
 }
 
 export function dayOfInstant(timezone: string, instant: string | null): string {
@@ -41,8 +47,7 @@ export function weekWindow(timezone: string, now: Date, weekFrom: number, weekTo
 
 
 function offsetMilliseconds(timezone: string, instant: Date): number {
-	const parts = new Intl.DateTimeFormat('en-CA', {
-		timeZone: timezone,
+	const parts = formatterIn(wallClockFormatters, timezone, {
 		hour12: false,
 		year: 'numeric',
 		month: '2-digit',
