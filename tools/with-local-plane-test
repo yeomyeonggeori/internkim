@@ -26,6 +26,7 @@ stopTheIdleStopsThisTestStarted() {
 cleanUp() {
   stopTheIdleStopsThisTestStarted
   pkill -f "$fakeBinaries/fake-stack-" 2>/dev/null || true
+  pkill -f "$fakeBinaries/fake-stop-client" 2>/dev/null || true
   rm -rf "$runDirectory"
 }
 
@@ -60,7 +61,7 @@ case "\$1 \${2:-}" in
   "start "*) [ -e "$fakeState/start-hangs" ] && exec sleep 600; touch "$fakeState/stack"; [[ " \$* " == *" --eager "* ]] || touch "$fakeState/asleep" ;;
   "gen signing-key") echo '{"kty":"EC","kid":"fake"}' ;;
   "stack list") cat "$fakeState/stacks.json" 2>/dev/null || echo '{"stacks":[]}' ;;
-  "stack stop") [ -e "$fakeState/stop-hangs" ] && exec sleep 600; rm -f "$fakeState/stack" "$fakeState/asleep" ;;
+  "stack stop") [ -e "$fakeState/stop-hangs" ] && exec sleep 600; [ -e "$fakeState/stop-hangs-in-its-client" ] && { "$fakeBinaries/fake-stop-client" & wait; }; rm -f "$fakeState/stack" "$fakeState/asleep" ;;
   "stack destroy") rm -f "$fakeState/stack" ;;
 esac
 FAKE
@@ -68,6 +69,12 @@ FAKE
 cat > "$fakeBinaries/fake-stack-host" <<'FAKE'
 #!/usr/bin/env bash
 "$(dirname "$0")/fake-stack-native" __supabase_stack_native__ -- "supabase-stack-id=$4" &
+sleep 600 &
+wait
+FAKE
+
+cat > "$fakeBinaries/fake-stop-client" <<'FAKE'
+#!/usr/bin/env bash
 sleep 600 &
 wait
 FAKE
@@ -414,6 +421,13 @@ printf 'newer\n' > "$lastUsedPath"
 "$withLocalPlane" --stop-when-idle idle fake-stack 0
 if called "supabase stack stop --stack-id fake-stack --output-format text"; then
   fail "a plane used again after the release was stopped anyway"
+fi
+
+resetFakes stack stop-hangs-in-its-client
+printf 'idle\n' > "$lastUsedPath"
+"$withLocalPlane" --stop-when-idle idle fake-stack 0 > /dev/null 2>&1
+if pgrep -f "$fakeBinaries/fake-stop-client" > /dev/null; then
+  fail "a stop that did not finish in time left the client it launched still asking the stack to shut down"
 fi
 
 movedCheckout="$runDirectory/moved-checkout"
