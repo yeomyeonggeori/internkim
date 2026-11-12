@@ -4,11 +4,11 @@
 	import TaskEditor from './task-editor.svelte';
 	import TaskQuickAdd from './task-quick-add.svelte';
 	import TaskWeekSelector from './task-week-selector.svelte';
-	import TaskMonthSelector from './task-month-selector.svelte';
+	import TaskRoadmapWeekSelector from './task-roadmap-week-selector.svelte';
 	import TaskRoadmap from './task-roadmap.svelte';
 	import TaskRoadmapSkeleton from './task-roadmap-skeleton.svelte';
-	import { localDateISO, taskRoadmapMonthOf } from './task-roadmap-model';
-	import { taskRoadmapMonthStart, taskRoadmapShownMonth, taskRoadmapWeekStart } from './task-roadmap-window';
+	import { localDateISO } from './task-roadmap-model';
+	import { isTaskViewTab, rememberedTaskView, rememberTaskView } from './task-view-memory';
 	import TaskBoard from './task-board.svelte';
 	import TaskBoardSkeleton from './task-board-skeleton.svelte';
 	import TaskChildCompletionDialog from './task-child-completion-dialog.svelte';
@@ -49,12 +49,16 @@
 
 	const page = createTasksController();
 	let relationshipTasks = $derived(summary?.completeness !== 'full' && relationshipSnapshotTasks ? relationshipTasksWithSnapshot(page.tasks(), relationshipSnapshotTasks) : page.tasks());
-	let taskViewTab = $state('board');
 	const todayISO = localDateISO(new Date());
-	const currentRoadmapMonth = taskRoadmapMonthOf(todayISO);
-	let roadmapStartISO = $state(taskRoadmapWeekStart(todayISO));
-	let roadmapMonth = $derived(taskRoadmapShownMonth(roadmapStartISO));
+	const rememberedView = rememberedTaskView(todayISO);
+	let taskViewTab = $state<string>(rememberedView.tab);
+	let roadmapStartISO = $state(rememberedView.roadmapStartISO);
+	let roadmapView = $state<ReturnType<typeof TaskRoadmap>>();
 	$effect(() => {
+		if (isTaskViewTab(taskViewTab)) rememberTaskView({ tab: taskViewTab, roadmapStartISO });
+	});
+	$effect(() => {
+		if (!shownWeek?.code) return;
 		if (taskViewTab === 'list' || taskViewTab === 'roadmap') untrack(() => { void ensureFullState(); });
 	});
 	$effect(() => {
@@ -98,16 +102,13 @@
 				<Tabs.Trigger value="roadmap" disabled={!summary}>{text.task.viewTabs.roadmap}</Tabs.Trigger>
 			</Tabs.List>
 			{#if taskViewTab === 'roadmap'}
-			<TaskMonthSelector
+			<TaskRoadmapWeekSelector
 				class="ml-auto"
-				month={roadmapMonth}
-				currentMonth={currentRoadmapMonth}
-				locale={text.task.roadmap.dateLocale}
-				selectMonthLabel={text.task.roadmap.selectMonth}
-				currentMonthLabel={text.task.roadmap.currentMonth}
-				previousMonthLabel={text.task.roadmap.previousMonth}
-				nextMonthLabel={text.task.roadmap.nextMonth}
-				onSelectMonth={(month) => { roadmapStartISO = taskRoadmapMonthStart(month, todayISO); }}
+				startISO={roadmapStartISO}
+				{todayISO}
+				selectWeekLabel={text.task.roadmap.selectWeek}
+				currentWeekLabel={text.task.roadmap.currentWeek}
+				onSelectWeek={(weekStartISO) => { roadmapStartISO = weekStartISO; void roadmapView?.revealShownWindow(); }}
 			/>
 			{:else}
 			<TaskWeekSelector
@@ -197,6 +198,7 @@
 			{#if summary?.completeness === 'full' || relationshipSnapshotTasks}
 			{@const isHistoryFresh = summary?.completeness === 'full'}
 			<TaskRoadmap
+				bind:this={roadmapView}
 				tasks={page.filters.tasks(relationshipTasks)}
 				allTasks={relationshipTasks}
 				serverChildProgress={isHistoryFresh ? summary?.childProgressByParent : undefined}

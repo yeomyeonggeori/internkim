@@ -45,16 +45,6 @@ export function taskRoadmapMonthKey(month: TaskRoadmapMonth): string {
 	return `${month.year}-${String(month.month).padStart(2, '0')}`;
 }
 
-export function taskRoadmapMonthFromKey(key: string): TaskRoadmapMonth | undefined {
-	const date = taskWeekDateFromISO(`${key}-01`);
-	return date ? { year: date.getUTCFullYear(), month: date.getUTCMonth() + 1 } : undefined;
-}
-
-export function formatTaskRoadmapMonth(month: TaskRoadmapMonth, locale: string): string {
-	return new Intl.DateTimeFormat(locale, { year: 'numeric', month: 'long', timeZone: 'UTC' })
-		.format(new Date(Date.UTC(month.year, month.month - 1, 1)));
-}
-
 export function formatTaskRoadmapWeekday(dateISO: string, locale: string): string {
 	return new Intl.DateTimeFormat(locale, { weekday: 'narrow', timeZone: 'UTC' }).format(new Date(`${dateISO}T00:00:00Z`));
 }
