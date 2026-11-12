@@ -34,11 +34,14 @@ export const memberPresence = new MemberPresence();
 
 export type AvatarPresence = { isOnline?: boolean; presenceLabel?: string };
 
+export type PresencePerson = { memberID?: string; isAgent?: boolean };
+
 export function avatarPresenceOf(
-	memberID: string | undefined,
+	person: PresencePerson | undefined,
 	labels: { presenceOnline: string; presenceOffline: string }
 ): AvatarPresence {
-	if (!memberID) return {};
-	const isOnline = memberPresence.isOnline(memberID);
+	if (person?.isAgent) return { isOnline: true, presenceLabel: labels.presenceOnline };
+	if (!person?.memberID) return {};
+	const isOnline = memberPresence.isOnline(person.memberID);
 	return { isOnline, presenceLabel: isOnline ? labels.presenceOnline : labels.presenceOffline };
 }
