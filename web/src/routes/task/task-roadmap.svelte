@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { IsMobile } from '$lib/hooks/is-mobile.svelte';
-	import { onMount, untrack } from 'svelte';
+	import { onMount, tick, untrack } from 'svelte';
 	import { MediaQuery } from 'svelte/reactivity';
 	import { taskBoardViewportHeight } from './task-board-viewport-height';
 	import { hasRelatedTasks, relatedTaskIDs } from './task-roadmap-focus';
@@ -21,16 +21,17 @@
 		type TaskRoadmapBar
 	} from './task-roadmap-model';
 	import TaskRoadmapRow from './task-roadmap-row.svelte';
+	import { scrollTaskRoadmapRowToTop, taskRoadmapRevealedTaskID } from './task-roadmap-scroll';
 	import { slideTaskRoadmap } from './task-roadmap-slide';
 	import { taskRoadmapSwipe, type TaskRoadmapSwipeDirection } from './task-roadmap-swipe-action';
 	import {
 		isTaskRoadmapStartAllowed,
-		taskRoadmapNarrowDayCount,
+		taskRoadmapDayCount,
 		taskRoadmapWeekLength,
 		taskRoadmapWeekStart,
-		taskRoadmapWideDayCount,
 		taskRoadmapWindowSpan
 	} from './task-roadmap-window';
+	import { rememberTaskRoadmapScroll } from './task-view-memory';
 	import { buildTaskChildProgressByParent, type TaskChildProgress } from './task-relationships';
 	import { taskDefinitionLabel } from './task-workspace-model';
 	import type { Task } from './task-types';
@@ -59,7 +60,7 @@
 
 	const isNarrow = new IsMobile();
 	const prefersReducedMotion = new MediaQuery('prefers-reduced-motion: reduce');
-	let dayCount = $derived(isNarrow.current ? taskRoadmapNarrowDayCount : taskRoadmapWideDayCount);
+	let dayCount = $derived(taskRoadmapDayCount(isNarrow.current));
 	let days = $derived(taskRoadmapDays(startISO, dayCount));
 	let todayIndex = $derived(days.indexOf(todayISO));
 	let childProgressByParent = $derived(serverChildProgress ? new Map(Object.entries(serverChildProgress)) : buildTaskChildProgressByParent(allTasks));
@@ -94,6 +95,13 @@
 		shownStartISO = nextStartISO;
 		if (!frameElement || prefersReducedMotion.current) return;
 		slideTaskRoadmap(frameElement, movedDays, dayCount, laneWidth);
+	}
+
+	export async function revealShownWindow(): Promise<void> {
+		await tick();
+		const taskID = taskRoadmapRevealedTaskID(rows);
+		if (!taskID || !frameElement) return;
+		scrollTaskRoadmapRowToTop(frameElement, taskID, prefersReducedMotion.current);
 	}
 
 	function moveTo(nextStartISO: string): boolean {
@@ -170,6 +178,7 @@
 	class="max-h-[var(--task-board-height,32rem)] touch-pan-y overflow-x-hidden overflow-y-auto overscroll-contain rounded-lg border"
 	data-task-roadmap
 	use:taskBoardViewportHeight
+	use:rememberTaskRoadmapScroll
 	use:taskRoadmapSwipe={{ onSwipe: moveWeek }}
 >
 	<TaskRoadmapHeader

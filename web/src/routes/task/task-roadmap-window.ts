@@ -1,5 +1,6 @@
 import { taskWeekDateFromISO } from '$lib/task/task-week-code';
 import {
+	formatTaskRoadmapPeriod,
 	shiftTaskRoadmapDate,
 	shiftTaskRoadmapMonth,
 	taskRoadmapMonthKey,
@@ -27,12 +28,21 @@ export function taskRoadmapShownMonth(startISO: string): TaskRoadmapMonth {
 	return taskRoadmapMonthOf(shiftTaskRoadmapDate(startISO, shownMonthDayOffset));
 }
 
-export function taskRoadmapMonthStart(month: TaskRoadmapMonth, todayISO: string): string {
-	const monthKey = taskRoadmapMonthKey(month);
-	if (monthKey === taskRoadmapMonthKey(taskRoadmapMonthOf(todayISO))) return taskRoadmapWeekStart(todayISO);
-	const firstWeekStart = taskRoadmapWeekStart(`${monthKey}-01`);
-	if (taskRoadmapMonthKey(taskRoadmapShownMonth(firstWeekStart)) === monthKey) return firstWeekStart;
-	return shiftTaskRoadmapDate(firstWeekStart, taskRoadmapWeekLength);
+export function taskRoadmapDayCount(isNarrow: boolean): number {
+	return isNarrow ? taskRoadmapNarrowDayCount : taskRoadmapWideDayCount;
+}
+
+export function taskRoadmapWeekChoices(todayISO: string): string[] {
+	const currentWeekStart = taskRoadmapWeekStart(todayISO);
+	const earlier = allowedWeekStartsFrom(currentWeekStart, -taskRoadmapWeekLength, todayISO);
+	const later = allowedWeekStartsFrom(currentWeekStart, taskRoadmapWeekLength, todayISO);
+	return [...earlier.toReversed(), currentWeekStart, ...later];
+}
+
+export function formatTaskRoadmapWindow(startISO: string, dayCount: number, todayISO: string): string {
+	const period = formatTaskRoadmapPeriod({ startDate: startISO, endDate: shiftTaskRoadmapDate(startISO, dayCount - 1) });
+	const year = startISO.slice(0, 4);
+	return year === todayISO.slice(0, 4) ? period : `${year} ${period}`;
 }
 
 export function isTaskRoadmapStartAllowed(startISO: string, todayISO: string): boolean {
@@ -50,4 +60,14 @@ export function taskRoadmapWindowSpan(todayISO: string): TaskRoadmapWindowSpan {
 		firstDayISO: shiftTaskRoadmapDate(`${taskRoadmapMonthKey(firstMonth)}-01`, -taskRoadmapWeekLength),
 		lastDayISO: shiftTaskRoadmapDate(`${taskRoadmapMonthKey(afterLastMonth)}-01`, taskRoadmapWideDayCount)
 	};
+}
+
+function allowedWeekStartsFrom(weekStartISO: string, step: number, todayISO: string): string[] {
+	const weekStarts: string[] = [];
+	let candidate = shiftTaskRoadmapDate(weekStartISO, step);
+	while (isTaskRoadmapStartAllowed(candidate, todayISO)) {
+		weekStarts.push(candidate);
+		candidate = shiftTaskRoadmapDate(candidate, step);
+	}
+	return weekStarts;
 }
