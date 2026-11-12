@@ -38,10 +38,9 @@ func memberDoorForTest(t *testing.T, answer string) (*Client, *memberDoorCall) {
 }
 
 func TestSaveMemberPostsTheAccountWriteThroughTheMemberDoor(t *testing.T) {
-	client, call := memberDoorForTest(t, `{"member":{"memberID":"m1","email":"lead@example.com","name":"이샘플","role":"admin","status":"active","isWorking":true,"canReadTheCompany":true}}`)
+	client, call := memberDoorForTest(t, `{"member":{"memberID":"m1","email":"lead@example.com","name":"이샘플","role":"admin","status":"active"}}`)
 
-	saved, errorValue := client.SaveMember(context.Background(), MemberWrite{Email: " Lead@Example.com ", Name: "이샘플", Role: "admin"})
-	if errorValue != nil {
+	if errorValue := client.SaveMember(context.Background(), MemberWrite{Email: " Lead@Example.com ", Name: "이샘플", Role: "admin"}); errorValue != nil {
 		t.Fatal(errorValue)
 	}
 	if call.method != http.MethodPost || call.path != "/api/agent/member" {
@@ -56,16 +55,12 @@ func TestSaveMemberPostsTheAccountWriteThroughTheMemberDoor(t *testing.T) {
 	if _, carried := call.body["note"]; carried {
 		t.Fatalf("a note nobody offered was written anyway: %v", call.body)
 	}
-	if saved.MemberID != "m1" || saved.Role != "admin" || saved.Status != "active" {
-		t.Fatalf("the answer arrived reshaped: %+v", saved)
-	}
 }
 
 func TestSaveMemberCarriesTheNoteWhenOneIsOffered(t *testing.T) {
-	client, call := memberDoorForTest(t, `{"member":{"memberID":"m1","email":"lead@example.com","note":"HR follow-up","role":"member","status":"active","isWorking":true,"canReadTheCompany":true}}`)
+	client, call := memberDoorForTest(t, `{"member":{"memberID":"m1","email":"lead@example.com","name":"이샘플","role":"admin","status":"active"}}`)
 
-	saved, errorValue := client.SaveMember(context.Background(), MemberWrite{Email: "lead@example.com", Note: "HR follow-up"})
-	if errorValue != nil {
+	if errorValue := client.SaveMember(context.Background(), MemberWrite{Email: "lead@example.com", Note: "HR follow-up"}); errorValue != nil {
 		t.Fatal(errorValue)
 	}
 	if call.body["note"] != "HR follow-up" {
@@ -74,20 +69,17 @@ func TestSaveMemberCarriesTheNoteWhenOneIsOffered(t *testing.T) {
 	if _, carried := call.body["name"]; carried {
 		t.Fatalf("a name nobody offered was written anyway: %v", call.body)
 	}
-	if saved.Note != "HR follow-up" {
-		t.Fatalf("the note the company answered with was dropped: %+v", saved)
-	}
 }
 
 func TestSaveMemberRefusesAnAnswerThatNamesNobody(t *testing.T) {
 	client, _ := memberDoorForTest(t, `{}`)
-	if _, errorValue := client.SaveMember(context.Background(), MemberWrite{Email: "lead@example.com"}); errorValue == nil {
+	if errorValue := client.SaveMember(context.Background(), MemberWrite{Email: "lead@example.com"}); errorValue == nil {
 		t.Fatal("an answer with no member was accepted")
 	}
 }
 
 func TestWithdrawMemberDeletesThroughTheMemberDoor(t *testing.T) {
-	client, call := memberDoorForTest(t, `{"member":{"memberID":"m1","email":"gone@example.com","status":"withdrawn","isWorking":false,"canReadTheCompany":false}}`)
+	client, call := memberDoorForTest(t, `{"member":{"memberID":"m1","email":"gone@example.com","status":"withdrawn"}}`)
 
 	if errorValue := client.WithdrawMember(context.Background(), " Gone@Example.com "); errorValue != nil {
 		t.Fatal(errorValue)
@@ -102,7 +94,7 @@ func TestWithdrawMemberDeletesThroughTheMemberDoor(t *testing.T) {
 
 func TestAMemberWriteNeedsAnAddress(t *testing.T) {
 	client, call := memberDoorForTest(t, `{}`)
-	if _, errorValue := client.SaveMember(context.Background(), MemberWrite{Name: "이샘플"}); errorValue == nil {
+	if errorValue := client.SaveMember(context.Background(), MemberWrite{Name: "이샘플"}); errorValue == nil {
 		t.Fatal("a write with no address was sent")
 	}
 	if errorValue := client.WithdrawMember(context.Background(), ""); errorValue == nil {

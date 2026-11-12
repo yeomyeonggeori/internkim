@@ -15,7 +15,7 @@ func startPlaneHoldingASealedMailAccount(t *testing.T) *httptest.Server {
 		writer.Header().Set("Content-Type", "application/json")
 		switch request.URL.Path {
 		case "/api/agent/member":
-			_, _ = writer.Write([]byte(`{"member":{"memberID":"member-looked-up","email":"admin@example.com"}}`))
+			_, _ = writer.Write([]byte(`{"member":{"memberID":"member-looked-up","email":"admin@example.com","isWorking":true,"canReadTheCompany":true}}`))
 		case "/api/agent/mail-account":
 			_, _ = writer.Write([]byte(`{"account":{"MemberID":"member-the-record-claims","IMAPHost":"imap.example.com","SMTPHost":"smtp.example.com",` +
 				`"IMAPPassword":"","SealedIMAPPassword":{"version":1,"recipient":"recipient","ephemeralPublicKey":"ephemeral","nonce":"nonce","ciphertext":"ciphertext"}}}`))

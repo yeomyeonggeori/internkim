@@ -8,7 +8,7 @@ import (
 
 func TestAMemberReadsTheCirclesTheCompanySends(t *testing.T) {
 	var member Member
-	document := `{"memberID":"m1","email":"lee@example.test","role":"admin","circles":["member","c-level"]}`
+	document := `{"memberID":"m1","email":"lee@example.test","role":"admin","circles":["member","c-level"],"isWorking":true,"canReadTheCompany":true}`
 	if errorValue := json.Unmarshal([]byte(document), &member); errorValue != nil {
 		t.Fatal(errorValue)
 	}
@@ -19,7 +19,7 @@ func TestAMemberReadsTheCirclesTheCompanySends(t *testing.T) {
 
 func TestAMemberTheCompanyPutsInNoCircleCarriesNone(t *testing.T) {
 	var member Member
-	if errorValue := json.Unmarshal([]byte(`{"memberID":"m1","email":"lee@example.test"}`), &member); errorValue != nil {
+	if errorValue := json.Unmarshal([]byte(`{"memberID":"m1","email":"lee@example.test","isWorking":true,"canReadTheCompany":true}`), &member); errorValue != nil {
 		t.Fatal(errorValue)
 	}
 	if len(member.Circles) != 0 {
