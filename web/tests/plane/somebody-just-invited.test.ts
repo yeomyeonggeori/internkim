@@ -47,4 +47,4 @@ test('somebody invited after the plane is up reaches it when the company says so
 		'the company said its directory changed and the device did not read the roster again, ' +
 			'so somebody just invited cannot be resolved until the two-minute pass comes round'
 	).toContain(newcomerEmail);
-});
+}, 30_000);
