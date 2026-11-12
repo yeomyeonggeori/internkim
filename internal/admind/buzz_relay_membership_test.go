@@ -46,55 +46,53 @@ func answerAsADirectoryNamingTheSample(t *testing.T, service *Service) {
 func TestAPersonTheDeviceCanNameOnBuzzIsLetOntoTheRelay(t *testing.T) {
 	service, grantsPath := serviceRecordingRelayMembershipGrants(t)
 	answerAsADirectoryNamingTheSample(t, service)
-	service.Configuration.BuzzAccountLinksPath = filepath.Join(t.TempDir(), "buzz-account-links.json")
 
-	service.linkDeterministicBuzzPeople(context.Background())
+	_ = service.ensureMemberChannelMembership(context.Background())
 
-	granted, errorValue := os.ReadFile(grantsPath)
-	if errorValue != nil {
-		t.Fatalf("a person the device just learned to name on buzz was not let onto the relay: %v", errorValue)
-	}
-	secretHex := service.buzzSecretForEmail(context.Background(), "sample@example.com")
-	pubkey, errorValue := buzzPublicKey(secretHex)
-	if errorValue != nil {
-		t.Fatalf("person pubkey: %v", errorValue)
-	}
-	if !strings.Contains(string(granted), pubkey) {
-		t.Fatalf("the key the account links file now carries must be a relay member, got %s", strings.TrimSpace(string(granted)))
+	if !containsLine(readGrants(t, grantsPath), sampleRelayKey(t, service)) {
+		t.Fatalf("the key the directory names must be a relay member, got %s", readGrants(t, grantsPath))
 	}
 }
 
 // The messenger migrates its own database while admind is making its first
-// pass, so the first grant answers `relation "communities" does not exist`. The
-// link is written either way, so a pass that only lets in whoever is new lets
-// nobody in ever again, and the person is named and locked out.
+// pass, so the first grant answers `relation "communities" does not exist`. A
+// pass that only lets in whoever is new lets nobody in ever again, and the
+// person is named and locked out.
 func TestAGrantTheRelayCouldNotTakeIsMadeAgainOnTheNextPass(t *testing.T) {
 	service, grantsPath := serviceRecordingRelayMembershipGrants(t)
 	answerAsADirectoryNamingTheSample(t, service)
-	service.Configuration.BuzzAccountLinksPath = filepath.Join(t.TempDir(), "buzz-account-links.json")
 
-	service.linkDeterministicBuzzPeople(context.Background())
-	service.linkDeterministicBuzzPeople(context.Background())
+	_ = service.ensureMemberChannelMembership(context.Background())
+	_ = service.ensureMemberChannelMembership(context.Background())
 
-	secretHex := service.buzzSecretForEmail(context.Background(), "sample@example.com")
-	pubkey, errorValue := buzzPublicKey(secretHex)
-	if errorValue != nil {
-		t.Fatalf("person pubkey: %v", errorValue)
+	if strings.Count(readGrants(t, grantsPath), sampleRelayKey(t, service)) < 2 {
+		t.Fatalf("a grant the relay could not take must be made again, got %s", readGrants(t, grantsPath))
 	}
+}
+
+func readGrants(t *testing.T, grantsPath string) string {
+	t.Helper()
 	granted, errorValue := os.ReadFile(grantsPath)
 	if errorValue != nil {
 		t.Fatalf("nobody was let onto the relay at all: %v", errorValue)
 	}
-	if strings.Count(string(granted), pubkey) < 2 {
-		t.Fatalf("a grant the relay could not take must be made again, got %s", strings.TrimSpace(string(granted)))
+	return strings.TrimSpace(string(granted))
+}
+
+func sampleRelayKey(t *testing.T, service *Service) string {
+	t.Helper()
+	pubkey, errorValue := buzzPublicKey(service.buzzSecretForEmail(context.Background(), "sample@example.com"))
+	if errorValue != nil {
+		t.Fatalf("sample pubkey: %v", errorValue)
 	}
+	return pubkey
 }
 
 func TestRelayMembershipIsGrantedBeforeAnyRoomExists(t *testing.T) {
 	service, grantsPath := serviceRecordingRelayMembershipGrants(t)
 	answerAsADirectoryNamingTheSample(t, service)
 
-	service.ensureMemberChannelMembership(context.Background())
+	_ = service.ensureMemberChannelMembership(context.Background())
 
 	granted, errorValue := os.ReadFile(grantsPath)
 	if errorValue != nil {
@@ -135,8 +133,8 @@ func TestDirectoryChangedSeatsMemberBeforeBuzzLogin(t *testing.T) {
 	request := httptest.NewRequest(http.MethodPost, "/admin/api/directory/changed", nil)
 	response := httptest.NewRecorder()
 	service.handleDirectoryChanged(response, request)
-	if response.Code != http.StatusAccepted {
-		t.Fatalf("directory change answered %d: %s", response.Code, response.Body.String())
+	if response.Code != http.StatusInternalServerError || !strings.Contains(response.Body.String(), "messenger seats") {
+		t.Fatalf("the company's rooms could not be read, so the door must say the seats are not done; it answered %d: %s", response.Code, response.Body.String())
 	}
 
 	granted, errorValue := os.ReadFile(grantsPath)

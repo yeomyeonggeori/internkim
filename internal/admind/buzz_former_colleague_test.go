@@ -37,7 +37,9 @@ func TestAMemberWhoLeftHoldingNoSeatIsShownOutOfTheCommunity(t *testing.T) {
 		historyAuthorKey:         "member",
 	})
 
-	service.removeSeatsNobodyAccountsFor(context.Background(), relay, nil, identityTestSeed)
+	if errorValue := service.removeSeatsNobodyAccountsFor(context.Background(), relay, nil, identityTestSeed); errorValue != nil {
+		t.Fatalf("the sweep did not finish: %v", errorValue)
+	}
 
 	remaining := relayMemberKeys(t, relay)
 	expected := []string{ownerKey, activeKey, historyAuthorKey}

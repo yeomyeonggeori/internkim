@@ -3,7 +3,8 @@ package admind
 import (
 	"context"
 	"database/sql"
-	"log"
+	"errors"
+	"fmt"
 	"strings"
 
 	"github.com/lib/pq"
@@ -49,14 +50,14 @@ func membersWithoutTheAgentDirectRoom(ctx context.Context, relay *sql.DB, agentP
 	return pubkeys, rows.Err()
 }
 
-func (service *Service) admittedMembersWithoutTheAgentDirectRoom(ctx context.Context, members []buzzMember) []buzzMember {
+func (service *Service) admittedMembersWithoutTheAgentDirectRoom(ctx context.Context, members []buzzMember) ([]buzzMember, error) {
 	seed := service.buzzKeySeed()
 	if seed == "" || strings.TrimSpace(service.Configuration.ChatdEndpoint) == "" {
-		return nil
+		return nil, nil
 	}
 	agentPubkey, errorValue := buzzPublicKey(buzzidentity.Secret(seed, buzzidentity.AgentSubject))
 	if errorValue != nil {
-		return nil
+		return nil, errorValue
 	}
 	people := make([]buzzMember, 0, len(members))
 	for _, member := range members {
@@ -76,13 +77,11 @@ func (service *Service) admittedMembersWithoutTheAgentDirectRoom(ctx context.Con
 	}
 	relay, errorValue := service.buzzDatabase()
 	if errorValue != nil {
-		log.Printf("buzz agent direct rooms: %v", errorValue)
-		return nil
+		return nil, errorValue
 	}
 	missingPubkeys, errorValue := membersWithoutTheAgentDirectRoom(ctx, relay, agentPubkey, pubkeysOf(admitted))
 	if errorValue != nil {
-		log.Printf("buzz agent direct rooms: who has no room with the agent could not be read: %v", errorValue)
-		return nil
+		return nil, fmt.Errorf("who has no room with the agent could not be read: %w", errorValue)
 	}
 	missing := map[string]bool{}
 	for _, pubkey := range missingPubkeys {
@@ -94,23 +93,22 @@ func (service *Service) admittedMembersWithoutTheAgentDirectRoom(ctx context.Con
 			withoutARoom = append(withoutARoom, member)
 		}
 	}
-	return withoutARoom
+	return withoutARoom, nil
 }
 
-func (service *Service) openTheAgentDirectRoomForEveryMember(ctx context.Context, members []buzzMember) {
-	opened, failed := 0, 0
-	for _, member := range service.admittedMembersWithoutTheAgentDirectRoom(ctx, members) {
+func (service *Service) openTheAgentDirectRoomForEveryMember(ctx context.Context, members []buzzMember) error {
+	withoutARoom, errorValue := service.admittedMembersWithoutTheAgentDirectRoom(ctx, members)
+	if errorValue != nil {
+		return errorValue
+	}
+	var refusals []error
+	for _, member := range withoutARoom {
 		if ctx.Err() != nil {
-			return
+			return ctx.Err()
 		}
 		if _, errorValue := service.ensureAgentDirectMessageChannel(ctx, member.Email, ""); errorValue != nil {
-			log.Printf("buzz agent direct rooms: opening the room for %s failed: %v", member.Email, errorValue)
-			failed++
-			continue
+			refusals = append(refusals, fmt.Errorf("opening the agent's room with %s: %w", member.Email, errorValue))
 		}
-		opened++
 	}
-	if opened > 0 || failed > 0 {
-		log.Printf("buzz agent direct rooms: opened %d, failed %d", opened, failed)
-	}
+	return errors.Join(refusals...)
 }

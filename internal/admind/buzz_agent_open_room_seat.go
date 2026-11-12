@@ -3,7 +3,8 @@ package admind
 import (
 	"context"
 	"database/sql"
-	"log"
+	"errors"
+	"fmt"
 	"time"
 
 	"github.com/yeomyeonggeori/internkim/internal/buzzidentity"
@@ -37,26 +38,22 @@ func openRoomsMissingTheAgent(ctx context.Context, relay *sql.DB, agentPubkey st
 	return channelIDs, rows.Err()
 }
 
-func (service *Service) seatTheAgentInOpenRooms(ctx context.Context, relay *sql.DB, connections *buzzActorConnections, seed string) {
+func (service *Service) seatTheAgentInOpenRooms(ctx context.Context, relay *sql.DB, connections *buzzActorConnections, seed string) error {
 	agentSecret := buzzidentity.Secret(seed, buzzidentity.AgentSubject)
 	agentPubkey, errorValue := buzzPublicKey(agentSecret)
 	if errorValue != nil {
-		return
+		return errorValue
 	}
 	channelIDs, errorValue := openRoomsMissingTheAgent(ctx, relay, agentPubkey)
 	if errorValue != nil {
-		log.Printf("buzz membership: open rooms without the agent could not be read: %v", errorValue)
-		return
+		return fmt.Errorf("open rooms without the agent could not be read: %w", errorValue)
 	}
+	var refusals []error
 	for _, channelID := range channelIDs {
-		publisher, errorValue := connections.as(ctx, agentSecret)
-		if errorValue != nil {
-			log.Printf("buzz membership: relay connect as the agent failed: %v", errorValue)
-			return
-		}
-		if errorValue := publisher.AddMember(ctx, agentSecret, channelID, agentPubkey, ""); errorValue != nil {
-			log.Printf("buzz membership: seating the agent in %s failed: %v", channelID, errorValue)
+		if errorValue := connections.addMember(ctx, agentSecret, channelID, agentPubkey, ""); errorValue != nil {
+			refusals = append(refusals, fmt.Errorf("seating the agent in %s: %w", channelID, errorValue))
 		}
 		time.Sleep(60 * time.Millisecond)
 	}
+	return errors.Join(refusals...)
 }
