@@ -35,48 +35,6 @@ func TestATaskNobodyHasCarriedOverIsNotAFailure(t *testing.T) {
 	}
 }
 
-// lock_task_requester reads the mirror before the row exists, so a mirror
-// written afterwards is a mirror it never saw.
-func TestATaskCarriedOffADeviceSaysSoOnTheWriteThatMakesIt(t *testing.T) {
-	stub := newCentralPlaneStub(t)
-
-	if _, errorValue := stub.client().SaveTask(context.Background(), Task{
-		DeviceTaskID:    "device-task-1",
-		ActorPlatform:   "buzz",
-		ActorExternalID: "owner-account",
-		Title:           "Carried over",
-		Status:          "requested",
-	}); errorValue != nil {
-		t.Fatal(errorValue)
-	}
-
-	mirrors, written := stub.savedArguments["target_mirrors"].([]any)
-	if !written || len(mirrors) != 1 {
-		t.Fatalf("target_mirrors = %+v", stub.savedArguments["target_mirrors"])
-	}
-	mirror, named := mirrors[0].(map[string]any)
-	if !named || mirror["source"] != DeviceMirrorSource || mirror["externalID"] != "device-task-1" {
-		t.Fatalf("mirror = %+v", mirrors[0])
-	}
-}
-
-func TestATaskAskedForHereCarriesNoDeviceMirror(t *testing.T) {
-	stub := newCentralPlaneStub(t)
-
-	if _, errorValue := stub.client().SaveTask(context.Background(), Task{
-		ActorPlatform:   "buzz",
-		ActorExternalID: "owner-account",
-		Title:           "Asked here",
-		Status:          "requested",
-	}); errorValue != nil {
-		t.Fatal(errorValue)
-	}
-
-	if stub.savedArguments["target_mirrors"] != nil {
-		t.Fatalf("a request made here must still record who asked, got %+v", stub.savedArguments["target_mirrors"])
-	}
-}
-
 func mirrorStubRoutes(stub *centralPlaneStub, writer http.ResponseWriter, request *http.Request) bool {
 	if request.Method != http.MethodGet || request.URL.Path != "/rest/v1/task" {
 		return false

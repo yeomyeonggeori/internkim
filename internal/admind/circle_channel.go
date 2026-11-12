@@ -12,7 +12,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/yeomyeonggeori/internkim/internal/buzzidentity"
-	"github.com/yeomyeonggeori/internkim/internal/buzzimport/relaypublish"
+	"github.com/yeomyeonggeori/internkim/internal/relaypublish"
 	"github.com/yeomyeonggeori/internkim/internal/centralplane"
 )
 

@@ -14,7 +14,7 @@ func newBridgeMapTestService(t *testing.T) *Service {
 	}}
 }
 
-func TestBridgeMessageMappingRoundTripsBothDirections(t *testing.T) {
+func TestBridgeMessageMappingRoundTrips(t *testing.T) {
 	service := newBridgeMapTestService(t)
 	database, errorValue := service.openBridgeMapDatabase(context.Background())
 	if errorValue != nil {
@@ -38,14 +38,6 @@ func TestBridgeMessageMappingRoundTripsBothDirections(t *testing.T) {
 	}
 	if byExternal.BuzzEventID != "event-1" {
 		t.Fatalf("by external buzz id = %q", byExternal.BuzzEventID)
-	}
-
-	byEvent, found, errorValue := service.bridgeMessageByEvent(context.Background(), database, "event-1", "mattermost")
-	if errorValue != nil || !found {
-		t.Fatalf("by event: found=%v error=%v", found, errorValue)
-	}
-	if byEvent.ExternalID != "post-1" {
-		t.Fatalf("by event external id = %q", byEvent.ExternalID)
 	}
 }
 
@@ -81,23 +73,3 @@ func TestBridgeMessageRecordIsIdempotent(t *testing.T) {
 	}
 }
 
-func TestBridgeChannelMappingRoundTrips(t *testing.T) {
-	service := newBridgeMapTestService(t)
-	database, errorValue := service.openBridgeMapDatabase(context.Background())
-	if errorValue != nil {
-		t.Fatalf("open: %v", errorValue)
-	}
-	defer database.Close()
-	mapping := bridgeChannelMapping{BuzzChannelID: "buzz-ch", Platform: "mattermost", ExternalChannelID: "mm-ch"}
-	if errorValue := service.recordBridgeChannel(context.Background(), database, mapping); errorValue != nil {
-		t.Fatalf("record channel: %v", errorValue)
-	}
-	byExternal, found, errorValue := service.bridgeChannelByExternal(context.Background(), database, "mattermost", "mm-ch")
-	if errorValue != nil || !found || byExternal.BuzzChannelID != "buzz-ch" {
-		t.Fatalf("channel by external: found=%v error=%v mapping=%+v", found, errorValue, byExternal)
-	}
-	byBuzz, found, errorValue := service.bridgeChannelByBuzz(context.Background(), database, "buzz-ch", "mattermost")
-	if errorValue != nil || !found || byBuzz.ExternalChannelID != "mm-ch" {
-		t.Fatalf("channel by buzz: found=%v error=%v mapping=%+v", found, errorValue, byBuzz)
-	}
-}

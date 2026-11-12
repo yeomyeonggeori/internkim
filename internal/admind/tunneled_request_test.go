@@ -67,7 +67,6 @@ func TestTunneledAgentAPIRequestsAreRefused(t *testing.T) {
 	for _, path := range []string{
 		"/agent/api/company-profile-carry",
 		"/agent/api/mail-account-carry",
-		"/agent/api/organization-record-coverage",
 		"/agent/api/buzz-channel-visibility-repair",
 	} {
 		if status := answeredStatus(service, tunneledRequest(http.MethodPost, path, "")); status != http.StatusForbidden {
@@ -105,7 +104,6 @@ func TestTunneledDirectoryAndAdminRequestsAreRefused(t *testing.T) {
 		{http.MethodGet, "/admin/api/directory/people"},
 		{http.MethodPost, "/admin/api/directory/changed"},
 		{http.MethodGet, "/admin/api/diagnostics/requests"},
-		{http.MethodGet, "/bridge/api/channel"},
 	} {
 		if status := answeredStatus(service, tunneledRequest(call.method, call.path, `{}`)); status != http.StatusForbidden {
 			t.Errorf("a tunneled %s %s answered %d, want 403", call.method, call.path, status)

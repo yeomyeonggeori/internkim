@@ -18,7 +18,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/yeomyeonggeori/internkim/internal/buzzimport/mattermostadmin"
+	"github.com/yeomyeonggeori/internkim/internal/mattermostadmin"
 	"github.com/yeomyeonggeori/internkim/internal/centralplane"
 	blueclawruntime "github.com/yeomyeonggeori/internkim/internal/runtime/blueclaw"
 	"github.com/yeomyeonggeori/internkim/internal/servicetoken"
@@ -120,12 +120,8 @@ func (service *Service) startBackgroundWork(ctx context.Context) {
 	}
 	service.startPersonaSync(ctx)
 	service.startDirectoryApplying(ctx)
-	service.startCalendarSweep(ctx)
-	service.startOrganizationSweep(ctx)
 	service.startCompanyProfileSweep(ctx)
-	service.startAttendanceSweep(ctx)
 	service.startMailAccountSweep(ctx)
-	service.startTaskSweep(ctx)
 	service.startBuzzMemberLinker(ctx)
 	go service.sayIfTheRelayIsOpen(ctx)
 	go service.keepHostUpdateReported(ctx)
