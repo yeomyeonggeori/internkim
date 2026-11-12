@@ -36,9 +36,11 @@ test('the plane starts every daemon with the current company-box contract', () =
 		runtimeConfigurationPath: '/tmp/runtime.json',
 		policyPath: '/tmp/policy.json',
 		acpSocketPath: '/tmp/blueclaw-acp.sock',
-		inbound: 'acp'
+		inbound: 'acp',
+		fileJournalSocketPath: '/tmp/barrier.sock'
 	});
 	expect(argumentsForBlueclaw).toContain('-acp-socket');
+	expect(argumentsForBlueclaw[argumentsForBlueclaw.indexOf('-file-journal-socket') + 1]).toBe('/tmp/barrier.sock');
 
 	const argumentsForAdmind = admindArgumentsForPlane({
 		listenAddress: '127.0.0.1:8081',

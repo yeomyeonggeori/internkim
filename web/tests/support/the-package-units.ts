@@ -43,6 +43,12 @@ function theFlagsThatStart(program: string): AFlag[] {
 	return flags;
 }
 
+export function thePackageValueOf(program: string, name: string): string {
+	const flag = theFlagsThatStart(program).find((candidate) => candidate.name === name);
+	if (!flag) throw new Error(`the package starts ${program} without ${name}`);
+	return flag.value;
+}
+
 export function theArgumentsThatStart(
 	program: string,
 	shared: Record<string, string>,
