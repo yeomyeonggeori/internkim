@@ -46,7 +46,7 @@ type ChannelSummary = {
 	kind: 'dm' | 'group';
 	isHidden: boolean;
 	isPrivate: boolean;
-	counterpart?: MessengerPerson;
+	counterpart?: MessengerPerson & { isAgent: boolean };
 	members?: ChannelMember[];
 	myRole?: ChannelRole;
 	isWithTheAgent: boolean;
@@ -186,9 +186,15 @@ export async function bridgeConversations(): Promise<ChannelSummary[]> {
 		}));
 }
 
-function counterpartOf(channel: MessengerChannel, people: MessengerDirectory, viewer: Viewer): MessengerPerson | undefined {
+function counterpartOf(
+	channel: MessengerChannel,
+	people: MessengerPeople,
+	viewer: Viewer
+): (MessengerPerson & { isAgent: boolean }) | undefined {
 	const other = channel.participants.find((person) => !isViewer(person, people, viewer));
-	return other ? placementOf(other, people) : undefined;
+	if (!other) return undefined;
+	const placement = placementOf(other, people);
+	return { ...placement, isAgent: isTheAgent(placement, people.accounts) };
 }
 
 function roleOfViewer(channel: MessengerChannel, people: MessengerDirectory, viewer: Viewer): ChannelRole {

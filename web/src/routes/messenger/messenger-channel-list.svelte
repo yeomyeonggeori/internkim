@@ -237,7 +237,7 @@
 									image={conversation.avatarURL ?? ''}
 									memberID={conversation.counterpart?.memberID ?? ''}
 									externalID={conversation.counterpart?.externalID ?? ''}
-									{...avatarPresenceOf(conversation.counterpart?.memberID, text)}
+									{...avatarPresenceOf(conversation.counterpart, text)}
 									class="size-4"
 								/>
 

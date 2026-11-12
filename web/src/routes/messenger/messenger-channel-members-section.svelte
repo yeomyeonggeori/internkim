@@ -171,7 +171,7 @@
 						seed={member.memberID ?? member.externalID ?? ''}
 						memberID={member.memberID ?? ''}
 						externalID={member.externalID ?? ''}
-						{...avatarPresenceOf(member.memberID, text)}
+						{...avatarPresenceOf(member, text)}
 						class="size-7"
 					/>
 					<span class="truncate text-sm font-medium">{displayPersonName(member.name) || text.unnamedMember}</span>

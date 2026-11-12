@@ -123,7 +123,7 @@ export type ChannelSummary = {
 	isHidden?: boolean;
 	isPrivate?: boolean;
 	avatarURL?: string;
-	counterpart?: { memberID?: string; externalID?: string };
+	counterpart?: { memberID?: string; externalID?: string; isAgent?: boolean };
 	members?: ChannelMember[];
 	myRole?: ChannelRole;
 	isWithTheAgent?: boolean;
