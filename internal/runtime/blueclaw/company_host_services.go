@@ -217,7 +217,7 @@ func companyHostMediaService(layout CompanyHostLayout) CompanyHostService {
 }
 
 func companyHostMediaGateService(layout CompanyHostLayout) CompanyHostService {
-	return CompanyHostService{
+	service := CompanyHostService{
 		Name:                  BuzzMediaGateServiceName,
 		Description:           "internkim attachment store gate",
 		Command:               []string{layout.BinaryPath(CompanyPackageName), "media-gate"},
@@ -225,6 +225,10 @@ func companyHostMediaGateService(layout CompanyHostLayout) CompanyHostService {
 		RestartAfterSeconds:   5,
 		WaitsForTheFileAtPath: CompanyHostMediaSecretPath,
 	}
+	if layout.OwnsItsDataServices() {
+		service.Command = append(service.Command, "-file-journal-socket", CompanyHostFileJournalSocketPath)
+	}
+	return service
 }
 
 func companyHostMessengerService(layout CompanyHostLayout) CompanyHostService {
