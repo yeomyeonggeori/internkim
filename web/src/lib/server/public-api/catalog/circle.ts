@@ -5,6 +5,7 @@ import { companyRecordTool, recordSavedSchema } from './data-room';
 import { ResourceMutationEffect, type CapabilityToolDefinition } from './definition';
 import { CapabilitySideEffect, ResourceEffectIdentity } from './protocol';
 
+export const circleListInputSchema = z.strictObject({});
 export const circleSetInputSchema = z.strictObject({
 	id: circleIDSchema.describe('The lowercase English name the company host gives its folder and group, such as sales-team; it never changes'),
 	name: z.string().trim().min(1).optional().describe('What people call a circle the company made. Required for one; a default circle takes none, because the product names it'),
@@ -25,7 +26,7 @@ const circleTool = companyRecordTool('circle', 'circle', 'Company circles');
 export const circleToolDefinitions: CapabilityToolDefinition[] = [
 	circleTool('circle_list',
 		'Read every circle with the members who belong to it and the data room categories it reads. A circle is also a shared workspace folder and a shared memory on the company computer. A parent category grants all its children.',
-		z.strictObject({}), circleListResultSchema),
+		circleListInputSchema, circleListResultSchema),
 	circleTool('circle_update',
 		'Create or edit a circle. id is its lowercase English name, such as sales-team, and never changes; name is what people read and is given only to a circle the company made, since the product names its default circles in every language. readableCategories names the data room categories its members read, and a parent grants all descendants. Members change access immediately, so read circle_list and confirm who is affected first. A circle confers no administrative or editing rights.',
 		circleSetInputSchema, recordSavedSchema, true),

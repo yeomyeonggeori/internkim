@@ -1,4 +1,6 @@
+import type { z } from 'zod';
 import { capabilityToolInputSchema } from './catalog/tools';
+import { InputRefused } from './refusal';
 import { readWithNullAsAbsent } from './null-as-absent';
 import { sentencesOfSchemaRefusal } from './schema-sentences';
 import supersededInputFields from './catalog/superseded-input-fields.json';
@@ -93,10 +95,22 @@ export function toolInputRecovered(name: string, input: unknown): Record<string,
 	);
 }
 
-export function refusalOfToolInput(name: string, input: unknown): string | null {
-	const schema = capabilityToolInputSchema(name);
-	if (!schema) return null;
+export function parsedToolInput<Input>(schema: z.ZodType<Input>, input: unknown): Input {
 	const parsed = schema.safeParse(input);
-	if (parsed.success) return null;
-	return sentencesOfSchemaRefusal(parsed.error.issues, input, 'input');
+	if (!parsed.success) throw new InputRefused(sentencesOfSchemaRefusal(parsed.error.issues, input, 'input'));
+	return parsed.data;
+}
+
+export function inputOfTheCall(name: string, input: unknown): Record<string, unknown> {
+	if (input === undefined) return {};
+	if (typeof input !== 'object' || input === null || Array.isArray(input)) {
+		throw new InputRefused('input is the object the tool reads');
+	}
+	return toolInputRecovered(name, input);
+}
+
+export function inputTheHostWillRead(name: string, input: unknown): unknown {
+	const asked = inputOfTheCall(name, input);
+	const schema = capabilityToolInputSchema(name);
+	return schema ? parsedToolInput(schema, asked) : asked;
 }

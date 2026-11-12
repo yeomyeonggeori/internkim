@@ -18731,6 +18731,7 @@
           },
           "documentType": {
             "description": "Document type slug from the paperwork catalog, e.g. 'quote', 'service-agreement', 'employment-certificate'.",
+            "minLength": 1,
             "type": "string"
           },
           "filePath": {
@@ -18774,6 +18775,7 @@
           },
           "title": {
             "description": "Document title including the counterpart, e.g. 'ABC Trading onboarding consulting quote'.",
+            "minLength": 1,
             "type": "string"
           }
         },
@@ -18798,6 +18800,7 @@
           },
           "documentType": {
             "description": "Document type slug from the paperwork catalog, e.g. 'quote', 'service-agreement', 'employment-certificate'.",
+            "minLength": 1,
             "type": "string"
           },
           "filePath": {
@@ -18841,6 +18844,7 @@
           },
           "title": {
             "description": "Document title including the counterpart, e.g. 'ABC Trading onboarding consulting quote'.",
+            "minLength": 1,
             "type": "string"
           }
         },
@@ -19364,6 +19368,7 @@
           },
           "query": {
             "description": "Natural-language question or topic, e.g. 'payment terms of the service agreement with ABC Trading'.",
+            "minLength": 1,
             "type": "string"
           }
         },
@@ -21919,6 +21924,7 @@
           },
           "metric": {
             "description": "Metric key to filter by, e.g. 'annualRevenue'. Leave empty for all metrics.",
+            "minLength": 1,
             "type": "string"
           },
           "toYear": {
@@ -22574,6 +22580,7 @@
           },
           "category": {
             "description": "Record category: 'history', 'funding', 'product', 'certification', 'ip', 'award', 'reference', 'grant', or another short kebab-case label.",
+            "minLength": 1,
             "type": "string"
           },
           "date": {
@@ -22595,6 +22602,7 @@
           },
           "title": {
             "description": "Short title, e.g. 'Seed round closed' or 'Product launched'.",
+            "minLength": 1,
             "type": "string"
           }
         },
@@ -22630,6 +22638,7 @@
           },
           "category": {
             "description": "Record category: 'history', 'funding', 'product', 'certification', 'ip', 'award', 'reference', 'grant', or another short kebab-case label.",
+            "minLength": 1,
             "type": "string"
           },
           "date": {
@@ -22651,6 +22660,7 @@
           },
           "title": {
             "description": "Short title, e.g. 'Seed round closed' or 'Product launched'.",
+            "minLength": 1,
             "type": "string"
           }
         },
@@ -23835,6 +23845,7 @@
         "properties": {
           "effectiveDate": {
             "description": "The day the change took effect, YYYY-MM-DD. To start a ledger from today's register, date every opening line on the day of that register.",
+            "minLength": 1,
             "type": "string"
           },
           "fundingRoundHint": {
@@ -23843,6 +23854,7 @@
           },
           "holder": {
             "description": "The holder exactly as the shareholder register names them, e.g. 'Sample Kim' or 'Sample Ventures Fund I'.",
+            "minLength": 1,
             "type": "string"
           },
           "holderKind": {
@@ -23877,6 +23889,7 @@
         "properties": {
           "effectiveDate": {
             "description": "The day the change took effect, YYYY-MM-DD. To start a ledger from today's register, date every opening line on the day of that register.",
+            "minLength": 1,
             "type": "string"
           },
           "fundingRoundHint": {
@@ -23885,6 +23898,7 @@
           },
           "holder": {
             "description": "The holder exactly as the shareholder register names them, e.g. 'Sample Kim' or 'Sample Ventures Fund I'.",
+            "minLength": 1,
             "type": "string"
           },
           "holderKind": {
@@ -24383,6 +24397,7 @@
         "properties": {
           "entryHint": {
             "description": "The ledger line to delete: its entryID from a prior company_equity_list result. Never invent an id.",
+            "minLength": 1,
             "type": "string"
           }
         },

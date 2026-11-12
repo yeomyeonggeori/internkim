@@ -1,3 +1,5 @@
+import type { z } from 'zod';
+import type { conversationMuteInputSchema, notificationSettingsSetInputSchema } from '../catalog/notifications';
 import {
 	attendanceReachFromStored,
 	categoriesChoosableBy,
@@ -16,9 +18,9 @@ import {
 import type { ConversationMuteResult, NotificationSettingsResult } from '../catalog/notifications';
 import { InputRefused, AccessRefused, refusalOfPostgresError } from '../refusal';
 
-export type NotificationSettingsSetInput = { turnOn?: string[]; turnOff?: string[]; attendanceReach?: string };
+export type NotificationSettingsSetInput = z.infer<typeof notificationSettingsSetInputSchema>;
 
-export type ConversationMuteInput = { conversationID?: string };
+export type ConversationMuteInput = z.infer<typeof conversationMuteInputSchema>;
 
 function requesterAdministers(context: RecordContext): boolean {
 	return context.people.find((person) => person.personID === context.requesterID)?.isAdmin === true;

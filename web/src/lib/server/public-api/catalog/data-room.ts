@@ -38,6 +38,8 @@ export const dataRoomInvitationAcceptInputSchema = z.strictObject({
 });
 export const dataRoomInvitationSentSchema = z.strictObject({ shareID: z.string().uuid(), sent: z.boolean() });
 export const dataRoomInvitationAcceptedSchema = z.strictObject({ shareID: z.string().uuid(), companyID: z.string().uuid() });
+export const dataRoomLinksGetInputSchema = z.strictObject({});
+export const dataRoomGetInputSchema = z.strictObject({});
 export const recordSavedSchema = z.strictObject({ saved: z.boolean() });
 
 export function companyRecordTool(namespace: CapabilityNamespace, objectType: string, subject: string) {
@@ -60,7 +62,7 @@ export function companyRecordTool(namespace: CapabilityNamespace, objectType: st
 const dataRoomTool = companyRecordTool('dataroom', 'data_room', 'Company dataroom');
 
 export const dataRoomToolDefinitions: CapabilityToolDefinition[] = [
-	dataRoomTool('dataroom_links_get', 'Read your share links. Administrators can also see links created by other employees. Access codes are never returned again.', z.strictObject({}), dataRoomLinksSchema),
+	dataRoomTool('dataroom_links_get', 'Read your share links. Administrators can also see links created by other employees. Access codes are never returned again.', dataRoomLinksGetInputSchema, dataRoomLinksSchema),
 	dataRoomTool('dataroom_link_add', 'Create a code-protected share link that reads as one circle, within your own permissions. Every category follows the circle and creator permissions. Lifetime defaults to three days and cannot exceed seven days. Returns a newly generated six digit code once. Recipients must acknowledge the confidentiality notice.', dataRoomLinkInputSchema, dataRoomLinkCreatedSchema, true),
 	dataRoomTool('dataroom_link_delete', 'Revoke a link created by you, or any company link if you are an administrator. Existing guest sessions lose access immediately; downloaded files cannot be recalled.', dataRoomLinkRevokeSchema, recordSavedSchema, true),
 	{
@@ -74,7 +76,7 @@ export const dataRoomToolDefinitions: CapabilityToolDefinition[] = [
 	},
 	dataRoomTool('dataroom_get',
 		'Read the company data room categories and its shares with people outside the company. A parent code grants all current and future children. Reads expose only permitted categories; administrators can manage the template. Circles and who belongs to them are circle_list.',
-		z.strictObject({}), dataRoomGetResultSchema),
+		dataRoomGetInputSchema, dataRoomGetResultSchema),
 	dataRoomTool('dataroom_category_update',
 		'Create or rename a data room category. Use one uppercase mnemonic letter for a parent and two for a filing category. Code identity and ancestry remain stable. X is the reserved unclassified inbox. A new child is readable by every existing recipient of its parent; confirm that audience first.',
 		dataRoomCategorySetInputSchema, recordSavedSchema, true),

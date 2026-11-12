@@ -3,7 +3,6 @@ import { z } from 'zod';
 import { addMember, asMember, controlPlane, provisionCompany, sessionForMember } from '../../src/lib/server/control-plane';
 import { projectURL, publishableKey, serviceRoleKey, signingKey } from '../support/supabase-environment';
 import { heldToTheContract } from './tool-answers';
-import { toolInputRecovered } from '../../src/lib/server/public-api/tool-input';
 import { leavesTaskLabelsUndecided } from '../../src/lib/server/public-api/record/task-labels';
 import { circleListResultSchema } from '../../src/lib/data-room/schemas';
 import { momentSchema, momentSpanOf } from '../../src/lib/moment';
@@ -182,7 +181,8 @@ describe('what the company states about itself', () => {
 	test('refuses a number that does not say whether it is expected or reported', async () => {
 		const refused = await asAdmin('company_metric_record', { metric: 'annualRevenue', period: '2027', amount: { amount: 1, currency: 'KRW' } });
 
-		expect(refused.status).toBe(422);
+		expect(refused.status).toBe(400);
+		expect(errorOf(refused)).toContain('input.basis');
 	});
 
 	test('replaces the expected number for a period with the reported one', async () => {
@@ -203,7 +203,8 @@ describe('what the company states about itself', () => {
 			value: 9_000
 		});
 
-		expect(refused.status).toBe(422);
+		expect(refused.status).toBe(400);
+		expect(errorOf(refused)).toContain('input.period');
 	});
 
 	test('records a half, and lists each period by when it began', async () => {
@@ -475,7 +476,9 @@ describe('the category data room', () => {
 		});
 		expect(named.status).toBe(200);
 		expect(await revenueField()).toEqual({ kind: 'metric', field: 'annualRevenue', categoryCode: 'FS', name: 'Yearly revenue', nameKO: '연 매출액', unit: null });
-		expect(toolInputRecovered('dataroom_field_name_update', { kind: 'metric', field: 'annualRevenue', nameKO: ' ' })).not.toHaveProperty('nameKO');
+		const blank = await asAdmin('dataroom_field_name_update', { kind: 'metric', field: 'annualRevenue', nameKO: ' ' });
+		expect(blank.status).toBe(200);
+		expect(await revenueField()).toMatchObject({ name: null, nameKO: null });
 		const cleared = await asAdmin('dataroom_field_name_update', { kind: 'metric', field: 'annualRevenue' });
 		expect(cleared.status).toBe(200);
 		expect(await revenueField()).toMatchObject({ categoryCode: 'FS', name: null, nameKO: null });
@@ -576,8 +579,8 @@ describe('the document ledger', () => {
 	});
 
 	test('numbers a second colleague\'s document after one it cannot see', async () => {
-		const first = await asSample('company_document_register', { documentType: 'invoice', title: 'Sample invoice one' });
-		const second = await asColleague('company_document_register', { documentType: 'invoice', title: 'Sample invoice two' });
+		const first = await asSample('company_document_register', { documentType: 'invoice', title: 'Sample invoice one', summary: 'The first sample invoice.' });
+		const second = await asColleague('company_document_register', { documentType: 'invoice', title: 'Sample invoice two', summary: 'The second sample invoice.' });
 
 		expect(resultOf(first).documentNumber).toBe('INV-2026-001');
 		expect(second.status).toBe(200);

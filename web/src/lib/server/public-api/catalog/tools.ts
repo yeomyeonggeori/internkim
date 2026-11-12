@@ -1285,6 +1285,8 @@ const attendanceHintSchema = z.string().min(1).max(256).describe(
 
 const attendanceReasonSchema = z.string();
 
+export const attendanceCurrentGetInputSchema = z.strictObject({});
+
 export const attendanceListInputSchema = z.strictObject({
   personHints: z.array(z.string()).describe(personHintsDescription('attendance')).optional(),
   scope: z.enum(WorkspaceTaskScope).describe(whoseScopeDescription('attendance')).optional(),
@@ -2056,7 +2058,7 @@ const attendanceToolDefinitions: CapabilityToolDefinition[] = [
     version: '1',
     estimatedLatency: CapabilityEstimatedLatency.Low,
     modelVisibility: CapabilityModelVisibility.Hidden,
-    inputSchema: z.strictObject({}),
+    inputSchema: attendanceCurrentGetInputSchema,
     result: { schema: currentAttendanceSchema, effects: [] },
     sideEffect: CapabilitySideEffect.Read,
   },
