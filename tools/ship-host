@@ -9,9 +9,11 @@ back on the version it ran.
 
 --release cuts a new X.Y.Z from the latest tag: PATCH raised, or MINOR or MAJOR
 with --minor or --major. Nobody types the number. Its GitHub release on testing
-creates the tag; it runs the rigs, promotes the release to stable and upgrades
-our host. A failure after the host was touched puts the host and stable back on
-the previous stable release and marks the failed one a prerelease.
+creates the tag; it runs the rigs, installs the release on our host by its tag
+while it is still on testing, and promotes it to stable only after our host has
+run it. A failure on our host puts the host back on the version it ran, and the
+release stays on testing. --skip-host stops after the rigs, before our host and
+before stable.
 
 Every step prints one line and a failing step stops the run.
 
@@ -27,7 +29,7 @@ import subprocess
 import sys
 import tempfile
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
 
 REPOSITORY_ROOT = Path(__file__).resolve().parent.parent
@@ -93,18 +95,17 @@ class Shipment:
     tag: str = ""
     host_tag: str = ""
     host_architecture: str = PACKAGE_ARCHITECTURE
-    failed_actions: list = field(default_factory=list)
 
 
 def parse_arguments(arguments):
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     mode = parser.add_mutually_exclusive_group(required=True)
     mode.add_argument("--host-only", action="store_true", dest="is_host_only", help="build our host's package here and install it on our host, publishing no release")
-    mode.add_argument("--release", action="store_true", dest="is_release", help="publish a release to testing, test it, promote it to stable and upgrade our host")
+    mode.add_argument("--release", action="store_true", dest="is_release", help="publish a release to testing, test it, upgrade our host to it and promote it to stable")
     bump = parser.add_mutually_exclusive_group()
     bump.add_argument("--minor", action="store_const", const="minor", dest="bump", help="with --release, raise MINOR and reset PATCH")
     bump.add_argument("--major", action="store_const", const="major", dest="bump", help="with --release, raise MAJOR and reset MINOR and PATCH")
-    parser.add_argument("--skip-host", action="store_true", help="with --release, stop after stable is promoted")
+    parser.add_argument("--skip-host", action="store_true", help="with --release, stop after the rigs: the release stays on testing and our host is not touched")
     parser.add_argument("--plan", action="store_true", dest="is_plan", help="print the steps and the tags, change nothing")
     parsed = parser.parse_args(arguments)
     if parsed.skip_host and parsed.is_host_only:
@@ -314,8 +315,8 @@ def run_people_upgrade_rig(shipment):
     shipment.run(rig_command(shipment, ["--people-upgrade"]), log_path=rig_log_path(shipment, "people-upgrade-rig"))
 
 
-def promote_to_stable(shipment, tag=None):
-    shipment.run([INTERNKIM, "release", "host", "--channel", "stable", "--version", tag or shipment.tag])
+def promote_to_stable(shipment):
+    shipment.run([INTERNKIM, "release", "host", "--channel", "stable", "--version", shipment.tag])
 
 
 def read_host_architecture(shipment):
@@ -404,25 +405,14 @@ def host_downgrade_script(tag, architecture):
     )
 
 
-def rollback_actions(shipment):
-    previous = shipment.previous_tag
-    host_actions = [("roll the host back to " + shipment.host_tag, lambda: roll_the_host_back(shipment))] if shipment.host_tag else []
-    if shipment.options.is_host_only:
-        return host_actions
-    return host_actions + [
-        ("mark " + shipment.tag + " a prerelease", lambda: shipment.run(["gh", "release", "edit", shipment.tag, "--repo", RELEASE_REPOSITORY, "--prerelease"])),
-        ("point stable at " + previous, lambda: promote_to_stable(shipment, previous)),
-        ("make " + previous + " the latest release", lambda: shipment.run(["gh", "release", "edit", previous, "--repo", RELEASE_REPOSITORY, "--latest"])),
-    ]
-
-
 def roll_back(shipment):
-    for description, action in rollback_actions(shipment):
-        print(f"  rollback: {description}")
-        try:
-            action()
-        except (CommandFailure, ShipFailure) as failure:
-            shipment.failed_actions.append(f"{description} ({failure})")
+    description = "roll the host back to " + shipment.host_tag
+    print(f"  rollback: {description}")
+    try:
+        roll_the_host_back(shipment)
+    except (CommandFailure, ShipFailure) as failure:
+        return f"rollback left undone: {description} ({failure})"
+    return "rolled back"
 
 
 def upgrade_host_or_roll_back(shipment):
@@ -431,9 +421,7 @@ def upgrade_host_or_roll_back(shipment):
     try:
         upgrade_host(shipment)
     except (CommandFailure, ShipFailure) as failure:
-        roll_back(shipment)
-        left_undone = "; rollback left undone: " + ", ".join(shipment.failed_actions) if shipment.failed_actions else "; rolled back"
-        raise ShipFailure("upgrade our own host", f"{failure}{left_undone}")
+        raise ShipFailure("upgrade our own host", f"{failure}; {roll_back(shipment)}")
 
 
 def host_only_steps():
@@ -454,12 +442,12 @@ def planned_steps(options):
         (lambda shipment: f"download {shipment.tag} and {shipment.previous_tag} and verify their checksums", download_and_verify),
         (lambda shipment: f"run the {RIG_DISTRIBUTION} install and upgrade rig, {shipment.previous_tag} to {shipment.tag}", run_install_rig),
         (lambda shipment: f"upgrade a host that already has people, {shipment.previous_tag} to {shipment.tag}", run_people_upgrade_rig),
-        (lambda shipment: f"promote {shipment.tag} to stable", promote_to_stable),
     ]
     if options.skip_host:
         return steps
     return steps + [
-        (lambda shipment: f"upgrade our own host to {shipment.tag}, watch it for {SETTLE_SECONDS} seconds, roll it back to the release it ran on failure", upgrade_host_or_roll_back),
+        (lambda shipment: f"upgrade our own host to {shipment.tag} while it is on testing, watch it for {SETTLE_SECONDS} seconds, roll it back to the release it ran on failure", upgrade_host_or_roll_back),
+        (lambda shipment: f"promote {shipment.tag} to stable", promote_to_stable),
     ]
 
 
@@ -482,6 +470,9 @@ def ship(shipment):
         step(shipment)
     if shipment.options.is_host_only:
         print(f"installed {shipment.tag} on our host; stable stays {shipment.previous_tag}")
+        return
+    if shipment.options.skip_host:
+        print(f"released {shipment.tag} on testing; stable stays {shipment.previous_tag}")
         return
     print(f"shipped {shipment.tag}; stable was {shipment.previous_tag}")
 
