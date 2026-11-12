@@ -17,8 +17,8 @@ func TestASigningSecretReadsTheDirectoryOnce(t *testing.T) {
 		if isTheDirectoryAsked(request) {
 			directoryReads.Add(1)
 			return jsonResponse(http.StatusOK, `{"members":[
-				{"memberID":"member-active","email":"active@example.com","status":"active"},
-				{"memberID":"member-departed","email":"departed@example.com","status":"departed"}
+				{"memberID":"member-active","email":"active@example.com","status":"active","isWorking":true,"canReadTheCompany":true},
+				{"memberID":"member-departed","email":"departed@example.com","status":"departed","isWorking":false,"canReadTheCompany":false}
 			]}`, nil), nil
 		}
 		if isBlueclawPolicyGet(request) {

@@ -16,7 +16,7 @@ import (
 func serviceWhoseDirectoryDroppedSomebody(t *testing.T) *Service {
 	t.Helper()
 	service := serviceWhoseDirectorySays(t, `{"members":[
-		{"memberID":"member-1","email":"member@example.com","name":"이샘플","role":"member","status":"active"}
+		{"memberID":"member-1","email":"member@example.com","name":"이샘플","role":"member","status":"active","isWorking":true,"canReadTheCompany":true}
 	]}`)
 	service.Configuration.BlueclawPolicyDeliveryPath = filepath.Join(t.TempDir(), "policy.json")
 	answering := service.HTTPClient.Transport

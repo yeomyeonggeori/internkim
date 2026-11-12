@@ -160,7 +160,7 @@ async function colleaguesOf(record: SupabaseClient, companyID: string): Promise<
 		.from('member')
 		.select('id, team_id, supervisor_id, preferences')
 		.eq('company_id', companyID)
-		.neq('status', 'withdrawn')
+		.eq('can_read_the_company', true)
 		.returns<ColleagueRow[]>();
 	if (error) throw new Error(error.message);
 	return (data ?? []).map((member) => ({

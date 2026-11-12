@@ -84,7 +84,7 @@ func serviceNamingTheSampleWithNoOpenRoom(t *testing.T) (*Service, *profilesHear
 	pointAtACompanyDirectory(t, service)
 	service.HTTPClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
 		if isTheDirectoryAsked(request) {
-			return jsonResponse(http.StatusOK, `{"members":[{"memberID":"member-1","email":"sample@example.com","name":"샘플 이","status":"active"}]}`, nil), nil
+			return jsonResponse(http.StatusOK, `{"members":[{"memberID":"member-1","email":"sample@example.com","name":"샘플 이","status":"active","isWorking":true,"canReadTheCompany":true}]}`, nil), nil
 		}
 		if isBlueclawPolicyGet(request) {
 			return jsonResponse(http.StatusOK, `{"people":[{"personID":"p-1","emails":["sample@example.com"]}]}`, nil), nil

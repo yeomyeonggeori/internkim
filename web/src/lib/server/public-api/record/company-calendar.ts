@@ -98,7 +98,7 @@ export async function calendarMembers(
 	const members = await caller
 		.from('member')
 		.select('id, name, email')
-		.neq('status', 'withdrawn')
+		.eq('is_in_the_record', true)
 		.returns<CompanyCalendarMember[]>();
 	if (members.error) throw new Error(members.error.message);
 	return new Map(members.data.map((member) => [member.id, member]));

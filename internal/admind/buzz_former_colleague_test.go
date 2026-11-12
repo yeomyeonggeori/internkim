@@ -19,9 +19,9 @@ import (
 func TestAMemberWhoLeftHoldingNoSeatIsShownOutOfTheCommunity(t *testing.T) {
 	relay := disposableRelayDatabase(t)
 	service := serviceWhoseDirectoryHas(t, `{"members":[
-		{"memberID":"member-active","email":"active@example.com","status":"active"},
-		{"memberID":"member-departed","email":"departed@example.com","status":"departed","messenger":{"buzz":"`+recordedKeyOfTheDeparted+`"}},
-		{"memberID":"member-withdrawn","email":"withdrawn@example.com","status":"withdrawn"}
+		{"memberID":"member-active","email":"active@example.com","status":"active","isWorking":true,"canReadTheCompany":true},
+		{"memberID":"member-departed","email":"departed@example.com","status":"departed","isWorking":false,"canReadTheCompany":false,"messenger":{"buzz":"`+recordedKeyOfTheDeparted+`"}},
+		{"memberID":"member-withdrawn","email":"withdrawn@example.com","status":"withdrawn","isWorking":false,"canReadTheCompany":false}
 	]}`)
 	ownerKey := derivedKey(t, buzzidentity.BootstrapSubject)
 	activeKey := derivedKey(t, versionedSubject("active@example.com", 1))

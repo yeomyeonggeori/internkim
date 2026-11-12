@@ -29,7 +29,7 @@ func newPublicToolWorkspaceTestService(t *testing.T, workspaceFiles map[string]s
 	})
 	holdWorkspaceSettingsForTest(service, "Asia/Seoul", workspaceLanguageKorean)
 	seatPeopleInACompanyDirectoryForTest(t, service)
-	directory := companyDirectoryHolding(centralplane.Member{MemberID: "person-member", Email: "member@example.com", Name: "Member", Role: "member", Status: "active"})
+	directory := companyDirectoryHolding(centralplane.Member{MemberID: "person-member", Email: "member@example.com", Name: "Member", Role: "member", Status: "active", IsWorking: true, CanReadTheCompany: true})
 	service.HTTPClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
 		if isCompanyDirectoryRequest(request) {
 			return directory.respond(t, request)

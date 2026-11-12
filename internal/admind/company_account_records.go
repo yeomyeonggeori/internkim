@@ -17,7 +17,7 @@ func (service *Service) companyUserRecords(ctx context.Context) ([]adminUserMuta
 	}
 	records := make([]adminUserMutation, 0, len(members))
 	for _, member := range members {
-		if member.HasLeftTheCompany() {
+		if !member.CanReadTheCompany {
 			continue
 		}
 		records = append(records, accountRecordOfCompanyMember(member))

@@ -37,6 +37,11 @@ When the API marks someone `departed` or `withdrawn`, or erases the row, it
 bans their account in Supabase Auth, so neither their password nor a refresh
 token signs them in again. Inviting them back lifts the ban.
 
+Three generated columns answer what a status means, so nothing else spells the
+status words: `is_in_the_record` (not `withdrawn`, so a colleague who left keeps
+their name on what they did), `can_read_the_company` (not `departed` or
+`withdrawn`, which is what `my_member()` asks) and `is_working` (`active`).
+
 The account's address is the source of truth and `member.email` is its
 projection. Changing someone's address is an update of the account, never a
 re-invitation, so `user_id` never moves.
