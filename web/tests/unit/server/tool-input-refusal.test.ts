@@ -35,6 +35,7 @@ describe('the input gate refuses only what the record would refuse', () => {
 			refusalOfToolInput('company_metric_record', {
 				metric: 'operatingProfit',
 				period: '2025',
+				basis: 'reported',
 				amount: { amount: 1_000, currency: 'KRW' },
 				usdEquivalent: 1
 			})
