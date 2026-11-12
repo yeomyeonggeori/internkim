@@ -30,6 +30,21 @@ function taskFixture(taskID: string, content: string, fields: Partial<RecordTask
 	};
 }
 
+function extraTasks(month: 'october' | 'december', count: number): RecordTask[] {
+	const monthNumber = month === 'october' ? 10 : 12;
+	return Array.from({ length: count }, (_, index) => {
+		const dateISO = `2026-${monthNumber}-${String(index + 10).padStart(2, '0')}`;
+		const taskID = `30000000-0000-4000-8000-${monthNumber}00000000${String(index).padStart(2, '0')}`;
+		return taskFixture(taskID, `Fixture 로드맵 ${monthNumber}월 업무 ${index + 1}`, { status: 'planned', startDate: dateISO, endDate: dateISO });
+	});
+}
+
+function scrollingFixture(): TaskRoadmapFixture {
+	const fixture = new TaskRoadmapFixture();
+	fixture.tasks = [...extraTasks('october', 15), ...fixture.tasks, ...extraTasks('december', 15)];
+	return fixture;
+}
+
 type TaskDateWrite = { taskHint: string; startsAt?: string; endsAt?: string };
 
 class TaskRoadmapFixture {
@@ -131,6 +146,26 @@ function roadmapRow(roadmap: Locator, taskID: string): Locator {
 }
 
 
+function weekSelector(page: Page): Locator {
+	return page.getByRole('button', { name: '주 선택' });
+}
+
+async function chooseWeek(page: Page, label: string): Promise<void> {
+	await weekSelector(page).click();
+	await page.getByRole('option', { name: label, exact: true }).click();
+}
+
+async function scrollTop(roadmap: Locator): Promise<number> {
+	return roadmap.evaluate(element => element.scrollTop);
+}
+
+async function rowOffsetBelowHeader(roadmap: Locator, taskID: string): Promise<number> {
+	const headerBox = await roadmap.locator(':scope > div').first().boundingBox();
+	const rowBox = await roadmapRow(roadmap, taskID).boundingBox();
+	if (!headerBox || !rowBox) throw new Error('The roadmap draws its header and the row');
+	return Math.round(rowBox.y - (headerBox.y + headerBox.height));
+}
+
 function shownDays(roadmap: Locator): Locator {
 	return roadmap.locator('[data-roadmap-day]');
 }
@@ -147,7 +182,7 @@ test('supplementary fixture: a wide screen shows two weeks from this Sunday with
 	expect(await firstShownDay(roadmap)).toBe(november(8));
 	await expect(shownDays(roadmap).last()).toHaveAttribute('data-roadmap-day', november(21));
 	expect(await roadmap.evaluate(element => element.scrollWidth - element.clientWidth)).toBe(0);
-	await expect(page.getByRole('button', { name: '월 선택' })).toContainText('11월');
+	await expect(weekSelector(page)).toContainText('11/8 – 11/21');
 	await expect(page.getByRole('button', { name: '날짜로 주차 이동' })).toHaveCount(0);
 });
 
@@ -218,38 +253,89 @@ test('supplementary fixture: choosing a date in the header makes it the first da
 	await expect(shownDays(roadmap).last()).toHaveAttribute('data-roadmap-day', november(25));
 });
 
-test('supplementary fixture: the month selector opens the week of the first and follows the window', async ({ page }) => {
+test('supplementary fixture: the week selector opens the chosen week and follows the window', async ({ page }) => {
 	const roadmap = await openRoadmap(page, new TaskRoadmapFixture());
-	const monthButton = page.getByRole('button', { name: '월 선택' });
-	await page.getByRole('button', { name: '다음 달' }).click();
+	await chooseWeek(page, '11/29 – 12/12');
 	await expect(shownDays(roadmap).first()).toHaveAttribute('data-roadmap-day', november(29));
 	await expect(roadmap.locator('[data-roadmap-day="2026-12-01"]')).toContainText('12/1');
-	await expect(monthButton).toContainText('12월');
+	await expect(weekSelector(page)).toContainText('11/29 – 12/12');
 	await page.getByRole('button', { name: '이전 주' }).click();
 	await expect(shownDays(roadmap).first()).toHaveAttribute('data-roadmap-day', november(22));
-	await expect(monthButton).toContainText('11월');
-	await page.getByRole('button', { name: '이전 달' }).click();
-	await expect(shownDays(roadmap).first()).toHaveAttribute('data-roadmap-day', '2026-10-04');
-	await expect(monthButton).toContainText('10월');
-	await monthButton.click();
-	await page.getByRole('option', { name: '이번 달' }).click();
+	await expect(weekSelector(page)).toContainText('11/22 – 12/5');
+	await roadmap.locator(`[data-roadmap-day="${november(24)}"]`).click();
+	await expect(shownDays(roadmap).first()).toHaveAttribute('data-roadmap-day', november(24));
+	await expect(weekSelector(page)).toContainText('11/24 – 12/7');
+	await chooseWeek(page, '11/22 – 12/5');
+	await expect(shownDays(roadmap).first()).toHaveAttribute('data-roadmap-day', november(22));
+	await chooseWeek(page, '이번 주');
 	await expect(shownDays(roadmap).first()).toHaveAttribute('data-roadmap-day', november(8));
+	await expect(weekSelector(page)).toContainText('11/8 – 11/21');
 });
 
 test('supplementary fixture: the window stops six months from this month', async ({ page }) => {
 	const roadmap = await openRoadmap(page, new TaskRoadmapFixture());
-	const monthButton = page.getByRole('button', { name: '월 선택' });
-	await monthButton.click();
-	await page.getByRole('option', { name: '2027년 5월' }).click();
-	await expect(monthButton).toContainText('2027년 5월');
+	await weekSelector(page).click();
+	await expect(page.getByRole('option').first()).toHaveText('5/3 – 5/16');
+	await expect(page.getByRole('option').last()).toHaveText('2027 5/23 – 6/5');
+	await page.getByRole('option', { name: '2027 5/9 – 5/22', exact: true }).click();
+	await expect(weekSelector(page)).toContainText('2027 5/9 – 5/22');
 	for (let week = 0; week < 6; week += 1) {
 		const next = page.getByRole('button', { name: '다음 주' });
 		if (await next.isDisabled()) break;
 		await next.click();
 	}
 	await expect(page.getByRole('button', { name: '다음 주' })).toBeDisabled();
-	await expect(monthButton).toContainText('2027년 5월');
+	await expect(weekSelector(page)).toContainText('2027 5/23 – 6/5');
 	expect(await firstShownDay(roadmap)).toBe('2027-05-23');
+});
+
+test('supplementary fixture: choosing a week brings its first task to the top, and the week arrows leave the list where it is', async ({ page }) => {
+	const roadmap = await openRoadmap(page, scrollingFixture());
+	expect(await scrollTop(roadmap)).toBe(0);
+	await chooseWeek(page, '11/22 – 12/5');
+	await expect(shownDays(roadmap).first()).toHaveAttribute('data-roadmap-day', november(22));
+	await expect.poll(() => rowOffsetBelowHeader(roadmap, parentID)).toBe(0);
+	const revealedTop = await scrollTop(roadmap);
+	expect(revealedTop).toBeGreaterThan(0);
+	await page.getByRole('button', { name: '다음 주' }).click();
+	await expect(shownDays(roadmap).first()).toHaveAttribute('data-roadmap-day', november(29));
+	await page.getByRole('button', { name: '이전 주' }).click();
+	await page.getByRole('button', { name: '이전 주' }).click();
+	await expect(shownDays(roadmap).first()).toHaveAttribute('data-roadmap-day', november(15));
+	expect(await scrollTop(roadmap)).toBe(revealedTop);
+});
+
+test('supplementary fixture: the roadmap, its first day and its scroll come back after the page is left', async ({ page }) => {
+	const roadmap = await openRoadmap(page, scrollingFixture());
+	await page.getByRole('button', { name: '다음 주' }).click();
+	await expect(shownDays(roadmap).first()).toHaveAttribute('data-roadmap-day', november(15));
+	await roadmap.evaluate(element => { element.scrollTop = 300; });
+	const leftTop = await scrollTop(roadmap);
+	expect(leftTop).toBeGreaterThan(0);
+	await expect.poll(() => page.evaluate(() => sessionStorage.getItem('internkim:task-view:v1'))).toContain(`"roadmapScrollTop":${leftTop}`);
+	await page.reload();
+	await expect(page.locator('[data-task-ready="true"]')).toBeVisible();
+	await expect(page.getByRole('tab', { name: '로드맵' })).toHaveAttribute('aria-selected', 'true');
+	await expect(roadmap).toBeVisible();
+	await expect(shownDays(roadmap).first()).toHaveAttribute('data-roadmap-day', november(15));
+	await expect.poll(() => scrollTop(roadmap)).toBe(leftTop);
+});
+
+test('supplementary fixture: the roadmap, its first day and its scroll come back from another menu', async ({ page }) => {
+	const roadmap = await openRoadmap(page, scrollingFixture());
+	await page.getByRole('button', { name: '다음 주' }).click();
+	await expect(shownDays(roadmap).first()).toHaveAttribute('data-roadmap-day', november(15));
+	await roadmap.evaluate(element => { element.scrollTop = 300; });
+	const leftTop = await scrollTop(roadmap);
+	expect(leftTop).toBeGreaterThan(0);
+	await page.getByRole('link', { name: '일정', exact: true }).click();
+	await expect(page).not.toHaveURL(/\/task/);
+	await expect(roadmap).toHaveCount(0);
+	await page.goBack();
+	await expect(page.getByRole('tab', { name: '로드맵' })).toHaveAttribute('aria-selected', 'true');
+	await expect(roadmap).toBeVisible();
+	await expect(shownDays(roadmap).first()).toHaveAttribute('data-roadmap-day', november(15));
+	await expect.poll(() => scrollTop(roadmap)).toBe(leftTop);
 });
 
 test('supplementary fixture: holidays and weekends are red, and child progress shows on parents only', async ({ page }) => {
