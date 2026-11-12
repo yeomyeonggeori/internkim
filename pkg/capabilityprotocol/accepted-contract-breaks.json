@@ -1238,5 +1238,20 @@
 		"path": "company_metric_list.result.metrics[].basis",
 		"reason": "Whether a metric is what the company expects or what it reported was guessed from when it was last written, so a note corrected after the period ended turned a projection into a result. The caller now says which, and nothing reads it from the calendar.",
 		"release": "the metric basis release carries the updated catalog to company hosts before the web/API deployment that requires basis"
+	},
+	{
+		"path": "message_send.input.pin",
+		"reason": "No messenger a company runs pins a message. message_send refused every call that set pin, and message_update accepted isPinned and did nothing with it, so the field promised something the tool never did.",
+		"release": "the message tools release carries the updated catalog to company hosts with the web/API deployment; a host on the older catalog that asks with the field is refused at the schema instead of at the messenger"
+	},
+	{
+		"path": "message_update.input.isPinned",
+		"reason": "No messenger a company runs pins a message. message_send refused every call that set pin, and message_update accepted isPinned and did nothing with it, so the field promised something the tool never did.",
+		"release": "the message tools release carries the updated catalog to company hosts with the web/API deployment; a host on the older catalog that asks with the field is refused at the schema instead of at the messenger"
+	},
+	{
+		"path": "message_update.result.isPinned",
+		"reason": "message_update never answered with it: nothing pins a message, so there was no state to report.",
+		"release": "the message tools release carries the updated catalog to company hosts with the web/API deployment; a host on the older catalog that asks with the field is refused at the schema instead of at the messenger"
 	}
 ]

@@ -17,6 +17,7 @@ type chatdMessageSearchRequest struct {
 	ReadAsRequester    bool     `json:"readAsRequester"`
 	Queries            []string `json:"queries"`
 	Limit              int      `json:"limit,omitempty"`
+	Cursor             string   `json:"cursor,omitempty"`
 }
 
 type chatdMessageSearchCandidate struct {
@@ -35,6 +36,7 @@ type chatdMessageSearchCandidate struct {
 type chatdMessageSearchResponse struct {
 	ChannelID  string                        `json:"channelID"`
 	Candidates []chatdMessageSearchCandidate `json:"candidates"`
+	NextCursor string                        `json:"nextCursor,omitempty"`
 }
 
 func (service Service) invokeChatdPlatformMessageSearch(ctx context.Context, request capabilities.ToolInvokeRequest, input platformMessageSearchInput) (capabilities.ToolInvokeResponse, error) {
@@ -158,6 +160,7 @@ func chatdMessageSearchRequestFromInput(toolContext capabilities.ToolInvokeConte
 		RequesterPubkeyHex: input.RequesterPubkeyHex,
 		Queries:            input.Queries,
 		Limit:              input.Limit,
+		Cursor:             strings.TrimSpace(input.Cursor),
 	}
 	scope := normalizedChatdMessageSearchScope(input.Scope, toolContext, input)
 	if len(input.MessageIDs) > 0 {
@@ -240,6 +243,8 @@ func canonicalChatdMessageSearchResult(response chatdMessageSearchResponse, inpu
 		AuthoredBy: canonicalPlatformMessageSearchAuthor(input.AuthoredBy),
 		MessageIDs: deletableMessageIDs,
 		Candidates: candidates,
+		NextCursor: response.NextCursor,
+		HasMore:    response.NextCursor != "",
 	}
 }
 

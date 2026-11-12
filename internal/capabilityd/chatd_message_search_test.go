@@ -349,3 +349,71 @@ func TestMessageDeleteApprovalPreviewNeverBlocksOnALookupFailure(testContext *te
 		testContext.Fatalf("an unreachable lookup must resolve to no target, got %q", response.Status)
 	}
 }
+
+func TestASearchCarriesItsCursorAndAnswersWithTheNextOne(t *testing.T) {
+	chatd := answeringPerCall(func(request *http.Request) (int, string) {
+		if strings.HasSuffix(request.URL.Path, "/message.search") {
+			return http.StatusOK, `{"candidates":[{"messageID":"older","channelID":"channel-1","authorPubkeyHex":"` + requesterPubkeyHex + `","text":"앞선 글"}],"nextCursor":"page-three"}`
+		}
+		return searchingAsTheRequester(request)
+	})
+
+	answered, errorValue := channelService(t, chatd).invokePlatformMessageSearch(context.Background(),
+		askedThroughTheAPI("message_search", `{"scope":"channel","channelID":"channel-1","cursor":" page-two "}`))
+
+	if errorValue != nil || answered.IsError {
+		t.Fatalf("expected the page to be read, got %+v %v", answered, errorValue)
+	}
+	searches := searchAskedOfChatd(t, chatd)
+	if len(searches) != 1 || searches[0].Cursor != "page-two" {
+		t.Fatalf("chatd was asked %+v; the page the caller named is the page read", searches)
+	}
+	if !strings.Contains(string(answered.Result), `"nextCursor":"page-three"`) || !strings.Contains(string(answered.Result), `"hasMore":true`) {
+		t.Fatalf("answered %s; a page with more behind it says so and names the way there", answered.Result)
+	}
+}
+
+func TestASearchWithNothingBehindItSaysSo(t *testing.T) {
+	chatd := answeringPerCall(searchingAsTheRequester)
+
+	answered, _ := channelService(t, chatd).invokePlatformMessageSearch(context.Background(),
+		askedThroughTheAPI("message_search", `{"scope":"directMessage","personHint":"박예시"}`))
+
+	if strings.Contains(string(answered.Result), `"nextCursor"`) || !strings.Contains(string(answered.Result), `"hasMore":false`) {
+		t.Fatalf("answered %s; the last page names no next one", answered.Result)
+	}
+}
+
+func TestAMessageIsChangedWithTheEyesOfWhoeverAsked(t *testing.T) {
+	throughTheAgent := func(toolName string, input string) capabilities.ToolInvokeRequest {
+		return inAChannel(channelToolCall(toolName, input))
+	}
+	changes := map[string]string{
+		"message_update": `{"messageID":"said-in-private","text":"고친 글"}`,
+		"message_delete": `{"messageIDs":["said-in-private"]}`,
+	}
+	routes := map[string]string{"message_update": "message.edit", "message_delete": "message_delete"}
+	callers := map[bool]func(string, string) capabilities.ToolInvokeRequest{false: throughTheAgent, true: askedThroughTheAPI}
+	for toolName, input := range changes {
+		for isTheRequestersOwnCall, calling := range callers {
+			chatd := answering(`{}`)
+
+			answered, errorValue := channelService(t, chatd).invokePlatformMessageTool(context.Background(), calling(toolName, input))
+
+			if errorValue != nil || answered.IsError {
+				t.Fatalf("%s (own call: %v): expected the change to be asked for, got %+v %v", toolName, isTheRequestersOwnCall, answered, errorValue)
+			}
+			asked := askedOf(chatd, routes[toolName])
+			if len(asked) != 1 {
+				t.Fatalf("%s (own call: %v): chatd was asked %+v", toolName, isTheRequestersOwnCall, chatd.asked)
+			}
+			var change chatdMessageChange
+			if errorValue := json.Unmarshal([]byte(asked[0].Body), &change); errorValue != nil {
+				t.Fatal(errorValue)
+			}
+			if change.MessageID != "said-in-private" || change.RequesterPubkeyHex != requesterPubkeyHex || change.ReadAsRequester != isTheRequestersOwnCall {
+				t.Fatalf("%s (own call: %v): chatd was asked %+v", toolName, isTheRequestersOwnCall, change)
+			}
+		}
+	}
+}

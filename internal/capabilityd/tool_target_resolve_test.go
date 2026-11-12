@@ -85,7 +85,7 @@ func approvalTargetInvokeRequest(toolName string, input json.RawMessage) capabil
 	return capabilities.ToolInvokeRequest{
 		ToolName: toolName,
 		Input:    input,
-		Context:  capabilities.ToolInvokeContext{RequesterEmail: "member@example.com"},
+		Context:  capabilities.ToolInvokeContext{RequesterEmail: "member@example.com", RequesterPlatformUserID: strings.Repeat("a", 64)},
 	}
 }
 
