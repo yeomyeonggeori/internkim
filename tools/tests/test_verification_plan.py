@@ -104,7 +104,7 @@ def submodule_paths(repository_root):
 
 def groups_selected_for(changed, **choices):
     module = verification_module()
-    arguments = argparse.Namespace(**({"base": "origin/main", "only": None, "all": False, "ui": None, "test": None} | choices))
+    arguments = argparse.Namespace(**({"base": "origin/main", "only": None, "all": False, "ui": None} | choices))
     output = io.StringIO()
     with patch.object(module, "user_interface_areas", return_value=["crm", "shell", "task"]), patch.object(module, "changed_paths_against", return_value=changed), redirect_stdout(output):
         groups = module.groups_to_run(arguments)
@@ -130,41 +130,63 @@ class VerificationPlanTests(unittest.TestCase):
         selected, _ = groups_selected_for([], all=True)
         self.assertEqual(selected["ui"], [["scripts/ui.sh"]])
 
-    def test_a_web_change_runs_only_the_type_check_until_its_tests_are_named(self):
-        selected, printed = groups_selected_for(["web/src/lib/components/channel/channel.svelte"])
+    def test_a_screen_change_runs_the_unit_tests_and_starts_no_plane(self):
+        selected, _ = groups_selected_for(["web/src/lib/components/channel/channel.svelte"])
         self.assertEqual(selected["web"][-1], ["bun", "run", "check"])
-        self.assertNotIn("web-tests", selected)
+        self.assertEqual(selected["web-tests"], [["bun", "run", "test"]])
+        self.assertNotIn("plane", selected)
         self.assertNotIn("web-build", selected)
-        self.assertIn("web-tests not run", printed)
 
-    def test_named_web_tests_run_alone_or_against_the_local_plane(self):
-        module = verification_module()
-        selected, _ = groups_selected_for(["web/src/routes/api/v1/tools/+server.ts"], test="tests/api/public-api-route.test.ts,tests/unit/messenger")
-        self.assertEqual(selected["web-tests"], [
-            ["bun", "test", "tests/unit/messenger"],
-            module.holding_the_local_plane(["scripts/test-against-local-plane.sh", "tests/api/public-api-route.test.ts"]),
-        ])
+    def test_an_api_route_change_runs_the_unit_tests_and_the_api_suite(self):
+        selected, _ = groups_selected_for(["web/src/routes/api/v1/tools/+server.ts"])
+        self.assertIn("web-tests", selected)
+        self.assertIn("bun test tests/api", selected["plane"][0][-1])
 
-    def test_a_named_path_outside_the_web_tests_is_refused(self):
-        for path in ["tests/unit/no-such-test.test.ts", "src/lib/utils.ts"]:
-            with self.assertRaises(SystemExit, msg=path):
-                groups_selected_for(["web/src/lib/utils.ts"], test=path)
+    def test_a_file_the_api_suite_imports_runs_it_wherever_it_lives(self):
+        for path in ["web/src/lib/tool-answer.ts", "docs/web/app/lib/openapi.ts", "pkg/capabilityprotocol/generated/capability-tools.json", ".dependency/blueclaw", "supabase/migrations/20990101000000_example.sql"]:
+            selected, _ = groups_selected_for([path])
+            self.assertIn("bun test tests/api", selected["plane"][0][-1], path)
 
     def test_a_route_file_or_build_configuration_runs_the_build(self):
         for path in ["web/src/routes/crm/+page.ts", "web/src/routes/api/v1/tools/+server.ts", "web/vite.config.ts", "web/bun.lock"]:
             selected, _ = groups_selected_for([path])
             self.assertIn("web-build", selected, path)
 
-    def test_all_runs_every_web_test(self):
-        module = verification_module()
+    def test_all_runs_every_web_test_and_every_suite_on_the_plane(self):
         selected, _ = groups_selected_for([], all=True)
-        self.assertEqual(selected["web-tests"], [["bun", "run", "test"], module.holding_the_local_plane(["bun", "run", "test:api"])])
+        self.assertEqual(selected["web-tests"], [["bun", "run", "test"]])
+        self.assertIn("supabase test db", selected["plane"][0][-1])
+        self.assertIn("bun test tests/api", selected["plane"][0][-1])
+
+    def test_a_schema_change_resets_the_plane_once_for_the_database_tests_and_the_api_suite(self):
+        selected, _ = groups_selected_for(["supabase/migrations/20990101000000_example.sql"])
+        self.assertEqual(len(selected["plane"]), 1)
+        self.assertEqual(selected["plane"][0][-1].count("test-against-local-plane.sh"), 1)
+        self.assertIn("supabase test db", selected["plane"][0][-1])
+        self.assertIn("bun test tests/api", selected["plane"][0][-1])
+
+    def test_an_api_change_leaves_the_database_tests_alone(self):
+        selected, _ = groups_selected_for(["web/src/lib/server/public-api/record/index.ts"])
+        self.assertIn("bun test tests/api", selected["plane"][0][-1])
+        self.assertNotIn("supabase test db", selected["plane"][0][-1])
 
     def test_every_spec_sits_in_an_area_named_after_a_route_or_the_shell(self):
         module = verification_module()
         routes = {path.name for path in (module.REPOSITORY_ROOT / "web" / "src" / "routes").iterdir() if path.is_dir()}
         self.assertEqual(sorted(module.USER_INTERFACE_DIRECTORY.glob("*.spec.ts")), [])
         self.assertEqual(set(module.user_interface_areas()) - routes, {"shell"})
+
+    def test_every_verify_script_under_tools_is_run_by_a_group(self):
+        module = verification_module()
+        commands = [" ".join(command) for group in module.GROUPS for command in group.commands]
+        for script in sorted((module.REPOSITORY_ROOT / "tools").glob("verify-*")):
+            self.assertTrue(any(f"tools/{script.name}" in command.split() for command in commands), f"no group runs tools/{script.name}")
+
+    def test_a_change_to_what_the_plan_tests_read_runs_them(self):
+        groups = verification_module().GROUPS
+        for changed_path in ["web/tests/new-suite/first.test.ts", "tools/verify-new-check", "web/package.json"]:
+            selected = {group.name for group in groups if group.is_touched_by([changed_path])}
+            self.assertIn("verification-plan", selected, changed_path)
 
     def test_every_python_test_under_tools_is_run_by_a_group(self):
         module = verification_module()
