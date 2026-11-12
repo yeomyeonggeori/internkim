@@ -33,9 +33,8 @@ export async function taskPage(caller: SupabaseClient, scope: TaskPageScope, inp
 			.order('id')
 			.limit(fetchedPageSize(input))
 			.returns<TaskCardRow[]>(),
-		scopedTasks(caller, scope, countSelectionOf(scope), { count: 'exact', head: true }),
-		scopedTasks(caller, scope, countSelectionOf(scope), { count: 'exact', head: true })
-			.not('status', 'in', `(${finishedStatuses.join(',')})`)
+		countedTasks(caller, scope),
+		countedTasks(caller, scope).not('status', 'in', `(${finishedStatuses.join(',')})`)
 	]);
 	for (const answer of [page, total, unfinished]) if (answer.error) throw new RecordReadFailed(answer);
 	return {
@@ -44,9 +43,13 @@ export async function taskPage(caller: SupabaseClient, scope: TaskPageScope, inp
 	};
 }
 
-function scopedTasks(caller: SupabaseClient, scope: TaskPageScope, columns: string, options?: { count: 'exact'; head: true }) {
+function scopedTasks(caller: SupabaseClient, scope: TaskPageScope, columns: string, options?: { count: 'exact' }) {
 	const scoped = caller.from('task').select(columns, options).or(`and(${clausesOf(scope).join(',')})`);
 	return scope.whose.everyone ? scoped : scoped.in('participant.member_id', scope.whose.personIDs);
+}
+
+function countedTasks(caller: SupabaseClient, scope: TaskPageScope) {
+	return scopedTasks(caller, scope, countSelectionOf(scope), { count: 'exact' }).limit(1);
 }
 
 function clausesOf(scope: TaskPageScope): string[] {
