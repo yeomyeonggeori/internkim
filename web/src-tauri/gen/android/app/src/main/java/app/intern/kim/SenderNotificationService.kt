@@ -2,6 +2,7 @@ package app.intern.kim
 
 import android.content.Intent
 import app.intern.kim.attendance.AttendanceWidgetPush
+import app.intern.kim.notification.MessagePicture
 import app.intern.kim.notification.SenderNotificationPoster
 import app.intern.kim.notification.SenderPicture
 import app.intern.kim.notification.SentNotification
@@ -20,7 +21,7 @@ class SenderNotificationService : FirebaseMessagingService() {
       return
     }
     SentNotification.from(message)?.let { sent ->
-      SenderNotificationPoster(this, Intent(this, MainActivity::class.java)).post(sent, SenderPicture.of(this, sent.pictureURL))
+      SenderNotificationPoster(this, Intent(this, MainActivity::class.java)).post(sent, SenderPicture.of(this, sent.pictureURL), MessagePicture.of(sent.imageURL))
     }
     NotificationPlugin.instance?.triggerPushMessage(pushData(message))
   }

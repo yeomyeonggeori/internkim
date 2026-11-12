@@ -9,16 +9,12 @@ import android.graphics.Matrix;
 import android.graphics.Paint;
 import android.graphics.Shader;
 import android.util.Log;
-import java.io.IOException;
-import java.io.InputStream;
-import java.net.HttpURLConnection;
-import java.net.URL;
 
 public final class SenderPicture {
 
     private static final String logTag = "SenderPicture";
+    private static final String pictureName = "sender picture";
     private static final int sidePixels = 256;
-    private static final int waitMilliseconds = 5000;
 
     private SenderPicture() {}
 
@@ -29,28 +25,11 @@ public final class SenderPicture {
     }
 
     private static Bitmap fetched(String pictureURL) {
-        if (!pictureURL.startsWith("https://")) return null;
-        HttpURLConnection connection = null;
-        try {
-            connection = (HttpURLConnection) new URL(pictureURL).openConnection();
-            connection.setConnectTimeout(waitMilliseconds);
-            connection.setReadTimeout(waitMilliseconds);
-            int status = connection.getResponseCode();
-            if (status != HttpURLConnection.HTTP_OK) {
-                Log.w(logTag, "sender picture answered " + status);
-                return null;
-            }
-            try (InputStream stream = connection.getInputStream()) {
-                Bitmap decoded = BitmapFactory.decodeStream(stream);
-                if (decoded == null) Log.w(logTag, "sender picture could not be decoded");
-                return decoded;
-            }
-        } catch (IOException failure) {
-            Log.w(logTag, "sender picture could not be fetched", failure);
-            return null;
-        } finally {
-            if (connection != null) connection.disconnect();
-        }
+        byte[] bytes = PictureDownload.bytesOf(pictureURL, pictureName);
+        if (bytes == null) return null;
+        Bitmap decoded = BitmapFactory.decodeByteArray(bytes, 0, bytes.length);
+        if (decoded == null) Log.w(logTag, pictureName + " could not be decoded");
+        return decoded;
     }
 
     private static Bitmap circled(Bitmap source) {

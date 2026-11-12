@@ -16,6 +16,7 @@ public final class SentNotification {
     public final String senderID;
     public final String senderName;
     public final String pictureURL;
+    public final String imageURL;
     public final Map<String, String> data;
 
     private SentNotification(String messageID, Map<String, String> data) {
@@ -27,6 +28,7 @@ public final class SentNotification {
         this.senderID = valueOf(data, "senderID");
         this.senderName = valueOf(data, "senderName");
         this.pictureURL = valueOf(data, "pictureURL");
+        this.imageURL = valueOf(data, "imageURL");
     }
 
     @Nullable
