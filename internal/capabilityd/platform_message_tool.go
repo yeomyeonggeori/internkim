@@ -43,7 +43,6 @@ type platformMessageSendInput struct {
 	ChannelName string   `json:"channelName"`
 	PersonHint  string   `json:"personHint"`
 	PersonHints []string `json:"personHints"`
-	Pin         bool     `json:"pin"`
 	Attachments []string `json:"attachments"`
 	Reason      string   `json:"reason"`
 
@@ -55,7 +54,6 @@ type platformMessageUpdateInput struct {
 	OldText     *string  `json:"oldText"`
 	NewText     *string  `json:"newText"`
 	Text        *string  `json:"text"`
-	IsPinned    *bool    `json:"isPinned"`
 	Attachments []string `json:"attachments"`
 }
 
@@ -346,8 +344,8 @@ func decodePlatformMessageUpdateInput(document json.RawMessage) (platformMessage
 	if input.OldText != nil && input.Text != nil {
 		return platformMessageUpdateInput{}, fmt.Errorf("give text to rewrite the message, or oldText with newText to correct it, not both")
 	}
-	if input.OldText == nil && input.Text == nil && input.IsPinned == nil && len(input.Attachments) == 0 {
-		return platformMessageUpdateInput{}, fmt.Errorf("text, oldText with newText, isPinned, or attachments is required")
+	if input.OldText == nil && input.Text == nil && len(input.Attachments) == 0 {
+		return platformMessageUpdateInput{}, fmt.Errorf("text, oldText with newText, or attachments is required")
 	}
 	if input.Text != nil && strings.TrimSpace(*input.Text) == "" {
 		return platformMessageUpdateInput{}, fmt.Errorf("text cannot be empty; delete the message with message_delete instead")
