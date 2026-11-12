@@ -50,7 +50,7 @@ func (service Service) invokeMessageReactionTool(ctx context.Context, request ca
 	if isRefused {
 		return response, nil
 	}
-	channelID, failure, hasFailure := service.channelHoldingMessage(ctx, messageID)
+	channelID, failure, hasFailure := service.channelHoldingMessage(ctx, request, requesterPubkeyHex, messageID)
 	if hasFailure {
 		return platformToolErrorResponse(request.ToolName, failure), nil
 	}
@@ -65,12 +65,13 @@ func (service Service) invokeMessageReactionTool(ctx context.Context, request ca
 	return platformToolSuccessResponse(request.ToolName, "updated", messageReactionResult{MessageID: messageID, Emoji: strings.TrimSpace(input.Emoji)})
 }
 
-func (service Service) channelHoldingMessage(ctx context.Context, messageID string) (string, platformToolFailure, bool) {
+func (service Service) channelHoldingMessage(ctx context.Context, request capabilities.ToolInvokeRequest, requesterPubkeyHex string, messageID string) (string, platformToolFailure, bool) {
 	var response chatdMessageSearchResponse
-	searchRequest := chatdMessageSearchRequest{MessageIDs: []string{messageID}, Queries: []string{}}
+	searchRequest := chatdMessageSearchRequest{MessageIDs: []string{messageID}, RequesterPubkeyHex: requesterPubkeyHex, Queries: []string{}}
 	if errorValue := service.chatdRequest(ctx, "message.search", searchRequest, &response); errorValue != nil {
 		return "", platformToolFailureForError("message_lookup", "platform_unavailable", errorValue), true
 	}
+	response = service.withMessagesOnlyTheRequesterReads(ctx, request, searchRequest, response)
 	for _, candidate := range response.Candidates {
 		if strings.TrimSpace(candidate.MessageID) == messageID && strings.TrimSpace(candidate.ChannelID) != "" {
 			return strings.TrimSpace(candidate.ChannelID), platformToolFailure{}, false
