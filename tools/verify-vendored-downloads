@@ -16,8 +16,8 @@ whole point:
   - A timeout, a DNS failure or a 5xx means the network or their server is
     having a moment. That is reported and does not fail.
 
-Run it before cutting a release, and on a schedule once this repository has a
-CI that can hold one. Nothing in `make check` calls it.
+tools/verify runs it when a source it reads changes. Run it by hand before
+cutting a release, since upstream can remove a file without any change here.
 
 Every URL is derived from the sources that fetch it, so there is no inventory
 to keep in step. Anything carrying a variable this cannot resolve is printed as
