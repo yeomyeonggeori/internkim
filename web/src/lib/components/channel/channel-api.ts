@@ -16,7 +16,7 @@ import { reactionsWithValues } from './channel-reactions';
 import { publishBuzzMessage } from '$lib/buzz-relay-client';
 import { imetaTag, uploadBlob } from '$lib/buzz-blossom';
 import { shortcodePattern } from '$lib/messenger/custom-emoji-names';
-import type { OutgoingAttachment } from '$lib/messenger/messenger-api';
+import type { MessengerAnswer, MessengerAsk, OutgoingAttachment } from '$lib/messenger/messenger-api';
 import type { AttachmentKind } from '$lib/messenger/attachment-kind';
 import { buzzIdentity } from '$lib/stores/buzz-identity.svelte';
 
@@ -29,18 +29,9 @@ export type ChannelParticipant = {
 	externalID?: string;
 };
 
-export type ChannelChoiceOption = {
-	key: string;
-	label: string;
-	value?: string;
-};
+export type ChannelInteraction = Omit<MessengerAsk, 'targetExternalID'> & { targetID: string };
 
-export type ChannelInteraction = {
-	kind: string;
-	question: string;
-	options: ChannelChoiceOption[];
-	recommendedOptionKey?: string;
-};
+export type ChannelChoiceOption = ChannelInteraction['options'][number];
 
 export type ChannelMessageReaction = {
 	emoji: string;
@@ -308,6 +299,16 @@ export async function sendChannelMessage(
 		return;
 	}
 	await sendServerSignedMessage(message, attachments, channelID, replyToRootID);
+}
+
+export async function sendChannelAnswer(
+	label: string,
+	answer: MessengerAnswer,
+	channelID?: string,
+	replyToRootID?: string
+): Promise<void> {
+	if (!isSupabaseConfigured()) throw new Error('this messenger cannot carry an answer to a question');
+	await bridgeSendMessage(label, channelID, replyToRootID, [], undefined, answer);
 }
 
 export function canChangeMessages(): boolean {
