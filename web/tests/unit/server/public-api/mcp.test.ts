@@ -6,6 +6,7 @@ import { isSeenByAModel, toolsAModelReachesWith, toolsReachableBy } from '$lib/s
 import type { CallingMember } from '$lib/server/member-request';
 import type { Environment } from '$lib/server/agent-request';
 import type { PublicAPIPermission } from '$lib/public-api-permission';
+import { ToolOutcome } from '$lib/server/public-api/catalog/protocol';
 
 function aMemberWhoMay(permission: PublicAPIPermission): CallingMember {
 	return { permission } as CallingMember;
@@ -140,6 +141,41 @@ describe('the MCP server on a fetch handler', () => {
 			});
 		} finally {
 			await connected.close();
+		}
+	});
+});
+
+describe('a call the company machine answered', () => {
+	const gateway = { GATEWAY_URL: 'http://gateway.example.test', GATEWAY_ADMIN_TOKEN: 'unit' };
+
+	async function answeredWithOutcome(outcome: string) {
+		const originalFetch = globalThis.fetch;
+		globalThis.fetch = Object.assign(
+			async () =>
+				Response.json({
+					status: 200,
+					body: { outcome, message: 'the host refused', errorCode: 'update_method_unsupported', retryable: false, result: {} }
+				}),
+			{ preconnect: originalFetch.preconnect }
+		);
+		const connected = await anMCPClient('delete', gateway);
+		try {
+			return await connected.callTool({ name: 'host_version_get', arguments: {} });
+		} finally {
+			await connected.close();
+			globalThis.fetch = originalFetch;
+		}
+	}
+
+	test('is an error to the model when the host refused it, though the call was carried', async () => {
+		const answered = await answeredWithOutcome(ToolOutcome.Failed);
+		expect(answered.isError).toBe(true);
+		expect(answered.structuredContent).toMatchObject({ errorCode: 'update_method_unsupported', retryable: false });
+	});
+
+	test('is an error for every outcome the protocol has besides success, and only then', async () => {
+		for (const outcome of Object.values(ToolOutcome)) {
+			expect((await answeredWithOutcome(outcome)).isError).toBe(outcome !== ToolOutcome.Succeeded);
 		}
 	});
 });

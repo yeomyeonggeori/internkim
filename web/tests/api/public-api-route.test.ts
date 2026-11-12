@@ -228,7 +228,8 @@ function preview(name: string, token: string, input: unknown): Promise<RouteAnsw
 }
 
 function messageOf(answered: RouteAnswer): string {
-	return (answered.body as { message?: string; error?: string }).message ?? '';
+	const body = answered.body as { message?: string; error?: string };
+	return body.error ?? body.message ?? '';
 }
 
 describe('a call that names nobody', () => {

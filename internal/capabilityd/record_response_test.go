@@ -52,8 +52,8 @@ func TestAttendanceAddHandlerReturnsValidEnvelopeForNonJSONRecordFailures(t *tes
 			if errorValue := json.Unmarshal(response.Result, &originalBody); errorValue != nil || originalBody != testCase.body {
 				t.Fatalf("record body was not preserved: %s", response.Result)
 			}
-			if response.ErrorCode != "record_refused" || response.FailureStage != "execution" {
-				t.Fatalf("response error location = %q/%q", response.ErrorCode, response.FailureStage)
+			if response.ErrorCode != "" || response.FailureStage != "" || response.Retryable {
+				t.Fatalf("facts the record never stated were made up from its status: %+v", response)
 			}
 		})
 	}

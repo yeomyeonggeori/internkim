@@ -1,8 +1,8 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { error } from '@sveltejs/kit';
 import { asMember, planeCredentialsOf } from './control-plane';
-import { RecordRefusedTheWrite } from './public-api/record/tasks';
 import type { Environment } from './agent-request';
+import { Refusal } from '$lib/server/public-api/refusal';
 
 export type DataRoomGuest = { caller: SupabaseClient; viewerEmail: string | null };
 
@@ -27,7 +27,7 @@ export async function answeredOrRefused<Answer>(pending: Promise<Answer>): Promi
 	try {
 		return await pending;
 	} catch (refusal) {
-		if (refusal instanceof RecordRefusedTheWrite) error(refusal.status, refusal.message);
+		if (refusal instanceof Refusal) error(refusal.status, refusal.message);
 		throw refusal;
 	}
 }

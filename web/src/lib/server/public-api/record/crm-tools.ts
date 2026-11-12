@@ -1,3 +1,4 @@
+import { WriteNotReadBack } from './tasks';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { crmStageSettles, isCRMStage, type CRMStage } from '$lib/crm/crm-stage';
 import { convertedAmount } from '$lib/server/converted-amount';
@@ -27,7 +28,6 @@ import { instantWritten } from './days';
 import { fundingRecordOfHint } from './company-ledger-tools';
 import { LabelUnresolved } from './labels';
 import { personOfHint } from './people';
-import { RecordRefusedTheWrite, statusOfPostgresCode } from './tasks';
 import type { RecordContext } from './company';
 import type {
 	CRMArchivedResult,
@@ -44,6 +44,7 @@ import type {
 	CRMVocabularyResult,
 	CRMVocabularySetInput
 } from '../catalog/crm';
+import { Refusal, InputRefused, AccessRefused, RecordAlreadyHolds, refusalOfPostgresError, type PostgresError } from '../refusal';
 
 export type CRMColumnsWritten = {
 	organizationHint?: string;
@@ -111,7 +112,7 @@ function matchesQuery(searched: (string | null)[], query: string | undefined): b
 
 function hintOf(offered: string | undefined, subject: string): string {
 	const hint = offered?.trim();
-	if (!hint) throw new Error(`this call names the ${subject} it is about`);
+	if (!hint) throw new InputRefused(`this call names the ${subject} it is about`);
 	return hint;
 }
 
@@ -202,13 +203,10 @@ async function writtenRow<Row>(
 		? caller.from(table).update(change).eq('id', id)
 		: caller.from(table).insert(change);
 	const { data, error } = await written.select(columns).returns<Row[]>();
-	if (error) throw new RecordRefusedTheWrite(error.message, statusOfPostgresCode(error.code));
+	if (error) throw refusalOfPostgresError(error);
 	const rows = data ?? [];
 	if (rows.length === 1) return rows[0];
-	throw new RecordRefusedTheWrite(
-		`only somebody who works here can change this company's ${table} records`,
-		403
-	);
+	throw new AccessRefused(`only somebody who works here can change this company's ${table} records`);
 }
 
 export async function organizationOfCRMHint(
@@ -273,7 +271,7 @@ export async function crmOrganizationAdd(
 	context: RecordContext,
 	input: CRMOrganizationWritten
 ): Promise<CRMOrganizationResult> {
-	if (!input.name?.trim()) throw new Error('an organization needs a name');
+	if (!input.name?.trim()) throw new InputRefused('an organization needs a name');
 	const written = await writtenRow<OrganizationRow>(
 		context.caller,
 		'organization',
@@ -290,7 +288,7 @@ export async function crmOrganizationUpdate(
 ): Promise<CRMOrganizationResult> {
 	const row = await organizationOfCRMHint(context, hintOf(input.organizationHint, 'organization'));
 	const change = organizationChange(context, input, row);
-	if (Object.keys(change).length === 0) throw new Error('an update names at least one field to change');
+	if (Object.keys(change).length === 0) throw new InputRefused('an update names at least one field to change');
 
 	return answeredOrganization(
 		await writtenRow<OrganizationRow>(context.caller, 'organization', organizationColumns, change, row.id)
@@ -328,7 +326,7 @@ async function contactChange(
 		const organization = await organizationOfCRMHint(context, hintOf(input.organizationHint, 'organization'));
 		change.organization_id = organization.id;
 	} else if (!row) {
-		throw new Error('a contact names the organization they work at');
+		throw new InputRefused('a contact names the organization they work at');
 	}
 	return change;
 }
@@ -354,7 +352,7 @@ function refuseAContactNobodyCanReach(change: Record<string, unknown>, row: Cont
 		return typeof value === 'string' ? value.trim() : '';
 	};
 	if (written('email') === '' && written('phone') === '') {
-		throw new Error('a contact needs an email address or a phone number');
+		throw new InputRefused('a contact needs an email address or a phone number');
 	}
 }
 
@@ -362,7 +360,7 @@ export async function crmContactAdd(
 	context: RecordContext,
 	input: CRMContactWritten
 ): Promise<CRMContactResult> {
-	if (!input.name?.trim()) throw new Error('a contact needs a name');
+	if (!input.name?.trim()) throw new InputRefused('a contact needs a name');
 	const change = await contactChange(context, input, null);
 	refuseAContactNobodyCanReach(change, null);
 	const written = await writtenRow<ContactRow>(
@@ -381,7 +379,7 @@ export async function crmContactUpdate(
 ): Promise<CRMContactResult> {
 	const row = await contactOfCRMHint(context, hintOf(input.contactHint, 'contact'));
 	const change = await contactChange(context, input, row);
-	if (Object.keys(change).length === 0) throw new Error('an update names at least one field to change');
+	if (Object.keys(change).length === 0) throw new InputRefused('an update names at least one field to change');
 	refuseAContactNobodyCanReach(change, row);
 
 	return answeredContact(await writtenRow<ContactRow>(context.caller, 'contact', contactColumns, change, row.id));
@@ -411,9 +409,9 @@ function pipelineOf(vocabulary: CRMVocabulary, asked: string | undefined, held: 
 		if (held) return held;
 		if (registered.length === 1) return registered[0].id;
 		if (registered.length === 0) {
-			throw new Error('this company registered no pipeline to open a deal in; crm_vocabulary_set names them');
+			throw new InputRefused('this company registered no pipeline to open a deal in; crm_vocabulary_set names them');
 		}
-		throw new Error(
+		throw new InputRefused(
 			`this company runs deals through ${registered.map((pipeline) => pipeline.name).join(', ')}; name which one`
 		);
 	}
@@ -440,7 +438,7 @@ function pipelineOf(vocabulary: CRMVocabulary, asked: string | undefined, held: 
 function stageWritten(asked: string | undefined): CRMStage | undefined {
 	const written = asked?.trim();
 	if (!written) return undefined;
-	if (!isCRMStage(written)) throw new Error(`${written} is not a stage a deal can stand at`);
+	if (!isCRMStage(written)) throw new InputRefused(`${written} is not a stage a deal can stand at`);
 	return written;
 }
 
@@ -513,10 +511,10 @@ export async function crmOpportunityAdd(
 	context: RecordContext,
 	input: CRMOpportunityWritten
 ): Promise<CRMOpportunityResult> {
-	if (!input.title?.trim()) throw new Error('a deal needs a title');
+	if (!input.title?.trim()) throw new InputRefused('a deal needs a title');
 	const stage = stageWritten(input.stage) ?? 'waiting';
 	if (crmStageSettles(stage)) {
-		throw new Error('a deal is opened at an open stage and closed with crm_opportunity_move');
+		throw new InputRefused('a deal is opened at an open stage and closed with crm_opportunity_move');
 	}
 
 	const vocabulary = vocabularyOfCompany((await crmCompanyRow(context.caller)).crm_vocabulary);
@@ -543,7 +541,7 @@ export async function crmOpportunityUpdate(
 	const row = await opportunityOfCRMHint(context, hintOf(input.opportunityHint, 'deal'));
 	const vocabulary = vocabularyOfCompany((await crmCompanyRow(context.caller)).crm_vocabulary);
 	const change = await opportunityChange(context, vocabulary, input, row);
-	if (Object.keys(change).length === 0) throw new Error('an update names at least one field to change');
+	if (Object.keys(change).length === 0) throw new InputRefused('an update names at least one field to change');
 
 	const { owner_id: ownerID, ...edit } = change;
 	const edited = Object.keys(edit).length > 0
@@ -563,7 +561,7 @@ async function handedOverOpportunity(
 	const { data, error } = await context.caller
 		.rpc('crm_opportunity_hand_over', { target_opportunity_id: opportunityID, target_owner_id: ownerID })
 		.single<OpportunityRow>();
-	if (error) throw new RecordRefusedTheWrite(error.message, statusOfPostgresCode(error.code));
+	if (error) throw refusalOfPostgresError(error);
 	return data;
 }
 
@@ -591,8 +589,8 @@ export async function crmOpportunityMove(
 		target_lost_reason: input.reason?.trim() || null,
 		target_base_amount: settled
 	});
-	if (error) throw new RecordRefusedTheWrite(error.message, statusOfPostgresCode(error.code));
-	if (!data) throw new RecordRefusedTheWrite('the record named no deal it moved', 502);
+	if (error) throw refusalOfPostgresError(error);
+	if (!data) throw new WriteNotReadBack('deal');
 
 	const moved = await opportunityOfCRMHint(context, row.id);
 	return answeredOpportunity(moved, (await activityCountByOpportunity(context.caller)).get(row.id) ?? 0);
@@ -603,7 +601,7 @@ async function reorderedOpportunity(
 	row: OpportunityRow,
 	position: number | undefined
 ): Promise<CRMOpportunityResult> {
-	if (position === undefined) throw new Error('a move names the stage or the position it moves the deal to');
+	if (position === undefined) throw new InputRefused('a move names the stage or the position it moves the deal to');
 	const written = await writtenRow<OpportunityRow>(
 		context.caller,
 		'opportunity',
@@ -622,7 +620,7 @@ async function settledAmountOf(
 ): Promise<Money | null> {
 	if (finalAmount !== undefined) {
 		if (finalAmount.currency !== companyCurrency) {
-			throw new RecordRefusedTheWrite(`a final amount is in the company currency ${companyCurrency}, and this one is in ${finalAmount.currency}`, 422);
+			throw new InputRefused(`a final amount is in the company currency ${companyCurrency}, and this one is in ${finalAmount.currency}`);
 		}
 		return roundedMoney(finalAmount.amount, companyCurrency);
 	}
@@ -663,17 +661,15 @@ export async function crmVocabularySet(
 			pipelines: input.pipelines.map(definitionWritten)
 		}
 	});
-	if (error) throw refusedVocabularyWrite(error.message, error.code);
+	if (error) throw refusedVocabularyWrite(error);
 	return crmVocabularyGet(context);
 }
 
 const dependentObjectsStillExist = '2BP01';
 
-function refusedVocabularyWrite(reason: string, code: string | undefined): RecordRefusedTheWrite {
-	if (code === dependentObjectsStillExist) {
-		return new RecordRefusedTheWrite(reason, 409, 'crm_definition_in_use');
-	}
-	return new RecordRefusedTheWrite(reason, statusOfPostgresCode(code));
+function refusedVocabularyWrite(error: PostgresError): Refusal {
+	if (error.code === dependentObjectsStillExist) return new RecordAlreadyHolds(error.message, 'crm_definition_in_use');
+	return refusalOfPostgresError(error);
 }
 
 function definitionWritten(definition: CRMPipelineDefinition): Record<string, unknown> {
@@ -717,7 +713,7 @@ async function linksWritten(
 		? await organizationOfCRMHint(context, input.organizationHint)
 		: null;
 	if (deal && named && deal.organization_id !== named.id) {
-		throw new Error(`${deal.name} is a deal with another organization`);
+		throw new InputRefused(`${deal.name} is a deal with another organization`);
 	}
 
 	const contactHint = input.contactHint === undefined ? row?.contact_id ?? '' : input.contactHint.trim();
@@ -742,12 +738,8 @@ export async function writeCRMColumns(
 		.eq('id', taskID)
 		.select('id')
 		.returns<{ id: string }[]>();
-	if (error) throw new RecordRefusedTheWrite(error.message, statusOfPostgresCode(error.code));
+	if (error) throw refusalOfPostgresError(error);
 	if ((data ?? []).length === 0) {
-		throw new RecordRefusedTheWrite(
-			'only somebody taking part in this task or an admin can put it on an organization',
-			403,
-			'task_write_forbidden'
-		);
+		throw new AccessRefused('only somebody taking part in this task or an admin can put it on an organization', 'task_write_forbidden');
 	}
 }

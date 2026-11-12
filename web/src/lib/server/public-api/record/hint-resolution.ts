@@ -1,3 +1,5 @@
+import { Refusal } from '../refusal';
+
 const approximateCandidateLimit = 8;
 
 export type HintOutcome = 'resolved' | 'ambiguous' | 'approximate' | 'not_found';
@@ -116,7 +118,8 @@ export type HintCandidate = {
 	handle?: string;
 };
 
-export class HintRefused extends Error {
+export class HintRefused extends Refusal {
+	readonly status = 409;
 	readonly errorCode: string;
 	readonly failureStage = 'target_resolution';
 	readonly retryable = true;
@@ -129,8 +132,11 @@ export class HintRefused extends Error {
 		readonly candidates: HintCandidate[]
 	) {
 		super(refusalOf(subject, hint, outcome));
-		this.name = 'HintRefused';
 		this.errorCode = outcome === 'not_found' ? notFoundCodes[subject] : 'interaction_required';
+	}
+
+	get details() {
+		return { hint: this.hint, candidates: this.candidates };
 	}
 }
 

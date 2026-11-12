@@ -11,11 +11,8 @@ export class ToolRefused extends Error {
 	}
 }
 
-export const refusedToolOutcomes: readonly string[] = ['failed', 'denied'];
-
 const toolAnswerSchema = z.object({
 	result: z.unknown().optional(),
-	outcome: z.string().optional(),
 	message: z.string().optional(),
 	error: z.string().optional(),
 	errorCode: z.string().optional()
@@ -24,8 +21,7 @@ const toolAnswerSchema = z.object({
 export function resultOrRefusal(name: string, status: number, document: unknown): unknown {
 	const answered = toolAnswerSchema.safeParse(document);
 	const answer = answered.success ? answered.data : {};
-	const isRefused = status < 200 || status >= 300 || refusedToolOutcomes.includes(answer.outcome ?? '');
-	if (isRefused) {
+	if (status < 200 || status >= 300) {
 		throw new ToolRefused(answer.error ?? answer.message ?? `${name} answered ${status}`, answer.errorCode, status);
 	}
 	if (answer.result === undefined) throw new Error(`${name} answered nothing`);

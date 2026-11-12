@@ -7,6 +7,7 @@ import {
 	type HintCandidate,
 	type HintMatcher
 } from './hint-resolution';
+import { refusalOfPostgresError } from '../refusal';
 
 export type RecordTeam = {
 	teamID: string;
@@ -23,7 +24,7 @@ export async function teamsOfCompany(caller: SupabaseClient): Promise<RecordTeam
 		.select('id, name, parent_team_id, position')
 		.order('position')
 		.returns<TeamRow[]>();
-	if (error) throw new Error(error.message);
+	if (error) throw refusalOfPostgresError(error);
 	return (data ?? []).map((team) => ({
 		teamID: team.id,
 		name: team.name,

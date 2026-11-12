@@ -4,6 +4,7 @@ import { titleNearness } from './hint-nearness';
 import { HintRefused, normalized, resolveHint, type HintMatcher, type HintSubject } from './hint-resolution';
 import { peopleOfHints, personOfHint, type RecordPerson } from './people';
 import type { CRMLinks } from './crm-tools';
+import { Refusal, AccessRefused, TargetMissing, ServiceUnanswered, refusalOfPostgresError, type PostgresError } from '../refusal';
 
 export type TaskRow = {
 	id: string;
@@ -36,35 +37,22 @@ export type TaskRow = {
 export const taskSelection =
 	'id, parent_task_id, title, status, note, location, business, type, size, is_event, is_whole_day, is_open_to_company, notify_minutes_before, starts_at, ends_at, created_at, updated_at, organization_id, opportunity_id, contact_id, requester_id, task_participant (member_id), task_deletable, task_updatable, task_last_day';
 
-// Postgres says why it refused, and the three answers are different things: a
-// permission the caller does not hold, a row that moved under them, and a rule
-// of the record their input broke.
-export class RecordRefusedTheWrite extends Error {
-	constructor(
-		reason: string,
-		readonly status: number,
-		readonly errorCode = 'record_refused'
-	) {
-		super(reason);
-		this.name = 'RecordRefusedTheWrite';
-	}
-}
-
-export class WriteNotReadBack extends Error {
+export class WriteNotReadBack extends Refusal {
+	readonly status = 502;
 	readonly errorCode = 'record_write_not_read_back';
 	readonly failureStage = 'result_verification';
 	readonly retryable = true;
 	readonly safeRetry = false;
 
-	constructor(subject: 'task' | 'event') {
+	constructor(subject: string) {
 		super(`the record saved this ${subject} and did not answer with it`);
-		this.name = 'WriteNotReadBack';
 	}
 }
 
 type FailedRead = { status: number; statusText: string; error: { message: string; code?: string } };
 
-export class RecordReadFailed extends Error {
+export class RecordReadFailed extends Refusal {
+	readonly status = 503;
 	readonly errorCode = 'record_read_failed';
 	readonly failureStage = 'record_read';
 	readonly retryable = true;
@@ -72,7 +60,6 @@ export class RecordReadFailed extends Error {
 
 	constructor(answer: FailedRead) {
 		super(descriptionOfFailedRead(answer));
-		this.name = 'RecordReadFailed';
 	}
 }
 
@@ -87,22 +74,10 @@ export function rowOfSavedID(rows: TaskRow[], savedID: string, subject: 'task' |
 	return saved;
 }
 
-const insufficientPrivilege = '42501';
-const serializationFailure = '40001';
-const uniqueViolation = '23505';
-
-export function statusOfPostgresCode(code: string | undefined): number {
-	if (code === insufficientPrivilege) return 403;
-	if (code === serializationFailure) return 409;
-	if (code === uniqueViolation) return 409;
-	return 422;
-}
-
-function refusedWriteOf(reason: string, code: string | undefined) {
-	const status = statusOfPostgresCode(code);
-	if (code === uniqueViolation) return new RecordRefusedTheWrite(reason, status, 'record_duplicate');
-	if (status === 403) return new RecordRefusedTheWrite(reason, status, 'task_write_forbidden');
-	return new RecordRefusedTheWrite(reason, status);
+function refusedWriteOf(error: PostgresError): Refusal {
+	const refusal = refusalOfPostgresError(error);
+	if (refusal instanceof AccessRefused) return new AccessRefused(error.message, 'task_write_forbidden');
+	return refusal;
 }
 
 // PostgREST caps an unbounded select and says nothing about having done it, so
@@ -139,7 +114,7 @@ export async function tasksOfCompany(caller: SupabaseClient, areEvents: boolean,
 			.order('id')
 			.range(from, from + rowsPerPage - 1)
 			.returns<TaskRow[]>();
-		if (error) throw new Error(error.message);
+		if (error) throw refusalOfPostgresError(error);
 		const page = data ?? [];
 		rows.push(...page);
 		if (page.length < rowsPerPage) break;
@@ -150,7 +125,7 @@ export async function tasksOfCompany(caller: SupabaseClient, areEvents: boolean,
 async function taskWithID(caller: SupabaseClient, taskID: string, areEvents: boolean): Promise<TaskRow | null> {
 	const { data, error } = await caller.from('task').select(taskSelection)
 		.eq('id', taskID).eq(kindColumn(areEvents), true).maybeSingle<TaskRow>();
-	if (error) throw new Error(error.message);
+	if (error) throw refusalOfPostgresError(error);
 	return data;
 }
 
@@ -266,9 +241,9 @@ export async function saveTask(
 ): Promise<string> {
 	const { data, error } = await caller.rpc('task_save', argumentsOfSave);
 	if (error) {
-		throw refusedWriteOf(error.message, error.code);
+		throw refusedWriteOf(error);
 	}
-	if (typeof data !== 'string') throw new RecordRefusedTheWrite('the record named no task it saved', 502);
+	if (typeof data !== 'string') throw new WriteNotReadBack('task');
 	return data;
 }
 
@@ -278,9 +253,9 @@ export async function saveTaskCompletingChildren(
 ): Promise<string> {
 	const { data, error } = await caller.rpc('task_save_completing_children', { save_arguments: argumentsOfSave });
 	if (error) {
-		throw refusedWriteOf(error.message, error.code);
+		throw refusedWriteOf(error);
 	}
-	if (typeof data !== 'string') throw new RecordRefusedTheWrite('the record named no task it saved', 502);
+	if (typeof data !== 'string') throw new WriteNotReadBack('task');
 	return data;
 }
 
@@ -294,9 +269,9 @@ export async function saveTaskWithChildren(
 		child_ids: childTaskIDs
 	});
 	if (error) {
-		throw refusedWriteOf(error.message, error.code);
+		throw refusedWriteOf(error);
 	}
-	if (typeof data !== 'string') throw new RecordRefusedTheWrite('the record named no task it saved', 502);
+	if (typeof data !== 'string') throw new WriteNotReadBack('task');
 	return data;
 }
 
@@ -304,12 +279,12 @@ export async function saveTaskWithChildren(
 // no error, so the representation is the only proof anything went.
 export async function deleteTask(caller: SupabaseClient, taskID: string): Promise<void> {
 	const { data, error } = await caller.from('task').delete().eq('id', taskID).select('id').returns<{ id: string }[]>();
-	if (error) throw new RecordRefusedTheWrite(error.message, statusOfPostgresCode(error.code));
+	if (error) throw refusalOfPostgresError(error);
 
 	const deleted = data ?? [];
 	if (deleted.length === 1 && deleted[0].id === taskID) return;
 	if (deleted.length > 0) {
-		throw new RecordRefusedTheWrite('the record deleted something other than what was asked for', 502);
+		throw new ServiceUnanswered('the record deleted something other than what was asked for');
 	}
 	throw await refusalForNothingDeleted(caller, taskID);
 }
@@ -319,20 +294,15 @@ export async function deleteTask(caller: SupabaseClient, taskID: string): Promis
 async function refusalForNothingDeleted(
 	caller: SupabaseClient,
 	taskID: string
-): Promise<RecordRefusedTheWrite> {
+): Promise<Refusal> {
 	const { data } = await caller.from('task').select('id').eq('id', taskID).returns<{ id: string }[]>();
 	if ((data ?? []).length > 0) {
-		return new RecordRefusedTheWrite(
+		return new AccessRefused(
 			'only an admin, the member who asked for it, or the people taking part in it can delete it',
-			403,
 			'task_write_forbidden'
 		);
 	}
-	return new RecordRefusedTheWrite(
-		'this task is gone; it was deleted after the list that named it',
-		404,
-		'task_not_found'
-	);
+	return new TargetMissing('this task is gone; it was deleted after the list that named it', 'task_not_found');
 }
 
 // A task nobody is named on has no owner, and the board reads the first

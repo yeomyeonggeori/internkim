@@ -276,6 +276,12 @@ describe('deciding a leave', () => {
 		const answer = await asAdmin('leave_decide', { leaveHint: '이샘플 · 연차 · 2026-11', decision: 'approved' });
 		expect(answer.status).toBe(409);
 		expect((answer.body as { candidates: string[] }).candidates.length).toBe(2);
+		expect(answer.body).toMatchObject({
+			errorCode: 'leave_not_found',
+			failureStage: 'target_resolution',
+			retryable: true,
+			safeRetry: true
+		});
 	});
 });
 

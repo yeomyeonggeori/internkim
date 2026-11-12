@@ -1,3 +1,4 @@
+import { WriteNotReadBack } from './tasks';
 import {
 	addMember,
 	AddressBelongsToAnotherCompany,
@@ -24,8 +25,8 @@ import {
 	type RecordPerson
 } from './people';
 import { ascendingPositions, pageOf } from './list-page';
-import { RecordRefusedTheWrite, statusOfPostgresCode } from './tasks';
 import { descendantsOfTeam, teamOfHint, teamsOfCompany, type RecordTeam } from './teams';
+import { InputRefused, AccessRefused, RecordAlreadyHolds, refusalOfPostgresError } from '../refusal';
 
 export type PersonUpdateInput = {
 	personHint?: string;
@@ -153,7 +154,7 @@ export async function personUpdate(
 	context: RecordContext,
 	input: PersonUpdateInput
 ): Promise<DirectoryPerson> {
-	if (!input.personHint?.trim()) throw new Error('a directory change names the person it changes');
+	if (!input.personHint?.trim()) throw new InputRefused('a directory change names the person it changes');
 
 	const person = personOfHint(context.people, input.personHint);
 	const teams = await teamsOfCompany(context.caller);
@@ -165,7 +166,7 @@ export async function personUpdate(
 				: supervisorIDOfHint(context.people, input.supervisorHint)
 	});
 	if (Object.keys(homes.account).length + Object.keys(homes.organization).length === 0) {
-		throw new Error('a directory change names at least one field to change');
+		throw new InputRefused('a directory change names at least one field to change');
 	}
 
 	const { error } = await context.caller.rpc('person_set', {
@@ -173,7 +174,7 @@ export async function personUpdate(
 		account_changes: homes.account,
 		organization_changes: homes.organization
 	});
-	if (error) throw new RecordRefusedTheWrite(error.message, statusOfPostgresCode(error.code));
+	if (error) throw refusalOfPostgresError(error);
 	if (input.employmentStatus !== undefined) await settleSignInOfMember(context.accountDirectory, person.personID);
 
 	return answeredPerson(await personWrittenBack(context, person.personID), context.people, teams, context.locale);
@@ -184,7 +185,7 @@ async function invitationOf(context: RecordContext, personID: string): Promise<I
 		return await inviteMember(context.accountDirectory, personID);
 	} catch (refusal) {
 		if (refusal instanceof AddressBelongsToAnotherCompany) {
-			throw new RecordRefusedTheWrite('that address signs in to an account another member holds', 409, 'person_address_taken');
+			throw new RecordAlreadyHolds('that address signs in to an account another member holds', 'person_address_taken');
 		}
 		throw refusal;
 	}
@@ -195,10 +196,10 @@ async function personAddedAt(context: RecordContext, email: string, name: string
 		return await addMember(context.accountDirectory, context.companyID, email, { name });
 	} catch (refusal) {
 		if (refusal instanceof AddressBelongsToAnotherCompany) {
-			throw new RecordRefusedTheWrite('that address belongs to another company', 409, 'person_address_taken');
+			throw new RecordAlreadyHolds('that address belongs to another company', 'person_address_taken');
 		}
 		if (refusal instanceof AlreadyAMember) {
-			throw new RecordRefusedTheWrite('that person is already a member of this company', 409, 'person_already_member');
+			throw new RecordAlreadyHolds('that person is already a member of this company', 'person_already_member');
 		}
 		throw refusal;
 	}
@@ -209,9 +210,9 @@ export async function personInvite(
 	input: PersonInviteInput
 ): Promise<PersonInviteResult> {
 	const email = (input.email ?? '').trim().toLowerCase();
-	if (!email.includes('@')) throw new Error('an invitation names the address they sign in with');
+	if (!email.includes('@')) throw new InputRefused('an invitation names the address they sign in with');
 	const name = (input.name ?? '').trim();
-	if (!name) throw new Error('an invitation names the person it invites');
+	if (!name) throw new InputRefused('an invitation names the person it invites');
 	refuseUnlessTheRequesterAdministers(context, 'invites people');
 
 	const personID = await personAddedAt(context, email, name);
@@ -245,7 +246,7 @@ async function writeTheOrganizationHomeOfANewPerson(
 		account_changes: {},
 		organization_changes: organization
 	});
-	if (error) throw new RecordRefusedTheWrite(error.message, statusOfPostgresCode(error.code));
+	if (error) throw refusalOfPostgresError(error);
 }
 
 export async function personWithdraw(
@@ -276,7 +277,7 @@ export async function personPasswordReset(
 export function refuseUnlessTheRequesterAdministers(context: RecordContext, doing: string): void {
 	const requester = context.people.find((person) => person.personID === context.requesterID);
 	if (requester?.isAdmin) return;
-	throw new RecordRefusedTheWrite(`only an administrator ${doing}`, 403, 'administrator_only');
+	throw new AccessRefused(`only an administrator ${doing}`, 'administrator_only');
 }
 
 function teamIDOfHint(teams: RecordTeam[], hint: string): string {
@@ -293,6 +294,6 @@ function supervisorIDOfHint(people: RecordPerson[], hint: string): string {
 
 async function personWrittenBack(context: RecordContext, personID: string): Promise<RecordPerson> {
 	const written = await personOfCompanyByID(context.caller, personID);
-	if (!written) throw new RecordRefusedTheWrite('the record saved this person and did not answer with it', 502);
+	if (!written) throw new WriteNotReadBack('person');
 	return written;
 }

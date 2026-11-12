@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { addMember, asMember, controlPlane, provisionCompany, sessionForMember } from '../../src/lib/server/control-plane';
 import { projectURL, publishableKey, serviceRoleKey, signingKey } from '../support/supabase-environment';
 import { heldToTheContract } from './tool-answers';
+import { toolInputRecovered } from '../../src/lib/server/public-api/tool-input';
 import { leavesTaskLabelsUndecided } from '../../src/lib/server/public-api/record/task-labels';
 import { circleListResultSchema } from '../../src/lib/data-room/schemas';
 import { momentSchema, momentSpanOf } from '../../src/lib/moment';
@@ -474,8 +475,7 @@ describe('the category data room', () => {
 		});
 		expect(named.status).toBe(200);
 		expect(await revenueField()).toEqual({ kind: 'metric', field: 'annualRevenue', categoryCode: 'FS', name: 'Yearly revenue', nameKO: '연 매출액', unit: null });
-		const blank = await asAdmin('dataroom_field_name_update', { kind: 'metric', field: 'annualRevenue', nameKO: ' ' });
-		expect(blank.status).toBe(400);
+		expect(toolInputRecovered('dataroom_field_name_update', { kind: 'metric', field: 'annualRevenue', nameKO: ' ' })).not.toHaveProperty('nameKO');
 		const cleared = await asAdmin('dataroom_field_name_update', { kind: 'metric', field: 'annualRevenue' });
 		expect(cleared.status).toBe(200);
 		expect(await revenueField()).toMatchObject({ categoryCode: 'FS', name: null, nameKO: null });

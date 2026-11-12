@@ -5,6 +5,7 @@ import { labelsOfVocabulary, type CompanyLabels } from './labels';
 import { leaveKindsOfPolicy, leaveYearStartOfPolicy, type LeaveYearStart, type LeaveKind } from './leave';
 import { peopleOfCompany, peopleOfCompanyByIDs, type RecordPerson } from './people';
 import type { TaskLabelDecider } from './task-labels';
+import { refusalOfPostgresError } from '../refusal';
 
 export type RecordContext = {
 	caller: SupabaseClient;
@@ -53,7 +54,7 @@ export async function recordContextOf(
 			? personIDs ? peopleOfCompanyByIDs(caller, personIDs) : peopleOfCompany(caller)
 			: Promise.resolve([])
 	]);
-	if (company.error) throw new Error(company.error.message);
+	if (company.error) throw refusalOfPostgresError(company.error);
 
 	return {
 		caller,

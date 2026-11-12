@@ -1,8 +1,9 @@
 import { HintRefused } from './hint-resolution';
 import { refuseUnlessTheRequesterAdministers } from './people-tools';
-import { fundingRecordOfHint, orNull, refuseTheWrite, textOf } from './company-ledger-tools';
+import { fundingRecordOfHint, orNull, textOf } from './company-ledger-tools';
 import type { RecordContext } from './company';
 import type { CompanyEquityEntryResult, CompanyEquityListResult } from '../catalog/company';
+import { InputRefused, refusalOfPostgresError } from '../refusal';
 
 type HolderKind = CompanyEquityEntryResult['holderKind'];
 
@@ -35,8 +36,8 @@ const entryColumns = 'id, effective_on, holder, holder_kind, security_class, sha
 const onlyAnAdministratorKeepsTheLedger = 'only an administrator keeps the equity ledger';
 
 export async function companyEquityAdd(context: RecordContext, input: CompanyEquityAddInput): Promise<CompanyEquityEntryResult> {
-	if (!input.shares) throw new Error('an equity line moves some shares; zero is not a line');
-	if (!input.holderKind) throw new Error('an equity line says what kind of holder it is');
+	if (!input.shares) throw new InputRefused('an equity line moves some shares; zero is not a line');
+	if (!input.holderKind) throw new InputRefused('an equity line says what kind of holder it is');
 	const fundingRecordID = input.fundingRoundHint ? (await fundingRecordOfHint(context, input.fundingRoundHint)).id : null;
 	const { data, error } = await context.caller
 		.from('company_equity_entry')
@@ -52,7 +53,7 @@ export async function companyEquityAdd(context: RecordContext, input: CompanyEqu
 		})
 		.select(entryColumns)
 		.single<EquityEntryRow>();
-	if (error) throw refuseTheWrite(error, onlyAnAdministratorKeepsTheLedger);
+	if (error) throw refusalOfPostgresError(error, onlyAnAdministratorKeepsTheLedger);
 	return answeredEntry(data);
 }
 
@@ -77,7 +78,7 @@ export async function companyEquityDelete(context: RecordContext, input: Company
 		.eq('id', asked)
 		.select(entryColumns)
 		.returns<EquityEntryRow[]>();
-	if (error) throw refuseTheWrite(error, onlyAnAdministratorKeepsTheLedger);
+	if (error) throw refusalOfPostgresError(error, onlyAnAdministratorKeepsTheLedger);
 	const deleted = (data ?? [])[0];
 	if (!deleted) throw new HintRefused('equityEntry', asked, 'not_found', []);
 	return answeredEntry(deleted);
@@ -111,7 +112,7 @@ async function ledgerUntil(context: RecordContext, asOfDate: string): Promise<Eq
 		.order('effective_on')
 		.order('created_at')
 		.returns<EquityEntryRow[]>();
-	if (error) throw refuseTheWrite(error, onlyAnAdministratorKeepsTheLedger);
+	if (error) throw refusalOfPostgresError(error, onlyAnAdministratorKeepsTheLedger);
 	return data ?? [];
 }
 
