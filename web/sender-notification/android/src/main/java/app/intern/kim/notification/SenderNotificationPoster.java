@@ -7,6 +7,7 @@ import android.content.Context;
 import android.content.Intent;
 import android.graphics.Bitmap;
 import android.os.Build;
+import androidx.annotation.Nullable;
 import androidx.core.app.NotificationCompat;
 import androidx.core.app.NotificationManagerCompat;
 import androidx.core.app.Person;
@@ -28,7 +29,7 @@ public final class SenderNotificationPoster {
         this.opening = opening;
     }
 
-    public void post(SentNotification sent, Bitmap picture) {
+    public void post(SentNotification sent, Bitmap picture, @Nullable Bitmap messagePicture) {
         ensureChannel();
         IconCompat icon = IconCompat.createWithBitmap(picture);
         String senderKey = sent.senderKey();
@@ -46,26 +47,33 @@ public final class SenderNotificationPoster {
                 .build()
         );
 
-        NotificationCompat.MessagingStyle style = new NotificationCompat.MessagingStyle(sender).addMessage(
-            sent.textShown(),
-            System.currentTimeMillis(),
-            sender
-        );
-
         NotificationCompat.Builder builder = new NotificationCompat.Builder(context, channelID)
             .setSmallIcon(context.getApplicationInfo().icon)
             .setContentTitle(sent.nameShown())
             .setContentText(sent.textShown())
-            .setStyle(style)
             .setShortcutId(senderKey)
             .setCategory(NotificationCompat.CATEGORY_MESSAGE)
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setAutoCancel(true)
             .setContentIntent(tapIntent(sent, standingTag));
 
+        if (messagePicture == null) {
+            builder.setStyle(messagingStyle(sent, sender));
+        } else {
+            builder.setLargeIcon(picture).setStyle(pictureStyle(sent, messagePicture));
+        }
+
         if (NotificationManagerCompat.from(context).areNotificationsEnabled()) {
             NotificationManagerCompat.from(context).notify(standingTag, 0, builder.build());
         }
+    }
+
+    private static NotificationCompat.MessagingStyle messagingStyle(SentNotification sent, Person sender) {
+        return new NotificationCompat.MessagingStyle(sender).addMessage(sent.textShown(), System.currentTimeMillis(), sender);
+    }
+
+    private static NotificationCompat.BigPictureStyle pictureStyle(SentNotification sent, Bitmap messagePicture) {
+        return new NotificationCompat.BigPictureStyle().bigPicture(messagePicture).setSummaryText(sent.textShown());
     }
 
     private PendingIntent tapIntent(SentNotification sent, String standingTag) {
