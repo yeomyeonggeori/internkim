@@ -7,6 +7,7 @@ export const reservedFirstSegments = [
 	'calendar',
 	'crm',
 	'data-room',
+	'design',
 	'files',
 	'flow',
 	'handoff',
@@ -43,7 +44,7 @@ export function routePathOf(pathname: string): string {
 	return remainder === '' ? '/' : remainder;
 }
 
-const segmentsOutsideACompany = new Set(['api', 'auth', 'manifest-apple.webmanifest', 'oauth', 'share', 'start']);
+const segmentsOutsideACompany = new Set(['api', 'auth', 'design', 'manifest-apple.webmanifest', 'oauth', 'share', 'start']);
 
 export function wantsCompanyPrefix(pathname: string): boolean {
 	if (companySlugOf(pathname) !== '') return false;
