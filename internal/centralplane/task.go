@@ -11,29 +11,6 @@ import (
 	"strings"
 )
 
-// A task the device holds, in the terms the central plane keeps. The actor is
-// named by the messenger account the central plane can issue a session for;
-// everyone else by the address the company knows them by. CentralID is what the
-// central plane called the task when it last took it, and is empty the first
-// time. DeviceTaskID is the device's own identifier, and is set only for a row
-// being carried across.
-type Task struct {
-	CentralID        string
-	DeviceTaskID     string
-	ActorPlatform    string
-	ActorExternalID  string
-	Title            string
-	Status           string
-	Note             string
-	Business         string
-	Type             string
-	Size             string
-	StartsAt         string
-	EndsAt           string
-	WritesDates      bool
-	ParticipantMails []string
-}
-
 // MemberOf answers which member the company knows at that address, or an empty
 // string when nobody does. Somebody who has not been invited yet is an ordinary
 // answer, not a failure.
@@ -69,41 +46,6 @@ func (client *Client) MemberOf(ctx context.Context, email string) (string, error
 		return "", nil
 	}
 	return answer.Member.MemberID, nil
-}
-
-// SaveTask writes the task as the person it belongs to. task_save is granted
-// to authenticated alone and resolves authority from the caller, so the device
-// holds a member's token for the length of the call and never the service key.
-func (client *Client) SaveTask(ctx context.Context, task Task) (string, error) {
-	session, errorValue := client.sessionFor(ctx, task.ActorPlatform, task.ActorExternalID)
-	if errorValue != nil {
-		return "", errorValue
-	}
-
-	participants, errorValue := client.membersOf(ctx, session.memberID, task.ParticipantMails)
-	if errorValue != nil {
-		return "", errorValue
-	}
-
-	arguments := map[string]any{
-		"target_task_id":         nullableString(task.CentralID),
-		"target_title":           task.Title,
-		"target_status":          task.Status,
-		"target_note":            task.Note,
-		"target_business":        nullableString(task.Business),
-		"target_type":            nullableString(task.Type),
-		"target_size":            nullableString(task.Size),
-		"target_starts_at":       nullableString(task.StartsAt),
-		"target_ends_at":         nullableString(task.EndsAt),
-		"target_write_dates":     task.WritesDates,
-		"target_participant_ids": participants,
-		"target_mirrors":         deviceMirrors(task.DeviceTaskID),
-	}
-	var savedID string
-	if errorValue := client.callAsMember(ctx, session, "task_save", arguments, &savedID); errorValue != nil {
-		return "", errorValue
-	}
-	return savedID, nil
 }
 
 // DeleteTask removes the task the central plane holds, as the person who may.

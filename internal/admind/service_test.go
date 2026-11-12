@@ -102,9 +102,9 @@ func TestAdminRequestDiagnosticsReturnsRecentSlowRequests(t *testing.T) {
 
 func TestOpenSQLiteDatabaseUsesWALAndBusyTimeout(t *testing.T) {
 	service := NewService(Configuration{TaskDatabasePath: filepath.Join(t.TempDir(), "flow.sqlite")})
-	database, errorValue := service.openTaskDatabase(context.Background())
+	database, errorValue := service.openBridgeMapDatabase(context.Background())
 	if errorValue != nil {
-		t.Fatalf("expected flow database to open: %v", errorValue)
+		t.Fatalf("expected the state database to open: %v", errorValue)
 	}
 	defer database.Close()
 
