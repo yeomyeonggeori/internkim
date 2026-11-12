@@ -7,8 +7,9 @@ import { join } from 'node:path';
 // behind it was invisible everywhere. A page that calls a name with parentheses
 // somewhere and tests it bare somewhere else is asking that same question.
 //
-// A snippet is the exception, and the only one: `{#if header}{@render header()}`
-// asks whether the caller passed it, which is a real question with two answers.
+// A name the caller may leave out is the exception, and the only one:
+// `{#if header}{@render header()}` and `{#if onCreate}` ask whether the caller
+// passed it, which is a real question with two answers.
 function svelteFilesUnder(directory: string): string[] {
 	const found: string[] = [];
 	for (const entry of readdirSync(directory)) {
@@ -30,9 +31,10 @@ function namesTestedBare(source: string): string[] {
 	return names;
 }
 
-function isSnippet(source: string, name: string): boolean {
+function mayBeLeftOut(source: string, name: string): boolean {
 	if (new RegExp(`\\{#snippet\\s+${name}\\b`).test(source)) return true;
-	return new RegExp(`\\b${name}\\??\\s*:\\s*Snippet\\b`).test(source);
+	if (new RegExp(`\\b${name}\\?\\s*:`).test(source)) return true;
+	return new RegExp(`\\b${name}\\s*:\\s*Snippet\\b`).test(source);
 }
 
 describe('a condition calls what it tests', () => {
@@ -41,7 +43,7 @@ describe('a condition calls what it tests', () => {
 		for (const path of svelteFilesUnder('src')) {
 			const source = readFileSync(path, 'utf8');
 			for (const name of namesTestedBare(source)) {
-				if (isSnippet(source, name)) continue;
+				if (mayBeLeftOut(source, name)) continue;
 				const isCalled = new RegExp(`\\b${name}\\s*\\(`).test(source);
 				if (isCalled) asking.push(`${path}: {#if ${name}} — ${name}() is called in the same file`);
 			}
