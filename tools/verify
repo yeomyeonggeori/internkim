@@ -154,6 +154,7 @@ WEB_PATTERNS = [
     "internal/tasksize/*",
     "internal/admind/persona-schema/*",
     "internal/companyzone/*",
+    "internal/desktop/commands.json",
     "internal/*/testdata/*",
     "tools/environment.json",
 ]

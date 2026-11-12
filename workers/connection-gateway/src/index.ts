@@ -6,12 +6,14 @@ import {
 	resolveMember,
 	roleOfHost,
 	verifyToken,
+	type CallerIdentity,
 	type HostRole
 } from './identity';
 import type { OneShotAnswer, OneShotCall } from './routing';
 import {
 	digestOf,
 	digestsMatch,
+	desktopOwnerHeader,
 	hostLacksHeader,
 	jsonResponse,
 	memberHeader,
@@ -51,6 +53,7 @@ async function route(request: Request, environment: WorkerEnvironment): Promise<
 	if (path[2] === 'server-key') return storeServerKey(request, environment, companyID);
 	if (path[2] === 'call') return takeCompanyCall(request, environment, companyID);
 	if (path[2] === 'worker') return joinAsWorker(request, environment, companyID);
+	if (path[2] === 'desktop') return joinAsDesktop(request, environment, companyID);
 	if (path[2] === 'work') return postWork(request, environment, companyID);
 	return jsonResponse({ error: 'not found' }, 404);
 }
@@ -155,27 +158,41 @@ async function joinAsClient(
 	environment: WorkerEnvironment,
 	companyID: string
 ): Promise<Response> {
+	const member = await verifiedMemberOf(request, environment, companyID);
+	if (member instanceof Response) return member;
+	return connectionFor(environment, companyID).fetch(
+		new Request(request.url, { headers: { ...headersOf(request), [memberHeader]: member.memberID } })
+	);
+}
+
+async function joinAsDesktop(
+	request: Request,
+	environment: WorkerEnvironment,
+	companyID: string
+): Promise<Response> {
+	const member = await verifiedMemberOf(request, environment, companyID);
+	if (member instanceof Response) return member;
+	if (!member.email) return jsonResponse({ error: 'this account has no address a desktop could answer for' }, 403);
+	return connectionFor(environment, companyID).fetch(
+		new Request(`https://connection-gateway/company/${encodeURIComponent(companyID)}/desktop-session`, {
+			method: request.method,
+			headers: { ...headersOf(request), [desktopOwnerHeader]: member.email }
+		})
+	);
+}
+
+async function verifiedMemberOf(
+	request: Request,
+	environment: WorkerEnvironment,
+	companyID: string
+): Promise<CallerIdentity | Response> {
 	const token = bearerOf(request) ?? tokenOfferedByBrowser(request);
 	if (!token) return jsonResponse({ error: 'this call carried no token' }, 401);
 	try {
-		const claims = await verifyToken(
-			token,
-			keyCacheFor(environment),
-			issuerOf(environment),
-			Math.floor(Date.now() / 1000)
-		);
-		const identity = await resolveMember(
-			environment.SUPABASE_URL,
-			environment.SUPABASE_PUBLISHABLE_KEY,
-			token,
-			claims.sub
-		);
-		if (identity.companyID !== companyID) {
-			return jsonResponse({ error: 'this account belongs to another company' }, 403);
-		}
-		return connectionFor(environment, companyID).fetch(
-			new Request(request.url, { headers: { ...headersOf(request), [memberHeader]: identity.memberID } })
-		);
+		const claims = await verifyToken(token, keyCacheFor(environment), issuerOf(environment), Math.floor(Date.now() / 1000));
+		const identity = await resolveMember(environment.SUPABASE_URL, environment.SUPABASE_PUBLISHABLE_KEY, token, claims.sub);
+		if (identity.companyID !== companyID) return jsonResponse({ error: 'this account belongs to another company' }, 403);
+		return identity;
 	} catch (refusal) {
 		if (refusal instanceof TokenRefused) return jsonResponse({ error: refusal.message }, 401);
 		throw refusal;

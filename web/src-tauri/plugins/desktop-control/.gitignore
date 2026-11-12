@@ -1,0 +1,4 @@
+/target/
+/permissions/schemas/
+/.tauri/
+/Cargo.lock

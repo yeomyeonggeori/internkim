@@ -246,6 +246,24 @@ func gateCases() map[string]catalogGateCase {
 				expectResultHolds(t, answered, `"platform":"buzz"`)
 			},
 		},
+		"desktop_read": {
+			kind:    provesBehaviour,
+			reaches: map[gateBackend]*standingIn{companyQueueOverHTTP: answering(`{"requestID":"desk-1","status":200,"body":{"output":"{\"version\":\"2.6\",\"ok\":true,\"command\":\"list-apps\",\"data\":{\"apps\":[{\"name\":\"Finder\"}]}}"}}`)},
+			input:   `{"arguments":["list-apps"]}`,
+			expect: func(t *testing.T, answered capabilities.ToolInvokeResponse) {
+				expectSucceeded(t, answered)
+				expectResultHolds(t, answered, "Finder")
+			},
+		},
+		"desktop_act": {
+			kind:    provesBehaviour,
+			reaches: map[gateBackend]*standingIn{companyQueueOverHTTP: answering(`{"requestID":"desk-2","status":200,"body":{"output":"{\"version\":\"2.6\",\"ok\":true,\"command\":\"click\",\"data\":{\"action\":\"click\"}}"}}`)},
+			input:   `{"arguments":["click","@s8f3k2p9:e4"]}`,
+			expect: func(t *testing.T, answered capabilities.ToolInvokeResponse) {
+				expectSucceeded(t, answered)
+				expectResultHolds(t, answered, `\"action\":\"click\"`)
+			},
+		},
 		"browser_open": {
 			kind:    provesBehaviour,
 			reaches: map[gateBackend]*standingIn{browserAsACommand: runningTheBrowser()},

@@ -1,0 +1,9 @@
+{
+  "bundle": {
+    "externalBin": [
+      "binaries/agent-desktop",
+      "binaries/agent-desktop-macos-helper",
+      "binaries/agent-browser"
+    ]
+  }
+}

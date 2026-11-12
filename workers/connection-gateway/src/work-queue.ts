@@ -1,6 +1,7 @@
 export type QueuedWork = {
 	requestID: string;
 	affinityKey: string;
+	onlyBoxKey?: string;
 	work: unknown;
 	deadline: number;
 };
@@ -21,12 +22,15 @@ export class WorkQueue {
 		return this.dispatchWaiting();
 	}
 
-	forget(boxKey: string): void {
+	forget(boxKey: string): QueuedWork[] {
 		this.freeSlots.delete(boxKey);
+		const stranded = this.waiting.filter((item) => item.onlyBoxKey === boxKey);
+		for (const item of stranded) this.withdraw(item.requestID);
+		return stranded;
 	}
 
 	post(item: QueuedWork): Dispatch | null {
-		const boxKey = this.boxFor(item.affinityKey);
+		const boxKey = this.boxFor(item);
 		if (!boxKey) {
 			this.waiting.push(item);
 			return null;
@@ -50,7 +54,7 @@ export class WorkQueue {
 	private dispatchWaiting(): Dispatch[] {
 		const dispatched: Dispatch[] = [];
 		for (const item of [...this.waiting]) {
-			const boxKey = this.boxFor(item.affinityKey);
+			const boxKey = this.boxFor(item);
 			if (!boxKey) continue;
 			this.withdraw(item.requestID);
 			dispatched.push(this.take(boxKey, item));
@@ -58,8 +62,9 @@ export class WorkQueue {
 		return dispatched;
 	}
 
-	private boxFor(affinityKey: string): string | null {
-		const last = this.lastBoxOf.get(affinityKey);
+	private boxFor(item: QueuedWork): string | null {
+		if (item.onlyBoxKey) return this.hasRoom(item.onlyBoxKey) ? item.onlyBoxKey : null;
+		const last = this.lastBoxOf.get(item.affinityKey);
 		if (last && this.hasRoom(last)) return last;
 		for (const [boxKey, free] of this.freeSlots) {
 			if (free > 0) return boxKey;
