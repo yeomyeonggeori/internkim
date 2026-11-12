@@ -14,7 +14,7 @@ import (
 
 	"github.com/lib/pq"
 	"github.com/yeomyeonggeori/internkim/internal/buzzidentity"
-	"github.com/yeomyeonggeori/internkim/internal/buzzimport/relaypublish"
+	"github.com/yeomyeonggeori/internkim/internal/relaypublish"
 )
 
 func pubkeysOf(members []buzzMember) []string {

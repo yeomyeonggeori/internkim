@@ -213,7 +213,6 @@ func packagedGoPrograms() []packagedGoProgram {
 		{Name: blueclaw.CapabilitydName, Package: "./cmd/internkim-capabilityd", Mode: 0o755},
 		{Name: blueclaw.AdmindName, Package: "./cmd/internkim-admind", Mode: 0o755},
 		{Name: blueclaw.MaildName, Package: "./cmd/internkim-maild", Mode: 0o755},
-		{Name: blueclaw.BuzzMigrateName, Package: "./cmd/buzz-migrate", Mode: 0o755},
 		{Name: blueclaw.BlueclawName, ModuleRoot: blueclaw.BlueclawSubmodulePath, Package: "./cmd/blueclaw", Mode: 0o755},
 		// The helper is what lets an unprivileged blueclaw act as the person who
 		// asked. It is the one setuid file in the package, and the one program

@@ -328,7 +328,7 @@ def programs_the_plists_name():
     return [
         "blueclaw", "blueclaw-posix-helper", "internkim-admind", "internkim-capabilityd",
         "internkim-maild", "internkim-relay", "chatd", "buzz-relay", "buzz-admin",
-        "buzz-migrate", "versitygw", "moli", "agent-browser", "bun", "uv",
+        "versitygw", "moli", "agent-browser", "bun", "uv",
         "llama.cpp/llama-server", "render-company-runtime",
     ]
 

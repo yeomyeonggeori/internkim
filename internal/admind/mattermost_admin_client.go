@@ -1,7 +1,7 @@
 package admind
 
 import (
-	"github.com/yeomyeonggeori/internkim/internal/buzzimport/mattermostadmin"
+	"github.com/yeomyeonggeori/internkim/internal/mattermostadmin"
 )
 
 func (service *Service) mattermostAdmin() *mattermostadmin.Client {

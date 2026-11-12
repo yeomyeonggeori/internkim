@@ -3,16 +3,17 @@ package admind
 import (
 	"context"
 	"errors"
-	"log"
 	"net/http"
 	"net/url"
 	"strings"
-	"time"
 
-	"github.com/yeomyeonggeori/internkim/internal/buzzidentity"
-	"github.com/yeomyeonggeori/internkim/internal/buzzimport"
-	"github.com/yeomyeonggeori/internkim/internal/buzzimport/mattermostadmin"
-	"github.com/yeomyeonggeori/internkim/internal/buzzimport/relaypublish"
+	"github.com/yeomyeonggeori/internkim/internal/mattermostadmin"
+)
+
+const (
+	mattermostOpenChannelType   = "O"
+	mattermostDirectChannelType = "D"
+	mattermostGroupChannelType  = "G"
 )
 
 var errBridgeChannelKindUnknown = errors.New("bridge channel kind is only known for mattermost")
@@ -26,88 +27,10 @@ type bridgeRelayChannelShape struct {
 	IsArchived  bool
 }
 
-func (service *Service) ensureBridgeRelayChannel(ctx context.Context, buzzChannelID string, platform string, externalChannelID string) error {
-	if !service.canWriteToBuzzRelay() {
-		return nil
-	}
-	exists, errorValue := service.buzzChannelExists(ctx, buzzChannelID)
-	if errorValue != nil {
-		return errorValue
-	}
-	if exists {
-		return nil
-	}
-	shape, errorValue := service.describeBridgeRelayChannel(ctx, platform, externalChannelID)
-	if errorValue != nil {
-		return errorValue
-	}
-	// The agent opens the mirrored room and so stands in it as its owner,
-	// which is what lets it seat the members below; the key that owns the
-	// relay stays out of the room entirely.
-	agentSecret := buzzidentity.Secret(service.buzzKeySeed(), buzzidentity.AgentSubject)
-	publisher, errorValue := relaypublish.Connect(ctx, service.buzzRelayEffectiveURL(), service.Configuration.BuzzRelayURL, agentSecret)
-	if errorValue != nil {
-		return errorValue
-	}
-	defer publisher.Close()
-	errorValue = publisher.CreateChannel(ctx, agentSecret, buzzChannelID, shape.Name, shape.Purpose, shape.ChannelType, shape.Visibility)
-	if errorValue != nil && !strings.Contains(errorValue.Error(), "already exists") {
-		return errorValue
-	}
-	return service.addBridgeChannelMembers(ctx, publisher, agentSecret, buzzChannelID, externalChannelID)
-}
-
-// A private channel admits only its members, so the people in the Mattermost
-// room have to be in the Buzz one before the mirror can publish as them.
-func (service *Service) addBridgeChannelMembers(
-	ctx context.Context,
-	publisher *relaypublish.Publisher,
-	actorSecret string,
-	buzzChannelID string,
-	externalChannelID string,
-) error {
-	token, errorValue := service.mattermostAdmin().AdminToken(ctx)
-	if errorValue != nil {
-		return errorValue
-	}
-	emails, errorValue := service.mattermostAdmin().ChannelMemberEmails(ctx, token, externalChannelID)
-	if errorValue != nil {
-		return errorValue
-	}
-	adminEmails := service.buzzAdminEmails(ctx)
-	for email := range emails {
-		secretHex := service.buzzSecretForEmail(ctx, email)
-		if secretHex == "" {
-			continue
-		}
-		pubkey, errorValue := buzzPublicKey(secretHex)
-		if errorValue != nil {
-			continue
-		}
-		if errorValue := publisher.AddMember(ctx, actorSecret, buzzChannelID, pubkey, buzzChannelRoleFor(adminEmails, email)); errorValue != nil {
-			log.Printf("bridge channel %s: add member %s failed: %v", buzzChannelID, pubkey, errorValue)
-		}
-		time.Sleep(60 * time.Millisecond)
-	}
-	return nil
-}
-
 func (service *Service) canWriteToBuzzRelay() bool {
 	return service.buzzKeySeed() != "" &&
 		strings.TrimSpace(service.Configuration.BuzzRelayURL) != "" &&
 		strings.TrimSpace(service.Configuration.BuzzDatabaseURL) != ""
-}
-
-func (service *Service) buzzChannelExists(ctx context.Context, buzzChannelID string) (bool, error) {
-	database, errorValue := service.buzzDatabase()
-	if errorValue != nil {
-		return false, errorValue
-	}
-	var exists bool
-	errorValue = database.QueryRowContext(ctx,
-		"SELECT EXISTS(SELECT 1 FROM channels WHERE id = $1)", buzzChannelID,
-	).Scan(&exists)
-	return exists, errorValue
 }
 
 func (service *Service) describeBridgeRelayChannel(ctx context.Context, platform string, externalChannelID string) (bridgeRelayChannelShape, error) {
@@ -130,11 +53,11 @@ func (service *Service) describeBridgeRelayChannel(ctx context.Context, platform
 // channel anyone on the team can already join becomes an open one.
 func describeMattermostChannel(channelRecord mattermostadmin.ChannelRecord, externalChannelID string) bridgeRelayChannelShape {
 	channelType := "stream"
-	if buzzimport.IsConversationChannelType(channelRecord.Type) {
+	if channelRecord.Type == mattermostDirectChannelType || channelRecord.Type == mattermostGroupChannelType {
 		channelType = "dm"
 	}
 	visibility := "private"
-	if channelRecord.Type == buzzimport.OpenChannelType {
+	if channelRecord.Type == mattermostOpenChannelType {
 		visibility = "open"
 	}
 	return bridgeRelayChannelShape{

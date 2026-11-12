@@ -105,7 +105,6 @@ func TestTunneledDirectoryAndAdminRequestsAreRefused(t *testing.T) {
 		{http.MethodGet, "/admin/api/directory/people"},
 		{http.MethodPost, "/admin/api/directory/changed"},
 		{http.MethodGet, "/admin/api/diagnostics/requests"},
-		{http.MethodGet, "/bridge/api/channel"},
 	} {
 		if status := answeredStatus(service, tunneledRequest(call.method, call.path, `{}`)); status != http.StatusForbidden {
 			t.Errorf("a tunneled %s %s answered %d, want 403", call.method, call.path, status)

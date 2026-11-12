@@ -1,4 +1,4 @@
-package buzzimport
+package admind
 
 import (
 	"context"
@@ -12,12 +12,12 @@ import (
 	nostr "github.com/nbd-wtf/go-nostr"
 )
 
-type ChannelInjector struct {
+type buzzMessageInjector struct {
 	Database    *sql.DB
 	CommunityID string
 }
 
-func (injector ChannelInjector) InjectMessage(ctx context.Context, channelID string, event nostr.Event) error {
+func (injector buzzMessageInjector) injectMessage(ctx context.Context, channelID string, event nostr.Event) error {
 	transaction, errorValue := injector.Database.BeginTx(ctx, nil)
 	if errorValue != nil {
 		return errorValue
@@ -40,49 +40,7 @@ func (injector ChannelInjector) InjectMessage(ctx context.Context, channelID str
 	return transaction.Commit()
 }
 
-// An edit is a channel event like a message, but it is not one: it names the
-// message it replaces and belongs to no thread of its own.
-func (injector ChannelInjector) InjectEdit(ctx context.Context, channelID string, event nostr.Event) error {
-	transaction, errorValue := injector.Database.BeginTx(ctx, nil)
-	if errorValue != nil {
-		return errorValue
-	}
-	defer transaction.Rollback()
-
-	if _, errorValue := injector.insertEvent(ctx, transaction, channelID, event); errorValue != nil {
-		return errorValue
-	}
-	return transaction.Commit()
-}
-
-func (injector ChannelInjector) InjectProfile(ctx context.Context, event nostr.Event) error {
-	eventID, errorValue := hex.DecodeString(event.ID)
-	if errorValue != nil {
-		return errorValue
-	}
-	authorPubkey, errorValue := hex.DecodeString(event.PubKey)
-	if errorValue != nil {
-		return errorValue
-	}
-	signature, errorValue := hex.DecodeString(event.Sig)
-	if errorValue != nil {
-		return errorValue
-	}
-	tagsDocument, errorValue := json.Marshal(event.Tags)
-	if errorValue != nil {
-		return errorValue
-	}
-	_, errorValue = injector.Database.ExecContext(ctx, `
-		INSERT INTO events (community_id, id, pubkey, created_at, kind, tags, content, sig, received_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW())
-		ON CONFLICT DO NOTHING`,
-		injector.CommunityID, eventID, authorPubkey, event.CreatedAt.Time().UTC(),
-		event.Kind, tagsDocument, event.Content, signature,
-	)
-	return errorValue
-}
-
-func (injector ChannelInjector) insertEvent(ctx context.Context, transaction *sql.Tx, channelID string, event nostr.Event) (bool, error) {
+func (injector buzzMessageInjector) insertEvent(ctx context.Context, transaction *sql.Tx, channelID string, event nostr.Event) (bool, error) {
 	eventID, errorValue := hex.DecodeString(event.ID)
 	if errorValue != nil {
 		return false, errorValue
@@ -116,7 +74,7 @@ func (injector ChannelInjector) insertEvent(ctx context.Context, transaction *sq
 	return affected > 0, nil
 }
 
-func (injector ChannelInjector) insertThreadMetadata(ctx context.Context, transaction *sql.Tx, channelID string, event nostr.Event) error {
+func (injector buzzMessageInjector) insertThreadMetadata(ctx context.Context, transaction *sql.Tx, channelID string, event nostr.Event) error {
 	rootEventID, parentEventID := threadReferences(event)
 	if rootEventID == "" && parentEventID == "" {
 		return nil
@@ -181,7 +139,7 @@ func (injector ChannelInjector) insertThreadMetadata(ctx context.Context, transa
 	return nil
 }
 
-func (injector ChannelInjector) ensureThreadStub(ctx context.Context, transaction *sql.Tx, channelID string, eventID []byte, createdAt *time.Time) error {
+func (injector buzzMessageInjector) ensureThreadStub(ctx context.Context, transaction *sql.Tx, channelID string, eventID []byte, createdAt *time.Time) error {
 	if eventID == nil || createdAt == nil {
 		return nil
 	}
@@ -197,7 +155,7 @@ func (injector ChannelInjector) ensureThreadStub(ctx context.Context, transactio
 	return errorValue
 }
 
-func (injector ChannelInjector) bumpReplyCount(ctx context.Context, transaction *sql.Tx, eventID []byte, replyAt time.Time) error {
+func (injector buzzMessageInjector) bumpReplyCount(ctx context.Context, transaction *sql.Tx, eventID []byte, replyAt time.Time) error {
 	if eventID == nil {
 		return nil
 	}
@@ -212,7 +170,7 @@ func (injector ChannelInjector) bumpReplyCount(ctx context.Context, transaction 
 	return errorValue
 }
 
-func (injector ChannelInjector) bumpDescendantCount(ctx context.Context, transaction *sql.Tx, eventID []byte, replyAt time.Time) error {
+func (injector buzzMessageInjector) bumpDescendantCount(ctx context.Context, transaction *sql.Tx, eventID []byte, replyAt time.Time) error {
 	if eventID == nil {
 		return nil
 	}
@@ -226,7 +184,7 @@ func (injector ChannelInjector) bumpDescendantCount(ctx context.Context, transac
 	return errorValue
 }
 
-func (injector ChannelInjector) eventCreatedAt(ctx context.Context, transaction *sql.Tx, eventID []byte) (*time.Time, error) {
+func (injector buzzMessageInjector) eventCreatedAt(ctx context.Context, transaction *sql.Tx, eventID []byte) (*time.Time, error) {
 	if eventID == nil {
 		return nil, nil
 	}
@@ -244,7 +202,7 @@ func (injector ChannelInjector) eventCreatedAt(ctx context.Context, transaction 
 	return &createdAt, nil
 }
 
-func (injector ChannelInjector) insertMentions(ctx context.Context, transaction *sql.Tx, channelID string, event nostr.Event) error {
+func (injector buzzMessageInjector) insertMentions(ctx context.Context, transaction *sql.Tx, channelID string, event nostr.Event) error {
 	createdAt := event.CreatedAt.Time().UTC()
 	eventID, errorValue := hex.DecodeString(event.ID)
 	if errorValue != nil {
@@ -313,31 +271,4 @@ func optionalEventID(eventID string) ([]byte, error) {
 		return nil, nil
 	}
 	return hex.DecodeString(eventID)
-}
-
-func (injector ChannelInjector) InjectReaction(ctx context.Context, channelID string, event nostr.Event) error {
-	eventID, errorValue := hex.DecodeString(event.ID)
-	if errorValue != nil {
-		return errorValue
-	}
-	authorPubkey, errorValue := hex.DecodeString(event.PubKey)
-	if errorValue != nil {
-		return errorValue
-	}
-	signature, errorValue := hex.DecodeString(event.Sig)
-	if errorValue != nil {
-		return errorValue
-	}
-	tagsDocument, errorValue := json.Marshal(event.Tags)
-	if errorValue != nil {
-		return errorValue
-	}
-	_, errorValue = injector.Database.ExecContext(ctx, `
-		INSERT INTO events (community_id, id, pubkey, created_at, kind, tags, content, sig, received_at, channel_id)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW(), $9)
-		ON CONFLICT DO NOTHING`,
-		injector.CommunityID, eventID, authorPubkey, event.CreatedAt.Time().UTC(),
-		event.Kind, tagsDocument, event.Content, signature, channelID,
-	)
-	return errorValue
 }

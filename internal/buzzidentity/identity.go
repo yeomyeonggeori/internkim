@@ -1,8 +1,7 @@
 // Package buzzidentity is the single source of truth for deterministic Buzz
-// identity and channel derivation. The importer (cmd/buzz-migrate), admind, and
-// the chatd mirror all derive the same pubkey for the same person and the same
-// channel id for the same source channel, so imported history and live traffic
-// share one identity. The TypeScript mirror mirrors these exact formulas
+// identity and channel derivation. admind and the chatd mirror derive the same
+// pubkey for the same person and the same channel id for the same source
+// channel, so imported history and live traffic share one identity. The TypeScript mirror mirrors these exact formulas
 // (chatd src/mirror/identity.ts) and is anchored by a cross-language test.
 //
 // The seed is a critical root secret: losing it makes every derived key and

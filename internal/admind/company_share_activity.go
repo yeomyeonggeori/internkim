@@ -15,6 +15,11 @@ import (
 	"github.com/yeomyeonggeori/internkim/internal/centralplane"
 )
 
+const (
+	attendanceKindClockIn  = "clock_in"
+	attendanceKindClockOut = "clock_out"
+)
+
 const companyShareActivityWindowDays = 52 * 7
 
 type companyShareActivityDay struct {

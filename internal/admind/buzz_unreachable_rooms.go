@@ -48,3 +48,17 @@ func privateRoomsNobodyIsIn(ctx context.Context, relay *sql.DB) ([]string, error
 	}
 	return rooms, rows.Err()
 }
+
+func retireOneRoom(ctx context.Context, database *sql.DB, channelID string) error {
+	if _, errorValue := database.ExecContext(ctx,
+		"DELETE FROM events WHERE kind IN (39000,39001,39002) AND channel_id = $1", channelID); errorValue != nil {
+		return errorValue
+	}
+	if _, errorValue := database.ExecContext(ctx,
+		"UPDATE channel_members SET removed_at = now() WHERE channel_id = $1 AND removed_at IS NULL", channelID); errorValue != nil {
+		return errorValue
+	}
+	_, errorValue := database.ExecContext(ctx,
+		"UPDATE channels SET deleted_at = now() WHERE id = $1 AND deleted_at IS NULL", channelID)
+	return errorValue
+}
