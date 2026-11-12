@@ -7,6 +7,6 @@ description: "pg_cron이 무엇을 얼마나 자주 실행하는지."
 
 | 주기 | 실행 |
 | --- | --- |
+| `* * * * *` | `select public.advance_tasks_by_their_dates()` |
 | `* * * * *` | `select public.announce_event_reminders()` |
 | `7 * * * *` | `select public.ask_about_shifts_nobody_closed()` |
-| `* * * * *` | `select public.complete_tasks_past_their_end()` |
