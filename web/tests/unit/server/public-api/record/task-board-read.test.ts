@@ -131,11 +131,13 @@ function record(rows: RecordRow[], fail = false) {
 		}
 		const status = url.searchParams.get('status');
 		if (status) matching = matching.filter(row => matches(`status.${status}`, row));
-		if (init?.method === 'HEAD') return new Response(null, { status: 200, headers: { 'content-range': `*/${matching.length}` } });
 		if (url.searchParams.get('order')) matching = [...matching].sort(newestFirst);
 		const from = Number(url.searchParams.get('offset') ?? 0);
 		const limit = Number(url.searchParams.get('limit') ?? 1000);
 		const page = matching.slice(from, from + limit);
+		if (new Headers(init?.headers).get('Prefer')?.includes('count=exact')) {
+			return Response.json(page, { headers: { 'content-range': `${page.length ? `${from}-${from + page.length - 1}` : '*'}/${matching.length}` } });
+		}
 		selectedIDs.push(page.map(row => row.id));
 		return Response.json(page);
 	}, { preconnect() {} });
@@ -229,7 +231,7 @@ describe('scoped task board query', () => {
 		expect(ids).toEqual([...cards].sort(newestFirst).map(row => row.id));
 		expect(pages).toHaveLength(16);
 		expect(pages.every(page => page.totalCount === 1501)).toBe(true);
-		expect(queries.filter(query => query.searchParams.has('limit')).every(query => query.searchParams.get('limit') === '101')).toBe(true);
+		expect(queries.filter(query => query.searchParams.get('limit') !== '1').every(query => query.searchParams.get('limit') === '101')).toBe(true);
 	});
 
 	test('narrows to the people asked for and counts what is unfinished across every page', async () => {
