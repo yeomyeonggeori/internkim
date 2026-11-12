@@ -104,13 +104,13 @@ func (service Service) messageTextsForApproval(ctx context.Context, toolContext 
 	if len(limitedMessageIDs) > messageDeletePreviewMessageLimit {
 		limitedMessageIDs = limitedMessageIDs[:messageDeletePreviewMessageLimit]
 	}
-	return service.chatdMessageTexts(ctx, limitedMessageIDs)
+	return service.chatdMessageTexts(ctx, toolContext, limitedMessageIDs)
 }
 
-func (service Service) chatdMessageTexts(ctx context.Context, messageIDs []string) []string {
-	var response chatdMessageSearchResponse
+func (service Service) chatdMessageTexts(ctx context.Context, toolContext capabilities.ToolInvokeContext, messageIDs []string) []string {
 	searchRequest := chatdMessageSearchRequest{MessageIDs: messageIDs, Queries: []string{}, Limit: len(messageIDs)}
-	if service.chatdRequest(ctx, "message.search", searchRequest, &response) != nil {
+	response, errorValue := service.readMessages(ctx, toolContext, searchRequest)
+	if errorValue != nil {
 		return nil
 	}
 	messageTexts := []string{}

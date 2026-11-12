@@ -264,7 +264,7 @@ func TestTheMessageDeleteTargetRouteAnswersOnItsOwnPath(t *testing.T) {
 	}))
 	defer chatdServer.Close()
 	service := Service{Configuration: Configuration{ChatdEndpoint: chatdServer.URL, ChatdPlatform: "buzz"}}
-	requestBody := `{"input":{"messageIDs":["m1"]},"context":{"requesterEmail":"member@example.com","platform":"buzz"}}`
+	requestBody := `{"input":{"messageIDs":["m1"]},"context":{"requesterEmail":"member@example.com","requesterPlatformUserID":"requester-pubkey","platform":"buzz"}}`
 	request := httptest.NewRequest(http.MethodPost, "/v1/tools/message_delete/target.resolve", strings.NewReader(requestBody))
 	responseRecorder := httptest.NewRecorder()
 

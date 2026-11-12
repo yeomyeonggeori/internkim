@@ -51,8 +51,12 @@ messenger. A `message_send` with `targetType` `directMessage` and no
 `personHint` goes out under your name into your direct conversation with the
 agent, which takes it up as it would a message typed there.
 `message_search` with `scope` `directMessage` reads that conversation, and with
-a `personHint` it reads your direct conversation with that colleague. Both are
-read with your account, so they show what the messenger shows you.
+a `personHint` it reads your direct conversation with that colleague.
+
+Every search from here reads with your account, channels included, so it shows
+what the messenger shows you: the rooms you are in and the open ones. Asked
+through the agent in the messenger, a search answers only with what both you
+and the agent can open.
 
 ## What runs where [#what-runs-where]
 
