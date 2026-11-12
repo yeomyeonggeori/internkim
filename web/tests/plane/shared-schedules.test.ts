@@ -103,23 +103,6 @@ test('schedule_list returns the full instruction only to its creator', async () 
 	expect(JSON.stringify(colleagueAnswer)).not.toContain(requesterInstruction);
 });
 
-const scheduleWriteAnswerSchema = z.object({
-	outcome: z.string(),
-	result: z.object({
-		scheduleID: z.string(),
-		description: z.string(),
-		taskInstruction: z.string(),
-		timeZone: z.string(),
-		kind: z.string(),
-		cronExpression: z.string().optional(),
-		intervalSecond: z.number().optional(),
-		nextRunAt: z.string(),
-		conversationID: z.string(),
-		replyTargetID: z.string(),
-		agentProfileName: z.string()
-	})
-});
-
 const scheduleCancelAnswerSchema = z.object({
 	outcome: z.string(),
 	result: z.object({
@@ -165,47 +148,38 @@ async function answerOf(call: ScheduleCall): Promise<unknown> {
 	return carried;
 }
 
-test('a schedule is created, changed and cancelled through the shared catalog', async () => {
+test('writing a schedule from a conversation waits for its requester, and cancelling one does not', async () => {
 	const [requester] = plane.people;
+	const taskInstruction = 'Post the delivery plan for the week to the project channel.';
+	await seedSchedule('plane-weekly-delivery', requester.memberID, 'Weekly delivery plan', taskInstruction);
 
-	const created = scheduleWriteAnswerSchema.parse(
-		await answerOf({
-			toolName: 'schedule_create',
-			requesterEmail: requester.email,
-			input: {
-				taskInstruction: 'Post the delivery plan for the week to the project channel.',
-				description: 'Weekly delivery plan',
-				kind: 'cron',
-				cronExpression: '0 9 * * 1',
-				timeZone: 'Asia/Seoul',
-				repeatPolicy: 'unbounded'
-			}
-		})
-	);
-	expect(created.outcome).toBe('succeeded');
-	expect(created.result.conversationID).toBe('plane-schedule-conversation');
-	expect(created.result.replyTargetID).toBe('plane-schedule-message');
+	const created = await answerOf({
+		toolName: 'schedule_create',
+		requesterEmail: requester.email,
+		outcome: 'denied',
+		input: {
+			taskInstruction,
+			description: 'Weekly delivery plan',
+			kind: 'cron',
+			cronExpression: '0 9 * * 1',
+			timeZone: 'Asia/Seoul',
+			repeatPolicy: 'unbounded'
+		}
+	});
+	expect(JSON.stringify(created)).toContain('approval_required');
 
-	const listedAfterCreate = await listSchedules(requester.email);
-	expect(
-		listedAfterCreate.result.schedules.map((schedule) => schedule.scheduleID)
-	).toContain(created.result.scheduleID);
-
-	const updated = scheduleWriteAnswerSchema.parse(
-		await answerOf({
-			toolName: 'schedule_update',
-			requesterEmail: requester.email,
-			input: {
-				scheduleHint: 'Weekly delivery plan',
-				kind: 'interval',
-				intervalSecond: 3600,
-				repeatPolicy: 'unbounded'
-			}
-		})
-	);
-	expect(updated.result.scheduleID).toBe(created.result.scheduleID);
-	expect(updated.result.kind).toBe('interval');
-	expect(updated.result.intervalSecond).toBe(3600);
+	const updated = await answerOf({
+		toolName: 'schedule_update',
+		requesterEmail: requester.email,
+		outcome: 'denied',
+		input: {
+			scheduleHint: 'Weekly delivery plan',
+			kind: 'interval',
+			intervalSecond: 3600,
+			repeatPolicy: 'unbounded'
+		}
+	});
+	expect(JSON.stringify(updated)).toContain('approval_required');
 
 	const cancelled = scheduleCancelAnswerSchema.parse(
 		await answerOf({
@@ -216,11 +190,11 @@ test('a schedule is created, changed and cancelled through the shared catalog', 
 		})
 	);
 	expect(cancelled.result.cancelled).toEqual([
-		{ scheduleID: created.result.scheduleID, description: 'Weekly delivery plan' }
+		{ scheduleID: 'plane-weekly-delivery', description: 'Weekly delivery plan' }
 	]);
 
 	const listedAfterCancel = await listSchedules(requester.email);
 	expect(
 		listedAfterCancel.result.schedules.map((schedule) => schedule.scheduleID)
-	).not.toContain(created.result.scheduleID);
+	).not.toContain('plane-weekly-delivery');
 });
