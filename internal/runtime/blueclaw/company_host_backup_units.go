@@ -42,7 +42,6 @@ func companyHostSnapshotService(layout CompanyHostLayout) string {
 		"After=" + companyHostDatabaseUnitName + " network-online.target",
 		"Wants=network-online.target",
 		"ConditionPathExists=" + CompanyHostAgentKeyPath,
-		"ConditionPathExists=" + CompanyHostBoxStatePath + "/identity.json",
 		"",
 		"[Service]",
 		"Type=oneshot",

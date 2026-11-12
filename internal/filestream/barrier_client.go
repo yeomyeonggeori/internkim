@@ -25,8 +25,9 @@ func AskToKeep(ctx context.Context, socketPath string) error {
 	if errorValue != nil {
 		return fmt.Errorf("waiting for the file journal at %s to keep what was just written: %w", socketPath, errorValue)
 	}
-	if strings.TrimSpace(answer) != barrierKept {
-		return fmt.Errorf("the file journal at %s did not keep what was just written: %s", socketPath, strings.TrimSpace(answer))
+	switch strings.TrimSpace(answer) {
+	case barrierKept, barrierUnjournaled:
+		return nil
 	}
-	return nil
+	return fmt.Errorf("the file journal at %s did not keep what was just written: %s", socketPath, strings.TrimSpace(answer))
 }

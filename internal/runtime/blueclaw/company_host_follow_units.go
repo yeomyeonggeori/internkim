@@ -14,12 +14,11 @@ type companyHostFollower struct {
 	name             string
 	description      string
 	verb             string
-	isBoxOnly        bool
 	runtimeDirectory string
 }
 
 var companyHostFollowers = []companyHostFollower{
-	{name: CompanyHostWALFollowServiceName, description: "keeps every commit with the company's other boxes before it counts", verb: "wal-follow", isBoxOnly: true},
+	{name: CompanyHostWALFollowServiceName, description: "keeps every commit with the company's other boxes before it counts", verb: "wal-follow"},
 	{name: CompanyHostFileFollowServiceName, description: "keeps every changed file with the company's other boxes", verb: "file-follow", runtimeDirectory: CompanyHostFileFollowServiceName},
 }
 
@@ -39,20 +38,15 @@ func (follower companyHostFollower) unit(layout CompanyHostLayout) string {
 		"After=" + companyHostDatabaseUnitName + " network-online.target",
 		"Wants=network-online.target",
 		"ConditionPathExists=" + CompanyHostAgentKeyPath,
-	}
-	if follower.isBoxOnly {
-		lines = append(lines, "ConditionPathExists="+CompanyHostBoxStatePath+"/identity.json")
-	}
-	lines = append(lines,
 		"",
 		"[Service]",
 		"Type=simple",
 		"User=root",
-		"Environment=PATH="+layout.SearchPath(),
-		"ExecStart="+layout.BinaryPath(CompanyPackageName)+" "+follower.verb,
+		"Environment=PATH=" + layout.SearchPath(),
+		"ExecStart=" + layout.BinaryPath(CompanyPackageName) + " " + follower.verb,
 		"Restart=always",
-		"RestartSec="+companyHostFollowRestartWait,
-	)
+		"RestartSec=" + companyHostFollowRestartWait,
+	}
 	if follower.runtimeDirectory != "" {
 		lines = append(lines, "RuntimeDirectory="+follower.runtimeDirectory, "RuntimeDirectoryMode=0755")
 	}
