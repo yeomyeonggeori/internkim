@@ -53,15 +53,15 @@ select is((select count(*)::int from top_up_asks
   'the ask reaches the web app once, naming the top-up');
 
 set local role service_role;
-select public.company_credit_top_up_paid((select id from public.company_credit_top_up), 'evt_top_up_paid_1', 'in_top_up_1', 4000);
-select public.company_credit_top_up_paid((select id from public.company_credit_top_up), 'evt_top_up_paid_1', 'in_top_up_1', 4000);
+select public.company_credit_top_up_paid((select id from public.company_credit_top_up), 'evt_top_up_paid_1', 'in_top_up_1', 5000);
+select public.company_credit_top_up_paid((select id from public.company_credit_top_up), 'evt_top_up_paid_1', 'in_top_up_1', 5000);
 reset role;
-select is((select permanent_credits from public.company where id = '56900000-0000-0000-0000-000000000000'), 4000::bigint,
+select is((select permanent_credits from public.company where id = '56900000-0000-0000-0000-000000000000'), 5000::bigint,
   'a paid top-up grants its permanent credits once, however often Stripe sends it');
 select is((select status || ' ' || stripe_invoice_id from public.company_credit_top_up), 'paid in_top_up_1',
   'a paid top-up records the invoice that paid it');
 
-select pg_temp.spend('56900000-0000-0000-0000-000000000000', '56900000-0000-0000-0000-000000000010', 4000);
+select pg_temp.spend('56900000-0000-0000-0000-000000000000', '56900000-0000-0000-0000-000000000010', 5000);
 select is((select count(*)::int from public.company_credit_top_up where status = 'pending'), 1,
   'a later fall below the threshold asks again');
 

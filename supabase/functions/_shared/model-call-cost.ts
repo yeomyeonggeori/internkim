@@ -1,7 +1,11 @@
-const dollarsPerCredit = 0.001;
 const creditDigitsKept = 9;
 
-export function creditsOfCost(costInDollars: number): number {
+export function dollarsPerCreditOf(setting: string | undefined): number | null {
+	const dollarsPerCredit = Number(setting ?? '');
+	return Number.isFinite(dollarsPerCredit) && dollarsPerCredit > 0 ? dollarsPerCredit : null;
+}
+
+export function creditsOfCost(costInDollars: number, dollarsPerCredit: number): number {
 	if (!Number.isFinite(costInDollars) || costInDollars <= 0) return 0;
 	return Math.ceil(Number((costInDollars / dollarsPerCredit).toFixed(creditDigitsKept)));
 }

@@ -4,6 +4,7 @@ import { StripeEventRefused, type StripeEventOutcome, type StripeLookups, type U
 import { applyRefundedCharge } from './stripe-refund-events';
 import { companyMetadata, creditsPaidFor, paidInvoice } from './stripe-subscription-invoice';
 import { applyFailedTopUp, applyPaidTopUp, isTopUpInvoice } from './stripe-top-up-events';
+import type { TopUpRates } from './top-up-rates';
 
 const periodOpeningReasons = new Set(['subscription_create', 'subscription_cycle']);
 
@@ -32,13 +33,14 @@ const stripeEvent = z.object({
 export async function applyStripeEvent(
 	client: SupabaseClient,
 	payload: unknown,
-	lookups: StripeLookups
+	lookups: StripeLookups,
+	topUpRates: TopUpRates
 ): Promise<StripeEventOutcome> {
 	const event = stripeEvent.safeParse(payload);
 	if (!event.success) throw new StripeEventRefused('the body is not a Stripe event');
-	if (isTopUpInvoice(event.data.data.object)) return applyTopUpEvent(client, event.data);
+	if (isTopUpInvoice(event.data.data.object)) return applyTopUpEvent(client, event.data, topUpRates);
 	if (event.data.type === 'invoice.paid') return applyPaidInvoice(client, event.data.id, event.data.data.object, lookups.unitAmountOfPrice);
-	if (event.data.type === 'charge.refunded') return applyRefundedCharge(client, event.data, lookups);
+	if (event.data.type === 'charge.refunded') return applyRefundedCharge(client, event.data, lookups, topUpRates);
 	if (event.data.type.startsWith('customer.subscription.')) {
 		return applySubscriptionChange(client, event.data, event.data.data.object);
 	}
@@ -47,10 +49,11 @@ export async function applyStripeEvent(
 
 async function applyTopUpEvent(
 	client: SupabaseClient,
-	event: { id: string; type: string; data: { object: unknown } }
+	event: { id: string; type: string; data: { object: unknown } },
+	topUpRates: TopUpRates
 ): Promise<StripeEventOutcome> {
 	if (event.type === 'invoice.paid') {
-		await applyPaidTopUp(client, event.id, event.data.object);
+		await applyPaidTopUp(client, event.id, event.data.object, topUpRates);
 		return 'applied';
 	}
 	if (event.type === 'invoice.payment_failed') {

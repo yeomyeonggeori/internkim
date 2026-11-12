@@ -17,11 +17,13 @@ const networkHookTimeout = 60_000;
 const client = controlPlane({ projectURL, serviceRoleKey });
 const stamp = Date.now();
 const webhookSecret = `whsec_route_${stamp}`;
+const topUpRates = { krw: 2 };
 const environment = {
 	SUPABASE_URL: projectURL,
 	SUPABASE_SECRET_KEY: serviceRoleKey,
 	STRIPE_WEBHOOK_SECRET: webhookSecret,
-	STRIPE_SECRET_KEY: 'sk_test_unused'
+	STRIPE_SECRET_KEY: 'sk_test_unused',
+	STRIPE_TOP_UP_RATES: JSON.stringify(topUpRates)
 };
 const encoder = new TextEncoder();
 const unitAmount = 1900;
@@ -138,7 +140,8 @@ describe('the Stripe webhook', () => {
 					return unitAmount;
 				},
 				invoicePaidBy: async () => null
-			}
+			},
+			topUpRates
 		);
 		expect(outcome).toBe('applied');
 		expect(pricesAsked).toEqual([priceID, priceID]);
@@ -189,7 +192,7 @@ describe('the Stripe webhook', () => {
 		expect(answer).toEqual({ outcome: 'applied' });
 		await deliver(event);
 		const { data } = await client.from('company').select('permanent_credits').eq('id', companyID).single<{ permanent_credits: number }>();
-		expect(data?.permanent_credits).toBe(12000);
+		expect(data?.permanent_credits).toBe(30000 * topUpRates.krw);
 	});
 
 	test('takes back the part of a period a refund returns, once', async () => {
@@ -212,8 +215,8 @@ describe('the Stripe webhook', () => {
 				previous_attributes: { amount_refunded: unitAmount }
 			}
 		};
-		expect(await applyStripeEvent(client, event, lookups)).toBe('applied');
-		expect(await applyStripeEvent(client, event, lookups)).toBe('applied');
+		expect(await applyStripeEvent(client, event, lookups, topUpRates)).toBe('applied');
+		expect(await applyStripeEvent(client, event, lookups, topUpRates)).toBe('applied');
 		expect(invoicesAsked).toEqual([`pi_route_${stamp}`, `pi_route_${stamp}`]);
 		expect(await subscriptionCreditsOfCompany()).toBe(before - subscriptionCreditsPerMember);
 	});
@@ -236,11 +239,12 @@ describe('the Stripe webhook', () => {
 					amount_paid: 30000,
 					metadata: { top_up_id: crypto.randomUUID(), company_id: companyID }
 				})
-			}
+			},
+			topUpRates
 		);
 		expect(outcome).toBe('applied');
 		const { data: after } = await client.from('company').select('permanent_credits').eq('id', companyID).single<{ permanent_credits: number }>();
-		expect((before?.permanent_credits ?? 0) - (after?.permanent_credits ?? 0)).toBe(4000);
+		expect((before?.permanent_credits ?? 0) - (after?.permanent_credits ?? 0)).toBe(10000 * topUpRates.krw);
 	});
 
 	test('expires what a subscription left when it ends', async () => {
@@ -262,7 +266,8 @@ describe('the Stripe webhook', () => {
 				created: periodEnd,
 				data: { object: { id: 'ch_other', currency: 'krw', amount_refunded: 5000, payment_intent: 'pi_other' } }
 			},
-			{ unitAmountOfPrice: async () => unitAmount, invoicePaidBy: async () => null }
+			{ unitAmountOfPrice: async () => unitAmount, invoicePaidBy: async () => null },
+			topUpRates
 		);
 		expect(outcome).toBe('ignored');
 	});
