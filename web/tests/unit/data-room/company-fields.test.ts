@@ -23,10 +23,10 @@ describe('the company fields an administrator places', () => {
 		const rows = companyFieldRows(placed, {
 			profile: { brandName: { ko: '샘플' } },
 			metrics: [
-				{ metric: 'annualRevenue', period: '2024', value: 1 },
-				{ metric: 'annualRevenue', period: '2025', value: 2 },
-				{ metric: 'burnRate', period: '2025', value: 3 },
-				{ metric: 'installedUnits', period: '2025', value: 4 }
+				{ metric: 'annualRevenue', period: '2024', value: 1, basis: 'reported' },
+				{ metric: 'annualRevenue', period: '2025', value: 2, basis: 'reported' },
+				{ metric: 'burnRate', period: '2025', value: 3, basis: 'reported' },
+				{ metric: 'installedUnits', period: '2025', value: 4, basis: 'reported' }
 			],
 			records: [{ category: 'history', title: '설립', attributes: {} }]
 		});
@@ -43,7 +43,7 @@ describe('the company fields an administrator places', () => {
 	test('a metric and a record of one name are two fields, each in its own place', () => {
 		const rows = companyFieldRows([{ kind: 'record', field: 'history', categoryCode: 'GP', names: null }], {
 			profile: {},
-			metrics: [{ metric: 'history', period: '2025', value: 1 }],
+			metrics: [{ metric: 'history', period: '2025', value: 1, basis: 'reported' }],
 			records: [{ category: 'history', title: '설립', attributes: {} }]
 		});
 		expect(rows.map((row) => [row.kind, row.categoryCode])).toEqual([['metric', 'X'], ['record', 'GP']]);

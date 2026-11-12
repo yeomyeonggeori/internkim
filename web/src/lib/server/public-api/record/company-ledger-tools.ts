@@ -6,6 +6,7 @@ import { HintRefused, normalized, resolveHint, type HintMatcher } from './hint-r
 import { RecordRefusedTheWrite, statusOfPostgresCode } from './tasks';
 import type { RecordContext } from './company';
 import { moneySchema, type Money } from '$lib/money';
+import type { MetricBasis } from '$lib/data-room/model';
 import type {
 	CompanyDocumentDownloadResult,
 	CompanyDocumentListResult,
@@ -22,6 +23,7 @@ import type {
 export type CompanyMetricRecordInput = {
 	metric?: string;
 	period?: string;
+	basis?: MetricBasis;
 	amount?: Money;
 	value?: number;
 	unit?: string;
@@ -104,7 +106,7 @@ const downloadableForTenMinutes = 10 * 60;
 const sha256Pattern = /^[0-9a-f]{64}$/;
 const inboxCategoryCode = 'X';
 
-const metricColumns = 'id, metric, period, amount, value, note, updated_at';
+const metricColumns = 'id, metric, period, basis, amount, value, note, updated_at';
 const recordColumns = 'id, category, record_date, title, detail, status, amount, attributes, updated_at';
 const documentColumns =
 	'id, document_number, kind, document_type, title, counterpart, language, file_path, summary, requester_id, created_at, updated_at, category_code, document_date, period, status, supersedes, sha256, tags, storage_path, size_bytes, published_from, published_at, published_by';
@@ -136,6 +138,7 @@ type MetricRow = {
 	id: string;
 	metric: string;
 	period: string;
+	basis: MetricBasis;
 	amount: Money | null;
 	value: number | null;
 	note: string | null;
@@ -188,6 +191,7 @@ function answeredMetric(row: MetricRow, unit: string | null): CompanyMetricResul
 		metricID: row.id,
 		metric: row.metric,
 		period: row.period,
+		basis: row.basis,
 		amount: row.amount,
 		value: row.value === null ? null : Number(row.value),
 		unit: row.amount ? null : unit,
@@ -354,6 +358,7 @@ export async function companyMetricRecord(
 				company_id: context.companyID,
 				metric,
 				period,
+				basis: input.basis,
 				amount: stored.amount,
 				value: stored.value,
 				note: orNull(input.note),

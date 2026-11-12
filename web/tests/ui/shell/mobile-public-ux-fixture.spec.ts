@@ -58,8 +58,8 @@ for (const width of everyLayoutBand) {
 			company: {
 				profile: { brandName: { ko: '샘플' }, slogan: { ko: '좁은 화면에서도 회사 소개가 한눈에 읽힙니다' }, capital: { amount: 500000000, currency: 'KRW' }, foundedDate: '2020-01-02' },
 				metrics: [
-					{ metric: 'annualRevenue', period: '2024', amount: { amount: 900000000, currency: 'KRW' } },
-					{ metric: 'annualRevenue', period: '2025', amount: { amount: 1200000000, currency: 'KRW' } }
+					{ metric: 'annualRevenue', period: '2024', amount: { amount: 900000000, currency: 'KRW' }, basis: 'reported' },
+					{ metric: 'annualRevenue', period: '2025', amount: { amount: 1200000000, currency: 'KRW' }, basis: 'reported' }
 				],
 				records: [{ category: 'funding', date: '2025-03-01', title: '시드 투자 유치', attributes: { leadInvestor: 'ABC Ventures' } }]
 			},

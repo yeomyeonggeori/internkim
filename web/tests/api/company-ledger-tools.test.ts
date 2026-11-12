@@ -143,6 +143,7 @@ describe('what the company states about itself', () => {
 		const refused = await asSample('company_metric_record', {
 			metric: 'annualRevenue',
 			period: '2025',
+			basis: 'reported',
 			amount: { amount: 1_200_000_000, currency: 'KRW' }
 		});
 
@@ -154,6 +155,7 @@ describe('what the company states about itself', () => {
 		const written = await asAdmin('company_metric_record', {
 			metric: 'annualRevenue',
 			period: '2025',
+			basis: 'reported',
 			amount: { amount: 1_200_000_000, currency: 'KRW' }
 		});
 
@@ -168,6 +170,7 @@ describe('what the company states about itself', () => {
 		const written = await asAdmin('company_metric_record', {
 			metric: 'vietnamRevenue',
 			period: '2023',
+			basis: 'reported',
 			amount: { amount: 25_000_000_000, currency: 'VND' }
 		});
 
@@ -175,10 +178,27 @@ describe('what the company states about itself', () => {
 		expect(resultOf(written).amount).toEqual({ amount: 25_000_000_000, currency: 'VND' });
 	});
 
+	test('refuses a number that does not say whether it is expected or reported', async () => {
+		const refused = await asAdmin('company_metric_record', { metric: 'annualRevenue', period: '2027', amount: { amount: 1, currency: 'KRW' } });
+
+		expect(refused.status).toBe(422);
+	});
+
+	test('replaces the expected number for a period with the reported one', async () => {
+		await asAdmin('company_metric_record', { metric: 'grossMerchandise', period: '2025', basis: 'expected', value: 100 });
+		const reported = await asAdmin('company_metric_record', { metric: 'grossMerchandise', period: '2025', basis: 'reported', value: 90 });
+		const listed = await asAdmin('company_metric_list', { metric: 'grossMerchandise' });
+
+		expect(resultOf(reported).basis).toBe('reported');
+		expect(resultOf(listed).metrics).toEqual([expect.objectContaining({ period: '2025', basis: 'reported', value: 90 })]);
+		await client.from('company_metric').delete().eq('company_id', companyID).eq('metric', 'grossMerchandise');
+	});
+
 	test('refuses a period that is not a moment', async () => {
 		const refused = await asAdmin('company_metric_record', {
 			metric: 'mau',
 			period: '2025-Q5',
+			basis: 'reported',
 			value: 9_000
 		});
 
@@ -186,8 +206,8 @@ describe('what the company states about itself', () => {
 	});
 
 	test('records a half, and lists each period by when it began', async () => {
-		await asAdmin('company_metric_record', { metric: 'halfRevenue', period: '2026-H2', value: 2 });
-		await asAdmin('company_metric_record', { metric: 'halfRevenue', period: '2026-H1', value: 1 });
+		await asAdmin('company_metric_record', { metric: 'halfRevenue', period: '2026-H2', basis: 'reported', value: 2 });
+		await asAdmin('company_metric_record', { metric: 'halfRevenue', period: '2026-H1', basis: 'reported', value: 1 });
 		const listed = await asAdmin('company_metric_list', { metric: 'halfRevenue' });
 
 		expect((resultOf(listed).metrics as { period: string }[]).map((metric) => metric.period)).toEqual(['2026-H1', '2026-H2']);
@@ -197,6 +217,7 @@ describe('what the company states about itself', () => {
 		await asAdmin('company_metric_record', {
 			metric: 'annualRevenue',
 			period: '2025',
+			basis: 'reported',
 			amount: { amount: 1_300_000_000, currency: 'USD' }
 		});
 		const listed = await asAdmin('company_metric_list', { metric: 'annualRevenue' });
@@ -207,8 +228,8 @@ describe('what the company states about itself', () => {
 	});
 
 	test('keeps one unit for a counted metric across its periods', async () => {
-		await asAdmin('company_metric_record', { metric: 'installedUnits', period: '2024', value: 120, unit: 'sites' });
-		const later = await asAdmin('company_metric_record', { metric: 'installedUnits', period: '2025', value: 340 });
+		await asAdmin('company_metric_record', { metric: 'installedUnits', period: '2024', basis: 'reported', value: 120, unit: 'sites' });
+		const later = await asAdmin('company_metric_record', { metric: 'installedUnits', period: '2025', basis: 'reported', value: 340 });
 		const listed = await asColleague('company_metric_list', { metric: 'installedUnits' });
 
 		expect(resultOf(later).unit).toBe('sites');
@@ -217,7 +238,7 @@ describe('what the company states about itself', () => {
 	});
 
 	test('is read by anybody who works here, and filtered by year', async () => {
-		await asAdmin('company_metric_record', { metric: 'mau', period: '2024-12', value: 9_000, unit: 'people' });
+		await asAdmin('company_metric_record', { metric: 'mau', period: '2024-12', basis: 'reported', value: 9_000, unit: 'people' });
 
 		const everything = await asSample('company_metric_list');
 		const recent = await asSample('company_metric_list', { fromYear: 2025 });

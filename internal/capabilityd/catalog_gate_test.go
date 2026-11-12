@@ -891,8 +891,8 @@ func gateCases() map[string]catalogGateCase {
 		},
 		"company_metric_record": {
 			kind:    provesCarrying,
-			reaches: map[gateBackend]*standingIn{admindOverTheSocket: answering(`{"tool":"company_metric_record","result":{"metricID":"metric-1","metric":"annualRevenue","period":"2025","amount":{"amount":1200000000,"currency":"KRW"},"value":null,"unit":null,"note":null,"updatedAt":"2026-09-04T00:00:00Z"}}`)},
-			input:   `{"metric":"annualRevenue","period":"2025","amount":{"amount":1200000000,"currency":"KRW"}}`,
+			reaches: map[gateBackend]*standingIn{admindOverTheSocket: answering(`{"tool":"company_metric_record","result":{"metricID":"metric-1","metric":"annualRevenue","period":"2025","basis":"reported","amount":{"amount":1200000000,"currency":"KRW"},"value":null,"unit":null,"note":null,"updatedAt":"2026-09-04T00:00:00Z"}}`)},
+			input:   `{"metric":"annualRevenue","period":"2025","basis":"reported","amount":{"amount":1200000000,"currency":"KRW"}}`,
 			expect: func(t *testing.T, answered capabilities.ToolInvokeResponse) {
 				expectSucceeded(t, answered)
 				expectResultHolds(t, answered, `"amount":{"amount":1200000000,"currency":"KRW"}`)
@@ -900,7 +900,7 @@ func gateCases() map[string]catalogGateCase {
 		},
 		"company_metric_list": {
 			kind:    provesCarrying,
-			reaches: map[gateBackend]*standingIn{admindOverTheSocket: answering(`{"tool":"company_metric_list","result":{"count":1,"metrics":[{"metricID":"metric-1","metric":"annualRevenue","period":"2025","amount":{"amount":1200000000,"currency":"KRW"},"value":null,"unit":null,"note":null,"updatedAt":"2026-09-04T00:00:00Z"}]}}`)},
+			reaches: map[gateBackend]*standingIn{admindOverTheSocket: answering(`{"tool":"company_metric_list","result":{"count":1,"metrics":[{"metricID":"metric-1","metric":"annualRevenue","period":"2025","basis":"reported","amount":{"amount":1200000000,"currency":"KRW"},"value":null,"unit":null,"note":null,"updatedAt":"2026-09-04T00:00:00Z"}]}}`)},
 			input:   `{"metric":"annualRevenue","fromYear":2024}`,
 			expect: func(t *testing.T, answered capabilities.ToolInvokeResponse) {
 				expectSucceeded(t, answered)

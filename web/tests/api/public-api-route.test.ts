@@ -1392,7 +1392,7 @@ describe('the company a data room shows', () => {
 
 	test('sends each reader only the fields of the categories they read', async () => {
 		await client.from('company').update({ profile: { brandName: { en: 'Sample' }, capital: { amount: 1000, currency: 'USD' }, bankAccount: { en: 'Sample Bank 000' } } }).eq('id', companyID);
-		await client.from('company_metric').insert({ company_id: companyID, metric: 'annualRevenue', period: '2025', amount: { amount: 1000, currency: 'USD' } });
+		await client.from('company_metric').insert({ company_id: companyID, metric: 'annualRevenue', period: '2025', basis: 'reported', amount: { amount: 1000, currency: 'USD' } });
 
 		const member = companyOf((await companyAs(sessionToken)).body);
 		const investor = companyOf(z.object({ company: z.unknown() }).parse((await previewAs(administratorSession, 'investor')).body).company);

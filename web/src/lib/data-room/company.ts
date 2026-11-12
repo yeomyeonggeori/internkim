@@ -3,7 +3,7 @@ import { personName } from '$lib/person-name';
 import { compareMomentsNewestFirst, momentLabel, momentSchema, momentSpanOf, type Moment, type MomentPrecision, type MomentSpan } from '$lib/moment';
 import { formatCompactMoney, formatMoney, moneySchema, type Money } from '$lib/money';
 import { companyActivitySchema, storedActivitySchema } from './activity';
-import { companyFieldKindSchema } from './model';
+import { companyFieldKindSchema, metricBasisSchema } from './model';
 
 const localizedTextSchema = z.record(z.string(), z.string());
 
@@ -56,7 +56,7 @@ export const dataRoomCompanySchema = z.object({
 		value: z.number().optional(),
 		unit: z.string().optional(),
 		note: z.string().optional(),
-		recordedAt: z.string().optional()
+		basis: metricBasisSchema
 	})),
 	records: z.array(recordSchema),
 	fieldNames: z.array(z.object({ kind: companyFieldKindSchema, field: z.string(), names: z.record(z.string(), z.string()) })).optional(),
@@ -183,12 +183,8 @@ function spanOf(metric: CompanyMetric): MomentSpan {
 	return momentSpanOf(metric.period) ?? { precision: 'year', year: 0, part: 1, start: '', end: '' };
 }
 
-const companyClockOffsetHours = 9;
-
 export function isProjected(metric: CompanyMetric): boolean {
-	if (!metric.recordedAt) return false;
-	const recordedDay = new Date(Date.parse(metric.recordedAt) + companyClockOffsetHours * 3_600_000).toISOString().slice(0, 10);
-	return recordedDay < spanOf(metric).end;
+	return metric.basis === 'expected';
 }
 
 export function periodYear(metric: CompanyMetric): number {
