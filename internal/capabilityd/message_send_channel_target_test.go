@@ -34,13 +34,11 @@ func channelStandInService(t *testing.T, standIn *channelStandIn) Service {
 	server := httptest.NewServer(http.HandlerFunc(func(responseWriter http.ResponseWriter, request *http.Request) {
 		responseWriter.Header().Set("Content-Type", "application/json")
 		switch request.URL.Path {
-		case "/v1/platform/buzz/channels.list":
+		case "/v1/platform/buzz/requester.conversations.list":
 			if !standIn.canList {
 				http.Error(responseWriter, "no channel directory", http.StatusBadRequest)
 				return
 			}
-			_ = json.NewEncoder(responseWriter).Encode(map[string]any{"channels": standIn.channels})
-		case "/v1/platform/buzz/requester.conversations.list":
 			_ = json.NewEncoder(responseWriter).Encode(map[string]any{"conversations": conversationsOf(standIn.channels)})
 		case "/v1/platform/buzz/requester.channels.open.list":
 			_ = json.NewEncoder(responseWriter).Encode(map[string]any{"channels": []requesterConversation{}})

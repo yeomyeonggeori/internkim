@@ -820,7 +820,6 @@ describe('canonical capability tools', () => {
       messageID: 'message-2',
       deliveryStatus: MessageDeliveryStatus.Updated,
       messageUpdated: true,
-      isPinned: false,
     };
     const deleteResult = {
       messageIDs: ['message-2'],

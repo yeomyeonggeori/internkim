@@ -107,7 +107,7 @@ func recipientTitle(person directoryPerson) string {
 }
 
 func (service Service) resolveMessageChannelTarget(ctx context.Context, request capabilities.ToolInvokeRequest, deliveryTarget platformMessageDeliveryTarget) (capabilities.ToolInvokeResponse, error) {
-	channels, errorValue := service.chatdChannels(ctx)
+	channels, errorValue := service.channelsTheRequesterMayName(ctx, request.Context)
 	if errorValue != nil {
 		return capabilityToolWithoutTargetResponse(request.ToolName), nil
 	}
@@ -119,6 +119,15 @@ func (service Service) resolveMessageChannelTarget(ctx context.Context, request 
 		return channelTargetResponse(request, resolution.Match), nil
 	}
 	return platformDMErrorResponse(request.ToolName, messageChannelQuestion(deliveryTarget.ChannelName, resolution)), nil
+}
+
+func (service Service) channelsTheRequesterMayName(ctx context.Context, toolContext capabilities.ToolInvokeContext) ([]chatdChannel, error) {
+	requesterPubkeyHex, errorValue := service.requesterKey(ctx, toolContext)
+	if errorValue != nil {
+		return nil, errorValue
+	}
+	listed, errorValue := service.channelsTheRequesterSees(ctx, requesterPubkeyHex)
+	return namedChannels(listed), errorValue
 }
 
 func resolvedChannelIdentifierResponse(request capabilities.ToolInvokeRequest, channelID string, channels []chatdChannel) capabilities.ToolInvokeResponse {

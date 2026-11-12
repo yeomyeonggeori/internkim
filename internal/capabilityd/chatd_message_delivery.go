@@ -54,11 +54,6 @@ func (service Service) invokeChatdPlatformMessageSend(ctx context.Context, reque
 	if input.DeliveryTarget.Type == "directMessage" && !hasArrivedOnAConversation(request.Context) && speaksAsTheRequester(request.Context) {
 		return service.invokeChatdMessageToTheAgent(ctx, request, input)
 	}
-	if input.Pin {
-		failure := platformToolStaticFailure("invalid_input", "platform_route",
-			"pin is not supported on "+service.companyMessenger()+"; send without pin")
-		return platformToolErrorResponse(request.ToolName, failure), nil
-	}
 	attachmentFiles, failure, hasFailure := service.resolvePlatformMessageAttachments(request, input.Attachments)
 	if hasFailure {
 		return platformToolErrorResponse(request.ToolName, failure), nil
@@ -201,13 +196,8 @@ func (service Service) chatdRequest(ctx context.Context, capabilityName string, 
 // do since the messenger screen learned to. Only the route from here was
 // missing, so the agent was told deletion did not exist on this platform.
 func (service Service) invokeChatdPlatformMessageDelete(ctx context.Context, request capabilities.ToolInvokeRequest, messageIDs []string) (capabilities.ToolInvokeResponse, error) {
-	replyTargetID := strings.TrimSpace(request.Context.ReplyTargetID)
-	if replyTargetID == "" {
-		replyTargetID = strings.TrimSpace(request.Context.ConversationID)
-	}
-	if replyTargetID == "" {
-		failure := platformToolStaticFailure("invalid_input", "platform_route",
-			"a message is deleted in the conversation it belongs to, and this call names none")
+	change, failure, isRefused := service.messageChangeAskedBy(ctx, request)
+	if isRefused {
 		return platformToolErrorResponse(request.ToolName, failure), nil
 	}
 	deleted := []string{}
@@ -217,12 +207,8 @@ func (service Service) invokeChatdPlatformMessageDelete(ctx context.Context, req
 			continue
 		}
 		var response map[string]any
-		requestBody := map[string]any{
-			"replyTargetID":      replyTargetID,
-			"messageID":          trimmedMessageID,
-			"requesterPubkeyHex": strings.TrimSpace(request.Context.RequesterPlatformUserID),
-		}
-		if errorValue := service.chatdRequest(ctx, "message_delete", requestBody, &response); errorValue != nil {
+		change.MessageID = trimmedMessageID
+		if errorValue := service.chatdRequest(ctx, "message_delete", change, &response); errorValue != nil {
 			failure := platformToolStaticFailure("message_delete_failed", "platform_delete", trimmedMessageID+": "+errorValue.Error())
 			return platformToolErrorResponse(request.ToolName, failure), nil
 		}
@@ -248,25 +234,21 @@ func (service Service) invokeChatdPlatformMessageUpdate(ctx context.Context, req
 	if hasFailure {
 		return platformToolErrorResponse(request.ToolName, failure), nil
 	}
-	replyTargetID := strings.TrimSpace(request.Context.ReplyTargetID)
-	if replyTargetID == "" {
-		replyTargetID = strings.TrimSpace(request.Context.ConversationID)
-	}
 	editedText, failure, hasFailure := service.editedMessageText(ctx, request.Context, messageID, input)
 	if hasFailure {
 		return platformToolErrorResponse(request.ToolName, failure), nil
 	}
-	requestBody := map[string]any{
-		"replyTargetID":      replyTargetID,
-		"messageID":          messageID,
-		"message":            editedText,
-		"requesterPubkeyHex": strings.TrimSpace(request.Context.RequesterPlatformUserID),
+	change, failure, isRefused := service.messageChangeAskedBy(ctx, request)
+	if isRefused {
+		return platformToolErrorResponse(request.ToolName, failure), nil
 	}
+	change.MessageID = messageID
+	change.Message = editedText
 	if len(attachmentFiles) > 0 {
-		requestBody["attachments"] = chatdMessagePostAttachments(attachmentFiles)
+		change.Attachments = chatdMessagePostAttachments(attachmentFiles)
 	}
 	var response map[string]any
-	if errorValue := service.chatdRequest(ctx, "message.edit", requestBody, &response); errorValue != nil {
+	if errorValue := service.chatdRequest(ctx, "message.edit", change, &response); errorValue != nil {
 		return platformToolErrorResponse(request.ToolName, platformToolFailureForError("message_update", "platform_unavailable", errorValue)), nil
 	}
 	return platformToolSuccessResponse(request.ToolName, "updated", map[string]any{
@@ -289,6 +271,31 @@ func (service Service) editedMessageText(ctx context.Context, toolContext capabi
 		return "", platformMessageEditMatchFailure(matchCount, currentText), true
 	}
 	return strings.Replace(currentText, *input.OldText, *input.NewText, 1), platformToolFailure{}, false
+}
+
+type chatdMessageChange struct {
+	ReplyTargetID      string                       `json:"replyTargetID,omitempty"`
+	MessageID          string                       `json:"messageID"`
+	Message            string                       `json:"message,omitempty"`
+	RequesterPubkeyHex string                       `json:"requesterPubkeyHex,omitempty"`
+	ReadAsRequester    bool                         `json:"readAsRequester"`
+	Attachments        []chatdMessagePostAttachment `json:"attachments,omitempty"`
+}
+
+func (service Service) messageChangeAskedBy(ctx context.Context, request capabilities.ToolInvokeRequest) (chatdMessageChange, platformToolFailure, bool) {
+	requesterPubkeyHex, errorValue := service.requesterKey(ctx, request.Context)
+	if errorValue != nil {
+		return chatdMessageChange{}, requesterNotAddressable(request.Context, errorValue), true
+	}
+	replyTargetID := strings.TrimSpace(request.Context.ReplyTargetID)
+	if replyTargetID == "" {
+		replyTargetID = strings.TrimSpace(request.Context.ConversationID)
+	}
+	return chatdMessageChange{
+		ReplyTargetID:      replyTargetID,
+		RequesterPubkeyHex: requesterPubkeyHex,
+		ReadAsRequester:    isAskedByTheRequesterThemself(request.Context),
+	}, platformToolFailure{}, false
 }
 
 // The record an edit reads must be the record message_search answered from: an
