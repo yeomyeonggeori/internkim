@@ -35,6 +35,24 @@ type Member struct {
 	SupervisorEmail   string            `json:"supervisorEmail"`
 }
 
+func (member *Member) UnmarshalJSON(document []byte) error {
+	type memberFields Member
+	answered := struct {
+		*memberFields
+		IsWorking         *bool `json:"isWorking"`
+		CanReadTheCompany *bool `json:"canReadTheCompany"`
+	}{memberFields: (*memberFields)(member)}
+	if errorValue := json.Unmarshal(document, &answered); errorValue != nil {
+		return errorValue
+	}
+	if answered.IsWorking == nil || answered.CanReadTheCompany == nil {
+		return fmt.Errorf("the central plane named member %q without saying whether they work here or may read the company; it is older than this host and has to be deployed first", member.MemberID)
+	}
+	member.IsWorking = *answered.IsWorking
+	member.CanReadTheCompany = *answered.CanReadTheCompany
+	return nil
+}
+
 // Members asks the directory who works here. Asking address by address cannot
 // find somebody nobody has mentioned yet, which is every person invited since
 // the caller last looked.
@@ -120,85 +138,6 @@ func (client *Client) claimedAdministratorEmail() (string, error) {
 	return email, nil
 }
 
-// Seating somebody goes through person_invite, which is the plane's own invite
-// path: it creates their account and their sign-in rather than writing a member
-// row nobody can use. Somebody already seated keeps the seat they have.
-func (client *Client) EnsureMember(ctx context.Context, email string, name string) (Member, error) {
-	normalizedEmail := strings.ToLower(strings.TrimSpace(email))
-	if normalizedEmail == "" {
-		return Member{}, fmt.Errorf("a person needs an email address")
-	}
-	if client == nil || !client.settings.Configured() {
-		return Member{}, fmt.Errorf("central plane is not configured")
-	}
-	administratorEmail, errorValue := client.claimedAdministratorEmail()
-	if errorValue != nil {
-		return Member{}, errorValue
-	}
-
-	seated, isSeated, errorValue := client.MemberByEmail(ctx, normalizedEmail)
-	if errorValue != nil {
-		return Member{}, errorValue
-	}
-	if isSeated {
-		return client.renamedMember(ctx, administratorEmail, seated, name)
-	}
-	return client.invitedMember(ctx, administratorEmail, normalizedEmail, name)
-}
-
-func (client *Client) renamedMember(
-	ctx context.Context,
-	administratorEmail string,
-	seated Member,
-	name string,
-) (Member, error) {
-	wanted := strings.TrimSpace(name)
-	if wanted == "" || wanted == strings.TrimSpace(seated.Name) {
-		return seated, nil
-	}
-	var written struct {
-		Name string `json:"name"`
-	}
-	errorValue := client.runRecordTool(ctx, administratorEmail, "person_update",
-		map[string]string{"personHint": seated.MemberID, "name": wanted}, &written)
-	if errorValue != nil {
-		return Member{}, errorValue
-	}
-	seated.Name = written.Name
-	return seated, nil
-}
-
-func (client *Client) invitedMember(
-	ctx context.Context,
-	administratorEmail string,
-	email string,
-	name string,
-) (Member, error) {
-	invitation := map[string]string{"email": email, "name": strings.TrimSpace(name)}
-	if invitation["name"] == "" {
-		invitation["name"] = email
-	}
-	var invited struct {
-		PersonID         string `json:"personID"`
-		Email            string `json:"email"`
-		Name             string `json:"name"`
-		EmploymentStatus string `json:"employmentStatus"`
-	}
-	if errorValue := client.runRecordTool(ctx, administratorEmail, "person_invite", invitation, &invited); errorValue != nil {
-		return Member{}, errorValue
-	}
-	if strings.TrimSpace(invited.PersonID) == "" {
-		return Member{}, fmt.Errorf("the central plane seated %s without a member id", email)
-	}
-	return Member{
-		MemberID: invited.PersonID,
-		Email:    invited.Email,
-		Name:     invited.Name,
-		Role:     MemberRoleMember,
-		Status:   invited.EmploymentStatus,
-	}, nil
-}
-
 func (client *Client) KeepMessengerCredential(ctx context.Context, memberID string, kind string, externalID string, secret string) error {
 	if client == nil || !client.settings.Configured() {
 		return fmt.Errorf("central plane is not configured")
@@ -245,45 +184,47 @@ type MemberWrite struct {
 	Messenger map[string]string `json:"messenger,omitempty"`
 }
 
-func (client *Client) SaveMember(ctx context.Context, write MemberWrite) (Member, error) {
+func (client *Client) SaveMember(ctx context.Context, write MemberWrite) error {
 	write.Email = strings.ToLower(strings.TrimSpace(write.Email))
 	if write.Email == "" {
-		return Member{}, fmt.Errorf("a person needs an email address")
+		return fmt.Errorf("a person needs an email address")
 	}
 	if client == nil || !client.settings.Configured() {
-		return Member{}, fmt.Errorf("central plane is not configured")
+		return fmt.Errorf("central plane is not configured")
 	}
 	body, errorValue := json.Marshal(write)
 	if errorValue != nil {
-		return Member{}, errorValue
+		return errorValue
 	}
 	requestURL := strings.TrimSuffix(client.settings.AppURL, "/") + "/api/agent/member"
 	request, errorValue := http.NewRequestWithContext(ctx, http.MethodPost, requestURL, bytes.NewReader(body))
 	if errorValue != nil {
-		return Member{}, errorValue
+		return errorValue
 	}
 	request.Header.Set("Authorization", "Bearer "+client.settings.HostCredential())
 	request.Header.Set("Content-Type", "application/json")
 
 	response, errorValue := client.httpClient.Do(request)
 	if errorValue != nil {
-		return Member{}, errorValue
+		return errorValue
 	}
 	defer response.Body.Close()
 	if response.StatusCode >= 300 {
-		return Member{}, fmt.Errorf("the central plane refused to save %s: %s", write.Email, response.Status)
+		return fmt.Errorf("the central plane refused to save %s: %s", write.Email, response.Status)
 	}
 
 	var answer struct {
-		Member *Member `json:"member"`
+		Member *struct {
+			MemberID string `json:"memberID"`
+		} `json:"member"`
 	}
 	if errorValue := json.NewDecoder(response.Body).Decode(&answer); errorValue != nil {
-		return Member{}, errorValue
+		return errorValue
 	}
-	if answer.Member == nil {
-		return Member{}, fmt.Errorf("the central plane saved %s without answering who that is", write.Email)
+	if answer.Member == nil || strings.TrimSpace(answer.Member.MemberID) == "" {
+		return fmt.Errorf("the central plane saved %s without answering who that is", write.Email)
 	}
-	return *answer.Member, nil
+	return nil
 }
 
 // WithdrawMember marks somebody as having left. The row stays, because the work
