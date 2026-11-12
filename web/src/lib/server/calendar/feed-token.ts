@@ -1,6 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { controlPlane, type ControlPlaneCredentials } from '$lib/server/control-plane';
-import { RecordRefusedTheWrite, statusOfPostgresCode } from '$lib/server/public-api/record/tasks';
+import { refusalOfPostgresError } from '$lib/server/public-api/refusal';
 
 async function hashOf(secret: string): Promise<string> {
 	const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(secret));
@@ -47,7 +47,7 @@ export async function forgetFeedToken(caller: SupabaseClient): Promise<void> {
 
 async function saveFeedTokenHash(caller: SupabaseClient, tokenHash: string | null): Promise<void> {
 	const { error } = await caller.rpc('calendar_subscription_save', { target_token_hash: tokenHash });
-	if (error) throw new RecordRefusedTheWrite(`calendar subscription: ${error.message}`, statusOfPostgresCode(error.code));
+	if (error) throw refusalOfPostgresError({ code: error.code, message: `calendar subscription: ${error.message}` });
 }
 
 export async function companyHasAFeedToken(caller: SupabaseClient, companyID: string): Promise<boolean> {

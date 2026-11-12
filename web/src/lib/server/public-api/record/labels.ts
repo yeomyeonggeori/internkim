@@ -1,6 +1,8 @@
 import { vocabularyOf, type NamedColour } from '$lib/task/task-vocabulary';
+import { Refusal } from '../refusal';
 
-export class LabelUnresolved extends Error {
+export class LabelUnresolved extends Refusal {
+	readonly status = 409;
 	readonly errorCode: string;
 	readonly failureStage = 'input_validation';
 	readonly retryable = true;
@@ -16,8 +18,11 @@ export class LabelUnresolved extends Error {
 				? `${asked} matches more than one registered label`
 				: `${asked} is not one of ${registered.join(', ')}`
 		);
-		this.name = 'LabelUnresolved';
 		this.errorCode = outcome === 'ambiguous' ? 'interaction_required' : 'task_label_unregistered';
+	}
+
+	get details() {
+		return { registered: this.registered };
 	}
 }
 

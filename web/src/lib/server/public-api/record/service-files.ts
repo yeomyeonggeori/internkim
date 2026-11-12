@@ -15,10 +15,10 @@ import {
 	type ServiceFileVersion
 } from '$lib/data-room/service-files';
 import { dayIn } from './days';
-import { RecordRefusedTheWrite, statusOfPostgresCode } from './tasks';
 import type { RecordContext } from './company';
 import type { CompanyImageUploadResult } from '../catalog/company';
 import { companyPictureUploadPlace } from '../company-picture-keep';
+import { Refusal, InputRefused, AccessRefused, RecordMoved, refusalOfPostgresError, refusalOfServiceError, type PostgresError } from '../refusal';
 
 export type CompanyImageUploadInput = { image?: string; fileName?: string; date?: string };
 
@@ -43,7 +43,7 @@ export async function newestServiceFile(
 		.order('document_date', { ascending: false })
 		.order('created_at', { ascending: false })
 		.returns<VersionRow[]>();
-	if (error) throw new Error(error.message);
+	if (error) throw refusalOfPostgresError(error);
 	return (data ?? []).map((row) => keptVersionOf(companyID, row)).find((version) => version !== undefined);
 }
 
@@ -67,7 +67,7 @@ export async function companyImageUpload(
 	const documentID = await pendingVersion(context, file, date);
 	const storagePath = serviceFilePath(context.companyID, { name: file.name, date, documentID, extension });
 	const { data, error } = await context.caller.storage.from(assetBucket).createSignedUploadUrl(storagePath);
-	if (error) throw new RecordRefusedTheWrite(error.message, statusOfStorageError(error));
+	if (error) throw refusalOfServiceError(error);
 	return { storagePath, uploadURL: data.signedUrl };
 }
 
@@ -84,7 +84,7 @@ export async function keepUploadedImages(
 async function keepUploadedImage(context: RecordContext, name: ServiceFileName, storagePath: string): Promise<void> {
 	const version = serviceFileVersionAt(context.companyID, storagePath);
 	if (version?.name !== name) {
-		throw new RecordRefusedTheWrite(`${imageFieldOf(name)} is the storagePath company_image_upload answered for image '${name}'; a kept version stays, so none is removed`, 400);
+		throw new InputRefused(`${imageFieldOf(name)} is the storagePath company_image_upload answered for image '${name}'; a kept version stays, so none is removed`);
 	}
 	await refuseUnlessUploaded(context, storagePath);
 	const previous = await newestServiceFile(context.caller, context.companyID, version.name);
@@ -98,7 +98,7 @@ async function keepUploadedImage(context: RecordContext, name: ServiceFileName, 
 		.select('id');
 	if (error) throw refusalOfTheWrite(error);
 	if ((data ?? []).length === 0) {
-		throw new RecordRefusedTheWrite(`${storagePath} names no company image waiting to be kept`, 409);
+		throw new RecordMoved(`${storagePath} names no company image waiting to be kept`);
 	}
 }
 
@@ -110,7 +110,7 @@ function serviceFileOf(name: ServiceFileName): ServiceFile {
 
 function serviceFileOfInput(offered: string | undefined): ServiceFile {
 	const file = serviceFileNamed(offered);
-	if (!file) throw new RecordRefusedTheWrite(`image is one of ${[...serviceFileNames, companyPictureImage].join(', ')}`, 400);
+	if (!file) throw new InputRefused(`image is one of ${[...serviceFileNames, companyPictureImage].join(', ')}`);
 	return file;
 }
 
@@ -118,14 +118,14 @@ function imageExtensionOf(fileName: string | undefined): string {
 	const written = fileName?.trim().toLowerCase() ?? '';
 	const extension = written.slice(written.lastIndexOf('.') + 1);
 	if (!written.includes('.') || !serviceFileImageExtensions.includes(extension)) {
-		throw new RecordRefusedTheWrite(`a company image is a ${serviceFileImageExtensions.join(', ')} file`, 400);
+		throw new InputRefused(`a company image is a ${serviceFileImageExtensions.join(', ')} file`);
 	}
 	return extension;
 }
 
 function effectiveDateOf(offered: string | undefined, context: RecordContext): string {
 	const date = offered?.trim() || dayIn(context.labels.timezone, context.now);
-	if (!isCalendarDate(date)) throw new RecordRefusedTheWrite('date is a calendar day in YYYY-MM-DD format', 400);
+	if (!isCalendarDate(date)) throw new InputRefused('date is a calendar day in YYYY-MM-DD format');
 	return date;
 }
 
@@ -137,8 +137,8 @@ function isCalendarDate(date: string): boolean {
 
 async function refuseAnyoneButAnAdministrator(context: RecordContext): Promise<void> {
 	const { data, error } = await context.caller.rpc('data_room_administrator', { target_company: context.companyID });
-	if (error) throw new RecordRefusedTheWrite(error.message, statusOfPostgresCode(error.code));
-	if (data !== true) throw new RecordRefusedTheWrite(onlyAnAdministratorKeepsServiceFiles, 403);
+	if (error) throw refusalOfPostgresError(error);
+	if (data !== true) throw new AccessRefused(onlyAnAdministratorKeepsServiceFiles);
 }
 
 async function pendingVersion(context: RecordContext, file: ServiceFile, date: string): Promise<string> {
@@ -164,23 +164,18 @@ async function refuseUnlessUploaded(context: RecordContext, storagePath: string)
 	const folder = storagePath.slice(0, storagePath.lastIndexOf('/'));
 	const name = storagePath.slice(folder.length + 1);
 	const { data, error } = await context.caller.storage.from(assetBucket).list(folder, { search: name });
-	if (error) throw new RecordRefusedTheWrite(error.message, statusOfStorageError(error));
+	if (error) throw refusalOfServiceError(error);
 	const held = (data ?? []).find((entry) => entry.name === name);
 	if (!held) {
-		throw new RecordRefusedTheWrite(`nothing is kept at ${storagePath} yet: PUT the image to the uploadURL company_image_upload answered first`, 409);
+		throw new RecordMoved(`nothing is kept at ${storagePath} yet: PUT the image to the uploadURL company_image_upload answered first`);
 	}
 	const sizeBytes = Number(held.metadata?.size ?? 0);
 	if (sizeBytes > largestPictureACompanyCanHave) {
-		throw new RecordRefusedTheWrite(`this image is ${sizeBytes} bytes, over the ${largestPictureACompanyCanHave} a company image may be`, 413);
+		throw new InputRefused(`this image is ${sizeBytes} bytes, over the ${largestPictureACompanyCanHave} a company image may be`);
 	}
 }
 
-function refusalOfTheWrite(error: { message: string; code?: string }): RecordRefusedTheWrite {
-	const status = statusOfPostgresCode(error.code);
-	return new RecordRefusedTheWrite(status === 403 ? onlyAnAdministratorKeepsServiceFiles : error.message, status);
+function refusalOfTheWrite(error: PostgresError): Refusal {
+	return refusalOfPostgresError(error, onlyAnAdministratorKeepsServiceFiles);
 }
 
-function statusOfStorageError(error: { status?: number }): number {
-	if (error.status === 400 || error.status === 403 || error.status === 404) return error.status;
-	return 502;
-}

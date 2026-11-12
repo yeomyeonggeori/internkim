@@ -5,6 +5,7 @@ import { localizedLeaveUnitName } from '$lib/i18n/leave-type-name';
 import { personName } from '$lib/person-name';
 import type { Locale } from '$lib/i18n/locale';
 import type { RecordPerson } from './people';
+import { refusalOfPostgresError } from '../refusal';
 
 export type CompanyCalendarSource = 'event' | 'leave';
 
@@ -100,7 +101,7 @@ export async function calendarMembers(
 		.select('id, name, email')
 		.eq('is_in_the_record', true)
 		.returns<CompanyCalendarMember[]>();
-	if (members.error) throw new Error(members.error.message);
+	if (members.error) throw refusalOfPostgresError(members.error);
 	return new Map(members.data.map((member) => [member.id, member]));
 }
 
@@ -126,7 +127,7 @@ async function scheduledEvents(
 		.gte('ends_at', from.toISOString())
 		.order('starts_at')
 		.returns<EventRow[]>();
-	if (events.error) throw new Error(`Failed to load company calendar events: ${events.error.message}`);
+	if (events.error) throw refusalOfPostgresError({ code: events.error.code, message: `Failed to load company calendar events: ${events.error.message}` });
 	return events.data.map((event) => calendarEntryOfEvent(event, reader));
 }
 
@@ -144,7 +145,7 @@ async function approvedLeave(
 		.gte('ends_at', from.toISOString())
 		.order('starts_at')
 		.returns<ApprovedLeaveRow[]>();
-	if (leave.error) throw new Error(`Failed to load approved leave calendar events: ${leave.error.message}`);
+	if (leave.error) throw refusalOfPostgresError({ code: leave.error.code, message: `Failed to load approved leave calendar events: ${leave.error.message}` });
 	return leave.data.map((row) =>
 		calendarEntryOfApprovedLeave({ ...row, days: -row.days }, reader.members, reader.timeZone, reader.locale)
 	);

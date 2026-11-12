@@ -122,6 +122,16 @@ describe('which tools run over the record', () => {
 	});
 });
 
+describe('a tool that breaks while it runs', () => {
+	test('answers 500, because the fault is the server\'s and not the caller\'s', async () => {
+		const answered = await runToolOverTheRecord(
+			caller, client, sampleID, 'task_add', { title: 7 }, new Date(), leavesTaskLabelsUndecided
+		);
+		expect(answered.status).toBe(500);
+		expect((answered.body as { error: string }).error).toContain('task_add failed');
+	});
+});
+
 describe('person_list', () => {
 	test('answers the company from the record itself', async () => {
 		const result = resultOf(await run('person_list'));

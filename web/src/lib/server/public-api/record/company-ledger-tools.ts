@@ -3,7 +3,6 @@ import { compareMomentsNewestFirst, momentSpanOf } from '$lib/moment';
 import { dataRoomFolder, derivedPath, originalPath } from '$lib/data-room/storage-path';
 import { titleNearness } from './hint-nearness';
 import { HintRefused, normalized, resolveHint, type HintMatcher } from './hint-resolution';
-import { RecordRefusedTheWrite, statusOfPostgresCode } from './tasks';
 import type { RecordContext } from './company';
 import { moneySchema, type Money } from '$lib/money';
 import type { MetricBasis } from '$lib/data-room/model';
@@ -19,6 +18,7 @@ import type {
 	CompanyRecordListResult,
 	CompanyRecordResult
 } from '../catalog/company';
+import { InputRefused, AccessRefused, TargetMissing, RecordAlreadyHolds, refusalOfPostgresError, refusalOfServiceError } from '../refusal';
 
 export type CompanyMetricRecordInput = {
 	metric?: string;
@@ -248,23 +248,13 @@ function publishedOf(row: DocumentRow): CompanyDocumentPublished | null {
 
 export function textOf(value: string | undefined, refusal: string): string {
 	const given = value?.trim();
-	if (!given) throw new Error(refusal);
+	if (!given) throw new InputRefused(refusal);
 	return given;
 }
 
 export function orNull(value: string | undefined): string | null {
 	const given = value?.trim();
 	return given ? given : null;
-}
-
-export function refuseTheWrite(
-	error: { message: string; code?: string },
-	whenForbidden: string
-): RecordRefusedTheWrite {
-	const status = statusOfPostgresCode(error.code);
-	if (status === 403) return new RecordRefusedTheWrite(whenForbidden, 403);
-	if (error.code === '23505') return new RecordRefusedTheWrite(error.message, 409, 'record_duplicate');
-	return new RecordRefusedTheWrite(error.message, status);
 }
 
 const onlyAnAdministratorWritesMetrics = 'only an administrator can record a company metric';
@@ -281,12 +271,12 @@ function decodedAttributes(attributes: string | undefined): Record<string, Recor
 	try {
 		parsed = JSON.parse(written);
 	} catch {
-		throw new Error(
+		throw new InputRefused(
 			'attributes must be a JSON object string of label-to-value pairs, e.g. {"round": "Seed"}'
 		);
 	}
 	if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
-		throw new Error('attributes must be a JSON object string of label-to-value pairs');
+		throw new InputRefused('attributes must be a JSON object string of label-to-value pairs');
 	}
 	const values: Record<string, RecordAttributeValue> = {};
 	for (const [label, value] of Object.entries(parsed as Record<string, unknown>)) {
@@ -300,7 +290,7 @@ function decodedAttributeValue(label: string, value: unknown): RecordAttributeVa
 	if (typeof value === 'number' || typeof value === 'boolean') return String(value);
 	const money = moneySchema.safeParse(value);
 	if (money.success) return money.data;
-	throw new Error(`attributes.${label} must be a string, a number, a boolean, or money like {"amount": 30000000000, "currency": "KRW"}`);
+	throw new InputRefused(`attributes.${label} must be a string, a number, a boolean, or money like {"amount": 30000000000, "currency": "KRW"}`);
 }
 
 function attributeText(value: RecordAttributeValue): string {
@@ -311,13 +301,13 @@ type StoredMetricValue = { amount: Money | null; value: number | null };
 
 function storedMetricValueOf(input: CompanyMetricRecordInput): StoredMetricValue {
 	if (input.amount && input.value !== undefined) {
-		throw new Error('a metric is money in amount or a number in value, never both');
+		throw new InputRefused('a metric is money in amount or a number in value, never both');
 	}
 	if (input.amount) {
-		if (orNull(input.unit) !== null) throw new Error('money carries its currency, not a unit');
+		if (orNull(input.unit) !== null) throw new InputRefused('money carries its currency, not a unit');
 		return { amount: input.amount, value: null };
 	}
-	if (input.value === undefined) throw new Error('a metric records money in amount or a number in value');
+	if (input.value === undefined) throw new InputRefused('a metric records money in amount or a number in value');
 	return { amount: null, value: input.value };
 }
 
@@ -325,7 +315,7 @@ async function recordMetricUnit(context: RecordContext, metric: string, unit: st
 	const { error } = await context.caller
 		.from('company_field')
 		.upsert({ company_id: context.companyID, kind: 'metric', field: metric, unit }, { onConflict: 'company_id,kind,field' });
-	if (error) throw refuseTheWrite(error, onlyAnAdministratorWritesMetrics);
+	if (error) throw refusalOfPostgresError(error, onlyAnAdministratorWritesMetrics);
 }
 
 async function metricUnits(context: RecordContext, metric: string | null): Promise<Map<string, string>> {
@@ -337,7 +327,7 @@ async function metricUnits(context: RecordContext, metric: string | null): Promi
 		.not('unit', 'is', null);
 	if (metric) query = query.eq('field', metric);
 	const { data, error } = await query.returns<MetricUnitRow[]>();
-	if (error) throw new Error(error.message);
+	if (error) throw refusalOfPostgresError(error);
 	return new Map((data ?? []).flatMap((row) => (row.unit ? [[row.field, row.unit] as const] : [])));
 }
 
@@ -368,7 +358,7 @@ export async function companyMetricRecord(
 		)
 		.select(metricColumns)
 		.single<MetricRow>();
-	if (error) throw refuseTheWrite(error, onlyAnAdministratorWritesMetrics);
+	if (error) throw refusalOfPostgresError(error, onlyAnAdministratorWritesMetrics);
 	const units = await metricUnits(context, metric);
 	return answeredMetric(data, units.get(metric) ?? null);
 }
@@ -393,7 +383,7 @@ export async function companyMetricList(
 	if (input.toYear !== undefined) query = query.lt('period', String(input.toYear + 1));
 
 	const [{ data, error }, units] = await Promise.all([query.order('metric').returns<MetricRow[]>(), metricUnits(context, metric)]);
-	if (error) throw new Error(error.message);
+	if (error) throw refusalOfPostgresError(error);
 	const metrics = (data ?? []).toSorted(byMetricThenPeriod).map((row) => answeredMetric(row, units.get(row.metric) ?? null));
 	return { count: metrics.length, metrics };
 }
@@ -411,7 +401,7 @@ async function recordRows(context: RecordContext): Promise<RecordRow[]> {
 		.eq('company_id', context.companyID)
 		.order('updated_at', { ascending: false })
 		.returns<RecordRow[]>();
-	if (error) throw new Error(error.message);
+	if (error) throw refusalOfPostgresError(error);
 	return (data ?? []).toSorted((left, right) => compareMomentsNewestFirst(left.record_date, right.record_date));
 }
 
@@ -420,7 +410,7 @@ export async function companyRecordOfHint(
 	hint: string
 ): Promise<RecordRow> {
 	const asked = hint.trim();
-	if (!asked) throw new Error('this call names the company record it is about');
+	if (!asked) throw new InputRefused('this call names the company record it is about');
 	const resolution = resolveHint(asked, await recordRows(context), recordMatcher);
 	if (resolution.outcome === 'resolved') return resolution.match;
 	throw new HintRefused(
@@ -437,7 +427,7 @@ export async function companyRecordOfHint(
 export async function fundingRecordOfHint(context: RecordContext, hint: string): Promise<RecordRow> {
 	const record = await companyRecordOfHint(context, hint);
 	if (record.category !== fundingCategory) {
-		throw new RecordRefusedTheWrite(`${record.title} is a ${record.category} record, not a funding round`, 422);
+		throw new InputRefused(`${record.title} is a ${record.category} record, not a funding round`);
 	}
 	return record;
 }
@@ -464,7 +454,7 @@ export async function companyRecordAdd(
 		})
 		.select(recordColumns)
 		.single<RecordRow>();
-	if (error) throw refuseTheWrite(error, onlyAnAdministratorWritesRecords);
+	if (error) throw refusalOfPostgresError(error, onlyAnAdministratorWritesRecords);
 	return answeredRecord(data);
 }
 
@@ -489,9 +479,9 @@ export async function companyRecordUpdate(
 		.eq('id', held.id)
 		.select(recordColumns)
 		.returns<RecordRow[]>();
-	if (error) throw refuseTheWrite(error, onlyAnAdministratorWritesRecords);
+	if (error) throw refusalOfPostgresError(error, onlyAnAdministratorWritesRecords);
 	const written = (data ?? [])[0];
-	if (!written) throw new RecordRefusedTheWrite(onlyAnAdministratorWritesRecords, 403);
+	if (!written) throw new AccessRefused(onlyAnAdministratorWritesRecords);
 	return answeredRecord(written);
 }
 
@@ -507,9 +497,9 @@ export async function companyRecordDelete(
 		.eq('id', held.id)
 		.select(recordColumns)
 		.returns<RecordRow[]>();
-	if (error) throw refuseTheWrite(error, onlyAnAdministratorWritesRecords);
+	if (error) throw refusalOfPostgresError(error, onlyAnAdministratorWritesRecords);
 	if ((data ?? []).length === 0) {
-		throw new RecordRefusedTheWrite(onlyAnAdministratorWritesRecords, 403);
+		throw new AccessRefused(onlyAnAdministratorWritesRecords);
 	}
 	return answeredRecord(held);
 }
@@ -544,7 +534,7 @@ async function documentRows(context: RecordContext): Promise<DocumentRow[]> {
 		.eq('company_id', context.companyID)
 		.order('created_at', { ascending: false })
 		.returns<DocumentRow[]>();
-	if (error) throw new Error(error.message);
+	if (error) throw refusalOfPostgresError(error);
 	return data ?? [];
 }
 
@@ -553,7 +543,7 @@ export async function companyDocumentOfHint(
 	hint: string
 ): Promise<DocumentRow> {
 	const asked = hint.trim();
-	if (!asked) throw new Error('this call names the document it is about');
+	if (!asked) throw new InputRefused('this call names the document it is about');
 	return documentAmong(await documentRows(context), asked);
 }
 
@@ -616,7 +606,7 @@ export async function companyDocumentRegister(
 		.insert({ ...written, document_number: documentNumber })
 		.select(documentColumns)
 		.single<DocumentRow>();
-	if (error) throw refuseTheWrite(error, onlyAColleagueWritesDocuments);
+	if (error) throw refusalOfPostgresError(error, onlyAColleagueWritesDocuments);
 	return answeredDocument(data);
 }
 
@@ -625,7 +615,7 @@ async function reservedDocumentNumber(context: RecordContext, prefix: string): P
 		target_company: context.companyID,
 		requested_prefix: prefix
 	});
-	if (error) throw refuseTheWrite(error, onlyAColleagueWritesDocuments);
+	if (error) throw refusalOfPostgresError(error, onlyAColleagueWritesDocuments);
 	return String(data);
 }
 
@@ -640,7 +630,7 @@ export async function companyDocumentUpdate(
 	if (orNull(input.filePath)) change.file_path = input.filePath?.trim();
 	if (orNull(input.summary)) change.summary = input.summary?.trim();
 	if (Object.keys(change).length === 0) {
-		throw new Error('a document update names at least one thing to change');
+		throw new InputRefused('a document update names at least one thing to change');
 	}
 
 	const relocation = await relocationOf(context, held, change.category_code);
@@ -662,9 +652,9 @@ async function writtenDocument(context: RecordContext, documentID: string, chang
 		.eq('id', documentID)
 		.select(documentColumns)
 		.returns<DocumentRow[]>();
-	if (error) throw refuseTheWrite(error, onlyAColleagueWritesDocuments);
+	if (error) throw refusalOfPostgresError(error, onlyAColleagueWritesDocuments);
 	const written = (data ?? [])[0];
-	if (!written) throw new RecordRefusedTheWrite(onlyAColleagueWritesDocuments, 403);
+	if (!written) throw new AccessRefused(onlyAColleagueWritesDocuments);
 	return written;
 }
 
@@ -681,7 +671,7 @@ async function relocationOf(context: RecordContext, held: DocumentRow, categoryC
 	const { data, error } = await context.caller.storage
 		.from(assetBucket)
 		.list(fromFolder, { search: filesOfTheDocument.slice(fromFolder.length + 1), limit: 1000 });
-	if (error) throw new RecordRefusedTheWrite(error.message, statusOfStorageError(error));
+	if (error) throw refusalOfServiceError(error);
 	const moves = data
 		.map((file) => `${fromFolder}/${file.name}`)
 		.filter((path) => path.startsWith(filesOfTheDocument))
@@ -695,7 +685,7 @@ async function moveFiles(context: RecordContext, moves: FileMove[]): Promise<voi
 		const { error } = await context.caller.storage.from(assetBucket).move(move.from, move.to);
 		if (error) {
 			await putFilesBack(context, moved);
-			throw new RecordRefusedTheWrite(`${move.from} could not move to ${move.to}: ${error.message}`, statusOfStorageError(error));
+			throw refusalOfServiceError(error, `${move.from} could not move to ${move.to}: ${error.message}`);
 		}
 		moved.push(move);
 	}
@@ -753,7 +743,7 @@ export async function companyDocumentRecall(
 async function documentsAmong(context: RecordContext, candidates: string[]): Promise<DocumentRow[]> {
 	if (candidates.length === 0) return [];
 	const { data, error } = await context.caller.from('company_document').select(documentColumns).in('id', candidates);
-	if (error) throw new Error(error.message);
+	if (error) throw refusalOfPostgresError(error);
 	const readable = (data ?? []) as DocumentRow[];
 	return candidates.flatMap((id) => readable.filter((row) => row.id === id));
 }
@@ -774,7 +764,7 @@ async function documentsChangedAfter(
 		.order('updated_at')
 		.order('id')
 		.limit(Math.min(Math.max(limit ?? documentListingLimit, 1), documentListingLimit));
-	if (error) throw new Error(error.message);
+	if (error) throw refusalOfPostgresError(error);
 	const facts = ((data ?? []) as DocumentRow[]).map((row) => ({ ...recalledDocument(row), changedAt: row.updated_at }));
 	return { facts, frame: recalledSentence('', null, null) };
 }
@@ -792,7 +782,7 @@ async function documentsMatching(
 			minimum_relevance: minimumRelevance
 		})
 		.select(documentColumns);
-	if (error) throw new Error(error.message);
+	if (error) throw refusalOfPostgresError(error);
 	if (!Array.isArray(data)) throw new Error('a document search answers a list of documents');
 	return data as DocumentRow[];
 }
@@ -810,7 +800,7 @@ function recalledSentence(title: string, counterpart: string | null, summary: st
 
 function sha256Of(sha256: string | undefined): string {
 	const given = sha256?.trim().toLowerCase() ?? '';
-	if (!sha256Pattern.test(given)) throw new Error('a sha256 is 64 lowercase hex characters');
+	if (!sha256Pattern.test(given)) throw new InputRefused('a sha256 is 64 lowercase hex characters');
 	return given;
 }
 
@@ -818,7 +808,7 @@ function derivedFileNameOf(fileName: string | undefined): string | null {
 	const given = orNull(fileName);
 	if (given === null) return null;
 	if (given === '.' || given === '..' || given.includes('/')) {
-		throw new Error('a derived file name is one name beside the original, never a path');
+		throw new InputRefused('a derived file name is one name beside the original, never a path');
 	}
 	return given;
 }
@@ -867,7 +857,7 @@ export async function companyDocumentUpload(
 	const { data, error } = await context.caller.storage
 		.from(assetBucket)
 		.createSignedUploadUrl(storagePath, { upsert: true });
-	if (error) throw new RecordRefusedTheWrite(error.message, statusOfStorageError(error));
+	if (error) throw refusalOfServiceError(error);
 	return { storagePath, uploadURL: data.signedUrl };
 }
 
@@ -884,14 +874,10 @@ async function recordedOriginalPath(
 	);
 	if (held.storage_path === storagePath) return storagePath;
 	if (held.storage_path) {
-		throw new RecordRefusedTheWrite(
-			'this document already holds its original; register the new file as a document that supersedes it',
-			409,
-			'company_document_has_original'
-		);
+		throw new RecordAlreadyHolds('this document already holds its original; register the new file as a document that supersedes it', 'company_document_has_original');
 	}
 	const { error } = await context.caller.from('company_document').update({ storage_path: storagePath }).eq('id', held.id);
-	if (error) throw refuseTheWrite(error, onlyAColleagueWritesDocuments);
+	if (error) throw refusalOfPostgresError(error, onlyAColleagueWritesDocuments);
 	return storagePath;
 }
 
@@ -907,18 +893,14 @@ export async function companyDocumentDownload(
 	const { data, error } = await context.caller.storage
 		.from(assetBucket)
 		.createSignedUrl(storagePath, downloadableForTenMinutes);
-	if (error) throw new RecordRefusedTheWrite(error.message, statusOfStorageError(error));
+	if (error) throw refusalOfServiceError(error);
 	return { storagePath, downloadURL: data.signedUrl };
 }
 
 function storedOriginalOf(held: DocumentRow): string {
 	if (!held.storage_path) {
-		throw new RecordRefusedTheWrite('this document keeps no file in the data room', 404, 'company_document_no_file');
+		throw new TargetMissing('this document keeps no file in the data room', 'company_document_no_file');
 	}
 	return held.storage_path;
 }
 
-function statusOfStorageError(error: { status?: number }): number {
-	if (error.status === 400 || error.status === 403 || error.status === 404) return error.status;
-	return 502;
-}

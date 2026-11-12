@@ -4,6 +4,7 @@ import type { Money } from '$lib/money';
 import { emailNearness, titleNearness, typoNearness } from './hint-nearness';
 import { HintRefused, normalized, resolveHint, type HintCandidate, type HintMatcher } from './hint-resolution';
 import type { CRMVocabularyResult } from '../catalog/crm';
+import { refusalOfPostgresError } from '../refusal';
 
 type CRMAuditColumns = {
 	created_at: string;
@@ -81,7 +82,7 @@ export async function crmCompanyRow(caller: SupabaseClient): Promise<CRMCompanyR
 		.select('id, currency_code, crm_vocabulary')
 		.limit(1)
 		.single<CRMCompanyRow>();
-	if (error) throw new Error(error.message);
+	if (error) throw refusalOfPostgresError(error);
 	return data;
 }
 
@@ -112,7 +113,7 @@ export async function activityCountByOpportunity(caller: SupabaseClient): Promis
 		const { data, error } = await caller.from('task').select('id, opportunity_id')
 			.not('opportunity_id', 'is', null).order('id').range(from, from + rowsPerPage - 1)
 			.returns<{ id: string; opportunity_id: string }[]>();
-		if (error) throw new Error(error.message);
+		if (error) throw refusalOfPostgresError(error);
 		const rows = data ?? [];
 		for (const row of rows) counted.set(row.opportunity_id, (counted.get(row.opportunity_id) ?? 0) + 1);
 		if (rows.length < rowsPerPage) return counted;
@@ -128,7 +129,7 @@ async function crmRows<Row>(caller: SupabaseClient, table: string, columns: stri
 		if (!includeArchived) query = query.is('archived_at', null);
 		const { data, error } = await query.order(order).order('id')
 			.range(from, from + rowsPerPage - 1).returns<Row[]>();
-		if (error) throw new Error(error.message);
+		if (error) throw refusalOfPostgresError(error);
 		const page = data ?? [];
 		rows.push(...page);
 		if (page.length < rowsPerPage) return rows;

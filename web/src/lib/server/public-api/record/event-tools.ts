@@ -23,14 +23,8 @@ import { peopleOfHints } from './people';
 import { whoseRecords, whoseRecordsHoldsAny, type WhoseRecords } from './whose';
 import type { RecordContext } from './company';
 import { ascendingPositions, pageOf } from './list-page';
-import {
-	deleteTask,
-	RecordRefusedTheWrite,
-	saveTask,
-	savedTaskByID,
-	taskFromHint,
-	type TaskRow
-} from './tasks';
+import { deleteTask, saveTask, savedTaskByID, taskFromHint, type TaskRow } from './tasks';
+import { Refusal, InputRefused, RecordAlreadyHolds } from '../refusal';
 
 type EventWritten = {
 	title?: string;
@@ -76,7 +70,8 @@ export type AnsweredCalendarEntry = AnsweredEvent & {
 
 const millisecondsPerHour = 60 * 60 * 1000;
 
-export class CalendarEventVersionConflict extends Error {
+export class CalendarEventVersionConflict extends Refusal {
+	readonly status = 409;
 	readonly errorCode = 'calendar_event_version_conflict';
 	readonly failureStage = 'resolution';
 	readonly retryable = true;
@@ -84,7 +79,10 @@ export class CalendarEventVersionConflict extends Error {
 
 	constructor(readonly updatedAt: string) {
 		super('this event changed since the version named here was read');
-		this.name = 'CalendarEventVersionConflict';
+	}
+
+	get details() {
+		return { updatedAt: this.updatedAt };
 	}
 }
 
@@ -99,7 +97,7 @@ function versionOfEvent(row: TaskRow): string {
 function refuseAVersionThatMovedOn(current: string, expectedUpdatedAt: string | undefined): void {
 	if (expectedUpdatedAt === undefined) return;
 	const named = Date.parse(expectedUpdatedAt);
-	if (Number.isNaN(named)) throw new Error('expectedUpdatedAt is not a moment');
+	if (Number.isNaN(named)) throw new InputRefused('expectedUpdatedAt is not a moment');
 	if (named === Date.parse(current)) return;
 	throw new CalendarEventVersionConflict(current);
 }
@@ -185,8 +183,8 @@ function eventWriteArguments(
 		written.endsAt !== undefined
 			? endWritten(timezone, written.endsAt, isWholeDay)
 			: row?.ends_at ?? '';
-	if (!startsAt || !endsAt) throw new Error('an event runs from a moment to a moment');
-	if (endsAt <= startsAt) throw new Error('an event ends after it starts');
+	if (!startsAt || !endsAt) throw new InputRefused('an event runs from a moment to a moment');
+	if (endsAt <= startsAt) throw new InputRefused('an event ends after it starts');
 
 	const location = written.location !== undefined ? written.location.trim() : locationNameOf(row?.location);
 	const notify =
@@ -228,7 +226,8 @@ async function eventByID(context: RecordContext, eventID: string): Promise<TaskR
 	return savedTaskByID(context.caller, eventID, true);
 }
 
-export class CalendarEventDuplicate extends Error {
+export class CalendarEventDuplicate extends Refusal {
+	readonly status = 409;
 	readonly errorCode = 'calendar_event_duplicate';
 	readonly failureStage = 'resolution';
 	readonly retryable = false;
@@ -236,7 +235,10 @@ export class CalendarEventDuplicate extends Error {
 
 	constructor(readonly eventID: string) {
 		super('this company already holds this event at this time with these people');
-		this.name = 'CalendarEventDuplicate';
+	}
+
+	get details() {
+		return this.eventID ? { eventID: this.eventID } : {};
 	}
 }
 
@@ -249,8 +251,7 @@ async function savedOrRefusedAsADuplicate(
 	try {
 		return await saveTask(context.caller, writeArguments);
 	} catch (refusal) {
-		const isDuplicate = refusal instanceof RecordRefusedTheWrite && refusal.errorCode === 'record_duplicate';
-		if (!isDuplicate) throw refusal;
+		if (!(refusal instanceof RecordAlreadyHolds)) throw refusal;
 		throw new CalendarEventDuplicate(await eventAlreadyHeld(context, writeArguments));
 	}
 }
@@ -285,7 +286,7 @@ function isTheSameHeldMoment(held: string | null, written: unknown): boolean {
 }
 
 export async function eventAdd(context: RecordContext, input: EventWritten): Promise<AnsweredEvent> {
-	if (!input.title?.trim()) throw new Error('an event needs a title');
+	if (!input.title?.trim()) throw new InputRefused('an event needs a title');
 	const saved = await savedOrRefusedAsADuplicate(context, eventWriteArguments(context, input, null));
 	await writeCRMColumns(context, saved, await crmColumnsWritten(context, input, null));
 	return answeredEvent(context, await eventByID(context, saved));
@@ -295,7 +296,7 @@ export async function eventUpdate(
 	context: RecordContext,
 	input: EventWritten & { eventHint?: string; expectedUpdatedAt?: string }
 ): Promise<AnsweredEvent> {
-	if (!input.eventHint) throw new Error('an update names the event it changes');
+	if (!input.eventHint) throw new InputRefused('an update names the event it changes');
 	const row = await eventOfHint(context, input.eventHint);
 	refuseAVersionThatMovedOn(versionOfEvent(row), input.expectedUpdatedAt);
 	const saved = await savedOrRefusedAsADuplicate(context, eventWriteArguments(context, input, row));
@@ -307,7 +308,7 @@ export async function eventDelete(
 	context: RecordContext,
 	input: { eventHint?: string; expectedUpdatedAt?: string }
 ): Promise<{ eventID: string; deleted: true }> {
-	if (!input.eventHint) throw new Error('a deletion names the event it removes');
+	if (!input.eventHint) throw new InputRefused('a deletion names the event it removes');
 	const row = await eventOfHint(context, input.eventHint);
 	refuseAVersionThatMovedOn(versionOfEvent(row), input.expectedUpdatedAt);
 	await deleteTask(context.caller, row.id);

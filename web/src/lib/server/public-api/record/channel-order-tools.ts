@@ -1,5 +1,4 @@
 import { z } from 'zod';
-import { RecordRefusedTheWrite, statusOfPostgresCode } from './tasks';
 import type { RecordContext } from './company';
 import {
 	channelOrderResultSchema,
@@ -8,6 +7,7 @@ import {
 	type ChannelOrderResult,
 	type ChannelPinResult
 } from '../catalog/channel-order';
+import { InputRefused, refusalOfPostgresError } from '../refusal';
 
 export type ChannelOrderSetInput = z.infer<typeof channelOrderSetInputSchema>;
 export type ChannelPinInput = z.infer<typeof channelPinInputSchema>;
@@ -24,19 +24,19 @@ async function channelOrderWritten(
 	parameters: Record<string, unknown>
 ): Promise<ChannelOrderResult> {
 	const { data, error } = await context.caller.rpc(name, parameters);
-	if (error) throw new RecordRefusedTheWrite(error.message, statusOfPostgresCode(error.code));
+	if (error) throw refusalOfPostgresError(error);
 	return channelOrderAnswered(name, data);
 }
 
 export async function channelOrderGet(context: RecordContext): Promise<ChannelOrderResult> {
 	const { data, error } = await context.caller.rpc('channel_order_get');
-	if (error) throw new Error(error.message);
+	if (error) throw refusalOfPostgresError(error);
 	return channelOrderAnswered('channel_order_get', data);
 }
 
 export async function channelOrderSet(context: RecordContext, input: ChannelOrderSetInput): Promise<ChannelOrderResult> {
 	if (!input.pinnedChannels && !input.channelOrder) {
-		throw new Error('an order change names the pinned channels, the channel order, or both');
+		throw new InputRefused('an order change names the pinned channels, the channel order, or both');
 	}
 	return channelOrderWritten(context, 'channel_order_set', {
 		pinned: input.pinnedChannels ?? null,

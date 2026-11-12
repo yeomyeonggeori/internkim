@@ -1,6 +1,7 @@
 import type { CompanyProfileLegalAttribute, CompanyProfileResult } from '../catalog/company';
 import type { Money } from '$lib/money';
 import type { RecordPerson } from './people';
+import { InputRefused } from '../refusal';
 
 export type LocalizedText = Record<string, string>;
 
@@ -164,12 +165,12 @@ function labelsOffered(written: string | undefined): LocalizedText | null {
 	if (!offered) return null;
 	const parsed: unknown = JSON.parse(offered);
 	if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
-		throw new Error('legalAttributes is a JSON object of label to value');
+		throw new InputRefused('legalAttributes is a JSON object of label to value');
 	}
 	const labels: LocalizedText = {};
 	for (const [label, value] of Object.entries(parsed)) {
 		if (typeof value !== 'string') {
-			throw new Error(`legalAttributes ${label} is not a string`);
+			throw new InputRefused(`legalAttributes ${label} is not a string`);
 		}
 		labels[label] = value;
 	}

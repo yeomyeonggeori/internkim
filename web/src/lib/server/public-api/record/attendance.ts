@@ -1,4 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { Refusal, refusalOfPostgresError } from '../refusal';
 
 export type AttendanceRow = {
 	id: string;
@@ -10,7 +11,13 @@ export type AttendanceRow = {
 	edit_reason: string | null;
 };
 
-export class NoSuchAttendanceRecord extends Error {
+export class NoSuchAttendanceRecord extends Refusal {
+	readonly status = 409;
+	readonly errorCode = 'attendance_record_not_found';
+	readonly failureStage = 'target_resolution';
+	readonly retryable = true;
+	readonly safeRetry = true;
+
 	constructor(
 		readonly hint: string,
 		readonly candidates: string[]
@@ -20,7 +27,10 @@ export class NoSuchAttendanceRecord extends Error {
 				? `no attendance record here goes by ${hint}`
 				: `${hint} could be ${candidates.join(', ')}; name one of them exactly`
 		);
-		this.name = 'NoSuchAttendanceRecord';
+	}
+
+	get details() {
+		return { hint: this.hint, candidates: this.candidates };
 	}
 }
 
@@ -55,13 +65,13 @@ export async function attendanceOfCompany(
 		.order('occurred_at', { ascending: false })
 		.limit(mostRecent)
 		.returns<AttendanceRow[]>();
-	if (error) throw new Error(error.message);
+	if (error) throw refusalOfPostgresError(error);
 	return (data ?? []).slice().reverse();
 }
 
 export async function attendanceClock(caller: SupabaseClient): Promise<string> {
 	const { data, error } = await caller.rpc('attendance_server_time');
-	if (error) throw new Error(error.message);
+	if (error) throw refusalOfPostgresError(error);
 	const moment = new Date(String(data));
 	if (Number.isNaN(moment.getTime())) throw new Error(`the record's clock answered ${String(data)}`);
 	return moment.toISOString();
@@ -69,7 +79,7 @@ export async function attendanceClock(caller: SupabaseClient): Promise<string> {
 
 export async function attendanceBackdatedAfterMinutes(caller: SupabaseClient): Promise<number> {
 	const { data, error } = await caller.rpc('attendance_backdated_after_minutes');
-	if (error) throw new Error(error.message);
+	if (error) throw refusalOfPostgresError(error);
 	const minutes = Number(data);
 	if (!Number.isInteger(minutes) || minutes <= 0) {
 		throw new Error('the backdated attendance threshold must be a positive integer');
@@ -86,6 +96,6 @@ export async function attendanceByID(
 		.select(heldColumns)
 		.eq('id', eventID)
 		.maybeSingle<AttendanceRow>();
-	if (error) throw new Error(error.message);
+	if (error) throw refusalOfPostgresError(error);
 	return data;
 }

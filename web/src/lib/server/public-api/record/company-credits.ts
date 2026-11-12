@@ -5,6 +5,7 @@ import { subscriptionPaysForModels } from '../../subscription-pays-for-models';
 import type { companyCreditsResultSchema, companyModelPayers } from '$lib/company/credits-contract';
 import type { RecordContext } from './company';
 import { creditUsageLimitOf } from './credit-usage-limit';
+import { refusalOfPostgresError } from '../refusal';
 
 type CompanyCreditsResult = z.infer<typeof companyCreditsResultSchema>;
 type CompanyModelPayer = (typeof companyModelPayers)[number];
@@ -25,13 +26,13 @@ async function creditsOfTheCompany(context: RecordContext): Promise<z.infer<type
 		.select('subscription_status, subscription_ends_at, subscription_credits, permanent_credits, rules')
 		.eq('id', context.companyID)
 		.single();
-	if (error) throw new Error(`reading the credits of company ${context.companyID}: ${error.message}`);
+	if (error) throw refusalOfPostgresError({ code: error.code, message: `reading the credits of company ${context.companyID}: ${error.message}` });
 	return creditColumns.parse(data);
 }
 
 async function usageTheRequesterMaySee(context: RecordContext): Promise<z.infer<typeof usageRows>> {
 	const { data, error } = await context.caller.rpc('company_credit_usage');
-	if (error) throw new Error(`reading the credit usage of company ${context.companyID}: ${error.message}`);
+	if (error) throw refusalOfPostgresError({ code: error.code, message: `reading the credit usage of company ${context.companyID}: ${error.message}` });
 	return usageRows.parse(data ?? []);
 }
 

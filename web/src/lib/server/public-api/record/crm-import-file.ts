@@ -16,6 +16,7 @@ import {
 	type CRMRecordImportRecords,
 	type CRMRecordImportResult
 } from '../catalog/crm';
+import { InputRefused } from '../refusal';
 
 export type CRMImportFile = { path: string; filename: string; records: CRMRecordImportRecords };
 
@@ -38,7 +39,7 @@ function decodedSize(file: CarriedWorkspaceFile): number {
 function bytesOf(file: CarriedWorkspaceFile): Uint8Array {
 	const size = decodedSize(file);
 	if (size > crmImportMaxFileBytes) {
-		throw new Error(`${file.workspacePath} is ${(size / megabyte).toFixed(1)} MB, and an import reads at most ${crmImportMaxFileBytes / megabyte} MB`);
+		throw new InputRefused(`${file.workspacePath} is ${(size / megabyte).toFixed(1)} MB, and an import reads at most ${crmImportMaxFileBytes / megabyte} MB`);
 	}
 	return Uint8Array.from(atob(file.contentBase64), (character) => character.charCodeAt(0));
 }
@@ -47,7 +48,7 @@ function mappingOf(input: CRMRecordImportInput, headers: string[]): CRMImportMap
 	const columns = Object.entries(input.columns ?? {});
 	const missingHeaders = columns.filter(([, header]) => !headers.includes(header?.trim() ?? ''));
 	if (missingHeaders.length > 0) {
-		throw new Error(`columns names ${missingHeaders.map(([, header]) => `"${header}"`).join(', ')}, which the file does not have; its columns are ${headers.map((header) => `"${header}"`).join(', ')}`);
+		throw new InputRefused(`columns names ${missingHeaders.map(([, header]) => `"${header}"`).join(', ')}, which the file does not have; its columns are ${headers.map((header) => `"${header}"`).join(', ')}`);
 	}
 	const fields = crmImportFields[input.kind];
 	return headers.map((header) => fields.find((field) => input.columns?.[field]?.trim() === header) ?? null);
@@ -55,11 +56,11 @@ function mappingOf(input: CRMRecordImportInput, headers: string[]): CRMImportMap
 
 function refuseUnmappedRequiredFields(input: CRMRecordImportInput, mapping: CRMImportMapping): void {
 	const missing = missingRequiredFields(input.kind, mapping);
-	if (missing.length > 0) throw new Error(`a ${input.kind} import needs a column for ${missing.join(' and ')} in columns`);
+	if (missing.length > 0) throw new InputRefused(`a ${input.kind} import needs a column for ${missing.join(' and ')} in columns`);
 }
 
 function refuseAFileWithRows(input: CRMRecordImportInput): void {
-	if (namedPath(input) && input.rows) throw new Error('name the file in attachments or send rows, not both');
+	if (namedPath(input) && input.rows) throw new InputRefused('name the file in attachments or send rows, not both');
 }
 
 export async function crmImportRecordsOf(
@@ -69,11 +70,11 @@ export async function crmImportRecordsOf(
 	refuseAFileWithRows(input);
 	const path = namedPath(input);
 	if (!path) {
-		if (!input.rows) throw new Error('name the file to import in attachments, or send its rows');
+		if (!input.rows) throw new InputRefused('name the file to import in attachments, or send its rows');
 		return { kind: input.kind, rows: input.rows, dryRun: input.dryRun };
 	}
 	const file = await crmImportFileOf(input, files);
-	if (!file) throw new Error(`${path} is read only when the company host carries its content with the call, and this call carried none`);
+	if (!file) throw new InputRefused(`${path} is read only when the company host carries its content with the call, and this call carried none`);
 	return file.records;
 }
 
@@ -92,7 +93,7 @@ export async function crmImportFileOf(
 		...row,
 		...(input.onDuplicate ? { onDuplicate: input.onDuplicate } : {})
 	}));
-	if (rows.length === 0) throw new Error(`${path} has a header and no record under it`);
+	if (rows.length === 0) throw new InputRefused(`${path} has a header and no record under it`);
 	return {
 		path,
 		filename: sheet.fileName,
@@ -117,7 +118,7 @@ export async function crmRecordImportPreview(
 	if (!file) return null;
 	const checked = await crmRecordImport(context, { ...file.records, dryRun: true });
 	if (checked.refused > 0) {
-		throw new Error(`${file.filename} has ${checked.refused} lines that cannot be imported, so nothing would be written: ${refusedLines(checked)}`);
+		throw new InputRefused(`${file.filename} has ${checked.refused} lines that cannot be imported, so nothing would be written: ${refusedLines(checked)}`);
 	}
 	return {
 		inputField: 'attachments',

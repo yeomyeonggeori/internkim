@@ -20,26 +20,13 @@ import { labelOf } from './labels';
 import { displayNameOf, mentionOf, personOfHint, type RecordPerson } from './people';
 import type { RecordContext } from './company';
 import { missesATaskLabel, withDecidedTaskLabels } from './task-labels';
-import {
-	deleteTask,
-	participantsOfHints,
-	RecordRefusedTheWrite,
-	saveTask,
-	saveTaskCompletingChildren,
-	saveTaskWithChildren,
-	savedTaskByID,
-	statusOfPostgresCode,
-	taskOfHint,
-	taskFromHint,
-	tasksOfCompany,
-	taskWriteArguments,
-	type TaskRow
-} from './tasks';
+import { deleteTask, participantsOfHints, saveTask, saveTaskCompletingChildren, saveTaskWithChildren, savedTaskByID, taskOfHint, taskFromHint, tasksOfCompany, taskWriteArguments, type TaskRow } from './tasks';
 import { ownerNamedBy, whoseRecords } from './whose';
 import { labelsOfVocabulary, type CompanyLabels } from './labels';
 import { taskPage, type TaskSearch } from './task-page';
 import { taskChangeOf, type TaskChangeAnnouncer } from './task-change';
 import { lastDayBetween, taskBoardDatePredicate, taskBoardWindow, taskChildProgressForBoard, type TaskBoardWindow, type TaskCardRow } from './task-board';
+import { Refusal, InputRefused, RecordAlreadyHolds, ServiceUnanswered, refusalOfPostgresError, type PostgresError } from '../refusal';
 
 type TaskWritten = {
 	title?: string;
@@ -209,7 +196,7 @@ export async function taskAdd(
 	asked: TaskAddInput,
 	announceTaskChange?: TaskChangeAnnouncer
 ): Promise<AnsweredTask> {
-	if (!asked.title?.trim()) throw new Error('a task needs a title');
+	if (!asked.title?.trim()) throw new InputRefused('a task needs a title');
 	const input = missesATaskLabel(asked)
 		? withDecidedTaskLabels(asked, await context.decideTaskLabels({ title: asked.title, note: asked.note ?? '' }))
 		: asked;
@@ -315,7 +302,7 @@ export async function taskUpdate(
 	input: TaskUpdateInput,
 	announceTaskChange?: TaskChangeAnnouncer
 ): Promise<AnsweredTask> {
-	if (!input.taskHint) throw new Error('an update names the task it changes');
+	if (!input.taskHint) throw new InputRefused('an update names the task it changes');
 	const row = await taskRowOfHint(context, input.taskHint);
 
 	if (input.parentTaskHint !== undefined) await writeTaskParent(context, row, input.parentTaskHint);
@@ -335,12 +322,12 @@ export async function taskUpdate(
 async function writeTaskParent(context: RecordContext, row: TaskRow, hint: string): Promise<void> {
 	const named = hint.trim();
 	const parent = named ? (await taskFromHint(context.caller, named, false)).id : null;
-	if (parent === row.id) throw new Error('a task cannot be its own parent');
+	if (parent === row.id) throw new InputRefused('a task cannot be its own parent');
 	const { error } = await context.caller.rpc('task_parent_set', {
 		target_task_id: row.id,
 		target_parent_task_id: parent
 	});
-	if (error) throw new RecordRefusedTheWrite(error.message, statusOfPostgresCode(error.code));
+	if (error) throw refusalOfPostgresError(error);
 }
 
 async function linkTaskChildren(context: RecordContext, row: TaskRow, hints: string[]): Promise<void> {
@@ -351,7 +338,7 @@ async function linkTaskChildren(context: RecordContext, row: TaskRow, hints: str
 		parent_id: row.id,
 		child_ids: childIDs
 	});
-	if (error) throw new RecordRefusedTheWrite(error.message, statusOfPostgresCode(error.code));
+	if (error) throw refusalOfPostgresError(error);
 }
 
 // supabase/migrations/20260831000011_dates_drive_the_status_and_guard_it.sql
@@ -366,11 +353,7 @@ function refuseUnlessPatched(written: WrittenTaskFields, row: TaskRow): void {
 		unwrittenParticipants(written.participantIDs, row)
 	].filter((field): field is string => field !== null);
 	if (unwritten.length === 0) return;
-	throw new RecordRefusedTheWrite(
-		`the record saved this task without ${unwritten.join(', ')} as asked`,
-		502,
-		'task_result_invalid'
-	);
+	throw new ServiceUnanswered(`the record saved this task without ${unwritten.join(', ')} as asked`, 'task_result_invalid');
 }
 
 function unwrittenField(name: string, written: string | null | undefined, held: string | null): string | null {
@@ -390,7 +373,7 @@ export async function taskDelete(
 	context: RecordContext,
 	input: { taskHint?: string }
 ): Promise<{ taskID: string; deleted: true }> {
-	if (!input.taskHint) throw new Error('a deletion names the task it removes');
+	if (!input.taskHint) throw new InputRefused('a deletion names the task it removes');
 	const row = await taskRowOfHint(context, input.taskHint);
 	await deleteTask(context.caller, row.id);
 	return { taskID: row.id, deleted: true };
@@ -497,7 +480,7 @@ export async function taskVocabularySet(
 	const { error } = await context.caller.rpc('task_vocabulary_save', {
 		target_vocabulary: vocabularyWritten(context.labels, input)
 	});
-	if (error) throw refusedVocabularyWrite(error.message, error.code);
+	if (error) throw refusedVocabularyWrite(error);
 	return registeredLabelsOf(await labelsAfterTheWrite(context));
 }
 
@@ -518,15 +501,13 @@ async function labelsAfterTheWrite(context: RecordContext): Promise<CompanyLabel
 		.select('task_vocabulary')
 		.limit(1)
 		.single<{ task_vocabulary: unknown }>();
-	if (company.error) throw new Error(company.error.message);
+	if (company.error) throw refusalOfPostgresError(company.error);
 	return labelsOfVocabulary(company.data.task_vocabulary, context.labels.timezone);
 }
 
-function refusedVocabularyWrite(reason: string, code: string | undefined): RecordRefusedTheWrite {
-	if (code === dependentObjectsStillExist) {
-		return new RecordRefusedTheWrite(reason, 409, 'task_label_in_use');
-	}
-	return new RecordRefusedTheWrite(reason, statusOfPostgresCode(code));
+function refusedVocabularyWrite(error: PostgresError): Refusal {
+	if (error.code === dependentObjectsStillExist) return new RecordAlreadyHolds(error.message, 'task_label_in_use');
+	return refusalOfPostgresError(error);
 }
 
 export { displayNameOf, personOfHint };

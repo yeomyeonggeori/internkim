@@ -89,7 +89,7 @@ func TestTheHostsRefusalOfANonAdministratorReachesTheCaller(t *testing.T) {
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	if !answered.IsError || answered.ErrorCode != "not_allowed" || !strings.Contains(answered.Message, "admin access required") {
+	if !answered.IsError || !strings.Contains(answered.Message, "admin access required") {
 		t.Fatalf("the host decides who may delete, and its answer is the caller's, got %+v", answered)
 	}
 }

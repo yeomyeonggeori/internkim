@@ -1,6 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { attendanceTeamPageInputSchema, attendanceTeamPageSchema } from '$lib/attendance/team-page';
-import { RecordRefusedTheWrite, statusOfPostgresCode } from './tasks';
+import { refusalOfPostgresError } from '../refusal';
 
 export async function teamAttendance(caller: SupabaseClient, untrustedInput: Record<string, unknown>) {
 	const input = attendanceTeamPageInputSchema.parse(untrustedInput);
@@ -15,7 +15,7 @@ export async function teamAttendance(caller: SupabaseClient, untrustedInput: Rec
 		location_filter: input.locationFilter ?? '',
 		status_filter: input.statusFilter ?? ''
 	});
-	if (error) throw new RecordRefusedTheWrite(error.message, statusOfPostgresCode(error.code));
+	if (error) throw refusalOfPostgresError(error);
 	return attendanceTeamPageSchema.parse(data);
 }
 

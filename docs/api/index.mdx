@@ -162,11 +162,13 @@ unrecognized class fails closed at both ends.
 
 ## Errors [#errors]
 
-Success bodies are JSON. Error bodies are plain text, with two exceptions the
-app answers as JSON: the catalog's own `{"error":"not found"}`, and a
-[hint refusal](/docs/api/tools#choosing-a-target-with-a-hint), which carries
-`errorCode`, `failureStage`, `retryable`, `safeRetry`, `hint` and `candidates`
-so the next call can name one.
+Success bodies are JSON, and so is a tool's refusal: `error` in its own words,
+with `errorCode`, `failureStage`, `retryable` and `safeRetry`, which say whether
+to retry and whether a person has to be asked first. A
+[hint refusal](/docs/api/tools#choosing-a-target-with-a-hint) adds `hint` and
+`candidates` so the next call can name one. A tool that broke answers `500` with
+`error` alone. Other error bodies are plain text, except the catalog's own
+`{"error":"not found"}`.
 
 Two machines answer, and they do not share their wording. The app answers
 everything it resolves itself:
@@ -184,6 +186,8 @@ everything it resolves itself:
 | `404` | `{"error":"not found"}` | `GET /v1/tools/<name>` for a tool this token cannot see |
 | `409` | `a token cannot revoke itself...` | `DELETE /v1/token` naming the token that authenticated the call |
 | `409` | the hint refusal, with `errorCode`, `hint` and `candidates` | a hint that matched more than one thing, came close to some, or matched nothing |
+| `403`, `422` | the company machine's answer, with `outcome`, `errorCode` and `retryable` | a tool the company machine ran was `denied` (`403`) or `failed` (`422`) |
+| `500` | `<tool> failed: <reason>` | the tool broke while it ran |
 | `500` | `the control plane is not configured` | the app is missing its Supabase settings |
 | `502` | `the gateway answered <status>, and no status a caller can use` | the company answered with nothing a caller can use |
 | `503` | `the company gateway is not configured` | an invocation where nothing knows how to reach the company |

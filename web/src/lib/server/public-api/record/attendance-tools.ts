@@ -4,7 +4,6 @@ import { personName } from '$lib/person-name';
 import { attendancePage } from './attendance-page';
 import { personOfHint } from './people';
 import { ownerNamedBy, whoseRecords, whoseRecordsHolds } from './whose';
-import { statusOfPostgresCode, RecordRefusedTheWrite } from './tasks';
 import {
 	attendanceBackdatedAfterMinutes,
 	attendanceByID,
@@ -17,6 +16,7 @@ import {
 import type { RecordContext } from './company';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { attendanceAddResultSchema, WorkspaceAttendanceKind } from '../catalog/tools';
+import { CallerUnrecognized, InputRefused, refusalOfPostgresError } from '../refusal';
 
 const defaultWindowDays = 30;
 const hintWindowDays = 90;
@@ -139,7 +139,7 @@ export async function attendanceList(context: RecordContext, input: AttendanceLi
             context.caller.rpc('attendance_changes_page', {from_timestamp:window.from, to_timestamp:window.to, page_offset:input.pageOffset, page_limit:input.pageLimit ?? 24, team_search:input.teamSearch ?? '', actor_search:input.changedBySearch ?? '', selected_members:whose.everyone ? null : whose.personIDs, selected_team_key: input.selectedTeamKey || null, selected_actor: input.selectedChangedByID || null}),
             attendanceClock(context.caller), attendanceBackdatedAfterMinutes(context.caller)
         ]);
-        if(result.error) throw new RecordRefusedTheWrite(result.error.message,statusOfPostgresCode(result.error.code));
+        if(result.error) throw refusalOfPostgresError(result.error);
         const page = result.data as {totalCount:number; pageOffset:number; pageLimit:number; attendance:AnsweredAttendance[]};
         return {scope:'everyone', personID:null, personName:'', from:window.firstDay, to:window.lastDay, serverTime, backdatedAfterMinutes, count:page.attendance.length, ...page};
     }
@@ -192,7 +192,7 @@ export async function addAttendanceFor(caller: SupabaseClient, memberID: string 
 		location: input.location?.trim() || null,
 		reason: input.reasonCode ? attendanceChangeReasonText(input.reasonCode) : input.reason?.trim() || null
 	});
-	if (error) throw new RecordRefusedTheWrite(error.message, status === 401 ? 401 : statusOfPostgresCode(error.code));
+	if (error) throw status === 401 ? new CallerUnrecognized(error.message) : refusalOfPostgresError(error);
 	return attendanceAddResultSchema.parse(data);
 }
 
@@ -207,7 +207,7 @@ export type AttendanceUpdateInput = { corrections?: AttendanceCorrection[]; reas
 
 export async function attendanceUpdate(context: RecordContext, input: AttendanceUpdateInput) {
  if (input.undoOnly) {
-  if (input.corrections?.length !== 1) throw new Error('Undo needs one exact event ID');
+  if (input.corrections?.length !== 1) throw new InputRefused('Undo needs one exact event ID');
   return undoAttendanceChange(context, input.corrections[0].eventHint ?? '');
  }
 	const corrections = [];
@@ -226,7 +226,7 @@ export async function attendanceUpdate(context: RecordContext, input: Attendance
 		corrections,
 		reason: input.reasonCode ? attendanceChangeReasonText(input.reasonCode) : input.reason?.trim() || null
 	});
-	if (error) throw new RecordRefusedTheWrite(error.message, statusOfPostgresCode(error.code));
+	if (error) throw refusalOfPostgresError(error);
 	return { ...answeredWrite(data), eventID: corrections[0].event_id };
 }
 
@@ -240,13 +240,13 @@ export async function attendanceDelete(context: RecordContext, input: Attendance
 		event_id: row.id,
 		reason: input.reasonCode ? attendanceChangeReasonText(input.reasonCode) : input.reason?.trim() || null
 	});
-	if (error) throw new RecordRefusedTheWrite(error.message, statusOfPostgresCode(error.code));
+	if (error) throw refusalOfPostgresError(error);
 	return answeredWrite(data);
 }
 
 async function undoAttendanceChange(context: RecordContext, eventID: string) {
  const {data,error} = await context.caller.rpc('attendance_change_undo', {event_id:eventID});
- if(error) throw new RecordRefusedTheWrite(error.message,statusOfPostgresCode(error.code));
+ if(error) throw refusalOfPostgresError(error);
  return answeredWrite(data);
 }
 

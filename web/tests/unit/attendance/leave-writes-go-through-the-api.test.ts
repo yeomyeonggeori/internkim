@@ -118,8 +118,8 @@ describe('a leave the browser files', () => {
 		expect(asked).toEqual([{ name: 'leave_delete', input: { leaveHint: 'leave-1' } }]);
 	});
 
-	test('turns a refusal into the code the leave screens speak', async () => {
-		refuseWith = new ToolRefused('nope', undefined, 403);
+	test('turns a refusal into the code the leave screens speak, by what the refusal says', async () => {
+		refuseWith = new ToolRefused('nope', 'access_denied', 403);
 
 		await expect(cancelSupabaseLeaveRequest('leave-1')).rejects.toMatchObject({
 			name: 'EmployeeLeaveAPIError',

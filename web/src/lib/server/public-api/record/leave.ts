@@ -1,6 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { defaultLeavePolicy } from '$lib/attendance/leave-policy-defaults';
 import type { AttendanceLeavePolicy } from '../../../../routes/admin/admin-types';
+import { Refusal, refusalOfPostgresError } from '../refusal';
 
 export type LeaveRow = {
 	id: string;
@@ -22,7 +23,13 @@ export type LeaveKind = {
 	isDeducted: boolean;
 };
 
-export class NoSuchLeaveKind extends Error {
+export class NoSuchLeaveKind extends Refusal {
+	readonly status = 409;
+	readonly errorCode = 'leave_kind_unregistered';
+	readonly failureStage = 'input_validation';
+	readonly retryable = true;
+	readonly safeRetry = true;
+
 	constructor(
 		readonly asked: string,
 		readonly registered: string[]
@@ -32,11 +39,20 @@ export class NoSuchLeaveKind extends Error {
 				? 'this company registers no leave types'
 				: `${asked} is not one of ${registered.join(', ')}`
 		);
-		this.name = 'NoSuchLeaveKind';
+	}
+
+	get details() {
+		return { registered: this.registered };
 	}
 }
 
-export class NoSuchLeave extends Error {
+export class NoSuchLeave extends Refusal {
+	readonly status = 409;
+	readonly errorCode = 'leave_not_found';
+	readonly failureStage = 'target_resolution';
+	readonly retryable = true;
+	readonly safeRetry = true;
+
 	constructor(
 		readonly hint: string,
 		readonly candidates: string[]
@@ -46,7 +62,10 @@ export class NoSuchLeave extends Error {
 				? `no leave here goes by ${hint}`
 				: `${hint} could be ${candidates.join(' / ')}; name one of them exactly`
 		);
-		this.name = 'NoSuchLeave';
+	}
+
+	get details() {
+		return { hint: this.hint, candidates: this.candidates };
 	}
 }
 
@@ -87,14 +106,14 @@ export function leaveKindOf(kinds: LeaveKind[], asked: string): LeaveKind {
 
 export async function leaveOfCompany(caller: SupabaseClient): Promise<LeaveRow[]> {
 	const { data, error } = await caller.rpc('leave_in_full');
-	if (error) throw new Error(error.message);
+	if (error) throw refusalOfPostgresError(error);
 	const rows = (data ?? []) as LeaveRow[];
 	return [...rows].sort((left, right) => right.starts_at.localeCompare(left.starts_at));
 }
 
 export async function leaveDaysGranted(caller: SupabaseClient, memberID: string): Promise<number | null> {
 	const { data, error } = await caller.rpc('member_leave_days', { target_member: memberID });
-	if (error) throw new Error(error.message);
+	if (error) throw refusalOfPostgresError(error);
 	return data === null ? null : Number(data);
 }
 
@@ -119,7 +138,7 @@ export async function leaveBalancesOfCompany(
 	year: number
 ): Promise<LeaveBalanceRow[]> {
 	const { data, error } = await caller.rpc('leave_balances', { target_year: year });
-	if (error) throw new Error(error.message);
+	if (error) throw refusalOfPostgresError(error);
 	return ((data ?? []) as LeaveBalanceAnswer[]).map((row) => ({
 		memberID: row.member_id,
 		grantedDays: daysAnswered(row.granted_days),
@@ -136,6 +155,6 @@ export async function leaveDaysRemaining(
 		target_member: memberID,
 		target_year: year
 	});
-	if (error) throw new Error(error.message);
+	if (error) throw refusalOfPostgresError(error);
 	return data === null ? null : Number(data);
 }

@@ -8,7 +8,7 @@ import { descriptorTheTokenReaches } from './tool-call';
 import { toolInputRecovered } from './tool-input';
 import { sentencesOfSchemaRefusal } from './schema-sentences';
 import { addAttendanceFor } from './record/attendance-tools';
-import { RecordRefusedTheWrite } from './record/tasks';
+import { Refusal, answerOfRefusal } from './refusal';
 
 type BackgroundWork = (work: Promise<unknown>) => void;
 
@@ -30,16 +30,17 @@ export async function clockAttendance(
 	const input = parsed.data;
 	if (input.personHint || input.date || input.time) return null;
 
-	descriptorTheTokenReaches('attendance_add', member);
 	const caller = asMember(plane, member.accessToken);
 	try {
+		descriptorTheTokenReaches('attendance_add', member);
 		const result = await addAttendanceFor(caller, null, input);
 		const announcement = announceAttendance(environment, member.accessToken, result.status === 'added');
 		backgroundWork?.(announcement);
 		return json({ tool: 'attendance_add', result });
 	} catch (refusal) {
-		if (!(refusal instanceof RecordRefusedTheWrite)) throw refusal;
-		return json({ error: refusal.message, errorCode: refusal.errorCode }, { status: refusal.status });
+		if (!(refusal instanceof Refusal)) throw refusal;
+		const answer = answerOfRefusal(refusal);
+		return json(answer.body, { status: answer.status });
 	}
 }
 
