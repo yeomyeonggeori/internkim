@@ -164,7 +164,7 @@ func TestARunThatChangedLongAgoIsMarkedWithoutNotifying(t *testing.T) {
 		{TaskRunID: "stale", Status: "completed", RequesterPersonID: "person-1", UpdatedAt: now.Add(-taskNotifyFreshFor - time.Minute)},
 		{TaskRunID: "fresh", Status: "completed", RequesterPersonID: "person-1", UpdatedAt: now.Add(-time.Minute)},
 	})
-	directory := companyDirectoryServing(t, centralplane.Member{MemberID: "person-1", Email: "member1@example.com", Status: "active"})
+	directory := companyDirectoryServing(t, centralplane.Member{MemberID: "person-1", Email: "member1@example.com", Status: "active", IsWorking: true, CanReadTheCompany: true})
 	state := t.TempDir()
 	service := NewService(Configuration{
 		DatabasePath:               filepath.Join(state, "internkim.sqlite"),

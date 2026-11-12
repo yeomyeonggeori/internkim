@@ -51,7 +51,7 @@ func (service *Service) applyRoster(ctx context.Context, members []centralplane.
 func rosterRecordsOfMembers(members []centralplane.Member) []adminUserMutation {
 	records := make([]adminUserMutation, 0, len(members))
 	for _, member := range members {
-		if !member.IsActive() {
+		if !member.IsWorking {
 			continue
 		}
 		records = append(records, adminUserMutation{

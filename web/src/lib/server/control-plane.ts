@@ -173,7 +173,7 @@ export async function addMember(
 
 function memberWhoMayBeInvitedAgain(held: MemberRow, companyID: string, email: string): string {
 	if (held.company_id !== companyID) throw new AddressBelongsToAnotherCompany(email);
-	if (held.status === 'active') throw new AlreadyAMember(email);
+	if (held.is_working) throw new AlreadyAMember(email);
 	return held.id;
 }
 
@@ -235,12 +235,12 @@ async function keepAccountSignedIn(client: SupabaseClient, accountID: string | n
 export async function settleSignInOfMember(client: SupabaseClient, memberID: string): Promise<void> {
 	const { data, error } = await client
 		.from('member')
-		.select('user_id, status')
+		.select('user_id, can_read_the_company')
 		.eq('id', memberID)
-		.maybeSingle<{ user_id: string | null; status: string }>();
+		.maybeSingle<{ user_id: string | null; can_read_the_company: boolean }>();
 	if (error) throw new Error(`sign-in of ${memberID}: ${error.message}`);
 	if (!data) return;
-	await keepAccountSignedIn(client, data.user_id, !hasLeftTheCompany(data.status));
+	await keepAccountSignedIn(client, data.user_id, data.can_read_the_company);
 }
 
 export type LeaverAccount = { memberID: string; accountID: string };
@@ -277,7 +277,7 @@ async function membersWhoLeft(client: SupabaseClient): Promise<{ id: string; use
 	const { data, error } = await client
 		.from('member')
 		.select('id, user_id')
-		.in('status', statusesOfMembersWhoLeft)
+		.eq('can_read_the_company', false)
 		.order('id')
 		.returns<{ id: string; user_id: string | null }[]>();
 	if (error) throw new Error(`members who left: ${error.message}`);
@@ -298,7 +298,9 @@ export type FoundedCompany = {
 
 export type ClaimedMember = { memberID: string; companyID: string; hasJustArrived: boolean };
 
-type MemberRow = { id: string; company_id: string; status: string };
+type MemberRow = { id: string; company_id: string; is_working: boolean; can_read_the_company: boolean };
+
+const memberRowColumns = 'id, company_id, is_working, can_read_the_company';
 
 export async function claimMemberFor(
 	client: SupabaseClient,
@@ -307,7 +309,7 @@ export async function claimMemberFor(
 ): Promise<ClaimedMember | null> {
 	const found = (await memberHeldByAccount(client, accountID)) ?? (await memberWaitingForAddress(client, email));
 	if (!found) return null;
-	const hasJustArrived = hasNotArrivedYet(found.status);
+	const hasJustArrived = hasNotArrivedYet(found);
 	if (hasJustArrived) await markArrived(client, found.id, accountID, email);
 	return { memberID: found.id, companyID: found.company_id, hasJustArrived };
 }
@@ -315,7 +317,7 @@ export async function claimMemberFor(
 async function memberHeldByAccount(client: SupabaseClient, accountID: string): Promise<MemberRow | null> {
 	const { data, error } = await client
 		.from('member')
-		.select('id, company_id, status')
+		.select(memberRowColumns)
 		.eq('user_id', accountID)
 		.maybeSingle();
 	if (error) throw new Error(error.message);
@@ -323,19 +325,13 @@ async function memberHeldByAccount(client: SupabaseClient, accountID: string): P
 }
 
 async function memberWaitingForAddress(client: SupabaseClient, email: string): Promise<MemberRow | null> {
-	const { data, error } = await client.from('member').select('id, company_id, status').eq('email', email).maybeSingle();
+	const { data, error } = await client.from('member').select(memberRowColumns).eq('email', email).maybeSingle();
 	if (error) throw new Error(error.message);
 	return data;
 }
 
-function hasNotArrivedYet(status: string): boolean {
-	return status !== 'active' && !hasLeftTheCompany(status);
-}
-
-const statusesOfMembersWhoLeft: string[] = ['departed', 'withdrawn'];
-
-function hasLeftTheCompany(status: string): boolean {
-	return statusesOfMembersWhoLeft.includes(status);
+function hasNotArrivedYet(member: MemberRow): boolean {
+	return member.can_read_the_company && !member.is_working;
 }
 
 async function markArrived(client: SupabaseClient, memberID: string, accountID: string, email: string): Promise<void> {
@@ -479,12 +475,12 @@ export type MemberSession = {
 	expiresAt: number;
 };
 
-type MemberAccount = { user_id: string | null; email: string | null; status: string };
+type MemberAccount = { user_id: string | null; email: string | null; can_read_the_company: boolean };
 
 async function memberAccountOf(client: SupabaseClient, memberID: string): Promise<MemberAccount> {
 	const { data, error } = await client
 		.from('member')
-		.select('user_id, email, status')
+		.select('user_id, email, can_read_the_company')
 		.eq('id', memberID)
 		.single<MemberAccount>();
 	if (error) throw new Error(`member ${memberID}: ${error.message}`);
@@ -504,7 +500,7 @@ export async function sessionForMember(
 ): Promise<MemberSession> {
 	const client = controlPlane(credentials);
 	const member = await memberAccountOf(client, memberID);
-	if (hasLeftTheCompany(member.status)) {
+	if (!member.can_read_the_company) {
 		throw new Error(`member ${memberID} has left and cannot be acted for`);
 	}
 	const userID = member.user_id ?? (await openAccountFor(client, memberID, member.email));
@@ -658,7 +654,7 @@ type PersonalAccessTokenRow = {
 	permission: unknown;
 	name: string | null;
 	settings: unknown;
-	member: { status: string } | null;
+	member: { can_read_the_company: boolean } | null;
 };
 
 // The caller of a personal access token is the member it belongs to, so this issues that
@@ -672,7 +668,7 @@ export async function sessionForPersonalAccessToken(
 	const client = controlPlane(credentials);
 	const { data, error } = await client
 		.from('credential')
-		.select('id, member_id, permission, name, settings, member(status)')
+		.select('id, member_id, permission, name, settings, member(can_read_the_company)')
 		.eq('kind', personalAccessTokenCredentialKind)
 		.eq('external_id', await hashOf(apiKey))
 		.maybeSingle<PersonalAccessTokenRow>();
@@ -680,7 +676,7 @@ export async function sessionForPersonalAccessToken(
 	if (!data) return null;
 	const settings = storedTokenSettings(data.settings);
 	if (Date.parse(settings.expiresAt) <= now.getTime()) throw new TokenHasExpired();
-	if (hasLeftTheCompany(data.member?.status ?? '')) throw new TokenOwnerHasLeft();
+	if (!data.member?.can_read_the_company) throw new TokenOwnerHasLeft();
 	await noteTokenUse(client, data.id, settings, now);
 	const session = await sessionForMember(credentials, data.member_id);
 	return {

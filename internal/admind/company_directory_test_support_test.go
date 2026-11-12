@@ -90,7 +90,7 @@ func (directory *companyDirectoryForTest) keepWrite(t *testing.T, request *http.
 	index := directory.indexOf(write.Email)
 	if index < 0 {
 		directory.members = append(directory.members, centralplane.Member{
-			MemberID: memberIDForTest(write.Email), Email: write.Email, Role: centralplane.MemberRoleMember, Status: centralplane.MemberStatusActive,
+			MemberID: memberIDForTest(write.Email), Email: write.Email, Role: centralplane.MemberRoleMember, Status: centralplane.MemberStatusActive, IsWorking: true, CanReadTheCompany: true,
 		})
 		index = len(directory.members) - 1
 	}
@@ -116,6 +116,8 @@ func (directory *companyDirectoryForTest) withdraw(t *testing.T, request *http.R
 	}
 	directory.withdrawn = append(directory.withdrawn, email)
 	directory.members[index].Status = centralplane.MemberStatusWithdrawn
+	directory.members[index].IsWorking = false
+	directory.members[index].CanReadTheCompany = false
 	return jsonResponse(http.StatusOK, directoryJSONForTest(t, map[string]any{"member": directory.members[index]}), nil), nil
 }
 
@@ -138,11 +140,11 @@ func directoryJSONForTest(t *testing.T, answer map[string]any) string {
 }
 
 func memberForTest(email string, name string, role string) centralplane.Member {
-	return centralplane.Member{MemberID: memberIDForTest(email), Email: email, Name: name, Role: role, Status: centralplane.MemberStatusActive}
+	return centralplane.Member{MemberID: memberIDForTest(email), Email: email, Name: name, Role: role, Status: centralplane.MemberStatusActive, IsWorking: true, CanReadTheCompany: true}
 }
 
 func memberJSONForTest(email string) string {
-	return `{"memberID":"` + memberIDForTest(email) + `","email":"` + email + `","role":"member","status":"active"}`
+	return `{"memberID":"` + memberIDForTest(email) + `","email":"` + email + `","role":"member","status":"active","isWorking":true,"canReadTheCompany":true}`
 }
 
 func memberIDForTest(email string) string {

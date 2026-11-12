@@ -93,7 +93,7 @@ func (service *Service) keysOfMembersWhoLeft(ctx context.Context, seed string, a
 	}
 	keys := []string{}
 	for _, member := range members {
-		if !member.HasLeftTheCompany() {
+		if member.CanReadTheCompany {
 			continue
 		}
 		held, errorValue := service.everyKeyHeldBy(ctx, seed, normalizedRosterEmail(member.Email))

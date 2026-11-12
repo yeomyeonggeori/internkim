@@ -27,7 +27,7 @@ async function anAdminOf(credentials: ControlPlaneCredentials, companyID: string
 		.select('id')
 		.eq('company_id', companyID)
 		.eq('is_admin', true)
-		.eq('status', 'active')
+		.eq('is_working', true)
 		.order('joined_at')
 		.limit(1)
 		.maybeSingle<{ id: string }>();

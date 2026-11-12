@@ -123,7 +123,7 @@ func TestReconcileBlueclawRosterDeliversTheRosterFromTheHost(t *testing.T) {
 		case request.Method == http.MethodGet && request.URL.String() == "https://company.example.test/api/agent/company":
 			return jsonResponse(http.StatusOK, `{"company":{"name":"예시회사","profileImage":"","timezone":"Asia/Seoul"}}`, nil), nil
 		case request.Method == http.MethodGet && request.URL.String() == "https://company.example.test/api/agent/member":
-			return jsonResponse(http.StatusOK, `{"members":[{"memberID":"user-1","email":"member@example.com","name":"Member","role":"member","status":"active","circles":["c-level"]}]}`, nil), nil
+			return jsonResponse(http.StatusOK, `{"members":[{"memberID":"user-1","email":"member@example.com","name":"Member","role":"member","status":"active","isWorking":true,"canReadTheCompany":true,"circles":["c-level"]}]}`, nil), nil
 		case request.Method == http.MethodGet && request.URL.String() == "http://blueclaw.local/admin/api/policy":
 			return jsonResponse(http.StatusOK, `{"people":[{"personID":"person-old","emails":["departed@example.com"]},{"personID":"person-owner","emails":["owner@example.com"]}]}`, nil), nil
 		case request.Method == http.MethodPost && request.URL.String() == "http://blueclaw.local/admin/api/policy/reload":
@@ -182,7 +182,7 @@ func TestReconcileBlueclawRosterLeavesAnUnchangedRosterAlone(t *testing.T) {
 		case request.Method == http.MethodGet && request.URL.String() == "https://company.example.test/api/agent/company":
 			return jsonResponse(http.StatusOK, `{"company":{"name":"예시회사","profileImage":"","timezone":"Asia/Seoul"}}`, nil), nil
 		case request.Method == http.MethodGet && request.URL.String() == "https://company.example.test/api/agent/member":
-			return jsonResponse(http.StatusOK, `{"members":[{"memberID":"user-1","email":"member@example.com","name":"Member","role":"member","status":"active","circles":["c-level"]}]}`, nil), nil
+			return jsonResponse(http.StatusOK, `{"members":[{"memberID":"user-1","email":"member@example.com","name":"Member","role":"member","status":"active","isWorking":true,"canReadTheCompany":true,"circles":["c-level"]}]}`, nil), nil
 		case request.Method == http.MethodGet && request.URL.String() == "http://blueclaw.local/admin/api/policy":
 			return jsonResponse(http.StatusOK, settledPolicy, nil), nil
 		default:
@@ -417,7 +417,7 @@ func TestTheRosterReachesBlueclawAsSoonAsItAnswersRatherThanAtTheNextTick(t *tes
 	policyRefusalsLeft.Store(3)
 	reloads := atomic.Int32{}
 	service := serviceWhoseDirectorySays(t, `{"members":[
-		{"memberID":"member-1","email":"active@example.com","name":"최견본","role":"member","status":"active"}
+		{"memberID":"member-1","email":"active@example.com","name":"최견본","role":"member","status":"active","isWorking":true,"canReadTheCompany":true}
 	]}`)
 	service.Configuration.BlueclawPolicyDeliveryPath = filepath.Join(t.TempDir(), "policy.json")
 	answering := service.HTTPClient.Transport

@@ -46,7 +46,7 @@ export const DELETE: RequestHandler = async ({ request, url, platform }) => {
 };
 
 const memberColumns =
-	'id, email, name, note, messenger, is_admin, status, job_title, phone_number, joined_at, team_id, supervisor_id';
+	'id, email, name, note, messenger, is_admin, status, is_working, can_read_the_company, job_title, phone_number, joined_at, team_id, supervisor_id';
 
 type MemberRow = {
 	id: string;
@@ -56,6 +56,8 @@ type MemberRow = {
 	messenger: Record<string, string> | null;
 	is_admin: boolean;
 	status: string;
+	is_working: boolean;
+	can_read_the_company: boolean;
 	job_title: string | null;
 	phone_number: string | null;
 	joined_at: string | null;
@@ -79,6 +81,8 @@ function namedMembers(
 		role: row.is_admin ? 'admin' : 'member',
 		circles: circlesByMemberID.get(row.id) ?? [],
 		status: row.status,
+		isWorking: row.is_working,
+		canReadTheCompany: row.can_read_the_company,
 		jobTitle: row.job_title ?? '',
 		phoneNumber: row.phone_number ?? '',
 		hireDate: row.joined_at ? String(row.joined_at).slice(0, 10) : '',

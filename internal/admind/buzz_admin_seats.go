@@ -110,7 +110,7 @@ func (service *Service) seatableAdministrators(ctx context.Context) ([]seatableA
 	}
 	administrators := make([]seatableAdministrator, 0)
 	for _, member := range members {
-		if member.HasLeftTheCompany() || normalizeAdminUserRole(member.Role) != adminUserRoleAdmin {
+		if !member.CanReadTheCompany || normalizeAdminUserRole(member.Role) != adminUserRoleAdmin {
 			continue
 		}
 		secret, errorValue := service.personBuzzSecret(ctx, normalizedRosterEmail(member.Email))

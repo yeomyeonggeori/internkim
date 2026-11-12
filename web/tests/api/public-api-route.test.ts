@@ -353,6 +353,12 @@ describe("a token whose owner has left", () => {
 		expect(answered.status).toBe(403);
 		expect((answered.body as { message: string }).message).toBe('token owner is not active member');
 	});
+
+	test('still names them in the directory a colleague reads', async () => {
+		const answered = await invoke('person_list', holdersToken, {});
+		const people = z.array(z.object({ email: z.string(), employmentStatus: z.string() })).parse(resultOf(answered).people);
+		expect(people).toContainEqual({ email: `${slug}-departed@example.test`, employmentStatus: 'departed' });
+	});
 });
 
 describe('a tool a runtime beside the agent answers', () => {

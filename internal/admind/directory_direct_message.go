@@ -95,7 +95,7 @@ func (service *Service) memberBuzzSecret(ctx context.Context, email string) (str
 	if errorValue != nil {
 		return "", errorValue
 	}
-	if !isKnown || !member.IsActive() {
+	if !isKnown || !member.IsWorking {
 		return "", errNoActiveMember
 	}
 	return service.personBuzzSecret(ctx, email)

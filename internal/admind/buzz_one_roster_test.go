@@ -9,7 +9,7 @@ import (
 
 func TestEveryKeyARoomIsFilledWithIsOneTheSweepKeeps(t *testing.T) {
 	service := serviceWhoseDirectoryAndPolicyHold(t,
-		`{"members":[{"memberID":"member-1","email":"seated@example.com","status":"active"}]}`,
+		`{"members":[{"memberID":"member-1","email":"seated@example.com","status":"active","isWorking":true,"canReadTheCompany":true}]}`,
 		`{"people":[{"personID":"p-1","emails":["seated@example.com","second-address@example.com"]}]}`)
 
 	members, errorValue := service.memberBuzzMembers(context.Background())
