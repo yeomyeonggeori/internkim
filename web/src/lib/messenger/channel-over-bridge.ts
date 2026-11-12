@@ -20,6 +20,8 @@ import {
 	removeReaction,
 	searchPosts,
 	writePost,
+	type MessengerAnswer,
+	type MessengerAsk,
 	type OutgoingAttachment,
 	type MessengerChannel,
 	type MessengerInboxReason,
@@ -35,6 +37,7 @@ import {
 	personKey,
 	type MessengerDirectory
 } from './messenger-directory';
+import type { ChannelInteraction } from '$lib/components/channel/channel-api';
 import { agentName, fetchMessengerPeople, isTheAgent, messengerPersonLabel, type MessengerPeople } from './messenger-people';
 
 type ChannelSummary = {
@@ -79,6 +82,8 @@ type Message = {
 	mentions?: Mentions;
 	reactions?: Reaction[];
 	attachments?: Attachment[];
+	interaction?: ChannelInteraction;
+	isError?: boolean;
 };
 type Mentions = { externalIDs: string[]; isEveryone: boolean };
 type Conversation = {
@@ -121,8 +126,17 @@ function canonicalKey(person: MessengerPerson, people: MessengerDirectory): stri
 // currentUserID, so one of theirs carries the id this app knows them by whatever
 // the messenger called its author.
 function senderOf(person: MessengerPerson, people: MessengerPeople, viewer: Viewer): Participant {
-	const sender = participantOf(person, people);
-	return isViewer(person, people, viewer) ? { ...sender, id: viewer.key } : sender;
+	return { ...participantOf(person, people), id: idAsTheReaderKnowsIt(person, people, viewer) };
+}
+
+function idAsTheReaderKnowsIt(person: MessengerPerson, people: MessengerDirectory, viewer: Viewer): string {
+	return isViewer(person, people, viewer) ? viewer.key : canonicalKey(person, people);
+}
+
+function interactionOf(ask: MessengerAsk, people: MessengerDirectory, viewer: Viewer): ChannelInteraction {
+	const { targetExternalID, ...question } = ask;
+	const targetID = targetExternalID ? idAsTheReaderKnowsIt({ externalID: targetExternalID }, people, viewer) : '';
+	return { ...question, targetID };
 }
 
 function participantOf(person: MessengerPerson, people: MessengerPeople): Participant {
@@ -276,6 +290,8 @@ function messageOf(post: MessengerPost, people: MessengerPeople, viewer: Viewer)
 		sentAt: post.postedAt,
 		editedAt: post.editedAt,
 		mentions: post.mentions,
+		interaction: post.ask ? interactionOf(post.ask, people, viewer) : undefined,
+		isError: post.isError,
 		reactions: post.reactions.map((reaction) => ({
 			emoji: glyphOfEmojiName(reaction.emoji) ?? reaction.emoji,
 			value: reaction.emoji,
@@ -360,12 +376,13 @@ export async function bridgeSendMessage(
 	channelID?: string,
 	replyToRootID?: string,
 	attachments: OutgoingAttachment[] = [],
-	mentions?: Mentions
+	mentions?: Mentions,
+	answer?: MessengerAnswer
 ): Promise<void> {
 	if (!channelID) throw new Error('choose a conversation first');
 	const kept = [];
 	for (const attachment of attachments) kept.push(await keepAttachmentForSending(attachment));
-	await writePost(channelID, text, replyToRootID, kept, mentions);
+	await writePost(channelID, text, replyToRootID, kept, mentions, answer);
 }
 
 export async function bridgeEditMessage(
