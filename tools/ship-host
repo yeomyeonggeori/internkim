@@ -23,6 +23,7 @@ Every step prints one line and a failing step stops the run.
 
 import argparse
 import hashlib
+import json
 import os
 import re
 import subprocess
@@ -37,7 +38,10 @@ RELEASE_REPOSITORY = "yeomyeonggeori/internkim"
 INTERNKIM = str(REPOSITORY_ROOT / "internkim")
 WITH_LOCAL_PLANE = str(REPOSITORY_ROOT / "tools" / "with-local-plane")
 INSTALL_RIG = str(REPOSITORY_ROOT / "tools" / "test-native-install")
-INSTALL_LINE = "curl -fsSL https://intern.kim/install.sh | sh -s -- host"
+WEB_ORIGIN = "https://intern.kim"
+WEB_BUILD_ADDRESS = f"{WEB_ORIGIN}/_app/version.json"
+WHAT_THE_HOST_ASKS_THE_WEB = ["web/src/routes/api/agent", "supabase/migrations"]
+INSTALL_LINE = f"curl -fsSL {WEB_ORIGIN}/install.sh | sh -s -- host"
 PACKAGE_NAME = "internkim"
 PACKAGE_ARCHITECTURE = os.environ.get("INTERNKIM_RIG_ARCHITECTURE", "arm64")
 CHECKSUMS_NAME = "SHA256SUMS"
@@ -271,6 +275,20 @@ def refuse_unless_origin_main(shipment):
     shipment.tag = read_next_tag(shipment)
 
 
+def web_build_seconds(answer):
+    try:
+        return int(json.loads(answer)["version"]) // 1000
+    except (ValueError, KeyError, TypeError):
+        raise ShipFailure("check the web", f"{WEB_BUILD_ADDRESS} does not say when it was built: {answer.strip()[:200]}")
+
+
+def refuse_unless_the_web_is_current(shipment):
+    changed_at = int(shipment.run(["git", "log", "-1", "--first-parent", "--format=%ct", "origin/main", "--", *WHAT_THE_HOST_ASKS_THE_WEB]).strip())
+    built_at = web_build_seconds(shipment.run(["curl", "-fsS", "--max-time", "20", WEB_BUILD_ADDRESS]))
+    if built_at < changed_at:
+        raise ShipFailure("check the web", f"{WEB_ORIGIN} was built before origin/main last changed what a host asks it ({', '.join(WHAT_THE_HOST_ASKS_THE_WEB)}); apply the migrations and deploy the web app first")
+
+
 def cut_testing_release(shipment):
     output = shipment.run([INTERNKIM, "release", "host", "--channel", "testing", "--bump", shipment.options.bump])
     tag_from_release_output(output, shipment.tag)
@@ -427,6 +445,7 @@ def upgrade_host_or_roll_back(shipment):
 def host_only_steps():
     return [
         (lambda shipment: "refuse unless the checkout is clean and HEAD is origin/main, then build internkim from it", refuse_unless_origin_main),
+        (lambda shipment: f"refuse unless {WEB_ORIGIN} was built after the last change to what a host asks it", refuse_unless_the_web_is_current),
         (lambda shipment: f"build {shipment.tag} for our host's architecture here", build_host_package),
         (lambda shipment: f"copy {shipment.tag} to our host and keep it in {HOST_PACKAGE_CACHE}", copy_package_to_host),
         (lambda shipment: f"install {shipment.tag} on our host, watch it for {SETTLE_SECONDS} seconds, roll it back to the version it ran on failure", upgrade_host_or_roll_back),
@@ -446,6 +465,7 @@ def planned_steps(options):
     if options.skip_host:
         return steps
     return steps + [
+        (lambda shipment: f"refuse unless {WEB_ORIGIN} was built after the last change to what a host asks it", refuse_unless_the_web_is_current),
         (lambda shipment: f"upgrade our own host to {shipment.tag} while it is on testing, watch it for {SETTLE_SECONDS} seconds, roll it back to the release it ran on failure", upgrade_host_or_roll_back),
         (lambda shipment: f"promote {shipment.tag} to stable", promote_to_stable),
     ]
