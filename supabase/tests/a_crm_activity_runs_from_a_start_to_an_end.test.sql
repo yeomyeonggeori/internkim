@@ -278,12 +278,12 @@ select is(
   'activity dates: a task starting tomorrow stays planned'
 );
 
-select public.complete_tasks_past_their_end();
+select public.advance_tasks_by_their_dates();
 
-select is(
+select isnt(
   (select status::text from public.task where id = '59500000-0000-0000-0000-000000000502'),
-  'planned',
-  'activity dates: the hourly pass leaves a call that ends today, at any hour, alone until the day has passed'
+  'completed',
+  'activity dates: the pass does not complete a call that ends today, at any hour, until the day has passed'
 );
 
 insert into public.task (id, company_id, title, status, starts_at, ends_at) values

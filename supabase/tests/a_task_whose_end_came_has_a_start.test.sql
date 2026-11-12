@@ -61,7 +61,7 @@ insert into public.task (id, company_id, title, status, starts_at, ends_at) valu
 set constraints all immediate;
 alter table public.task enable trigger task_status_and_dates_agree;
 
-select public.complete_tasks_past_their_end();
+select public.advance_tasks_by_their_dates();
 select is(
   (select (starts_at = ends_at, status::text) from public.task where id = '99800000-0000-0000-0000-0000000000b7'),
   (true, 'completed'::text),

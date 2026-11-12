@@ -10,6 +10,15 @@
       ]
     },
     {
+      "name": "advance_tasks_by_their_dates",
+      "arguments": "",
+      "returns": "void",
+      "security": "definer",
+      "callableBy": [
+        "service_role"
+      ]
+    },
+    {
       "name": "aim_standby_boxes_at",
       "arguments": "box_key text, target text",
       "returns": "TABLE(public_key text, host_name text, package_version text)",
@@ -587,15 +596,6 @@
     {
       "name": "complete_parent_when_children_are_done",
       "arguments": "parent_id uuid",
-      "returns": "void",
-      "security": "definer",
-      "callableBy": [
-        "service_role"
-      ]
-    },
-    {
-      "name": "complete_tasks_past_their_end",
-      "arguments": "",
       "returns": "void",
       "security": "definer",
       "callableBy": [
@@ -1806,15 +1806,15 @@
   "scheduled": [
     {
       "schedule": "* * * * *",
+      "command": "select public.advance_tasks_by_their_dates()"
+    },
+    {
+      "schedule": "* * * * *",
       "command": "select public.announce_event_reminders()"
     },
     {
       "schedule": "7 * * * *",
       "command": "select public.ask_about_shifts_nobody_closed()"
-    },
-    {
-      "schedule": "* * * * *",
-      "command": "select public.complete_tasks_past_their_end()"
     }
   ]
 }

@@ -8,6 +8,7 @@ description: "PostgREST가 /rest/v1/rpc로 노출하는 함수 전부와, 누가
 | 이름 | 인자 | 반환 | 보안 | 호출 가능 |
 | --- | --- | --- | --- | --- |
 | `account_of_address` | `address text` | `uuid` | definer | service_role |
+| `advance_tasks_by_their_dates` | — | `void` | definer | service_role |
 | `aim_standby_boxes_at` | `box_key text, target text` | `TABLE(public_key text, host_name text, package_version text)` | definer | service_role |
 | `announce_event_reminders` | — | `void` | definer | service_role |
 | `apns_key_keep` | `new_key_id text, new_team_id text, new_bundle_id text, new_private_key text, new_environment text DEFAULT 'production'::text` | `void` | definer | service_role |
@@ -69,7 +70,6 @@ description: "PostgREST가 /rest/v1/rpc로 노출하는 함수 전부와, 누가
 | `company_subscription_invoice_paid` | `target_company uuid, target_event text, target_customer text, target_subscription text, granted_credits bigint, opens_period boolean, period_ends_at timestamp with time zone` | `void` | definer | service_role |
 | `company_topic` | `target_company uuid` | `text` | invoker | anon, authenticated, service_role |
 | `complete_parent_when_children_are_done` | `parent_id uuid` | `void` | definer | service_role |
-| `complete_tasks_past_their_end` | — | `void` | definer | service_role |
 | `conversation_mute` | `conversation text` | `void` | definer | anon, authenticated, service_role |
 | `conversation_mute_for` | `muted_member uuid, conversation text` | `void` | definer | service_role |
 | `conversation_unmute` | `conversation text` | `void` | definer | anon, authenticated, service_role |
