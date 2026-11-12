@@ -2,13 +2,10 @@ package main
 
 import (
 	"context"
-	"errors"
+	"flag"
 	"fmt"
-	"io/fs"
 	"net/http"
 	"net/url"
-	"os"
-	"path/filepath"
 
 	"github.com/yeomyeonggeori/internkim/internal/filestream"
 	"github.com/yeomyeonggeori/internkim/internal/mediagate"
@@ -16,33 +13,27 @@ import (
 )
 
 func runMediaGate(arguments []string) error {
-	if len(arguments) != 0 {
-		return fmt.Errorf("media-gate takes no arguments")
+	flags := flag.NewFlagSet("media-gate", flag.ContinueOnError)
+	fileJournalSocketPath := flags.String("file-journal-socket", "", "ask the file journal at this socket to keep every stored attachment")
+	if errorValue := flags.Parse(arguments); errorValue != nil {
+		return errorValue
+	}
+	if flags.NArg() != 0 {
+		return fmt.Errorf("media-gate takes no arguments, only -file-journal-socket")
 	}
 	upstream, errorValue := url.Parse("http://" + blueclaw.BuzzMediaServerAddress)
 	if errorValue != nil {
 		return errorValue
 	}
-	gate := mediagate.Gate{Upstream: upstream}
-	isABox, errorValue := thisComputerIsABox()
-	if errorValue != nil {
-		return errorValue
-	}
-	if isABox {
-		gate.KeepFiles = func(ctx context.Context) error {
-			if hasSeveralBoxes, isKnown := companyBoxCount(); isKnown && !hasSeveralBoxes {
-				return nil
-			}
-			return filestream.AskToKeep(ctx, blueclaw.CompanyHostFileJournalSocketPath)
-		}
-	}
-	return http.ListenAndServe(blueclaw.BuzzMediaAddress, gate.Handler())
+	return http.ListenAndServe(blueclaw.BuzzMediaAddress, mediaGate(upstream, *fileJournalSocketPath).Handler())
 }
 
-func thisComputerIsABox() (bool, error) {
-	_, errorValue := os.Stat(filepath.Join(blueclaw.CompanyHostBoxStatePath, "identity.json"))
-	if errors.Is(errorValue, fs.ErrNotExist) {
-		return false, nil
+func mediaGate(upstream *url.URL, fileJournalSocketPath string) mediagate.Gate {
+	gate := mediagate.Gate{Upstream: upstream}
+	if fileJournalSocketPath != "" {
+		gate.KeepFiles = func(ctx context.Context) error {
+			return filestream.AskToKeep(ctx, fileJournalSocketPath)
+		}
 	}
-	return errorValue == nil, errorValue
+	return gate
 }
