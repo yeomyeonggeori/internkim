@@ -29,7 +29,7 @@ export async function membersOfCompanyByEmail(
 		.from('member')
 		.select('id, email')
 		.eq('company_id', companyID)
-		.neq('status', 'withdrawn')
+		.eq('is_in_the_record', true)
 		.returns<{ id: string; email: string | null }[]>();
 	if (error) throw new Error(error.message);
 	return new Map(

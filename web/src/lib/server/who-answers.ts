@@ -15,7 +15,7 @@ async function administratorsOf(record: SupabaseClient, companyID: string): Prom
 		.select('id')
 		.eq('company_id', companyID)
 		.eq('is_admin', true)
-		.neq('status', 'withdrawn')
+		.eq('can_read_the_company', true)
 		.returns<{ id: string }[]>();
 	if (error) throw new Error(error.message);
 	return (data ?? []).map((member) => member.id);

@@ -36,9 +36,9 @@ func TestADeviceWithACompanyAsksTheCompanyWhoWorksThere(t *testing.T) {
 			t.Errorf("the device did not present its own key: %q", request.Header.Get("Authorization"))
 		}
 		responseWriter.Write([]byte(`{"members":[
-			{"memberID":"m1","email":"lead@example.com","name":"이샘플","role":"admin","status":"active"},
-			{"memberID":"m2","email":"colleague@example.com","name":"박예시","role":"member","status":"active"},
-			{"memberID":"m3","email":"gone@example.com","name":"최견본","role":"admin","status":"withdrawn"}
+			{"memberID":"m1","email":"lead@example.com","name":"이샘플","role":"admin","status":"active","isWorking":true,"canReadTheCompany":true},
+			{"memberID":"m2","email":"colleague@example.com","name":"박예시","role":"member","status":"active","isWorking":true,"canReadTheCompany":true},
+			{"memberID":"m3","email":"gone@example.com","name":"최견본","role":"admin","status":"withdrawn","isWorking":false,"canReadTheCompany":false}
 		]}`))
 	}))
 	defer company.Close()

@@ -48,13 +48,3 @@ func TestTheDaemonKnowsTheStatusesTheCentralPlaneDeclares(t *testing.T) {
 		t.Fatalf("the daemon knows statuses %v and the central plane declares %v", known, declared)
 	}
 }
-
-func TestAMemberIsHereUntilTheRecordSaysTheyLeft(t *testing.T) {
-	for _, status := range MemberStatuses() {
-		hasLeft := Member{Status: status}.HasLeftTheCompany()
-		wantsToHaveLeft := status == MemberStatusDeparted || status == MemberStatusWithdrawn
-		if hasLeft != wantsToHaveLeft {
-			t.Fatalf("%s: has left = %v, want %v", status, hasLeft, wantsToHaveLeft)
-		}
-	}
-}

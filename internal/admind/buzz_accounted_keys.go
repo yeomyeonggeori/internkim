@@ -60,7 +60,7 @@ func (service *Service) addressesTheDirectoryHolds(ctx context.Context) ([]strin
 			return nil, fmt.Errorf("the company did not answer with its members: %w", errorValue)
 		}
 		for _, member := range members {
-			if member.IsActive() {
+			if member.IsWorking {
 				addresses = append(addresses, member.Email)
 			}
 		}

@@ -137,27 +137,6 @@ function likePatternMatchingOnly(literal: string): string {
 	return literal.replace(/[\\%_]/g, (character) => `\\${character}`);
 }
 
-// Who to tell is a question about people, and the company's own directory is
-// what answers it. Asking a messenger's account list instead means anybody
-// without an account there is silently not told.
-export async function membersOfCompanyByEmail(
-	client: SupabaseClient,
-	companyID: string,
-): Promise<Map<string, string>> {
-	const { data, error } = await client
-		.from('member')
-		.select('id, email')
-		.eq('company_id', companyID)
-		.neq('status', 'withdrawn')
-		.returns<{ id: string; email: string | null }[]>();
-	if (error) throw new Error(error.message);
-	return new Map(
-		data
-			.map((member) => [(member.email ?? '').trim().toLowerCase(), member.id] as const)
-			.filter(([email]) => email !== ''),
-	);
-}
-
 export async function membersOfCompanyByExternalID(
 	client: SupabaseClient,
 	companyID: string,

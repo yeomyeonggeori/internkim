@@ -98,9 +98,9 @@ func TestEveryAdmittedMemberGetsOneRoomWithTheAgentAndASecondPassOpensNothing(t 
 	service.HTTPClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
 		if isTheDirectoryAsked(request) {
 			return jsonResponse(http.StatusOK, `{"members":[
-				{"memberID":"member-1","email":"first@example.com","status":"active"},
-				{"memberID":"member-2","email":"second@example.com","status":"active"},
-				{"memberID":"member-3","email":"outsider@example.com","status":"active"}]}`, nil), nil
+				{"memberID":"member-1","email":"first@example.com","status":"active","isWorking":true,"canReadTheCompany":true},
+				{"memberID":"member-2","email":"second@example.com","status":"active","isWorking":true,"canReadTheCompany":true},
+				{"memberID":"member-3","email":"outsider@example.com","status":"active","isWorking":true,"canReadTheCompany":true}]}`, nil), nil
 		}
 		if isBlueclawPolicyGet(request) {
 			return jsonResponse(http.StatusOK, `{"people":[]}`, nil), nil
@@ -174,7 +174,7 @@ func TestNoRoomIsAskedForWhileTheRelayCannotSayWhoItAdmits(t *testing.T) {
 	pointAtACompanyDirectory(t, service)
 	service.HTTPClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
 		if isTheDirectoryAsked(request) {
-			return jsonResponse(http.StatusOK, `{"members":[{"memberID":"member-1","email":"first@example.com","status":"active"}]}`, nil), nil
+			return jsonResponse(http.StatusOK, `{"members":[{"memberID":"member-1","email":"first@example.com","status":"active","isWorking":true,"canReadTheCompany":true}]}`, nil), nil
 		}
 		if isBlueclawPolicyGet(request) {
 			return jsonResponse(http.StatusOK, `{"people":[]}`, nil), nil

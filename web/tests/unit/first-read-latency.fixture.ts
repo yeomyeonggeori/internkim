@@ -56,7 +56,7 @@ if (scenario === 'mail') {
 			from: (table: string) => {
 				const query = {
 					select: () => query,
-					neq: () => query,
+					eq: () => query,
 					returns: () => {
 						started.push(table);
 						return table === 'member' ? members : Promise.resolve({ data: [], error: null });
@@ -219,7 +219,7 @@ if (scenario === 'mail') {
 			auth: { getSession: async () => ({ data: { session } }), onAuthStateChange: (listener: typeof authChanged) => { authChanged = listener; return {}; } },
 			from: (table: string) => {
 				const name = session?.user.id ?? '';
-				const query = { select: () => query, neq: () => query, returns: async () => ({ error: null, data: table === 'member' ? [{ id: 'member', name, email: 'sample@example.com', messenger: null }] : [] }) };
+				const query = { select: () => query, eq: () => query, returns: async () => ({ error: null, data: table === 'member' ? [{ id: 'member', name, email: 'sample@example.com', messenger: null }] : [] }) };
 				return query;
 			}
 		})

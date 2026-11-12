@@ -64,9 +64,9 @@ func messengerKeysRecordedFor(t *testing.T, service *Service) []string {
 // arrived.
 func TestAnInvitedMemberIsGivenTheirKeyBeforeTheyArrive(t *testing.T) {
 	service := serviceWhoseDirectorySays(t, `{"members":[
-		{"memberID":"member-1","email":"invited@example.com","name":"이샘플","role":"member","status":"invited"},
-		{"memberID":"member-2","email":"pending@example.com","name":"박예시","role":"member","status":"pending"},
-		{"memberID":"member-3","email":"active@example.com","name":"최견본","role":"member","status":"active"}
+		{"memberID":"member-1","email":"invited@example.com","name":"이샘플","role":"member","status":"invited","isWorking":false,"canReadTheCompany":true},
+		{"memberID":"member-2","email":"pending@example.com","name":"박예시","role":"member","status":"pending","isWorking":false,"canReadTheCompany":true},
+		{"memberID":"member-3","email":"active@example.com","name":"최견본","role":"member","status":"active","isWorking":true,"canReadTheCompany":true}
 	]}`)
 
 	recorded := messengerKeysRecordedFor(t, service)
@@ -78,8 +78,8 @@ func TestAnInvitedMemberIsGivenTheirKeyBeforeTheyArrive(t *testing.T) {
 
 func TestSomebodyWhoLeftIsGivenNoKey(t *testing.T) {
 	service := serviceWhoseDirectorySays(t, `{"members":[
-		{"memberID":"member-1","email":"departed@example.com","name":"이샘플","role":"member","status":"departed"},
-		{"memberID":"member-2","email":"withdrawn@example.com","name":"박예시","role":"member","status":"withdrawn"}
+		{"memberID":"member-1","email":"departed@example.com","name":"이샘플","role":"member","status":"departed","isWorking":false,"canReadTheCompany":false},
+		{"memberID":"member-2","email":"withdrawn@example.com","name":"박예시","role":"member","status":"withdrawn","isWorking":false,"canReadTheCompany":false}
 	]}`)
 
 	if recorded := messengerKeysRecordedFor(t, service); len(recorded) != 0 {

@@ -52,7 +52,7 @@ async function readMessengerDirectory(): Promise<MessengerDirectory> {
 	const client = supabase();
 
 	const [members, people] = await Promise.all([
-		client.from('member').select('id, name, email, messenger').neq('status', 'withdrawn').returns<MemberRow[]>(),
+		client.from('member').select('id, name, email, messenger').eq('is_in_the_record', true).returns<MemberRow[]>(),
 		client.from('contact').select('name, messenger').returns<ContactRow[]>()
 	]);
 	if (members.error) throw new Error(members.error.message);
