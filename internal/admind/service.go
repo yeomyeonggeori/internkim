@@ -120,11 +120,8 @@ func (service *Service) startBackgroundWork(ctx context.Context) {
 	}
 	service.startPersonaSync(ctx)
 	service.startDirectoryApplying(ctx)
-	service.startCalendarSweep(ctx)
-	service.startOrganizationSweep(ctx)
 	service.startCompanyProfileSweep(ctx)
 	service.startMailAccountSweep(ctx)
-	service.startTaskSweep(ctx)
 	service.startBuzzMemberLinker(ctx)
 	go service.sayIfTheRelayIsOpen(ctx)
 	go service.keepHostUpdateReported(ctx)

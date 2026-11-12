@@ -22,7 +22,7 @@ func TestStateDatabaseAdoptsLegacyDatabasesOnce(t *testing.T) {
 		TaskDatabasePath:     legacyTaskPath,
 		CalendarDatabasePath: legacyCalendarPath,
 	})
-	taskDatabase, errorValue := service.openTaskDatabase(context.Background())
+	taskDatabase, errorValue := service.openStateDatabase(context.Background(), "flow", keepTheSchemaAsFound, sqliteDatabaseOptions{})
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
@@ -52,7 +52,7 @@ func TestStateDatabaseAdoptsLegacyDatabasesOnce(t *testing.T) {
 		}
 	}
 
-	database, errorValue := service.openCalendarDatabase(context.Background())
+	database, errorValue := service.openStateDatabase(context.Background(), "calendar", keepTheSchemaAsFound, sqliteDatabaseOptions{})
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
@@ -65,6 +65,10 @@ func TestStateDatabaseAdoptsLegacyDatabasesOnce(t *testing.T) {
 	if storedToken != "legacy-token" {
 		t.Fatalf("calendar setting = %q", storedToken)
 	}
+}
+
+func keepTheSchemaAsFound(context.Context, *sql.DB) error {
+	return nil
 }
 
 func seedLegacyStateDatabase(t *testing.T, databasePath string, statements ...string) {

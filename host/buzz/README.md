@@ -73,9 +73,11 @@ file) and chatd's mirror, which repeats the formulas in TypeScript and is held
 to them by a cross-language test. A mismatch is silent. History signed under one seed belongs to keys a person signing in under
 another seed never derives, so they cannot see or own it.
 
-- Keep it in one place a reader can find: the host's secrets directory on the
-  host, and a copy in the operations vault off the host. A second local copy
-  that disagrees derives identities nobody can sign in as.
+- It lives in one place: `secrets/buzz-key-seed` in the company's directory
+  under `/var/lib/internkim`. `internkim-host backup` carries that directory
+  and `internkim-host restore` puts it back, so a restored host derives the
+  same identities. A second copy that disagrees derives identities nobody can
+  sign in as.
 - Never swap the seed to rotate. It re-keys everybody at once and detaches all
   existing history; one person is rotated through the identity version
   (`buzz-admin-reset`).
