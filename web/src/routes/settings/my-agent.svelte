@@ -42,8 +42,12 @@
 	const selectedLanguageLabel = $derived(languageOptions.find((option) => option.value === draft.languageDefault)?.label ?? '');
 
 	onMount(() => {
-		if (hasLoaded) void Promise.all([fillDefaultsFromMembership(), loadCompanyTimeZone()]);
-		else void load();
+		if (!hasLoaded) void load();
+		else {
+			Promise.all([fillDefaultsFromMembership(), loadCompanyTimeZone()]).catch((failure: unknown) => {
+				console.warn('my agent settings could not fill the defaults of a remembered document', { failure });
+			});
+		}
 		const resumeLoading = () => {
 			if (document.visibilityState === 'visible') void load();
 		};

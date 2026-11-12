@@ -1,7 +1,22 @@
+import { isSupabaseConfigured, supabase } from '$lib/supabase';
+
 type Forgettable = { forget(): void };
 
 const everyCachedRead = new Set<Forgettable>();
 let accountGeneration = 0;
+let isWatchingTheAccount = false;
+let watchedAccountID: string | null = null;
+
+function watchTheSignedInAccount(): void {
+	if (isWatchingTheAccount || !isSupabaseConfigured()) return;
+	isWatchingTheAccount = true;
+	supabase().auth.onAuthStateChange((event, session) => {
+		const accountID = session?.user.id ?? '';
+		const isAnotherAccount = watchedAccountID !== null && watchedAccountID !== accountID;
+		watchedAccountID = accountID;
+		if (event === 'SIGNED_OUT' || isAnotherAccount) forgetEveryCachedRead();
+	});
+}
 
 export class CachedRead<Value> {
 	value = $state<Value | undefined>(undefined);
@@ -18,6 +33,7 @@ export class CachedRead<Value> {
 	}
 
 	refresh(): Promise<Value> {
+		watchTheSignedInAccount();
 		const startedGeneration = accountGeneration;
 		const reading: Promise<Value> = this.#lookUp()
 			.then((value) => {
