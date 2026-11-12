@@ -121,7 +121,7 @@ func TestChatdMessageSearchNeedsATargetToRead(testContext *testing.T) {
 	response, errorValue := service.invokePlatformMessageSearch(context.Background(), capabilities.ToolInvokeRequest{
 		ToolName: "message_search",
 		Input:    json.RawMessage(`{}`),
-		Context:  capabilities.ToolInvokeContext{Platform: "buzz"},
+		Context:  capabilities.ToolInvokeContext{Platform: "buzz", RequesterPlatformUserID: "requester-pubkey"},
 	})
 
 	if errorValue != nil {
@@ -134,8 +134,12 @@ func TestChatdMessageSearchNeedsATargetToRead(testContext *testing.T) {
 
 func TestChatdMessageSearchReadsAChannelsOwnRecord(testContext *testing.T) {
 	chatdServer := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
-		if request.URL.Path == "/v1/platform/buzz/channels.list" {
-			writer.Write([]byte(`{"channels":[{"channelID":"channel-1","name":"잡담"}]}`))
+		if request.URL.Path == "/v1/platform/buzz/requester.conversations.list" {
+			writer.Write([]byte(`{"conversations":[{"id":"channel-1","name":"잡담","kind":"group"}]}`))
+			return
+		}
+		if request.URL.Path == "/v1/platform/buzz/requester.channels.open.list" {
+			writer.Write([]byte(`{"channels":[]}`))
 			return
 		}
 		if request.URL.Path != "/v1/platform/buzz/message.search" {
@@ -155,7 +159,7 @@ func TestChatdMessageSearchReadsAChannelsOwnRecord(testContext *testing.T) {
 	response, errorValue := service.invokePlatformMessageSearch(context.Background(), capabilities.ToolInvokeRequest{
 		ToolName: "message_search",
 		Input:    json.RawMessage(`{"channelName":"잡담","authoredBy":"assistant"}`),
-		Context:  capabilities.ToolInvokeContext{Platform: "buzz"},
+		Context:  capabilities.ToolInvokeContext{Platform: "buzz", RequesterPlatformUserID: "requester-pubkey"},
 	})
 
 	if errorValue != nil {
@@ -197,7 +201,7 @@ func TestChatdMessageUpdateAppliesTheQuotedSpan(testContext *testing.T) {
 	response, errorValue := service.invokePlatformMessageUpdate(context.Background(), capabilities.ToolInvokeRequest{
 		ToolName: "message_update",
 		Input:    json.RawMessage(`{"messageID":"m2","oldText":"번역 안내","newText":"수정된 안내"}`),
-		Context:  capabilities.ToolInvokeContext{Platform: "buzz", ReplyTargetID: "buzz:channel-1"},
+		Context:  capabilities.ToolInvokeContext{Platform: "buzz", RequesterPlatformUserID: "requester-pubkey", ReplyTargetID: "buzz:channel-1"},
 	})
 
 	if errorValue != nil {
@@ -221,7 +225,7 @@ func TestChatdMessageUpdateRefusesASpanItCannotAnchor(testContext *testing.T) {
 	response, errorValue := service.invokePlatformMessageUpdate(context.Background(), capabilities.ToolInvokeRequest{
 		ToolName: "message_update",
 		Input:    json.RawMessage(`{"messageID":"m2","oldText":"안내","newText":"공지"}`),
-		Context:  capabilities.ToolInvokeContext{Platform: "buzz", ReplyTargetID: "buzz:channel-1"},
+		Context:  capabilities.ToolInvokeContext{Platform: "buzz", RequesterPlatformUserID: "requester-pubkey", ReplyTargetID: "buzz:channel-1"},
 	})
 
 	if errorValue != nil {
@@ -256,7 +260,7 @@ func TestChatdMessageUpdateEditsAPostOutsideTheCurrentThread(testContext *testin
 	response, errorValue := service.invokePlatformMessageUpdate(context.Background(), capabilities.ToolInvokeRequest{
 		ToolName: "message_update",
 		Input:    json.RawMessage(`{"messageID":"post-9","oldText":"조언 모음","newText":"조언 모음 (원본 이미지 포함)"}`),
-		Context:  capabilities.ToolInvokeContext{Platform: "buzz", ReplyTargetID: "buzz:channel-1:thread-7"},
+		Context:  capabilities.ToolInvokeContext{Platform: "buzz", RequesterPlatformUserID: "requester-pubkey", ReplyTargetID: "buzz:channel-1:thread-7"},
 	})
 
 	if errorValue != nil {
@@ -282,7 +286,7 @@ func TestChatdMessageUpdateSaysADeletedMessageIsGone(testContext *testing.T) {
 	response, errorValue := service.invokePlatformMessageUpdate(context.Background(), capabilities.ToolInvokeRequest{
 		ToolName: "message_update",
 		Input:    json.RawMessage(`{"messageID":"gone-1","oldText":"안내","newText":"공지"}`),
-		Context:  capabilities.ToolInvokeContext{Platform: "buzz", ReplyTargetID: "buzz:channel-1"},
+		Context:  capabilities.ToolInvokeContext{Platform: "buzz", RequesterPlatformUserID: "requester-pubkey", ReplyTargetID: "buzz:channel-1"},
 	})
 
 	if errorValue != nil {
@@ -328,7 +332,7 @@ func TestChatdMessageUpdateAddsAFileWithoutChangingTheText(testContext *testing.
 				ContentBase64: base64.StdEncoding.EncodeToString([]byte("png")),
 			}},
 		},
-		Context: capabilities.ToolInvokeContext{Platform: "buzz", ReplyTargetID: "buzz:channel-1"},
+		Context: capabilities.ToolInvokeContext{Platform: "buzz", RequesterPlatformUserID: "requester-pubkey", ReplyTargetID: "buzz:channel-1"},
 	})
 
 	if errorValue != nil {

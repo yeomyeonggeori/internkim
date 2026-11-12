@@ -40,6 +40,10 @@ func channelStandInService(t *testing.T, standIn *channelStandIn) Service {
 				return
 			}
 			_ = json.NewEncoder(responseWriter).Encode(map[string]any{"channels": standIn.channels})
+		case "/v1/platform/buzz/requester.conversations.list":
+			_ = json.NewEncoder(responseWriter).Encode(map[string]any{"conversations": conversationsOf(standIn.channels)})
+		case "/v1/platform/buzz/requester.channels.open.list":
+			_ = json.NewEncoder(responseWriter).Encode(map[string]any{"channels": []requesterConversation{}})
 		case "/v1/platform/buzz/message.post":
 			var posted chatdMessagePostRequest
 			_ = json.NewDecoder(request.Body).Decode(&posted)
@@ -51,6 +55,14 @@ func channelStandInService(t *testing.T, standIn *channelStandIn) Service {
 	}))
 	t.Cleanup(server.Close)
 	return Service{Configuration: Configuration{ChatdEndpoint: server.URL, ChatdPlatform: "buzz"}}
+}
+
+func conversationsOf(channels []chatdChannel) []requesterConversation {
+	conversations := make([]requesterConversation, 0, len(channels))
+	for _, channel := range channels {
+		conversations = append(conversations, requesterConversation{ID: channel.ChannelID, Name: channel.Name, Kind: "group"})
+	}
+	return conversations
 }
 
 func channelPostService(t *testing.T) (Service, *channelStandIn) {

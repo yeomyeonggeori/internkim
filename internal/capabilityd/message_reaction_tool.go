@@ -66,12 +66,11 @@ func (service Service) invokeMessageReactionTool(ctx context.Context, request ca
 }
 
 func (service Service) channelHoldingMessage(ctx context.Context, request capabilities.ToolInvokeRequest, requesterPubkeyHex string, messageID string) (string, platformToolFailure, bool) {
-	var response chatdMessageSearchResponse
 	searchRequest := chatdMessageSearchRequest{MessageIDs: []string{messageID}, RequesterPubkeyHex: requesterPubkeyHex, Queries: []string{}}
-	if errorValue := service.chatdRequest(ctx, "message.search", searchRequest, &response); errorValue != nil {
+	response, errorValue := service.readMessages(ctx, request.Context, searchRequest)
+	if errorValue != nil {
 		return "", platformToolFailureForError("message_lookup", "platform_unavailable", errorValue), true
 	}
-	response = service.withMessagesOnlyTheRequesterReads(ctx, request, searchRequest, response)
 	for _, candidate := range response.Candidates {
 		if strings.TrimSpace(candidate.MessageID) == messageID && strings.TrimSpace(candidate.ChannelID) != "" {
 			return strings.TrimSpace(candidate.ChannelID), platformToolFailure{}, false

@@ -1626,6 +1626,7 @@ func inAChannel(arriving capabilities.ToolInvokeRequest) capabilities.ToolInvoke
 	arriving.Context.ChannelID = "channel-1"
 	arriving.Context.ChannelName = "전사-공지"
 	arriving.Context.RequesterPersonID = "person-1"
+	arriving.Context.RequesterPlatformUserID = requesterPubkeyHex
 	return arriving
 }
 
