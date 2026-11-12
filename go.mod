@@ -7,7 +7,6 @@ require (
 	github.com/coder/websocket v1.8.12
 	github.com/emersion/go-imap/v2 v2.0.0-beta.8
 	github.com/emersion/go-message v0.18.2
-	github.com/enescakir/emoji v1.0.0
 	github.com/google/jsonschema-go v0.4.3
 	github.com/google/uuid v1.6.0
 	github.com/goreleaser/nfpm/v2 v2.47.0
@@ -18,6 +17,7 @@ require (
 	github.com/nbd-wtf/go-nostr v0.52.3
 	github.com/yeomyeonggeori/blueprotocol v0.0.0
 	golang.org/x/crypto v0.56.0
+	golang.org/x/sys v0.47.0
 	golang.org/x/term v0.45.0
 	modernc.org/sqlite v1.48.2
 )
@@ -88,7 +88,6 @@ require (
 	golang.org/x/arch v0.15.0 // indirect
 	golang.org/x/exp v0.0.0-20260410095643-746e56fc9e2f // indirect
 	golang.org/x/net v0.57.0 // indirect
-	golang.org/x/sys v0.47.0 // indirect
 	golang.org/x/text v0.41.0 // indirect
 	gopkg.in/warnings.v0 v0.1.2 // indirect
 	modernc.org/libc v1.70.0 // indirect

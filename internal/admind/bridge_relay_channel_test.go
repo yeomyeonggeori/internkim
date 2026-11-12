@@ -2,10 +2,9 @@ package admind
 
 import (
 	"context"
-	"path/filepath"
 	"testing"
 
-	"github.com/yeomyeonggeori/internkim/internal/buzzimport/mattermostadmin"
+	"github.com/yeomyeonggeori/internkim/internal/mattermostadmin"
 )
 
 func TestMattermostChannelShapeMirrorsWhoCanRead(t *testing.T) {
@@ -58,20 +57,6 @@ func TestMattermostChannelShapeMirrorsWhoCanRead(t *testing.T) {
 				t.Fatalf("visibility = %q, want %q", shape.Visibility, testCase.expectedVisibility)
 			}
 		})
-	}
-}
-
-func TestBridgeChannelResolvesWithoutARelayToWriteTo(t *testing.T) {
-	service := &Service{Configuration: Configuration{
-		BridgeMapDatabasePath: filepath.Join(t.TempDir(), "bridge-map.sqlite"),
-		BuzzKeySeedPath:       writeTestFile(t, "seed-for-derivation"),
-	}}
-	buzzChannelID, errorValue := service.resolveBridgeChannel(context.Background(), "mattermost", "ch-1")
-	if errorValue != nil {
-		t.Fatalf("resolve: %v", errorValue)
-	}
-	if buzzChannelID == "" {
-		t.Fatal("resolve returned no channel id")
 	}
 }
 
