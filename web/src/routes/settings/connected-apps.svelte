@@ -3,7 +3,8 @@
 	import SettingsListLoading from './settings-list-loading.svelte';
 	import * as Card from '$lib/components/ui/card';
 	import * as Empty from '$lib/components/ui/empty';
-	import { connectedApps, disconnectApp, type ConnectedApp } from '$lib/connected-apps';
+	import { disconnectApp, type ConnectedApp } from '$lib/connected-apps';
+	import { connectedAppsRead } from './settings-reads';
 	import { createPageText } from '$lib/i18n/page-text.svelte';
 	import { onMount } from 'svelte';
 	import { toast } from 'svelte-sonner';
@@ -11,16 +12,16 @@
 
 	const text = createPageText(companySettingsText);
 
-	let apps = $state<ConnectedApp[]>([]);
-	let isLoading = $state(true);
+	const apps = $derived(connectedAppsRead.value ?? []);
+	let isLoading = $state(connectedAppsRead.value === undefined);
 	let hasLoadError = $state(false);
 	let disconnectingID = $state('');
 
-	async function load() {
+	async function load(isAfterChange = false) {
 		isLoading = true;
 		hasLoadError = false;
 		try {
-			apps = await connectedApps();
+			await (isAfterChange ? connectedAppsRead.refresh() : connectedAppsRead.read());
 		} catch {
 			hasLoadError = true;
 			toast.error(text.connectedAppsLoadFailed);
@@ -34,7 +35,7 @@
 		try {
 			await disconnectApp(app.clientID);
 			toast.success(text.appDisconnected);
-			await load();
+			await load(true);
 		} catch (error) {
 			toast.error(error instanceof Error ? error.message : text.connectedAppsLoadFailed);
 		} finally {
@@ -50,7 +51,7 @@
 		<Card.Title>{text.connectedApps}</Card.Title>
 		<Card.Description>{text.connectedAppsDescription}</Card.Description>
 	</Card.Header>
-	{#if isLoading && apps.length === 0}
+	{#if isLoading && connectedAppsRead.value === undefined}
 		<Card.Content><SettingsListLoading label={text.connectedApps} actionLabel={text.disconnectApp} /></Card.Content>
 	{:else}
 		<Card.Content>

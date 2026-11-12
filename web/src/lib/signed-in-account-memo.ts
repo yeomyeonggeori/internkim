@@ -1,5 +1,6 @@
 import type { SignedInMember } from '$lib/supabase-session';
 import { invalidateMessengerCacheScope } from '$lib/messenger/cache-scope';
+import { forgetEveryCachedRead } from '$lib/cached-read.svelte';
 
 type RememberedLookup<Value> = { accountID: string; value: Promise<Value> };
 
@@ -40,4 +41,5 @@ export function forgetSignedInAccount(forgetStoredMessenger = false): void {
 	companyMembership.forget();
 	signedInMember.forget();
 	invalidateMessengerCacheScope(forgetStoredMessenger);
+	if (forgetStoredMessenger) forgetEveryCachedRead();
 }

@@ -6,6 +6,7 @@
 	import { isSupabaseConfigured } from '$lib/supabase-session';
 	import { onMount, type Snippet } from 'svelte';
 	import SettingsSidebar from './settings-sidebar.svelte';
+	import { createSettingsReadAhead } from './settings-reads';
 	import { provideSettingsRole } from './settings-role.svelte';
 	import { settingsAccessOf, settingsPath, settingsSectionAvailability, settingsSectionIDOf } from './settings-sections';
 	import { companySettingsText } from './text';
@@ -19,6 +20,9 @@
 	const access = $derived(settingsAccessOf(role, credits, isSupabaseConfigured()));
 	const sectionID = $derived(settingsSectionIDOf(routePathOf(page.url.pathname)));
 	const availability = $derived(sectionID ? settingsSectionAvailability(sectionID, access) : 'shown');
+	const readAhead = createSettingsReadAhead();
+
+	$effect(() => readAhead(access));
 
 	onMount(() => {
 		void role.load();

@@ -34,6 +34,19 @@ test('a member who opens an administrator page or a hidden usage page is sent ba
 	await expect(page).toHaveURL(new RegExp(`${settingsPath}/security$`), { timeout: 20000 });
 });
 
+test('a section read ahead on entering settings opens without waiting for its request', async ({ page }) => {
+	const tokensReadAhead = page.waitForResponse((response) => new URL(response.url()).pathname === '/api/v1/tokens', { timeout: 20000 });
+	await signInToTheCentralPlane(page, settingsPath, member3Email);
+	await expect(page).toHaveURL(new RegExp(`${settingsPath}/security$`), { timeout: 20000 });
+	await tokensReadAhead;
+
+	await page.route('**/api/v1/tokens', () => {});
+	await settingsMenu(page).getByRole('link', { name: '개발자', exact: true }).click();
+	await expect(page.getByRole('heading', { level: 1, name: '개발자' })).toBeVisible();
+	await expect(page.getByText('아직 만든 토큰이 없습니다.', { exact: true })).toBeVisible();
+	await expect(page.getByRole('status', { name: '개인 액세스 토큰', exact: true })).toHaveCount(0);
+});
+
 test('on a phone settings is a list, an entry opens its page, and back returns to the list', async ({ page }) => {
 	await page.setViewportSize({ width: 390, height: 844 });
 	await signInToTheCentralPlane(page, settingsPath, member3Email);
