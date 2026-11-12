@@ -36,19 +36,21 @@ func TestAccountWriteCarriesNoOrganizationFields(t *testing.T) {
 
 func TestAccountRecordOfCompanyMemberKeepsOrganizationFieldsOut(t *testing.T) {
 	record := accountRecordOfCompanyMember(centralplane.Member{
-		MemberID:        "user-member",
-		Email:           "Member@Example.com",
-		Name:            "이샘플",
-		Note:            "HR compensation follow-up",
-		Role:            "admin",
-		Circles:         []string{"admin"},
-		Status:          "active",
-		JobTitle:        "Product Manager",
-		PhoneNumber:     "+821012345678",
-		HireDate:        "2026-01-02",
-		TeamID:          "product",
-		TeamName:        "Product",
-		SupervisorEmail: "lead@example.com",
+		MemberID:          "user-member",
+		Email:             "Member@Example.com",
+		Name:              "이샘플",
+		Note:              "HR compensation follow-up",
+		Role:              "admin",
+		Circles:           []string{"admin"},
+		Status:            "active",
+		IsWorking:         true,
+		CanReadTheCompany: true,
+		JobTitle:          "Product Manager",
+		PhoneNumber:       "+821012345678",
+		HireDate:          "2026-01-02",
+		TeamID:            "product",
+		TeamName:          "Product",
+		SupervisorEmail:   "lead@example.com",
 	})
 
 	document, errorValue := json.Marshal(record)

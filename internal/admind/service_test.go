@@ -763,9 +763,9 @@ func newTaskAuthorizationTestService(t *testing.T) *Service {
 	seatPeopleInACompanyDirectoryForTest(t, service)
 	holdWorkspaceSettingsForTest(service, "Asia/Seoul", workspaceLanguageKorean)
 	directory := companyDirectoryHolding(
-		centralplane.Member{MemberID: "user-admin", Email: "admin@example.com", Name: "Admin", Role: "admin", Status: "active"},
-		centralplane.Member{MemberID: "user-member", Email: "member@example.com", Name: "Member", Role: "member", Status: "active"},
-		centralplane.Member{MemberID: "user-other", Email: "other@example.com", Name: "Other", Role: "member", Status: "active"},
+		centralplane.Member{MemberID: "user-admin", Email: "admin@example.com", Name: "Admin", Role: "admin", Status: "active", IsWorking: true, CanReadTheCompany: true},
+		centralplane.Member{MemberID: "user-member", Email: "member@example.com", Name: "Member", Role: "member", Status: "active", IsWorking: true, CanReadTheCompany: true},
+		centralplane.Member{MemberID: "user-other", Email: "other@example.com", Name: "Other", Role: "member", Status: "active", IsWorking: true, CanReadTheCompany: true},
 	)
 	service.HTTPClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
 		if isCompanyDirectoryRequest(request) {

@@ -39,7 +39,7 @@ func (service *Service) handleDirectoryBuzzKey(responseWriter http.ResponseWrite
 		http.Error(responseWriter, errorValue.Error(), http.StatusBadGateway)
 		return
 	}
-	if !isKnown || !member.IsActive() {
+	if !isKnown || !member.IsWorking {
 		http.Error(responseWriter, "no active member has this address", http.StatusNotFound)
 		return
 	}

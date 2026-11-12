@@ -18,7 +18,7 @@ import (
 )
 
 func memoryDirectoryForTest() *companyDirectoryForTest {
-	return companyDirectoryHolding(centralplane.Member{MemberID: "user:person-1", Email: "member@example.com", Name: "Member", Role: "member", Status: "active"})
+	return companyDirectoryHolding(centralplane.Member{MemberID: "user:person-1", Email: "member@example.com", Name: "Member", Role: "member", Status: "active", IsWorking: true, CanReadTheCompany: true})
 }
 
 func TestMemoryAPIUsesMattermostSessionUserFacts(t *testing.T) {

@@ -65,7 +65,7 @@ export async function peopleOfCompany(caller: SupabaseClient): Promise<RecordPer
 	const { data, error } = await caller
 		.from('member')
 		.select(directoryColumns)
-		.neq('status', 'withdrawn')
+		.eq('is_in_the_record', true)
 		.order('name')
 		.returns<MemberRow[]>();
 	if (error) throw new Error(error.message);
@@ -77,7 +77,7 @@ export async function peopleOfCompanyByIDs(caller: SupabaseClient, personIDs: st
 		.from('member')
 		.select(directoryColumns)
 		.in('id', personIDs)
-		.neq('status', 'withdrawn')
+		.eq('is_in_the_record', true)
 		.returns<MemberRow[]>();
 	if (error) throw new Error(error.message);
 	return (data ?? []).map(recordPersonOf);

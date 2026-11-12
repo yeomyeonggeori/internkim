@@ -15,10 +15,10 @@ func TestTaskMembersOnlyIncludeOrganizationChartPeople(t *testing.T) {
 		ListenAddress:  "127.0.0.1:0",
 	})
 	company := startCompanyHoldingTheseMembers(t, `{"members":[
-		{"memberID":"user-ada","email":"ada@example.com","name":"Ada Kim","role":"member","status":"active"},
-		{"memberID":"user-grace","email":"grace@example.com","name":"Grace Lee","role":"member","status":"active"},
-		{"memberID":"user-hidden","email":"hidden@example.com","name":"Hidden Lee","role":"member","status":"departed"},
-		{"memberID":"user-resigned","email":"resigned@example.com","name":"Resigned Park","role":"member","status":"withdrawn"}
+		{"memberID":"user-ada","email":"ada@example.com","name":"Ada Kim","role":"member","status":"active","isWorking":true,"canReadTheCompany":true},
+		{"memberID":"user-grace","email":"grace@example.com","name":"Grace Lee","role":"member","status":"active","isWorking":true,"canReadTheCompany":true},
+		{"memberID":"user-hidden","email":"hidden@example.com","name":"Hidden Lee","role":"member","status":"departed","isWorking":false,"canReadTheCompany":false},
+		{"memberID":"user-resigned","email":"resigned@example.com","name":"Resigned Park","role":"member","status":"withdrawn","isWorking":false,"canReadTheCompany":false}
 	]}`)
 	useCompanyForTest(service, company.URL)
 

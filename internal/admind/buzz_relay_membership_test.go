@@ -34,7 +34,7 @@ func answerAsADirectoryNamingTheSample(t *testing.T, service *Service) {
 	pointAtACompanyDirectory(t, service)
 	service.HTTPClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
 		if isTheDirectoryAsked(request) {
-			return jsonResponse(http.StatusOK, `{"members":[{"memberID":"member-1","email":"sample@example.com","status":"active"}]}`, nil), nil
+			return jsonResponse(http.StatusOK, `{"members":[{"memberID":"member-1","email":"sample@example.com","status":"active","isWorking":true,"canReadTheCompany":true}]}`, nil), nil
 		}
 		if isBlueclawPolicyGet(request) {
 			return jsonResponse(http.StatusOK, `{"people":[{"personID":"p-1","emails":["sample@example.com"]}]}`, nil), nil
@@ -119,7 +119,7 @@ func TestDirectoryChangedSeatsMemberBeforeBuzzLogin(t *testing.T) {
 	service.Configuration.CentralPlaneAgentKeyPath = agentKeyPath
 	service.HTTPClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
 		if request.URL.Path == "/api/agent/member" && request.Method == http.MethodGet {
-			return jsonResponse(http.StatusOK, `{"members":[{"memberID":"member-1","email":"newcomer@example.com","name":"박예시","status":"invited"}]}`, nil), nil
+			return jsonResponse(http.StatusOK, `{"members":[{"memberID":"member-1","email":"newcomer@example.com","name":"박예시","status":"invited","isWorking":false,"canReadTheCompany":true}]}`, nil), nil
 		}
 		if request.URL.Path == "/api/agent/messenger-credential" && request.Method == http.MethodPost {
 			return jsonResponse(http.StatusOK, `{}`, nil), nil

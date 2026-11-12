@@ -12,10 +12,10 @@ export async function callingHostAdministrator(
 	const member = await resolveCaller(request, environment);
 	if (member.tokenName || isConnectedAppToken(member.accessToken)) error(403, 'sign in to manage the company computer');
 	const administrator = await member.caller.from('member')
-		.select('is_admin, status').eq('id', member.memberID)
-		.single<{ is_admin: boolean; status: string }>();
+		.select('is_admin, is_working').eq('id', member.memberID)
+		.single<{ is_admin: boolean; is_working: boolean }>();
 	if (administrator.error) error(502, administrator.error.message);
-	if (!administrator.data?.is_admin || administrator.data.status !== 'active') {
+	if (!administrator.data?.is_admin || !administrator.data.is_working) {
 		error(403, 'only an active administrator can connect the company computer');
 	}
 	return member;

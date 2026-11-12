@@ -36,7 +36,7 @@ func TestUserActorRendersTheCompanyLanguageForACompanyMember(t *testing.T) {
 		if request.URL.Path != "/api/agent/member" {
 			t.Fatalf("unexpected company path %s", request.URL.Path)
 		}
-		responseWriter.Write([]byte(`{"members":[{"memberID":"member-1","email":"member@example.com","name":"샘플 이","role":"member","status":"active"}]}`))
+		responseWriter.Write([]byte(`{"members":[{"memberID":"member-1","email":"member@example.com","name":"샘플 이","role":"member","status":"active","isWorking":true,"canReadTheCompany":true}]}`))
 	}))
 	defer company.Close()
 

@@ -17,33 +17,22 @@ import (
 // theirs. Anything that has to turn a name into a person reads it from here, so
 // that a name means one person rather than one per list that kept its own copy.
 type Member struct {
-	MemberID        string            `json:"memberID"`
-	Email           string            `json:"email"`
-	Name            string            `json:"name"`
-	Note            string            `json:"note"`
-	Messenger       map[string]string `json:"messenger"`
-	Role            string            `json:"role"`
-	Circles         []string          `json:"circles"`
-	Status          string            `json:"status"`
-	JobTitle        string            `json:"jobTitle"`
-	PhoneNumber     string            `json:"phoneNumber"`
-	HireDate        string            `json:"hireDate"`
-	TeamID          string            `json:"teamID"`
-	TeamName        string            `json:"teamName"`
-	SupervisorEmail string            `json:"supervisorEmail"`
-}
-
-func (member Member) IsActive() bool {
-	return strings.EqualFold(strings.TrimSpace(member.Status), MemberStatusActive)
-}
-
-// Somebody invited yesterday and signing in tomorrow is neither active nor
-// gone, and what is prepared for them ahead of that sign-in reads this rather
-// than IsActive: a key derived the day they are invited is waiting the moment
-// they arrive. Mirrors hasLeftTheCompany in web/src/lib/server/control-plane.ts.
-func (member Member) HasLeftTheCompany() bool {
-	status := strings.ToLower(strings.TrimSpace(member.Status))
-	return status == MemberStatusDeparted || status == MemberStatusWithdrawn
+	MemberID          string            `json:"memberID"`
+	Email             string            `json:"email"`
+	Name              string            `json:"name"`
+	Note              string            `json:"note"`
+	Messenger         map[string]string `json:"messenger"`
+	Role              string            `json:"role"`
+	Circles           []string          `json:"circles"`
+	Status            string            `json:"status"`
+	IsWorking         bool              `json:"isWorking"`
+	CanReadTheCompany bool              `json:"canReadTheCompany"`
+	JobTitle          string            `json:"jobTitle"`
+	PhoneNumber       string            `json:"phoneNumber"`
+	HireDate          string            `json:"hireDate"`
+	TeamID            string            `json:"teamID"`
+	TeamName          string            `json:"teamName"`
+	SupervisorEmail   string            `json:"supervisorEmail"`
 }
 
 // Members asks the directory who works here. Asking address by address cannot

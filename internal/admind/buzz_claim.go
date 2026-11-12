@@ -85,7 +85,7 @@ func (service *Service) recordMessengerKeys(ctx context.Context, client *central
 	var refusals []error
 	for _, member := range members {
 		email := normalizedRosterEmail(member.Email)
-		if email == "" || member.HasLeftTheCompany() {
+		if email == "" || !member.CanReadTheCompany {
 			continue
 		}
 		if errorValue := service.recordMessengerKey(ctx, client, member.MemberID, email); errorValue != nil {

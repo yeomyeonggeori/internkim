@@ -34,7 +34,7 @@ func (service *Service) handleDirectoryPeople(responseWriter http.ResponseWriter
 	}
 	people := make([]directoryPerson, 0, len(members))
 	for _, member := range members {
-		if !member.IsActive() {
+		if !member.IsWorking {
 			continue
 		}
 		people = append(people, directoryPerson{

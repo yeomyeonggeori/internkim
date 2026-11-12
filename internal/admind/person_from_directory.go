@@ -53,7 +53,7 @@ func (service *Service) ensurePersonFromDirectory(ctx context.Context, email str
 	if errorValue != nil {
 		return false, errorValue
 	}
-	if !isKnown || !member.IsActive() {
+	if !isKnown || !member.IsWorking {
 		return false, nil
 	}
 	if errorValue := service.upsertBlueclawPerson(ctx, member.MemberID, normalizedEmail, strings.TrimSpace(name), member.Role, nil, nil); errorValue != nil {

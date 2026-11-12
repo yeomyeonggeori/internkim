@@ -109,7 +109,7 @@ func memoryFactsClient(personaSeeded chan<- struct{}) *http.Client {
 			return jsonResponse(http.StatusServiceUnavailable, `{}`, nil), nil
 		}
 		if request.URL.String() == "https://app.example.test/api/agent/member" {
-			return jsonResponse(http.StatusOK, `{"members":[{"email":"member@example.com","memberID":"user:person-1","name":"Member","role":"member","status":"active"}]}`, nil), nil
+			return jsonResponse(http.StatusOK, `{"members":[{"email":"member@example.com","memberID":"user:person-1","name":"Member","role":"member","status":"active","isWorking":true,"canReadTheCompany":true}]}`, nil), nil
 		}
 		if request.URL.Path == "/admin/api/memory/facts" {
 			return jsonResponse(http.StatusOK, `{"personID":"person-1","profile":{"identityLines":[],"currentLines":[]},"facts":[]}`, nil), nil
