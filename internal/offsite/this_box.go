@@ -2,6 +2,7 @@ package offsite
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"strings"
@@ -25,8 +26,11 @@ type Shipment struct {
 
 func (place ThisBox) Destination() (Destination, box.Keyring, bool, error) {
 	connected, errorValue := box.LoadConnected(place.BoxStatePath)
-	if errorValue != nil {
+	if errors.Is(errorValue, box.ErrNoBoxKey) || errors.Is(errorValue, box.ErrNoCompanyInstalled) {
 		return Destination{}, box.Keyring{}, false, nil
+	}
+	if errorValue != nil {
+		return Destination{}, box.Keyring{}, false, errorValue
 	}
 	sealingKey, isHeld := connected.Keyring.SealingKey()
 	if !isHeld {

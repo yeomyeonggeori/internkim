@@ -27,55 +27,46 @@ func runFileFollow(arguments []string) error {
 	}
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGTERM, os.Interrupt)
 	defer stop()
-	isABox, errorValue := thisComputerIsABox()
+	kept, errorValue := whatThisBoxKeeps()
 	if errorValue != nil {
 		return errorValue
 	}
-	if !isABox {
-		return filestream.NewUnjournaledBarrier().Serve(ctx, blueclaw.CompanyHostFileJournalSocketPath, fileJournalSocketMode)
-	}
-	destination, keyring, errorValue := untilThisBoxServes(ctx, thisBox())
-	if errorValue != nil {
-		return errorValue
-	}
-	outer := ctx
-	hasSeveralBoxes, errorValue := untilTheBoxCountIsKnown(ctx)
-	if errorValue != nil {
-		return errorValue
-	}
-	watched, cancel := whileSeveralBoxesIs(ctx, hasSeveralBoxes)
+	watched, cancel := whileThisBoxKeepsTheSame(ctx, kept)
 	defer cancel()
-	if !hasSeveralBoxes {
-		return endedByTheBoxCount(filestream.NewUnjournaledBarrier().Serve(watched, blueclaw.CompanyHostFileJournalSocketPath, fileJournalSocketMode), outer)
+	return endedByKeepingSomethingElse(serveTheFileJournal(watched, kept, blueclaw.CompanyHostFileJournalSocketPath), ctx)
+}
+
+func serveTheFileJournal(ctx context.Context, kept keptOffTheBox, socketPath string) error {
+	if !kept.isJournaled {
+		return filestream.NewUnjournaledBarrier().Serve(ctx, socketPath, fileJournalSocketMode)
 	}
-	ctx = watched
 	barrier := filestream.NewBarrier(blueclaw.CompanyHostStateRoot, companyhost.BarrierRole)
 	if errorValue := barrier.Prepare(); errorValue != nil {
 		return errorValue
 	}
 	serving := make(chan error, 1)
 	go func() {
-		serving <- barrier.Serve(ctx, blueclaw.CompanyHostFileJournalSocketPath, fileJournalSocketMode)
+		serving <- barrier.Serve(ctx, socketPath, fileJournalSocketMode)
 	}()
 	following := make(chan error, 1)
 	go func() {
 		following <- filestream.Follower{
 			Roots:                companyhost.JournaledFileRoots(blueclaw.LinuxCompanyHostLayout(), filestream.BarrierDirectoryName),
-			Journal:              filestream.Journal{Destination: destination},
-			Keyring:              keyring,
+			Journal:              filestream.Journal{Destination: kept.destination},
+			Keyring:              kept.keyring,
 			ScratchDirectoryPath: blueclaw.CompanyHostBackupsPath,
 			Barrier:              barrier,
 		}.Run(ctx)
 	}()
 	select {
 	case errorValue := <-serving:
-		return endedByTheBoxCount(errorValue, outer)
+		return errorValue
 	case errorValue := <-following:
-		return endedByTheBoxCount(errorValue, outer)
+		return errorValue
 	}
 }
 
-func endedByTheBoxCount(errorValue error, outer context.Context) error {
+func endedByKeepingSomethingElse(errorValue error, outer context.Context) error {
 	if outer.Err() == nil && errors.Is(errorValue, context.Canceled) {
 		return nil
 	}

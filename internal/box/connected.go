@@ -10,7 +10,10 @@ import (
 
 const identityFileName = "identity.json"
 
-var ErrNoBoxKey = errors.New("this computer holds no box key")
+var (
+	ErrNoBoxKey           = errors.New("this computer holds no box key")
+	ErrNoCompanyInstalled = errors.New("this box has installed no company yet")
+)
 
 type Connected struct {
 	Keyring   Keyring
@@ -27,7 +30,7 @@ func LoadConnected(stateDirectoryPath string) (Connected, error) {
 	}
 	companyID := installedCompanyIn(stateDirectoryPath)
 	if companyID == "" {
-		return Connected{}, fmt.Errorf("the box at %s has installed no company yet", stateDirectoryPath)
+		return Connected{}, fmt.Errorf("%w at %s", ErrNoCompanyInstalled, stateDirectoryPath)
 	}
 	keyring, errorValue := LoadKeyring(identity, stateDirectoryPath, companyID)
 	if errorValue != nil {

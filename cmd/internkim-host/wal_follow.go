@@ -44,36 +44,25 @@ func runWalFollow(arguments []string) error {
 	}
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGTERM, os.Interrupt)
 	defer stop()
-	destination, keyring, errorValue := untilThisBoxServes(ctx, thisBox())
+	kept, errorValue := whatThisBoxKeeps()
 	if errorValue != nil {
 		return errorValue
 	}
-	hasSeveralBoxes, errorValue := untilTheBoxCountIsKnown(ctx)
-	if errorValue != nil {
-		return errorValue
-	}
-	if !hasSeveralBoxes {
-		if errorValue := walstream.ReleaseTheStandby(ctx, companyDatabaseConnection()); errorValue != nil {
-			return errorValue
-		}
-		watched, cancel := whileSeveralBoxesIs(ctx, false)
-		defer cancel()
-		untilTheKeptWALIsForgotten(watched, destination)
-		<-watched.Done()
-		return nil
-	}
-	watched, cancel := whileSeveralBoxesIs(ctx, true)
+	watched, cancel := whileThisBoxKeepsTheSame(ctx, kept)
 	defer cancel()
+	if !kept.isJournaled {
+		return keepNoWAL(watched, kept)
+	}
 	errorValue = walstream.Follower{
 		ReplicationConnection: companyReplicationConnection(),
 		KeptFor: func(systemID string) walstream.Keeper {
-			return walstream.KeptPieces{Destination: destination, SystemID: systemID}
+			return walstream.KeptPieces{Destination: kept.destination, SystemID: systemID}
 		},
 		OnStreaming: func(ctx context.Context) error {
 			if errorValue := walstream.RequireTheStandby(ctx, companyDatabaseConnection()); errorValue != nil {
 				return errorValue
 			}
-			go walstream.KeepBaseBackups(ctx, companyReplicationConnection(), destination, keyring)
+			go walstream.KeepBaseBackups(ctx, companyReplicationConnection(), kept.destination, kept.keyring)
 			return nil
 		},
 	}.Run(watched)
@@ -81,6 +70,17 @@ func runWalFollow(arguments []string) error {
 		return walstream.ReleaseTheStandby(ctx, companyDatabaseConnection())
 	}
 	return errorValue
+}
+
+func keepNoWAL(ctx context.Context, kept keptOffTheBox) error {
+	if errorValue := walstream.ReleaseTheStandby(ctx, companyDatabaseConnection()); errorValue != nil {
+		return errorValue
+	}
+	if kept.holdsTheCompanyKey {
+		untilTheKeptWALIsForgotten(ctx, kept.destination)
+	}
+	<-ctx.Done()
+	return nil
 }
 
 func untilTheKeptWALIsForgotten(ctx context.Context, destination offsite.Destination) {
