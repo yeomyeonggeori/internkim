@@ -3,6 +3,7 @@ package admind
 import (
 	"context"
 	"database/sql"
+	"fmt"
 	"log"
 )
 
@@ -17,19 +18,18 @@ WHERE c.visibility = 'private' AND c.deleted_at IS NULL
 ORDER BY c.id`
 
 // Retiring hides the room from every listing and keeps what was said in it.
-func retirePrivateRoomsNobodyIsIn(ctx context.Context, relay *sql.DB) {
+func retirePrivateRoomsNobodyIsIn(ctx context.Context, relay *sql.DB) error {
 	rooms, errorValue := privateRoomsNobodyIsIn(ctx, relay)
 	if errorValue != nil {
-		log.Printf("buzz rooms nobody is in could not be read: %v", errorValue)
-		return
+		return fmt.Errorf("rooms nobody is in could not be read: %w", errorValue)
 	}
 	for _, channelID := range rooms {
 		if errorValue := retireOneRoom(ctx, relay, channelID); errorValue != nil {
-			log.Printf("buzz room %s, which nobody is in, could not be retired: %v", channelID, errorValue)
-			return
+			return fmt.Errorf("room %s, which nobody is in, could not be retired: %w", channelID, errorValue)
 		}
 		log.Printf("buzz room %s retired: a private room nobody is left in can never be entered again", channelID)
 	}
+	return nil
 }
 
 func privateRoomsNobodyIsIn(ctx context.Context, relay *sql.DB) ([]string, error) {

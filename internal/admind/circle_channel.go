@@ -16,8 +16,6 @@ import (
 	"github.com/yeomyeonggeori/internkim/internal/centralplane"
 )
 
-const circleChannelSyncInterval = 2 * time.Minute
-
 const circleChannelMemberRole = "member"
 
 type buzzChannelLife int
@@ -42,69 +40,43 @@ type circleChannelKeeper struct {
 	agentPubkey string
 }
 
-func (service *Service) startCircleChannelSync(ctx context.Context) {
-	if !service.canWriteToBuzzRelay() {
-		return
-	}
-	go func() {
-		ticker := time.NewTicker(circleChannelSyncInterval)
-		defer ticker.Stop()
-		for {
-			service.withinASweepBudget(ctx, service.keepCircleChannelsToTheirCircles)
-			select {
-			case <-ctx.Done():
-				return
-			case <-ticker.C:
-			}
-		}
-	}()
-}
-
-func (service *Service) keepCircleChannelsToTheirCircles(ctx context.Context) {
-	service.circleChannelKeeping.Lock()
-	defer service.circleChannelKeeping.Unlock()
-	keeper, isReady := service.circleChannelKeeper()
-	if !isReady {
-		return
+func (service *Service) keepCircleChannelsToTheirCircles(ctx context.Context) error {
+	keeper, errorValue := service.circleChannelKeeper()
+	if errorValue != nil {
+		return errorValue
 	}
 	defer keeper.connections.closeAll()
 	circles, errorValue := keeper.record.CircleChannels(ctx)
 	if errorValue != nil {
-		log.Printf("circle channels: the record could not be read: %v", errorValue)
-		return
+		return fmt.Errorf("the record could not be read: %w", errorValue)
 	}
+	var refusals []error
 	for _, circle := range circles {
 		if errorValue := keeper.keep(ctx, circle); errorValue != nil {
-			log.Printf("circle channels: circle %s: %v", circle.CircleID, errorValue)
+			refusals = append(refusals, fmt.Errorf("circle %s: %w", circle.CircleID, errorValue))
 		}
 	}
+	return errors.Join(refusals...)
 }
 
-func (service *Service) circleChannelKeeper() (circleChannelKeeper, bool) {
-	record := service.centralPlane()
-	seed := service.buzzKeySeed()
-	if record == nil || seed == "" || !service.canWriteToBuzzRelay() {
-		return circleChannelKeeper{}, false
-	}
+func (service *Service) circleChannelKeeper() (circleChannelKeeper, error) {
 	relay, errorValue := service.buzzDatabase()
 	if errorValue != nil {
-		log.Printf("circle channels: %v", errorValue)
-		return circleChannelKeeper{}, false
+		return circleChannelKeeper{}, errorValue
 	}
-	agentSecret := buzzidentity.Secret(seed, buzzidentity.AgentSubject)
+	agentSecret := buzzidentity.Secret(service.buzzKeySeed(), buzzidentity.AgentSubject)
 	agentPubkey, errorValue := buzzPublicKey(agentSecret)
 	if errorValue != nil {
-		log.Printf("circle channels: the agent has no key: %v", errorValue)
-		return circleChannelKeeper{}, false
+		return circleChannelKeeper{}, fmt.Errorf("the agent has no key: %w", errorValue)
 	}
 	return circleChannelKeeper{
 		service:     service,
-		record:      record,
+		record:      service.centralPlane(),
 		relay:       relay,
 		connections: service.newBuzzActorConnections(),
 		agentSecret: agentSecret,
 		agentPubkey: agentPubkey,
-	}, true
+	}, nil
 }
 
 func (keeper circleChannelKeeper) keep(ctx context.Context, circle centralplane.CircleChannel) error {

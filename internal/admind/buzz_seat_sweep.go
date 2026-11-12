@@ -3,6 +3,7 @@ package admind
 import (
 	"context"
 	"database/sql"
+	"fmt"
 	"log"
 	"net/http"
 	"sort"
@@ -17,16 +18,16 @@ import (
 // here derives was left behind by an address the directory has since dropped,
 // and the person it once named is not reachable through it, so the room takes
 // it back. Membership is re-addable, which is why this sweeps rather than asks.
-func (service *Service) removeSeatsNobodyAccountsFor(ctx context.Context, relay *sql.DB, channelIDs []string, seed string) {
+func (service *Service) removeSeatsNobodyAccountsFor(ctx context.Context, relay *sql.DB, channelIDs []string, seed string) error {
 	report, errorValue := service.sweepSeatsNobodyAccountsFor(ctx, relay, channelIDs, seed, true)
 	if errorValue != nil {
-		log.Printf("buzz membership: no seat is swept, %v", errorValue)
-		return
+		return fmt.Errorf("no seat is swept: %w", errorValue)
 	}
 	if report.Removed > 0 || report.LeftTheCommunity > 0 {
 		log.Printf("buzz membership: took back %d seat(s) and %d community place(s) nobody accounts for: %v %v",
 			report.Removed, report.LeftTheCommunity, report.Seats, report.FormerColleagues)
 	}
+	return nil
 }
 
 type buzzSeatSweepReport struct {
@@ -123,8 +124,8 @@ func showOutOfTheCommunity(ctx context.Context, relay *sql.DB, pubkeys []string)
 	return int(left), errorValue
 }
 
-// The daily pass is what keeps a room to the people in it, and this is the same
-// pass on demand, for when a day is too long to wait.
+// The directory pass is what keeps a room to the people in it, and this is the same
+// pass on demand, for when the next one is too long to wait.
 func (service *Service) handleBuzzSweepSeats(responseWriter http.ResponseWriter, request *http.Request) {
 	if !service.authorizeInternalOrWebMemberRequest(request) {
 		http.Error(responseWriter, "member access required", http.StatusForbidden)

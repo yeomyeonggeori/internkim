@@ -73,20 +73,20 @@ func TestRosterReconcileDropsPeopleTheDirectoryNoLongerKnows(t *testing.T) {
 	}
 }
 
-func TestRosterReconcileKeepsTheAdminEmailAndLocalTestPeople(t *testing.T) {
+func TestRosterReconcileKeepsTheAdminEmailAndNobodyElseTheDirectoryLacks(t *testing.T) {
 	policyDocument := rosterPolicyWithEmails("owner@example.com", "probe@internkim.test", "departed@example.com")
 	records := []adminUserMutation{{MemberID: "user-1", Email: "member@example.com", Role: "member"}}
 
 	reconcileRosterPeople(policyDocument, records, []string{"owner@example.com"}, workspaceLanguageKorean)
 
 	emails := rosterPolicyEmails(policyDocument)
-	for _, retainedEmail := range []string{"owner@example.com", "probe@internkim.test"} {
-		if !slices.Contains(emails, retainedEmail) {
-			t.Fatalf("expected %q to survive the reconcile, got %v", retainedEmail, emails)
-		}
+	if !slices.Contains(emails, "owner@example.com") {
+		t.Fatalf("expected the admin to survive the reconcile, got %v", emails)
 	}
-	if slices.Contains(emails, "departed@example.com") {
-		t.Fatalf("expected the departed person off the roster, got %v", emails)
+	for _, removedEmail := range []string{"probe@internkim.test", "departed@example.com"} {
+		if slices.Contains(emails, removedEmail) {
+			t.Fatalf("expected %q off the roster, since the directory does not name it, got %v", removedEmail, emails)
+		}
 	}
 }
 
@@ -135,7 +135,7 @@ func TestReconcileBlueclawRosterDeliversTheRosterFromTheHost(t *testing.T) {
 		}
 	})}
 
-	if errorValue := service.reconcileBlueclawRoster(context.Background()); errorValue != nil {
+	if errorValue := service.applyDirectory(context.Background()); errorValue != nil {
 		t.Fatal(errorValue)
 	}
 
@@ -191,7 +191,7 @@ func TestReconcileBlueclawRosterLeavesAnUnchangedRosterAlone(t *testing.T) {
 		}
 	})}
 
-	if errorValue := service.reconcileBlueclawRoster(context.Background()); errorValue != nil {
+	if errorValue := service.applyDirectory(context.Background()); errorValue != nil {
 		t.Fatal(errorValue)
 	}
 
@@ -411,12 +411,10 @@ func rosterReadinessAnswer(t *testing.T, service *Service) int {
 }
 
 func TestTheRosterReachesBlueclawAsSoonAsItAnswersRatherThanAtTheNextTick(t *testing.T) {
-	firstWaitForBlueclaw, longestWaitForBlueclaw = 10*time.Millisecond, 20*time.Millisecond
-	t.Cleanup(func() { firstWaitForBlueclaw, longestWaitForBlueclaw = 250*time.Millisecond, 5*time.Second })
-	healthRefusalsLeft := atomic.Int32{}
-	healthRefusalsLeft.Store(3)
+	firstDirectoryRetryWait = 10 * time.Millisecond
+	t.Cleanup(func() { firstDirectoryRetryWait = 250 * time.Millisecond })
 	policyRefusalsLeft := atomic.Int32{}
-	policyRefusalsLeft.Store(2)
+	policyRefusalsLeft.Store(3)
 	reloads := atomic.Int32{}
 	service := serviceWhoseDirectorySays(t, `{"members":[
 		{"memberID":"member-1","email":"active@example.com","name":"최견본","role":"member","status":"active"}
@@ -424,9 +422,6 @@ func TestTheRosterReachesBlueclawAsSoonAsItAnswersRatherThanAtTheNextTick(t *tes
 	service.Configuration.BlueclawPolicyDeliveryPath = filepath.Join(t.TempDir(), "policy.json")
 	answering := service.HTTPClient.Transport
 	service.HTTPClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
-		if request.URL.Host == "blueclaw.local" && request.URL.Path == "/admin/api/health" && healthRefusalsLeft.Add(-1) >= 0 {
-			return nil, errors.New("connection refused")
-		}
 		if request.URL.Host == "blueclaw.local" && request.URL.Path == "/admin/api/policy" && policyRefusalsLeft.Add(-1) >= 0 {
 			return nil, errors.New("connection refused")
 		}
@@ -441,7 +436,7 @@ func TestTheRosterReachesBlueclawAsSoonAsItAnswersRatherThanAtTheNextTick(t *tes
 	ctx, stop := context.WithCancel(t.Context())
 	defer stop()
 
-	service.startBlueclawRosterReconcile(ctx)
+	service.startDirectoryApplying(ctx)
 
 	deadline := time.Now().Add(2 * time.Second)
 	for rosterReadinessAnswer(t, service) != http.StatusOK && time.Now().Before(deadline) {

@@ -43,44 +43,27 @@ func giveTheAgentADefaultPicture(ctx context.Context, messenger agentProfileMess
 	return true, nil
 }
 
-func (service *Service) publishTheAgentProfile(ctx context.Context) {
+func (service *Service) publishTheAgentProfile(ctx context.Context) error {
 	picturePath := strings.TrimSpace(service.Configuration.AgentProfilePicturePath)
 	if picturePath == "" {
-		return
+		return nil
 	}
 	messenger, errorValue := service.relayAgentProfile()
 	if errorValue != nil {
-		log.Printf("buzz agent profile: %v", errorValue)
-		return
+		return errorValue
 	}
 	picture, errorValue := os.ReadFile(picturePath)
 	if errorValue != nil {
-		log.Printf("buzz agent profile: reading the default picture failed: %v", errorValue)
-		return
+		return fmt.Errorf("reading the agent's default picture: %w", errorValue)
 	}
 	published, errorValue := giveTheAgentADefaultPicture(ctx, messenger, picture)
 	if errorValue != nil {
-		log.Printf("buzz agent profile: %v", errorValue)
-		return
+		return errorValue
 	}
 	if published {
 		log.Printf("buzz agent profile: published with the default picture %s", picturePath)
 	}
-}
-
-func (service *Service) agentProfileLacksAPicture(ctx context.Context) bool {
-	if strings.TrimSpace(service.Configuration.AgentProfilePicturePath) == "" {
-		return false
-	}
-	messenger, errorValue := service.relayAgentProfile()
-	if errorValue != nil {
-		return false
-	}
-	held, errorValue := messenger.heldProfile(ctx)
-	if errorValue != nil {
-		return true
-	}
-	return held.Picture == ""
+	return nil
 }
 
 type relayAgentProfile struct {

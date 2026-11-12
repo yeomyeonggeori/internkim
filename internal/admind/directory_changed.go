@@ -2,72 +2,93 @@ package admind
 
 import (
 	"context"
-	"encoding/json"
+	"errors"
+	"fmt"
 	"log"
 	"net/http"
+	"time"
+
+	"github.com/yeomyeonggeori/internkim/internal/centralplane"
+)
+
+var (
+	directoryApplyInterval  = 2 * time.Minute
+	firstDirectoryRetryWait = 250 * time.Millisecond
 )
 
 func (service *Service) handleDirectoryChanged(responseWriter http.ResponseWriter, request *http.Request) {
-	log.Printf("the company says its directory changed, so this device reads it again")
-	service.triggerUsersSync(request.Context())
-	// The roster is what decides who may act at all, and it was the one thing this
-	// door did not read again: somebody invited and asking a question in the same
-	// minute was told they are not an active member until the two-minute pass came
-	// round.
-	if errorValue := service.reconcileBlueclawRosterWithTimeout(request.Context()); errorValue != nil {
-		log.Printf("blueclaw roster reconcile failed after the directory changed: %v", errorValue)
+	log.Printf("the company says its directory changed, so this device applies it again")
+	if errorValue := service.applyDirectory(request.Context()); errorValue != nil {
+		log.Printf("the directory is not fully applied: %v", errorValue)
+		http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
+		return
 	}
-	recording := service.recordBuzzCredentials(request.Context())
-	log.Printf("buzz credentials after the directory changed: %s", recording)
-	if service.canWriteToBuzzRelay() {
-		service.ensureMemberChannelMembership(request.Context())
-		service.keepCircleChannelsToTheirCircles(request.Context())
-		service.nameEveryoneTheDirectoryNames(request.Context())
-	}
-	inTheBackgroundWithin(buzzDatabaseRequestBudget, service.showOutWhoeverLeftTheCompany)
-
-	// Answering 202 whatever happened is how somebody stayed unanswerable behind
-	// an invitation that reported success. Nobody got a key when nobody could:
-	// that is this door failing, and it says so.
-	answer := directoryChangedAnswer{
-		KeysKept:    recording.Kept,
-		KeysSkipped: recording.Skipped,
-		KeysRefused: recording.Refusals,
-		WasRecorded: recording.Kept > 0 || len(recording.Refusals) == 0,
-	}
-	status := http.StatusAccepted
-	if !answer.WasRecorded {
-		status = http.StatusInternalServerError
-	}
-	responseWriter.Header().Set("Content-Type", "application/json")
-	responseWriter.WriteHeader(status)
-	_ = json.NewEncoder(responseWriter).Encode(answer)
+	responseWriter.WriteHeader(http.StatusAccepted)
 }
 
-type directoryChangedAnswer struct {
-	KeysKept    int      `json:"keysKept"`
-	KeysSkipped int      `json:"keysSkipped"`
-	KeysRefused []string `json:"keysRefused,omitempty"`
-	WasRecorded bool     `json:"wasRecorded"`
+func (service *Service) startDirectoryApplying(ctx context.Context) {
+	go service.keepTheDirectoryApplied(ctx)
 }
 
-// Removing somebody from the directory is what makes them a former colleague,
-// and a former colleague reads nothing. The daily pass would reach this within
-// a day; somebody who has just been removed should not still be in 광장 while
-// that day runs out.
-func (service *Service) showOutWhoeverLeftTheCompany(ctx context.Context) {
+func (service *Service) keepTheDirectoryApplied(ctx context.Context) {
+	retryWait := firstDirectoryRetryWait
+	for {
+		wait := directoryApplyInterval
+		if errorValue := service.applyDirectoryWithinABudget(ctx); errorValue != nil {
+			log.Printf("the directory is not fully applied, trying again in %s: %v", retryWait, errorValue)
+			wait, retryWait = retryWait, min(retryWait*2, directoryApplyInterval)
+		} else {
+			retryWait = firstDirectoryRetryWait
+		}
+		select {
+		case <-ctx.Done():
+			return
+		case <-time.After(wait):
+		}
+	}
+}
+
+func (service *Service) applyDirectoryWithinABudget(ctx context.Context) error {
+	passContext, cancel := context.WithTimeout(ctx, buzzDatabaseSweepBudget)
+	defer cancel()
+	return service.applyDirectory(passContext)
+}
+
+func (service *Service) applyDirectory(ctx context.Context) error {
+	service.directoryApplying.Lock()
+	defer service.directoryApplying.Unlock()
+	client := service.centralPlane()
+	if client == nil {
+		return nil
+	}
+	members, errorValue := client.Members(ctx)
+	if errorValue != nil {
+		service.recordRosterReconcile(errorValue)
+		return fmt.Errorf("the company did not say who works here: %w", errorValue)
+	}
+	return errors.Join(
+		named("roster", service.applyRoster(ctx, members)),
+		service.applyDirectoryToTheMessenger(ctx, client, members),
+	)
+}
+
+func (service *Service) applyDirectoryToTheMessenger(ctx context.Context, client *centralplane.Client, members []centralplane.Member) error {
 	if !service.canWriteToBuzzRelay() {
-		return
+		return nil
 	}
-	channelIDs, errorValue := service.buzzStreamChannelsWeOpened(ctx)
-	if errorValue != nil {
-		log.Printf("buzz membership: the rooms could not be read after the directory changed: %v", errorValue)
-		return
+	return errors.Join(
+		named("messenger keys", service.recordMessengerKeys(ctx, client, members)),
+		named("messenger seats", service.ensureMemberChannelMembership(ctx)),
+		named("circle rooms", service.keepCircleChannelsToTheirCircles(ctx)),
+		named("messenger names", service.nameEveryoneTheDirectoryNames(ctx)),
+		named("keys nobody names", service.showOutWhoeverNobodyNames(ctx)),
+		named("messenger account links", service.linkDeterministicBuzzPeople(ctx)),
+	)
+}
+
+func named(step string, errorValue error) error {
+	if errorValue == nil {
+		return nil
 	}
-	relay, errorValue := service.buzzDatabase()
-	if errorValue != nil {
-		log.Printf("buzz membership: %v", errorValue)
-		return
-	}
-	service.removeSeatsNobodyAccountsFor(ctx, relay, channelIDs, service.buzzKeySeed())
+	return fmt.Errorf("%s: %w", step, errorValue)
 }
