@@ -11,7 +11,7 @@
 	import PlusIcon from '@lucide/svelte/icons/plus';
 	import TaskListBusinessCell from './task-list-business-cell.svelte';
 	import { taskRoadmapDrag } from './task-roadmap-drag-action';
-	import { taskRoadmapColumnsClass, taskRoadmapSpanStyle, taskRoadmapTodayLineLeft } from './task-roadmap-layout';
+	import { taskRoadmapColumnsClass, taskRoadmapLabelPlace, taskRoadmapSpanStyle, taskRoadmapTodayLineLeft } from './task-roadmap-layout';
 	import { formatTaskRoadmapPeriod, formatTaskRoadmapShortDate, type TaskRoadmapBar, type TaskRoadmapRow } from './task-roadmap-model';
 	import type { TaskChildProgress } from './task-relationships';
 	import { taskStatusIcon } from './task-status-style';
@@ -48,6 +48,7 @@
 	let laneWidth = $state(0);
 	let StatusIcon = $derived(taskStatusIcon(row.task.status));
 	let barColorStyle = $derived(`--roadmap-bar-color: ${typeColor}; color: color-mix(in oklch, var(--roadmap-bar-color) 45%, var(--foreground))`);
+	let labelPlace = $derived(bar.kind === 'span' ? taskRoadmapLabelPlace(bar, dayCount) : 'inside');
 	let barFillStyle = $derived(`background: color-mix(in oklch, var(--roadmap-bar-color) 8%, var(--background)); border-color: color-mix(in oklch, var(--roadmap-bar-color) 45%, var(--border))`);
 
 	function moveToLabel(dateLabel: string): string {
@@ -120,13 +121,16 @@
 							<ArrowLeftIcon class="size-3.5" aria-hidden="true" />{formatTaskRoadmapShortDate(bar.startDate)}
 						</button>
 					{/if}
-					<span class="min-w-0 truncate font-semibold sm:hidden">{typeLabel}</span>
+					{#if labelPlace === 'inside'}<span class="min-w-0 truncate font-semibold sm:hidden" data-roadmap-bar-label="inside">{typeLabel}</span>{/if}
 					{#if bar.endsAfter}
 						<button type="button" class="pointer-events-auto ml-auto flex shrink-0 items-center gap-1 rounded-sm hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none" aria-label={moveToLabel(formatTaskRoadmapShortDate(bar.endDate))} onclick={() => jumpTo(bar.endDate)} data-roadmap-jump="end">
 							{formatTaskRoadmapShortDate(bar.endDate)}<ArrowRightIcon class="size-3.5" aria-hidden="true" />
 						</button>
 					{/if}
 				</div>
+				{#if labelPlace !== 'inside'}
+					<span class={cn('pointer-events-none absolute inset-y-0 flex items-center text-[0.8rem] font-semibold whitespace-nowrap sm:hidden', labelPlace === 'after' ? 'left-full ml-1.5' : 'right-full mr-1.5')} data-roadmap-bar-label={labelPlace}>{typeLabel}</span>
+				{/if}
 			</div>
 		{:else if bar.kind === 'before'}
 			<Button variant="ghost" size="sm" class="absolute inset-y-0 left-1.5 my-auto text-muted-foreground tabular-nums" aria-label={moveToLabel(formatTaskRoadmapPeriod(bar))} onclick={() => jumpTo(bar.startDate)} data-roadmap-slide="fade" data-roadmap-away={row.task.id}>
