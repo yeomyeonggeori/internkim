@@ -4,12 +4,8 @@
 	import * as Card from '$lib/components/ui/card';
 	import { Input } from '$lib/components/ui/input';
 	import { Label } from '$lib/components/ui/label';
-	import { haveIConnectedMyMessenger } from '$lib/messenger/messenger-directory';
-	import {
-		connectMessengerAccount,
-		whatTheMessengerNeeds,
-		type CredentialRequirement
-	} from '$lib/messenger/messenger-account';
+	import { connectMessengerAccount, type CredentialRequirement } from '$lib/messenger/messenger-account';
+	import { messengerConnectionRead, messengerRequirementRead } from './settings-reads';
 	import MessageSquareIcon from '@lucide/svelte/icons/message-square';
 	import { onMount } from 'svelte';
 	import { toast } from 'svelte-sonner';
@@ -19,11 +15,11 @@
 	const text = createPageText(companySettingsText);
 	const fieldID = $props.id();
 
-	let requirement = $state<CredentialRequirement | null>(null);
-	let answers = $state<Record<string, string>>({});
+	let requirement = $state<CredentialRequirement | null>(messengerRequirementRead.value ?? null);
+	let answers = $state<Record<string, string>>(emptyAnswersOf(messengerRequirementRead.value ?? null));
 	let connectedAs = $state('');
-	let hasConnected = $state(false);
-	let isLoading = $state(true);
+	let hasConnected = $state(messengerConnectionRead.value ?? false);
+	let isLoading = $state(messengerConnectionRead.value === undefined || messengerRequirementRead.value === undefined);
 	let isConnecting = $state(false);
 
 	onMount(async () => {
@@ -31,17 +27,26 @@
 		isLoading = false;
 	});
 
+	function emptyAnswersOf(needed: CredentialRequirement | null): Record<string, string> {
+		return Object.fromEntries((needed?.fields ?? []).map((field) => [field.name, '']));
+	}
+
 	async function readWhetherIAmConnected() {
-		hasConnected = await haveIConnectedMyMessenger();
+		hasConnected = await messengerConnectionRead.read();
 	}
 
 	async function readWhatIsNeeded() {
 		try {
-			requirement = await whatTheMessengerNeeds();
-			answers = Object.fromEntries(requirement.fields.map((field) => [field.name, '']));
+			const needed = await messengerRequirementRead.read();
+			if (isUntouched()) answers = emptyAnswersOf(needed);
+			requirement = needed;
 		} catch {
 			requirement = null;
 		}
+	}
+
+	function isUntouched(): boolean {
+		return Object.values(answers).every((answer) => answer === '');
 	}
 
 	async function connect() {
@@ -50,6 +55,7 @@
 			const identity = await connectMessengerAccount(answers);
 			connectedAs = identity.name || identity.externalID;
 			hasConnected = true;
+			messengerConnectionRead.remember(true);
 			answers = Object.fromEntries(Object.keys(answers).map((field) => [field, '']));
 			toast.success(text.messengerConnected);
 		} catch (refusal) {

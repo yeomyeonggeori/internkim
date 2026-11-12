@@ -14,9 +14,9 @@
 	import { toast } from 'svelte-sonner';
 	import { draftToUser, toneRegisters, toneTraitLimit, toneTraits, userToDraft, type UserDraft } from '$lib/persona/user-draft';
 	import { defaultCallMe, replyLanguageOptions } from '$lib/persona/languages';
-	import { fetchMyAgentDocument, updateMyAgentDocument } from './persona-api';
+	import { updateMyAgentDocument } from './persona-api';
+	import { companyTimeZoneRead, myAgentDocumentRead } from './settings-reads';
 	import { companySettingsText } from './text';
-	import { companyTimeZone } from '$lib/company/company-settings';
 	import { morningBriefingDefaults } from '$lib/persona/user-schema-defaults';
 	import { createPageText } from '$lib/i18n/page-text.svelte';
 	import { isSupabaseConfigured, supabaseMember } from '$lib/supabase-session';
@@ -25,13 +25,16 @@
 	const traitLabels: Record<string, string> = text.persona.toneTraits;
 	const fieldID = $props.id();
 
-	let draft = $state<UserDraft>(userToDraft({ schemaVersion: 1 }));
+	const rememberedDocument = myAgentDocumentRead.value;
+	const startingDraft = userToDraft(rememberedDocument ?? { schemaVersion: 1 });
+
+	let draft = $state<UserDraft>(startingDraft);
 	let errorMessage = $state('');
 	let isLoading = $state(false);
 	let isSaving = $state(false);
-	let hasLoaded = $state(false);
-	let companyTimeZoneName = $state('');
-	let morningBriefing = $state(morningBriefingDefaults());
+	let hasLoaded = $state(rememberedDocument !== undefined);
+	let companyTimeZoneName = $state(companyTimeZoneRead.value ?? '');
+	let morningBriefing = $state({ ...morningBriefingDefaults(), ...startingDraft.morningBriefing });
 
 	const selectableTraits = $derived([...toneTraits, ...draft.traits.filter((trait) => !toneTraits.includes(trait))]);
 	const isTraitLimitReached = $derived(draft.traits.length >= toneTraitLimit);
@@ -39,7 +42,12 @@
 	const selectedLanguageLabel = $derived(languageOptions.find((option) => option.value === draft.languageDefault)?.label ?? '');
 
 	onMount(() => {
-		void load();
+		if (!hasLoaded) void load();
+		else {
+			Promise.all([fillDefaultsFromMembership(), loadCompanyTimeZone()]).catch((failure: unknown) => {
+				console.warn('my agent settings could not fill the defaults of a remembered document', { failure });
+			});
+		}
 		const resumeLoading = () => {
 			if (document.visibilityState === 'visible') void load();
 		};
@@ -58,7 +66,7 @@
 		isLoading = true;
 		errorMessage = '';
 		try {
-			draft = userToDraft(await fetchMyAgentDocument());
+			draft = userToDraft(await myAgentDocumentRead.read());
 			morningBriefing = { ...morningBriefingDefaults(), ...draft.morningBriefing };
 			await Promise.all([fillDefaultsFromMembership(), loadCompanyTimeZone()]);
 			hasLoaded = true;
@@ -79,7 +87,7 @@
 
 	async function loadCompanyTimeZone() {
 		try {
-			companyTimeZoneName = await companyTimeZone();
+			companyTimeZoneName = await companyTimeZoneRead.read();
 		} catch {
 			companyTimeZoneName = '';
 		}
@@ -91,7 +99,9 @@
 		isSaving = true;
 		errorMessage = '';
 		try {
-			draft = userToDraft(await updateMyAgentDocument(draftToUser({ ...draft, morningBriefing })));
+			const saved = await updateMyAgentDocument(draftToUser({ ...draft, morningBriefing }));
+			myAgentDocumentRead.remember(saved);
+			draft = userToDraft(saved);
 			morningBriefing = { ...morningBriefingDefaults(), ...draft.morningBriefing };
 			toast.success(text.persona.saved);
 		} catch (error) {
