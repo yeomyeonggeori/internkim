@@ -16,7 +16,9 @@ export { capabilityDescriptorMetaKey as descriptorMetaKey } from './catalog/prot
 
 const serverInstructions =
 	'These are the tools of one company on internkim, answered as the person whose token asked. ' +
-	'A tool call carries the same input the public API takes and answers the same body.';
+	'A tool call carries the same input the public API takes and answers the same body. ' +
+	'A message_send with targetType directMessage and no personHint is that person writing to the agent, ' +
+	'which is how work is handed to it; message_search with scope directMessage reads the answer.';
 
 export function toolsOfferedTo(member: CallingMember): Tool[] {
 	return toolsAModelReachesWith(member.permission).map(mcpToolOf);

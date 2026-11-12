@@ -3,6 +3,7 @@ package capabilityd
 import (
 	"context"
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -115,21 +116,118 @@ func TestChatdMessageSearchDefaultsToTheCurrentThread(testContext *testing.T) {
 	}
 }
 
-func TestChatdMessageSearchNamesTheUnroutedDirectMessageScope(testContext *testing.T) {
-	service := Service{Configuration: Configuration{ChatdEndpoint: "http://127.0.0.1:18090", ChatdPlatform: "buzz"}}
-	response, errorValue := service.invokePlatformMessageSearch(context.Background(), capabilities.ToolInvokeRequest{
-		ToolName: "message_search",
-		Input:    json.RawMessage(`{"scope":"directMessage","personHint":"이샘플"}`),
-		Context:  capabilities.ToolInvokeContext{Platform: "buzz"},
+func searchingAsTheRequester(request *http.Request) (int, string) {
+	if strings.HasSuffix(request.URL.Path, "/identity.self") {
+		return http.StatusOK, `{"pubkeyHex":"` + agentPubkeyHex + `","name":"김인턴"}`
+	}
+	if strings.HasSuffix(request.URL.Path, "/requester.conversations.list") {
+		return http.StatusOK, `{"conversations":[` +
+			`{"id":"dm-agent","kind":"dm","participantExternalIDs":["` + requesterPubkeyHex + `","` + agentPubkeyHex + `"]},` +
+			`{"id":"dm-1","kind":"dm","participantExternalIDs":["` + requesterPubkeyHex + `","` + colleaguePubkeyHex + `"]}]}`
+	}
+	asked, _ := io.ReadAll(request.Body)
+	if strings.Contains(string(asked), `"readAsRequester":true`) {
+		return http.StatusOK, `{"candidates":[{"messageID":"said-in-private","channelID":"dm-1","authorPubkeyHex":"` + requesterPubkeyHex + `","text":"둘만 나눈 이야기"}]}`
+	}
+	return http.StatusOK, `{"candidates":[]}`
+}
+
+const agentPubkeyHex = "a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60718293a4b5c6d7e8f90"
+
+func searchAskedOfChatd(t *testing.T, chatd *standingIn) []chatdMessageSearchRequest {
+	t.Helper()
+	searches := []chatdMessageSearchRequest{}
+	for _, call := range askedOf(chatd, "message.search") {
+		var search chatdMessageSearchRequest
+		if errorValue := json.Unmarshal([]byte(call.Body), &search); errorValue != nil {
+			t.Fatalf("chatd was asked %q: %v", call.Body, errorValue)
+		}
+		searches = append(searches, search)
+	}
+	return searches
+}
+
+func askedThroughTheAPI(toolName string, input string) capabilities.ToolInvokeRequest {
+	request := channelToolCall(toolName, input)
+	request.Context.TaskSource = capabilities.TaskSourcePublicAPI
+	return request
+}
+
+func TestTheAgentReadsItsOwnDirectConversationAndNobodyElses(t *testing.T) {
+	chatd := answeringPerCall(searchingAsTheRequester)
+	service := channelService(t, chatd)
+
+	withAColleague, _ := service.invokePlatformMessageSearch(context.Background(),
+		channelToolCall("message_search", `{"scope":"directMessage","personHint":"박예시"}`))
+	withTheAgent, _ := service.invokePlatformMessageSearch(context.Background(),
+		channelToolCall("message_search", `{"scope":"directMessage"}`))
+	byID, _ := service.invokePlatformMessageSearch(context.Background(),
+		channelToolCall("message_search", `{"messageIDs":["said-in-private"]}`))
+
+	if !withAColleague.IsError || !strings.Contains(string(withAColleague.Result), `"errorCode":"requester_only"`) {
+		t.Fatalf("expected two people's conversation to be refused to the agent, got %+v", withAColleague)
+	}
+	if withTheAgent.IsError || strings.Contains(string(byID.Result), "둘만 나눈 이야기") {
+		t.Fatalf("expected the agent's own conversation read and the private message unread, got %+v and %s", withTheAgent, byID.Result)
+	}
+	for _, search := range searchAskedOfChatd(t, chatd) {
+		if search.ReadAsRequester {
+			t.Fatalf("the agent read as the requester: %+v", search)
+		}
+	}
+}
+
+func TestADirectConversationIsReadAsTheRequesterOnTheirOwnCall(t *testing.T) {
+	conversationOf := map[string]string{
+		`{"scope":"directMessage","personHint":"박예시","queries":["이야기"]}`: "dm-1",
+		`{"scope":"directMessage"}`: "dm-agent",
+	}
+	for input, conversationID := range conversationOf {
+		chatd := answeringPerCall(searchingAsTheRequester)
+
+		answered, errorValue := channelService(t, chatd).invokePlatformMessageSearch(context.Background(), askedThroughTheAPI("message_search", input))
+
+		if errorValue != nil || answered.IsError {
+			t.Fatalf("%s: expected the conversation to be read, got %+v %v", input, answered, errorValue)
+		}
+		searches := searchAskedOfChatd(t, chatd)
+		if len(searches) != 1 || searches[0].ChannelID != conversationID || !searches[0].ReadAsRequester || searches[0].RequesterPubkeyHex != requesterPubkeyHex {
+			t.Fatalf("%s: expected %s read with the requester's key, chatd was asked %+v", input, conversationID, searches)
+		}
+		if !strings.Contains(string(answered.Result), `"authoredBy":"requester"`) {
+			t.Fatalf("%s: the requester's own words are named theirs, answered %s", input, answered.Result)
+		}
+	}
+}
+
+func TestADirectConversationNobodyHasIsNotSearched(t *testing.T) {
+	chatd := answeringPerCall(func(request *http.Request) (int, string) {
+		if strings.HasSuffix(request.URL.Path, "/requester.conversations.list") {
+			return http.StatusOK, `{"conversations":[]}`
+		}
+		return searchingAsTheRequester(request)
 	})
-	if errorValue != nil {
-		testContext.Fatalf("search failed: %v", errorValue)
+
+	answered, _ := channelService(t, chatd).invokePlatformMessageSearch(context.Background(),
+		askedThroughTheAPI("message_search", `{"scope":"directMessage","personHint":"박예시"}`))
+
+	if !answered.IsError || !strings.Contains(string(answered.Result), `"errorCode":"conversation_not_found"`) || len(searchAskedOfChatd(t, chatd)) != 0 {
+		t.Fatalf("expected a refusal and no search, got %+v after %+v", answered, chatd.asked)
 	}
-	if response.Outcome != capabilities.ToolOutcomeFailed {
-		testContext.Fatal("directMessage scope must fail loudly until it is routed")
+}
+
+func TestAMessageTheAgentCannotReadIsReadByIDAsTheRequester(t *testing.T) {
+	chatd := answeringPerCall(searchingAsTheRequester)
+
+	answered, errorValue := channelService(t, chatd).invokePlatformMessageSearch(context.Background(),
+		askedThroughTheAPI("message_search", `{"messageIDs":["said-in-private"]}`))
+
+	if errorValue != nil || answered.IsError || !strings.Contains(string(answered.Result), `"text":"둘만 나눈 이야기"`) {
+		t.Fatalf("expected the message in full, got %+v %v", answered, errorValue)
 	}
-	if !strings.Contains(response.Content, "directMessage") {
-		testContext.Fatalf("failure reads %q", response.Content)
+	searches := searchAskedOfChatd(t, chatd)
+	if len(searches) != 2 || searches[0].ReadAsRequester || !searches[1].ReadAsRequester {
+		t.Fatalf("expected the agent's read first and the requester's second, chatd was asked %+v", searches)
 	}
 }
 
