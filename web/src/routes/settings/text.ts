@@ -6,12 +6,12 @@ export const companySettingsText = {
 		sections: {
 			security: '로그인·보안',
 			notifications: '알림',
-			'my-agent': '내 에이전트',
+			'my-agent': '내 김인턴',
 			developer: '개발자',
 			usage: '사용량',
 			host: '호스트',
-			company: '기본 정보',
-			members: '멤버',
+			company: '회사 정보',
+			members: '구성원',
 			attendance: '근태',
 			agent: '에이전트',
 			billing: '결제'
@@ -203,7 +203,7 @@ export const companySettingsText = {
 		sections: {
 			security: 'Sign-in and security',
 			notifications: 'Notifications',
-			'my-agent': 'My agent',
+			'my-agent': 'My InternKim',
 			developer: 'Developer',
 			usage: 'Usage',
 			host: 'Host',
