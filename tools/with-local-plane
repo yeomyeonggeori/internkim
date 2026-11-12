@@ -214,16 +214,44 @@ runQuietlyUnlessItFails() {
 
 runWithin() {
   python3 -c '
-import subprocess, sys
-seconds, command = float(sys.argv[1]), sys.argv[2:]
+import os, signal, subprocess, sys, time
+seconds, grace, command = float(sys.argv[1]), float(sys.argv[2]), sys.argv[3:]
+child = subprocess.Popen(command, start_new_session=True)
+
+def signal_the_group(sent):
+    try:
+        os.killpg(child.pid, sent)
+    except ProcessLookupError:
+        pass
+
+def group_is_alive():
+    child.poll()
+    try:
+        os.killpg(child.pid, 0)
+        return True
+    except ProcessLookupError:
+        return False
+
+def end_the_group():
+    signal_the_group(signal.SIGTERM)
+    deadline = time.monotonic() + grace
+    while group_is_alive() and time.monotonic() < deadline:
+        time.sleep(0.1)
+    signal_the_group(signal.SIGKILL)
+
+def end_on(received, frame):
+    end_the_group()
+    sys.exit(128 + received)
+
+for forwarded in (signal.SIGTERM, signal.SIGINT, signal.SIGHUP):
+    signal.signal(forwarded, end_on)
 try:
-    sys.exit(subprocess.run(command, timeout=seconds).returncode)
+    sys.exit(child.wait(timeout=seconds))
 except subprocess.TimeoutExpired:
+    end_the_group()
     print("%s did not finish within %gs" % (" ".join(command), seconds), file=sys.stderr)
     sys.exit(124)
-except KeyboardInterrupt:
-    sys.exit(130)
-' "$@"
+' "$1" "$reclaimGraceSeconds" "${@:2}"
 }
 
 supabaseWithin() {
