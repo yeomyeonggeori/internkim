@@ -6,7 +6,6 @@
 	import {
 		forgetPasskey,
 		isPasskeySupported,
-		listPasskeys,
 		passkeyFailureText,
 		refusalOf,
 		registerPasskey,
@@ -15,14 +14,15 @@
 	import FingerprintIcon from '@lucide/svelte/icons/fingerprint';
 	import { onMount } from 'svelte';
 	import { toast } from 'svelte-sonner';
+	import { passkeysRead } from './settings-reads';
 	import { companySettingsText } from './text';
 	import { createPageText } from '$lib/i18n/page-text.svelte';
 
 	const text = createPageText(companySettingsText);
 	const isSupported = isPasskeySupported();
 
-	let passkeys = $state<Passkey[]>([]);
-	let isLoading = $state(true);
+	const passkeys = $derived(passkeysRead.value ?? []);
+	let isLoading = $state(passkeysRead.value === undefined);
 	let hasLoadError = $state(false);
 	let removingID = $state('');
 	let isRegistering = $state(false);
@@ -40,11 +40,11 @@
 		return withDate(text.lastUsedOn, passkey.lastUsedAt);
 	}
 
-	async function load() {
+	async function load(isAfterChange = false) {
 		isLoading = true;
 		hasLoadError = false;
 		try {
-			passkeys = await listPasskeys();
+			await (isAfterChange ? passkeysRead.refresh() : passkeysRead.read());
 		} catch {
 			hasLoadError = true;
 			toast.error(text.passkeysLoadFailed);
@@ -58,7 +58,7 @@
 		try {
 			await registerPasskey();
 			toast.success(text.passkeyAdded);
-			await load();
+			await load(true);
 		} catch (error) {
 			const refusal = refusalOf(error);
 			if (refusal === 'already-registered') toast.error(text.passkeyAlreadyRegistered);
@@ -73,7 +73,7 @@
 		try {
 			await forgetPasskey(passkey.id);
 			toast.success(text.passkeyRemoved);
-			await load();
+			await load(true);
 		} catch (error) {
 			toast.error(error instanceof Error ? error.message : text.passkeyFailed);
 		} finally {
@@ -92,11 +92,11 @@
 	<Card.Content class="grid gap-4">
 		{#if !isSupported}
 			<p class="text-sm text-muted-foreground">{text.passkeysUnsupported}</p>
-		{:else if isLoading && passkeys.length === 0}
+		{:else if isLoading && passkeysRead.value === undefined}
 			<SettingsListLoading label={text.passkeys} actionLabel={text.removePasskey} />
 		{:else}
 			{#if hasLoadError}<p role="alert" class="text-sm text-destructive">{text.passkeysLoadFailed}</p>{/if}
-			{#if passkeys.length === 0 && !isLoading && !hasLoadError}
+			{#if passkeys.length === 0 && !hasLoadError}
 				<Empty.Root class="p-3"><Empty.Header><Empty.Title>{text.noPasskeys}</Empty.Title></Empty.Header></Empty.Root>
 			{:else}
 				<ul class="grid gap-2">
