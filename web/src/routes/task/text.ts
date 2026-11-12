@@ -211,8 +211,11 @@ export const taskText = {
 				nextMonth: '다음 달',
 				currentMonth: '이번 달',
 				selectMonth: '월 선택',
+				previousWeek: '이전 주',
+				nextWeek: '다음 주',
+				showFromDay: '{date}부터 보기',
+				moveToDate: '{date}로 이동',
 				addDates: '날짜 추가',
-				openAgain: '한 번 더 누르면 상세 열기',
 				loading: '로드맵을 준비하고 있습니다'
 			},
 			board: {
@@ -486,8 +489,11 @@ export const taskText = {
 				nextMonth: 'Next month',
 				currentMonth: 'This month',
 				selectMonth: 'Choose month',
+				previousWeek: 'Previous week',
+				nextWeek: 'Next week',
+				showFromDay: 'Show from {date}',
+				moveToDate: 'Go to {date}',
 				addDates: 'Add dates',
-				openAgain: 'Click again to open',
 				loading: 'Preparing the roadmap'
 			},
 			board: {
