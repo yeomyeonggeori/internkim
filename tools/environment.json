@@ -431,6 +431,11 @@
     "description": "the Stripe secret key the web app creates subscription checkouts, sets a subscription's seats, reads prorated prices, lists a company's invoices and their refunded charges, and opens the customer portal with; Stripe billing answers 503 while it is unset",
     "isInVault": true
   },
+  "STRIPE_TOP_UP_RATES": {
+    "process": "web",
+    "description": "a JSON object of each top-up currency to the credits its smallest unit buys, read when a top-up is charged, paid or refunded; the top-up charge and the Stripe webhook answer 503 while it is unset",
+    "isInVault": true
+  },
   "STRIPE_WEBHOOK_SECRET": {
     "process": "web",
     "description": "the signing secret of the Stripe webhook endpoint, checked on every event /api/stripe/webhook receives; the endpoint answers 503 while it is unset",

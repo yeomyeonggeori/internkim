@@ -4,6 +4,7 @@ import { type StripeEventOutcome, StripeEventRefused, type StripeLookups } from 
 import { creditsPaidFor, paidInvoice } from './stripe-subscription-invoice';
 import { creditsBoughtWith } from './stripe-top-up';
 import { topUpInvoice } from './stripe-top-up-events';
+import type { TopUpRates } from './top-up-rates';
 
 type CreditKind = 'subscription' | 'permanent';
 
@@ -23,7 +24,8 @@ const refundedSubscriptionInvoice = paidInvoice.extend({ amount_paid: z.number()
 export async function applyRefundedCharge(
 	client: SupabaseClient,
 	event: { id: string; data: { object: unknown; previous_attributes?: unknown } },
-	lookups: StripeLookups
+	lookups: StripeLookups,
+	topUpRates: TopUpRates
 ): Promise<StripeEventOutcome> {
 	const charge = refundedCharge.safeParse(event.data.object);
 	if (!charge.success) throw new StripeEventRefused(`refunded charge ${event.id}: ${z.prettifyError(charge.error)}`);
@@ -32,7 +34,7 @@ export async function applyRefundedCharge(
 	if (refundedNow <= 0 || !charge.data.payment_intent) return 'ignored';
 
 	const invoice = await lookups.invoicePaidBy(charge.data.payment_intent);
-	const takenBack = await creditsTakenBackFor(invoice, refundedNow, charge.data.currency, lookups);
+	const takenBack = await creditsTakenBackFor(invoice, refundedNow, charge.data.currency, lookups, topUpRates);
 	if (!takenBack) return 'ignored';
 
 	const { error } = await client.rpc('company_credits_refunded', {
@@ -49,11 +51,12 @@ async function creditsTakenBackFor(
 	invoice: unknown,
 	refundedAmount: number,
 	currency: string,
-	lookups: StripeLookups
+	lookups: StripeLookups,
+	topUpRates: TopUpRates
 ): Promise<CreditsTakenBack | null> {
 	const topUp = topUpInvoice.safeParse(invoice);
 	if (topUp.success) {
-		const credits = creditsBoughtWith(refundedAmount, currency);
+		const credits = creditsBoughtWith(topUpRates, refundedAmount, currency);
 		if (credits === null) throw new Error(`top-up invoice ${topUp.data.id} was refunded in ${currency}, which no top-up product sells in`);
 		return { companyID: topUp.data.metadata.company_id, kind: 'permanent', credits };
 	}

@@ -1,7 +1,7 @@
 import { callingAgent } from '../_shared/agent-caller.ts';
 import { defaultCreditUsageLimit } from '../_shared/credit-policy.ts';
 import { askedObject, refuse, serveRefusals } from '../_shared/http.ts';
-import { costOfAnswer, creditsOfCost, streamCostReader } from '../_shared/model-call-cost.ts';
+import { costOfAnswer, creditsOfCost, dollarsPerCreditOf, streamCostReader } from '../_shared/model-call-cost.ts';
 import { membersOfCompanyByEmail } from '../_shared/member-directory.ts';
 import { modelGatewayRoute } from '../_shared/model-gateway-route.ts';
 import type { SupabaseClient } from '../_shared/service-client.ts';
@@ -9,7 +9,7 @@ import type { SupabaseClient } from '../_shared/service-client.ts';
 const openRouterOrigin = 'https://openrouter.ai';
 const requesterEmailHeader = 'x-internkim-requester-email';
 
-type Charge = { client: SupabaseClient; companyID: string; memberID: string | null };
+type Charge = { client: SupabaseClient; companyID: string; memberID: string | null; dollarsPerCredit: number };
 
 Deno.serve(
 	serveRefusals(async (request) => {
@@ -27,6 +27,8 @@ Deno.serve(
 			return new Response(listed.body, { status: listed.status, headers: { 'Content-Type': 'application/json' } });
 		}
 
+		const dollarsPerCredit = dollarsPerCreditOf(Deno.env.get('MODEL_CREDIT_DOLLARS'));
+		if (dollarsPerCredit === null) refuse(402, 'this deployment prices no credit in MODEL_CREDIT_DOLLARS, so it sells no model calls');
 		const memberID = await requestingMember(request, client, companyID);
 		const { data: refusal, error } = await client.rpc('company_member_credit_refusal', {
 			target_company: companyID,
@@ -47,7 +49,7 @@ Deno.serve(
 			return new Response(upstream.body, { status: upstream.status, headers: { 'Content-Type': 'application/json' } });
 		}
 
-		const charge: Charge = { client, companyID, memberID };
+		const charge: Charge = { client, companyID, memberID, dollarsPerCredit };
 		if (asked.stream === true) return streamedAndCharged(upstream.body, charge);
 
 		const answer: unknown = await upstream.json();
@@ -93,7 +95,7 @@ async function charged(charge: Charge, cost: number | null): Promise<void> {
 	const { error } = await charge.client.rpc('company_credit_usage_charged', {
 		target_company: charge.companyID,
 		target_member: charge.memberID,
-		used_credits: creditsOfCost(cost)
+		used_credits: creditsOfCost(cost, charge.dollarsPerCredit)
 	});
 	if (error) {
 		console.error(
