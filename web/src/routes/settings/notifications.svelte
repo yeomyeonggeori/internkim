@@ -14,11 +14,9 @@
 	import {
 		chooseAttendanceReach,
 		chooseNotificationCategory,
-		myNotificationSettings,
 		type NotificationSettings
 	} from '$lib/notifications/settings';
 	import {
-		reachability,
 		startBeingReached,
 		stopBeingReached,
 		type Reachability
@@ -29,16 +27,19 @@
 	import SendIcon from '@lucide/svelte/icons/send';
 	import { onMount } from 'svelte';
 	import { toast } from 'svelte-sonner';
+	import { notificationReachabilityRead, notificationSettingsRead } from './settings-reads';
 	import { companySettingsText } from './text';
 	import { createPageText } from '$lib/i18n/page-text.svelte';
 
 	const text = createPageText(companySettingsText);
 	const fieldID = $props.id();
 
-	let reach = $state<Reachability>('off');
-	let settings = $state<NotificationSettings>({ categories: [], attendanceReach: 'everyone', mutedConversationIDs: [] });
-	let isLoadingReachability = $state(true);
-	let isLoadingSettings = $state(true);
+	let reach = $state<Reachability>(notificationReachabilityRead.value ?? 'off');
+	let settings = $state<NotificationSettings>(
+		notificationSettingsRead.value ?? { categories: [], attendanceReach: 'everyone', mutedConversationIDs: [] }
+	);
+	let isLoadingReachability = $state(notificationReachabilityRead.value === undefined);
+	let isLoadingSettings = $state(notificationSettingsRead.value === undefined);
 	let reachabilityFailed = $state(false);
 	let isDisposed = false;
 	let isSwitching = $state(false);
@@ -73,7 +74,7 @@
 
 	async function loadReachability() {
 		try {
-			const next = await reachability();
+			const next = await notificationReachabilityRead.read();
 			if (!isDisposed) reach = next;
 		} catch {
 			if (!isDisposed) {
@@ -87,7 +88,7 @@
 
 	async function loadSettings() {
 		try {
-			const next = await myNotificationSettings();
+			const next = await notificationSettingsRead.read();
 			if (!isDisposed) settings = next;
 		} catch {
 			if (!isDisposed) toast.error(text.notifyLoadFailed);
@@ -106,6 +107,7 @@
 		isSwitching = true;
 		try {
 			reach = reach === 'on' ? await stopBeingReached() : await startBeingReached();
+			notificationReachabilityRead.remember(reach);
 		} catch (error) {
 			toast.error(error instanceof Error ? error.message : text.notifyFailed);
 		} finally {
@@ -136,6 +138,7 @@
 		};
 		try {
 			settings = await chooseNotificationCategory(category, wanted);
+			notificationSettingsRead.remember(settings);
 		} catch {
 			settings = previous;
 			toast.error(text.notifyFailed);
@@ -159,6 +162,7 @@
 		};
 		try {
 			settings = await chooseAttendanceReach(chosen);
+			notificationSettingsRead.remember(settings);
 		} catch {
 			settings = previous;
 			toast.error(text.notifyFailed);

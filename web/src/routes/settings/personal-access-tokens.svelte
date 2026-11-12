@@ -11,9 +11,9 @@
 	import {
 		forgetPersonalAccessToken,
 		issuePersonalAccessToken,
-		personalAccessTokens,
 		type PersonalAccessToken
 	} from '$lib/member/personal-access-tokens';
+	import { personalAccessTokensRead } from './settings-reads';
 	import {
 		fullPublicAPIPermission,
 		publicAPIPermissions,
@@ -27,8 +27,8 @@
 
 	const text = createPageText(companySettingsText);
 
-	let keys = $state<PersonalAccessToken[]>([]);
-	let isLoading = $state(true);
+	const keys = $derived(personalAccessTokensRead.value ?? []);
+	let isLoading = $state(personalAccessTokensRead.value === undefined);
 	let hasLoadError = $state(false);
 	let keyName = $state('');
 	let keyPermission = $state<PublicAPIPermission>(fullPublicAPIPermission);
@@ -54,11 +54,11 @@
 		return `${withDate(text.personalAccessTokenExpiresOn, key.expiresAt)} · ${usage}`;
 	}
 
-	async function load() {
+	async function load(isAfterChange = false) {
 		isLoading = true;
 		hasLoadError = false;
 		try {
-			keys = await personalAccessTokens();
+			await (isAfterChange ? personalAccessTokensRead.refresh() : personalAccessTokensRead.read());
 		} catch {
 			hasLoadError = true;
 			toast.error(text.personalAccessTokensLoadFailed);
@@ -78,7 +78,7 @@
 			issuedKey = await issuePersonalAccessToken(name, keyPermission);
 			keyName = '';
 			toast.success(text.personalAccessTokenIssued);
-			await load();
+			await load(true);
 		} catch (error) {
 			toast.error(error instanceof Error ? error.message : text.personalAccessTokenFailed);
 		} finally {
@@ -91,7 +91,7 @@
 		try {
 			await forgetPersonalAccessToken(name);
 			toast.success(text.personalAccessTokenRevoked);
-			await load();
+			await load(true);
 		} catch (error) {
 			toast.error(error instanceof Error ? error.message : text.personalAccessTokenFailed);
 		} finally {
@@ -159,7 +159,7 @@
 			</div>
 		</Field.Field>
 
-		{#if isLoading && keys.length === 0}
+		{#if isLoading && personalAccessTokensRead.value === undefined}
 			<SettingsListLoading label={text.personalAccessTokens} actionLabel={text.revokePersonalAccessToken} />
 		{:else}
 			{#if hasLoadError}<p role="alert" class="text-sm text-destructive">{text.personalAccessTokensLoadFailed}</p>{/if}
