@@ -3,7 +3,6 @@ import { afterAll, describe, expect, mock, test } from 'bun:test';
 const asked: { name: string; input: Record<string, unknown> }[] = [];
 
 const publicAPICall = { ...(await import('../../../src/lib/public-api-call')) };
-const attendanceAnnouncements = { ...(await import('../../../src/lib/attendance/announce-attendance')) };
 const { ToolRefused } = publicAPICall;
 
 let refuseWith: InstanceType<typeof ToolRefused> | null = null;
@@ -18,18 +17,12 @@ mock.module('../../../src/lib/public-api-call', () => ({
 	}
 }));
 
-mock.module('../../../src/lib/attendance/announce-attendance', () => ({
-	...attendanceAnnouncements,
-	announceToTheCompany: async () => undefined
-}));
-
 const { cancelSupabaseLeaveRequest, createSupabaseLeaveRequest, leaveSpanAsked } = await import(
 	'../../../src/lib/attendance/supabase-leave'
 );
 
 afterAll(() => {
 	mock.module('../../../src/lib/public-api-call', () => publicAPICall);
-	mock.module('../../../src/lib/attendance/announce-attendance', () => attendanceAnnouncements);
 });
 
 describe('a leave the browser files', () => {

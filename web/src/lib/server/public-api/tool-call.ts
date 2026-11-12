@@ -1,8 +1,8 @@
 import { isHttpError } from '@sveltejs/kit';
 import { z } from 'zod';
 import { askWhoAnswersFor, type AttendanceAsked } from '$lib/server/ask-who-answers';
-import { askTheProject } from '$lib/server/project-function';
 import { taskChangesAnnouncedAs } from './task-announcement';
+import { attendanceAnnouncedAs } from './attendance-announcement';
 import { fullPublicAPIPermission, reachesPermission } from '$lib/public-api-permission';
 import { callCompany } from '$lib/server/public-api/company-call';
 import { answererOfTool, objectTypesWrittenBy, permissionForTool, toolReachableBy } from '$lib/server/public-api/catalog';
@@ -124,7 +124,8 @@ async function toolAnswered(
 		taskLabelsDecidedByTheCompany(environment, member),
 		workspaceFilesCarriedBy(payload),
 		place,
-		taskChangesAnnouncedAs(environment, member.accessToken, place.backgroundWork)
+		taskChangesAnnouncedAs(environment, member.accessToken, place.backgroundWork),
+		attendanceAnnouncedAs(environment, member.accessToken, place.backgroundWork)
 	);
 	if (answered.status < 300) await tellTheCompanyWhatItMirrorsChanged(environment, member, name);
 	return {
@@ -154,7 +155,7 @@ async function tellTheCompanyWhatItMirrorsChanged(environment: Environment, memb
 	if (answer.status >= 300) console.warn('directory.change_untold', { tool: name, status: answer.status, body: answer.body });
 }
 
-type AttendanceWrite = { status: string; eventID: string | null; backdated: boolean };
+const askedAttendanceSchema = z.object({ result: z.object({ status: z.literal('asked'), backdated: z.boolean() }) });
 
 async function withTheCompanyTold(
 	environment: Environment,
@@ -163,43 +164,16 @@ async function withTheCompanyTold(
 	asked: AttendanceAsked,
 	body: unknown
 ): Promise<unknown> {
-	const written = attendanceWrittenIn(body);
-	if (!written) return body;
+	if (!askedAttendanceSchema.safeParse(body).success) return body;
 	try {
 		return {
 			...(body as Record<string, unknown>),
-			notified: await announce(environment, member, name, asked, written)
+			notified: await askWhoAnswersFor(environment, member.record, member.memberID, name, asked)
 		};
 	} catch (refusal) {
 		const reason = refusal instanceof Error ? refusal.message : String(refusal);
 		return { ...(body as Record<string, unknown>), notified: { failures: [reason] } };
 	}
-}
-
-async function announce(
-	environment: Environment,
-	member: CallingMember,
-	name: string,
-	asked: AttendanceAsked,
-	written: AttendanceWrite
-): Promise<unknown> {
-	if (written.status === 'asked') {
-		return askWhoAnswersFor(environment, member.record, member.memberID, name, asked);
-	}
-	if (written.backdated || written.status !== 'added') return { told: 0, reached: 0 };
-	const answer = await askTheProject(environment, 'announce-attendance', { what: 'clock' }, member.accessToken);
-	if (answer.status >= 300) return { told: 0, reached: 0 };
-	return answer.body;
-}
-
-function attendanceWrittenIn(body: unknown): AttendanceWrite | null {
-	const result = (body as { result?: Partial<AttendanceWrite> } | null)?.result;
-	if (!result || typeof result.status !== 'string' || typeof result.backdated !== 'boolean') return null;
-	return {
-		status: result.status,
-		eventID: typeof result.eventID === 'string' ? result.eventID : null,
-		backdated: result.backdated
-	};
 }
 
 function taskLabelsDecidedByTheCompany(environment: Environment, member: CallingMember): TaskLabelDecider {

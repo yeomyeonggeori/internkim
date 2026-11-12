@@ -5,6 +5,7 @@ import { teamAttendance, legacyTeamAttendance } from './team-attendance';
 import { exchangeRatesOf } from '$lib/server/configured-exchange-rates';
 import { recordContextOf, type RecordContext, type ToolPlace } from './company';
 import type { TaskChangeAnnouncer } from './task-change';
+import type { AttendanceAnnouncer } from './attendance-announcement';
 import {
 	attendanceLeavePolicyGet,
 	attendanceLeavePolicySet,
@@ -104,7 +105,12 @@ import { sentencesOfSchemaRefusal } from '../schema-sentences';
 import { Refusal, answerOfRefusal } from '../refusal';
 
 type ToolInput = Record<string, unknown>;
-type CallCarried = { files: CarriedWorkspaceFile[]; place?: ToolPlace; announceTaskChange?: TaskChangeAnnouncer };
+type CallCarried = {
+	files: CarriedWorkspaceFile[];
+	place?: ToolPlace;
+	announceTaskChange?: TaskChangeAnnouncer;
+	announceAttendance?: AttendanceAnnouncer;
+};
 type ToolRun = (context: RecordContext, input: ToolInput, carried: CallCarried) => Promise<unknown> | unknown;
 
 function exactAttendancePersonIDs(name: string, input: ToolInput): string[] | undefined {
@@ -156,18 +162,18 @@ const toolsOverTheRecord: Record<string, ToolRun> = {
 	team_delete: (context, input) => teamDelete(context, input),
 	leave_list: (context, input) => leaveList(context, input),
 	leave_balance: (context, input) => leaveBalance(context, input),
-	leave_request: (context, input) => leaveRequest(context, input),
+	leave_request: (context, input, { announceAttendance }) => leaveRequest(context, input, announceAttendance),
 	leave_update: (context, input) => leaveUpdate(context, input),
 	leave_delete: (context, input) => leaveDelete(context, input),
 	leave_decide: (context, input) => leaveDecide(context, input),
 	leave_grant_set: (context, input) => leaveGrantSet(context, input),
-	leave_return_early: (context, input) => leaveReturnEarly(context, input),
+	leave_return_early: (context, input, { announceAttendance }) => leaveReturnEarly(context, input, announceAttendance),
 	attendance_list: async (context, input) => legacyAttendanceListResultSchema.parse(await attendanceList(context, input)),
 	attendance_changes_page_get: (context, input) => attendanceList(context, input),
 	attendance_current_get: (context) => currentAttendance(context.caller),
 	attendance_team_page_get: (context, input) => legacyTeamAttendance(context.caller,input),
 	attendance_team_dashboard_get: (context, input) => teamAttendance(context.caller, input),
-	attendance_add: (context, input) => attendanceAdd(context, input),
+	attendance_add: (context, input, { announceAttendance }) => attendanceAdd(context, input, announceAttendance),
 	attendance_update: (context, input) => attendanceUpdate(context, input),
 	attendance_delete: (context, input) => attendanceDelete(context, input),
 	attendance_work_policy_get: (context) => attendanceWorkPolicyGet(context),
@@ -295,7 +301,8 @@ export async function runToolOverTheRecord(
 	decideTaskLabels: TaskLabelDecider,
 	files: CarriedWorkspaceFile[] = [],
 	place?: ToolPlace,
-	announceTaskChange?: TaskChangeAnnouncer
+	announceTaskChange?: TaskChangeAnnouncer,
+	announceAttendance?: AttendanceAnnouncer
 ): Promise<ToolAnswer> {
 	const run = toolsOverTheRecord[name];
 	if (!run) return { status: 404, body: { error: `no tool here goes by ${name}` } };
@@ -308,7 +315,7 @@ export async function runToolOverTheRecord(
 			: name === 'attendance_team_dashboard_get'
 				? await teamAttendance(caller,input)
 				: await run(await recordContextOf(caller, accountDirectory, requesterID, now, decideTaskLabels,
-					!readsWithoutPeople.has(name) && !((name === 'attendance_list' || name === 'attendance_changes_page_get') && input.handWrittenOnly === true && input.pageOffset !== undefined && input.scope === 'all' && !input.personHints) && !((name === 'attendance_update' || name === 'attendance_delete') && input.undoOnly === true), exactAttendancePersonIDs(name, input)), input, { files, place, announceTaskChange });
+					!readsWithoutPeople.has(name) && !((name === 'attendance_list' || name === 'attendance_changes_page_get') && input.handWrittenOnly === true && input.pageOffset !== undefined && input.scope === 'all' && !input.personHints) && !((name === 'attendance_update' || name === 'attendance_delete') && input.undoOnly === true), exactAttendancePersonIDs(name, input)), input, { files, place, announceTaskChange, announceAttendance });
 		noteWhereTheAnswerLeftItsContract(name, result);
 		return { status: 200, body: { tool: name, result } };
 	} catch (refusal) {
