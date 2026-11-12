@@ -43,6 +43,7 @@ func (service Service) invokeChatdPlatformMessageSearch(ctx context.Context, req
 		return platformToolErrorResponse(request.ToolName, requesterNotAddressable(request.Context, errorValue)), nil
 	}
 	input.RequesterPubkeyHex = requesterPubkeyHex
+	input.Scope = normalizedChatdMessageSearchScope(input.Scope, request.Context, input)
 	input, question, isAsking := service.withSearchedChannelResolved(ctx, request, input)
 	if isAsking {
 		return question, nil
