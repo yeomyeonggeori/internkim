@@ -6,10 +6,8 @@ import (
 	"fmt"
 	"log"
 	"net/http"
-	"strings"
-	"time"
 
-	blueclawruntime "github.com/yeomyeonggeori/internkim/internal/runtime/blueclaw"
+	"github.com/yeomyeonggeori/internkim/internal/centralplane"
 	"github.com/yeomyeonggeori/internkim/pkg/capabilityprotocol"
 )
 
@@ -83,112 +81,28 @@ func (service *Service) rememberBuzzCredential(ctx context.Context, actorEmail s
 // chatd asks for this kind by name (chatd/src/personal/buzz.ts).
 var buzzCredentialKind = capabilityprotocol.MessengerIdentityCredentialKind()
 
-const buzzCredentialSweepInterval = 2 * time.Minute
-
-// Recording ran when the directory said it changed and once at startup, so a
-// signal that never arrived left somebody without a key until this process was
-// restarted: they could speak, because the roster reconciles on its own clock,
-// and the agent could not tell who they were. It reconciles on a clock too now.
-func (service *Service) startBuzzCredentialSweep(ctx context.Context) {
-	go func() {
-		if errorValue := service.waitUntilBlueclawAnswers(ctx, "buzz credentials"); errorValue != nil {
-			return
-		}
-		log.Printf("buzz credentials at startup: %s", service.recordBuzzCredentials(ctx))
-		ticker := time.NewTicker(buzzCredentialSweepInterval)
-		defer ticker.Stop()
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case <-ticker.C:
-				recording := service.recordBuzzCredentials(ctx)
-				if len(recording.Refusals) > 0 {
-					log.Printf("buzz credential sweep: %s", recording)
-				}
-				service.withinASweepBudget(ctx, service.showOutWhoeverNobodyNames)
-			}
-		}
-	}()
-}
-
-var (
-	firstWaitForBlueclaw   = 250 * time.Millisecond
-	longestWaitForBlueclaw = 5 * time.Second
-)
-
-func (service *Service) waitUntilBlueclawAnswers(ctx context.Context, waiter string) error {
-	wait := firstWaitForBlueclaw
-	for {
-		errorValue := service.blueclawJSONRequest(ctx, http.MethodGet, blueclawruntime.BlueclawHealthCheckPath, nil, nil)
-		if errorValue == nil {
-			return nil
-		}
-		if wait == firstWaitForBlueclaw {
-			log.Printf("%s wait for blueclaw, which does not answer yet: %v", waiter, errorValue)
-		}
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		case <-time.After(wait):
-		}
-		wait = min(wait*2, longestWaitForBlueclaw)
-	}
-}
-
-// The people the record already names get their key without anybody pressing a
-// button, because the messenger they use every day is the thing that is broken.
-func (service *Service) recordBuzzCredentials(ctx context.Context) buzzCredentialRecording {
-	client := service.centralPlane()
-	if client == nil {
-		return buzzCredentialRecording{Refusals: []string{"this host has no company directory configured"}}
-	}
-	members, errorValue := client.Members(ctx)
-	if errorValue != nil {
-		return buzzCredentialRecording{Refusals: []string{fmt.Sprintf("the company did not say who works here: %v", errorValue)}}
-	}
-	recording := buzzCredentialRecording{}
+func (service *Service) recordMessengerKeys(ctx context.Context, client *centralplane.Client, members []centralplane.Member) error {
+	var refusals []error
 	for _, member := range members {
-		email := strings.ToLower(strings.TrimSpace(member.Email))
+		email := normalizedRosterEmail(member.Email)
 		if email == "" || member.HasLeftTheCompany() {
-			recording.Skipped++
 			continue
 		}
-		secretHex, errorValue := service.personBuzzSecret(ctx, email)
-		if errorValue != nil {
-			recording.refuse(email, "the key could not be derived", errorValue)
-			continue
+		if errorValue := service.recordMessengerKey(ctx, client, member.MemberID, email); errorValue != nil {
+			refusals = append(refusals, fmt.Errorf("the messenger key for %s was not recorded: %w", email, errorValue))
 		}
-		publicHex, errorValue := buzzPublicKey(secretHex)
-		if errorValue != nil {
-			recording.refuse(email, "the derived key has no public half", errorValue)
-			continue
-		}
-		if errorValue := client.KeepMessengerCredential(ctx, member.MemberID, buzzCredentialKind, publicHex, secretHex); errorValue != nil {
-			recording.refuse(email, "the company would not keep it", errorValue)
-			continue
-		}
-		recording.Kept++
 	}
-	return recording
+	return errors.Join(refusals...)
 }
 
-// A count that cannot say why is the thing this whole day was about. Every
-// refusal carries the address it was for and what refused it.
-type buzzCredentialRecording struct {
-	Kept     int
-	Skipped  int
-	Refusals []string
-}
-
-func (recording *buzzCredentialRecording) refuse(email string, because string, errorValue error) {
-	recording.Refusals = append(recording.Refusals, fmt.Sprintf("%s: %s: %v", email, because, errorValue))
-}
-
-func (recording buzzCredentialRecording) String() string {
-	summary := fmt.Sprintf("kept %d, skipped %d, refused %d", recording.Kept, recording.Skipped, len(recording.Refusals))
-	if len(recording.Refusals) == 0 {
-		return summary
+func (service *Service) recordMessengerKey(ctx context.Context, client *centralplane.Client, memberID string, email string) error {
+	secretHex, errorValue := service.personBuzzSecret(ctx, email)
+	if errorValue != nil {
+		return errorValue
 	}
-	return summary + "\n" + strings.Join(recording.Refusals, "\n")
+	publicHex, errorValue := buzzPublicKey(secretHex)
+	if errorValue != nil {
+		return errorValue
+	}
+	return client.KeepMessengerCredential(ctx, memberID, buzzCredentialKind, publicHex, secretHex)
 }

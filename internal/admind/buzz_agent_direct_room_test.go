@@ -125,8 +125,11 @@ func TestEveryAdmittedMemberGetsOneRoomWithTheAgentAndASecondPassOpensNothing(t 
 	if errorValue != nil {
 		t.Fatalf("read who the company holds: %v", errorValue)
 	}
-	service.openTheAgentDirectRoomForEveryMember(context.Background(), members)
-	service.openTheAgentDirectRoomForEveryMember(context.Background(), members)
+	for pass := 0; pass < 2; pass++ {
+		if errorValue := service.openTheAgentDirectRoomForEveryMember(context.Background(), members); errorValue != nil {
+			t.Fatalf("pass %d left rooms unopened: %v", pass, errorValue)
+		}
+	}
 
 	sort.Strings(ensuredFor)
 	expected := []string{firstKey, secondKey}
@@ -134,7 +137,11 @@ func TestEveryAdmittedMemberGetsOneRoomWithTheAgentAndASecondPassOpensNothing(t 
 	if !reflect.DeepEqual(ensuredFor, expected) {
 		t.Fatalf("each admitted member gets one room with the agent, the outsider %s none yet: got %v, want %v", outsiderKey, ensuredFor, expected)
 	}
-	if waiting := service.admittedMembersWithoutTheAgentDirectRoom(context.Background(), members); len(waiting) != 0 {
+	waiting, errorValue := service.admittedMembersWithoutTheAgentDirectRoom(context.Background(), members)
+	if errorValue != nil {
+		t.Fatalf("read who still waits for a room: %v", errorValue)
+	}
+	if len(waiting) != 0 {
 		t.Fatalf("nobody admitted may still be waiting for a room with the agent: %v", waiting)
 	}
 }
@@ -182,5 +189,5 @@ func TestNoRoomIsAskedForWhileTheRelayCannotSayWhoItAdmits(t *testing.T) {
 	if errorValue != nil {
 		t.Fatalf("read who the company holds: %v", errorValue)
 	}
-	service.openTheAgentDirectRoomForEveryMember(context.Background(), members)
+	_ = service.openTheAgentDirectRoomForEveryMember(context.Background(), members)
 }

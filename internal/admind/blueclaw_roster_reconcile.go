@@ -3,7 +3,6 @@ package admind
 import (
 	"context"
 	"encoding/json"
-	"log"
 	"net/http"
 	"strings"
 	"time"
@@ -11,67 +10,9 @@ import (
 	"github.com/yeomyeonggeori/internkim/internal/centralplane"
 )
 
-const (
-	blueclawRosterReconcileInterval = 2 * time.Minute
-	blueclawRosterReconcileTimeout  = time.Minute
-	preservedRosterEmailSuffix      = "@internkim.test"
-)
-
 type rosterReadiness struct {
 	AppliedAt   time.Time
 	LastFailure string
-}
-
-func (service *Service) startBlueclawRosterReconcile(ctx context.Context) {
-	go func() {
-		if errorValue := service.waitUntilBlueclawAnswers(ctx, "the roster"); errorValue != nil {
-			return
-		}
-		if errorValue := service.reconcileBlueclawRosterUntilItLands(ctx); errorValue != nil {
-			return
-		}
-		ticker := time.NewTicker(blueclawRosterReconcileInterval)
-		defer ticker.Stop()
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case <-ticker.C:
-				if errorValue := service.reconcileBlueclawRosterWithTimeout(ctx); errorValue != nil {
-					log.Printf("blueclaw roster reconcile failed: %v", errorValue)
-				}
-			}
-		}
-	}()
-}
-
-func (service *Service) reconcileBlueclawRosterUntilItLands(ctx context.Context) error {
-	wait := firstWaitForBlueclaw
-	reported := ""
-	for {
-		errorValue := service.reconcileBlueclawRosterWithTimeout(ctx)
-		if errorValue == nil {
-			return nil
-		}
-		if errorValue.Error() != reported {
-			reported = errorValue.Error()
-			log.Printf("blueclaw roster reconcile failed, trying again until it lands: %v", errorValue)
-		}
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		case <-time.After(wait):
-		}
-		wait = min(wait*2, longestWaitForBlueclaw)
-	}
-}
-
-func (service *Service) reconcileBlueclawRosterWithTimeout(ctx context.Context) error {
-	reconcileContext, cancel := context.WithTimeout(ctx, blueclawRosterReconcileTimeout)
-	defer cancel()
-	errorValue := service.reconcileBlueclawRoster(reconcileContext)
-	service.recordRosterReconcile(errorValue)
-	return errorValue
 }
 
 func (service *Service) recordRosterReconcile(errorValue error) {
@@ -101,16 +42,10 @@ func (service *Service) writeRosterReadiness(responseWriter http.ResponseWriter)
 	service.writeJSON(responseWriter, map[string]any{"status": "applied", "appliedAt": readiness.AppliedAt})
 }
 
-func (service *Service) reconcileBlueclawRoster(ctx context.Context) error {
-	client := service.centralPlane()
-	if client == nil {
-		return nil
-	}
-	members, errorValue := client.Members(ctx)
-	if errorValue != nil {
-		return errorValue
-	}
-	return service.deliverRosterReconciledWith(ctx, rosterRecordsOfMembers(members))
+func (service *Service) applyRoster(ctx context.Context, members []centralplane.Member) error {
+	errorValue := service.deliverRosterReconciledWith(ctx, rosterRecordsOfMembers(members))
+	service.recordRosterReconcile(errorValue)
+	return errorValue
 }
 
 func rosterRecordsOfMembers(members []centralplane.Member) []adminUserMutation {
@@ -207,7 +142,7 @@ func isRosterPersonRetained(value any, directoryEmails map[string]bool, retained
 		return true
 	}
 	for _, email := range emails {
-		if directoryEmails[email] || retainedEmails[email] || isPreservedRosterEmail(email) {
+		if directoryEmails[email] || retainedEmails[email] {
 			return true
 		}
 	}
@@ -256,10 +191,6 @@ func rosterPersonEmails(person map[string]any) []string {
 		emails = append(emails, normalizedEmail)
 	}
 	return emails
-}
-
-func isPreservedRosterEmail(email string) bool {
-	return strings.HasSuffix(email, preservedRosterEmailSuffix)
 }
 
 func normalizedRosterEmail(email string) string {
