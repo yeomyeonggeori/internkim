@@ -1,10 +1,11 @@
-import { describe, expect, mock, test } from 'bun:test';
+import { afterAll, describe, expect, mock, test } from 'bun:test';
 import type { TaskBoardMoveRequest } from '../../src/routes/task/task-board-drag';
 import type { ChildCompletionChoice, TaskBoardController } from '../../src/routes/task/task-board-controller.svelte';
 import type { Task, TaskSummary } from '../../src/routes/task/task-types';
 import { taskText } from '../../src/routes/task/text';
 
 const savedRequests: TaskBoardMoveRequest[] = [];
+const taskBoardSave = { ...(await import('../../src/routes/task/task-board-save')) };
 
 mock.module('../../src/routes/task/task-board-save', () => ({
 	saveTaskBoardMove: async (input: { request: TaskBoardMoveRequest }) => {
@@ -12,6 +13,10 @@ mock.module('../../src/routes/task/task-board-save', () => ({
 		return 'saved';
 	}
 }));
+
+afterAll(() => {
+	mock.module('../../src/routes/task/task-board-save', () => taskBoardSave);
+});
 
 describe('completing a parent on the board', () => {
 	test('asks about unfinished children and completes them with the parent when told to', async () => {

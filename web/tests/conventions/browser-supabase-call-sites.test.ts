@@ -38,9 +38,10 @@ describe('direct Supabase calls in browser-reachable modules', () => {
 		expect(dataCallsIn(`client.rpc ('task_parent_set')`)).toEqual([`rpc('task_parent_set')`]);
 	});
 
-	test('an array constructor is not a call site; any other capitalised receiver is', () => {
+	test('a collection constructor is not a call site; any other capitalised receiver is', () => {
 		expect(dataCallsIn(`Array.from({ length: 7 }, (_, index) => index)`)).toEqual([]);
 		expect(dataCallsIn(`Uint8Array.from(binary, (character) => character.charCodeAt(0))`)).toEqual([]);
+		expect(dataCallsIn(`Fragment.from(schema.text(text))`)).toEqual([]);
 		expect(dataCallsIn(`DB.from('member')`)).toEqual([`from('member')`]);
 	});
 

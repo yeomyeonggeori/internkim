@@ -318,7 +318,7 @@ test('on a phone dragging the search results puts the keyboard away', async ({ p
 	await expect(field).not.toBeFocused();
 });
 
-for (const width of [390, 1280]) {
+for (const width of everyScreen) {
 	test(`a profile opened from a thread shows in front of the thread at ${width}px`, async ({ page }) => {
 		await openMessenger(page, width, new MessengerInboxFixture(), '/messenger?channel=channel-1');
 		await page.getByRole('button', { name: /1개 답글/ }).click();

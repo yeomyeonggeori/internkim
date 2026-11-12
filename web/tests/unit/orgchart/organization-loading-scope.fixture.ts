@@ -12,6 +12,7 @@ let role: () => Promise<string>;
 mock.module('../../../src/routes/organization/organization-api', () => ({ fetchOrganizationDirectory: () => read(), organizationApiErrorMessage: (error: unknown, fallback: string) => error instanceof Error ? error.message : fallback, saveOrganizationGroups: async () => directory, saveOrganizationProfiles: async () => directory, saveOwnOrganizationProfile: async () => ({}) }));
 mock.module('$lib/supabase-session', () => ({ isSupabaseConfigured: () => true, supabaseMemberRole: () => role() }));
 mock.module('$lib/signed-in-email', () => ({ signedInEmail: async () => 'sample@example.com' }));
+mock.module('svelte-sonner', () => ({ toast: { error: () => {} } }));
 const { OrganizationDirectoryController } = await import('../../../src/routes/organization/organization-directory-controller.svelte');
 const controllerFor = (scope: string) => new OrganizationDirectoryController('/admin/api', organizationDirectoryText.ko, adminText.ko, () => 'ko', scope);
 
