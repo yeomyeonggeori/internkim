@@ -708,7 +708,7 @@ export const messageContextInputSchema = z.strictObject({});
 export const messageSearchInputSchema = z.strictObject({
   messageIDs: uniqueMessageIDArraySchema.describe('Exact message IDs to read in full instead of searching. Returns each message\'s complete text rather than a preview. Use this before rewriting a long message.').optional(),
   scope: z.enum(MessageSearchScope)
-    .describe('Where to search. Current conversation scopes use the channel or thread this request is running in.')
+    .describe('Where to search. Current conversation scopes use the channel or thread this request is running in. directMessage is the requester\'s direct conversation with the agent; with personHint it is theirs with that person, which only the requester\'s own API call may read.')
     .optional(),
   channelName: z.string().describe('Exact channel name as the messenger shows it.').optional(),
   channelID: resourceIDSchema.describe('Exact channel ID from message_context or a prior result.').optional(),
@@ -724,7 +724,7 @@ export const messageSendInputSchema = z.strictObject({
   message: z.string().min(1).regex(/\S/, 'Message must contain a non-whitespace character.'),
   channelName: z.string().describe('Exact channel name as the messenger shows it.').optional(),
   channelID: resourceIDSchema.describe('Exact channel ID from message_context or a prior result.').optional(),
-  personHint: z.string().describe('Name, @handle, or email of one direct-message recipient. Omit for a direct message to the requester themself.').optional(),
+  personHint: z.string().describe('Name, @handle, or email of one direct-message recipient. Omit for the requester\'s own direct conversation with the agent.').optional(),
   personHints: z.array(z.string().min(1)).max(50).describe('Direct-message recipients for one fan-out send.').optional(),
   pin: z.boolean().describe('Whether to pin the created message. Defaults to false.').optional(),
   attachments: z.array(z.string().min(1)).describe('Workspace file paths to upload with the message, copied exactly from the attachment catalog or a file tool result. Use this to deliver an original file, such as an inbound image, to the target.').optional(),

@@ -3,6 +3,7 @@ package capabilityd
 import (
 	"context"
 	"encoding/json"
+	"github.com/yeomyeonggeori/internkim/internal/capabilities"
 	"net/http"
 	"strings"
 	"testing"
@@ -25,6 +26,25 @@ func TestAReactionIsAskedOfChatdAsTheRequesterInTheMessagesOwnChannel(t *testing
 	_ = json.Unmarshal([]byte(reactions[0].Body), &body)
 	if body["requesterPubkeyHex"] != requesterPubkeyHex || body["conversationID"] != "channel-1" || body["messageID"] != "post-1" || body["emoji"] != "tada" {
 		t.Fatalf("expected the requester, the message's channel and the emoji as named, got %s", reactions[0].Body)
+	}
+}
+
+func TestAPersonReactsToAMessageOnlyTheyCanReadOnTheirOwnCall(t *testing.T) {
+	reactionsAskedBy := func(call capabilities.ToolInvokeRequest) []askedOfBackend {
+		chatd := answeringPerCall(searchingAsTheRequester)
+		_, _ = channelService(t, chatd).invokeMessageReactionTool(context.Background(), call)
+		return askedOf(chatd, "requester.reaction.add")
+	}
+	input := `{"messageID":"said-in-private","emoji":"tada"}`
+
+	onTheirOwnCall := reactionsAskedBy(askedThroughTheAPI(messageReactionAddToolName, input))
+	throughTheAgent := reactionsAskedBy(channelToolCall(messageReactionAddToolName, input))
+
+	if len(onTheirOwnCall) != 1 || !strings.Contains(onTheirOwnCall[0].Body, `"conversationID":"dm-1"`) {
+		t.Fatalf("expected the reaction in the private conversation, got %+v", onTheirOwnCall)
+	}
+	if len(throughTheAgent) != 0 {
+		t.Fatalf("the agent found a message only the requester reads: %+v", throughTheAgent)
 	}
 }
 

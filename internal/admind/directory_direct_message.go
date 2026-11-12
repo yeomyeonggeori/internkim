@@ -42,8 +42,8 @@ func (service *Service) handleDirectoryDirectMessage(responseWriter http.Respons
 	senderEmail := strings.ToLower(strings.TrimSpace(payload.SenderEmail))
 	recipientEmail := strings.ToLower(strings.TrimSpace(payload.RecipientEmail))
 	message := strings.TrimSpace(payload.Message)
-	if senderEmail == "" || recipientEmail == "" || message == "" {
-		http.Error(responseWriter, "senderEmail, recipientEmail and message are required", http.StatusBadRequest)
+	if senderEmail == "" || message == "" {
+		http.Error(responseWriter, "senderEmail and message are required", http.StatusBadRequest)
 		return
 	}
 
@@ -52,29 +52,35 @@ func (service *Service) handleDirectoryDirectMessage(responseWriter http.Respons
 		http.Error(responseWriter, errorValue.Error(), http.StatusConflict)
 		return
 	}
-	recipientSecretHex, errorValue := service.memberBuzzSecret(request.Context(), recipientEmail)
-	if errorValue != nil {
-		http.Error(responseWriter, errorValue.Error(), http.StatusNotFound)
-		return
-	}
-	recipientPubkeyHex, errorValue := buzzPublicKey(recipientSecretHex)
-	if errorValue != nil {
-		http.Error(responseWriter, errorValue.Error(), http.StatusBadGateway)
-		return
+	sendRequest := map[string]any{"userSecretHex": senderSecretHex, "message": message}
+	if recipientEmail != "" {
+		recipientPubkeyHex, status, errorValue := service.memberBuzzPublicKey(request.Context(), recipientEmail)
+		if errorValue != nil {
+			http.Error(responseWriter, errorValue.Error(), status)
+			return
+		}
+		sendRequest["counterpartPubkeyHex"] = recipientPubkeyHex
 	}
 
 	var sent directoryDirectMessageResponse
-	sendRequest := map[string]any{
-		"userSecretHex":        senderSecretHex,
-		"counterpartPubkeyHex": recipientPubkeyHex,
-		"message":              message,
-	}
 	if errorValue := service.chatdPlatformRequest(request.Context(), "dm.send", sendRequest, &sent); errorValue != nil {
 		http.Error(responseWriter, errorValue.Error(), http.StatusBadGateway)
 		return
 	}
 	responseWriter.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(responseWriter).Encode(sent)
+}
+
+func (service *Service) memberBuzzPublicKey(ctx context.Context, email string) (string, int, error) {
+	secretHex, errorValue := service.memberBuzzSecret(ctx, email)
+	if errorValue != nil {
+		return "", http.StatusNotFound, errorValue
+	}
+	pubkeyHex, errorValue := buzzPublicKey(secretHex)
+	if errorValue != nil {
+		return "", http.StatusBadGateway, errorValue
+	}
+	return pubkeyHex, http.StatusOK, nil
 }
 
 // memberBuzzSecret answers the key of somebody who works here. Being in the

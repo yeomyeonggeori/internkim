@@ -32,7 +32,8 @@ type platformMessageSearchInput struct {
 	Limit       int      `json:"limit"`
 	Cursor      string   `json:"cursor"`
 
-	DeliveryTarget platformMessageDeliveryTarget `json:"-"`
+	DeliveryTarget     platformMessageDeliveryTarget `json:"-"`
+	RequesterPubkeyHex string                        `json:"-"`
 }
 
 type platformMessageSendInput struct {
