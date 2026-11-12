@@ -130,6 +130,6 @@ export function settingsSectionIDOf(routePath: string): SettingsSectionID | null
 	return settingsSections.find((section) => section.id === segment)?.id ?? null;
 }
 
-export function settingsPath(pathname: string, sectionID?: SettingsSectionID | 'setup'): string {
+export function settingsPath(pathname: string, sectionID?: SettingsSectionID): string {
 	return companyPathOf(companySlugOf(pathname), sectionID ? `/settings/${sectionID}` : '/settings');
 }

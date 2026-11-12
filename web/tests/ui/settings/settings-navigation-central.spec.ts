@@ -76,5 +76,8 @@ test('an administrator of a subscribed company sees five general and six adminis
 	await expect(settingsMenu(page).getByText('일반', { exact: true })).toBeVisible();
 	await expect(settingsMenu(page).getByText('관리자', { exact: true })).toBeVisible();
 	await settingsMenu(page).getByRole('link', { name: '호스트', exact: true }).click();
-	await expect(page.getByRole('link', { name: '김인턴 시작하기' })).toBeVisible();
+	await expect(page.getByText('회사 컴퓨터 연결', { exact: true })).toBeVisible({ timeout: 20000 });
+	await expect(page.getByRole('heading', { level: 2, name: '김인턴에게 말 걸기', exact: true })).toBeVisible();
+	await expect(page.getByRole('button', { name: '메신저 열기', exact: true })).toBeVisible();
+	await expect(page.getByRole('link', { name: '김인턴 시작하기' })).toHaveCount(0);
 });
