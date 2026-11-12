@@ -3,6 +3,7 @@ import { openSync } from 'node:fs';
 export type AddressingDecision = {
 	target: 'bot' | 'human' | 'anyone' | 'none' | 'unclear';
 	shouldRespond: boolean;
+	work?: 'none' | 'easy' | 'normal' | 'hard' | 'impossible';
 };
 
 export type TurnDecision = {
@@ -71,7 +72,7 @@ export function addressedToTheAgent(): AddressingDecision {
 export function aTurnStartingWork(message: string, toolNames: string[]): TurnOutcome {
 	return {
 		message,
-		addressing: addressedToTheAgent(),
+		addressing: { ...addressedToTheAgent(), work: 'normal' },
 		turnDecision: {
 			route: 'start_task',
 			classification: 'bounded_task',
