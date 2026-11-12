@@ -115,6 +115,12 @@ export function personKey(person: MessengerPerson): string {
 	return `external:${person.externalID ?? ''}`;
 }
 
+export function personOfKey(key: string): MessengerPerson {
+	if (key.startsWith('member:')) return { memberID: key.slice('member:'.length) };
+	if (key.startsWith('external:')) return { externalID: key.slice('external:'.length) };
+	return {};
+}
+
 // A member's name is recorded given name first, so how it is written belongs to
 // the language the reader picked; see personName. Everyone else in the address
 // book keeps the name they arrived with — an entry there need not be a person's

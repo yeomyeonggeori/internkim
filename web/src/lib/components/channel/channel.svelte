@@ -35,6 +35,7 @@
 	import PersonAvatar from '$lib/components/person-avatar.svelte';
 	import LoadingImage from '$lib/components/loading-image.svelte';
 	import PersonAvatarStack from '$lib/components/person-avatar-stack.svelte';
+	import { personOfKey } from '$lib/messenger/messenger-directory';
 	import { channelText } from '$lib/i18n/channel-text';
 	import { createPageText } from '$lib/i18n/page-text.svelte';
 	import {
@@ -197,6 +198,7 @@
 	let isThreadSending = $state(false);
 
 	const currentUser = $derived<ChannelParticipant>({
+		...personOfKey(currentUserID),
 		id: currentUserID,
 		name: text.you,
 		email: currentUserEmail,
