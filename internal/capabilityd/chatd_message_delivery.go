@@ -252,7 +252,7 @@ func (service Service) invokeChatdPlatformMessageUpdate(ctx context.Context, req
 	if replyTargetID == "" {
 		replyTargetID = strings.TrimSpace(request.Context.ConversationID)
 	}
-	editedText, failure, hasFailure := service.editedMessageText(ctx, messageID, input)
+	editedText, failure, hasFailure := service.editedMessageText(ctx, request.Context, messageID, input)
 	if hasFailure {
 		return platformToolErrorResponse(request.ToolName, failure), nil
 	}
@@ -276,11 +276,11 @@ func (service Service) invokeChatdPlatformMessageUpdate(ctx context.Context, req
 	})
 }
 
-func (service Service) editedMessageText(ctx context.Context, messageID string, input platformMessageUpdateInput) (string, platformToolFailure, bool) {
+func (service Service) editedMessageText(ctx context.Context, toolContext capabilities.ToolInvokeContext, messageID string, input platformMessageUpdateInput) (string, platformToolFailure, bool) {
 	if input.Text != nil {
 		return *input.Text, platformToolFailure{}, false
 	}
-	currentText, failure, hasFailure := service.chatdCurrentMessageText(ctx, messageID)
+	currentText, failure, hasFailure := service.chatdCurrentMessageText(ctx, toolContext, messageID)
 	if hasFailure || input.OldText == nil {
 		return currentText, failure, hasFailure
 	}
@@ -294,10 +294,10 @@ func (service Service) editedMessageText(ctx context.Context, messageID string, 
 // The record an edit reads must be the record message_search answered from: an
 // ID search crosses channels and applies later edits, so a post found in one
 // channel stays editable from the conversation the request came from.
-func (service Service) chatdCurrentMessageText(ctx context.Context, messageID string) (string, platformToolFailure, bool) {
+func (service Service) chatdCurrentMessageText(ctx context.Context, toolContext capabilities.ToolInvokeContext, messageID string) (string, platformToolFailure, bool) {
 	searchRequest := chatdMessageSearchRequest{MessageIDs: []string{messageID}, Queries: []string{}}
-	var response chatdMessageSearchResponse
-	if errorValue := service.chatdRequest(ctx, "message.search", searchRequest, &response); errorValue != nil {
+	response, errorValue := service.readMessages(ctx, toolContext, searchRequest)
+	if errorValue != nil {
 		return "", platformToolFailureForError("message_lookup", "platform_unavailable", errorValue), true
 	}
 	for _, candidate := range response.Candidates {
