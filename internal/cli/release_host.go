@@ -198,7 +198,7 @@ func createHostRelease(version string, revision string, channel string, director
 		return errorValue
 	}
 	tag := hostReleaseTag(version)
-	if errorValue := createReleaseDraft(tag, revision, channel); errorValue != nil {
+	if errorValue := createReleaseDraft(tag, revision); errorValue != nil {
 		return errorValue
 	}
 	for _, asset := range assets {
@@ -226,8 +226,8 @@ func channelFlag(channel string) string {
 // createReleaseDraft holds the release back until every asset is on it, so a
 // stalled upload cannot take the release with it. A draft left by an earlier
 // run is continued rather than refused: its uploads are replaced by --clobber.
-func createReleaseDraft(tag string, revision string, channel string) error {
-	output, errorValue := runGitHubCommand("release", "create", tag, "--repo", hostReleaseRepository, "--draft", "--target", revision, "--title", tag, "--notes", hostReleaseNotes(channel), "--generate-notes")
+func createReleaseDraft(tag string, revision string) error {
+	output, errorValue := runGitHubCommand("release", "create", tag, "--repo", hostReleaseRepository, "--draft", "--target", revision, "--title", tag, "--notes", hostReleaseNotes(tag), "--generate-notes")
 	if errorValue != nil && !strings.Contains(output, "already exists") {
 		return errorValue
 	}
@@ -283,12 +283,8 @@ func completeReleaseAssets(directory string, version string) ([]string, error) {
 	return paths, nil
 }
 
-func hostReleaseNotes(channel string) string {
-	installLine := "curl -fsSL https://intern.kim/install.sh | sh -s -- host"
-	if channel == testingChannel {
-		installLine += " --channel testing"
-	}
-	return "Install or upgrade the company host:\n\n```sh\n" + installLine + "\n```\n"
+func hostReleaseNotes(tag string) string {
+	return "Install or upgrade the company host:\n\n```sh\ncurl -fsSL https://intern.kim/install.sh | sh -s -- host --version " + tag + "\n```\n"
 }
 
 // publishFormulaToTap commits the formula a stable release carries to the tap,

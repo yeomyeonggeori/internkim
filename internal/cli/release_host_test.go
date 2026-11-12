@@ -95,6 +95,21 @@ func TestATestingReleaseIsADraftFilledAssetByAssetThenPublishedAsAPrerelease(t *
 	}
 }
 
+func TestTheNotesInstallTheReleaseByItsTagAndNameNoChannel(t *testing.T) {
+	calls := recordGitHubCommands(t, func([]string) (string, error) { return "", nil })
+	if errorValue := createHostRelease(testReleaseVersion, "abc123", testingChannel, releaseDirectoryWithEveryAsset(t), io.Discard); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	created := (*calls)[0]
+	notes := created[slices.Index(created, "--notes")+1]
+	if !strings.Contains(notes, "sh -s -- host --version v"+testReleaseVersion+"\n") {
+		t.Errorf("the notes do not install v%s by its tag: %q", testReleaseVersion, notes)
+	}
+	if strings.Contains(notes, "--channel") {
+		t.Errorf("the notes name a channel, which stops being true when the release is promoted: %q", notes)
+	}
+}
+
 func TestAnAssetThatTimesOutOnceIsUploadedAgainAndTheReleaseIsPublished(t *testing.T) {
 	withoutAssetRetryWaits(t)
 	stalled := false
