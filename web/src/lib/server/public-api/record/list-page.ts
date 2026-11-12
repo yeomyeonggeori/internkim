@@ -1,5 +1,5 @@
 import { listPageSize } from '../catalog/list-page';
-import { RecordRefusedTheWrite } from './tasks';
+import { InputRefused } from '../refusal';
 
 export type ListPageInput = { limit?: number; cursor?: string };
 
@@ -57,7 +57,7 @@ function cursorOfPosition(position: string[]): string {
 export function positionOfCursor(toolName: string, cursor: string, isShaped: (position: string[]) => boolean = () => true): string[] {
 	const decoded = decodedCursor(cursor);
 	if (!isPosition(decoded) || !isShaped(decoded)) {
-		throw new RecordRefusedTheWrite(`cursor is not one a ${toolName} result gave; omit it to start from the first page`, 400);
+		throw new InputRefused(`cursor is not one a ${toolName} result gave; omit it to start from the first page`);
 	}
 	return decoded;
 }

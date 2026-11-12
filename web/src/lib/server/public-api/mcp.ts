@@ -5,7 +5,7 @@ import type { CallToolRequest, CallToolResult, Tool, ToolAnnotations } from '@mo
 import { capabilityAnsweredFilesMetaKey, capabilityDescriptorMetaKey } from './catalog/protocol';
 import { isSeenByAModel, permissionForTool, toolsAModelReachesWith } from '$lib/server/public-api/catalog';
 import type { ToolDescriptor } from '$lib/server/public-api/catalog';
-import { toolAnswerOrRefusal } from '$lib/server/public-api/tool-call';
+import { toolCalledByMember } from '$lib/server/public-api/tool-call';
 import type { CallingMember } from '$lib/server/member-request';
 import type { Environment } from '$lib/server/agent-request';
 import { theAppAddressAnswering } from '$lib/server/company-host-redirect';
@@ -94,7 +94,7 @@ async function answerToolCall(
 	if (!isSeenByAModel(call.name)) {
 		return toolResultOf(404, { message: `no tool here goes by ${call.name}` });
 	}
-	const answered = await toolAnswerOrRefusal(place, member, call.name, { input: call.arguments ?? {} });
+	const answered = await toolCalledByMember(place, member, call.name, { input: call.arguments ?? {} });
 	if (answered.status >= 300 || !keepsAnsweredFiles(call._meta)) {
 		return toolResultOf(answered.status, answered.body);
 	}

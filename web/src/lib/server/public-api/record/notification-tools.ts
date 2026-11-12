@@ -1,4 +1,3 @@
-import { RecordRefusedTheWrite, statusOfPostgresCode } from './tasks';
 import {
 	attendanceReachFromStored,
 	categoriesChoosableBy,
@@ -15,6 +14,7 @@ import {
 	type NotificationCategory
 } from '../catalog/notifications';
 import type { ConversationMuteResult, NotificationSettingsResult } from '../catalog/notifications';
+import { InputRefused, AccessRefused, refusalOfPostgresError } from '../refusal';
 
 export type NotificationSettingsSetInput = { turnOn?: string[]; turnOff?: string[]; attendanceReach?: string };
 
@@ -26,13 +26,13 @@ function requesterAdministers(context: RecordContext): boolean {
 
 async function storedSettings(context: RecordContext): Promise<unknown> {
 	const { data, error } = await context.caller.rpc('my_notification_settings');
-	if (error) throw new Error(error.message);
+	if (error) throw refusalOfPostgresError(error);
 	return data;
 }
 
 async function mutedConversationIDs(context: RecordContext): Promise<string[]> {
 	const { data, error } = await context.caller.rpc('my_muted_conversations');
-	if (error) throw new Error(error.message);
+	if (error) throw refusalOfPostgresError(error);
 	return notificationSettingsResultSchema.shape.mutedConversationIDs.parse(data).sort();
 }
 
@@ -60,18 +60,10 @@ export async function notificationSettingsGet(
 function categoryAsked(named: string, choosable: NotificationCategory[]): NotificationCategory {
 	const category = named.trim();
 	if (!isNotificationCategory(category)) {
-		throw new RecordRefusedTheWrite(
-			`nobody is told about ${category || 'a category with no name'}, so there is nothing to choose`,
-			400,
-			'no_such_notification_category'
-		);
+		throw new InputRefused(`nobody is told about ${category || 'a category with no name'}, so there is nothing to choose`, 'no_such_notification_category');
 	}
 	if (!choosable.includes(category)) {
-		throw new RecordRefusedTheWrite(
-			`only an administrator chooses whether to be told about ${category}`,
-			403,
-			'category_not_choosable'
-		);
+		throw new AccessRefused(`only an administrator chooses whether to be told about ${category}`, 'category_not_choosable');
 	}
 	return category;
 }
@@ -79,11 +71,7 @@ function categoryAsked(named: string, choosable: NotificationCategory[]): Notifi
 function reachAsked(named: string): AttendanceReach {
 	const reach = named.trim();
 	if (!isAttendanceReach(reach)) {
-		throw new RecordRefusedTheWrite(
-			`${reach || 'a reach with no name'} is not a reach attendance notices have`,
-			400,
-			'no_such_attendance_reach'
-		);
+		throw new InputRefused(`${reach || 'a reach with no name'} is not a reach attendance notices have`, 'no_such_attendance_reach');
 	}
 	return reach;
 }
@@ -95,7 +83,7 @@ export async function notificationSettingsSet(
 	const turnOn = input.turnOn ?? [];
 	const turnOff = input.turnOff ?? [];
 	if (turnOn.length === 0 && turnOff.length === 0 && input.attendanceReach === undefined) {
-		throw new Error('a notification change names at least one category to turn on or off, or an attendance reach');
+		throw new InputRefused('a notification change names at least one category to turn on or off, or an attendance reach');
 	}
 
 	const choosable = categoriesChoosableBy(requesterAdministers(context));
@@ -109,13 +97,13 @@ export async function notificationSettingsSet(
 	const { error } = await context.caller.rpc('notification_settings_set', {
 		chosen: storedFromChoices(chosen, attendanceReach)
 	});
-	if (error) throw new RecordRefusedTheWrite(error.message, statusOfPostgresCode(error.code));
+	if (error) throw refusalOfPostgresError(error);
 	return settingsAnswered(context);
 }
 
 function conversationAsked(input: ConversationMuteInput): string {
 	const conversationID = input.conversationID?.trim();
-	if (!conversationID) throw new Error('this call names the conversation it is about');
+	if (!conversationID) throw new InputRefused('this call names the conversation it is about');
 	return conversationID;
 }
 
@@ -133,7 +121,7 @@ export async function conversationMute(
 ): Promise<ConversationMuteResult> {
 	const conversationID = conversationAsked(input);
 	const { error } = await context.caller.rpc('conversation_mute', { conversation: conversationID });
-	if (error) throw new RecordRefusedTheWrite(error.message, statusOfPostgresCode(error.code));
+	if (error) throw refusalOfPostgresError(error);
 	return mutingAnswered(context, conversationID, true);
 }
 
@@ -143,6 +131,6 @@ export async function conversationUnmute(
 ): Promise<ConversationMuteResult> {
 	const conversationID = conversationAsked(input);
 	const { error } = await context.caller.rpc('conversation_unmute', { conversation: conversationID });
-	if (error) throw new RecordRefusedTheWrite(error.message, statusOfPostgresCode(error.code));
+	if (error) throw refusalOfPostgresError(error);
 	return mutingAnswered(context, conversationID, false);
 }

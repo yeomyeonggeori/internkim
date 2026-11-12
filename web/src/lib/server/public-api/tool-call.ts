@@ -1,4 +1,5 @@
-import { error, isHttpError } from '@sveltejs/kit';
+import { isHttpError } from '@sveltejs/kit';
+import { z } from 'zod';
 import { askWhoAnswersFor, type AttendanceAsked } from '$lib/server/ask-who-answers';
 import { askTheProject } from '$lib/server/project-function';
 import { taskChangesAnnouncedAs } from './task-announcement';
@@ -6,7 +7,7 @@ import { fullPublicAPIPermission, reachesPermission } from '$lib/public-api-perm
 import { callCompany } from '$lib/server/public-api/company-call';
 import { answererOfTool, objectTypesWrittenBy, permissionForTool, toolReachableBy } from '$lib/server/public-api/catalog';
 import type { ToolDescriptor } from '$lib/server/public-api/catalog';
-import { recordRunsTheTool, runToolOverTheRecord } from '$lib/server/public-api/record';
+import { previewToolOverTheRecord, recordRunsTheTool, runToolOverTheRecord } from '$lib/server/public-api/record';
 import type { ToolPlace } from '$lib/server/public-api/record/company';
 import { taskLabelGetToolName } from '$lib/server/public-api/catalog/labels';
 import { decidedTaskLabelsOf, type TaskLabelDecider } from '$lib/server/public-api/record/task-labels';
@@ -14,6 +15,7 @@ import { refusalOfToolInput, toolInputRecovered } from '$lib/server/public-api/t
 import { workspaceFilesCarriedBy } from '$lib/server/public-api/carried-files';
 import type { CallingMember } from '$lib/server/member-request';
 import type { Environment } from '$lib/server/agent-request';
+import { AccessRefused, InputRefused, Refusal, TargetMissing, ToolOutOfReach, answerOfRefusal } from './refusal';
 
 export type ToolCallAnswer = { status: number; body: unknown };
 
@@ -27,11 +29,11 @@ export function descriptorTheTokenReaches(name: string, member: Pick<CallingMemb
 	const descriptor = toolReachableBy(name, member.permission);
 	if (!descriptor) {
 		const known = toolReachableBy(name, fullPublicAPIPermission);
-		if (!known) error(404, `no tool here goes by ${name}`);
-		error(403, `this token may only ${member.permission}, and ${name} ${permissionForTool(known)}s`);
+		if (!known) throw new TargetMissing(`no tool here goes by ${name}`);
+		throw new AccessRefused(`this token may only ${member.permission}, and ${name} ${permissionForTool(known)}s`);
 	}
 	if (!reachesPermission(member.permission, permissionForTool(descriptor))) {
-		error(403, `this token may not ${permissionForTool(descriptor)}`);
+		throw new AccessRefused(`this token may not ${permissionForTool(descriptor)}`);
 	}
 	return descriptor;
 }
@@ -40,38 +42,68 @@ export function descriptorTheTokenReaches(name: string, member: Pick<CallingMemb
 // what runs are the same object rather than two readings of one body.
 export function inputTheToolWillRead(name: string, input: unknown): Record<string, unknown> {
 	if (input !== undefined && (typeof input !== 'object' || input === null || Array.isArray(input))) {
-		error(400, 'input is the object the tool reads');
+		throw new InputRefused('input is the object the tool reads');
 	}
 	const read = toolInputRecovered(name, input);
 	const refusal = refusalOfToolInput(name, read);
-	if (refusal) error(400, refusal);
+	if (refusal) throw new InputRefused(refusal);
 	return read;
 }
 
-export function refusalOfALocalTool(name: string): ToolCallAnswer | null {
-	if (answererOfTool(name) !== 'local') return null;
-	return {
-		status: 400,
-		body: { error: `${name} is answered by a runtime beside the agent, which this API has no way to reach` }
-	};
+function refuseALocalTool(name: string): void {
+	if (answererOfTool(name) !== 'local') return;
+	throw new ToolOutOfReach(`${name} is answered by a runtime beside the agent, which this API has no way to reach`);
 }
 
-export async function toolCalledByMember(
+export function toolCalledByMember(
 	place: ToolPlace,
 	member: CallingMember,
 	name: string,
 	payload: Record<string, unknown>,
 	query = ''
 ): Promise<ToolCallAnswer> {
-	const { environment } = place;
-	const local = refusalOfALocalTool(name);
-	if (local) return local;
+	return answerOrRefusal(() => toolAnswered(place, member, name, payload, query));
+}
 
+export function toolPreviewedByMember(
+	member: CallingMember,
+	name: string,
+	payload: Record<string, unknown>
+): Promise<ToolCallAnswer> {
+	return answerOrRefusal(() => toolPreviewed(member, name, payload));
+}
+
+async function answerOrRefusal(answering: () => Promise<ToolCallAnswer>): Promise<ToolCallAnswer> {
+	try {
+		return await answering();
+	} catch (refusal) {
+		if (refusal instanceof Refusal) return answerOfRefusal(refusal);
+		if (isHttpError(refusal)) return { status: refusal.status, body: refusal.body };
+		throw refusal;
+	}
+}
+
+function toolPreviewed(member: CallingMember, name: string, payload: Record<string, unknown>): Promise<ToolCallAnswer> {
+	descriptorTheTokenReaches(name, member);
+	const input = inputTheToolWillRead(name, payload.input);
+	return previewToolOverTheRecord(member.caller, member.record, member.memberID, name, input, new Date(),
+		workspaceFilesCarriedBy(payload));
+}
+
+async function toolAnswered(
+	place: ToolPlace,
+	member: CallingMember,
+	name: string,
+	payload: Record<string, unknown>,
+	query: string
+): Promise<ToolCallAnswer> {
+	const { environment } = place;
+	refuseALocalTool(name);
 	descriptorTheTokenReaches(name, member);
 	const input = inputTheToolWillRead(name, payload.input);
 
 	if (!recordRunsTheTool(name)) {
-		return callCompany(environment, member.companyID, apiRequestCapability, {
+		const answer = await callCompany(environment, member.companyID, apiRequestCapability, {
 			method: 'POST',
 			path: `/tools/${name}/invoke`,
 			query,
@@ -79,6 +111,7 @@ export async function toolCalledByMember(
 			requester: member.email,
 			payload: { ...payload, input }
 		});
+		return withTheHostRefusalJudged(answer);
 	}
 
 	const answered = await runToolOverTheRecord(
@@ -100,18 +133,18 @@ export async function toolCalledByMember(
 	};
 }
 
-export async function toolAnswerOrRefusal(
-	place: ToolPlace,
-	member: CallingMember,
-	name: string,
-	payload: Record<string, unknown>
-): Promise<ToolCallAnswer> {
-	try {
-		return await toolCalledByMember(place, member, name, payload);
-	} catch (refusal) {
-		if (isHttpError(refusal)) return { status: refusal.status, body: refusal.body };
-		throw refusal;
-	}
+const hostOutcomeSchema = z.object({ outcome: z.string() });
+
+const statusOfARefusingHostOutcome = new Map([
+	['failed', 422],
+	['denied', 403]
+]);
+
+function withTheHostRefusalJudged(answer: ToolCallAnswer): ToolCallAnswer {
+	if (answer.status >= 300) return answer;
+	const answered = hostOutcomeSchema.safeParse(answer.body);
+	const status = answered.success ? statusOfARefusingHostOutcome.get(answered.data.outcome) : undefined;
+	return status ? { status, body: answer.body } : answer;
 }
 
 async function tellTheCompanyWhatItMirrorsChanged(environment: Environment, member: CallingMember, name: string) {

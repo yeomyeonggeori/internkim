@@ -4,6 +4,7 @@ import type { TaskBoardOptions, TaskBoardWeekPosition } from '../../../../routes
 import type { TaskChildProgress } from '../../../../routes/task/task-relationships';
 import { dayShifted, instantOfDay } from './days';
 import { workColumn, type TaskRow } from './tasks';
+import { InputRefused, refusalOfPostgresError } from '../refusal';
 
 export type TaskCardRow = Pick<TaskRow,
 	'id' | 'parent_task_id' | 'title' | 'status' | 'business' | 'type' | 'size' |
@@ -25,7 +26,7 @@ export type TaskBoardWindow = {
 
 export function taskBoardWindow(week: string, timeZone: string, now: Date): TaskBoardWindow {
 	const monday = taskWeekDateFromISO(week);
-	if (!monday || monday.getUTCDay() !== 1) throw new Error('boardWeek must name a Monday as YYYY-MM-DD');
+	if (!monday || monday.getUTCDay() !== 1) throw new InputRefused('boardWeek must name a Monday as YYYY-MM-DD');
 	const current = taskWeekOfDate(now).startISO;
 	const position = week < current ? 'past' : week > current ? 'future' : 'current';
 	return {
@@ -78,7 +79,7 @@ export async function taskChildProgressForBoard(caller: SupabaseClient, taskIDs:
 				.eq(workColumn, true).in('parent_task_id', parentIDs).neq('status', 'stopped')
 				.order('id').range(from, from + rowsPerPage - 1)
 				.returns<{ id: string; parent_task_id: string; status: string }[]>();
-			if (error) throw new Error(error.message);
+			if (error) throw refusalOfPostgresError(error);
 			const children = data ?? [];
 			for (const child of children) {
 				const tally = progress[child.parent_task_id] ?? { completed: 0, total: 0, percent: 0 };

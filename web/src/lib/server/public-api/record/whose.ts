@@ -1,16 +1,12 @@
 import { peopleOfHints, type RecordPerson } from './people';
+import { InputRefused } from '../refusal';
 
-export class WhoseRecordsContradicted extends Error {
-	readonly errorCode = 'whose_records_contradicted';
-	readonly failureStage = 'input_validation';
-	readonly retryable = true;
-	readonly safeRetry = true;
-
+export class WhoseRecordsContradicted extends InputRefused {
 	constructor(readonly field: string) {
 		super(
-			`${field} and scope answer the same question. Name people in ${field} and leave scope out, or set scope to all and leave ${field} out.`
+			`${field} and scope answer the same question. Name people in ${field} and leave scope out, or set scope to all and leave ${field} out.`,
+			'whose_records_contradicted'
 		);
-		this.name = 'WhoseRecordsContradicted';
 	}
 }
 

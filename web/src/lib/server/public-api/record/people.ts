@@ -11,6 +11,7 @@ import {
 	type HintMatcher,
 	type HintSubject
 } from './hint-resolution';
+import { refusalOfPostgresError } from '../refusal';
 
 export type RecordPerson = {
 	personID: string;
@@ -68,7 +69,7 @@ export async function peopleOfCompany(caller: SupabaseClient): Promise<RecordPer
 		.eq('is_in_the_record', true)
 		.order('name')
 		.returns<MemberRow[]>();
-	if (error) throw new Error(error.message);
+	if (error) throw refusalOfPostgresError(error);
 	return (data ?? []).map(recordPersonOf);
 }
 
@@ -79,7 +80,7 @@ export async function peopleOfCompanyByIDs(caller: SupabaseClient, personIDs: st
 		.in('id', personIDs)
 		.eq('is_in_the_record', true)
 		.returns<MemberRow[]>();
-	if (error) throw new Error(error.message);
+	if (error) throw refusalOfPostgresError(error);
 	return (data ?? []).map(recordPersonOf);
 }
 
@@ -110,7 +111,7 @@ export async function personOfCompanyByID(
 		.select(directoryColumns)
 		.eq('id', personID)
 		.maybeSingle<MemberRow>();
-	if (error) throw new Error(error.message);
+	if (error) throw refusalOfPostgresError(error);
 	return data ? recordPersonOf(data) : null;
 }
 

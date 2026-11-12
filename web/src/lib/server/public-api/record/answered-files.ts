@@ -2,6 +2,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { assetBucket } from '../asset-address';
 import { serviceFileNames } from '$lib/data-room/service-files';
 import { newestServiceFile, type KeptServiceFile } from './service-files';
+import { refusalOfServiceError } from '../refusal';
 
 export type AnsweredFile = {
 	name: string;
@@ -48,7 +49,7 @@ function profileIn(body: unknown): Record<string, unknown> {
 async function storedImage(caller: SupabaseClient, kept: KeptServiceFile): Promise<AnsweredFile | undefined> {
 	const { data, error } = await caller.storage.from(assetBucket).download(kept.storagePath);
 	if (error && isWithheldFromTheCaller(error)) return undefined;
-	if (error) throw new Error(`the company image at ${kept.storagePath} could not be read: ${error.message}`);
+	if (error) throw refusalOfServiceError(error, `the company image at ${kept.storagePath} could not be read: ${error.message}`);
 	return {
 		name: `${kept.name}.${kept.extension}`,
 		mimeType: data.type || 'application/octet-stream',

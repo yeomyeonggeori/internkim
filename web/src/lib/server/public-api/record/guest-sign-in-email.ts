@@ -1,7 +1,7 @@
 import { createClient } from '@supabase/supabase-js';
 import { controlPlane, planeCredentialsOf, type PlaneCredentials } from '$lib/server/control-plane';
 import type { ToolPlace } from './company';
-import { RecordRefusedTheWrite } from './tasks';
+import { refusalOfServiceError } from '../refusal';
 
 export type GuestInvitation = {
 	email: string;
@@ -13,7 +13,7 @@ export type GuestInvitation = {
 
 function requiredPlane(place: ToolPlace): PlaneCredentials {
 	const plane = planeCredentialsOf(place.environment);
-	if (!plane) throw new RecordRefusedTheWrite('the central plane is not configured', 503);
+	if (!plane) throw new Error('the central plane is not configured');
 	return plane;
 }
 
@@ -25,7 +25,7 @@ export async function sendGuestSignInEmail(place: ToolPlace, email: string, land
 	const { error } = await sender.auth.signInWithOtp({ email, options: {
 		shouldCreateUser: true, emailRedirectTo: `${place.appAddress}${landingPath}`
 	} });
-	if (error) throw new RecordRefusedTheWrite(error.message, error.status ?? 502);
+	if (error) throw refusalOfServiceError(error);
 }
 
 export async function sendGuestInvitationEmail(place: ToolPlace, invitation: GuestInvitation) {
@@ -34,6 +34,6 @@ export async function sendGuestInvitationEmail(place: ToolPlace, invitation: Gue
 		data: { companyName: invitation.companyName, inviterName: invitation.inviterName, locale: invitation.locale }
 	});
 	if (!error) return;
-	if (error.code !== 'email_exists') throw new RecordRefusedTheWrite(error.message, error.status ?? 502);
+	if (error.code !== 'email_exists') throw refusalOfServiceError(error);
 	await sendGuestSignInEmail(place, invitation.email, invitation.landingPath);
 }

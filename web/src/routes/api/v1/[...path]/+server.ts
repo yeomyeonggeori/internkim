@@ -12,7 +12,6 @@ import {
 } from '$lib/company/company-picture';
 import { attachmentKind, companyPictureKind } from '$lib/server/public-api/asset-address';
 import { companyPictureWritten } from '$lib/server/public-api/company-picture-keep';
-import { RecordRefusedTheWrite } from '$lib/server/public-api/record/tasks';
 import { memberPicturePath } from '$lib/profile/member-picture';
 import { keepTheMemberPicture } from '$lib/server/public-api/member-picture-keep';
 import {
@@ -27,17 +26,11 @@ import {
 	oversizeRefusal,
 	sizeTheHeaderClaims,
 } from '$lib/server/public-api/files';
-import { previewToolOverTheRecord } from '$lib/server/public-api/record';
-import { workspaceFilesCarriedBy } from '$lib/server/public-api/carried-files';
-import {
-	apiRequestCapability,
-	descriptorTheTokenReaches,
-	inputTheToolWillRead,
-	toolCalledByMember
-} from '$lib/server/public-api/tool-call';
+import { apiRequestCapability, toolCalledByMember, toolPreviewedByMember } from '$lib/server/public-api/tool-call';
 import { error, json } from '@sveltejs/kit';
 import { clockAttendance } from '$lib/server/public-api/attendance-clock';
 import type { RequestHandler } from './$types';
+import { Refusal } from '$lib/server/public-api/refusal';
 
 const filesPath = '/files';
 const catalogHeader = 'X-INTERNKIM-CATALOG';
@@ -88,21 +81,9 @@ function previewedToolName(method: string, path: string): string | null {
 }
 
 async function previewHere(request: Request, member: CallingMember, name: string): Promise<Response> {
-	descriptorTheTokenReaches(name, member);
-
 	const payload = await payloadOf(request);
 	if (!payload) error(400, 'this call carried a body that is not a json object');
-	const input = inputTheToolWillRead(name, payload.input);
-
-	const answered = await previewToolOverTheRecord(
-		member.caller,
-		member.record,
-		member.memberID,
-		name,
-		input,
-		new Date(),
-		workspaceFilesCarriedBy(payload)
-	);
+	const answered = await toolPreviewedByMember(member, name, payload);
 	return json(answered.body, { status: answered.status });
 }
 
@@ -256,7 +237,7 @@ async function companyPictureWrittenFor(
 	try {
 		return await companyPictureWritten(member.caller, path);
 	} catch (refusal) {
-		if (refusal instanceof RecordRefusedTheWrite) error(refusal.status, refusal.message);
+		if (refusal instanceof Refusal) error(refusal.status, refusal.message);
 		throw refusal;
 	}
 }

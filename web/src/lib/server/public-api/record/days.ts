@@ -1,3 +1,4 @@
+import { InputRefused } from '../refusal';
 const millisecondsInADay = 24 * 60 * 60 * 1000;
 
 export function dayIn(timezone: string, instant: Date): string {
@@ -99,7 +100,7 @@ export function instantWritten(timezone: string, written: string, endOfDay = fal
 	const asked = written.trim();
 	if (isADay(asked)) return instantOfDay(timezone, asked, endOfDay);
 	const moment = new Date(asked);
-	if (Number.isNaN(moment.getTime())) throw new Error(`${written} is not a date or a moment`);
+	if (Number.isNaN(moment.getTime())) throw new InputRefused(`${written} is not a date or a moment`);
 	return moment.toISOString();
 }
 

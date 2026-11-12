@@ -11,13 +11,13 @@ import {
 } from './crm';
 import { HintRefused } from './hint-resolution';
 import { personOfHint } from './people';
-import { RecordRefusedTheWrite, statusOfPostgresCode } from './tasks';
 import type { RecordContext } from './company';
 import type {
 	CRMRecordImportRecords,
 	CRMRecordImportResult,
 	CRMRecordImportRow
 } from '../catalog/crm';
+import { refusalOfPostgresError } from '../refusal';
 
 type ImportedRowResult = CRMRecordImportResult['rows'][number];
 type Change = Record<string, unknown>;
@@ -257,7 +257,7 @@ async function writeAll(context: RecordContext, table: string, rows: Change[]): 
 	const { error } = await context.caller
 		.from(table)
 		.upsert(rows, { onConflict: 'id', defaultToNull: false });
-	if (error) throw new RecordRefusedTheWrite(error.message, statusOfPostgresCode(error.code));
+	if (error) throw refusalOfPostgresError(error);
 }
 
 function counted(checked: CheckedRow[], outcome: ImportedRowResult['outcome']): number {
