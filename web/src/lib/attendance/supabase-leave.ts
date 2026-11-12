@@ -1,4 +1,3 @@
-import { announceToTheCompany } from './announce-attendance';
 import { invokeTool, ToolRefused } from '$lib/public-api-call';
 import {
 	companyDirectory,
@@ -165,7 +164,6 @@ export async function createSupabaseLeaveRequest(request: EmployeeLeaveSubmissio
 		days: preview.totalDeductionMilliDays / 1000,
 		note: request.reason
 	});
-	void announceToTheCompany('leave');
 }
 
 export async function cancelSupabaseLeaveRequest(requestID: string): Promise<void> {
