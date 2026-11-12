@@ -32,7 +32,9 @@ func TestAPrivateRoomNobodyIsLeftInIsRetiredAndNoOtherRoomIs(t *testing.T) {
 		}
 	}
 
-	retirePrivateRoomsNobodyIsIn(context.Background(), relay)
+	if errorValue := retirePrivateRoomsNobodyIsIn(context.Background(), relay); errorValue != nil {
+		t.Fatalf("the rooms were not all retired: %v", errorValue)
+	}
 
 	for room, shouldBeRetired := range map[string]bool{
 		neverHadAnybody: true,

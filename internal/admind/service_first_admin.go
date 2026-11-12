@@ -8,7 +8,6 @@ import (
 	"log"
 	"net/http"
 	"os"
-	"os/exec"
 	"path/filepath"
 
 	"strings"
@@ -137,7 +136,6 @@ func (service *Service) ensureFirstAdminAccount(ctx context.Context, email strin
 	if errorValue := service.claimBlueclawAdminPerson(ctx, email); errorValue != nil {
 		return firstAdminBootstrapResult{}, errorValue
 	}
-	service.triggerUsersSync(ctx)
 	return firstAdminBootstrapResult{
 		Email:         email,
 		Status:        firstAdminBootstrapClaimed,
@@ -265,17 +263,6 @@ func (service *Service) blueclawJSONRequest(ctx context.Context, method string, 
 	}
 	responseDocument, _ := io.ReadAll(io.LimitReader(response.Body, 4096))
 	return fmt.Errorf("Blueclaw %s %s returned %d: %s", method, path, response.StatusCode, strings.TrimSpace(string(responseDocument)))
-}
-
-func (service *Service) triggerUsersSync(ctx context.Context) {
-	if service.RunCommand == nil {
-		if _, errorValue := exec.LookPath("systemctl"); errorValue != nil {
-			return
-		}
-	}
-	if _, errorValue := service.runCommand(ctx, "systemctl", "start", "internkim-users-sync.service"); errorValue != nil {
-		log.Printf("users sync trigger failed: %v", errorValue)
-	}
 }
 
 func (service *Service) firstAdminBootstrapPath() string {

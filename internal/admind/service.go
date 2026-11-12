@@ -33,7 +33,7 @@ type Service struct {
 	RunCommand    func(context.Context, string, ...string) ([]byte, error)
 
 	mutex                   sync.Mutex
-	circleChannelKeeping    sync.Mutex
+	directoryApplying       sync.Mutex
 	centralPlaneOnce        sync.Once
 	centralPlaneClient      *centralplane.Client
 	mattermostAdminOnce     sync.Once
@@ -119,7 +119,7 @@ func (service *Service) startBackgroundWork(ctx context.Context) {
 		go service.keepMailAnnounced(ctx)
 	}
 	service.startPersonaSync(ctx)
-	service.startBlueclawRosterReconcile(ctx)
+	service.startDirectoryApplying(ctx)
 	service.startCalendarSweep(ctx)
 	service.startOrganizationSweep(ctx)
 	service.startCompanyProfileSweep(ctx)
@@ -127,13 +127,9 @@ func (service *Service) startBackgroundWork(ctx context.Context) {
 	service.startMailAccountSweep(ctx)
 	service.startTaskSweep(ctx)
 	service.startBuzzMemberLinker(ctx)
-	service.startBuzzCredentialSweep(ctx)
 	go service.sayIfTheRelayIsOpen(ctx)
 	go service.keepHostUpdateReported(ctx)
-	service.startBuzzAccountLinkSync(ctx)
-	service.startMemberChannelMembershipSync(ctx)
 	service.startJoiningNoticePruning(ctx)
-	service.startCircleChannelSync(ctx)
 }
 
 func (service *Service) startRequesterSocketListener(socketServer *http.Server) error {

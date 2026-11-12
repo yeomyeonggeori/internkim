@@ -1,12 +1,10 @@
 package admind
 
 import (
-	"context"
-	"errors"
+	"encoding/json"
 	"net/http"
-	"sync/atomic"
+	"slices"
 	"testing"
-	"time"
 )
 
 func serviceWhoseDirectorySays(t *testing.T, members string) *Service {
@@ -33,10 +31,37 @@ func serviceWhoseDirectorySays(t *testing.T, members string) *Service {
 	return service
 }
 
+func messengerKeysRecordedFor(t *testing.T, service *Service) []string {
+	t.Helper()
+	recorded := []string{}
+	answering := service.HTTPClient.Transport
+	service.HTTPClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+		if request.URL.Path == "/api/agent/messenger-credential" {
+			var credential struct {
+				MemberID string `json:"memberID"`
+			}
+			if errorValue := json.NewDecoder(request.Body).Decode(&credential); errorValue != nil {
+				t.Fatalf("decode the recorded credential: %v", errorValue)
+			}
+			recorded = append(recorded, credential.MemberID)
+		}
+		return answering.RoundTrip(request)
+	})}
+	client := service.centralPlane()
+	members, errorValue := client.Members(t.Context())
+	if errorValue != nil {
+		t.Fatalf("read the directory: %v", errorValue)
+	}
+	if errorValue := service.recordMessengerKeys(t.Context(), client, members); errorValue != nil {
+		t.Fatalf("the messenger keys were not all recorded: %v", errorValue)
+	}
+	return recorded
+}
+
 // Somebody is invited today and signs in tomorrow. The key their messenger
 // knows them by was derived only for members already active, so the invitation
-// recorded nothing, and the sweep that would have caught up did not exist: the
-// agent could not tell who they were when they arrived.
+// recorded nothing, and the agent could not tell who they were when they
+// arrived.
 func TestAnInvitedMemberIsGivenTheirKeyBeforeTheyArrive(t *testing.T) {
 	service := serviceWhoseDirectorySays(t, `{"members":[
 		{"memberID":"member-1","email":"invited@example.com","name":"이샘플","role":"member","status":"invited"},
@@ -44,13 +69,10 @@ func TestAnInvitedMemberIsGivenTheirKeyBeforeTheyArrive(t *testing.T) {
 		{"memberID":"member-3","email":"active@example.com","name":"최견본","role":"member","status":"active"}
 	]}`)
 
-	recording := service.recordBuzzCredentials(t.Context())
+	recorded := messengerKeysRecordedFor(t, service)
 
-	if recording.Kept != 3 {
-		t.Fatalf("a colleague who has not signed in yet was passed over: %s", recording)
-	}
-	if recording.Skipped != 0 {
-		t.Fatalf("nobody in this directory should have been passed over: %s", recording)
+	if !slices.Equal(recorded, []string{"member-1", "member-2", "member-3"}) {
+		t.Fatalf("a colleague who has not signed in yet was passed over: %v", recorded)
 	}
 }
 
@@ -60,48 +82,7 @@ func TestSomebodyWhoLeftIsGivenNoKey(t *testing.T) {
 		{"memberID":"member-2","email":"withdrawn@example.com","name":"박예시","role":"member","status":"withdrawn"}
 	]}`)
 
-	recording := service.recordBuzzCredentials(t.Context())
-
-	if recording.Kept != 0 {
-		t.Fatalf("a former colleague was given a key: %s", recording)
-	}
-	if recording.Skipped != 2 {
-		t.Fatalf("both should have been passed over: %s", recording)
-	}
-}
-
-func TestTheStartupSweepRecordsKeysOnceBlueclawAnswersRatherThanAtTheNextTick(t *testing.T) {
-	firstWaitForBlueclaw, longestWaitForBlueclaw = 10*time.Millisecond, 20*time.Millisecond
-	t.Cleanup(func() { firstWaitForBlueclaw, longestWaitForBlueclaw = 250*time.Millisecond, 5*time.Second })
-	refusalsLeft := atomic.Int32{}
-	refusalsLeft.Store(3)
-	kept := atomic.Int32{}
-	service := serviceWhoseDirectorySays(t, `{"members":[
-		{"memberID":"member-1","email":"active@example.com","name":"최견본","role":"member","status":"active"}
-	]}`)
-	answering := service.HTTPClient.Transport
-	service.HTTPClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
-		if request.URL.Host == "blueclaw.local" && refusalsLeft.Load() > 0 {
-			if request.URL.Path == "/admin/api/health" {
-				refusalsLeft.Add(-1)
-			}
-			return nil, errors.New("connection refused")
-		}
-		if request.URL.Path == "/api/agent/messenger-credential" {
-			kept.Add(1)
-		}
-		return answering.RoundTrip(request)
-	})}
-	ctx, stop := context.WithCancel(t.Context())
-	defer stop()
-
-	service.startBuzzCredentialSweep(ctx)
-
-	deadline := time.Now().Add(2 * time.Second)
-	for kept.Load() == 0 && time.Now().Before(deadline) {
-		time.Sleep(10 * time.Millisecond)
-	}
-	if kept.Load() == 0 {
-		t.Fatal("blueclaw came up and nobody's key was recorded, so members wait for the next sweep to message the agent")
+	if recorded := messengerKeysRecordedFor(t, service); len(recorded) != 0 {
+		t.Fatalf("a former colleague was given a key: %v", recorded)
 	}
 }

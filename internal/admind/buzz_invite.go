@@ -8,6 +8,7 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
+	"fmt"
 	"log"
 	"net/http"
 	"net/url"
@@ -282,36 +283,12 @@ func (service *Service) startBuzzMemberLinker(ctx context.Context) {
 	}()
 }
 
-func (service *Service) startBuzzAccountLinkSync(ctx context.Context) {
-	if strings.TrimSpace(service.Configuration.BuzzAccountLinksPath) == "" || service.buzzKeySeed() == "" {
-		return
-	}
-	go func() {
-		service.linkDeterministicBuzzPeople(ctx)
-		ticker := time.NewTicker(buzzMemberPollInterval)
-		defer ticker.Stop()
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case <-ticker.C:
-				service.linkDeterministicBuzzPeople(ctx)
-			}
-		}
-	}()
-}
-
-func (service *Service) linkDeterministicBuzzPeople(ctx context.Context) {
-	if service.buzzKeySeed() == "" {
-		return
-	}
+func (service *Service) linkDeterministicBuzzPeople(ctx context.Context) error {
 	emails, errorValue := service.allMemberEmails(ctx)
 	if errorValue != nil {
-		log.Printf("buzz people links: nobody is linked this pass, %v", errorValue)
-		return
+		return errorValue
 	}
 	derivedLinks := map[string]string{}
-	var derivedPubkeys []string
 	for _, email := range emails {
 		secretHex := service.buzzSecretForEmail(ctx, email)
 		if secretHex == "" {
@@ -319,35 +296,28 @@ func (service *Service) linkDeterministicBuzzPeople(ctx context.Context) {
 		}
 		pubkey, errorValue := buzzPublicKey(secretHex)
 		if errorValue != nil {
-			continue
+			return fmt.Errorf("the key for %s has no public half: %w", email, errorValue)
 		}
 		derivedLinks[pubkey] = email
-		derivedPubkeys = append(derivedPubkeys, pubkey)
-	}
-	if len(derivedLinks) == 0 {
-		return
 	}
 	store := service.buzzStore()
 	store.mutex.Lock()
-	var newlyLinked []string
+	isChanged := false
 	for pubkey, email := range derivedLinks {
 		if store.state.Links[pubkey] == email {
 			continue
 		}
 		store.state.Links[pubkey] = email
-		newlyLinked = append(newlyLinked, pubkey)
+		isChanged = true
 	}
-	if len(newlyLinked) > 0 {
+	if isChanged {
 		store.save()
 	}
 	store.mutex.Unlock()
-	if len(newlyLinked) > 0 {
+	if isChanged {
 		service.writeBuzzAccountLinksFile()
 	}
-	// Everyone derived, not only whoever was new this pass: the link is written
-	// once and the grant it used to carry could fail, which left the person
-	// named and locked out with nothing scheduled to notice.
-	service.letOntoTheRelay(ctx, derivedPubkeys)
+	return nil
 }
 
 func (service *Service) linkClaimedBuzzMembers(ctx context.Context) {

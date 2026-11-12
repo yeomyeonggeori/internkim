@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/hex"
+	"fmt"
 	"log"
 	"net/http"
 	"strings"
@@ -277,33 +278,26 @@ func (service *Service) membersNobodyAccountsFor(ctx context.Context, database *
 // pasting one into settings — and it appears in the people list as somebody who
 // can be mentioned and cannot be reached. Waiting for a person to notice is how
 // one colleague came to be in the messenger twice.
-func (service *Service) showOutWhoeverNobodyNames(ctx context.Context) {
-	seed := service.buzzKeySeed()
-	if seed == "" {
-		return
-	}
+func (service *Service) showOutWhoeverNobodyNames(ctx context.Context) error {
 	relay, errorValue := service.buzzDatabase()
 	if errorValue != nil {
-		log.Printf("buzz: the community could not be read: %v", errorValue)
-		return
+		return errorValue
 	}
-
-	unaccounted, errorValue := service.membersNobodyAccountsFor(ctx, relay, seed)
+	unaccounted, errorValue := service.membersNobodyAccountsFor(ctx, relay, service.buzzKeySeed())
 	if errorValue != nil {
-		log.Printf("buzz: nobody is shown out, %v", errorValue)
-		return
+		return errorValue
 	}
 	if len(unaccounted) == 0 {
-		return
+		return nil
 	}
 	removed, errorValue := service.removeUnaccountedMemberships(ctx, relay, unaccounted)
 	if errorValue != nil {
-		log.Printf("buzz: showing out a key nobody names failed: %v", errorValue)
-		return
+		return fmt.Errorf("showing out a key nobody names: %w", errorValue)
 	}
 	if removed > 0 {
 		log.Printf("buzz: showed out %d seat(s) held by keys nobody names, of %d found", removed, len(unaccounted))
 	}
+	return nil
 }
 
 func keysThatSaidNothing(ctx context.Context, database *sql.DB, pubkeys []string) ([]string, error) {

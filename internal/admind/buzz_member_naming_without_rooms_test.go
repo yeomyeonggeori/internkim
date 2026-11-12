@@ -8,7 +8,6 @@ import (
 	"strings"
 	"sync"
 	"testing"
-	"time"
 
 	"github.com/coder/websocket"
 	nostr "github.com/nbd-wtf/go-nostr"
@@ -106,20 +105,12 @@ func requireTheSampleNamed(t *testing.T, service *Service, heard *profilesHeardB
 	}
 }
 
-func TestADirectoryChangeNamesMembersWhenTheCompanyHasNoOpenRoom(t *testing.T) {
+func TestTheDirectoryNamesMembersWhenTheCompanyHasNoOpenRoom(t *testing.T) {
 	service, heard := serviceNamingTheSampleWithNoOpenRoom(t)
 
-	service.handleDirectoryChanged(httptest.NewRecorder(), httptest.NewRequest(http.MethodPost, "/admin/api/directory/changed", nil))
-
-	requireTheSampleNamed(t, service, heard)
-}
-
-func TestTheMembershipPassNamesMembersWhenTheCompanyHasNoOpenRoom(t *testing.T) {
-	service, heard := serviceNamingTheSampleWithNoOpenRoom(t)
-	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
-	defer cancel()
-
-	service.runMembershipPass(ctx)
+	if errorValue := service.nameEveryoneTheDirectoryNames(context.Background()); errorValue != nil {
+		t.Fatalf("the directory's names were not applied: %v", errorValue)
+	}
 
 	requireTheSampleNamed(t, service, heard)
 }
