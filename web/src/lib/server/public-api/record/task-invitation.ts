@@ -23,8 +23,7 @@ async function recordCall(client: SupabaseClient, name: string, parameters: Reco
 	throw refusalOfPostgresError(error);
 }
 
-export async function taskInvite(context: RecordContext, value: unknown, place: ToolPlace) {
-	const invitation = taskInviteInputSchema.parse(value);
+export async function taskInvite(context: RecordContext, invitation: z.infer<typeof taskInviteInputSchema>, place: ToolPlace) {
 	const invitationID = z.string().uuid().parse(await recordCall(context.caller, 'task_invite', {
 		target_company: context.companyID,
 		recipient_email: invitation.email,
@@ -61,8 +60,7 @@ export async function taskInvitationList(context: RecordContext) {
 	});
 }
 
-export async function taskInvitationDelete(context: RecordContext, value: unknown) {
-	const { invitationID } = taskInvitationDeleteInputSchema.parse(value);
+export async function taskInvitationDelete(context: RecordContext, { invitationID }: z.infer<typeof taskInvitationDeleteInputSchema>) {
 	await recordCall(context.caller, 'task_invitation_revoke', { target_invitation: invitationID });
 	return { invitationID };
 }

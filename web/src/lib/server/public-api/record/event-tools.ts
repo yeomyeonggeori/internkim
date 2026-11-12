@@ -1,3 +1,5 @@
+import type { z } from 'zod';
+import type { calendarListInputSchema } from '../catalog/tools';
 import { sizeOfHours, sizeOfWholeDays } from '$lib/task/task-sizes';
 import { personName } from '$lib/person-name';
 import {
@@ -315,17 +317,7 @@ export async function eventDelete(
 	return { eventID: row.id, deleted: true };
 }
 
-export type EventListInput = {
-	startsAt?: string;
-	endsAt?: string;
-	weekFrom?: number;
-	weekTo?: number;
-	query?: string;
-	personHints?: string[];
-	scope?: string;
-	limit?: number;
-	cursor?: string;
-};
+export type EventListInput = z.infer<typeof calendarListInputSchema>;
 
 const entriesByStart = {
 	positionOf: (entry: CompanyCalendarEntry) => [entry.startISO, entry.source, entry.id],

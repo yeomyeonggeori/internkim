@@ -609,11 +609,11 @@ describe('the activities recorded against a deal', () => {
 		const calendar = await asSample('event_list', { weekFrom: 0, scope: 'all' });
 		expect((resultOf(calendar).events as { eventID: string }[]).map((event) => event.eventID)).toContain(activityID);
 
-		const edited = await asSample('task_update', { taskHint: activityID, note: '보드에서 고쳤다' });
+		const edited = await asSample('task_update', { taskHint: activityID, title: '보드에서 고친 방문' });
 		expect(edited.status).toBe(200);
 		const listed = activitiesOf(await asSample('crm_activity_list', { organizationHint: 'ABC상사' }));
 		const held = listed.find((activity) => activity.activityID === activityID);
-		expect(held?.content).toBe('보드에서 고쳤다');
+		expect(held?.title).toBe('보드에서 고친 방문');
 		expect(held?.isEvent).toBe(true);
 	});
 

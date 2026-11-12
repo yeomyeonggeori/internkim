@@ -5,6 +5,7 @@ import { projectURL, publishableKey, serviceRoleKey, signingKey } from '../suppo
 import catalog from '../../../pkg/capabilityprotocol/generated/capability-tools.json';
 import { dayIn } from '../../src/lib/server/public-api/record/days';
 import { toolInputRecovered } from '../../src/lib/server/public-api/tool-input';
+import { capabilityToolInputSchema } from '../../src/lib/server/public-api/catalog/tools';
 import { taskOf } from '../../src/lib/task/task-state';
 import { taskWeekOfDate } from '../../src/lib/task/task-week-code';
 import type { RecordTask } from '../../src/lib/task/task-record';
@@ -21,7 +22,8 @@ const {
 	runToolOverTheRecord,
 	recordRunsTheTool,
 	toolsTheRecordRuns,
-	recordToolsWithoutAnImplementation
+	recordToolsWithoutAnImplementation,
+	inputSchemaTheRecordReads
 } = await import('../../src/lib/server/public-api/record');
 
 const networkHookTimeout = 60_000;
@@ -115,6 +117,13 @@ describe('which tools run over the record', () => {
 		expect(recordToolsWithoutAnImplementation()).toEqual([]);
 	});
 
+	test('each read their input with the schema the catalog publishes for them, and no copy of it', () => {
+		const readWithAnotherSchema = toolsTheRecordRuns().filter(
+			(name) => inputSchemaTheRecordReads(name) !== capabilityToolInputSchema(name)
+		);
+		expect(readWithAnotherSchema).toEqual([]);
+	});
+
 	test('leave the tools the company machine runs to it', () => {
 		for (const tool of catalog.tools) {
 			expect(recordRunsTheTool(tool.name)).toBe(tool.answeredBy === 'record');
@@ -125,10 +134,18 @@ describe('which tools run over the record', () => {
 describe('a tool that breaks while it runs', () => {
 	test('answers 500, because the fault is the server\'s and not the caller\'s', async () => {
 		const answered = await runToolOverTheRecord(
-			caller, client, sampleID, 'task_add', { title: 7 }, new Date(), leavesTaskLabelsUndecided
+			caller, client, sampleID, 'calendar_subscription_add', {}, new Date(), leavesTaskLabelsUndecided
 		);
 		expect(answered.status).toBe(500);
-		expect((answered.body as { error: string }).error).toContain('task_add failed');
+		expect((answered.body as { error: string }).error).toContain('calendar_subscription_add failed');
+	});
+
+	test('is refused 400 for an input its schema does not take, before anything runs', async () => {
+		const answered = await runToolOverTheRecord(
+			caller, client, sampleID, 'task_add', { title: 7 }, new Date(), leavesTaskLabelsUndecided
+		);
+		expect(answered.status).toBe(400);
+		expect(answered.body).toMatchObject({ errorCode: 'invalid_input', retryable: true });
 	});
 });
 
@@ -254,9 +271,9 @@ describe('a task written through the record', () => {
 		const drafts: TaskLabelDraft[] = [];
 		const decided: DecidedTaskLabels = { business: '영업', type: '문서', size: 'L' };
 		const made = resultOf(
-			await runDecidingLabels('task_add', { title: '거래처 제안서 작성', note: '다음 주 발표용' }, decided, drafts)
+			await runDecidingLabels('task_add', { title: '거래처 제안서 작성' }, decided, drafts)
 		);
-		expect(drafts).toEqual([{ title: '거래처 제안서 작성', note: '다음 주 발표용' }]);
+		expect(drafts).toEqual([{ title: '거래처 제안서 작성', note: '' }]);
 		expect(made.business).toBe('영업');
 		expect(made.type).toBe('문서');
 		expect(made.size).toBe('L');
@@ -518,12 +535,12 @@ describe('task_list', () => {
 			endsAt: dayAround(31)
 		});
 		await run('task_add', { title: `${prefix} 진행 중 업무`, status: 'in_progress' });
-		await run('task_add', { title: `${prefix} 요청된 업무`, status: 'requested' });
+		await run('task_add', { title: `${prefix} 요청된 업무`, participantPersonHints: ['박예시'] });
 		const paused = resultOf(await run('task_add', { title: `${prefix} 멈춘 업무` }));
 		await run('task_update', { taskHint: paused.taskID, status: 'paused' });
 		await run('task_add', { title: `${prefix} 완료된 업무`, status: 'completed' });
 
-		const limited = resultOf(await run('task_list', { query: slug, everyWeek: true, limit: 1 }));
+		const limited = resultOf(await run('task_list', { query: slug, scope: 'all', everyWeek: true, limit: 1 }));
 		expect(limited.count).toBe(1);
 		expect(limited.unfinishedCount).toBe(5);
 	});
@@ -1037,7 +1054,7 @@ describe('what the board reads a task by', () => {
 	});
 
 	test('is also who asked, on the work that was asked of somebody', async () => {
-		await run('task_add', { title: '박예시에게 부탁한 일', status: 'requested', participantPersonHints: ['박예시'] });
+		await run('task_add', { title: '박예시에게 부탁한 일', participantPersonHints: ['박예시'] });
 
 		const listed = resultOf(await run('task_list', { scope: 'all', everyWeek: true }));
 		const asked = (listed.tasks as Record<string, string>[]).find((task) => task.content === '박예시에게 부탁한 일');

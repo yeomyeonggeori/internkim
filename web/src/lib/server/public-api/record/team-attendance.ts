@@ -1,9 +1,11 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { attendanceTeamPageInputSchema, attendanceTeamPageSchema } from '$lib/attendance/team-page';
+import type { z } from 'zod';
+import { attendanceTeamPageSchema, type attendanceTeamPageInputSchema } from '$lib/attendance/team-page';
 import { refusalOfPostgresError } from '../refusal';
 
-export async function teamAttendance(caller: SupabaseClient, untrustedInput: Record<string, unknown>) {
-	const input = attendanceTeamPageInputSchema.parse(untrustedInput);
+type TeamAttendanceInput = z.infer<typeof attendanceTeamPageInputSchema>;
+
+export async function teamAttendance(caller: SupabaseClient, input: TeamAttendanceInput) {
 	const { data, error } = await caller.rpc('attendance_team_page', {
 		page_kind: input.pageKind,
 		team_offset: input.teamOffset ?? 0,
@@ -19,7 +21,7 @@ export async function teamAttendance(caller: SupabaseClient, untrustedInput: Rec
 	return attendanceTeamPageSchema.parse(data);
 }
 
-export async function legacyTeamAttendance(caller: SupabaseClient, input: Record<string, unknown>) {
- const answer=await teamAttendance(caller,input);
- return attendanceTeamPageSchema.omit({companyName:true,companySummary:true}).strip().parse(answer);
+export async function legacyTeamAttendance(caller: SupabaseClient, input: TeamAttendanceInput) {
+	const answer = await teamAttendance(caller, input);
+	return attendanceTeamPageSchema.omit({ companyName: true, companySummary: true }).strip().parse(answer);
 }

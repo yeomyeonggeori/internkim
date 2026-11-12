@@ -1,3 +1,5 @@
+import type { z } from 'zod';
+import type { teamAddInputSchema, teamDeleteInputSchema, teamUpdateInputSchema } from '../catalog/people';
 import { WriteNotReadBack } from './tasks';
 import type { TeamDeleteResult, TeamListResult, TeamResult } from '../catalog/people';
 import type { RecordContext } from './company';
@@ -5,16 +7,11 @@ import type { RecordPerson } from './people';
 import { teamOfHint, teamsOfCompany, type RecordTeam } from './teams';
 import { InputRefused, refusalOfPostgresError } from '../refusal';
 
-export type TeamAddInput = { name?: string; parentHint?: string; position?: number };
+export type TeamAddInput = z.infer<typeof teamAddInputSchema>;
 
-export type TeamUpdateInput = {
-	teamHint?: string;
-	name?: string;
-	parentHint?: string;
-	position?: number;
-};
+export type TeamUpdateInput = z.infer<typeof teamUpdateInputSchema>;
 
-export type TeamDeleteInput = { teamHint?: string };
+export type TeamDeleteInput = z.infer<typeof teamDeleteInputSchema>;
 
 function answeredTeam(team: RecordTeam, teams: RecordTeam[], people: RecordPerson[]): TeamResult {
 	const parent = teams.find((candidate) => candidate.teamID === team.parentTeamID);

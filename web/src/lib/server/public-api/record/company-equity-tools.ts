@@ -1,25 +1,19 @@
+import type { z } from 'zod';
+import type { companyEquityAddInputSchema, companyEquityDeleteInputSchema, companyEquityListInputSchema } from '../catalog/company';
 import { HintRefused } from './hint-resolution';
 import { refuseUnlessTheRequesterAdministers } from './people-tools';
-import { fundingRecordOfHint, orNull, textOf } from './company-ledger-tools';
+import { fundingRecordOfHint, orNull } from './company-ledger-tools';
 import type { RecordContext } from './company';
 import type { CompanyEquityEntryResult, CompanyEquityListResult } from '../catalog/company';
 import { InputRefused, refusalOfPostgresError } from '../refusal';
 
 type HolderKind = CompanyEquityEntryResult['holderKind'];
 
-export type CompanyEquityAddInput = {
-	effectiveDate?: string;
-	holder?: string;
-	holderKind?: HolderKind;
-	securityClass?: string;
-	shares?: number;
-	fundingRoundHint?: string;
-	note?: string;
-};
+export type CompanyEquityAddInput = z.infer<typeof companyEquityAddInputSchema>;
 
-export type CompanyEquityListInput = { asOfDate?: string; holder?: string };
+export type CompanyEquityListInput = z.infer<typeof companyEquityListInputSchema>;
 
-export type CompanyEquityDeleteInput = { entryHint?: string };
+export type CompanyEquityDeleteInput = z.infer<typeof companyEquityDeleteInputSchema>;
 
 type EquityEntryRow = {
 	id: string;
@@ -37,14 +31,13 @@ const onlyAnAdministratorKeepsTheLedger = 'only an administrator keeps the equit
 
 export async function companyEquityAdd(context: RecordContext, input: CompanyEquityAddInput): Promise<CompanyEquityEntryResult> {
 	if (!input.shares) throw new InputRefused('an equity line moves some shares; zero is not a line');
-	if (!input.holderKind) throw new InputRefused('an equity line says what kind of holder it is');
 	const fundingRecordID = input.fundingRoundHint ? (await fundingRecordOfHint(context, input.fundingRoundHint)).id : null;
 	const { data, error } = await context.caller
 		.from('company_equity_entry')
 		.insert({
 			company_id: context.companyID,
-			effective_on: textOf(input.effectiveDate, 'an equity line says the day it took effect'),
-			holder: textOf(input.holder, 'an equity line names its holder'),
+			effective_on: input.effectiveDate,
+			holder: input.holder,
 			holder_kind: input.holderKind,
 			security_class: orNull(input.securityClass) ?? 'common',
 			shares: input.shares,
@@ -70,7 +63,7 @@ export async function companyEquityList(context: RecordContext, input: CompanyEq
 }
 
 export async function companyEquityDelete(context: RecordContext, input: CompanyEquityDeleteInput): Promise<CompanyEquityEntryResult> {
-	const asked = textOf(input.entryHint, 'this call names the equity line it deletes');
+	const asked = input.entryHint;
 	const { data, error } = await context.caller
 		.from('company_equity_entry')
 		.delete()

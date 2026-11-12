@@ -1,3 +1,5 @@
+import type { z } from 'zod';
+import type { crmActivitySaveInputSchema } from '../catalog/crm';
 import { activityDatesAnswered, activityDatesWritten } from './crm-activity-dates';
 import { opportunityOfCRMHint, organizationOfCRMHint } from './crm-tools';
 import { locationNameOf } from './event-tools';
@@ -8,25 +10,7 @@ import type { RecordContext } from './company';
 import type { CRMActivityListInput, CRMActivityListResult, CRMActivityResult, CRMActivitySaveResult } from '../catalog/crm';
 import { InputRefused } from '../refusal';
 
-export type CRMActivitySaveInput = {
-	activityHint?: string;
-	organizationHint?: string;
-	opportunityHint?: string;
-	contactHint?: string;
-	title?: string;
-	kind?: string;
-	business?: string;
-	note?: string;
-	status?: string;
-	participantPersonHints?: string[];
-	ownerPersonHint?: string;
-	isEvent?: boolean;
-	isWholeDay?: boolean;
-	startsAt?: string;
-	endsAt?: string;
-	location?: string;
-	notifyMinutesBefore?: number;
-};
+export type CRMActivitySaveInput = z.infer<typeof crmActivitySaveInputSchema>;
 
 function participantHintsOf(input: CRMActivitySaveInput): string[] | undefined {
 	if (input.participantPersonHints?.length) return input.participantPersonHints;

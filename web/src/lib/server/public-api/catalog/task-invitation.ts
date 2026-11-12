@@ -6,6 +6,8 @@ export { taskInvitationListResultSchema };
 
 const invitationIDSchema = z.string().uuid();
 
+export const taskInvitationListInputSchema = z.strictObject({});
+
 export const taskInviteInputSchema = z.strictObject({
 	email: z.string().regex(/^[^\s@]+@[^\s@]+\.[^\s@]+$/).describe('The address of the person outside the company who is invited.'),
 	businesses: z.array(z.string().min(1)).min(1)
@@ -48,7 +50,7 @@ export const taskInvitationToolDefinitions: CapabilityToolDefinition[] = [
 		policyResource: 'tool:task_invitation_list',
 		description: 'List the open task invitations that let people outside the company read the tasks of named businesses, with when each was accepted. Only a company administrator sees them.',
 		estimatedLatency: CapabilityEstimatedLatency.Low,
-		inputSchema: z.strictObject({}),
+		inputSchema: taskInvitationListInputSchema,
 		result: { schema: taskInvitationListResultSchema, effects: [] },
 		sideEffect: CapabilitySideEffect.Read
 	},
