@@ -23,7 +23,7 @@ import {
 	type ARecordingMessenger
 } from './a-messenger-nobody-runs';
 import { aModelNobodyPaysFor, type AModelNobodyPaysFor } from './a-model-nobody-pays-for';
-import { theArgumentsThatStart, theCommandThatStarts } from '../support/the-package-units';
+import { theArgumentsThatStart, theCommandThatStarts, thePackageValueOf } from '../support/the-package-units';
 
 const repositoryRoot = join(import.meta.dir, '..', '..', '..');
 
@@ -85,6 +85,7 @@ type BlueclawPlaneArguments = {
 	policyPath: string;
 	acpSocketPath: string;
 	inbound: string;
+	fileJournalSocketPath: string;
 };
 
 type AdmindPlaneArguments = {
@@ -156,7 +157,8 @@ export function blueclawArgumentsForPlane(argumentsForPlane: BlueclawPlaneArgume
 		'-runtime': argumentsForPlane.runtimeConfigurationPath,
 		'-policy': argumentsForPlane.policyPath,
 		'-acp-socket': argumentsForPlane.acpSocketPath,
-		'-inbound': argumentsForPlane.inbound
+		'-inbound': argumentsForPlane.inbound,
+		'-file-journal-socket': argumentsForPlane.fileJournalSocketPath
 	});
 }
 
@@ -540,6 +542,16 @@ export async function aCompanyPlane(request: PlaneRequest = {}): Promise<ACompan
 			throw new Error(`render-company-runtime failed: ${render.stderr.toString()}`);
 		}
 
+		const fileJournalSocketPath = thePackageValueOf('blueclaw', '-file-journal-socket');
+		mkdirSync(dirname(fileJournalSocketPath), { recursive: true, mode: 0o755 });
+		const fileJournal = Bun.spawn([join(binaryDirectory, 'internkim-host'), 'file-follow'], {
+			...logsTo(join(runDirectory, 'file-follow.log')),
+			cwd: runDirectory,
+			env: theBoxEnvironment()
+		});
+		started.push(fileJournal);
+		await untilReady('the file journal', async () => existsSync(fileJournalSocketPath), 30, fileJournal);
+
 		const startBlueclaw = () =>
 			Bun.spawn(
 				[
@@ -549,7 +561,8 @@ export async function aCompanyPlane(request: PlaneRequest = {}): Promise<ACompan
 						runtimeConfigurationPath,
 						policyPath,
 						acpSocketPath: blueclawACPSocketPath,
-						inbound: request.inbound ?? 'acp'
+						inbound: request.inbound ?? 'acp',
+						fileJournalSocketPath
 					})
 				],
 				{
