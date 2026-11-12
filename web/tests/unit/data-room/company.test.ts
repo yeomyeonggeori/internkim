@@ -23,9 +23,9 @@ import {
 , type CompanyFactGroup } from '../../../src/lib/data-room/company';
 
 const metric = (year: number, value: number, quarter?: number): CompanyMetric => ({
-	metric: 'annualRevenue', period: quarter ? `${year}-Q${quarter}` : String(year), amount: { amount: value, currency: 'KRW' }
+	metric: 'annualRevenue', period: quarter ? `${year}-Q${quarter}` : String(year), amount: { amount: value, currency: 'KRW' }, basis: 'reported'
 });
-const forecast = (year: number, value: number): CompanyMetric => ({ ...metric(year, value), recordedAt: `${year}-10-21T01:00:00Z` });
+const forecast = (year: number, value: number): CompanyMetric => ({ ...metric(year, value), basis: 'expected' });
 
 describe('the company a data room shows', () => {
 	test('reads what the database answers, nothing shown included', () => {
@@ -77,13 +77,11 @@ describe('the company a data room shows', () => {
 		expect(metricBars(series, 5, 'en').bars.map((bar) => [bar.period, bar.isProjected])).toEqual([['2024', false], ['2025', false], ['2026', true]]);
 	});
 
-	test('reads a value recorded before its period ends as a projection, on the company clock', () => {
-		const recorded = (period: string, recordedAt: string): CompanyMetric => ({ metric: 'annualRevenue', period, value: 1, recordedAt });
-		expect(isProjected(recorded('2026-H2', '2026-10-21T01:00:00Z'))).toBe(true);
-		expect(isProjected(recorded('2026-H1', '2026-07-02T01:00:00Z'))).toBe(false);
-		expect(isProjected(recorded('2026-10-21', '2026-10-21T01:00:00Z'))).toBe(false);
-		expect(isProjected(recorded('2026-06', '2026-06-29T16:00:00Z'))).toBe(false);
-		expect(isProjected(recorded('2026-06', '2026-06-29T14:00:00Z'))).toBe(true);
+	test('reads a projection from the basis the company recorded, never from the calendar', () => {
+		const recorded = (period: string, basis: CompanyMetric['basis']): CompanyMetric => ({ metric: 'annualRevenue', period, value: 1, basis });
+		expect(isProjected(recorded('2099', 'reported'))).toBe(false);
+		expect(isProjected(recorded('2001-H1', 'expected'))).toBe(true);
+		expect(() => dataRoomCompanySchema.parse({ profile: {}, metrics: [{ metric: 'mau', period: '2025', value: 1 }], records: [] })).toThrow();
 	});
 
 	test('shows a projection as the headline when nothing has been reported for the metric', () => {

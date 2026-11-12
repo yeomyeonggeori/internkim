@@ -1,6 +1,6 @@
 import type { TeamCardStatus } from '../../routes/attendance/team/team-card-status';
 import type { Task } from '../../routes/task/task-types';
-import type { DataRoomCompany } from '$lib/data-room/company';
+import type { CompanyMetric, DataRoomCompany } from '$lib/data-room/company';
 import type { Locale } from '$lib/i18n/locale';
 import { colorPickerPalette } from '$lib/color-picker-palette';
 import { startOfCalendarGridWeek } from '../../routes/calendar/grid/calendar-grid-dates';
@@ -140,9 +140,9 @@ export function sampleCompany(locale: Locale, today: Date): DataRoomCompany {
 	return {
 		profile: { name: { [locale]: text.name }, slogan: { [locale]: text.slogan }, email: 'hello@example.com', website: 'https://example.com' },
 		metrics: [
-			...text.monthlyRevenue.map((amount, index) => ({ metric: 'monthlyRevenue', period: months[index], amount: money(amount) })),
-			{ metric: 'employees', period: months[0], value: 6 },
-			{ metric: 'employees', period: months[months.length - 1], value: 8 }
+			...text.monthlyRevenue.map((amount, index): CompanyMetric => ({ metric: 'monthlyRevenue', period: months[index], amount: money(amount), basis: 'reported' })),
+			{ metric: 'employees', period: months[0], value: 6, basis: 'reported' },
+			{ metric: 'employees', period: months[months.length - 1], value: 8, basis: 'reported' }
 		],
 		records: [
 			{

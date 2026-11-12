@@ -5,6 +5,9 @@ export const companyFieldKinds = ['profile', 'metric', 'record'] as const;
 export const companyFieldKindSchema = z.enum(companyFieldKinds);
 export type CompanyFieldKind = z.infer<typeof companyFieldKindSchema>;
 
+export const metricBasisSchema = z.enum(['expected', 'reported']);
+export type MetricBasis = z.infer<typeof metricBasisSchema>;
+
 export const dataRoomCategorySchema = z.strictObject({
 	code: z.string().regex(/^[A-Z]{1,2}$/),
 	slug: z.string().min(1),
