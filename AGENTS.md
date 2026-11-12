@@ -572,6 +572,8 @@ and delete the duplicates.
   prints the tag and the steps; `--skip-host` stops after the rigs, before our
   host and stable.
 - The web app is deployed as "SaaS Web Deployment" above says.
+- Migrations and the web app deploy before a host; `ship-host` refuses while
+  `intern.kim` predates `web/src/routes/api/agent` or `supabase/migrations`.
 - A green `systemctl` is not a working agent: look for a task run newer than
   the upgrade.
 - Our own company host is a level 4 host (`docs/self-hosting.mdx`).
