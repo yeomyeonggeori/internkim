@@ -19,8 +19,8 @@
 		{#each groups as { group, sections } (group)}
 			<section class="grid gap-2">
 				<h2 class="px-2 text-xs font-medium text-muted-foreground">{text.groups[group]}</h2>
-				<Card.Root size="sm">
-					<Card.Content>
+				<Card.Root class="gap-0 py-0">
+					<Card.Content class="px-0">
 						<Item.Group class="gap-0">
 							{#each sections as section, index (section.id)}
 								{@const Icon = section.icon}

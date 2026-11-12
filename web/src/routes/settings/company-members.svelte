@@ -182,7 +182,7 @@
 
 <Card.Root>
 	<Card.Content class="grid gap-4">
-		<MemberTable {members} {isLoading} hasLoadError={Boolean(errorMessage)} text={tableText} extraHeaders={actionsHeader} extraCells={actionsCell} mobileExtra={memberActions} extraColumnCount={1} />
+		<MemberTable {members} {isLoading} hasLoadError={Boolean(errorMessage)} text={tableText} extraHeaders={actionsHeader} extraCells={actionsCell} mobileAction={memberActions} extraColumnCount={1} />
 		<div>
 			<Button type="button" variant="outline" onclick={() => (isInviteOpen = true)}>
 				<UserPlusIcon />
