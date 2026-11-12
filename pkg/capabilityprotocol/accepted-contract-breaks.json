@@ -1223,5 +1223,20 @@
 		"path": "attendance_list.result.nextCursor",
 		"reason": "attendance_list answered the newest limit rows of its window with nothing saying more existed. It now answers a page at a time, and nextCursor reaches the older records.",
 		"release": "the release carrying this catalog reaches company hosts by ship-host before the web/API deploy that answers attendance_list a page at a time; a host still on the older catalog refuses these answers until it takes the catalog"
+	},
+	{
+		"path": "company_metric_record.input.basis",
+		"reason": "Whether a metric is what the company expects or what it reported was guessed from when it was last written, so a note corrected after the period ended turned a projection into a result. The caller now says which, and nothing reads it from the calendar.",
+		"release": "the metric basis release carries the updated catalog to company hosts before the web/API deployment that requires basis"
+	},
+	{
+		"path": "company_metric_record.result.basis",
+		"reason": "Whether a metric is what the company expects or what it reported was guessed from when it was last written, so a note corrected after the period ended turned a projection into a result. The caller now says which, and nothing reads it from the calendar.",
+		"release": "the metric basis release carries the updated catalog to company hosts before the web/API deployment that requires basis"
+	},
+	{
+		"path": "company_metric_list.result.metrics[].basis",
+		"reason": "Whether a metric is what the company expects or what it reported was guessed from when it was last written, so a note corrected after the period ended turned a projection into a result. The caller now says which, and nothing reads it from the calendar.",
+		"release": "the metric basis release carries the updated catalog to company hosts before the web/API deployment that requires basis"
 	}
 ]
