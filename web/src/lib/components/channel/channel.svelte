@@ -27,6 +27,8 @@
 	import MessageReactions from './message-reactions.svelte';
 	import MessageRow from './message-row.svelte';
 	import LiveWorkBubble from './live-work-bubble.svelte';
+	import TypingDots from './typing-dots.svelte';
+	import { typingPeople } from './typing-people';
 	import SenderAvatar from './sender-avatar.svelte';
 	import MessageCaptureBar from './message-capture-bar.svelte';
 	import MessageCaptureOverlay from './message-capture-overlay.svelte';
@@ -146,17 +148,6 @@
 	const typing = createChannelTyping(
 		() => channelId,
 		() => messages.map((message) => ({ senderExternalID: message.sender.externalID, sentAt: message.sentAt }))
-	);
-	const activity = $derived(
-		activityLabel(
-			{
-				typerExternalIDs: typing.typerExternalIDs,
-				nameOf: (externalID) => nameByExternalID.get(externalID),
-				isGroup,
-				isAgentWorking
-			},
-			text
-		)
 	);
 	let isSending = $state(false);
 	let dockHeight = $state(0);
@@ -280,6 +271,23 @@
 	const loadedMessageIDs = $derived(new Set(messages.map((message) => message.id)));
 	const workShownInTimeline = $derived(liveWorkShownInTimeline(liveWork, openThreadRoot?.id, loadedMessageIDs));
 	const workShownInThread = $derived(liveWorkShownIn(liveWork, openThreadRoot?.id, loadedMessageIDs));
+	const peopleShownTyping = $derived(
+		typingPeople(typing.typerExternalIDs, messages, participants).filter(
+			(person) => workShownInTimeline.length === 0 || person.externalID !== agent?.externalID
+		)
+	);
+	const activity = $derived(
+		activityLabel(
+			{
+				typists: peopleShownTyping.map((person) => ({
+					name: person.name,
+					isAgent: person.externalID !== undefined && person.externalID === agent?.externalID
+				})),
+				isAgentWorking
+			},
+			text
+		)
+	);
 
 	async function loadConversation() {
 		if (isDestroyed) return;
@@ -902,6 +910,23 @@
 	{/each}
 {/snippet}
 
+{#snippet typingRows(people: ChannelParticipant[])}
+	{#each people as person (person.externalID)}
+		<div class="py-1">
+			<Message.Root align="start">
+				{@render senderAvatar(person)}
+				<Message.Content>
+					<Bubble.Root variant="muted">
+						<Bubble.Content role="status" aria-label={activity} class="py-2.5">
+							<TypingDots />
+						</Bubble.Content>
+					</Bubble.Root>
+				</Message.Content>
+			</Message.Root>
+		</div>
+	{/each}
+{/snippet}
+
 {#snippet timelineRows(items: ChannelTimelineItem[], isInTimeline: boolean)}
 	{#each items as item (item.id)}
 		{#if item.kind === 'date'}
@@ -992,6 +1017,7 @@
 					use:chooseMessageOnClick={{ enabled: capture.isCapturing, onChoose: capture.choose }}
 					class="@container/conversation isolate flex min-h-0 flex-1 flex-col-reverse gap-4 [&>:first-child]:mb-auto overflow-x-hidden overflow-y-auto overscroll-y-none px-4 pt-12 pb-[calc(var(--dock-height)+2.5rem)] [scrollbar-gutter:stable]"
 				>
+					{@render typingRows(peopleShownTyping)}
 					{@render liveWorkRows(workShownInTimeline)}
 					{@render timelineRows(reversedTimeline, true)}
 				</div>
