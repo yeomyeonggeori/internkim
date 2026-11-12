@@ -203,6 +203,7 @@ func TestADirectConversationIsReadAsTheRequesterOnTheirOwnCall(t *testing.T) {
 	conversationOf := map[string]string{
 		`{"scope":"directMessage","personHint":"박예시","queries":["이야기"]}`: "dm-1",
 		`{"scope":"directMessage"}`: "dm-agent",
+		`{"personHint":"박예시"}`:      "dm-1",
 	}
 	for input, conversationID := range conversationOf {
 		chatd := answeringPerCall(searchingAsTheRequester)
@@ -215,6 +216,9 @@ func TestADirectConversationIsReadAsTheRequesterOnTheirOwnCall(t *testing.T) {
 		searches := searchAskedOfChatd(t, chatd)
 		if len(searches) != 1 || searches[0].ChannelID != conversationID || !searches[0].ReadAsRequester || searches[0].RequesterPubkeyHex != requesterPubkeyHex {
 			t.Fatalf("%s: expected %s read with the requester's key, chatd was asked %+v", input, conversationID, searches)
+		}
+		if !strings.Contains(string(answered.Result), `"scope":"directMessage"`) {
+			t.Fatalf("%s: the answer names another scope than the one read: %s", input, answered.Result)
 		}
 		if !strings.Contains(string(answered.Result), `"authoredBy":"requester"`) {
 			t.Fatalf("%s: the requester's own words are named theirs, answered %s", input, answered.Result)
