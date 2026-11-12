@@ -1,5 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { currentAttendanceWorkPolicy } from '$lib/attendance/current-work-policy';
+import { currentAttendanceWorkPolicy, WorkPolicyInvalid, type CurrentAttendanceWorkPolicy } from '$lib/attendance/current-work-policy';
 import { defaultLeavePolicy, systemLeaveTypeKind } from '$lib/attendance/leave-policy-defaults';
 import { defaultWorkPolicy, initialWorkPolicyEffectiveDate } from '$lib/attendance/work-policy-defaults';
 import { storedWorkPolicyRevisions } from '$lib/attendance/stored-work-policy';
@@ -15,7 +15,6 @@ import {
 import { titleNearness } from './hint-nearness';
 import { personOfHint, type RecordPerson } from './people';
 import { HintRefused, normalized, resolveHint, type HintMatcher } from './hint-resolution';
-import { RecordRefusedTheWrite, statusOfPostgresCode } from './tasks';
 import type { RecordContext } from './company';
 import { keepUploadedImages } from './service-files';
 import type { ServiceFileImageField } from '$lib/data-room/service-files';
@@ -28,6 +27,7 @@ import type {
 	CompanyHolidayResult,
 	CompanySettingsResult
 } from '../catalog/settings';
+import { InputRefused, AccessRefused, RecordAlreadyHolds, refusalOfPostgresError } from '../refusal';
 
 export type CompanySettingsUpdateInput = {
 	name?: string;
@@ -101,7 +101,7 @@ async function companyRow(caller: SupabaseClient): Promise<CompanyRow> {
 		.select(companyColumns)
 		.limit(1)
 		.single<CompanyRow>();
-	if (error) throw new Error(error.message);
+	if (error) throw refusalOfPostgresError(error);
 	return data;
 }
 
@@ -116,14 +116,14 @@ async function writeTheCompany(
 		.update(change)
 		.eq('id', row.id)
 		.select('id');
-	if (error) throw new RecordRefusedTheWrite(error.message, statusOfPostgresCode(error.code));
-	if ((data ?? []).length === 0) throw new RecordRefusedTheWrite(refusal, 403);
+	if (error) throw refusalOfPostgresError(error);
+	if ((data ?? []).length === 0) throw new AccessRefused(refusal);
 }
 
 async function readableURLOf(caller: SupabaseClient, path: string | null): Promise<string | null> {
 	if (!path) return null;
 	const { data, error } = await caller.storage.from(assetBucket).createSignedUrl(path, readableForOneHour);
-	if (error) throw new Error(error.message);
+	if (error) throw refusalOfPostgresError(error);
 	return data?.signedUrl ?? null;
 }
 
@@ -173,7 +173,7 @@ export async function companySettingsUpdate(
 		};
 	}
 	if (input.leaveDays === undefined && input.profileImage === undefined && Object.keys(change).length === 0) {
-		throw new Error('a settings change names at least one setting to change');
+		throw new InputRefused('a settings change names at least one setting to change');
 	}
 
 	if (input.profileImage !== undefined) await writeTheCompanyPicture(context, input.profileImage.trim());
@@ -204,7 +204,7 @@ async function writeTheAnnualGrant(context: RecordContext, leaveDays: number): P
 
 async function headcountOf(context: RecordContext): Promise<number> {
 	const { data, error } = await context.caller.rpc('my_company_headcount');
-	if (error) throw new Error(`the company headcount could not be counted: ${error.message}`);
+	if (error) throw refusalOfPostgresError({ code: error.code, message: `the company headcount could not be counted: ${error.message}` });
 	return Number(data);
 }
 
@@ -239,13 +239,13 @@ async function representativeIDHeld(context: RecordContext): Promise<string | nu
 		.eq('company_id', context.companyID)
 		.eq('is_representative', true)
 		.maybeSingle<{ id: string }>();
-	if (error) throw new Error(error.message);
+	if (error) throw refusalOfPostgresError(error);
 	return data?.id ?? null;
 }
 
 async function nameTheRepresentative(context: RecordContext, representativeID: string | null): Promise<void> {
 	const { error } = await context.caller.rpc('company_representative_set', { representative: representativeID });
-	if (error) throw new RecordRefusedTheWrite(error.message, statusOfPostgresCode(error.code));
+	if (error) throw refusalOfPostgresError(error);
 }
 
 function representativeIDAsked(context: RecordContext, hint: string | undefined, held: string | null): string | null {
@@ -289,7 +289,7 @@ function inReadingOrder(holidays: StoredHoliday[]): StoredHoliday[] {
 
 async function saveHolidays(context: RecordContext, holidays: StoredHoliday[]): Promise<void> {
 	const { error } = await context.caller.rpc('company_holidays_save', { target_holidays: holidays });
-	if (error) throw new RecordRefusedTheWrite(error.message, statusOfPostgresCode(error.code));
+	if (error) throw refusalOfPostgresError(error);
 }
 
 const holidayMatcher: HintMatcher<StoredHoliday> = {
@@ -300,7 +300,7 @@ const holidayMatcher: HintMatcher<StoredHoliday> = {
 
 function hintOf(offered: string | undefined): string {
 	const hint = offered?.trim();
-	if (!hint) throw new Error('this call names the holiday it is about');
+	if (!hint) throw new InputRefused('this call names the holiday it is about');
 	return hint;
 }
 
@@ -353,8 +353,8 @@ export async function companyHolidayAdd(
 	const held = holidaysHeld(row.rules);
 	const date = input.date?.trim();
 	const name = input.name?.trim();
-	if (!date) throw new Error('a company holiday names the day it falls on');
-	if (!name) throw new Error('a company holiday needs a name');
+	if (!date) throw new InputRefused('a company holiday names the day it falls on');
+	if (!name) throw new InputRefused('a company holiday needs a name');
 	refuseADayAlreadyHeld(held, date, '');
 
 	const writtenAt = context.now.toISOString();
@@ -412,11 +412,7 @@ export async function companyHolidayDelete(
 function refuseADayAlreadyHeld(held: StoredHoliday[], date: string, exceptID: string): void {
 	const taken = held.find((holiday) => holiday.date === date && holiday.id !== exceptID);
 	if (!taken) return;
-	throw new RecordRefusedTheWrite(
-		`this company already keeps ${taken.title} on ${date}`,
-		409,
-		'record_duplicate'
-	);
+	throw new RecordAlreadyHolds(`this company already keeps ${taken.title} on ${date}`, 'record_duplicate');
 }
 
 type WorkPolicyRow = {
@@ -429,7 +425,7 @@ type WorkPolicyRow = {
 
 async function workPolicyRows(context: RecordContext): Promise<WorkPolicyRow[]> {
 	const { data, error } = await context.caller.rpc('attendance_work_policies');
-	if (error) throw new Error(error.message);
+	if (error) throw refusalOfPostgresError(error);
 	if (!Array.isArray(data)) throw new Error('attendance work policies must be an array');
 	return data as WorkPolicyRow[];
 }
@@ -467,19 +463,29 @@ export async function attendanceWorkPolicyGet(
 	};
 }
 
+function workPolicyAsked(input: Record<string, unknown>): CurrentAttendanceWorkPolicy {
+	try {
+		return currentAttendanceWorkPolicy(input);
+	} catch (refusal) {
+		if (refusal instanceof WorkPolicyInvalid) throw new InputRefused(refusal.message);
+		throw refusal;
+	}
+}
+
 export async function attendanceWorkPolicySet(
 	context: RecordContext,
 	input: Record<string, unknown>
 ): Promise<AttendanceWorkPolicySetResult> {
+	const asked = workPolicyAsked(input);
 	const { error } = await context.caller.rpc('attendance_work_policy_save', {
-		target_policy: currentAttendanceWorkPolicy(input)
+		target_policy: asked
 	});
-	if (error) throw new RecordRefusedTheWrite(error.message, statusOfPostgresCode(error.code));
+	if (error) throw refusalOfPostgresError(error);
 
 	const rows = await workPolicyRows(context);
 	const policy = policyAnswered(rows.length > 0 ? rows[0].work_policy : null) ?? {
 		version: 1,
-		revisions: [{ ...currentAttendanceWorkPolicy(input), effectiveDate: initialWorkPolicyEffectiveDate }]
+		revisions: [{ ...asked, effectiveDate: initialWorkPolicyEffectiveDate }]
 	};
 	return {
 		timeZone: context.labels.timezone,
@@ -502,17 +508,17 @@ export async function attendanceLeavePolicySet(
 	for (const leaveType of input.leaveTypes ?? []) {
 		const systemKind = systemLeaveTypeKind(leaveType.id ?? '');
 		if (systemKind === undefined && (leaveType.isSystem || leaveType.systemKind)) {
-			throw new Error(`leave type ${leaveType.id || leaveType.name} cannot claim a system identity`);
+			throw new InputRefused(`leave type ${leaveType.id || leaveType.name} cannot claim a system identity`);
 		}
 		if (systemKind !== undefined && leaveType.isSystem && leaveType.systemKind !== systemKind) {
-			throw new Error(`the system leave type ${leaveType.id} cannot change its kind`);
+			throw new InputRefused(`the system leave type ${leaveType.id} cannot change its kind`);
 		}
 	}
 
 	const { error } = await context.caller.rpc('attendance_leave_policy_save', {
 		target_policy: { ...input, version: 2 }
 	});
-	if (error) throw new RecordRefusedTheWrite(error.message, statusOfPostgresCode(error.code));
+	if (error) throw refusalOfPostgresError(error);
 	return attendanceLeavePolicyGet(context);
 }
 

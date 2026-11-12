@@ -3,7 +3,6 @@ import { dayIn, dayOfInstant, dayShifted, instantOfDay, instantWritten } from '.
 import { personName } from '$lib/person-name';
 import { personOfHint } from './people';
 import { ownerNamedBy, whoseRecords, whoseRecordsHolds } from './whose';
-import { statusOfPostgresCode, RecordRefusedTheWrite } from './tasks';
 import { descendingPositions, pageOf } from './list-page';
 import {
 	leaveBalancesOfCompany,
@@ -16,6 +15,7 @@ import {
 } from './leave';
 import type { RecordContext } from './company';
 import type { WorkspaceDecision } from '../catalog/tools';
+import { InputRefused, refusalOfPostgresError } from '../refusal';
 
 export type AnsweredLeave = {
 	leaveID: string;
@@ -181,7 +181,7 @@ export type LeaveBalanceInput = { personHints?: string[]; scope?: string; year?:
 
 export async function leaveBalance(context: RecordContext, input: LeaveBalanceInput) {
 	const accrued = await context.caller.rpc('leave_accrue_due');
-	if (accrued.error) throw new Error(accrued.error.message);
+	if (accrued.error) throw refusalOfPostgresError(accrued.error);
 	const year =
 		input.year ??
 		leaveYearOf(
@@ -215,7 +215,7 @@ export async function leaveGrantSet(
 		target_member: memberID,
 		granted_days: input.days
 	});
-	if (error) throw new RecordRefusedTheWrite(error.message, statusOfPostgresCode(error.code));
+	if (error) throw refusalOfPostgresError(error);
 
 	const year = Number(dayIn(context.labels.timezone, context.now).slice(0, 4));
 	return balanceOfOne(context, memberID, year);
@@ -234,7 +234,7 @@ export async function leaveReturnEarly(context: RecordContext, input: LeaveRetur
 	const { data, error } = await context.caller.rpc('leave_return_early', {
 		work_location: input.location?.trim() || ''
 	});
-	if (error) throw new RecordRefusedTheWrite(error.message, statusOfPostgresCode(error.code));
+	if (error) throw refusalOfPostgresError(error);
 
 	const answered = (data ?? {}) as ReturnedEarly;
 	return {
@@ -258,9 +258,9 @@ export async function leaveRequest(
 	context: RecordContext,
 	input: LeaveRequestInput
 ): Promise<AnsweredLeave> {
-	if (!input.startsAt || !input.endsAt) throw new Error('a leave request names the days it covers');
+	if (!input.startsAt || !input.endsAt) throw new InputRefused('a leave request names the days it covers');
 	const days = input.days ?? 0;
-	if (days <= 0) throw new Error('a leave request says how many days it consumes; a half day is 0.5');
+	if (days <= 0) throw new InputRefused('a leave request says how many days it consumes; a half day is 0.5');
 
 	const kind = leaveKindOf(context.leaveKinds, input.kind ?? '');
 	const written = {
@@ -279,7 +279,7 @@ export async function leaveRequest(
 	};
 
 	const { data, error } = await context.caller.from('leave').insert(written).select('id').single<{ id: string }>();
-	if (error) throw new RecordRefusedTheWrite(error.message, statusOfPostgresCode(error.code));
+	if (error) throw refusalOfPostgresError(error);
 	return answeredLeave(context, await leaveByID(context, data.id));
 }
 
@@ -297,7 +297,7 @@ export async function leaveUpdate(
 	input: LeaveUpdateInput
 ): Promise<AnsweredLeave> {
 	if (input.days !== undefined && input.days <= 0) {
-		throw new Error('a leave consumes more than nothing; a half day is 0.5');
+		throw new InputRefused('a leave consumes more than nothing; a half day is 0.5');
 	}
 
 	const row = leaveOfHint(context, await leaveOfCompany(context.caller), input.leaveHint ?? '');
@@ -325,7 +325,7 @@ export async function leaveUpdate(
 		.eq('id', row.id)
 		.select('id')
 		.single<{ id: string }>();
-	if (error) throw new RecordRefusedTheWrite(error.message, statusOfPostgresCode(error.code));
+	if (error) throw refusalOfPostgresError(error);
 	return answeredLeave(context, await leaveByID(context, row.id));
 }
 
@@ -343,7 +343,7 @@ export async function leaveDelete(
 		.eq('id', row.id)
 		.select('id')
 		.single<{ id: string }>();
-	if (error) throw new RecordRefusedTheWrite(error.message, statusOfPostgresCode(error.code));
+	if (error) throw refusalOfPostgresError(error);
 	return taken;
 }
 
@@ -361,6 +361,6 @@ export async function leaveDecide(
 		.eq('id', row.id)
 		.select('id')
 		.single<{ id: string }>();
-	if (error) throw new RecordRefusedTheWrite(error.message, statusOfPostgresCode(error.code));
+	if (error) throw refusalOfPostgresError(error);
 	return answeredLeave(context, await leaveByID(context, row.id));
 }

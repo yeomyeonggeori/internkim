@@ -5,10 +5,10 @@ import { dataRoomGetResultSchema, dataRoomCategorySetInputSchema, dataRoomFieldS
 	dataRoomInvitationAcceptInputSchema, dataRoomInvitationSendInputSchema } from '../catalog/data-room';
 import { sendGuestSignInEmail } from './guest-sign-in-email';
 import type { RecordContext, ToolPlace } from './company';
-import { RecordRefusedTheWrite, statusOfPostgresCode } from './tasks';
 import { companyFieldKindSchema, type CompanyFieldKind } from '$lib/data-room/model';
 import { fieldNamesOf, fieldNamesSchema } from '$lib/data-room/schemas';
 import { dataRoomLinkInputSchema, dataRoomLinkRevokeSchema, dataRoomLinksSchema, generateDataRoomCode } from '$lib/data-room/links';
+import { AccessRefused, TargetMissing, refusalOfPostgresError } from '../refusal';
 
 const categoryRowSchema = z.object({
 	code: z.string(), parent: z.string().nullable(), slug: z.string(),
@@ -29,13 +29,13 @@ const shareRowSchema = z.object({
 export async function companyRows(client: SupabaseClient, companyID: string, table: string): Promise<unknown[]> {
 	const query = client.from(table).select('*').eq('company_id', companyID);
 	const { data, error } = await (table === 'data_room_category' ? query.order('position') : query);
-	if (error) throw new RecordRefusedTheWrite(error.message, statusOfPostgresCode(error.code));
+	if (error) throw refusalOfPostgresError(error);
 	return data ?? [];
 }
 
 export async function dataRoomCall(client: SupabaseClient, name: string, parameters: Record<string, unknown>): Promise<unknown> {
 	const { data, error } = await client.rpc(name, parameters);
-	if (error) throw new RecordRefusedTheWrite(error.message, statusOfPostgresCode(error.code));
+	if (error) throw refusalOfPostgresError(error);
 	return data;
 }
 
@@ -77,7 +77,7 @@ export async function companyDataRoomCategorySet(context: RecordContext, value: 
 		name: category.name, name_ko: category.nameKO, description: category.description,
 		...(category.choiceGroup === undefined ? {} : { choice_group: category.choiceGroup })
 	});
-	if (error) throw new RecordRefusedTheWrite(error.message, statusOfPostgresCode(error.code));
+	if (error) throw refusalOfPostgresError(error);
 	return { saved: true };
 }
 
@@ -103,7 +103,7 @@ type CompanyFieldWrite = {
 async function upsertCompanyField(context: RecordContext, write: CompanyFieldWrite) {
 	const { error } = await context.caller.from('company_field')
 		.upsert({ company_id: context.companyID, ...write }, { onConflict: 'company_id,kind,field' });
-	if (error) throw new RecordRefusedTheWrite(error.message, statusOfPostgresCode(error.code));
+	if (error) throw refusalOfPostgresError(error);
 }
 
 export async function companyDataRoomShareCreate(context: RecordContext, value: unknown) {
@@ -130,7 +130,7 @@ export async function companyDataRoomLinksGet(context: RecordContext) {
 	const { data, error } = await context.caller.from('data_room_link')
 		.select('id,circle_id,label,can_download,created_at,expires_at,revoked_at')
 		.eq('company_id', context.companyID).order('created_at', { ascending: false });
-	if (error) throw new RecordRefusedTheWrite(error.message, statusOfPostgresCode(error.code));
+	if (error) throw refusalOfPostgresError(error);
 	return dataRoomLinksSchema.parse({ shareableCircleIDs, downloadableCircleIDs, links: (data ?? []).map((link) => ({
 		id: link.id, circleID: link.circle_id, label: link.label, canDownload: link.can_download,
 		createdAt: link.created_at, expiresAt: link.expires_at, revokedAt: link.revoked_at
@@ -166,8 +166,8 @@ export async function dataRoomShareAccept(caller: SupabaseClient, shareID: strin
 export async function dataRoomInvitationSend(caller: SupabaseClient, place: ToolPlace, shareID: string) {
 	const invitation = await invitationOf(caller, shareID);
 	const isAdministrator = await dataRoomCall(caller, 'data_room_administrator', { target_company: invitation.company_id });
-	if (isAdministrator !== true) throw new RecordRefusedTheWrite('only an administrator sends invitations', 403);
-	if (!isInvitationActive(invitation)) throw new RecordRefusedTheWrite('invitation is no longer active', 403);
+	if (isAdministrator !== true) throw new AccessRefused('only an administrator sends invitations');
+	if (!isInvitationActive(invitation)) throw new AccessRefused('invitation is no longer active');
 	await sendGuestSignInEmail(place, invitation.email, `/share/invitations/${shareID}`);
 	return { shareID, sent: true };
 }
@@ -175,7 +175,7 @@ export async function dataRoomInvitationSend(caller: SupabaseClient, place: Tool
 async function invitationOf(caller: SupabaseClient, shareID: string) {
 	const { data, error } = await caller.from('data_room_share')
 		.select('company_id,email,expires_at,revoked_at').eq('id', shareID).eq('audience', 'email').maybeSingle();
-	if (error || !data) throw new RecordRefusedTheWrite('invitation not found', 404);
+	if (error || !data) throw new TargetMissing('invitation not found');
 	return invitationRowSchema.parse(data);
 }
 

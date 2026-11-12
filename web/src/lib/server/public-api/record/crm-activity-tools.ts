@@ -2,10 +2,11 @@ import { activityDatesAnswered, activityDatesWritten } from './crm-activity-date
 import { opportunityOfCRMHint, organizationOfCRMHint } from './crm-tools';
 import { locationNameOf } from './event-tools';
 import { taskAdd, taskUpdate } from './task-tools';
-import { taskOfHint, tasksOfCompany, type TaskReadScope, type TaskRow } from './tasks';
+import { taskOfHint, tasksOfCompany, WriteNotReadBack, type TaskReadScope, type TaskRow } from './tasks';
 import { WorkspaceTaskSize, WorkspaceTaskStatus } from '../catalog/tools';
 import type { RecordContext } from './company';
 import type { CRMActivityListInput, CRMActivityListResult, CRMActivityResult, CRMActivitySaveResult } from '../catalog/crm';
+import { InputRefused } from '../refusal';
 
 export type CRMActivitySaveInput = {
 	activityHint?: string;
@@ -103,7 +104,7 @@ async function activityRowOfHint(context: RecordContext, hint: string): Promise<
 
 async function activityByID(context: RecordContext, activityID: string): Promise<TaskRow> {
 	const held = (await activitiesOfCompany(context)).find((row) => row.id === activityID);
-	if (!held) throw new Error('the record saved this activity and did not answer with it');
+	if (!held) throw new WriteNotReadBack('activity');
 	return held;
 }
 
@@ -115,10 +116,10 @@ export async function crmActivitySave(
 ): Promise<CRMActivitySaveResult> {
 	const held = input.activityHint ? await activityRowOfHint(context, input.activityHint) : null;
 	if (!held && !input.organizationHint?.trim()) {
-		throw new Error('an activity names the organization it is with');
+		throw new InputRefused('an activity names the organization it is with');
 	}
 	if (!held && input.kind?.trim() === stageChangeKind) {
-		throw new Error('a stage change is recorded by moving the deal, not by writing an activity');
+		throw new InputRefused('a stage change is recorded by moving the deal, not by writing an activity');
 	}
 	const links = {
 		...(input.organizationHint !== undefined ? { organizationHint: input.organizationHint } : {}),

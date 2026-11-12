@@ -67,7 +67,7 @@ func TestAnUnresolvedRecordHintReachesTheModelWithItsCandidates(t *testing.T) {
 	socketPath := admindOnASocket(t, http.HandlerFunc(func(responseWriter http.ResponseWriter, request *http.Request) {
 		responseWriter.Header().Set("Content-Type", "application/json")
 		responseWriter.WriteHeader(http.StatusConflict)
-		_, _ = responseWriter.Write([]byte(`{"error":"연차 could be two of them","candidates":["이샘플 · 연차 · 2026-11-02","이샘플 · 연차 · 2026-11-09"]}`))
+		_, _ = responseWriter.Write([]byte(`{"error":"연차 could be two of them","errorCode":"leave_not_found","failureStage":"target_resolution","retryable":true,"safeRetry":true,"candidates":["이샘플 · 연차 · 2026-11-02","이샘플 · 연차 · 2026-11-09"]}`))
 	}))
 	service := Service{Configuration: Configuration{
 		AdmindBaseURL:    admindOnLoopbackThatFailsTheTest(t),
@@ -81,8 +81,8 @@ func TestAnUnresolvedRecordHintReachesTheModelWithItsCandidates(t *testing.T) {
 	if answer.Outcome != capabilities.ToolOutcomeFailed {
 		t.Fatalf("a refusal answered as %s", answer.Outcome)
 	}
-	if answer.ErrorCode != "interaction_required" || answer.FailureStage != "target_resolution" {
-		t.Fatalf("answered %s at %s", answer.ErrorCode, answer.FailureStage)
+	if answer.ErrorCode != "leave_not_found" || answer.FailureStage != "target_resolution" || !answer.Retryable || !answer.SafeRetry {
+		t.Fatalf("the refusal's own facts did not survive: %+v", answer)
 	}
 	if !strings.Contains(answer.Message, "could be two of them") {
 		t.Fatalf("the record's own words did not survive: %q", answer.Message)
@@ -112,8 +112,8 @@ func TestARefusalTheFrameworkWordedReachesTheModelToo(t *testing.T) {
 	if answer.Message != "this token may not delete" || answer.Content != "this token may not delete" {
 		t.Fatalf("the refusal reached the model as %q and %q", answer.Message, answer.Content)
 	}
-	if answer.ErrorCode != "not_allowed" {
-		t.Fatalf("a forbidden call answered %s", answer.ErrorCode)
+	if answer.ErrorCode != "" || answer.FailureStage != "" || answer.Retryable {
+		t.Fatalf("facts the refusal never stated were made up from its status: %+v", answer)
 	}
 }
 

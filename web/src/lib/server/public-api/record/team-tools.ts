@@ -1,8 +1,9 @@
+import { WriteNotReadBack } from './tasks';
 import type { TeamDeleteResult, TeamListResult, TeamResult } from '../catalog/people';
 import type { RecordContext } from './company';
 import type { RecordPerson } from './people';
-import { RecordRefusedTheWrite, statusOfPostgresCode } from './tasks';
 import { teamOfHint, teamsOfCompany, type RecordTeam } from './teams';
+import { InputRefused, refusalOfPostgresError } from '../refusal';
 
 export type TeamAddInput = { name?: string; parentHint?: string; position?: number };
 
@@ -37,7 +38,7 @@ export async function teamList(context: RecordContext): Promise<TeamListResult> 
 
 export async function teamAdd(context: RecordContext, input: TeamAddInput): Promise<TeamResult> {
 	const name = (input.name ?? '').trim();
-	if (!name) throw new Error('a new organization needs a name');
+	if (!name) throw new InputRefused('a new organization needs a name');
 
 	const teams = await teamsOfCompany(context.caller);
 	const { data, error } = await context.caller.rpc('team_add', {
@@ -45,13 +46,13 @@ export async function teamAdd(context: RecordContext, input: TeamAddInput): Prom
 		parent_team: parentTeamIDOfHint(teams, input.parentHint) || null,
 		new_position: input.position ?? null
 	});
-	if (error) throw new RecordRefusedTheWrite(error.message, statusOfPostgresCode(error.code));
+	if (error) throw refusalOfPostgresError(error);
 
 	return teamWrittenBack(context, String(data));
 }
 
 export async function teamUpdate(context: RecordContext, input: TeamUpdateInput): Promise<TeamResult> {
-	if (!input.teamHint?.trim()) throw new Error('an organization change names the organization it changes');
+	if (!input.teamHint?.trim()) throw new InputRefused('an organization change names the organization it changes');
 
 	const teams = await teamsOfCompany(context.caller);
 	const team = teamOfHint(teams, input.teamHint);
@@ -60,14 +61,14 @@ export async function teamUpdate(context: RecordContext, input: TeamUpdateInput)
 	if (input.parentHint !== undefined) changes.parentID = parentTeamIDOfHint(teams, input.parentHint);
 	if (input.position !== undefined) changes.position = input.position;
 	if (Object.keys(changes).length === 0) {
-		throw new Error('an organization change names at least one field to change');
+		throw new InputRefused('an organization change names at least one field to change');
 	}
 
 	const { error } = await context.caller.rpc('team_update', {
 		target_team: team.teamID,
 		changes
 	});
-	if (error) throw new RecordRefusedTheWrite(error.message, statusOfPostgresCode(error.code));
+	if (error) throw refusalOfPostgresError(error);
 
 	return teamWrittenBack(context, team.teamID);
 }
@@ -76,12 +77,12 @@ export async function teamDelete(
 	context: RecordContext,
 	input: TeamDeleteInput
 ): Promise<TeamDeleteResult> {
-	if (!input.teamHint?.trim()) throw new Error('a removal names the organization it removes');
+	if (!input.teamHint?.trim()) throw new InputRefused('a removal names the organization it removes');
 
 	const teams = await teamsOfCompany(context.caller);
 	const team = teamOfHint(teams, input.teamHint);
 	const { data, error } = await context.caller.rpc('team_delete', { target_team: team.teamID });
-	if (error) throw new RecordRefusedTheWrite(error.message, statusOfPostgresCode(error.code));
+	if (error) throw refusalOfPostgresError(error);
 
 	return {
 		teamID: team.teamID,
@@ -101,7 +102,7 @@ async function teamWrittenBack(context: RecordContext, teamID: string): Promise<
 	const teams = await teamsOfCompany(context.caller);
 	const written = teams.find((team) => team.teamID === teamID);
 	if (!written) {
-		throw new RecordRefusedTheWrite('the record saved this organization and did not answer with it', 502);
+		throw new WriteNotReadBack('organization');
 	}
 	return answeredTeam(written, teams, context.people);
 }

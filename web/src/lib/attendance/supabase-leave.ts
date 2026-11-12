@@ -271,9 +271,13 @@ async function memberDirectory(): Promise<MemberDirectory> {
 	};
 }
 
-// The record refuses through the public API, and the leave screens speak one
-// error type. A refusal keeps its status so the screen can tell a leave that
-// may no longer be touched from one the caller may not touch at all.
+const leaveErrorOfRefusal = new Map<string, EmployeeLeaveErrorCode>([
+	['invalid_input', 'invalidInput'],
+	['leave_not_found', 'requestNotFound'],
+	['access_denied', 'invalidStatus'],
+	['record_refused', 'invalidStatus']
+]);
+
 export async function askTheRecord<Answer>(
 	name: string,
 	input: Record<string, unknown>
@@ -282,15 +286,8 @@ export async function askTheRecord<Answer>(
 		return await invokeTool<Answer>(name, input);
 	} catch (refusal) {
 		if (refusal instanceof ToolRefused) {
-			throw new EmployeeLeaveAPIError(refusalCode(refusal.status), refusal.status);
+			throw new EmployeeLeaveAPIError(leaveErrorOfRefusal.get(refusal.errorCode ?? '') ?? null, refusal.status);
 		}
 		throw refusal;
 	}
-}
-
-function refusalCode(status: number): EmployeeLeaveErrorCode | null {
-	if (status === 404) return 'requestNotFound';
-	if (status === 403 || status === 409) return 'invalidStatus';
-	if (status === 400) return 'invalidInput';
-	return null;
 }

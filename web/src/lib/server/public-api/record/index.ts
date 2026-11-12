@@ -2,7 +2,6 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { attendanceAdd, attendanceDelete, attendanceList, attendanceUpdate } from './attendance-tools';
 import { currentAttendance } from './current-attendance';
 import { teamAttendance, legacyTeamAttendance } from './team-attendance';
-import { NoSuchAttendanceRecord } from './attendance';
 import { exchangeRatesOf } from '$lib/server/configured-exchange-rates';
 import { recordContextOf, type RecordContext, type ToolPlace } from './company';
 import type { TaskChangeAnnouncer } from './task-change';
@@ -61,15 +60,12 @@ import {
 } from './company-ledger-tools';
 import { companyEquityAdd, companyEquityDelete, companyEquityList } from './company-equity-tools';
 import {
-	CalendarEventDuplicate,
-	CalendarEventVersionConflict,
 	eventAdd,
 	eventDelete,
 	eventList,
 	eventUpdate
 } from './event-tools';
 import { calendarSubscriptionAdd, calendarSubscriptionDelete, calendarSubscriptionGet } from './calendar-subscription';
-import { HintRefused } from './hint-resolution';
 import {
 	conversationMute,
 	conversationUnmute,
@@ -78,10 +74,6 @@ import {
 } from './notification-tools';
 import { channelOrderGet, channelOrderSet, channelPin, channelUnpin } from './channel-order-tools';
 import { channelOrderSetInputSchema, channelPinInputSchema } from '../catalog/channel-order';
-import { LabelUnresolved } from './labels';
-import { WhoseRecordsContradicted } from './whose';
-import { RecordReadFailed, RecordRefusedTheWrite, WriteNotReadBack } from './tasks';
-import { NoSuchLeave, NoSuchLeaveKind } from './leave';
 import {
 	leaveBalance,
 	leaveDecide,
@@ -109,6 +101,7 @@ import { answererOfTool, toolNamesAnsweredBy } from '../catalog';
 import { capabilityToolResultSchema, legacyAttendanceListResultSchema, taskBoardInputSchema, taskListInputSchema } from '../catalog/tools';
 import { readWithNullAsAbsent } from '../null-as-absent';
 import { sentencesOfSchemaRefusal } from '../schema-sentences';
+import { Refusal, answerOfRefusal } from '../refusal';
 
 type ToolInput = Record<string, unknown>;
 type CallCarried = { files: CarriedWorkspaceFile[]; place?: ToolPlace; announceTaskChange?: TaskChangeAnnouncer };
@@ -347,118 +340,9 @@ function noteWhereTheAnswerLeftItsContract(name: string, result: unknown): void 
 	);
 }
 
-// A caller who named something the record could not place gets the candidates
-// back, so the next call can name one exactly rather than guess again.
 function refusalAnswer(name: string, refusal: unknown): ToolAnswer {
-	if (refusal instanceof HintRefused) {
-		return {
-			status: 409,
-			body: {
-				error: refusal.message,
-				errorCode: refusal.errorCode,
-				failureStage: refusal.failureStage,
-				retryable: refusal.retryable,
-				safeRetry: refusal.safeRetry,
-				hint: refusal.hint,
-				candidates: refusal.candidates
-			}
-		};
-	}
-	if (refusal instanceof WriteNotReadBack) {
-		return {
-			status: 502,
-			body: {
-				error: refusal.message,
-				errorCode: refusal.errorCode,
-				failureStage: refusal.failureStage,
-				retryable: refusal.retryable,
-				safeRetry: refusal.safeRetry
-			}
-		};
-	}
-	if (refusal instanceof RecordReadFailed) {
-		return {
-			status: 503,
-			body: {
-				error: refusal.message,
-				errorCode: refusal.errorCode,
-				failureStage: refusal.failureStage,
-				retryable: refusal.retryable,
-				safeRetry: refusal.safeRetry
-			}
-		};
-	}
-	if (refusal instanceof CalendarEventVersionConflict) {
-		return {
-			status: 409,
-			body: {
-				error: refusal.message,
-				errorCode: refusal.errorCode,
-				failureStage: refusal.failureStage,
-				retryable: refusal.retryable,
-				safeRetry: refusal.safeRetry,
-				updatedAt: refusal.updatedAt
-			}
-		};
-	}
-	if (refusal instanceof CalendarEventDuplicate) {
-		return {
-			status: 409,
-			body: {
-				error: refusal.message,
-				errorCode: refusal.errorCode,
-				failureStage: refusal.failureStage,
-				retryable: refusal.retryable,
-				safeRetry: refusal.safeRetry,
-				...(refusal.eventID ? { eventID: refusal.eventID } : {})
-			}
-		};
-	}
-	if (refusal instanceof WhoseRecordsContradicted) {
-		return {
-			status: 400,
-			body: {
-				error: refusal.message,
-				errorCode: refusal.errorCode,
-				failureStage: refusal.failureStage,
-				retryable: refusal.retryable,
-				safeRetry: refusal.safeRetry
-			}
-		};
-	}
-	if (refusal instanceof LabelUnresolved) {
-		return {
-			status: 409,
-			body: {
-				error: refusal.message,
-				errorCode: refusal.errorCode,
-				failureStage: refusal.failureStage,
-				retryable: refusal.retryable,
-				safeRetry: refusal.safeRetry,
-				registered: refusal.registered
-			}
-		};
-	}
-	if (refusal instanceof NoSuchLeave) {
-		return { status: 409, body: { error: refusal.message, hint: refusal.hint, candidates: refusal.candidates } };
-	}
-	if (refusal instanceof NoSuchLeaveKind) {
-		return { status: 409, body: { error: refusal.message, registered: refusal.registered } };
-	}
-	if (refusal instanceof NoSuchAttendanceRecord) {
-		return { status: 409, body: { error: refusal.message, hint: refusal.hint, candidates: refusal.candidates } };
-	}
-	if (refusal instanceof RecordRefusedTheWrite) {
-		return {
-			status: refusal.status,
-			body: {
-				error: refusal.message,
-				errorCode: refusal.errorCode,
-				retryable: refusal.status === 404 || refusal.status === 409,
-				safeRetry: refusal.status !== 502
-			}
-		};
-	}
-	if (refusal instanceof Error) return { status: 400, body: { error: refusal.message } };
-	return { status: 500, body: { error: `${name} failed for a reason it did not name` } };
+	if (refusal instanceof Refusal) return answerOfRefusal(refusal);
+	console.error('tool.failed', { tool: name, failure: refusal });
+	const reason = refusal instanceof Error ? refusal.message : String(refusal);
+	return { status: 500, body: { error: `${name} failed: ${reason}` } };
 }

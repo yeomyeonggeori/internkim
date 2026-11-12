@@ -152,7 +152,7 @@ func TestScheduleUpdateCarriesOnlyWhatTheModelAsked(t *testing.T) {
 }
 
 func TestScheduleCancelCarriesTheCandidatesBackToTheModel(t *testing.T) {
-	refusal := `{"error":"주간 보고 is the description of two schedules","errorCode":"interaction_required","candidates":[{"scheduleID":"schedule-1"},{"scheduleID":"schedule-2"}]}`
+	refusal := `{"error":"주간 보고 is the description of two schedules","errorCode":"interaction_required","failureStage":"target_resolution","retryable":true,"safeRetry":true,"candidates":[{"scheduleID":"schedule-1"},{"scheduleID":"schedule-2"}]}`
 	socketPath := admindOnASocket(t, http.HandlerFunc(func(responseWriter http.ResponseWriter, request *http.Request) {
 		responseWriter.Header().Set("Content-Type", "application/json")
 		responseWriter.WriteHeader(http.StatusConflict)
@@ -164,7 +164,7 @@ func TestScheduleCancelCarriesTheCandidatesBackToTheModel(t *testing.T) {
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	if answer.Outcome != capabilities.ToolOutcomeFailed || answer.ErrorCode != "interaction_required" || answer.FailureStage != "target_resolution" {
+	if answer.Outcome != capabilities.ToolOutcomeFailed || answer.ErrorCode != "interaction_required" || answer.FailureStage != "target_resolution" || !answer.Retryable {
 		t.Fatalf("a hint that resolves to two schedules answered %+v", answer)
 	}
 	if !strings.Contains(string(answer.Result), `"scheduleID":"schedule-2"`) {

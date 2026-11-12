@@ -3,11 +3,10 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { personName } from '$lib/person-name';
 import { taskInviteInputSchema, taskInvitationDeleteInputSchema, taskInvitationListResultSchema } from '../catalog/task-invitation';
 import type { RecordContext, ToolPlace } from './company';
-import { RecordRefusedTheWrite, statusOfPostgresCode } from './tasks';
 import { sendGuestInvitationEmail } from './guest-sign-in-email';
 import { sharedTaskBoardSchema, type SharedTaskBoard } from '$lib/task-invitation/board';
+import { refusalOfPostgresError } from '../refusal';
 
-const noDataFound = 'P0002';
 
 const invitationRowSchema = z.object({
 	id: z.string(), email: z.string(), businesses: z.array(z.string()),
@@ -21,8 +20,7 @@ export function taskInvitationLandingPath(invitationID: string): string {
 async function recordCall(client: SupabaseClient, name: string, parameters: Record<string, unknown>): Promise<unknown> {
 	const { data, error } = await client.rpc(name, parameters);
 	if (!error) return data;
-	const status = error.code === noDataFound ? 404 : statusOfPostgresCode(error.code);
-	throw new RecordRefusedTheWrite(error.message, status);
+	throw refusalOfPostgresError(error);
 }
 
 export async function taskInvite(context: RecordContext, value: unknown, place: ToolPlace) {
@@ -44,7 +42,7 @@ export async function taskInvite(context: RecordContext, value: unknown, place: 
 
 async function companyNameOf(context: RecordContext): Promise<string> {
 	const { data, error } = await context.caller.from('company').select('name').eq('id', context.companyID).single();
-	if (error) throw new RecordRefusedTheWrite(error.message, statusOfPostgresCode(error.code));
+	if (error) throw refusalOfPostgresError(error);
 	return z.object({ name: z.string() }).parse(data).name;
 }
 
@@ -53,7 +51,7 @@ export async function taskInvitationList(context: RecordContext) {
 		.select('id,email,businesses,created_at,accepted_at')
 		.eq('company_id', context.companyID).is('revoked_at', null)
 		.order('created_at', { ascending: false });
-	if (error) throw new RecordRefusedTheWrite(error.message, statusOfPostgresCode(error.code));
+	if (error) throw refusalOfPostgresError(error);
 	return taskInvitationListResultSchema.parse({
 		invitations: (data ?? []).map((value) => {
 			const row = invitationRowSchema.parse(value);

@@ -5,7 +5,7 @@ import {
 	type PushDeviceKind,
 	type PushReachability
 } from '$lib/notifications/reachability';
-import { statusOfPostgresCode } from './public-api/record/tasks';
+import { refusalOfPostgresError, type PostgresError } from '$lib/server/public-api/refusal';
 
 export type PushDeviceAddress = { kind: PushDeviceKind; endpoint: string };
 
@@ -101,7 +101,7 @@ export async function claimThePushDevice(
 		device_address: claim.endpoint,
 		device_keys: claim.encryptionKeys ?? {}
 	});
-	if (refusal) error(statusOfPostgresCode(refusal.code), refusal.message);
+	if (refusal) refuseAsTheRecordDid(refusal);
 	return pushReachabilityOf(caller);
 }
 
@@ -113,6 +113,11 @@ export async function releaseThePushDevice(
 		device_kind: address.kind,
 		device_address: address.endpoint
 	});
-	if (refusal) error(statusOfPostgresCode(refusal.code), refusal.message);
+	if (refusal) refuseAsTheRecordDid(refusal);
 	return pushReachabilityOf(caller);
+}
+
+function refuseAsTheRecordDid(failure: PostgresError): never {
+	const refusal = refusalOfPostgresError(failure);
+	error(refusal.status, refusal.message);
 }

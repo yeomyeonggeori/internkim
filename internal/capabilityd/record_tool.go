@@ -88,16 +88,13 @@ func recordToolFailure(toolName string, status int, answer json.RawMessage) capa
 	return capabilityToolFailure(capabilityResponseOrigin{Provider: "internkim", SelectedBackend: "record"}, toolName, status, answer)
 }
 
-// The answering side says why it refused in its own words, and a hint it could
-// not resolve comes back with the candidates to choose from. Both are what the
-// model needs, so they are carried rather than summarised.
 func capabilityToolFailure(origin capabilityResponseOrigin, toolName string, status int, answer json.RawMessage) capabilities.ToolInvokeResponse {
 	var refusal struct {
 		Error        string `json:"error"`
 		Message      string `json:"message"`
 		ErrorCode    string `json:"errorCode"`
 		FailureStage string `json:"failureStage"`
-		Retryable    *bool  `json:"retryable"`
+		Retryable    bool   `json:"retryable"`
 		SafeRetry    bool   `json:"safeRetry"`
 	}
 	json.Unmarshal(answer, &refusal)
@@ -111,9 +108,9 @@ func capabilityToolFailure(origin capabilityResponseOrigin, toolName string, sta
 		Content:         message,
 		IsError:         true,
 		Message:         message,
-		ErrorCode:       firstNonEmpty(refusal.ErrorCode, recordToolErrorCode(status)),
-		FailureStage:    firstNonEmpty(refusal.FailureStage, recordToolFailureStage(status)),
-		Retryable:       recordToolRetryable(refusal.Retryable, status),
+		ErrorCode:       refusal.ErrorCode,
+		FailureStage:    refusal.FailureStage,
+		Retryable:       refusal.Retryable,
 		SafeRetry:       refusal.SafeRetry,
 		Result:          recordFailureResult(toolName, status, answer),
 	}
@@ -126,31 +123,6 @@ func recordFailureResult(toolName string, status int, answer json.RawMessage) js
 	log.Printf("capability.record_failure_not_json: tool=%s status=%d bytes=%d", toolName, status, len(answer))
 	encoded, _ := json.Marshal(string(answer))
 	return encoded
-}
-
-func recordToolRetryable(saidByTheRecord *bool, status int) bool {
-	if saidByTheRecord != nil {
-		return *saidByTheRecord
-	}
-	return status == http.StatusConflict
-}
-
-func recordToolErrorCode(status int) string {
-	switch status {
-	case http.StatusConflict:
-		return "interaction_required"
-	case http.StatusForbidden:
-		return "not_allowed"
-	default:
-		return "record_refused"
-	}
-}
-
-func recordToolFailureStage(status int) string {
-	if status == http.StatusConflict {
-		return "target_resolution"
-	}
-	return "execution"
 }
 
 func theRecordAnswers(toolName string) bool {
