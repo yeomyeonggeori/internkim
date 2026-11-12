@@ -16,8 +16,14 @@ func TestChatdMessageSearchRoutesANamedChannelThroughChatd(testContext *testing.
 	var receivedPath string
 	var receivedRequest chatdMessageSearchRequest
 	chatdServer := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
-		if request.URL.Path == "/v1/platform/buzz/channels.list" {
-			json.NewEncoder(writer).Encode(map[string]any{"channels": []chatdChannel{{ChannelID: "channel-uuid", Name: "잡담"}}})
+		switch request.URL.Path {
+		case "/v1/platform/buzz/channels.list":
+			testContext.Error("the channel was looked for among the agent's rooms")
+		case "/v1/platform/buzz/requester.conversations.list":
+			json.NewEncoder(writer).Encode(map[string]any{"conversations": []requesterConversation{{ID: "channel-uuid", Name: "잡담", Kind: "group"}}})
+			return
+		case "/v1/platform/buzz/requester.channels.open.list":
+			json.NewEncoder(writer).Encode(map[string]any{"channels": []requesterConversation{}})
 			return
 		}
 		receivedPath = request.URL.Path
@@ -48,7 +54,7 @@ func TestChatdMessageSearchRoutesANamedChannelThroughChatd(testContext *testing.
 	if receivedPath != "/v1/platform/buzz/message.search" {
 		testContext.Fatalf("chatd received %q", receivedPath)
 	}
-	if receivedRequest.ChannelID != "channel-uuid" || receivedRequest.ChannelName != "" || receivedRequest.AuthoredBy != "assistant" {
+	if receivedRequest.ChannelID != "channel-uuid" || receivedRequest.AuthoredBy != "assistant" || receivedRequest.ReadAsRequester {
 		testContext.Fatalf("chatd received %+v", receivedRequest)
 	}
 	if receivedRequest.RequesterPubkeyHex != "requester-pubkey" {
@@ -94,8 +100,9 @@ func TestChatdMessageSearchDefaultsToTheCurrentThread(testContext *testing.T) {
 		ToolName: "message_search",
 		Input:    json.RawMessage(`{"queries":["회식"]}`),
 		Context: capabilities.ToolInvokeContext{
-			Platform:      "buzz",
-			ReplyTargetID: "buzz:channel-uuid:root-event",
+			Platform:                "buzz",
+			ReplyTargetID:           "buzz:channel-uuid:root-event",
+			RequesterPlatformUserID: "requester-pubkey",
 		},
 	})
 	if errorValue != nil {
@@ -122,6 +129,7 @@ func searchingAsTheRequester(request *http.Request) (int, string) {
 	}
 	if strings.HasSuffix(request.URL.Path, "/requester.conversations.list") {
 		return http.StatusOK, `{"conversations":[` +
+			`{"id":"channel-1","name":"전사-공지","kind":"group"},` +
 			`{"id":"dm-agent","kind":"dm","participantExternalIDs":["` + requesterPubkeyHex + `","` + agentPubkeyHex + `"]},` +
 			`{"id":"dm-1","kind":"dm","participantExternalIDs":["` + requesterPubkeyHex + `","` + colleaguePubkeyHex + `"]}]}`
 	}
@@ -153,26 +161,40 @@ func askedThroughTheAPI(toolName string, input string) capabilities.ToolInvokeRe
 	return request
 }
 
-func TestTheAgentReadsItsOwnDirectConversationAndNobodyElses(t *testing.T) {
-	chatd := answeringPerCall(searchingAsTheRequester)
-	service := channelService(t, chatd)
-
-	withAColleague, _ := service.invokePlatformMessageSearch(context.Background(),
-		channelToolCall("message_search", `{"scope":"directMessage","personHint":"박예시"}`))
-	withTheAgent, _ := service.invokePlatformMessageSearch(context.Background(),
-		channelToolCall("message_search", `{"scope":"directMessage"}`))
-	byID, _ := service.invokePlatformMessageSearch(context.Background(),
-		channelToolCall("message_search", `{"messageIDs":["said-in-private"]}`))
-
-	if !withAColleague.IsError || !strings.Contains(string(withAColleague.Result), `"errorCode":"requester_only"`) {
-		t.Fatalf("expected two people's conversation to be refused to the agent, got %+v", withAColleague)
+func TestEveryReadNamesTheRequesterAndIsTheirsAloneOnlyOnTheirOwnCall(t *testing.T) {
+	inAConversation := []string{
+		`{"queries":["이야기"]}`,
+		`{"scope":"channel","channelID":"channel-1"}`,
+		`{"scope":"channel","channelName":"전사-공지"}`,
+		`{"scope":"directMessage"}`,
+		`{"scope":"directMessage","personHint":"박예시"}`,
+		`{"personHint":"박예시"}`,
+		`{"messageIDs":["said-in-private"]}`,
 	}
-	if withTheAgent.IsError || strings.Contains(string(byID.Result), "둘만 나눈 이야기") {
-		t.Fatalf("expected the agent's own conversation read and the private message unread, got %+v and %s", withTheAgent, byID.Result)
+	throughTheAgent := func(toolName string, input string) capabilities.ToolInvokeRequest {
+		return inAChannel(channelToolCall(toolName, input))
 	}
-	for _, search := range searchAskedOfChatd(t, chatd) {
-		if search.ReadAsRequester {
-			t.Fatalf("the agent read as the requester: %+v", search)
+	cases := []struct {
+		calling                func(string, string) capabilities.ToolInvokeRequest
+		inputs                 []string
+		isTheRequestersOwnCall bool
+	}{
+		{calling: throughTheAgent, inputs: inAConversation},
+		{calling: askedThroughTheAPI, inputs: inAConversation[1:], isTheRequestersOwnCall: true},
+	}
+	for _, caller := range cases {
+		for _, input := range caller.inputs {
+			chatd := answeringPerCall(searchingAsTheRequester)
+
+			_, _ = channelService(t, chatd).invokePlatformMessageSearch(context.Background(), caller.calling("message_search", input))
+
+			searches := searchAskedOfChatd(t, chatd)
+			if len(searches) != 1 || searches[0].RequesterPubkeyHex != requesterPubkeyHex || searches[0].ReadAsRequester != caller.isTheRequestersOwnCall {
+				t.Fatalf("%s (own call: %v): chatd was asked %+v", input, caller.isTheRequestersOwnCall, searches)
+			}
+			if len(askedOf(chatd, "channels.list")) != 0 {
+				t.Fatalf("%s: the channel was looked for among the agent's rooms", input)
+			}
 		}
 	}
 }
@@ -213,21 +235,6 @@ func TestADirectConversationNobodyHasIsNotSearched(t *testing.T) {
 
 	if !answered.IsError || !strings.Contains(string(answered.Result), `"errorCode":"conversation_not_found"`) || len(searchAskedOfChatd(t, chatd)) != 0 {
 		t.Fatalf("expected a refusal and no search, got %+v after %+v", answered, chatd.asked)
-	}
-}
-
-func TestAMessageTheAgentCannotReadIsReadByIDAsTheRequester(t *testing.T) {
-	chatd := answeringPerCall(searchingAsTheRequester)
-
-	answered, errorValue := channelService(t, chatd).invokePlatformMessageSearch(context.Background(),
-		askedThroughTheAPI("message_search", `{"messageIDs":["said-in-private"]}`))
-
-	if errorValue != nil || answered.IsError || !strings.Contains(string(answered.Result), `"text":"둘만 나눈 이야기"`) {
-		t.Fatalf("expected the message in full, got %+v %v", answered, errorValue)
-	}
-	searches := searchAskedOfChatd(t, chatd)
-	if len(searches) != 2 || searches[0].ReadAsRequester || !searches[1].ReadAsRequester {
-		t.Fatalf("expected the agent's read first and the requester's second, chatd was asked %+v", searches)
 	}
 }
 
@@ -307,7 +314,7 @@ func TestMessageDeleteApprovalPreviewQuotesTheTargets(testContext *testing.T) {
 	response, errorValue := service.resolveMessageDeleteTarget(context.Background(), capabilities.ToolInvokeRequest{
 		ToolName: "message_delete",
 		Input:    json.RawMessage(`{"messageIDs":["m1"]}`),
-		Context:  capabilities.ToolInvokeContext{Platform: "buzz"},
+		Context:  capabilities.ToolInvokeContext{Platform: "buzz", RequesterPlatformUserID: "requester-pubkey"},
 	})
 	if errorValue != nil {
 		testContext.Fatalf("resolve failed: %v", errorValue)
@@ -329,7 +336,7 @@ func TestMessageDeleteApprovalPreviewNeverBlocksOnALookupFailure(testContext *te
 	response, errorValue := service.resolveMessageDeleteTarget(context.Background(), capabilities.ToolInvokeRequest{
 		ToolName: "message_delete",
 		Input:    json.RawMessage(`{"messageIDs":["m1"]}`),
-		Context:  capabilities.ToolInvokeContext{Platform: "buzz"},
+		Context:  capabilities.ToolInvokeContext{Platform: "buzz", RequesterPlatformUserID: "requester-pubkey"},
 	})
 	if errorValue != nil {
 		testContext.Fatalf("resolve failed: %v", errorValue)

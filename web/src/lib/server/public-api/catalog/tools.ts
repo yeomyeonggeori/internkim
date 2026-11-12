@@ -708,7 +708,7 @@ export const messageContextInputSchema = z.strictObject({});
 export const messageSearchInputSchema = z.strictObject({
   messageIDs: uniqueMessageIDArraySchema.describe('Exact message IDs to read in full instead of searching. Returns each message\'s complete text rather than a preview. Use this before rewriting a long message.').optional(),
   scope: z.enum(MessageSearchScope)
-    .describe('Where to search. Current conversation scopes use the channel or thread this request is running in. directMessage is the requester\'s direct conversation with the agent; with personHint it is theirs with that person, which only the requester\'s own API call may read.')
+    .describe('Where to search. Current conversation scopes use the channel or thread this request is running in. directMessage is the requester\'s direct conversation with the agent, or with personHint theirs with that person.')
     .optional(),
   channelName: z.string().describe('Exact channel name as the messenger shows it.').optional(),
   channelID: resourceIDSchema.describe('Exact channel ID from message_context or a prior result.').optional(),
@@ -1533,7 +1533,7 @@ const messageToolDefinitions: CapabilityToolDefinition[] = [
     answeredBy: CapabilityAnsweredBy.Company,
     privacyClass: 'platform_message',
     policyResource: 'tool:message_search',
-    description: 'Find messages in an exact conversation scope, or read known ones in full. Searching by queries returns message IDs with a short preview around the match. Passing messageIDs instead returns those messages complete, which is what you need before rewriting or summarising a long message rather than a phrase inside it.',
+    description: 'Find messages in an exact conversation scope, or read known ones in full. Searching by queries returns message IDs with a short preview around the match. Passing messageIDs instead returns those messages complete, which is what you need before rewriting or summarising a long message rather than a phrase inside it. Through the agent this reads only conversations both the requester and the agent can open; the requester\'s own API call reads everything the requester can.',
     version: '2',
     estimatedLatency: CapabilityEstimatedLatency.Low,
     inputSchema: messageSearchInputSchema,
