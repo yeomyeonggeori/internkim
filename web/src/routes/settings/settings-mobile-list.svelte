@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { page } from '$app/state';
+	import * as Card from '$lib/components/ui/card';
 	import * as Item from '$lib/components/ui/item';
 	import { createPageText } from '$lib/i18n/page-text.svelte';
 	import ChevronRightIcon from '@lucide/svelte/icons/chevron-right';
@@ -18,22 +19,27 @@
 		{#each groups as { group, sections } (group)}
 			<section class="grid gap-2">
 				<h2 class="px-2 text-xs font-medium text-muted-foreground">{text.groups[group]}</h2>
-				<ul class="divide-y overflow-hidden rounded-xl border">
-					{#each sections as section (section.id)}
-						{@const Icon = section.icon}
-						<li>
-							<Item.Root size="sm">
-								{#snippet child({ props })}
-									<a href={settingsPath(page.url.pathname, section.id)} {...props}>
-										<Item.Media variant="icon"><Icon /></Item.Media>
-										<Item.Content><Item.Title>{text.sections[section.id]}</Item.Title></Item.Content>
-										<Item.Actions><ChevronRightIcon class="size-4 text-muted-foreground" /></Item.Actions>
-									</a>
-								{/snippet}
-							</Item.Root>
-						</li>
-					{/each}
-				</ul>
+				<Card.Root size="sm">
+					<Card.Content>
+						<Item.Group class="gap-0">
+							{#each sections as section, index (section.id)}
+								{@const Icon = section.icon}
+								{#if index > 0}
+									<Item.Separator class="my-0" />
+								{/if}
+								<Item.Root>
+									{#snippet child({ props })}
+										<a href={settingsPath(page.url.pathname, section.id)} {...props}>
+											<Item.Media variant="icon"><Icon /></Item.Media>
+											<Item.Content><Item.Title>{text.sections[section.id]}</Item.Title></Item.Content>
+											<Item.Actions><ChevronRightIcon class="size-4 text-muted-foreground" /></Item.Actions>
+										</a>
+									{/snippet}
+								</Item.Root>
+							{/each}
+						</Item.Group>
+					</Card.Content>
+				</Card.Root>
 			</section>
 		{/each}
 	</nav>
