@@ -162,6 +162,34 @@ test('supplementary fixture: a phone shows one week, and the type is written ins
 	expect(await firstShownDay(roadmap)).toBe(november(15));
 });
 
+test('supplementary fixture: on a phone a one-day bar writes its whole type beside itself', async ({ page }) => {
+	await page.setViewportSize({ width: 390, height: 844 });
+	const fixture = new TaskRoadmapFixture();
+	fixture.tasks = fixture.tasks.map(task => {
+		if (task.taskID === completedID) return { ...task, startDate: november(9), endDate: november(9) };
+		if (task.taskID === strangerID) return { ...task, startDate: november(14), endDate: november(14) };
+		return task;
+	});
+	const roadmap = await openRoadmap(page, fixture);
+	for (const [taskID, side] of [[completedID, 'after'], [strangerID, 'before']] as const) {
+		const row = roadmapRow(roadmap, taskID);
+		const label = row.locator(`[data-roadmap-bar-label="${side}"]`);
+		await expect(label).toHaveText('기타');
+		expect(await label.evaluate(element => element.scrollWidth <= element.clientWidth)).toBe(true);
+		const labelBox = await label.boundingBox();
+		const barBox = await row.locator(`[data-roadmap-bar="${taskID}"]`).boundingBox();
+		const laneBox = await row.locator(`[data-roadmap-bar="${taskID}"]`).evaluate(element => {
+			const lane = element.closest('.overflow-hidden')?.getBoundingClientRect();
+			return lane ? { left: lane.left, right: lane.right } : undefined;
+		});
+		if (!labelBox || !barBox || !laneBox) throw new Error('The bar, its label and its lane are drawn');
+		if (side === 'after') expect(labelBox.x).toBeGreaterThanOrEqual(barBox.x + barBox.width);
+		else expect(labelBox.x + labelBox.width).toBeLessThanOrEqual(barBox.x);
+		expect(labelBox.x).toBeGreaterThanOrEqual(laneBox.left);
+		expect(labelBox.x + labelBox.width).toBeLessThanOrEqual(laneBox.right);
+	}
+});
+
 test('supplementary fixture: the week arrows move the window seven days at a time', async ({ page }) => {
 	const roadmap = await openRoadmap(page, new TaskRoadmapFixture());
 	await page.getByRole('button', { name: '다음 주' }).click();

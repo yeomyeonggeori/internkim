@@ -8,6 +8,15 @@ export type TaskRoadmapDaySpan = {
 	lastDay: number;
 };
 
+export type TaskRoadmapLabelPlace = 'inside' | 'after' | 'before';
+
+const shortBarDayCount = 2;
+
+export function taskRoadmapLabelPlace(span: TaskRoadmapDaySpan, totalDays: number): TaskRoadmapLabelPlace {
+	if (span.lastDay - span.firstDay + 1 > shortBarDayCount) return 'inside';
+	return span.lastDay + shortBarDayCount < totalDays ? 'after' : 'before';
+}
+
 function percentOf(dayCount: number, totalDays: number): string {
 	return `${(dayCount / Math.max(1, totalDays)) * 100}%`;
 }

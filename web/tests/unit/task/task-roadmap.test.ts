@@ -16,6 +16,7 @@ import {
 	taskRoadmapShownMonth,
 	taskRoadmapWeekStart
 } from '../../../src/routes/task/task-roadmap-window';
+import { taskRoadmapLabelPlace } from '../../../src/routes/task/task-roadmap-layout';
 import type { Task } from '../../../src/routes/task/task-types';
 
 const twoWeeks = taskRoadmapDays('2026-11-08', 14);
@@ -74,6 +75,15 @@ describe('roadmap rows', () => {
 		const progress = { completed: 1, total: 3, percent: 33 };
 		const rows = buildTaskRoadmapRows([task('parent', { startDate: '2026-11-09' }), task('child', { startDate: '2026-11-10', parentTaskID: 'parent' })], twoWeeks, new Map([['parent', progress]]));
 		expect(rows.map((row) => row.childProgress)).toEqual([progress, undefined]);
+	});
+});
+
+describe('bar labels', () => {
+	test('a bar of three days or more holds its label, a shorter one puts it beside itself where the week has room', () => {
+		expect(taskRoadmapLabelPlace({ firstDay: 1, lastDay: 3 }, 7)).toBe('inside');
+		expect(taskRoadmapLabelPlace({ firstDay: 1, lastDay: 1 }, 7)).toBe('after');
+		expect(taskRoadmapLabelPlace({ firstDay: 4, lastDay: 5 }, 7)).toBe('before');
+		expect(taskRoadmapLabelPlace({ firstDay: 6, lastDay: 6 }, 7)).toBe('before');
 	});
 });
 
