@@ -11,11 +11,13 @@ import {
 	taskRoadmapDays
 } from '../../../src/routes/task/task-roadmap-model';
 import {
+	formatTaskRoadmapWindow,
 	isTaskRoadmapStartAllowed,
-	taskRoadmapMonthStart,
 	taskRoadmapShownMonth,
+	taskRoadmapWeekChoices,
 	taskRoadmapWeekStart
 } from '../../../src/routes/task/task-roadmap-window';
+import { taskRoadmapRevealedTaskID } from '../../../src/routes/task/task-roadmap-scroll';
 import { taskRoadmapLabelPlace } from '../../../src/routes/task/task-roadmap-layout';
 import type { Task } from '../../../src/routes/task/task-types';
 
@@ -115,13 +117,18 @@ describe('visible window', () => {
 		expect(taskRoadmapShownMonth('2026-11-27')).toEqual({ year: 2026, month: 11 });
 	});
 
-	test('choosing a month opens the week of its first day, unless that week shows the month before', () => {
-		expect(taskRoadmapMonthStart({ year: 2026, month: 12 }, '2026-11-11')).toBe('2026-11-29');
-		expect(taskRoadmapMonthStart({ year: 2027, month: 1 }, '2026-11-11')).toBe('2027-01-03');
+	test('the weeks to choose are every Sunday the window may open on, in order', () => {
+		const choices = taskRoadmapWeekChoices('2026-11-11');
+		expect([choices[0], choices.at(-1)]).toEqual(['2026-05-03', '2027-05-23']);
+		expect(choices).toContain('2026-11-08');
+		expect(choices.every((startISO) => taskRoadmapWeekStart(startISO) === startISO && isTaskRoadmapStartAllowed(startISO, '2026-11-11'))).toBe(true);
+		expect(choices.every((startISO, index) => index === 0 || startISO > choices[index - 1])).toBe(true);
 	});
 
-	test('choosing this month opens the week of today', () => {
-		expect(taskRoadmapMonthStart({ year: 2026, month: 11 }, '2026-11-11')).toBe('2026-11-08');
+	test('a week is named by the days the window shows, with the year when it is not this year', () => {
+		expect(formatTaskRoadmapWindow('2026-11-08', 14, '2026-11-11')).toBe('11/8 – 11/21');
+		expect(formatTaskRoadmapWindow('2026-11-08', 7, '2026-11-11')).toBe('11/8 – 11/14');
+		expect(formatTaskRoadmapWindow('2027-01-03', 14, '2026-11-11')).toBe('2027 1/3 – 1/16');
 	});
 
 	test('the window moves at most six months from this month', () => {
@@ -139,6 +146,31 @@ describe('visible window', () => {
 		expect(['2026-12-01', '2026-12-02'].map(formatTaskRoadmapDayNumber)).toEqual(['12/1', '2']);
 		expect(formatTaskRoadmapPeriod({ startDate: '2026-11-03', endDate: '2026-11-07' })).toBe('11/3 – 11/7');
 		expect(formatTaskRoadmapPeriod({ startDate: '2026-11-30', endDate: '2026-11-30' })).toBe('11/30');
+	});
+});
+
+describe('revealing a chosen week', () => {
+	test('the first row whose bar crosses the window is brought up', () => {
+		const rows = buildTaskRoadmapRows([
+			task('before', { startDate: '2026-11-01', endDate: '2026-11-03' }),
+			task('inside', { startDate: '2026-11-10' }),
+			task('after', { startDate: '2026-11-30' })
+		], twoWeeks, new Map());
+		expect(taskRoadmapRevealedTaskID(rows)).toBe('inside');
+	});
+
+	test('with nothing in the window, the first row that starts after it is brought up', () => {
+		const rows = buildTaskRoadmapRows([
+			task('before', { startDate: '2026-11-01', endDate: '2026-11-03' }),
+			task('after', { startDate: '2026-11-30' }),
+			task('undated')
+		], twoWeeks, new Map());
+		expect(taskRoadmapRevealedTaskID(rows)).toBe('after');
+	});
+
+	test('with nothing in or after the window, nothing moves', () => {
+		const rows = buildTaskRoadmapRows([task('before', { startDate: '2026-11-01' }), task('undated')], twoWeeks, new Map());
+		expect(taskRoadmapRevealedTaskID(rows)).toBeUndefined();
 	});
 });
 
