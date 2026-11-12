@@ -34,32 +34,32 @@ const dataRoomDocumentFields = {
   tags: z.array(z.string()).describe("Short lowercase tags, e.g. ['audit', 'k-ifrs'].").optional(),
 };
 
-const companyDocumentListInputSchema = z.strictObject({
+export const companyDocumentListInputSchema = z.strictObject({
   categoryCode: z.string().regex(/^[A-Z]{1,2}$/).describe('Exact parent or intermediate category code; a parent includes its children.').optional(),
   counterpart: z.string().describe("Counterpart name to filter by, e.g. 'ABC Trading'.").optional(),
   query: z.string().describe("Keyword filter matched against title, summary, and counterpart.").optional(),
   type: z.string().describe("Document type slug to filter by, e.g. 'quote'. Leave empty for all types.").optional(),
 });
 
-const companyDocumentRegisterInputSchema = z.strictObject({
+export const companyDocumentRegisterInputSchema = z.strictObject({
   ...dataRoomDocumentFields,
   counterpart: z.string().describe("Counterpart company or person name, e.g. 'ABC Trading'.").optional(),
-  documentType: z.string().describe("Document type slug from the paperwork catalog, e.g. 'quote', 'service-agreement', 'employment-certificate'."),
+  documentType: z.string().trim().min(1).describe("Document type slug from the paperwork catalog, e.g. 'quote', 'service-agreement', 'employment-certificate'."),
   filePath: z.string().describe("Workspace path of the file if it already exists. For issued documents you can also set it later with company_document_update after saving.").optional(),
   kind: z.string().describe("'issued' for documents the company creates (default, gets a document number), 'received' for documents from counterparts, 'internal' for internal-only files.").optional(),
   language: z.string().describe("Document language, e.g. 'ko' or 'en'.").optional(),
   summary: z.string().describe("2-3 sentence summary of the document's key terms: parties, amounts, dates, obligations. Written so later questions can be answered without opening the file."),
-  title: z.string().describe("Document title including the counterpart, e.g. 'ABC Trading onboarding consulting quote'."),
+  title: z.string().trim().min(1).describe("Document title including the counterpart, e.g. 'ABC Trading onboarding consulting quote'."),
 });
 
 const companyDocumentRegisterInputIntentSchema = companyDocumentRegisterInputSchema.partial();
 
-const companyDocumentSearchInputSchema = z.strictObject({
+export const companyDocumentSearchInputSchema = z.strictObject({
   limit: z.int().describe("Maximum documents to return. Defaults to 5.").optional(),
-  query: z.string().describe("Natural-language question or topic, e.g. 'payment terms of the service agreement with ABC Trading'."),
+  query: z.string().trim().min(1).describe("Natural-language question or topic, e.g. 'payment terms of the service agreement with ABC Trading'."),
 });
 
-const companyDocumentUpdateInputSchema = z.strictObject({
+export const companyDocumentUpdateInputSchema = z.strictObject({
   ...dataRoomDocumentFields,
   counterpart: z.string().describe("Corrected counterpart. Omit to keep unchanged.").optional(),
   documentHint: z.string().describe("The document to update: its id from a prior company_document_list or search result, its document number, or its exact CURRENT title. Never the new title this call is about to set."),
@@ -70,7 +70,7 @@ const companyDocumentUpdateInputSchema = z.strictObject({
 
 const companyDocumentUpdateInputIntentSchema = companyDocumentUpdateInputSchema.omit({ documentHint: true }).partial();
 
-const companyDocumentUploadInputSchema = z.strictObject({
+export const companyDocumentUploadInputSchema = z.strictObject({
   documentHint: z.string().describe("The registered document the file belongs to: its id from company_document_register or a prior list or search result, its document number, or its exact CURRENT title."),
   originalFileName: z.string().describe("The original file's own name with its extension, e.g. '2025 audit report.pdf'. Give this or fileName.").optional(),
   fileName: z.string().describe("Name of a file derived from the original, e.g. 'content.txt' or 'thumbnail.png'. Give this or originalFileName.").optional(),
@@ -78,12 +78,12 @@ const companyDocumentUploadInputSchema = z.strictObject({
 
 const companyDocumentUploadInputIntentSchema = companyDocumentUploadInputSchema.partial();
 
-const companyDocumentDownloadInputSchema = z.strictObject({
+export const companyDocumentDownloadInputSchema = z.strictObject({
   documentHint: z.string().describe("The document whose file to fetch: its id from a prior company_document_list or search result, its document number, or its exact CURRENT title."),
   fileName: z.string().describe("Name of a file derived from the original, e.g. 'content.txt'. Omit for the original itself.").optional(),
 });
 
-const companyInfoGetInputSchema = z.strictObject({
+export const companyInfoGetInputSchema = z.strictObject({
   language: z.string().describe("Document language to resolve the profile for, e.g. 'ko' or 'en'. Omit it to get the company's working language, which the response's language names. The response's missingFields lists core fields still empty for this language.").optional(),
 });
 
@@ -94,7 +94,7 @@ const serviceFileImageFields = Object.fromEntries(serviceFiles.map((file) => [
 
 const serviceFileImageFieldNames = serviceFileNames.map(imageFieldOf).join(' or ');
 
-const companyInfoSetInputSchema = z.strictObject({
+export const companyInfoSetInputSchema = z.strictObject({
   address: z.string().describe("Registered head-office address.").optional(),
   bankAccount: z.string().describe("One-line bank account: bank, account number, holder. Use the 'en' slot for international wire details (SWIFT/IBAN).").optional(),
   brandName: z.string().describe("Service or brand name when it differs from the legal name.").optional(),
@@ -118,7 +118,7 @@ const companyInfoSetInputSchema = z.strictObject({
 
 const companyInfoSetInputIntentSchema = companyInfoSetInputSchema.partial();
 
-const companyImageUploadInputSchema = z.strictObject({
+export const companyImageUploadInputSchema = z.strictObject({
   image: z.enum([...serviceFileNames, companyPictureImage]).describe(`Which company image the file is: ${serviceFiles.map((file) => `'${file.name}' for ${file.purpose}`).join(', ')}, or '${companyPictureImage}' for the picture the app shows beside the company's name.`),
   fileName: z.string().describe(`The image file's own name with its extension: ${serviceFileImageExtensions.map((extension) => `.${extension}`).join(', ')}.`),
   date: z.string().describe(`The day the image took effect, in YYYY-MM-DD format. Defaults to today. A '${companyPictureImage}' has no versions, so it reads no date.`).optional(),
@@ -126,13 +126,13 @@ const companyImageUploadInputSchema = z.strictObject({
 
 const companyImageUploadInputIntentSchema = companyImageUploadInputSchema.partial();
 
-const companyMetricListInputSchema = z.strictObject({
+export const companyMetricListInputSchema = z.strictObject({
   fromYear: z.int().describe("Earliest year to include.").optional(),
-  metric: z.string().describe("Metric key to filter by, e.g. 'annualRevenue'. Leave empty for all metrics.").optional(),
+  metric: z.string().trim().min(1).describe("Metric key to filter by, e.g. 'annualRevenue'. Leave empty for all metrics.").optional(),
   toYear: z.int().describe("Latest year to include.").optional(),
 });
 
-const companyMetricRecordInputSchema = z.strictObject({
+export const companyMetricRecordInputSchema = z.strictObject({
   amount: moneySchema.describe("The value when the metric is money, e.g. {\"amount\": 1200000000, \"currency\": \"KRW\"}. Give amount or value, never both.").optional(),
   basis: metricBasisSchema.describe("'expected' when the number is a projection or plan for the period, 'reported' when it is the actual result. A period holds one number, so recording the result replaces the projection."),
   metric: z.string().describe("Metric key in lowerCamelCase, e.g. 'annualRevenue', 'operatingProfit', 'mau'. Reuse the same key across periods."),
@@ -146,30 +146,30 @@ const companyMetricRecordInputIntentSchema = companyMetricRecordInputSchema.part
 
 const companyRecordStatusSchema = z.enum(["in_progress", "completed"]).describe("'in_progress' while it is still happening, such as a funding round being raised (its amount is the target); 'completed' once it happened. Defaults to completed.");
 
-const companyRecordAddInputSchema = z.strictObject({
+export const companyRecordAddInputSchema = z.strictObject({
   amount: moneySchema.describe("The money the event is about, e.g. a funding round or a grant: {\"amount\": 2000000, \"currency\": \"USD\"}.").optional(),
   attributes: z.string().describe("JSON object string of other structured details, e.g. {\"round\": \"Seed\", \"investors\": \"ABC Ventures\"}. The event's own money goes in amount; any other sum, such as a valuation, is money too: {\"preMoney\": {\"amount\": 30000000000, \"currency\": \"KRW\"}}.").optional(),
-  category: z.string().describe("Record category: 'history', 'funding', 'product', 'certification', 'ip', 'award', 'reference', 'grant', or another short kebab-case label."),
+  category: z.string().trim().min(1).describe("Record category: 'history', 'funding', 'product', 'certification', 'ip', 'award', 'reference', 'grant', or another short kebab-case label."),
   date: momentSchema.describe("When it happened, as precisely as known: YYYY-MM-DD, YYYY-MM, YYYY-Q1 to YYYY-Q4 for a quarter, YYYY-H1 or YYYY-H2 for a half, or YYYY. Sorts the company timeline. For something still in progress, when it is expected to finish.").optional(),
   detail: z.string().describe("One-to-three sentence description.").optional(),
   status: companyRecordStatusSchema.optional(),
-  title: z.string().describe("Short title, e.g. 'Seed round closed' or 'Product launched'."),
+  title: z.string().trim().min(1).describe("Short title, e.g. 'Seed round closed' or 'Product launched'."),
 });
 
 const companyRecordAddInputIntentSchema = companyRecordAddInputSchema.partial();
 
-const companyRecordDeleteInputSchema = z.strictObject({
+export const companyRecordDeleteInputSchema = z.strictObject({
   recordHint: z.string().describe("The record to delete: its id from a prior company_record_list result, or its exact CURRENT title. Never invent an id."),
 });
 
 const companyRecordDeleteInputIntentSchema = z.strictObject({});
 
-const companyRecordListInputSchema = z.strictObject({
+export const companyRecordListInputSchema = z.strictObject({
   category: z.string().describe("Category to filter by, e.g. 'funding' or 'history'. Leave empty for all.").optional(),
   query: z.string().describe("Keyword filter matched against title, detail, and attributes.").optional(),
 });
 
-const companyRecordUpdateInputSchema = z.strictObject({
+export const companyRecordUpdateInputSchema = z.strictObject({
   amount: moneySchema.describe("New amount. Omit to keep unchanged.").optional(),
   attributes: z.string().describe("JSON object string replacing the stored attributes. Omit to keep unchanged.").optional(),
   category: z.string().describe("New category. Omit to keep unchanged.").optional(),
@@ -271,10 +271,10 @@ export const companyDocumentDownloadResultSchema = z.strictObject({
 
 const equityHolderKindSchema = z.enum(["founder", "employee", "investor", "option_pool", "other"]);
 
-const companyEquityAddInputSchema = z.strictObject({
-  effectiveDate: z.string().describe("The day the change took effect, YYYY-MM-DD. To start a ledger from today's register, date every opening line on the day of that register."),
+export const companyEquityAddInputSchema = z.strictObject({
+  effectiveDate: z.string().trim().min(1).describe("The day the change took effect, YYYY-MM-DD. To start a ledger from today's register, date every opening line on the day of that register."),
   fundingRoundHint: z.string().describe("The funding round that issued these shares: a funding record's id from company_record_list, or its exact CURRENT title. Leave out for founders' shares, grants and transfers.").optional(),
-  holder: z.string().describe("The holder exactly as the shareholder register names them, e.g. 'Sample Kim' or 'Sample Ventures Fund I'."),
+  holder: z.string().trim().min(1).describe("The holder exactly as the shareholder register names them, e.g. 'Sample Kim' or 'Sample Ventures Fund I'."),
   holderKind: equityHolderKindSchema.describe("Who the holder is: 'founder', 'employee', 'investor', 'option_pool' for options reserved but not yet granted, or 'other'."),
   note: z.string().describe("Where the line comes from, e.g. 'shareholder register of 2026-06-30'.").optional(),
   securityClass: z.string().describe("What is held, as the company calls it, e.g. 'common', 'RCPS', 'Series A preferred', 'options'. Defaults to common.").optional(),
@@ -283,13 +283,13 @@ const companyEquityAddInputSchema = z.strictObject({
 
 const companyEquityAddInputIntentSchema = companyEquityAddInputSchema.partial();
 
-const companyEquityListInputSchema = z.strictObject({
+export const companyEquityListInputSchema = z.strictObject({
   asOfDate: z.string().describe("Sum the ledger up to this day, YYYY-MM-DD. Leave out for today.").optional(),
   holder: z.string().describe("Only the lines of holders whose name contains this text.").optional(),
 });
 
-const companyEquityDeleteInputSchema = z.strictObject({
-  entryHint: z.string().describe("The ledger line to delete: its entryID from a prior company_equity_list result. Never invent an id."),
+export const companyEquityDeleteInputSchema = z.strictObject({
+  entryHint: z.string().trim().min(1).describe("The ledger line to delete: its entryID from a prior company_equity_list result. Never invent an id."),
 });
 
 const companyEquityDeleteInputIntentSchema = z.strictObject({});

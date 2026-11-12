@@ -1,3 +1,5 @@
+import type { z } from 'zod';
+import type { companyDocumentDownloadInputSchema, companyDocumentListInputSchema, companyDocumentRegisterInputSchema, companyDocumentSearchInputSchema, companyDocumentUpdateInputSchema, companyDocumentUploadInputSchema, companyMetricListInputSchema, companyMetricRecordInputSchema, companyRecordAddInputSchema, companyRecordDeleteInputSchema, companyRecordListInputSchema, companyRecordUpdateInputSchema } from '../catalog/company';
 import { assetBucket } from '../asset-address';
 import { compareMomentsNewestFirst, momentSpanOf } from '$lib/moment';
 import { dataRoomFolder, derivedPath, originalPath } from '$lib/data-room/storage-path';
@@ -20,35 +22,19 @@ import type {
 } from '../catalog/company';
 import { InputRefused, AccessRefused, TargetMissing, RecordAlreadyHolds, refusalOfPostgresError, refusalOfServiceError } from '../refusal';
 
-export type CompanyMetricRecordInput = {
-	metric?: string;
-	period?: string;
-	basis?: MetricBasis;
-	amount?: Money;
-	value?: number;
-	unit?: string;
-	note?: string;
-};
+export type CompanyMetricRecordInput = z.infer<typeof companyMetricRecordInputSchema>;
 
-export type CompanyMetricListInput = { metric?: string; fromYear?: number; toYear?: number };
+export type CompanyMetricListInput = z.infer<typeof companyMetricListInputSchema>;
 
-export type CompanyRecordAddInput = {
-	category?: string;
-	date?: string;
-	title?: string;
-	detail?: string;
-	amount?: Money;
-	attributes?: string;
-	status?: CompanyRecordStatus;
-};
+export type CompanyRecordAddInput = z.infer<typeof companyRecordAddInputSchema>;
 
 export type CompanyRecordStatus = 'in_progress' | 'completed';
 
-export type CompanyRecordUpdateInput = CompanyRecordAddInput & { recordHint?: string };
+export type CompanyRecordUpdateInput = z.infer<typeof companyRecordUpdateInputSchema>;
 
-export type CompanyRecordDeleteInput = { recordHint?: string };
+export type CompanyRecordDeleteInput = z.infer<typeof companyRecordDeleteInputSchema>;
 
-export type CompanyRecordListInput = { category?: string; query?: string };
+export type CompanyRecordListInput = z.infer<typeof companyRecordListInputSchema>;
 
 export type DataRoomDocumentInput = {
 	categoryCode?: string;
@@ -60,36 +46,17 @@ export type DataRoomDocumentInput = {
 	tags?: string[];
 };
 
-export type CompanyDocumentRegisterInput = DataRoomDocumentInput & {
-	kind?: string;
-	documentType?: string;
-	title?: string;
-	counterpart?: string;
-	language?: string;
-	filePath?: string;
-	summary?: string;
-};
+export type CompanyDocumentRegisterInput = z.infer<typeof companyDocumentRegisterInputSchema>;
 
-export type CompanyDocumentUpdateInput = DataRoomDocumentInput & {
-	documentHint?: string;
-	title?: string;
-	counterpart?: string;
-	filePath?: string;
-	summary?: string;
-};
+export type CompanyDocumentUpdateInput = z.infer<typeof companyDocumentUpdateInputSchema>;
 
-export type CompanyDocumentListInput = {
-	categoryCode?: string;
-	type?: string;
-	counterpart?: string;
-	query?: string;
-};
+export type CompanyDocumentListInput = z.infer<typeof companyDocumentListInputSchema>;
 
-export type CompanyDocumentUploadInput = { documentHint?: string; originalFileName?: string; fileName?: string };
+export type CompanyDocumentUploadInput = z.infer<typeof companyDocumentUploadInputSchema>;
 
-export type CompanyDocumentDownloadInput = { documentHint?: string; fileName?: string };
+export type CompanyDocumentDownloadInput = z.infer<typeof companyDocumentDownloadInputSchema>;
 
-export type CompanyDocumentSearchInput = { query?: string; limit?: number };
+export type CompanyDocumentSearchInput = z.infer<typeof companyDocumentSearchInputSchema>;
 export type CompanyDocumentRecallInput = {
 	query?: string;
 	candidates?: string[];
@@ -246,12 +213,6 @@ function publishedOf(row: DocumentRow): CompanyDocumentPublished | null {
 	return { at: row.published_at, by: row.published_by, from: row.published_from };
 }
 
-export function textOf(value: string | undefined, refusal: string): string {
-	const given = value?.trim();
-	if (!given) throw new InputRefused(refusal);
-	return given;
-}
-
 export function orNull(value: string | undefined): string | null {
 	const given = value?.trim();
 	return given ? given : null;
@@ -335,8 +296,7 @@ export async function companyMetricRecord(
 	context: RecordContext,
 	input: CompanyMetricRecordInput
 ): Promise<CompanyMetricResult> {
-	const metric = textOf(input.metric, 'a metric call names the metric it records');
-	const period = textOf(input.period, 'a metric names the period it covers, such as 2025, 2026-H1 or 2026-Q3');
+	const { metric, period } = input;
 	const stored = storedMetricValueOf(input);
 	const unit = orNull(input.unit);
 	if (unit) await recordMetricUnit(context, metric, unit);
@@ -436,8 +396,7 @@ export async function companyRecordAdd(
 	context: RecordContext,
 	input: CompanyRecordAddInput
 ): Promise<CompanyRecordResult> {
-	const category = textOf(input.category, 'a company record names the category it belongs to');
-	const title = textOf(input.title, 'a company record needs a title');
+	const { category, title } = input;
 
 	const { data, error } = await context.caller
 		.from('company_record')
@@ -580,8 +539,7 @@ export async function companyDocumentRegister(
 	context: RecordContext,
 	input: CompanyDocumentRegisterInput
 ): Promise<CompanyDocumentResult> {
-	const documentType = textOf(input.documentType, 'a document names the type it is');
-	const title = textOf(input.title, 'a document needs a title');
+	const { documentType, title } = input;
 	const kind = kindOfDocument(input.kind);
 	const prefix = `${documentNumberPrefix(documentType)}-${context.now.getUTCFullYear()}-`;
 
@@ -722,8 +680,7 @@ export async function companyDocumentSearch(
 	context: RecordContext,
 	input: CompanyDocumentSearchInput
 ): Promise<CompanyDocumentListResult> {
-	const asked = textOf(input.query, 'a document search asks something');
-	const documents = (await documentsMatching(context, asked, input.limit, 0)).map(answeredDocument);
+	const documents = (await documentsMatching(context, input.query, input.limit, 0)).map(answeredDocument);
 	return { count: documents.length, documents };
 }
 
@@ -732,7 +689,8 @@ export async function companyDocumentRecall(
 	input: CompanyDocumentRecallInput
 ): Promise<CompanyDocumentRecallResult> {
 	if (input.changedAfter !== undefined) return documentsChangedAfter(context, input.changedAfter, input.changedAfterID, input.limit);
-	const asked = textOf(input.query, 'a document recall asks something or lists what changed');
+	const asked = input.query?.trim();
+	if (!asked) throw new InputRefused('a document recall asks something or lists what changed');
 	const limit = Math.min(Math.max(input.limit ?? documentSearchDefaultLimit, 1), documentSearchLimit);
 	const matched = await documentsMatching(context, asked, limit, documentRecallMinimumRelevance);
 	const nearby = await documentsAmong(context, input.candidates ?? []);
@@ -866,7 +824,8 @@ async function recordedOriginalPath(
 	held: DocumentRow,
 	originalFileName: string | undefined
 ): Promise<string> {
-	const fileName = textOf(originalFileName, "an upload names the original's file name, or the fileName of a file derived from it");
+	const fileName = originalFileName?.trim();
+	if (!fileName) throw new InputRefused("an upload names the original's file name, or the fileName of a file derived from it");
 	const storagePath = originalPath(
 		{ companyID: context.companyID, categoryCode: held.category_code, documentID: held.id },
 		fileName,

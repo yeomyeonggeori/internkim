@@ -41,9 +41,8 @@ import {
 	crmVocabularySet
 } from './crm-tools';
 import { crmRecordImport } from './crm-import-tools';
-import { crmImportRecordsOf } from './crm-import-file';
+import { crmImportRecordsOf, crmRecordImportPreview } from './crm-import-file';
 import type { CarriedWorkspaceFile } from '../carried-files';
-import { crmOpportunityMoveInputSchema, crmRecordImportInputSchema, crmVocabularySetInputSchema } from '../catalog/crm';
 import {
 	companyDocumentDownload,
 	companyDocumentList,
@@ -74,7 +73,6 @@ import {
 	notificationSettingsSet
 } from './notification-tools';
 import { channelOrderGet, channelOrderSet, channelPin, channelUnpin } from './channel-order-tools';
-import { channelOrderSetInputSchema, channelPinInputSchema } from '../catalog/channel-order';
 import {
 	leaveBalance,
 	leaveDecide,
@@ -96,13 +94,41 @@ import {
 } from './circle';
 import { taskAdd, taskDelete, taskList, taskBoard, taskUpdate, taskVocabularySet } from './task-tools';
 import { teamAdd, teamDelete, teamList, teamUpdate } from './team-tools';
-import { previewOfTool } from './preview';
+import {
+	companyHolidayDeleteTarget,
+	companyRecordDeleteTarget,
+	crmContactArchiveTarget,
+	crmOpportunityArchiveTarget,
+	crmOrganizationArchiveTarget,
+	eventDeleteTarget,
+	personTarget,
+	taskDeleteTarget,
+	type PreviewedTarget
+} from './preview';
 import { leavesTaskLabelsUndecided, type TaskLabelDecider } from './task-labels';
 import { answererOfTool, toolNamesAnsweredBy } from '../catalog';
-import { capabilityToolResultSchema, legacyAttendanceListResultSchema, taskBoardInputSchema, taskListInputSchema } from '../catalog/tools';
+import { capabilityToolResultSchema, legacyAttendanceListResultSchema } from '../catalog/tools';
 import { readWithNullAsAbsent } from '../null-as-absent';
 import { sentencesOfSchemaRefusal } from '../schema-sentences';
 import { Refusal, answerOfRefusal } from '../refusal';
+import { attendanceAddInputSchema, attendanceCurrentGetInputSchema, attendanceDeleteInputSchema, attendanceListInputSchema, attendanceUpdateInputSchema, calendarAddInputSchema, calendarDeleteInputSchema, calendarListInputSchema, calendarUpdateInputSchema, leaveBalanceInputSchema, leaveDecideInputSchema, leaveDeleteInputSchema, leaveGrantSetInputSchema, leaveListInputSchema, leaveRequestInputSchema, leaveReturnEarlyInputSchema, leaveUpdateInputSchema, taskAddInputSchema, taskBoardInputSchema, taskDeleteInputSchema, taskListInputSchema, taskUpdateInputSchema } from '../catalog/tools';
+import { taskVocabularySetInputSchema } from '../catalog/labels';
+import { taskInvitationDeleteInputSchema, taskInvitationListInputSchema, taskInviteInputSchema } from '../catalog/task-invitation';
+import { calendarSubscriptionInputSchema } from '../catalog/calendar-subscription';
+import { personInviteInputSchema, personListInputSchema, personPasswordResetInputSchema, personUpdateInputSchema, personWithdrawInputSchema, teamAddInputSchema, teamDeleteInputSchema, teamListInputSchema, teamUpdateInputSchema } from '../catalog/people';
+import { attendanceTeamPageInputSchema } from '$lib/attendance/team-page';
+import { attendanceLeavePolicyGetInputSchema, attendanceLeavePolicySetInputSchema, attendanceWorkPolicyGetInputSchema, attendanceWorkPolicySetInputSchema, companyHolidayAddInputSchema, companyHolidayDeleteInputSchema, companyHolidayListInputSchema, companyHolidayUpdateInputSchema, companySettingsGetInputSchema, companySettingsUpdateInputSchema } from '../catalog/settings';
+import { companyCreditsGetInputSchema } from '../catalog/credits';
+import { companyDocumentDownloadInputSchema, companyDocumentListInputSchema, companyDocumentRegisterInputSchema, companyDocumentSearchInputSchema, companyDocumentUpdateInputSchema, companyDocumentUploadInputSchema, companyEquityAddInputSchema, companyEquityDeleteInputSchema, companyEquityListInputSchema, companyImageUploadInputSchema, companyInfoGetInputSchema, companyInfoSetInputSchema, companyMetricListInputSchema, companyMetricRecordInputSchema, companyRecordAddInputSchema, companyRecordDeleteInputSchema, companyRecordListInputSchema, companyRecordUpdateInputSchema } from '../catalog/company';
+import { recallSourceInputSchema } from '../catalog/protocol';
+import { circleChannelAddInputSchema, circleChannelDeleteInputSchema, circleListInputSchema, circleMemberSetInputSchema, circleSetInputSchema } from '../catalog/circle';
+import { dataRoomCategorySetInputSchema, dataRoomFieldNameSetInputSchema, dataRoomFieldSetInputSchema, dataRoomGetInputSchema, dataRoomInvitationAcceptInputSchema, dataRoomInvitationSendInputSchema, dataRoomLinksGetInputSchema, dataRoomShareCreateInputSchema, dataRoomShareRevokeInputSchema } from '../catalog/data-room';
+import { dataRoomLinkInputSchema, dataRoomLinkRevokeSchema } from '$lib/data-room/links';
+import { conversationMuteInputSchema, notificationSettingsGetInputSchema, notificationSettingsSetInputIntentSchema } from '../catalog/notifications';
+import { channelOrderGetInputSchema, channelOrderSetInputSchema, channelPinInputSchema } from '../catalog/channel-order';
+import { crmActivityListInputSchema, crmActivitySaveInputSchema, crmContactAddInputSchema, crmContactArchiveInputSchema, crmContactListInputSchema, crmContactUpdateInputSchema, crmOpportunityAddInputSchema, crmOpportunityArchiveInputSchema, crmOpportunityListInputSchema, crmOpportunityMoveInputSchema, crmOpportunityUpdateInputSchema, crmOrganizationAddInputSchema, crmOrganizationArchiveInputSchema, crmOrganizationListInputSchema, crmOrganizationUpdateInputSchema, crmRecordImportInputSchema, crmVocabularyGetInputSchema, crmVocabularySetInputSchema } from '../catalog/crm';
+import type { z } from 'zod';
+import { inputOfTheCall, parsedToolInput } from '../tool-input';
 
 type ToolInput = Record<string, unknown>;
 type CallCarried = {
@@ -111,7 +137,44 @@ type CallCarried = {
 	announceTaskChange?: TaskChangeAnnouncer;
 	announceAttendance?: AttendanceAnnouncer;
 };
-type ToolRun = (context: RecordContext, input: ToolInput, carried: CallCarried) => Promise<unknown> | unknown;
+type RecordToolRun<Input> = (context: RecordContext, input: Input, carried: CallCarried) => unknown;
+type RecordToolPreview<Input> = (
+	context: RecordContext,
+	input: Input,
+	files: CarriedWorkspaceFile[]
+) => Promise<PreviewedTarget | null>;
+type RecordReach = { caller: SupabaseClient; context: () => Promise<RecordContext> };
+type BoundRecordTool = {
+	run: (reach: RecordReach, carried: CallCarried) => unknown;
+	preview?: (context: RecordContext, files: CarriedWorkspaceFile[]) => Promise<PreviewedTarget | null>;
+};
+type RecordTool = { inputSchema: z.ZodType; boundTo: (asked: unknown) => BoundRecordTool };
+
+function recordTool<Input>(
+	inputSchema: z.ZodType<Input>,
+	run: RecordToolRun<Input>,
+	preview?: RecordToolPreview<Input>
+): RecordTool {
+	return {
+		inputSchema,
+		boundTo: (asked) => {
+			const input = parsedToolInput(inputSchema, asked);
+			const runWith: BoundRecordTool['run'] = async (reach, carried) => run(await reach.context(), input, carried);
+			if (!preview) return { run: runWith };
+			return { run: runWith, preview: (context, files) => preview(context, input, files) };
+		}
+	};
+}
+
+function callerTool<Input>(inputSchema: z.ZodType<Input>, run: (caller: SupabaseClient, input: Input) => unknown): RecordTool {
+	return {
+		inputSchema,
+		boundTo: (asked) => {
+			const input = parsedToolInput(inputSchema, asked);
+			return { run: (reach) => run(reach.caller, input) };
+		}
+	};
+}
 
 function exactAttendancePersonIDs(name: string, input: ToolInput): string[] | undefined {
 	if (name !== 'attendance_list' && name !== 'leave_list') return;
@@ -133,124 +196,127 @@ function placeTheAppAnswersAt(name: string, place: ToolPlace | undefined): ToolP
 	return place;
 }
 
-const toolsOverTheRecord: Record<string, ToolRun> = {
-	task_add: (context, input, { announceTaskChange }) => taskAdd(context, input, announceTaskChange),
-	task_update: (context, input, { announceTaskChange }) => taskUpdate(context, input, announceTaskChange),
-	task_list: (context, input) => taskList(context, taskListInputSchema.parse(input)),
-	task_board_get: (context, input) => taskBoard(context, taskBoardInputSchema.parse(input)),
-	task_delete: (context, input) => taskDelete(context, input),
-	task_vocabulary_set: (context, input) => taskVocabularySet(context, input),
-	task_invite: (context, input, { place }) => taskInvite(context, input, placeTheAppAnswersAt('task_invite', place)),
-	task_invitation_list: (context) => taskInvitationList(context),
-	task_invitation_delete: (context, input) => taskInvitationDelete(context, input),
-	event_add: (context, input) => eventAdd(context, input),
-	event_update: (context, input) => eventUpdate(context, input),
-	event_list: (context, input) => eventList(context, input),
-	event_delete: (context, input) => eventDelete(context, input),
-	calendar_subscription_get: (context) => calendarSubscriptionGet(context),
-	calendar_subscription_add: (context, _input, { place }) =>
-		calendarSubscriptionAdd(context, placeTheAppAnswersAt('calendar_subscription_add', place)),
-	calendar_subscription_delete: (context) => calendarSubscriptionDelete(context),
-	person_list: (context,input) => personList(context,input),
-	person_update: (context, input) => personUpdate(context, input),
-	person_invite: (context, input) => personInvite(context, input),
-	person_withdraw: (context, input) => personWithdraw(context, input),
-	person_password_reset: (context, input) => personPasswordReset(context, input),
-	team_list: (context) => teamList(context),
-	team_add: (context, input) => teamAdd(context, input),
-	team_update: (context, input) => teamUpdate(context, input),
-	team_delete: (context, input) => teamDelete(context, input),
-	leave_list: (context, input) => leaveList(context, input),
-	leave_balance: (context, input) => leaveBalance(context, input),
-	leave_request: (context, input, { announceAttendance }) => leaveRequest(context, input, announceAttendance),
-	leave_update: (context, input) => leaveUpdate(context, input),
-	leave_delete: (context, input) => leaveDelete(context, input),
-	leave_decide: (context, input) => leaveDecide(context, input),
-	leave_grant_set: (context, input) => leaveGrantSet(context, input),
-	leave_return_early: (context, input, { announceAttendance }) => leaveReturnEarly(context, input, announceAttendance),
-	attendance_list: async (context, input) => legacyAttendanceListResultSchema.parse(await attendanceList(context, input)),
-	attendance_changes_page_get: (context, input) => attendanceList(context, input),
-	attendance_current_get: (context) => currentAttendance(context.caller),
-	attendance_team_page_get: (context, input) => legacyTeamAttendance(context.caller,input),
-	attendance_team_dashboard_get: (context, input) => teamAttendance(context.caller, input),
-	attendance_add: (context, input, { announceAttendance }) => attendanceAdd(context, input, announceAttendance),
-	attendance_update: (context, input) => attendanceUpdate(context, input),
-	attendance_delete: (context, input) => attendanceDelete(context, input),
-	attendance_work_policy_get: (context) => attendanceWorkPolicyGet(context),
-	attendance_work_policy_set: (context, input) => attendanceWorkPolicySet(context, input),
-	attendance_leave_policy_get: (context) => attendanceLeavePolicyGet(context),
-	attendance_leave_policy_set: (context, input) => attendanceLeavePolicySet(context, input),
-	company_settings_get: (context, input) => companySettingsGet(context, input),
-	company_settings_update: (context, input) => companySettingsUpdate(context, input),
-	company_credits_get: (context) => companyCreditsGet(context),
-	company_info_get: (context, input) => companyInfoGet(context, input),
-	company_info_set: (context, input) => companyInfoSet(context, input),
-	company_image_upload: (context, input) => companyImageUpload(context, input),
-	company_holiday_list: (context, input) => companyHolidayList(context, input),
-	company_holiday_add: (context, input) => companyHolidayAdd(context, input),
-	company_holiday_update: (context, input) => companyHolidayUpdate(context, input),
-	company_holiday_delete: (context, input) => companyHolidayDelete(context, input),
-	company_metric_record: (context, input) => companyMetricRecord(context, input),
-	company_metric_list: (context, input) => companyMetricList(context, input),
-	company_record_add: (context, input) => companyRecordAdd(context, input),
-	company_record_list: (context, input) => companyRecordList(context, input),
-	company_record_update: (context, input) => companyRecordUpdate(context, input),
-	company_record_delete: (context, input) => companyRecordDelete(context, input),
-	company_equity_add: (context, input) => companyEquityAdd(context, input),
-	company_equity_list: (context, input) => companyEquityList(context, input),
-	company_equity_delete: (context, input) => companyEquityDelete(context, input),
-	company_document_register: (context, input) => companyDocumentRegister(context, input),
-	company_document_list: (context, input) => companyDocumentList(context, input),
-	company_document_search: (context, input) => companyDocumentSearch(context, input),
-	company_document_recall: (context, input) => companyDocumentRecall(context, input),
-	company_document_update: (context, input) => companyDocumentUpdate(context, input),
-	company_document_upload: (context, input) => companyDocumentUpload(context, input),
-	company_document_download: (context, input) => companyDocumentDownload(context, input),
-	circle_list: (context) => companyCircleList(context),
-	circle_update: (context, input) => companyCircleSet(context, input),
-	circle_member_update: (context, input) => companyCircleMemberSet(context, input),
-	circle_channel_add: (context, input) => companyCircleChannelAdd(context, input),
-	circle_channel_delete: (context, input) => companyCircleChannelDelete(context, input),
-	dataroom_get: (context) => companyDataRoomGet(context),
-	dataroom_links_get: (context) => companyDataRoomLinksGet(context),
-	dataroom_link_add: (context, input) => companyDataRoomLinkCreate(context, input),
-	dataroom_link_delete: (context, input) => companyDataRoomLinkRevoke(context, input),
-	dataroom_category_update: (context, input) => companyDataRoomCategorySet(context, input),
-	dataroom_field_update: (context, input) => companyDataRoomFieldSet(context, input),
-	dataroom_field_name_update: (context, input) => companyDataRoomFieldNameSet(context, input),
-	dataroom_share_add: (context, input) => companyDataRoomShareCreate(context, input),
-	dataroom_share_delete: (context, input) => companyDataRoomShareRevoke(context, input),
-	dataroom_invitation_send: (context, input, { place }) =>
-		companyDataRoomInvitationSend(context, input, placeTheAppAnswersAt('dataroom_invitation_send', place)),
-	dataroom_invitation_accept: (context, input) => companyDataRoomInvitationAccept(context, input),
-	notification_settings_get: (context) => notificationSettingsGet(context),
-	notification_settings_set: (context, input) => notificationSettingsSet(context, input),
-	conversation_mute: (context, input) => conversationMute(context, input),
-	conversation_unmute: (context, input) => conversationUnmute(context, input),
-	channel_order_get: (context) => channelOrderGet(context),
-	channel_order_set: (context, input) => channelOrderSet(context, channelOrderSetInputSchema.parse(input)),
-	channel_pin: (context, input) => channelPin(context, channelPinInputSchema.parse(input)),
-	channel_unpin: (context, input) => channelUnpin(context, channelPinInputSchema.parse(input)),
-	crm_organization_list: (context, input) => crmOrganizationList(context, input),
-	crm_organization_add: (context, input) => crmOrganizationAdd(context, input),
-	crm_organization_update: (context, input) => crmOrganizationUpdate(context, input),
-	crm_organization_archive: (context, input) => crmOrganizationArchive(context, input),
-	crm_contact_list: (context, input) => crmContactList(context, input),
-	crm_contact_add: (context, input) => crmContactAdd(context, input),
-	crm_contact_update: (context, input) => crmContactUpdate(context, input),
-	crm_contact_archive: (context, input) => crmContactArchive(context, input),
-	crm_opportunity_list: (context, input) => crmOpportunityList(context, input),
-	crm_opportunity_add: (context, input) => crmOpportunityAdd(context, input),
-	crm_opportunity_update: (context, input) => crmOpportunityUpdate(context, input),
-	crm_opportunity_move: (context, input, { place }) =>
-		crmOpportunityMove(context, crmOpportunityMoveInputSchema.parse(input), exchangeRatesOf(place?.environment ?? {})),
-	crm_opportunity_archive: (context, input) => crmOpportunityArchive(context, input),
-	crm_vocabulary_get: (context) => crmVocabularyGet(context),
-	crm_vocabulary_set: (context, input) => crmVocabularySet(context, crmVocabularySetInputSchema.parse(input)),
-	crm_record_import: async (context, input, { files }) =>
-		crmRecordImport(context, await crmImportRecordsOf(crmRecordImportInputSchema.parse(input), files)),
-	crm_activity_list: (context, input) => crmActivityList(context, input),
-	crm_activity_save: (context, input) => crmActivitySave(context, input)
+const toolsOverTheRecord: Record<string, RecordTool> = {
+	task_add: recordTool(taskAddInputSchema, (context, input, { announceTaskChange }) => taskAdd(context, input, announceTaskChange)),
+	task_update: recordTool(taskUpdateInputSchema, (context, input, { announceTaskChange }) => taskUpdate(context, input, announceTaskChange)),
+	task_list: recordTool(taskListInputSchema, (context, input) => taskList(context, input)),
+	task_board_get: recordTool(taskBoardInputSchema, (context, input) => taskBoard(context, input)),
+	task_delete: recordTool(taskDeleteInputSchema, (context, input) => taskDelete(context, input), taskDeleteTarget),
+	task_vocabulary_set: recordTool(taskVocabularySetInputSchema, (context, input) => taskVocabularySet(context, input)),
+	task_invite: recordTool(taskInviteInputSchema, (context, input, { place }) => taskInvite(context, input, placeTheAppAnswersAt('task_invite', place))),
+	task_invitation_list: recordTool(taskInvitationListInputSchema, (context) => taskInvitationList(context)),
+	task_invitation_delete: recordTool(taskInvitationDeleteInputSchema, (context, input) => taskInvitationDelete(context, input)),
+	event_add: recordTool(calendarAddInputSchema, (context, input) => eventAdd(context, input)),
+	event_update: recordTool(calendarUpdateInputSchema, (context, input) => eventUpdate(context, input)),
+	event_list: recordTool(calendarListInputSchema, (context, input) => eventList(context, input)),
+	event_delete: recordTool(calendarDeleteInputSchema, (context, input) => eventDelete(context, input), eventDeleteTarget),
+	calendar_subscription_get: recordTool(calendarSubscriptionInputSchema, (context) => calendarSubscriptionGet(context)),
+	calendar_subscription_add: recordTool(calendarSubscriptionInputSchema, (context, _input, { place }) =>
+		calendarSubscriptionAdd(context, placeTheAppAnswersAt('calendar_subscription_add', place))),
+	calendar_subscription_delete: recordTool(calendarSubscriptionInputSchema, (context) => calendarSubscriptionDelete(context)),
+	person_list: recordTool(personListInputSchema, (context, input) => personList(context, input)),
+	person_update: recordTool(personUpdateInputSchema, (context, input) => personUpdate(context, input)),
+	person_invite: recordTool(personInviteInputSchema, (context, input) => personInvite(context, input)),
+	person_withdraw: recordTool(personWithdrawInputSchema, (context, input) => personWithdraw(context, input), personTarget),
+	person_password_reset: recordTool(personPasswordResetInputSchema, (context, input) => personPasswordReset(context, input), personTarget),
+	team_list: recordTool(teamListInputSchema, (context) => teamList(context)),
+	team_add: recordTool(teamAddInputSchema, (context, input) => teamAdd(context, input)),
+	team_update: recordTool(teamUpdateInputSchema, (context, input) => teamUpdate(context, input)),
+	team_delete: recordTool(teamDeleteInputSchema, (context, input) => teamDelete(context, input)),
+	leave_list: recordTool(leaveListInputSchema, (context, input) => leaveList(context, input)),
+	leave_balance: recordTool(leaveBalanceInputSchema, (context, input) => leaveBalance(context, input)),
+	leave_request: recordTool(leaveRequestInputSchema, (context, input, { announceAttendance }) => leaveRequest(context, input, announceAttendance)),
+	leave_update: recordTool(leaveUpdateInputSchema, (context, input) => leaveUpdate(context, input)),
+	leave_delete: recordTool(leaveDeleteInputSchema, (context, input) => leaveDelete(context, input)),
+	leave_decide: recordTool(leaveDecideInputSchema, (context, input) => leaveDecide(context, input)),
+	leave_grant_set: recordTool(leaveGrantSetInputSchema, (context, input) => leaveGrantSet(context, input)),
+	leave_return_early: recordTool(leaveReturnEarlyInputSchema, (context, input, { announceAttendance }) => leaveReturnEarly(context, input, announceAttendance)),
+	attendance_list: recordTool(attendanceListInputSchema, async (context, input) => legacyAttendanceListResultSchema.parse(await attendanceList(context, input))),
+	attendance_changes_page_get: recordTool(attendanceListInputSchema, (context, input) => attendanceList(context, input)),
+	attendance_current_get: callerTool(attendanceCurrentGetInputSchema, (caller) => currentAttendance(caller)),
+	attendance_team_page_get: callerTool(attendanceTeamPageInputSchema, legacyTeamAttendance),
+	attendance_team_dashboard_get: callerTool(attendanceTeamPageInputSchema, teamAttendance),
+	attendance_add: recordTool(attendanceAddInputSchema, (context, input, { announceAttendance }) => attendanceAdd(context, input, announceAttendance)),
+	attendance_update: recordTool(attendanceUpdateInputSchema, (context, input) => attendanceUpdate(context, input)),
+	attendance_delete: recordTool(attendanceDeleteInputSchema, (context, input) => attendanceDelete(context, input)),
+	attendance_work_policy_get: recordTool(attendanceWorkPolicyGetInputSchema, (context) => attendanceWorkPolicyGet(context)),
+	attendance_work_policy_set: recordTool(attendanceWorkPolicySetInputSchema, (context, input) => attendanceWorkPolicySet(context, input)),
+	attendance_leave_policy_get: recordTool(attendanceLeavePolicyGetInputSchema, (context) => attendanceLeavePolicyGet(context)),
+	attendance_leave_policy_set: recordTool(attendanceLeavePolicySetInputSchema, (context, input) => attendanceLeavePolicySet(context, input)),
+	company_settings_get: recordTool(companySettingsGetInputSchema, (context, input) => companySettingsGet(context, input)),
+	company_settings_update: recordTool(companySettingsUpdateInputSchema, (context, input) => companySettingsUpdate(context, input)),
+	company_credits_get: recordTool(companyCreditsGetInputSchema, (context) => companyCreditsGet(context)),
+	company_info_get: recordTool(companyInfoGetInputSchema, (context, input) => companyInfoGet(context, input)),
+	company_info_set: recordTool(companyInfoSetInputSchema, (context, input) => companyInfoSet(context, input)),
+	company_image_upload: recordTool(companyImageUploadInputSchema, (context, input) => companyImageUpload(context, input)),
+	company_holiday_list: recordTool(companyHolidayListInputSchema, (context, input) => companyHolidayList(context, input)),
+	company_holiday_add: recordTool(companyHolidayAddInputSchema, (context, input) => companyHolidayAdd(context, input)),
+	company_holiday_update: recordTool(companyHolidayUpdateInputSchema, (context, input) => companyHolidayUpdate(context, input)),
+	company_holiday_delete: recordTool(companyHolidayDeleteInputSchema, (context, input) => companyHolidayDelete(context, input), companyHolidayDeleteTarget),
+	company_metric_record: recordTool(companyMetricRecordInputSchema, (context, input) => companyMetricRecord(context, input)),
+	company_metric_list: recordTool(companyMetricListInputSchema, (context, input) => companyMetricList(context, input)),
+	company_record_add: recordTool(companyRecordAddInputSchema, (context, input) => companyRecordAdd(context, input)),
+	company_record_list: recordTool(companyRecordListInputSchema, (context, input) => companyRecordList(context, input)),
+	company_record_update: recordTool(companyRecordUpdateInputSchema, (context, input) => companyRecordUpdate(context, input)),
+	company_record_delete: recordTool(companyRecordDeleteInputSchema, (context, input) => companyRecordDelete(context, input), companyRecordDeleteTarget),
+	company_equity_add: recordTool(companyEquityAddInputSchema, (context, input) => companyEquityAdd(context, input)),
+	company_equity_list: recordTool(companyEquityListInputSchema, (context, input) => companyEquityList(context, input)),
+	company_equity_delete: recordTool(companyEquityDeleteInputSchema, (context, input) => companyEquityDelete(context, input)),
+	company_document_register: recordTool(companyDocumentRegisterInputSchema, (context, input) => companyDocumentRegister(context, input)),
+	company_document_list: recordTool(companyDocumentListInputSchema, (context, input) => companyDocumentList(context, input)),
+	company_document_search: recordTool(companyDocumentSearchInputSchema, (context, input) => companyDocumentSearch(context, input)),
+	company_document_recall: recordTool(recallSourceInputSchema, (context, input) => companyDocumentRecall(context, input)),
+	company_document_update: recordTool(companyDocumentUpdateInputSchema, (context, input) => companyDocumentUpdate(context, input)),
+	company_document_upload: recordTool(companyDocumentUploadInputSchema, (context, input) => companyDocumentUpload(context, input)),
+	company_document_download: recordTool(companyDocumentDownloadInputSchema, (context, input) => companyDocumentDownload(context, input)),
+	circle_list: recordTool(circleListInputSchema, (context) => companyCircleList(context)),
+	circle_update: recordTool(circleSetInputSchema, (context, input) => companyCircleSet(context, input)),
+	circle_member_update: recordTool(circleMemberSetInputSchema, (context, input) => companyCircleMemberSet(context, input)),
+	circle_channel_add: recordTool(circleChannelAddInputSchema, (context, input) => companyCircleChannelAdd(context, input)),
+	circle_channel_delete: recordTool(circleChannelDeleteInputSchema, (context, input) => companyCircleChannelDelete(context, input)),
+	dataroom_get: recordTool(dataRoomGetInputSchema, (context) => companyDataRoomGet(context)),
+	dataroom_links_get: recordTool(dataRoomLinksGetInputSchema, (context) => companyDataRoomLinksGet(context)),
+	dataroom_link_add: recordTool(dataRoomLinkInputSchema, (context, input) => companyDataRoomLinkCreate(context, input)),
+	dataroom_link_delete: recordTool(dataRoomLinkRevokeSchema, (context, input) => companyDataRoomLinkRevoke(context, input)),
+	dataroom_category_update: recordTool(dataRoomCategorySetInputSchema, (context, input) => companyDataRoomCategorySet(context, input)),
+	dataroom_field_update: recordTool(dataRoomFieldSetInputSchema, (context, input) => companyDataRoomFieldSet(context, input)),
+	dataroom_field_name_update: recordTool(dataRoomFieldNameSetInputSchema, (context, input) => companyDataRoomFieldNameSet(context, input)),
+	dataroom_share_add: recordTool(dataRoomShareCreateInputSchema, (context, input) => companyDataRoomShareCreate(context, input)),
+	dataroom_share_delete: recordTool(dataRoomShareRevokeInputSchema, (context, input) => companyDataRoomShareRevoke(context, input)),
+	dataroom_invitation_send: recordTool(dataRoomInvitationSendInputSchema, (context, input, { place }) =>
+		companyDataRoomInvitationSend(context, input, placeTheAppAnswersAt('dataroom_invitation_send', place))),
+	dataroom_invitation_accept: recordTool(dataRoomInvitationAcceptInputSchema, (context, input) => companyDataRoomInvitationAccept(context, input)),
+	notification_settings_get: recordTool(notificationSettingsGetInputSchema, (context) => notificationSettingsGet(context)),
+	notification_settings_set: recordTool(notificationSettingsSetInputIntentSchema, (context, input) => notificationSettingsSet(context, input)),
+	conversation_mute: recordTool(conversationMuteInputSchema, (context, input) => conversationMute(context, input)),
+	conversation_unmute: recordTool(conversationMuteInputSchema, (context, input) => conversationUnmute(context, input)),
+	channel_order_get: recordTool(channelOrderGetInputSchema, (context) => channelOrderGet(context)),
+	channel_order_set: recordTool(channelOrderSetInputSchema, (context, input) => channelOrderSet(context, input)),
+	channel_pin: recordTool(channelPinInputSchema, (context, input) => channelPin(context, input)),
+	channel_unpin: recordTool(channelPinInputSchema, (context, input) => channelUnpin(context, input)),
+	crm_organization_list: recordTool(crmOrganizationListInputSchema, (context, input) => crmOrganizationList(context, input)),
+	crm_organization_add: recordTool(crmOrganizationAddInputSchema, (context, input) => crmOrganizationAdd(context, input)),
+	crm_organization_update: recordTool(crmOrganizationUpdateInputSchema, (context, input) => crmOrganizationUpdate(context, input)),
+	crm_organization_archive: recordTool(crmOrganizationArchiveInputSchema, (context, input) => crmOrganizationArchive(context, input), crmOrganizationArchiveTarget),
+	crm_contact_list: recordTool(crmContactListInputSchema, (context, input) => crmContactList(context, input)),
+	crm_contact_add: recordTool(crmContactAddInputSchema, (context, input) => crmContactAdd(context, input)),
+	crm_contact_update: recordTool(crmContactUpdateInputSchema, (context, input) => crmContactUpdate(context, input)),
+	crm_contact_archive: recordTool(crmContactArchiveInputSchema, (context, input) => crmContactArchive(context, input), crmContactArchiveTarget),
+	crm_opportunity_list: recordTool(crmOpportunityListInputSchema, (context, input) => crmOpportunityList(context, input)),
+	crm_opportunity_add: recordTool(crmOpportunityAddInputSchema, (context, input) => crmOpportunityAdd(context, input)),
+	crm_opportunity_update: recordTool(crmOpportunityUpdateInputSchema, (context, input) => crmOpportunityUpdate(context, input)),
+	crm_opportunity_move: recordTool(crmOpportunityMoveInputSchema, (context, input, { place }) =>
+		crmOpportunityMove(context, input, exchangeRatesOf(place?.environment ?? {}))),
+	crm_opportunity_archive: recordTool(crmOpportunityArchiveInputSchema, (context, input) => crmOpportunityArchive(context, input), crmOpportunityArchiveTarget),
+	crm_vocabulary_get: recordTool(crmVocabularyGetInputSchema, (context) => crmVocabularyGet(context)),
+	crm_vocabulary_set: recordTool(crmVocabularySetInputSchema, (context, input) => crmVocabularySet(context, input)),
+	crm_record_import: recordTool(
+		crmRecordImportInputSchema,
+		async (context, input, { files }) => crmRecordImport(context, await crmImportRecordsOf(input, files)),
+		(context, input, files) => crmRecordImportPreview(context, input, files)
+	),
+	crm_activity_list: recordTool(crmActivityListInputSchema, (context, input) => crmActivityList(context, input)),
+	crm_activity_save: recordTool(crmActivitySaveInputSchema, (context, input) => crmActivitySave(context, input))
 };
 
 export function recordRunsTheTool(name: string): boolean {
@@ -265,6 +331,10 @@ export function toolsTheRecordRuns(): string[] {
 	return Object.keys(toolsOverTheRecord);
 }
 
+export function inputSchemaTheRecordReads(name: string): z.ZodType | undefined {
+	return toolsOverTheRecord[name]?.inputSchema;
+}
+
 export function toolsTheRecordAnswers(): string[] {
 	return toolNamesAnsweredBy('record');
 }
@@ -276,16 +346,18 @@ export async function previewToolOverTheRecord(
 	accountDirectory: SupabaseClient,
 	requesterID: string,
 	name: string,
-	input: ToolInput,
+	input: unknown,
 	now: Date,
 	files: CarriedWorkspaceFile[] = []
 ): Promise<ToolAnswer> {
-	const preview = previewOfTool(name);
-	if (!preview) return { status: 200, body: { tool: name, target: null } };
+	const tool = toolsOverTheRecord[name];
+	if (!tool) return { status: 200, body: { tool: name, target: null } };
 
 	try {
+		const { preview } = tool.boundTo(inputOfTheCall(name, input));
+		if (!preview) return { status: 200, body: { tool: name, target: null } };
 		const context = await recordContextOf(caller, accountDirectory, requesterID, now, leavesTaskLabelsUndecided);
-		return { status: 200, body: { tool: name, target: await preview(context, input, files) } };
+		return { status: 200, body: { tool: name, target: await preview(context, files) } };
 	} catch (refusal) {
 		return refusalAnswer(name, refusal);
 	}
@@ -296,7 +368,7 @@ export async function runToolOverTheRecord(
 	accountDirectory: SupabaseClient,
 	requesterID: string,
 	name: string,
-	input: ToolInput,
+	input: unknown,
 	now: Date,
 	decideTaskLabels: TaskLabelDecider,
 	files: CarriedWorkspaceFile[] = [],
@@ -304,18 +376,15 @@ export async function runToolOverTheRecord(
 	announceTaskChange?: TaskChangeAnnouncer,
 	announceAttendance?: AttendanceAnnouncer
 ): Promise<ToolAnswer> {
-	const run = toolsOverTheRecord[name];
-	if (!run) return { status: 404, body: { error: `no tool here goes by ${name}` } };
+	const tool = toolsOverTheRecord[name];
+	if (!tool) return { status: 404, body: { error: `no tool here goes by ${name}` } };
 
 	try {
-		const result = name === 'attendance_current_get'
-			? await currentAttendance(caller)
-			: name === 'attendance_team_page_get'
-				? await legacyTeamAttendance(caller,input)
-			: name === 'attendance_team_dashboard_get'
-				? await teamAttendance(caller,input)
-				: await run(await recordContextOf(caller, accountDirectory, requesterID, now, decideTaskLabels,
-					!readsWithoutPeople.has(name) && !((name === 'attendance_list' || name === 'attendance_changes_page_get') && input.handWrittenOnly === true && input.pageOffset !== undefined && input.scope === 'all' && !input.personHints) && !((name === 'attendance_update' || name === 'attendance_delete') && input.undoOnly === true), exactAttendancePersonIDs(name, input)), input, { files, place, announceTaskChange, announceAttendance });
+		const asked = inputOfTheCall(name, input);
+		const { run } = tool.boundTo(asked);
+		const context = () => recordContextOf(caller, accountDirectory, requesterID, now, decideTaskLabels,
+					!readsWithoutPeople.has(name) && !((name === 'attendance_list' || name === 'attendance_changes_page_get') && asked.handWrittenOnly === true && asked.pageOffset !== undefined && asked.scope === 'all' && !asked.personHints) && !((name === 'attendance_update' || name === 'attendance_delete') && asked.undoOnly === true), exactAttendancePersonIDs(name, asked));
+		const result = await run({ caller, context }, { files, place, announceTaskChange, announceAttendance });
 		noteWhereTheAnswerLeftItsContract(name, result);
 		return { status: 200, body: { tool: name, result } };
 	} catch (refusal) {

@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 import { capabilityToolInputSchema } from '../../../src/lib/server/public-api/catalog/tools';
-import { refusalOfToolInput, toolInputRecovered } from '../../../src/lib/server/public-api/tool-input';
+import { toolInputRecovered } from '../../../src/lib/server/public-api/tool-input';
+import { refusalOfToolInput } from '../support/refusal-of-tool-input';
 import catalog from '../../../../pkg/capabilityprotocol/generated/capability-tools.json';
 
 type FieldSchema = { safeParse(value: unknown): { success: boolean } };

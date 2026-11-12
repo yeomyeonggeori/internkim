@@ -11,11 +11,11 @@ import { previewToolOverTheRecord, recordRunsTheTool, runToolOverTheRecord } fro
 import type { ToolPlace } from '$lib/server/public-api/record/company';
 import { taskLabelGetToolName } from '$lib/server/public-api/catalog/labels';
 import { decidedTaskLabelsOf, type TaskLabelDecider } from '$lib/server/public-api/record/task-labels';
-import { refusalOfToolInput, toolInputRecovered } from '$lib/server/public-api/tool-input';
+import { inputOfTheCall, inputTheHostWillRead } from '$lib/server/public-api/tool-input';
 import { workspaceFilesCarriedBy } from '$lib/server/public-api/carried-files';
 import type { CallingMember } from '$lib/server/member-request';
 import type { Environment } from '$lib/server/agent-request';
-import { AccessRefused, InputRefused, Refusal, TargetMissing, ToolOutOfReach, answerOfRefusal } from './refusal';
+import { AccessRefused, Refusal, TargetMissing, ToolOutOfReach, answerOfRefusal } from './refusal';
 
 export type ToolCallAnswer = { status: number; body: unknown };
 
@@ -36,18 +36,6 @@ export function descriptorTheTokenReaches(name: string, member: Pick<CallingMemb
 		throw new AccessRefused(`this token may not ${permissionForTool(descriptor)}`);
 	}
 	return descriptor;
-}
-
-// The gate answers for the input the tool is then handed, so what it read and
-// what runs are the same object rather than two readings of one body.
-export function inputTheToolWillRead(name: string, input: unknown): Record<string, unknown> {
-	if (input !== undefined && (typeof input !== 'object' || input === null || Array.isArray(input))) {
-		throw new InputRefused('input is the object the tool reads');
-	}
-	const read = toolInputRecovered(name, input);
-	const refusal = refusalOfToolInput(name, read);
-	if (refusal) throw new InputRefused(refusal);
-	return read;
 }
 
 function refuseALocalTool(name: string): void {
@@ -85,9 +73,8 @@ async function answerOrRefusal(answering: () => Promise<ToolCallAnswer>): Promis
 
 function toolPreviewed(member: CallingMember, name: string, payload: Record<string, unknown>): Promise<ToolCallAnswer> {
 	descriptorTheTokenReaches(name, member);
-	const input = inputTheToolWillRead(name, payload.input);
-	return previewToolOverTheRecord(member.caller, member.record, member.memberID, name, input, new Date(),
-		workspaceFilesCarriedBy(payload));
+	return previewToolOverTheRecord(member.caller, member.record, member.memberID, name,
+		payload.input, new Date(), workspaceFilesCarriedBy(payload));
 }
 
 async function toolAnswered(
@@ -100,7 +87,6 @@ async function toolAnswered(
 	const { environment } = place;
 	refuseALocalTool(name);
 	descriptorTheTokenReaches(name, member);
-	const input = inputTheToolWillRead(name, payload.input);
 
 	if (!recordRunsTheTool(name)) {
 		const answer = await callCompany(environment, member.companyID, apiRequestCapability, {
@@ -109,7 +95,7 @@ async function toolAnswered(
 			query,
 			permission: member.permission,
 			requester: member.email,
-			payload: { ...payload, input }
+			payload: { ...payload, input: inputTheHostWillRead(name, payload.input) }
 		});
 		return withTheHostRefusalJudged(answer);
 	}
@@ -119,7 +105,7 @@ async function toolAnswered(
 		member.record,
 		member.memberID,
 		name,
-		input,
+		payload.input,
 		new Date(),
 		taskLabelsDecidedByTheCompany(environment, member),
 		workspaceFilesCarriedBy(payload),
@@ -130,7 +116,7 @@ async function toolAnswered(
 	if (answered.status < 300) await tellTheCompanyWhatItMirrorsChanged(environment, member, name);
 	return {
 		status: answered.status,
-		body: await withTheCompanyTold(environment, member, name, input as AttendanceAsked, answered.body)
+		body: await withTheCompanyTold(environment, member, name, inputOfTheCall(name, payload.input) as AttendanceAsked, answered.body)
 	};
 }
 

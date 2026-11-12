@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { homesOfPersonUpdate } from '$lib/server/public-api/record/people-tools';
+import { homesOfPersonUpdate, type PersonUpdateInput } from '$lib/server/public-api/record/people-tools';
 import { WorkspaceEmploymentStatus } from '$lib/server/public-api/catalog/people';
 import { memberStatuses } from '$lib/member-vocabulary';
 
@@ -17,7 +17,7 @@ const fieldsOrganizationProfilesOwn = [
 	'employmentStatus'
 ];
 
-const everyFieldSet = {
+const everyFieldSet: PersonUpdateInput = {
 	personHint: 'm1',
 	name: '이샘플',
 	isAdmin: true,
@@ -26,7 +26,7 @@ const everyFieldSet = {
 	supervisorHint: '박예시',
 	phoneNumber: '010-0000-0000',
 	hireDate: '2026-01-02',
-	employmentStatus: 'departed'
+	employmentStatus: WorkspaceEmploymentStatus.Departed
 };
 
 describe('which home each field of a person update is written to', () => {

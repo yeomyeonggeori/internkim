@@ -1,4 +1,15 @@
+import type { companyInfoGetInputSchema } from '../catalog/company';
+import {
+	attendanceLeavePolicySetInputSchema,
+	type attendanceWorkPolicySetInputSchema,
+	type companyHolidayAddInputSchema,
+	type companyHolidayDeleteInputSchema,
+	type companyHolidayListInputSchema,
+	type companyHolidayUpdateInputSchema,
+	type companySettingsUpdateInputSchema
+} from '../catalog/settings';
 import type { SupabaseClient } from '@supabase/supabase-js';
+import type { z } from 'zod';
 import { currentAttendanceWorkPolicy, WorkPolicyInvalid, type CurrentAttendanceWorkPolicy } from '$lib/attendance/current-work-policy';
 import { defaultLeavePolicy, systemLeaveTypeKind } from '$lib/attendance/leave-policy-defaults';
 import { defaultWorkPolicy, initialWorkPolicyEffectiveDate } from '$lib/attendance/work-policy-defaults';
@@ -29,41 +40,21 @@ import type {
 } from '../catalog/settings';
 import { InputRefused, AccessRefused, RecordAlreadyHolds, refusalOfPostgresError } from '../refusal';
 
-export type CompanySettingsUpdateInput = {
-	name?: string;
-	locale?: string;
-	timeZone?: string;
-	currencyCode?: string;
-	workLocations?: { name?: string; color?: string }[];
-	leaveDays?: number;
-	teamViewVisibleToAll?: boolean;
-	creditUsageLimit?: number;
-	profileImage?: string;
-};
+export type CompanySettingsUpdateInput = z.infer<typeof companySettingsUpdateInputSchema>;
 
-export type CompanyInfoGetInput = { language?: string };
+export type CompanyInfoGetInput = z.infer<typeof companyInfoGetInputSchema>;
 
 export type CompanyInfoSetInput = CompanyProfileUpdate & { representativePersonHint?: string } & Partial<Record<ServiceFileImageField, string>>;
 
-export type CompanyHolidayListInput = { year?: number };
+export type CompanyHolidayListInput = z.infer<typeof companyHolidayListInputSchema>;
 
-export type CompanyHolidayAddInput = { date?: string; name?: string; recursAnnually?: boolean };
+export type CompanyHolidayAddInput = z.infer<typeof companyHolidayAddInputSchema>;
 
-export type CompanyHolidayUpdateInput = {
-	holidayHint?: string;
-	date?: string;
-	name?: string;
-	recursAnnually?: boolean;
-};
+export type CompanyHolidayUpdateInput = z.infer<typeof companyHolidayUpdateInputSchema>;
 
-export type CompanyHolidayDeleteInput = { holidayHint?: string };
+export type CompanyHolidayDeleteInput = z.infer<typeof companyHolidayDeleteInputSchema>;
 
-export type AttendanceLeavePolicySetInput = {
-	balanceTrackingMode?: string;
-	fiscalYearStartMonth?: number;
-	fiscalYearStartDay?: number;
-	leaveTypes?: { id?: string; systemKind?: string; name?: string; isSystem?: boolean }[];
-};
+export type AttendanceLeavePolicySetInput = z.infer<typeof attendanceLeavePolicySetInputSchema>;
 
 const readableForOneHour = 60 * 60;
 const leaveDaysPerMilliDay = 1000;
@@ -191,7 +182,7 @@ async function writeTheCompanyPicture(context: RecordContext, storagePath: strin
 
 async function writeTheAnnualGrant(context: RecordContext, leaveDays: number): Promise<void> {
 	const policy = await attendanceLeavePolicyGet(context);
-	await attendanceLeavePolicySet(context, {
+	await attendanceLeavePolicySet(context, attendanceLeavePolicySetInputSchema.parse({
 		...policy,
 		balanceTrackingMode: 'managed',
 		leaveTypes: policy.leaveTypes.map((leaveType) =>
@@ -199,7 +190,7 @@ async function writeTheAnnualGrant(context: RecordContext, leaveDays: number): P
 				? { ...leaveType, grantAmountMilliDays: Math.round(leaveDays * leaveDaysPerMilliDay) }
 				: leaveType
 		)
-	});
+	}));
 }
 
 async function headcountOf(context: RecordContext): Promise<number> {
@@ -463,7 +454,7 @@ export async function attendanceWorkPolicyGet(
 	};
 }
 
-function workPolicyAsked(input: Record<string, unknown>): CurrentAttendanceWorkPolicy {
+function workPolicyAsked(input: unknown): CurrentAttendanceWorkPolicy {
 	try {
 		return currentAttendanceWorkPolicy(input);
 	} catch (refusal) {
@@ -474,7 +465,7 @@ function workPolicyAsked(input: Record<string, unknown>): CurrentAttendanceWorkP
 
 export async function attendanceWorkPolicySet(
 	context: RecordContext,
-	input: Record<string, unknown>
+	input: z.infer<typeof attendanceWorkPolicySetInputSchema>
 ): Promise<AttendanceWorkPolicySetResult> {
 	const asked = workPolicyAsked(input);
 	const { error } = await context.caller.rpc('attendance_work_policy_save', {

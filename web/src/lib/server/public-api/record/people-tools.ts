@@ -1,3 +1,5 @@
+import type { z } from 'zod';
+import type { personInviteInputSchema, personListInputSchema, personUpdateInputSchema } from '../catalog/people';
 import { WriteNotReadBack } from './tasks';
 import {
 	addMember,
@@ -28,26 +30,9 @@ import { ascendingPositions, pageOf } from './list-page';
 import { descendantsOfTeam, teamOfHint, teamsOfCompany, type RecordTeam } from './teams';
 import { InputRefused, AccessRefused, RecordAlreadyHolds, refusalOfPostgresError } from '../refusal';
 
-export type PersonUpdateInput = {
-	personHint?: string;
-	name?: string;
-	isAdmin?: boolean;
-	kind?: string;
-	jobTitle?: string;
-	teamHint?: string;
-	supervisorHint?: string;
-	phoneNumber?: string;
-	hireDate?: string;
-	departureDate?: string;
-	employmentStatus?: string;
-};
+export type PersonUpdateInput = z.infer<typeof personUpdateInputSchema>;
 
-export type PersonInviteInput = {
-	email?: string;
-	name?: string;
-	jobTitle?: string;
-	teamHint?: string;
-};
+export type PersonInviteInput = z.infer<typeof personInviteInputSchema>;
 
 export type PersonUpdateHomes = {
 	account: Record<string, string | boolean>;
@@ -107,12 +92,7 @@ export function answeredPerson(
 	};
 }
 
-export type PersonListInput = {
-	searchText?: string;
-	teamHint?: string;
-	limit?: number;
-	cursor?: string;
-};
+export type PersonListInput = z.infer<typeof personListInputSchema>;
 
 const peopleByName = {
 	positionOf: (person: RecordPerson) => [person.name, person.personID],

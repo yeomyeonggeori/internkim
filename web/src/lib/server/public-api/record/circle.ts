@@ -32,8 +32,7 @@ export async function companyCircleList(context: RecordContext) {
 	});
 }
 
-export async function companyCircleSet(context: RecordContext, value: unknown) {
-	const circle = circleSetInputSchema.parse(value);
+export async function companyCircleSet(context: RecordContext, circle: z.infer<typeof circleSetInputSchema>) {
 	await dataRoomCall(context.caller, 'circle_set', {
 		target_company: context.companyID, circle_id: circle.id, circle_name: circle.name ?? null,
 		readable_categories: circle.readableCategories
@@ -41,24 +40,21 @@ export async function companyCircleSet(context: RecordContext, value: unknown) {
 	return { saved: true };
 }
 
-export async function companyCircleMemberSet(context: RecordContext, value: unknown) {
-	const assignment = circleMemberSetInputSchema.parse(value);
+export async function companyCircleMemberSet(context: RecordContext, assignment: z.infer<typeof circleMemberSetInputSchema>) {
 	await dataRoomCall(context.caller, 'member_circles_set', {
 		target_company: context.companyID, target_member: assignment.memberID, circle_ids: assignment.circleIDs
 	});
 	return { saved: true };
 }
 
-export async function companyCircleChannelAdd(context: RecordContext, value: unknown) {
-	const channel = circleChannelAddInputSchema.parse(value);
+export async function companyCircleChannelAdd(context: RecordContext, channel: z.infer<typeof circleChannelAddInputSchema>) {
 	await dataRoomCall(context.caller, 'circle_channel_add', {
 		target_company: context.companyID, target_circle: channel.circleID, channel_name: channel.name
 	});
 	return { saved: true };
 }
 
-export async function companyCircleChannelDelete(context: RecordContext, value: unknown) {
-	const channel = circleChannelDeleteInputSchema.parse(value);
+export async function companyCircleChannelDelete(context: RecordContext, channel: z.infer<typeof circleChannelDeleteInputSchema>) {
 	await dataRoomCall(context.caller, 'circle_channel_delete', {
 		target_company: context.companyID, target_circle: channel.circleID, confirmed_name: channel.name
 	});

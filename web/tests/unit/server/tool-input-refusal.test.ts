@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { refusalOfToolInput } from '../../../src/lib/server/public-api/tool-input';
+import { refusalOfToolInput } from '../support/refusal-of-tool-input';
 
 // The rules these hold the gate to are public.attendance_add's, in
 // supabase/migrations/20260902000005_an_old_record_is_an_administrators_to_write.sql.
