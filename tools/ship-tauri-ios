@@ -26,7 +26,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from tauri_shipping import TAURI_DIRECTORY, ShipFailure, api_key_environment, checkout_of, run, say  # noqa: E402
+from tauri_shipping import TAURI_DIRECTORY, ShipFailure, api_key_environment, checkout_of, run, say
 
 APPLE_PROJECT_DIRECTORY = TAURI_DIRECTORY / "gen/apple"
 ARCHIVE_NAME = "internkim-tauri_iOS.xcarchive"
