@@ -61,6 +61,7 @@
 			(() => {
 				const playedKey = 'internkim-launch-video-played';
 				if (!window.isTauri || sessionStorage.getItem(playedKey)) return;
+				sessionStorage.setItem(playedKey, '1');
 				const overlay = document.createElement('div');
 				overlay.id = 'launch-video';
 				const video = document.createElement('video');
@@ -70,7 +71,6 @@
 				overlay.append(video);
 				document.body.prepend(overlay);
 				const leave = () => {
-					sessionStorage.setItem(playedKey, '1');
 					overlay.classList.add('leaving');
 					setTimeout(() => overlay.remove(), 300);
 				};
