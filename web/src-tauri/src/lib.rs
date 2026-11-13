@@ -1,3 +1,6 @@
+#[cfg(desktop)]
+mod window_background;
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let builder = tauri::Builder::default()
@@ -12,7 +15,9 @@ pub fn run() {
     #[cfg(desktop)]
     let builder = builder
         .plugin(tauri_plugin_dialog::init())
-        .plugin(tauri_plugin_desktop_control::init());
+        .plugin(tauri_plugin_desktop_control::init())
+        .setup(window_background::paint_every_window)
+        .on_window_event(window_background::repaint_on_appearance_change);
     #[cfg(any(target_os = "android", target_os = "ios", target_os = "macos"))]
     let builder = builder
         .plugin(tauri_plugin_notifications::init())
