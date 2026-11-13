@@ -76,7 +76,9 @@ class NotificationService: UNNotificationServiceExtension {
             sender: sender,
             attachments: nil
         )
+        #if os(iOS)
         intent.setImage(picture, forParameterNamed: \.sender)
+        #endif
         let interaction = INInteraction(intent: intent, response: nil)
         interaction.direction = .incoming
         interaction.donate(completion: nil)

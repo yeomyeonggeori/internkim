@@ -4,8 +4,9 @@
 `cargo tauri build` signs the programs the app bundles with the app's own
 entitlements. Those name the app's identifier, which only the app's provisioning
 profile grants, so macOS refuses to start a bundled program signed that way.
-This builds unsigned, signs each bundled program without entitlements and the
-app with the ones the signed overlay declares, set to production push. It
+This builds unsigned, signs each bundled program without entitlements, the
+notification service extension with its own, and the app with the ones the
+signed overlay declares, set to production push. It
 refuses a provisioning profile that does not grant them, packs a disk image,
 has Apple notarize it, staples the ticket, and keeps only an image Gatekeeper
 accepts.
@@ -34,6 +35,7 @@ from tauri_shipping import TAURI_DIRECTORY, ShipFailure, api_key_environment, ch
 
 SIGNED_OVERLAY = "tauri.macos-signed.conf.json"
 EMBEDDED_PROFILE_NAME = "embedded.provisionprofile"
+EXTENSION_ENTITLEMENTS = TAURI_DIRECTORY / "macos/notification-service/NotificationService.entitlements"
 RUST_TARGET = "aarch64-apple-darwin"
 ARCHITECTURE_LABEL = "aarch64"
 TEAM_KEY = "com.apple.developer.team-identifier"
@@ -87,6 +89,7 @@ def build_application(checkout: Path, version: str, profile: Path, environment: 
     embedded.parent.mkdir(parents=True, exist_ok=True)
     shutil.copyfile(profile, embedded)
     run(["tools/prepare-agent-desktop", "--target", RUST_TARGET], checkout, environment)
+    run(["tools/build-mac-notification-service", "--version", version], checkout, environment)
     run([
         "cargo", "tauri", "build", "--target", RUST_TARGET, "--bundles", "app", "--no-sign",
         "--config", f"src-tauri/{SIGNED_OVERLAY}", "--config", json.dumps({"version": version}),
@@ -100,10 +103,12 @@ def bundled_programs(application: Path) -> list[Path]:
     return [program for program in programs if program.name != information["CFBundleExecutable"]]
 
 
-def sign_application(application: Path, identity: str, entitlements: dict, scratch: Path) -> None:
+def sign_application(application: Path, identity: str, entitlements: dict, extension_entitlements: Path, scratch: Path) -> None:
     hardened = ["codesign", "--force", "--options", "runtime", "--timestamp", "--sign", identity]
     for program in bundled_programs(application):
         run(hardened + [str(program)], scratch)
+    for extension in sorted((application / "Contents/PlugIns").glob("*.appex")):
+        run(hardened + ["--entitlements", str(extension_entitlements), str(extension)], scratch)
     entitlements_path = scratch / "application.entitlements"
     entitlements_path.write_bytes(plistlib.dumps(entitlements))
     run(hardened + ["--entitlements", str(entitlements_path), str(application)], scratch)
@@ -161,7 +166,7 @@ def ship(arguments: argparse.Namespace, scratch: Path) -> Path:
         identity = signing_identity(entitlements[TEAM_KEY], scratch)
         application = build_application(checkout, arguments.version, profile, environment)
         say(f"built {arguments.version}")
-        sign_application(application, identity, entitlements, scratch)
+        sign_application(application, identity, entitlements, checkout / EXTENSION_ENTITLEMENTS, scratch)
         refuse_an_application_signed_with_less(application, entitlements, scratch)
         image = pack_disk_image(application, arguments.version, identity, scratch)
     say(f"signed: {image.name}")

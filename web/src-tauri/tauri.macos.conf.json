@@ -4,6 +4,7 @@
       "binaries/agent-desktop",
       "binaries/agent-desktop-macos-helper",
       "binaries/agent-browser"
-    ]
+    ],
+    "macOS": { "infoPlist": "macos/Info.plist" }
   }
 }
