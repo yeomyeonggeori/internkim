@@ -45,6 +45,7 @@ type platformMessageSendInput struct {
 	PersonHints []string `json:"personHints"`
 	Attachments []string `json:"attachments"`
 	Reason      string   `json:"reason"`
+	Sender      string   `json:"sender"`
 
 	DeliveryTarget platformMessageDeliveryTarget `json:"-"`
 }
@@ -274,6 +275,7 @@ func decodePlatformMessageSendInput(document json.RawMessage) (platformMessageSe
 	}
 	input.Message = strings.TrimSpace(input.Message)
 	input.Reason = strings.TrimSpace(input.Reason)
+	input.Sender = strings.TrimSpace(input.Sender)
 	input.Attachments = uniqueTrimmedPlatformMessageHints(input.Attachments)
 	input.DeliveryTarget = normalizePlatformMessageDeliveryTarget(platformMessageDeliveryTarget{
 		Type:        input.TargetType,

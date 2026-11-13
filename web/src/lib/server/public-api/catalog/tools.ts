@@ -109,6 +109,11 @@ export enum MessageTargetType {
   Channel = 'channel',
 }
 
+export enum MessageSender {
+  Requester = 'requester',
+  Agent = 'agent',
+}
+
 export enum MessageSearchScope {
   CurrentThread = 'currentThread',
   CurrentChannel = 'currentChannel',
@@ -730,6 +735,7 @@ export const messageSendInputSchema = z.strictObject({
   personHints: z.array(z.string().min(1)).max(50).describe(describePersonHints('Direct-message recipients for one fan-out send')).optional(),
   attachments: z.array(z.string().min(1)).describe('Workspace file paths to upload with the message, copied exactly from the attachment catalog or a file tool result. Use this to deliver an original file, such as an inbound image, to the target.').optional(),
   reason: z.string().describe('Reason shown to the approver.').optional(),
+  sender: z.enum(MessageSender).describe("Whose name the message goes out under. Omit it for the usual: the agent's name in a channel or the current conversation, the requester's own name in a direct message to a person. requester posts to a channel (targetType channel or currentChannel) under the requester's own name, without attachments. agent is refused for a direct message to a person, because the requester cannot see it arrive.").optional(),
 });
 
 export const messageSendInputIntentSchema = messageSendInputSchema.partial();
