@@ -21,6 +21,7 @@
 	import { isSectionOpen, setSectionOpen } from './channel-sections.svelte';
 	import type { ChannelSummary } from '$lib/components/channel/channel-api';
 	import { conversationNameClass, unreadBadgeLabel } from '$lib/messenger/unread-badge';
+	import type { MessengerReadCount } from '$lib/messenger/messenger-api';
 	import { avatarPresenceOf } from '$lib/messenger/member-presence.svelte';
 	import { circleChannels } from '$lib/messenger/circle-channels.svelte';
 	import { pinnedChannelsOf } from './channel-order';
@@ -51,7 +52,7 @@
 		sidebarWidth = '16rem'
 	}: {
 		activeID: string | undefined;
-		inbox?: { isActive: boolean; unreadCount: number; open: () => void };
+		inbox?: { isActive: boolean; unread: MessengerReadCount; open: () => void };
 		isLoading?: boolean;
 		error?: string;
 		retry?: () => void;
@@ -112,14 +113,14 @@
 	>
 		<Sidebar.MenuButton isActive={shownActiveID === channel.id} onclick={() => selectChannel(channel.id)}>
 			{#if channel.isPrivate}<LockIcon />{:else}<HashIcon />{/if}
-			<span class={conversationNameClass(channel.unreadCount, muted.has(channel.id), shownActiveID === channel.id)}>{channel.name}</span>
+			<span class={conversationNameClass(channel.unread, muted.has(channel.id), shownActiveID === channel.id)}>{channel.name}</span>
 		</Sidebar.MenuButton>
-		{@render unreadBadge(channel.unreadCount, true)}
+		{@render unreadBadge(channel.unread, true)}
 	</ConversationMenu>
 {/snippet}
 
-{#snippet unreadBadge(unreadCount: number | undefined, givesWayToMenu: boolean)}
-	{@const label = unreadBadgeLabel(unreadCount)}
+{#snippet unreadBadge(unread: MessengerReadCount | undefined, givesWayToMenu: boolean)}
+	{@const label = unreadBadgeLabel(unread)}
 	{#if label}
 		<Sidebar.MenuBadge
 			class={cn(
@@ -148,9 +149,9 @@
 					<Sidebar.MenuItem>
 						<Sidebar.MenuButton isActive={inbox.isActive} onclick={inbox.open}>
 							<InboxIcon />
-							<span class={conversationNameClass(inbox.unreadCount, false, inbox.isActive)}>{inboxText.inbox}</span>
+							<span class={conversationNameClass(inbox.unread, false, inbox.isActive)}>{inboxText.inbox}</span>
 						</Sidebar.MenuButton>
-						{@render unreadBadge(inbox.unreadCount, false)}
+						{@render unreadBadge(inbox.unread, false)}
 					</Sidebar.MenuItem>
 				</Sidebar.Menu>
 			</Sidebar.Group>
@@ -241,9 +242,9 @@
 									class="size-4"
 								/>
 
-								<span class={conversationNameClass(conversation.unreadCount, muted.has(conversation.id), shownActiveID === conversation.id)}>{conversation.name}</span>
+								<span class={conversationNameClass(conversation.unread, muted.has(conversation.id), shownActiveID === conversation.id)}>{conversation.name}</span>
 							</Sidebar.MenuButton>
-							{@render unreadBadge(conversation.unreadCount, true)}
+							{@render unreadBadge(conversation.unread, true)}
 						</ConversationMenu>
 					{/each}
 				</Sidebar.Menu>

@@ -1,4 +1,4 @@
-import type { BridgedInbox, InboxEntry } from './channel-over-bridge';
+import type { InboxEntry } from './channel-over-bridge';
 import { inboxStorageKey, type MessengerCacheScope } from './cache-scope';
 
 export const INBOX_PAGE_SIZE = 50;
@@ -21,22 +21,7 @@ export function keepCachedInbox(scope: MessengerCacheScope, entries: InboxEntry[
 	}
 }
 
-export function mergeInbox(current: InboxEntry[], answer: Pick<BridgedInbox, 'entries' | 'held'>, checkedIDs: string[]): InboxEntry[] {
-	if (!answer.held) return answer.entries;
-	const heldOf = new Map(answer.held.map((held) => [held.id, held]));
-	const arrivedIDs = new Set(answer.entries.map((entry) => entry.id));
-	const checked = new Set(checkedIDs);
-	const stillHeld = current.flatMap((entry) => {
-		if (arrivedIDs.has(entry.id)) return [];
-		if (!checked.has(entry.id)) return [entry];
-		const held = heldOf.get(entry.id);
-		if (!held) return [];
-		return [{ ...entry, text: held.text, isUnread: held.isUnread }];
-	});
-	return [...answer.entries, ...stillHeld].sort((first, second) => second.sentAt.localeCompare(first.sentAt));
-}
-
 export function appendOlderInbox(current: InboxEntry[], older: InboxEntry[]): InboxEntry[] {
-	const heldIDs = new Set(current.map((entry) => entry.id));
-	return [...current, ...older.filter((entry) => !heldIDs.has(entry.id))];
+	const shownIDs = new Set(current.map((entry) => entry.id));
+	return [...current, ...older.filter((entry) => !shownIDs.has(entry.id))];
 }

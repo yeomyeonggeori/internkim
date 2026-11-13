@@ -70,7 +70,7 @@
 	import { messageActionsFor } from './channel-message-actions';
 	import type { MentionPerson } from '$lib/messenger/mention-candidates';
 	import type { DraftMentions } from '$lib/messenger/mention-draft';
-	import { latestSentAtOf } from '$lib/messenger/conversation-read-marker';
+	import { latestSettledOf } from '$lib/messenger/conversation-read-marker';
 	import { mentionLabelsOf } from '$lib/messenger/mention-picker.svelte';
 	import { activityLabel } from '$lib/messenger/typing-signal';
 	import { liveWorkAfterEvent, liveWorkShownIn, liveWorkShownInTimeline, liveWorkStillHeard, type LiveWork, type ShownWork } from '$lib/messenger/agent-work';
@@ -130,7 +130,7 @@
 		isGroup?: boolean;
 		isWithTheAgent?: boolean;
 		isThreadOpen?: boolean;
-		onReadThrough?: (sentAt: string) => void;
+		onReadThrough?: (messageID: string, threadRootID?: string) => void;
 	} = $props();
 
 	const text = createPageText(channelText);
@@ -354,7 +354,10 @@
 	const reversedTimeline = $derived(timeline.slice().reverse());
 	const reversedThreadTimeline = $derived(threadTimeline.slice().reverse());
 	let isPageVisible = $state(typeof document === 'undefined' || document.visibilityState === 'visible');
-	const latestSettledSentAt = $derived(latestSentAtOf(messages));
+	const latestSettledMessage = $derived(latestSettledOf(messages.filter((message) => !message.threadRootId)));
+	const latestSettledReply = $derived(
+		openThreadRoot ? latestSettledOf(messages.filter((message) => message.threadRootId === openThreadRoot?.id)) : undefined
+	);
 	const conversationAnchor = createLatestAnchor({
 		settledMessages: () => messages.filter((message) => !message.threadRootId),
 		isMine
@@ -365,8 +368,13 @@
 	});
 
 	$effect(() => {
-		if (!onReadThrough || !isPageVisible || conversationAnchor.isAwayFromLatest || !latestSettledSentAt) return;
-		onReadThrough(latestSettledSentAt);
+		if (!onReadThrough || !isPageVisible || conversationAnchor.isAwayFromLatest || !latestSettledMessage) return;
+		onReadThrough(latestSettledMessage.id);
+	});
+
+	$effect(() => {
+		if (!onReadThrough || !isPageVisible || !openThreadRoot || threadAnchor.isAwayFromLatest || !latestSettledReply) return;
+		onReadThrough(latestSettledReply.id, openThreadRoot.id);
 	});
 
 	const olderPrefetchScreens = 3;
