@@ -122,6 +122,71 @@ func TestACompanyKeyThatCannotBeReadIsAnErrorAndNotABoxStillWaiting(t *testing.T
 	}
 }
 
+func TestABoxTakingOverReachesItsCompanysBackupsBeforeItIsMarkedInstalled(t *testing.T) {
+	place := boxWithAConnectionAndNoCompany(t)
+	holdTheCompanyKey(t, place, identityOfTheBoxAt(t, place))
+
+	_, _, isConnectedByItsMarker, errorValue := place.Destination()
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	destination, _, isConnectedWhenTold, errorValue := place.DestinationOf(exampleCompanyID)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+
+	if isConnectedByItsMarker {
+		t.Fatal("a box that has installed no company answered as one serving it, so this test tells nothing")
+	}
+	if !isConnectedWhenTold || destination.CompanyID != exampleCompanyID {
+		t.Fatalf("a box holding the company key could not reach %s's backups when told the company: connected=%v, company=%q", exampleCompanyID, isConnectedWhenTold, destination.CompanyID)
+	}
+}
+
+func TestABoxTakingOverSignsInAsItselfAndNotWithTheSessionTheBackupCarries(t *testing.T) {
+	place := boxWithAConnectionAndNoCompany(t)
+	holdTheCompanyKey(t, place, identityOfTheBoxAt(t, place))
+	directory := t.TempDir()
+	place.AccessTokenPath = filepath.Join(directory, "agent-key")
+	if errorValue := os.WriteFile(place.AccessTokenPath, []byte("the-session-the-backup-carried\n"), 0o600); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	sessionPath := filepath.Join(directory, "backups", takeOverSessionFileName)
+	if errorValue := keepTheTakeOverSession(sessionPath, "this-box-own-session"); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+
+	destination, _, isConnected, errorValue := asTheBoxTakingOver(place, sessionPath).DestinationOf(exampleCompanyID)
+	if errorValue != nil || !isConnected {
+		t.Fatalf("connected=%v: %v", isConnected, errorValue)
+	}
+	token, errorValue := destination.Store.AccessToken()
+
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if token != "this-box-own-session" {
+		t.Fatalf("the take-over signs in with %q, which stops working an hour after the backup was made", token)
+	}
+	if information, errorValue := os.Stat(sessionPath); errorValue != nil || information.Mode().Perm() != 0o600 {
+		t.Fatalf("the session kept for the take-over is not a file only its owner reads: %v", errorValue)
+	}
+}
+
+func TestABoxWithoutTheCompanyKeyDoesNotReachTheBackupsOfTheCompanyItIsTold(t *testing.T) {
+	place := boxWithAConnectionAndNoCompany(t)
+	identityOfTheBoxAt(t, place)
+
+	_, _, isConnected, errorValue := place.DestinationOf(exampleCompanyID)
+
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if isConnected {
+		t.Fatal("a box that holds no company key answered that it can open the company's backups")
+	}
+}
+
 func identityOfTheBoxAt(t *testing.T, place offsite.ThisBox) box.Identity {
 	t.Helper()
 	identity, errorValue := box.LoadOrCreateIdentity(filepath.Join(place.BoxStatePath, "identity.json"))

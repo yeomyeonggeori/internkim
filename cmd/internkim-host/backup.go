@@ -128,8 +128,10 @@ func runRestore(arguments []string) error {
 		if errorValue != nil {
 			return errorValue
 		}
+		place := asTheBoxTakingOver(thisBox(), takeOverSessionPath())
+		defer os.Remove(takeOverSessionPath())
 		request.Replace, request.KeepsThisBox, request.BeforeStarting = holdsACompany, true, markThisBoxInstalled
-		request.RebuildFromWAL, request.ReplayFiles = rebuildTheDatabaseFromKeptWAL, replayTheFileJournal
+		request.RebuildFromWAL, request.ReplayFiles = rebuildTheDatabaseFromKeptWALAs(place), replayTheFileJournalAs(place)
 	}
 	result, errorValue := companyhost.Restore(request, thisComputer{}, os.Stdout)
 	if errorValue != nil {

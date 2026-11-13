@@ -19,7 +19,7 @@ type RestoreRequest struct {
 	ArchivePath    string
 	Replace        bool
 	KeepsThisBox   bool
-	RebuildFromWAL func(dataDirectoryPath string) error
+	RebuildFromWAL func(companyID, dataDirectoryPath string) error
 	ReplayFiles    FileJournalReplay
 	BeforeStarting func(companyID string) error
 	Now            time.Time
@@ -365,7 +365,10 @@ func restoreTheDatabases(platform backupPlatform, archive hostbackup.Archive, ma
 	}
 	settings := companyHostSettings{DirectoryPath: directoryPath, Connection: connection, DatabasePassword: password}
 	if request.RebuildFromWAL != nil {
-		isRebuilt, errorValue := rebuildTheDatabaseFromKeptWAL(platform, machine, request.RebuildFromWAL, request.Now, progress)
+		rebuild := func(dataDirectoryPath string) error {
+			return request.RebuildFromWAL(connection.Company.ID, dataDirectoryPath)
+		}
+		isRebuilt, errorValue := rebuildTheDatabaseFromKeptWAL(platform, machine, rebuild, request.Now, progress)
 		if errorValue != nil {
 			return errorValue
 		}

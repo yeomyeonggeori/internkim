@@ -32,6 +32,21 @@ func LoadConnected(stateDirectoryPath string) (Connected, error) {
 	if companyID == "" {
 		return Connected{}, fmt.Errorf("%w at %s", ErrNoCompanyInstalled, stateDirectoryPath)
 	}
+	return connectedTo(identity, stateDirectoryPath, companyID)
+}
+
+func LoadConnectedTo(stateDirectoryPath, companyID string) (Connected, error) {
+	identity, errorValue := loadIdentity(identityPathIn(stateDirectoryPath))
+	if errors.Is(errorValue, os.ErrNotExist) {
+		return Connected{}, fmt.Errorf("%w at %s", ErrNoBoxKey, stateDirectoryPath)
+	}
+	if errorValue != nil {
+		return Connected{}, errorValue
+	}
+	return connectedTo(identity, stateDirectoryPath, companyID)
+}
+
+func connectedTo(identity Identity, stateDirectoryPath, companyID string) (Connected, error) {
 	keyring, errorValue := LoadKeyring(identity, stateDirectoryPath, companyID)
 	if errorValue != nil {
 		return Connected{}, errorValue
