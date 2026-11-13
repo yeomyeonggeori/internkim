@@ -217,7 +217,7 @@
 
 <svelte:window onkeydown={handleKeydown} onmessage={handleFrameShortcut} />
 
-<ModeWatcher />
+<ModeWatcher disableHeadScriptInjection />
 <Toaster position="bottom-center" visibleToasts={3} containerAriaLabel={text.notifications} closeButtonAriaLabel={text.close} />
 {#if needsLegacyIdentity}
 	<EffectErrorBoundary region="identity enrollment">
