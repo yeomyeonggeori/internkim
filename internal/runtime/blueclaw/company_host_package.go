@@ -296,6 +296,9 @@ func systemdUnitFor(layout CompanyHostLayout, service CompanyHostService) string
 		unit.WriteString(systemdRestartSetting(service) + "\nRestartSec=" + strconv.Itoa(service.RestartAfterSeconds) + "\n")
 	}
 	unit.WriteString("ExecStart=" + service.CommandLine() + "\n")
+	if service.StartedOnceAnswering != "" {
+		unit.WriteString("ExecStartPost=/bin/sh -c 'until curl -fsS -o /dev/null " + service.StartedOnceAnswering + "; do sleep 0.2; done'\n")
+	}
 	if service.StopTimeoutSeconds > 0 {
 		unit.WriteString("KillMode=mixed\nTimeoutStopSec=" + strconv.Itoa(service.StopTimeoutSeconds) + "\n")
 	}
