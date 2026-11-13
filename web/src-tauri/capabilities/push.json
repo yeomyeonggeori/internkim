@@ -11,6 +11,7 @@
     "notifications:allow-unregister-for-push-notifications",
     "notifications:allow-register-listener",
     "notifications:allow-remove-listener",
-    "notifications:allow-set-click-listener-active"
+    "notifications:allow-set-click-listener-active",
+    "foreground-notifications:default"
   ]
 }

@@ -48,22 +48,22 @@ afterEach(() => {
 });
 
 describe('holding back the open conversation in the Tauri app', () => {
-	test('names the open conversation to the iPhone, and nothing once it closes', async () => {
-		const invocations: Invocation[] = [];
-		insideTauri('ios', invocations);
-		await holdBackNotificationsFor('conversation-sample');
-		await holdBackNotificationsFor(undefined);
-		expect(invocations).toEqual([
-			{ command: 'plugin:foreground-notifications|hold_back', args: { tag: 'message:conversation-sample' } },
-			{ command: 'plugin:foreground-notifications|hold_back', args: { tag: '' } }
-		]);
-	});
+	for (const platform of ['ios', 'macos']) {
+		test(`names the open conversation to the ${platform} app, and nothing once it closes`, async () => {
+			const invocations: Invocation[] = [];
+			insideTauri(platform, invocations);
+			await holdBackNotificationsFor('conversation-sample');
+			await holdBackNotificationsFor(undefined);
+			expect(invocations).toEqual([
+				{ command: 'plugin:foreground-notifications|hold_back', args: { tag: 'message:conversation-sample' } },
+				{ command: 'plugin:foreground-notifications|hold_back', args: { tag: '' } }
+			]);
+		});
+	}
 
 	test('asks nothing of a platform that posts its own notifications', async () => {
 		const invocations: Invocation[] = [];
 		insideTauri('android', invocations);
-		await holdBackNotificationsFor('conversation-sample');
-		insideTauri('macos', invocations);
 		await holdBackNotificationsFor('conversation-sample');
 		expect(invocations).toEqual([]);
 	});

@@ -14,10 +14,11 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_desktop_control::init());
     #[cfg(any(target_os = "android", target_os = "ios", target_os = "macos"))]
-    let builder = builder.plugin(tauri_plugin_notifications::init());
+    let builder = builder
+        .plugin(tauri_plugin_notifications::init())
+        .plugin(tauri_plugin_foreground_notifications::init());
     #[cfg(mobile)]
     let builder = builder
-        .plugin(tauri_plugin_foreground_notifications::init())
         .plugin(tauri_plugin_silent_push::init())
         .plugin(tauri_plugin_attendance_activity::init())
         .plugin(tauri_plugin_back_gesture::init());
