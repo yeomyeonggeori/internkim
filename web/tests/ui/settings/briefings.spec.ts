@@ -22,15 +22,22 @@ async function openSettingsKeeping(page: Page, stored: StoredPersona): Promise<v
 	await page.goto('/settings/my-agent/');
 }
 
-test('a member moves the morning briefing, turns it off, and finds it that way after a reload', async ({ page }) => {
+test('a member moves the morning briefing and the weekly report, turns the briefing off, and finds both that way after a reload', async ({ page }) => {
 	const stored: StoredPersona = { document: { schemaVersion: 1, callMe: '이샘플', morningBriefing: { enabled: true, time: '08:00' } }, saves: 0 };
 	await openSettingsKeeping(page, stored);
 	const profile = page.getByRole('form', { name: '김인턴이 나를 대하는 방식' });
-	const enabled = profile.getByRole('switch', { name: '브리핑 받기' });
-	const time = profile.getByLabel('받는 시간', { exact: true });
+	const morningBriefing = profile.getByRole('group', { name: '아침 브리핑' });
+	const weeklyReport = profile.getByRole('group', { name: '주간 보고' });
+	const enabled = morningBriefing.getByRole('switch', { name: '브리핑 받기' });
+	const time = morningBriefing.getByLabel('받는 시간', { exact: true });
+	const weeklyDay = weeklyReport.getByLabel('받는 요일', { exact: true });
+	const weeklyTime = weeklyReport.getByLabel('받는 시간', { exact: true });
 	const save = profile.getByRole('button', { name: '저장', exact: true });
 	await expect(time).toHaveValue('08:00');
 	await expect(enabled).toBeChecked();
+	await expect(weeklyDay).toHaveText('금요일');
+	await expect(weeklyTime).toHaveValue('12:00');
+	await expect(weeklyReport.getByRole('switch', { name: '보고 받기' })).toBeChecked();
 
 	await time.fill('');
 	await save.click();
@@ -39,13 +46,19 @@ test('a member moves the morning briefing, turns it off, and finds it that way a
 
 	await time.fill('09:25');
 	await enabled.uncheck();
+	await weeklyDay.click();
+	await page.getByRole('option', { name: '목요일' }).click();
+	await weeklyTime.fill('17:30');
 	await profile.getByRole('button', { name: '따뜻한', exact: true }).click();
 	await save.click();
 	await expect(page.getByText('저장했습니다.', { exact: true })).toBeVisible();
 	expect(stored.document.morningBriefing).toEqual({ enabled: false, time: '09:25' });
+	expect(stored.document.weeklyReport).toEqual({ enabled: true, day: 'thursday', time: '17:30' });
 
 	await page.reload();
 	await expect(time).toHaveValue('09:25');
 	await expect(enabled).not.toBeChecked();
+	await expect(weeklyDay).toHaveText('목요일');
+	await expect(weeklyTime).toHaveValue('17:30');
 	await expect(profile.getByRole('button', { name: '따뜻한', exact: true })).toHaveAttribute('aria-pressed', 'true');
 });

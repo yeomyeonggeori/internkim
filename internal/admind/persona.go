@@ -77,6 +77,7 @@ type userDocument struct {
 	Tone            *soulTone        `json:"tone,omitempty"`
 	Language        *userLanguage    `json:"language,omitempty"`
 	MorningBriefing *morningBriefing `json:"morningBriefing"`
+	WeeklyReport    *weeklyReport    `json:"weeklyReport"`
 }
 
 type morningBriefing struct {
@@ -84,42 +85,57 @@ type morningBriefing struct {
 	Time    string `json:"time"`
 }
 
+type weeklyReport struct {
+	Enabled bool   `json:"enabled"`
+	Day     string `json:"day"`
+	Time    string `json:"time"`
+}
+
 func defaultMorningBriefing() morningBriefing {
 	return morningBriefingDefaults
 }
 
-var morningBriefingDefaults = morningBriefingSchemaDefault()
+func defaultWeeklyReport() weeklyReport {
+	return weeklyReportDefaults
+}
 
-func morningBriefingSchemaDefault() morningBriefing {
-	type settings morningBriefing
+var morningBriefingDefaults = userSchemaDefault[morningBriefing]("morningBriefing")
+
+var weeklyReportDefaults = userSchemaDefault[weeklyReport]("weeklyReport")
+
+func userSchemaDefault[Settings any](propertyName string) Settings {
 	var schema struct {
 		Properties map[string]struct {
-			Default settings `json:"default"`
+			Default json.RawMessage `json:"default"`
 		} `json:"properties"`
 	}
 	if errorValue := json.Unmarshal(userSchemaDocument, &schema); errorValue != nil {
 		panic(errorValue)
 	}
-	return morningBriefing(schema.Properties["morningBriefing"].Default)
+	var settings Settings
+	if errorValue := json.Unmarshal(schema.Properties[propertyName].Default, &settings); errorValue != nil {
+		panic(errorValue)
+	}
+	return settings
 }
 
 func (briefing *morningBriefing) UnmarshalJSON(document []byte) error {
-	var fields struct {
-		Enabled *bool   `json:"enabled"`
-		Time    *string `json:"time"`
-	}
-	if errorValue := json.Unmarshal(document, &fields); errorValue != nil {
+	type fields morningBriefing
+	settings := fields(defaultMorningBriefing())
+	if errorValue := json.Unmarshal(document, &settings); errorValue != nil {
 		return errorValue
 	}
-	defaults := defaultMorningBriefing()
-	briefing.Enabled = defaults.Enabled
-	briefing.Time = defaults.Time
-	if fields.Enabled != nil {
-		briefing.Enabled = *fields.Enabled
+	*briefing = morningBriefing(settings)
+	return nil
+}
+
+func (report *weeklyReport) UnmarshalJSON(document []byte) error {
+	type fields weeklyReport
+	settings := fields(defaultWeeklyReport())
+	if errorValue := json.Unmarshal(document, &settings); errorValue != nil {
+		return errorValue
 	}
-	if fields.Time != nil {
-		briefing.Time = *fields.Time
-	}
+	*report = weeklyReport(settings)
 	return nil
 }
 
@@ -769,19 +785,42 @@ func parseUserDocument(document []byte) (userDocument, error) {
 	return user, nil
 }
 
+func normalizeMorningBriefing(briefing *morningBriefing) *morningBriefing {
+	defaults := defaultMorningBriefing()
+	if briefing == nil {
+		return &defaults
+	}
+	normalized := morningBriefing{Enabled: briefing.Enabled, Time: personaValueOrDefault(briefing.Time, defaults.Time)}
+	return &normalized
+}
+
+func normalizeWeeklyReport(report *weeklyReport) *weeklyReport {
+	defaults := defaultWeeklyReport()
+	if report == nil {
+		return &defaults
+	}
+	normalized := weeklyReport{
+		Enabled: report.Enabled,
+		Day:     strings.ToLower(personaValueOrDefault(report.Day, defaults.Day)),
+		Time:    personaValueOrDefault(report.Time, defaults.Time),
+	}
+	return &normalized
+}
+
+func personaValueOrDefault(value string, defaultValue string) string {
+	if trimmed := strings.TrimSpace(value); trimmed != "" {
+		return trimmed
+	}
+	return defaultValue
+}
+
 func normalizeUserDocument(user userDocument) userDocument {
 	user.SchemaVersion = personaSchemaVersion
 	user.CallMe = strings.TrimSpace(user.CallMe)
 	user.About = strings.TrimSpace(user.About)
 	user.Preferences = normalizePersonaLines(user.Preferences)
-	if user.MorningBriefing == nil {
-		defaults := defaultMorningBriefing()
-		user.MorningBriefing = &defaults
-	} else if strings.TrimSpace(user.MorningBriefing.Time) == "" {
-		user.MorningBriefing.Time = defaultMorningBriefing().Time
-	} else {
-		user.MorningBriefing.Time = strings.TrimSpace(user.MorningBriefing.Time)
-	}
+	user.MorningBriefing = normalizeMorningBriefing(user.MorningBriefing)
+	user.WeeklyReport = normalizeWeeklyReport(user.WeeklyReport)
 	if user.Tone != nil {
 		tone := soulTone{Register: strings.ToLower(strings.TrimSpace(user.Tone.Register)), Traits: normalizePersonaLines(user.Tone.Traits)}
 		if tone.Register == "" && len(tone.Traits) == 0 {

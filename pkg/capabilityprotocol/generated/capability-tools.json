@@ -39835,7 +39835,7 @@
       "modelVisible": true,
       "name": "persona_identity_get",
       "namespace": "persona",
-      "namespaceSummary": "Who the agent is to the whole company, and how it works with the requester: what it calls them, their language and tone, and their morning briefing.",
+      "namespaceSummary": "Who the agent is to the whole company, and how it works with the requester: what it calls them, their language and tone, and their morning briefing and weekly report.",
       "outputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
@@ -40057,7 +40057,7 @@
       "modelVisible": true,
       "name": "persona_identity_update",
       "namespace": "persona",
-      "namespaceSummary": "Who the agent is to the whole company, and how it works with the requester: what it calls them, their language and tone, and their morning briefing.",
+      "namespaceSummary": "Who the agent is to the whole company, and how it works with the requester: what it calls them, their language and tone, and their morning briefing and weekly report.",
       "outputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
@@ -40187,7 +40187,7 @@
         "state": "ok"
       },
       "canonicalName": "persona_profile_get",
-      "description": "Read the requester's persona profile, which says how they want the agent to work with them: what to call them, what to know about them, their preferences, tone and reply language, and the daily morning briefing's time and whether it is on. It is always the requester's own.",
+      "description": "Read the requester's persona profile, which says how they want the agent to work with them: what to call them, what to know about them, their preferences, tone and reply language, the daily morning briefing's time and whether it is on, and the weekly report's day, time and whether it is on. It is always the requester's own.",
       "estimatedLatency": "low",
       "idempotency": {
         "required": false,
@@ -40206,7 +40206,7 @@
       "modelVisible": true,
       "name": "persona_profile_get",
       "namespace": "persona",
-      "namespaceSummary": "Who the agent is to the whole company, and how it works with the requester: what it calls them, their language and tone, and their morning briefing.",
+      "namespaceSummary": "Who the agent is to the whole company, and how it works with the requester: what it calls them, their language and tone, and their morning briefing and weekly report.",
       "outputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
@@ -40453,7 +40453,7 @@
         "state": "ok"
       },
       "canonicalName": "persona_profile_update",
-      "description": "Change the requester's persona profile, the only profile this ever changes. Only the fields the call names change, down to one nested field: morningBriefing with only enabled false turns the briefing off and keeps its time. A list such as preferences replaces the whole list. The whole profile is answered back.",
+      "description": "Change the requester's persona profile, the only profile this ever changes. Only the fields the call names change, down to one nested field: morningBriefing or weeklyReport with only enabled false turns that one off and keeps its day and time. A list such as preferences replaces the whole list. The whole profile is answered back.",
       "estimatedLatency": "medium",
       "idempotency": {
         "required": false,
@@ -40678,7 +40678,7 @@
       "modelVisible": true,
       "name": "persona_profile_update",
       "namespace": "persona",
-      "namespaceSummary": "Who the agent is to the whole company, and how it works with the requester: what it calls them, their language and tone, and their morning briefing.",
+      "namespaceSummary": "Who the agent is to the whole company, and how it works with the requester: what it calls them, their language and tone, and their morning briefing and weekly report.",
       "outputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,

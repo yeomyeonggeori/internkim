@@ -35,6 +35,7 @@ export type AgentUser = {
 	tone?: { register?: AgentToneRegister; traits?: string[] };
 	language?: { default?: string };
 	morningBriefing?: { enabled?: boolean; time?: string };
+	weeklyReport?: { enabled?: boolean; day?: string; time?: string };
 };
 
 export type CredentialProviderStatus = {

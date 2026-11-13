@@ -33,6 +33,26 @@ func TestUserMorningBriefingDefaultsAndCanonicalRoundTrip(t *testing.T) {
 	}
 }
 
+func TestUserWeeklyReportSurvivesACanonicalRoundTrip(t *testing.T) {
+	user, errorValue := parseUserDocument([]byte(`{"schemaVersion":1,"weeklyReport":{"enabled":false,"day":"thursday","time":"17:30"}}`))
+	if errorValue != nil {
+		t.Fatalf("expected a weekly report to parse: %v", errorValue)
+	}
+	canonical, errorValue := canonicalUserDocument(user)
+	if errorValue != nil {
+		t.Fatalf("expected canonical user document: %v", errorValue)
+	}
+	reparsed, errorValue := parseUserDocument(canonical)
+	expected := weeklyReport{Enabled: false, Day: "thursday", Time: "17:30"}
+	if errorValue != nil || reparsed.WeeklyReport == nil || *reparsed.WeeklyReport != expected {
+		t.Fatalf("expected the weekly report to be kept through a write, got %+v in %s (%v)", reparsed.WeeklyReport, canonical, errorValue)
+	}
+	defaults, errorValue := parseUserDocument([]byte(`{"schemaVersion":1}`))
+	if errorValue != nil || defaults.WeeklyReport == nil || *defaults.WeeklyReport != (weeklyReport{Enabled: true, Day: "friday", Time: "12:00"}) {
+		t.Fatalf("expected weekly report defaults, got %+v (%v)", defaults.WeeklyReport, errorValue)
+	}
+}
+
 func TestUserMorningBriefingPreservesFalseAndTime(t *testing.T) {
 	user, errorValue := parseUserDocument([]byte(`{"schemaVersion":1,"morningBriefing":{"enabled":false,"time":"09:30"}}`))
 	if errorValue != nil {
