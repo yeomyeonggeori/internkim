@@ -5,6 +5,7 @@
 	import * as Select from '$lib/components/ui/select';
 	import * as Table from '$lib/components/ui/table';
 	import { Skeleton } from '$lib/components/ui/skeleton';
+	import { Switch } from '$lib/components/ui/switch';
 	import { invokeTool } from '$lib/public-api-call';
 	import { currentLocale } from '$lib/i18n/locale.svelte';
 	import { dataRoomRequest } from '$lib/data-room/guest';
@@ -70,6 +71,20 @@
 		}
 	}
 
+	async function publish(row: CompanyFieldRow, isPublic: boolean) {
+		row.isPublic = isPublic;
+		savingField = companyFieldIdentity(row);
+		errorMessage = '';
+		try {
+			await invokeTool('dataroom_publication_update', { kind: row.kind, field: row.field, isPublic });
+		} catch (error) {
+			row.isPublic = !isPublic;
+			errorMessage = error instanceof Error ? error.message : text.loadFailed;
+		} finally {
+			savingField = '';
+		}
+	}
+
 	function fieldLabel(row: CompanyFieldRow): string {
 		return companyFieldName(row.kind, row.field, row.names, text, currentLocale.value);
 	}
@@ -125,6 +140,7 @@
 							<Table.Head class="md:w-48">{text.settings.field}</Table.Head>
 							<Table.Head class="w-68 max-md:hidden">{text.settings.category}</Table.Head>
 							<Table.Head class="max-md:hidden">{text.settings.readers}</Table.Head>
+							<Table.Head class="w-24 text-right">{text.settings.publicPage}</Table.Head>
 						</Table.Row>
 					</Table.Header>
 					<Table.Body>
@@ -136,6 +152,7 @@
 								</Table.Cell>
 								<Table.Cell class="max-md:hidden"><Skeleton class="h-9 w-full" /></Table.Cell>
 								<Table.Cell class="max-md:hidden"><Skeleton class="h-4 w-40" /></Table.Cell>
+								<Table.Cell><Skeleton class="ml-auto h-5 w-9" /></Table.Cell>
 							</Table.Row>
 						{/each}
 					</Table.Body>
@@ -148,6 +165,7 @@
 						<Table.Head class="md:w-48">{text.settings.field}</Table.Head>
 						<Table.Head class="w-68 max-md:hidden">{text.settings.category}</Table.Head>
 						<Table.Head class="max-md:hidden">{text.settings.readers}</Table.Head>
+						<Table.Head class="w-24 text-right">{text.settings.publicPage}</Table.Head>
 					</Table.Row>
 				</Table.Header>
 				<Table.Body>
@@ -155,7 +173,7 @@
 						{@const groupRows = rows.filter((row) => row.group === group)}
 						{#if groupRows.length > 0}
 							<Table.Row class="hover:bg-transparent">
-								<Table.Cell colspan={3} class="text-muted-foreground pt-5 pb-1 text-xs font-medium">{text.settings.kinds[group]}</Table.Cell>
+								<Table.Cell colspan={4} class="text-muted-foreground pt-5 pb-1 text-xs font-medium">{text.settings.kinds[group]}</Table.Cell>
 							</Table.Row>
 							{#each groupRows as row (companyFieldIdentity(row))}
 								<Table.Row>
@@ -169,6 +187,12 @@
 									</Table.Cell>
 									<Table.Cell class="max-md:hidden">{@render categorySelect(row, room.canManage)}</Table.Cell>
 									<Table.Cell class="text-muted-foreground text-sm whitespace-normal max-md:hidden">{readers(row.categoryCode)}</Table.Cell>
+									<Table.Cell class="text-right">
+										<Switch aria-label="{text.settings.publicPage} · {fieldLabel(row)}"
+											checked={row.isPublic}
+											disabled={savingField === companyFieldIdentity(row) || !room.canManage}
+											onCheckedChange={(checked) => publish(row, checked)} />
+									</Table.Cell>
 								</Table.Row>
 							{/each}
 						{/if}

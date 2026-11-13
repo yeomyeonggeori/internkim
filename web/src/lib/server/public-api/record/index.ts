@@ -85,9 +85,8 @@ import {
 } from './leave-tools';
 import { personInvite, personList, personPasswordReset, personUpdate, personWithdraw } from './people-tools';
 import { companyDataRoomGet, companyDataRoomCategorySet, companyDataRoomFieldSet, companyDataRoomFieldNameSet,
-	companyDataRoomShareCreate, companyDataRoomShareRevoke,
-	companyDataRoomLinksGet, companyDataRoomLinkCreate, companyDataRoomLinkRevoke,
-	companyDataRoomInvitationAccept, companyDataRoomInvitationSend } from './data-room';
+	companyDataRoomPublicationUpdate,
+	companyDataRoomLinksGet, companyDataRoomLinkCreate, companyDataRoomLinkRevoke } from './data-room';
 import { taskInvite, taskInvitationDelete, taskInvitationList } from './task-invitation';
 import {
 	companyCircleChannelAdd, companyCircleChannelDelete, companyCircleList, companyCircleMemberSet, companyCircleSet
@@ -122,7 +121,7 @@ import { companyCreditsGetInputSchema } from '../catalog/credits';
 import { companyDocumentDownloadInputSchema, companyDocumentListInputSchema, companyDocumentRegisterInputSchema, companyDocumentSearchInputSchema, companyDocumentUpdateInputSchema, companyDocumentUploadInputSchema, companyEquityAddInputSchema, companyEquityDeleteInputSchema, companyEquityListInputSchema, companyImageUploadInputSchema, companyInfoGetInputSchema, companyInfoSetInputSchema, companyMetricListInputSchema, companyMetricRecordInputSchema, companyRecordAddInputSchema, companyRecordDeleteInputSchema, companyRecordListInputSchema, companyRecordUpdateInputSchema } from '../catalog/company';
 import { recallSourceInputSchema } from '../catalog/protocol';
 import { circleChannelAddInputSchema, circleChannelDeleteInputSchema, circleListInputSchema, circleMemberSetInputSchema, circleSetInputSchema } from '../catalog/circle';
-import { dataRoomCategorySetInputSchema, dataRoomFieldNameSetInputSchema, dataRoomFieldSetInputSchema, dataRoomGetInputSchema, dataRoomInvitationAcceptInputSchema, dataRoomInvitationSendInputSchema, dataRoomLinksGetInputSchema, dataRoomShareCreateInputSchema, dataRoomShareRevokeInputSchema } from '../catalog/data-room';
+import { dataRoomCategorySetInputSchema, dataRoomFieldNameSetInputSchema, dataRoomFieldSetInputSchema, dataRoomGetInputSchema, dataRoomLinksGetInputSchema, dataRoomPublicationUpdateInputSchema } from '../catalog/data-room';
 import { dataRoomLinkInputSchema, dataRoomLinkRevokeSchema } from '$lib/data-room/links';
 import { conversationMuteInputSchema, notificationSettingsGetInputSchema, notificationSettingsSetInputIntentSchema } from '../catalog/notifications';
 import { channelOrderGetInputSchema, channelOrderSetInputSchema, channelPinInputSchema } from '../catalog/channel-order';
@@ -295,11 +294,7 @@ const toolsOverTheRecord: Record<string, RecordTool> = {
 	dataroom_category_update: recordTool(dataRoomCategorySetInputSchema, everyone, (context, input) => companyDataRoomCategorySet(context, input)),
 	dataroom_field_update: recordTool(dataRoomFieldSetInputSchema, everyone, (context, input) => companyDataRoomFieldSet(context, input)),
 	dataroom_field_name_update: recordTool(dataRoomFieldNameSetInputSchema, everyone, (context, input) => companyDataRoomFieldNameSet(context, input)),
-	dataroom_share_add: recordTool(dataRoomShareCreateInputSchema, everyone, (context, input) => companyDataRoomShareCreate(context, input)),
-	dataroom_share_delete: recordTool(dataRoomShareRevokeInputSchema, everyone, (context, input) => companyDataRoomShareRevoke(context, input)),
-	dataroom_invitation_send: recordTool(dataRoomInvitationSendInputSchema, everyone, (context, input, { place }) =>
-		companyDataRoomInvitationSend(context, input, placeTheAppAnswersAt('dataroom_invitation_send', place))),
-	dataroom_invitation_accept: recordTool(dataRoomInvitationAcceptInputSchema, everyone, (context, input) => companyDataRoomInvitationAccept(context, input)),
+	dataroom_publication_update: recordTool(dataRoomPublicationUpdateInputSchema, everyone, (context, input) => companyDataRoomPublicationUpdate(context, input)),
 	notification_settings_get: recordTool(notificationSettingsGetInputSchema, everyone, (context) => notificationSettingsGet(context)),
 	notification_settings_set: recordTool(notificationSettingsSetInputIntentSchema, everyone, (context, input) => notificationSettingsSet(context, input)),
 	conversation_mute: recordTool(conversationMuteInputSchema, everyone, (context, input) => conversationMute(context, input)),

@@ -5,7 +5,7 @@ import { isEmbeddedFrame } from '$lib/embedded';
 import { isSupabaseConfigured, supabaseMember, supabaseWebAuthSession } from '$lib/supabase-session';
 import { projectURL } from '$lib/supabase';
 import { workspaceIdentityKey } from '$lib/workspace-identity';
-import { companyPathOf, wantsCompanyPrefix } from '$lib/company-path';
+import { companyPathOf, isOpenToAnyone, wantsCompanyPrefix } from '$lib/company-path';
 import { withReturnPath } from '$lib/return-path';
 import { signedOutSession, webAuthSessionFrom, type WebAuthSession } from '$lib/web-auth-session';
 import type { LayoutLoad } from './$types';
@@ -22,7 +22,7 @@ export const load: LayoutLoad<{ session: WebAuthSession | null; companyLocale?: 
 	if (isSupabaseConfigured()) {
 		const session = await supabaseWebAuthSession(returnPath);
 		const settlingIn = returnPath.startsWith('/start') || returnPath.startsWith('/auth/');
-		if (session.authenticated && !settlingIn && !url.pathname.startsWith('/share/') && !(await belongsToACompany())) {
+		if (session.authenticated && !settlingIn && !isOpenToAnyone(url.pathname) && !(await belongsToACompany())) {
 			redirect(307, withReturnPath('/start', returnPath));
 		}
 		if (session.authenticated) {

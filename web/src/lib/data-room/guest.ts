@@ -7,7 +7,14 @@ export async function dataRoomRequest(path: string, method = 'GET'): Promise<unk
 	const { data } = await supabase().auth.getSession();
 	const headers = new Headers();
 	if (data.session) headers.set('Authorization', `Bearer ${data.session.access_token}`);
-	const response = await fetch(path, { method, headers });
+	return answerOf(await fetch(path, { method, headers }));
+}
+
+export async function publicDataRoomRead(path: string): Promise<unknown> {
+	return answerOf(await fetch(path));
+}
+
+async function answerOf(response: Response): Promise<unknown> {
 	const answer: unknown = await response.json();
 	if (!response.ok) {
 		const refusal = z.object({ message: z.string() }).safeParse(answer);
@@ -29,17 +36,19 @@ export async function savedDownload(response: Response, fileName: string): Promi
 	setTimeout(() => URL.revokeObjectURL(address), 60_000);
 }
 
-export async function dataRoomDownload(companyID: string, documentID: string, fileName: string): Promise<void> {
-	const { data } = await supabase().auth.getSession();
-	const headers = new Headers();
-	if (data.session) headers.set('Authorization', `Bearer ${data.session.access_token}`);
+export async function publicDataRoomDownload(companyID: string, documentID: string, fileName: string): Promise<void> {
 	const parameters = new URLSearchParams({ documentID, download: '1' });
-	await savedDownload(await fetch(`/api/v1/data-room/${companyID}?${parameters}`, { headers }), fileName);
+	await savedDownload(await fetch(`/api/v1/data-room/${companyID}?${parameters}`), fileName);
 }
 
-export async function dataRoomFile(companyID: string, documentID: string, fileName?: string): Promise<string> {
+export async function publicDataRoomFile(companyID: string, documentID: string, fileName?: string): Promise<string> {
 	const parameters = new URLSearchParams({ documentID });
 	if (fileName) parameters.set('fileName', fileName);
-	const answer = await dataRoomRequest(`/api/v1/data-room/${companyID}?${parameters}`);
+	const answer = await publicDataRoomRead(`/api/v1/data-room/${companyID}?${parameters}`);
 	return z.object({ downloadURL: z.string().url() }).parse(answer).downloadURL;
+}
+
+export async function publicDataRoomCompanyOf(slug: string): Promise<string> {
+	const answer = await publicDataRoomRead(`/api/v1/data-room/public/${encodeURIComponent(slug)}`);
+	return z.object({ companyID: z.guid() }).parse(answer).companyID;
 }

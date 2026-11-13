@@ -18,6 +18,7 @@ export const reservedFirstSegments = [
 	'messenger',
 	'oauth',
 	'organization',
+	'room',
 	'runs',
 	'settings',
 	'share',
@@ -45,6 +46,10 @@ export function routePathOf(pathname: string): string {
 }
 
 const segmentsOutsideACompany = new Set(['api', 'auth', 'design', 'manifest-apple.webmanifest', 'oauth', 'share', 'start']);
+
+export function isOpenToAnyone(pathname: string): boolean {
+	return pathname.startsWith('/share/') || routePathOf(pathname) === '/room';
+}
 
 export function wantsCompanyPrefix(pathname: string): boolean {
 	if (companySlugOf(pathname) !== '') return false;

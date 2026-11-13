@@ -42,7 +42,12 @@
 
 	type Highlight = { key: string; label: string; value: string; note: string };
 
-	let { company: recordedCompany, sharedWith, asRecorded = false }: { company: DataRoomCompany; sharedWith?: string | null; asRecorded?: boolean } = $props();
+	let {
+		company: recordedCompany,
+		sharedWith,
+		asRecorded = false,
+		isPublished = false
+	}: { company: DataRoomCompany; sharedWith?: string | null; asRecorded?: boolean; isPublished?: boolean } = $props();
 
 	let exchangeRates = $state<ExchangeRates>(new Map());
 
@@ -204,6 +209,6 @@
 			</section>
 		{/if}
 
-		<p class="text-muted-foreground border-t pt-4 text-xs leading-5">{text.scope}</p>
+		<p class="text-muted-foreground border-t pt-4 text-xs leading-5">{isPublished ? text.publishedScope : text.scope}</p>
 	</div>
 {/if}

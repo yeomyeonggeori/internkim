@@ -1,14 +1,13 @@
 import { z } from 'zod';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { dataRoomGetResultSchema, dataRoomCategorySetInputSchema, dataRoomFieldSetInputSchema, dataRoomFieldNameSetInputSchema,
-	dataRoomShareCreateInputSchema, dataRoomShareRevokeInputSchema,
-	dataRoomInvitationAcceptInputSchema, dataRoomInvitationSendInputSchema } from '../catalog/data-room';
-import { sendGuestSignInEmail } from './guest-sign-in-email';
-import type { RecordContext, ToolPlace } from './company';
+	dataRoomPublicationUpdateInputSchema } from '../catalog/data-room';
+import type { RecordContext } from './company';
+import { companyDocumentOfHint } from './company-ledger-tools';
 import { companyFieldKindSchema, type CompanyFieldKind } from '$lib/data-room/model';
 import { fieldNamesOf, fieldNamesSchema } from '$lib/data-room/schemas';
 import { dataRoomLinkInputSchema, dataRoomLinkRevokeSchema, dataRoomLinksSchema, generateDataRoomCode } from '$lib/data-room/links';
-import { AccessRefused, TargetMissing, refusalOfPostgresError } from '../refusal';
+import { InputRefused, refusalOfPostgresError } from '../refusal';
 
 const categoryRowSchema = z.object({
 	code: z.string(), parent: z.string().nullable(), slug: z.string(),
@@ -17,13 +16,7 @@ const categoryRowSchema = z.object({
 });
 const fieldRowSchema = z.object({
 	kind: companyFieldKindSchema, field: z.string(), category_code: z.string().nullable(),
-	names: fieldNamesSchema.nullable(), unit: z.string().nullable()
-});
-const shareRowSchema = z.object({
-	id: z.string(), circle_id: z.string(), audience: z.enum(['email', 'public']),
-	email: z.string().nullable(),
-	accepted_at: z.string().nullable(), expires_at: z.string().nullable(), revoked_at: z.string().nullable(),
-	can_download: z.boolean()
+	names: fieldNamesSchema.nullable(), unit: z.string().nullable(), is_public: z.boolean()
 });
 
 export async function companyRows(client: SupabaseClient, companyID: string, table: string): Promise<unknown[]> {
@@ -40,10 +33,10 @@ export async function dataRoomCall(client: SupabaseClient, name: string, paramet
 }
 
 export async function companyDataRoomGet(context: RecordContext) {
-	const [categories, fields, shares, canManage] = await Promise.all([
+	const [categories, fields, publicDocumentIDs, canManage] = await Promise.all([
 		companyRows(context.caller, context.companyID, 'data_room_category'),
 		companyRows(context.caller, context.companyID, 'company_field'),
-		companyRows(context.caller, context.companyID, 'data_room_share'),
+		publicDocumentIDsOf(context),
 		dataRoomCall(context.caller, 'data_room_administrator', { target_company: context.companyID })
 	]);
 	return dataRoomGetResultSchema.parse({
@@ -56,18 +49,17 @@ export async function companyDataRoomGet(context: RecordContext) {
 		fields: fields.map((value) => {
 			const row = fieldRowSchema.parse(value);
 			return { kind: row.kind, field: row.field, categoryCode: row.category_code,
-				name: row.names?.en ?? null, nameKO: row.names?.ko ?? null, unit: row.unit };
+				name: row.names?.en ?? null, nameKO: row.names?.ko ?? null, unit: row.unit, isPublic: row.is_public };
 		}),
-		shares: shares.map(answeredShare), canManage
+		publicDocumentIDs, canManage
 	});
 }
 
-function answeredShare(value: unknown) {
-	const row = shareRowSchema.parse(value);
-	return { id: row.id, circleID: row.circle_id, audience: row.audience,
-		email: row.email,
-		acceptedAt: row.accepted_at, expiresAt: row.expires_at, revokedAt: row.revoked_at,
-		canDownload: row.can_download };
+async function publicDocumentIDsOf(context: RecordContext): Promise<string[]> {
+	const { data, error } = await context.caller.from('company_document').select('id')
+		.eq('company_id', context.companyID).not('public_since', 'is', null).order('id');
+	if (error) throw refusalOfPostgresError(error);
+	return (data ?? []).map((row) => z.object({ id: z.string() }).parse(row).id);
 }
 
 export async function companyDataRoomCategorySet(context: RecordContext, category: z.infer<typeof dataRoomCategorySetInputSchema>) {
@@ -95,6 +87,7 @@ type CompanyFieldWrite = {
 	field: string;
 	category_code?: string | null;
 	names?: Record<string, string> | null;
+	is_public?: boolean;
 };
 
 async function upsertCompanyField(context: RecordContext, write: CompanyFieldWrite) {
@@ -103,18 +96,22 @@ async function upsertCompanyField(context: RecordContext, write: CompanyFieldWri
 	if (error) throw refusalOfPostgresError(error);
 }
 
-export async function companyDataRoomShareCreate(context: RecordContext, share: z.infer<typeof dataRoomShareCreateInputSchema>) {
-	const shareID = await dataRoomCall(context.caller, 'data_room_share_create', {
-		target_company: context.companyID, circle_id: share.circleID, audience: share.audience,
-		recipient_email: share.email,
-		expires_at: share.expiresAt, can_download: share.canDownload ?? false
-	});
-	return { shareID: z.string().uuid().parse(shareID) };
+export async function companyDataRoomPublicationUpdate(context: RecordContext, publication: z.infer<typeof dataRoomPublicationUpdateInputSchema>) {
+	const { documentHint, kind, field, isPublic } = publication;
+	if (documentHint !== undefined && kind === undefined && field === undefined) return publishDocument(context, documentHint, isPublic);
+	if (documentHint === undefined && kind !== undefined && field !== undefined) return publishField(context, kind, field, isPublic);
+	throw new InputRefused('name one document with documentHint, or one field with kind and field, never both');
 }
 
-export async function companyDataRoomShareRevoke(context: RecordContext, share: z.infer<typeof dataRoomShareRevokeInputSchema>) {
-	await dataRoomCall(context.caller, 'data_room_share_revoke', { target_share: share.shareID });
-	return { saved: true };
+async function publishDocument(context: RecordContext, documentHint: string, isPublic: boolean) {
+	const document = await companyDocumentOfHint(context, documentHint);
+	await dataRoomCall(context.caller, 'data_room_document_publication_set', { target_document: document.id, is_public: isPublic });
+	return { documentID: document.id, isPublic };
+}
+
+async function publishField(context: RecordContext, kind: CompanyFieldKind, field: string, isPublic: boolean) {
+	await upsertCompanyField(context, { kind, field, is_public: isPublic });
+	return { kind, field, isPublic };
 }
 
 export async function companyDataRoomLinksGet(context: RecordContext) {
@@ -144,43 +141,4 @@ export async function companyDataRoomLinkCreate(context: RecordContext, link: z.
 export async function companyDataRoomLinkRevoke(context: RecordContext, link: z.infer<typeof dataRoomLinkRevokeSchema>) {
 	await dataRoomCall(context.caller, 'data_room_link_revoke', { target_link: link.linkID });
 	return { saved: true };
-}
-
-const invitationRowSchema = z.object({
-	company_id: z.string(), email: z.string(),
-	expires_at: z.string().nullable(), revoked_at: z.string().nullable()
-});
-
-export async function dataRoomShareAccept(caller: SupabaseClient, shareID: string) {
-	const companyID = await dataRoomCall(caller, 'data_room_share_accept', { target_share: shareID });
-	return { shareID, companyID: z.string().uuid().parse(companyID) };
-}
-
-export async function dataRoomInvitationSend(caller: SupabaseClient, place: ToolPlace, shareID: string) {
-	const invitation = await invitationOf(caller, shareID);
-	const isAdministrator = await dataRoomCall(caller, 'data_room_administrator', { target_company: invitation.company_id });
-	if (isAdministrator !== true) throw new AccessRefused('only an administrator sends invitations');
-	if (!isInvitationActive(invitation)) throw new AccessRefused('invitation is no longer active');
-	await sendGuestSignInEmail(place, invitation.email, `/share/invitations/${shareID}`);
-	return { shareID, sent: true };
-}
-
-async function invitationOf(caller: SupabaseClient, shareID: string) {
-	const { data, error } = await caller.from('data_room_share')
-		.select('company_id,email,expires_at,revoked_at').eq('id', shareID).eq('audience', 'email').maybeSingle();
-	if (error || !data) throw new TargetMissing('invitation not found');
-	return invitationRowSchema.parse(data);
-}
-
-function isInvitationActive(invitation: z.infer<typeof invitationRowSchema>): boolean {
-	if (invitation.revoked_at) return false;
-	return !invitation.expires_at || new Date(invitation.expires_at) > new Date();
-}
-
-export async function companyDataRoomInvitationSend(context: RecordContext, { shareID }: z.infer<typeof dataRoomInvitationSendInputSchema>, place: ToolPlace) {
-	return dataRoomInvitationSend(context.caller, place, shareID);
-}
-
-export async function companyDataRoomInvitationAccept(context: RecordContext, { shareID }: z.infer<typeof dataRoomInvitationAcceptInputSchema>) {
-	return dataRoomShareAccept(context.caller, shareID);
 }

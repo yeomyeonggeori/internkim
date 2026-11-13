@@ -49,9 +49,9 @@ for (const width of everyLayoutBand) {
 		await page.getByRole('textbox', { name: '회사 이름', exact: true }).fill('Sample Company With A Long Name');
 		await page.getByRole('textbox', { name: '내 이름', exact: true }).fill('이샘플');
 		await capture('start');
-		await page.goto('/share/invitations/00000000-0000-4000-8000-000000000001');
-		await expect(page.getByRole('button', { name: 'Send verification code' })).toBeVisible();
-		await capture('share-invitation');
+		await page.goto('/share/tasks/invitations/00000000-0000-4000-8000-000000000001');
+		await expect(page.getByRole('button', { name: /코드 받기|Send code/ })).toBeVisible();
+		await capture('task-invitation');
 		await page.route('**/api/v1/data-room/00000000-0000-4000-8000-000000000002', route => route.fulfill({ json: {
 			categories: [{ code: 'C', parent: null, name: 'A long category label that should remain readable', name_ko: '법인 자료', description: '', slug: 'corporate' }],
 			documents: [{ id: 'document-sample', title: '공유 문서의 긴 제목과 상세 설명도 좁은 화면에서 읽을 수 있습니다', summary: '자료실 미리보기 검증', category_code: 'C', document_date: null, status: null, extension: 'pdf' }],
@@ -65,7 +65,8 @@ for (const width of everyLayoutBand) {
 			},
 			viewer: null
 		} }));
-		await page.goto('/share/00000000-0000-4000-8000-000000000002');
+		await page.route('**/api/v1/data-room/public/sample-company', route => route.fulfill({ json: { companyID: '00000000-0000-4000-8000-000000000002' } }));
+		await page.goto('/sample-company/room');
 		await expect(page.getByText('시드 투자 유치')).toBeVisible();
 		await capture('shared-room-company');
 		await page.getByRole('button', { name: /법인 자료/ }).click();

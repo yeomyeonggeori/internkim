@@ -704,6 +704,16 @@
       ]
     },
     {
+      "name": "data_room_document_publication_set",
+      "arguments": "target_document uuid, is_public boolean",
+      "returns": "timestamp with time zone",
+      "security": "definer",
+      "callableBy": [
+        "authenticated",
+        "service_role"
+      ]
+    },
+    {
       "name": "data_room_document_readable",
       "arguments": "document company_document",
       "returns": "boolean",
@@ -777,42 +787,12 @@
       ]
     },
     {
-      "name": "data_room_share_accept",
-      "arguments": "target_share uuid",
+      "name": "data_room_public_company",
+      "arguments": "target_slug text",
       "returns": "uuid",
-      "security": "definer",
-      "callableBy": [
-        "authenticated",
-        "service_role"
-      ]
-    },
-    {
-      "name": "data_room_share_applies",
-      "arguments": "share data_room_share",
-      "returns": "boolean",
       "security": "definer",
       "callableBy": [
         "anon",
-        "authenticated",
-        "service_role"
-      ]
-    },
-    {
-      "name": "data_room_share_create",
-      "arguments": "target_company uuid, circle_id text, audience text, recipient_email text DEFAULT NULL::text, expires_at timestamp with time zone DEFAULT NULL::timestamp with time zone, can_download boolean DEFAULT false",
-      "returns": "uuid",
-      "security": "definer",
-      "callableBy": [
-        "authenticated",
-        "service_role"
-      ]
-    },
-    {
-      "name": "data_room_share_revoke",
-      "arguments": "target_share uuid",
-      "returns": "void",
-      "security": "definer",
-      "callableBy": [
         "authenticated",
         "service_role"
       ]

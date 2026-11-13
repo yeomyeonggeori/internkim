@@ -96,7 +96,7 @@ export const proofCategories = ['certification', 'ip', 'award', 'reference'];
 const headlineMetric = 'annualRevenue';
 
 export function isEmptyCompany(company: DataRoomCompany): boolean {
-	return Object.keys(company.profile).length === 0 && company.metrics.length === 0 && company.records.length === 0
+	return Object.keys(company.profile).every((key) => key === 'name') && company.metrics.length === 0 && company.records.length === 0
 		&& !company.activity && !company.ownership;
 }
 

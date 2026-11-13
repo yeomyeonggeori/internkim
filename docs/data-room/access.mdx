@@ -1,6 +1,6 @@
 ---
 title: Access and sharing
-description: Circles, invitations and publication.
+description: Circles, the public page and code links.
 ---
 
 A company member reads the data room through the circles they belong to. A
@@ -36,25 +36,28 @@ them, at the moment of the change, and a pass every two minutes takes back
 anyone added in the channel by hand. The app offers nobody a way to add,
 remove or leave from inside the channel. Turning it off deletes the channel, once its exact name is typed.
 
-Editing a circle immediately changes what its members and every share of it
-can read. Adding a child immediately extends existing parent scopes. Review
+Editing a circle immediately changes what its members and every code link
+made from it can read. Adding a child immediately extends existing parent scopes. Review
 those readers before changing either. Category codes and ancestry are stable.
 
-## Sharing outside the company
+## The public page
 
-An administrator lends what one circle reads to an external email or an
-explicitly public audience, and sends an email recipient the invitation. The
-recipient must accept it with that verified email and gains no company membership, circle or host filesystem
-identity. An expired or revoked share stops new reads. Original file downloads
-require `canDownload`; text previews follow read access. A downloaded copy
-cannot be recalled, and issued file links expire within ten minutes.
+Every company has a public page at `<zone>/<slug>/room`. Anyone opens it
+without signing in, and it shows the company's name and logo and nothing else
+until an administrator puts something on it. An administrator publishes one document at
+a time from the document's details in the data room, and one company field at
+a time from the Public page column in Settings → Company. A published document
+can be read and downloaded by anyone, so a downloaded copy cannot be recalled.
+A document still in `X` is classified before it is published.
 
-A PDF a guest downloads is stamped on every page with the recipient's email,
-or the link's identifier, and the time in UTC. A PDF that cannot be stamped is
-not downloaded. While a guest reads, the viewer overlays their email or the
-link's name and the time the room was opened.
+The agent files documents into categories by itself, and a category decides
+nothing about the public page. Publication is always a separate decision about
+one document or one field. The public page never shows the task board.
 
-Publication requires an explicit public share. It never publishes `X`.
+A PDF downloaded from the public page or a code link is stamped on every page
+with the link's identifier, or "Public share", and the time in UTC. A PDF that
+cannot be stamped is not downloaded. While a guest reads, the viewer overlays
+the same label and the time the room was opened.
 
 ## Code-protected links
 

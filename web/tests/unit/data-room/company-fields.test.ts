@@ -11,15 +11,16 @@ const categories = [
 ];
 
 const placed = [
-	{ kind: 'metric' as const, field: 'annualRevenue', categoryCode: 'FS', names: null },
-	{ kind: 'metric' as const, field: 'netIncome', categoryCode: 'FS', names: null },
-	{ kind: 'profile' as const, field: 'brandName', categoryCode: 'GP', names: null },
-	{ kind: 'record' as const, field: 'history', categoryCode: 'GP', names: null },
-	{ kind: 'metric' as const, field: 'installedUnits', categoryCode: null, names: { ko: '누적 설치 대수' } }
+	{ kind: 'metric' as const, field: 'annualRevenue', categoryCode: 'FS', names: null, isPublic: false },
+	{ kind: 'metric' as const, field: 'netIncome', categoryCode: 'FS', names: null, isPublic: false },
+	{ kind: 'profile' as const, field: 'brandName', categoryCode: 'GP', names: null, isPublic: false },
+	{ kind: 'record' as const, field: 'history', categoryCode: 'GP', names: null, isPublic: false },
+	{ kind: 'metric' as const, field: 'installedUnits', categoryCode: null, names: { ko: '누적 설치 대수' }, isPublic: false },
+	{ kind: 'profile' as const, field: 'slogan', categoryCode: null, names: null, isPublic: true }
 ];
 
 describe('the company fields an administrator places', () => {
-	test('lists every field with a value, then the ones a category names but nothing holds', () => {
+	test('lists every field with a value, then the ones placed or published that nothing holds', () => {
 		const rows = companyFieldRows(placed, {
 			profile: { brandName: { ko: '샘플' } },
 			metrics: [
@@ -31,17 +32,18 @@ describe('the company fields an administrator places', () => {
 			records: [{ category: 'history', title: '설립', attributes: {} }]
 		});
 		expect(rows).toEqual([
-			{ kind: 'profile', field: 'brandName', group: 'profile', categoryCode: 'GP', names: null },
-			{ kind: 'metric', field: 'annualRevenue', group: 'metric', categoryCode: 'FS', names: null },
-			{ kind: 'metric', field: 'burnRate', group: 'metric', categoryCode: 'X', names: null },
-			{ kind: 'metric', field: 'installedUnits', group: 'metric', categoryCode: 'X', names: { ko: '누적 설치 대수' } },
-			{ kind: 'record', field: 'history', group: 'record', categoryCode: 'GP', names: null },
-			{ kind: 'metric', field: 'netIncome', group: 'empty', categoryCode: 'FS', names: null }
+			{ kind: 'profile', field: 'brandName', group: 'profile', categoryCode: 'GP', names: null, isPublic: false },
+			{ kind: 'metric', field: 'annualRevenue', group: 'metric', categoryCode: 'FS', names: null, isPublic: false },
+			{ kind: 'metric', field: 'burnRate', group: 'metric', categoryCode: 'X', names: null, isPublic: false },
+			{ kind: 'metric', field: 'installedUnits', group: 'metric', categoryCode: 'X', names: { ko: '누적 설치 대수' }, isPublic: false },
+			{ kind: 'record', field: 'history', group: 'record', categoryCode: 'GP', names: null, isPublic: false },
+			{ kind: 'metric', field: 'netIncome', group: 'empty', categoryCode: 'FS', names: null, isPublic: false },
+			{ kind: 'profile', field: 'slogan', group: 'empty', categoryCode: 'X', names: null, isPublic: true }
 		]);
 	});
 
 	test('a metric and a record of one name are two fields, each in its own place', () => {
-		const rows = companyFieldRows([{ kind: 'record', field: 'history', categoryCode: 'GP', names: null }], {
+		const rows = companyFieldRows([{ kind: 'record', field: 'history', categoryCode: 'GP', names: null, isPublic: false }], {
 			profile: {},
 			metrics: [{ metric: 'history', period: '2025', value: 1, basis: 'reported' }],
 			records: [{ category: 'history', title: '설립', attributes: {} }]

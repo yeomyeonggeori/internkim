@@ -2,7 +2,7 @@ import { z } from 'zod';
 import { companyFieldKindSchema, dataRoomCategorySchema } from '$lib/data-room/model';
 import { dataRoomGetResultSchema } from '$lib/data-room/schemas';
 import { dataRoomLinkInputSchema, dataRoomLinksSchema, dataRoomLinkCreatedSchema, dataRoomLinkRevokeSchema } from '$lib/data-room/links';
-export { dataRoomGetResultSchema, dataRoomShareSchema } from '$lib/data-room/schemas';
+export { dataRoomGetResultSchema } from '$lib/data-room/schemas';
 import { CapabilityAnsweredBy, CapabilityEstimatedLatency, CapabilitySideEffect, ResourceEffectIdentity } from './protocol';
 import { ResourceMutationEffect, type CapabilityToolDefinition } from './definition';
 import type { CapabilityNamespace } from './namespaces';
@@ -21,23 +21,15 @@ export const dataRoomFieldNameSetInputSchema = z.strictObject({
 	name: z.string().trim().min(1).describe("What the company page calls the field in English, e.g. 'Installed units'. Omit to show the product's English name.").optional(),
 	nameKO: z.string().trim().min(1).describe("What the company page calls the field in Korean. Omit to show the product's Korean name.").optional()
 });
-export const dataRoomShareCreateInputSchema = z.strictObject({
-	circleID: z.string(),
-	audience: z.enum(['email', 'public']),
-	email: z.string().regex(/^[^\s@]+@[^\s@]+\.[^\s@]+$/).optional(),
-	expiresAt: z.string().optional(),
-	canDownload: z.boolean().optional()
+export const dataRoomPublicationUpdateInputSchema = z.strictObject({
+	isPublic: z.boolean().describe('true puts it on the public page, false takes it off.'),
+	documentHint: z.string().min(1).describe('Exact documentID or exact current title from company_document_list or company_document_search, for publishing one document. Give this or kind and field, never both.').optional(),
+	kind: companyFieldIdentity.kind.describe('The kind of the company page field to publish, the same kind dataroom_field_update takes. Give it with field.').optional(),
+	field: companyFieldIdentity.field.describe('Exact company page field as stored, the same key dataroom_field_update takes, for publishing one field. Give it with kind, never with documentHint.').optional()
 });
-export const dataRoomShareRevokeInputSchema = z.strictObject({ shareID: z.string().uuid() });
-const dataRoomShareCreatedSchema = z.strictObject({ shareID: z.string().uuid() });
-export const dataRoomInvitationSendInputSchema = z.strictObject({
-	shareID: z.string().uuid().describe('Exact shareID of an email share, from dataroom_share_add or dataroom_get.')
+export const dataRoomPublicationUpdatedSchema = z.strictObject({
+	documentID: z.string().optional(), kind: companyFieldKindSchema.optional(), field: z.string().optional(), isPublic: z.boolean()
 });
-export const dataRoomInvitationAcceptInputSchema = z.strictObject({
-	shareID: z.string().uuid().describe('Exact shareID the invitation address names, the last segment of /share/invitations/<shareID>.')
-});
-export const dataRoomInvitationSentSchema = z.strictObject({ shareID: z.string().uuid(), sent: z.boolean() });
-export const dataRoomInvitationAcceptedSchema = z.strictObject({ shareID: z.string().uuid(), companyID: z.string().uuid() });
 export const dataRoomLinksGetInputSchema = z.strictObject({});
 export const dataRoomGetInputSchema = z.strictObject({});
 export const recordSavedSchema = z.strictObject({ saved: z.boolean() });
@@ -75,48 +67,18 @@ export const dataRoomToolDefinitions: CapabilityToolDefinition[] = [
 		sideEffect: CapabilitySideEffect.Computation
 	},
 	dataRoomTool('dataroom_get',
-		'Read the company data room categories and its shares with people outside the company. A parent code grants all current and future children. Reads expose only permitted categories; administrators can manage the template. Circles and who belongs to them are circle_list.',
+		'Read the company data room categories, its company page fields, and what its public page shows. A parent code grants all current and future children. Reads expose only permitted categories; administrators can manage the template. Circles and who belongs to them are circle_list.',
 		dataRoomGetInputSchema, dataRoomGetResultSchema),
 	dataRoomTool('dataroom_category_update',
 		'Create or rename a data room category. Use one uppercase mnemonic letter for a parent and two for a filing category. Code identity and ancestry remain stable. X is the reserved unclassified inbox. A new child is readable by every existing recipient of its parent; confirm that audience first.',
 		dataRoomCategorySetInputSchema, recordSavedSchema, true),
 	dataRoomTool('dataroom_field_update',
-		'Choose who sees one company page field by naming the category whose readers see it; the field leaves the category that held it. Confirm the audience first: every circle and share that reads the category sees the value.',
+		'Choose who sees one company page field by naming the category whose readers see it; the field leaves the category that held it. Confirm the audience first: every circle and code link that reads the category sees the value. Whether the public page shows it is dataroom_publication_update.',
 		dataRoomFieldSetInputSchema, recordSavedSchema, true),
 	dataRoomTool('dataroom_field_name_update',
 		"Name one company page field the way the company says it, in English and in Korean. Each call sets both names; a language left out shows the product's name, or the field as written when the product has none.",
 		dataRoomFieldNameSetInputSchema, recordSavedSchema, true),
-	dataRoomTool('dataroom_share_add',
-		'Share live data room categories with someone outside the company by lending them what one circle reads: an external email or an explicitly public audience. Current and future documents in those categories become readable. Confirm the audience and scope first. Recipients must accept using their verified email; do not invite them as company members. Company members read through the circles they belong to, set with circle_member_update. Public publication is a distinct explicit request and never includes X.',
-		dataRoomShareCreateInputSchema, dataRoomShareCreatedSchema, true),
-	{
-		name: 'dataroom_invitation_send', namespace: 'dataroom', answeredBy: CapabilityAnsweredBy.Record,
-		privacyClass: 'workspace_company', policyResource: 'tool:dataroom_invitation_send', version: '1',
-		description: 'Company dataroom: send the invitation email of an email share, so its recipient can sign in with that address and accept it. Only a company administrator sends invitations; a revoked or expired share is refused. Requires approval; the email reaches someone outside the company.',
-		estimatedLatency: CapabilityEstimatedLatency.Medium,
-		inputSchema: dataRoomInvitationSendInputSchema,
-		inputIntentSchema: dataRoomInvitationSendInputSchema.partial(),
-		result: { schema: dataRoomInvitationSentSchema, effects: [{
-			objectType: 'data_room_share', effect: ResourceMutationEffect.Sent,
-			resultField: 'shareID', effectIdentity: ResourceEffectIdentity.ID
-		}] },
-		sideEffect: CapabilitySideEffect.ExternalSend,
-		requiresApproval: true
-	},
-	{
-		name: 'dataroom_invitation_accept', namespace: 'dataroom', answeredBy: CapabilityAnsweredBy.Record,
-		privacyClass: 'workspace_company', policyResource: 'tool:dataroom_invitation_accept', version: '1',
-		description: "Company dataroom: accept an invitation another company sent to the requester's own verified email, which opens the categories it shares to the requester. Answers the inviting company's ID. An invitation addressed to another email, revoked, expired, or accepted by someone else is refused.",
-		estimatedLatency: CapabilityEstimatedLatency.Low,
-		inputSchema: dataRoomInvitationAcceptInputSchema,
-		inputIntentSchema: dataRoomInvitationAcceptInputSchema.partial(),
-		result: { schema: dataRoomInvitationAcceptedSchema, effects: [{
-			objectType: 'data_room_share', effect: ResourceMutationEffect.Updated,
-			resultField: 'shareID', effectIdentity: ResourceEffectIdentity.ID
-		}] },
-		sideEffect: CapabilitySideEffect.WorkspaceWrite
-	},
-	dataRoomTool('dataroom_share_delete',
-		'Revoke a data room share by its exact shareID from dataroom_get. Other active grants still apply. Already downloaded files cannot be recalled; existing signed URLs expire within ten minutes.',
-		dataRoomShareRevokeInputSchema, recordSavedSchema, true)
+	dataRoomTool('dataroom_publication_update',
+		'Update one publication on the company\'s public data room page: put one document or one company page field on it, or take it off. The public page is always at <company address>/room and anyone can open it without signing in; it shows only the company name and logo until something is published. A published document can be read and downloaded by anyone, and a downloaded copy cannot be recalled, so confirm the exact document or field first. A document still in X is classified before it is published. Only a company administrator publishes.',
+		dataRoomPublicationUpdateInputSchema, dataRoomPublicationUpdatedSchema, true)
 ];
