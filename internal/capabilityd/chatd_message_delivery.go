@@ -48,6 +48,12 @@ func (service Service) chatdServesTheMessenger() bool {
 }
 
 func (service Service) invokeChatdPlatformMessageSend(ctx context.Context, request capabilities.ToolInvokeRequest, input platformMessageSendInput) (capabilities.ToolInvokeResponse, error) {
+	if isTheAgentWritingToAPerson(input) {
+		return agentDirectMessageRefusedResponse(request.ToolName), nil
+	}
+	if isPostedAsTheRequester(input) {
+		return service.postChatdMessageAsRequester(ctx, request, input)
+	}
 	if input.DeliveryTarget.Type == "directMessage" && !addressesOnlyTheRequester(input.DeliveryTarget) {
 		return service.invokeChatdDirectMessageSend(ctx, request, input)
 	}
