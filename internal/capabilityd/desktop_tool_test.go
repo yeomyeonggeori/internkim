@@ -193,6 +193,23 @@ func TestARelayThatDoesNotAnswerIsNamedAsTheCauseAndNotTheRequestersComputer(t *
 	}
 }
 
+func TestARelayThatGotNoAnswerFromTheGatewaySaysTheOutcomeIsNotKnown(t *testing.T) {
+	service, _ := serviceWithARelay(t, func(postedDesktopWork) (int, string) {
+		return relayDidNotReachGatewayStatus, `{"error":"desktop work did not reach the gateway at https://gateway.example.test: connection reset"}`
+	})
+
+	response, errorValue := service.invokeDesktopTool(context.Background(), desktopCall(desktopReadToolName, "sample@example.com", `{"arguments":["list-apps"]}`))
+
+	if errorValue != nil || !response.IsError {
+		t.Fatalf("answered %+v, %v", response, errorValue)
+	}
+	for _, stated := range []string{"desktop_unavailable_on_this_host: the relay at ", "got no answer from the gateway", "connection reset", "is not known"} {
+		if !strings.Contains(response.Content, stated) {
+			t.Fatalf("the answer does not say %q: %s", stated, response.Content)
+		}
+	}
+}
+
 func TestARelayWithNoGatewayIsNamedAsTheCauseWithoutTheGatewayBeingAsked(t *testing.T) {
 	service, relay := serviceWithARelay(t, func(postedDesktopWork) (int, string) {
 		return relayHasNoGatewayStatus, `{"error":"this relay is given no GATEWAY_URL"}`

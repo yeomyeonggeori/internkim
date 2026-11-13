@@ -137,13 +137,13 @@ person's own hardware does the work and the company's computer runs no desktop
 for anyone.
 
 Desktop work is addressed by the requester's sign-in. The company's computer
-puts it in the work queue under the requester's email address, and the
-connection gateway hands it only to a desktop app signed in as that person. No
+hands it to its relay under the requester's email address, and the
+connection gateway gives it only to a desktop app signed in as that person. No
 call can send it to a colleague's computer or to a box that serves the company.
 When the requester has no desktop app taking work, the call fails with
 `desktop_unreachable`. When the company's computer cannot send the work on,
-because its relay did not answer or has no gateway, nothing is sent and the call
-fails with `desktop_unavailable_on_this_host`.
+because its relay did not answer, has no gateway, or got no answer from the
+gateway, the call fails with `desktop_unavailable_on_this_host` and says which.
 
 Two consents stand in front of it. The person turns on "Let internkim use this
 computer" in the desktop app, and while it is on, a tray item shows it and turns
