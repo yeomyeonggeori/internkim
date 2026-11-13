@@ -1,6 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { z } from 'zod';
 import { creditsBoughtWith } from './stripe-top-up';
+import type { TopUpRates } from './top-up-rates';
 
 export const topUpInvoice = z.object({
 	id: z.string(),
@@ -13,9 +14,9 @@ export function isTopUpInvoice(object: unknown): boolean {
 	return topUpInvoice.safeParse(object).success;
 }
 
-export async function applyPaidTopUp(client: SupabaseClient, eventID: string, object: unknown): Promise<void> {
+export async function applyPaidTopUp(client: SupabaseClient, eventID: string, object: unknown, rates: TopUpRates): Promise<void> {
 	const paid = topUpInvoice.parse(object);
-	const credits = creditsBoughtWith(paid.amount_paid, paid.currency);
+	const credits = creditsBoughtWith(rates, paid.amount_paid, paid.currency);
 	if (credits === null) throw new Error(`top-up invoice ${paid.id} was paid in ${paid.currency}, which no top-up product sells in`);
 	const { error } = await client.rpc('company_credit_top_up_paid', {
 		target_top_up: paid.metadata.top_up_id,

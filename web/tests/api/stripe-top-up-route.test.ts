@@ -19,7 +19,8 @@ const plane = {
 	SUPABASE_SECRET_KEY: serviceRoleKey,
 	SUPABASE_JWT_SIGNING_KEY: signingKey
 };
-const configured = { ...plane, STRIPE_SECRET_KEY: 'sk_test_unused' };
+const billing = { ...plane, STRIPE_SECRET_KEY: 'sk_test_unused' };
+const configured = { ...billing, STRIPE_TOP_UP_RATES: '{"krw": 2}' };
 const client = controlPlane({ projectURL, serviceRoleKey });
 const slug = `top-up-route-${Date.now()}`;
 
@@ -121,6 +122,7 @@ describe('the credit top-up setting', () => {
 describe('the credit top-up charge', () => {
 	test('answers 503 while Stripe billing is not configured', async () => {
 		expect((await answerOf(chargeTopUp, asking('top-up', 'POST', `Bearer ${jobSecret}`, { top_up_id: crypto.randomUUID() }), plane)).status).toBe(503);
+		expect((await answerOf(chargeTopUp, asking('top-up', 'POST', `Bearer ${jobSecret}`, { top_up_id: crypto.randomUUID() }), billing)).status).toBe(503);
 	});
 
 	test('is asked for only by the scheduled job secret, naming a top-up', async () => {

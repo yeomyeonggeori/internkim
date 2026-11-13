@@ -1,14 +1,13 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { z } from 'zod';
 import { askStripe, StripeRefusal } from './stripe-api';
+import type { TopUpRates } from './top-up-rates';
 
 export type TopUpOutcome = 'settled' | 'charged' | 'failed';
 
-type TopUpProduct = { product: string; creditsPerSmallestUnit: number };
-
-const topUpProducts: Record<string, TopUpProduct> = {
-	krw: { product: 'internkim_top_up_ko', creditsPerSmallestUnit: 1 },
-	usd: { product: 'internkim_top_up_en', creditsPerSmallestUnit: 1 }
+const topUpProducts: Record<string, string> = {
+	krw: 'internkim_top_up_ko',
+	usd: 'internkim_top_up_en'
 };
 
 const topUpStatementDescriptor = 'INTERNKIM CREDITS';
@@ -28,13 +27,13 @@ const invoice = z.object({ id: z.string() });
 
 const stripeError = z.object({ error: z.object({ code: z.string().optional(), decline_code: z.string().optional() }) });
 
-export function creditsBoughtWith(amount: number, currency: string): number | null {
-	const product = topUpProducts[currency];
-	if (!product) return null;
-	return Math.floor(amount * product.creditsPerSmallestUnit);
+export function creditsBoughtWith(rates: TopUpRates, amount: number, currency: string): number | null {
+	const creditsPerSmallestUnit = rates[currency];
+	if (!topUpProducts[currency] || creditsPerSmallestUnit === undefined) return null;
+	return Math.floor(amount * creditsPerSmallestUnit);
 }
 
-export async function chargeTopUp(client: SupabaseClient, secretKey: string, topUpID: string): Promise<TopUpOutcome> {
+export async function chargeTopUp(client: SupabaseClient, secretKey: string, rates: TopUpRates, topUpID: string): Promise<TopUpOutcome> {
 	const topUp = await topUpOf(client, topUpID);
 	if (topUp.status !== 'pending') return 'settled';
 	const { stripe_customer_id: customerID, stripe_subscription_id: subscriptionID } = topUp.company;
@@ -45,7 +44,7 @@ export async function chargeTopUp(client: SupabaseClient, secretKey: string, top
 	try {
 		const paidWith = subscription.parse(await askStripe(secretKey, 'GET', `/subscriptions/${subscriptionID}`));
 		const product = topUpProducts[paidWith.currency];
-		if (!product) return recordFailure(client, topUpID, null, `no top-up product sells in ${paidWith.currency}`);
+		if (!product || rates[paidWith.currency] === undefined) return recordFailure(client, topUpID, null, `no top-up product sells in ${paidWith.currency}`);
 		if (!paidWith.default_payment_method) return recordFailure(client, topUpID, null, 'the subscription has no saved card');
 
 		const amount = await amountOf(client, topUp.company_id);
@@ -54,7 +53,7 @@ export async function chargeTopUp(client: SupabaseClient, secretKey: string, top
 			customer: customerID,
 			invoice: invoiceID,
 			'price_data[currency]': paidWith.currency,
-			'price_data[product]': product.product,
+			'price_data[product]': product,
 			'price_data[unit_amount]': String(amount),
 			'price_data[tax_behavior]': 'inclusive'
 		}), `top-up-${topUpID}-item`);
