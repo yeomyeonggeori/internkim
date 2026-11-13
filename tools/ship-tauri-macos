@@ -1,0 +1,188 @@
+#!/usr/bin/env python3
+"""Build the Tauri Mac app from a commit, sign it with Developer ID, and have Apple notarize it.
+
+`cargo tauri build` signs the programs the app bundles with the app's own
+entitlements. Those name the app's identifier, which only the app's provisioning
+profile grants, so macOS refuses to start a bundled program signed that way.
+This builds unsigned, signs each bundled program without entitlements and the
+app with the ones the signed overlay declares, set to production push. It
+refuses a provisioning profile that does not grant them, packs a disk image,
+has Apple notarize it, staples the ticket, and keeps only an image Gatekeeper
+accepts.
+
+The commit is checked out into a temporary worktree, so local changes never
+ship. The Developer ID identity is read from the keychain by the team the
+entitlements name. The ticket is stapled to the disk image, not to the app
+inside it: a Mac that has never opened the app asks Apple about it once.
+
+    APPLE_API_KEY=<key id> APPLE_API_ISSUER=<issuer id> APPLE_API_KEY_PATH=<.p8 path> \\
+        tools/ship-tauri-macos --version 1.0.0 --provisioning-profile <.provisionprofile path> \\
+        --output <directory> [--ref origin/main]
+"""
+
+import argparse
+import json
+import plistlib
+import shutil
+import sys
+import tempfile
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
+from tauri_shipping import TAURI_DIRECTORY, ShipFailure, api_key_environment, checkout_of, run, say
+
+SIGNED_OVERLAY = "tauri.macos-signed.conf.json"
+EMBEDDED_PROFILE_NAME = "embedded.provisionprofile"
+RUST_TARGET = "aarch64-apple-darwin"
+ARCHITECTURE_LABEL = "aarch64"
+TEAM_KEY = "com.apple.developer.team-identifier"
+PUSH_ENVIRONMENT_KEY = "com.apple.developer.aps-environment"
+IDENTITY_KIND = "Developer ID Application"
+ANY_VALUE = "*"
+
+
+def signed_overlay(checkout: Path) -> dict:
+    overlay = json.loads((checkout / TAURI_DIRECTORY / SIGNED_OVERLAY).read_text())
+    return overlay["bundle"]["macOS"]
+
+
+def declared_entitlements(checkout: Path) -> dict:
+    path = checkout / TAURI_DIRECTORY / signed_overlay(checkout)["entitlements"]
+    entitlements = plistlib.loads(path.read_bytes())
+    entitlements[PUSH_ENVIRONMENT_KEY] = "production"
+    return entitlements
+
+
+def profile_entitlements(profile: Path, scratch: Path) -> dict:
+    decoded = run(["security", "cms", "-D", "-i", str(profile)], scratch)
+    return plistlib.loads(decoded.encode())["Entitlements"]
+
+
+def grants(granted: object, declared: object) -> bool:
+    if granted == declared or granted == ANY_VALUE:
+        return True
+    if isinstance(granted, list) and isinstance(declared, list):
+        return ANY_VALUE in granted or all(value in granted for value in declared)
+    return False
+
+
+def refuse_a_profile_that_grants_less(profile: Path, declared: dict, scratch: Path) -> None:
+    granted = profile_entitlements(profile, scratch)
+    gaps = [key for key, value in declared.items() if key not in granted or not grants(granted[key], value)]
+    if gaps:
+        raise ShipFailure(f"{profile} does not grant what the app declares, so macOS would refuse to start it:\n" + "\n".join(gaps))
+
+
+def signing_identity(team: str, scratch: Path) -> str:
+    listed = run(["security", "find-identity", "-v", "-p", "codesigning"], scratch)
+    matching = [line.split()[1] for line in listed.splitlines() if f'"{IDENTITY_KIND}: ' in line and line.rstrip().endswith(f'({team})"')]
+    if not matching:
+        raise ShipFailure(f"no {IDENTITY_KIND} identity of team {team} is in the keychain: import the certificate with its private key")
+    return matching[0]
+
+
+def build_application(checkout: Path, version: str, profile: Path, environment: dict[str, str]) -> Path:
+    embedded = checkout / TAURI_DIRECTORY / signed_overlay(checkout)["files"][EMBEDDED_PROFILE_NAME]
+    embedded.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copyfile(profile, embedded)
+    run(["tools/prepare-agent-desktop", "--target", RUST_TARGET], checkout, environment)
+    run([
+        "cargo", "tauri", "build", "--target", RUST_TARGET, "--bundles", "app", "--no-sign",
+        "--config", f"src-tauri/{SIGNED_OVERLAY}", "--config", json.dumps({"version": version}),
+    ], checkout / "web", environment)
+    return next((checkout / TAURI_DIRECTORY / "target" / RUST_TARGET / "release/bundle/macos").glob("*.app"))
+
+
+def bundled_programs(application: Path) -> list[Path]:
+    information = plistlib.loads((application / "Contents/Info.plist").read_bytes())
+    programs = sorted((application / "Contents/MacOS").iterdir())
+    return [program for program in programs if program.name != information["CFBundleExecutable"]]
+
+
+def sign_application(application: Path, identity: str, entitlements: dict, scratch: Path) -> None:
+    hardened = ["codesign", "--force", "--options", "runtime", "--timestamp", "--sign", identity]
+    for program in bundled_programs(application):
+        run(hardened + [str(program)], scratch)
+    entitlements_path = scratch / "application.entitlements"
+    entitlements_path.write_bytes(plistlib.dumps(entitlements))
+    run(hardened + ["--entitlements", str(entitlements_path), str(application)], scratch)
+
+
+def refuse_an_application_signed_with_less(application: Path, declared: dict, scratch: Path) -> None:
+    run(["codesign", "--verify", "--deep", "--strict", str(application)], scratch)
+    output = run(["codesign", "--display", "--entitlements", "-", "--xml", str(application)], scratch)
+    signed = plistlib.loads(output.encode()) if output.strip() else {}
+    gaps = [key for key, value in declared.items() if signed.get(key) != value]
+    if gaps:
+        raise ShipFailure("the signed app is missing what it declares:\n" + "\n".join(gaps))
+
+
+def pack_disk_image(application: Path, version: str, identity: str, scratch: Path) -> Path:
+    staging = scratch / "disk-image"
+    staging.mkdir()
+    run(["ditto", str(application), str(staging / application.name)], scratch)
+    (staging / "Applications").symlink_to("/Applications")
+    image = scratch / f"{application.stem}_{version}_{ARCHITECTURE_LABEL}.dmg"
+    run(["hdiutil", "create", "-volname", application.stem, "-srcfolder", str(staging), "-format", "UDZO", str(image)], scratch)
+    run(["codesign", "--force", "--timestamp", "--sign", identity, str(image)], scratch)
+    return image
+
+
+def notarize(image: Path, scratch: Path, environment: dict[str, str]) -> None:
+    key = ["--key", environment["APPLE_API_KEY_PATH"], "--key-id", environment["APPLE_API_KEY"], "--issuer", environment["APPLE_API_ISSUER"]]
+    answer = json.loads(run(["xcrun", "notarytool", "submit", str(image), "--wait", "--output-format", "json"] + key, scratch, environment))
+    if answer["status"] != "Accepted":
+        log = run(["xcrun", "notarytool", "log", answer["id"]] + key, scratch, environment)
+        raise ShipFailure(f"Apple answered {answer['status']} to notarization {answer['id']}:\n{log}")
+    run(["xcrun", "stapler", "staple", str(image)], scratch)
+
+
+def refuse_an_image_gatekeeper_rejects(image: Path, scratch: Path) -> None:
+    run(["xcrun", "stapler", "validate", str(image)], scratch)
+    run(["spctl", "--assess", "--type", "open", "--context", "context:primary-signature", str(image)], scratch)
+
+
+def parse_arguments() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser.add_argument("--version", required=True, help="the version people see, such as 1.0.0")
+    parser.add_argument("--provisioning-profile", required=True, type=Path, help="the app's Developer ID provisioning profile")
+    parser.add_argument("--output", required=True, type=Path, help="the directory that receives the disk image")
+    parser.add_argument("--ref", default="origin/main", help="the commit to build")
+    return parser.parse_args()
+
+
+def ship(arguments: argparse.Namespace, scratch: Path) -> Path:
+    environment = api_key_environment("notarizes the disk image")
+    profile = arguments.provisioning_profile.resolve()
+    with checkout_of(arguments.ref, scratch) as checkout:
+        entitlements = declared_entitlements(checkout)
+        refuse_a_profile_that_grants_less(profile, entitlements, scratch)
+        identity = signing_identity(entitlements[TEAM_KEY], scratch)
+        application = build_application(checkout, arguments.version, profile, environment)
+        say(f"built {arguments.version}")
+        sign_application(application, identity, entitlements, scratch)
+        refuse_an_application_signed_with_less(application, entitlements, scratch)
+        image = pack_disk_image(application, arguments.version, identity, scratch)
+    say(f"signed: {image.name}")
+    notarize(image, scratch, environment)
+    refuse_an_image_gatekeeper_rejects(image, scratch)
+    arguments.output.mkdir(parents=True, exist_ok=True)
+    return Path(shutil.copy2(image, arguments.output))
+
+
+def main() -> int:
+    arguments = parse_arguments()
+    scratch = Path(tempfile.mkdtemp(prefix="internkim-ship-tauri-macos-"))
+    try:
+        image = ship(arguments, scratch)
+    except ShipFailure as failure:
+        say(f"failed: {failure}\nwhat was built stays in {scratch}")
+        return 1
+    shutil.rmtree(scratch)
+    say(f"notarized: {image}")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
