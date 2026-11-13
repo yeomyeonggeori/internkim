@@ -92,6 +92,7 @@ type Descriptor struct {
 	SideEffectClass      string                        `json:"sideEffectClass,omitempty"`
 	SideEffect           string                        `json:"sideEffect"`
 	RequiresApproval     bool                          `json:"requiresApproval,omitempty"`
+	ApprovalQuotedFields []string                      `json:"approvalQuotedFields,omitempty"`
 	CompletionEvidence   *CompletionEvidenceDescriptor `json:"completionEvidence,omitempty"`
 	Availability         AvailabilityMetadata          `json:"availability"`
 	Idempotency          IdempotencyMetadata           `json:"idempotency"`
@@ -244,6 +245,7 @@ type ApprovalTarget struct {
 	ID         string   `json:"id,omitempty"`
 	IDs        []string `json:"ids,omitempty"`
 	Title      string   `json:"title,omitempty"`
+	Address    string   `json:"address,omitempty"`
 	StartsAt   string   `json:"startsAt,omitempty"`
 	Preview    string   `json:"preview,omitempty"`
 	HandoffID  string   `json:"handoffID,omitempty"`

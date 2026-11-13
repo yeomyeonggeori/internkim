@@ -271,6 +271,7 @@ export const mailToolDefinitions: CapabilityToolDefinition[] = [
     result: { schema: mailMessageSendResultSchema, effects: [{ objectType: "email", effect: ResourceMutationEffect.Sent, resultField: "messageID", effectIdentity: ResourceEffectIdentity.ID }] },
     sideEffect: CapabilitySideEffect.ExternalSend,
     requiresApproval: true,
+    approvalQuotedFields: ["to", "cc", "bcc", "subject", "body"],
     completionEvidence: { mode: "success", action: "send_email", targetKind: "email" },
     idempotency: { supported: true, required: false, scope: "operation" },
   },

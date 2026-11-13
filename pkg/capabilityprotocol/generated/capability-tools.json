@@ -209,6 +209,9 @@
     },
     {
       "answeredBy": "company",
+      "approvalQuotedFields": [
+        "taskInstruction"
+      ],
       "availability": {
         "state": "ok"
       },
@@ -540,6 +543,9 @@
     },
     {
       "answeredBy": "company",
+      "approvalQuotedFields": [
+        "taskInstruction"
+      ],
       "availability": {
         "state": "ok"
       },
@@ -4193,6 +4199,10 @@
     },
     {
       "answeredBy": "record",
+      "approvalQuotedFields": [
+        "email",
+        "name"
+      ],
       "availability": {
         "state": "ok"
       },
@@ -12947,6 +12957,10 @@
     },
     {
       "answeredBy": "company",
+      "approvalQuotedFields": [
+        "message",
+        "attachments"
+      ],
       "availability": {
         "state": "ok"
       },
@@ -26541,6 +26555,9 @@
     },
     {
       "answeredBy": "record",
+      "approvalQuotedFields": [
+        "email"
+      ],
       "availability": {
         "state": "ok"
       },
@@ -39044,6 +39061,13 @@
     },
     {
       "answeredBy": "company",
+      "approvalQuotedFields": [
+        "to",
+        "cc",
+        "bcc",
+        "subject",
+        "body"
+      ],
       "availability": {
         "state": "ok"
       },

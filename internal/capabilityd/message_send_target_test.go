@@ -1,6 +1,7 @@
 package capabilityd
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"net/http"
@@ -128,5 +129,72 @@ func TestExecutionSendsToTheIdentityTheHoldResolved(t *testing.T) {
 	}
 	if len(askedKeysFor) != 1 || askedKeysFor[0] != "two@example.com" {
 		t.Fatalf("the message went to someone other than the approved person: %v", askedKeysFor)
+	}
+}
+
+func sameNamedPeople() []directoryPerson {
+	return []directoryPerson{
+		{MemberID: "person-sample-one", Email: "sample1@example.com", Name: "샘플 이"},
+		{MemberID: "person-sample-two", Email: "sample2@example.com", Name: "샘플 이"},
+		{MemberID: "person-yesi", Email: "yesi@example.com", Name: "예시 박"},
+	}
+}
+
+func resolveMessageSendTargetIn(t *testing.T, service Service, input json.RawMessage, language string) capabilities.ToolInvokeResponse {
+	t.Helper()
+	request := approvalTargetInvokeRequest("message_send", input)
+	request.Context.ResponseLanguage = language
+	requestDocument, _ := json.Marshal(request)
+	response, errorValue := service.resolveCapabilityToolTarget(context.Background(), "message_send", bytes.NewReader(requestDocument))
+	if errorValue != nil {
+		t.Fatalf("expected the target resolution route to answer: %v", errorValue)
+	}
+	return response
+}
+
+func TestEveryPrintedRecipientLineNamesThatPersonOrAsksNeverSomeoneElse(t *testing.T) {
+	service := messageSendTargetService(t, sameNamedPeople())
+	for _, language := range []string{"ko", "en"} {
+		for _, person := range sameNamedPeople() {
+			target := decodeResolvedApprovalTarget(t, resolveMessageSendTargetIn(t, service, messageSendTargetInput(person.Email), language))
+			for _, printedLine := range []string{target.Title, target.Address} {
+				if printedLine == "" {
+					continue
+				}
+				response := resolveMessageSendTargetIn(t, service, messageSendTargetInput(printedLine), language)
+				if response.IsError {
+					assertPlatformDMStructuredFailure(t, response, "error", "interaction_required", "target_resolution", true, true)
+					continue
+				}
+				if resolved := decodeResolvedApprovalTarget(t, response); resolved.ID != person.MemberID {
+					t.Fatalf("the line %q printed for %s reaches %s instead", printedLine, person.MemberID, resolved.ID)
+				}
+			}
+		}
+	}
+}
+
+func TestOnlyARecipientWhoseNameIsSharedIsPrintedWithAnAddress(t *testing.T) {
+	service := messageSendTargetService(t, sameNamedPeople())
+
+	shared := decodeResolvedApprovalTarget(t, resolveMessageSendTargetIn(t, service, messageSendTargetInput("person-sample-two"), "ko"))
+	unique := decodeResolvedApprovalTarget(t, resolveMessageSendTargetIn(t, service, messageSendTargetInput("person-yesi"), "ko"))
+
+	if shared.Title != "이샘플" || shared.Address != "sample2@example.com" {
+		t.Fatalf("a name two people answer to is printed with the address that tells them apart, on its own line, got %+v", shared)
+	}
+	if unique.Title != "박예시" || unique.Address != "" {
+		t.Fatalf("a name only one person answers to needs no address, got %+v", unique)
+	}
+}
+
+func TestSeveralRecipientsCarryTheAddressesOfThoseWhoseNamesAreShared(t *testing.T) {
+	service := messageSendTargetService(t, sameNamedPeople())
+	input := json.RawMessage(`{"targetType":"directMessage","personHints":["sample1@example.com","박예시"],"message":"안녕하세요"}`)
+
+	target := decodeResolvedApprovalTarget(t, resolveMessageSendTargetIn(t, service, input, "ko"))
+
+	if target.Title != "이샘플; 박예시" || target.Address != "sample1@example.com" {
+		t.Fatalf("only the shared name needs its address, got %+v", target)
 	}
 }

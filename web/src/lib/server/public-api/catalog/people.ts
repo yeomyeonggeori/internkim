@@ -272,6 +272,7 @@ export const peopleToolDefinitions: CapabilityToolDefinition[] = [
     },
     sideEffect: CapabilitySideEffect.WorkspaceWrite,
     requiresApproval: true,
+    approvalQuotedFields: ['email', 'name'],
   },
   {
     name: 'person_withdraw',
