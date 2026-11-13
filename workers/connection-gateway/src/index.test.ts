@@ -4,6 +4,7 @@ import { ConnectionObject, TestSocket, newState, socketHeldByTheObject } from '.
 import { oneShotCallBoundMilliseconds, waitingCallsPerCompany, type OneShotAnswer } from './routing';
 import { isPageNavigation } from './messenger';
 import { binaryMediaBody } from './host-protocol';
+import { desktopOwnerHeader } from './company-connection';
 
 const serverKey = 'company-server-key';
 const companyID = 'c1';
@@ -97,6 +98,38 @@ async function flushMicrotasks(): Promise<void> {
 
 function answerFor(requestID: string, status: number, body: unknown): string {
 	return JSON.stringify({ kind: 'result', requestID, status, body });
+}
+
+function hostTokenWithoutABox(): Promise<string> {
+	return signedHostToken({ sub: 'account-1', iss: issuer, aud: 'authenticated', exp: 4102444800, app_metadata: { company_id: hostCompanyID } });
+}
+
+function desktopWorkPosted(token: string, requestID: string, desktopOwner: string): Request {
+	return new Request(`https://gateway/company/${hostCompanyID}/desktop-work`, {
+		method: 'POST',
+		headers: { Authorization: `Bearer ${token}` },
+		body: JSON.stringify({ requestID, desktopOwner, work: { arguments: ['snapshot'] } })
+	});
+}
+
+async function desktopOpenedBy(object: CompanyConnectionObject, ownerEmail: string): Promise<TestSocket> {
+	const accepted = await object.fetch(
+		new Request(`https://gateway/company/${hostCompanyID}/desktop-session`, {
+			headers: { Upgrade: 'websocket', [desktopOwnerHeader]: ownerEmail }
+		})
+	);
+	expect(accepted.status).toBe(101);
+	if (!socketHeldByTheObject) throw new Error('the object accepted no desktop socket');
+	return socketHeldByTheObject;
+}
+
+async function workSentTo(socket: TestSocket): Promise<unknown> {
+	for (let attempt = 0; attempt < 50; attempt += 1) {
+		const work = socket.documents().find((document) => typeof document === 'object' && document !== null && 'kind' in document && document.kind === 'work');
+		if (work) return work;
+		await Bun.sleep(1);
+	}
+	throw new Error('the socket was given no work');
 }
 
 beforeAll(async () => {
@@ -246,6 +279,49 @@ describe('the public fetch handler', () => {
 			expect((await handingOn()).status).toBe(409);
 			roleTheRecordGrants = null;
 			expect((await asWorker()).status).toBe(403);
+		} finally {
+			roleTheRecordGrants = 'service';
+		}
+	});
+
+	test('lets the serving host that is no box put in work for a person\'s own desktop, and hands it to that desktop alone', async () => {
+		const object = new ConnectionObject(newState());
+		const colleague = await desktopOpenedBy(object, 'colleague@example.com');
+		colleague.receive(JSON.stringify({ kind: 'ready', free: 1 }));
+		const desktop = await desktopOpenedBy(object, 'sample@example.com');
+		desktop.receive(JSON.stringify({ kind: 'ready', free: 1 }));
+
+		const answered = worker.fetch(desktopWorkPosted(await hostTokenWithoutABox(), 'desk-1', 'Sample@Example.com'), hostEnvironment(object));
+		expect(await workSentTo(desktop)).toEqual({ kind: 'work', requestID: 'desk-1', work: { arguments: ['snapshot'] } });
+		desktop.receive(answerFor('desk-1', 200, { output: '{}' }));
+
+		const response = await answered;
+		expect(response.status).toBe(200);
+		expect(await response.json()).toMatchObject({ requestID: 'desk-1', status: 200, body: { output: '{}' } });
+		expect(colleague.documents()).toEqual([]);
+	});
+
+	test('refuses the serving host that is no box when it puts in work any box may take', async () => {
+		const response = await worker.fetch(
+			new Request(`https://gateway/company/${hostCompanyID}/work`, {
+				method: 'POST',
+				headers: { Authorization: `Bearer ${await hostTokenWithoutABox()}` },
+				body: JSON.stringify({ requestID: 'work-1', affinityKey: 'person-1', work: {} })
+			}),
+			hostEnvironment(new ConnectionObject(newState()))
+		);
+		expect(response.status).toBe(403);
+	});
+
+	test('refuses desktop work from a host that stands by or no longer serves, as it refuses that host joining', async () => {
+		const token = await hostTokenWithoutABox();
+		const posting = () => worker.fetch(desktopWorkPosted(token, 'desk-2', 'sample@example.com'), hostEnvironment(new ConnectionObject(newState())));
+		try {
+			expect((await worker.fetch(new Request(`https://gateway/company/${hostCompanyID}/desktop-work`, { method: 'POST', body: '{}' }), hostEnvironment(new ConnectionObject(newState())))).status).toBe(401);
+			roleTheRecordGrants = 'standby';
+			expect((await posting()).status).toBe(409);
+			roleTheRecordGrants = null;
+			expect((await posting()).status).toBe(403);
 		} finally {
 			roleTheRecordGrants = 'service';
 		}

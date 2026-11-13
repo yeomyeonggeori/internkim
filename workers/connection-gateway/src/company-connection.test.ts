@@ -368,13 +368,14 @@ async function connectDesktop(object: ConnectionObject, ownerEmail: string): Pro
 	return heldSocket();
 }
 
-function postDesktopWork(object: ConnectionObject, requestID: string, desktopOwner: string): Promise<Response> {
+function postToTheObject(object: ConnectionObject, endpoint: string, body: Record<string, unknown>): Promise<Response> {
 	return object.fetch(
-		new Request(`https://connection-gateway/company/${companyID}/work`, {
-			method: 'POST',
-			body: JSON.stringify({ requestID, affinityKey: `desktop:${desktopOwner}`, desktopOwner, work: { arguments: ['snapshot'] } })
-		})
+		new Request(`https://connection-gateway/company/${companyID}/${endpoint}`, { method: 'POST', body: JSON.stringify(body) })
 	);
+}
+
+function postDesktopWork(object: ConnectionObject, requestID: string, desktopOwner: string): Promise<Response> {
+	return postToTheObject(object, 'desktop-work', { requestID, desktopOwner, work: { arguments: ['snapshot'] } });
 }
 
 describe('work for a person\'s own desktop', () => {
@@ -436,6 +437,34 @@ describe('work for a person\'s own desktop', () => {
 		desktop.receive(JSON.stringify({ kind: 'result', requestID: 'desk-4', status: 200, body: { output: '{}' } }));
 		expect(await (await answered).json()).toMatchObject({ requestID: 'desk-4', status: 200 });
 	}, 10_000);
+
+	test('names the person it is for, or is refused', async () => {
+		const object = new ConnectionObject(new TestState());
+		const desktop = await connectDesktop(object, 'sample@example.com');
+		sayFree(desktop, 1);
+		for (const desktopOwner of [undefined, '', '  ']) {
+			const response = await postToTheObject(object, 'desktop-work', { requestID: 'desk-6', desktopOwner, work: { arguments: ['snapshot'] } });
+			expect(response.status).toBe(400);
+		}
+		expect(desktop.documents()).toEqual([]);
+	});
+
+	test('is never taken through the entry for work any box may take', async () => {
+		const object = new ConnectionObject(new TestState());
+		const desktop = await connectDesktop(object, 'sample@example.com');
+		const annex = await connectWorker(object, 'annex');
+		sayFree(desktop, 1);
+		sayFree(annex, 1);
+		const response = await postToTheObject(object, 'work', {
+			requestID: 'desk-7',
+			affinityKey: 'desktop:sample@example.com',
+			desktopOwner: 'sample@example.com',
+			work: { arguments: ['snapshot'] }
+		});
+		expect(response.status).toBe(400);
+		expect(desktop.documents()).toEqual([]);
+		expect(annex.documents()).toEqual([]);
+	});
 
 	test('is refused at once when the desktop it waits for closes', async () => {
 		const object = new ConnectionObject(new TestState());

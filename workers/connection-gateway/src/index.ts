@@ -7,7 +7,8 @@ import {
 	roleOfHost,
 	verifyToken,
 	type CallerIdentity,
-	type HostRole
+	type HostRole,
+	type TokenClaims
 } from './identity';
 import type { OneShotAnswer, OneShotCall } from './routing';
 import {
@@ -55,6 +56,7 @@ async function route(request: Request, environment: WorkerEnvironment): Promise<
 	if (path[2] === 'worker') return joinAsWorker(request, environment, companyID);
 	if (path[2] === 'desktop') return joinAsDesktop(request, environment, companyID);
 	if (path[2] === 'work') return postWork(request, environment, companyID);
+	if (path[2] === 'desktop-work') return postDesktopWork(request, environment, companyID);
 	return jsonResponse({ error: 'not found' }, 404);
 }
 
@@ -212,6 +214,21 @@ async function joinAsHost(
 	environment: WorkerEnvironment,
 	companyID: string
 ): Promise<Response> {
+	const host = await verifiedServingHostOf(request, environment, companyID);
+	if (host instanceof Response) return host;
+	return connectionFor(environment, companyID).fetch(
+		new Request(`https://connection-gateway/company/${encodeURIComponent(companyID)}/host-session`, {
+			method: request.method,
+			headers: headersOf(request)
+		})
+	);
+}
+
+async function verifiedServingHostOf(
+	request: Request,
+	environment: WorkerEnvironment,
+	companyID: string
+): Promise<TokenClaims | Response> {
 	const token = bearerOf(request);
 	if (!token) return jsonResponse({ error: 'this call carried no token' }, 401);
 	try {
@@ -227,12 +244,7 @@ async function joinAsHost(
 		const role = await roleOfHost(environment.SUPABASE_URL, environment.SUPABASE_PUBLISHABLE_KEY, token);
 		if (!role) return jsonResponse({ error: 'this computer is no longer the company host' }, 403);
 		if (role === 'standby') return jsonResponse({ error: 'this computer stands by for the company and does not serve it' }, 409);
-		return connectionFor(environment, companyID).fetch(
-			new Request(`https://connection-gateway/company/${encodeURIComponent(companyID)}/host-session`, {
-				method: request.method,
-				headers: headersOf(request)
-			})
-		);
+		return claims;
 	} catch (refusal) {
 		if (refusal instanceof TokenRefused) return jsonResponse({ error: refusal.message }, 401);
 		throw refusal;
@@ -275,6 +287,18 @@ async function postWork(request: Request, environment: WorkerEnvironment, compan
 	if (verified.role !== 'service') return jsonResponse({ error: 'only the box that serves the company puts work in its queue' }, 409);
 	return connectionFor(environment, companyID).fetch(
 		new Request(`https://connection-gateway/company/${encodeURIComponent(companyID)}/work`, {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json' },
+			body: await request.text()
+		})
+	);
+}
+
+async function postDesktopWork(request: Request, environment: WorkerEnvironment, companyID: string): Promise<Response> {
+	const host = await verifiedServingHostOf(request, environment, companyID);
+	if (host instanceof Response) return host;
+	return connectionFor(environment, companyID).fetch(
+		new Request(`https://connection-gateway/company/${encodeURIComponent(companyID)}/desktop-work`, {
 			method: 'POST',
 			headers: { 'Content-Type': 'application/json' },
 			body: await request.text()

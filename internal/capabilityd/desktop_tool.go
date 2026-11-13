@@ -10,7 +10,6 @@ import (
 
 	"github.com/yeomyeonggeori/internkim/internal/capabilities"
 	"github.com/yeomyeonggeori/internkim/internal/desktop"
-	"github.com/yeomyeonggeori/internkim/internal/workqueue"
 )
 
 const (
@@ -52,8 +51,11 @@ func (service Service) invokeDesktopTool(ctx context.Context, request capabiliti
 		return desktopFailedResponse(request.ToolName, errorValue.Error()), nil
 	}
 	answer, errorValue := service.runOnTheDesktopOf(ctx, owner, call)
-	if errors.Is(errorValue, workqueue.ErrNoBoxHadRoom) || errors.Is(errorValue, errNoCompanyQueue) {
+	if errors.Is(errorValue, errNoDesktopTookTheWork) {
 		return desktopFailedResponse(request.ToolName, desktopUnreachableMessage), nil
+	}
+	if errors.Is(errorValue, errDesktopUnavailableOnThisHost) {
+		return desktopFailedResponse(request.ToolName, errorValue.Error()), nil
 	}
 	if errorValue != nil {
 		return capabilities.ToolInvokeResponse{}, errorValue
@@ -61,20 +63,8 @@ func (service Service) invokeDesktopTool(ctx context.Context, request capabiliti
 	return desktopResponseOf(request.ToolName, answer, time.Now())
 }
 
-var errNoCompanyQueue = errors.New("this machine serves no company queue")
-
 func (service Service) runOnTheDesktopOf(ctx context.Context, owner string, call desktop.Call) (desktop.Answer, error) {
-	configuration := service.Configuration.WithDefaults()
-	address, isServing := workqueue.Read(configuration.WorkQueuePath)
-	if !isServing {
-		return desktop.Answer{}, errNoCompanyQueue
-	}
-	work, errorValue := json.Marshal(call)
-	if errorValue != nil {
-		return desktop.Answer{}, errorValue
-	}
-	queue := workqueue.Queue{HTTPClient: service.HTTPClient, Token: func() (string, error) { return readTrimmedFile(configuration.HostSessionPath) }}
-	document, errorValue := queue.PostToDesktop(ctx, address, newWorkID(), owner, work)
+	document, errorValue := service.handDesktopWorkToTheRelay(ctx, desktopWork{RequestID: newWorkID(), DesktopOwner: owner, Work: call})
 	if errorValue != nil {
 		return desktop.Answer{}, errorValue
 	}

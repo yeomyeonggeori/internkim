@@ -5,64 +5,67 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"io"
+	"maps"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 	"testing"
 
 	"github.com/yeomyeonggeori/internkim/internal/capabilities"
 	"github.com/yeomyeonggeori/internkim/internal/desktop"
-	"github.com/yeomyeonggeori/internkim/internal/workqueue"
 )
 
 type postedDesktopWork struct {
 	RequestID    string       `json:"requestID"`
-	AffinityKey  string       `json:"affinityKey"`
 	DesktopOwner string       `json:"desktopOwner"`
 	Work         desktop.Call `json:"work"`
 }
 
-type desktopGateway struct {
+type standInRelay struct {
 	posted []postedDesktopWork
+	fields [][]string
 }
 
-func serviceWithACompanyQueue(t *testing.T, answer func(postedDesktopWork) string) (Service, *desktopGateway) {
+func serviceWithARelay(t *testing.T, answer func(postedDesktopWork) (int, string)) (Service, *standInRelay) {
 	t.Helper()
-	gateway := &desktopGateway{}
+	relay := &standInRelay{}
 	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
-		if request.URL.Path != "/company/company-1/work" || request.Header.Get("Authorization") != "Bearer host.session.token" {
-			t.Errorf("the queue was asked %s with %q", request.URL.Path, request.Header.Get("Authorization"))
+		if request.URL.Path != "/desktop-work" || request.Header.Get("Authorization") != "Bearer host-service-token" {
+			t.Errorf("the relay was asked %s with %q", request.URL.Path, request.Header.Get("Authorization"))
 		}
 		body, _ := io.ReadAll(request.Body)
 		var posted postedDesktopWork
-		if errorValue := json.Unmarshal(body, &posted); errorValue != nil {
-			t.Errorf("the queue was sent %s: %v", body, errorValue)
+		var fields map[string]json.RawMessage
+		if json.Unmarshal(body, &posted) != nil || json.Unmarshal(body, &fields) != nil {
+			t.Errorf("the relay was sent %s", body)
 		}
-		gateway.posted = append(gateway.posted, posted)
-		writer.Write([]byte(answer(posted)))
+		relay.posted = append(relay.posted, posted)
+		relay.fields = append(relay.fields, slices.Sorted(maps.Keys(fields)))
+		status, document := answer(posted)
+		writer.WriteHeader(status)
+		writer.Write([]byte(document))
 	}))
 	t.Cleanup(server.Close)
-	directory := t.TempDir()
-	queuePath := filepath.Join(directory, "work-queue.json")
-	sessionPath := filepath.Join(directory, "agent-key")
-	if errorValue := os.WriteFile(sessionPath, []byte("host.session.token\n"), 0o600); errorValue != nil {
+	tokenPath := filepath.Join(t.TempDir(), "service-token")
+	if errorValue := os.WriteFile(tokenPath, []byte("host-service-token\n"), 0o600); errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	if errorValue := workqueue.Write(queuePath, workqueue.Address{GatewayURL: server.URL, CompanyID: "company-1"}); errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	return Service{Configuration: Configuration{WorkQueuePath: queuePath, HostSessionPath: sessionPath}}, gateway
+	return Service{Configuration: Configuration{RelayBaseURL: server.URL, ServiceTokenPath: tokenPath}}, relay
 }
 
-func answeredByTheDesktop(answer desktop.Answer) func(postedDesktopWork) string {
-	return func(posted postedDesktopWork) string {
-		body, _ := json.Marshal(answer)
-		document, _ := json.Marshal(map[string]any{"requestID": posted.RequestID, "status": http.StatusOK, "body": json.RawMessage(body)})
-		return string(document)
+func answeredByTheGateway(status int, body string) func(postedDesktopWork) (int, string) {
+	return func(posted postedDesktopWork) (int, string) {
+		return http.StatusOK, `{"requestID":"` + posted.RequestID + `","status":` + strconv.Itoa(status) + `,"body":` + body + `}`
 	}
+}
+
+func answeredByTheDesktop(answer desktop.Answer) func(postedDesktopWork) (int, string) {
+	body, _ := json.Marshal(answer)
+	return answeredByTheGateway(http.StatusOK, string(body))
 }
 
 func desktopCall(toolName string, requesterEmail string, input string) capabilities.ToolInvokeRequest {
@@ -76,19 +79,19 @@ func desktopCall(toolName string, requesterEmail string, input string) capabilit
 const snapshotEnvelope = `{"version":"2.6","ok":true,"command":"snapshot","data":{"snapshot_id":"s8f3k2p9","tree":{"role":"window","name":"Finder","ref":"@s8f3k2p9:e1"}}}`
 
 func TestDesktopWorkIsAddressedToTheRequesterAloneWhateverCaseTheirAddressArrivesIn(t *testing.T) {
-	service, gateway := serviceWithACompanyQueue(t, answeredByTheDesktop(desktop.Answer{Output: snapshotEnvelope}))
+	service, relay := serviceWithARelay(t, answeredByTheDesktop(desktop.Answer{Output: snapshotEnvelope}))
 
 	response, errorValue := service.invokeDesktopTool(context.Background(), desktopCall(desktopReadToolName, " Sample@Example.com ", `{"arguments":["snapshot","--app","Finder","-i"]}`))
 
 	if errorValue != nil || response.IsError {
 		t.Fatalf("answered %+v, %v", response, errorValue)
 	}
-	if len(gateway.posted) != 1 {
-		t.Fatalf("posted %d pieces of work", len(gateway.posted))
+	if len(relay.posted) != 1 {
+		t.Fatalf("posted %d pieces of work", len(relay.posted))
 	}
-	posted := gateway.posted[0]
-	if posted.DesktopOwner != "sample@example.com" || posted.AffinityKey != "desktop:sample@example.com" || posted.RequestID == "" {
-		t.Fatalf("the work was addressed %+v", posted)
+	posted := relay.posted[0]
+	if posted.DesktopOwner != "sample@example.com" || posted.RequestID == "" || !slices.Equal(relay.fields[0], []string{"desktopOwner", "requestID", "work"}) {
+		t.Fatalf("the work was addressed %+v with %v", posted, relay.fields[0])
 	}
 	if !slices.Equal(posted.Work.Arguments, []string{"snapshot", "--app", "Finder", "-i"}) || posted.Work.Text != "" {
 		t.Fatalf("the desktop was asked %+v", posted.Work)
@@ -99,20 +102,20 @@ func TestDesktopWorkIsAddressedToTheRequesterAloneWhateverCaseTheirAddressArrive
 }
 
 func TestADesktopCallWithNoRequesterIsRefusedBeforeAnythingIsPosted(t *testing.T) {
-	service, gateway := serviceWithACompanyQueue(t, answeredByTheDesktop(desktop.Answer{Output: snapshotEnvelope}))
+	service, relay := serviceWithARelay(t, answeredByTheDesktop(desktop.Answer{Output: snapshotEnvelope}))
 
 	response, errorValue := service.invokeDesktopTool(context.Background(), desktopCall(desktopReadToolName, "  ", `{"arguments":["snapshot"]}`))
 
 	if errorValue != nil || !response.IsError || response.Outcome != capabilities.ToolOutcomeFailed {
 		t.Fatalf("answered %+v, %v", response, errorValue)
 	}
-	if len(gateway.posted) != 0 {
-		t.Fatalf("work with no requester was posted: %+v", gateway.posted)
+	if len(relay.posted) != 0 {
+		t.Fatalf("work with no requester was posted: %+v", relay.posted)
 	}
 }
 
 func TestACommandOfTheOtherKindIsRefusedBeforeAnythingIsPostedAndNamesTheToolThatRunsIt(t *testing.T) {
-	service, gateway := serviceWithACompanyQueue(t, answeredByTheDesktop(desktop.Answer{Output: snapshotEnvelope}))
+	service, relay := serviceWithARelay(t, answeredByTheDesktop(desktop.Answer{Output: snapshotEnvelope}))
 
 	for _, call := range []struct{ toolName, input, otherTool string }{
 		{desktopReadToolName, `{"arguments":["click","@s8f3k2p9:e4"]}`, desktopActToolName},
@@ -123,21 +126,21 @@ func TestACommandOfTheOtherKindIsRefusedBeforeAnythingIsPostedAndNamesTheToolTha
 			t.Errorf("%s %s was answered %+v, %v", call.toolName, call.input, response, errorValue)
 		}
 	}
-	if len(gateway.posted) != 0 {
-		t.Fatalf("a command of the wrong kind was posted: %+v", gateway.posted)
+	if len(relay.posted) != 0 {
+		t.Fatalf("a command of the wrong kind was posted: %+v", relay.posted)
 	}
 }
 
 func TestTextArrivesOnStandardInputBesideTheCommandItIsTypedWith(t *testing.T) {
 	typed := `{"version":"2.6","ok":true,"command":"type","data":{"typed":true}}`
-	service, gateway := serviceWithACompanyQueue(t, answeredByTheDesktop(desktop.Answer{Output: typed}))
+	service, relay := serviceWithARelay(t, answeredByTheDesktop(desktop.Answer{Output: typed}))
 
 	response, errorValue := service.invokeDesktopTool(context.Background(), desktopCall(desktopActToolName, "sample@example.com", `{"arguments":["type","@s8f3k2p9:e4"],"text":"분기 보고서 --session other"}`))
 
 	if errorValue != nil || response.IsError {
 		t.Fatalf("answered %+v, %v", response, errorValue)
 	}
-	work := gateway.posted[0].Work
+	work := relay.posted[0].Work
 	if !slices.Equal(work.Arguments, []string{"type", "@s8f3k2p9:e4", "--stdin"}) || work.Text != "분기 보고서 --session other" {
 		t.Fatalf("the desktop was asked %+v", work)
 	}
@@ -145,7 +148,7 @@ func TestTextArrivesOnStandardInputBesideTheCommandItIsTypedWith(t *testing.T) {
 
 func TestAFailedEnvelopeComesBackAsAFailedCallCarryingAgentDesktopsOwnSuggestion(t *testing.T) {
 	failed := `{"version":"2.6","ok":false,"command":"click","error":{"code":"SNAPSHOT_NOT_FOUND","message":"Snapshot 's0000' not found","suggestion":"Re-run a snapshot and retry with a ref from the returned snapshot"}}`
-	service, _ := serviceWithACompanyQueue(t, answeredByTheDesktop(desktop.Answer{Output: failed + "\n"}))
+	service, _ := serviceWithARelay(t, answeredByTheDesktop(desktop.Answer{Output: failed + "\n"}))
 
 	response, errorValue := service.invokeDesktopTool(context.Background(), desktopCall(desktopActToolName, "sample@example.com", `{"arguments":["click","@s0000:e1"]}`))
 
@@ -158,7 +161,7 @@ func TestAFailedEnvelopeComesBackAsAFailedCallCarryingAgentDesktopsOwnSuggestion
 }
 
 func TestARefusalFromTheDesktopComesBackAsAFailedCall(t *testing.T) {
-	service, _ := serviceWithACompanyQueue(t, answeredByTheDesktop(desktop.Answer{Refusal: "the person turned desktop control off"}))
+	service, _ := serviceWithARelay(t, answeredByTheDesktop(desktop.Answer{Refusal: "the person turned desktop control off"}))
 
 	response, errorValue := service.invokeDesktopTool(context.Background(), desktopCall(desktopReadToolName, "sample@example.com", `{"arguments":["list-apps"]}`))
 
@@ -168,37 +171,64 @@ func TestARefusalFromTheDesktopComesBackAsAFailedCall(t *testing.T) {
 }
 
 func TestADesktopNobodyHasOpenIsAnsweredUnreachable(t *testing.T) {
-	service, _ := serviceWithACompanyQueue(t, func(posted postedDesktopWork) string {
-		return `{"requestID":"` + posted.RequestID + `","status":503,"body":{"error":"this person has no desktop connected"}}`
-	})
+	service, _ := serviceWithARelay(t, answeredByTheGateway(http.StatusServiceUnavailable, `{"error":"this person has no desktop connected"}`))
 
 	response, errorValue := service.invokeDesktopTool(context.Background(), desktopCall(desktopReadToolName, "sample@example.com", `{"arguments":["list-apps"]}`))
 
-	if errorValue != nil || !response.IsError || !strings.HasPrefix(response.Content, "desktop_unreachable:") {
+	if errorValue != nil || !response.IsError || response.Content != desktopUnreachableMessage {
 		t.Fatalf("answered %+v, %v", response, errorValue)
 	}
 }
 
-func TestAHostThatServesNoCompanyQueueAnswersUnreachableWithoutAskingTheGateway(t *testing.T) {
-	service, gateway := serviceWithACompanyQueue(t, answeredByTheDesktop(desktop.Answer{Output: snapshotEnvelope}))
-	if errorValue := workqueue.Forget(service.Configuration.WorkQueuePath); errorValue != nil {
-		t.Fatal(errorValue)
-	}
+func TestARelayThatDoesNotAnswerIsNamedAsTheCauseAndNotTheRequestersComputer(t *testing.T) {
+	service, _ := serviceWithARelay(t, answeredByTheDesktop(desktop.Answer{Output: snapshotEnvelope}))
+	closed := httptest.NewServer(http.NotFoundHandler())
+	service.Configuration.RelayBaseURL = closed.URL
+	closed.Close()
 
 	response, errorValue := service.invokeDesktopTool(context.Background(), desktopCall(desktopReadToolName, "sample@example.com", `{"arguments":["list-apps"]}`))
 
-	if errorValue != nil || !response.IsError || !strings.HasPrefix(response.Content, "desktop_unreachable:") {
+	if errorValue != nil || !response.IsError || !strings.HasPrefix(response.Content, "desktop_unavailable_on_this_host: the relay at "+closed.URL+"/desktop-work did not answer") {
 		t.Fatalf("answered %+v, %v", response, errorValue)
 	}
-	if len(gateway.posted) != 0 {
-		t.Fatalf("the gateway was asked %+v", gateway.posted)
+}
+
+func TestARelayWithNoGatewayIsNamedAsTheCauseWithoutTheGatewayBeingAsked(t *testing.T) {
+	service, relay := serviceWithARelay(t, func(postedDesktopWork) (int, string) {
+		return relayHasNoGatewayStatus, `{"error":"this relay is given no GATEWAY_URL"}`
+	})
+
+	response, errorValue := service.invokeDesktopTool(context.Background(), desktopCall(desktopReadToolName, "sample@example.com", `{"arguments":["list-apps"]}`))
+
+	if errorValue != nil || !response.IsError || !strings.Contains(response.Content, "desktop_unavailable_on_this_host: the relay at ") || !strings.Contains(response.Content, "has no gateway") {
+		t.Fatalf("answered %+v, %v", response, errorValue)
+	}
+	if len(relay.posted) != 1 {
+		t.Fatalf("the relay was asked %d times", len(relay.posted))
+	}
+}
+
+func TestAnyOtherAnswerIsAnErrorNamingItsStatus(t *testing.T) {
+	for named, answer := range map[string]func(postedDesktopWork) (int, string){
+		"answered 409": func(postedDesktopWork) (int, string) {
+			return http.StatusConflict, `{"error":"this computer stands by for the company and does not serve it"}`
+		},
+		"the gateway answered 504": answeredByTheGateway(http.StatusGatewayTimeout, `{"error":"call_timed_out"}`),
+	} {
+		service, _ := serviceWithARelay(t, answer)
+
+		_, errorValue := service.invokeDesktopTool(context.Background(), desktopCall(desktopReadToolName, "sample@example.com", `{"arguments":["list-apps"]}`))
+
+		if errorValue == nil || !strings.Contains(errorValue.Error(), named) {
+			t.Errorf("answered %v, wanted an error naming %q", errorValue, named)
+		}
 	}
 }
 
 func TestAScreenshotComesBackAsAnAttachmentAndTheEnvelopeWithoutThePicture(t *testing.T) {
 	picture := base64.StdEncoding.EncodeToString([]byte("a png the desktop took"))
 	screenshot := `{"version":"2.6","ok":true,"command":"screenshot","data":{"data":"` + picture + `","format":"png","height":2,"width":3}}`
-	service, _ := serviceWithACompanyQueue(t, answeredByTheDesktop(desktop.Answer{Output: screenshot}))
+	service, _ := serviceWithARelay(t, answeredByTheDesktop(desktop.Answer{Output: screenshot}))
 
 	response, errorValue := service.invokeDesktopTool(context.Background(), desktopCall(desktopReadToolName, "sample@example.com", `{"arguments":["screenshot","--app","Finder"]}`))
 

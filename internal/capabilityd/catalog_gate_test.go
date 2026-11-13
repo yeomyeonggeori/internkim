@@ -230,7 +230,7 @@ func gateCases() map[string]catalogGateCase {
 		},
 		"desktop_read": {
 			kind:    provesBehaviour,
-			reaches: map[gateBackend]*standingIn{companyQueueOverHTTP: answering(`{"requestID":"desk-1","status":200,"body":{"output":"{\"version\":\"2.6\",\"ok\":true,\"command\":\"list-apps\",\"data\":{\"apps\":[{\"name\":\"Finder\"}]}}"}}`)},
+			reaches: map[gateBackend]*standingIn{relayOverHTTP: answering(`{"requestID":"desk-1","status":200,"body":{"output":"{\"version\":\"2.6\",\"ok\":true,\"command\":\"list-apps\",\"data\":{\"apps\":[{\"name\":\"Finder\"}]}}"}}`)},
 			input:   `{"arguments":["list-apps"]}`,
 			expect: func(t *testing.T, answered capabilities.ToolInvokeResponse) {
 				expectSucceeded(t, answered)
@@ -239,7 +239,7 @@ func gateCases() map[string]catalogGateCase {
 		},
 		"desktop_act": {
 			kind:    provesBehaviour,
-			reaches: map[gateBackend]*standingIn{companyQueueOverHTTP: answering(`{"requestID":"desk-2","status":200,"body":{"output":"{\"version\":\"2.6\",\"ok\":true,\"command\":\"click\",\"data\":{\"action\":\"click\"}}"}}`)},
+			reaches: map[gateBackend]*standingIn{relayOverHTTP: answering(`{"requestID":"desk-2","status":200,"body":{"output":"{\"version\":\"2.6\",\"ok\":true,\"command\":\"click\",\"data\":{\"action\":\"click\"}}"}}`)},
 			input:   `{"arguments":["click","@s8f3k2p9:e4"]}`,
 			expect: func(t *testing.T, answered capabilities.ToolInvokeResponse) {
 				expectSucceeded(t, answered)
