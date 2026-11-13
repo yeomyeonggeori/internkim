@@ -1,0 +1,9 @@
+{
+  "bundle": {
+    "externalBin": [
+      "binaries/agent-desktop",
+      "binaries/agent-desktop-linux-clipboard-owner",
+      "binaries/agent-browser"
+    ]
+  }
+}

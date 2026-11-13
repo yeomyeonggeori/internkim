@@ -61,4 +61,13 @@ describe('the company work queue', () => {
 		expect(queue.expire(500).map((item) => item.requestID)).toEqual(['late']);
 		expect(queue.waitingCount).toBe(1);
 	});
+
+	test('hands work addressed to one box to that box and to no other', () => {
+		const queue = new WorkQueue();
+		queue.setFree('someone-else', 4);
+		const addressed = { ...work('w1'), onlyBoxKey: 'owner' };
+		expect(queue.post(addressed)).toBeNull();
+		expect(queue.setFree('someone-else', 4)).toEqual([]);
+		expect(queue.setFree('owner', 1).map((each) => each.boxKey)).toEqual(['owner']);
+	});
 });

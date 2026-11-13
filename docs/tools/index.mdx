@@ -128,6 +128,38 @@ computer, one per requester with its own profile. Tools from configured
 meet the same gate. `GET /api/v1/tools` answers the base set your token
 reaches; `?live=true` asks the company's computer what it can run right now.
 
+## Your own computer [#desktop]
+
+`desktop_read` and `desktop_act` operate apps on the computer of the person who
+asked, through the internkim desktop app open there. They run
+[agent-desktop](https://agent-browser.dev/desktop) on that computer, so each
+person's own hardware does the work and the company's computer runs no desktop
+for anyone.
+
+Desktop work is addressed by the requester's sign-in. The company's computer
+puts it in the work queue under the requester's email address, and the
+connection gateway hands it only to a desktop app signed in as that person. No
+call can send it to a colleague's computer or to a box that serves the company.
+When the requester has no desktop app taking work, the call fails with
+`desktop_unreachable`.
+
+Two consents stand in front of it. The person turns on "Let internkim use this
+computer" in the desktop app, and while it is on, a tray item shows it and turns
+it off. The operating system's accessibility permission must also be granted to
+the app. Scheduled runs never get these tools, because no one is there to
+watch.
+
+A web page on that computer is the work of
+[agent-browser](https://agent-browser.dev), which the same two tools run when
+`program` names it. It opens a browser window of its own, signed in to nothing,
+beside whatever browser the person already has open.
+
+`desktop_read` runs only commands that change nothing and `desktop_act` the
+ones that do. For each program the two lists, the options never passed, and the
+pinned release with its hash are kept in
+[`internal/desktop/commands.json`](https://github.com/yeomyeonggeori/internkim/blob/main/internal/desktop/commands.json),
+which the company's computer and the desktop app both read.
+
 ## How tools are named [#naming]
 
 A tool's name is the only part of it a model sees before deciding to call it,

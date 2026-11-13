@@ -14,6 +14,7 @@ import {
 } from './protocol';
 
 import { browserControlToolDefinitions, browserWithheldRequestSchema } from './browser';
+import { desktopToolDefinitions } from './desktop';
 import { companyToolDefinitions } from './company';
 import { dataRoomToolDefinitions } from './data-room';
 import { taskInvitationToolDefinitions } from './task-invitation';
@@ -2147,6 +2148,7 @@ const capabilityToolDefinitions: CapabilityToolDefinition[] = [
   ...fileToolDefinitions,
   ...browserToolDefinitions,
   ...browserControlToolDefinitions,
+  ...desktopToolDefinitions,
   ...artifactToolDefinitions,
   ...companyToolDefinitions,
   ...dataRoomToolDefinitions,

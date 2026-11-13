@@ -88,6 +88,8 @@ VERBS_BY_EXCEPTION = {
     "browser_wait": "drives a browser rather than touching a record",
     "browser_snapshot": "drives a browser rather than touching a record",
     "browser_screenshot": "drives a browser rather than touching a record",
+    "desktop_read": "drives the requester's desktop rather than touching a record, and one tool reads through every agent-desktop command that leaves no mark",
+    "desktop_act": "drives the requester's desktop rather than touching a record, and one tool acts through every agent-desktop command that leaves one",
     "browser_handoff": "hands the browser to the requester rather than touching a record",
 }
 

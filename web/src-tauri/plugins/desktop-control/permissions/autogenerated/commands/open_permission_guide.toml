@@ -1,0 +1,13 @@
+# Automatically generated - DO NOT EDIT!
+
+"$schema" = "../../schemas/schema.json"
+
+[[permission]]
+identifier = "allow-open-permission-guide"
+description = "Enables the open_permission_guide command without any pre-configured scope."
+commands.allow = ["open_permission_guide"]
+
+[[permission]]
+identifier = "deny-open-permission-guide"
+description = "Denies the open_permission_guide command without any pre-configured scope."
+commands.deny = ["open_permission_guide"]

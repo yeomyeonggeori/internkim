@@ -33,3 +33,9 @@ const phonePlatforms = ['ios', 'android'];
 export function isInsideTauriPhoneShell(): boolean {
 	return isInsideTauriShell() && phonePlatforms.includes(shellPlatform());
 }
+
+const desktopPlatforms = ['macos', 'windows', 'linux'];
+
+export function isInsideTauriDesktopShell(): boolean {
+	return isInsideTauriShell() && desktopPlatforms.includes(shellPlatform());
+}

@@ -15,3 +15,12 @@ var browserToolNames = []string{
 func BrowserToolDescriptors() []Descriptor {
 	return MustCanonicalizeBuiltInDescriptors(MustGeneratedToolDescriptors(browserToolNames...))
 }
+
+var desktopToolNames = []string{
+	"desktop_read",
+	"desktop_act",
+}
+
+func DesktopToolDescriptors() []Descriptor {
+	return MustCanonicalizeBuiltInDescriptors(MustGeneratedToolDescriptors(desktopToolNames...))
+}

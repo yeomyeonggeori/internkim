@@ -181,6 +181,8 @@ describe('canonical capability tools', () => {
       'dataroom_links_get',
       'dataroom_share_add',
       'dataroom_share_delete',
+      'desktop_act',
+      'desktop_read',
       'document_read',
       'event_add',
       'event_delete',
@@ -298,6 +300,18 @@ describe('canonical capability tools', () => {
     }
   });
 
+  test("runs every desktop tool on the requester's own computer, and only while they are there", () => {
+    const catalog = buildCapabilityToolCatalog(protocolVersion);
+    const desktopTools = catalog.tools.filter(tool => tool.namespace === 'desktop');
+
+    expect(desktopTools.map(tool => tool.name).sort()).toEqual(['desktop_act', 'desktop_read']);
+    for (const tool of desktopTools) {
+      expect(tool.answeredBy).toBe(CapabilityAnsweredBy.Local);
+      expect(tool.privacyClass).toBe('requester_desktop');
+      expect(tool.requiresUserPresence).toBe(true);
+    }
+  });
+
   test('publishes explicit intent schemas for model-visible state changes', () => {
     const catalog = buildCapabilityToolCatalog(protocolVersion);
     const stateChangingTools = catalog.tools.filter(tool =>
@@ -357,6 +371,7 @@ describe('canonical capability tools', () => {
       'browser_fill',
       'browser_press',
       'browser_select',
+      'desktop_act',
       'company_document_register',
       'company_document_update',
       'company_document_upload',
@@ -1011,6 +1026,7 @@ describe('canonical capability tools', () => {
       browser_fill: 'the device browser answers it and reports no effect',
       browser_press: 'the device browser answers it and reports no effect',
       browser_select: 'the device browser answers it and reports no effect',
+      desktop_act: "the requester's own computer answers it and reports no effect",
       mail_connection_start: 'it hands back a setup address and writes nothing',
       company_document_upload: 'it hands back an upload address; company_document_register records the document',
       company_image_upload: 'it hands back an upload address; company_info_set keeps the image',

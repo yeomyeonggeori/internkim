@@ -139,6 +139,7 @@ func ArtifactDescriptors() []Descriptor {
 
 func DefaultToolDescriptors() []Descriptor {
 	descriptors := BrowserToolDescriptors()
+	descriptors = append(descriptors, capabilityprotocol.DesktopToolDescriptors()...)
 	descriptors = append(descriptors, descriptorsTheRecordAndTheCompanyAnswer()...)
 	return canonicalizeDescriptors(descriptors)
 }

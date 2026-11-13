@@ -8,6 +8,7 @@ export const capabilityNamespaceSummaries = {
   company: "The company's own record: its profile and settings, holidays, metrics over time, milestones and assets, and a data room of registered documents searchable by question.",
   crm: 'Organizations and contacts the company deals with, deals moving through a pipeline, and the work recorded against them.',
   dataroom: 'The company document archive: categories, sharing with people outside the company, and revocable links.',
+  desktop: "Operate the requester's own computer through the desktop app they have open: read apps and windows, click, type, press keys, and screenshot.",
   document: 'Read a document in the workspace as text.',
   host: "The company's host: its recorded work and diagnostics, which internkim release it runs, and updating it.",
   image: 'Look at an image, or generate a new one.',
