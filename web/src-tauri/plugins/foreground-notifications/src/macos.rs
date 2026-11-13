@@ -1,9 +1,12 @@
 use std::sync::{Arc, Mutex, PoisonError};
+use std::thread;
+use std::time::Duration;
 
 use block2::{DynBlock, RcBlock};
 use objc2::rc::Retained;
 use objc2::runtime::{NSObject, NSObjectProtocol, ProtocolObject};
 use objc2::{define_class, msg_send, sel, AnyThread, DefinedClass};
+use objc2_foundation::{NSArray, NSString};
 use objc2_user_notifications::{
     UNNotification, UNNotificationPresentationOptions, UNNotificationResponse,
     UNPushNotificationTrigger, UNUserNotificationCenter, UNUserNotificationCenterDelegate,
@@ -11,6 +14,8 @@ use objc2_user_notifications::{
 use tauri::{Manager, Runtime, State};
 
 type WrappedDelegate = Retained<ProtocolObject<dyn UNUserNotificationCenterDelegate>>;
+
+const DELIVERY_WAIT: Duration = Duration::from_secs(1);
 
 #[derive(Clone, Default)]
 pub struct HeldBackTag(Arc<Mutex<String>>);
@@ -59,6 +64,9 @@ define_class!(
             let answer_as_decided =
                 RcBlock::new(move |_: UNNotificationPresentationOptions| answer.call((shown,)));
             presenter.ask_the_wrapped_delegate(center, notification, &answer_as_decided);
+            if shown.is_empty() {
+                withdraw_once_delivered(notification.request().identifier().to_string());
+            }
         }
 
         #[unsafe(method(userNotificationCenter:didReceiveNotificationResponse:withCompletionHandler:))]
@@ -132,6 +140,15 @@ fn presentation(held_back: bool) -> UNNotificationPresentationOptions {
         | UNNotificationPresentationOptions::Sound
         | UNNotificationPresentationOptions::Banner
         | UNNotificationPresentationOptions::List
+}
+
+fn withdraw_once_delivered(identifier: String) {
+    thread::spawn(move || {
+        thread::sleep(DELIVERY_WAIT);
+        let identifiers = NSArray::from_retained_slice(&[NSString::from_str(&identifier)]);
+        UNUserNotificationCenter::currentNotificationCenter()
+            .removeDeliveredNotificationsWithIdentifiers(&identifiers);
+    });
 }
 
 pub fn present_pushes_while_the_app_is_open<R: Runtime>(app: &tauri::AppHandle<R>) {
