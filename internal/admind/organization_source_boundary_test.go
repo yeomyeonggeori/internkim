@@ -26,7 +26,7 @@ func TestAccountWriteCarriesNoOrganizationFields(t *testing.T) {
 	}
 	for _, organizationField := range organizationFieldsForTest {
 		if _, found := written[organizationField]; found {
-			t.Fatalf("the account write carries organization field %q; organization_profiles owns it", organizationField)
+			t.Fatalf("the account write carries organization field %q; person_set's organization half owns it", organizationField)
 		}
 	}
 	if written["email"] != "member@example.com" || written["role"] != "member" {
