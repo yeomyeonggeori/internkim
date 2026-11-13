@@ -80,21 +80,3 @@ func TestTheGatewayIsReachedOverHTTPAndASocketOverItsSocketAddress(t *testing.T)
 		t.Fatal("the gateway's addresses were not converted")
 	}
 }
-
-func TestWorkForAPersonsDesktopNamesThatPersonSoNoOtherMachineTakesIt(t *testing.T) {
-	address, queue := postingTo(t, func(writer http.ResponseWriter, request *http.Request) {
-		var posted map[string]json.RawMessage
-		body, _ := io.ReadAll(request.Body)
-		json.Unmarshal(body, &posted)
-		if string(posted["desktopOwner"]) != `"sample@example.com"` || string(posted["affinityKey"]) != `"desktop:sample@example.com"` {
-			t.Errorf("the gateway was asked %s", body)
-		}
-		writer.Write([]byte(`{"requestID":"desk-1","status":200,"body":{"output":"{}"}}`))
-	})
-
-	answer, errorValue := queue.PostToDesktop(context.Background(), address, "desk-1", "sample@example.com", json.RawMessage(`{"arguments":["snapshot"]}`))
-
-	if errorValue != nil || string(answer) != `{"output":"{}"}` {
-		t.Fatalf("answered %s, %v", answer, errorValue)
-	}
-}

@@ -70,19 +70,11 @@ type answered struct {
 }
 
 func (queue Queue) Post(ctx context.Context, address Address, requestID string, affinityKey string, work json.RawMessage) (json.RawMessage, error) {
-	return queue.post(ctx, address, map[string]any{"requestID": requestID, "affinityKey": affinityKey, "work": work})
-}
-
-func (queue Queue) PostToDesktop(ctx context.Context, address Address, requestID string, ownerEmail string, work json.RawMessage) (json.RawMessage, error) {
-	return queue.post(ctx, address, map[string]any{"requestID": requestID, "affinityKey": "desktop:" + ownerEmail, "desktopOwner": ownerEmail, "work": work})
-}
-
-func (queue Queue) post(ctx context.Context, address Address, posted map[string]any) (json.RawMessage, error) {
 	token, errorValue := queue.Token()
 	if errorValue != nil {
 		return nil, fmt.Errorf("reading this box's host session: %w", errorValue)
 	}
-	body, errorValue := json.Marshal(posted)
+	body, errorValue := json.Marshal(map[string]any{"requestID": requestID, "affinityKey": affinityKey, "work": work})
 	if errorValue != nil {
 		return nil, errorValue
 	}

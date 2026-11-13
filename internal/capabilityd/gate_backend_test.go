@@ -15,23 +15,22 @@ import (
 	"testing"
 
 	browserruntime "github.com/yeomyeonggeori/internkim/internal/browser"
-	"github.com/yeomyeonggeori/internkim/internal/workqueue"
 )
 
 // capabilityd reaches everything it does not do itself through one field of its
 // configuration naming an address: admind over HTTP or over the requester
-// socket, blueclaw, chatd, OpenRouter. There is no other
+// socket, blueclaw, chatd, OpenRouter, the relay. There is no other
 // shape. So a gate does not need a setup per tool — it needs one stand-in per
 // address, and a case that says which addresses its call reaches.
 type gateBackend string
 
 const (
-	admindOverTheSocket  gateBackend = "admind socket"
-	admindOverHTTP       gateBackend = "admind"
-	blueclawOverHTTP     gateBackend = "blueclaw"
-	chatdOverHTTP        gateBackend = "chatd"
-	openRouterOverHTTP   gateBackend = "openrouter"
-	companyQueueOverHTTP gateBackend = "company work queue"
+	admindOverTheSocket gateBackend = "admind socket"
+	admindOverHTTP      gateBackend = "admind"
+	blueclawOverHTTP    gateBackend = "blueclaw"
+	chatdOverHTTP       gateBackend = "chatd"
+	openRouterOverHTTP  gateBackend = "openrouter"
+	relayOverHTTP       gateBackend = "relay"
 
 	// The browser is the one backend that is not an address. capabilityd runs
 	// agent-browser as a command and reads what it printed, so the stand-in for
@@ -124,8 +123,8 @@ func serviceReaching(t *testing.T, reaches map[gateBackend]*standingIn) Service 
 			deviceBrowsers = fakeDeviceBrowsersWithEmptyDevtools(t)
 		case converterAsACommand:
 			runsACommand = standIn
-		case companyQueueOverHTTP:
-			configuration.WorkQueuePath, configuration.HostSessionPath = queueServedBy(t, servedOnLoopback(t, standIn.handler(t)))
+		case relayOverHTTP:
+			configuration.RelayBaseURL = servedOnLoopback(t, standIn.handler(t))
 		case workspaceOnDisk:
 			configuration.BlueclawWorkspacePath = workspaceHolding(t, standIn)
 		default:
@@ -190,16 +189,6 @@ func workspaceHolding(t *testing.T, standIn *standingIn) string {
 		}
 	}
 	return root
-}
-
-func queueServedBy(t *testing.T, gatewayURL string) (string, string) {
-	t.Helper()
-	directory := t.TempDir()
-	queuePath := filepath.Join(directory, "work-queue.json")
-	if errorValue := workqueue.Write(queuePath, workqueue.Address{GatewayURL: gatewayURL, CompanyID: "company-1"}); errorValue != nil {
-		t.Fatalf("write %s: %v", queuePath, errorValue)
-	}
-	return queuePath, keyFileHolding(t, "host.session.token")
 }
 
 func servedOnLoopback(t *testing.T, handler http.Handler) string {

@@ -65,6 +65,7 @@ import { fetchWhenChatdListens } from './chatd-reach';
 import { seatedOwnerMuter } from './seated-owner';
 import { asAHostService, carriesTheHostServiceToken } from './host-service-token';
 import { BrowserHandoffs, handoffsPath } from './browser-handoff';
+import { desktopWorkForwarder, desktopWorkPath } from './desktop-work';
 import { DevtoolsPage } from './devtools-page';
 
 
@@ -118,8 +119,9 @@ setInterval(() => void keepGoing('session', keepServingWithAFreshSession), 60_00
 setInterval(() => void keepGoing('expiring transfer copies', letExpiredCopiesGo), 60 * 60_000);
 
 
+const gatewayURL = process.env.GATEWAY_URL?.trim() || undefined;
+
 function openGatewayConnection(): GatewayConnection | null {
-	const gatewayURL = process.env.GATEWAY_URL?.trim();
 	const serverKey = process.env.GATEWAY_SERVER_KEY?.trim();
 	if (!gatewayURL) return null;
 
@@ -597,6 +599,8 @@ const browserHandoffs = new BrowserHandoffs({
 });
 await browserHandoffs.restore();
 
+const forwardDesktopWork = desktopWorkForwarder({ gatewayURL, companyID, hostAccessToken: freshHostAccessToken });
+
 const blueclawClient = new BlueclawACPClient({
 	socketPath: blueclawACPSocketPath,
 	workspaceRootPath,
@@ -651,6 +655,7 @@ Bun.serve({
 		if (!(await carriesTheHostServiceToken(request))) {
 			return new Response('this door answers only the host services that hold their shared token', { status: 401 });
 		}
+		if (pathname === desktopWorkPath) return forwardDesktopWork(request);
 		const offered = await request.json().catch(() => null);
 		if (pathname === '/inbound') return keepInboundMessage(offered);
 		if (pathname === handoffsPath) return servedResponse(await browserHandoffs.register(offered));

@@ -282,8 +282,9 @@ and tells browsers whether the company's computer has a live connection.
 The internkim desktop app dials `/company/<id>/desktop` with the signed-in
 member's session token once its person lets internkim use that computer. The
 Worker resolves the member as it does for `/client` and keys the socket on
-their email address. Work the company's computer posts for a person's desktop
-names that address, and the Durable Object hands it to that person's socket
+their email address. The company's computer posts work for a person's desktop
+through its relay to `/company/<id>/desktop-work`, signed as the host that
+serves the company. The work names that address, and the Durable Object hands it to that person's socket
 alone, or answers `503` when they have none open. It never goes to another
 person's desktop or to a box serving the company, and company work never goes
 to a desktop. [Your own computer](/docs/tools#desktop) says what the desktop

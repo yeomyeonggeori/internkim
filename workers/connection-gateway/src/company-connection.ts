@@ -117,6 +117,7 @@ export class CompanyConnectionObject {
 		if (url.pathname.endsWith('/messenger-call')) return this.takeOneShotCall(request, this.messengerCalls);
 		if (url.pathname.endsWith('/messenger-media')) return this.takeMediaRead(request);
 		if (url.pathname.endsWith('/messenger-media-head')) return this.takeMediaHead(request);
+		if (url.pathname.endsWith('/desktop-work')) return this.takeDesktopWork(request);
 		if (url.pathname.endsWith('/work')) return this.takeWork(request);
 		if (request.headers.get('Upgrade') !== 'websocket') {
 			return jsonResponse({ error: 'this endpoint speaks websocket' }, 426);
@@ -281,17 +282,29 @@ export class CompanyConnectionObject {
 
 	private async takeWork(request: Request): Promise<Response> {
 		const call = parseWork(await readJSONBody(request));
-		if (!call) return jsonResponse({ error: 'work names a request identifier, whose it is and what to do' }, 400);
+		if (!call) return jsonResponse({ error: 'work names a request identifier, whose it is and what to do, and no desktop' }, 400);
 		if (this.workerCalls.isFull) return answerResponse(tooManyWaitingCallsAnswer(call.requestID));
-		const pool = call.onlyBoxKey ? this.desktops : this.boxes;
-		if (call.onlyBoxKey && this.state.getWebSockets(desktopTagOf(call.onlyBoxKey)).length === 0) {
+		const waited = this.workerCalls.waitFor(call.requestID);
+		if (!this.dispatch(this.boxes, call)) this.letGoIfNoBoxTakesIt(this.boxes, call.requestID);
+		return answerResponse(await waited);
+	}
+
+	private async takeDesktopWork(request: Request): Promise<Response> {
+		const call = parseDesktopWork(await readJSONBody(request));
+		if (!call) return jsonResponse({ error: 'desktop work names a request identifier, the person whose desktop it is for and what to do' }, 400);
+		if (this.workerCalls.isFull) return answerResponse(tooManyWaitingCallsAnswer(call.requestID));
+		if (this.state.getWebSockets(desktopTagOf(call.onlyBoxKey)).length === 0) {
 			return answerResponse(noBoxTookTheWork(call.requestID, 'this person has no desktop connected'));
 		}
 		const waited = this.workerCalls.waitFor(call.requestID);
+		this.dispatch(this.desktops, call);
+		return answerResponse(await waited);
+	}
+
+	private dispatch(pool: WorkerPool, call: Work): boolean {
 		const dispatched = pool.queue.post({ ...call, deadline: Date.now() + workHoldMilliseconds });
 		if (dispatched) this.sendWork(pool, dispatched.boxKey, call.requestID, call.work);
-		else if (!call.onlyBoxKey) this.letGoIfNoBoxTakesIt(pool, call.requestID);
-		return answerResponse(await waited);
+		return dispatched !== null;
 	}
 
 	private letGoIfNoBoxTakesIt(pool: WorkerPool, requestID: string): void {
@@ -578,6 +591,8 @@ async function readJSONBody(request: Request): Promise<unknown> {
 
 type Work = { requestID: string; affinityKey: string; onlyBoxKey?: string; work: unknown };
 
+type DesktopWork = Work & { onlyBoxKey: string };
+
 function noBoxTookTheWork(requestID: string, error: string): ServerAnswer {
 	return { kind: 'result', requestID, status: noBoxTookTheWorkStatus, body: { error } };
 }
@@ -589,9 +604,19 @@ function parseWork(payload: unknown): Work | null {
 	if (typeof requestID !== 'string' || requestID === '') return null;
 	if (typeof affinityKey !== 'string' || affinityKey === '') return null;
 	if (typeof work !== 'object' || work === null) return null;
-	if (desktopOwner === undefined) return { requestID, affinityKey, work };
-	if (typeof desktopOwner !== 'string' || desktopOwner === '') return null;
-	return { requestID, affinityKey, onlyBoxKey: desktopOwner.trim().toLowerCase(), work };
+	if (desktopOwner !== undefined) return null;
+	return { requestID, affinityKey, work };
+}
+
+function parseDesktopWork(payload: unknown): DesktopWork | null {
+	if (typeof payload !== 'object' || payload === null) return null;
+	const record: Record<string, unknown> = { ...payload };
+	const { requestID, desktopOwner, work } = record;
+	if (typeof requestID !== 'string' || requestID === '') return null;
+	if (typeof work !== 'object' || work === null) return null;
+	const owner = typeof desktopOwner === 'string' ? desktopOwner.trim().toLowerCase() : '';
+	if (owner === '') return null;
+	return { requestID, affinityKey: owner, onlyBoxKey: owner, work };
 }
 
 function supportedCapabilitiesOf(headers: Headers): string[] {
