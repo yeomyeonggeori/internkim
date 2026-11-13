@@ -58,6 +58,11 @@ type CompanyHostService struct {
 	// it reads the way it is documented, so this is systemd's alone and the
 	// plists are only written once the file is there.
 	WaitsForTheFileAtPath string
+	// StartedOnceAnswering is a URL systemd waits on before it counts the
+	// service started, so a unit ordered after it meets a listening server
+	// rather than a process that has only been launched. Like
+	// WaitsForTheFileAtPath, it is systemd's alone: launchd orders nothing.
+	StartedOnceAnswering string
 }
 
 // CompanyHostEnvironmentSource is one place a service's environment comes from,
@@ -224,6 +229,7 @@ func companyHostMediaGateService(layout CompanyHostLayout) CompanyHostService {
 		Environment:           withCommonEnvironment(),
 		RestartAfterSeconds:   5,
 		WaitsForTheFileAtPath: CompanyHostMediaSecretPath,
+		StartedOnceAnswering:  "http://" + BuzzMediaAddress + BuzzMediaHealthPath,
 	}
 	if layout.OwnsItsDataServices() {
 		service.Command = append(service.Command, "-file-journal-socket", CompanyHostFileJournalSocketPath)

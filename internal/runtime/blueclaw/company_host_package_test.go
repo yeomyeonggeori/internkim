@@ -194,6 +194,21 @@ func TestThePackageCarriesTheMediaStoreAndTheRelayWaitsForIt(t *testing.T) {
 	}
 }
 
+func TestTheAttachmentGateIsStartedOnlyOnceItAnswers(t *testing.T) {
+	health := "http://" + BuzzMediaAddress + BuzzMediaHealthPath
+	for _, unit := range CompanyPackageUnits() {
+		if unit.Name != BuzzMediaGateServiceName {
+			continue
+		}
+		if !strings.Contains(unit.Contents, "ExecStartPost=") || !strings.Contains(unit.Contents, health) {
+			t.Fatalf("%s counts as started before %s answers, so the relay ordered after it probes a port nobody listens on yet:\n%s",
+				BuzzMediaGateServiceName, health, unit.Contents)
+		}
+		return
+	}
+	t.Fatalf("the package installs no %s unit", BuzzMediaGateServiceName)
+}
+
 // The gateway is served the bucket as a directory, so something has to make it. On the
 // device that is the provisioning step; here it is dpkg.
 func TestTheBucketIsADirectoryUnderTheGatewayRoot(t *testing.T) {
