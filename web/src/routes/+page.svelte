@@ -2,6 +2,7 @@
 	import ArrowRightIcon from '@lucide/svelte/icons/arrow-right';
 	import CheckIcon from '@lucide/svelte/icons/check';
 	import { onMount } from 'svelte';
+	import { goto } from '$app/navigation';
 	import { hostInstallCommands } from '$lib/company/host-setup';
 	import { Button } from '$lib/components/ui/button';
 	import * as Card from '$lib/components/ui/card';
@@ -20,7 +21,18 @@
 
 	const text = createPageText(landingText);
 
-	onMount(() => document.documentElement.removeAttribute(heldWhileSignedInAttribute));
+	let { data } = $props();
+
+	const showLanding = () => document.documentElement.removeAttribute(heldWhileSignedInAttribute);
+
+	onMount(() => {
+		if (!data.signedInHome) {
+			showLanding();
+			return;
+		}
+		void goto(data.signedInHome, { replaceState: true });
+		return showLanding;
+	});
 </script>
 
 <svelte:head>
