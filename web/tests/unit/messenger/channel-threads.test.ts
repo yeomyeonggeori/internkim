@@ -72,11 +72,17 @@ describe('thread summaries describe the loaded replies', () => {
 		expect(timeline([root])[0].thread).toBeUndefined();
 	});
 
+	test('a reply stays in its thread while its root is older than the loaded history', () => {
+		const recent = message('recent', anotherAuthor, 5);
+		const replyToOldThread = message('reply-to-old-thread', replyAuthor, 6, 'root-from-months-ago');
+		expect(timeline([recent, replyToOldThread])).toEqual([recent]);
+	});
+
 	test('a later history page supplies the root without counting its author as a reply', () => {
 		const root = message('root', rootAuthor, 0);
 		const first = message('reply-1', replyAuthor, 1, root.id);
 		const last = message('reply-2', anotherAuthor, 2, root.id);
-		expect(timeline([last])).toEqual([last]);
+		expect(timeline([last])).toEqual([]);
 		const combinedPages = [root, first, last];
 		expect(timeline(combinedPages)).toHaveLength(1);
 		expect(timeline(combinedPages)[0].thread?.participants).toEqual([replyAuthor, anotherAuthor]);
