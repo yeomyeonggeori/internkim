@@ -18,50 +18,22 @@ upload, not here.
 
 import argparse
 import json
-import os
 import plistlib
 import shutil
-import subprocess
 import sys
 import tempfile
 from pathlib import Path
 
-REPOSITORY_ROOT = Path(__file__).resolve().parent.parent
-TAURI_DIRECTORY = Path("web/src-tauri")
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
+from tauri_shipping import TAURI_DIRECTORY, ShipFailure, api_key_environment, checkout_of, run, say  # noqa: E402
+
 APPLE_PROJECT_DIRECTORY = TAURI_DIRECTORY / "gen/apple"
 ARCHIVE_NAME = "internkim-tauri_iOS.xcarchive"
 APPLICATION_TARGET = "internkim-tauri_iOS"
-API_KEY_VARIABLES = ("APPLE_API_KEY", "APPLE_API_ISSUER", "APPLE_API_KEY_PATH")
 APP_IDENTIFIER_PREFIX_KEY = "AppIdentifierPrefix"
 APP_IDENTIFIER_PREFIX_SETTING = "$(AppIdentifierPrefix)"
 PUSH_ENVIRONMENT_KEY = "aps-environment"
-FAILURE_OUTPUT_LINES = 20
-
-
-class ShipFailure(Exception):
-    pass
-
-
-def say(line: str) -> None:
-    print(line, flush=True)
-
-
-def run(command: list[str], directory: Path, environment: dict[str, str] | None = None) -> str:
-    try:
-        finished = subprocess.run(command, cwd=directory, env=environment, capture_output=True, text=True)
-    except FileNotFoundError as missing:
-        raise ShipFailure(f"{command[0]} is not on PATH: {missing}") from missing
-    if finished.returncode != 0:
-        output = "\n".join((finished.stdout + finished.stderr).splitlines()[-FAILURE_OUTPUT_LINES:])
-        raise ShipFailure(f"{' '.join(command[:4])} failed in {directory}:\n{output}")
-    return finished.stdout
-
-
-def api_key_environment() -> dict[str, str]:
-    missing = [name for name in API_KEY_VARIABLES if not os.environ.get(name)]
-    if missing:
-        raise ShipFailure(f"set {', '.join(missing)}: the App Store Connect API key signs the export and the upload")
-    return dict(os.environ)
 
 
 def development_team(checkout: Path) -> str:
@@ -163,16 +135,9 @@ def parse_arguments() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def main() -> int:
-    arguments = parse_arguments()
-    scratch = Path(tempfile.mkdtemp(prefix="internkim-ship-tauri-ios-"))
-    checkout = scratch / "checkout"
-    uploaded = False
-    try:
-        environment = api_key_environment()
-        run(["git", "worktree", "add", "--detach", str(checkout), arguments.ref], REPOSITORY_ROOT)
-        commit = run(["git", "rev-parse", "--short", "HEAD"], checkout).strip()
-        say(f"source: {arguments.ref} {commit}")
+def ship(arguments: argparse.Namespace, scratch: Path) -> bool:
+    environment = api_key_environment("signs the export and the upload")
+    with checkout_of(arguments.ref, scratch) as checkout:
         team = development_team(checkout)
         archive = build_archive(checkout, arguments.version, arguments.build_number, environment)
         say(f"archived {arguments.version} ({arguments.build_number})")
@@ -181,18 +146,23 @@ def main() -> int:
         verify_ipa(ipa, checkout, team, scratch)
         say(f"checked entitlements: {ipa}")
         if arguments.no_upload:
-            return 0
+            return False
         upload(ipa, scratch, environment)
-        uploaded = True
-        say(f"uploaded {arguments.version} ({arguments.build_number}) from {commit}")
-        return 0
+        say(f"uploaded {arguments.version} ({arguments.build_number})")
+        return True
+
+
+def main() -> int:
+    arguments = parse_arguments()
+    scratch = Path(tempfile.mkdtemp(prefix="internkim-ship-tauri-ios-"))
+    try:
+        uploaded = ship(arguments, scratch)
     except ShipFailure as failure:
         say(f"failed: {failure}")
         return 1
-    finally:
-        subprocess.run(["git", "worktree", "remove", "--force", str(checkout)], cwd=REPOSITORY_ROOT, capture_output=True)
-        if uploaded:
-            shutil.rmtree(scratch)
+    if uploaded:
+        shutil.rmtree(scratch)
+    return 0
 
 
 if __name__ == "__main__":
