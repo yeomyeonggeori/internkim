@@ -26,8 +26,10 @@ export type MessengerChannel = {
 	webURL?: string;
 	description?: string;
 	roleOfExternalID?: Record<string, string>;
-	unreadCount?: number;
+	unread?: MessengerReadCount;
 };
+
+export type MessengerReadCount = { status: 'exact' | 'at_least'; value: number } | { status: 'unknown' };
 
 export type MessengerReaction = {
 	emoji: string;
@@ -113,7 +115,7 @@ type PersonalConversation = {
 	isWithTheAgent?: boolean;
 	webURL?: string;
 	roleOfExternalID?: Record<string, string>;
-	unreadCount?: number;
+	unread?: MessengerReadCount;
 };
 type PersonalReaction = { emoji: string; imageURL?: string; byExternalIDs: string[] };
 type PersonalAttachment = {
@@ -201,7 +203,7 @@ export function asChannel(conversation: PersonalConversation, position: number):
 		webURL: conversation.webURL,
 		description: conversation.description,
 		roleOfExternalID: conversation.roleOfExternalID,
-		unreadCount: conversation.unreadCount
+		unread: conversation.unread
 	};
 }
 
@@ -247,8 +249,8 @@ export async function fetchChannels(): Promise<MessengerChannel[]> {
 	return answer.conversations.map(asChannel);
 }
 
-export async function markChannelRead(channelID: string, readAt: string): Promise<void> {
-	await ask('person.read_state.mark', { conversationID: channelID, readAt });
+export async function markReadThrough(channelID: string, messageID: string, threadRootID?: string): Promise<void> {
+	await ask('person.read_state.mark', { conversationID: channelID, messageID, parentID: threadRootID });
 }
 
 export async function announceTyping(channelID: string): Promise<void> {
@@ -345,7 +347,7 @@ export async function fetchPosts(channelID: string, before?: string): Promise<Me
 	return { posts: answer.messages.map(asPost), hasMoreBefore: answer.hasMoreBefore };
 }
 
-export type MessengerInboxReason = 'mention' | 'direct' | 'thread_reply' | 'channel';
+export type MessengerInboxReason = 'mention' | 'thread_reply';
 
 export type MessengerInboxItem = {
 	reason: MessengerInboxReason;
@@ -353,31 +355,19 @@ export type MessengerInboxItem = {
 	message: MessengerSearchMatch;
 };
 
-export type MessengerInboxWindow = { since: string; heldIDs: string[] };
+export type MessengerInbox = { items: MessengerInboxItem[]; hasMoreBefore: boolean };
 
-export type MessengerInboxPageBefore = { until: string };
-
-export type MessengerHeldInboxItem = { id: string; body: string; isUnread: boolean };
-
-export type MessengerInbox = { items: MessengerInboxItem[]; held?: MessengerHeldInboxItem[]; hasMoreBefore: boolean };
-
-export async function fetchInbox(window?: MessengerInboxWindow | MessengerInboxPageBefore): Promise<MessengerInbox> {
+export async function fetchInbox(until?: string): Promise<MessengerInbox> {
 	const answer = await ask<{
 		items: { reason: MessengerInboxReason; isUnread: boolean; message: PersonalMessageMatch }[];
-		held?: MessengerHeldInboxItem[];
 		hasMoreBefore?: boolean;
-	}>('person.inbox.list', window);
+	}>('person.inbox.list', until ? { until } : undefined);
 	const items = answer.items.map((item) => ({
 		reason: item.reason,
 		isUnread: item.isUnread,
 		message: asSearchMatch(item.message)
 	}));
-	const isRefresh = window !== undefined && 'since' in window;
-	return { items, held: isRefresh ? answer.held : undefined, hasMoreBefore: answer.hasMoreBefore ?? false };
-}
-
-export async function markThreadRead(channelID: string, threadRootID: string, readAt: string): Promise<void> {
-	await ask('person.read_state.mark', { conversationID: channelID, parentID: threadRootID, readAt });
+	return { items, hasMoreBefore: answer.hasMoreBefore ?? false };
 }
 
 function asSearchMatch(match: PersonalMessageMatch): MessengerSearchMatch {

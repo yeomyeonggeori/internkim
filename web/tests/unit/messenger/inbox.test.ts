@@ -31,13 +31,13 @@ mock.module('../../../src/lib/host-bridge', () => ({
 						}
 					}
 				],
-				held: [{ id: 'reply-0', body: '다시 썼어요', isUnread: false }]
+				hasMoreBefore: true
 			}
 		};
 	}
 }));
 
-const { fetchInbox, markThreadRead } = await import('../../../src/lib/messenger/messenger-api');
+const { fetchInbox, markReadThrough } = await import('../../../src/lib/messenger/messenger-api');
 
 describe('the inbox over the company bridge', () => {
 	test('asks person.inbox.list and keeps why each message is there, and whether it is unread', async () => {
@@ -46,7 +46,7 @@ describe('the inbox over the company bridge', () => {
 		const inbox = await fetchInbox();
 
 		expect(asked).toEqual([{ capability: 'person.inbox.list', body: undefined }]);
-		expect(inbox.held).toBeUndefined();
+		expect(inbox.hasMoreBefore).toBe(true);
 		expect(inbox.items).toEqual([
 			{
 				reason: 'thread_reply',
@@ -63,34 +63,23 @@ describe('the inbox over the company bridge', () => {
 		]);
 	});
 
-	test('asked since its newest entry, sends what it holds and keeps what came back for those', async () => {
-		asked.length = 0;
-		const window = { since: '2026-10-12T04:00:00.000Z', heldIDs: ['reply-0'] };
-
-		const inbox = await fetchInbox(window);
-
-		expect(asked).toEqual([{ capability: 'person.inbox.list', body: window }]);
-		expect(inbox.held).toEqual([{ id: 'reply-0', body: '다시 썼어요', isUnread: false }]);
-	});
-
-	test('asked for the page before a moment, sends that moment and treats the answer as no refresh', async () => {
+	test('asked for the page before a moment, sends that moment', async () => {
 		asked.length = 0;
 
-		const inbox = await fetchInbox({ until: '2026-10-12T04:00:00.000Z' });
+		await fetchInbox('2026-10-12T04:00:00.000Z');
 
 		expect(asked).toEqual([{ capability: 'person.inbox.list', body: { until: '2026-10-12T04:00:00.000Z' } }]);
-		expect(inbox.held).toBeUndefined();
 	});
 
-	test('marks a thread read by naming its root alongside its conversation', async () => {
+	test('marks a thread read through the reply seen, naming its root alongside its conversation', async () => {
 		asked.length = 0;
 
-		await markThreadRead('channel-1', 'root-1', '2026-10-12T05:00:00.000Z');
+		await markReadThrough('channel-1', 'reply-1', 'root-1');
 
 		expect(asked).toEqual([
 			{
 				capability: 'person.read_state.mark',
-				body: { conversationID: 'channel-1', parentID: 'root-1', readAt: '2026-10-12T05:00:00.000Z' }
+				body: { conversationID: 'channel-1', messageID: 'reply-1', parentID: 'root-1' }
 			}
 		]);
 	});

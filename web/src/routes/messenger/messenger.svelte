@@ -53,9 +53,9 @@
 	import type { CompanyEvent } from '$lib/company-event';
 	import { isSupabaseConfigured } from '$lib/supabase';
 	import { keepCentralBuzzIdentity } from '$lib/central-buzz-identity';
-	import { hideDirectChannel, markChannelRead, revealDirectChannel } from '$lib/messenger/messenger-api';
+	import { hideDirectChannel, markReadThrough, revealDirectChannel } from '$lib/messenger/messenger-api';
 	import { hiddenConversationAnsweredBy, shownConversations } from '$lib/messenger/hidden-direct-messages';
-	import { createConversationReadMarker } from '$lib/messenger/conversation-read-marker';
+	import { createReadMarker } from '$lib/messenger/conversation-read-marker';
 	import { page } from '$app/state';
 	import { afterNavigate, replaceState } from '$app/navigation';
 	import { buzzIdentity } from '$lib/stores/buzz-identity.svelte';
@@ -104,7 +104,7 @@
 	let isInboxOpen = $state(isSupabaseConfigured() && !page.url.searchParams.has('channel'));
 	let chosenInboxEntryID = $state<string | undefined>(undefined);
 	const inboxEntry = $derived(
-		isSupabaseConfigured() ? { isActive: isInboxOpen, unreadCount: inbox.unreadCount, open: openInbox } : undefined
+		isSupabaseConfigured() ? { isActive: isInboxOpen, unread: inbox.unread, open: openInbox } : undefined
 	);
 
 	function openInbox() {
@@ -484,18 +484,23 @@
 	let stopListeningForArrivals = () => {};
 	let stopFollowingCacheScope = () => {};
 
-	const markReadThrough = createConversationReadMarker(markChannelRead);
+	const markRead = createReadMarker(markReadThrough);
 
-	function readThrough(conversationID: string | undefined, sentAt: string): void {
+	function readThrough(conversationID: string | undefined, messageID: string, threadRootID?: string): void {
 		if (!conversationID || !isSupabaseConfigured()) return;
-		markReadThrough(conversationID, sentAt)
+		markRead(conversationID, messageID, threadRootID)
 			.then((isNewlyRead) => {
-				if (!isNewlyRead) return;
-				conversations = conversations.map((conversation) =>
-					conversation.id === conversationID ? { ...conversation, unreadCount: 0 } : conversation
-				);
+				if (isNewlyRead) rereadConversationList();
 			})
 			.catch((failure: unknown) => console.warn('the messenger did not record how far this conversation was read', failure));
+	}
+
+	function rereadConversationList(): void {
+		isReadingList ??= loadConversationList()
+			.catch(() => undefined)
+			.finally(() => {
+				isReadingList = null;
+			});
 	}
 
 	$effect(() => {
@@ -748,7 +753,7 @@
 						canModerate={activeConversation?.myRole === 'owner' || activeConversation?.myRole === 'admin'}
 						isWithTheAgent={activeConversation?.isWithTheAgent === true}
 						threadLayout={isInboxOpen || isMobile.current ? 'focus' : 'sheet'}
-						onReadThrough={isChannelCoveredByInbox ? undefined : (sentAt) => readThrough(activeID, sentAt)}
+						onReadThrough={isChannelCoveredByInbox ? undefined : (messageID, threadRootID) => readThrough(activeID, messageID, threadRootID)}
 					/>
 				{/key}
 				{/if}

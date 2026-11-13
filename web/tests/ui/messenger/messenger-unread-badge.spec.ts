@@ -8,9 +8,9 @@ test('the conversation list shows how many messages each conversation has unread
 		page,
 		reader,
 		[
-			{ id: 'channel-read', name: '읽은 채널', kind: 'group', myRole: 'member', unreadCount: 0 },
-			{ id: 'channel-few', name: '새 글 채널', kind: 'group', myRole: 'member', unreadCount: 3 },
-			{ id: 'channel-many', name: '많은 채널', kind: 'group', myRole: 'member', unreadCount: 150 }
+			{ id: 'channel-read', name: '읽은 채널', kind: 'group', myRole: 'member', unread: { status: 'exact', value: 0 } },
+			{ id: 'channel-few', name: '새 글 채널', kind: 'group', myRole: 'member', unread: { status: 'exact', value: 3 } },
+			{ id: 'channel-many', name: '많은 채널', kind: 'group', myRole: 'member', unread: { status: 'exact', value: 150 } }
 		],
 		[]
 	);
@@ -31,8 +31,8 @@ test('the unread count gives way to the more button while the row is hovered or 
 		page,
 		reader,
 		[
-			{ id: 'channel-read', name: '읽은 채널', kind: 'group', myRole: 'member', unreadCount: 0 },
-			{ id: 'channel-few', name: '새 글 채널', kind: 'group', myRole: 'member', unreadCount: 6 }
+			{ id: 'channel-read', name: '읽은 채널', kind: 'group', myRole: 'member', unread: { status: 'exact', value: 0 } },
+			{ id: 'channel-few', name: '새 글 채널', kind: 'group', myRole: 'member', unread: { status: 'exact', value: 6 } }
 		],
 		[]
 	);
@@ -68,8 +68,8 @@ test.describe('on a touch phone', () => {
 			page,
 			reader,
 			[
-				{ id: 'channel-read', name: '읽은 채널', kind: 'group', myRole: 'member', unreadCount: 0 },
-				{ id: 'channel-few', name: '새 글 채널', kind: 'group', myRole: 'member', unreadCount: 25 }
+				{ id: 'channel-read', name: '읽은 채널', kind: 'group', myRole: 'member', unread: { status: 'exact', value: 0 } },
+				{ id: 'channel-few', name: '새 글 채널', kind: 'group', myRole: 'member', unread: { status: 'exact', value: 25 } }
 			],
 			[]
 		);

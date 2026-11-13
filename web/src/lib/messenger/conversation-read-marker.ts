@@ -1,20 +1,19 @@
-export type MarkConversationRead = (conversationID: string, readAt: string) => Promise<void>;
+export type ReadThrough = (conversationID: string, messageID: string, threadRootID?: string) => Promise<void>;
 
-export type ConversationReadMarker = (conversationID: string, readAt: string) => Promise<boolean>;
+export type ReadMarker = (conversationID: string, messageID: string, threadRootID?: string) => Promise<boolean>;
 
-export function createConversationReadMarker(mark: MarkConversationRead): ConversationReadMarker {
-	const markedThrough = new Map<string, number>();
-	return async (conversationID, readAt) => {
-		const readAtMilliseconds = Date.parse(readAt);
-		if (Number.isNaN(readAtMilliseconds)) return false;
-		const previous = markedThrough.get(conversationID);
-		if (previous !== undefined && previous >= readAtMilliseconds) return false;
-		markedThrough.set(conversationID, readAtMilliseconds);
+export function createReadMarker(mark: ReadThrough): ReadMarker {
+	const markedThrough = new Map<string, string>();
+	return async (conversationID, messageID, threadRootID) => {
+		const context = `${conversationID} ${threadRootID ?? ''}`;
+		const previous = markedThrough.get(context);
+		if (previous === messageID) return false;
+		markedThrough.set(context, messageID);
 		try {
-			await mark(conversationID, readAt);
+			await mark(conversationID, messageID, threadRootID);
 		} catch (failure) {
-			if (previous === undefined) markedThrough.delete(conversationID);
-			else markedThrough.set(conversationID, previous);
+			if (previous === undefined) markedThrough.delete(context);
+			else markedThrough.set(context, previous);
 			throw failure;
 		}
 		return true;
@@ -25,19 +24,21 @@ export type ReadableMessage = { id: string; sentAt: string; threadRootId?: strin
 
 const pendingMessagePrefix = 'pending-';
 
-export function latestSentAtOf(messages: ReadableMessage[]): string {
-	return latestSentAt(
-		messages.filter((message) => !message.threadRootId && !message.id.startsWith(pendingMessagePrefix))
-	);
+export function latestSettledOf(messages: ReadableMessage[]): ReadableMessage | undefined {
+	return latestOf(messages.filter((message) => !message.id.startsWith(pendingMessagePrefix)));
 }
 
 export function latestSentAt(messages: ReadableMessage[]): string {
-	let latest = '';
+	return latestOf(messages)?.sentAt ?? '';
+}
+
+function latestOf(messages: ReadableMessage[]): ReadableMessage | undefined {
+	let latest: ReadableMessage | undefined;
 	let latestMilliseconds = Number.NEGATIVE_INFINITY;
 	for (const message of messages) {
 		const sentAtMilliseconds = Date.parse(message.sentAt);
 		if (sentAtMilliseconds > latestMilliseconds) {
-			latest = message.sentAt;
+			latest = message;
 			latestMilliseconds = sentAtMilliseconds;
 		}
 	}

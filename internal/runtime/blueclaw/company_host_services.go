@@ -252,6 +252,7 @@ func companyHostMessengerService(layout CompanyHostLayout) CompanyHostService {
 				setting("REDIS_URL", layout.CacheURL()),
 				setting("BUZZ_AUTO_MIGRATE", "1"),
 				setting("BUZZ_REQUIRE_RELAY_MEMBERSHIP", "true"),
+				setting("BUZZ_V1_ENABLED", "true"),
 				setting("BUZZ_DB_POOL_SIZE", strconv.Itoa(MessengerDatabaseConnections)),
 			),
 		),

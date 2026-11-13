@@ -17,7 +17,7 @@ mock.module('../../../src/lib/host-bridge', () => ({
 	}
 }));
 
-const { deletePost, addReaction, removeReaction, markChannelRead, editPost } = await import('../../../src/lib/messenger/messenger-api');
+const { deletePost, addReaction, removeReaction, markReadThrough, editPost } = await import('../../../src/lib/messenger/messenger-api');
 const { reactionValueFor } = await import('../../../src/lib/components/channel/channel-reactions');
 
 describe('what the message-action capabilities are asked to carry', () => {
@@ -87,12 +87,12 @@ describe('which reaction a picked glyph joins', () => {
 });
 
 describe('what the read-state capability is asked to carry', () => {
-	test('markChannelRead asks person.read_state.mark with the conversation and the time it was read to', async () => {
+	test('markReadThrough asks person.read_state.mark with the conversation and the message it was read through', async () => {
 		asked.length = 0;
 
-		await markChannelRead('channel-1', '2026-09-28T01:05:00Z');
+		await markReadThrough('channel-1', 'message-9');
 
 		const call = asked.find((entry) => entry.capability === 'person.read_state.mark');
-		expect(call?.body).toEqual({ conversationID: 'channel-1', readAt: '2026-09-28T01:05:00Z' });
+		expect(call?.body).toEqual({ conversationID: 'channel-1', messageID: 'message-9', parentID: undefined });
 	});
 });

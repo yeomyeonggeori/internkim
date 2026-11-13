@@ -286,7 +286,7 @@ class TaskRunner:
 
     def read_inboxes(self, assertions, since):
         emails = sorted({assertion["inboxOf"]["email"] for assertion in assertions if "inboxOf" in assertion})
-        return {email: self.host.messenger.ask("inbox_since", email=email, since=since).get("bodies", []) for email in emails}
+        return {email: self.host.messenger.ask("received_since", email=email, since=since).get("bodies", []) for email in emails}
 
     def judge(self, case_directory, request):
         task = {field: request[field] for field in TASK_FIELDS if field in request}

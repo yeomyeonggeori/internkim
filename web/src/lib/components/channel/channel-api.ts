@@ -16,7 +16,7 @@ import { reactionsWithValues } from './channel-reactions';
 import { publishBuzzMessage } from '$lib/buzz-relay-client';
 import { imetaTag, uploadBlob } from '$lib/buzz-blossom';
 import { shortcodePattern } from '$lib/messenger/custom-emoji-names';
-import type { MessengerAnswer, MessengerAsk, OutgoingAttachment } from '$lib/messenger/messenger-api';
+import type { MessengerAnswer, MessengerAsk, MessengerReadCount, OutgoingAttachment } from '$lib/messenger/messenger-api';
 import type { AttachmentKind } from '$lib/messenger/attachment-kind';
 import { buzzIdentity } from '$lib/stores/buzz-identity.svelte';
 
@@ -130,7 +130,7 @@ export type ChannelSummary = {
 	description?: string;
 	platform?: string;
 	webURL?: string;
-	unreadCount?: number;
+	unread?: MessengerReadCount;
 };
 
 

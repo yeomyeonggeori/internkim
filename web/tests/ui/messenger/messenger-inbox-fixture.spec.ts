@@ -35,7 +35,7 @@ const messages = {
 const inbox = [
 	{ reason: 'thread_reply', isUnread: true, message: { id: 'reply-1', conversationID: 'channel-1', parentID: 'root-1', authorExternalID: 'pk-park', body: '로그인 화면 고쳤어요', postedAt } },
 	{ reason: 'mention', isUnread: true, message: { id: 'mention-1', conversationID: 'channel-1', authorExternalID: 'pk-choi', body: '@이샘플 확인 부탁드려요', postedAt: '2026-10-06T01:30:00.000Z' } },
-	{ reason: 'direct', isUnread: false, message: { id: 'direct-1', conversationID: 'dm-1', authorExternalID: 'pk-park', body: '감사합니다', postedAt: '2026-10-05T01:00:00.000Z' } }
+	{ reason: 'mention', isUnread: false, message: { id: 'direct-1', conversationID: 'dm-1', authorExternalID: 'pk-park', body: '감사합니다', postedAt: '2026-10-05T01:00:00.000Z' } }
 ];
 
 class MessengerInboxFixture extends WorkspaceLoadingFixture {
@@ -61,7 +61,7 @@ class LongInboxFixture extends MessengerInboxFixture {
 	host(capability: string, body: Record<string, unknown>): { status: number; body: unknown } {
 		if (capability !== 'person.inbox.list') return super.host(capability, body);
 		const olderEntries = Array.from({ length: 40 }, (_, index) => ({
-			reason: 'direct',
+			reason: 'mention',
 			isUnread: true,
 			message: { id: `older-${index}`, conversationID: 'dm-1', authorExternalID: 'pk-park', body: `지난 메시지 ${index}`, postedAt: new Date(Date.parse('2026-10-04T01:00:00.000Z') - index * 60_000).toISOString() }
 		}));
@@ -76,7 +76,7 @@ class PagedInboxFixture extends MessengerInboxFixture {
 		if (capability !== 'person.inbox.list') return super.host(capability, body);
 		if (!body.until) return { status: 200, body: { items: inbox, hasMoreBefore: true } };
 		this.pagesAsked.push(body.until);
-		const older = { reason: 'channel', isUnread: true, message: { id: 'channel-older-1', conversationID: 'channel-1', authorExternalID: 'pk-choi', body: '지난주 회의록이에요', postedAt: '2026-10-01T01:00:00.000Z' } };
+		const older = { reason: 'mention', isUnread: true, message: { id: 'channel-older-1', conversationID: 'channel-1', authorExternalID: 'pk-choi', body: '지난주 회의록이에요', postedAt: '2026-10-01T01:00:00.000Z' } };
 		return { status: 200, body: { items: [older], hasMoreBefore: false } };
 	}
 }
@@ -100,7 +100,7 @@ function inboxPanel(page: Page) {
 	return page.getByRole('complementary', { name: '수신함' });
 }
 
-test('the inbox opens first and gathers threads, mentions and direct messages newest first', async ({ page }) => {
+test('the inbox opens first and gathers unread threads and the messages that call on the reader, newest first', async ({ page }) => {
 	await openMessenger(page, 1280);
 
 	const panel = inboxPanel(page);
@@ -135,7 +135,7 @@ test('choosing a thread reply shows only that thread beside the inbox and marks 
 	await expect(thread.getByText('로그인 화면 고쳤어요')).toBeVisible();
 	await expect(page.getByText('@이샘플 확인 부탁드려요').filter({ visible: true })).toHaveCount(1);
 	await expect(inboxPanel(page)).toBeVisible();
-	await expect.poll(() => fixture.marks).toContainEqual({ conversationID: 'channel-1', parentID: 'root-1', readAt: postedAt });
+	await expect.poll(() => fixture.marks).toContainEqual({ conversationID: 'channel-1', parentID: 'root-1', messageID: 'reply-1' });
 	const inboxButton = page.getByRole('button', { name: '수신함', exact: true });
 	await expect(page.getByRole('listitem').filter({ has: inboxButton })).toContainText('1');
 });
@@ -346,6 +346,16 @@ test('on a phone the conversation behind the inbox is not marked read', async ({
 
 	await inboxPanel(page).locator('[data-inbox-entry="mention-1"]').click();
 	await expect.poll(() => fixture.marks.map((mark) => mark.conversationID)).toContain('channel-1');
+});
+
+test('a thread opened in its channel is read through its latest reply, apart from the channel', async ({ page }) => {
+	const fixture = await openMessenger(page, 1280, new MessengerInboxFixture(), '/messenger?channel=channel-1');
+	await expect.poll(() => fixture.marks).toContainEqual({ conversationID: 'channel-1', messageID: 'mention-1' });
+
+	await page.getByRole('button', { name: /1개 답글/ }).click();
+
+	await expect(page.getByRole('dialog', { name: '글타래' }).getByText('로그인 화면 고쳤어요')).toBeVisible();
+	await expect.poll(() => fixture.marks).toContainEqual({ conversationID: 'channel-1', parentID: 'root-1', messageID: 'reply-1' });
 });
 
 test('a long inbox stays inside its panel instead of lengthening the page', async ({ page }) => {

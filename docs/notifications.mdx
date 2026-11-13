@@ -6,10 +6,13 @@ icon: Bell
 
 A member turns notifications on for one device, and the plane pushes to it.
 There is no notification inbox. The thing a notification is about stays where
-it always was, so a missed push costs only the interruption. The messenger's
-conversation list counts what each conversation has unread since the member
-last read to its end; that read position is kept on Buzz with the member's own
-key, so their other devices and the Buzz apps agree on it.
+it always was, so a missed push costs only the interruption. The Buzz relay
+keeps how far each member has read every conversation and thread, and counts
+what is unread from there, so their other devices agree on it. The
+conversation list shows that count; when the relay can only say "at least", the
+badge carries a plus, and when it cannot say, there is no badge. The
+messenger's inbox holds the messages that call on the member and the latest
+reply of each thread with replies they have not read.
 
 ## What sends what [#categories]
 

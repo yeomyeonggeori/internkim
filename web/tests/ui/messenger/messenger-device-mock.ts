@@ -8,7 +8,7 @@ export type MockConversation = {
 	name: string;
 	kind: 'dm' | 'group';
 	myRole?: string;
-	unreadCount?: number;
+	unread?: { status: 'exact' | 'at_least'; value: number } | { status: 'unknown' };
 	isWithTheAgent?: boolean;
 	members?: { externalID: string; name: string; role: string }[];
 	counterpart?: { memberID?: string; externalID?: string };

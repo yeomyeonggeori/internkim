@@ -1,7 +1,7 @@
 import { bridgeInbox, type InboxEntry } from '$lib/messenger/channel-over-bridge';
 import { messengerCacheScope, requireCurrentMessengerScope } from '$lib/messenger/cache-scope';
-import { INBOX_PAGE_SIZE, appendOlderInbox, keepCachedInbox, mergeInbox } from '$lib/messenger/inbox-cache';
-import { markThreadRead, type MessengerInboxWindow } from '$lib/messenger/messenger-api';
+import { appendOlderInbox, keepCachedInbox } from '$lib/messenger/inbox-cache';
+import { markReadThrough, type MessengerReadCount } from '$lib/messenger/messenger-api';
 
 export type InboxFilter = 'all' | 'unread';
 
@@ -14,7 +14,7 @@ export class MessengerInboxState {
 	hasMoreBefore = $state(true);
 	isLoadingOlder = $state(false);
 
-	readonly unreadCount = $derived(this.entries.filter((entry) => entry.isUnread).length);
+	readonly unread: MessengerReadCount = $derived({ status: 'exact', value: this.entries.filter((entry) => entry.isUnread).length });
 	readonly shown = $derived(this.filter === 'unread' ? this.entries.filter((entry) => entry.isUnread) : this.entries);
 
 	private readSequence = 0;
@@ -32,16 +32,11 @@ export class MessengerInboxState {
 		this.error = '';
 		try {
 			const scope = await messengerCacheScope();
-			const window = this.windowSinceNewest();
-			const answer = await bridgeInbox(window);
+			const answer = await bridgeInbox();
 			await requireCurrentMessengerScope(scope);
 			if (sequence !== this.readSequence) return;
-			if (!window || answer.hasMoreBefore) {
-				this.entries = answer.entries;
-				this.hasMoreBefore = answer.hasMoreBefore;
-			} else {
-				this.entries = mergeInbox(this.entries, answer, window.heldIDs);
-			}
+			this.entries = answer.entries;
+			this.hasMoreBefore = answer.hasMoreBefore;
 			this.hasLoaded = true;
 			keepCachedInbox(scope, this.entries);
 		} catch (failure) {
@@ -53,12 +48,12 @@ export class MessengerInboxState {
 	}
 
 	async loadOlder(): Promise<void> {
-		const oldest = this.entries.at(-1);
-		if (this.isLoadingOlder || !this.hasMoreBefore || !oldest) return;
+		const oldestMention = this.entries.findLast((entry) => entry.reason === 'mention');
+		if (this.isLoadingOlder || !this.hasMoreBefore || !oldestMention) return;
 		this.isLoadingOlder = true;
 		try {
-			const answer = await bridgeInbox({ until: oldest.sentAt });
-			if (this.entries.at(-1)?.id !== oldest.id) return;
+			const answer = await bridgeInbox(oldestMention.sentAt);
+			if (this.entries.findLast((entry) => entry.reason === 'mention')?.id !== oldestMention.id) return;
 			this.entries = appendOlderInbox(this.entries, answer.entries);
 			this.hasMoreBefore = answer.hasMoreBefore;
 		} catch (failure) {
@@ -71,8 +66,7 @@ export class MessengerInboxState {
 	async markRead(chosen: InboxEntry): Promise<void> {
 		if (!chosen.isUnread) return;
 		this.entries = this.entries.map((entry) => (entry.id === chosen.id ? { ...entry, isUnread: false } : entry));
-		if (!chosen.threadRootId) return;
-		await markThreadRead(chosen.conversationID, chosen.threadRootId, chosen.sentAt);
+		await markReadThrough(chosen.conversationID, chosen.id, chosen.threadRootId);
 	}
 
 	async refresh(): Promise<void> {
@@ -97,9 +91,4 @@ export class MessengerInboxState {
 		this.error = '';
 	}
 
-	private windowSinceNewest(): MessengerInboxWindow | undefined {
-		const newest = this.entries[0];
-		if (!this.hasLoaded || !newest) return undefined;
-		return { since: newest.sentAt, heldIDs: this.entries.slice(0, INBOX_PAGE_SIZE).map((entry) => entry.id) };
-	}
 }

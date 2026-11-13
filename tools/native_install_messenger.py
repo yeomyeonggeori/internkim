@@ -11,6 +11,7 @@ Each action prints one JSON document.
 """
 
 import hashlib
+from datetime import datetime
 import json
 import re
 import subprocess
@@ -264,10 +265,24 @@ def act_read_inbox(arguments):
     return {"isDelivered": holds_text(messages, arguments["marker"]), "conversationID": conversation["id"]}
 
 
-def act_inbox_since(arguments):
+def moment_of(text):
+    return datetime.fromisoformat(text.replace("Z", "+00:00"))
+
+
+def act_received_since(arguments):
     recipient = actor_of(secret_of(arguments["email"]))
-    inbox = ask_chatd("person.inbox.list", {"actor": recipient, "since": arguments["since"]})
-    return {"bodies": [item["message"]["body"] for item in inbox.get("items", []) if item.get("message", {}).get("body")]}
+    own = ask_chatd("person.identity", {"actor": recipient})["externalID"]
+    conversations = ask_chatd("person.conversations.list", {"actor": recipient}).get("conversations", [])
+    since = moment_of(arguments["since"])
+    bodies = []
+    for conversation in conversations:
+        page = ask_chatd("person.messages.list", {"actor": recipient, "conversationID": conversation["id"]})
+        bodies += [
+            message["body"]
+            for message in page.get("messages", [])
+            if message.get("body") and message.get("authorExternalID") != own and moment_of(message["postedAt"]) >= since
+        ]
+    return {"bodies": bodies}
 
 
 def act_open_mention(arguments):
@@ -301,7 +316,7 @@ ACTIONS = {
     "find_file": act_find_file,
     "invoke_direct_message": act_invoke_direct_message,
     "read_inbox": act_read_inbox,
-    "inbox_since": act_inbox_since,
+    "received_since": act_received_since,
     "open_mention": act_open_mention,
 }
 
