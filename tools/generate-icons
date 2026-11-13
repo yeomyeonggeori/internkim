@@ -8,11 +8,14 @@ draws a tab at: the sprout, the head and the glasses, with the eyes and mouth
 dropped so the glasses still read at 16 pixels. Both sites take their tab
 favicon from it, so intern.kim and docs.intern.kim show one mark.
 
-assets/internkim.icon.png is the finished app icon, drawn in Icon Composer,
-and waits for a desktop wrapper. assets/internkim.square.png is the face drawn
-full bleed, and takes the slots a platform masks for itself: the bot avatar,
-and the installed-app tiles in web/static, which are supplied artwork this
-script does not write.
+assets/internkim.icon.png is the finished app icon, drawn in Icon Composer
+with its own rounded shape and margin, and becomes the Mac app's
+web/src-tauri/icons/icon.icns: macOS draws an icns as it is given.
+`cargo tauri icon` cuts that file from the square master too, so this script
+runs after it. assets/internkim.square.png is the face drawn full bleed, and
+takes the slots a platform masks for itself: the bot avatar, and the
+installed-app tiles in web/static, which are supplied artwork this script does
+not write.
 
 web/static/favicon.svg is the round mark as a vector, and a browser that reads
 SVG icons uses it instead of these rasters. It is drawn by hand, so a new
@@ -32,6 +35,9 @@ except ImportError as error:
 REPOSITORY_ROOT = pathlib.Path(__file__).resolve().parent.parent
 ROUND_MASTER = REPOSITORY_ROOT / "assets" / "internkim.favicon.png"
 SQUARE_MASTER = REPOSITORY_ROOT / "assets" / "internkim.square.png"
+MAC_APP_ICON_MASTER = REPOSITORY_ROOT / "assets" / "internkim.icon.png"
+MAC_APP_ICON = "web/src-tauri/icons/icon.icns"
+MAC_APP_ICON_SIDES = [16, 32, 64, 128, 256, 512, 1024]
 DOCS_FAVICON_SIZES = [(48, 48), (32, 32), (16, 16)]
 WEB_FAVICON_SIDES = {"web/static/favicon.png": 32, "web/static/favicon-192.png": 192, "web/static/favicon-512.png": 512}
 
@@ -53,6 +59,13 @@ def write_web_favicons(round_mark: Image.Image) -> None:
         save(round_mark, relative_path, side, "RGBA")
 
 
+def write_mac_app_icon() -> None:
+    finished_icon = Image.open(MAC_APP_ICON_MASTER).convert("RGBA")
+    sizes = [(side, side) for side in MAC_APP_ICON_SIDES]
+    finished_icon.save(REPOSITORY_ROOT / MAC_APP_ICON, format="ICNS", sizes=sizes)
+    print(MAC_APP_ICON, MAC_APP_ICON_SIDES)
+
+
 def main() -> None:
     round_mark = Image.open(ROUND_MASTER).convert("RGBA")
     write_docs_favicon(round_mark)
@@ -61,6 +74,7 @@ def main() -> None:
     square = Image.open(SQUARE_MASTER).convert("RGB")
     save(square, "assets/internkim.png", 512, "RGB")
     save(square, "web/static/agent-avatar.png", 256, "RGB")
+    write_mac_app_icon()
 
 
 if __name__ == "__main__":
