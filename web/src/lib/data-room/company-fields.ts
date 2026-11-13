@@ -8,8 +8,9 @@ export type CompanyFieldRow = {
 	group: CompanyFieldGroup;
 	categoryCode: string;
 	names: Record<string, string> | null;
+	isPublic: boolean;
 };
-type PlacedField = { kind: CompanyFieldKind; field: string; categoryCode: string | null; names: Record<string, string> | null };
+type PlacedField = { kind: CompanyFieldKind; field: string; categoryCode: string | null; names: Record<string, string> | null; isPublic: boolean };
 type CategoryParent = { code: string; parent: string | null };
 type ReadingCircle = { id: string; readableCategories: string[] };
 
@@ -20,7 +21,7 @@ export function companyFieldIdentity(row: { kind: CompanyFieldKind; field: strin
 }
 
 function rowOf(kind: CompanyFieldKind, field: string, group: CompanyFieldGroup, placed: PlacedField | undefined): CompanyFieldRow {
-	return { kind, field, group, categoryCode: placed?.categoryCode ?? unlistedCategory, names: placed?.names ?? null };
+	return { kind, field, group, categoryCode: placed?.categoryCode ?? unlistedCategory, names: placed?.names ?? null, isPublic: placed?.isPublic ?? false };
 }
 
 function presentFields(company: DataRoomCompany): [CompanyFieldKind, string[]][] {
@@ -37,7 +38,7 @@ export function companyFieldRows(placed: PlacedField[], company: DataRoomCompany
 	const presentIdentities = new Set(present.map(companyFieldIdentity));
 	const presentRows = present.map(({ kind, field }) => rowOf(kind, field, kind, placedOf.get(companyFieldIdentity({ kind, field }))));
 	const emptyRows = placed
-		.filter((entry) => entry.categoryCode !== null && !presentIdentities.has(companyFieldIdentity(entry)))
+		.filter((entry) => (entry.categoryCode !== null || entry.isPublic) && !presentIdentities.has(companyFieldIdentity(entry)))
 		.map((entry) => rowOf(entry.kind, entry.field, 'empty', entry));
 	return [...presentRows, ...emptyRows];
 }

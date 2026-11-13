@@ -34,7 +34,8 @@
 		onDownload,
 		isDownloading = false,
 		onRefresh,
-		fillsViewport = true
+		fillsViewport = true,
+		isPublished = false
 	}: {
 		room: SharedRoom;
 		canDownload?: boolean;
@@ -43,6 +44,7 @@
 		onDownload: (documentID: string, fileName: string) => void;
 		isDownloading?: boolean;
 		fillsViewport?: boolean;
+		isPublished?: boolean;
 		onRefresh: () => void;
 	} = $props();
 
@@ -182,7 +184,7 @@
 					onSelect={openEntry}
 				/>
 			</AnimatedHeight>
-			<p class="text-muted-foreground text-xs">{text.confidential}</p>
+			<p class="text-muted-foreground text-xs">{isPublished ? text.publishedNotice : text.confidential}</p>
 		</div>
 		{#if hasCompany}
 			<section class="grid gap-4" aria-labelledby="guest-room-company">
@@ -190,7 +192,7 @@
 					<h2 id="guest-room-company" class="text-xl font-semibold">{companyText.company}</h2>
 					<CurrencySwitcher label={companyText.currency.label} asRecorded={companyText.currency.asRecorded} />
 				</div>
-				<CompanyOverview company={room.company} sharedWith={room.viewer} />
+				<CompanyOverview company={room.company} sharedWith={room.viewer} {isPublished} />
 			</section>
 		{/if}
 	</div>

@@ -32,8 +32,7 @@ const { GET: readDataRoom } = await import('../../src/routes/api/v1/data-room/[c
 const { GET: readDataRoomLink, POST: unlockDataRoomLink } = await import('../../src/routes/api/v1/data-room/links/[linkID]/+server');
 const { GET: previewDataRoomCircle } = await import('../../src/routes/api/v1/data-room/preview/[circleID]/+server');
 const { GET: readDataRoomCompany } = await import('../../src/routes/api/v1/data-room/company/+server');
-const { POST: acceptDataRoom } = await import('../../src/routes/api/v1/data-room/invitations/[shareID]/+server');
-const { POST: sendDataRoomInvitation } = await import('../../src/routes/api/v1/data-room/invitations/[shareID]/send/+server');
+const { GET: findPublicDataRoom } = await import('../../src/routes/api/v1/data-room/public/[slug]/+server');
 const { POST: acceptTaskInvitation } = await import('../../src/routes/api/v1/tasks/invitations/[invitationID]/+server');
 const { GET: readSharedTasks } = await import('../../src/routes/api/v1/tasks/shared/[companyID]/+server');
 
@@ -49,7 +48,6 @@ let departedToken = '';
 let sessionToken = '';
 let administratorsToken = '';
 let administratorSession = '';
-let dataRoomInvitationID = '';
 let dataRoomLinkID = '';
 let dataRoomLinkCookie = '';
 
@@ -89,11 +87,6 @@ beforeAll(async () => {
 	sessionToken = (await sessionForMember({ projectURL, serviceRoleKey, signingKey }, memberID)).accessToken;
 	administratorSession = (await sessionForMember({ projectURL, serviceRoleKey, signingKey }, provisioned.adminMemberID)).accessToken;
 	const administratorCaller = asMember({ projectURL, publishableKey }, administratorSession);
-	const invitation = await administratorCaller.rpc('data_room_share_create', {
-		target_company: companyID, circle_id: 'investor', audience: 'email', recipient_email: `${slug}-holder@example.test`
-	});
-	if (invitation.error) throw new Error(invitation.error.message);
-	dataRoomInvitationID = z.string().uuid().parse(invitation.data);
 	const link = await administratorCaller.rpc('data_room_link_create', {
 		target_company: companyID, circle_id: 'investor', label: 'Sample investor review', access_code: '123456'
 	});
@@ -1091,16 +1084,10 @@ function reachDocumented(operation: Operation, revocableName: string): Promise<R
 	}
 	if (operation.path === '/data-room/preview/{circleID}') return previewAs(administratorSession, 'investor');
 	if (operation.path === '/data-room/company') return companyAs(sessionToken);
-	if (operation.path === '/data-room/invitations/{shareID}') {
-		const shareID = crypto.randomUUID();
-		const request = asking(`/data-room/invitations/${shareID}`, sessionToken, { method: 'POST' });
-		return answerOf(() => Promise.resolve(acceptDataRoom({ request,
-			params: { shareID }, platform: undefined } as Parameters<typeof acceptDataRoom>[0])));
-	}
-	if (operation.path === '/data-room/invitations/{shareID}/send') {
-		const request = asking(`/data-room/invitations/${dataRoomInvitationID}/send`, administratorSession, { method: 'POST' });
-		return answerOf(() => Promise.resolve(sendDataRoomInvitation({ request, url: new URL(request.url),
-			params: { shareID: dataRoomInvitationID }, platform: undefined } as Parameters<typeof sendDataRoomInvitation>[0])));
+	if (operation.path === '/data-room/public/{slug}') {
+		const request = asking(`/data-room/public/${slug}`, null);
+		return answerOf(() => Promise.resolve(findPublicDataRoom({ request, url: new URL(request.url),
+			params: { slug }, platform: undefined } as Parameters<typeof findPublicDataRoom>[0])));
 	}
 	if (operation.path === '/tasks/invitations/{invitationID}') return acceptTaskInvitationAs(sessionToken, crypto.randomUUID());
 	if (operation.path === '/tasks/shared/{companyID}') return sharedTasksAs(sessionToken);
@@ -1178,8 +1165,7 @@ describe('the documented endpoints', () => {
 			'get /agent/replies',
 			'get /diagnostics/{view}',
 			'get /data-room/{companyID}',
-			'post /data-room/invitations/{shareID}',
-			'post /data-room/invitations/{shareID}/send',
+			'get /data-room/public/{slug}',
 			'get /data-room/links/{linkID}',
 			'post /data-room/links/{linkID}',
 			'post /tasks/invitations/{invitationID}',
@@ -1408,27 +1394,6 @@ describe('the company a data room shows', () => {
 	});
 });
 
-describe('a data room invitation through the tools', () => {
-	const guestEmail = `${slug}-guest@example.test`;
-
-	afterAll(async () => {
-		const { data } = await client.auth.admin.listUsers();
-		const guest = data.users.find((user) => user.email === guestEmail);
-		if (guest) await client.auth.admin.deleteUser(guest.id);
-	}, networkHookTimeout);
-
-	test('is emailed through the same invocation every other tool answers on', async () => {
-		const shared = await invoke('dataroom_share_add', administratorsToken,
-			{ circleID: 'investor', audience: 'email', email: guestEmail });
-		const shareID = z.string().uuid().parse(resultOf(shared).shareID);
-
-		const answered = await invoke('dataroom_invitation_send', administratorsToken, { shareID });
-
-		expect(answered.status).toBe(200);
-		expect(resultOf(answered)).toEqual({ shareID, sent: true });
-	});
-});
-
 describe('a task invitation', () => {
 	const guestEmail = `${slug}-task-guest@example.test`;
 	const guestPassword = `guest-${crypto.randomUUID()}`;
@@ -1483,5 +1448,32 @@ describe('a task invitation', () => {
 		const deleted = await invoke('task_invitation_delete', administratorsToken, { invitationID });
 		expect(resultOf(deleted)).toEqual({ invitationID });
 		expect((await sharedTasksAs(guestSession)).status).toBe(403);
+	}, networkHookTimeout);
+});
+
+describe('the public data room page', () => {
+	afterAll(async () => {
+		await client.from('company_field').update({ is_public: false }).eq('company_id', companyID).eq('kind', 'profile').eq('field', 'slogan');
+	}, networkHookTimeout);
+
+	test('is found by the company address and shows only what an administrator published', async () => {
+		const found = await reachDocumented({ path: '/data-room/public/{slug}', method: 'get' }, '');
+		expect(found).toEqual({ status: 200, body: { companyID } });
+
+		const ambiguous = await invoke('dataroom_publication_update', administratorsToken, { isPublic: true });
+		expect(ambiguous.status).toBe(400);
+		const refused = await invoke('dataroom_publication_update', holdersToken, { kind: 'profile', field: 'slogan', isPublic: true });
+		expect(refused.status).toBe(403);
+		const published = await invoke('dataroom_publication_update', administratorsToken, { kind: 'profile', field: 'slogan', isPublic: true });
+		expect(resultOf(published)).toEqual({ kind: 'profile', field: 'slogan', isPublic: true });
+		const fields = z.array(z.object({ field: z.string(), isPublic: z.boolean() }))
+			.parse(resultOf(await invoke('dataroom_get', administratorsToken, {})).fields);
+		expect(fields.filter((field) => field.isPublic).map((field) => field.field).toSorted()).toEqual(['name', 'slogan']);
+
+		const request = asking(`/data-room/${companyID}`, null);
+		const anonymous = await answerOf(() => Promise.resolve(readDataRoom({ request, url: new URL(request.url),
+			params: { companyID }, platform: undefined } as Parameters<typeof readDataRoom>[0])));
+		expect(anonymous.status).toBe(200);
+		expect((anonymous.body as { documents: unknown[] }).documents).toEqual([]);
 	}, networkHookTimeout);
 });

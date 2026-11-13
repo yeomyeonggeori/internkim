@@ -1253,5 +1253,40 @@
 		"path": "message_update.result.isPinned",
 		"reason": "message_update never answered with it: nothing pins a message, so there was no state to report.",
 		"release": "the message tools release carries the updated catalog to company hosts with the web/API deployment; a host on the older catalog that asks with the field is refused at the schema instead of at the messenger"
+	},
+	{
+		"path": "dataroom_share_add",
+		"reason": "The data room no longer lends a circle to an email or a public audience. People outside the company reach it by a code link or the company's public page, where an administrator publishes single documents and fields with dataroom_publication_update; an agent asked to share by email makes a code link instead.",
+		"release": "the data room public page release carries this catalog to company hosts before the web/API deployment that drops data_room_share"
+	},
+	{
+		"path": "dataroom_share_delete",
+		"reason": "The data room no longer lends a circle to an email or a public audience. People outside the company reach it by a code link or the company's public page, where an administrator publishes single documents and fields with dataroom_publication_update; an agent asked to share by email makes a code link instead.",
+		"release": "the data room public page release carries this catalog to company hosts before the web/API deployment that drops data_room_share"
+	},
+	{
+		"path": "dataroom_invitation_send",
+		"reason": "The data room no longer lends a circle to an email or a public audience. People outside the company reach it by a code link or the company's public page, where an administrator publishes single documents and fields with dataroom_publication_update; an agent asked to share by email makes a code link instead.",
+		"release": "the data room public page release carries this catalog to company hosts before the web/API deployment that drops data_room_share"
+	},
+	{
+		"path": "dataroom_invitation_accept",
+		"reason": "The data room no longer lends a circle to an email or a public audience. People outside the company reach it by a code link or the company's public page, where an administrator publishes single documents and fields with dataroom_publication_update; an agent asked to share by email makes a code link instead.",
+		"release": "the data room public page release carries this catalog to company hosts before the web/API deployment that drops data_room_share"
+	},
+	{
+		"path": "dataroom_get.result.shares",
+		"reason": "The shares it listed were email and public loans of a circle, which no longer exist.",
+		"release": "the data room public page release carries this catalog to company hosts before the web/API deployment that drops data_room_share"
+	},
+	{
+		"path": "dataroom_get.result.fields[].isPublic",
+		"reason": "dataroom_get says what the public page shows, so an administrator reads it before changing it with dataroom_publication_update.",
+		"release": "the data room public page release carries this catalog to company hosts before the web/API deployment that drops data_room_share"
+	},
+	{
+		"path": "dataroom_get.result.publicDocumentIDs",
+		"reason": "dataroom_get says what the public page shows, so an administrator reads it before changing it with dataroom_publication_update.",
+		"release": "the data room public page release carries this catalog to company hosts before the web/API deployment that drops data_room_share"
 	}
 ]

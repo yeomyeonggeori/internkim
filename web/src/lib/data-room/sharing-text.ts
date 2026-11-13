@@ -1,6 +1,11 @@
 export const dataRoomSharingText = {
 	ko: {
-		title: '데이터룸 링크 공유',
+		publicPage: '공개 페이지',
+		publicPageDescription: '누구나 로그인 없이 봅니다. 회사 이름과 로고, 공개로 올린 회사 정보·문서만 보입니다.',
+		publicSummary: '회사 정보 {fields}개 · 문서 {documents}개 공개 중',
+		openPublicPage: '열기',
+		peopleTitle: '코드로 여는 링크',
+		title: '데이터룸 공유',
 		description: '고른 서클이 읽는 자료를 링크로 공유합니다. 본인에게 허용된 범위에서만 만들 수 있습니다.',
 		label: '공유 이름',
 		circle: '서클',
@@ -37,7 +42,12 @@ export const dataRoomSharingText = {
 			'파기하면 이미 열린 화면에서도 추가 열람이 차단됩니다. 내려받은 파일은 회수할 수 없으며, 발급된 다운로드 주소는 최대 1분 뒤 만료됩니다.'
 	},
 	en: {
-		title: 'Share dataroom link',
+		publicPage: 'Public page',
+		publicPageDescription: 'Anyone can open it without signing in. It shows the company name and logo, and only the fields and documents put on it.',
+		publicSummary: '{fields} company fields · {documents} documents public',
+		openPublicPage: 'Open',
+		peopleTitle: 'Links opened with a code',
+		title: 'Share the dataroom',
 		description: 'Share what one circle reads, within your own permissions.',
 		label: 'Share name',
 		circle: 'Circle',

@@ -40,11 +40,14 @@ export function documentFileName(document: DataRoomDocument): string {
 	return document.filePath?.split('/').pop() || document.title;
 }
 
+export type Publication = { documentIDs: string[]; tag: string };
+
 export function dataRoomFolderEntries(
 	documents: DataRoomDocument[],
 	categories: DataRoomCategory[],
 	code: string,
-	locale: Locale
+	locale: Locale,
+	publication: Publication
 ): FileBrowserEntry[] {
 	const folders = categories.filter((category) => category.parent === (code || null));
 	const folderEntries = folders.map((category) => ({
@@ -61,6 +64,7 @@ export function dataRoomFolderEntries(
 			id: document.documentID,
 			name: document.title,
 			fileName: documentFileName(document),
+			...(publication.documentIDs.includes(document.documentID) ? { tag: publication.tag } : {}),
 			cells: [
 				document.sizeBytes === null ? '' : formatFileSize(document.sizeBytes),
 				formatModified(document.createdAt, locale),

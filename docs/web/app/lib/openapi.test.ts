@@ -102,7 +102,7 @@ describe('the document is usable as OpenAPI', () => {
 		}
 	});
 
-	test('member authentication is the default and only code-based guest entry is exempt', () => {
+	test('member authentication is the default, and only code entry and the public page lookup are exempt', () => {
 		expect(english.security).toEqual([{ memberToken: [] }]);
 
 		const exempt: string[] = [];
@@ -112,7 +112,7 @@ describe('the document is usable as OpenAPI', () => {
 			}
 		}
 
-		expect(exempt).toEqual(['post /data-room/links/{linkID}']);
+		expect(exempt).toEqual(['post /data-room/links/{linkID}', 'get /data-room/public/{slug}']);
 		expect(english.paths['/data-room/links/{linkID}']).toMatchObject({ get: { security: [{ dataRoomSession: [] }] } });
 	});
 

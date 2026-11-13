@@ -12,38 +12,48 @@ const document = companyDocumentResultSchema.parse({
 	storagePath: 'company/dataroom/F/FS/statement.63000000-0000-0000-0000-000000000020.pdf', sizeBytes: 1536
 });
 
+const nothingPublic = { documentIDs: [], tag: 'Public' };
+
 describe('data room folder browser', () => {
 	test('the root lists parent folders without flattening the archive', () => {
-		const entries = dataRoomFolderEntries([document], dataRoomTemplate.categories, '', 'en');
+		const entries = dataRoomFolderEntries([document], dataRoomTemplate.categories, '', 'en', nothingPublic);
 		expect(entries.every((entry) => entry.isDirectory)).toBe(true);
 		expect(entries.map((entry) => entry.id)).toContain('F');
 		expect(entries.map((entry) => entry.id)).not.toContain('FS');
 	});
 	test('a parent lists its intermediate folders', () => {
-		const entries = dataRoomFolderEntries([document], dataRoomTemplate.categories, 'F', 'en');
+		const entries = dataRoomFolderEntries([document], dataRoomTemplate.categories, 'F', 'en', nothingPublic);
 		expect(entries.map((entry) => entry.id)).toContain('FS');
 		expect(entries.every((entry) => entry.isDirectory)).toBe(true);
 	});
 	test('a document row shows its size and when it was created and changed, and a folder shows none', () => {
-		const leaf = dataRoomFolderEntries([document], dataRoomTemplate.categories, 'FS', 'en');
+		const leaf = dataRoomFolderEntries([document], dataRoomTemplate.categories, 'FS', 'en', nothingPublic);
 		expect(leaf[0].cells[0]).toBe('1.5 KB');
 		expect(leaf[0].cells).toHaveLength(3);
-		const folders = dataRoomFolderEntries([document], dataRoomTemplate.categories, 'F', 'en');
+		const folders = dataRoomFolderEntries([document], dataRoomTemplate.categories, 'F', 'en', nothingPublic);
 		expect(folders.every((entry) => entry.cells.length === 0)).toBe(true);
 	});
 	test('a folder counts the documents filed anywhere under it', () => {
-		const rootEntries = dataRoomFolderEntries([document], dataRoomTemplate.categories, '', 'en');
+		const rootEntries = dataRoomFolderEntries([document], dataRoomTemplate.categories, '', 'en', nothingPublic);
 		expect(rootEntries.find((entry) => entry.id === 'F')?.entryCount).toBe(1);
 		expect(rootEntries.find((entry) => entry.id === 'C')?.entryCount).toBe(0);
-		const financeEntries = dataRoomFolderEntries([document], dataRoomTemplate.categories, 'F', 'en');
+		const financeEntries = dataRoomFolderEntries([document], dataRoomTemplate.categories, 'F', 'en', nothingPublic);
 		expect(financeEntries.find((entry) => entry.id === 'FS')?.entryCount).toBe(1);
 		expect(financeEntries.find((entry) => entry.id === 'FT')?.entryCount).toBe(0);
 	});
 
 	test('a filed document is listed by its title, and keeps the extension its original has', () => {
-		const [entry] = dataRoomFolderEntries([document], dataRoomTemplate.categories, 'FS', 'en');
+		const [entry] = dataRoomFolderEntries([document], dataRoomTemplate.categories, 'FS', 'en', nothingPublic);
 		expect(entry.name).toBe('Sample statement');
 		expect(entry.fileName).toBe('Sample statement.pdf');
 		expect(entry.isDirectory).toBeUndefined();
+	});
+
+	test('a document on the public page is tagged, and one that is not carries no tag', () => {
+		const [published] = dataRoomFolderEntries([document], dataRoomTemplate.categories, 'FS', 'en',
+			{ documentIDs: [document.documentID], tag: 'Public' });
+		expect(published.tag).toBe('Public');
+		const [unpublished] = dataRoomFolderEntries([document], dataRoomTemplate.categories, 'FS', 'en', nothingPublic);
+		expect(unpublished.tag).toBeUndefined();
 	});
 });

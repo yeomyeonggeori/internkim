@@ -33,6 +33,11 @@ describe('the company a data room shows', () => {
 		expect(isEmptyCompany(company)).toBe(true);
 	});
 
+	test('counts a company that shows only its name, which the header already carries, as empty', () => {
+		const company = dataRoomCompanySchema.parse({ profile: { name: { en: 'Sample' } }, metrics: [], records: [] });
+		expect(isEmptyCompany(company)).toBe(true);
+	});
+
 	test('speaks the reader language and falls back to whichever one was written', () => {
 		expect(localized({ ko: '샘플', en: 'Sample' }, 'ko')).toBe('샘플');
 		expect(localized({ ko: '샘플' }, 'en')).toBe('샘플');

@@ -34,7 +34,7 @@
     "auth.oauth.revokeGrant": 1
    },
    "src/lib/data-room/guest.ts": {
-    "auth.getSession": 2
+    "auth.getSession": 1
    },
    "src/lib/host-bridge.ts": {
     "auth.getSession": 2,
@@ -95,11 +95,6 @@
     "auth.getSession": 1
    },
    "src/routes/settings/setup/host-setup-client.ts": {
-    "auth.getSession": 1
-   },
-   "src/routes/share/invitations/[shareID]/+page.svelte": {
-    "auth.signInWithOtp": 1,
-    "auth.verifyOtp": 1,
     "auth.getSession": 1
    },
    "src/routes/share/tasks/[companyID]/+page.svelte": {

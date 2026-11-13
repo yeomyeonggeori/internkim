@@ -30,6 +30,7 @@
 	import { formatFileSize, formatModified } from '$lib/files/view';
 	import ShareLinks from './share-links.svelte';
 	import SharePreview from './share-preview.svelte';
+	import DocumentPublication from './document-publication.svelte';
 
 	const text = createPageText(dataRoomText);
 	let room = $state<z.infer<typeof dataRoomGetResultSchema> | null>(null);
@@ -51,7 +52,10 @@
 		categories.find((category) => category.code === selectedCategory?.parent)
 	);
 	const entries = $derived(
-		dataRoomFolderEntries(documents, categories, selectedCode, currentLocale.value)
+		dataRoomFolderEntries(documents, categories, selectedCode, currentLocale.value, {
+			documentIDs: room?.publicDocumentIDs ?? [],
+			tag: text.publicTag
+		})
 	);
 	const viewerDocuments = $derived(
 		documents.filter((document) => document.categoryCode === selectedCode).map(viewerDocumentOf)
@@ -137,6 +141,12 @@
 		}
 	}
 
+	function rememberPublication(documentID: string, isPublic: boolean) {
+		if (!room) return;
+		const others = room.publicDocumentIDs.filter((published) => published !== documentID);
+		room = { ...room, publicDocumentIDs: isPublic ? [...others, documentID] : others };
+	}
+
 	function openCategory(code: string) {
 		selectedCode = code;
 		openID = null;
@@ -160,7 +170,11 @@
 				{#if selectedCode}<FolderBreadcrumb crumbs={breadcrumbs} onOpen={openCategory} />{:else}<h2 class="text-xl font-semibold">{companyText.documents}</h2>{/if}
 				<div class="flex items-center gap-2">
 					<RefreshButton label={text.refresh} variant="ghost" size="icon-sm" refresh={load} />
-					{#if room}<SharePreview /><ShareLinks {categories} />{/if}
+					{#if room}<SharePreview /><ShareLinks
+							{categories}
+							publicFieldCount={room.fields.filter((field) => field.isPublic).length}
+							publicDocumentCount={room.publicDocumentIDs.length}
+						/>{/if}
 				</div>
 			</div>
 			{#if errorMessage}<div role="alert" class="flex items-center justify-between gap-3">
@@ -205,4 +219,10 @@
 		previewSourceOf(document.fileName ?? '', (derivedFileName) => signedURL(document.id, derivedFileName), true)}
 	onDownload={download}
 	{isDownloading}
+	detailsLead={room?.canManage ? publication : undefined}
 />
+
+{#snippet publication(document: ViewerDocument)}
+	{@const held = documents.find((candidate) => candidate.documentID === document.id)}
+	{#if held && room}<DocumentPublication document={held} isPublic={room.publicDocumentIDs.includes(held.documentID)} onChange={rememberPublication} />{/if}
+{/snippet}

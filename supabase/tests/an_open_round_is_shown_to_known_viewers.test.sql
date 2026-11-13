@@ -17,8 +17,10 @@ insert into public.company_record (company_id, category, record_date, title, amo
 
 set local role authenticated;
 select set_config('request.jwt.claims', '{"sub":"67000000-0000-0000-0000-000000000001"}', true);
-select public.data_room_share_create('67000000-0000-0000-0000-000000000010', 'investor', 'public') as public_share \gset
-select public.data_room_share_create('67000000-0000-0000-0000-000000000010', 'investor', 'email', 'round-investor@example.com') as email_share \gset
+insert into public.company_field (company_id, kind, field, is_public)
+  values ('67000000-0000-0000-0000-000000000010', 'record', 'funding', true)
+  on conflict (company_id, kind, field) do update set is_public = true;
+select public.data_room_link_create('67000000-0000-0000-0000-000000000010', 'investor', 'Sample investor', '123456') as link_id \gset
 
 select is((select count(*) from jsonb_array_elements(public.data_room_company('67000000-0000-0000-0000-000000000010') -> 'records')
     where value ->> 'status' = 'in_progress')::int, 1,
@@ -28,19 +30,22 @@ select set_config('request.jwt.claims', '{}', true);
 set local role anon;
 select is((select array_agg(value ->> 'title') from jsonb_array_elements(public.data_room_company('67000000-0000-0000-0000-000000000010') -> 'records')),
   array['시드'],
-  'a public share shows the closed rounds and never the one being raised');
+  'the public page shows the closed rounds and never the one being raised');
 
 set local role authenticated;
 select set_config('request.jwt.claims', '{"sub":"67000000-0000-0000-0000-000000000003"}', true);
 select is((select count(*) from jsonb_array_elements(public.data_room_company('67000000-0000-0000-0000-000000000010') -> 'records')
     where value ->> 'status' = 'in_progress')::int, 0,
-  'a signed-in stranger reading through the public share does not see the round either');
+  'a signed-in stranger reading the public page does not see the round either');
 
+reset role;
+insert into public.data_room_link_session (id, link_id, notice_version, expires_at)
+  values ('67000000-0000-0000-0000-000000000002', :'link_id', '1', now() + interval '1 hour');
+set local role authenticated;
 select set_config('request.jwt.claims', '{"sub":"67000000-0000-0000-0000-000000000002"}', true);
-select public.data_room_share_accept(:'email_share');
 select is((select count(*) from jsonb_array_elements(public.data_room_company('67000000-0000-0000-0000-000000000010') -> 'records')
     where value ->> 'status' = 'in_progress')::int, 1,
-  'an investor the round was shared with by email sees it');
+  'an investor opening a code link sees it');
 
 select * from finish();
 rollback;

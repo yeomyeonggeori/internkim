@@ -13,6 +13,7 @@ export type CompanyText = {
 	proof: string;
 	empty: string;
 	scope: string;
+	publishedScope: string;
 	attributeNames: Record<string, string>;
 	inProgress: string;
 	raise: { label: string; terms: string; target: string; committedOfTarget: (target: string) => string; daysLeft: (days: number) => string; leftToInvest: string; share: (percent: string) => string; closes: string; sharedWith: (viewer: string) => string; sharedWithInvited: string; inquire: string; inquirySubject: (round: string) => string };
@@ -68,6 +69,7 @@ export type CompanyText = {
 		field: string;
 		category: string;
 		readers: string;
+		publicPage: string;
 		unlisted: string;
 		nobody: string;
 		kinds: Record<'profile' | 'metric' | 'record' | 'empty', string>;
@@ -89,6 +91,7 @@ export const dataRoomCompanyText: Record<Locale, CompanyText> = {
 		proof: '주요 실적',
 		empty: '이 범위에서 보여줄 회사 정보가 없습니다.',
 		scope: '회사 기록에서 바로 읽어 보여줍니다. 기록이 바뀌면 이 화면도 함께 바뀌며, 열람 권한이 있는 분류의 정보만 표시합니다.',
+		publishedScope: '회사 기록에서 바로 읽어 보여줍니다. 기록이 바뀌면 이 화면도 함께 바뀌며, 회사가 공개한 항목만 표시합니다.',
 		attributeNames: { investors: '투자사', leadInvestor: '리드 투자사', valuation: '기업가치', preMoney: '투자 전 기업가치', postMoney: '투자 후 기업가치', instrument: '투자 형태', number: '번호', round: '라운드' },
 		inProgress: '진행 중',
 		raise: { label: '투자 유치 중', terms: '투자 조건', target: '목표 금액', committedOfTarget: (target) => `목표 ${target} 중 확약`, daysLeft: (days) => `${days}일`, leftToInvest: '마감까지 남은 기간', share: (percent) => `목표의 ${percent}`, closes: '마감 예정일', sharedWith: (viewer) => `${viewer}에게만 공유된 비공개 자료입니다.`, sharedWithInvited: '초대받은 분에게만 공유되는 비공개 자료입니다.', inquire: '문의하기', inquirySubject: (round) => `${round} 투자 문의` },
@@ -139,10 +142,11 @@ export const dataRoomCompanyText: Record<Locale, CompanyText> = {
 		email: '이메일',
 		settings: {
 			title: '회사 소개 공개 범위',
-			description: '필드마다 어느 분류의 열람자에게 보일지 정합니다. 그 분류를 읽는 서클과 공유 링크에만 값이 전달됩니다.',
+			description: '필드마다 어느 분류의 열람자에게 보일지 정합니다. 그 분류를 읽는 서클과 공유 링크에 값이 전달되고, 공개 페이지에 올린 필드는 누구나 봅니다.',
 			field: '필드',
-			category: '공개 분류',
+			category: '열람 분류',
 			readers: '볼 수 있는 서클',
+			publicPage: '공개 페이지',
 			unlisted: '비공개 (X)',
 			nobody: '없음',
 			kinds: { profile: '회사 정보', metric: '지표', record: '연혁', empty: '아직 값이 없는 필드' }
@@ -201,6 +205,7 @@ export const dataRoomCompanyText: Record<Locale, CompanyText> = {
 		proof: 'Track record',
 		empty: 'There is no company information in this scope.',
 		scope: 'Read straight from the company record, so this page changes when the record does. Shows only what the categories you can read cover.',
+		publishedScope: 'Read straight from the company record, so this page changes when the record does. Shows only what the company has published.',
 		attributeNames: { investors: 'Investors', leadInvestor: 'Lead investor', valuation: 'Valuation', preMoney: 'Pre-money valuation', postMoney: 'Post-money valuation', instrument: 'Instrument', number: 'Number', round: 'Round' },
 		inProgress: 'In progress',
 		raise: { label: 'Raising now', terms: 'Terms', target: 'Target', committedOfTarget: (target) => `committed of a ${target} goal`, daysLeft: (days) => `${days} ${days === 1 ? 'day' : 'days'}`, leftToInvest: 'Left to invest', share: (percent) => `${percent} of target`, closes: 'Expected close', sharedWith: (viewer) => `Shared privately with ${viewer}.`, sharedWithInvited: 'Shared privately with invited investors.', inquire: 'Contact us', inquirySubject: (round) => `Inquiry about the ${round} round` },
@@ -251,10 +256,11 @@ export const dataRoomCompanyText: Record<Locale, CompanyText> = {
 		email: 'Email',
 		settings: {
 			title: 'Company page visibility',
-			description: 'Choose which category each field belongs to. Only the circles and share links that read that category receive its value.',
+			description: 'Choose which category each field belongs to. The circles and share links that read that category receive its value, and anyone sees a field put on the public page.',
 			field: 'Field',
 			category: 'Category',
 			readers: 'Circles that see it',
+			publicPage: 'Public page',
 			unlisted: 'Private (X)',
 			nobody: 'None',
 			kinds: { profile: 'Company', metric: 'Metrics', record: 'Timeline', empty: 'Fields without a value yet' }

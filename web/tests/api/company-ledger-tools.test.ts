@@ -116,7 +116,7 @@ const ledgerToolNames = [
 
 const placedFieldSchema = z.object({
 	kind: z.string(), field: z.string(), categoryCode: z.string().nullable(),
-	name: z.string().nullable(), nameKO: z.string().nullable(), unit: z.string().nullable()
+	name: z.string().nullable(), nameKO: z.string().nullable(), unit: z.string().nullable(), isPublic: z.boolean()
 });
 
 function placedFields(value: unknown) {
@@ -454,7 +454,7 @@ describe('the category data room', () => {
 		const moved = await asAdmin('dataroom_field_update', { kind: 'profile', field: 'capital', categoryCode: 'GP' });
 		expect(moved.status).toBe(200);
 		expect(placedFields(resultOf(await asAdmin('dataroom_get')).fields).filter((placed) => placed.field === 'capital'))
-			.toEqual([{ kind: 'profile', field: 'capital', categoryCode: 'GP', name: null, nameKO: null, unit: null }]);
+			.toEqual([{ kind: 'profile', field: 'capital', categoryCode: 'GP', name: null, nameKO: null, unit: null, isPublic: false }]);
 		const restored = await asAdmin('dataroom_field_update', { kind: 'profile', field: 'capital', categoryCode: 'CO' });
 		expect(restored.status).toBe(200);
 	});
@@ -475,7 +475,7 @@ describe('the category data room', () => {
 			kind: 'metric', field: 'annualRevenue', name: 'Yearly revenue', nameKO: '연 매출액'
 		});
 		expect(named.status).toBe(200);
-		expect(await revenueField()).toEqual({ kind: 'metric', field: 'annualRevenue', categoryCode: 'FS', name: 'Yearly revenue', nameKO: '연 매출액', unit: null });
+		expect(await revenueField()).toEqual({ kind: 'metric', field: 'annualRevenue', categoryCode: 'FS', name: 'Yearly revenue', nameKO: '연 매출액', unit: null, isPublic: false });
 		const blank = await asAdmin('dataroom_field_name_update', { kind: 'metric', field: 'annualRevenue', nameKO: ' ' });
 		expect(blank.status).toBe(200);
 		expect(await revenueField()).toMatchObject({ name: null, nameKO: null });
@@ -484,48 +484,32 @@ describe('the category data room', () => {
 		expect(await revenueField()).toMatchObject({ categoryCode: 'FS', name: null, nameKO: null });
 	});
 
-	test('lends what a circle reads to someone outside the company, and takes it back', async () => {
-		const shared = await asAdmin('dataroom_share_add', {
-			circleID: 'investor', audience: 'email', email: 'circle-guest@example.test'
+	test('puts a document on the public page only when an administrator says so, and takes it off', async () => {
+		const filed = await asAdmin('company_document_register', {
+			documentType: 'report', categoryCode: 'GP', title: 'Sample company introduction', summary: 'A sample introduction.'
 		});
-		expect(shared.status).toBe(200);
-		const shareID = resultOf(shared).shareID;
-		expect(resultOf(await asAdmin('dataroom_get')).shares).toEqual(expect.arrayContaining([
-			expect.objectContaining({ id: shareID, circleID: 'investor', audience: 'email', email: 'circle-guest@example.test' })
-		]));
-		const revoked = await asAdmin('dataroom_share_delete', { shareID });
-		expect(revoked.status).toBe(200);
+		const documentID = resultOf(filed).documentID;
+		expect((await asSample('dataroom_publication_update', { documentHint: documentID, isPublic: true })).status).toBe(403);
+		const published = await asAdmin('dataroom_publication_update', { documentHint: documentID, isPublic: true });
+		expect(resultOf(published)).toEqual({ documentID, isPublic: true });
+		expect(resultOf(await asAdmin('dataroom_get')).publicDocumentIDs).toContain(documentID);
+		const withdrawn = await asAdmin('dataroom_publication_update', { documentHint: documentID, isPublic: false });
+		expect(resultOf(withdrawn)).toEqual({ documentID, isPublic: false });
+		expect(resultOf(await asAdmin('dataroom_get')).publicDocumentIDs).not.toContain(documentID);
+
+		const inbox = await asAdmin('company_document_register', { documentType: 'report', categoryCode: 'X', title: 'Sample unsorted file', summary: 'A sample file not yet classified.' });
+		expect((await asAdmin('dataroom_publication_update', { documentHint: resultOf(inbox).documentID, isPublic: true })).status).toBe(422);
 	});
 
-	test('emails an invitation only when an administrator sends a share still open', async () => {
-		const guestEmail = `${slug}-guest@example.test`;
-		const shareID = resultOf(await asAdmin('dataroom_share_add', {
-			circleID: 'investor', audience: 'email', email: guestEmail
-		})).shareID;
-		try {
-			expect((await asSample('dataroom_invitation_send', { shareID })).status).toBe(404);
-			const sent = await asAdmin('dataroom_invitation_send', { shareID });
-			expect(sent.status).toBe(200);
-			expect(resultOf(sent)).toEqual({ shareID, sent: true });
-			await asAdmin('dataroom_share_delete', { shareID });
-			expect((await asAdmin('dataroom_invitation_send', { shareID })).status).toBe(403);
-		} finally {
-			const { data } = await client.auth.admin.listUsers();
-			const guest = data.users.find((user) => user.email === guestEmail);
-			if (guest) await client.auth.admin.deleteUser(guest.id);
-		}
-	});
-
-	test('lets only the email an invitation names accept it', async () => {
-		const shareID = resultOf(await asAdmin('dataroom_share_add', {
-			circleID: 'investor', audience: 'email', email: `${slug}-sample@example.test`
-		})).shareID;
-
-		expect((await asAdmin('dataroom_invitation_accept', { shareID })).status).toBe(403);
-		const accepted = await asSample('dataroom_invitation_accept', { shareID });
-		expect(accepted.status).toBe(200);
-		expect(resultOf(accepted)).toEqual({ shareID, companyID });
-		await asAdmin('dataroom_share_delete', { shareID });
+	test('puts a company page field on the public page by its kind, keeping where it is placed', async () => {
+		expect((await asSample('dataroom_publication_update', { kind: 'metric', field: 'annualRevenue', isPublic: true })).status).toBeGreaterThanOrEqual(400);
+		const published = await asAdmin('dataroom_publication_update', { kind: 'metric', field: 'annualRevenue', isPublic: true });
+		expect(resultOf(published)).toEqual({ kind: 'metric', field: 'annualRevenue', isPublic: true });
+		expect(await revenueField()).toMatchObject({ categoryCode: 'FS', isPublic: true });
+		const withdrawn = await asAdmin('dataroom_publication_update', { kind: 'metric', field: 'annualRevenue', isPublic: false });
+		expect(withdrawn.status).toBe(200);
+		expect(await revenueField()).toMatchObject({ categoryCode: 'FS', isPublic: false });
+		expect((await asAdmin('dataroom_publication_update', { field: 'annualRevenue', isPublic: true })).status).toBe(400);
 	});
 
 	test('names a default circle in the company language and never renames it', async () => {

@@ -24895,7 +24895,7 @@
       "modelVisible": true,
       "name": "dataroom_links_get",
       "namespace": "dataroom",
-      "namespaceSummary": "The company document archive: categories, sharing with people outside the company, and revocable links.",
+      "namespaceSummary": "The company document archive: categories, what its public page shows, and revocable links.",
       "outputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
@@ -25141,7 +25141,7 @@
       "modelVisible": true,
       "name": "dataroom_link_add",
       "namespace": "dataroom",
-      "namespaceSummary": "The company document archive: categories, sharing with people outside the company, and revocable links.",
+      "namespaceSummary": "The company document archive: categories, what its public page shows, and revocable links.",
       "outputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
@@ -25247,7 +25247,7 @@
       "modelVisible": true,
       "name": "dataroom_link_delete",
       "namespace": "dataroom",
-      "namespaceSummary": "The company document archive: categories, sharing with people outside the company, and revocable links.",
+      "namespaceSummary": "The company document archive: categories, what its public page shows, and revocable links.",
       "outputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
@@ -25378,7 +25378,7 @@
         "state": "ok"
       },
       "canonicalName": "dataroom_get",
-      "description": "Company dataroom: Read the company data room categories and its shares with people outside the company. A parent code grants all current and future children. Reads expose only permitted categories; administrators can manage the template. Circles and who belongs to them are circle_list.",
+      "description": "Company dataroom: Read the company data room categories, its company page fields, and what its public page shows. A parent code grants all current and future children. Reads expose only permitted categories; administrators can manage the template. Circles and who belongs to them are circle_list.",
       "estimatedLatency": "low",
       "idempotency": {
         "required": false,
@@ -25397,7 +25397,7 @@
       "modelVisible": true,
       "name": "dataroom_get",
       "namespace": "dataroom",
-      "namespaceSummary": "The company document archive: categories, sharing with people outside the company, and revocable links.",
+      "namespaceSummary": "The company document archive: categories, what its public page shows, and revocable links.",
       "outputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
@@ -25464,7 +25464,7 @@
             "type": "array"
           },
           "fields": {
-            "description": "The company page fields placed in a category, named, or given a unit. A field absent here is shown only to readers of X, under the product name.",
+            "description": "The company page fields placed in a category, named, given a unit, or put on the public page. A field absent here is shown only to readers of X, under the product name.",
             "items": {
               "additionalProperties": false,
               "properties": {
@@ -25481,6 +25481,10 @@
                 },
                 "field": {
                   "type": "string"
+                },
+                "isPublic": {
+                  "description": "Whether the company's public page shows it to anyone",
+                  "type": "boolean"
                 },
                 "kind": {
                   "description": "profile: a company_info key, 'activity' or 'ownership'; metric: a company_metric key; record: a company_record category",
@@ -25531,84 +25535,17 @@
                 "categoryCode",
                 "name",
                 "nameKO",
-                "unit"
+                "unit",
+                "isPublic"
               ],
               "type": "object"
             },
             "type": "array"
           },
-          "shares": {
+          "publicDocumentIDs": {
+            "description": "The documents the company's public page shows to anyone",
             "items": {
-              "additionalProperties": false,
-              "properties": {
-                "acceptedAt": {
-                  "anyOf": [
-                    {
-                      "type": "string"
-                    },
-                    {
-                      "type": "null"
-                    }
-                  ]
-                },
-                "audience": {
-                  "enum": [
-                    "email",
-                    "public"
-                  ],
-                  "type": "string"
-                },
-                "canDownload": {
-                  "type": "boolean"
-                },
-                "circleID": {
-                  "type": "string"
-                },
-                "email": {
-                  "anyOf": [
-                    {
-                      "type": "string"
-                    },
-                    {
-                      "type": "null"
-                    }
-                  ]
-                },
-                "expiresAt": {
-                  "anyOf": [
-                    {
-                      "type": "string"
-                    },
-                    {
-                      "type": "null"
-                    }
-                  ]
-                },
-                "id": {
-                  "type": "string"
-                },
-                "revokedAt": {
-                  "anyOf": [
-                    {
-                      "type": "string"
-                    },
-                    {
-                      "type": "null"
-                    }
-                  ]
-                }
-              },
-              "required": [
-                "id",
-                "circleID",
-                "audience",
-                "email",
-                "acceptedAt",
-                "expiresAt",
-                "revokedAt",
-                "canDownload"
-              ],
-              "type": "object"
+              "type": "string"
             },
             "type": "array"
           }
@@ -25616,7 +25553,7 @@
         "required": [
           "categories",
           "fields",
-          "shares",
+          "publicDocumentIDs",
           "canManage"
         ],
         "type": "object"
@@ -25693,7 +25630,7 @@
               "type": "array"
             },
             "fields": {
-              "description": "The company page fields placed in a category, named, or given a unit. A field absent here is shown only to readers of X, under the product name.",
+              "description": "The company page fields placed in a category, named, given a unit, or put on the public page. A field absent here is shown only to readers of X, under the product name.",
               "items": {
                 "additionalProperties": false,
                 "properties": {
@@ -25710,6 +25647,10 @@
                   },
                   "field": {
                     "type": "string"
+                  },
+                  "isPublic": {
+                    "description": "Whether the company's public page shows it to anyone",
+                    "type": "boolean"
                   },
                   "kind": {
                     "description": "profile: a company_info key, 'activity' or 'ownership'; metric: a company_metric key; record: a company_record category",
@@ -25760,84 +25701,17 @@
                   "categoryCode",
                   "name",
                   "nameKO",
-                  "unit"
+                  "unit",
+                  "isPublic"
                 ],
                 "type": "object"
               },
               "type": "array"
             },
-            "shares": {
+            "publicDocumentIDs": {
+              "description": "The documents the company's public page shows to anyone",
               "items": {
-                "additionalProperties": false,
-                "properties": {
-                  "acceptedAt": {
-                    "anyOf": [
-                      {
-                        "type": "string"
-                      },
-                      {
-                        "type": "null"
-                      }
-                    ]
-                  },
-                  "audience": {
-                    "enum": [
-                      "email",
-                      "public"
-                    ],
-                    "type": "string"
-                  },
-                  "canDownload": {
-                    "type": "boolean"
-                  },
-                  "circleID": {
-                    "type": "string"
-                  },
-                  "email": {
-                    "anyOf": [
-                      {
-                        "type": "string"
-                      },
-                      {
-                        "type": "null"
-                      }
-                    ]
-                  },
-                  "expiresAt": {
-                    "anyOf": [
-                      {
-                        "type": "string"
-                      },
-                      {
-                        "type": "null"
-                      }
-                    ]
-                  },
-                  "id": {
-                    "type": "string"
-                  },
-                  "revokedAt": {
-                    "anyOf": [
-                      {
-                        "type": "string"
-                      },
-                      {
-                        "type": "null"
-                      }
-                    ]
-                  }
-                },
-                "required": [
-                  "id",
-                  "circleID",
-                  "audience",
-                  "email",
-                  "acceptedAt",
-                  "expiresAt",
-                  "revokedAt",
-                  "canDownload"
-                ],
-                "type": "object"
+                "type": "string"
               },
               "type": "array"
             }
@@ -25845,7 +25719,7 @@
           "required": [
             "categories",
             "fields",
-            "shares",
+            "publicDocumentIDs",
             "canManage"
           ],
           "type": "object"
@@ -25979,7 +25853,7 @@
       "modelVisible": true,
       "name": "dataroom_category_update",
       "namespace": "dataroom",
-      "namespaceSummary": "The company document archive: categories, sharing with people outside the company, and revocable links.",
+      "namespaceSummary": "The company document archive: categories, what its public page shows, and revocable links.",
       "outputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
@@ -26031,7 +25905,7 @@
         "state": "ok"
       },
       "canonicalName": "dataroom_field_update",
-      "description": "Company dataroom: Choose who sees one company page field by naming the category whose readers see it; the field leaves the category that held it. Confirm the audience first: every circle and share that reads the category sees the value.",
+      "description": "Company dataroom: Choose who sees one company page field by naming the category whose readers see it; the field leaves the category that held it. Confirm the audience first: every circle and code link that reads the category sees the value. Whether the public page shows it is dataroom_publication_update.",
       "estimatedLatency": "low",
       "idempotency": {
         "required": false,
@@ -26100,7 +25974,7 @@
       "modelVisible": true,
       "name": "dataroom_field_update",
       "namespace": "dataroom",
-      "namespaceSummary": "The company document archive: categories, sharing with people outside the company, and revocable links.",
+      "namespaceSummary": "The company document archive: categories, what its public page shows, and revocable links.",
       "outputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
@@ -26231,7 +26105,7 @@
       "modelVisible": true,
       "name": "dataroom_field_name_update",
       "namespace": "dataroom",
-      "namespaceSummary": "The company document archive: categories, sharing with people outside the company, and revocable links.",
+      "namespaceSummary": "The company document archive: categories, what its public page shows, and revocable links.",
       "outputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
@@ -26282,8 +26156,8 @@
       "availability": {
         "state": "ok"
       },
-      "canonicalName": "dataroom_share_add",
-      "description": "Company dataroom: Share live data room categories with someone outside the company by lending them what one circle reads: an external email or an explicitly public audience. Current and future documents in those categories become readable. Confirm the audience and scope first. Recipients must accept using their verified email; do not invite them as company members. Company members read through the circles they belong to, set with circle_member_update. Public publication is a distinct explicit request and never includes X.",
+      "canonicalName": "dataroom_publication_update",
+      "description": "Company dataroom: Update one publication on the company's public data room page: put one document or one company page field on it, or take it off. The public page is always at <company address>/room and anyone can open it without signing in; it shows only the company name and logo until something is published. A published document can be read and downloaded by anyone, and a downloaded copy cannot be recalled, so confirm the exact document or field first. A document still in X is classified before it is published. Only a company administrator publishes.",
       "estimatedLatency": "low",
       "idempotency": {
         "required": false,
@@ -26294,24 +26168,27 @@
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
         "properties": {
-          "audience": {
-            "enum": [
-              "email",
-              "public"
-            ],
+          "documentHint": {
+            "description": "Exact documentID or exact current title from company_document_list or company_document_search, for publishing one document. Give this or kind and field, never both.",
+            "minLength": 1,
             "type": "string"
           },
-          "canDownload": {
+          "field": {
+            "description": "Exact company page field as stored, the same key dataroom_field_update takes, for publishing one field. Give it with kind, never with documentHint.",
+            "minLength": 1,
+            "type": "string"
+          },
+          "isPublic": {
+            "description": "true puts it on the public page, false takes it off.",
             "type": "boolean"
           },
-          "circleID": {
-            "type": "string"
-          },
-          "email": {
-            "pattern": "^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$",
-            "type": "string"
-          },
-          "expiresAt": {
+          "kind": {
+            "description": "The kind of the company page field to publish, the same kind dataroom_field_update takes. Give it with field.",
+            "enum": [
+              "profile",
+              "metric",
+              "record"
+            ],
             "type": "string"
           }
         },
@@ -26321,57 +26198,71 @@
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
         "properties": {
-          "audience": {
-            "enum": [
-              "email",
-              "public"
-            ],
+          "documentHint": {
+            "description": "Exact documentID or exact current title from company_document_list or company_document_search, for publishing one document. Give this or kind and field, never both.",
+            "minLength": 1,
             "type": "string"
           },
-          "canDownload": {
+          "field": {
+            "description": "Exact company page field as stored, the same key dataroom_field_update takes, for publishing one field. Give it with kind, never with documentHint.",
+            "minLength": 1,
+            "type": "string"
+          },
+          "isPublic": {
+            "description": "true puts it on the public page, false takes it off.",
             "type": "boolean"
           },
-          "circleID": {
-            "type": "string"
-          },
-          "email": {
-            "pattern": "^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$",
-            "type": "string"
-          },
-          "expiresAt": {
+          "kind": {
+            "description": "The kind of the company page field to publish, the same kind dataroom_field_update takes. Give it with field.",
+            "enum": [
+              "profile",
+              "metric",
+              "record"
+            ],
             "type": "string"
           }
         },
         "required": [
-          "circleID",
-          "audience"
+          "isPublic"
         ],
         "type": "object"
       },
       "inputSchemaStrict": true,
-      "modelName": "dataroom_share_add",
+      "modelName": "dataroom_publication_update",
       "modelVisibility": "visible",
       "modelVisible": true,
-      "name": "dataroom_share_add",
+      "name": "dataroom_publication_update",
       "namespace": "dataroom",
-      "namespaceSummary": "The company document archive: categories, sharing with people outside the company, and revocable links.",
+      "namespaceSummary": "The company document archive: categories, what its public page shows, and revocable links.",
       "outputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
         "properties": {
-          "shareID": {
-            "format": "uuid",
-            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "documentID": {
+            "type": "string"
+          },
+          "field": {
+            "type": "string"
+          },
+          "isPublic": {
+            "type": "boolean"
+          },
+          "kind": {
+            "enum": [
+              "profile",
+              "metric",
+              "record"
+            ],
             "type": "string"
           }
         },
         "required": [
-          "shareID"
+          "isPublic"
         ],
         "type": "object"
       },
       "outputSchemaStrict": true,
-      "policyResource": "tool:dataroom_share_add",
+      "policyResource": "tool:dataroom_publication_update",
       "privacyClass": "workspace_company",
       "requiresApproval": true,
       "requiresUserPresence": false,
@@ -26387,323 +26278,26 @@
           "$schema": "https://json-schema.org/draft/2020-12/schema",
           "additionalProperties": false,
           "properties": {
-            "shareID": {
-              "format": "uuid",
-              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-              "type": "string"
-            }
-          },
-          "required": [
-            "shareID"
-          ],
-          "type": "object"
-        }
-      },
-      "sideEffect": "workspace_write",
-      "sideEffectClass": "workspace_write",
-      "version": "1",
-      "worksOffline": false
-    },
-    {
-      "answeredBy": "record",
-      "availability": {
-        "state": "ok"
-      },
-      "canonicalName": "dataroom_invitation_send",
-      "description": "Company dataroom: send the invitation email of an email share, so its recipient can sign in with that address and accept it. Only a company administrator sends invitations; a revoked or expired share is refused. Requires approval; the email reaches someone outside the company.",
-      "estimatedLatency": "medium",
-      "idempotency": {
-        "required": false,
-        "scope": "operation",
-        "supported": false
-      },
-      "inputIntentSchema": {
-        "$schema": "https://json-schema.org/draft/2020-12/schema",
-        "additionalProperties": false,
-        "properties": {
-          "shareID": {
-            "description": "Exact shareID of an email share, from dataroom_share_add or dataroom_get.",
-            "format": "uuid",
-            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-            "type": "string"
-          }
-        },
-        "type": "object"
-      },
-      "inputSchema": {
-        "$schema": "https://json-schema.org/draft/2020-12/schema",
-        "additionalProperties": false,
-        "properties": {
-          "shareID": {
-            "description": "Exact shareID of an email share, from dataroom_share_add or dataroom_get.",
-            "format": "uuid",
-            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-            "type": "string"
-          }
-        },
-        "required": [
-          "shareID"
-        ],
-        "type": "object"
-      },
-      "inputSchemaStrict": true,
-      "modelName": "dataroom_invitation_send",
-      "modelVisibility": "visible",
-      "modelVisible": true,
-      "name": "dataroom_invitation_send",
-      "namespace": "dataroom",
-      "namespaceSummary": "The company document archive: categories, sharing with people outside the company, and revocable links.",
-      "outputSchema": {
-        "$schema": "https://json-schema.org/draft/2020-12/schema",
-        "additionalProperties": false,
-        "properties": {
-          "sent": {
-            "type": "boolean"
-          },
-          "shareID": {
-            "format": "uuid",
-            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-            "type": "string"
-          }
-        },
-        "required": [
-          "shareID",
-          "sent"
-        ],
-        "type": "object"
-      },
-      "outputSchemaStrict": true,
-      "policyResource": "tool:dataroom_invitation_send",
-      "privacyClass": "workspace_company",
-      "requiresApproval": true,
-      "requiresUserPresence": false,
-      "resultContract": {
-        "effects": [
-          {
-            "effect": "sent",
-            "effectIdentity": "id",
-            "objectType": "data_room_share",
-            "resultField": "shareID"
-          }
-        ],
-        "schema": {
-          "$schema": "https://json-schema.org/draft/2020-12/schema",
-          "additionalProperties": false,
-          "properties": {
-            "sent": {
-              "type": "boolean"
-            },
-            "shareID": {
-              "format": "uuid",
-              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-              "type": "string"
-            }
-          },
-          "required": [
-            "shareID",
-            "sent"
-          ],
-          "type": "object"
-        }
-      },
-      "sideEffect": "external_send",
-      "sideEffectClass": "external_send",
-      "version": "1",
-      "worksOffline": false
-    },
-    {
-      "answeredBy": "record",
-      "availability": {
-        "state": "ok"
-      },
-      "canonicalName": "dataroom_invitation_accept",
-      "description": "Company dataroom: accept an invitation another company sent to the requester's own verified email, which opens the categories it shares to the requester. Answers the inviting company's ID. An invitation addressed to another email, revoked, expired, or accepted by someone else is refused.",
-      "estimatedLatency": "low",
-      "idempotency": {
-        "required": false,
-        "scope": "operation",
-        "supported": false
-      },
-      "inputIntentSchema": {
-        "$schema": "https://json-schema.org/draft/2020-12/schema",
-        "additionalProperties": false,
-        "properties": {
-          "shareID": {
-            "description": "Exact shareID the invitation address names, the last segment of /share/invitations/<shareID>.",
-            "format": "uuid",
-            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-            "type": "string"
-          }
-        },
-        "type": "object"
-      },
-      "inputSchema": {
-        "$schema": "https://json-schema.org/draft/2020-12/schema",
-        "additionalProperties": false,
-        "properties": {
-          "shareID": {
-            "description": "Exact shareID the invitation address names, the last segment of /share/invitations/<shareID>.",
-            "format": "uuid",
-            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-            "type": "string"
-          }
-        },
-        "required": [
-          "shareID"
-        ],
-        "type": "object"
-      },
-      "inputSchemaStrict": true,
-      "modelName": "dataroom_invitation_accept",
-      "modelVisibility": "visible",
-      "modelVisible": true,
-      "name": "dataroom_invitation_accept",
-      "namespace": "dataroom",
-      "namespaceSummary": "The company document archive: categories, sharing with people outside the company, and revocable links.",
-      "outputSchema": {
-        "$schema": "https://json-schema.org/draft/2020-12/schema",
-        "additionalProperties": false,
-        "properties": {
-          "companyID": {
-            "format": "uuid",
-            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-            "type": "string"
-          },
-          "shareID": {
-            "format": "uuid",
-            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-            "type": "string"
-          }
-        },
-        "required": [
-          "shareID",
-          "companyID"
-        ],
-        "type": "object"
-      },
-      "outputSchemaStrict": true,
-      "policyResource": "tool:dataroom_invitation_accept",
-      "privacyClass": "workspace_company",
-      "requiresUserPresence": false,
-      "resultContract": {
-        "effects": [
-          {
-            "effect": "updated",
-            "effectIdentity": "id",
-            "objectType": "data_room_share",
-            "resultField": "shareID"
-          }
-        ],
-        "schema": {
-          "$schema": "https://json-schema.org/draft/2020-12/schema",
-          "additionalProperties": false,
-          "properties": {
-            "companyID": {
-              "format": "uuid",
-              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "documentID": {
               "type": "string"
             },
-            "shareID": {
-              "format": "uuid",
-              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "field": {
+              "type": "string"
+            },
+            "isPublic": {
+              "type": "boolean"
+            },
+            "kind": {
+              "enum": [
+                "profile",
+                "metric",
+                "record"
+              ],
               "type": "string"
             }
           },
           "required": [
-            "shareID",
-            "companyID"
-          ],
-          "type": "object"
-        }
-      },
-      "sideEffect": "workspace_write",
-      "sideEffectClass": "workspace_write",
-      "version": "1",
-      "worksOffline": false
-    },
-    {
-      "answeredBy": "record",
-      "availability": {
-        "state": "ok"
-      },
-      "canonicalName": "dataroom_share_delete",
-      "description": "Company dataroom: Revoke a data room share by its exact shareID from dataroom_get. Other active grants still apply. Already downloaded files cannot be recalled; existing signed URLs expire within ten minutes.",
-      "estimatedLatency": "low",
-      "idempotency": {
-        "required": false,
-        "scope": "operation",
-        "supported": false
-      },
-      "inputIntentSchema": {
-        "$schema": "https://json-schema.org/draft/2020-12/schema",
-        "additionalProperties": false,
-        "properties": {
-          "shareID": {
-            "format": "uuid",
-            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-            "type": "string"
-          }
-        },
-        "type": "object"
-      },
-      "inputSchema": {
-        "$schema": "https://json-schema.org/draft/2020-12/schema",
-        "additionalProperties": false,
-        "properties": {
-          "shareID": {
-            "format": "uuid",
-            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-            "type": "string"
-          }
-        },
-        "required": [
-          "shareID"
-        ],
-        "type": "object"
-      },
-      "inputSchemaStrict": true,
-      "modelName": "dataroom_share_delete",
-      "modelVisibility": "visible",
-      "modelVisible": true,
-      "name": "dataroom_share_delete",
-      "namespace": "dataroom",
-      "namespaceSummary": "The company document archive: categories, sharing with people outside the company, and revocable links.",
-      "outputSchema": {
-        "$schema": "https://json-schema.org/draft/2020-12/schema",
-        "additionalProperties": false,
-        "properties": {
-          "saved": {
-            "type": "boolean"
-          }
-        },
-        "required": [
-          "saved"
-        ],
-        "type": "object"
-      },
-      "outputSchemaStrict": true,
-      "policyResource": "tool:dataroom_share_delete",
-      "privacyClass": "workspace_company",
-      "requiresApproval": true,
-      "requiresUserPresence": false,
-      "resultContract": {
-        "effects": [
-          {
-            "effect": "updated",
-            "effectIdentity": "singleton",
-            "objectType": "data_room"
-          }
-        ],
-        "schema": {
-          "$schema": "https://json-schema.org/draft/2020-12/schema",
-          "additionalProperties": false,
-          "properties": {
-            "saved": {
-              "type": "boolean"
-            }
-          },
-          "required": [
-            "saved"
+            "isPublic"
           ],
           "type": "object"
         }

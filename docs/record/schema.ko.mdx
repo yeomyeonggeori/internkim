@@ -242,7 +242,9 @@ AI 호출은 `model-gateway` 엣지 함수를 거쳐 크레딧을 씁니다. 회
 (`company.profile`의 키, `activity`, `ownership`), `metric`(`company_metric`의
 키), `record`(`company_record`의 분류)입니다.
 
-행이 없거나 `category_code`가 비어 있는 필드는 X를 읽는 사람만 봅니다. `names`에는
+행이 없거나 `category_code`가 비어 있는 필드는 X를 읽는 사람만 봅니다.
+`is_public`이면 어느 분류에 있든 회사 공개 페이지에서 누구나 봅니다. 모든 회사는
+`name`을 공개한 채로 시작합니다. `names`에는
 회사가 정한 이름만 둡니다. 제품이 붙인 이름은 앱에 있고, 제품도 이름이 없는
 필드는 키를 그대로 보여 줍니다. 새 회사는 데이터룸 템플릿이 배치한 필드의 행을
 받습니다.

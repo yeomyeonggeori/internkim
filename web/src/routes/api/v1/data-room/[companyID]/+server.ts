@@ -10,7 +10,7 @@ import { derivedPath, isDerivedFileName, withOriginalExtension } from '$lib/data
 import type { RequestHandler } from './$types';
 
 export const GET: RequestHandler = async ({ request, platform, params, url }) => {
-	if (!z.string().uuid().safeParse(params.companyID).success) error(404, 'data room not found');
+	if (!z.guid().safeParse(params.companyID).success) error(404, 'data room not found');
 	const environment = environmentOf(platform);
 	const { caller, viewerEmail } = await dataRoomCaller(request, environment);
 	const documentID = url.searchParams.get('documentID');

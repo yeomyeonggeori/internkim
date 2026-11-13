@@ -1,4 +1,5 @@
 <script lang="ts">
+	import type { Snippet } from 'svelte';
 	import { untrack } from 'svelte';
 	import { MediaQuery } from 'svelte/reactivity';
 	import { Dialog } from 'bits-ui';
@@ -22,7 +23,8 @@
 		readSource,
 		onDownload,
 		isDownloading = false,
-		watermark
+		watermark,
+		detailsLead
 	}: {
 		documents: ViewerDocument[];
 		openID: string | null;
@@ -30,6 +32,7 @@
 		onDownload?: (document: ViewerDocument) => void;
 		isDownloading?: boolean;
 		watermark?: string;
+		detailsLead?: Snippet<[ViewerDocument]>;
 	} = $props();
 
 	const text = createPageText(dataRoomText);
@@ -164,6 +167,7 @@
 					</div>
 					{#if isDetailsOpen}
 						<aside class="flex shrink-0 flex-col gap-6 overflow-auto p-5 max-lg:max-h-[40%] max-lg:border-t lg:w-80 lg:border-l">
+							{#if detailsLead}{@render detailsLead(openDocument)}{/if}
 							<section>
 								<h3 class="mb-2 text-xs font-medium tracking-wide text-muted-foreground uppercase">{text.summary}</h3>
 								<p class="text-sm leading-relaxed whitespace-pre-wrap">{openDocument.summary || text.noSummary}</p>

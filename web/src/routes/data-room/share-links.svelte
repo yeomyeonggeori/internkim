@@ -22,7 +22,13 @@
 	import { dataRoomText } from '$lib/data-room/text';
 	import type { DataRoomCategory } from '$lib/data-room/model';
 	import { circleLabel, readableCategoryNames, shareableCircleItems } from './circle-items';
-	let { categories }: { categories: DataRoomCategory[] } = $props();
+	import { page } from '$app/state';
+	import { companySlugOf } from '$lib/company-path';
+	import { CopyButton } from '$lib/components/ui/copy-button';
+
+	type Props = { categories: DataRoomCategory[]; publicFieldCount: number; publicDocumentCount: number };
+
+	let { categories, publicFieldCount, publicDocumentCount }: Props = $props();
 	const text = createPageText(dataRoomSharingText);
 	const browserText = createPageText(dataRoomText);
 	const fieldID = $props.id();
@@ -45,6 +51,12 @@
 			value: String(hours),
 			label: hours < 24 ? `${hours} ${text.hours}` : `${hours / 24} ${text.days}`
 		}))
+	);
+	const publicPageURL = $derived(
+		typeof window === 'undefined' ? '' : `${window.location.origin}/${companySlugOf(page.url.pathname)}/room`
+	);
+	const publicSummary = $derived(
+		text.publicSummary.replace('{fields}', String(publicFieldCount)).replace('{documents}', String(publicDocumentCount))
 	);
 	const shareURL = $derived(
 		createdLink && typeof window !== 'undefined'
@@ -136,10 +148,24 @@
 >
 	<Dialog.Content class="max-h-[85vh] overflow-auto sm:max-w-xl"
 		><Dialog.Header
-			><Dialog.Title>{text.title}</Dialog.Title><Dialog.Description
-				>{text.description}</Dialog.Description
-			></Dialog.Header
+			><Dialog.Title>{text.title}</Dialog.Title></Dialog.Header
 		>
+		<section class="grid gap-3 border-b pb-4" aria-label={text.publicPage}>
+			<div class="grid gap-1">
+				<h2 class="text-sm font-semibold">{text.publicPage}</h2>
+				<p class="text-xs text-muted-foreground">{text.publicPageDescription}</p>
+			</div>
+			<div class="flex gap-2">
+				<Input aria-label={text.publicPage} readonly value={publicPageURL} />
+				<CopyButton text={publicPageURL} variant="outline" />
+				<Button variant="outline" href={publicPageURL} target="_blank" rel="noopener">{text.openPublicPage}</Button>
+			</div>
+			<p class="text-xs text-muted-foreground tabular-nums">{publicSummary}</p>
+		</section>
+		<div class="grid gap-1">
+			<h2 class="text-sm font-semibold">{text.peopleTitle}</h2>
+			<p class="text-xs text-muted-foreground">{text.description}</p>
+		</div>
 		{#if isBusy && !circleItems.length && !links.length}<div role="status" aria-label={text.title} aria-busy="true" class="grid gap-4">
 				<div aria-hidden="true" class="grid gap-5">
 					{#each [text.label, text.circle, text.lifetime] as fieldLabel (fieldLabel)}<div class="grid gap-2"><div class="flex h-3.5 items-center text-sm font-medium">{fieldLabel}</div><Skeleton class="h-9 w-full" /></div>{/each}

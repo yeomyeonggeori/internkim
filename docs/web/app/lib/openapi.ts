@@ -853,7 +853,7 @@ function createPaths(copy: ApiCopy) {
 		'/data-room/{companyID}': {
 			get: {
 				operationId: 'readDataRoom', summary: 'Read a shared data room or request a permitted file URL',
-				description: 'Uses a Supabase session bearer token or an explicitly published anonymous grant. Guest invitations must be accepted first. Original downloads require a download grant. Signed URLs expire after ten minutes.',
+				description: 'Anonymously, answers the company\'s public page: the documents and company fields an administrator published. With a member\'s bearer token, answers what that member reads. Original downloads require a download grant or a published document. Signed URLs expire after ten minutes.',
 				security: [{ memberToken: [] }, {}],
 				parameters: [
 					{ name: 'companyID', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
@@ -888,22 +888,13 @@ function createPaths(copy: ApiCopy) {
 					'404': { description: 'Document unavailable' } }
 			}
 		},
-		'/data-room/invitations/{shareID}': {
-			post: {
-				operationId: 'acceptDataRoomInvitation', summary: 'Accept an invitation as its verified email recipient',
-				security: [{ memberToken: [] }],
-				parameters: [{ name: 'shareID', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }],
-				responses: { '200': { description: 'companyID of the shared data room' },
-					'403': { description: 'Invitation unavailable to this account' } }
-			}
-		},
-		'/data-room/invitations/{shareID}/send': {
-			post: {
-				operationId: 'sendDataRoomInvitation', summary: 'Email a data room invitation',
-				description: 'A company administrator sends the selected recipient a sign-in link to their active invitation. Creates no company membership.',
-				security: [{ memberToken: [] }],
-				parameters: [{ name: 'shareID', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }],
-				responses: { '200': { description: 'Invitation email sent' }, '403': { description: 'Administrator required or invitation inactive' }, '404': { description: 'Invitation unavailable' } }
+		'/data-room/public/{slug}': {
+			get: {
+				operationId: 'findPublicDataRoom', summary: 'Find the company whose public data room page an address names',
+				description: 'Answers the companyID behind <zone>/<slug>/room. Every company has a public page; it shows the company name and logo, and only the fields and documents an administrator put on it. Read it anonymously at /data-room/{companyID}.',
+				security: [],
+				parameters: [{ name: 'slug', in: 'path', required: true, schema: { type: 'string' } }],
+				responses: { '200': { description: 'companyID' }, '404': { description: 'No company has this address' } }
 			}
 		},
 		'/tasks/invitations/{invitationID}': {

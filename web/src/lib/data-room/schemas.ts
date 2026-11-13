@@ -57,13 +57,6 @@ export const companyDocumentListResultSchema = z.strictObject({
  count: z.number().int(), documents: z.array(companyDocumentResultSchema)
 });
 
-export const dataRoomShareSchema = z.strictObject({
- id: z.string(), circleID: z.string(), audience: z.enum(['email', 'public']),
- email: z.string().nullable(),
- acceptedAt: z.string().nullable(), expiresAt: z.string().nullable(), revokedAt: z.string().nullable(),
- canDownload: z.boolean()
-});
-
 export const fieldNamesSchema = z.record(z.string().regex(/^[a-z]{2}$/), z.string().trim().min(1));
 
 export const companyFieldSchema = z.strictObject({
@@ -72,7 +65,8 @@ export const companyFieldSchema = z.strictObject({
  categoryCode: z.string().nullable().describe('The category whose readers see it; null shows it only to readers of X'),
  name: z.string().nullable().describe("What the company calls it in English; null shows the product's name"),
  nameKO: z.string().nullable().describe("What the company calls it in Korean; null shows the product's name"),
- unit: z.string().nullable().describe('The unit of a metric counted in value; null for money and for every other kind')
+ unit: z.string().nullable().describe('The unit of a metric counted in value; null for money and for every other kind'),
+ isPublic: z.boolean().describe("Whether the company's public page shows it to anyone")
 });
 
 export type CompanyFieldNameColumns = { name?: string | null; nameKO?: string | null };
@@ -86,8 +80,8 @@ export function fieldNamesOf(columns: CompanyFieldNameColumns): Record<string, s
 
 export const dataRoomGetResultSchema = z.strictObject({
  categories: z.array(dataRoomCategorySchema.omit({ fields: true })),
- fields: z.array(companyFieldSchema).describe('The company page fields placed in a category, named, or given a unit. A field absent here is shown only to readers of X, under the product name.'),
- shares: z.array(dataRoomShareSchema), canManage: z.boolean()
+ fields: z.array(companyFieldSchema).describe('The company page fields placed in a category, named, given a unit, or put on the public page. A field absent here is shown only to readers of X, under the product name.'),
+ publicDocumentIDs: z.array(z.string()).describe("The documents the company's public page shows to anyone"), canManage: z.boolean()
 });
 
 export const circleListResultSchema = z.strictObject({
