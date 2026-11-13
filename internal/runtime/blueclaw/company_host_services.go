@@ -231,7 +231,7 @@ func companyHostMediaGateService(layout CompanyHostLayout) CompanyHostService {
 		WaitsForTheFileAtPath: CompanyHostMediaSecretPath,
 		StartedOnceAnswering:  "http://" + BuzzMediaAddress + BuzzMediaHealthPath,
 	}
-	if layout.OwnsItsDataServices() {
+	if layout.RunsTheDataServiceScript() {
 		service.Command = append(service.Command, "-file-journal-socket", CompanyHostFileJournalSocketPath)
 	}
 	return service
@@ -335,7 +335,7 @@ func companyHostAgentService(layout CompanyHostLayout) CompanyHostService {
 		StopTimeoutSeconds:    30,
 		WaitsForTheFileAtPath: layout.RuntimeDocumentPath(),
 	}
-	if layout.OwnsItsDataServices() {
+	if layout.RunsTheDataServiceScript() {
 		service.Command = append(service.Command, "-file-journal-socket", CompanyHostFileJournalSocketPath)
 	}
 	return service
