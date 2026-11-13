@@ -114,17 +114,13 @@ func isAskedByTheRequesterThemself(toolContext capabilities.ToolInvokeContext) b
 
 func (service Service) directMessageCounterpart(ctx context.Context, request capabilities.ToolInvokeRequest, personHint string) (messengerPerson, capabilities.ToolInvokeResponse, bool) {
 	if personHint != "" {
-		counterparts, refusal, isRefused := service.messengerPeople(ctx, request, []string{personHint})
-		if isRefused {
-			return messengerPerson{}, refusal, true
-		}
-		return counterparts[0], capabilities.ToolInvokeResponse{}, false
+		return service.messengerPersonNamed(ctx, request, personHint)
 	}
 	var agent chatdIdentitySelfResponse
 	if errorValue := service.chatdRequest(ctx, "identity.self", map[string]any{}, &agent); errorValue != nil {
 		return messengerPerson{}, platformToolErrorResponse(request.ToolName, platformToolFailureForError("bot_lookup", "platform_unavailable", errorValue)), true
 	}
-	return messengerPerson{PersonHint: agent.Name, PubkeyHex: agent.PubkeyHex}, capabilities.ToolInvokeResponse{}, false
+	return messengerPerson{Name: agent.Name, PubkeyHex: agent.PubkeyHex}, capabilities.ToolInvokeResponse{}, false
 }
 
 func (service Service) withSearchedChannelResolved(ctx context.Context, request capabilities.ToolInvokeRequest, input platformMessageSearchInput) (platformMessageSearchInput, capabilities.ToolInvokeResponse, bool) {

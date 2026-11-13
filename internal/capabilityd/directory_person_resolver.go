@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"slices"
 	"strings"
 
 	"github.com/yeomyeonggeori/internkim/internal/personname"
@@ -14,6 +15,7 @@ type directoryPerson struct {
 	MemberID  string            `json:"memberID"`
 	Email     string            `json:"email"`
 	Name      string            `json:"name"`
+	JobTitle  string            `json:"jobTitle,omitempty"`
 	Messenger map[string]string `json:"messenger,omitempty"`
 }
 
@@ -29,27 +31,93 @@ func (person directoryPerson) hintIdentifiers() []string {
 	return identifiers
 }
 
-func (person directoryPerson) hintMatchesTitle(hint string) bool {
-	return personname.Matches(hint, person.Name)
+func (person directoryPerson) hintRank(hint string) int {
+	return int(personname.ReachOf(hint, person.named()))
 }
 
 func (person directoryPerson) hintNearness(hint string) float64 {
-	nearness := typoNearness(normalizedHintValue(hint), normalizedHintValue(person.Name))
-	if addressNearness := emailNearness(normalizedHintValue(hint), normalizedHintValue(person.Email)); addressNearness > nearness {
-		nearness = addressNearness
+	asked := normalizedHintValue(hint)
+	nearness := max(
+		typoNearness(asked, normalizedHintValue(person.Name)),
+		emailNearness(asked, normalizedHintValue(person.Email)),
+		personname.ReferenceNearness(hint, person.named()),
+	)
+	for _, account := range person.Messenger {
+		nearness = max(nearness, typoNearness(strings.TrimPrefix(asked, "@"), normalizedHintValue(strings.TrimPrefix(strings.TrimSpace(account), "@"))))
 	}
 	return nearness
 }
 
-// Who a name refers to is the company's answer, and the ladder that turns a
-// hint into that answer is the same one everywhere. A tool that kept its own
-// list could only know the people who had already spoken to this agent.
-func (service Service) resolveDirectoryPersonHint(ctx context.Context, personHint string) (hintResolution[directoryPerson], error) {
-	people, errorValue := service.directoryPeople(ctx)
-	if errorValue != nil {
-		return hintResolution[directoryPerson]{}, errorValue
+func (person directoryPerson) named() personname.Person {
+	return personname.Person{Name: person.Name, JobTitle: person.JobTitle}
+}
+
+func (service Service) resolvePersonHint(ctx context.Context, personHint string, responseLanguage string) (directoryPerson, platformDMFailure, bool) {
+	directory, failure, isRefused := service.companyDirectory(ctx)
+	if isRefused {
+		return directoryPerson{}, failure, true
 	}
-	return resolveHint(personHint, people, nil), nil
+	return personNamedBy(personHint, directory, responseLanguage)
+}
+
+func (service Service) resolvePersonHints(ctx context.Context, personHints []string, responseLanguage string) ([]directoryPerson, platformDMFailure, bool) {
+	directory, failure, isRefused := service.companyDirectory(ctx)
+	if isRefused {
+		return nil, failure, true
+	}
+	people := []directoryPerson{}
+	for _, personHint := range personHints {
+		person, failure, isRefused := personNamedBy(personHint, directory, responseLanguage)
+		if isRefused {
+			return nil, failure, true
+		}
+		if !slices.ContainsFunc(people, func(existing directoryPerson) bool { return existing.MemberID == person.MemberID }) {
+			people = append(people, person)
+		}
+	}
+	return people, platformDMFailure{}, false
+}
+
+func (service Service) companyDirectory(ctx context.Context) ([]directoryPerson, platformDMFailure, bool) {
+	directory, errorValue := service.directoryPeople(ctx)
+	if errorValue != nil {
+		return nil, platformDMUnavailableFailure(errorValue), true
+	}
+	return directory, platformDMFailure{}, false
+}
+
+func personNamedBy(personHint string, directory []directoryPerson, responseLanguage string) (directoryPerson, platformDMFailure, bool) {
+	resolution := resolveHint(personHint, directory, nil)
+	switch resolution.Outcome {
+	case hintResolved:
+		return resolution.Match, platformDMFailure{}, false
+	case hintAmbiguous:
+		return directoryPerson{}, personQuestion(resolution, responseLanguage, fmt.Sprintf(
+			"%q matches more than one person, listed in candidates. Ask which one is meant, naming each by name and address; then pass the chosen candidate's personID.", personHint)), true
+	case hintApproximate:
+		return directoryPerson{}, personQuestion(resolution, responseLanguage, fmt.Sprintf(
+			"no one is called %q; the nearest are listed in candidates. Ask whether one of them was meant, naming each by name and address and offering \"none of these\" as a choice; then pass the chosen candidate's personID.", personHint)), true
+	default:
+		return directoryPerson{}, platformDMRecipientNotFoundFailure(personHint), true
+	}
+}
+
+func personQuestion(resolution hintResolution[directoryPerson], responseLanguage string, message string) platformDMFailure {
+	failure := platformDMStaticFailure("interaction_required", "target_resolution", message)
+	failure.Retryable = true
+	failure.SafeRetry = true
+	failure.Candidates = personCandidates(resolution.Candidates, responseLanguage)
+	return failure
+}
+
+func personCandidates(people []directoryPerson, responseLanguage string) []personShown {
+	candidates := make([]personShown, 0, len(people))
+	for _, person := range people {
+		candidate := shownPerson(person, responseLanguage)
+		candidate.Emails = normalizedPlatformDMEmails([]string{person.Email})
+		candidates = append(candidates, candidate)
+	}
+	return candidates
 }
 
 func (service Service) directoryPeople(ctx context.Context) ([]directoryPerson, error) {
@@ -73,37 +141,4 @@ func (service Service) directoryPeople(ctx context.Context) ([]directoryPerson, 
 		return nil, errorValue
 	}
 	return document.People, nil
-}
-
-func platformDMRecipientsFromDirectoryPeople(people []directoryPerson, responseLanguage string) []platformDMRecipient {
-	recipients := make([]platformDMRecipient, 0, len(people))
-	for _, person := range people {
-		recipients = append(recipients, platformDMRecipient{
-			PersonID:    strings.TrimSpace(person.MemberID),
-			DisplayName: personname.Render(person.Name, responseLanguage),
-			Emails:      normalizedPlatformDMEmails([]string{person.Email}),
-		})
-	}
-	return recipients
-}
-
-// A hint the company cannot place is not a recipient. Answering with the closest
-// account this agent already knows would send somebody else's message.
-func (service Service) namedDirectoryPerson(ctx context.Context, personHint string, responseLanguage string) (directoryPerson, platformDMFailure, bool) {
-	resolution, errorValue := service.resolveDirectoryPersonHint(ctx, personHint)
-	if errorValue != nil {
-		return directoryPerson{}, platformDMUnavailableFailure(errorValue), true
-	}
-	switch resolution.Outcome {
-	case hintResolved:
-		return resolution.Match, platformDMFailure{}, false
-	case hintAmbiguous, hintApproximate:
-		candidates := platformDMRecipientsFromDirectoryPeople(resolution.Candidates, responseLanguage)
-		message := fmt.Sprintf("recipient %q is ambiguous: %s", personHint, platformDMRecipientList(candidates))
-		failure := platformDMStaticFailure("recipient_ambiguous", "recipient_resolve", message)
-		failure.Candidates = candidates
-		return directoryPerson{}, failure, true
-	default:
-		return directoryPerson{}, platformDMRecipientNotFoundFailure(personHint), true
-	}
 }

@@ -92,11 +92,11 @@ func (service Service) invokeConversationVisibilityTool(ctx context.Context, req
 	if isRefused {
 		return response, nil
 	}
-	counterparts, response, isRefused := service.messengerPeople(ctx, request, []string{strings.TrimSpace(input.PersonHint)})
+	counterpart, response, isRefused := service.messengerPersonNamed(ctx, request, strings.TrimSpace(input.PersonHint))
 	if isRefused {
 		return response, nil
 	}
-	conversationID, failure, hasFailure := service.directConversationWith(ctx, requesterPubkeyHex, counterparts[0])
+	conversationID, failure, hasFailure := service.directConversationWith(ctx, requesterPubkeyHex, counterpart)
 	if hasFailure {
 		return platformToolErrorResponse(request.ToolName, failure), nil
 	}
@@ -124,7 +124,7 @@ func (service Service) directConversationWith(ctx context.Context, requesterPubk
 		}
 	}
 	return "", platformToolStaticFailure("conversation_not_found", "conversation_resolve",
-		"the requester has no direct conversation with "+counterpart.PersonHint), true
+		"the requester has no direct conversation with "+counterpart.Name), true
 }
 
 func isOnlyCounterpart(participants []string, requesterPubkeyHex string, counterpartPubkeyHex string) bool {

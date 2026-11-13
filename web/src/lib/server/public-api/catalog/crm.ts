@@ -16,6 +16,7 @@ import {
   CapabilitySideEffect,
   ResourceEffectIdentity,
 } from './protocol';
+import { describePersonHint, describePersonHints } from './person-hint';
 
 import { taskLabelVocabularySchema, taskTypeDescription } from './labels';
 import { WorkspaceTaskStatus } from './workspace-task';
@@ -43,7 +44,7 @@ const opportunityHintSchema = z.string().min(1).max(256).describe(
 
 export const crmStageSchema = z.enum(crmStageKeys);
 
-const ownerHintDescription = 'The colleague who owns it, by name or email.';
+const ownerHintDescription = describePersonHint('The colleague who owns it');
 const importanceDescription = 'high, medium or low.';
 
 const organizationFields = {
@@ -287,7 +288,7 @@ export const crmActivitySaveInputSchema = z.strictObject({
   status: z.enum(WorkspaceTaskStatus).describe('The status the task stands at.').optional(),
   participantPersonHints: z
     .array(z.string().max(256))
-    .describe('Names, @handles or emails of the colleagues taking part. A task has participants, not one assignee.')
+    .describe(`${describePersonHints('The colleagues taking part')} A task has participants, not one assignee.`)
     .optional(),
   ownerPersonHint: z
     .string()

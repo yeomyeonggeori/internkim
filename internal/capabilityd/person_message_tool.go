@@ -12,7 +12,6 @@ import (
 const (
 	personMessageDeleteToolName = "person_message_delete"
 	admindPersonMessageWipePath = "/agent/api/buzz-admin-wipe"
-	personHintField             = "personHint"
 )
 
 type personMessageDeleteInput struct {
@@ -57,19 +56,19 @@ func countedPersonMessageDeletion(answer json.RawMessage) (json.RawMessage, erro
 }
 
 func (service Service) resolvePersonMessageDeleteTarget(ctx context.Context, request capabilities.ToolInvokeRequest) (capabilities.ToolInvokeResponse, error) {
-	person, refusal, isRefused := service.personNamedByTheCall(ctx, request)
-	if isRefused {
-		return refusal, nil
-	}
-	return capabilityToolTargetResponse(request.ToolName, capabilities.ApprovalTarget{
-		InputField: personHintField,
-		ID:         exactRecipientIdentifier(person),
-		Title:      recipientTitle(person),
-	}), nil
+	return service.onePersonApprovalTargetResponse(ctx, request, personHintField, personHintOfTheCall(request)), nil
 }
 
 func (service Service) personNamedByTheCall(ctx context.Context, request capabilities.ToolInvokeRequest) (directoryPerson, capabilities.ToolInvokeResponse, bool) {
+	person, failure, isRefused := service.resolvePersonHint(ctx, personHintOfTheCall(request), request.Context.ResponseLanguage)
+	if isRefused {
+		return directoryPerson{}, platformDMErrorResponse(request.ToolName, failure), true
+	}
+	return person, capabilities.ToolInvokeResponse{}, false
+}
+
+func personHintOfTheCall(request capabilities.ToolInvokeRequest) string {
 	var input personMessageDeleteInput
 	json.Unmarshal(request.Input, &input)
-	return service.resolveMessageRecipient(ctx, request, input.PersonHint)
+	return input.PersonHint
 }

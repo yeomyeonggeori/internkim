@@ -20,7 +20,7 @@ const (
 // matched it outright, on the scale that this kind of value actually fails on.
 type hintMatchable interface {
 	hintIdentifiers() []string
-	hintMatchesTitle(hint string) bool
+	hintRank(hint string) int
 	hintNearness(hint string) float64
 }
 
@@ -30,11 +30,6 @@ type hintResolution[Item hintMatchable] struct {
 	Candidates []Item
 }
 
-// An exact identifier is taken as given and a title only one item answers to
-// is taken as meant; what a title answers to is personname's to say. Below
-// that nothing is decided here: several matches or a near miss become choices
-// for the person who asked, and an identifier is never approximated, because
-// an identifier that is one character off was invented rather than mistyped.
 func resolveHint[Item hintMatchable](hint string, items []Item, isPreferred func(Item) bool) hintResolution[Item] {
 	trimmedHint := strings.TrimSpace(hint)
 	if trimmedHint == "" {
@@ -43,12 +38,12 @@ func resolveHint[Item hintMatchable](hint string, items []Item, isPreferred func
 	if item, isFound := itemWithHintIdentifier(trimmedHint, items); isFound {
 		return hintResolution[Item]{Outcome: hintResolved, Match: item}
 	}
-	titleMatches := itemsWithTitleMatching(trimmedHint, items)
-	if item, isFound := onlyOrPreferredItem(titleMatches, isPreferred); isFound {
+	closestItems := itemsClosestToHint(trimmedHint, items)
+	if item, isFound := onlyOrPreferredItem(closestItems, isPreferred); isFound {
 		return hintResolution[Item]{Outcome: hintResolved, Match: item}
 	}
-	if len(titleMatches) > 0 {
-		return hintResolution[Item]{Outcome: hintAmbiguous, Candidates: titleMatches}
+	if len(closestItems) > 0 {
+		return hintResolution[Item]{Outcome: hintAmbiguous, Candidates: closestItems}
 	}
 	if nearMatches := nearestItems(trimmedHint, items); len(nearMatches) > 0 {
 		return hintResolution[Item]{Outcome: hintApproximate, Candidates: nearMatches}
@@ -126,12 +121,20 @@ func normalizedHintValue(value string) string {
 	return strings.ToLower(strings.TrimSpace(value))
 }
 
-func itemsWithTitleMatching[Item hintMatchable](title string, items []Item) []Item {
-	found := make([]Item, 0, 1)
+func itemsClosestToHint[Item hintMatchable](hint string, items []Item) []Item {
+	closest := make([]Item, 0, 1)
+	closestRank := 0
 	for _, item := range items {
-		if item.hintMatchesTitle(title) {
-			found = append(found, item)
+		rank := item.hintRank(hint)
+		switch {
+		case rank == 0:
+			continue
+		case closestRank == 0 || rank < closestRank:
+			closest = []Item{item}
+			closestRank = rank
+		case rank == closestRank:
+			closest = append(closest, item)
 		}
 	}
-	return found
+	return closest
 }

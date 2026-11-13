@@ -12,8 +12,11 @@ type chatdChannel struct {
 
 func (channel chatdChannel) hintIdentifiers() []string { return []string{channel.ChannelID} }
 
-func (channel chatdChannel) hintMatchesTitle(hint string) bool {
-	return canonicalChannelHint(hint) != "" && canonicalChannelHint(hint) == canonicalChannelHint(channel.Name)
+func (channel chatdChannel) hintRank(hint string) int {
+	if canonicalChannelHint(hint) == "" || canonicalChannelHint(hint) != canonicalChannelHint(channel.Name) {
+		return 0
+	}
+	return 1
 }
 
 func (channel chatdChannel) hintNearness(hint string) float64 {

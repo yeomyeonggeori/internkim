@@ -35,7 +35,7 @@ func TestAUniqueRecipientNameResolvesToTheExactPerson(t *testing.T) {
 	response := resolveApprovalTargetThroughRoute(t, service, "message_send", messageSendTargetInput("박예시"))
 
 	target := decodeResolvedApprovalTarget(t, response)
-	if target.InputField != "personHint" || target.ID != "person-yesi" || !strings.Contains(target.Title, "yesi@example.com") {
+	if target.InputField != "personHint" || target.ID != "person-yesi" || target.Title != "박예시" {
 		t.Fatalf("the approval names exactly who receives it, got %+v", target)
 	}
 }

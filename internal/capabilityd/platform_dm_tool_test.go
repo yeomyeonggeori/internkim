@@ -158,10 +158,7 @@ func TestPlatformDMSendAmbiguousRecipientDoesNotSend(t *testing.T) {
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	if response.Status != "error" || !strings.Contains(response.Content, "ambiguous") {
-		t.Fatalf("expected ambiguous error, got %+v", response)
-	}
-	assertPlatformDMStructuredFailure(t, response, "error", "recipient_ambiguous", "recipient_resolve", false, false)
+	assertPlatformDMStructuredFailure(t, response, "error", "interaction_required", "target_resolution", true, true)
 	if len(recorder.messages) != 0 {
 		t.Fatalf("an ambiguous recipient was posted to: %+v", recorder.messages)
 	}
@@ -179,7 +176,7 @@ func TestPlatformMessageSendAmbiguousRecipientReturnsCandidatesWithoutSending(t 
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	if response.Status != "error" || response.ErrorCode != "recipient_ambiguous" {
+	if response.Status != "error" || response.ErrorCode != "interaction_required" {
 		t.Fatalf("expected ambiguous send failure, got %+v", response)
 	}
 	if len(recorder.messages) != 0 {
@@ -197,7 +194,27 @@ func TestPlatformMessageSendAmbiguousRecipientReturnsCandidatesWithoutSending(t 
 	}
 }
 
-func TestPlatformMessageBroadcastFansOutWithPerRecipientRollup(t *testing.T) {
+func TestPlatformMessageBroadcastFansOutToEveryResolvedRecipient(t *testing.T) {
+	recorder := &chatdDirectMessageRecorder{}
+	service := platformDMChatdTestService(t, platformDMChatdTestPeople(), recorder)
+
+	response, errorValue := service.invokePlatformMessageTool(context.Background(), capabilities.ToolInvokeRequest{
+		ToolName: "message_send",
+		Input:    []byte(`{"targetType":"directMessage","personHints":["샘플","정국","sample@example.com"],"message":"완료 확인 부탁"}`),
+		Context:  capabilities.ToolInvokeContext{HoldID: "held-test"},
+	})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if response.Status != "sent" || response.IsError {
+		t.Fatalf("expected the broadcast to send, got %+v", response)
+	}
+	if len(recorder.messages) != 2 {
+		t.Fatalf("one person named twice receives one message, got %+v", recorder.messages)
+	}
+}
+
+func TestPlatformMessageBroadcastWithAnUnknownRecipientSendsNothing(t *testing.T) {
 	recorder := &chatdDirectMessageRecorder{}
 	service := platformDMChatdTestService(t, platformDMChatdTestPeople(), recorder)
 
@@ -209,21 +226,11 @@ func TestPlatformMessageBroadcastFansOutWithPerRecipientRollup(t *testing.T) {
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	if response.Status != "sent" || response.IsError {
-		t.Fatalf("expected partial success response, got %+v", response)
+	if response.Status != "error" || response.ErrorCode != "recipient_not_found" || !strings.Contains(response.Message, "없는사람") {
+		t.Fatalf("a recipient nobody is called is asked about before anyone is written to, got %+v", response)
 	}
-	if len(recorder.messages) != 2 {
-		t.Fatalf("expected two posts for two resolved recipients, got %+v", recorder.messages)
-	}
-	var result platformMessageSendResult
-	if errorValue := json.Unmarshal(response.Result, &result); errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	if !reflect.DeepEqual(result.MessageIDs, []string{"post-1"}) || result.DeliveryStatus != "sent" || len(result.Failures) != 1 {
-		t.Fatalf("expected canonical successful message IDs and one failure, got %+v", result)
-	}
-	if result.Failures[0].PersonHint != "없는사람" || result.Failures[0].ErrorCode != "recipient_not_found" {
-		t.Fatalf("expected not-found recipient diagnostic, got %+v", result.Failures)
+	if len(recorder.messages) != 0 {
+		t.Fatalf("nothing goes out while a recipient is unknown: %+v", recorder.messages)
 	}
 }
 
@@ -236,13 +243,13 @@ func TestPlatformMessageSendTellsTwoPeopleWithOneNameApartByAddress(t *testing.T
 
 	response, errorValue := service.invokePlatformMessageTool(context.Background(), capabilities.ToolInvokeRequest{
 		ToolName: "message_send",
-		Input:    []byte(`{"targetType":"directMessage","personHint":"이샘플","message":"안녕"}`),
+		Input:    []byte(`{"targetType":"directMessage","personHint":"샘플","message":"안녕"}`),
 		Context:  capabilities.ToolInvokeContext{IsScheduledRun: true},
 	})
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	if response.Status != "error" || response.ErrorCode != "recipient_ambiguous" {
+	if response.Status != "error" || response.ErrorCode != "interaction_required" {
 		t.Fatalf("two people with one name are a question, got %+v", response)
 	}
 	for _, address := range []string{"sample@example.com", "sample2468@example.com"} {

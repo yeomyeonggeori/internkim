@@ -6,6 +6,7 @@ import {
   CapabilitySideEffect,
   ResourceEffectIdentity,
 } from './protocol';
+import { describePersonHint, describePersonHints } from './person-hint';
 import { ResourceMutationEffect, type CapabilityToolDefinition } from './definition';
 
 export enum ChannelToolName {
@@ -29,17 +30,13 @@ const channelHintSchema = z.string()
   .min(1)
   .describe('The exact channel ID, or the channel\'s CURRENT name as the messenger shows it, with or without #. Never a new or intended name.');
 
-const personHintSchema = z.string()
-  .min(1)
-  .describe('Name, @handle, or email of one company member.');
-
-const personHintsSchema = z.array(personHintSchema).min(1).max(50);
+const personHintsSchema = z.array(z.string().min(1)).min(1).max(50);
 
 export const channelAddInputSchema = z.strictObject({
   name: z.string().min(1).describe('The new channel\'s name.'),
   visibility: z.enum(ChannelVisibility).describe('open lets anyone in the company find and join it, and takes the assistant in; private holds only the people added.'),
   description: z.string().describe('What the channel is for, shown under its name.').optional(),
-  personHints: personHintsSchema.describe('Members to add besides the requester, who joins as its owner.').optional(),
+  personHints: personHintsSchema.describe(describePersonHints('Members to add besides the requester, who joins as its owner')).optional(),
 });
 
 export const channelHintInputSchema = z.strictObject({
@@ -48,18 +45,18 @@ export const channelHintInputSchema = z.strictObject({
 
 export const channelMembersInputSchema = z.strictObject({
   channelHint: channelHintSchema,
-  personHints: personHintsSchema.describe('The members to add.'),
+  personHints: personHintsSchema.describe(describePersonHints('The members to add')),
 });
 
 export const channelMemberInputSchema = z.strictObject({
   channelHint: channelHintSchema,
-  personHint: personHintSchema,
+  personHint: z.string().min(1).describe(describePersonHint('One company member')),
 });
 
 const channelResultSchema = z.strictObject({
   channelID: z.string().min(1),
   channelName: z.string(),
-  notAddedPersonHints: z.array(z.string()).describe('The people named who were not added; the messenger refused them.').optional(),
+  notAddedPeople: z.array(z.strictObject({ personID: z.string(), name: z.string() })).describe('The people named who were not added; the messenger refused them.').optional(),
 });
 
 export const channelListInputSchema = z.strictObject({

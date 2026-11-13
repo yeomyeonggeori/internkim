@@ -21,11 +21,11 @@ func TestAnIdentifierResolvesAndANearOneDoesNot(t *testing.T) {
 	}
 }
 
-func TestANameThatBeginsAnotherNameIsAQuestion(t *testing.T) {
+func TestAWholeNameIsTakenEvenWhenAnotherNameBeginsWithIt(t *testing.T) {
 	resolution := resolveHint("박예시", directoryPeopleFixture(), nil)
 
-	if resolution.Outcome != hintAmbiguous || len(resolution.Candidates) != 2 {
-		t.Fatalf("a name two people answer to is never picked here, got %+v", resolution)
+	if resolution.Outcome != hintResolved || resolution.Match.MemberID != "person-2" {
+		t.Fatalf("the person whose whole name was given is the one meant, got %+v", resolution)
 	}
 }
 
@@ -56,58 +56,30 @@ func TestANameNothingComesCloseToNamesNothing(t *testing.T) {
 	}
 }
 
-func TestANameInEitherOrderIsTheSamePerson(t *testing.T) {
-	people := []directoryPerson{
-		{MemberID: "person-lee", Email: "sample@example.com", Name: "샘플 이"},
-		{MemberID: "person-smith", Email: "smith@example.com", Name: "John Michael Smith"},
-	}
-	for hint, memberID := range map[string]string{
-		"이샘플":                "person-lee",
-		"샘플 이":               "person-lee",
-		"샘플이":                "person-lee",
-		"Smith John Michael": "person-smith",
-		"john michael smith": "person-smith",
-		"John Smith":         "person-smith",
-		"Smith John":         "person-smith",
-	} {
-		resolution := resolveHint(hint, people, nil)
-		if resolution.Outcome != hintResolved || resolution.Match.MemberID != memberID {
-			t.Errorf("%q is written in one of the orders a name has, got %+v", hint, resolution)
-		}
-	}
-}
-
-func TestANameWithAndWithoutAMiddleIsAQuestion(t *testing.T) {
-	people := []directoryPerson{
-		{MemberID: "person-plain", Email: "plain@example.com", Name: "John Smith"},
-		{MemberID: "person-middle", Email: "middle@example.com", Name: "John Michael Smith"},
-	}
-	for _, hint := range []string{"Smith John", "John Smith", "Smith"} {
-		if resolution := resolveHint(hint, people, nil); resolution.Outcome != hintAmbiguous || len(resolution.Candidates) != 2 {
-			t.Errorf("%q could be either of them, got %+v", hint, resolution)
-		}
-	}
-	if resolution := resolveHint("Michael", people, nil); resolution.Outcome != hintResolved || resolution.Match.MemberID != "person-middle" {
-		t.Fatalf("a name only one person answers to is that person, got %+v", resolution)
-	}
-}
-
-func TestTwoPeopleWithOneNameAreAQuestion(t *testing.T) {
+func TestTwoPeopleAPartOfANameReachesAlikeAreAQuestion(t *testing.T) {
 	people := []directoryPerson{
 		{MemberID: "person-work", Email: "sample@example.com", Name: "이샘플(work)"},
 		{MemberID: "person-personal", Email: "sample2468@example.com", Name: "샘플 이"},
 		{MemberID: "person-other", Email: "other@example.com", Name: "예시 김"},
 	}
-	for _, hint := range []string{"이샘플", "샘플", "샘플 이"} {
-		resolution := resolveHint(hint, people, nil)
-		if resolution.Outcome != hintAmbiguous || len(resolution.Candidates) != 2 {
-			t.Errorf("%q names two people and nothing here may pick one, got %+v", hint, resolution)
-		}
+	if resolution := resolveHint("샘플", people, nil); resolution.Outcome != hintAmbiguous || len(resolution.Candidates) != 2 {
+		t.Errorf("a part of both names is a question, got %+v", resolution)
+	}
+	if resolution := resolveHint("이샘플", people, nil); resolution.Outcome != hintResolved || resolution.Match.MemberID != "person-personal" {
+		t.Errorf("a whole name outranks a name that merely contains it, got %+v", resolution)
 	}
 	if resolution := resolveHint("sample2468@example.com", people, nil); resolution.Outcome != hintResolved || resolution.Match.MemberID != "person-personal" {
 		t.Fatalf("an address tells two people with one name apart, got %+v", resolution)
 	}
-	if resolution := resolveHint("예시", people, nil); resolution.Outcome != hintResolved || resolution.Match.MemberID != "person-other" {
-		t.Fatalf("a name one person answers to is that person, got %+v", resolution)
+}
+
+func TestAChannelIsReachedOnlyByItsWholeName(t *testing.T) {
+	channels := []chatdChannel{{ChannelID: "channel-1", Name: "general"}, {ChannelID: "channel-2", Name: "general-talk"}}
+
+	if resolution := resolveHint("#General", channels, nil); resolution.Outcome != hintResolved || resolution.Match.ChannelID != "channel-1" {
+		t.Fatalf("a channel's whole name reaches it, got %+v", resolution)
+	}
+	if resolution := resolveHint("talk", channels, nil); resolution.Outcome == hintResolved {
+		t.Fatalf("a part of a channel name is never taken as the channel, got %+v", resolution)
 	}
 }

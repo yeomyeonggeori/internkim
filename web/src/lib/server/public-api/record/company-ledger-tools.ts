@@ -4,7 +4,7 @@ import { assetBucket } from '../asset-address';
 import { compareMomentsNewestFirst, momentSpanOf } from '$lib/moment';
 import { dataRoomFolder, derivedPath, originalPath } from '$lib/data-room/storage-path';
 import { titleNearness } from './hint-nearness';
-import { HintRefused, normalized, resolveHint, type HintMatcher } from './hint-resolution';
+import { HintRefused, normalized, resolveHint, titleReachOf, type HintMatcher } from './hint-resolution';
 import type { RecordContext } from './company';
 import { moneySchema, type Money } from '$lib/money';
 import type { MetricBasis } from '$lib/data-room/model';
@@ -350,7 +350,7 @@ export async function companyMetricList(
 
 const recordMatcher: HintMatcher<RecordRow> = {
 	identifiersOf: (row) => [row.id],
-	titleOf: (row) => row.title,
+	reachOf: titleReachOf((row) => row.title),
 	nearnessTo: (row, hint) => titleNearness(normalized(hint), normalized(row.title))
 };
 
@@ -482,7 +482,7 @@ function recordHolds(row: RecordRow, keyword: string): boolean {
 
 const documentMatcher: HintMatcher<DocumentRow> = {
 	identifiersOf: (row) => [row.id, row.document_number ?? ''],
-	titleOf: (row) => row.title,
+	reachOf: titleReachOf((row) => row.title),
 	nearnessTo: (row, hint) => titleNearness(normalized(hint), normalized(row.title))
 };
 

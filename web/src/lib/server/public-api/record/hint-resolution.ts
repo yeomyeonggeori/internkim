@@ -6,11 +6,21 @@ export type HintOutcome = 'resolved' | 'ambiguous' | 'approximate' | 'not_found'
 
 export type HintMatcher<Item> = {
 	identifiersOf: (item: Item) => string[];
-	titleOf: (item: Item) => string;
-	exactTitleAliasesOf?: (item: Item) => string[];
+	reachOf: (item: Item, asked: string) => number;
 	nearnessTo: (item: Item, hint: string) => number;
 	isPreferred?: (item: Item) => boolean;
 };
+
+const titleRank = { unreached: 0, exact: 1, contained: 2 } as const;
+
+export function titleReachOf<Item>(titleOf: (item: Item) => string): (item: Item, asked: string) => number {
+	return (item, asked) => {
+		const title = titleOf(item);
+		if (normalized(title) === normalized(asked)) return titleRank.exact;
+		if (titleContains(title, asked)) return titleRank.contained;
+		return titleRank.unreached;
+	};
+}
 
 export type HintResolution<Item> =
 	| { outcome: 'resolved'; match: Item }
@@ -28,24 +38,23 @@ export function resolveHint<Item>(
 	if (identified.length === 1) return { outcome: 'resolved', match: identified[0] };
 	if (identified.length > 1) return { outcome: 'ambiguous', candidates: identified };
 
-	const titled = items.filter((item) => hasExactTitle(matcher, item, asked));
-	const titledResolution = onlyOrPreferred(titled, matcher.isPreferred);
-	if (titledResolution) return titledResolution;
-	if (titled.length > 0) return { outcome: 'ambiguous', candidates: titled };
-
-	const containing = items.filter((item) => titleContains(matcher.titleOf(item), asked));
-	const containingResolution = onlyOrPreferred(containing, matcher.isPreferred);
-	if (containingResolution) return containingResolution;
-	if (containing.length > 0) return { outcome: 'ambiguous', candidates: containing };
+	const closest = itemsClosestTo(asked, items, matcher);
+	const closestResolution = onlyOrPreferred(closest, matcher.isPreferred);
+	if (closestResolution) return closestResolution;
+	if (closest.length > 0) return { outcome: 'ambiguous', candidates: closest };
 
 	const nearest = nearestItems(asked, items, matcher);
 	if (nearest.length > 0) return { outcome: 'approximate', candidates: nearest };
 	return { outcome: 'not_found', candidates: [] };
 }
 
-function hasExactTitle<Item>(matcher: HintMatcher<Item>, item: Item, asked: string): boolean {
-	const titles = [matcher.titleOf(item), ...(matcher.exactTitleAliasesOf?.(item) ?? [])];
-	return titles.some((title) => normalized(title) === normalized(asked));
+function itemsClosestTo<Item>(asked: string, items: Item[], matcher: HintMatcher<Item>): Item[] {
+	const ranked = items
+		.map((item) => ({ item, rank: matcher.reachOf(item, asked) }))
+		.filter((entry) => entry.rank > 0);
+	if (ranked.length === 0) return [];
+	const closestRank = Math.min(...ranked.map((entry) => entry.rank));
+	return ranked.filter((entry) => entry.rank === closestRank).map((entry) => entry.item);
 }
 
 function onlyOrPreferred<Item>(

@@ -1081,7 +1081,7 @@
             "type": "string"
           },
           "participantPersonHints": {
-            "description": "Names, @handles, or emails of the people the task belongs to. Omit it when the work is the requester’s own, which is the usual case; the name the requester used to address you is not a participant.",
+            "description": "The people the task belongs to, each by name or job title without honorific or particle, email, @handle, or the personID a tool result showed. Omit it when the work is the requester’s own, which is the usual case; the name the requester used to address you is not a participant.",
             "items": {
               "type": "string"
             },
@@ -1161,7 +1161,7 @@
             "type": "string"
           },
           "participantPersonHints": {
-            "description": "Names, @handles, or emails of the people the task belongs to. Omit it when the work is the requester’s own, which is the usual case; the name the requester used to address you is not a participant.",
+            "description": "The people the task belongs to, each by name or job title without honorific or particle, email, @handle, or the personID a tool result showed. Omit it when the work is the requester’s own, which is the usual case; the name the requester used to address you is not a participant.",
             "items": {
               "type": "string"
             },
@@ -1482,7 +1482,7 @@
             "type": "string"
           },
           "personHints": {
-            "description": "Names, @handles, or emails of the people whose tasks to read. Omit it for the requester's own, which is the usual case. Do not send it together with scope.",
+            "description": "The people whose tasks to read, each by name or job title without honorific or particle, email, @handle, or the personID a tool result showed. Omit it for the requester's own, which is the usual case. Do not send it together with scope.",
             "items": {
               "type": "string"
             },
@@ -2039,7 +2039,7 @@
             "type": "string"
           },
           "personHints": {
-            "description": "Names, @handles, or emails of the people whose tasks to read. Omit it for the requester's own, which is the usual case. Do not send it together with scope.",
+            "description": "The people whose tasks to read, each by name or job title without honorific or particle, email, @handle, or the personID a tool result showed. Omit it for the requester's own, which is the usual case. Do not send it together with scope.",
             "items": {
               "type": "string"
             },
@@ -2680,7 +2680,7 @@
             "type": "string"
           },
           "participantPersonHints": {
-            "description": "Names, @handles, or emails of everyone taking part, replacing the current participants. Send the whole set, not just additions.",
+            "description": "Everyone taking part, replacing the current participants, each by name or job title without honorific or particle, email, @handle, or the personID a tool result showed. Send the whole set, not just additions.",
             "items": {
               "type": "string"
             },
@@ -2766,7 +2766,7 @@
             "type": "string"
           },
           "participantPersonHints": {
-            "description": "Names, @handles, or emails of everyone taking part, replacing the current participants. Send the whole set, not just additions.",
+            "description": "Everyone taking part, replacing the current participants, each by name or job title without honorific or particle, email, @handle, or the personID a tool result showed. Send the whole set, not just additions.",
             "items": {
               "type": "string"
             },
@@ -4005,7 +4005,7 @@
             "type": "string"
           },
           "personHint": {
-            "description": "Identifies the person to act on: their exact person ID, their exact email address, their @handle, or their name as a person_list result shows it. A name only one colleague carries resolves; a name several carry fails with the candidates to choose between.",
+            "description": "The person to act on: name or job title without honorific or particle, email, @handle, or the personID a tool result showed. A name only one colleague carries resolves; a name several carry fails with the candidates to choose between.",
             "maxLength": 256,
             "minLength": 1,
             "type": "string"
@@ -4382,7 +4382,7 @@
         "additionalProperties": false,
         "properties": {
           "personHint": {
-            "description": "Identifies the person to act on: their exact person ID, their exact email address, their @handle, or their name as a person_list result shows it. A name only one colleague carries resolves; a name several carry fails with the candidates to choose between.",
+            "description": "The person to act on: name or job title without honorific or particle, email, @handle, or the personID a tool result showed. A name only one colleague carries resolves; a name several carry fails with the candidates to choose between.",
             "maxLength": 256,
             "minLength": 1,
             "type": "string"
@@ -4516,7 +4516,7 @@
         "additionalProperties": false,
         "properties": {
           "personHint": {
-            "description": "Identifies the person to act on: their exact person ID, their exact email address, their @handle, or their name as a person_list result shows it. A name only one colleague carries resolves; a name several carry fails with the candidates to choose between.",
+            "description": "The person to act on: name or job title without honorific or particle, email, @handle, or the personID a tool result showed. A name only one colleague carries resolves; a name several carry fails with the candidates to choose between.",
             "maxLength": 256,
             "minLength": 1,
             "type": "string"
@@ -4632,7 +4632,7 @@
         "additionalProperties": false,
         "properties": {
           "personHint": {
-            "description": "Identifies the person to act on: their exact person ID, their exact email address, their @handle, or their name as a person_list result shows it. A name only one colleague carries resolves; a name several carry fails with the candidates to choose between.",
+            "description": "The person to act on: name or job title without honorific or particle, email, @handle, or the personID a tool result showed. A name only one colleague carries resolves; a name several carry fails with the candidates to choose between.",
             "maxLength": 256,
             "minLength": 1,
             "type": "string"
@@ -5373,7 +5373,7 @@
             "type": "integer"
           },
           "participantPersonHints": {
-            "description": "Names, @handles, or emails of the people attending. Naming nobody makes the event the requester’s own.",
+            "description": "The people attending, each by name or job title without honorific or particle, email, @handle, or the personID a tool result showed. Naming nobody makes the event the requester’s own.",
             "items": {
               "type": "string"
             },
@@ -5421,7 +5421,7 @@
             "type": "integer"
           },
           "participantPersonHints": {
-            "description": "Names, @handles, or emails of the people attending. Naming nobody makes the event the requester’s own.",
+            "description": "The people attending, each by name or job title without honorific or particle, email, @handle, or the personID a tool result showed. Naming nobody makes the event the requester’s own.",
             "items": {
               "type": "string"
             },
@@ -5652,7 +5652,7 @@
             "type": "integer"
           },
           "personHints": {
-            "description": "Names, @handles, or emails of the people whose calendar entries to read. Omit it for the requester's own, which is the usual case. Do not send it together with scope.",
+            "description": "The people whose calendar entries to read, each by name or job title without honorific or particle, email, @handle, or the personID a tool result showed. Omit it for the requester's own, which is the usual case. Do not send it together with scope.",
             "items": {
               "type": "string"
             },
@@ -5977,7 +5977,7 @@
             "type": "integer"
           },
           "participantPersonHints": {
-            "description": "Names, @handles, or emails of everyone attending, replacing the current attendees. Send the whole set, not just additions.",
+            "description": "Everyone attending, replacing the current attendees, each by name or job title without honorific or particle, email, @handle, or the personID a tool result showed. Send the whole set, not just additions.",
             "items": {
               "type": "string"
             },
@@ -6036,7 +6036,7 @@
             "type": "integer"
           },
           "participantPersonHints": {
-            "description": "Names, @handles, or emails of everyone attending, replacing the current attendees. Send the whole set, not just additions.",
+            "description": "Everyone attending, replacing the current attendees, each by name or job title without honorific or particle, email, @handle, or the personID a tool result showed. Send the whole set, not just additions.",
             "items": {
               "type": "string"
             },
@@ -6594,7 +6594,7 @@
             "type": "integer"
           },
           "personHints": {
-            "description": "Names, @handles, or emails of the people whose leave to read. Omit it for the requester's own, which is the usual case. Do not send it together with scope.",
+            "description": "The people whose leave to read, each by name or job title without honorific or particle, email, @handle, or the personID a tool result showed. Omit it for the requester's own, which is the usual case. Do not send it together with scope.",
             "items": {
               "type": "string"
             },
@@ -6943,7 +6943,7 @@
         "additionalProperties": false,
         "properties": {
           "personHints": {
-            "description": "Names, @handles, or emails of the people whose leave balance to read. Omit it for the requester's own, which is the usual case. Do not send it together with scope.",
+            "description": "The people whose leave balance to read, each by name or job title without honorific or particle, email, @handle, or the personID a tool result showed. Omit it for the requester's own, which is the usual case. Do not send it together with scope.",
             "items": {
               "type": "string"
             },
@@ -7186,7 +7186,7 @@
             "type": "string"
           },
           "personHint": {
-            "description": "Name or email of the person the leave belongs to. Only an administrator files leave for somebody else. Omit for the requester.",
+            "description": "The person the leave belongs to: name or job title without honorific or particle, email, @handle, or the personID a tool result showed. Only an administrator files leave for somebody else. Omit for the requester.",
             "type": "string"
           },
           "startsAt": {
@@ -7217,7 +7217,7 @@
             "type": "string"
           },
           "personHint": {
-            "description": "Name or email of the person the leave belongs to. Only an administrator files leave for somebody else. Omit for the requester.",
+            "description": "The person the leave belongs to: name or job title without honorific or particle, email, @handle, or the personID a tool result showed. Only an administrator files leave for somebody else. Omit for the requester.",
             "type": "string"
           },
           "startsAt": {
@@ -8139,7 +8139,7 @@
             "type": "number"
           },
           "personHint": {
-            "description": "Name or email of the person whose entitlement to set.",
+            "description": "The person whose entitlement to set: name or job title without honorific or particle, email, @handle, or the personID a tool result showed.",
             "type": "string"
           }
         },
@@ -8154,7 +8154,7 @@
             "type": "number"
           },
           "personHint": {
-            "description": "Name or email of the person whose entitlement to set.",
+            "description": "The person whose entitlement to set: name or job title without honorific or particle, email, @handle, or the personID a tool result showed.",
             "type": "string"
           }
         },
@@ -10828,7 +10828,7 @@
             "type": "integer"
           },
           "personHints": {
-            "description": "Names, @handles, or emails of the people whose attendance to read. Omit it for the requester's own, which is the usual case. Do not send it together with scope.",
+            "description": "The people whose attendance to read, each by name or job title without honorific or particle, email, @handle, or the personID a tool result showed. Omit it for the requester's own, which is the usual case. Do not send it together with scope.",
             "items": {
               "type": "string"
             },
@@ -11260,7 +11260,7 @@
             "type": "integer"
           },
           "personHints": {
-            "description": "Names, @handles, or emails of the people whose attendance to read. Omit it for the requester's own, which is the usual case. Do not send it together with scope.",
+            "description": "The people whose attendance to read, each by name or job title without honorific or particle, email, @handle, or the personID a tool result showed. Omit it for the requester's own, which is the usual case. Do not send it together with scope.",
             "items": {
               "type": "string"
             },
@@ -11829,7 +11829,7 @@
             "type": "string"
           },
           "personHint": {
-            "description": "Name or email of the person the record belongs to. Omit for the requester.",
+            "description": "The person the record belongs to: name or job title without honorific or particle, email, @handle, or the personID a tool result showed. Omit for the requester.",
             "type": "string"
           },
           "reason": {
@@ -11874,7 +11874,7 @@
             "type": "string"
           },
           "personHint": {
-            "description": "Name or email of the person the record belongs to. Omit for the requester.",
+            "description": "The person the record belongs to: name or job title without honorific or particle, email, @handle, or the personID a tool result showed. Omit for the requester.",
             "type": "string"
           },
           "reason": {
@@ -12668,7 +12668,7 @@
             "uniqueItems": true
           },
           "personHint": {
-            "description": "Exact name, @handle, or email of the direct-message counterpart.",
+            "description": "The direct-message counterpart: name or job title without honorific or particle, email, @handle, or the personID a tool result showed.",
             "type": "string"
           },
           "queries": {
@@ -12991,11 +12991,11 @@
             "type": "string"
           },
           "personHint": {
-            "description": "Name, @handle, or email of one direct-message recipient. Omit for the requester's own direct conversation with the agent.",
+            "description": "The one direct-message recipient: name or job title without honorific or particle, email, @handle, or the personID a tool result showed. Omit for the requester's own direct conversation with the agent.",
             "type": "string"
           },
           "personHints": {
-            "description": "Direct-message recipients for one fan-out send.",
+            "description": "Direct-message recipients for one fan-out send, each by name or job title without honorific or particle, email, @handle, or the personID a tool result showed.",
             "items": {
               "minLength": 1,
               "type": "string"
@@ -13048,11 +13048,11 @@
             "type": "string"
           },
           "personHint": {
-            "description": "Name, @handle, or email of one direct-message recipient. Omit for the requester's own direct conversation with the agent.",
+            "description": "The one direct-message recipient: name or job title without honorific or particle, email, @handle, or the personID a tool result showed. Omit for the requester's own direct conversation with the agent.",
             "type": "string"
           },
           "personHints": {
-            "description": "Direct-message recipients for one fan-out send.",
+            "description": "Direct-message recipients for one fan-out send, each by name or job title without honorific or particle, email, @handle, or the personID a tool result showed.",
             "items": {
               "minLength": 1,
               "type": "string"
@@ -13111,7 +13111,10 @@
                 "messageID": {
                   "type": "string"
                 },
-                "personHint": {
+                "name": {
+                  "type": "string"
+                },
+                "personID": {
                   "type": "string"
                 }
               },
@@ -13178,7 +13181,10 @@
                   "messageID": {
                     "type": "string"
                   },
-                  "personHint": {
+                  "name": {
+                    "type": "string"
+                  },
+                  "personID": {
                     "type": "string"
                   }
                 },
@@ -13474,7 +13480,10 @@
                 "messageID": {
                   "type": "string"
                 },
-                "personHint": {
+                "name": {
+                  "type": "string"
+                },
+                "personID": {
                   "type": "string"
                 }
               },
@@ -13541,7 +13550,10 @@
                   "messageID": {
                     "type": "string"
                   },
-                  "personHint": {
+                  "name": {
+                    "type": "string"
+                  },
+                  "personID": {
                     "type": "string"
                   }
                 },
@@ -13839,7 +13851,7 @@
         "additionalProperties": false,
         "properties": {
           "personHint": {
-            "description": "Name, @handle, or email of the one other person in the requester's direct conversation.",
+            "description": "The one other person in the requester's direct conversation: name or job title without honorific or particle, email, @handle, or the personID a tool result showed.",
             "minLength": 1,
             "type": "string"
           }
@@ -13851,7 +13863,7 @@
         "additionalProperties": false,
         "properties": {
           "personHint": {
-            "description": "Name, @handle, or email of the one other person in the requester's direct conversation.",
+            "description": "The one other person in the requester's direct conversation: name or job title without honorific or particle, email, @handle, or the personID a tool result showed.",
             "minLength": 1,
             "type": "string"
           }
@@ -13944,7 +13956,7 @@
         "additionalProperties": false,
         "properties": {
           "personHint": {
-            "description": "Name, @handle, or email of the one other person in the requester's direct conversation.",
+            "description": "The one other person in the requester's direct conversation: name or job title without honorific or particle, email, @handle, or the personID a tool result showed.",
             "minLength": 1,
             "type": "string"
           }
@@ -13956,7 +13968,7 @@
         "additionalProperties": false,
         "properties": {
           "personHint": {
-            "description": "Name, @handle, or email of the one other person in the requester's direct conversation.",
+            "description": "The one other person in the requester's direct conversation: name or job title without honorific or particle, email, @handle, or the personID a tool result showed.",
             "minLength": 1,
             "type": "string"
           }
@@ -14199,9 +14211,8 @@
             "type": "string"
           },
           "personHints": {
-            "description": "Members to add besides the requester, who joins as its owner.",
+            "description": "Members to add besides the requester, who joins as its owner, each by name or job title without honorific or particle, email, @handle, or the personID a tool result showed.",
             "items": {
-              "description": "Name, @handle, or email of one company member.",
               "minLength": 1,
               "type": "string"
             },
@@ -14234,9 +14245,8 @@
             "type": "string"
           },
           "personHints": {
-            "description": "Members to add besides the requester, who joins as its owner.",
+            "description": "Members to add besides the requester, who joins as its owner, each by name or job title without honorific or particle, email, @handle, or the personID a tool result showed.",
             "items": {
-              "description": "Name, @handle, or email of one company member.",
               "minLength": 1,
               "type": "string"
             },
@@ -14277,10 +14287,23 @@
           "channelName": {
             "type": "string"
           },
-          "notAddedPersonHints": {
+          "notAddedPeople": {
             "description": "The people named who were not added; the messenger refused them.",
             "items": {
-              "type": "string"
+              "additionalProperties": false,
+              "properties": {
+                "name": {
+                  "type": "string"
+                },
+                "personID": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "personID",
+                "name"
+              ],
+              "type": "object"
             },
             "type": "array"
           }
@@ -14316,10 +14339,23 @@
             "channelName": {
               "type": "string"
             },
-            "notAddedPersonHints": {
+            "notAddedPeople": {
               "description": "The people named who were not added; the messenger refused them.",
               "items": {
-                "type": "string"
+                "additionalProperties": false,
+                "properties": {
+                  "name": {
+                    "type": "string"
+                  },
+                  "personID": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "personID",
+                  "name"
+                ],
+                "type": "object"
               },
               "type": "array"
             }
@@ -14394,10 +14430,23 @@
           "channelName": {
             "type": "string"
           },
-          "notAddedPersonHints": {
+          "notAddedPeople": {
             "description": "The people named who were not added; the messenger refused them.",
             "items": {
-              "type": "string"
+              "additionalProperties": false,
+              "properties": {
+                "name": {
+                  "type": "string"
+                },
+                "personID": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "personID",
+                "name"
+              ],
+              "type": "object"
             },
             "type": "array"
           }
@@ -14433,10 +14482,23 @@
             "channelName": {
               "type": "string"
             },
-            "notAddedPersonHints": {
+            "notAddedPeople": {
               "description": "The people named who were not added; the messenger refused them.",
               "items": {
-                "type": "string"
+                "additionalProperties": false,
+                "properties": {
+                  "name": {
+                    "type": "string"
+                  },
+                  "personID": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "personID",
+                  "name"
+                ],
+                "type": "object"
               },
               "type": "array"
             }
@@ -14511,10 +14573,23 @@
           "channelName": {
             "type": "string"
           },
-          "notAddedPersonHints": {
+          "notAddedPeople": {
             "description": "The people named who were not added; the messenger refused them.",
             "items": {
-              "type": "string"
+              "additionalProperties": false,
+              "properties": {
+                "name": {
+                  "type": "string"
+                },
+                "personID": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "personID",
+                "name"
+              ],
+              "type": "object"
             },
             "type": "array"
           }
@@ -14550,10 +14625,23 @@
             "channelName": {
               "type": "string"
             },
-            "notAddedPersonHints": {
+            "notAddedPeople": {
               "description": "The people named who were not added; the messenger refused them.",
               "items": {
-                "type": "string"
+                "additionalProperties": false,
+                "properties": {
+                  "name": {
+                    "type": "string"
+                  },
+                  "personID": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "personID",
+                  "name"
+                ],
+                "type": "object"
               },
               "type": "array"
             }
@@ -14628,10 +14716,23 @@
           "channelName": {
             "type": "string"
           },
-          "notAddedPersonHints": {
+          "notAddedPeople": {
             "description": "The people named who were not added; the messenger refused them.",
             "items": {
-              "type": "string"
+              "additionalProperties": false,
+              "properties": {
+                "name": {
+                  "type": "string"
+                },
+                "personID": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "personID",
+                "name"
+              ],
+              "type": "object"
             },
             "type": "array"
           }
@@ -14667,10 +14768,23 @@
             "channelName": {
               "type": "string"
             },
-            "notAddedPersonHints": {
+            "notAddedPeople": {
               "description": "The people named who were not added; the messenger refused them.",
               "items": {
-                "type": "string"
+                "additionalProperties": false,
+                "properties": {
+                  "name": {
+                    "type": "string"
+                  },
+                  "personID": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "personID",
+                  "name"
+                ],
+                "type": "object"
               },
               "type": "array"
             }
@@ -14710,9 +14824,8 @@
             "type": "string"
           },
           "personHints": {
-            "description": "The members to add.",
+            "description": "The members to add, each by name or job title without honorific or particle, email, @handle, or the personID a tool result showed.",
             "items": {
-              "description": "Name, @handle, or email of one company member.",
               "minLength": 1,
               "type": "string"
             },
@@ -14733,9 +14846,8 @@
             "type": "string"
           },
           "personHints": {
-            "description": "The members to add.",
+            "description": "The members to add, each by name or job title without honorific or particle, email, @handle, or the personID a tool result showed.",
             "items": {
-              "description": "Name, @handle, or email of one company member.",
               "minLength": 1,
               "type": "string"
             },
@@ -14768,10 +14880,23 @@
           "channelName": {
             "type": "string"
           },
-          "notAddedPersonHints": {
+          "notAddedPeople": {
             "description": "The people named who were not added; the messenger refused them.",
             "items": {
-              "type": "string"
+              "additionalProperties": false,
+              "properties": {
+                "name": {
+                  "type": "string"
+                },
+                "personID": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "personID",
+                "name"
+              ],
+              "type": "object"
             },
             "type": "array"
           }
@@ -14807,10 +14932,23 @@
             "channelName": {
               "type": "string"
             },
-            "notAddedPersonHints": {
+            "notAddedPeople": {
               "description": "The people named who were not added; the messenger refused them.",
               "items": {
-                "type": "string"
+                "additionalProperties": false,
+                "properties": {
+                  "name": {
+                    "type": "string"
+                  },
+                  "personID": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "personID",
+                  "name"
+                ],
+                "type": "object"
               },
               "type": "array"
             }
@@ -14850,7 +14988,7 @@
             "type": "string"
           },
           "personHint": {
-            "description": "Name, @handle, or email of one company member.",
+            "description": "One company member: name or job title without honorific or particle, email, @handle, or the personID a tool result showed.",
             "minLength": 1,
             "type": "string"
           }
@@ -14867,7 +15005,7 @@
             "type": "string"
           },
           "personHint": {
-            "description": "Name, @handle, or email of one company member.",
+            "description": "One company member: name or job title without honorific or particle, email, @handle, or the personID a tool result showed.",
             "minLength": 1,
             "type": "string"
           }
@@ -14896,10 +15034,23 @@
           "channelName": {
             "type": "string"
           },
-          "notAddedPersonHints": {
+          "notAddedPeople": {
             "description": "The people named who were not added; the messenger refused them.",
             "items": {
-              "type": "string"
+              "additionalProperties": false,
+              "properties": {
+                "name": {
+                  "type": "string"
+                },
+                "personID": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "personID",
+                "name"
+              ],
+              "type": "object"
             },
             "type": "array"
           }
@@ -14935,10 +15086,23 @@
             "channelName": {
               "type": "string"
             },
-            "notAddedPersonHints": {
+            "notAddedPeople": {
               "description": "The people named who were not added; the messenger refused them.",
               "items": {
-                "type": "string"
+                "additionalProperties": false,
+                "properties": {
+                  "name": {
+                    "type": "string"
+                  },
+                  "personID": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "personID",
+                  "name"
+                ],
+                "type": "object"
               },
               "type": "array"
             }
@@ -14978,7 +15142,7 @@
             "type": "string"
           },
           "personHint": {
-            "description": "Name, @handle, or email of one company member.",
+            "description": "One company member: name or job title without honorific or particle, email, @handle, or the personID a tool result showed.",
             "minLength": 1,
             "type": "string"
           }
@@ -14995,7 +15159,7 @@
             "type": "string"
           },
           "personHint": {
-            "description": "Name, @handle, or email of one company member.",
+            "description": "One company member: name or job title without honorific or particle, email, @handle, or the personID a tool result showed.",
             "minLength": 1,
             "type": "string"
           }
@@ -15024,10 +15188,23 @@
           "channelName": {
             "type": "string"
           },
-          "notAddedPersonHints": {
+          "notAddedPeople": {
             "description": "The people named who were not added; the messenger refused them.",
             "items": {
-              "type": "string"
+              "additionalProperties": false,
+              "properties": {
+                "name": {
+                  "type": "string"
+                },
+                "personID": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "personID",
+                "name"
+              ],
+              "type": "object"
             },
             "type": "array"
           }
@@ -15063,10 +15240,23 @@
             "channelName": {
               "type": "string"
             },
-            "notAddedPersonHints": {
+            "notAddedPeople": {
               "description": "The people named who were not added; the messenger refused them.",
               "items": {
-                "type": "string"
+                "additionalProperties": false,
+                "properties": {
+                  "name": {
+                    "type": "string"
+                  },
+                  "personID": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "personID",
+                  "name"
+                ],
+                "type": "object"
               },
               "type": "array"
             }
@@ -15106,7 +15296,7 @@
             "type": "string"
           },
           "personHint": {
-            "description": "Name, @handle, or email of one company member.",
+            "description": "One company member: name or job title without honorific or particle, email, @handle, or the personID a tool result showed.",
             "minLength": 1,
             "type": "string"
           }
@@ -15123,7 +15313,7 @@
             "type": "string"
           },
           "personHint": {
-            "description": "Name, @handle, or email of one company member.",
+            "description": "One company member: name or job title without honorific or particle, email, @handle, or the personID a tool result showed.",
             "minLength": 1,
             "type": "string"
           }
@@ -15152,10 +15342,23 @@
           "channelName": {
             "type": "string"
           },
-          "notAddedPersonHints": {
+          "notAddedPeople": {
             "description": "The people named who were not added; the messenger refused them.",
             "items": {
-              "type": "string"
+              "additionalProperties": false,
+              "properties": {
+                "name": {
+                  "type": "string"
+                },
+                "personID": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "personID",
+                "name"
+              ],
+              "type": "object"
             },
             "type": "array"
           }
@@ -15191,10 +15394,23 @@
             "channelName": {
               "type": "string"
             },
-            "notAddedPersonHints": {
+            "notAddedPeople": {
               "description": "The people named who were not added; the messenger refused them.",
               "items": {
-                "type": "string"
+                "additionalProperties": false,
+                "properties": {
+                  "name": {
+                    "type": "string"
+                  },
+                  "personID": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "personID",
+                  "name"
+                ],
+                "type": "object"
               },
               "type": "array"
             }
@@ -21757,7 +21973,7 @@
             "type": "string"
           },
           "representativePersonHint": {
-            "description": "The person who represents the company in law: their personID from person_list, or their name or email as written. Their directory name and job title print as the representative. An empty string clears it.",
+            "description": "The person who represents the company in law: name or job title without honorific or particle, email, @handle, or the personID a tool result showed. Their directory name and job title print as the representative. An empty string clears it.",
             "type": "string"
           },
           "sealImage": {
@@ -21860,7 +22076,7 @@
             "type": "string"
           },
           "representativePersonHint": {
-            "description": "The person who represents the company in law: their personID from person_list, or their name or email as written. Their directory name and job title print as the representative. An empty string clears it.",
+            "description": "The person who represents the company in law: name or job title without honorific or particle, email, @handle, or the personID a tool result showed. Their directory name and job title print as the representative. An empty string clears it.",
             "type": "string"
           },
           "sealImage": {
@@ -27595,7 +27811,7 @@
             "type": "string"
           },
           "ownerPersonHint": {
-            "description": "The colleague who owns it, by name or email.",
+            "description": "The colleague who owns it: name or job title without honorific or particle, email, @handle, or the personID a tool result showed.",
             "maxLength": 256,
             "type": "string"
           },
@@ -27646,7 +27862,7 @@
             "type": "string"
           },
           "ownerPersonHint": {
-            "description": "The colleague who owns it, by name or email.",
+            "description": "The colleague who owns it: name or job title without honorific or particle, email, @handle, or the personID a tool result showed.",
             "maxLength": 256,
             "type": "string"
           },
@@ -27930,7 +28146,7 @@
             "type": "string"
           },
           "ownerPersonHint": {
-            "description": "The colleague who owns it, by name or email.",
+            "description": "The colleague who owns it: name or job title without honorific or particle, email, @handle, or the personID a tool result showed.",
             "maxLength": 256,
             "type": "string"
           },
@@ -27988,7 +28204,7 @@
             "type": "string"
           },
           "ownerPersonHint": {
-            "description": "The colleague who owns it, by name or email.",
+            "description": "The colleague who owns it: name or job title without honorific or particle, email, @handle, or the personID a tool result showed.",
             "maxLength": 256,
             "type": "string"
           },
@@ -29844,7 +30060,7 @@
             "type": "string"
           },
           "ownerPersonHint": {
-            "description": "The colleague who owns it, by name or email.",
+            "description": "The colleague who owns it: name or job title without honorific or particle, email, @handle, or the personID a tool result showed.",
             "maxLength": 256,
             "type": "string"
           },
@@ -29935,7 +30151,7 @@
             "type": "string"
           },
           "ownerPersonHint": {
-            "description": "The colleague who owns it, by name or email.",
+            "description": "The colleague who owns it: name or job title without honorific or particle, email, @handle, or the personID a tool result showed.",
             "maxLength": 256,
             "type": "string"
           },
@@ -30428,7 +30644,7 @@
             "type": "string"
           },
           "ownerPersonHint": {
-            "description": "The colleague who owns it, by name or email.",
+            "description": "The colleague who owns it: name or job title without honorific or particle, email, @handle, or the personID a tool result showed.",
             "maxLength": 256,
             "type": "string"
           },
@@ -30514,7 +30730,7 @@
             "type": "string"
           },
           "ownerPersonHint": {
-            "description": "The colleague who owns it, by name or email.",
+            "description": "The colleague who owns it: name or job title without honorific or particle, email, @handle, or the personID a tool result showed.",
             "maxLength": 256,
             "type": "string"
           },
@@ -32081,7 +32297,7 @@
             "type": "string"
           },
           "participantPersonHints": {
-            "description": "Names, @handles or emails of the colleagues taking part. A task has participants, not one assignee.",
+            "description": "The colleagues taking part, each by name or job title without honorific or particle, email, @handle, or the personID a tool result showed. A task has participants, not one assignee.",
             "items": {
               "maxLength": 256,
               "type": "string"
@@ -32186,7 +32402,7 @@
             "type": "string"
           },
           "participantPersonHints": {
-            "description": "Names, @handles or emails of the colleagues taking part. A task has participants, not one assignee.",
+            "description": "The colleagues taking part, each by name or job title without honorific or particle, email, @handle, or the personID a tool result showed. A task has participants, not one assignee.",
             "items": {
               "maxLength": 256,
               "type": "string"
@@ -33208,7 +33424,7 @@
                   "type": "string"
                 },
                 "ownerPersonHint": {
-                  "description": "The colleague who owns it, by name or email.",
+                  "description": "The colleague who owns it: name or job title without honorific or particle, email, @handle, or the personID a tool result showed.",
                   "maxLength": 256,
                   "type": "string"
                 },
@@ -33407,7 +33623,7 @@
                   "type": "string"
                 },
                 "ownerPersonHint": {
-                  "description": "The colleague who owns it, by name or email.",
+                  "description": "The colleague who owns it: name or job title without honorific or particle, email, @handle, or the personID a tool result showed.",
                   "maxLength": 256,
                   "type": "string"
                 },

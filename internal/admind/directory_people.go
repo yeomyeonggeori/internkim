@@ -10,6 +10,7 @@ type directoryPerson struct {
 	MemberID  string            `json:"memberID"`
 	Email     string            `json:"email"`
 	Name      string            `json:"name"`
+	JobTitle  string            `json:"jobTitle,omitempty"`
 	Messenger map[string]string `json:"messenger,omitempty"`
 }
 
@@ -41,6 +42,7 @@ func (service *Service) handleDirectoryPeople(responseWriter http.ResponseWriter
 			MemberID:  strings.TrimSpace(member.MemberID),
 			Email:     strings.ToLower(strings.TrimSpace(member.Email)),
 			Name:      strings.TrimSpace(member.Name),
+			JobTitle:  strings.TrimSpace(member.JobTitle),
 			Messenger: member.Messenger,
 		})
 	}
