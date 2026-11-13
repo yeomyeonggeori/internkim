@@ -382,7 +382,7 @@ func TestValidateDescriptorRejectsRequiredIdempotencyWithoutSupport(t *testing.T
 }
 
 func TestCanonicalDescriptorGroupsValidate(t *testing.T) {
-	for _, descriptors := range [][]Descriptor{BrowserToolDescriptors()} {
+	for _, descriptors := range [][]Descriptor{BrowserToolDescriptors(), DesktopToolDescriptors()} {
 		if errorValue := ValidateDescriptorSet(descriptors); errorValue != nil {
 			t.Fatal(errorValue)
 		}
@@ -390,7 +390,7 @@ func TestCanonicalDescriptorGroupsValidate(t *testing.T) {
 }
 
 func TestBuiltInDescriptorsExposeCanonicalProviderMetadata(t *testing.T) {
-	for _, descriptors := range [][]Descriptor{BrowserToolDescriptors()} {
+	for _, descriptors := range [][]Descriptor{BrowserToolDescriptors(), DesktopToolDescriptors()} {
 		for _, descriptor := range descriptors {
 			if descriptor.Name == "" || descriptor.CanonicalName == "" || descriptor.Namespace == "" || descriptor.ModelName == "" {
 				t.Fatalf("descriptor identity is incomplete: %+v", descriptor)

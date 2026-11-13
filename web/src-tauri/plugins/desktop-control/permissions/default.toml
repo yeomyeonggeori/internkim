@@ -1,0 +1,3 @@
+[default]
+description = "Lets the web app hold this computer's desktop-control switch and run the agent-desktop commands it allows, once the person has agreed in a native dialog"
+permissions = ["allow-state", "allow-allow", "allow-disallow", "allow-run", "allow-open-permission-guide"]

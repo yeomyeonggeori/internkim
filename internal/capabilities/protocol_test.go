@@ -571,6 +571,7 @@ func TestMailDescriptorsMatchSkillInputs(t *testing.T) {
 func TestCapabilityDescriptorSchemasAreCanonicalObjects(t *testing.T) {
 	descriptorGroups := [][]Descriptor{
 		BrowserToolDescriptors(),
+		capabilityprotocol.DesktopToolDescriptors(),
 		WebDescriptors(),
 		FileDescriptors(),
 		PlatformMessageDescriptors(),
