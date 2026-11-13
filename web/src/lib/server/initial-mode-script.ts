@@ -1,7 +1,6 @@
 import { createInitialModeExpression } from 'mode-watcher';
-
-const placeholder = '<script id="initial-mode"></script>';
+import { initialModePlaceholder } from './initial-mode-placeholder';
 
 export function withInitialModeScript(html: string): string {
-	return html.replace(placeholder, `<script id="initial-mode">${createInitialModeExpression()}</script>`);
+	return html.replace(initialModePlaceholder, `<script id="initial-mode">${createInitialModeExpression()}</script>`);
 }
