@@ -2,9 +2,10 @@ package capabilityd
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
+	"runtime/debug"
 	"strings"
 	"time"
 
@@ -24,21 +25,46 @@ func (service Service) answerWithinTheRequestedTime(ctx context.Context, request
 	defer release()
 	answered := make(chan toolAnswer, 1)
 	go func() {
-		response, errorValue := handler(service, boundedContext, request)
-		answered <- toolAnswer{response: response, errorValue: errorValue}
+		answered <- service.answerOrRecover(boundedContext, request, handler)
 	}()
 	select {
 	case answer := <-answered:
-		if answer.endedUnfinished() && theRequestedTimeRanOut(ctx, boundedContext) {
-			return toolTimeLimitResponse(request), nil
-		}
-		return answer.response, answer.errorValue
+		return settledAnswer(ctx, boundedContext, request, answer)
 	case <-boundedContext.Done():
-		if ctx.Err() != nil {
-			return capabilities.ToolInvokeResponse{}, ctx.Err()
+		return answerAtTheLimit(ctx, boundedContext, request, answered)
+	}
+}
+
+func (service Service) answerOrRecover(ctx context.Context, request capabilities.ToolInvokeRequest, handler capabilityToolHandler) (answer toolAnswer) {
+	defer func() {
+		recovered := recover()
+		if recovered == nil {
+			return
 		}
+		log.Printf("capability.tool_crashed: tool=%s panic=%v\n%s", strings.TrimSpace(request.ToolName), recovered, debug.Stack())
+		answer = toolAnswer{response: toolCrashedResponse(request, recovered)}
+	}()
+	response, errorValue := handler(service, ctx, request)
+	return toolAnswer{response: response, errorValue: errorValue}
+}
+
+func answerAtTheLimit(callerContext context.Context, boundedContext context.Context, request capabilities.ToolInvokeRequest, answered <-chan toolAnswer) (capabilities.ToolInvokeResponse, error) {
+	select {
+	case answer := <-answered:
+		return settledAnswer(callerContext, boundedContext, request, answer)
+	default:
+	}
+	if callerContext.Err() != nil {
+		return capabilities.ToolInvokeResponse{}, callerContext.Err()
+	}
+	return toolTimeLimitResponse(request), nil
+}
+
+func settledAnswer(callerContext context.Context, boundedContext context.Context, request capabilities.ToolInvokeRequest, answer toolAnswer) (capabilities.ToolInvokeResponse, error) {
+	if answer.endedUnfinished() && theRequestedTimeRanOut(callerContext, boundedContext) {
 		return toolTimeLimitResponse(request), nil
 	}
+	return answer.response, answer.errorValue
 }
 
 func (answer toolAnswer) endedUnfinished() bool {
@@ -52,22 +78,9 @@ func theRequestedTimeRanOut(callerContext context.Context, boundedContext contex
 func toolTimeLimitResponse(request capabilities.ToolInvokeRequest) capabilities.ToolInvokeResponse {
 	toolName := strings.TrimSpace(request.ToolName)
 	message := fmt.Sprintf("%s did not finish within %d seconds, and the work it started may still have taken effect", toolName, request.TimeoutSecond)
-	result, _ := json.Marshal(map[string]string{
-		"errorCode":    "timeout",
-		"failureStage": "time_limit",
-		"message":      message,
-	})
-	return capabilities.ToolInvokeResponse{
-		Provider:        "internkim",
-		SelectedBackend: "device",
-		ToolName:        toolName,
-		Outcome:         capabilities.ToolOutcomeFailed,
-		Status:          "error",
-		Content:         message,
-		IsError:         true,
-		Message:         message,
-		ErrorCode:       "timeout",
-		FailureStage:    "time_limit",
-		Result:          result,
-	}
+	return capabilitydFailureResponse(toolName, "timeout", "time_limit", message)
+}
+
+func toolCrashedResponse(request capabilities.ToolInvokeRequest, recovered any) capabilities.ToolInvokeResponse {
+	return capabilitydFailureResponse(request.ToolName, "tool_crashed", "handler", "the tool crashed while running: "+fmt.Sprint(recovered))
 }

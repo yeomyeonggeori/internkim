@@ -12,7 +12,7 @@ import (
 )
 
 func TestTheLiveRegistryServesTheToolsTheStampedContractNames(t *testing.T) {
-	stampedContractDescriptors := roundTrippedDescriptors(t, capabilities.DefaultToolDescriptors())
+	stampedContractDescriptors := roundTrippedDescriptors(t, descriptorsWithATimeLimit(capabilities.DefaultToolDescriptors()))
 	servedDescriptors := capabilities.RegistryDescriptors(servedCapabilityRegistry(t))
 
 	stampedNames, servedNames := sortedToolNames(stampedContractDescriptors), sortedToolNames(servedDescriptors)

@@ -122,3 +122,45 @@ func TestACallerThatGoesAwayIsNotToldTheToolRanOutOfTime(t *testing.T) {
 		t.Fatalf("a cancelled call came back %+v, %v", response, errorValue)
 	}
 }
+
+func TestAHandlerThatPanicsUnderALimitIsAnsweredAsAFailedCall(t *testing.T) {
+	panics := func(Service, context.Context, capabilities.ToolInvokeRequest) (capabilities.ToolInvokeResponse, error) {
+		panic("index out of range")
+	}
+
+	response, errorValue := Service{}.answerWithinTheRequestedTime(context.Background(), capabilities.ToolInvokeRequest{ToolName: "desktop_read", TimeoutSecond: 120}, panics)
+
+	if errorValue != nil || !response.IsError || response.ErrorCode != "tool_crashed" || response.ToolName != "desktop_read" {
+		t.Fatalf("a panicking handler was answered %+v, %v", response, errorValue)
+	}
+	if response.Message != "the tool crashed while running: index out of range" {
+		t.Fatalf("the model reads %q", response.Message)
+	}
+}
+
+func TestAnAnswerAlreadyGivenWhenTheLimitArrivesStands(t *testing.T) {
+	boundedContext, release := context.WithTimeout(context.Background(), time.Millisecond)
+	defer release()
+	<-boundedContext.Done()
+	answered := make(chan toolAnswer, 1)
+	answered <- toolAnswer{response: capabilities.ToolInvokeResponse{ToolName: "task_add", Status: "ok", Outcome: capabilities.ToolOutcomeSucceeded}}
+
+	response, errorValue := answerAtTheLimit(context.Background(), boundedContext, capabilities.ToolInvokeRequest{ToolName: "task_add", TimeoutSecond: 1}, answered)
+
+	if errorValue != nil || response.Status != "ok" {
+		t.Fatalf("a finished answer lost to the limit it beat: %+v, %v", response, errorValue)
+	}
+}
+
+func TestEveryServedDescriptorCarriesATimeLimit(t *testing.T) {
+	for _, descriptor := range capabilities.RegistryDescriptors(servedCapabilityRegistry(t)) {
+		declared, _ := capabilityToolDescriptorFor(descriptor.CanonicalName)
+		expected := declared.TimeoutSecond
+		if expected <= 0 {
+			expected = defaultToolTimeoutSecond
+		}
+		if descriptor.TimeoutSecond != expected {
+			t.Errorf("%s is served with timeoutSecond %d, expected %d", descriptor.Name, descriptor.TimeoutSecond, expected)
+		}
+	}
+}
