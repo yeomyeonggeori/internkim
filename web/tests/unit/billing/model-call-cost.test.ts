@@ -1,12 +1,20 @@
 import { describe, expect, test } from 'bun:test';
-import { costOfAnswer, creditsOfCost, streamCostReader } from '../../../../supabase/functions/_shared/model-call-cost.ts';
+import { costOfAnswer, creditsOfCost, dollarsPerCreditOf, streamCostReader } from '../../../../supabase/functions/_shared/model-call-cost.ts';
 
 describe('what a model call costs in credits', () => {
-	test('a credit is a thousandth of a dollar, and a part of one is a whole one', () => {
-		expect(creditsOfCost(0.012)).toBe(12);
-		expect(creditsOfCost(0.0123)).toBe(13);
-		expect(creditsOfCost(0.0000001)).toBe(1);
-		expect(creditsOfCost(0)).toBe(0);
+	test('a credit is the dollars the deployment prices it at, and a part of one is a whole one', () => {
+		expect(creditsOfCost(0.5, 0.25)).toBe(2);
+		expect(creditsOfCost(0.51, 0.25)).toBe(3);
+		expect(creditsOfCost(0.0000001, 0.25)).toBe(1);
+		expect(creditsOfCost(0, 0.25)).toBe(0);
+	});
+
+	test('a deployment that prices no credit names no price', () => {
+		expect(dollarsPerCreditOf('0.25')).toBe(0.25);
+		expect(dollarsPerCreditOf(undefined)).toBeNull();
+		expect(dollarsPerCreditOf('')).toBeNull();
+		expect(dollarsPerCreditOf('0')).toBeNull();
+		expect(dollarsPerCreditOf('a quarter')).toBeNull();
 	});
 
 	test('the cost is read from an answer OpenRouter gave at once', () => {

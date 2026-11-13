@@ -4,6 +4,7 @@ import { stripeLookups } from '$lib/server/stripe-api';
 import { applyStripeEvent } from '$lib/server/stripe-billing-events';
 import { StripeEventRefused } from '$lib/server/stripe-event-contract';
 import { isSignedByStripe } from '$lib/server/stripe-signature';
+import { topUpRatesOf } from '$lib/server/top-up-rates';
 import { error, json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 
@@ -13,7 +14,8 @@ export const POST: RequestHandler = async ({ request, platform }) => {
 	const serviceRoleKey = environment.SUPABASE_SECRET_KEY ?? '';
 	const signingSecret = environment.STRIPE_WEBHOOK_SECRET ?? '';
 	const secretKey = environment.STRIPE_SECRET_KEY ?? '';
-	if (!projectURL || !serviceRoleKey || !signingSecret || !secretKey) error(503, 'Stripe billing is not configured');
+	const topUpRates = topUpRatesOf(environment.STRIPE_TOP_UP_RATES);
+	if (!projectURL || !serviceRoleKey || !signingSecret || !secretKey || !topUpRates) error(503, 'Stripe billing is not configured');
 
 	const payload = await request.text();
 	const signed = await isSignedByStripe(payload, request.headers.get('stripe-signature') ?? '', signingSecret);
@@ -23,7 +25,8 @@ export const POST: RequestHandler = async ({ request, platform }) => {
 		const outcome = await applyStripeEvent(
 			controlPlane({ projectURL, serviceRoleKey }),
 			JSON.parse(payload),
-			stripeLookups(secretKey)
+			stripeLookups(secretKey),
+			topUpRates
 		);
 		return json({ outcome });
 	} catch (caughtError) {
