@@ -1,0 +1,32 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+repository_root="$(cd "$(dirname "$0")/.." && pwd)"
+tauri_directory="$repository_root/web/src-tauri"
+source_file="$repository_root/web/ios/App/NotificationService/NotificationService.swift"
+bundle_template="$tauri_directory/macos/notification-service/Info.plist"
+extension="$tauri_directory/signing/NotificationService.appex"
+
+usage() {
+  echo "usage: build-mac-notification-service --version <version>" >&2
+  echo "  compiles the notification service extension the iPhone app ships for Apple silicon Macs and" >&2
+  echo "  places it, unsigned, in web/src-tauri/signing for tauri.macos-signed.conf.json to bundle;" >&2
+  echo "  the version is the app's, which an extension has to carry too" >&2
+  exit 1
+}
+
+[ "${1:-}" = "--version" ] && [ -n "${2:-}" ] || usage
+version="$2"
+
+minimum_system_version="$(python3 -I -c 'import json, sys; print(json.load(open(sys.argv[1]))["bundle"]["macOS"]["minimumSystemVersion"])' "$tauri_directory/tauri.conf.json")"
+
+rm -rf "$extension"
+mkdir -p "$extension/Contents/MacOS"
+xcrun swiftc -O -target "arm64-apple-macos$minimum_system_version" -module-name NotificationService \
+  -application-extension -parse-as-library "$source_file" \
+  -o "$extension/Contents/MacOS/NotificationService" -Xlinker -e -Xlinker _NSExtensionMain
+cp "$bundle_template" "$extension/Contents/Info.plist"
+plutil -insert CFBundleShortVersionString -string "$version" "$extension/Contents/Info.plist"
+plutil -insert CFBundleVersion -string "$version" "$extension/Contents/Info.plist"
+plutil -insert LSMinimumSystemVersion -string "$minimum_system_version" "$extension/Contents/Info.plist"
+echo "notification service extension $version placed in $extension"

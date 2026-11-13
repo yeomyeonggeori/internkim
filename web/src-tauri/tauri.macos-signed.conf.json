@@ -2,7 +2,10 @@
   "bundle": {
     "macOS": {
       "entitlements": "macos.entitlements",
-      "files": { "embedded.provisionprofile": "signing/embedded.provisionprofile" }
+      "files": {
+        "embedded.provisionprofile": "signing/embedded.provisionprofile",
+        "PlugIns/NotificationService.appex": "signing/NotificationService.appex"
+      }
     }
   }
 }
