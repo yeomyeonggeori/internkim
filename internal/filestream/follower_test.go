@@ -13,6 +13,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/yeomyeonggeori/internkim/internal/box"
 	"github.com/yeomyeonggeori/internkim/internal/hostbackup"
@@ -134,6 +135,44 @@ func keepOneChange(t *testing.T, state *following, number int) {
 	gathered.changes[change.archivedName()] = change
 	if errorValue := state.keepWhatChanged(context.Background(), gathered); errorValue != nil {
 		t.Fatal(errorValue)
+	}
+}
+
+func keepTheNoteAsSeen(t *testing.T, state *following) {
+	t.Helper()
+	gathered := newGathering()
+	change := Change{Root: state.Roots[0], Relative: "note"}
+	gathered.changes[change.archivedName()] = change
+	if errorValue := state.keepWhatChanged(context.Background(), gathered); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+}
+
+func TestAFileSeenAgainUnchangedIsNotKeptAgain(t *testing.T) {
+	kept := &keptObjects{objects: map[string][]byte{}}
+	state, errorValue := aFollower(t, kept).start(context.Background())
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	notePath := filepath.Join(state.Roots[0].Path, "note")
+	if errorValue := os.WriteFile(notePath, []byte("as written"), 0o600); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	time.Sleep(settledAfter + 100*time.Millisecond)
+	keepTheNoteAsSeen(t, state)
+	afterTheFirst := kept.journalEntries()
+
+	keepTheNoteAsSeen(t, state)
+	if entries := kept.journalEntries(); entries != afterTheFirst {
+		t.Fatalf("the journal went from %d to %d entries for a file nobody changed", afterTheFirst, entries)
+	}
+
+	if errorValue := os.WriteFile(notePath, []byte("written again"), 0o600); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	keepTheNoteAsSeen(t, state)
+	if entries := kept.journalEntries(); entries != afterTheFirst+1 {
+		t.Fatalf("the journal holds %d entries after the file changed, want %d", entries, afterTheFirst+1)
 	}
 }
 
