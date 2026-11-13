@@ -85,9 +85,10 @@ wildcards.
   messenger address, `<slug>.<zone>`, as a Workers route. That hostname belongs to
   the messenger and is not attached to Pages, because the relay answers paths under
   `/api/` of its own. A page opened there in a browser is still sent on to the zone
-  with a `308`. Deploy the gateway with
-  `web/scripts/deploy-worker.ts workers/connection-gateway --route-subdomain <gateway> --route-subdomain <slug>`,
-  naming every route it keeps, since a deploy replaces the set.
+  with a `308`. Name a route once, the first time the gateway answers on it:
+  `web/scripts/deploy-worker.ts workers/connection-gateway --route-subdomain <gateway> --route-subdomain <slug>`.
+  Every later deploy takes no route argument. It reads the routes the worker
+  already answers on from Cloudflare and sends them again.
 - `supabase config push` sends the whole `config.toml`, so any setting the file
   omits returns to the CLI default. Read the diff it prints before trusting the exit
   code.

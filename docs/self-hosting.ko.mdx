@@ -76,9 +76,11 @@ bun run scripts/deploy-pages.ts --project <your-pages-project> --output .svelte-
 - 구성원이 Buzz 데스크톱 앱이나 폰 앱을 쓰는 회사는 메신저 주소 `<slug>.<zone>`을
   게이트웨이의 Workers 라우트로 줍니다. 그 호스트명은 메신저의 것이고 Pages에 연결하지
   않습니다. 릴레이가 `/api/` 아래에 자기 경로를 갖고 있기 때문입니다. 브라우저로 그 주소를
-  열면 여전히 `308`로 존 주소로 보냅니다. 게이트웨이는
-  `web/scripts/deploy-worker.ts workers/connection-gateway --route-subdomain <gateway> --route-subdomain <slug>`로
-  배포하고, 배포가 라우트 목록을 통째로 바꾸므로 남길 라우트를 모두 적습니다.
+  열면 여전히 `308`로 존 주소로 보냅니다. 라우트는 게이트웨이가 그 주소에서 처음 응답할 때
+  한 번만 적습니다:
+  `web/scripts/deploy-worker.ts workers/connection-gateway --route-subdomain <gateway> --route-subdomain <slug>`.
+  그 뒤의 배포는 라우트 인자를 받지 않습니다. 워커가 이미 응답하는 라우트를 Cloudflare에서
+  읽어 그대로 다시 보냅니다.
 - `supabase config push`는 `config.toml` 전체를 보내므로 파일에 없는 설정은 CLI 기본값으로
   돌아갑니다. 종료 코드를 믿기 전에 출력되는 diff를 읽으세요.
 
