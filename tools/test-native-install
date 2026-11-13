@@ -2456,6 +2456,9 @@ def main():
             else:
                 run_every_step(rig, options, releases, baseline)
         except RigFailure as failure:
+            if rig.steps:
+                print(rig.report())
+                print()
             print(f"✗ native install rig\n    {failure}", file=sys.stderr)
             if not options.keep:
                 for machine in (rig.machine, rig.restored_machine, rig.second_machine):
