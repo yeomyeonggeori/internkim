@@ -9,7 +9,7 @@ export const landingText = {
 			lead: '근태부터 문서까지 한 앱에서 관리합니다. 메신저로 부탁하면 김인턴이 처리하고, 쌓인 기록은 그대로 투자자에게 보낼 데이터룸이 됩니다.',
 			start: '회사 만들기',
 			signIn: '로그인',
-			facts: ['Apache-2.0 오픈 소스', '대화는 회사 컴퓨터에', 'AI 사용료는 원가 그대로']
+			facts: ['Apache-2.0 오픈 소스', '대화는 회사 컴퓨터에', 'AI 사용료는 사용한 만큼']
 		},
 		demo: {
 			label: '김인턴과 나눈 대화 예시',
@@ -173,7 +173,7 @@ export const landingText = {
 				title: '구독과 AI 사용료',
 				items: [
 					{ title: '좌석 구독', body: '구성원 수만큼 구독합니다. 구독에 AI 크레딧이 들어 있고, 모자라면 더 살 수 있습니다.' },
-					{ title: '원가 그대로', body: 'AI 호출은 실제 비용을 1크레딧(0.001달러) 단위로 올려 뺍니다. 가벼운 판단은 판단 전용 모델이 맡습니다.' },
+					{ title: '사용한 만큼', body: 'AI 호출은 사용한 만큼 크레딧에서 뺍니다. 가벼운 판단은 판단 전용 모델이 맡습니다.' },
 					{ title: '회사 OpenRouter 키', body: 'OpenRouter 키를 연결하면 모델 비용을 직접 냅니다.' }
 				]
 			},
@@ -202,7 +202,7 @@ export const landingText = {
 			lead: 'Manage attendance, tasks, calendar, customers and documents in one app. Ask Intern Kim in the company messenger to do the work, and the records add up to a data room you can send investors.',
 			start: 'Create a company',
 			signIn: 'Sign in',
-			facts: ['Open source under Apache-2.0', 'Conversations stay on your company computer', 'AI billed at cost']
+			facts: ['Open source under Apache-2.0', 'Conversations stay on your company computer', 'AI billed by usage']
 		},
 		demo: {
 			label: 'A sample conversation with Intern Kim',
@@ -366,7 +366,7 @@ export const landingText = {
 				title: 'Seats and AI usage',
 				items: [
 					{ title: 'Per seat', body: 'Pay per member. AI credits are included, and you can buy more when you run low.' },
-					{ title: 'At cost', body: 'Each AI call takes its actual cost from your credits, rounded up to whole credits of $0.001. Light decisions go to a dedicated decision model.' },
+					{ title: 'Pay for what you use', body: 'Each AI call takes what it used from your credits. Light decisions go to a dedicated decision model.' },
 					{ title: 'Your OpenRouter key', body: 'Connect it and pay model costs directly.' }
 				]
 			},
