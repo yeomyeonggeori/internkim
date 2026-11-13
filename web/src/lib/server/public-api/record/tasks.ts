@@ -1,7 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { centralStatusFromWord, compatibilityOwnerOf } from '$lib/task/central-task';
 import { titleNearness } from './hint-nearness';
-import { HintRefused, normalized, resolveHint, type HintMatcher, type HintSubject } from './hint-resolution';
+import { HintRefused, normalized, resolveHint, titleReachOf, type HintMatcher, type HintSubject } from './hint-resolution';
 import { peopleOfHints, personOfHint, type RecordPerson } from './people';
 import type { CRMLinks } from './crm-tools';
 import { Refusal, AccessRefused, TargetMissing, ServiceUnanswered, refusalOfPostgresError, type PostgresError } from '../refusal';
@@ -151,7 +151,7 @@ export async function taskFromHint(
 
 const taskMatcher: HintMatcher<TaskRow> = {
 	identifiersOf: (task) => [task.id],
-	titleOf: (task) => task.title,
+	reachOf: titleReachOf((task) => task.title),
 	nearnessTo: (task, hint) => titleNearness(normalized(hint), normalized(task.title))
 };
 

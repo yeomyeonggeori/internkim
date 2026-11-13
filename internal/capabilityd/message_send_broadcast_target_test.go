@@ -30,8 +30,8 @@ func TestABroadcastOfUniqueNamesResolvesToTheExactIdentityOfEveryRecipient(t *te
 	if target.InputField != "personHints" || !reflect.DeepEqual(target.IDs, []string{"person-yesi", "person-sample"}) {
 		t.Fatalf("the hold narrows personHints to every resolved identity, got %+v", target)
 	}
-	if !strings.Contains(target.Title, "yesi@example.com") || !strings.Contains(target.Title, "sample@example.com") {
-		t.Fatalf("the question names every recipient by address, got %q", target.Title)
+	if target.Title != "박예시; 이샘플" {
+		t.Fatalf("the question names every recipient, got %q", target.Title)
 	}
 }
 

@@ -12,6 +12,7 @@ import {
   recallSourceInputSchema,
   recallSourceResultSchema,
 } from './protocol';
+import { describePersonHint } from './person-hint';
 
 import { ResourceMutationEffect, type CapabilityToolDefinition } from './definition';
 import { imageFieldOf, serviceFileImageExtensions, serviceFileNames, serviceFiles } from '$lib/data-room/service-files';
@@ -110,7 +111,7 @@ export const companyInfoSetInputSchema = z.strictObject({
   name: z.string().describe("Legal company name as it is registered, including the form of incorporation.").optional(),
   officeAddress: z.string().describe("Working office address when it differs from the registered address.").optional(),
   phone: z.string().describe("Main company phone number.").optional(),
-  representativePersonHint: z.string().describe("The person who represents the company in law: their personID from person_list, or their name or email as written. Their directory name and job title print as the representative. An empty string clears it.").optional(),
+  representativePersonHint: z.string().describe(`${describePersonHint('The person who represents the company in law')} Their directory name and job title print as the representative. An empty string clears it.`).optional(),
   ...serviceFileImageFields,
   slogan: z.string().describe("Company slogan for letterheads and introductions.").optional(),
   website: z.string().describe("Company website URL.").optional(),

@@ -1,8 +1,10 @@
 package personname
 
 import (
+	"slices"
 	"strings"
 	"unicode"
+	"unicode/utf8"
 )
 
 // A person's name is recorded one way and read another. The record holds it
@@ -26,54 +28,146 @@ func Render(recorded string, language string) string {
 	return strings.Join(familyFirst(parts), "")
 }
 
-// Words match in any order and a middle name may be left out, the way a
-// directory search reads a name. A name written without spaces is compared
-// whole, in recorded order and with the family name first, which is how
-// Korean is written.
-func Matches(hint string, recorded string) bool {
-	hintWords := strings.Fields(strings.ToLower(hint))
-	nameWords := strings.Fields(strings.ToLower(recorded))
-	if len(hintWords) == 0 || len(nameWords) == 0 {
-		return false
-	}
-	return everyWordAmong(hintWords, nameWords) || anyContainsAny(joinedForms(nameWords), joinedForms(hintWords))
+type Tier int
+
+const (
+	Unreached Tier = iota
+	ExactName
+	PartOfName
+	FamilyNameAndJobTitle
+	JobTitle
+)
+
+type Person struct {
+	Name     string
+	JobTitle string
 }
 
-func joinedForms(words []string) []string {
-	recordedOrder := strings.Join(words, "")
-	if len(words) < 2 {
-		return []string{recordedOrder}
+func ReachOf(hint string, person Person) Tier {
+	hintWords := wordsOf(strings.TrimPrefix(strings.TrimSpace(hint), "@"))
+	nameWords := wordsOf(person.Name)
+	if len(hintWords) == 0 {
+		return Unreached
 	}
-	return []string{recordedOrder, strings.Join(familyFirst(words), "")}
+	if tier := nameTier(hintWords, nameWords); tier != Unreached {
+		return tier
+	}
+	return jobTitleTier(strings.Join(hintWords, ""), nameWords, compactWords(person.JobTitle))
+}
+
+func ReferenceNearness(hint string, person Person) float64 {
+	compactHint := compactWords(strings.TrimPrefix(strings.TrimSpace(hint), "@"))
+	if compactHint == "" {
+		return 0
+	}
+	nameWords := wordsOf(person.Name)
+	covered := max(leadingNameFormLength(compactHint, nameWords), containedJobTitleLength(compactHint, nameWords, compactWords(person.JobTitle)))
+	return float64(covered) / float64(utf8.RuneCountInString(compactHint))
+}
+
+func nameTier(hintWords []string, nameWords []string) Tier {
+	if len(nameWords) == 0 {
+		return Unreached
+	}
+	if isExactName(hintWords, nameWords) {
+		return ExactName
+	}
+	if isPartOfName(hintWords, nameWords) {
+		return PartOfName
+	}
+	return Unreached
+}
+
+func isExactName(hintWords []string, nameWords []string) bool {
+	return slices.Equal(sortedWords(hintWords), sortedWords(nameWords)) ||
+		strings.Join(hintWords, "") == joinedName(nameWords)
+}
+
+func isPartOfName(hintWords []string, nameWords []string) bool {
+	if everyWordAmong(hintWords, nameWords) {
+		return true
+	}
+	joined := joinedName(nameWords)
+	return strings.Contains(joined, strings.Join(hintWords, "")) || strings.Contains(joined, strings.Join(familyFirst(hintWords), ""))
+}
+
+func jobTitleTier(compactHint string, nameWords []string, compactTitle string) Tier {
+	if compactTitle == "" {
+		return Unreached
+	}
+	if compactHint == compactTitle {
+		return JobTitle
+	}
+	familyName := familyNameOf(nameWords)
+	if familyName != "" && (compactHint == familyName+compactTitle || compactHint == compactTitle+familyName) {
+		return FamilyNameAndJobTitle
+	}
+	return Unreached
+}
+
+func leadingNameFormLength(compactHint string, nameWords []string) int {
+	longest := 0
+	for _, form := range nameForms(nameWords) {
+		if strings.HasPrefix(compactHint, form) {
+			longest = max(longest, utf8.RuneCountInString(form))
+		}
+	}
+	return longest
+}
+
+func containedJobTitleLength(compactHint string, nameWords []string, compactTitle string) int {
+	if compactTitle == "" || !strings.Contains(compactHint, compactTitle) {
+		return 0
+	}
+	remainder := strings.Replace(compactHint, compactTitle, "", 1)
+	if familyName := familyNameOf(nameWords); familyName != "" && strings.Contains(remainder, familyName) {
+		return utf8.RuneCountInString(compactTitle + familyName)
+	}
+	return utf8.RuneCountInString(compactTitle)
+}
+
+func nameForms(nameWords []string) []string {
+	if len(nameWords) < 2 {
+		return []string{joinedName(nameWords)}
+	}
+	return []string{joinedName(nameWords), strings.Join(nameWords[:len(nameWords)-1], "")}
+}
+
+func joinedName(nameWords []string) string {
+	if len(nameWords) < 2 {
+		return strings.Join(nameWords, "")
+	}
+	return strings.Join(familyFirst(nameWords), "")
+}
+
+func familyNameOf(nameWords []string) string {
+	if len(nameWords) < 2 {
+		return ""
+	}
+	return nameWords[len(nameWords)-1]
+}
+
+func wordsOf(text string) []string {
+	return strings.Fields(strings.ToLower(text))
+}
+
+func compactWords(text string) string {
+	return strings.Join(wordsOf(text), "")
+}
+
+func sortedWords(words []string) []string {
+	sorted := slices.Clone(words)
+	slices.Sort(sorted)
+	return sorted
 }
 
 func everyWordAmong(words []string, among []string) bool {
 	for _, word := range words {
-		if !anyEquals(among, word) {
+		if !slices.Contains(among, word) {
 			return false
 		}
 	}
 	return true
-}
-
-func anyEquals(values []string, wanted string) bool {
-	for _, value := range values {
-		if value == wanted {
-			return true
-		}
-	}
-	return false
-}
-
-func anyContainsAny(values []string, wanted []string) bool {
-	for _, value := range values {
-		for _, part := range wanted {
-			if strings.Contains(value, part) {
-				return true
-			}
-		}
-	}
-	return false
 }
 
 func familyFirst(parts []string) []string {

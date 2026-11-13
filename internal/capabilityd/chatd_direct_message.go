@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"slices"
 	"strings"
 
 	"github.com/yeomyeonggeori/internkim/internal/capabilities"
@@ -21,49 +22,53 @@ func (service Service) invokeChatdDirectMessageSend(ctx context.Context, request
 	if len(input.DeliveryTarget.PersonHints) > 0 {
 		return service.invokeChatdDirectMessageBroadcast(ctx, request, input)
 	}
-	result, failure, hasFailure := service.sendChatdDirectMessageToHint(ctx, request, input.DeliveryTarget.PersonHint, input.Message)
+	person, failure, isRefused := service.resolvePersonHint(ctx, input.DeliveryTarget.PersonHint, request.Context.ResponseLanguage)
+	if isRefused {
+		return platformDMErrorResponse(request.ToolName, failure), nil
+	}
+	messageID, failure, hasFailure := service.postChatdDirectMessage(ctx, request, person, input.Message)
 	if hasFailure {
 		return platformDMErrorResponse(request.ToolName, failure), nil
 	}
 	return platformToolSuccessResponse(request.ToolName, "sent", platformMessageSendResult{
-		MessageIDs:     []string{result.DispatchID},
+		MessageIDs:     []string{messageID},
 		DeliveryStatus: "sent",
 	})
 }
 
 func (service Service) invokeChatdMessageToTheAgent(ctx context.Context, request capabilities.ToolInvokeRequest, input platformMessageSendInput) (capabilities.ToolInvokeResponse, error) {
 	senderEmail := strings.TrimSpace(request.Context.RequesterEmail)
-	result, failure, hasFailure := service.sendChatdDirectMessageAsRequester(ctx, senderEmail, directoryPerson{}, input.Message)
+	messageID, failure, hasFailure := service.sendChatdDirectMessageAsRequester(ctx, senderEmail, "", input.Message)
 	if hasFailure {
 		return platformDMErrorResponse(request.ToolName, failure), nil
 	}
 	return platformToolSuccessResponse(request.ToolName, "sent", platformMessageSendResult{
-		MessageIDs:     []string{result.DispatchID},
+		MessageIDs:     []string{messageID},
 		DeliveryStatus: "sent",
 	})
 }
 
 func (service Service) invokeChatdDirectMessageBroadcast(ctx context.Context, request capabilities.ToolInvokeRequest, input platformMessageSendInput) (capabilities.ToolInvokeResponse, error) {
-	results := make([]platformMessageBroadcastResult, 0, len(input.DeliveryTarget.PersonHints))
-	for _, personHint := range input.DeliveryTarget.PersonHints {
-		result, failure, hasFailure := service.sendChatdDirectMessageToHint(ctx, request, personHint, input.Message)
+	language := request.Context.ResponseLanguage
+	people, failure, isRefused := service.resolvePersonHints(ctx, input.DeliveryTarget.PersonHints, language)
+	if isRefused {
+		return platformDMErrorResponse(request.ToolName, failure), nil
+	}
+	messageIDs := []string{}
+	failures := []platformMessageFailureResult{}
+	for _, person := range people {
+		messageID, failure, hasFailure := service.postChatdDirectMessage(ctx, request, person, input.Message)
 		if hasFailure {
-			results = append(results, platformMessageBroadcastResult{PersonHint: personHint, Status: "failed", ErrorCode: failure.ErrorCode, Message: failure.Message})
+			shown := shownPerson(person, language)
+			failures = append(failures, platformMessageFailureResult{PersonID: shown.PersonID, Name: shown.Name, ErrorCode: failure.ErrorCode, Message: failure.Message})
 			continue
 		}
-		results = append(results, result)
-	}
-	messageIDs, failures := canonicalPlatformMessageBroadcastResult(results)
-	rollup := map[string]any{
-		"platform":    service.companyMessenger(),
-		"results":     results,
-		"sentCount":   len(messageIDs),
-		"failedCount": len(failures),
+		if !slices.Contains(messageIDs, messageID) {
+			messageIDs = append(messageIDs, messageID)
+		}
 	}
 	if len(messageIDs) == 0 {
-		response := platformDMErrorResponse(request.ToolName, platformDMStaticFailure("broadcast_all_failed", "message_send", "every recipient delivery failed; see results"))
-		response.Result, _ = json.Marshal(rollup)
-		return response, nil
+		return everyDeliveryFailedResponse(request.ToolName, failures), nil
 	}
 	return platformToolSuccessResponse(request.ToolName, "sent", platformMessageSendResult{
 		MessageIDs:     messageIDs,
@@ -72,36 +77,33 @@ func (service Service) invokeChatdDirectMessageBroadcast(ctx context.Context, re
 	})
 }
 
+func everyDeliveryFailedResponse(toolName string, failures []platformMessageFailureResult) capabilities.ToolInvokeResponse {
+	response := platformDMErrorResponse(toolName, platformDMStaticFailure("broadcast_all_failed", "message_send", "every recipient delivery failed; see failures"))
+	response.Result, _ = json.Marshal(map[string]any{"failures": failures})
+	response.Content = string(response.Result)
+	return response
+}
+
 // The runtime speaks for itself when it tells somebody about a decision the
 // company made; a person asking for a message to be passed on is somebody
 // else's words, and they go out under that person's name.
-func (service Service) sendChatdDirectMessageToHint(ctx context.Context, request capabilities.ToolInvokeRequest, personHint string, message string) (platformMessageBroadcastResult, platformDMFailure, bool) {
-	named, failure, hasFailure := service.namedDirectoryPerson(ctx, personHint, request.Context.ResponseLanguage)
-	if hasFailure {
-		return platformMessageBroadcastResult{}, failure, true
-	}
+func (service Service) postChatdDirectMessage(ctx context.Context, request capabilities.ToolInvokeRequest, recipient directoryPerson, message string) (string, platformDMFailure, bool) {
 	if speaksAsTheRequester(request.Context) {
-		return service.sendChatdDirectMessageAsRequester(ctx, strings.TrimSpace(request.Context.RequesterEmail), named, message)
+		return service.sendChatdDirectMessageAsRequester(ctx, strings.TrimSpace(request.Context.RequesterEmail), recipient.Email, message)
 	}
-	pubkeyHex, errorValue := service.directoryBuzzKey(ctx, named.Email)
+	pubkeyHex, errorValue := service.directoryBuzzKey(ctx, recipient.Email)
 	if errorValue != nil {
-		return platformMessageBroadcastResult{}, platformDMUnavailableFailure(errorValue), true
+		return "", platformDMUnavailableFailure(errorValue), true
 	}
 	var response chatdDirectMessagePostResponse
 	postRequest := map[string]any{"counterpartPubkeyHex": pubkeyHex, "message": strings.TrimSpace(message)}
 	if errorValue := service.chatdRequest(ctx, "dm.post", postRequest, &response); errorValue != nil {
-		return platformMessageBroadcastResult{}, platformDMFailureForError("message_send", "operation_failed", errorValue, false), true
+		return "", platformDMFailureForError("message_send", "operation_failed", errorValue, false), true
 	}
 	if strings.TrimSpace(response.MessageID) == "" {
-		return platformMessageBroadcastResult{}, platformDMStaticFailure("post_create_failed", "message_send", "chatd did not return a message ID"), true
+		return "", platformDMStaticFailure("post_create_failed", "message_send", "chatd did not return a message ID"), true
 	}
-	return platformMessageBroadcastResult{
-		PersonHint:  personHint,
-		PersonID:    named.MemberID,
-		DisplayName: named.Name,
-		DispatchID:  response.MessageID,
-		Status:      "sent",
-	}, platformDMFailure{}, false
+	return response.MessageID, platformDMFailure{}, false
 }
 
 func speaksAsTheRequester(toolContext capabilities.ToolInvokeContext) bool {
@@ -147,43 +149,38 @@ func (service Service) directoryBuzzKey(ctx context.Context, email string) (stri
 // this one. A sender the company cannot key fails here rather than going out
 // under the agent's name, because a message nobody agreed to sign is worse than
 // one that did not arrive.
-func (service Service) sendChatdDirectMessageAsRequester(ctx context.Context, senderEmail string, named directoryPerson, message string) (platformMessageBroadcastResult, platformDMFailure, bool) {
+func (service Service) sendChatdDirectMessageAsRequester(ctx context.Context, senderEmail string, recipientEmail string, message string) (string, platformDMFailure, bool) {
 	requestBody, errorValue := json.Marshal(map[string]string{
 		"senderEmail":    senderEmail,
-		"recipientEmail": named.Email,
+		"recipientEmail": recipientEmail,
 		"message":        strings.TrimSpace(message),
 	})
 	if errorValue != nil {
-		return platformMessageBroadcastResult{}, platformDMUnavailableFailure(errorValue), true
+		return "", platformDMUnavailableFailure(errorValue), true
 	}
 	endpoint := strings.TrimRight(service.Configuration.AdmindBaseURL, "/") + "/admin/api/directory/direct-message"
 	httpRequest, errorValue := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(requestBody))
 	if errorValue != nil {
-		return platformMessageBroadcastResult{}, platformDMUnavailableFailure(errorValue), true
+		return "", platformDMUnavailableFailure(errorValue), true
 	}
 	httpRequest.Header.Set("Content-Type", "application/json")
 	response, errorValue := service.httpClient().Do(httpRequest)
 	if errorValue != nil {
-		return platformMessageBroadcastResult{}, platformDMUnavailableFailure(errorValue), true
+		return "", platformDMUnavailableFailure(errorValue), true
 	}
 	defer response.Body.Close()
 	if response.StatusCode < 200 || response.StatusCode >= 300 {
 		body, _ := io.ReadAll(io.LimitReader(response.Body, 512))
 		failure := platformDMStaticFailure("sender_not_addressable", "message_send",
 			"this message was to go out as "+senderEmail+" and could not: "+strings.TrimSpace(string(body)))
-		return platformMessageBroadcastResult{}, failure, true
+		return "", failure, true
 	}
 	var sent chatdDirectMessagePostResponse
 	if errorValue := json.NewDecoder(response.Body).Decode(&sent); errorValue != nil {
-		return platformMessageBroadcastResult{}, platformDMUnavailableFailure(errorValue), true
+		return "", platformDMUnavailableFailure(errorValue), true
 	}
 	if strings.TrimSpace(sent.MessageID) == "" {
-		return platformMessageBroadcastResult{}, platformDMStaticFailure("post_create_failed", "message_send", "the company directory did not return a message ID"), true
+		return "", platformDMStaticFailure("post_create_failed", "message_send", "the company directory did not return a message ID"), true
 	}
-	return platformMessageBroadcastResult{
-		PersonID:    named.MemberID,
-		DisplayName: named.Name,
-		DispatchID:  sent.MessageID,
-		Status:      "sent",
-	}, platformDMFailure{}, false
+	return sent.MessageID, platformDMFailure{}, false
 }

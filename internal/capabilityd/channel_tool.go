@@ -33,9 +33,9 @@ type channelToolInput struct {
 }
 
 type channelToolResult struct {
-	ChannelID           string   `json:"channelID"`
-	ChannelName         string   `json:"channelName"`
-	NotAddedPersonHints []string `json:"notAddedPersonHints,omitempty"`
+	ChannelID      string        `json:"channelID"`
+	ChannelName    string        `json:"channelName"`
+	NotAddedPeople []personShown `json:"notAddedPeople,omitempty"`
 }
 
 type requesterConversation struct {
@@ -47,8 +47,9 @@ type requesterConversation struct {
 }
 
 type messengerPerson struct {
-	PersonHint string
-	PubkeyHex  string
+	PersonID  string
+	Name      string
+	PubkeyHex string
 }
 
 // Every change is made by chatd as the person who asked, through the same
@@ -97,9 +98,9 @@ func (service Service) addChannel(ctx context.Context, request capabilities.Tool
 	}
 	service.seatAdministratorsInCreatedChannel(ctx, request.Context.RequesterEmail, created.ID)
 	return platformToolSuccessResponse(request.ToolName, "created", channelToolResult{
-		ChannelID:           created.ID,
-		ChannelName:         created.Name,
-		NotAddedPersonHints: personHintsOf(members, created.UninvitedExternalIDs),
+		ChannelID:      created.ID,
+		ChannelName:    created.Name,
+		NotAddedPeople: peopleWithPubkeys(members, created.UninvitedExternalIDs),
 	})
 }
 
@@ -120,14 +121,14 @@ func (service Service) changeChannel(ctx context.Context, request capabilities.T
 		if errorValue := service.askChatdAsTheRequester(ctx, capability, requesterPubkeyHex, fields, &added); errorValue != nil {
 			return channelChangeRefusedResponse(request.ToolName, errorValue), nil
 		}
-		result.NotAddedPersonHints = personHintsOf(members, added.UninvitedExternalIDs)
+		result.NotAddedPeople = peopleWithPubkeys(members, added.UninvitedExternalIDs)
 		return platformToolSuccessResponse(request.ToolName, status, result)
 	case channelMemberDeleteToolName, channelOwnerAddToolName, channelOwnerUpdateToolName:
-		members, response, isRefused := service.messengerPeople(ctx, request, []string{input.PersonHint})
+		member, response, isRefused := service.messengerPersonNamed(ctx, request, input.PersonHint)
 		if isRefused {
 			return response, nil
 		}
-		fields["externalID"] = members[0].PubkeyHex
+		fields["externalID"] = member.PubkeyHex
 	}
 	if errorValue := service.askChatdAsTheRequester(ctx, capability, requesterPubkeyHex, fields, nil); errorValue != nil {
 		return channelChangeRefusedResponse(request.ToolName, errorValue), nil
@@ -195,20 +196,37 @@ func groupChannels(conversations []requesterConversation) []chatdChannel {
 	return channels
 }
 
+func (service Service) messengerPersonNamed(ctx context.Context, request capabilities.ToolInvokeRequest, personHint string) (messengerPerson, capabilities.ToolInvokeResponse, bool) {
+	person, failure, isRefused := service.resolvePersonHint(ctx, personHint, request.Context.ResponseLanguage)
+	if isRefused {
+		return messengerPerson{}, platformDMErrorResponse(request.ToolName, failure), true
+	}
+	return service.messengerPersonOf(ctx, request, person)
+}
+
 func (service Service) messengerPeople(ctx context.Context, request capabilities.ToolInvokeRequest, personHints []string) ([]messengerPerson, capabilities.ToolInvokeResponse, bool) {
-	members := make([]messengerPerson, 0, len(personHints))
-	for _, personHint := range personHints {
-		person, response, isRefused := service.resolveMessageRecipient(ctx, request, personHint)
+	people, failure, isRefused := service.resolvePersonHints(ctx, personHints, request.Context.ResponseLanguage)
+	if isRefused {
+		return nil, platformDMErrorResponse(request.ToolName, failure), true
+	}
+	members := make([]messengerPerson, 0, len(people))
+	for _, person := range people {
+		member, response, isRefused := service.messengerPersonOf(ctx, request, person)
 		if isRefused {
 			return nil, response, true
 		}
-		pubkeyHex, errorValue := service.directoryBuzzKey(ctx, person.Email)
-		if errorValue != nil {
-			return nil, platformDMErrorResponse(request.ToolName, platformDMUnavailableFailure(errorValue)), true
-		}
-		members = append(members, messengerPerson{PersonHint: personHint, PubkeyHex: pubkeyHex})
+		members = append(members, member)
 	}
 	return members, capabilities.ToolInvokeResponse{}, false
+}
+
+func (service Service) messengerPersonOf(ctx context.Context, request capabilities.ToolInvokeRequest, person directoryPerson) (messengerPerson, capabilities.ToolInvokeResponse, bool) {
+	pubkeyHex, errorValue := service.directoryBuzzKey(ctx, person.Email)
+	if errorValue != nil {
+		return messengerPerson{}, platformDMErrorResponse(request.ToolName, platformDMUnavailableFailure(errorValue)), true
+	}
+	shown := shownPerson(person, request.Context.ResponseLanguage)
+	return messengerPerson{PersonID: shown.PersonID, Name: shown.Name, PubkeyHex: pubkeyHex}, capabilities.ToolInvokeResponse{}, false
 }
 
 func (service Service) requesterMessengerKey(ctx context.Context, request capabilities.ToolInvokeRequest) (string, capabilities.ToolInvokeResponse, bool) {
@@ -237,16 +255,16 @@ func memberPubkeys(members []messengerPerson) []string {
 	return pubkeys
 }
 
-func personHintsOf(members []messengerPerson, pubkeys []string) []string {
-	personHints := []string{}
+func peopleWithPubkeys(members []messengerPerson, pubkeys []string) []personShown {
+	people := []personShown{}
 	for _, member := range members {
 		for _, pubkeyHex := range pubkeys {
 			if strings.EqualFold(member.PubkeyHex, pubkeyHex) {
-				personHints = append(personHints, member.PersonHint)
+				people = append(people, personShown{PersonID: member.PersonID, Name: member.Name})
 			}
 		}
 	}
-	return personHints
+	return people
 }
 
 func decodeChannelToolInput(document json.RawMessage) (channelToolInput, error) {
@@ -281,7 +299,11 @@ func (service Service) resolveChannelChangeTarget(ctx context.Context, request c
 	}
 	title := channelTitle(channel)
 	if input.PersonHint != "" {
-		title = fmt.Sprintf("%s → %s", title, input.PersonHint)
+		person, failure, isRefused := service.resolvePersonHint(ctx, input.PersonHint, request.Context.ResponseLanguage)
+		if isRefused {
+			return platformDMErrorResponse(request.ToolName, failure), nil
+		}
+		title = fmt.Sprintf("%s → %s", title, shownPerson(person, request.Context.ResponseLanguage).Name)
 	}
 	return capabilityToolTargetResponse(request.ToolName, capabilities.ApprovalTarget{
 		InputField: channelHintField,

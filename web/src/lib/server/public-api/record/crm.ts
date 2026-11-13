@@ -2,7 +2,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { crmStageKeys, crmStageOutcomes, type CRMStage } from '$lib/crm/crm-stage';
 import type { Money } from '$lib/money';
 import { emailNearness, titleNearness, typoNearness } from './hint-nearness';
-import { HintRefused, normalized, resolveHint, type HintCandidate, type HintMatcher } from './hint-resolution';
+import { HintRefused, normalized, resolveHint, titleReachOf, type HintCandidate, type HintMatcher } from './hint-resolution';
 import type { CRMVocabularyResult } from '../catalog/crm';
 import { refusalOfPostgresError } from '../refusal';
 
@@ -138,7 +138,7 @@ async function crmRows<Row>(caller: SupabaseClient, table: string, columns: stri
 
 const organizationMatcher: HintMatcher<OrganizationRow> = {
 	identifiersOf: (organization) => [organization.id],
-	titleOf: (organization) => organization.name,
+	reachOf: titleReachOf((organization) => organization.name),
 	nearnessTo: (organization, hint) =>
 		Math.max(
 			typoNearness(normalized(hint), normalized(organization.name)),
@@ -148,7 +148,7 @@ const organizationMatcher: HintMatcher<OrganizationRow> = {
 
 const contactMatcher: HintMatcher<ContactRow> = {
 	identifiersOf: (contact) => [contact.id, contact.email ?? '', localPartOf(contact.email)],
-	titleOf: (contact) => contact.name,
+	reachOf: titleReachOf((contact) => contact.name),
 	nearnessTo: (contact, hint) =>
 		Math.max(
 			typoNearness(normalized(hint), normalized(contact.name)),
@@ -158,7 +158,7 @@ const contactMatcher: HintMatcher<ContactRow> = {
 
 const opportunityMatcher: HintMatcher<OpportunityRow> = {
 	identifiersOf: (opportunity) => [opportunity.id],
-	titleOf: (opportunity) => opportunity.name,
+	reachOf: titleReachOf((opportunity) => opportunity.name),
 	nearnessTo: (opportunity, hint) => titleNearness(normalized(hint), normalized(opportunity.name))
 };
 

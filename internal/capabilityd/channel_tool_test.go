@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -161,5 +162,35 @@ func TestAChannelChatdRefusesToOpenSeatsNobody(t *testing.T) {
 
 	if !answered.IsError || len(admindSocket.asked) != 0 {
 		t.Fatalf("a channel never opened seats nobody, got %+v and %+v", answered, admindSocket.asked)
+	}
+}
+
+func TestAHandoverIsApprovedNamingThePersonTheHintResolvesTo(t *testing.T) {
+	chatd := answeringPerCall(answeringChannelsAsTheRequester)
+
+	answered, _ := channelService(t, chatd).resolveChannelChangeTarget(context.Background(),
+		channelToolCall(channelOwnerUpdateToolName, `{"channelHint":"전사-공지","personHint":"person-2"}`))
+
+	target := decodeResolvedApprovalTarget(t, answered)
+	if !strings.HasSuffix(target.Title, "→ 박예시") {
+		t.Fatalf("the approval names the person, not the hint, got %+v", target)
+	}
+}
+
+func TestAMemberTheMessengerRefusesComesBackAsThePersonResolved(t *testing.T) {
+	chatd := answeringPerCall(func(request *http.Request) (int, string) {
+		if strings.HasSuffix(request.URL.Path, "/requester.channel.members.add") {
+			return http.StatusOK, `{"uninvitedExternalIDs":["` + colleaguePubkeyHex + `"]}`
+		}
+		return answeringChannelsAsTheRequester(request)
+	})
+
+	answered, _ := channelService(t, chatd).invokeChannelTool(context.Background(),
+		channelToolCall(channelMemberAddToolName, `{"channelHint":"전사-공지","personHints":["colleague@example.com"]}`))
+
+	var result channelToolResult
+	_ = json.Unmarshal(answered.Result, &result)
+	if !reflect.DeepEqual(result.NotAddedPeople, []personShown{{PersonID: "person-2", Name: "박예시"}}) {
+		t.Fatalf("a refused member is named by personID and name, got %s", answered.Result)
 	}
 }

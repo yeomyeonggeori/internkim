@@ -1288,5 +1288,115 @@
 		"path": "dataroom_get.result.publicDocumentIDs",
 		"reason": "dataroom_get says what the public page shows, so an administrator reads it before changing it with dataroom_publication_update.",
 		"release": "the data room public page release carries this catalog to company hosts before the web/API deployment that drops data_room_share"
+	},
+	{
+		"path": "channel_add.result.notAddedPersonHints",
+		"reason": "A member the messenger refused is named by the personID and name the hint resolved to, so the model can name them back exactly; the raw hint it sent said nothing it did not already know.",
+		"release": "the person-input release carries the updated catalog and the capabilityd that answers with it to company hosts together; these tools are answered by capabilityd on the host, which reads its own embedded catalog"
+	},
+	{
+		"path": "channel_add.result.notAddedPeople",
+		"reason": "A member the messenger refused is named by the personID and name the hint resolved to, so the model can name them back exactly; the raw hint it sent said nothing it did not already know.",
+		"release": "the person-input release carries the updated catalog and the capabilityd that answers with it to company hosts together; these tools are answered by capabilityd on the host, which reads its own embedded catalog"
+	},
+	{
+		"path": "channel_join.result.notAddedPersonHints",
+		"reason": "A member the messenger refused is named by the personID and name the hint resolved to, so the model can name them back exactly; the raw hint it sent said nothing it did not already know.",
+		"release": "the person-input release carries the updated catalog and the capabilityd that answers with it to company hosts together; these tools are answered by capabilityd on the host, which reads its own embedded catalog"
+	},
+	{
+		"path": "channel_join.result.notAddedPeople",
+		"reason": "A member the messenger refused is named by the personID and name the hint resolved to, so the model can name them back exactly; the raw hint it sent said nothing it did not already know.",
+		"release": "the person-input release carries the updated catalog and the capabilityd that answers with it to company hosts together; these tools are answered by capabilityd on the host, which reads its own embedded catalog"
+	},
+	{
+		"path": "channel_leave.result.notAddedPersonHints",
+		"reason": "A member the messenger refused is named by the personID and name the hint resolved to, so the model can name them back exactly; the raw hint it sent said nothing it did not already know.",
+		"release": "the person-input release carries the updated catalog and the capabilityd that answers with it to company hosts together; these tools are answered by capabilityd on the host, which reads its own embedded catalog"
+	},
+	{
+		"path": "channel_leave.result.notAddedPeople",
+		"reason": "A member the messenger refused is named by the personID and name the hint resolved to, so the model can name them back exactly; the raw hint it sent said nothing it did not already know.",
+		"release": "the person-input release carries the updated catalog and the capabilityd that answers with it to company hosts together; these tools are answered by capabilityd on the host, which reads its own embedded catalog"
+	},
+	{
+		"path": "channel_delete.result.notAddedPersonHints",
+		"reason": "A member the messenger refused is named by the personID and name the hint resolved to, so the model can name them back exactly; the raw hint it sent said nothing it did not already know.",
+		"release": "the person-input release carries the updated catalog and the capabilityd that answers with it to company hosts together; these tools are answered by capabilityd on the host, which reads its own embedded catalog"
+	},
+	{
+		"path": "channel_delete.result.notAddedPeople",
+		"reason": "A member the messenger refused is named by the personID and name the hint resolved to, so the model can name them back exactly; the raw hint it sent said nothing it did not already know.",
+		"release": "the person-input release carries the updated catalog and the capabilityd that answers with it to company hosts together; these tools are answered by capabilityd on the host, which reads its own embedded catalog"
+	},
+	{
+		"path": "channel_member_add.result.notAddedPersonHints",
+		"reason": "A member the messenger refused is named by the personID and name the hint resolved to, so the model can name them back exactly; the raw hint it sent said nothing it did not already know.",
+		"release": "the person-input release carries the updated catalog and the capabilityd that answers with it to company hosts together; these tools are answered by capabilityd on the host, which reads its own embedded catalog"
+	},
+	{
+		"path": "channel_member_add.result.notAddedPeople",
+		"reason": "A member the messenger refused is named by the personID and name the hint resolved to, so the model can name them back exactly; the raw hint it sent said nothing it did not already know.",
+		"release": "the person-input release carries the updated catalog and the capabilityd that answers with it to company hosts together; these tools are answered by capabilityd on the host, which reads its own embedded catalog"
+	},
+	{
+		"path": "channel_member_delete.result.notAddedPersonHints",
+		"reason": "A member the messenger refused is named by the personID and name the hint resolved to, so the model can name them back exactly; the raw hint it sent said nothing it did not already know.",
+		"release": "the person-input release carries the updated catalog and the capabilityd that answers with it to company hosts together; these tools are answered by capabilityd on the host, which reads its own embedded catalog"
+	},
+	{
+		"path": "channel_member_delete.result.notAddedPeople",
+		"reason": "A member the messenger refused is named by the personID and name the hint resolved to, so the model can name them back exactly; the raw hint it sent said nothing it did not already know.",
+		"release": "the person-input release carries the updated catalog and the capabilityd that answers with it to company hosts together; these tools are answered by capabilityd on the host, which reads its own embedded catalog"
+	},
+	{
+		"path": "channel_owner_add.result.notAddedPersonHints",
+		"reason": "A member the messenger refused is named by the personID and name the hint resolved to, so the model can name them back exactly; the raw hint it sent said nothing it did not already know.",
+		"release": "the person-input release carries the updated catalog and the capabilityd that answers with it to company hosts together; these tools are answered by capabilityd on the host, which reads its own embedded catalog"
+	},
+	{
+		"path": "channel_owner_add.result.notAddedPeople",
+		"reason": "A member the messenger refused is named by the personID and name the hint resolved to, so the model can name them back exactly; the raw hint it sent said nothing it did not already know.",
+		"release": "the person-input release carries the updated catalog and the capabilityd that answers with it to company hosts together; these tools are answered by capabilityd on the host, which reads its own embedded catalog"
+	},
+	{
+		"path": "channel_owner_update.result.notAddedPersonHints",
+		"reason": "A member the messenger refused is named by the personID and name the hint resolved to, so the model can name them back exactly; the raw hint it sent said nothing it did not already know.",
+		"release": "the person-input release carries the updated catalog and the capabilityd that answers with it to company hosts together; these tools are answered by capabilityd on the host, which reads its own embedded catalog"
+	},
+	{
+		"path": "channel_owner_update.result.notAddedPeople",
+		"reason": "A member the messenger refused is named by the personID and name the hint resolved to, so the model can name them back exactly; the raw hint it sent said nothing it did not already know.",
+		"release": "the person-input release carries the updated catalog and the capabilityd that answers with it to company hosts together; these tools are answered by capabilityd on the host, which reads its own embedded catalog"
+	},
+	{
+		"path": "message_send.result.failures[].personHint",
+		"reason": "A delivery that failed after its recipient resolved is named by personID and name. An unresolved hint is refused before anything is sent, so a failure no longer echoes one.",
+		"release": "the person-input release carries the updated catalog and the capabilityd that answers with it to company hosts together; these tools are answered by capabilityd on the host, which reads its own embedded catalog"
+	},
+	{
+		"path": "message_send.result.failures[].personID",
+		"reason": "A delivery that failed after its recipient resolved is named by personID and name. An unresolved hint is refused before anything is sent, so a failure no longer echoes one.",
+		"release": "the person-input release carries the updated catalog and the capabilityd that answers with it to company hosts together; these tools are answered by capabilityd on the host, which reads its own embedded catalog"
+	},
+	{
+		"path": "message_send.result.failures[].name",
+		"reason": "A delivery that failed after its recipient resolved is named by personID and name. An unresolved hint is refused before anything is sent, so a failure no longer echoes one.",
+		"release": "the person-input release carries the updated catalog and the capabilityd that answers with it to company hosts together; these tools are answered by capabilityd on the host, which reads its own embedded catalog"
+	},
+	{
+		"path": "message_delete.result.failures[].personHint",
+		"reason": "A delivery that failed after its recipient resolved is named by personID and name. An unresolved hint is refused before anything is sent, so a failure no longer echoes one.",
+		"release": "the person-input release carries the updated catalog and the capabilityd that answers with it to company hosts together; these tools are answered by capabilityd on the host, which reads its own embedded catalog"
+	},
+	{
+		"path": "message_delete.result.failures[].personID",
+		"reason": "A delivery that failed after its recipient resolved is named by personID and name. An unresolved hint is refused before anything is sent, so a failure no longer echoes one.",
+		"release": "the person-input release carries the updated catalog and the capabilityd that answers with it to company hosts together; these tools are answered by capabilityd on the host, which reads its own embedded catalog"
+	},
+	{
+		"path": "message_delete.result.failures[].name",
+		"reason": "A delivery that failed after its recipient resolved is named by personID and name. An unresolved hint is refused before anything is sent, so a failure no longer echoes one.",
+		"release": "the person-input release carries the updated catalog and the capabilityd that answers with it to company hosts together; these tools are answered by capabilityd on the host, which reads its own embedded catalog"
 	}
 ]

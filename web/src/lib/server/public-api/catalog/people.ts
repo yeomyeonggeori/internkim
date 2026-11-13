@@ -6,6 +6,7 @@ import {
   CapabilitySideEffect,
   ResourceEffectIdentity,
 } from './protocol';
+import { describePersonHint } from './person-hint';
 
 import { ResourceMutationEffect, type CapabilityToolDefinition } from './definition';
 import { listCursorSchema, listLimitSchema, listNextCursorSchema, listTotalCountSchema } from './list-page';
@@ -25,7 +26,7 @@ export enum MemberKind {
 }
 
 const personHintSchema = z.string().min(1).max(256).describe(
-  'Identifies the person to act on: their exact person ID, their exact email address, their @handle, or their name as a person_list result shows it. A name only one colleague carries resolves; a name several carry fails with the candidates to choose between.',
+  `${describePersonHint('The person to act on')} A name only one colleague carries resolves; a name several carry fails with the candidates to choose between.`,
 );
 
 const teamHintSchema = z.string().min(1).max(256).describe(

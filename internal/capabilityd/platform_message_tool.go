@@ -101,10 +101,11 @@ type platformMessageSearchResult struct {
 }
 
 type platformMessageFailureResult struct {
-	PersonHint string `json:"personHint,omitempty"`
-	MessageID  string `json:"messageID,omitempty"`
-	ErrorCode  string `json:"errorCode"`
-	Message    string `json:"message"`
+	PersonID  string `json:"personID,omitempty"`
+	Name      string `json:"name,omitempty"`
+	MessageID string `json:"messageID,omitempty"`
+	ErrorCode string `json:"errorCode"`
+	Message   string `json:"message"`
 }
 
 type platformMessageSendResult struct {
@@ -197,38 +198,6 @@ func (service Service) resolvePlatformMessageAttachments(request capabilities.To
 		attachmentFiles = append(attachmentFiles, attachmentFile)
 	}
 	return attachmentFiles, platformToolFailure{}, false
-}
-
-type platformMessageBroadcastResult struct {
-	PersonHint  string `json:"personHint"`
-	PersonID    string `json:"personID,omitempty"`
-	DisplayName string `json:"displayName,omitempty"`
-	DispatchID  string `json:"dispatchID,omitempty"`
-	Status      string `json:"status"`
-	ErrorCode   string `json:"errorCode,omitempty"`
-	Message     string `json:"message,omitempty"`
-}
-
-func canonicalPlatformMessageBroadcastResult(results []platformMessageBroadcastResult) ([]string, []platformMessageFailureResult) {
-	messageIDs := []string{}
-	seenMessageIDs := map[string]bool{}
-	failures := []platformMessageFailureResult{}
-	for _, result := range results {
-		messageID := strings.TrimSpace(result.DispatchID)
-		if result.Status == "sent" && messageID != "" {
-			if !seenMessageIDs[messageID] {
-				messageIDs = append(messageIDs, messageID)
-				seenMessageIDs[messageID] = true
-			}
-			continue
-		}
-		failures = append(failures, platformMessageFailureResult{
-			PersonHint: result.PersonHint,
-			ErrorCode:  result.ErrorCode,
-			Message:    result.Message,
-		})
-	}
-	return messageIDs, failures
 }
 
 func (service Service) invokePlatformMessageUpdate(ctx context.Context, request capabilities.ToolInvokeRequest) (capabilities.ToolInvokeResponse, error) {

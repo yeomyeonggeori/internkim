@@ -25,7 +25,7 @@ import {
 } from './company-profile';
 import { titleNearness } from './hint-nearness';
 import { personOfHint, type RecordPerson } from './people';
-import { HintRefused, normalized, resolveHint, type HintMatcher } from './hint-resolution';
+import { HintRefused, normalized, resolveHint, titleReachOf, type HintMatcher } from './hint-resolution';
 import type { RecordContext } from './company';
 import { keepUploadedImages } from './service-files';
 import type { ServiceFileImageField } from '$lib/data-room/service-files';
@@ -285,7 +285,7 @@ async function saveHolidays(context: RecordContext, holidays: StoredHoliday[]): 
 
 const holidayMatcher: HintMatcher<StoredHoliday> = {
 	identifiersOf: (holiday) => [holiday.id, holiday.date],
-	titleOf: (holiday) => holiday.title,
+	reachOf: titleReachOf((holiday) => holiday.title),
 	nearnessTo: (holiday, hint) => titleNearness(normalized(hint), normalized(holiday.title))
 };
 

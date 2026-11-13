@@ -6,24 +6,26 @@ import (
 	"strings"
 
 	"github.com/yeomyeonggeori/internkim/internal/capabilities"
+	"github.com/yeomyeonggeori/internkim/internal/personname"
 )
 
 type platformDMFailure struct {
-	ErrorCode    string                `json:"errorCode"`
-	FailureStage string                `json:"failureStage"`
-	Message      string                `json:"message"`
-	Retryable    bool                  `json:"retryable"`
-	SafeRetry    bool                  `json:"safeRetry"`
-	Candidates   []platformDMRecipient `json:"candidates,omitempty"`
+	ErrorCode    string        `json:"errorCode"`
+	FailureStage string        `json:"failureStage"`
+	Message      string        `json:"message"`
+	Retryable    bool          `json:"retryable"`
+	SafeRetry    bool          `json:"safeRetry"`
+	Candidates   []personShown `json:"candidates,omitempty"`
 }
 
-type platformDMRecipient struct {
-	PersonID       string   `json:"personID"`
-	DisplayName    string   `json:"displayName"`
-	Emails         []string `json:"emails"`
-	ExternalUserID string   `json:"externalUserID"`
-	Username       string   `json:"username"`
-	Mention        string   `json:"mention,omitempty"`
+type personShown struct {
+	PersonID string   `json:"personID"`
+	Name     string   `json:"name"`
+	Emails   []string `json:"emails,omitempty"`
+}
+
+func shownPerson(person directoryPerson, responseLanguage string) personShown {
+	return personShown{PersonID: strings.TrimSpace(person.MemberID), Name: personname.Render(person.Name, responseLanguage)}
 }
 
 func platformDMRecipientNotFoundFailure(personHint string) platformDMFailure {
@@ -52,14 +54,6 @@ func normalizedPlatformDMEmails(emails []string) []string {
 	return normalizedEmails
 }
 
-func platformDMRecipientList(recipients []platformDMRecipient) string {
-	parts := []string{}
-	for _, recipient := range recipients {
-		parts = append(parts, firstNonEmpty(recipient.DisplayName, recipient.PersonID)+" <"+strings.Join(recipient.Emails, ",")+">")
-	}
-	return strings.Join(parts, "; ")
-}
-
 func normalizePlatformDMMatchValue(value string) string {
 	return strings.ToLower(strings.TrimSpace(value))
 }
@@ -72,7 +66,7 @@ func platformDMErrorResponse(toolName string, failure platformDMFailure) capabil
 		ToolName:        toolName,
 		Outcome:         capabilities.ToolOutcomeFailed,
 		Status:          "error",
-		Content:         failure.Message,
+		Content:         string(resultDocument),
 		IsError:         true,
 		Message:         failure.Message,
 		ErrorCode:       failure.ErrorCode,

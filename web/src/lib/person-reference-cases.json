@@ -1,0 +1,100 @@
+{
+	"companies": {
+		"one-given-name": [
+			{ "personID": "p-choi", "name": "견본 최", "email": "choi@example.com", "jobTitle": "팀장" },
+			{ "personID": "p-lee", "name": "샘플 이", "email": "sample@example.com", "jobTitle": "팀장" },
+			{ "personID": "p-park", "name": "예시 박", "email": "yesi@example.com", "jobTitle": "대표" }
+		],
+		"two-given-name": [
+			{ "personID": "p-choi", "name": "견본 최", "email": "choi@example.com", "jobTitle": "" },
+			{ "personID": "p-lee", "name": "견본 이", "email": "gyeonbon@example.com", "jobTitle": "" },
+			{ "personID": "p-sample", "name": "샘플 이", "email": "sample@example.com", "jobTitle": "" }
+		],
+		"only-yesi": [{ "personID": "p-yesi", "name": "예시 박", "email": "yesi@example.com", "jobTitle": "" }],
+		"one-name-inside-another": [
+			{ "personID": "p-yesi", "name": "예시 박", "email": "yesi@example.com", "jobTitle": "" },
+			{ "personID": "p-yesiyeon", "name": "예시연 박", "email": "yesiyeon@example.com", "jobTitle": "" }
+		],
+		"titles-inside-words": [
+			{ "personID": "p-director", "name": "견본 최", "email": "choi@example.com", "jobTitle": "이사" },
+			{ "personID": "p-deputy", "name": "샘플 이", "email": "sample@example.com", "jobTitle": "부팀장" },
+			{ "personID": "p-lead", "name": "예시 박", "email": "yesi@example.com", "jobTitle": "팀장" }
+		],
+		"john-michael-smith": [
+			{ "personID": "p-middle", "name": "John Michael Smith", "email": "smith@example.com", "jobTitle": "" },
+			{ "personID": "p-sample", "name": "샘플 이", "email": "sample@example.com", "jobTitle": "" }
+		],
+		"two-smiths": [
+			{ "personID": "p-plain", "name": "John Smith", "email": "plain@example.com", "jobTitle": "" },
+			{ "personID": "p-middle", "name": "John Michael Smith", "email": "middle@example.com", "jobTitle": "" }
+		]
+	},
+	"cases": [
+		{ "company": "one-given-name", "hint": "p-choi", "outcome": "resolved", "match": "p-choi" },
+		{ "company": "one-given-name", "hint": "choi@example.com", "outcome": "resolved", "match": "p-choi" },
+		{ "company": "one-given-name", "hint": "CHOI@example.com", "outcome": "resolved", "match": "p-choi" },
+		{ "company": "one-given-name", "hint": "@choi", "outcome": "resolved", "match": "p-choi" },
+		{ "company": "one-given-name", "hint": "choi", "outcome": "approximate", "candidates": ["p-choi"] },
+		{ "company": "one-given-name", "hint": "최견본", "outcome": "resolved", "match": "p-choi" },
+		{ "company": "one-given-name", "hint": "@최견본", "outcome": "resolved", "match": "p-choi" },
+		{ "company": "one-given-name", "hint": "견본 최", "outcome": "resolved", "match": "p-choi" },
+		{ "company": "one-given-name", "hint": "최 견본", "outcome": "resolved", "match": "p-choi" },
+		{ "company": "one-given-name", "hint": "견본", "outcome": "resolved", "match": "p-choi" },
+		{ "company": "one-given-name", "hint": "이", "outcome": "resolved", "match": "p-lee" },
+		{ "company": "one-given-name", "hint": "최견본 님", "outcome": "approximate", "candidates": ["p-choi"] },
+		{ "company": "one-given-name", "hint": "견본 님", "outcome": "approximate", "candidates": ["p-choi"] },
+		{ "company": "one-given-name", "hint": "견본씨", "outcome": "approximate", "candidates": ["p-choi"] },
+		{ "company": "one-given-name", "hint": "견본이", "outcome": "approximate", "candidates": ["p-choi"] },
+		{ "company": "one-given-name", "hint": "견본이한테", "outcome": "approximate", "candidates": ["p-choi"] },
+		{ "company": "one-given-name", "hint": "견본 박", "outcome": "approximate", "candidates": ["p-choi"] },
+		{ "company": "one-given-name", "hint": "최견본 <choi@example.com>", "outcome": "approximate", "candidates": ["p-choi"] },
+		{ "company": "one-given-name", "hint": "겸본 최", "outcome": "approximate", "candidates": ["p-choi"] },
+		{ "company": "one-given-name", "hint": "박견본", "outcome": "not_found", "candidates": [] },
+		{ "company": "one-given-name", "hint": "최 팀장", "outcome": "resolved", "match": "p-choi" },
+		{ "company": "one-given-name", "hint": "최팀장", "outcome": "resolved", "match": "p-choi" },
+		{ "company": "one-given-name", "hint": "최 팀장님", "outcome": "approximate", "candidates": ["p-choi", "p-lee"] },
+		{ "company": "one-given-name", "hint": "팀장", "outcome": "ambiguous", "candidates": ["p-choi", "p-lee"] },
+		{ "company": "one-given-name", "hint": "팀장님", "outcome": "approximate", "candidates": ["p-choi", "p-lee"] },
+		{ "company": "one-given-name", "hint": "대표", "outcome": "resolved", "match": "p-park" },
+		{ "company": "one-given-name", "hint": "대표님", "outcome": "approximate", "candidates": ["p-park"] },
+
+		{ "company": "two-given-name", "hint": "견본", "outcome": "ambiguous", "candidates": ["p-choi", "p-lee"] },
+		{ "company": "two-given-name", "hint": "견본 님", "outcome": "approximate", "candidates": ["p-choi", "p-lee"] },
+		{ "company": "two-given-name", "hint": "최견본", "outcome": "resolved", "match": "p-choi" },
+		{ "company": "two-given-name", "hint": "이견본", "outcome": "resolved", "match": "p-lee" },
+		{ "company": "two-given-name", "hint": "견본이", "outcome": "approximate", "candidates": ["p-lee", "p-choi"] },
+		{ "company": "two-given-name", "hint": "이", "outcome": "ambiguous", "candidates": ["p-lee", "p-sample"] },
+
+		{ "company": "only-yesi", "hint": "박예시연", "outcome": "approximate", "candidates": ["p-yesi"] },
+		{ "company": "only-yesi", "hint": "박예시연연", "outcome": "approximate", "candidates": ["p-yesi"] },
+
+		{ "company": "one-name-inside-another", "hint": "박예시", "outcome": "resolved", "match": "p-yesi" },
+		{ "company": "one-name-inside-another", "hint": "@박예시", "outcome": "resolved", "match": "p-yesi" },
+		{ "company": "one-name-inside-another", "hint": "예시연", "outcome": "resolved", "match": "p-yesiyeon" },
+		{ "company": "one-name-inside-another", "hint": "박", "outcome": "ambiguous", "candidates": ["p-yesi", "p-yesiyeon"] },
+		{ "company": "one-name-inside-another", "hint": "박예시연 님", "outcome": "approximate", "candidates": ["p-yesiyeon", "p-yesi"] },
+
+		{ "company": "titles-inside-words", "hint": "이사", "outcome": "resolved", "match": "p-director" },
+		{ "company": "titles-inside-words", "hint": "이사벨", "outcome": "approximate", "candidates": ["p-director"] },
+		{ "company": "titles-inside-words", "hint": "팀장", "outcome": "resolved", "match": "p-lead" },
+		{ "company": "titles-inside-words", "hint": "부팀장", "outcome": "resolved", "match": "p-deputy" },
+
+		{ "company": "john-michael-smith", "hint": "John", "outcome": "resolved", "match": "p-middle" },
+		{ "company": "john-michael-smith", "hint": "Smith", "outcome": "resolved", "match": "p-middle" },
+		{ "company": "john-michael-smith", "hint": "john smith", "outcome": "resolved", "match": "p-middle" },
+		{ "company": "john-michael-smith", "hint": "smith john michael", "outcome": "resolved", "match": "p-middle" },
+		{ "company": "john-michael-smith", "hint": "Michael John Smith", "outcome": "resolved", "match": "p-middle" },
+		{ "company": "john-michael-smith", "hint": "smithjohnmichael", "outcome": "resolved", "match": "p-middle" },
+		{ "company": "john-michael-smith", "hint": "smi", "outcome": "resolved", "match": "p-middle" },
+		{ "company": "john-michael-smith", "hint": "johnmichaelsmith", "outcome": "approximate", "candidates": ["p-middle"] },
+		{ "company": "john-michael-smith", "hint": "John Michael Smith <smith@example.org>", "outcome": "approximate", "candidates": ["p-middle"] },
+		{ "company": "john-michael-smith", "hint": "Johnny", "outcome": "not_found", "candidates": [] },
+
+		{ "company": "two-smiths", "hint": "John Smith", "outcome": "resolved", "match": "p-plain" },
+		{ "company": "two-smiths", "hint": "Smith John", "outcome": "resolved", "match": "p-plain" },
+		{ "company": "two-smiths", "hint": "Smith", "outcome": "ambiguous", "candidates": ["p-plain", "p-middle"] },
+		{ "company": "two-smiths", "hint": "Michael", "outcome": "resolved", "match": "p-middle" },
+		{ "company": "two-smiths", "hint": "Johnny", "outcome": "approximate", "candidates": ["p-plain"] },
+		{ "company": "two-smiths", "hint": "John Doe", "outcome": "approximate", "candidates": ["p-plain"] }
+	]
+}

@@ -37,7 +37,7 @@ func TestThePersonMessageDeleteTargetNamesWhoTheCallReaches(t *testing.T) {
 
 	byName, _ := service.resolvePersonMessageDeleteTarget(context.Background(), personMessageDeleteCall("이샘플"))
 	target := decodeResolvedApprovalTarget(t, byName)
-	if target.InputField != personHintField || target.ID != "person-4" || target.Title != "이샘플 <staying@example.com>" {
+	if target.InputField != personHintField || target.ID != "person-4" || target.Title != "이샘플" {
 		t.Fatalf("the approval question has to name the person whose messages go, got %+v", target)
 	}
 

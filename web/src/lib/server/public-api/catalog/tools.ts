@@ -12,6 +12,7 @@ import {
   CapabilitySideEffect,
   ResourceEffectIdentity,
 } from './protocol';
+import { describePersonHint, describePersonHints } from './person-hint';
 
 import { browserControlToolDefinitions, browserWithheldRequestSchema } from './browser';
 import { desktopToolDefinitions } from './desktop';
@@ -65,7 +66,7 @@ const dateDescription = 'Date in YYYY-MM-DD format.';
 // one costs nothing to ask for. A company-wide read is a constant rather than a
 // roll call of every member.
 function personHintsDescription(records: string): string {
-  return `Names, @handles, or emails of the people whose ${records} to read. Omit it for the requester's own, which is the usual case. Do not send it together with scope.`;
+  return `${describePersonHints(`The people whose ${records} to read`)} Omit it for the requester's own, which is the usual case. Do not send it together with scope.`;
 }
 
 function whoseScopeDescription(records: string): string {
@@ -466,7 +467,7 @@ export const taskAddInputSchema = z.strictObject({
   startsAt: z.string().describe(`When the work starts. ${momentDescription} Resolve relative dates from the current date. Omit when the user did not specify one.`).optional(),
   endsAt: z.string().describe(`When the work is due. ${momentDescription} Resolve relative dates from the current date. Omit when the user did not specify one.`).optional(),
   participantPersonHints: z.array(z.string())
-    .describe('Names, @handles, or emails of the people the task belongs to. Omit it when the work is the requester\u2019s own, which is the usual case; the name the requester used to address you is not a participant.')
+    .describe(`${describePersonHints('The people the task belongs to')} Omit it when the work is the requester\u2019s own, which is the usual case; the name the requester used to address you is not a participant.`)
     .optional(),
   parentTaskHint: z.string().max(256).describe(parentTaskHintDescription).optional(),
   childTaskHints: z.array(z.string())
@@ -514,7 +515,7 @@ const taskUpdateObjectSchema = z.strictObject({
   startsAt: z.string().describe(`When the work starts. ${momentDescription} An empty string takes the date off.`).optional(),
   endsAt: z.string().describe(`When the work is due. ${momentDescription} An empty string takes the date off.`).optional(),
   participantPersonHints: z.array(z.string())
-    .describe('Names, @handles, or emails of everyone taking part, replacing the current participants. Send the whole set, not just additions.')
+    .describe(`${describePersonHints('Everyone taking part, replacing the current participants')} Send the whole set, not just additions.`)
     .optional(),
   parentTaskHint: z.string().max(256).describe(`${parentTaskHintDescription} An empty string takes it out from under the task it was under.`).optional(),
   childTaskHints: z.array(z.string())
@@ -598,7 +599,7 @@ const calendarMutableFields = {
   endsAt: z.string().describe(`New event end. ${momentDescription}`).optional(),
   isWholeDay: z.boolean().describe('Whether the event takes the whole day.').optional(),
   participantPersonHints: z.array(z.string())
-    .describe('Names, @handles, or emails of everyone attending, replacing the current attendees. Send the whole set, not just additions.')
+    .describe(`${describePersonHints('Everyone attending, replacing the current attendees')} Send the whole set, not just additions.`)
     .optional(),
   everyoneAttends: z.boolean()
     .describe('Set true when the event is open to the whole company, which leaves it with no attendee list. Leave it out when named people attend, or when nobody is named and the event is the requester\u2019s own.')
@@ -614,7 +615,7 @@ export const calendarAddInputSchema = z.strictObject({
   endsAt: z.string().describe(`Event end. ${momentDescription} It must be after startsAt.`),
   isWholeDay: z.boolean().describe('Set true for an event that takes the whole day.').optional(),
   participantPersonHints: z.array(z.string())
-    .describe('Names, @handles, or emails of the people attending. Naming nobody makes the event the requester\u2019s own.')
+    .describe(`${describePersonHints('The people attending')} Naming nobody makes the event the requester\u2019s own.`)
     .optional(),
   everyoneAttends: z.boolean()
     .describe('Set true when the event is open to the whole company, which leaves it with no attendee list. Leave it out when named people attend, or when nobody is named and the event is the requester\u2019s own.')
@@ -713,7 +714,7 @@ export const messageSearchInputSchema = z.strictObject({
     .optional(),
   channelName: z.string().describe('Exact channel name as the messenger shows it.').optional(),
   channelID: resourceIDSchema.describe('Exact channel ID from message_context or a prior result.').optional(),
-  personHint: z.string().describe('Exact name, @handle, or email of the direct-message counterpart.').optional(),
+  personHint: z.string().describe(describePersonHint('The direct-message counterpart')).optional(),
   authoredBy: z.enum(MessageAuthor).describe('Message author filter. Defaults to anyone.').optional(),
   queries: z.array(z.string().min(1)).describe('Keyword queries matched against message content.').optional(),
   limit: z.number().int().min(1).max(25).describe('Maximum messages to return. Defaults to 20.').optional(),
@@ -725,8 +726,8 @@ export const messageSendInputSchema = z.strictObject({
   message: z.string().min(1).regex(/\S/, 'Message must contain a non-whitespace character.'),
   channelName: z.string().describe('Exact channel name as the messenger shows it.').optional(),
   channelID: resourceIDSchema.describe('Exact channel ID from message_context or a prior result.').optional(),
-  personHint: z.string().describe('Name, @handle, or email of one direct-message recipient. Omit for the requester\'s own direct conversation with the agent.').optional(),
-  personHints: z.array(z.string().min(1)).max(50).describe('Direct-message recipients for one fan-out send.').optional(),
+  personHint: z.string().describe(`${describePersonHint('The one direct-message recipient')} Omit for the requester's own direct conversation with the agent.`).optional(),
+  personHints: z.array(z.string().min(1)).max(50).describe(describePersonHints('Direct-message recipients for one fan-out send')).optional(),
   attachments: z.array(z.string().min(1)).describe('Workspace file paths to upload with the message, copied exactly from the attachment catalog or a file tool result. Use this to deliver an original file, such as an inbound image, to the target.').optional(),
   reason: z.string().describe('Reason shown to the approver.').optional(),
 });
@@ -766,7 +767,7 @@ export const messageReactionResultSchema = z.strictObject({
 });
 
 export const conversationVisibilityInputSchema = z.strictObject({
-  personHint: z.string().min(1).describe('Name, @handle, or email of the one other person in the requester\'s direct conversation.'),
+  personHint: z.string().min(1).describe(describePersonHint('The one other person in the requester\'s direct conversation')),
 });
 
 export const conversationVisibilityResultSchema = z.strictObject({
@@ -814,7 +815,8 @@ export const messageSearchResultSchema = z.strictObject({
 });
 
 const messageDeliveryFailureSchema = z.strictObject({
-  personHint: z.string().optional(),
+  personID: z.string().optional(),
+  name: z.string().optional(),
   messageID: z.string().optional(),
   errorCode: z.string().min(1),
   message: z.string().min(1),
@@ -1166,7 +1168,7 @@ export const leaveBalanceInputSchema = z.strictObject({
 });
 
 export const leaveRequestInputSchema = z.strictObject({
-  personHint: z.string().describe('Name or email of the person the leave belongs to. Only an administrator files leave for somebody else. Omit for the requester.').optional(),
+  personHint: z.string().describe(`${describePersonHint('The person the leave belongs to')} Only an administrator files leave for somebody else. Omit for the requester.`).optional(),
   kind: z.string().describe('The kind of leave, named as this company registers it. leave_list returns registeredKinds; a kind outside that list fails with the registered ones.'),
   startsAt: z.string().describe(`First day of the leave. ${momentDescription}`),
   endsAt: z.string().describe(`Last day of the leave. ${momentDescription}`),
@@ -1248,7 +1250,7 @@ export const leaveBalanceResultSchema = z.strictObject({
 });
 
 export const leaveGrantSetInputSchema = z.strictObject({
-  personHint: z.string().describe('Name or email of the person whose entitlement to set.'),
+  personHint: z.string().describe(describePersonHint('The person whose entitlement to set')),
   days: z.number().describe('The leave they are entitled to in a year, in days. It replaces the number they had rather than adding to it, so a request for so many days more is read with leave_balance first and written as the total.'),
 });
 
@@ -1302,7 +1304,7 @@ export const attendanceListInputSchema = z.strictObject({
 });
 
 export const attendanceAddInputSchema = z.strictObject({
-  personHint: z.string().describe('Name or email of the person the record belongs to. Omit for the requester.').optional(),
+  personHint: z.string().describe(`${describePersonHint('The person the record belongs to')} Omit for the requester.`).optional(),
   kind: z.enum(WorkspaceAttendanceKind).describe('clock_in for arriving, clock_out for leaving.'),
   date: z.string().describe(`The day the person actually arrived or left. ${attendanceDayDescription} Omit it when only a time is known: the record takes the latest day that time has already come, today or else yesterday.`).optional(),
   time: z.string().describe(`The time they actually arrived or left. ${attendanceTimeDescription} Omit it, with date, for the moment this call is made; a date needs a time.`).optional(),

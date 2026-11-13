@@ -4,6 +4,7 @@ import {
 	HintRefused,
 	normalized,
 	resolveHint,
+	titleReachOf,
 	type HintCandidate,
 	type HintMatcher
 } from './hint-resolution';
@@ -35,7 +36,7 @@ export async function teamsOfCompany(caller: SupabaseClient): Promise<RecordTeam
 
 const teamMatcher: HintMatcher<RecordTeam> = {
 	identifiersOf: (team) => [team.teamID],
-	titleOf: (team) => team.name,
+	reachOf: titleReachOf((team) => team.name),
 	nearnessTo: (team, hint) =>
 		Math.max(
 			typoNearness(normalized(hint), normalized(team.name)),

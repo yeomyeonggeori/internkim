@@ -3,14 +3,14 @@ package capabilityd
 import (
 	"context"
 	"fmt"
-	"slices"
 	"strings"
 
 	"github.com/yeomyeonggeori/internkim/internal/capabilities"
+	"github.com/yeomyeonggeori/internkim/internal/personname"
 )
 
-const messageSendRecipientField = "personHint"
-const messageSendBroadcastRecipientsField = "personHints"
+const personHintField = "personHint"
+const personHintsField = "personHints"
 const messageSendChannelField = "channelID"
 
 func (service Service) resolveMessageSendTarget(ctx context.Context, request capabilities.ToolInvokeRequest) (capabilities.ToolInvokeResponse, error) {
@@ -20,90 +20,53 @@ func (service Service) resolveMessageSendTarget(ctx context.Context, request cap
 	}
 	switch input.DeliveryTarget.Type {
 	case "directMessage":
-		return service.resolveMessageDirectTarget(ctx, request, input.DeliveryTarget)
+		return service.resolveMessageDirectTarget(ctx, request, input.DeliveryTarget), nil
 	case "channel":
 		return service.resolveMessageChannelTarget(ctx, request, input.DeliveryTarget)
 	}
 	return capabilityToolWithoutTargetResponse(request.ToolName), nil
 }
 
-func (service Service) resolveMessageDirectTarget(ctx context.Context, request capabilities.ToolInvokeRequest, deliveryTarget platformMessageDeliveryTarget) (capabilities.ToolInvokeResponse, error) {
+func (service Service) resolveMessageDirectTarget(ctx context.Context, request capabilities.ToolInvokeRequest, deliveryTarget platformMessageDeliveryTarget) capabilities.ToolInvokeResponse {
 	if len(deliveryTarget.PersonHints) > 0 {
-		return service.resolveMessageBroadcastTarget(ctx, request, deliveryTarget.PersonHints)
+		return service.severalPeopleApprovalTargetResponse(ctx, request, personHintsField, deliveryTarget.PersonHints)
 	}
 	if deliveryTarget.PersonHint == "" {
-		return capabilityToolWithoutTargetResponse(request.ToolName), nil
+		return capabilityToolWithoutTargetResponse(request.ToolName)
 	}
-	person, response, isRefused := service.resolveMessageRecipient(ctx, request, deliveryTarget.PersonHint)
+	return service.onePersonApprovalTargetResponse(ctx, request, personHintField, deliveryTarget.PersonHint)
+}
+
+func (service Service) onePersonApprovalTargetResponse(ctx context.Context, request capabilities.ToolInvokeRequest, inputField string, personHint string) capabilities.ToolInvokeResponse {
+	language := request.Context.ResponseLanguage
+	person, failure, isRefused := service.resolvePersonHint(ctx, personHint, language)
 	if isRefused {
-		return response, nil
+		return platformDMErrorResponse(request.ToolName, failure)
 	}
 	return capabilityToolTargetResponse(request.ToolName, capabilities.ApprovalTarget{
-		InputField: messageSendRecipientField,
-		ID:         exactRecipientIdentifier(person),
-		Title:      recipientTitle(person),
-	}), nil
+		InputField: inputField,
+		ID:         person.MemberID,
+		Title:      personname.Render(person.Name, language),
+	})
 }
 
-func (service Service) resolveMessageBroadcastTarget(ctx context.Context, request capabilities.ToolInvokeRequest, personHints []string) (capabilities.ToolInvokeResponse, error) {
-	identifiers := make([]string, 0, len(personHints))
-	titles := make([]string, 0, len(personHints))
-	for _, personHint := range personHints {
-		person, response, isRefused := service.resolveMessageRecipient(ctx, request, personHint)
-		if isRefused {
-			return response, nil
-		}
-		identifier := exactRecipientIdentifier(person)
-		if slices.Contains(identifiers, identifier) {
-			continue
-		}
-		identifiers = append(identifiers, identifier)
-		titles = append(titles, recipientTitle(person))
+func (service Service) severalPeopleApprovalTargetResponse(ctx context.Context, request capabilities.ToolInvokeRequest, inputField string, personHints []string) capabilities.ToolInvokeResponse {
+	language := request.Context.ResponseLanguage
+	people, failure, isRefused := service.resolvePersonHints(ctx, personHints, language)
+	if isRefused {
+		return platformDMErrorResponse(request.ToolName, failure)
+	}
+	identifiers := make([]string, 0, len(people))
+	names := make([]string, 0, len(people))
+	for _, person := range people {
+		identifiers = append(identifiers, person.MemberID)
+		names = append(names, personname.Render(person.Name, language))
 	}
 	return capabilityToolTargetResponse(request.ToolName, capabilities.ApprovalTarget{
-		InputField: messageSendBroadcastRecipientsField,
+		InputField: inputField,
 		IDs:        identifiers,
-		Title:      strings.Join(titles, "; "),
-	}), nil
-}
-
-func (service Service) resolveMessageRecipient(ctx context.Context, request capabilities.ToolInvokeRequest, personHint string) (directoryPerson, capabilities.ToolInvokeResponse, bool) {
-	resolution, errorValue := service.resolveDirectoryPersonHint(ctx, personHint)
-	if errorValue != nil {
-		return directoryPerson{}, platformDMErrorResponse(request.ToolName, platformDMUnavailableFailure(errorValue)), true
-	}
-	if resolution.Outcome == hintResolved {
-		return resolution.Match, capabilities.ToolInvokeResponse{}, false
-	}
-	failure := messageRecipientQuestion(personHint, resolution, request.Context.ResponseLanguage)
-	return directoryPerson{}, platformDMErrorResponse(request.ToolName, failure), true
-}
-
-func messageRecipientQuestion(personHint string, resolution hintResolution[directoryPerson], responseLanguage string) platformDMFailure {
-	candidates := platformDMRecipientsFromDirectoryPeople(resolution.Candidates, responseLanguage)
-	var failure platformDMFailure
-	switch resolution.Outcome {
-	case hintAmbiguous:
-		message := fmt.Sprintf("%q matches more than one person: %s. Ask which one is meant, naming each by address.", personHint, platformDMRecipientList(candidates))
-		failure = platformDMStaticFailure("interaction_required", "target_resolution", message)
-	case hintApproximate:
-		message := fmt.Sprintf("no one is called %q; the nearest are: %s. Ask whether one of them was meant, offering \"none of these\" as a choice.", personHint, platformDMRecipientList(candidates))
-		failure = platformDMStaticFailure("interaction_required", "target_resolution", message)
-	default:
-		return platformDMRecipientNotFoundFailure(personHint)
-	}
-	failure.Retryable = true
-	failure.SafeRetry = true
-	failure.Candidates = candidates
-	return failure
-}
-
-func exactRecipientIdentifier(person directoryPerson) string {
-	return firstNonEmpty(strings.TrimSpace(person.MemberID), strings.TrimSpace(person.Email))
-}
-
-func recipientTitle(person directoryPerson) string {
-	return strings.TrimSpace(person.Name) + " <" + strings.TrimSpace(person.Email) + ">"
+		Title:      strings.Join(names, "; "),
+	})
 }
 
 func (service Service) resolveMessageChannelTarget(ctx context.Context, request capabilities.ToolInvokeRequest, deliveryTarget platformMessageDeliveryTarget) (capabilities.ToolInvokeResponse, error) {

@@ -330,6 +330,7 @@ GROUPS = [
             "web/src/lib/data-room/template.json",
             "web/src/lib/person-call-me-cases.json",
             "web/src/lib/person-name-cases.json",
+            "web/src/lib/person-reference-cases.json",
             "web/src/routes/runs/runs-api.ts",
             "web/static/manifest.webmanifest",
             "host/relay/asset-store.ts",

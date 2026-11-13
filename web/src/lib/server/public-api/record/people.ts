@@ -1,7 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { MemberKind } from '$lib/server/public-api/catalog/people';
 import { handleFromEmail } from '$lib/server/member-directory';
-import { personName } from '$lib/person-name';
+import { personReachOf, personReferenceNearness } from '$lib/person-name';
 import { emailNearness, typoNearness } from './hint-nearness';
 import {
 	HintRefused,
@@ -117,21 +117,15 @@ export async function personOfCompanyByID(
 
 const personMatcher: HintMatcher<RecordPerson> = {
 	identifiersOf: (person) => [person.personID, person.email, handleOf(person.email)],
-	exactTitleAliasesOf: localizedPersonTitles,
-	titleOf: (person) => person.name,
+	reachOf: (person, asked) => personReachOf(asked, person),
 	nearnessTo: (person, hint) =>
 		Math.max(
 			typoNearness(normalized(hint), normalized(person.name)),
 			emailNearness(normalized(hint), normalized(person.email)),
-			typoNearness(withoutAtSign(normalized(hint)), handleFromEmail(person.email))
+			typoNearness(withoutAtSign(normalized(hint)), handleFromEmail(person.email)),
+			personReferenceNearness(hint, person)
 		)
 };
-
-function localizedPersonTitles(person: RecordPerson): string[] {
-	const koreanName = personName(person.name, 'ko');
-	const englishName = personName(person.name, 'en');
-	return [koreanName, `@${koreanName}`, englishName, `@${englishName}`];
-}
 
 function withoutAtSign(value: string): string {
 	return value.startsWith('@') ? value.slice(1) : value;
