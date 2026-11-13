@@ -5,6 +5,8 @@ type ForegroundNotificationsPlugin = {
 	holdBack(options: { tag: string }): Promise<void>;
 };
 
+const tauriPlatformsThatHoldBack = ['ios', 'macos'];
+
 let held: { shell: ForegroundNotificationsPlugin } | null = null;
 
 export function messageNotificationTag(conversationID: string): string {
@@ -21,7 +23,7 @@ async function foregroundNotifications(): Promise<{ shell: ForegroundNotificatio
 export async function holdBackNotificationsFor(conversationID: string | undefined): Promise<void> {
 	const tag = conversationID ? messageNotificationTag(conversationID) : '';
 	if (isInsideTauriShell()) {
-		if (shellPlatform() === 'ios') await holdBackTauriNotifications(tag);
+		if (tauriPlatformsThatHoldBack.includes(shellPlatform())) await holdBackTauriNotifications(tag);
 		return;
 	}
 	if (!isInsideCapacitorShell()) return;
