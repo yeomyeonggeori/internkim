@@ -2,6 +2,11 @@ module github.com/yeomyeonggeori/internkim
 
 go 1.26.4
 
+ignore (
+	./docs
+	./web
+)
+
 require (
 	github.com/blakesmith/ar v0.0.0-20190502131153-809d4375e1fb
 	github.com/coder/websocket v1.8.12
