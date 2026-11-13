@@ -98,22 +98,24 @@ func untilTheKeptWALIsForgotten(ctx context.Context, destination offsite.Destina
 	}
 }
 
-func rebuildTheDatabaseFromKeptWAL(dataDirectoryPath string) error {
-	destination, keyring, isConnected, errorValue := thisBox().Destination()
-	if errorValue != nil {
-		return errorValue
+func rebuildTheDatabaseFromKeptWALAs(place offsite.ThisBox) func(companyID, dataDirectoryPath string) error {
+	return func(companyID, dataDirectoryPath string) error {
+		destination, keyring, isConnected, errorValue := place.DestinationOf(companyID)
+		if errorValue != nil {
+			return errorValue
+		}
+		if !isConnected {
+			return errNotAServingBox
+		}
+		cache := offsite.ChunkCache{DirectoryPath: filepath.Join(blueclaw.CompanyHostBackupsPath, "base-chunks")}
+		rebuilt, errorValue := walstream.RebuildDataDirectory(context.Background(), destination, keyring, cache, dataDirectoryPath)
+		if errors.Is(errorValue, walstream.ErrNoBaseBackup) {
+			return companyhost.ErrNoKeptWAL
+		}
+		if errorValue != nil {
+			return errorValue
+		}
+		fmt.Printf("  the database was rebuilt from %s and %d pieces of kept WAL, to %s\n", rebuilt.BaseBackup.Name, rebuilt.Pieces, rebuilt.ReplaysTo)
+		return nil
 	}
-	if !isConnected {
-		return errNotAServingBox
-	}
-	cache := offsite.ChunkCache{DirectoryPath: filepath.Join(blueclaw.CompanyHostBackupsPath, "base-chunks")}
-	rebuilt, errorValue := walstream.RebuildDataDirectory(context.Background(), destination, keyring, cache, dataDirectoryPath)
-	if errors.Is(errorValue, walstream.ErrNoBaseBackup) {
-		return companyhost.ErrNoKeptWAL
-	}
-	if errorValue != nil {
-		return errorValue
-	}
-	fmt.Printf("  the database was rebuilt from %s and %d pieces of kept WAL, to %s\n", rebuilt.BaseBackup.Name, rebuilt.Pieces, rebuilt.ReplaysTo)
-	return nil
 }

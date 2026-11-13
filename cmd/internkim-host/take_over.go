@@ -58,6 +58,9 @@ func takeOverFromTheNewestBackup(ctx context.Context, session box.Session, keyri
 	if errorValue := standbyChunks().Materialize(ctx, destination, manifest, keyring, archivePath); errorValue != nil {
 		return errorValue
 	}
+	if errorValue := keepTheTakeOverSession(takeOverSessionPath(), session.Session.AccessToken); errorValue != nil {
+		return fmt.Errorf("keeping this box's session for the take-over: %w", errorValue)
+	}
 	return startTheTakeOver(archivePath, manifest.CreatedAt)
 }
 

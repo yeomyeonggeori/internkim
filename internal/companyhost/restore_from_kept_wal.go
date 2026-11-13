@@ -4,8 +4,10 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"os"
 	"path/filepath"
+	"slices"
 	"time"
 
 	"github.com/yeomyeonggeori/internkim/internal/runtime/blueclaw"
@@ -23,17 +25,14 @@ func rebuildTheDatabaseFromKeptWAL(platform backupPlatform, machine Machine, reb
 		return false, fmt.Errorf("the database is rebuilt from kept WAL only where the data-service script runs it, and on %s it does not", platform.Describe())
 	}
 	dataPath := blueclaw.CompanyHostDatabaseDataPath
-	replacedPath := dataPath + replacedDataMarker + now.UTC().Format(replacedDataTimeLayout)
 	if errorValue := machine.Run("systemctl", []string{"stop", blueclaw.CompanyHostDatabaseServiceName + ".service"}, nil, progress); errorValue != nil {
 		return false, fmt.Errorf("the database could not be stopped to rebuild it: %w", errorValue)
 	}
-	if errorValue := forgetEarlierReplacedData(dataPath); errorValue != nil {
+	replacedPath, errorValue := setThisBoxDatabaseAside(dataPath, now)
+	if errorValue != nil {
 		return false, errorValue
 	}
-	if errorValue := os.Rename(dataPath, replacedPath); errorValue != nil {
-		return false, fmt.Errorf("moving this box's own database aside to %s: %w", replacedPath, errorValue)
-	}
-	errorValue := rebuild(dataPath)
+	errorValue = rebuild(dataPath)
 	if errors.Is(errorValue, ErrNoKeptWAL) {
 		fmt.Fprintln(progress, "  the company keeps no WAL yet, so the databases come from the snapshot's dumps")
 		if errorValue := putTheReplacedDataBack(dataPath, replacedPath); errorValue != nil {
@@ -55,6 +54,31 @@ func rebuildTheDatabaseFromKeptWAL(platform backupPlatform, machine Machine, reb
 	}
 	fmt.Fprintf(progress, "  this box's own database is kept at %s\n", replacedPath)
 	return true, nil
+}
+
+func setThisBoxDatabaseAside(dataPath string, now time.Time) (string, error) {
+	if _, errorValue := os.Stat(dataPath); errors.Is(errorValue, fs.ErrNotExist) {
+		return whereAnEarlierTakeOverSetTheDatabaseAside(dataPath)
+	}
+	if errorValue := forgetEarlierReplacedData(dataPath); errorValue != nil {
+		return "", errorValue
+	}
+	replacedPath := dataPath + replacedDataMarker + now.UTC().Format(replacedDataTimeLayout)
+	if errorValue := os.Rename(dataPath, replacedPath); errorValue != nil {
+		return "", fmt.Errorf("moving this box's own database aside to %s: %w", replacedPath, errorValue)
+	}
+	return replacedPath, nil
+}
+
+func whereAnEarlierTakeOverSetTheDatabaseAside(dataPath string) (string, error) {
+	earlier, errorValue := filepath.Glob(dataPath + replacedDataMarker + "*")
+	if errorValue != nil {
+		return "", errorValue
+	}
+	if len(earlier) == 0 {
+		return "", fmt.Errorf("this box holds no database at %s and none an earlier take-over set aside", dataPath)
+	}
+	return slices.Max(earlier), nil
 }
 
 func putTheReplacedDataBack(dataPath, replacedPath string) error {
