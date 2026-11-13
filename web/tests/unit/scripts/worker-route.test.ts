@@ -1,6 +1,6 @@
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { describe, expect, test } from 'bun:test';
-import { routePatternOfSubdomain, zoneOfSettings } from '../../../scripts/worker-route';
+import { liveRoutesIn, routePatternOfSubdomain, routesToDeploy, zoneOfSettings } from '../../../scripts/worker-route';
 import { defaultZone } from '../../../src/lib/server/fleet-domain';
 
 const workersDirectory = new URL('../../../../workers/', import.meta.url);
@@ -26,6 +26,44 @@ describe('rendering a route from a subdomain', () => {
 	test('refuses a hostname, because the zone is not the caller to choose', () => {
 		expect(() => routePatternOfSubdomain('updates.intern.kim', defaultZone)).toThrow('not a subdomain');
 		expect(() => routePatternOfSubdomain('  ', defaultZone)).toThrow('name the subdomain');
+	});
+});
+
+describe('the routes a deploy sends', () => {
+	const live = [
+		{ pattern: 'gateway.example.test/*', script: 'gateway-worker' },
+		{ pattern: 'acme.example.test/*', script: 'gateway-worker' },
+		{ pattern: 'updates.example.test/*', script: 'registry-worker' }
+	];
+
+	test('keep every route the worker already answers on, and no other worker has', () => {
+		expect(routesToDeploy(live, 'gateway-worker', [])).toEqual(['gateway.example.test/*', 'acme.example.test/*']);
+	});
+
+	test('add a named route once, without sending one it already holds twice', () => {
+		expect(routesToDeploy(live, 'gateway-worker', ['acme.example.test/*', 'new.example.test/*'])).toEqual([
+			'gateway.example.test/*',
+			'acme.example.test/*',
+			'new.example.test/*'
+		]);
+	});
+
+	test('are only the named ones for a worker that answers nowhere yet', () => {
+		expect(routesToDeploy(live, 'unreleased-worker', ['first.example.test/*'])).toEqual(['first.example.test/*']);
+	});
+});
+
+describe('reading the routes Cloudflare lists', () => {
+	test('leaves out a route no worker is bound to', () => {
+		const listed = [
+			{ id: '1', pattern: 'gateway.example.test/*', script: 'gateway-worker' },
+			{ id: '2', pattern: 'paused.example.test/*' }
+		];
+		expect(liveRoutesIn(listed)).toEqual([{ pattern: 'gateway.example.test/*', script: 'gateway-worker' }]);
+	});
+
+	test('refuses an answer that is not a list, so a failed read never deploys an empty set', () => {
+		expect(() => liveRoutesIn(null)).toThrow('other than a list');
 	});
 });
 
