@@ -3,7 +3,7 @@ import type { Locale } from '$lib/i18n/locale';
 import { gatewayURL, supabase } from '$lib/supabase';
 import { supabaseMember } from '$lib/supabase-session';
 import { tauriDesktopControl } from './desktop-control-tauri';
-import { isInsideTauriDesktopShell } from './shell';
+import { isInsideTauriDesktopShell, shellPlatform } from './shell';
 
 export type DesktopWork = { program?: string; arguments: string[]; text?: string };
 export type DesktopAnswer = { output: string } | { refusal: string };
@@ -13,6 +13,7 @@ export type RunDesktopWork = (work: DesktopWork) => Promise<DesktopAnswer>;
 export type DesktopControlPlugin = {
 	state(): Promise<DesktopControlState>;
 	allow(language: Locale): Promise<DesktopControlState>;
+	askOnce(language: Locale): Promise<DesktopControlState>;
 	disallow(): Promise<DesktopControlState>;
 	run: RunDesktopWork;
 	openPermissionGuide(): Promise<DesktopAnswer>;
@@ -45,6 +46,44 @@ const longestRedialMilliseconds = 30_000;
 
 export async function desktopControlShell(): Promise<DesktopControlPlugin | null> {
 	return isInsideTauriDesktopShell() ? tauriDesktopControl() : null;
+}
+
+let asking: Promise<DesktopControlState | null> | undefined;
+
+export function askToUseThisComputerOnce(language: Locale): Promise<DesktopControlState | null> {
+	const current = (asking ??= askThisComputer(language).finally(() => {
+		asking = undefined;
+	}));
+	return current;
+}
+
+async function askThisComputer(language: Locale): Promise<DesktopControlState | null> {
+	const plugin = await desktopControlShell();
+	return plugin ? askOnceAndGuide(plugin, language, shellPlatform()) : null;
+}
+
+export async function askOnceAndGuide(
+	plugin: Pick<DesktopControlPlugin, 'askOnce' | 'openPermissionGuide'>,
+	language: Locale,
+	platform: string
+): Promise<DesktopControlState> {
+	const state = await plugin.askOnce(language);
+	await guideToAccessibilityWhenNeeded(plugin, state, platform);
+	return state;
+}
+
+export async function guideToAccessibilityWhenNeeded(
+	plugin: Pick<DesktopControlPlugin, 'openPermissionGuide'>,
+	state: DesktopControlState,
+	platform: string
+): Promise<void> {
+	if (!needsAccessibility(state, platform)) return;
+	const answer = await plugin.openPermissionGuide();
+	if ('refusal' in answer) console.warn('the Accessibility settings did not open', answer.refusal);
+}
+
+export function needsAccessibility(state: DesktopControlState, platform: string): boolean {
+	return platform === 'macos' && state.isAllowed && state.accessibility !== 'granted';
 }
 
 export function keepDesktopControlled(): () => void {

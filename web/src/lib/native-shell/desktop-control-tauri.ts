@@ -9,6 +9,7 @@ export async function tauriDesktopControl(): Promise<DesktopControlPlugin> {
 	return {
 		state: async () => controlStateOf(await invoke<unknown>('plugin:desktop-control|state')),
 		allow: async (language: Locale) => controlStateOf(await invoke<unknown>('plugin:desktop-control|allow', { language })),
+		askOnce: async (language: Locale) => controlStateOf(await invoke<unknown>('plugin:desktop-control|ask_once', { language })),
 		disallow: async () => controlStateOf(await invoke<unknown>('plugin:desktop-control|disallow')),
 		run: async (work: DesktopWork) =>
 			answerOf(await invoke<unknown>('plugin:desktop-control|run', { program: work.program, arguments: work.arguments, text: work.text })),

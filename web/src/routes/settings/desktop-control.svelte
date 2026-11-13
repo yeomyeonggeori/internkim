@@ -7,6 +7,8 @@
 	import { currentLocale } from '$lib/i18n/locale.svelte';
 	import {
 		desktopControlShell,
+		guideToAccessibilityWhenNeeded,
+		needsAccessibility,
 		type DesktopControlPlugin,
 		type DesktopControlState
 	} from '$lib/native-shell/desktop-control';
@@ -21,9 +23,9 @@
 	let shell = $state<DesktopControlPlugin | null>(null);
 	let control = $state<DesktopControlState>({ isAllowed: false, accessibility: null });
 	let isSwitching = $state(false);
-	let isMac = $state(false);
+	let platform = $state('web');
 
-	const needsAccessibility = $derived(isMac && control.isAllowed && control.accessibility !== 'granted');
+	const isMissingAccessibility = $derived(needsAccessibility(control, platform));
 
 	onMount(() => {
 		let stopFollowing = () => {};
@@ -31,7 +33,7 @@
 		desktopControlShell().then(async (found) => {
 			if (!found || isDisposed) return;
 			shell = found;
-			isMac = shellPlatform() === 'macos';
+			platform = shellPlatform();
 			stopFollowing = await found.onChanged(() => void refresh());
 			await refresh();
 		}, () => toast.error(text.desktopControlFailed));
@@ -51,6 +53,7 @@
 		isSwitching = true;
 		try {
 			control = wanted ? await shell.allow(currentLocale.value) : await shell.disallow();
+			if (wanted) await guideToAccessibilityWhenNeeded(shell, control, platform);
 		} catch {
 			toast.error(text.desktopControlFailed);
 		} finally {
@@ -82,7 +85,7 @@
 					disabled={isSwitching}
 				/>
 			</div>
-			{#if needsAccessibility}
+			{#if isMissingAccessibility}
 				<div class="flex items-center justify-between gap-4">
 					<p class="text-sm text-muted-foreground">{text.desktopControlNeedsAccessibility}</p>
 					<Button variant="outline" size="sm" onclick={openPermissionGuide}>

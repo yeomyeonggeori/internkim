@@ -15,7 +15,15 @@ pub enum Language {
 pub struct Consent {
     pub is_allowed: bool,
     #[serde(default)]
+    pub has_been_asked: bool,
+    #[serde(default)]
     pub language: Language,
+}
+
+impl Consent {
+    pub fn is_undecided(self) -> bool {
+        !self.is_allowed && !self.has_been_asked
+    }
 }
 
 const CONSENT_FILE: &str = "desktop-control.json";
@@ -40,6 +48,31 @@ pub fn write<R: Runtime>(app: &AppHandle<R>, consent: Consent) -> Result<(), Str
             .map_err(|error| format!("{}: {error}", directory.display()))?;
     }
     fs::write(&path, document).map_err(|error| format!("{}: {error}", path.display()))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn consent_from(saved: &str) -> Consent {
+        serde_json::from_str(saved).unwrap()
+    }
+
+    #[test]
+    fn a_computer_nobody_has_answered_for_is_undecided() {
+        assert!(Consent::default().is_undecided());
+    }
+
+    #[test]
+    fn an_answer_either_way_is_a_decision() {
+        assert!(!consent_from(r#"{"is_allowed":false,"has_been_asked":true}"#).is_undecided());
+        assert!(!consent_from(r#"{"is_allowed":true,"has_been_asked":true}"#).is_undecided());
+    }
+
+    #[test]
+    fn a_consent_saved_before_asking_was_recorded_still_counts() {
+        assert!(!consent_from(r#"{"is_allowed":true,"language":"ko"}"#).is_undecided());
+    }
 }
 
 pub async fn ask<R: Runtime>(window: &WebviewWindow<R>, language: Language) -> bool {

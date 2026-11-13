@@ -1,6 +1,8 @@
 import { describe, expect, test } from 'bun:test';
 import {
+	askOnceAndGuide,
 	holdDesktopSocket,
+	needsAccessibility,
 	serveDesktopWork,
 	type DesktopAnswer,
 	type DesktopSocketWiring,
@@ -200,5 +202,54 @@ describe('holding the desktop socket', () => {
 		await settled();
 		expect(wire.dialled[0]?.isClosed).toBe(true);
 		expect(wire.dialled).toHaveLength(1);
+	});
+});
+
+describe('asking once whether internkim may use this computer', () => {
+	type Asked = { languages: string[]; guides: number };
+
+	function plugin(isAllowed: boolean, accessibility: string | null) {
+		const asked: Asked = { languages: [], guides: 0 };
+		return {
+			asked,
+			plugin: {
+				askOnce: async (language: 'ko' | 'en') => {
+					asked.languages.push(language);
+					return { isAllowed, accessibility };
+				},
+				openPermissionGuide: async (): Promise<DesktopAnswer> => {
+					asked.guides += 1;
+					return { output: '' };
+				}
+			}
+		};
+	}
+
+	test('asks in the person\'s language and opens the Accessibility settings a Mac still lacks', async () => {
+		const { asked, plugin: stand } = plugin(true, 'denied');
+		const state = await askOnceAndGuide(stand, 'ko', 'macos');
+		expect(state.isAllowed).toBe(true);
+		expect(asked).toEqual({ languages: ['ko'], guides: 1 });
+	});
+
+	test('opens nothing when the person declines', async () => {
+		const { asked, plugin: stand } = plugin(false, null);
+		await askOnceAndGuide(stand, 'en', 'macos');
+		expect(asked.guides).toBe(0);
+	});
+
+	test('opens nothing when the Mac already granted it, or on a computer that has no such setting', async () => {
+		const granted = plugin(true, 'granted');
+		await askOnceAndGuide(granted.plugin, 'en', 'macos');
+		const windows = plugin(true, null);
+		await askOnceAndGuide(windows.plugin, 'en', 'windows');
+		expect([granted.asked.guides, windows.asked.guides]).toEqual([0, 0]);
+	});
+
+	test('needs Accessibility only on a Mac that allowed it without granting it', () => {
+		expect(needsAccessibility({ isAllowed: true, accessibility: 'denied' }, 'macos')).toBe(true);
+		expect(needsAccessibility({ isAllowed: true, accessibility: null }, 'macos')).toBe(true);
+		expect(needsAccessibility({ isAllowed: false, accessibility: 'denied' }, 'macos')).toBe(false);
+		expect(needsAccessibility({ isAllowed: true, accessibility: 'denied' }, 'linux')).toBe(false);
 	});
 });
