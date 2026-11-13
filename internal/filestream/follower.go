@@ -39,6 +39,7 @@ type following struct {
 	referenced  map[string]bool
 	lastFull    time.Time
 	entriesKept int
+	unchanged   keptStamps
 }
 
 func (follower Follower) Run(ctx context.Context) error {
@@ -80,7 +81,7 @@ func (follower Follower) start(ctx context.Context) (*following, error) {
 	if errorValue != nil {
 		return nil, errorValue
 	}
-	state := &following{Follower: follower, uploader: uploader, next: 1, entriesKept: len(sequences)}
+	state := &following{Follower: follower, uploader: uploader, next: 1, entriesKept: len(sequences), unchanged: keptStamps{}}
 	if len(sequences) > 0 {
 		state.next = slices.Max(sequences) + 1
 	}
@@ -177,9 +178,11 @@ func (state *following) keepChanges(ctx context.Context, gathered map[string]Cha
 	slices.Sort(names)
 	present := []hostbackup.ChangedEntry{}
 	removed := []string{}
+	taken := keptStamps{}
+	takenAt := time.Now()
 	for _, name := range names {
 		change := gathered[name]
-		_, errorValue := os.Lstat(filepath.Join(change.Root.Path, filepath.FromSlash(change.Relative)))
+		information, errorValue := os.Lstat(filepath.Join(change.Root.Path, filepath.FromSlash(change.Relative)))
 		if errors.Is(errorValue, fs.ErrNotExist) {
 			removed = append(removed, name)
 			continue
@@ -187,12 +190,29 @@ func (state *following) keepChanges(ctx context.Context, gathered map[string]Cha
 		if errorValue != nil {
 			return errorValue
 		}
+		stamp := stampOf(information)
+		if state.unchanged.holds(name, stamp) {
+			continue
+		}
+		taken[name] = stamp
 		present = append(present, hostbackup.ChangedEntry{Root: change.Root, Relative: change.Relative})
 	}
-	return state.keep(ctx, false, removed, func(output io.Writer, snapshots hostbackup.Snapshotter) error {
+	if len(present) == 0 && len(removed) == 0 {
+		return nil
+	}
+	if errorValue := state.keep(ctx, false, removed, func(output io.Writer, snapshots hostbackup.Snapshotter) error {
 		_, errorValue := hostbackup.WriteEntries(output, present, snapshots)
 		return errorValue
-	})
+	}); errorValue != nil {
+		return errorValue
+	}
+	for _, name := range removed {
+		delete(state.unchanged, name)
+	}
+	for name, stamp := range taken {
+		state.unchanged.remember(name, stamp, takenAt)
+	}
+	return nil
 }
 
 func (state *following) keepFull(ctx context.Context) error {
