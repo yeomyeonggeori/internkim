@@ -4,9 +4,9 @@ import { WorkspaceEmploymentStatus } from '$lib/server/public-api/catalog/people
 import { memberStatuses } from '$lib/member-vocabulary';
 
 // The same list internal/admind/organization_source_boundary_test.go holds the
-// fleet account payload to. A field on it belongs to organization_profiles, so
-// person_update must never carry it to the account directory.
-const fieldsOrganizationProfilesOwn = [
+// fleet account payload to. A field on it belongs to the organization half of
+// person_set, so person_update must never carry it in the account half.
+const fieldsOfTheOrganizationHalf = [
 	'hireDate',
 	'jobTitle',
 	'groupID',
@@ -49,7 +49,7 @@ describe('which home each field of a person update is written to', () => {
 
 	test('never carries an organization field to the account directory', () => {
 		const homes = homesOfPersonUpdate(everyFieldSet, { teamID: 't1', supervisorID: 'm2' });
-		for (const field of fieldsOrganizationProfilesOwn) {
+		for (const field of fieldsOfTheOrganizationHalf) {
 			expect(Object.hasOwn(homes.account, field)).toBe(false);
 		}
 	});

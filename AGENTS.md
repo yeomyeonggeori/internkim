@@ -255,16 +255,16 @@ and delete the duplicates.
   an explicit request instead of tuning it. No behavior beats a wrong
   automatic behavior. A new automatic behavior must state its trigger
   evidence, its blast radius, and how it is turned off.
-- People data has three homes and exactly one owner per concern. Accounts and
-  sign-in (email, name, role, note, messenger accounts, status) belong to central
-  `member`, which the host reads and writes only through `/api/agent/member`.
-  Organization and HR
-  attributes (job title, organization, supervisor, phone number, hire date,
-  employment status) belong to admind's `organization_profiles`. Blueclaw's
-  `person` table is a read-only projection of policy.json, never an editing
-  surface. Never add an HR attribute to the account write:
-  `TestAccountWriteCarriesNoOrganizationFields` fails when the account write
-  starts carrying one.
+- People data lives in central `member` and `team`, written in two halves.
+  The account half (email, name, role, note, messenger accounts, status) is
+  what the host writes through `/api/agent/member`. The organization half (job
+  title, team, supervisor, phone number, hire date, employment status) is
+  written only by `person_set`'s `organization_changes`, which `person_update`
+  sends; admind reads it from the record. Blueclaw's `person` table is a
+  read-only projection of policy.json, never an editing surface. Never add an
+  organization attribute to the account write:
+  `TestAccountWriteCarriesNoOrganizationFields` fails when it starts carrying
+  one.
 - **One source of truth, always.** Anything two places can disagree about is
   written down once. This covers value lists (emoji names, enum options,
   capability names, component sets), and equally covers rules ("a reason is
