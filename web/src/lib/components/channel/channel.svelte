@@ -851,7 +851,7 @@
 		{startsGroup}
 		senderName={showSenderNames ? message.sender.name : ''}
 		{canChange}
-		canReply={isInTimeline && !message.threadRootId}
+		canReply={isInTimeline}
 		canDelete={isMine(message) || canModerate}
 		canEdit={canEditMessage(message, isMine(message))}
 		isSettled={!message.id.startsWith('pending-')}

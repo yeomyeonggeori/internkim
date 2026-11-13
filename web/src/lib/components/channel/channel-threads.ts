@@ -18,9 +18,8 @@ export function timelineMessages(
 	messages: ChannelMessage[],
 	repliesByRoot: Map<string, ChannelMessage[]>
 ): ChannelMessage[] {
-	const presentIds = new Set(messages.map((message) => message.id));
 	return messages
-		.filter((message) => !message.threadRootId || !presentIds.has(message.threadRootId))
+		.filter((message) => !message.threadRootId)
 		.map((message) => {
 			const replies = repliesByRoot.get(message.id);
 			if (!replies || replies.length === 0) return message;
