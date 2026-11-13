@@ -77,7 +77,7 @@ func main() {
 
 def urls_the_pins_name():
     """Ask the package what its pins resolve to, for every target it knows."""
-    directory = REPOSITORY_ROOT / "internal" / "runtime" / "blueclaw" / "verify_vendored_downloads_tmp"
+    directory = REPOSITORY_ROOT / "internal" / "runtime" / "blueclaw" / "_verify_vendored_downloads"
     directory.mkdir(parents=True, exist_ok=True)
     program = directory / "main.go"
     try:
