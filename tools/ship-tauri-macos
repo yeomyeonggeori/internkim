@@ -7,9 +7,10 @@ profile grants, so macOS refuses to start a bundled program signed that way.
 This builds unsigned, signs each bundled program without entitlements, the
 notification service extension with its own, and the app with the ones the
 signed overlay declares, set to production push. It
-refuses a provisioning profile that does not grant them, packs a disk image,
-has Apple notarize it, staples the ticket, and keeps only an image Gatekeeper
-accepts.
+refuses a provisioning profile that does not grant them, packs a disk image
+whose window shows where to drag the app, has Apple notarize it, staples the
+ticket, and keeps only an image Gatekeeper accepts. Finder arranges that
+window, so the tool needs a desktop session that lets it script Finder.
 
 The commit is checked out into a temporary worktree, so local changes never
 ship. The Developer ID identity is read from the keychain by the team the
@@ -31,9 +32,11 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
+from mac_disk_image import pack_disk_image
 from tauri_shipping import TAURI_DIRECTORY, ShipFailure, api_key_environment, checkout_of, run, say
 
 SIGNED_OVERLAY = "tauri.macos-signed.conf.json"
+DISK_IMAGE_BACKGROUND = TAURI_DIRECTORY / "macos/disk-image/background.png"
 EMBEDDED_PROFILE_NAME = "embedded.provisionprofile"
 EXTENSION_ENTITLEMENTS = TAURI_DIRECTORY / "macos/notification-service/NotificationService.entitlements"
 RUST_TARGET = "aarch64-apple-darwin"
@@ -123,13 +126,9 @@ def refuse_an_application_signed_with_less(application: Path, declared: dict, sc
         raise ShipFailure("the signed app is missing what it declares:\n" + "\n".join(gaps))
 
 
-def pack_disk_image(application: Path, version: str, identity: str, scratch: Path) -> Path:
-    staging = scratch / "disk-image"
-    staging.mkdir()
-    run(["ditto", str(application), str(staging / application.name)], scratch)
-    (staging / "Applications").symlink_to("/Applications")
+def signed_disk_image(application: Path, background: Path, version: str, identity: str, scratch: Path) -> Path:
     image = scratch / f"{application.stem}_{version}_{ARCHITECTURE_LABEL}.dmg"
-    run(["hdiutil", "create", "-volname", application.stem, "-srcfolder", str(staging), "-format", "UDZO", str(image)], scratch)
+    pack_disk_image(application, background, image, scratch)
     run(["codesign", "--force", "--timestamp", "--sign", identity, str(image)], scratch)
     return image
 
@@ -168,7 +167,7 @@ def ship(arguments: argparse.Namespace, scratch: Path) -> Path:
         say(f"built {arguments.version}")
         sign_application(application, identity, entitlements, checkout / EXTENSION_ENTITLEMENTS, scratch)
         refuse_an_application_signed_with_less(application, entitlements, scratch)
-        image = pack_disk_image(application, arguments.version, identity, scratch)
+        image = signed_disk_image(application, checkout / DISK_IMAGE_BACKGROUND, arguments.version, identity, scratch)
     say(f"signed: {image.name}")
     notarize(image, scratch, environment)
     refuse_an_image_gatekeeper_rejects(image, scratch)
