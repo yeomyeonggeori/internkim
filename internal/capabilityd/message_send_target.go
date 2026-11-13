@@ -39,7 +39,11 @@ func (service Service) resolveMessageDirectTarget(ctx context.Context, request c
 
 func (service Service) onePersonApprovalTargetResponse(ctx context.Context, request capabilities.ToolInvokeRequest, inputField string, personHint string) capabilities.ToolInvokeResponse {
 	language := request.Context.ResponseLanguage
-	person, failure, isRefused := service.resolvePersonHint(ctx, personHint, language)
+	directory, failure, isRefused := service.companyDirectory(ctx)
+	if isRefused {
+		return platformDMErrorResponse(request.ToolName, failure)
+	}
+	person, failure, isRefused := personNamedBy(personHint, directory, language)
 	if isRefused {
 		return platformDMErrorResponse(request.ToolName, failure)
 	}
@@ -47,12 +51,17 @@ func (service Service) onePersonApprovalTargetResponse(ctx context.Context, requ
 		InputField: inputField,
 		ID:         person.MemberID,
 		Title:      personname.Render(person.Name, language),
+		Address:    addressesTheirNamesLeaveOpen([]directoryPerson{person}, directory, language),
 	})
 }
 
 func (service Service) severalPeopleApprovalTargetResponse(ctx context.Context, request capabilities.ToolInvokeRequest, inputField string, personHints []string) capabilities.ToolInvokeResponse {
 	language := request.Context.ResponseLanguage
-	people, failure, isRefused := service.resolvePersonHints(ctx, personHints, language)
+	directory, failure, isRefused := service.companyDirectory(ctx)
+	if isRefused {
+		return platformDMErrorResponse(request.ToolName, failure)
+	}
+	people, failure, isRefused := peopleNamedBy(personHints, directory, language)
 	if isRefused {
 		return platformDMErrorResponse(request.ToolName, failure)
 	}
@@ -66,7 +75,24 @@ func (service Service) severalPeopleApprovalTargetResponse(ctx context.Context, 
 		InputField: inputField,
 		IDs:        identifiers,
 		Title:      strings.Join(names, "; "),
+		Address:    addressesTheirNamesLeaveOpen(people, directory, language),
 	})
+}
+
+func addressesTheirNamesLeaveOpen(people []directoryPerson, directory []directoryPerson, language string) string {
+	addresses := []string{}
+	for _, person := range people {
+		address := strings.TrimSpace(person.Email)
+		if address != "" && !isNamedApart(person, directory, language) {
+			addresses = append(addresses, address)
+		}
+	}
+	return strings.Join(addresses, "; ")
+}
+
+func isNamedApart(person directoryPerson, directory []directoryPerson, language string) bool {
+	resolution := resolveHint(personname.Render(person.Name, language), directory, nil)
+	return resolution.Outcome == hintResolved && resolution.Match.MemberID == person.MemberID
 }
 
 func (service Service) resolveMessageChannelTarget(ctx context.Context, request capabilities.ToolInvokeRequest, deliveryTarget platformMessageDeliveryTarget) (capabilities.ToolInvokeResponse, error) {

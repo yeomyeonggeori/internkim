@@ -42,7 +42,8 @@ export const taskInvitationToolDefinitions: CapabilityToolDefinition[] = [
 			resultField: 'invitationID', effectIdentity: ResourceEffectIdentity.ID
 		}] },
 		sideEffect: CapabilitySideEffect.ExternalSend,
-		requiresApproval: true
+		requiresApproval: true,
+		approvalQuotedFields: ['email']
 	},
 	{
 		...invitationTool,

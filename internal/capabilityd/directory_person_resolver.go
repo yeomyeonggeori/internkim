@@ -65,6 +65,10 @@ func (service Service) resolvePersonHints(ctx context.Context, personHints []str
 	if isRefused {
 		return nil, failure, true
 	}
+	return peopleNamedBy(personHints, directory, responseLanguage)
+}
+
+func peopleNamedBy(personHints []string, directory []directoryPerson, responseLanguage string) ([]directoryPerson, platformDMFailure, bool) {
 	people := []directoryPerson{}
 	for _, personHint := range personHints {
 		person, failure, isRefused := personNamedBy(personHint, directory, responseLanguage)

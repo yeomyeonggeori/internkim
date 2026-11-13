@@ -259,6 +259,17 @@ describe('canonical capability tools', () => {
     expect(catalog.tools.every(tool => tool.name === tool.canonicalName && tool.name === tool.modelName)).toBe(true);
   });
 
+  test('quotes beneath an approval question only inputs the tool takes', () => {
+    const catalog = buildCapabilityToolCatalog(protocolVersion);
+    const quotedInputsTheToolDoesNotTake = catalog.tools.flatMap(tool =>
+      (tool.approvalQuotedFields ?? [])
+        .filter(fieldName => !inputNames(tool.inputSchema).includes(fieldName))
+        .map(fieldName => `${tool.name}.${fieldName}`));
+
+    expect(catalog.tools.some(tool => (tool.approvalQuotedFields ?? []).length > 0)).toBe(true);
+    expect(quotedInputsTheToolDoesNotTake).toEqual([]);
+  });
+
   // A tool the model can call promises a shape back, so it carries a contract. A
   // tool carrying none answers in the invoke envelope and is never shown to the
   // model, because there would be nothing to tell it about the answer.
@@ -1113,3 +1124,9 @@ describe('catalog descriptions stay messenger-neutral', () => {
     expect(violations).toEqual([]);
   });
 });
+
+function inputNames(inputSchema: Record<string, unknown>): string[] {
+  const properties = inputSchema.properties;
+  if (typeof properties !== 'object' || properties === null) return [];
+  return Object.keys(properties);
+}

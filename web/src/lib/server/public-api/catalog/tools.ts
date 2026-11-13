@@ -341,6 +341,7 @@ const scheduleToolDefinitions: CapabilityToolDefinition[] = [
     },
     sideEffect: CapabilitySideEffect.WorkspaceWrite,
     requiresApproval: true,
+    approvalQuotedFields: ['taskInstruction'],
     completionEvidence: { mode: 'success', action: 'write_schedule', targetKind: 'schedule' },
   },
   {
@@ -365,6 +366,7 @@ const scheduleToolDefinitions: CapabilityToolDefinition[] = [
     },
     sideEffect: CapabilitySideEffect.WorkspaceWrite,
     requiresApproval: true,
+    approvalQuotedFields: ['taskInstruction'],
     completionEvidence: { mode: 'success', action: 'write_schedule', targetKind: 'schedule' },
   },
   {
@@ -1571,6 +1573,7 @@ const messageToolDefinitions: CapabilityToolDefinition[] = [
     sideEffect: CapabilitySideEffect.ExternalSend,
     idempotency: { supported: true, required: false, scope: 'operation' },
     requiresApproval: true,
+    approvalQuotedFields: ['message', 'attachments'],
     completionEvidence: { mode: 'success', action: 'send_message', targetKind: 'message' },
   },
   {
