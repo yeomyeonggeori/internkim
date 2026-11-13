@@ -158,7 +158,7 @@ func (service Service) invokeCapabilityTool(ctx context.Context, toolName string
 	toolRoute, hasToolRoute := capabilityToolRouteFor(descriptor.CanonicalName)
 
 	if hasToolRoute {
-		response, errorValue := toolRoute.Handler(service, ctx, request)
+		response, errorValue := service.answerWithinTheRequestedTime(ctx, request, toolRoute.Handler)
 		if errorValue != nil {
 			return capabilities.ToolInvokeResponse{}, errorValue
 		}

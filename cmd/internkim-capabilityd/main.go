@@ -67,12 +67,14 @@ func main() {
 	}
 }
 
+const capabilityCallTimeoutSecond = 300
+
 func printCapabilities(socketPath string) {
 	printJSONDocument(map[string]any{
 		"transport":      "unix",
 		"unixSocketPath": socketPath,
 		"endpoint":       "http://internkim-capability",
-		"timeoutSecond":  30,
+		"timeoutSecond":  capabilityCallTimeoutSecond,
 	})
 }
 

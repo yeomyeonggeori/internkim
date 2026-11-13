@@ -15,6 +15,16 @@ test('the plane template names no model of its own', () => {
 	).toBeUndefined();
 });
 
+test('the plane template names no capability time limit of its own', () => {
+	const template = JSON.parse(
+		readFileSync(join(repositoryRoot, 'host', 'runtime.template.json'), 'utf8')
+	) as { capabilities?: { timeoutSecond?: unknown } };
+	expect(
+		template.capabilities?.timeoutSecond,
+		'render-company-runtime lays the installed capabilityd --print-capabilities over the template, so a limit here is a second copy nothing reads'
+	).toBeUndefined();
+});
+
 test('render-company-runtime refuses a template carrying its own ladder', () => {
 	const workDirectory = mkdtempSync(join(tmpdir(), 'ikhost-template-'));
 	try {

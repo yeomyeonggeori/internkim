@@ -2,8 +2,7 @@
   "baseURL": "${BLUECLAW_BASE_URL}",
   "serviceTokenPath": "${SERVICE_TOKEN_PATH}",
   "capabilities": {
-    "unixSocketPath": "${CAPABILITY_SOCKET_PATH}",
-    "timeoutSecond": 30
+    "unixSocketPath": "${CAPABILITY_SOCKET_PATH}"
   },
   "database": {
     "driver": "postgres",

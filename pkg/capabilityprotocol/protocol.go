@@ -79,6 +79,7 @@ type Descriptor struct {
 	Version              string                        `json:"version"`
 	PrivacyClass         string                        `json:"privacyClass"`
 	EstimatedLatency     string                        `json:"estimatedLatency"`
+	TimeoutSecond        int                           `json:"timeoutSecond,omitempty"`
 	RequiresUserPresence bool                          `json:"requiresUserPresence"`
 	WorksOffline         bool                          `json:"worksOffline"`
 	RecallSource         bool                          `json:"recallSource,omitempty"`
