@@ -38,7 +38,7 @@
 	import { keepShellStatusBarOnPageTheme } from '$lib/native-shell/page-theme';
 	import { keepBackGestureOffOnMainPages } from '$lib/components/main-page-back-gesture.svelte';
 	import { openLinksLeavingTheAppInBrowser } from '$lib/native-shell/external-links';
-	import { keepDesktopControlled } from '$lib/native-shell/desktop-control';
+	import { askToUseThisComputerOnce, keepDesktopControlled } from '$lib/native-shell/desktop-control';
 	import { goWhereNativeNotificationsPoint, keepNativeDeviceClaimed } from '$lib/notifications/native-device';
 	import { askToBeReachedOnce } from '$lib/notifications/ask-once';
 	import { keepWidgetSupplied } from '$lib/widget/attendance-widget-supply';
@@ -86,12 +86,15 @@
 	});
 	$effect(() => {
 		if (!data.session?.authenticated) return;
-		askToBeReachedOnce().then(
-			(answer) => {
-				if (answer === 'refused') toast.info(text.notifyLater);
-			},
-			(failure: unknown) => console.warn('this device was not asked about notifications', failure)
-		);
+		askToBeReachedOnce()
+			.then(
+				(answer) => {
+					if (answer === 'refused') toast.info(text.notifyLater);
+				},
+				(failure: unknown) => console.warn('this device was not asked about notifications', failure)
+			)
+			.then(() => askToUseThisComputerOnce(currentLocale.value))
+			.catch((failure: unknown) => console.warn('this computer was not asked whether internkim may use it', failure));
 	});
 	$effect(() => {
 		const signedInEmail = data.session?.authenticated ? data.session.email : '';

@@ -56,16 +56,35 @@ async fn allow<R: Runtime>(
     window: WebviewWindow<R>,
     language: Option<Language>,
 ) -> Result<ControlState, String> {
-    let language = language.unwrap_or_default();
-    if consent::ask(&window, language).await {
-        let consent = Consent {
-            is_allowed: true,
-            language,
-        };
-        consent::write(&app, consent)?;
-        apply(&app, consent);
+    ask_and_remember(&app, &window, language.unwrap_or_default()).await?;
+    Ok(state_of(&app).await)
+}
+
+#[tauri::command]
+async fn ask_once<R: Runtime>(
+    app: AppHandle<R>,
+    window: WebviewWindow<R>,
+    language: Option<Language>,
+) -> Result<ControlState, String> {
+    if app.state::<DesktopControl>().consent().is_undecided() {
+        ask_and_remember(&app, &window, language.unwrap_or_default()).await?;
     }
     Ok(state_of(&app).await)
+}
+
+async fn ask_and_remember<R: Runtime>(
+    app: &AppHandle<R>,
+    window: &WebviewWindow<R>,
+    language: Language,
+) -> Result<(), String> {
+    let consent = Consent {
+        is_allowed: consent::ask(window, language).await,
+        has_been_asked: true,
+        language,
+    };
+    consent::write(app, consent)?;
+    apply(app, consent);
+    Ok(())
 }
 
 #[tauri::command]
@@ -155,6 +174,7 @@ fn stop_and_remember<R: Runtime>(app: &AppHandle<R>) -> Result<(), String> {
     let language = app.state::<DesktopControl>().consent().language;
     let consent = Consent {
         is_allowed: false,
+        has_been_asked: true,
         language,
     };
     apply(app, consent);
@@ -188,6 +208,7 @@ pub fn init<R: Runtime>() -> TauriPlugin<R> {
         .invoke_handler(tauri::generate_handler![
             state,
             allow,
+            ask_once,
             disallow,
             run,
             open_permission_guide

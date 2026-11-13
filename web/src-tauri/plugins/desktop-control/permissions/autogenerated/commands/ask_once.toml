@@ -1,0 +1,13 @@
+# Automatically generated - DO NOT EDIT!
+
+"$schema" = "../../schemas/schema.json"
+
+[[permission]]
+identifier = "allow-ask-once"
+description = "Enables the ask_once command without any pre-configured scope."
+commands.allow = ["ask_once"]
+
+[[permission]]
+identifier = "deny-ask-once"
+description = "Denies the ask_once command without any pre-configured scope."
+commands.deny = ["ask_once"]
