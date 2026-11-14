@@ -12,7 +12,7 @@ each problem. It needs no office suite, no browser and no desktop app, and a
 page looks the same on a laptop, a Mac Studio or the company's Linux box,
 because the skill ships the fonts it draws with.
 
-The same skill comes with the [plugin](/docs/plugin), so a coding agent on
+The same skill comes with the [plugin](/plugin), so a coding agent on
 your own machine makes the same files.
 
 ## Decks [#decks]
@@ -72,8 +72,9 @@ support is left blank for the reply to offer to complete.
 InternKim picks a deck's typeface from the request: Paperlogy by default,
 otherwise Freesentation or A2Z. A font the person names is looked for among
 the attachments, the data room and Google Fonts and embedded; when none is
-found, the deck is set in Paperlogy and the reply says so. The
-company logo goes on the cover and the closing page. Photos come from the
+found, the deck is set in Paperlogy and the reply says so. A Hangul syllable
+Paperlogy or A2Z does not draw is set in Pretendard, so no character prints
+blank. The company logo goes on the cover and the closing page. Photos come from the
 request's attachments and the data room images the requester can read, and a
 page with no photo gets no placeholder.
 
@@ -104,7 +105,9 @@ charts, or edited operation by operation. Edits can be tracked under an
 author's name and accepted or rejected later, and comments can be added,
 answered and resolved. `office render` lays the pages out the way Word
 would, and `office check` uses that layout to catch a heading left alone
-at the bottom of a page before the file is attached.
+at the bottom of a page before the file is attached. A last page filled under
+30% is drawn again a little tighter when a small step removes it. Korean text
+breaks only at spaces.
 
 PDFs are created from a layout spec, read page by page, rendered to images,
 and extended with section pages; a scanned PDF is read with `--ocr`, and a
@@ -114,7 +117,11 @@ moves between Markdown, Word, HTML, PDF, workbooks, CSV and PowerPoint, and
 
 Company forms such as quotes and contracts are filled on the company's
 letterhead with `office merge`, and `office check` verifies row amounts,
-totals, tax and the amount in Korean words. `office guide form` lists the forms.
+totals, tax and, on a Korean form, the amount in Korean words. Every form comes
+as `kr/` and `intl/`, and the company's working language picks one. A letter
+is drawn on the same stationery, with the seal over the signer. A filled form
+is registered in the document ledger and its file filed in the data room.
+`office guide form` lists the forms.
 
 ## Results [#results]
 
@@ -130,7 +137,7 @@ best effort.
 `office setup` installs what the skill needs beside its own files, at locked
 versions: the Python packages, the page renderer and the OCR engine. It needs
 Python 3, [uv](https://docs.astral.sh/uv/), and Bun or Node 18 or newer, and
-the [host install](/docs/running-the-host) runs it. No other command installs
+the [host install](/running-the-host) runs it. No other command installs
 anything; before setup, each one says to run it.
 
 The fonts are licensed under the SIL Open Font License and travel with the

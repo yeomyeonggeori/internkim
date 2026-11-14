@@ -1,6 +1,6 @@
 ---
 title: The data room
-description: The company's document archive, read through circles and shared by link.
+description: The company's document archive, read through circles and shared on a public page or by code link.
 ---
 
 The data room belongs to the company. Its metadata and files live in the
@@ -12,11 +12,17 @@ mnemonic codes identify categories; names and display order can change.
 An uncertain document waits in `X-inbox`. File formats and intended readers
 do not determine its category.
 
-Open Files → Dataroom to browse the archive. Share link lets you choose a
-circle, expiration and whether original downloads are allowed. Send the
-link and its six digit code to the recipient. They enter the code and
-acknowledge the confidentiality notice without creating an account.
-Place members in circles and edit circles in Settings → Company.
+Open Dataroom in the app's navigation to browse the archive. The folder's
+documents come first and the company overview sits below them. Its amounts
+are converted to the display currency the reader picks, at a stated day's
+exchange rate, unless the reader chooses to see them as recorded.
+
+Share opens the company's public page, which anyone can read, and the code
+links. A code link reads as one circle you choose, with an expiration and
+whether original downloads are allowed. Send the link and its six digit code
+to the recipient. They enter the code and acknowledge the confidentiality
+notice without creating an account. Place members in circles and edit
+circles in Settings → Members.
 
 Updating this documentation does not update a company's data room. Apply the
 database migrations and deploy compatible company runtime, plugin and web/API
@@ -24,7 +30,7 @@ versions together. Migrations initialize default categories and circles for
 existing companies and new companies inherit them automatically. Every
 document is filed in a category; an unclassified one lands in its filer's inbox.
 
-[Categories and defaults](/docs/data-room/layout) defines the template.
-[Access and sharing](/docs/data-room/access) explains permissions.
-[Metadata](/docs/data-room/metadata) describes the document record.
-[Agent workflow](/docs/data-room/agent) explains filing and finding.
+[Categories and defaults](/data-room/layout) defines the template.
+[Access and sharing](/data-room/access) explains permissions.
+[Metadata](/data-room/metadata) describes the document record.
+[Agent workflow](/data-room/agent) explains filing and finding.

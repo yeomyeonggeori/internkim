@@ -34,7 +34,9 @@ probability가 높은 쪽을 사용합니다. 둘 다 `other`거나 동률이면
 구성원은 자기 서클을 통해 읽으므로, 동료에게 접근을 주려면 서클에
 넣습니다. 회사 밖과 공유할 때는 `dataroom_link_add`로 한 서클의 코드 링크를
 만듭니다. 서클에는 대분류 또는 중분류 코드를 지정합니다. 서클 수정과 중분류 추가
-전에 접근이 바뀌는 사람을 확인합니다. `dataroom_publication_update`로 문서나
+전에 접근이 바뀌는 사람을 확인합니다. 회사 소개 필드도 분류를 따릅니다.
+`dataroom_field_update`로 그 필드를 볼 분류를 정하고,
+`dataroom_field_name_update`로 회사가 부르는 이름을 기록합니다. `dataroom_publication_update`로 문서나
 필드를 공개 페이지에 올리는 일은 그 대상을 명시한 요청이 있어야 합니다.
 
 dataroom 스킬이 이 흐름을 제공합니다. 내보내기 도구는 생성된 템플릿으로
