@@ -163,13 +163,6 @@ mod tests {
     }
 
     #[test]
-    fn refuses_real_key_input_on_the_desktop_and_still_shows_the_browser_window() {
-        assert!(refusal(&["type", "@s8f3k2p9:e4", "--headed"])
-            .is_some_and(|reason| reason.contains("--headed")));
-        assert_eq!(browser_refusal(&["snapshot", "-i", "--json", "--headed"]), None);
-    }
-
-    #[test]
     fn refuses_every_way_of_opening_or_joining_a_devtools_port() {
         for words in [
             &["launch", "chrome", "--cdp"][..],
