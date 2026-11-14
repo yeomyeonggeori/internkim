@@ -114,20 +114,29 @@ func TestADesktopCallWithNoRequesterIsRefusedBeforeAnythingIsPosted(t *testing.T
 	}
 }
 
-func TestACommandOfTheOtherKindIsRefusedBeforeAnythingIsPostedAndNamesTheToolThatRunsIt(t *testing.T) {
+func TestAReadThatChangesTheDesktopIsRefusedBeforeAnythingIsPostedAndNamesTheToolThatRunsIt(t *testing.T) {
 	service, relay := serviceWithARelay(t, answeredByTheDesktop(desktop.Answer{Output: snapshotEnvelope}))
 
-	for _, call := range []struct{ toolName, input, otherTool string }{
-		{desktopReadToolName, `{"arguments":["click","@s8f3k2p9:e4"]}`, desktopActToolName},
-		{desktopActToolName, `{"arguments":["snapshot","-i"]}`, desktopReadToolName},
-	} {
-		response, errorValue := service.invokeDesktopTool(context.Background(), desktopCall(call.toolName, "sample@example.com", call.input))
-		if errorValue != nil || !response.IsError || !strings.Contains(response.Content, call.otherTool) {
-			t.Errorf("%s %s was answered %+v, %v", call.toolName, call.input, response, errorValue)
-		}
+	response, errorValue := service.invokeDesktopTool(context.Background(), desktopCall(desktopReadToolName, "sample@example.com", `{"arguments":["click","@s8f3k2p9:e4"]}`))
+
+	if errorValue != nil || !response.IsError || !strings.Contains(response.Content, desktopActToolName) {
+		t.Fatalf("answered %+v, %v", response, errorValue)
 	}
 	if len(relay.posted) != 0 {
-		t.Fatalf("a command of the wrong kind was posted: %+v", relay.posted)
+		t.Fatalf("a read that changes the desktop was posted: %+v", relay.posted)
+	}
+}
+
+func TestAnActThatOnlyReadsIsRunLikeARead(t *testing.T) {
+	service, relay := serviceWithARelay(t, answeredByTheDesktop(desktop.Answer{Output: snapshotEnvelope}))
+
+	response, errorValue := service.invokeDesktopTool(context.Background(), desktopCall(desktopActToolName, "sample@example.com", `{"arguments":["snapshot","-i"]}`))
+
+	if errorValue != nil || response.IsError || response.Content != snapshotEnvelope {
+		t.Fatalf("answered %+v, %v", response, errorValue)
+	}
+	if len(relay.posted) != 1 || !slices.Equal(relay.posted[0].Work.Arguments, []string{"snapshot", "-i"}) {
+		t.Fatalf("the desktop was asked %+v", relay.posted)
 	}
 }
 

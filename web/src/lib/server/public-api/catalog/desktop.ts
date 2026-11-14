@@ -68,7 +68,7 @@ export const desktopToolDefinitions: CapabilityToolDefinition[] = [
     answeredBy: CapabilityAnsweredBy.Local,
     privacyClass: 'requester_desktop',
     policyResource: 'tool:desktop_act',
-    description: "Operate the requester's own computer through agent-desktop: click, type into or set a ref from the latest desktop_read snapshot, press keys, launch or close an app, move a window, write the clipboard. The requester sees it happen on their screen. Take a new snapshot after every act, because refs belong to the snapshot that printed them. Never type a password or a one-time code; ask the requester to enter it themselves.",
+    description: "Operate the requester's own computer through agent-desktop: click, type into or set a ref from the latest snapshot, press keys, launch or close an app, move a window, write the clipboard. It also runs every desktop_read command, snapshot included. The requester sees it happen on their screen. Take a new snapshot after every act, because refs belong to the snapshot that printed them. Never type a password or a one-time code; ask the requester to enter it themselves.",
     version: '1',
     estimatedLatency: CapabilityEstimatedLatency.Interactive,
     requiresUserPresence: true,

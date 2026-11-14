@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 )
 
@@ -56,18 +57,12 @@ func NewCall(kind Kind, programName string, arguments []string, text string) (Ca
 }
 
 func (program Program) isOfKind(kind Kind, command string) bool {
-	if kind == KindRead {
-		return program.Reads(command)
-	}
-	return program.Acts(command)
+	return slices.Contains(program.commandsOf(kind), command)
 }
 
 func (program Program) wrongCommandMessage(programName string, kind Kind, command string) string {
 	if kind == KindRead && program.Acts(command) {
 		return fmt.Sprintf("%s %q changes the desktop; call desktop_act with the same program and arguments", programName, command)
-	}
-	if kind == KindAct && program.Reads(command) {
-		return fmt.Sprintf("%s %q only reads the desktop; call desktop_read with the same program and arguments", programName, command)
 	}
 	return fmt.Sprintf("%q is not a %s command this tool runs; the first argument is one of: %s", command, programName, strings.Join(program.commandsOf(kind), ", "))
 }
@@ -76,7 +71,7 @@ func (program Program) commandsOf(kind Kind) []string {
 	if kind == KindRead {
 		return program.Read
 	}
-	return program.Act
+	return slices.Concat(program.Act, program.Read)
 }
 
 type Envelope struct {
