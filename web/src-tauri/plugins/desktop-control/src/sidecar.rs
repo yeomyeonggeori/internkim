@@ -1,6 +1,6 @@
 use serde::Serialize;
 use std::{
-    path::PathBuf,
+    path::{Path, PathBuf},
     process::{Output, Stdio},
     time::Duration,
 };
@@ -13,36 +13,73 @@ pub enum Answer {
     Refusal(String),
 }
 
+#[derive(Clone, Copy)]
+pub struct Sidecar<'a> {
+    pub macos_helper: Option<&'a Path>,
+}
+
 const LONGEST_QUOTED_ERROR: usize = 400;
 
-pub async fn run(
-    program: &str,
-    arguments: &[String],
-    text: Option<String>,
-    limit: Duration,
-) -> Answer {
-    let mut child = match spawn(program, arguments, text.is_some()) {
-        Ok(child) => child,
-        Err(error) => {
-            return Answer::Refusal(format!(
-                "{program} could not start on this computer: {error}"
-            ))
+impl Sidecar<'_> {
+    pub async fn run(
+        self,
+        program: &str,
+        arguments: &[String],
+        text: Option<String>,
+        limit: Duration,
+    ) -> Answer {
+        let mut child = match self.spawn(program, arguments, text.is_some()) {
+            Ok(child) => child,
+            Err(error) => {
+                return Answer::Refusal(format!(
+                    "{program} could not start on this computer: {error}"
+                ))
+            }
+        };
+        if let (Some(text), Some(mut input)) = (text, child.stdin.take()) {
+            tauri::async_runtime::spawn(async move { input.write_all(text.as_bytes()).await });
         }
-    };
-    if let (Some(text), Some(mut input)) = (text, child.stdin.take()) {
-        tauri::async_runtime::spawn(async move { input.write_all(text.as_bytes()).await });
+        match tokio::time::timeout(limit, child.wait_with_output()).await {
+            Err(_) => Answer::Refusal(format!(
+                "{program} ran longer than {} seconds and was stopped",
+                limit.as_secs()
+            )),
+            Ok(Err(error)) => {
+                Answer::Refusal(format!("{program}'s answer could not be read: {error}"))
+            }
+            Ok(Ok(output)) => answer_of(program, output),
+        }
     }
-    match tokio::time::timeout(limit, child.wait_with_output()).await {
-        Err(_) => Answer::Refusal(format!(
-            "{program} ran longer than {} seconds and was stopped",
-            limit.as_secs()
-        )),
-        Ok(Err(error)) => Answer::Refusal(format!("{program}'s answer could not be read: {error}")),
-        Ok(Ok(output)) => answer_of(program, output),
+
+    fn spawn(
+        self,
+        program: &str,
+        arguments: &[String],
+        takes_input: bool,
+    ) -> std::io::Result<tokio::process::Child> {
+        let executable = format!("{program}{}", std::env::consts::EXE_SUFFIX);
+        let mut command = Command::new(application_directory()?.join(executable));
+        if let Some(helper) = self.macos_helper {
+            command.env("AGENT_DESKTOP_MACOS_HELPER_PATH", helper);
+        }
+        for variable in VARIABLES_NAMING_A_SESSION {
+            command.env_remove(variable);
+        }
+        command.env("AGENT_BROWSER_SESSION", BROWSER_SESSION);
+        command
+            .args(arguments)
+            .stdin(if takes_input {
+                Stdio::piped()
+            } else {
+                Stdio::null()
+            })
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .kill_on_drop(true)
+            .spawn()
     }
 }
 
-const MACOS_HELPER: &str = "agent-desktop-macos-helper";
 const BROWSER_SESSION: &str = "internkim";
 const VARIABLES_NAMING_A_SESSION: &[&str] = &[
     "AGENT_DESKTOP_SESSION",
@@ -51,38 +88,7 @@ const VARIABLES_NAMING_A_SESSION: &[&str] = &[
     "AGENT_BROWSER_CONFIG",
 ];
 
-fn spawn(
-    program: &str,
-    arguments: &[String],
-    takes_input: bool,
-) -> std::io::Result<tokio::process::Child> {
-    let directory = application_directory()?;
-    let executable = format!("{program}{}", std::env::consts::EXE_SUFFIX);
-    let mut command = Command::new(directory.join(executable));
-    if cfg!(target_os = "macos") {
-        command.env(
-            "AGENT_DESKTOP_MACOS_HELPER_PATH",
-            directory.join(MACOS_HELPER),
-        );
-    }
-    for variable in VARIABLES_NAMING_A_SESSION {
-        command.env_remove(variable);
-    }
-    command.env("AGENT_BROWSER_SESSION", BROWSER_SESSION);
-    command
-        .args(arguments)
-        .stdin(if takes_input {
-            Stdio::piped()
-        } else {
-            Stdio::null()
-        })
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .kill_on_drop(true)
-        .spawn()
-}
-
-fn application_directory() -> std::io::Result<PathBuf> {
+pub fn application_directory() -> std::io::Result<PathBuf> {
     let application = std::env::current_exe()?;
     let directory = application.parent().ok_or_else(|| {
         std::io::Error::new(
