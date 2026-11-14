@@ -112,11 +112,11 @@ mod tests {
 
     #[test]
     fn refuses_commands_outside_the_read_and_act_lists() {
-        for command in ["mcp", "batch", "session"] {
+        for command in ["mcp", "batch", "session", "sandbox"] {
             let reason = refusal(&[command]).expect("an unlisted command is refused");
             assert!(reason.contains(command), "{reason}");
         }
-        for command in ["eval", "cookies", "upload", "auth"] {
+        for command in ["eval", "cookies", "upload", "auth", "flow"] {
             let reason = browser_refusal(&[command]).expect("an unlisted command is refused");
             assert!(reason.contains(command), "{reason}");
         }
@@ -134,6 +134,10 @@ mod tests {
             browser_refusal(&["open", "https://example.com", "--proxy", "x"])
                 .is_some_and(|reason| reason.contains("--proxy"))
         );
+        for option in ["--capture", "--use-system-ca"] {
+            assert!(browser_refusal(&["open", "https://example.com", option])
+                .is_some_and(|reason| reason.contains(option)));
+        }
     }
 
     #[test]
@@ -150,8 +154,35 @@ mod tests {
     #[test]
     fn runs_a_read_and_an_act_of_each_program() {
         assert_eq!(refusal(&["snapshot", "--app", "Finder", "-i"]), None);
-        assert_eq!(refusal(&["launch", "chrome", "--cdp"]), None);
+        assert_eq!(refusal(&["launch", "chrome", "--activate"]), None);
         assert_eq!(browser_refusal(&["snapshot", "-i", "--json"]), None);
-        assert_eq!(browser_refusal(&["connect", "9222", "--json"]), None);
+        assert_eq!(
+            browser_refusal(&["open", "https://example.com", "--json"]),
+            None
+        );
+    }
+
+    #[test]
+    fn refuses_every_way_of_opening_or_joining_a_devtools_port() {
+        for words in [
+            &["launch", "chrome", "--cdp"][..],
+            &["launch", "chrome", "--cdp=9222"],
+        ] {
+            assert!(refusal(words).is_some_and(|reason| reason.contains("--cdp")));
+        }
+        assert!(browser_refusal(&["connect", "9222", "--json"])
+            .is_some_and(|reason| reason.contains("connect")));
+        for option in [
+            "--cdp",
+            "--cdp-headers",
+            "--auto-connect",
+            "--profile",
+            "--state",
+        ] {
+            assert!(
+                browser_refusal(&["open", "https://example.com", option, "x"])
+                    .is_some_and(|reason| reason.contains(option))
+            );
+        }
     }
 }

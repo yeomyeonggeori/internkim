@@ -5,8 +5,10 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/yeomyeonggeori/internkim/internal/capabilities"
 	"github.com/yeomyeonggeori/internkim/internal/desktop"
@@ -33,9 +35,21 @@ type desktopToolResult struct {
 	Attachments []workspaceImageAttachment `json:"attachments,omitempty"`
 }
 
+type desktopReading struct {
+	Call   desktop.Call
+	Answer desktop.Answer
+	Note   string
+}
+
 const desktopUnreachableMessage = "desktop_unreachable: no computer of the requester's is taking desktop work right now. " +
 	"A computer takes it only while the internkim desktop app is open there, signed in as the requester, with \"Let internkim use this computer\" turned on, " +
 	"and no other person's computer and no company computer can take it in their place."
+
+const screenNotReadPrefix = "it was not read: "
+
+const screenReadingStopsBeforeTheCallEnds = 10 * time.Second
+
+var errSnapshotTooLongAtEveryDepth = errors.New("snapshot_too_long")
 
 func (service Service) invokeDesktopTool(ctx context.Context, request capabilities.ToolInvokeRequest) (capabilities.ToolInvokeResponse, error) {
 	owner := strings.ToLower(strings.TrimSpace(request.Context.RequesterEmail))
@@ -50,17 +64,42 @@ func (service Service) invokeDesktopTool(ctx context.Context, request capabiliti
 	if errorValue != nil {
 		return desktopFailedResponse(request.ToolName, errorValue.Error()), nil
 	}
-	answer, errorValue := service.runOnTheDesktopOf(ctx, owner, call)
+	reading, errorValue := service.readTheDesktopOf(ctx, owner, call)
 	if errors.Is(errorValue, errNoDesktopTookTheWork) {
 		return desktopFailedResponse(request.ToolName, desktopUnreachableMessage), nil
 	}
-	if errors.Is(errorValue, errDesktopUnavailableOnThisHost) {
+	if errors.Is(errorValue, errDesktopUnavailableOnThisHost) || errors.Is(errorValue, errSnapshotTooLongAtEveryDepth) {
 		return desktopFailedResponse(request.ToolName, errorValue.Error()), nil
 	}
 	if errorValue != nil {
 		return capabilities.ToolInvokeResponse{}, errorValue
 	}
-	return desktopResponseOf(request.ToolName, answer, time.Now())
+	return service.desktopResponseOf(ctx, request.ToolName, owner, reading, time.Now())
+}
+
+func (service Service) readTheDesktopOf(ctx context.Context, owner string, call desktop.Call) (desktopReading, error) {
+	answer, errorValue := service.runOnTheDesktopOf(ctx, owner, call)
+	if errorValue != nil || !call.Observes() || !desktop.IsTooLong(answer.Output) {
+		return desktopReading{Call: call, Answer: answer}, errorValue
+	}
+	return service.readShallower(ctx, owner, call, utf8.RuneCountInString(answer.Output))
+}
+
+func (service Service) readShallower(ctx context.Context, owner string, full desktop.Call, fullLength int) (desktopReading, error) {
+	narrowedBy := desktop.Programs[full.Program].Observation.NarrowedBy
+	for _, depth := range desktop.ShallowerDepths {
+		shallower := full.Shallower(depth)
+		answer, errorValue := service.runOnTheDesktopOf(ctx, owner, shallower)
+		if errorValue != nil {
+			return desktopReading{}, errorValue
+		}
+		if desktop.IsTooLong(answer.Output) {
+			continue
+		}
+		note := fmt.Sprintf("the snapshot asked for is %d characters and one answer carries %d, so this one stops %d levels down; %s", fullLength, desktop.LongestObservation, depth, narrowedBy)
+		return desktopReading{Call: shallower, Answer: answer, Note: note}, nil
+	}
+	return desktopReading{}, fmt.Errorf("%w: the snapshot asked for is %d characters, one answer carries %d, and it is still longer one level down; %s", errSnapshotTooLongAtEveryDepth, fullLength, desktop.LongestObservation, narrowedBy)
 }
 
 func (service Service) runOnTheDesktopOf(ctx context.Context, owner string, call desktop.Call) (desktop.Answer, error) {
@@ -75,18 +114,20 @@ func (service Service) runOnTheDesktopOf(ctx context.Context, owner string, call
 	return answer, nil
 }
 
-func desktopResponseOf(toolName string, answer desktop.Answer, capturedAt time.Time) (capabilities.ToolInvokeResponse, error) {
-	if answer.Refusal != "" {
-		return desktopFailedResponse(toolName, "the requester's computer refused this call: "+answer.Refusal), nil
+func (service Service) desktopResponseOf(ctx context.Context, toolName string, owner string, reading desktopReading, capturedAt time.Time) (capabilities.ToolInvokeResponse, error) {
+	if reading.Answer.Refusal != "" {
+		return desktopFailedResponse(toolName, "the requester's computer refused this call: "+reading.Answer.Refusal), nil
 	}
-	envelope, errorValue := desktop.ReadEnvelope(answer.Output)
+	envelope, errorValue := desktop.ReadEnvelope(reading.Answer.Output)
 	if errorValue != nil {
 		return desktopFailedResponse(toolName, errorValue.Error()), nil
 	}
 	if !envelope.Succeeded() {
-		return desktopFailedResponse(toolName, strings.TrimSpace(answer.Output)), nil
+		return desktopFailedResponse(toolName, failureWithUsage(reading.Call, reading.Answer)), nil
 	}
-	result := desktopResultOf(answer.Output, capturedAt)
+	service.observedWindows.remember(owner, envelope.Data.SnapshotID, reading.Call.Scope(envelope))
+	result := desktopResultOf(reading, capturedAt)
+	result.Output += service.screenAfter(ctx, owner, reading.Call, envelope)
 	document, errorValue := json.Marshal(result)
 	if errorValue != nil {
 		return capabilities.ToolInvokeResponse{}, errorValue
@@ -98,10 +139,69 @@ func desktopResponseOf(toolName string, answer desktop.Answer, capturedAt time.T
 	})
 }
 
-func desktopResultOf(output string, capturedAt time.Time) desktopToolResult {
+func (service Service) screenAfter(ctx context.Context, owner string, act desktop.Call, envelope desktop.Envelope) string {
+	if !act.Acts() || !envelope.Delivered() {
+		return ""
+	}
+	observations := act.ObservationsAfter(envelope, func(snapshotID string) desktop.Scope {
+		return service.observedWindows.scopeOf(owner, snapshotID)
+	})
+	readingContext, stopReading := beforeTheCallEnds(ctx)
+	defer stopReading()
+	screen := ""
+	for _, observation := range observations {
+		answered, isSettled := service.screenOf(readingContext, owner, observation)
+		screen = "\n\n" + answered
+		if isSettled {
+			break
+		}
+	}
+	return screen
+}
+
+func beforeTheCallEnds(ctx context.Context) (context.Context, context.CancelFunc) {
+	callEnds, isLimited := ctx.Deadline()
+	if !isLimited {
+		return context.WithCancel(ctx)
+	}
+	return context.WithDeadline(ctx, callEnds.Add(-screenReadingStopsBeforeTheCallEnds))
+}
+
+func (service Service) screenOf(ctx context.Context, owner string, observation desktop.Call) (string, bool) {
+	reading, errorValue := service.readTheDesktopOf(ctx, owner, observation)
+	if errorValue != nil {
+		return screenAskedWith(observation) + screenNotReadPrefix + errorValue.Error(), true
+	}
+	if reading.Answer.Refusal != "" {
+		return screenAskedWith(observation) + screenNotReadPrefix + reading.Answer.Refusal, true
+	}
+	screen := screenAskedWith(reading.Call) + reading.text()
+	envelope, errorValue := desktop.ReadEnvelope(reading.Answer.Output)
+	if errorValue != nil || !envelope.Succeeded() {
+		return screen, false
+	}
+	service.observedWindows.remember(owner, envelope.Data.SnapshotID, reading.Call.Scope(envelope))
+	return screen, true
+}
+
+func screenAskedWith(observation desktop.Call) string {
+	asked, _ := json.Marshal(observation.Arguments)
+	return "the desktop after this act, asked with " + string(asked) + ":\n"
+}
+
+func failureWithUsage(call desktop.Call, answer desktop.Answer) string {
+	failure := strings.TrimSpace(answer.Output)
+	if answer.Usage == "" {
+		return failure
+	}
+	return failure + "\n\n" + call.UsageHeading() + ":\n" + strings.TrimSpace(answer.Usage)
+}
+
+func desktopResultOf(reading desktopReading, capturedAt time.Time) desktopToolResult {
+	output := reading.Answer.Output
 	screenshot, isScreenshot := desktop.ScreenshotOf(output)
 	if !isScreenshot {
-		return desktopToolResult{Output: strings.TrimSpace(output)}
+		return desktopToolResult{Output: reading.text()}
 	}
 	picture, errorValue := base64.StdEncoding.DecodeString(screenshot.PNGBase64)
 	if errorValue != nil {
@@ -116,6 +216,14 @@ func desktopResultOf(output string, capturedAt time.Time) desktopToolResult {
 			ContentBase64: screenshot.PNGBase64,
 		}},
 	}
+}
+
+func (reading desktopReading) text() string {
+	output := strings.TrimSpace(reading.Answer.Output)
+	if reading.Note == "" {
+		return output
+	}
+	return output + "\n\n" + reading.Note
 }
 
 func desktopFailedResponse(toolName string, message string) capabilities.ToolInvokeResponse {

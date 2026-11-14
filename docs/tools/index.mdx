@@ -156,11 +156,20 @@ A web page on that computer is the work of
 `program` names it. It opens a browser window of its own, signed in to nothing,
 beside whatever browser the person already has open.
 
-`desktop_read` runs only commands that change nothing and `desktop_act` the
-ones that do. For each program the two lists, the options never passed, and the
+`desktop_read` runs only commands that change nothing, and `desktop_act` runs
+those and the ones that do. For each program the two lists, the options never passed, and the
 pinned release with its hash are kept in
 [`internal/desktop/commands.json`](https://github.com/yeomyeonggeori/internkim/blob/main/internal/desktop/commands.json),
 which the company's computer and the desktop app both read.
+
+A `snapshot` that chooses no size is asked for in its interactive, compact
+form. One too long for a single answer is asked for again a few levels deep and
+comes back with the commands that read one region of it in full.
+
+After an act the program reports as delivered, the company's computer asks for
+a snapshot of the window or page that act left and returns it with the act's
+own answer. When that snapshot cannot be read, the act's answer still comes
+back and says why the screen is missing.
 
 ## How tools are named [#naming]
 

@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 )
 
@@ -22,7 +23,12 @@ type Call struct {
 
 type Answer struct {
 	Output  string `json:"output,omitempty"`
+	Usage   string `json:"usage,omitempty"`
 	Refusal string `json:"refusal,omitempty"`
+}
+
+func (call Call) UsageHeading() string {
+	return call.Program + " " + call.Arguments[0] + " --help"
 }
 
 const textFromStandardInput = "--stdin"
@@ -42,7 +48,10 @@ func NewCall(kind Kind, programName string, arguments []string, text string) (Ca
 	if !program.isOfKind(kind, command) {
 		return Call{}, errors.New(program.wrongCommandMessage(programName, kind, command))
 	}
-	call := Call{Program: programName, Arguments: append(append([]string{}, arguments...), program.AppendedArguments...)}
+	if refused, isRefused := program.refusedIn(arguments); isRefused {
+		return Call{}, fmt.Errorf("%s is never run with %q here", programName, refused)
+	}
+	call := Call{Program: programName, Arguments: slices.Concat(program.Observation.sized(arguments), program.AppendedArguments)}
 	if text == "" {
 		return call, nil
 	}
@@ -56,18 +65,12 @@ func NewCall(kind Kind, programName string, arguments []string, text string) (Ca
 }
 
 func (program Program) isOfKind(kind Kind, command string) bool {
-	if kind == KindRead {
-		return program.Reads(command)
-	}
-	return program.Acts(command)
+	return slices.Contains(program.commandsOf(kind), command)
 }
 
 func (program Program) wrongCommandMessage(programName string, kind Kind, command string) string {
 	if kind == KindRead && program.Acts(command) {
 		return fmt.Sprintf("%s %q changes the desktop; call desktop_act with the same program and arguments", programName, command)
-	}
-	if kind == KindAct && program.Reads(command) {
-		return fmt.Sprintf("%s %q only reads the desktop; call desktop_read with the same program and arguments", programName, command)
 	}
 	return fmt.Sprintf("%q is not a %s command this tool runs; the first argument is one of: %s", command, programName, strings.Join(program.commandsOf(kind), ", "))
 }
@@ -76,16 +79,43 @@ func (program Program) commandsOf(kind Kind) []string {
 	if kind == KindRead {
 		return program.Read
 	}
-	return program.Act
+	return slices.Concat(program.Act, program.Read)
 }
 
 type Envelope struct {
-	OK      bool `json:"ok"`
-	Success bool `json:"success"`
+	OK      bool         `json:"ok"`
+	Success bool         `json:"success"`
+	Data    EnvelopeData `json:"data"`
+}
+
+type EnvelopeData struct {
+	SnapshotID  string `json:"snapshot_id"`
+	Application string `json:"app"`
+	Window      struct {
+		ID string `json:"id"`
+	} `json:"window"`
+	Disposition struct {
+		Delivery string `json:"delivery"`
+	} `json:"disposition"`
+}
+
+func (data *EnvelopeData) UnmarshalJSON(document []byte) error {
+	type fields EnvelopeData
+	var read fields
+	if json.Unmarshal(document, &read) == nil {
+		*data = EnvelopeData(read)
+	}
+	return nil
 }
 
 func (envelope Envelope) Succeeded() bool {
 	return envelope.OK || envelope.Success
+}
+
+const deliveryOfNothing = "not_delivered"
+
+func (envelope Envelope) Delivered() bool {
+	return envelope.Succeeded() && envelope.Data.Disposition.Delivery != deliveryOfNothing
 }
 
 type Screenshot struct {

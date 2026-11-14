@@ -6,7 +6,7 @@ import (
 	"testing"
 )
 
-func TestACallRunsOnlyACommandOfItsOwnKind(t *testing.T) {
+func TestAReadRefusesACommandThatChangesTheDesktopAndAnActRunsEither(t *testing.T) {
 	if _, errorValue := NewCall(KindRead, "", []string{"snapshot", "--app", "Finder", "-i"}, ""); errorValue != nil {
 		t.Fatal(errorValue)
 	}
@@ -14,9 +14,18 @@ func TestACallRunsOnlyACommandOfItsOwnKind(t *testing.T) {
 	if errorValue == nil || !strings.Contains(errorValue.Error(), "desktop_act") {
 		t.Fatalf("a read that clicks was answered %v", errorValue)
 	}
-	_, errorValue = NewCall(KindAct, "", []string{"snapshot"}, "")
-	if errorValue == nil || !strings.Contains(errorValue.Error(), "desktop_read") {
-		t.Fatalf("an act that reads was answered %v", errorValue)
+	for _, arguments := range [][]string{{"snapshot", "-i"}, {"list-windows"}, {"click", "@s1:e2"}} {
+		call, errorValue := NewCall(KindAct, "", arguments, "")
+		if errorValue != nil || !slices.Equal(call.Arguments, arguments) {
+			t.Errorf("an act of %v was built %+v, %v", arguments, call, errorValue)
+		}
+	}
+}
+
+func TestAReadNamesOnlyTheCommandsThatChangeNothing(t *testing.T) {
+	_, errorValue := NewCall(KindRead, "", []string{"session"}, "")
+	if errorValue == nil || !strings.Contains(errorValue.Error(), "snapshot") || strings.Contains(errorValue.Error(), "click") {
+		t.Fatalf("an unknown read was answered %v", errorValue)
 	}
 }
 
@@ -115,5 +124,31 @@ func TestBothEnvelopesSayWhetherTheCommandSucceeded(t *testing.T) {
 		if errorValue != nil || envelope.Succeeded() != succeeded {
 			t.Errorf("%s was read as %+v, %v", output, envelope, errorValue)
 		}
+	}
+}
+
+func TestAnOptionTheDesktopAppRefusesIsRefusedBeforeItIsSent(t *testing.T) {
+	for _, example := range []struct {
+		program   string
+		refused   string
+		arguments []string
+	}{
+		{"agent-desktop", "--cdp", []string{"launch", "Slack", "--cdp"}},
+		{"agent-desktop", "--cdp=9222", []string{"launch", "Slack", "--cdp=9222"}},
+		{"agent-desktop", "--trace", []string{"snapshot", "--trace", "x"}},
+		{"agent-browser", "--auto-connect", []string{"open", "https://example.com", "--auto-connect"}},
+		{"agent-browser", "--profile", []string{"open", "https://example.com", "--profile", "Default"}},
+		{"agent-browser", "--cdp", []string{"snapshot", "--cdp", "9222"}},
+	} {
+		_, errorValue := NewCall(KindAct, example.program, example.arguments, "")
+		if errorValue == nil || !strings.Contains(errorValue.Error(), `"`+example.refused+`"`) {
+			t.Errorf("%s %v was answered %v", example.program, example.arguments, errorValue)
+		}
+	}
+	if _, errorValue := NewCall(KindAct, "agent-browser", []string{"connect", "9222"}, ""); errorValue == nil {
+		t.Error("agent-browser was asked to join a browser that is already running")
+	}
+	if _, errorValue := NewCall(KindAct, "agent-browser", []string{"fill", "@e1"}, "--profile"); errorValue != nil {
+		t.Errorf("text that reads like an option was refused: %v", errorValue)
 	}
 }
