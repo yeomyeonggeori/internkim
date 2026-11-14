@@ -45,7 +45,7 @@ type CapabilityToolCommonDefinition = {
   sideEffect: CapabilitySideEffect;
   idempotency?: z.infer<typeof capabilityIdempotencySchema>;
   requiresApproval?: boolean;
-  approvalQuotedFields?: string[];
+  approvalQuotedField?: string;
   requiresUserPresence?: boolean;
   worksOffline?: boolean;
   recallSource?: boolean;
@@ -153,7 +153,7 @@ export function buildCapabilityDescriptor(
     sideEffectClass: definition.sideEffect,
     sideEffect: definition.sideEffect,
     requiresApproval: definition.requiresApproval,
-    approvalQuotedFields: definition.approvalQuotedFields,
+    approvalQuotedField: definition.approvalQuotedField,
     completionEvidence: definition.completionEvidence,
     availability: { state: CapabilityAvailabilityState.Available },
     idempotency: definition.idempotency ?? { supported: false, required: false, scope: 'operation' },

@@ -259,14 +259,13 @@ describe('canonical capability tools', () => {
     expect(catalog.tools.every(tool => tool.name === tool.canonicalName && tool.name === tool.modelName)).toBe(true);
   });
 
-  test('quotes beneath an approval question only inputs the tool takes', () => {
+  test('quotes beneath an approval question only an input the tool takes', () => {
     const catalog = buildCapabilityToolCatalog(protocolVersion);
-    const quotedInputsTheToolDoesNotTake = catalog.tools.flatMap(tool =>
-      (tool.approvalQuotedFields ?? [])
-        .filter(fieldName => !inputNames(tool.inputSchema).includes(fieldName))
-        .map(fieldName => `${tool.name}.${fieldName}`));
+    const quotedInputsTheToolDoesNotTake = catalog.tools
+      .filter(tool => tool.approvalQuotedField !== undefined && !inputNames(tool.inputSchema).includes(tool.approvalQuotedField))
+      .map(tool => `${tool.name}.${tool.approvalQuotedField}`);
 
-    expect(catalog.tools.some(tool => (tool.approvalQuotedFields ?? []).length > 0)).toBe(true);
+    expect(catalog.tools.some(tool => tool.approvalQuotedField !== undefined)).toBe(true);
     expect(quotedInputsTheToolDoesNotTake).toEqual([]);
   });
 
