@@ -12,6 +12,8 @@
         "sizeOptions": ["-i", "--interactive-only", "--compact", "--skeleton"],
         "depthOptions": ["--max-depth"],
         "regionOptions": ["--root"],
+        "windowOption": "--window-id",
+        "applicationOption": "--app",
         "narrowedBy": "a node with children_count and ref_id opens in full with [\"snapshot\", \"--root\", ref_id], and [\"find\", \"--role\", role, \"--name\", name, \"--first\"] reads one element"
       },
       "read": [

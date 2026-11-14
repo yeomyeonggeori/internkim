@@ -41,7 +41,7 @@ const desktopAttachmentSchema = z.strictObject({
 });
 
 const desktopResultSchema = z.strictObject({
-  output: z.string().describe("The program's JSON envelope for the command, as it printed it. Under a snapshot the host asked for again at a smaller depth, a note says so."),
+  output: z.string().describe("The program's JSON envelope for the command, as it printed it. Under a snapshot the host asked for again at a smaller depth, a note says so. Under a delivered act, the snapshot the host then took of the window or page it left."),
   attachments: z.array(desktopAttachmentSchema)
     .describe('The picture a screenshot command took. The envelope then carries its size without the picture.')
     .optional(),
@@ -68,7 +68,7 @@ export const desktopToolDefinitions: CapabilityToolDefinition[] = [
     answeredBy: CapabilityAnsweredBy.Local,
     privacyClass: 'requester_desktop',
     policyResource: 'tool:desktop_act',
-    description: "Operate the requester's own computer through agent-desktop: click, type into or set a ref from the latest snapshot, press keys, launch or close an app, move a window, write the clipboard. It also runs every desktop_read command, snapshot included. The requester sees it happen on their screen. Take a new snapshot after every act, because refs belong to the snapshot that printed them. A call whose arguments the program refuses comes back with that command's usage. Never type a password or a one-time code; ask the requester to enter it themselves.",
+    description: "Operate the requester's own computer through agent-desktop: click, type into or set a ref, press keys, launch or close an app, move a window, write the clipboard. It also runs every desktop_read command, snapshot included. The requester sees it happen on their screen. A delivered act answers with a new snapshot of the window or page it left, and the next ref comes from that snapshot, because refs belong to the snapshot that printed them. A call whose arguments the program refuses comes back with that command's usage. Never type a password or a one-time code; ask the requester to enter it themselves.",
     version: '1',
     estimatedLatency: CapabilityEstimatedLatency.Interactive,
     requiresUserPresence: true,

@@ -70,3 +70,112 @@ func TestAnAnswerIsMeasuredInCharactersAgainstOneLimit(t *testing.T) {
 		t.Fatal("the limit is not counted in characters")
 	}
 }
+
+const launchedEnvelope = `{"version":"2.6","ok":true,"command":"launch","data":{"app":"TextEdit","pid":53908,"window":{"accessible":true,"app_name":"TextEdit","id":"w-14363","title":"Open","visible":true}}}`
+
+func observationsAfter(t *testing.T, program string, output string, scopeOfSnapshot func(string) Scope, arguments ...string) [][]string {
+	t.Helper()
+	act, errorValue := NewCall(KindAct, program, arguments, "")
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	envelope, errorValue := ReadEnvelope(output)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	asked := [][]string{}
+	for _, observation := range act.ObservationsAfter(envelope, scopeOfSnapshot) {
+		asked = append(asked, observation.Arguments)
+	}
+	return asked
+}
+
+func noSnapshotIsRemembered(string) Scope { return Scope{} }
+
+func sameCalls(got [][]string, want [][]string) bool {
+	return slices.EqualFunc(got, want, func(first []string, second []string) bool { return slices.Equal(first, second) })
+}
+
+const clickedEnvelope = `{"version":"2.6","ok":true,"command":"click","data":{"action":"click","disposition":{"delivery":"delivered_unverified","retry":"unsafe"},"steps":[]}}`
+
+func TestTheScreenAfterAnActIsTheWindowThenTheAppItsEnvelopeOrItsOwnArgumentsName(t *testing.T) {
+	for name, example := range map[string]struct {
+		output    string
+		arguments []string
+		want      [][]string
+	}{
+		"the window a launch reports, then its app": {launchedEnvelope, []string{"launch", "TextEdit"}, [][]string{
+			{"snapshot", "--window-id", "w-14363", "-i", "--compact"},
+			{"snapshot", "--app", "TextEdit", "-i", "--compact"},
+		}},
+		"the app a key press was sent to": {clickedEnvelope, []string{"press", "cmd+n", "--app", "TextEdit"}, [][]string{
+			{"snapshot", "--app", "TextEdit", "-i", "--compact"},
+		}},
+		"the window a window command names, then the app it names": {clickedEnvelope, []string{"focus-window", "--window-id=w-7", "--app", "Notes"}, [][]string{
+			{"snapshot", "--window-id", "w-7", "-i", "--compact"},
+			{"snapshot", "--app", "Notes", "-i", "--compact"},
+		}},
+		"the app an envelope alone reports": {`{"ok":true,"command":"close-app","data":{"action":"close-app","app":"Calculator"}}`, []string{"close-app", "Calculator"}, [][]string{
+			{"snapshot", "--app", "Calculator", "-i", "--compact"},
+		}},
+	} {
+		if got := observationsAfter(t, "", example.output, noSnapshotIsRemembered, example.arguments...); !sameCalls(got, example.want) {
+			t.Errorf("%s: asked %v", name, got)
+		}
+	}
+}
+
+func TestTheScreenAfterARefActIsTheWindowItsSnapshotWasTakenOf(t *testing.T) {
+	remembered := func(snapshotID string) Scope {
+		if snapshotID == "s8f3k2p9" {
+			return Scope{Window: "w-99", Application: "Ghostty"}
+		}
+		return Scope{}
+	}
+	want := [][]string{{"snapshot", "--window-id", "w-99", "-i", "--compact"}, {"snapshot", "--app", "Ghostty", "-i", "--compact"}}
+	if got := observationsAfter(t, "", clickedEnvelope, remembered, "click", "@s8f3k2p9:e4"); !sameCalls(got, want) {
+		t.Fatalf("asked %v", got)
+	}
+	if got := observationsAfter(t, "", clickedEnvelope, remembered, "click", "@sunknown:e4"); len(got) != 0 {
+		t.Fatalf("a ref from a snapshot nobody saw was observed with %v", got)
+	}
+	if got := observationsAfter(t, "", clickedEnvelope, remembered, "mouse-click", "--xy", "10,10"); len(got) != 0 {
+		t.Fatalf("a point on the screen was observed with %v", got)
+	}
+}
+
+func TestTheScreenAfterABrowserActIsThePageWithNoWindowToName(t *testing.T) {
+	got := observationsAfter(t, "agent-browser", `{"success":true,"data":{"url":"https://example.com"},"error":null}`, noSnapshotIsRemembered, "open", "https://example.com")
+	if !sameCalls(got, [][]string{{"snapshot", "-i", "--json", "--headed"}}) {
+		t.Fatalf("asked %v", got)
+	}
+}
+
+func TestAnEnvelopeWhoseDataIsNotAnObjectIsStillAnEnvelope(t *testing.T) {
+	for _, output := range []string{
+		`{"version":"2.6","ok":true,"command":"list-windows","data":[{"id":"w-1","app_name":"Finder"}]}`,
+		`{"success":true,"data":"about:blank","error":null}`,
+		`{"success":true,"data":null,"error":null}`,
+		`{"ok":true,"command":"snapshot","data":{"app":"Ghostty","window":"none"}}`,
+	} {
+		envelope, errorValue := ReadEnvelope(output)
+		if errorValue != nil || !envelope.Succeeded() {
+			t.Errorf("%s was read %+v, %v", output, envelope, errorValue)
+		}
+	}
+}
+
+func TestAnActIsDeliveredUnlessItsEnvelopeSaysNothingWas(t *testing.T) {
+	for output, want := range map[string]bool{
+		launchedEnvelope: true,
+		`{"ok":true,"command":"check","data":{"disposition":{"delivery":"not_delivered","retry":"safe"}}}`:        false,
+		`{"ok":true,"command":"check","data":{"disposition":{"delivery":"delivered_verified","retry":"unsafe"}}}`: true,
+		`{"ok":false,"command":"click","error":{"code":"STALE_REF"}}`:                                             false,
+		`{"success":true,"data":{"clicked":true},"error":null}`:                                                   true,
+	} {
+		envelope, _ := ReadEnvelope(output)
+		if envelope.Delivered() != want {
+			t.Errorf("%s was read as delivered=%v", output, envelope.Delivered())
+		}
+	}
+}

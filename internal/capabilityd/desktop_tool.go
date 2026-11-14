@@ -45,6 +45,8 @@ const desktopUnreachableMessage = "desktop_unreachable: no computer of the reque
 	"A computer takes it only while the internkim desktop app is open there, signed in as the requester, with \"Let internkim use this computer\" turned on, " +
 	"and no other person's computer and no company computer can take it in their place."
 
+const screenNotReadPrefix = "it was not read: "
+
 var errSnapshotTooLongAtEveryDepth = errors.New("snapshot_too_long")
 
 func (service Service) invokeDesktopTool(ctx context.Context, request capabilities.ToolInvokeRequest) (capabilities.ToolInvokeResponse, error) {
@@ -70,7 +72,7 @@ func (service Service) invokeDesktopTool(ctx context.Context, request capabiliti
 	if errorValue != nil {
 		return capabilities.ToolInvokeResponse{}, errorValue
 	}
-	return desktopResponseOf(request.ToolName, reading, time.Now())
+	return service.desktopResponseOf(ctx, request.ToolName, owner, reading, time.Now())
 }
 
 func (service Service) readTheDesktopOf(ctx context.Context, owner string, call desktop.Call) (desktopReading, error) {
@@ -110,7 +112,7 @@ func (service Service) runOnTheDesktopOf(ctx context.Context, owner string, call
 	return answer, nil
 }
 
-func desktopResponseOf(toolName string, reading desktopReading, capturedAt time.Time) (capabilities.ToolInvokeResponse, error) {
+func (service Service) desktopResponseOf(ctx context.Context, toolName string, owner string, reading desktopReading, capturedAt time.Time) (capabilities.ToolInvokeResponse, error) {
 	if reading.Answer.Refusal != "" {
 		return desktopFailedResponse(toolName, "the requester's computer refused this call: "+reading.Answer.Refusal), nil
 	}
@@ -121,7 +123,9 @@ func desktopResponseOf(toolName string, reading desktopReading, capturedAt time.
 	if !envelope.Succeeded() {
 		return desktopFailedResponse(toolName, failureWithUsage(reading.Call, reading.Answer)), nil
 	}
+	service.observedWindows.remember(owner, envelope.Data.SnapshotID, reading.Call.Scope(envelope))
 	result := desktopResultOf(reading, capturedAt)
+	result.Output += service.screenAfter(ctx, owner, reading.Call, envelope)
 	document, errorValue := json.Marshal(result)
 	if errorValue != nil {
 		return capabilities.ToolInvokeResponse{}, errorValue
@@ -131,6 +135,46 @@ func desktopResponseOf(toolName string, reading desktopReading, capturedAt time.
 		SelectedBackend: capabilities.LLMBackendDevice,
 		Content:         result.Output,
 	})
+}
+
+func (service Service) screenAfter(ctx context.Context, owner string, act desktop.Call, envelope desktop.Envelope) string {
+	if !act.Acts() || !envelope.Delivered() {
+		return ""
+	}
+	observations := act.ObservationsAfter(envelope, func(snapshotID string) desktop.Scope {
+		return service.observedWindows.scopeOf(owner, snapshotID)
+	})
+	screen := ""
+	for _, observation := range observations {
+		answered, isSettled := service.screenOf(ctx, owner, observation)
+		screen = "\n\n" + answered
+		if isSettled {
+			break
+		}
+	}
+	return screen
+}
+
+func (service Service) screenOf(ctx context.Context, owner string, observation desktop.Call) (string, bool) {
+	reading, errorValue := service.readTheDesktopOf(ctx, owner, observation)
+	if errorValue != nil {
+		return screenAskedWith(observation) + screenNotReadPrefix + errorValue.Error(), true
+	}
+	if reading.Answer.Refusal != "" {
+		return screenAskedWith(observation) + screenNotReadPrefix + reading.Answer.Refusal, true
+	}
+	screen := screenAskedWith(reading.Call) + reading.text()
+	envelope, errorValue := desktop.ReadEnvelope(reading.Answer.Output)
+	if errorValue != nil || !envelope.Succeeded() {
+		return screen, false
+	}
+	service.observedWindows.remember(owner, envelope.Data.SnapshotID, reading.Call.Scope(envelope))
+	return screen, true
+}
+
+func screenAskedWith(observation desktop.Call) string {
+	asked, _ := json.Marshal(observation.Arguments)
+	return "the desktop after this act, asked with " + string(asked) + ":\n"
 }
 
 func failureWithUsage(call desktop.Call, answer desktop.Answer) string {

@@ -71,6 +71,7 @@ type Service struct {
 	HealthState      *platformHealthState
 	DeviceBrowsers   *browserruntime.DeviceBrowsers
 	handedElsewhere  *handedElsewhere
+	observedWindows  *observedWindows
 
 	browserRequestGuards *browserRequestGuards
 	keptRequestBodies    *keptRequestBodies
@@ -124,6 +125,9 @@ func (service Service) Run(ctx context.Context) error {
 	}
 	if service.handedElsewhere == nil {
 		service.handedElsewhere = &handedElsewhere{}
+	}
+	if service.observedWindows == nil {
+		service.observedWindows = &observedWindows{}
 	}
 	if service.browserRequestGuards == nil {
 		service.browserRequestGuards = &browserRequestGuards{}

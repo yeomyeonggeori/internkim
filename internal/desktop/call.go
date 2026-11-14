@@ -80,12 +80,39 @@ func (program Program) commandsOf(kind Kind) []string {
 }
 
 type Envelope struct {
-	OK      bool `json:"ok"`
-	Success bool `json:"success"`
+	OK      bool         `json:"ok"`
+	Success bool         `json:"success"`
+	Data    EnvelopeData `json:"data"`
+}
+
+type EnvelopeData struct {
+	SnapshotID  string `json:"snapshot_id"`
+	Application string `json:"app"`
+	Window      struct {
+		ID string `json:"id"`
+	} `json:"window"`
+	Disposition struct {
+		Delivery string `json:"delivery"`
+	} `json:"disposition"`
+}
+
+func (data *EnvelopeData) UnmarshalJSON(document []byte) error {
+	type fields EnvelopeData
+	var read fields
+	if json.Unmarshal(document, &read) == nil {
+		*data = EnvelopeData(read)
+	}
+	return nil
 }
 
 func (envelope Envelope) Succeeded() bool {
 	return envelope.OK || envelope.Success
+}
+
+const deliveryOfNothing = "not_delivered"
+
+func (envelope Envelope) Delivered() bool {
+	return envelope.Succeeded() && envelope.Data.Disposition.Delivery != deliveryOfNothing
 }
 
 type Screenshot struct {
