@@ -30,19 +30,20 @@ a candidate list to choose from, and choosing is what `person_list` is for.
 Capability tools touch shared records and the world outside: tasks, the
 calendar, messages, channels, the public web, the browser.
 The catalog holds <ToolCount /> of them under protocol
-<ToolProtocolVersion />. Each one names who answers it: the task, calendar,
-people, leave and attendance tools run on the central plane against the
-record, the browser and model tools run only beside the agent, and the rest
-are carried to the company's computer. On the host the agent calls them over
-MCP through the relay, the same catalog the [HTTP API](/docs/api/tools)
+<ToolProtocolVersion />. Each descriptor's `answeredBy` names who answers it.
+`record` tools, such as tasks, the calendar, people, leave, attendance and the
+CRM, run on the central plane against the record. `local` tools, the browser
+and the desktop, run only beside the agent. `company` tools, such as messages,
+mail, the web and schedules, are carried to the company's computer. On the host the agent calls them over
+MCP through the relay, the same catalog the [HTTP API](/api/tools)
 serves.
-The [catalog](/docs/tools/catalog) lists every one.
+The [catalog](/tools/catalog) lists every one.
 
 Workspace tools touch your files and the terminal: read, write, edit,
 run a command, deliver a finished file. They are built into the agent host
 (blueclaw) and execute as your own Linux user, so POSIX permissions bound
-what they can reach ([Boundaries](/docs/boundaries#files-and-execution)).
-See [Files and the terminal](/docs/tools/workspace).
+what they can reach ([Boundaries](/boundaries#files-and-execution)).
+See [Files and the terminal](/tools/workspace).
 
 ## What a side-effect class means [#side-effects]
 
@@ -53,6 +54,7 @@ never decides.
 | Class | The mark it leaves | Examples |
 |---|---|---|
 | `read` | none | `task_list`, `message_search`, `leave_balance` |
+| `computation` | none; an answer is worked out and nothing is kept | `company_document_classify` |
 | `workspace_write` | a company record created or changed | `task_add`, `event_update`, `write` |
 | `external_write` | state on the messenger changed | `message_update` |
 | `external_send` | a message reaches people | `message_send` |
@@ -64,10 +66,11 @@ never decides.
 Whether a call pauses for your approval is descriptor metadata
 (`requiresApproval`), checked by the approval gate in
 `.dependency/blueclaw/internal/approvalgate` before the call executes. The
-[catalog](/docs/tools/catalog) marks every tool the flag is set on, so read it
+[catalog](/tools/catalog) marks every tool the flag is set on, so read it
 there rather than from a list written by hand. Among workspace tools,
 `file_delete` is gated, and `bash` gates itself per call: the agent sets
-`approvalRequired` on a command it judges consequential.
+`approvalRequired`, with an `approvalReason` in the requester's language, on a
+command it judges consequential.
 
 One exemption: a `message_send` that lands in the conversation the agent is
 answering does not need a second yes. That is `currentThread` and
@@ -128,6 +131,18 @@ computer, one per requester with its own profile. Tools from configured
 meet the same gate. `GET /api/v1/tools` answers the base set your token
 reaches; `?live=true` asks the company's computer what it can run right now.
 
+## How long a call may run [#budgets]
+
+A descriptor may declare `timeoutSecond`, the seconds one call of that tool may
+run. The company's computer serves every descriptor that declares none with
+300, so each tool's budget is decided in one place
+(`internal/capabilityd/tool_invocation.go`). The agent waits five seconds past
+the budget, so the company's computer is the one that answers when a call runs
+out. That answer fails with `errorCode` `timeout` and tells the model the tool
+did not finish within that many seconds and that the work it started may still
+have taken effect. A tool that crashes while it runs fails with `tool_crashed`,
+and the service keeps answering other calls.
+
 ## Your own computer [#desktop]
 
 `desktop_read` and `desktop_act` operate apps on the computer of the person who
@@ -137,18 +152,22 @@ person's own hardware does the work and the company's computer runs no desktop
 for anyone.
 
 Desktop work is addressed by the requester's sign-in. The company's computer
-hands it to its relay under the requester's email address, and the
-connection gateway gives it only to a desktop app signed in as that person. No
+posts it to its relay's `/desktop-work` under the requester's email address,
+the relay hands it to the connection gateway's `/company/<id>/desktop-work`,
+and the gateway gives it only to a desktop app signed in as that person. No
 call can send it to a colleague's computer or to a box that serves the company.
 When the requester has no desktop app taking work, the call fails with
 `desktop_unreachable`. When the company's computer cannot send the work on,
 because its relay did not answer, has no gateway, or got no answer from the
 gateway, the call fails with `desktop_unavailable_on_this_host` and says which.
 
-Two consents stand in front of it. The person turns on "Let internkim use this
-computer" in the desktop app, and while it is on, a tray item shows it and turns
-it off. The operating system's accessibility permission must also be granted to
-the app. Scheduled runs never get these tools, because no one is there to
+Two consents stand in front of it. Right after the first sign-in, the desktop
+app asks once, in a native dialog, whether internkim may use this computer.
+Nothing turns on without its Allow, and Cancel is an answer it does not ask
+again. On a Mac that has not granted the app the accessibility permission,
+allowing opens System Settings at that pane. While it is on, a tray item shows
+it and turns it off, as does the switch in settings. Both tools declare
+`requiresUserPresence`, so scheduled runs never get them: no one is there to
 watch.
 
 A web page on that computer is the work of
@@ -157,19 +176,30 @@ A web page on that computer is the work of
 beside whatever browser the person already has open.
 
 `desktop_read` runs only commands that change nothing, and `desktop_act` runs
-those and the ones that do. For each program the two lists, the options never passed, and the
+those and the ones that do: clicks, typing, key presses, launching and moving
+apps, the clipboard. For each program the two lists, the options never passed, and the
 pinned release with its hash are kept in
 [`internal/desktop/commands.json`](https://github.com/yeomyeonggeori/internkim/blob/main/internal/desktop/commands.json),
-which the company's computer and the desktop app both read.
+which the company's computer and the desktop app both read, and both refuse
+before running. A command on neither list, such as agent-browser's `eval`,
+`connect` or `flow`, is never run. The refused options include the ones that
+open or join a debugging port (`--cdp`, `--auto-connect`), reach a browser
+profile or saved logins (`--profile`, `--state`), or run script
+(`--restore-check-fn`). The text a `type` or `fill` writes travels in its own
+`text` field, and the agent is told never to type a password or a one-time
+code.
 
 A `snapshot` that chooses no size is asked for in its interactive, compact
-form. One too long for a single answer is asked for again a few levels deep and
-comes back with the commands that read one region of it in full.
+form. One longer than 16,000 characters is asked for again at depth 3, then 2,
+then 1, and the first that fits comes back with a note saying how long the one
+asked for was and which commands read one region of it in full.
 
 After an act the program reports as delivered, the company's computer asks for
 a snapshot of the window or page that act left and returns it with the act's
-own answer. When that snapshot cannot be read, the act's answer still comes
-back and says why the screen is missing.
+own answer, so the next ref is already there. When that snapshot cannot be
+read, the act's answer still comes back and says why the screen is missing.
+Both tools declare a 120-second budget, the time the gateway holds desktop
+work, and reading the screen stops ten seconds before it runs out.
 
 ## How tools are named [#naming]
 
@@ -210,12 +240,14 @@ the company's zone, and `reason` is why a record was written by hand.
 
 A tool that reads many records a page at a time takes `limit`, at most 100, and
 `cursor`, copied from the previous answer's `nextCursor`, and answers
-`totalCount`. `nextCursor` is present only while records remain.
+`totalCount`. `nextCursor` is present only while records remain. A page nothing
+can count without reading everything, as in `message_search` and the mail
+lists, answers without `totalCount`.
 `tools/verify-list-tool-pages` fails a tool that caps its answer without saying
 what it left out.
 
-The agent's kernel tools (`bash`, `read`, `write`, `edit`, `plan`, `equip`) are
-exempt. They carry the names other coding agents use, so a model recognizes
+The agent's kernel tools, such as `bash`, `read`, `write`, `edit`, `plan` and
+`equip`, are exempt. They carry the names other coding agents use, so a model recognizes
 them on its first turn. Tools from outside MCP servers keep their own names.
 
 ## Where this is implemented [#implementation]
@@ -247,7 +279,7 @@ identity hash does not match its own, and a host picks up the new set when
 its package renders the runtime document again.
 
 <Cards>
-  <Card title="Tool catalog" href="/docs/tools/catalog" description="All capability tools, by namespace, generated from the canonical catalog" />
-  <Card title="Files and the terminal" href="/docs/tools/workspace" description="Workspace tools, the POSIX boundary, and skills" />
-  <Card title="Calling tools over HTTP" href="/docs/api/tools" description="The same tools from outside the messenger" />
+  <Card title="Tool catalog" href="/tools/catalog" description="All capability tools, by namespace, generated from the canonical catalog" />
+  <Card title="Files and the terminal" href="/tools/workspace" description="Workspace tools, the POSIX boundary, and skills" />
+  <Card title="Calling tools over HTTP" href="/api/tools" description="The same tools from outside the messenger" />
 </Cards>

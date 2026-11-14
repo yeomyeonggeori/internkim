@@ -17,12 +17,12 @@ description: 워크스페이스 도구, 그것이 실행되는 POSIX 신원, 완
 | `write` | 텍스트 파일 하나를 만들거나 덮어씀 |
 | `edit` | 정확한 텍스트 치환들을 원자적 편집 하나로 적용 |
 | `bash` | 워크스페이스에서 명령 하나를 실행 |
+| `file_delete` | 승인을 받은 뒤 파일 하나를 지움 |
+| `file_deliver` | 완성된 파일을 요청자가 받는 답장에 붙임 |
 
-이 넷이 실제 작업입니다. 모델 커널의 나머지 둘인 `plan`과 `equip`은
-파일을 건드리지 않습니다. `file_read`, `file_preview`,
-`file_delete`, `file_deliver`는 런타임이 호출하는 내부 도구로 등록되어 있고
-모델이 고르는 이름이 아닙니다. 그래서 파일을 지우는 일은 요청자 본인의 권한
-아래 도는 평범한 `bash` 명령입니다.
+`file_read`와 `file_preview`는 정확한 줄 범위나 문서의 미리보기를 읽습니다.
+나머지 커널 도구인 `plan`, `equip`, `ask_input`, 스킬과 기억 도구는 요청자의
+파일을 건드리지 않습니다.
 
 `.dependency/blueclaw/internal/agentruntime/file_tools.go`와
 `shell_tools.go`에 등록되고, 이름은
@@ -62,7 +62,7 @@ description: 워크스페이스 도구, 그것이 실행되는 POSIX 신원, 완
 
 접근 결정은 소유권과 모드 비트가 내립니다. 시스템을 고치는 명령이
 비특권 행위자에게 그냥 실패하는 이유입니다. 설계 논거는
-[경계](/ko/docs/boundaries)에 있습니다.
+[경계](/ko/boundaries)에 있습니다.
 
 ## 워크스페이스 구조 [#layout]
 
@@ -83,13 +83,13 @@ description: 워크스페이스 도구, 그것이 실행되는 POSIX 신원, 완
 write        tmp/<slug>/…          초안과 빌드 입력
 bash         cwd=tmp/<slug>        빌드, 렌더링, 검증
              artifacts/<slug>/…    완성물이 여기로 옮겨짐
-reply        attachments           런타임이 받는 답장에 붙여 줌
+file_deliver attachments           요청자가 받는 답장에 붙음
 ```
 
 `tmp/`는 휘발성이고 `artifacts/`가 영속입니다. 아티팩트 매니페스트
 (`internal/agentruntime/artifact_manifest.go`)가 이 경로들로 태스크가 만든
 것을 추적합니다. DM이든 그룹 대화든 요청자의 홈에서 작업합니다. 다른 사람이
-읽어야 하는 파일은 [데이터룸](/docs/data-room/agent)에 올립니다.
+읽어야 하는 파일은 [데이터룸](/ko/data-room/agent)에 올립니다.
 
 ## 스킬 [#skills]
 
@@ -104,8 +104,9 @@ reply        attachments           런타임이 받는 답장에 붙여 줌
 
 ## 사람이 있어야 할 때 [#presence]
 
-에이전트는 누구 대신 로그인하거나 MFA, captcha를 통과하지 않습니다. 무엇에
-막혔는지 말하고 멈춥니다. 에이전트가 사용자에게 던져야
-하는 질문은 따로 도구가 아닙니다. `expectsAnswer`가 붙은 답장이 곧 질문이고,
-누군가 답할 때까지 업무를 세우며, 답장이 `choices`를 실으면 버튼으로
-그려집니다.
+에이전트는 누구 대신 로그인하거나 MFA, captcha를 통과하지 않습니다. 자기
+브라우저에서는 `browser_handoff`로 그 페이지를 요청자에게 넘기고
+([승인](/ko/tools#approval)), 그 밖에서는 무엇에 막혔는지 말하고
+멈춥니다. 에이전트가 요청자에게 물어야 하는 질문은 `ask_input`으로 갑니다. 답할
+때까지 업무를 세우고, `choices`는 눌러서 고르는 번호 목록으로 보여 줍니다.
+언제든 자기 말로 답해도 됩니다.

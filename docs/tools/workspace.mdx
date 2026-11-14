@@ -17,12 +17,12 @@ could touch at a shell.
 | `write` | creates or overwrites one text file |
 | `edit` | applies exact text replacements as one atomic edit |
 | `bash` | runs one command in the workspace |
+| `file_delete` | removes one file, after you approve it |
+| `file_deliver` | attaches finished files to the reply you receive |
 
-These four are the work. `plan` and `equip` complete the model's kernel
-and touch no file. `file_read`,
-`file_preview`, `file_delete` and `file_deliver` are registered as internal
-tools the runtime invokes, never names the model picks from, so deleting a
-file is an ordinary `bash` command under your own permissions.
+`file_read` and `file_preview` read an exact line range or a document's
+preview. The rest of the model's kernel, `plan`, `equip`, `ask_input`, and the
+skill and memory tools, touches no file of yours.
 
 Registered in `.dependency/blueclaw/internal/agentruntime/file_tools.go` and
 `shell_tools.go`; the names live in
@@ -64,7 +64,7 @@ structural:
 
 Ownership and mode bits make the access decision, which is why a
 system-modifying command simply fails for an unprivileged actor. The
-[boundaries](/docs/boundaries) page has the design argument.
+[boundaries](/boundaries) page has the design argument.
 
 ## The workspace layout [#layout]
 
@@ -85,14 +85,14 @@ system-modifying command simply fails for an unprivileged actor. The
 write        tmp/<slug>/…          draft and build inputs
 bash         cwd=tmp/<slug>        build, render, verify
              artifacts/<slug>/…    the finished output moves here
-reply        attachments           the runtime attaches them to what you receive
+file_deliver attachments           attached to the reply you receive
 ```
 
 `tmp/` is ephemeral and `artifacts/` is durable; the artifact manifest
 (`internal/agentruntime/artifact_manifest.go`) tracks what a task produced by
 those paths. A direct message and a group conversation both work in the
 requester's home. What someone else should read is filed in the
-[data room](/docs/data-room/agent).
+[data room](/data-room/agent).
 
 ## Skills [#skills]
 
@@ -108,8 +108,9 @@ any other command, and each `SKILL.md` is budgeted (the repository gate is
 
 ## When a human has to be there [#presence]
 
-The agent does not sign in, pass MFA or solve a captcha for anyone; it says
-what blocks it and stops. A question the agent
-has to put to you is no tool of its own: it is a reply marked
-`expectsAnswer`, which parks the task until somebody answers and draws
-buttons when the reply carries `choices`.
+The agent does not sign in, pass MFA or solve a captcha for anyone. In its
+browser it hands the page to you with `browser_handoff`
+([approval](/tools#approval)); anywhere else it says what blocks it
+and stops. A question the agent has to put to you goes through `ask_input`,
+which parks the task until you answer and shows its `choices` as a numbered
+list you can press. You may always answer in your own words.

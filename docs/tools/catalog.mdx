@@ -9,7 +9,7 @@ reads (`pkg/capabilityprotocol/generated/capability-tools.json`, protocol
 descriptions are the exact English sentences the model receives.
 
 The approval column marks the tools that pause for
-[approval](/docs/tools/index#approval) before running. It is read from the
+[approval](/tools#approval) before running. It is read from the
 catalog's own `requiresApproval`, so no list here can fall behind it.
 
 ## Tasks [#task]
@@ -41,7 +41,8 @@ Answered on the central plane from the company's own member directory. It
 answers who a person is and who works here. It is not a
 step before a hint: a hint takes the fragment as it was written and the server
 resolves it, and this is what the agent reads when a hint comes back with
-candidates to choose between.
+candidates to choose between. `person_list` reads a page at a time, narrowed by
+`searchText` or by `teamHint`, which takes in the teams under it.
 
 Withdrawing a person and resetting a password run the same function as the
 members page in settings, `web/src/lib/server/member-administration.ts`, so the
@@ -175,9 +176,16 @@ requester wrote: `oldText` with `newText` corrects one exact span, which must
 occur exactly once, and `text` replaces the whole message.
 `message_reaction_add`, `message_reaction_delete`, `conversation_hide` and
 `conversation_reveal` act as the requester through the same chatd person
-capabilities as the messenger screen. `message_send` targets a direct message, a named
+capabilities as the messenger screen. A search reads a page at a time and says
+`hasMore` while older matches remain. `message_send` targets a direct message, a named
 channel, or the current conversation; only the current-conversation targets
 skip approval.
+
+`sender` says whose name a message goes out under. Left out, a channel message
+or a reply in the current conversation goes out under the agent's name, and a
+direct message to a person under the requester's. `requester` posts text to a
+channel under the requester's own name, without attachments. `agent` is refused
+for a direct message to a person, because the requester cannot see it arrive.
 
 ## Channels [#channel]
 
@@ -203,17 +211,40 @@ and 100 at most.
 The organization chart's teams: listing them, creating one under another, renaming,
 moving and removing.
 
+## Circles [#circle]
+
+<ToolCatalog namespace="circle" />
+
+A circle is a group of people who share a workspace folder, a memory on the
+company's computer, the data room categories they read, and at most one
+messenger channel whose members follow the circle's. Only administrators place
+people in circles.
+
 ## Company records [#company]
 
 <ToolCatalog namespace="company" />
 
 The company's own ledger and settings: registered documents, recorded metrics,
 records, holidays and company information. Documents registered here are the ones
-the [data room](/docs/data-room) files.
+the [data room](/data-room) files.
 
 The company picture goes up the way a seal does: `company_image_upload` with
 `image` `picture` answers a place to PUT it, and `company_settings_update`'s
 `profileImage` keeps it, or takes it down when empty.
+
+`company_credits_get` answers how the company pays for AI (`subscription`, the
+company's own key, or `nothing`), the credits left, when the period ends, the
+most one member may spend, and what the requester spent. An administrator also
+gets the billed seats and every member's spending. That limit is written with
+`company_settings_update`'s `creditUsageLimit`.
+
+## Data room [#dataroom]
+
+<ToolCatalog namespace="dataroom" />
+
+The archive's categories, what its public page shows, and code-protected links
+that read as one circle. [The data room](/data-room) says how filing and
+sharing work.
 
 ## Mail [#mail]
 
@@ -229,7 +260,7 @@ account for each call, so no mail password is stored there.
 Answered by the admin gateway on the company's computer, which checks the
 requester's role against the company roster. Releases are read from the GitHub
 Releases the installer installs from. [Running the
-host](/docs/running-the-host#updating) says what an update does and what its
+host](/running-the-host#updating) says what an update does and what its
 restart costs.
 
 ## Schedules and notifications [#schedule]
@@ -238,8 +269,24 @@ restart costs.
 
 <ToolCatalog namespace="notification" />
 
-A schedule is work the agent does later or on repeat.
-[Notifications](/docs/notifications) says what each setting controls.
+A schedule is work the agent does later or on repeat, approved once when it is
+made ([approval](/tools#approval)). `schedule_list` reads a page at
+a time. [Notifications](/notifications) says what each setting controls.
+
+## The agent's persona [#persona]
+
+<ToolCatalog namespace="persona" />
+
+The identity is one for the whole company, and only an administrator changes
+it. The profile is always the requester's own: what the agent calls them, their
+language and tone, and their morning briefing and weekly report.
+
+## Images [#image]
+
+<ToolCatalog namespace="image" />
+
+`image_generate` saves a PNG at the workspace path it is given and returns it as
+an attachment. Reading an image the agent already has is the `read` tool's work.
 
 ## Web [#web]
 
@@ -270,6 +317,14 @@ host's own services, the office network, or another person's browser on the
 same computer. Responses carry no cookies or profile paths, and `browser_screenshot`
 returns the page as a PNG attachment. A page that shows a bot
 check comes back as a refusal the agent reports to the person who asked.
+
+## Your own computer [#desktop]
+
+<ToolCatalog namespace="desktop" />
+
+These run on the requester's own computer through the internkim desktop app.
+[Your own computer](/tools#desktop) says what they may run, the
+consent in front of them, and how an answer is sized.
 
 ## Artifacts [#artifact]
 

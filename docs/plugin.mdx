@@ -42,7 +42,7 @@ naming that as what is missing.
 
 A client without MCP authorization sends a personal access token instead,
 issued from your account settings, as `Authorization: Bearer ik_…`. What each
-token's permission opens is under [Permissions](/docs/api#permissions).
+token's permission opens is under [Permissions](/api#permissions).
 
 ## Hand the agent work [#hand-the-agent-work]
 
@@ -51,7 +51,9 @@ messenger. A `message_send` with `targetType` `directMessage` and no
 `personHint` goes out under your name into your direct conversation with the
 agent, which takes it up as it would a message typed there.
 `message_search` with `scope` `directMessage` reads that conversation, and with
-a `personHint` it reads your direct conversation with that colleague.
+a `personHint` it reads your direct conversation with that colleague. A message
+to a channel goes out under the agent's name unless the call sets `sender` to
+`requester`, which posts it under yours.
 
 Every search from here reads with your account, channels included, so it shows
 what the messenger shows you: the rooms you are in and the open ones. Asked
@@ -63,7 +65,7 @@ and the agent can open.
 A few skills, such as the calculator and the weather, run entirely on your
 machine and need no account. The others call the tool server, which reads and
 writes your company's record. Documents, PDFs, spreadsheets and decks are one
-skill, [`office`](/docs/office), which works locally and needs the server only
+skill, [`office`](/office), which works locally and needs the server only
 to fill company forms on letterhead and to read attachments. The plugin's
 [DOCS.md](https://github.com/yeomyeonggeori/internkim-plugin/blob/main/DOCS.md#skills) says how to tell which group a skill is in.
 
