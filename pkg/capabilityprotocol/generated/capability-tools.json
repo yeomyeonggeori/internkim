@@ -40286,6 +40286,34 @@
               }
             },
             "type": "object"
+          },
+          "weeklyReport": {
+            "additionalProperties": false,
+            "properties": {
+              "day": {
+                "description": "The day of the week the report arrives on.",
+                "enum": [
+                  "monday",
+                  "tuesday",
+                  "wednesday",
+                  "thursday",
+                  "friday",
+                  "saturday",
+                  "sunday"
+                ],
+                "type": "string"
+              },
+              "enabled": {
+                "description": "Whether the weekly report of the person's own work is enabled.",
+                "type": "boolean"
+              },
+              "time": {
+                "description": "The local company time for the report, in HH:MM format.",
+                "pattern": "^(?:[01][0-9]|2[0-3]):[0-5][0-9]$",
+                "type": "string"
+              }
+            },
+            "type": "object"
           }
         },
         "required": [
@@ -40375,6 +40403,34 @@
                   },
                   "maxItems": 6,
                   "type": "array"
+                }
+              },
+              "type": "object"
+            },
+            "weeklyReport": {
+              "additionalProperties": false,
+              "properties": {
+                "day": {
+                  "description": "The day of the week the report arrives on.",
+                  "enum": [
+                    "monday",
+                    "tuesday",
+                    "wednesday",
+                    "thursday",
+                    "friday",
+                    "saturday",
+                    "sunday"
+                  ],
+                  "type": "string"
+                },
+                "enabled": {
+                  "description": "Whether the weekly report of the person's own work is enabled.",
+                  "type": "boolean"
+                },
+                "time": {
+                  "description": "The local company time for the report, in HH:MM format.",
+                  "pattern": "^(?:[01][0-9]|2[0-3]):[0-5][0-9]$",
+                  "type": "string"
                 }
               },
               "type": "object"
@@ -40478,6 +40534,34 @@
               }
             },
             "type": "object"
+          },
+          "weeklyReport": {
+            "additionalProperties": false,
+            "properties": {
+              "day": {
+                "description": "The day of the week the report arrives on.",
+                "enum": [
+                  "monday",
+                  "tuesday",
+                  "wednesday",
+                  "thursday",
+                  "friday",
+                  "saturday",
+                  "sunday"
+                ],
+                "type": "string"
+              },
+              "enabled": {
+                "description": "Whether the weekly report of the person's own work is enabled.",
+                "type": "boolean"
+              },
+              "time": {
+                "description": "The local company time for the report, in HH:MM format.",
+                "pattern": "^(?:[01][0-9]|2[0-3]):[0-5][0-9]$",
+                "type": "string"
+              }
+            },
+            "type": "object"
           }
         },
         "type": "object"
@@ -40553,6 +40637,34 @@
                 },
                 "maxItems": 6,
                 "type": "array"
+              }
+            },
+            "type": "object"
+          },
+          "weeklyReport": {
+            "additionalProperties": false,
+            "properties": {
+              "day": {
+                "description": "The day of the week the report arrives on.",
+                "enum": [
+                  "monday",
+                  "tuesday",
+                  "wednesday",
+                  "thursday",
+                  "friday",
+                  "saturday",
+                  "sunday"
+                ],
+                "type": "string"
+              },
+              "enabled": {
+                "description": "Whether the weekly report of the person's own work is enabled.",
+                "type": "boolean"
+              },
+              "time": {
+                "description": "The local company time for the report, in HH:MM format.",
+                "pattern": "^(?:[01][0-9]|2[0-3]):[0-5][0-9]$",
+                "type": "string"
               }
             },
             "type": "object"
@@ -40643,6 +40755,34 @@
                 },
                 "maxItems": 6,
                 "type": "array"
+              }
+            },
+            "type": "object"
+          },
+          "weeklyReport": {
+            "additionalProperties": false,
+            "properties": {
+              "day": {
+                "description": "The day of the week the report arrives on.",
+                "enum": [
+                  "monday",
+                  "tuesday",
+                  "wednesday",
+                  "thursday",
+                  "friday",
+                  "saturday",
+                  "sunday"
+                ],
+                "type": "string"
+              },
+              "enabled": {
+                "description": "Whether the weekly report of the person's own work is enabled.",
+                "type": "boolean"
+              },
+              "time": {
+                "description": "The local company time for the report, in HH:MM format.",
+                "pattern": "^(?:[01][0-9]|2[0-3]):[0-5][0-9]$",
+                "type": "string"
               }
             },
             "type": "object"
@@ -40741,6 +40881,34 @@
                   },
                   "maxItems": 6,
                   "type": "array"
+                }
+              },
+              "type": "object"
+            },
+            "weeklyReport": {
+              "additionalProperties": false,
+              "properties": {
+                "day": {
+                  "description": "The day of the week the report arrives on.",
+                  "enum": [
+                    "monday",
+                    "tuesday",
+                    "wednesday",
+                    "thursday",
+                    "friday",
+                    "saturday",
+                    "sunday"
+                  ],
+                  "type": "string"
+                },
+                "enabled": {
+                  "description": "Whether the weekly report of the person's own work is enabled.",
+                  "type": "boolean"
+                },
+                "time": {
+                  "description": "The local company time for the report, in HH:MM format.",
+                  "pattern": "^(?:[01][0-9]|2[0-3]):[0-5][0-9]$",
+                  "type": "string"
                 }
               },
               "type": "object"

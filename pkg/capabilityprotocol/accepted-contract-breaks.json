@@ -1398,5 +1398,15 @@
 		"path": "message_delete.result.failures[].name",
 		"reason": "A delivery that failed after its recipient resolved is named by personID and name. An unresolved hint is refused before anything is sent, so a failure no longer echoes one.",
 		"release": "the person-input release carries the updated catalog and the capabilityd that answers with it to company hosts together; these tools are answered by capabilityd on the host, which reads its own embedded catalog"
+	},
+	{
+		"path": "persona_profile_get.result.weeklyReport",
+		"reason": "blueclaw#734 adds the weekly report of a person's own work to their persona profile, with a default, so every profile now answers with it.",
+		"release": "the host package carries blueclaw with the new profile field and the catalog that reads it together; the persona tools are answered by the company host, which reads its own embedded catalog"
+	},
+	{
+		"path": "persona_profile_update.result.weeklyReport",
+		"reason": "blueclaw#734 adds the weekly report of a person's own work to their persona profile, with a default, so every profile now answers with it.",
+		"release": "the host package carries blueclaw with the new profile field and the catalog that reads it together; the persona tools are answered by the company host, which reads its own embedded catalog"
 	}
 ]
