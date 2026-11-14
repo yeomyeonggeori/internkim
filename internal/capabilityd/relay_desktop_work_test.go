@@ -42,6 +42,9 @@ func TestCapabilitydReadsDesktopWorkAnswersAsTheRelayAndTheGatewayGiveThem(t *te
 	if status := numberDeclaredIn(t, relay, "noGatewayStatus"); status != relayHasNoGatewayStatus {
 		t.Errorf("a relay with no gateway answers %d and capabilityd reads %d as that", status, relayHasNoGatewayStatus)
 	}
+	if status := numberDeclaredIn(t, relay, "gatewayUnreachedStatus"); status != relayDidNotReachGatewayStatus {
+		t.Errorf("a relay that got no answer from the gateway answers %d and capabilityd reads %d as that", status, relayDidNotReachGatewayStatus)
+	}
 	if status := numberDeclaredIn(t, gateway, "noBoxTookTheWorkStatus"); status != noDesktopTookTheWorkStatus {
 		t.Errorf("the gateway answers %d when no desktop took the work and capabilityd reads %d as that", status, noDesktopTookTheWorkStatus)
 	}

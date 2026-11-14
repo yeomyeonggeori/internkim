@@ -18,6 +18,7 @@ import (
 const (
 	relayDesktopWorkPath          = "/desktop-work"
 	relayHasNoGatewayStatus       = http.StatusNotImplemented
+	relayDidNotReachGatewayStatus = http.StatusBadGateway
 	noDesktopTookTheWorkStatus    = http.StatusServiceUnavailable
 	desktopWorkPatience           = 150 * time.Second
 	desktopWorkNotSentConsequence = "so the desktop work was not sent and whether a computer of the requester's is taking desktop work was not asked"
@@ -74,6 +75,10 @@ func (service Service) postToTheRelay(ctx context.Context, work desktopWork) (ga
 	defer response.Body.Close()
 	if response.StatusCode == relayHasNoGatewayStatus {
 		return gatewayAnswer{}, fmt.Errorf("%w: the relay at %s has no gateway to hand desktop work to, %s", errDesktopUnavailableOnThisHost, address, desktopWorkNotSentConsequence)
+	}
+	if response.StatusCode == relayDidNotReachGatewayStatus {
+		detail, _ := io.ReadAll(io.LimitReader(response.Body, 4096))
+		return gatewayAnswer{}, fmt.Errorf("%w: the relay at %s got no answer from the gateway (%s), so whether a computer of the requester's took the desktop work is not known", errDesktopUnavailableOnThisHost, address, strings.TrimSpace(string(detail)))
 	}
 	if response.StatusCode != http.StatusOK {
 		detail, _ := io.ReadAll(io.LimitReader(response.Body, 4096))

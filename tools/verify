@@ -334,6 +334,8 @@ GROUPS = [
             "web/src/routes/runs/runs-api.ts",
             "web/static/manifest.webmanifest",
             "host/relay/asset-store.ts",
+            "host/relay/desktop-work.ts",
+            "workers/connection-gateway/src/company-connection.ts",
             "host/runtime.template.json",
             "tests/expensive/*",
             "tools/native_install_rig.py",
