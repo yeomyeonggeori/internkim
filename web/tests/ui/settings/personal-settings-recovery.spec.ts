@@ -70,7 +70,7 @@ test('explicit retry recovers personal settings without showing defaults after f
 
 	await settings.getByRole('button', { name: 'Try again' }).click();
 	await expect(settings.getByLabel('What to call me')).toHaveValue('Sample');
-	await expect(settings.getByLabel('Time to receive it')).toHaveValue('11:00');
+	await expect(settings.getByRole('group', { name: 'Morning briefing' }).getByLabel('Time to receive it')).toHaveValue('11:00');
 });
 
 test('online recovery uses one request and focus after loading preserves edits', async ({ page }) => {

@@ -20,6 +20,11 @@ describe('user draft', () => {
 		expect(draftToUser(draft).morningBriefing).toEqual({ enabled: false, time: '09:30' });
 	});
 
+	test('keeps the weekly report through a save', () => {
+		const weeklyReport = { enabled: false, day: 'thursday', time: '17:30' };
+		expect(draftToUser(userToDraft({ schemaVersion: 1, weeklyReport })).weeklyReport).toEqual(weeklyReport);
+	});
+
 	test('an empty user document still saves a formal tone', () => {
 		expect(draftToUser(userToDraft({ schemaVersion: 1 }))).toEqual({
 			schemaVersion: 1,

@@ -17,12 +17,13 @@
 	import { updateMyAgentDocument } from './persona-api';
 	import { companyTimeZoneRead, myAgentDocumentRead } from './settings-reads';
 	import { companySettingsText } from './text';
-	import { morningBriefingDefaults } from '$lib/persona/user-schema-defaults';
+	import { morningBriefingDefaults, weeklyReportDays, weeklyReportDefaults } from '$lib/persona/user-schema-defaults';
 	import { createPageText } from '$lib/i18n/page-text.svelte';
 	import { isSupabaseConfigured, supabaseMember } from '$lib/supabase-session';
 
 	const text = createPageText(companySettingsText);
 	const traitLabels: Record<string, string> = text.persona.toneTraits;
+	const dayLabels: Record<string, string> = text.persona.weeklyReportDays;
 	const fieldID = $props.id();
 
 	const rememberedDocument = myAgentDocumentRead.value;
@@ -35,6 +36,7 @@
 	let hasLoaded = $state(rememberedDocument !== undefined);
 	let companyTimeZoneName = $state(companyTimeZoneRead.value ?? '');
 	let morningBriefing = $state({ ...morningBriefingDefaults(), ...startingDraft.morningBriefing });
+	let weeklyReport = $state({ ...weeklyReportDefaults(), ...startingDraft.weeklyReport });
 
 	const selectableTraits = $derived([...toneTraits, ...draft.traits.filter((trait) => !toneTraits.includes(trait))]);
 	const isTraitLimitReached = $derived(draft.traits.length >= toneTraitLimit);
@@ -68,6 +70,7 @@
 		try {
 			draft = userToDraft(await myAgentDocumentRead.read());
 			morningBriefing = { ...morningBriefingDefaults(), ...draft.morningBriefing };
+			weeklyReport = { ...weeklyReportDefaults(), ...draft.weeklyReport };
 			await Promise.all([fillDefaultsFromMembership(), loadCompanyTimeZone()]);
 			hasLoaded = true;
 		} catch {
@@ -99,10 +102,11 @@
 		isSaving = true;
 		errorMessage = '';
 		try {
-			const saved = await updateMyAgentDocument(draftToUser({ ...draft, morningBriefing }));
+			const saved = await updateMyAgentDocument(draftToUser({ ...draft, morningBriefing, weeklyReport }));
 			myAgentDocumentRead.remember(saved);
 			draft = userToDraft(saved);
 			morningBriefing = { ...morningBriefingDefaults(), ...draft.morningBriefing };
+			weeklyReport = { ...weeklyReportDefaults(), ...draft.weeklyReport };
 			toast.success(text.persona.saved);
 		} catch (error) {
 			errorMessage = error instanceof Error && error.message ? error.message : text.persona.userSaveError;
@@ -208,9 +212,45 @@
 							<Field.Label for="{fieldID}-morning-briefing-time">{text.persona.morningBriefingTime}</Field.Label>
 							<Input id="{fieldID}-morning-briefing-time" type="time" bind:value={morningBriefing.time} required disabled={isLoading || isSaving} />
 							<Field.Description>
-								{text.persona.morningBriefingTimeZone}{#if companyTimeZoneName}: {companyTimeZoneName}{/if}
+								{text.persona.companyTimeZone}{#if companyTimeZoneName}: {companyTimeZoneName}{/if}
 							</Field.Description>
 						</Field.Field>
+					</Field.Group>
+				</Field.Set>
+				<Field.Set>
+					<Field.Legend>{text.persona.weeklyReportTitle}</Field.Legend>
+					<Field.Description>
+						{text.persona.weeklyReportDescription}
+					</Field.Description>
+					<Field.Group>
+						<Field.Field orientation="horizontal">
+							<Field.Label for="{fieldID}-weekly-report-enabled">{text.persona.weeklyReportEnabled}</Field.Label>
+							<Switch id="{fieldID}-weekly-report-enabled" bind:checked={weeklyReport.enabled} disabled={isLoading || isSaving} />
+						</Field.Field>
+						<div class="grid gap-5 md:grid-cols-2">
+							<Field.Field>
+								<Field.Label for="{fieldID}-weekly-report-day">{text.persona.weeklyReportDay}</Field.Label>
+								<Select.Root type="single" bind:value={weeklyReport.day} disabled={isLoading || isSaving}>
+									<Select.Trigger id="{fieldID}-weekly-report-day" class="w-full">
+										{dayLabels[weeklyReport.day] ?? weeklyReport.day}
+									</Select.Trigger>
+									<Select.Content>
+										<Select.Group>
+											{#each weeklyReportDays as day (day)}
+												<Select.Item value={day} label={dayLabels[day]}>{dayLabels[day]}</Select.Item>
+											{/each}
+										</Select.Group>
+									</Select.Content>
+								</Select.Root>
+							</Field.Field>
+							<Field.Field>
+								<Field.Label for="{fieldID}-weekly-report-time">{text.persona.weeklyReportTime}</Field.Label>
+								<Input id="{fieldID}-weekly-report-time" type="time" bind:value={weeklyReport.time} required disabled={isLoading || isSaving} />
+								<Field.Description>
+									{text.persona.companyTimeZone}{#if companyTimeZoneName}: {companyTimeZoneName}{/if}
+								</Field.Description>
+							</Field.Field>
+						</div>
 					</Field.Group>
 				</Field.Set>
 				{#if errorMessage}
