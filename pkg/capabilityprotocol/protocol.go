@@ -92,7 +92,7 @@ type Descriptor struct {
 	SideEffectClass      string                        `json:"sideEffectClass,omitempty"`
 	SideEffect           string                        `json:"sideEffect"`
 	RequiresApproval     bool                          `json:"requiresApproval,omitempty"`
-	ApprovalQuotedFields []string                      `json:"approvalQuotedFields,omitempty"`
+	ApprovalQuotedField  string                        `json:"approvalQuotedField,omitempty"`
 	CompletionEvidence   *CompletionEvidenceDescriptor `json:"completionEvidence,omitempty"`
 	Availability         AvailabilityMetadata          `json:"availability"`
 	Idempotency          IdempotencyMetadata           `json:"idempotency"`
