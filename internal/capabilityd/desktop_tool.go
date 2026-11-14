@@ -47,6 +47,8 @@ const desktopUnreachableMessage = "desktop_unreachable: no computer of the reque
 
 const screenNotReadPrefix = "it was not read: "
 
+const screenReadingStopsBeforeTheCallEnds = 10 * time.Second
+
 var errSnapshotTooLongAtEveryDepth = errors.New("snapshot_too_long")
 
 func (service Service) invokeDesktopTool(ctx context.Context, request capabilities.ToolInvokeRequest) (capabilities.ToolInvokeResponse, error) {
@@ -144,15 +146,25 @@ func (service Service) screenAfter(ctx context.Context, owner string, act deskto
 	observations := act.ObservationsAfter(envelope, func(snapshotID string) desktop.Scope {
 		return service.observedWindows.scopeOf(owner, snapshotID)
 	})
+	readingContext, stopReading := beforeTheCallEnds(ctx)
+	defer stopReading()
 	screen := ""
 	for _, observation := range observations {
-		answered, isSettled := service.screenOf(ctx, owner, observation)
+		answered, isSettled := service.screenOf(readingContext, owner, observation)
 		screen = "\n\n" + answered
 		if isSettled {
 			break
 		}
 	}
 	return screen
+}
+
+func beforeTheCallEnds(ctx context.Context) (context.Context, context.CancelFunc) {
+	callEnds, isLimited := ctx.Deadline()
+	if !isLimited {
+		return context.WithCancel(ctx)
+	}
+	return context.WithDeadline(ctx, callEnds.Add(-screenReadingStopsBeforeTheCallEnds))
 }
 
 func (service Service) screenOf(ctx context.Context, owner string, observation desktop.Call) (string, bool) {

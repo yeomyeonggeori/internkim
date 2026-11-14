@@ -190,6 +190,21 @@ func TestAnActStandsWhenItsCallIsCancelledBeforeTheScreenIsRead(t *testing.T) {
 	}
 }
 
+func TestAnActStandsWhenTooLittleOfItsCallIsLeftToReadTheScreen(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), screenReadingStopsBeforeTheCallEnds/2)
+	defer cancel()
+	service, relay := serviceWithARelay(t, answeredByTheDesktop(desktop.Answer{Output: launchedEnvelope}))
+
+	response, errorValue := service.invokeDesktopTool(ctx, desktopCall(desktopActToolName, "sample@example.com", `{"arguments":["launch","TextEdit"]}`))
+
+	if errorValue != nil || response.IsError || !strings.HasPrefix(response.Content, launchedEnvelope+"\n\n") || !strings.Contains(response.Content, "it was not read: ") || !strings.Contains(response.Content, context.DeadlineExceeded.Error()) {
+		t.Fatalf("answered %+v, %v", response, errorValue)
+	}
+	if len(relay.posted) != 1 {
+		t.Fatalf("the relay was asked %d times", len(relay.posted))
+	}
+}
+
 func TestABrowserActAnswersWithThePage(t *testing.T) {
 	opened := `{"success":true,"data":{"title":"Example Domain","url":"https://example.com/"},"error":null}`
 	page := `{"success":true,"data":{"refs":{"e1":{"name":"Learn more","role":"link"}},"snapshot":"- link \"Learn more\" [ref=e1]"},"error":null}`
