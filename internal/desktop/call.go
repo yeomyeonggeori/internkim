@@ -48,7 +48,7 @@ func NewCall(kind Kind, programName string, arguments []string, text string) (Ca
 	if !program.isOfKind(kind, command) {
 		return Call{}, errors.New(program.wrongCommandMessage(programName, kind, command))
 	}
-	call := Call{Program: programName, Arguments: append(append([]string{}, arguments...), program.AppendedArguments...)}
+	call := Call{Program: programName, Arguments: slices.Concat(program.Observation.sized(arguments), program.AppendedArguments)}
 	if text == "" {
 		return call, nil
 	}

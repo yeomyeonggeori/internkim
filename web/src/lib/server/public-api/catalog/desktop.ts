@@ -18,7 +18,7 @@ const desktopReadInputSchema = z.strictObject({
   program: desktopProgramSchema,
   arguments: z.array(z.string())
     .min(1)
-    .describe('One command line of the program without its name, one word per entry: ["snapshot", "--app", "Finder", "-i", "--compact"]. The first entry is the command.'),
+    .describe('One command line of the program without its name, one word per entry: ["snapshot", "--app", "Finder"]. The first entry is the command.'),
 });
 
 const desktopActInputSchema = z.strictObject({
@@ -41,7 +41,7 @@ const desktopAttachmentSchema = z.strictObject({
 });
 
 const desktopResultSchema = z.strictObject({
-  output: z.string().describe("The program's JSON envelope for the command, as it printed it."),
+  output: z.string().describe("The program's JSON envelope for the command, as it printed it. Under a snapshot the host asked for again at a smaller depth, a note says so."),
   attachments: z.array(desktopAttachmentSchema)
     .describe('The picture a screenshot command took. The envelope then carries its size without the picture.')
     .optional(),
@@ -54,7 +54,7 @@ export const desktopToolDefinitions: CapabilityToolDefinition[] = [
     answeredBy: CapabilityAnsweredBy.Local,
     privacyClass: 'requester_desktop',
     policyResource: 'tool:desktop_read',
-    description: "Read the requester's own computer through agent-desktop, which runs inside the internkim desktop app they have open: running apps and windows, an app's accessibility tree with refs, one element's state, a screenshot. It reaches only the computer of the person who asked, never a colleague's and never the company computer. A call whose arguments the program refuses comes back with that command's usage. [\"skills\", \"get\", \"desktop\"] prints the program's guide to refs, retries and headless input. For a web page use program agent-browser, whose guide is [\"skills\", \"get\", \"core\"]: desktop_act [\"open\", url] opens the page in a browser window of its own, and [\"snapshot\", \"-i\"] reads it.",
+    description: "Read the requester's own computer through agent-desktop, which runs inside the internkim desktop app they have open: running apps and windows, an app's accessibility tree with refs, one element's state, a screenshot. A snapshot that names no size is taken interactive and compact. It reaches only the computer of the person who asked, never a colleague's and never the company computer. A call whose arguments the program refuses comes back with that command's usage. [\"skills\", \"get\", \"desktop\"] prints the program's guide to refs, retries and headless input. For a web page use program agent-browser, whose guide is [\"skills\", \"get\", \"core\"]: desktop_act [\"open\", url] opens the page in a browser window of its own, and [\"snapshot\"] reads it.",
     version: '1',
     estimatedLatency: CapabilityEstimatedLatency.Interactive,
     requiresUserPresence: true,

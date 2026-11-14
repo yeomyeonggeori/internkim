@@ -5,6 +5,15 @@
       "integrity": "sha512-sp8hHs8JfnuZe8ZQwiKZrqSOlu26SSeZXkjDog4KsU31L09G3uZJa8pITGN2vORif9uuh0iOSJHD146CEyTqag==",
       "textTravelsBy": "standardInput",
       "appendedArguments": [],
+      "observation": {
+        "command": "snapshot",
+        "compact": ["-i", "--compact"],
+        "shallow": ["--skeleton", "-i", "--compact"],
+        "sizeOptions": ["-i", "--interactive-only", "--compact", "--skeleton"],
+        "depthOptions": ["--max-depth"],
+        "regionOptions": ["--root"],
+        "narrowedBy": "a node with children_count and ref_id opens in full with [\"snapshot\", \"--root\", ref_id], and [\"find\", \"--role\", role, \"--name\", name, \"--first\"] reads one element"
+      },
       "read": [
         "snapshot", "find", "get", "is", "screenshot", "wait",
         "list-apps", "list-windows", "list-displays", "list-surfaces", "list-notifications",
@@ -27,6 +36,15 @@
       "integrity": "sha512-NDojTSXrIq7zS090T0VwI1uzBryZWvewgxXvS0swj8/5GGnziBZLmyhEkfETO8n4n3DsJpZbZkq9F/MV2rIQKw==",
       "textTravelsBy": "lastArgument",
       "appendedArguments": ["--json", "--headed"],
+      "observation": {
+        "command": "snapshot",
+        "compact": ["-i"],
+        "shallow": ["-i", "-c"],
+        "sizeOptions": ["-i", "--interactive", "-c", "--compact"],
+        "depthOptions": ["-d", "--depth"],
+        "regionOptions": ["-s", "--selector"],
+        "narrowedBy": "[\"snapshot\", \"-s\", cssSelector] reads one region of the page in full"
+      },
       "read": ["snapshot", "get", "is", "wait", "console", "errors", "skills"],
       "act": [
         "connect", "close", "open", "back", "forward", "reload", "tab",

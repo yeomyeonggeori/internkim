@@ -5,8 +5,10 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/yeomyeonggeori/internkim/internal/capabilities"
 	"github.com/yeomyeonggeori/internkim/internal/desktop"
@@ -33,9 +35,17 @@ type desktopToolResult struct {
 	Attachments []workspaceImageAttachment `json:"attachments,omitempty"`
 }
 
+type desktopReading struct {
+	Call   desktop.Call
+	Answer desktop.Answer
+	Note   string
+}
+
 const desktopUnreachableMessage = "desktop_unreachable: no computer of the requester's is taking desktop work right now. " +
 	"A computer takes it only while the internkim desktop app is open there, signed in as the requester, with \"Let internkim use this computer\" turned on, " +
 	"and no other person's computer and no company computer can take it in their place."
+
+var errSnapshotTooLongAtEveryDepth = errors.New("snapshot_too_long")
 
 func (service Service) invokeDesktopTool(ctx context.Context, request capabilities.ToolInvokeRequest) (capabilities.ToolInvokeResponse, error) {
 	owner := strings.ToLower(strings.TrimSpace(request.Context.RequesterEmail))
@@ -50,17 +60,42 @@ func (service Service) invokeDesktopTool(ctx context.Context, request capabiliti
 	if errorValue != nil {
 		return desktopFailedResponse(request.ToolName, errorValue.Error()), nil
 	}
-	answer, errorValue := service.runOnTheDesktopOf(ctx, owner, call)
+	reading, errorValue := service.readTheDesktopOf(ctx, owner, call)
 	if errors.Is(errorValue, errNoDesktopTookTheWork) {
 		return desktopFailedResponse(request.ToolName, desktopUnreachableMessage), nil
 	}
-	if errors.Is(errorValue, errDesktopUnavailableOnThisHost) {
+	if errors.Is(errorValue, errDesktopUnavailableOnThisHost) || errors.Is(errorValue, errSnapshotTooLongAtEveryDepth) {
 		return desktopFailedResponse(request.ToolName, errorValue.Error()), nil
 	}
 	if errorValue != nil {
 		return capabilities.ToolInvokeResponse{}, errorValue
 	}
-	return desktopResponseOf(request.ToolName, call, answer, time.Now())
+	return desktopResponseOf(request.ToolName, reading, time.Now())
+}
+
+func (service Service) readTheDesktopOf(ctx context.Context, owner string, call desktop.Call) (desktopReading, error) {
+	answer, errorValue := service.runOnTheDesktopOf(ctx, owner, call)
+	if errorValue != nil || !call.Observes() || !desktop.IsTooLong(answer.Output) {
+		return desktopReading{Call: call, Answer: answer}, errorValue
+	}
+	return service.readShallower(ctx, owner, call, utf8.RuneCountInString(answer.Output))
+}
+
+func (service Service) readShallower(ctx context.Context, owner string, full desktop.Call, fullLength int) (desktopReading, error) {
+	narrowedBy := desktop.Programs[full.Program].Observation.NarrowedBy
+	for _, depth := range desktop.ShallowerDepths {
+		shallower := full.Shallower(depth)
+		answer, errorValue := service.runOnTheDesktopOf(ctx, owner, shallower)
+		if errorValue != nil {
+			return desktopReading{}, errorValue
+		}
+		if desktop.IsTooLong(answer.Output) {
+			continue
+		}
+		note := fmt.Sprintf("the snapshot asked for is %d characters and one answer carries %d, so this one stops %d levels down; %s", fullLength, desktop.LongestObservation, depth, narrowedBy)
+		return desktopReading{Call: shallower, Answer: answer, Note: note}, nil
+	}
+	return desktopReading{}, fmt.Errorf("%w: the snapshot asked for is %d characters, one answer carries %d, and it is still longer one level down; %s", errSnapshotTooLongAtEveryDepth, fullLength, desktop.LongestObservation, narrowedBy)
 }
 
 func (service Service) runOnTheDesktopOf(ctx context.Context, owner string, call desktop.Call) (desktop.Answer, error) {
@@ -75,18 +110,18 @@ func (service Service) runOnTheDesktopOf(ctx context.Context, owner string, call
 	return answer, nil
 }
 
-func desktopResponseOf(toolName string, call desktop.Call, answer desktop.Answer, capturedAt time.Time) (capabilities.ToolInvokeResponse, error) {
-	if answer.Refusal != "" {
-		return desktopFailedResponse(toolName, "the requester's computer refused this call: "+answer.Refusal), nil
+func desktopResponseOf(toolName string, reading desktopReading, capturedAt time.Time) (capabilities.ToolInvokeResponse, error) {
+	if reading.Answer.Refusal != "" {
+		return desktopFailedResponse(toolName, "the requester's computer refused this call: "+reading.Answer.Refusal), nil
 	}
-	envelope, errorValue := desktop.ReadEnvelope(answer.Output)
+	envelope, errorValue := desktop.ReadEnvelope(reading.Answer.Output)
 	if errorValue != nil {
 		return desktopFailedResponse(toolName, errorValue.Error()), nil
 	}
 	if !envelope.Succeeded() {
-		return desktopFailedResponse(toolName, failureWithUsage(call, answer)), nil
+		return desktopFailedResponse(toolName, failureWithUsage(reading.Call, reading.Answer)), nil
 	}
-	result := desktopResultOf(answer.Output, capturedAt)
+	result := desktopResultOf(reading, capturedAt)
 	document, errorValue := json.Marshal(result)
 	if errorValue != nil {
 		return capabilities.ToolInvokeResponse{}, errorValue
@@ -106,10 +141,11 @@ func failureWithUsage(call desktop.Call, answer desktop.Answer) string {
 	return failure + "\n\n" + call.UsageHeading() + ":\n" + strings.TrimSpace(answer.Usage)
 }
 
-func desktopResultOf(output string, capturedAt time.Time) desktopToolResult {
+func desktopResultOf(reading desktopReading, capturedAt time.Time) desktopToolResult {
+	output := reading.Answer.Output
 	screenshot, isScreenshot := desktop.ScreenshotOf(output)
 	if !isScreenshot {
-		return desktopToolResult{Output: strings.TrimSpace(output)}
+		return desktopToolResult{Output: reading.text()}
 	}
 	picture, errorValue := base64.StdEncoding.DecodeString(screenshot.PNGBase64)
 	if errorValue != nil {
@@ -124,6 +160,14 @@ func desktopResultOf(output string, capturedAt time.Time) desktopToolResult {
 			ContentBase64: screenshot.PNGBase64,
 		}},
 	}
+}
+
+func (reading desktopReading) text() string {
+	output := strings.TrimSpace(reading.Answer.Output)
+	if reading.Note == "" {
+		return output
+	}
+	return output + "\n\n" + reading.Note
 }
 
 func desktopFailedResponse(toolName string, message string) capabilities.ToolInvokeResponse {

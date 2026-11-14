@@ -162,6 +162,10 @@ pinned release with its hash are kept in
 [`internal/desktop/commands.json`](https://github.com/yeomyeonggeori/internkim/blob/main/internal/desktop/commands.json),
 which the company's computer and the desktop app both read.
 
+A `snapshot` that chooses no size is asked for in its interactive, compact
+form. One too long for a single answer is asked for again a few levels deep and
+comes back with the commands that read one region of it in full.
+
 ## How tools are named [#naming]
 
 A tool's name is the only part of it a model sees before deciding to call it,

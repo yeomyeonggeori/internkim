@@ -18,10 +18,11 @@ const (
 )
 
 type Program struct {
-	TextTravelsBy     string   `json:"textTravelsBy"`
-	AppendedArguments []string `json:"appendedArguments"`
-	Read              []string `json:"read"`
-	Act               []string `json:"act"`
+	TextTravelsBy     string      `json:"textTravelsBy"`
+	AppendedArguments []string    `json:"appendedArguments"`
+	Read              []string    `json:"read"`
+	Act               []string    `json:"act"`
+	Observation       Observation `json:"observation"`
 }
 
 var Programs = mustReadPrograms()

@@ -18046,7 +18046,7 @@
         "state": "ok"
       },
       "canonicalName": "desktop_read",
-      "description": "Read the requester's own computer through agent-desktop, which runs inside the internkim desktop app they have open: running apps and windows, an app's accessibility tree with refs, one element's state, a screenshot. It reaches only the computer of the person who asked, never a colleague's and never the company computer. A call whose arguments the program refuses comes back with that command's usage. [\"skills\", \"get\", \"desktop\"] prints the program's guide to refs, retries and headless input. For a web page use program agent-browser, whose guide is [\"skills\", \"get\", \"core\"]: desktop_act [\"open\", url] opens the page in a browser window of its own, and [\"snapshot\", \"-i\"] reads it.",
+      "description": "Read the requester's own computer through agent-desktop, which runs inside the internkim desktop app they have open: running apps and windows, an app's accessibility tree with refs, one element's state, a screenshot. A snapshot that names no size is taken interactive and compact. It reaches only the computer of the person who asked, never a colleague's and never the company computer. A call whose arguments the program refuses comes back with that command's usage. [\"skills\", \"get\", \"desktop\"] prints the program's guide to refs, retries and headless input. For a web page use program agent-browser, whose guide is [\"skills\", \"get\", \"core\"]: desktop_act [\"open\", url] opens the page in a browser window of its own, and [\"snapshot\"] reads it.",
       "estimatedLatency": "interactive",
       "idempotency": {
         "required": false,
@@ -18058,7 +18058,7 @@
         "additionalProperties": false,
         "properties": {
           "arguments": {
-            "description": "One command line of the program without its name, one word per entry: [\"snapshot\", \"--app\", \"Finder\", \"-i\", \"--compact\"]. The first entry is the command.",
+            "description": "One command line of the program without its name, one word per entry: [\"snapshot\", \"--app\", \"Finder\"]. The first entry is the command.",
             "items": {
               "type": "string"
             },
@@ -18124,7 +18124,7 @@
             "type": "array"
           },
           "output": {
-            "description": "The program's JSON envelope for the command, as it printed it.",
+            "description": "The program's JSON envelope for the command, as it printed it. Under a snapshot the host asked for again at a smaller depth, a note says so.",
             "type": "string"
           }
         },
@@ -18177,7 +18177,7 @@
               "type": "array"
             },
             "output": {
-              "description": "The program's JSON envelope for the command, as it printed it.",
+              "description": "The program's JSON envelope for the command, as it printed it. Under a snapshot the host asked for again at a smaller depth, a note says so.",
               "type": "string"
             }
           },
@@ -18307,7 +18307,7 @@
             "type": "array"
           },
           "output": {
-            "description": "The program's JSON envelope for the command, as it printed it.",
+            "description": "The program's JSON envelope for the command, as it printed it. Under a snapshot the host asked for again at a smaller depth, a note says so.",
             "type": "string"
           }
         },
@@ -18360,7 +18360,7 @@
               "type": "array"
             },
             "output": {
-              "description": "The program's JSON envelope for the command, as it printed it.",
+              "description": "The program's JSON envelope for the command, as it printed it. Under a snapshot the host asked for again at a smaller depth, a note says so.",
               "type": "string"
             }
           },
