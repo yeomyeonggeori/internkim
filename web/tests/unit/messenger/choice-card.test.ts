@@ -33,7 +33,12 @@ const approval = question({
 	]
 });
 
-const looksOf = (card: ChoiceCard) => card.options.map((option) => option.look);
+function openCard(card: ChoiceCard | undefined): ChoiceCard {
+	if (!card) throw new Error('expected the question to be open');
+	return card;
+}
+
+const looksOf = (card: ChoiceCard | undefined) => openCard(card).options.map((option) => option.look);
 
 const options = question().options;
 
@@ -75,9 +80,8 @@ describe('the option lines a question carries in its body', () => {
 
 describe('a choice card', () => {
 	test('lets the person asked press any option, and marks the recommended one', () => {
-		const card = choiceCardOf(question(), reader, undefined, approvalLabels);
+		const card = openCard(choiceCardOf(question(), reader, undefined, approvalLabels));
 
-		expect(card.isOpen).toBe(true);
 		expect(card.options.map(({ key, position, look, isRecommended }) => ({ key, position, look, isRecommended }))).toEqual([
 			{ key: 'morning', position: 1, look: 'pressable', isRecommended: true },
 			{ key: 'afternoon', position: 2, look: 'pressable', isRecommended: false }
@@ -87,7 +91,6 @@ describe('a choice card', () => {
 	test('is read-only to anyone else in the conversation', () => {
 		const card = choiceCardOf(question({ targetID: 'member:someone-else' }), reader, undefined, approvalLabels);
 
-		expect(card.isOpen).toBe(true);
 		expect(looksOf(card)).toEqual(['readOnly', 'readOnly']);
 	});
 
@@ -101,57 +104,39 @@ describe('a choice card', () => {
 		expect(looksOf(card)).toEqual(['readOnly', 'readOnly']);
 	});
 
-	test('shows the pressed option as chosen until the answer is recorded', () => {
-		const card = choiceCardOf(question(), reader, pressedNow('afternoon'), approvalLabels);
-
-		expect(card.isOpen).toBe(false);
-		expect(looksOf(card)).toEqual(['faded', 'chosen']);
+	test('is gone once pressed, since the pressed option is already the reply below it', () => {
+		expect(choiceCardOf(question(), reader, pressedNow('afternoon'), approvalLabels)).toBeUndefined();
 	});
 
-	test('checks the option the record names, whoever reads it', () => {
-		const resolved = question({ resolution: { key: 'morning' } });
+	test('is gone for everyone once the record says the question ended, however it ended', () => {
+		for (const resolution of [{ key: 'morning' }, {}]) {
+			const resolved = question({ resolution });
 
-		expect(looksOf(choiceCardOf(resolved, reader, undefined, approvalLabels))).toEqual(['chosen', 'faded']);
-		expect(looksOf(choiceCardOf(resolved, 'member:someone-else', undefined, approvalLabels))).toEqual(['chosen', 'faded']);
-	});
-
-	test('takes the record over what this screen pressed', () => {
-		const card = choiceCardOf(question({ resolution: { key: 'morning' } }), reader, pressedNow('afternoon'), approvalLabels);
-
-		expect(looksOf(card)).toEqual(['chosen', 'faded']);
-	});
-
-	test('checks nothing when the answer was in the person’s own words', () => {
-		const card = choiceCardOf(question({ resolution: {} }), reader, undefined, approvalLabels);
-
-		expect(card.isOpen).toBe(false);
-		expect(looksOf(card)).toEqual(['faded', 'faded']);
+			expect(choiceCardOf(resolved, reader, undefined, approvalLabels)).toBeUndefined();
+			expect(choiceCardOf(resolved, 'member:someone-else', undefined, approvalLabels)).toBeUndefined();
+			expect(choiceCardOf({ ...approval, resolution }, reader, undefined, approvalLabels)).toBeUndefined();
+		}
 	});
 
 	test('names an approval’s options in the reader’s language and lays them side by side, the refusal declining', () => {
-		const card = choiceCardOf(approval, reader, undefined, approvalLabels);
+		const card = openCard(choiceCardOf(approval, reader, undefined, approvalLabels));
 
 		expect(card.layout).toBe('pair');
 		expect(card.options.map(({ key, label, isDeclining }) => ({ key, label, isDeclining }))).toEqual([
 			{ key: 'approve', label: '승인', isDeclining: false },
 			{ key: 'reject', label: '거절', isDeclining: true }
 		]);
-		expect(choiceCardOf(question(), reader, undefined, approvalLabels).layout).toBe('list');
-	});
-
-	test('a settled approval stays a pair', () => {
-		const card = choiceCardOf({ ...approval, resolution: { key: 'reject' } }, reader, undefined, approvalLabels);
-
-		expect(card.layout).toBe('pair');
-		expect(looksOf(card)).toEqual(['faded', 'chosen']);
+		expect(openCard(choiceCardOf(question(), reader, undefined, approvalLabels)).layout).toBe('list');
 	});
 
 	test('does not draw an option with neither a label nor a key it can name', () => {
-		const card = choiceCardOf(
-			question({ options: [{ key: 'unknown', label: '', isRecommended: false }, ...options] }),
-			reader,
-			undefined,
-			approvalLabels
+		const card = openCard(
+			choiceCardOf(
+				question({ options: [{ key: 'unknown', label: '', isRecommended: false }, ...options] }),
+				reader,
+				undefined,
+				approvalLabels
+			)
 		);
 
 		expect(card.options.map(({ key, position }) => ({ key, position }))).toEqual([

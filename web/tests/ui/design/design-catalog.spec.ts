@@ -23,7 +23,9 @@ for (const width of everyScreen) {
 		await expect(page.locator('[data-frame="messenger-agent-error"]').getByText('캘린더에 연결하지 못해 일정을 옮기지 못했어요.').first()).toBeAttached();
 		await expect(page.locator('[data-frame="messenger-agent-choice"] [data-slot="choice-card"] [data-look="pressable"]').first()).toBeAttached();
 		await expect(page.locator('[data-frame="messenger-agent-approval"]').getByRole('button', { name: '승인' }).first()).toBeAttached();
-		await expect(page.locator('[data-frame="messenger-agent-choice-answered"] [data-look="chosen"]').first()).toBeAttached();
+		const answered = page.locator('[data-frame="messenger-agent-choice-answered"]').first();
+		await expect(answered.getByText('둘 다 말고 최견본님한테 보내줘').first()).toBeAttached();
+		await expect(answered.locator('[data-slot="choice-card"]')).toHaveCount(0);
 		await expect(page.locator('[data-frame="messenger-agent-presence"] [data-presence="online"]').first()).toBeAttached();
 
 		const pageWidth = await page.evaluate(() => document.documentElement.scrollWidth);

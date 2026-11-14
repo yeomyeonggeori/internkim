@@ -89,7 +89,7 @@ class ChoiceCardFixture extends WorkspaceLoadingFixture {
 				ask: approvalFor('interaction-park', 'pk-park')
 			}),
 			agentMessage('approval-reader', 6, {
-				body: '이 일정을 팀 캘린더에 올릴까요?',
+				body: '박예시님께 이렇게 보낼까요?\n\n> 내일 회의를 10시로 옮겨요',
 				ask: approvalFor('interaction-approval-reader', 'pk-reader')
 			}),
 			agentMessage('asks-reader', 7, {
@@ -141,7 +141,7 @@ const looksIn = (page: Page, id: string) =>
 const shownStates = ['asks-reader', 'approval-reader', 'asks-park', 'resolved', 'approval-resolved', 'own-words', 'failed'];
 
 for (const width of everyScreen) {
-	test(`each choice card shows who may answer and how it was answered at ${width}px`, async ({ page }, testInfo) => {
+	test(`each choice card shows who may answer, and is gone once answered, at ${width}px`, async ({ page }, testInfo) => {
 		await openChannel(page, width);
 
 		const asksReader = messageOf(page, 'asks-reader');
@@ -153,16 +153,25 @@ for (const width of everyScreen) {
 		const approvalReader = messageOf(page, 'approval-reader');
 		await expect(approvalReader.getByRole('button', { name: '승인' })).toBeEnabled();
 		await expect(approvalReader.getByRole('button', { name: '거절' })).toBeEnabled();
+		const quotedText = approvalReader.locator('blockquote p');
+		await expect(quotedText).toHaveText('내일 회의를 10시로 옮겨요');
+		expect(
+			await quotedText.evaluate((paragraph) => [
+				getComputedStyle(paragraph).fontStyle,
+				getComputedStyle(paragraph, '::before').content,
+				getComputedStyle(paragraph, '::after').content
+			])
+		).toEqual(['normal', 'none', 'none']);
 
 		const asksPark = messageOf(page, 'asks-park');
 		await expect(asksPark.getByRole('button', { name: '승인' })).toBeDisabled();
 		await expect(asksPark.getByRole('button', { name: '거절' })).toBeDisabled();
 
-		expect(await looksIn(page, 'resolved')).toEqual(['faded', 'chosen']);
-		await expect(cardOf(page, 'resolved').getByRole('button')).toHaveCount(0);
-		expect(await looksIn(page, 'approval-resolved')).toEqual(['faded', 'chosen']);
-		await expect(cardOf(page, 'approval-resolved').getByRole('button', { name: '거절' })).toHaveCount(0);
-		expect(await looksIn(page, 'own-words')).toEqual(['faded', 'faded']);
+		for (const id of ['resolved', 'approval-resolved', 'own-words']) {
+			await expect(cardOf(page, id)).toHaveCount(0);
+		}
+		await expect(messageOf(page, 'resolved').getByText('어느 회의실로 잡을까요?')).toBeVisible();
+		await expect(messageOf(page, 'approval-resolved').getByText('지난주 회의록을 지울까요?')).toBeVisible();
 
 		await expect(messageOf(page, 'failed').getByText('일정을 만들지 못했어요. 캘린더 연결을 확인해 주세요.')).toBeVisible();
 
@@ -172,7 +181,7 @@ for (const width of everyScreen) {
 	});
 }
 
-test('pressing an option sends its label as an answer and holds it chosen until the record names it', async ({ page }) => {
+test('pressing an option sends its label as the answer and the card goes away for good', async ({ page }) => {
 	const fixture = await openChannel(page, everyScreen[0]);
 	const asksReader = messageOf(page, 'asks-reader');
 
@@ -185,12 +194,12 @@ test('pressing an option sends its label as an answer and holds it chosen until 
 		answer: { interactionID: 'interaction-reader', key: 'afternoon' }
 	});
 	expect(fixture.sent[0].parentID).toBeUndefined();
-	await expect.poll(() => looksIn(page, 'asks-reader')).toEqual(['faded', 'chosen']);
+	await expect(cardOf(page, 'asks-reader')).toHaveCount(0);
 
 	fixture.readerResolution = { key: 'afternoon' };
 	await page.reload();
-	await expect.poll(() => looksIn(page, 'asks-reader')).toEqual(['faded', 'chosen']);
-	await expect(cardOf(page, 'asks-reader').getByRole('button')).toHaveCount(0);
+	await expect(messageOf(page, 'asks-reader').getByText('언제가 좋을까요?')).toBeVisible();
+	await expect(cardOf(page, 'asks-reader')).toHaveCount(0);
 });
 
 test('an approval is answered with the label the reader saw and the key the agent asked with', async ({ page }) => {
@@ -200,7 +209,7 @@ test('an approval is answered with the label the reader saw and the key the agen
 
 	await expect.poll(() => fixture.sent).toHaveLength(1);
 	expect(fixture.sent[0]).toMatchObject({ body: '승인', answer: { interactionID: 'interaction-approval-reader', key: 'approve' } });
-	await expect.poll(() => looksIn(page, 'approval-reader')).toEqual(['chosen', 'faded']);
+	await expect(cardOf(page, 'approval-reader')).toHaveCount(0);
 });
 
 test('an answer that was not sent says so and can be pressed again', async ({ page }) => {

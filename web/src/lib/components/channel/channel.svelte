@@ -784,13 +784,13 @@
 	{/if}
 	{#if message.interaction}
 		{@const interaction = message.interaction}
-		<ChoiceCard
-			card={choiceCardOf(interaction, currentUserID, pressedChoices.get(interaction.interactionID), {
-				approve: text.approvalApprove,
-				reject: text.approvalReject
-			})}
-			onChoose={(option) => answerChoice(message, interaction, option)}
-		/>
+		{@const card = choiceCardOf(interaction, currentUserID, pressedChoices.get(interaction.interactionID), {
+			approve: text.approvalApprove,
+			reject: text.approvalReject
+		})}
+		{#if card}
+			<ChoiceCard {card} onChoose={(option) => answerChoice(message, interaction, option)} />
+		{/if}
 	{/if}
 {/snippet}
 

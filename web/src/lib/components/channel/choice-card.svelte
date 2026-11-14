@@ -1,8 +1,7 @@
 <script lang="ts">
 	import * as Item from '$lib/components/ui/item/index.js';
 	import { Badge } from '$lib/components/ui/badge/index.js';
-	import { Button, buttonVariants } from '$lib/components/ui/button/index.js';
-	import CheckIcon from '@lucide/svelte/icons/check';
+	import { Button } from '$lib/components/ui/button/index.js';
 	import { channelText } from '$lib/i18n/channel-text';
 	import { createPageText } from '$lib/i18n/page-text.svelte';
 	import type { ChoiceCard, ChoiceCardOption } from './choice-card';
@@ -14,15 +13,10 @@
 
 {#snippet listOptionContent(option: ChoiceCardOption)}
 	<Item.Media>
-		<Badge variant={option.look === 'chosen' ? 'default' : 'outline'} class="tabular-nums">{option.position}</Badge>
+		<Badge variant="outline" class="tabular-nums">{option.position}</Badge>
 	</Item.Media>
 	<Item.Content class="min-w-0 break-words">{option.label}</Item.Content>
-	{#if option.look === 'chosen'}
-		<Item.Actions>
-			<CheckIcon class="text-brand size-4" />
-			<span class="sr-only">{text.choiceChosen}</span>
-		</Item.Actions>
-	{:else if card.isOpen && option.isRecommended}
+	{#if option.isRecommended}
 		<Item.Actions>
 			<Badge variant="secondary">{text.choiceRecommended}</Badge>
 		</Item.Actions>
@@ -35,7 +29,7 @@
 			variant="outline"
 			size="xs"
 			data-look={option.look}
-			class={[option.look === 'faded' && 'text-muted-foreground', option.look === 'pressable' && 'hover:bg-muted text-left']}
+			class={[option.look === 'pressable' && 'hover:bg-muted text-left']}
 		>
 			{#snippet child({ props })}
 				{#if option.look === 'pressable'}
@@ -53,24 +47,15 @@
 {/snippet}
 
 {#snippet pairOption(option: ChoiceCardOption)}
-	{@const variant = option.look === 'faded' ? 'outline' : option.isDeclining ? 'destructive' : 'default'}
-	{#if option.look === 'chosen'}
-		<span class={buttonVariants({ variant, class: 'flex-1' })} data-look={option.look}>
-			<CheckIcon />
-			<span class="sr-only">{text.choiceChosen}</span>
-			{option.label}
-		</span>
-	{:else}
-		<Button
-			{variant}
-			class="flex-1"
-			disabled={option.look !== 'pressable'}
-			data-look={option.look}
-			onclick={() => onChoose(option)}
-		>
-			{option.label}
-		</Button>
-	{/if}
+	<Button
+		variant={option.isDeclining ? 'destructive' : 'default'}
+		class="flex-1"
+		disabled={option.look !== 'pressable'}
+		data-look={option.look}
+		onclick={() => onChoose(option)}
+	>
+		{option.label}
+	</Button>
 {/snippet}
 
 <div class="flex w-full max-w-sm flex-col gap-1.5 self-start" data-slot="choice-card">
