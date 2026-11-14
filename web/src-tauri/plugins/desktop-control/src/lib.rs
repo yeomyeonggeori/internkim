@@ -139,7 +139,7 @@ async fn run_if_allowed(
     if let Some(refusal) =
         commands::refusal_of(&commands::COMMANDS, is_allowed, program, &arguments)
     {
-        return Answer::Refusal(refusal);
+        return Answer::refusal(refusal);
     }
     control
         .sidecar()
@@ -163,7 +163,9 @@ async fn state_of<R: Runtime>(app: &AppHandle<R>) -> ControlState {
 
 async fn permissions_of(control: &DesktopControl) -> Option<serde_json::Value> {
     let arguments = vec!["permissions".to_string()];
-    let Answer::Output(printed) = run_if_allowed(
+    let Answer::Output {
+        output: printed, ..
+    } = run_if_allowed(
         control,
         commands::DEFAULT_PROGRAM,
         arguments,

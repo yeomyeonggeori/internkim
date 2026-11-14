@@ -23,7 +23,12 @@ type Call struct {
 
 type Answer struct {
 	Output  string `json:"output,omitempty"`
+	Usage   string `json:"usage,omitempty"`
 	Refusal string `json:"refusal,omitempty"`
+}
+
+func (call Call) UsageHeading() string {
+	return call.Program + " " + call.Arguments[0] + " --help"
 }
 
 const textFromStandardInput = "--stdin"

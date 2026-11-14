@@ -12,8 +12,8 @@ export async function tauriDesktopControl(): Promise<DesktopControlPlugin> {
 		askOnce: async (language: Locale) => controlStateOf(await invoke<unknown>('plugin:desktop-control|ask_once', { language })),
 		disallow: async () => controlStateOf(await invoke<unknown>('plugin:desktop-control|disallow')),
 		run: async (work: DesktopWork) =>
-			answerOf(await invoke<unknown>('plugin:desktop-control|run', { program: work.program, arguments: work.arguments, text: work.text })),
-		openPermissionGuide: async () => answerOf(await invoke<unknown>('plugin:desktop-control|open_permission_guide')),
+			desktopAnswerOf(await invoke<unknown>('plugin:desktop-control|run', { program: work.program, arguments: work.arguments, text: work.text })),
+		openPermissionGuide: async () => desktopAnswerOf(await invoke<unknown>('plugin:desktop-control|open_permission_guide')),
 		onChanged: (listener) =>
 			listen<unknown>(changedEvent, (event) => {
 				const isAllowed = recordOf(event.payload)?.is_allowed;
@@ -37,8 +37,9 @@ function accessibilityOf(permissions: unknown): string | null {
 	return typeof accessibility?.state === 'string' ? accessibility.state : null;
 }
 
-function answerOf(value: unknown): DesktopAnswer {
+export function desktopAnswerOf(value: unknown): DesktopAnswer {
 	const record = recordOf(value);
+	if (typeof record?.output === 'string' && typeof record.usage === 'string') return { output: record.output, usage: record.usage };
 	if (typeof record?.output === 'string') return { output: record.output };
 	if (typeof record?.refusal === 'string') return { refusal: record.refusal };
 	return { refusal: 'the desktop-control plugin answered neither an output nor a refusal' };
