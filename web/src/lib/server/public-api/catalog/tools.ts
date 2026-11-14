@@ -1728,6 +1728,7 @@ const fileToolDefinitions: CapabilityToolDefinition[] = [
     inputSchema: imageReadInputSchema,
     result: { schema: imageReadResultSchema, effects: [] },
     sideEffect: CapabilitySideEffect.Read,
+    isBroughtByEveryHarness: true,
   },
   {
     name: "image_generate",
