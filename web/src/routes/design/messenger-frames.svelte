@@ -81,8 +81,16 @@
 		{@render avatar(agent)}
 		<Message.Content>
 			<ChannelTextBubble mine={false} source={body} />
-			<ChoiceCard {card} onChoose={doNothing} />
+			{#if card}
+				<ChoiceCard {card} onChoose={doNothing} />
+			{/if}
 		</Message.Content>
+	</Message.Root>
+{/snippet}
+
+{#snippet answer(body: string)}
+	<Message.Root align="end">
+		<Message.Content><ChannelTextBubble mine source={body} /></Message.Content>
 	</Message.Root>
 {/snippet}
 
@@ -163,14 +171,16 @@
 		<DesignFrame id="messenger-agent-approval" source="channel/choice-card.svelte" name={text.agentApprovalTitle} note={text.agentApprovalCondition}>
 			{#snippet children()}
 			{@render questionWith(text.sampleApproval, cardFor(approval))}
-			{@render questionWith(text.sampleApproval, cardFor({ ...approval, resolution: { key: 'approve' } }))}
+			{@render questionWith(text.sampleApproval, cardFor(approval, 'someone-else'))}
 			{/snippet}
 		</DesignFrame>
 
 		<DesignFrame id="messenger-agent-choice-answered" source="channel/choice-card.svelte" name={text.agentChoiceAnsweredTitle} note={text.agentChoiceAnsweredCondition}>
 			{#snippet children()}
-			{@render questionWith(text.sampleQuestion, cardFor({ ...question, resolution: { key: 'sales' } }))}
+			{@render questionWith(text.sampleApproval, cardFor({ ...approval, resolution: { key: 'approve' } }))}
+			{@render answer(channel.approvalApprove)}
 			{@render questionWith(text.sampleQuestion, cardFor({ ...question, resolution: {} }))}
+			{@render answer(text.sampleOwnWordsAnswer)}
 			{/snippet}
 		</DesignFrame>
 

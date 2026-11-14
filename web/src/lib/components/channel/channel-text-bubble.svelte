@@ -36,6 +36,13 @@
 	.chat-markdown :global(p:last-child) {
 		margin-bottom: 0;
 	}
+	.chat-markdown :global(blockquote) {
+		font-style: normal;
+	}
+	.chat-markdown :global(blockquote p::before),
+	.chat-markdown :global(blockquote p::after) {
+		content: none;
+	}
 	.chat-markdown :global(table) {
 		display: block;
 		max-width: 100%;
