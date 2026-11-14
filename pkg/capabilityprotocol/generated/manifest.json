@@ -1,8 +1,8 @@
 {
-  "aggregateHash": "f9d055e35f0dfa51fa9f395074dce946d720a7285fd218ebc675be32ba1ca728",
+  "aggregateHash": "5fbf108188780a2bf93afd448a0d3240d6aacddb7fad3ca6e5034c1db45e53ec",
   "capabilityToolCatalog": {
     "fileName": "capability-tools.json",
-    "hash": "a5711a6dd16c1b0c5a1e8211bc45b267e8123907af88b85932e0d5f1117b88d8"
+    "hash": "ed1ee33cda9e3ca8e434e7ddf58f679cfcc9a904e4fb04c6b97cf69a7761b5d5"
   },
   "protocolVersion": "0.4.0",
   "schemas": [
@@ -23,12 +23,12 @@
     },
     {
       "fileName": "capability-descriptor.schema.json",
-      "hash": "c916ba0f59dada0e946475d62896bfde319b66d8b2c6cc6c2b7becfef44f99e5",
+      "hash": "f1d866e752fe209c6b34d4fa8806b82b1d66845ddfb927b3616f3ac6d672d346",
       "name": "capability-descriptor"
     },
     {
       "fileName": "capability-registry-response.schema.json",
-      "hash": "794707308946dc556d8785751c059934b962c4971042795c79e4b3496d8af17b",
+      "hash": "1b6c49697d7aa8834ec61c12857f22c7f55b478f8d39495a54b3270d2f863a7d",
       "name": "capability-registry-response"
     },
     {
@@ -93,7 +93,7 @@
     },
     {
       "fileName": "task-event-name.schema.json",
-      "hash": "e8a6f82332c17da92e5d08bd49388d1e5facaea0ddea90ac6cf36f5295aa09de",
+      "hash": "bb53a227ec13d1643c1dbe2a9594668e34135510a912582fb972780a81ab8272",
       "name": "task-event-name"
     },
     {
