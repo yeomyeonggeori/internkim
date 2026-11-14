@@ -31,7 +31,7 @@
         "dismiss-notification", "dismiss-all-notifications", "notification-action",
         "clipboard-set", "clipboard-clear", "permissions"
       ],
-      "refusedOptions": ["--trace", "--trace-strict", "--screenshot", "--debug", "--session", "--agent-id", "--cdp"]
+      "refusedOptions": ["--trace", "--trace-strict", "--screenshot", "--debug", "--session", "--agent-id", "--cdp", "--headed"]
     },
     "agent-browser": {
       "version": "0.43.0",

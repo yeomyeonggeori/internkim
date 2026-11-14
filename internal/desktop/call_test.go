@@ -136,6 +136,7 @@ func TestAnOptionTheDesktopAppRefusesIsRefusedBeforeItIsSent(t *testing.T) {
 		{"agent-desktop", "--cdp", []string{"launch", "Slack", "--cdp"}},
 		{"agent-desktop", "--cdp=9222", []string{"launch", "Slack", "--cdp=9222"}},
 		{"agent-desktop", "--trace", []string{"snapshot", "--trace", "x"}},
+		{"agent-desktop", "--headed", []string{"type", "@s8f3k2p9:e4", "--headed"}},
 		{"agent-browser", "--auto-connect", []string{"open", "https://example.com", "--auto-connect"}},
 		{"agent-browser", "--profile", []string{"open", "https://example.com", "--profile", "Default"}},
 		{"agent-browser", "--cdp", []string{"snapshot", "--cdp", "9222"}},
