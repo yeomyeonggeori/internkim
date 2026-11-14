@@ -42,6 +42,7 @@ type CapabilityToolCommonDefinition = {
   description: string;
   version: string;
   estimatedLatency: CapabilityEstimatedLatency;
+  timeoutSecond?: number;
   sideEffect: CapabilitySideEffect;
   idempotency?: z.infer<typeof capabilityIdempotencySchema>;
   requiresApproval?: boolean;
@@ -132,6 +133,7 @@ export function buildCapabilityDescriptor(
     version: definition.version,
     privacyClass: definition.privacyClass,
     estimatedLatency: definition.estimatedLatency,
+    timeoutSecond: definition.timeoutSecond,
     requiresUserPresence: definition.requiresUserPresence ?? false,
     worksOffline: definition.worksOffline ?? false,
     recallSource: definition.recallSource,

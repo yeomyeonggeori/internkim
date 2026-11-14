@@ -52,3 +52,18 @@ func TestCapabilitydReadsDesktopWorkAnswersAsTheRelayAndTheGatewayGiveThem(t *te
 		t.Errorf("capabilityd waits %s for desktop work and gives up before the gateway answers at %s", desktopWorkPatience, bound)
 	}
 }
+
+func TestADesktopCallIsGivenAsLongAsTheGatewayHoldsDesktopWork(t *testing.T) {
+	const gateway = "../../workers/connection-gateway/src/company-connection.ts"
+	bound := time.Duration(numberDeclaredIn(t, gateway, "workerCallBoundMilliseconds")) * time.Millisecond
+
+	for _, toolName := range []string{desktopReadToolName, desktopActToolName} {
+		descriptor, isPublished := capabilityToolDescriptorFor(toolName)
+		if !isPublished {
+			t.Fatalf("the catalog publishes no %s", toolName)
+		}
+		if budget := time.Duration(descriptor.TimeoutSecond) * time.Second; budget != bound {
+			t.Errorf("%s declares %s and the gateway holds desktop work for %s", toolName, budget, bound)
+		}
+	}
+}
