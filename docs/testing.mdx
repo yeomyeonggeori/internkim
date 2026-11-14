@@ -10,11 +10,11 @@ new test belongs to exactly one of them.
 | Kind | Question | Where it lives |
 | --- | --- | --- |
 | Unit | Is the logic right? | `web/tests/unit/`, Go `_test.go` files beside their source, `.dependency/internkim-plugin/tests/` |
-| API | Does a route answer correctly against a real database, and refuse what it must? | `web/tests/api/` |
+| API | Does a route answer correctly against a real database, and refuse what it must? | `web/tests/api/`; `web/tests/transfer/` for the relay's file moves and `web/tests/messenger-gateway/` for a native app and the work queue through the gateway |
 | UI | Can a person finish the job on screen? | `web/tests/ui/<area>/` |
 
-The agent loop is unit tested too. Its scenarios replace the model with a script,
-so they decide the same way every run and finish in seconds.
+The agent loop and the installed host have gates of their own, described
+[below](#the-agent-and-the-host).
 
 ## Where a new test goes
 
@@ -67,7 +67,7 @@ repository-wide rule, are guards. They live in
 - The type check and the unit tests run for every web change, and the build
   for a change to a route file or the build's configuration.
 - What needs the local plane shares one start and one reset. The database
-  tests run for a change under `supabase/`, and the API suite for a change to
+  tests in `supabase/tests/` run for a change under `supabase/`, and the API suite for a change to
   the schema, an API route, server code, or any file the suite imports.
 - UI tests run only for the areas named with `tools/verify --ui <area,...>`.
   Whoever makes the change reads the diff, names the areas whose screens it can
@@ -106,6 +106,22 @@ The API and `-central` UI tests take the local plane with
 `tools/with-local-plane`, which starts it if it is stopped and makes a second
 checkout wait its turn.
 
+## The agent and the host [#the-agent-and-the-host]
+
+| Gate | Question | Cost |
+| --- | --- | --- |
+| `./internkim dev simulate --scenario <name>` | Does the agent loop decide correctly, against a scripted model? | seconds |
+| `./internkim dev plane` | Do Linux startup, a requester's memory, messaging and the public API work? | minutes |
+| `tools/test-native-install` | Does the installed company host work on Linux, messenger included, through upgrade and restore? | about fifteen minutes |
+| `./internkim dev fleet run --scenario workspace-ownership` | Does the POSIX helper keep a requester to their own workspace? | minutes |
+
+The scenarios are registered in `BuiltinScenario`
+(`.dependency/blueclaw/internal/defaultharness/e2e/virtual_session.go`), and
+`tools/verify` runs them for a change to blueclaw, the skills or the capability
+catalog. `dev plane` runs `web/tests/plane/` in a disposable Linux VM with the
+real POSIX helper, and passes what follows it to the test runner. The install
+rig and the fleet take a disposable guest and run only by hand.
+
 ## End to end
 
 An end-to-end task is a message a member sends the agent, and what the record,
@@ -129,6 +145,17 @@ guest down. Each task costs model calls, so tasks are chosen like UI areas: a
 change to a prompt, a tool or the agent's runtime runs the tasks it can break
 and says which in the pull request. What the agent delivered is kept under
 `.artifacts/e2e/deliveries/<task>/`.
+
+## Measuring speed [#measuring-speed]
+
+`web/scripts/measure-navigation.ts` and `web/scripts/measure-task-restart.ts`
+time the app against a disposable local record. They refuse a remote endpoint
+and remove the fixtures they create. A run alternates the two builds, drops the
+warmup pair, runs one browser workload at a time, and records the build, the
+browser, the viewport, the CPU rate and the machine's load beside the sample
+count, the median and the range. A timer stops on a fixture's own card or a
+fresh response marker. A phone width with CPU throttling simulates a phone and
+says nothing about one.
 
 ## Model evaluations
 

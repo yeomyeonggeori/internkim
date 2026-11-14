@@ -9,29 +9,29 @@ agent and holds what only makes sense on that machine.
 
 ```mermaid
 flowchart TB
-    subgraph clients["Two clients, and a caller"]
+    subgraph clients["Clients, and a caller"]
         app["The app<br/>web, the default"]
         client["Messenger app<br/>phone or desktop"]
+        desktop["The desktop app<br/>a person's own computer"]
         caller["A script or an MCP client"]
     end
 
-    subgraph central["The central plane — we run it"]
+    subgraph central["The central plane, which we run"]
         record[("The record<br/>Postgres, row level security")]
         control["The control plane<br/>routes holding the service key"]
         api["The public API<br/>/api/v1 and /api/v1/mcp"]
         gateway{{"The connection gateway<br/>a Worker passing calls both ways"}}
-        notify["Edge function<br/>notify"]
+        functions["Edge functions<br/>notify, model-gateway"]
     end
 
-    subgraph host["The host — the computer the company leaves on"]
+    subgraph host["The host, the computer the company leaves on"]
         relay["The relay"]
+        messenger["The messenger<br/>buzz-relay, buzz-media"]
         connector["The connector (chatd)"]
         agent["The agent (blueclaw)"]
         daemons["admind · capabilityd · maild"]
         store[("The agent's store<br/>Postgres")]
     end
-
-    messenger["The company's messenger server<br/>its network, or this same computer"]
 
     app -->|"reads and writes as the signed-in member"| record
     app <-->|"one WebSocket, token attached"| gateway
@@ -39,6 +39,7 @@ flowchart TB
     api -->|"record tools"| record
     api -->|"company tools"| gateway
     client <-->|"the company's messenger address"| gateway
+    desktop <-->|"its owner's desktop work"| gateway
     gateway <-->|"the relay dials out and stays connected"| relay
     relay -->|"each app's stream, on loopback"| messenger
     connector <-->|"attached as the bot"| messenger
@@ -47,7 +48,8 @@ flowchart TB
     agent -->|"the catalog, over MCP"| relay
     relay -->|"tool calls, as the requester"| api
     relay -->|"asks for a member session"| control
-    relay -->|"who to tell about a message"| notify
+    relay -->|"who to tell about a message"| functions
+    agent -->|"model calls, charged to credits"| functions
     relay --> daemons
     agent --> daemons
     agent --> store
@@ -55,138 +57,33 @@ flowchart TB
 
 Every arrow leaving the host points outward. None points in.
 
-## App read ordering and freshness
+## How the app reads
 
-The web app and the native app's shared web screens use the same read paths.
-Authentication and company membership are verified before a route accepts
-account-scoped data. The signed-in member lookup is shared within the current
-account session; focus revalidation and account changes invalidate it.
-
-Opening a task board starts `task_board_get` and `person_list` together. The
-board reads visible status/date ranges and direct-child progress without the
-company's complete history. Board snapshots are distinct from complete states
-and keyed by account and week. List, report and member views request complete
-history on demand. Opening and editing a card uses the board data; choosing
-Task relationships requests the complete graph for progress, search and cycle
-checks. Secondary panes load their JavaScript on first use. A saved complete task snapshot is
-scoped to the project, company, member and role, expires after 24 hours, and is
-revalidated. Writes, logout and denied access invalidate it; a response started
-before invalidation cannot restore the old snapshot.
-Week selection updates the URL before a pending board read finishes. Session
-revalidation retains that selection, and a partial response for another week
-cannot replace it. Week navigation remains available during refresh; record
-editing still requires fresh authorized data.
-The shell mounts before applying a stored board. Secondary task tabs mount on
-first use and keep their drafts within the account scope. Gradient avatars use
-observer-reported sizes and paint when visible, avoiding layout reads and
-canvas work for every card during startup.
-
-The application shell does not fetch the attendance workspace on every route.
-The account menu, command palette and attendance workspace read the requester's
-current state through `attendance_current_get`. Its caller-RLS `attendance_current`
-RPC returns company time, work locations, today's own events, the latest own event
-across all dates, and active approved leave in one snapshot. It accepts no target
-identity and skips the whole-directory record context. Existing clock writes keep
-their authoritative validation. The attendance landing page separately requests
-`attendance_team_page_get`: caller-RLS team cards and searched employee pages
-have fixed response bounds, and the employee filter runs before page enrichment.
-Selecting one employee loads that person's month events and approved leave by
-exact member ID. The company-wide month comparison remains an explicit action.
-Concurrent own reads share a promise; a verified memory snapshot lasts 15 seconds
-within the same company day. Focus, visibility, explicit refresh and successful
-record/leave changes refresh the own state independently of team history. Stored
-monthly display summaries never supply authoritative clock controls. Disposed or
-globally invalidated work-status reads cannot repopulate persisted rows.
-
-Record tools validate their descriptor, input and caller permissions before
-using the caller's RLS-enabled database client. Company settings and people are
-independent reads and run concurrently when both are needed; settings-only and
-CRM list reads omit the unused people directory. Context is not cached across
-authenticated requests. `company_settings_get` accepts `includeProfileImage:
-false` for callers needing settings without signing an image URL; existing
-callers still receive the image. CRM activities filter linked organizations
-before pagination. CRM records and activity counts use stable pages, preserving
-records beyond the database response cap. Task and event write readbacks select
-the saved identifier through the caller's client. Update and delete resolution
-first reads a named UUID with the same caller and event-kind scope. Missing IDs
-and title hints retain the existing title resolver and relationship checks.
-
-Calendar events render before the holiday overlay finishes. Each range load
-shares its timezone read; late holidays merge with current local edits, while
-navigation and disposal discard superseded ranges. National-holiday failure
-does not hide company events. Live attendance summaries carry their input
-records into overlapping work-status reads. Persisted summaries carry no such
-records and must revalidate. Leave details load when displayed. These changes
-use their existing history contracts. The own-current and team-page reads add
-two narrow RPCs; there is no generic batch contract. The selected-person month
-still calls the existing leave reader, whose security-definer query reads
-company history before JavaScript filters it.
-
-The shell loads search and legacy identity UI on demand. Central sign-in does
-not wait for the company computer's messaging identity; Messenger claims it
-when needed, bound to the verified project, account, company and session.
-Transport changes reject pending old replies. Existing message and asset
-caches discard late results from a previous account.
-
-Mail reads its account, then fetches mailbox and message lists once in
-parallel. A message link seeds its mailbox before loading and selects only
-the requested list-derived UID, paging when needed. Missing messages keep a
-visible error and retry through refresh. Leave approvals start policy, pending
-requests and member labels together; the existing leave RPC still reads company
-history before filtering. Notification preferences load alongside push status;
-status reads use the current worker registration without waiting for worker
-activation. Preference switches require confirmed reachability. Settings keeps its general section mounted while resolving the
-role. Data-room and operations screens publish independent valid responses as
-they arrive. CRM waits for complete core records and currency metadata, while
-owner-directory enrichment loads separately. Only directory-dependent inputs
-wait for that enrichment; mutations refresh their affected record lists.
-
-The service worker caches shipped static files as controlled pages request
-them. Installation does not download every route's chunks or unrelated static
-images. Cached files can be reused offline; authenticated HTML and API answers
-are not cached. The asset cache preserves unchanged hashed URLs across updates
-and removes entries absent from the current build. Mutable static files use
-the network with a cached offline fallback. Pending notification destinations
-and other caches remain separate.
-
-Measure actual fixture cards and fresh response markers, rather than empty
-columns or response headers. Browser-restart tests close and relaunch the
-browser with the same profile; snapshot display and fresh data completion are
-separate measurements. These checks do not establish physical native-device
-performance or SQL execution time.
-
-The repository runners `web/scripts/measure-navigation.ts` and
-`web/scripts/measure-task-restart.ts` compare production Workers against the same
-disposable local record. They reject remote endpoints, create owned fixtures
-and clean them up. Alternate revision order, exclude the warmup pair, freeze
-both builds, and run one browser workload at a time. Record build fingerprints,
-runtime, browser, viewport, CPU rate, backend identity and host load. Report
-sample count, median and observed range; keep protocol versions separate.
-Twelve samples do not establish a population p95. A 390px touch viewport with
-CPU throttling is a simulation, not a physical phone.
-Open the mobile More menu before timing a language change; menu preparation is
-outside that scenario's timer.
-
-Task revisit and forward-navigation readiness can use a visible saved snapshot;
-they do not prove that background revalidation finished. Refresh tests change
-an owned fixture title before starting the timer and await the new DOM marker.
-The normal realtime broadcast remains enabled, so refresh traffic may contain
-both scheduled and manual reads. Report the 500ms preparation used for intent
-prefetch separately from click completion. API body durations include HTTP,
-authentication and application work; SQL statement counters require a separate
-read-only observation on the same isolated database.
-
-Integration and browser runners select API and SQL URLs from the same local
-stack status. When `SUPABASE_URL` is set, SQL tests require an explicit
-`SUPABASE_DB_URL`; both loopback ports must match this checkout's
-`supabase/config.toml` before any SQL connection opens. Run DB workloads
-serially because a browser fixture reset invalidates an integration run.
+The web app and the native app's shared web screens read the same way. A route
+accepts account-scoped data only after the session and the company membership
+are verified. A screen opens on the last snapshot it read for that account and
+reads again behind it; a write, signing out or a refused read discards the
+snapshot, and editing a record waits for fresh data. A task board reads the
+range on screen, and a view that needs the complete history asks for it. The
+attendance screens read the requester's own state through
+`attendance_current_get` and colleagues a page at a time through
+`attendance_team_page_get`. The service worker caches the shipped static files
+and never an authenticated page or an API answer. How these reads are timed is
+in [Testing](/testing#measuring-speed).
 
 ## One plugin across harnesses
 
-`internkim-plugin` is the shared client package. InternKim's own agent loads the
-skills from it, and Claude Code, Codex and Pi can install the same package to
-use the company's tools from their own loop.
+blueclaw is a meta-harness. It runs an agent harness for everyone in the
+company and supplies what a harness cannot have alone: the person behind each
+message and their POSIX user, approval in that person's thread, the task
+ledger and schedules. The company host runs bluecollar, the default harness.
+blueclaw can run Claude Code, Codex, Antigravity or any ACP agent in its place,
+and each is briefed with the same facts, asks its approvals the same way, runs
+as the requester and resumes its own session after an approval or a restart.
+
+`internkim-plugin` is the shared client package. The agent loads the skills
+from it, and Claude Code, Codex and Pi can install the same package to use the
+company's tools from a person's own loop.
 
 ```mermaid
 flowchart TB
@@ -210,8 +107,9 @@ is the separate boundary by which the relay hands messenger conversations to the
 agent, and using the plugin alone needs no ACP session. Installing the plugin
 does not expose blueclaw's workspace or terminal to an external agent.
 
-Inside blueclaw the model's kernel is `read`, `write`, `edit`, `bash`, `plan` and
-`equip`. `plan` records the goal, its steps and the level that sizes the run.
+Under bluecollar the model's kernel is `read`, `write`, `edit`, `bash`, `plan` and
+`equip`, beside the file, skill, question and memory tools blueclaw's
+[reference](https://blueclaw.intern.kim) lists. `plan` records the goal, its steps and the level that sizes the run.
 `equip` takes a sentence describing a need and answers with the tools that serve
 it, and the rest of the company catalog reaches the model as a shortlist settled
 once per plan step. The model speaks through a single `reply` that carries the
@@ -228,11 +126,11 @@ Five things, deployed by us.
 | the control plane | server routes holding the service key | `web/src/routes/api/agent/` |
 | the app | a SvelteKit build on Cloudflare Pages, serving the pages people sign into | `web/` |
 | the public API | server routes in the same build, answering tokens and MCP clients | `web/src/routes/api/v1/` |
-| the connection gateway | a Worker with one Durable Object per company, carrying browser calls, API calls, the native messenger apps and desktop work for a person's own computer | `workers/connection-gateway/` |
+| the connection gateway | a Worker with one Durable Object per company, carrying browser calls, API calls, the native messenger apps, the company's work queue and desktop work for a person's own computer | `workers/connection-gateway/` |
 
 The record answers every read and write as some member, never as an
 administrator. Which rows a session sees is decided by the database itself.
-The tables are listed in [What lives where](/docs/what-lives-where).
+The tables are listed in [What lives where](/what-lives-where).
 
 The control plane exists for what a member cannot do alone. Its callers
 authenticate with a company's agent key, and what it hands back is a session:
@@ -243,7 +141,9 @@ the credentials it needs per call (`/api/agent/messenger-credential`,
 `/api/agent/mail-account`). The service key never leaves these routes.
 Notifications are sent by the project's own edge functions
 (`supabase/functions/`), so the key that reads every member's devices stays
-inside the company's Supabase.
+inside the company's Supabase. The `model-gateway` function beside them sells
+model calls against the company's credits, as [Credits](/record/schema#credits)
+describes.
 
 The app decides at runtime which Supabase project it talks to:
 `hooks.server.ts` injects the values into the `#central-plane` element, so one
@@ -252,7 +152,7 @@ build serves every company. The pages hold no secret; the API routes under
 address; every other hostname on the zone answers `308` to it, except paths
 under `/api/` and `/v1/`, which are answered where they land because a
 cross-origin redirect would drop the caller's bearer token. That exception is
-what lets `api.<zone>/v1` and a company host's own `/api/v1` be the same API.
+what lets `api.<zone>/v1` answer as the same API as `<zone>/api/v1`.
 
 The public API is where the tool catalog lives. Every tool is defined once,
 in `web/src/lib/server/public-api/catalog/`, and each definition names who
@@ -262,11 +162,11 @@ answers it:
 |---|---|---|
 | `record` | the app itself, against the record, as the calling member | tasks, the calendar, people, leave, attendance, CRM |
 | `company` | the company's computer, reached through the gateway | messages, mail, web search, reading a document |
-| `local` | only the agent's own machine; the API refuses it | the browser, the requester's desktop, model calls, embeddings |
+| `local` | only beside the agent; the API refuses it | the browser, the requester's own computer |
 
 `/api/v1/mcp` serves the same catalog to any MCP client, and it is also how the
 agent itself reaches its tools, as the sections below show. The
-[catalog](/docs/tools/catalog) lists every tool.
+[catalog](/tools/catalog) lists every tool.
 
 The connection gateway is how a browser and the host reach each other when
 neither accepts a connection. The browser opens a WebSocket to
@@ -279,16 +179,24 @@ Object stores. The object forwards calls one way and answers the other, pushes
 `message.arrived` to open chat screens when the relay reports a new message,
 and tells browsers whether the company's computer has a live connection.
 
+The same object keeps the company's work queue. Each box dials
+`/company/<id>/worker` and says how much room it has. The service box runs a
+browser call itself while one of its browsers is free and otherwise posts it
+to `/company/<id>/work`, where whichever connected box has room takes it
+([More than one box](/kim-mini#more-than-one-box)).
+
 The internkim desktop app dials `/company/<id>/desktop` with the signed-in
 member's session token once its person lets internkim use that computer. The
 Worker resolves the member as it does for `/client` and keys the socket on
-their email address. The company's computer posts work for a person's desktop
-through its relay to `/company/<id>/desktop-work`, signed as the host that
-serves the company. The work names that address, and the Durable Object hands it to that person's socket
-alone, or answers `503` when they have none open. It never goes to another
-person's desktop or to a box serving the company, and company work never goes
-to a desktop. [Your own computer](/docs/tools#desktop) says what the desktop
-tools do there.
+their email address. Work for a person's desktop leaves the host through the
+relay: capabilityd posts it to the relay's `/desktop-work`, and the relay
+forwards it to `/company/<id>/desktop-work` signed as the host that serves the
+company. The work names that address, and the Durable Object hands it to that
+person's socket alone, or answers `503` when they have none open. It never goes
+to another person's desktop or to a box, and company work never goes to a
+desktop. The gateway holds desktop work for 120 seconds, and both desktop tools
+declare that limit. [Your own computer](/tools#desktop) says what the
+desktop tools do there.
 
 A native messenger app on a phone or a desktop dials the company's messenger
 address, `<slug>.<zone>`, which is a route on the same Worker and not a Pages
@@ -346,19 +254,31 @@ messages and lose nothing.
 ## The processes on the host
 
 The package registers each as its own service with systemd or launchd;
-[Running the host](/docs/running-the-host) shows how to check them.
+[Running the host](/running-the-host) shows how to check them.
 
 | Process | Answers on | Job | Code |
 |---|---|---|---|
 | the relay (`internkim-relay`) | outbound only; `127.0.0.1:18091` for the connector | answers the app's calls, turns messages into agent turns, serves the agent its tools | `host/relay/` |
 | the connector (`chatd`) | `127.0.0.1:18090` | the messenger adapter for Buzz | `.dependency/blueclaw/chatd/` |
-| the agent (`blueclaw`) | `/run/internkim/acp/blueclaw-acp.sock`; admin API on `127.0.0.1:8080` | the ACP agent: runs, approval, the task ledger, memory | `.dependency/blueclaw/` |
-| `internkim-capabilityd` | `/run/internkim/capability.sock` | holds provider credentials: model calls, the mail, web and browser tools; passes embedding requests on to the embedding server | `cmd/internkim-capabilityd/`, `internal/capabilityd/` |
+| the agent (`blueclaw`) | `/run/internkim/acp/blueclaw-acp.sock`; admin API on `127.0.0.1:8080` | the meta-harness and its ACP agent: runs, approval, the task ledger, memory | `.dependency/blueclaw/` |
+| `internkim-capabilityd` | `/run/internkim/capability.sock` | answers the agent's tool calls and holds their provider credentials: the mail, web, browser and desktop tools; passes embedding requests on to the embedding server | `cmd/internkim-capabilityd/`, `internal/capabilityd/` |
 | Moli (`moli serve`), one per requester | `127.0.0.1:9230` and up | the device browser for plain public-text navigation; capabilityd starts each person's on first use, with their own profile, and stops it when idle | `internal/browser/device_browsers.go` |
 | `internkim-admind` | `127.0.0.1:18080`, `/run/internkim/admind.sock` | the workspace screens, the roster, and the company tools the plane carries to the host | `cmd/internkim-admind/`, `internal/admind/` |
 | `internkim-maild` | `127.0.0.1:18092` | answers mail for whichever account a call carries | `cmd/internkim-maild/` |
 | `internkim-embedding` | `127.0.0.1:18095` | llama.cpp serving EmbeddingGemma 2 on the CPU; every memory and skill is embedded here, with weights the package carries | `internal/runtime/blueclaw/company_host_services.go` |
-| the agent's store | `DATABASE_URL` | Postgres holding conversations, runs, policy | — |
+| the box (`internkim-box`) | outbound only | claims the computer for a company, keeps its identity and the company key, stands by or takes over | `internal/box/` |
+| the agent's store | `DATABASE_URL` | Postgres holding conversations, runs, policy | `.dependency/blueclaw/migrations/` |
+
+The package also runs the host's database and cache, the messenger
+(`buzz-relay`, `buzz-media`), the daily backup and, on a company of several
+boxes, the WAL and file followers. [Check services](/running-the-host#check-services)
+lists them.
+
+capabilityd ends each tool call at the limit its tool declares in
+`timeoutSecond`, 300 seconds when it declares none, and answers a call that
+ran out with `timeout`, saying the work it started may still have taken
+effect. A handler that crashes is answered with `tool_crashed`, and
+capabilityd keeps serving.
 
 ## What the agent is made of
 
@@ -366,14 +286,14 @@ blueclaw is one process built from separate repositories, each with one job:
 
 | | Job | Where |
 |---|---|---|
-| [blueclaw](https://github.com/yeomyeonggeori/blueclaw) | the agent host: identity, the approval gate, the task ledger, the ACP agent the relay talks to | `.dependency/blueclaw/` |
-| [bluecollar](https://github.com/yeomyeonggeori/bluecollar) | the agent loop and the model client, running in-process | `.dependency/blueclaw/.dependency/bluecollar/` |
+| [blueclaw](https://github.com/yeomyeonggeori/blueclaw) | the meta-harness: identity, the approval gate, the task ledger, the ACP agent the relay talks to | `.dependency/blueclaw/` |
+| [bluecollar](https://github.com/yeomyeonggeori/bluecollar) | the default harness: the agent loop and the model client | `.dependency/blueclaw/.dependency/bluecollar/` |
 | [blueprotocol](https://github.com/yeomyeonggeori/blueprotocol) | the contract packages blueclaw and bluecollar share: tool descriptors, task event names, approval targets | `.dependency/blueclaw/.dependency/blueprotocol/` |
 | [bluememo](https://github.com/yeomyeonggeori/bluememo) | long-term memory: facts extracted from finished work, scoped by owner and circle | `.dependency/blueclaw/.dependency/bluememo/` |
 | internkim-plugin | the skills the agent loads for a kind of work | `.dependency/internkim-plugin/` |
 
 Memory is one SQLite file per subject, in that subject's protected directory
-in the workspace, as [What lives where](/docs/what-lives-where#a-persons-memory)
+in the workspace, as [What lives where](/what-lives-where#a-persons-memory)
 lays out. When a run finishes, bluememo has a model extract
 self-contained sentences from it; a newer sentence replaces an older one, and a
 person can ask the agent to forget one. Recall searches the file by embedding
@@ -381,9 +301,13 @@ and by words and answers without calling a model. The embedding is made on the
 host, by the embedding server, so no text a person remembered leaves the
 computer to be embedded. None of it lives in Postgres.
 
-Models are named in one place, `internal/modelladder`. The agent asks for a
-tier, and capabilityd holds the key and makes the call, so the agent never sees
-a provider token.
+Models are named in one place, `internal/modelladder`. capabilityd prints the
+ladder the agent's runtime reads: for each tier, the endpoints to try and the
+file holding each one's key, staged for the agent's service account alone.
+Each tier tries the `model-gateway` edge function first, which charges the call
+to the company's credits and to the member who asked. A call it refuses falls
+through to the company's own OpenRouter key when the host holds one, and a
+company that runs its own model endpoint never reaches the gateway.
 
 ## How the chat screen gets answered
 
@@ -438,13 +362,13 @@ it works before anything is stored.
 
 An answer larger than the byte ceiling is refused with a `413` naming the
 size, because the transport would otherwise drop it silently; the ceiling and
-its default are in [Running the host](/docs/running-the-host#how-big-an-answer-may-be).
+its default are in [Running the host](/running-the-host#how-big-an-answer-may-be).
 
 ### How a file crosses
 
 A file never travels on the socket. The call only names it, and the bytes go
 through the company's `asset` bucket, whose prefixes are listed in
-[What lives where](/docs/what-lives-where#the-record).
+[What lives where](/what-lives-where#the-record).
 
 To read one, the browser calls `person.media.prepare` for a messenger
 attachment or `person.files.download` for a workspace file, with a
@@ -509,11 +433,13 @@ message. From there the relay carries it:
 
 Approval travels the same way. When the gate holds a call, blueclaw asks
 the relay over ACP, the relay posts the question into the thread it names and
-reports the post as it does a reply, and the requester's next message in that
-thread is the answer. blueclaw decides what those
-words mean, and anything it cannot read as a yes declines. The relay keeps the
-open question on disk beside the inbound queue, so a restart on either side
-asks nothing twice and loses nothing.
+reports the post as it does a reply. The question is worded in the voice the
+agent uses with that requester. The relay hands the requester's next message
+in that thread to blueclaw, which decides what those words mean; anything it
+cannot read as a yes declines, and the message goes on to the agent as the
+next instruction. blueclaw holds the open question and asks it again after a
+restart without posting it twice, and the relay keeps which session answers
+which conversation in `sessions.json` beside the inbound queue.
 
 The agent behaves identically whichever client the person typed in.
 
@@ -542,24 +468,13 @@ nobody claims, and refuses a member whose company is not the one that key
 belongs to. What comes back is an ordinary member session, so everything the
 agent does in the record is bounded by that person's own permissions.
 
-## Where the messenger server runs
+## Where the messenger runs [#where-the-messenger-server-runs]
 
-The diagram puts it outside the host, which is one of three places it can be.
-
-| | Who can reach it directly |
-|---|---|
-| A vendor's cloud | anyone, from anywhere |
-| Your own installation on your network | people on that network or its VPN |
-| The host computer itself | people on that network, and nobody else |
-
-The last row is ordinary. A company that runs its own Buzz relay
-often runs it on the machine already kept awake for the agent, and the
-connector reaches it over loopback; the package runs the Buzz stack exactly
-there, as `buzz-relay` and `buzz-media`, and a native app reaches it through the
-gateway. Because the chat screen always goes through
-the relay, one screen works wherever the messenger lives, and the
-conversation is never written centrally: the relay sends back only the answer
-to the call it was asked.
+On the host. The package runs the Buzz stack there as `buzz-relay` and
+`buzz-media`, both on loopback, and the connector reaches it the same way. A
+native app reaches it from any network through the gateway, and the chat screen
+through the relay, so the conversation is never written centrally: the relay
+sends back only the answer to the call it was asked.
 
 ## Why the host has no inbound port
 

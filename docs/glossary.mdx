@@ -42,8 +42,7 @@ those do hold keys.
 ## The public API
 
 The routes under `web/src/routes/api/v1/`, which answer `api.<zone>/v1` and
-any company host's own `/api/v1`. A
-caller carries either a signed-in session or a token issued to a person, and
+`/api/v1` on any hostname of the zone. A caller carries either a signed-in session or a token issued to a person, and
 every call runs as that person. The app answers the tokens and the tool
 catalog itself, runs the tools the record can answer, and carries the rest to
 the company's computer. `/api/v1/mcp` serves the same catalog over MCP.
@@ -55,14 +54,23 @@ Every tool the agent or a token can call, defined once in
 `pkg/capabilityprotocol/generated/`. Each tool names who answers it in
 `answeredBy`: a `record` tool runs in the app against the record, a `company`
 tool is carried to the host, and a `local` tool runs only beside the agent.
-The [catalog](/docs/tools/catalog) lists them.
+The [catalog](/tools/catalog) lists them.
 
 ## The connection gateway
 
 The Cloudflare Worker at `workers/connection-gateway/` that passes calls to
-the host. One Durable Object per company holds the browser sockets and the
-host's one standing connection, and routes calls one way and answers the
-other. The public API's invocations go the same way, as one authorized call. Neither end ever connects to the other directly.
+the host. One Durable Object per company holds the browser sockets, the native
+messenger apps' streams, each person's desktop app, each box's connection and
+the host's one standing connection, and routes calls one way and answers the
+other. The public API's invocations go the same way, as one authorized call.
+Neither end ever connects to the other directly.
+
+## The model gateway
+
+The `model-gateway` edge function in the company's Supabase project, at
+`supabase/functions/model-gateway/`. It forwards a model call to OpenRouter,
+charges what it cost to the company's credits and to the member who asked, and
+refuses a call the credits or that member's limit cannot cover.
 
 ## The chat screen
 
@@ -73,11 +81,11 @@ too.
 ## A messenger app
 
 A Buzz client: the ordinary software a person opens to read
-the chat. The second way to reach internkim, from anywhere the messenger
-server itself is reachable.
+the chat. The second way to reach internkim, from any network, through the
+connection gateway at the company's messenger address.
 
-Distinct from that server, which is the company's own and may sit in a
-vendor's cloud, on the company network, or on the host computer.
+Distinct from the messenger server, the Buzz relay the package runs on the
+host.
 
 ## The host
 
@@ -91,8 +99,8 @@ The process that answers the app and feeds the agent: `internkim-relay`,
 built from `host/relay/`. It holds the standing connection to the gateway and
 serves each call as the member the gateway named. It keeps each message the
 connector hands it in a queue on disk, turns it into an ACP turn for the
-agent, serves the agent its tools, and reports messenger arrivals as
-notifications. One company, one relay process.
+agent, serves the agent its tools, hands desktop work to the gateway, and
+reports messenger arrivals as notifications. One company, one relay process.
 
 The Buzz relay is a separate messenger server the company runs, which the
 package runs as `buzz-relay` and `host/buzz/` describes. When both appear in one sentence, say "the relay" for ours and
@@ -107,8 +115,8 @@ and the chat screen's messenger operations back out.
 
 ## The agent
 
-blueclaw, the agent host, vendored at `.dependency/blueclaw/`. It is the ACP
-agent the relay opens sessions with, runs the bluecollar loop in-process,
+blueclaw, the meta-harness, vendored at `.dependency/blueclaw/`. It is the ACP
+agent the relay opens sessions with, runs the bluecollar harness by default,
 keeps memory in bluememo, and owns approval and the task ledger. It listens on
 `/run/internkim/acp/blueclaw-acp.sock`, with its admin API on `127.0.0.1:8080`.
 
@@ -130,19 +138,20 @@ installs them in `/opt/internkim/skills` on Linux.
 
 Two protocols, one for each direction. The relay speaks
 [ACP](https://agentclientprotocol.com) to blueclaw: it opens a session per
-conversation, sends each message as a prompt, and carries the agent's approval
+person in a conversation, sends each message as a prompt, and carries the agent's approval
 questions to the person. The agent speaks
 [MCP](https://modelcontextprotocol.io) to call its tools, at an address the
 relay serves and forwards to `/api/v1/mcp` as the requester.
 
 ## capabilityd
 
-`internkim-capabilityd`, the typed capability boundary. It holds provider
-credentials and exposes only a capability API on
-`/run/internkim/capability.sock`, so the agent never sees a provider token, a
-browser binary or a model path. Model calls go through it too: the agent asks
-for a tier, and the tiers are named in `internal/modelladder`. Code in
-`internal/capabilityd/`.
+`internkim-capabilityd`, the typed capability boundary. It holds the
+credentials of the agent's tools and exposes only a capability API on
+`/run/internkim/capability.sock`, so the agent never sees a tool's provider
+token or a browser binary. It ends each tool call at the limit the tool
+declares, 300 seconds by default. It also prints the model ladder the agent
+reads, the endpoints and key files for each tier named in
+`internal/modelladder`. Code in `internal/capabilityd/`.
 
 ## The agent's store
 
