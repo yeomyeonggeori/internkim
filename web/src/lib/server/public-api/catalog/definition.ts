@@ -47,6 +47,7 @@ type CapabilityToolCommonDefinition = {
   idempotency?: z.infer<typeof capabilityIdempotencySchema>;
   requiresApproval?: boolean;
   approvalQuotedField?: string;
+  isBroughtByEveryHarness?: boolean;
   requiresUserPresence?: boolean;
   worksOffline?: boolean;
   recallSource?: boolean;
@@ -156,6 +157,7 @@ export function buildCapabilityDescriptor(
     sideEffect: definition.sideEffect,
     requiresApproval: definition.requiresApproval,
     approvalQuotedField: definition.approvalQuotedField,
+    isBroughtByEveryHarness: definition.isBroughtByEveryHarness,
     completionEvidence: definition.completionEvidence,
     availability: { state: CapabilityAvailabilityState.Available },
     idempotency: definition.idempotency ?? { supported: false, required: false, scope: 'operation' },

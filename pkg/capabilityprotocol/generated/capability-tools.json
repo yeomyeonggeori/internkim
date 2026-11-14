@@ -16452,6 +16452,7 @@
         "type": "object"
       },
       "inputSchemaStrict": true,
+      "isBroughtByEveryHarness": true,
       "modelName": "image_read",
       "modelVisibility": "hidden",
       "modelVisible": false,
