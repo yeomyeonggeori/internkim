@@ -1,12 +1,15 @@
 mod commands;
 mod consent;
+#[cfg(target_os = "macos")]
+mod macos_helper;
 mod sidecar;
 mod tray;
 
 use consent::{Consent, Language};
 use serde::Serialize;
-use sidecar::Answer;
+use sidecar::{Answer, Sidecar};
 use std::{
+    path::PathBuf,
     sync::{Mutex, PoisonError},
     time::Duration,
 };
@@ -22,9 +25,16 @@ const PERMISSIONS_LIMIT: Duration = Duration::from_secs(15);
 struct DesktopControl {
     consent: Mutex<Consent>,
     turn: tokio::sync::Mutex<()>,
+    macos_helper: Option<PathBuf>,
 }
 
 impl DesktopControl {
+    fn sidecar(&self) -> Sidecar<'_> {
+        Sidecar {
+            macos_helper: self.macos_helper.as_deref(),
+        }
+    }
+
     fn consent(&self) -> Consent {
         *self.consent.lock().unwrap_or_else(PoisonError::into_inner)
     }
@@ -131,7 +141,10 @@ async fn run_if_allowed(
     {
         return Answer::Refusal(refusal);
     }
-    sidecar::run(program, &arguments, text, limit).await
+    control
+        .sidecar()
+        .run(program, &arguments, text, limit)
+        .await
 }
 
 async fn state_of<R: Runtime>(app: &AppHandle<R>) -> ControlState {
@@ -218,9 +231,34 @@ pub fn init<R: Runtime>() -> TauriPlugin<R> {
             app.manage(DesktopControl {
                 consent: Mutex::new(consent),
                 turn: tokio::sync::Mutex::new(()),
+                macos_helper: macos_helper_of(app),
             });
             show_tray(app, consent);
             Ok(())
         })
         .build()
+}
+
+#[cfg(target_os = "macos")]
+fn macos_helper_of<R: Runtime>(app: &AppHandle<R>) -> Option<PathBuf> {
+    let bundled = sidecar::application_directory()
+        .ok()?
+        .join(macos_helper::NAME);
+    let placed = app
+        .path()
+        .app_local_data_dir()
+        .map_err(std::io::Error::other)
+        .and_then(|directory| macos_helper::place(&bundled, &directory.join("agent-desktop")));
+    match placed {
+        Ok(helper) => Some(helper),
+        Err(error) => {
+            eprintln!("the clipboard helper was not copied out of the app bundle, so agent-desktop will refuse clipboard commands: {error}");
+            Some(bundled)
+        }
+    }
+}
+
+#[cfg(not(target_os = "macos"))]
+fn macos_helper_of<R: Runtime>(_app: &AppHandle<R>) -> Option<PathBuf> {
+    None
 }
