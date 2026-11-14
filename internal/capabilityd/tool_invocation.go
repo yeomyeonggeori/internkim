@@ -136,8 +136,21 @@ func (service Service) capabilityRegistry(_ context.Context) (capabilities.Regis
 		ProtocolIdentity:   capabilityprotocol.GeneratedProtocolIdentity(),
 		LocalOnly:          service.Configuration.LocalOnly,
 		RoutingCandidates:  capabilities.RoutingCandidates(),
-		DeviceCapabilities: capabilities.DefaultToolDescriptors(),
+		DeviceCapabilities: descriptorsWithATimeLimit(capabilities.DefaultToolDescriptors()),
 	}, nil
+}
+
+const defaultToolTimeoutSecond = 300
+
+func descriptorsWithATimeLimit(descriptors []capabilities.Descriptor) []capabilities.Descriptor {
+	limited := make([]capabilities.Descriptor, 0, len(descriptors))
+	for _, descriptor := range descriptors {
+		if descriptor.TimeoutSecond <= 0 {
+			descriptor.TimeoutSecond = defaultToolTimeoutSecond
+		}
+		limited = append(limited, descriptor)
+	}
+	return limited
 }
 
 func (service Service) invokeCapabilityTool(ctx context.Context, toolName string, reader io.Reader) (capabilities.ToolInvokeResponse, error) {
@@ -158,7 +171,7 @@ func (service Service) invokeCapabilityTool(ctx context.Context, toolName string
 	toolRoute, hasToolRoute := capabilityToolRouteFor(descriptor.CanonicalName)
 
 	if hasToolRoute {
-		response, errorValue := toolRoute.Handler(service, ctx, request)
+		response, errorValue := service.answerWithinTheRequestedTime(ctx, request, toolRoute.Handler)
 		if errorValue != nil {
 			return capabilities.ToolInvokeResponse{}, errorValue
 		}
@@ -236,10 +249,13 @@ func resourceEffectsMatch(expectedEffects []capabilities.ResourceEffect, actualE
 }
 
 func capabilityInvalidInputResponse(toolName string, errorValue error) capabilities.ToolInvokeResponse {
-	message := errorValue.Error()
+	return capabilitydFailureResponse(toolName, "invalid_input", "input_schema", errorValue.Error())
+}
+
+func capabilitydFailureResponse(toolName string, errorCode string, failureStage string, message string) capabilities.ToolInvokeResponse {
 	result, _ := json.Marshal(map[string]string{
-		"errorCode":    "invalid_input",
-		"failureStage": "input_schema",
+		"errorCode":    errorCode,
+		"failureStage": failureStage,
 		"message":      message,
 	})
 	return capabilities.ToolInvokeResponse{
@@ -251,8 +267,8 @@ func capabilityInvalidInputResponse(toolName string, errorValue error) capabilit
 		Content:         message,
 		IsError:         true,
 		Message:         message,
-		ErrorCode:       "invalid_input",
-		FailureStage:    "input_schema",
+		ErrorCode:       errorCode,
+		FailureStage:    failureStage,
 		Result:          result,
 	}
 }
