@@ -45,10 +45,6 @@ func ProgramNames() []string {
 	return names
 }
 
-func (program Program) Reads(command string) bool {
-	return slices.Contains(program.Read, command)
-}
-
 func (program Program) Acts(command string) bool {
 	return slices.Contains(program.Act, command)
 }

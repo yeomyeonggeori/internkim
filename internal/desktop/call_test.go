@@ -6,7 +6,7 @@ import (
 	"testing"
 )
 
-func TestACallRunsOnlyACommandOfItsOwnKind(t *testing.T) {
+func TestAReadRefusesACommandThatChangesTheDesktopAndAnActRunsEither(t *testing.T) {
 	if _, errorValue := NewCall(KindRead, "", []string{"snapshot", "--app", "Finder", "-i"}, ""); errorValue != nil {
 		t.Fatal(errorValue)
 	}
@@ -14,9 +14,18 @@ func TestACallRunsOnlyACommandOfItsOwnKind(t *testing.T) {
 	if errorValue == nil || !strings.Contains(errorValue.Error(), "desktop_act") {
 		t.Fatalf("a read that clicks was answered %v", errorValue)
 	}
-	_, errorValue = NewCall(KindAct, "", []string{"snapshot"}, "")
-	if errorValue == nil || !strings.Contains(errorValue.Error(), "desktop_read") {
-		t.Fatalf("an act that reads was answered %v", errorValue)
+	for _, arguments := range [][]string{{"snapshot", "-i"}, {"list-windows"}, {"click", "@s1:e2"}} {
+		call, errorValue := NewCall(KindAct, "", arguments, "")
+		if errorValue != nil || !slices.Equal(call.Arguments, arguments) {
+			t.Errorf("an act of %v was built %+v, %v", arguments, call, errorValue)
+		}
+	}
+}
+
+func TestAReadNamesOnlyTheCommandsThatChangeNothing(t *testing.T) {
+	_, errorValue := NewCall(KindRead, "", []string{"session"}, "")
+	if errorValue == nil || !strings.Contains(errorValue.Error(), "snapshot") || strings.Contains(errorValue.Error(), "click") {
+		t.Fatalf("an unknown read was answered %v", errorValue)
 	}
 }
 
