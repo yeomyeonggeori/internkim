@@ -60,7 +60,7 @@ func (service Service) invokeDesktopTool(ctx context.Context, request capabiliti
 	if errorValue != nil {
 		return capabilities.ToolInvokeResponse{}, errorValue
 	}
-	return desktopResponseOf(request.ToolName, answer, time.Now())
+	return desktopResponseOf(request.ToolName, call, answer, time.Now())
 }
 
 func (service Service) runOnTheDesktopOf(ctx context.Context, owner string, call desktop.Call) (desktop.Answer, error) {
@@ -75,7 +75,7 @@ func (service Service) runOnTheDesktopOf(ctx context.Context, owner string, call
 	return answer, nil
 }
 
-func desktopResponseOf(toolName string, answer desktop.Answer, capturedAt time.Time) (capabilities.ToolInvokeResponse, error) {
+func desktopResponseOf(toolName string, call desktop.Call, answer desktop.Answer, capturedAt time.Time) (capabilities.ToolInvokeResponse, error) {
 	if answer.Refusal != "" {
 		return desktopFailedResponse(toolName, "the requester's computer refused this call: "+answer.Refusal), nil
 	}
@@ -84,7 +84,7 @@ func desktopResponseOf(toolName string, answer desktop.Answer, capturedAt time.T
 		return desktopFailedResponse(toolName, errorValue.Error()), nil
 	}
 	if !envelope.Succeeded() {
-		return desktopFailedResponse(toolName, strings.TrimSpace(answer.Output)), nil
+		return desktopFailedResponse(toolName, failureWithUsage(call, answer)), nil
 	}
 	result := desktopResultOf(answer.Output, capturedAt)
 	document, errorValue := json.Marshal(result)
@@ -96,6 +96,14 @@ func desktopResponseOf(toolName string, answer desktop.Answer, capturedAt time.T
 		SelectedBackend: capabilities.LLMBackendDevice,
 		Content:         result.Output,
 	})
+}
+
+func failureWithUsage(call desktop.Call, answer desktop.Answer) string {
+	failure := strings.TrimSpace(answer.Output)
+	if answer.Usage == "" {
+		return failure
+	}
+	return failure + "\n\n" + call.UsageHeading() + ":\n" + strings.TrimSpace(answer.Usage)
 }
 
 func desktopResultOf(output string, capturedAt time.Time) desktopToolResult {

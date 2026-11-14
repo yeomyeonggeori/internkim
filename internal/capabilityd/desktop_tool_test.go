@@ -169,6 +169,22 @@ func TestAFailedEnvelopeComesBackAsAFailedCallCarryingAgentDesktopsOwnSuggestion
 	}
 }
 
+func TestArgumentsTheProgramRefusedComeBackWithItsUsageForThatCommandAfterItsOwnError(t *testing.T) {
+	refused := `{"version":"2.6","ok":false,"command":"type","error":{"code":"INVALID_ARGS","message":"error: unexpected argument '--app' found"}}`
+	usage := "Insert text into a text target\n\nUsage: agent-desktop type [OPTIONS] <REF> [TEXT]\n"
+	service, _ := serviceWithARelay(t, answeredByTheDesktop(desktop.Answer{Output: refused + "\n", Usage: usage}))
+
+	response, errorValue := service.invokeDesktopTool(context.Background(), desktopCall(desktopActToolName, "sample@example.com", `{"arguments":["type","--app","Ghostty"],"text":"ls"}`))
+
+	if errorValue != nil || !response.IsError || response.Outcome != capabilities.ToolOutcomeFailed {
+		t.Fatalf("answered %+v, %v", response, errorValue)
+	}
+	want := refused + "\n\nagent-desktop type --help:\nInsert text into a text target\n\nUsage: agent-desktop type [OPTIONS] <REF> [TEXT]"
+	if response.Content != want {
+		t.Fatalf("the model reads %q", response.Content)
+	}
+}
+
 func TestARefusalFromTheDesktopComesBackAsAFailedCall(t *testing.T) {
 	service, _ := serviceWithARelay(t, answeredByTheDesktop(desktop.Answer{Refusal: "the person turned desktop control off"}))
 

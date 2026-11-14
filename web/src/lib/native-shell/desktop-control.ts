@@ -6,7 +6,7 @@ import { tauriDesktopControl } from './desktop-control-tauri';
 import { isInsideTauriDesktopShell, shellPlatform } from './shell';
 
 export type DesktopWork = { program?: string; arguments: string[]; text?: string };
-export type DesktopAnswer = { output: string } | { refusal: string };
+export type DesktopAnswer = { output: string; usage?: string } | { refusal: string };
 export type DesktopControlState = { isAllowed: boolean; accessibility: string | null };
 export type RunDesktopWork = (work: DesktopWork) => Promise<DesktopAnswer>;
 

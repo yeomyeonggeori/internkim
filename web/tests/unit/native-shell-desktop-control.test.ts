@@ -9,6 +9,7 @@ import {
 	type DesktopWork,
 	type WorkSocket
 } from '$lib/native-shell/desktop-control';
+import { desktopAnswerOf } from '$lib/native-shell/desktop-control-tauri';
 
 type FakeSocket = WorkSocket & {
 	url: string;
@@ -117,6 +118,23 @@ describe('a desktop answering work from the gateway', () => {
 			requestID: 'request-3',
 			status: 200,
 			body: { refusal: 'the work named no arguments' }
+		});
+	});
+});
+
+describe('reading what the desktop-control plugin answered', () => {
+	test('keeps the usage the plugin attached to an output', () => {
+		expect(desktopAnswerOf({ output: '{"ok":false}', usage: 'Usage: agent-desktop type <REF>' })).toEqual({
+			output: '{"ok":false}',
+			usage: 'Usage: agent-desktop type <REF>'
+		});
+	});
+
+	test('reads an output with no usage and a refusal as they are', () => {
+		expect(desktopAnswerOf({ output: '{"ok":true}' })).toEqual({ output: '{"ok":true}' });
+		expect(desktopAnswerOf({ refusal: 'off' })).toEqual({ refusal: 'off' });
+		expect(desktopAnswerOf({ usage: 'Usage: agent-desktop type <REF>' })).toEqual({
+			refusal: 'the desktop-control plugin answered neither an output nor a refusal'
 		});
 	});
 });
