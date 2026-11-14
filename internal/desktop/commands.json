@@ -31,7 +31,7 @@
         "dismiss-notification", "dismiss-all-notifications", "notification-action",
         "clipboard-set", "clipboard-clear", "permissions"
       ],
-      "refusedOptions": ["--trace", "--trace-strict", "--screenshot", "--debug", "--session", "--agent-id"]
+      "refusedOptions": ["--trace", "--trace-strict", "--screenshot", "--debug", "--session", "--agent-id", "--cdp"]
     },
     "agent-browser": {
       "version": "0.37.1",
@@ -49,12 +49,12 @@
       },
       "read": ["snapshot", "get", "is", "wait", "console", "errors", "skills"],
       "act": [
-        "connect", "close", "open", "back", "forward", "reload", "tab",
+        "close", "open", "back", "forward", "reload", "tab",
         "click", "dblclick", "type", "fill", "press", "keyboard", "hover", "focus",
         "check", "uncheck", "select", "drag", "scroll", "scrollintoview", "find"
       ],
       "refusedOptions": [
-        "--session", "--namespace", "--config", "--cdp", "--provider", "-p", "--engine", "--device",
+        "--session", "--namespace", "--config", "--cdp", "--auto-connect", "--profile", "--state", "--restore-check-fn", "--provider", "-p", "--engine", "--device",
         "--executable-path", "--extension", "--init-script", "--enable", "--args",
         "--proxy", "--proxy-bypass", "--ignore-https-errors", "--ca-cert", "--no-ca-cert", "--allow-file-access",
         "--download-path", "--screenshot-dir", "--action-policy", "--allowed-domains", "--model", "--debug"

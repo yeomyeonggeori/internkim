@@ -48,6 +48,9 @@ func NewCall(kind Kind, programName string, arguments []string, text string) (Ca
 	if !program.isOfKind(kind, command) {
 		return Call{}, errors.New(program.wrongCommandMessage(programName, kind, command))
 	}
+	if refused, isRefused := program.refusedIn(arguments); isRefused {
+		return Call{}, fmt.Errorf("%s is never run with %q here", programName, refused)
+	}
 	call := Call{Program: programName, Arguments: slices.Concat(program.Observation.sized(arguments), program.AppendedArguments)}
 	if text == "" {
 		return call, nil

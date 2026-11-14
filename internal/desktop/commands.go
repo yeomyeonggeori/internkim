@@ -22,6 +22,7 @@ type Program struct {
 	AppendedArguments []string    `json:"appendedArguments"`
 	Read              []string    `json:"read"`
 	Act               []string    `json:"act"`
+	RefusedOptions    []string    `json:"refusedOptions"`
 	Observation       Observation `json:"observation"`
 }
 
@@ -48,4 +49,14 @@ func ProgramNames() []string {
 
 func (program Program) Acts(command string) bool {
 	return slices.Contains(program.Act, command)
+}
+
+func (program Program) refusedIn(arguments []string) (string, bool) {
+	index := slices.IndexFunc(arguments, func(argument string) bool {
+		return names(program.RefusedOptions, argument)
+	})
+	if index < 0 {
+		return "", false
+	}
+	return arguments[index], true
 }
