@@ -43,16 +43,23 @@ root로는 실행을 거부하기 때문입니다.
 
 | 워크스페이스 경로 | 권한 모델 | 담는 것 |
 |---|---|---|
-| `/workspace/private/people/<personID>` | 요청자 전용, `0700` | 개인 공간: `tmp/` 초안, `artifacts/` 결과물 |
+| `/workspace/private/people/<personID>` | 요청자 전용, `0700` | 그 사람의 홈. 그가 시작한 대화는 모두 여기서 일함: `tmp/` 초안, `artifacts/` 결과물 |
 | `/workspace/private/protected/<personID>` | 서비스가 쓰고 그 사람의 그룹이 읽음, `2750` | 그 사람의 기억 |
 | `/workspace/circles/<circleID>` | 서비스가 쓰고 서클 그룹이 읽음, `2750` | 그 서클의 메모리 |
 | `/workspace/shared/cache/dependencies` | 공유 캐시 그룹 | 패키지 캐시만 |
-| `/workspace/skills` | 읽기와 실행 | 내장 스킬 소스 |
 | `/workspace/.blueclaw` | 서비스 소유 | 폴리시, 로그, 내부 상태 |
+
+내장 스킬은 워크스페이스 바깥, Linux에서는 `/opt/internkim/skills`에 있고,
+작업 사용자는 읽을 수만 있고 바꿀 수는 없습니다.
 
 허용 명령 목록도, 경로 문자열 필터도 없습니다. 시스템을 바꿀 명령은 그것을
 실행하는 사용자가 그럴 수 없기 때문에 실패하는데, 그 사람이 셸에서 직접 쳐도
 실패하는 이유와 같은 이유입니다.
+
+데스크톱 도구는 호스트를 떠나는 유일한 실행입니다. 요청자 자신의 컴퓨터에서,
+데스크톱 앱을 거쳐, 그 컴퓨터의 그 사람 계정으로 돌고, 그 사람이 김인턴이 그
+컴퓨터를 쓰도록 스위치를 켜 둔 동안에만 돕니다. 예약 실행에는 이 도구가 주어지지
+않습니다.
 
 ## 둘이 만나는 단 한 곳 [#the-one-place-they-meet]
 

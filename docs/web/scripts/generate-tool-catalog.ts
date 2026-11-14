@@ -1,6 +1,7 @@
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { baseTools } from '../app/lib/openapi';
 
 const projectDirectory = dirname(dirname(fileURLToPath(import.meta.url)));
 const canonicalCatalogPath = join(
@@ -33,6 +34,7 @@ function firstSentence(description: string): string {
 }
 
 const canonicalCatalog: CanonicalCatalog = JSON.parse(await readFile(canonicalCatalogPath, 'utf8'));
+const toolsCalledOverHTTP = new Set(baseTools().map((tool) => tool.name));
 
 const catalog = {
   protocolVersion: canonicalCatalog.protocolVersion,
@@ -48,6 +50,7 @@ const catalog = {
     requiresUserPresence: tool.requiresUserPresence,
     privacyClass: tool.privacyClass,
     version: tool.version,
+    isCalledOverHTTP: toolsCalledOverHTTP.has(tool.name),
   })),
 };
 

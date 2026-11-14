@@ -1,6 +1,6 @@
 ---
 title: Handing InternKim work
-description: Where and how to ask, what it can take on, and when it checks with you first.
+description: Where and how to ask, what it can take on, what happens while it works, and when it checks with you first.
 icon: MessageCircle
 ---
 
@@ -10,6 +10,7 @@ forms: say what you want, and attach a file if it helps.
 ## Where to ask [#where]
 
 - **The web app's messenger.** Talk to InternKim one to one, or call it into a team channel.
+- **The internkim app.** On a Mac, an iPhone or an Android phone, the app opens the same messenger and notifies you of replies.
 - **The company messenger app.** The same conversation continues in the messenger app on your phone or desktop.
 - **In a channel.** Where several people talk, mention InternKim and it answers that message.
 
@@ -30,13 +31,48 @@ Every one of these is the same conversation. Ask on the web and read the answer 
 | Looking things up | “What's the exchange rate this week?”, “Will it rain in Seoul tomorrow?” |
 
 Send a picture or a file along and it works from what is in it. Mail needs your
-mail account connected once in settings.
+mail account connected once, under Mail settings on the Mail page.
+
+## While it works [#while-it-works]
+
+A bubble beside InternKim's picture lists the steps it is taking, and the
+answer takes its place. You can keep writing meanwhile. Each message you send
+during a task is weighed once against it: a question about progress is
+answered, a correction changes the work under way, and "stop" or a new
+instruction in its place ends it. A separate request waits and is answered as
+its own once the task ends.
+
+`/stop` stops the latest task in the conversation at once, and `/stop-all`
+stops every task you have running. Scheduled runs stay scheduled. A task that
+could not finish what you asked ends as failed, and the reply says what was
+left undone.
 
 ## When it checks with you first [#asks-first]
 
 Before anything hard to undo, it asks the person who asked. You get a
-notification and approve or decline in the conversation. When it is unsure
-what you mean, it asks rather than guesses.
+notification, and the question appears in the conversation as a card whose
+options only you can press. You can also answer in your own words. Scheduled
+work is asked about once, when you schedule it, and its runs then go ahead
+without asking again. When it is unsure what you mean, it asks rather than
+guesses. [The tools page](/tools#approval) says which calls ask.
+
+## On your own computer [#your-computer]
+
+With the internkim desktop app open, you can ask for something done in an app
+on your own computer. The app asks once, after you first sign in, whether
+InternKim may use the computer, and the switch under This computer in
+Settings → Notifications changes the answer later. On a Mac the app also needs
+the Accessibility permission. Scheduled runs never use your computer.
+[How it works](/tools#desktop).
+
+## Briefings [#briefings]
+
+Every morning at 8:00 InternKim sends you a direct message with today's
+schedule, the work under way and what is planned. Every Friday at 12:00 it sends
+a short report of your week: what you finished, what is in progress and what
+comes next. A week with no work sends no report. Both follow the company's
+time zone, and Settings → My InternKim changes their times, the report's day,
+or turns either off.
 
 ## Whose permissions it uses [#whose-permissions]
 

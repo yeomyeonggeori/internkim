@@ -48,16 +48,23 @@ refuses every workspace tool. On both, the blueclaw service itself runs as the
 
 | Workspace path | Permission model | Holds |
 |---|---|---|
-| `/workspace/private/people/<personID>` | requester only, `0700` | personal space: `tmp/` drafts, `artifacts/` output |
+| `/workspace/private/people/<personID>` | requester only, `0700` | the person's home, where every conversation they start works: `tmp/` drafts, `artifacts/` output |
 | `/workspace/private/protected/<personID>` | the service writes, the person's group reads, `2750` | that person's memory |
 | `/workspace/circles/<circleID>` | the service writes, the circle's group reads, `2750` | that circle's memory |
 | `/workspace/shared/cache/dependencies` | shared cache group | package caches only |
-| `/workspace/skills` | read and execute | built-in skill source |
 | `/workspace/.blueclaw` | service-owned | policy, logs, internal state |
+
+The built-in skills sit outside the workspace, in `/opt/internkim/skills` on
+Linux, where a task user may read them and not change them.
 
 There is no list of allowed commands and no path-string filter. A command
 that would modify the system fails because the user running it may not,
 which is the same reason it would fail for that person at a shell.
+
+The desktop tools are the one kind of execution that leaves the host. They run
+on the requester's own computer, through the desktop app, as that person's own
+account there, and only while they have turned on the switch that lets
+internkim use it. A scheduled run never gets them.
 
 ## The one place they meet
 

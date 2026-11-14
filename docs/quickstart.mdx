@@ -40,7 +40,8 @@ name.
 ![The company sign-up page with a sample administrator address](/images/quickstart/signup-en.png)
 
 The address is the company's path in the web app,
-`https://intern.kim/<company-address>`, and the name its company computer takes.
+`https://intern.kim/<company-address>`, and the name a Kim mini takes once it
+belongs to the company.
 The setup screen opens next. Invite people there once the host is connected, so
 their temporary passwords are shown to you.
 
@@ -90,9 +91,9 @@ On Linux you can skip the connection file. Run only the first command, and the
 computer shows an eight-character code at `http://<computer>.local:18088/` on
 its own network, or prints it with `sudo internkim box code`. From a browser on
 the same network, enter the code on the setup page, check that the last four
-characters of the computer's key match the ones its page shows, and confirm. The
-setup page then asks for the OpenRouter key and encrypts it so only that
-computer can read it.
+characters of the computer's key match the ones its page shows, and confirm.
+Unless a subscription pays for the models, the setup page then asks for the
+OpenRouter key and locks it so only the company's computers can open it.
 
 </Step>
 
@@ -117,9 +118,7 @@ Open the reply below your message to see the result. You can also check the new
 item in `Tasks`.
 
 The agent spends the company's credits first and the OpenRouter key entered
-during installation only once the credits are refused. People use the
-hosted web app and the company's messenger without installing the server
-locally.
+during installation only once the credits are refused.
 
 </Step>
 
@@ -128,9 +127,11 @@ locally.
 ## If the computer is replaced
 
 The connection file is tied to the company. Download a replacement from
-`https://intern.kim/<company-address>/settings/setup` when the existing
-connection must be replaced, then apply it on the new computer. The connection
-file alone does not carry host data. Back up the host data described in
-[What lives where](/what-lives-where) before moving the server. Company and
+`https://intern.kim/<company-address>/settings/setup`, or from Settings → Host,
+which shows the same company computer card, when the existing connection must be
+replaced, then apply it on the new computer. The connection file alone does not
+carry host data. To move a Linux host with its data, follow
+[Restore onto another computer](/running-the-host#restore-onto-another-computer);
+[What lives where](/what-lives-where) says what that data is. Company and
 member accounts in the hosted service remain, while the old connection file
 stops working after replacement.

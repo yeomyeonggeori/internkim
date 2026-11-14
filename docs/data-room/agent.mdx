@@ -38,7 +38,9 @@ A member reads through their circles, so giving a colleague access means
 placing them in a circle. Sharing with someone outside the company is a code
 link made from one circle with `dataroom_link_add`. A circle names parent or
 intermediate codes. An agent edits a circle or adds a child only after checking
-the people whose access changes. Putting a document or a field on the public
+the people whose access changes. A company page field follows a category too:
+`dataroom_field_update` names the category whose readers see it, and
+`dataroom_field_name_update` records what the company calls it. Putting a document or a field on the public
 page with `dataroom_publication_update` needs an explicit request naming it.
 
 The dataroom skill ships this workflow. Its standalone helper builds a tree

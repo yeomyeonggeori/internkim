@@ -17,8 +17,8 @@ the company's computer — the messenger, the workspace, the browser — so thos
 calls are carried there and the answer comes back.
 
 <Cards>
-  <Card title="Invoking tools" href="/docs/api/tools" description="List the tools, call one, read what actually changed" />
-  <Card title="Driving the agent" href="/docs/api/agent" description="Send a message and let the agent choose the tools" />
+  <Card title="Invoking tools" href="/api/tools" description="List the tools, call one, read what actually changed" />
+  <Card title="Driving the agent" href="/api/agent" description="Send a message and let the agent choose the tools" />
 </Cards>
 
 ## Getting a token [#getting-a-token]
@@ -132,14 +132,14 @@ session reaches them. The tools for the same acts are held to the token's rung
 instead. `person_invite` takes a write token. `person_withdraw`,
 `person_password_reset` and `person_message_delete` are destructive, so they
 take an `ik_` token with the delete rung, which no app's token reaches. What the
-connection file is for is in the [Quickstart](/docs/quickstart),
+connection file is for is in the [Quickstart](/quickstart),
 and the install runs on that computer, so nothing here performs it.
 
 Until the account belongs to a company, every tool call answers `403` naming
 that as what is missing, and the same client succeeds once it does.
 
 The [internkim plugin](https://github.com/yeomyeonggeori/internkim-plugin)
-declares the same server in its `mcp.json`, so [installing the plugin](/docs/plugin)
+declares the same server in its `mcp.json`, so [installing the plugin](/plugin)
 connects it the same way. A client without MCP authorization sends an `ik_` token as
 the bearer header.
 
@@ -151,39 +151,49 @@ never from its name.
 
 | Permission | Opens |
 |---|---|
-| `read` | tools whose `sideEffectClass` is `read` |
-| `write` | those, plus every writing class: workspace writes, external edits and sends, publishing, connections, browser actions, and the [agent endpoints](/docs/api/agent) |
+| `read` | tools whose `sideEffectClass` is `read` or `computation` |
+| `write` | those, plus every writing class: workspace writes, external edits and sends, publishing, connections, and the [agent endpoints](/api/agent) |
 | `delete` | everything, including deletes |
 
-The writing set is the list in `web/src/lib/server/public-api/catalog.ts`, and
-a descriptor carrying a `sideEffectClass` that is not in it needs `delete` — in
-the app that lists the tools and again on the machine that runs one. An
-unrecognized class fails closed at both ends.
+The writing set is every class the descriptor schema names except the reading
+ones and `destructive` (`web/src/lib/server/public-api/catalog.ts`), and a
+descriptor carrying a class the schema does not name needs `delete`, in the app
+that lists the tools and again on the machine that runs one
+(`publicToolPermissionForDescriptor` in `internal/admind/public_tool_gateway.go`).
+
+The browser and desktop tools are answered beside the agent, so no token reaches
+them. The base catalog leaves them out, and invoking one answers `400` with
+`tool_out_of_reach`.
 
 ## Errors [#errors]
 
-Success bodies are JSON, and so is a tool's refusal: `error` in its own words,
-with `errorCode`, `failureStage`, `retryable` and `safeRetry`, which say whether
-to retry and whether a person has to be asked first. A
-[hint refusal](/docs/api/tools#choosing-a-target-with-a-hint) adds `hint` and
+Success bodies are JSON, and so is every refusal a tool call meets, whether the
+input, the token's permission or the record caused it: `error` in its own
+words, with `errorCode`, `failureStage`, `retryable` and `safeRetry`, which say
+whether to retry and whether a person has to be asked first. A
+[hint refusal](/api/tools#choosing-a-target-with-a-hint) adds `hint` and
 `candidates` so the next call can name one. A tool that broke answers `500` with
-`error` alone. Other error bodies are plain text, except the catalog's own
-`{"error":"not found"}`.
+`error` alone, so it never reads as an input to fix. Sign-in and gateway errors
+are plain text, and so is the catalog's own `{"error":"not found"}`.
 
 Two machines answer, and they do not share their wording. The app answers
 everything it resolves itself:
 
 | Status | Body | When |
 |---|---|---|
-| `400` | decode error, `this call carried a body that is not a json object`, `input is the object the tool reads` | the body is not valid JSON, or `input` is not an object |
-| `400` | `<field>: <what the schema says>`, such as `input.title: Invalid input: expected string, received undefined` | `input` does not satisfy the tool's published `inputSchema` |
+| `400` | decode error, `this call carried a body that is not a json object` | the body is not valid JSON |
+| `400` | `invalid_input`: `input is the object the tool reads` | `input` is not an object |
+| `400` | `invalid_input`: one sentence per field, such as `input.title is required and is missing` or `input.mood is not a field this tool takes` | `input` does not satisfy the tool's published `inputSchema` |
+| `400` | `tool_out_of_reach` | a browser or desktop tool, which runs beside the agent |
 | `401` | `sign in first` | no `Authorization: Bearer` header, or the token names no account |
 | `401` | `that key belongs to nobody` | the `ik_` token is unknown or revoked |
-| `403` | `refused` | the account signed in is a member of no company |
+| `401` | `this token has expired; make another by the same name to renew it` | the `ik_` token is past its expiry |
+| `403` | `this account belongs to no company yet; start one at <app>/start` | the account signed in is a member of no company |
 | `403` | `token owner is not active member` | the `ik_` token's owner left or was deactivated |
-| `403` | `this token may only <permission>, and <tool> <permission>s` | the token's permission is below what the tool requires |
+| `403` | `access_denied`: `this token may only <permission>, and <tool> <permission>s` | the token's permission is below what the tool requires |
 | `403` | `write permission required` | an agent endpoint with a read-only token |
 | `404` | `{"error":"not found"}` | `GET /v1/tools/<name>` for a tool this token cannot see |
+| `404` | `not_found`: `no tool here goes by <name>` | invoking a tool the catalog does not have |
 | `409` | `a token cannot revoke itself...` | `DELETE /v1/token` naming the token that authenticated the call |
 | `409` | the hint refusal, with `errorCode`, `hint` and `candidates` | a hint that matched more than one thing, came close to some, or matched nothing |
 | `403`, `422` | the company machine's answer, with `outcome`, `errorCode` and `retryable` | a tool the company machine ran was `denied` (`403`) or `failed` (`422`) |

@@ -41,7 +41,7 @@ Codex는 플러그인을 설치해도 로그인시키지 않습니다. 로그인
 
 MCP 인증이 없는 클라이언트는 계정 설정에서 발급한 개인 액세스 토큰을
 `Authorization: Bearer ik_…`로 보냅니다. 토큰 권한별로 열리는 범위는
-[권한](/ko/docs/api#permissions)에 있습니다.
+[권한](/ko/api#permissions)에 있습니다.
 
 ## 김인턴에게 일 맡기기 [#hand-the-agent-work]
 
@@ -49,7 +49,9 @@ MCP 인증이 없는 클라이언트는 계정 설정에서 발급한 개인 액
 `targetType`이 `directMessage`이고 `personHint`가 없는 `message_send`는 내
 이름으로 김인턴과의 1:1 대화에 올라가고, 김인턴은 거기 직접 입력한 메시지와
 똑같이 받아 처리합니다. `scope`가 `directMessage`인 `message_search`는 그
-대화를 읽고, `personHint`를 주면 그 동료와의 1:1 대화를 읽습니다.
+대화를 읽고, `personHint`를 주면 그 동료와의 1:1 대화를 읽습니다. 채널에 보내는
+메시지는 김인턴 이름으로 나가고, `sender`를 `requester`로 주면 내 이름으로
+올라갑니다.
 
 여기서 하는 검색은 채널을 포함해 모두 내 계정으로 읽습니다. 메신저가 나에게
 보여 주는 만큼, 곧 내가 들어가 있는 방과 공개 채널이 보입니다. 메신저에서
@@ -59,7 +61,7 @@ MCP 인증이 없는 클라이언트는 계정 설정에서 발급한 개인 액
 
 계산기와 날씨처럼 몇몇 스킬은 내 컴퓨터에서만 돌고 계정이 필요 없습니다.
 나머지는 툴 서버를 불러 회사 기록을 읽고 씁니다. 문서, PDF, 스프레드시트,
-프레젠테이션은 [`office`](/ko/docs/office) 스킬 하나가 맡습니다. 이 스킬은 내 컴퓨터에서 돌고, 회사
+프레젠테이션은 [`office`](/ko/office) 스킬 하나가 맡습니다. 이 스킬은 내 컴퓨터에서 돌고, 회사
 레터헤드에 서식을 채우거나 첨부를 읽을 때만 서버를 부릅니다. 어떤 스킬이 어느
 쪽인지 가리는 법은 플러그인 [DOCS.md](https://github.com/yeomyeonggeori/internkim-plugin/blob/main/DOCS.md#skills)에 있습니다.
 

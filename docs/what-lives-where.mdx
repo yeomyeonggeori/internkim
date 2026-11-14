@@ -14,7 +14,7 @@ machine belongs on the host.
 
 Every table here is something a company would still need after replacing every
 computer it owns. `supabase/migrations` is the schema itself, one migration
-per change, and [What the tables mean](/docs/record/schema) explains what
+per change, and [What the tables mean](/record/schema) explains what
 each table is for. Read the table list from the migrations rather than here, which drifts.
 
 Calendar events are tasks with a span and `is_event`, which is why there is
@@ -23,8 +23,8 @@ conversation can reach the record.
 
 Every file a browser opens or sends crosses the company's `asset` bucket in
 Supabase Storage, because the computer that holds the file is on another
-network. The conversation and the workspace stay on that computer; the bucket
-only ever holds a copy.
+network. The conversation and the workspace stay on that computer, and for
+their files the bucket only ever holds a copy.
 
 | Prefix | What it holds | Who reads it | How long |
 |---|---|---|---|
@@ -50,7 +50,7 @@ its members share, and the workspace's file holds what everyone shares. The
 service writes every file, and the subject's group may only read it. A recall
 runs as the reader's own Linux user, so the kernel decides which files open:
 their own, their circles' and the workspace's. Data room documents are never
-copied in; a recall [asks the data room](/docs/data-room/agent) as the reader.
+copied in; a recall [asks the data room](/data-room/agent) as the reader.
 
 What a conversation says reaches a shared file only when the conversation's
 people are exactly that file's readers. A room the whole company is in writes
@@ -78,23 +78,29 @@ failed run diagnosable after the fact.
 ## The relay's state
 
 `RELAY_STATE_DIR`, which the package sets to `/var/lib/internkim-relay`, holds
-what the relay must survive a restart with: `inbound/`, the messages the agent has not taken
-yet, and `questions/`, the approval questions still waiting for an answer.
-Both empty themselves as the work moves on.
+what the relay must survive a restart with: `inbound/`, the messages the agent
+has not taken yet, `sessions.json`, which agent session answers which
+conversation, and `browser-handoffs.json`, the browser sessions handed to a
+person to finish by hand. An approval question still waiting is blueclaw's to
+keep, and it asks again after a restart.
 
 ## Files
 
 The workspace lives on the host, under the permissions described in
-[Boundaries](/docs/boundaries). Private space per person, shared space per
-circle, and a service-owned area the agent's own machinery uses. The skills
+[Boundaries](/boundaries): a home per person, where every conversation
+they start works, a directory per circle that holds only its memory, and a
+service-owned area the agent's own machinery uses. A file anyone else should
+read goes to the data room. The skills
 the agent loads ship in the package, from `.dependency/internkim-plugin/`, and
 belong to no company.
 
 Backing the host up is the company's job, and `internkim backup` does it every
-day ([Running the host](/running-the-host) says how). A company on several boxes also keeps its
-database's WAL and every changed file off the box, sealed to its key, before a write counts, which a standby box takes it over from
-([Kim Mini](/kim-mini)). Losing the host loses the agent's memory,
-its history, the files and any message still queued, and loses none of the
-company's records. That asymmetry is deliberate: keeping the agent's memory
+day ([Running the host](/running-the-host) says how). A company on several boxes also
+keeps its database's WAL and every changed file off the box, sealed to its key,
+before a write counts, and a standby box takes the company over from them
+([Kim Mini](/kim-mini)). Losing a lone host loses the agent's memory, its
+history, the files and any message still queued, apart from what a backup kept
+elsewhere holds; a company of several boxes loses nothing that was saved. Neither loses
+any of the company's records. That asymmetry is deliberate: keeping the agent's memory
 central would mean holding a company's internal knowledge on our side, the
 thing this design avoids for messages and mail.

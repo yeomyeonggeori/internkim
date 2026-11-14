@@ -7,7 +7,7 @@ You can also hand internkim a whole task: send a message and let it decide
 which tools the work needs. The message enters through the same
 connector runtime as a messenger message, runs under the token owner's
 identity, and lands in the same task ledger. Both endpoints need a `write`
-token or better; see [permissions](/docs/api#permissions).
+token or better; see [permissions](/api#permissions).
 
 ## Sending a message [#sending-a-message]
 
@@ -88,8 +88,16 @@ curl https://api.intern.kim/v1/agent/messages \
 ```
 
 An approving answer continues the run; a refusing one ends it. This differs
-from [direct tool invocation](/docs/api/tools#invoking), where the token's
+from [direct tool invocation](/api/tools#invoking), where the token's
 permission stands in for approval and nothing pauses.
+
+## Writing while it works [#while-it-works]
+
+A message sent to the same conversation while a task runs is read the way a
+messenger message is: [while it works](/using#while-it-works) says what a
+correction, a stop or an unrelated request does to the running task, and what
+`/stop` and `/stop-all` stop. Through the API, `/stop-all` reaches every task
+the token's owner has running.
 
 ## The same ledger [#the-same-ledger]
 
@@ -104,7 +112,8 @@ behalf.
 | Concern | Where |
 |---|---|
 | Both endpoints, the permission check, conversation and message ID defaults | `handleAgentMessage`, `handleAgentReplies` in `internal/admind/agent_drive.go` |
-| Forwarding to the runtime | `blueclawJSONRequest` in `internal/admind/service.go`, to `POST /connectors/api/events` and `GET /agent/api/replies` |
+| Forwarding to the runtime | `blueclawJSONRequest` in `internal/admind/service_first_admin.go`, to `POST /connectors/api/events` and `GET /agent/api/replies` |
+| A message sent mid-run, `/stop` and `/stop-all` | `.dependency/blueclaw/internal/connectors/task_control.go`; which judgments end the task is `BusyRoute` in `internal/inboundengagement/vocabulary.go` |
 | Route wiring in the runtime | `.dependency/blueclaw/internal/httpserver/router.go` |
 | The `api` connector adapter | `.dependency/blueclaw/internal/connectors/api/api_adapter.go`; identity is resolved from the sender email |
 | The reply buffer | `.dependency/blueclaw/internal/connectors/api/reply_store.go` |

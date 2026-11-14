@@ -15,7 +15,7 @@ A company can run as much of internkim as it wants and leave the rest to
 
 ## Level 1: the host on your own computer
 
-Install [the host](/docs/running-the-host) on a computer the company leaves on,
+Install [the host](/running-the-host) on a computer the company leaves on,
 such as a Kim mini, a Mac or a Linux machine. The company's record, the web app and the
 sign-in address stay with `intern.kim`. The host connects outward, and once it
 belongs to a company nothing listens off loopback, so the computer needs no
@@ -26,7 +26,7 @@ public address.
 The record moves to a Supabase project you run, and the web app is deployed to
 your Cloudflare account and served from your own domain, which
 `CLOUDFLARE_DOMAIN` names. Deploying the web app yourself is what lets it read
-your project's address and keys from its settings. [What lives where](/docs/what-lives-where)
+your project's address and keys from its settings. [What lives where](/what-lives-where)
 says which data that project holds. Self-hosted Supabase ships the same
 Postgres and the same row level security, so the schema in `supabase/migrations`
 applies unchanged.
@@ -56,9 +56,11 @@ is applied to your project, through the Supabase CLI. Sign in with your own
 no Supabase access token is kept with the project's keys.
 
 A release therefore goes in one order: `supabase db push`, then the web app,
-then the edge functions and the gateway. Each migration is written to hold while
-the previous web app is still running, so one that asks more of a session
-accepts the sessions issued before it until they expire.
+then the edge functions and the gateway, and the hosts last. Each migration is
+written to hold while the previous web app is still running, so one that asks
+more of a session accepts the sessions issued before it until they expire. A
+host reads who works at the company from the web app, and a newer host refuses
+the answer an older web app gives, so its upgrade does not finish.
 
 ```bash
 cd web
@@ -88,7 +90,13 @@ wildcards.
   with a `308`. Name a route once, the first time the gateway answers on it:
   `web/scripts/deploy-worker.ts workers/connection-gateway --route-subdomain <gateway> --route-subdomain <slug>`.
   Every later deploy takes no route argument. It reads the routes the worker
-  already answers on from Cloudflare and sends them again.
+  already answers on from Cloudflare and sends them again, and `--plan` prints
+  that set without deploying.
+- A company that brings no OpenRouter key reaches its models through your
+  project's `model-gateway` edge function, which charges the company's credits.
+  It calls OpenRouter with the function secret `OPENROUTER_API_KEY` and prices a
+  credit in dollars with `MODEL_CREDIT_DOLLARS`. It answers `402` while either
+  is unset, and then every company gives its host its own key.
 - `supabase config push` sends the whole `config.toml`, so any setting the file
   omits returns to the CLI default. Read the diff it prints before trusting the exit
   code.
@@ -103,7 +111,7 @@ company chooses its own route to the computer:
 - the host on a cloud server that already has a public address
 
 The tunnel or the server is the operator's. `~/.ssh/config` names the route, as
-for [any host](/docs/architecture#why-the-host-has-no-inbound-port).
+for [any host](/architecture#why-the-host-has-no-inbound-port).
 
 ### Through your own Cloudflare Tunnel
 

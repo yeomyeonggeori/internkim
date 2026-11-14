@@ -54,6 +54,17 @@ stored nowhere: active human members who have joined and whose last day has not
 passed. An administrator corrects it by setting `kind` or `departureDate`
 through `person_update`.
 
+## People and teams [#people]
+
+What the organization knows about a person is on `member` too: `job_title`,
+`team_id`, `supervisor_id`, `phone_number`, `joined_at` for the hire date, and
+`status`. `team` is the organization chart, a tree through `parent_id`.
+`person_set` writes a person in two halves, `account_changes` and
+`organization_changes`, and nothing else writes the organization half. A
+member changes only their own phone number and hire date; every other field,
+and anybody else's, is an administrator's. A change that would leave the
+company without an active administrator is refused.
+
 ## A task carries events and CRM activity [#tasks]
 
 There is no event table. An event is a task you have to show up for:
@@ -74,6 +85,16 @@ There is no CRM activity table either. A task with an `organization_id` is the
 activity, and `opportunity_id` and `contact_id` add context. Deferred
 constraints hold every reference a task names to one company and one
 organization.
+
+## Task guests [#task-guests]
+
+An administrator can invite an email address to read the tasks of one or more
+businesses, the names in `company.task_vocabulary`. `task_invitation` holds the
+address, the businesses, who invited and when it was accepted or revoked, and
+only administrators read it. `task_invitation_board` assembles the guest's
+board in the database from the invited businesses alone, so a task of another
+business, its name, its count and its people never leave it. A business an
+open invitation names cannot leave the task vocabulary.
 
 ## Time and its units [#time]
 
@@ -191,6 +212,14 @@ for the rest of the period, and its invoice grants credits for what its
 prorated lines net to. A seat given up is not refunded; the next period bills
 the lower count.
 
+An administrator can let the company buy credits by itself.
+`company_credit_top_up_setting` says whether, below which balance and for how
+much. A usage line that takes the balance under the threshold asks for a
+top-up, a one-off Stripe invoice on the subscription's card kept in
+`company_credit_top_up`, and the paid invoice grants permanent credits as a
+`purchase` line. A company holds at most one pending top-up and five in thirty
+days, and a charge that fails turns top-ups off.
+
 A model call spends them through the `model-gateway` edge function. The
 company's computer signs in with its agent key or host session and names the
 email of the person who asked in the `x-internkim-requester-email` header. The
@@ -261,7 +290,9 @@ share a key are two fields. The kinds are `profile` (a `company.profile` key,
 
 A field with no row, or a row with no `category_code`, is shown only to readers
 of X. `is_public` puts the field on the company's public page for anyone,
-whatever category holds it; every company starts with its `name` published. `names` holds only what the company chose. The product's own name for a
+whatever category holds it; every company starts with its `name` published. A
+data room document is on the public page from its `public_since`, and one in
+the unclassified category X never is. `names` holds only what the company chose. The product's own name for a
 field stays in the app, and a field the product does not name shows its key.
 A new company takes rows for the fields its data room template places.
 
@@ -269,7 +300,7 @@ A new company takes rows for the fields its data room template places.
 
 The company row holds no seal. The seal, the letterhead logo and any later
 file the service itself reads are data room documents under a fixed name in a
-fixed category, as [document metadata](/docs/data-room/metadata) describes. A
+fixed category, as [document metadata](/data-room/metadata) describes. A
 dated name, `<name>.<YYYY-MM-DD>.<documentID>.<extension>`, has to carry the
 document's `document_date`, and only an administrator writes one, so a member
 who files in the same category cannot put a seal of their own forward. Every
@@ -289,8 +320,11 @@ the service role.
 |---|---|---|
 | `company` | its members | its administrators |
 | `member` | its company | the API only |
-| `credential` | the holder; a messenger identity also their colleagues | the holder |
-| `task`, `task_participant` | the company | any member |
+| `team` | its company | administrators, through the API |
+| `credential` | the holder; a messenger identity also their colleagues; the company's own credentials its administrators | the server only |
+| `task` | the company, except a deal's activity, as [CRM](#crm) says | added by any member; changed or deleted by its requester, its participants and administrators, and by anyone when it is an event open to the company |
+| `task_participant` | whoever reads its task | the API only |
+| `task_invitation` | administrators | the API only |
 | `attendance` | the company | the member, and administrators |
 | `leave` | the company | requested by the member, decided by an administrator |
 | `push_device` | the owner | the owner |
@@ -300,7 +334,7 @@ the service role.
 A team grants its own `<company>/team/<teamID>/…`, a member sits in one team,
 and a path whose second segment no scope defines is denied. A member's circles
 are their rows in `circle_member`, described in
-[Access and sharing](/docs/data-room/access).
+[Access and sharing](/data-room/access).
 
 The agent writes as the member it acts for, with that member's token, so it
 needs no policy of its own.

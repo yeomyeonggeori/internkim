@@ -14,9 +14,11 @@ The response is `{"tools": [...]}`, holding the full descriptor of every tool
 the key's permission can call, and a `catalog` field saying which list you got.
 The base catalog is answered without asking the company machine, so it is the
 fast one and it is the same for everyone; it is also documented on the
-[tool catalog](/docs/tools/catalog) page. Whether a tool can run right now is
+[tool catalog](/tools/catalog) page. Whether a tool can run right now is
 known only on the machine, and a company may carry tools the base list does
 not. Ask for those with `?live=true`, which costs the round trip. `X-INTERNKIM-CATALOG` says `base` on either discovery answer.
+The browser and desktop tools run beside the agent, so the base list leaves
+them out.
 
 ## Reading a descriptor [#reading-a-descriptor]
 
@@ -54,10 +56,17 @@ admind invokes the tool; the test
 `input` is read against that tool's own `inputSchema` before anything runs,
 whether the record answers the call or it is carried to the company's computer.
 A value outside an enum, a field the schema does not carry, or a required field
-left out is refused `400` naming the field:
+left out is refused `400` with one sentence per field, naming what it takes and
+what came in:
 
 ```json
-{ "message": "input.size: Invalid option: expected one of \"XS\"|\"S\"|\"M\"|\"L\"|\"XL\"|\"XXL\"" }
+{
+  "error": "input.size must be one of \"XS\", \"S\", \"M\", \"L\", \"XL\", \"XXL\", and it is \"XXXL\"",
+  "errorCode": "invalid_input",
+  "failureStage": "input_validation",
+  "retryable": true,
+  "safeRetry": true
+}
 ```
 
 ### Saying a field has no value [#no-value]
@@ -74,24 +83,22 @@ is not refused for the way it spelled an empty one.
 That call is the same as sending `title` alone.
 
 This applies only where the schema allows the field to be left out. A field the
-tool requires is refused when you send it empty, because "you sent nothing" and
-"you forgot this" need different answers:
-
-```json
-{ "message": "input.title: Invalid input: expected string, received undefined" }
-```
+tool requires keeps what you sent, because "you sent nothing" and "you forgot
+this" need different answers: `"title": ""` is refused as `a task needs a
+title`, and a `title` left out as `input.title is required and is missing`.
 
 <Callout title="No approval pause" type="warn">
 In a messenger conversation the agent stops and asks before a delete or a
-send. Every non-read invocation arriving this way is marked an already-approved
-continuation, so the same tools act immediately here. The permission on the
-token is the consent: a `delete` token deletes without a question.
+send. A call arriving here carries the `public_api` task source, which the
+company's computer reads as already approved, so the same tools act
+immediately. The permission on the token is the consent: a `delete` token
+deletes without a question.
 </Callout>
 
 ## The response [#the-response]
 
-A tool that runs on the record — task, calendar, people, leave and attendance —
-answers `{ "tool": ..., "result": ... }`, because the plane ran it itself. A
+A tool whose descriptor says `answeredBy` `record` answers
+`{ "tool": ..., "result": ... }`, because the plane ran it itself. A
 historical or administrator attendance write also carries `notified`, saying
 who was told about it or which administrators were asked.
 The live self-clock path has no `notified` field; it saves first, then starts
@@ -142,8 +149,8 @@ location as authoritative for the UI without refreshing the list.
 searched, bounded employee page within one selected team. It derives the company
 from the authenticated member, enforces the team-view setting, and returns
 status, recent real clock actors and recorded locations without month history.
-Its `teamLimit` and `memberLimit` are capped at 24 and 48. The monthly comparison
-and an individual member's period history are separate requests.
+The monthly comparison and an individual member's period history are separate
+requests.
 
 Every field here is the tool's own `outputSchema`, which the descriptor carries
 and the record answer is held to: nothing else may appear, and the record's
@@ -182,6 +189,11 @@ A tool carried to the company's computer answers the fuller shape below —
 | `result` | the tool's output, matching its `outputSchema` |
 | `isError`, `message`, `errorCode`, `failureStage` | failure detail |
 | `retryable`, `safeRetry` | whether a retry is sensible, and whether it is safe |
+
+A call that ran past its tool's budget fails with `errorCode` `timeout` and
+says its work may still have taken effect, so read before you repeat it
+([budgets](/tools#budgets)). One whose handler crashed fails with
+`tool_crashed`.
 
 ## Looking before a destructive call [#looking-first]
 
@@ -235,9 +247,10 @@ an empty list means nothing changed. A record tool carries none, and its
 ## Idempotency [#idempotency]
 
 `idempotencyKey` is honored only where the descriptor's
-`idempotency.supported` is `true`. In the base catalog that is `message_send`;
-everywhere else the key is carried but changes nothing. For agent messages,
-[`messageID` deduplicates instead](/docs/api/agent#sending-a-message).
+`idempotency.supported` is `true`. In the base catalog those are the two sends,
+`message_send` and `mail_message_send`; everywhere else the key is carried but
+changes nothing. For agent messages,
+[`messageID` deduplicates instead](/api/agent#sending-a-message).
 
 `event_update` and `event_delete` take an optional `expectedUpdatedAt`, the
 `updatedAt` the caller last read, and answer `409` with
@@ -253,13 +266,9 @@ weeks. Stopped children are excluded; rejected children remain in the total.
 The board retains requested and paused work, current in-progress work, current
 undated or overdue plans, and dated plans and completed work for the selected
 week. Counts describe that selection. Complete history and lifetime metrics
-continue to use `task_list`.
-
-This separate read keeps the closed `task_list` result compatible with existing
-clients. Both tools use the caller's task read permission and RLS-enabled client;
-the board adds no database RPC or alternative access path. Its card query omits
-notes, locations and unrelated CRM fields. Child counts read only children of
-the returned cards. The web app loads complete history for views that need it.
+continue to use `task_list`. Both read a page at a time, follow `nextCursor`
+for the rest, and run as the caller under row level security, so the board sees
+no task `task_list` would not.
 
 ## Choosing a target with a hint [#choosing-a-target-with-a-hint]
 
@@ -316,7 +325,7 @@ caller's.
 
 ## End to end [#end-to-end]
 
-With a `write` token from [Getting a token](/docs/api#getting-a-token):
+With a `write` token from [Getting a token](/api#getting-a-token):
 
 ```bash
 curl https://api.intern.kim/v1/tools/task_add/invoke \
@@ -351,9 +360,10 @@ so nothing reaches the company's computer.
 | Concern | Where |
 |---|---|
 | List and read handlers | `discoveryAnswer` in `web/src/routes/api/v1/[...path]/+server.ts`, over `web/src/lib/server/public-api/catalog.ts` |
-| Invoke handler | `invokePublicTool` in `internal/admind/public_tool_gateway.go`, reached through the company's relay |
+| Invoke handler | `toolCalledByMember` in `web/src/lib/server/public-api/tool-call.ts`, which runs a record tool itself and carries the rest to `invokePublicTool` in `internal/admind/public_tool_gateway.go` through the company's relay |
+| Input gate and its sentences | `web/src/lib/server/public-api/tool-input.ts`, `schema-sentences.ts`; the refusal kinds in `refusal.ts` |
 | Descriptor fetch from `capabilityd` | `fetchCapabilityRegistry` over the unix socket, read in `exposableCapabilityDescriptors` |
 | The actor override | `invokePublicTool` sets `Actor`, `Context`, `PrivacyClass`, `RequiresUserPresence` after decoding your body |
-| The approval-continuation flag | `publicToolInvokeContext`, keyed on `publicToolPermissionForDescriptor` |
+| The approval continuation | `publicToolInvokeContext` names the `public_api` task source, which `isApprovedWithoutAHold` in `internal/capabilityd/tool_invocation.go` reads |
 | Request and response types | `ToolInvokeRequest`, `ToolInvokeResponse`, `ResourceEffect` in `pkg/capabilityprotocol/protocol.go` |
 | Input and output schemas | `pkg/capabilityprotocol/generated/capability-tools.json` |

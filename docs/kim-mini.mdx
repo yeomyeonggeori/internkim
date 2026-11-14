@@ -6,12 +6,13 @@ icon: Bot
 
 Kim mini is a small computer sold with internkim installed. It is optional
 hardware. The same software runs on any computer a company already has, and
-[the host](/docs/running-the-host) is what both install.
+[the host](/running-the-host) is what both install.
 
 This page describes how a box that has never been configured becomes one
 company's host, and how it proves itself afterwards. A Linux computer that
 installed the host package without a connection file waits in the same way, as
-an empty box.
+an empty box. What an administrator does here in company setup is on the
+company computer card, which the setup page and Settings → Host both show.
 
 ## Every box starts identical
 
@@ -93,7 +94,8 @@ the file system.
 
 A box has one login account, `admin`, and it has no `sudo`. It is in
 `systemd-journal`, so it reads every log, and in `internkim-admin`, so it restarts
-the host's services. The host is updated from company setup, as any host is.
+the host's services. The host is updated from Settings → Host, as any Linux
+host is.
 
 The image leaves `admin` without a password. Once the box is connected, an
 administrator sets one in company setup, on the monitor or over SSH it is the
@@ -165,10 +167,15 @@ company's services, answers the gateway and holds the company's data. Every othe
 box stands by. A standby box holds the company key and installs nothing, and the
 gateway refuses it, so two boxes never answer for one company at once.
 
+A Mac host keeps the agent key of its connection file, so it serves its company
+the way a service box does. A box added beside it stands by and never takes
+over. Replacing the Mac with the box is the way off it, and the box then starts
+the company without the Mac's data.
+
 The company key is what the model key, mail passwords and backups are sealed to.
 The first box's own encryption key becomes it. A box added later announces its
 own key, and a box that already holds the company key seals it to the newcomer at
-its next check, within five minutes. Until then the setup page says the new box
+its next check, within a minute. Until then the setup page says the new box
 is receiving the key.
 
 Every fifteen minutes the service box takes a snapshot of everything a backup
@@ -256,12 +263,14 @@ from then on.
 
 ## Models
 
-The administrator pastes an OpenRouter key at `intern.kim`. The browser encrypts it
-to the company key, and the ciphertext travels through the central plane to the
-box, which decrypts it on its own disk. The plane stores and relays a value it cannot
-read.
+A box reaches its models through the central plane's model gateway first, which
+calls OpenRouter with our key and charges the company's credits. The box asks it
+with its own session, renewed every hour. While the company subscribes, the
+setup page asks for no key, because the subscription's credits pay.
 
-A company that pastes no key reaches its models through the central plane's model
-gateway, which calls OpenRouter with our key and charges the company's credits. The
-box asks it with its own session, renewed every hour. A key pasted later restarts the
-box's services once, and from then on the box calls OpenRouter with it.
+Otherwise the administrator can paste an OpenRouter key at `intern.kim`. The
+browser encrypts it to the company key, and the ciphertext travels through the
+central plane to the box, which decrypts it on its own disk. The plane stores and
+relays a value it cannot read. A key pasted later restarts the box's services
+once. From then on a call the gateway refuses, because the credits ran out or a
+member reached their limit, goes to OpenRouter on the company's key.

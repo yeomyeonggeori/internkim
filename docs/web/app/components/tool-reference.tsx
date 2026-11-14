@@ -12,6 +12,7 @@ type ReferenceTool = {
   requiresUserPresence: boolean;
   privacyClass: string;
   version: string;
+  isCalledOverHTTP: boolean;
 };
 
 const labels: Record<ReferenceLanguage, Record<string, string>> = {
@@ -83,12 +84,16 @@ export function ToolReference({ name, language }: { name: string; language: Refe
       <h2 id="what-the-model-reads">{word.modelReads}</h2>
       <p>{tool.description}</p>
 
-      <h2 id="over-http">{word.endpoint}</h2>
-      <p>
-        <a href={`${language === 'ko' ? '/ko' : ''}/docs/api/reference/${tool.namespace}/${tool.name}`}>
-          <code>{`POST /tools/${tool.name}/invoke`}</code>
-        </a>
-      </p>
+      {tool.isCalledOverHTTP && (
+        <>
+          <h2 id="over-http">{word.endpoint}</h2>
+          <p>
+            <a href={`${language === 'ko' ? '/ko' : ''}/api/reference/${tool.namespace}/${tool.name}`}>
+              <code>{`POST /tools/${tool.name}/invoke`}</code>
+            </a>
+          </p>
+        </>
+      )}
     </>
   );
 }

@@ -26,10 +26,19 @@ reply of each thread with replies they have not read.
 | `approval` | an agent run needs a person | the requester |
 | `mail` | new mail arrives | the account's owner |
 
-The first five come from the central plane and need nothing else installed.
-`approval` and `mail` come from the company's computer, because the agent's
-runs and the mailbox are things only it can see. Every category is on by
-default except `mail`.
+`attendance`, `leave`, `task` and `calendar` come from the central plane and
+need nothing else running. `message`, `approval` and `mail` come from the
+company's computer: its relay reads the messages, and the agent's runs
+and the mailbox are things only it can see. Every category is on by default
+except `mail`.
+
+A message notification carries the message as plain text, cut at 140
+characters with an ellipsis. Markdown marks are dropped, a list item keeps its
+bullet or number, a table becomes one line per row and a link keeps its text.
+An attachment is named in the reader's language, `[Photo]`, `[Video]` or
+`[File]` in English and `[사진]`, `[동영상]` or `[파일]` in Korean. The
+message's first picture, when it is a JPEG, PNG or GIF of at most 5 MiB, travels
+with the notification as its image.
 
 Two switches decide whether a push is sent, and both belong to the person: the
 category switch in their settings, and whether they muted that conversation.
@@ -38,9 +47,9 @@ Both live in the member's `preferences`, as `notificationSettings` and
 Creating a channel, in the web app or through the agent, makes every company
 administrator an owner of it, and an administrator nobody invited starts that channel muted and can
 unmute it like any other conversation. Attendance also has a reach,
-`attendanceReach` in the same settings: `everyone`, `teamAndSupervisors` for the
-member's own team and every supervisor above them up to the top, or `team` for
-their own team alone. A supervisor in another team still counts. A member with
+`attendanceReach` in the same settings: `everyone`, `teamAndSupervisors` (My
+team and supervisors) for the member's own team and every supervisor above them
+up to the top, or `team` (My team) for their own team alone. A supervisor in another team still counts. A member with
 no device subscribed is never reached at all, which is the state everyone
 starts in.
 
@@ -107,6 +116,18 @@ WebKit drops the icon a notification carries, so the sender's name leads the
 body text. An Android phone that shows notifications only when the app is
 opened has put Chrome to sleep: the push arrived and waited, and battery
 optimisation for Chrome is what holds it.
+
+The internkim app receives the same pushes through APNs on Apple devices and
+FCM on Android, and draws them itself. On the first sign-in on a device it asks once
+for notification permission, then, in the desktop app, whether internkim may
+use the computer. A person who declines turns notifications on later in
+Settings → Notifications.
+
+| | iPhone | Android | Mac |
+|---|---|---|---|
+| Sender's picture | shown | shown | shown |
+| The message's picture | not drawn | expanded below the text, the sender's picture as its icon | not drawn |
+| A push while the app is open | a banner, except for the conversation on screen | posted like any other | a banner, except for the conversation on screen, which leaves nothing in Notification Center either |
 
 The attendance widget on an iPhone follows a clock-in or clock-out made
 elsewhere through a silent push that wakes the app. iOS holds those pushes back

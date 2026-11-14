@@ -19,12 +19,10 @@ The web app is the default. It includes attendance, leave, the calendar, work,
 the org chart, settings, and a messenger screen where people talk to internkim
 and each other.
 
-The messenger app works too wherever that messenger is reachable. The
-chat is your company's own messenger, a Buzz relay, so its ordinary apps sign
-in and work as usual. A messenger kept
-inside the office is reachable inside the office; the web app's chat screen is
-how the same conversation follows someone onto a train. See [where the
-messenger server runs](/docs/architecture#where-the-messenger-server-runs).
+The messenger app works too. The chat is your company's own messenger, a Buzz
+relay running on the host, so its ordinary apps sign in and work as usual, from
+any network. See [where the messenger
+runs](/architecture#where-the-messenger-server-runs).
 
 Both reach one conversation. The web app's messenger screen is a view onto the
 company's messenger rather than a separate inbox, so a message written in
@@ -35,8 +33,9 @@ regardless of which one sent it.
 
 A Supabase project. Postgres holds the company's records, row level security
 decides who may read a row, and Supabase Auth signs people in with a password,
-a passkey or a Google account. The schema is the directory of migrations at
-`supabase/migrations`, and [What the tables mean](/docs/record/schema)
+a passkey or a Google account. Edge functions in the same project send
+notifications and charge model calls to the company's credits. The schema is the directory of migrations at
+`supabase/migrations`, and [What the tables mean](/record/schema)
 explains them.
 
 Alongside it, three more things we run:
@@ -44,14 +43,14 @@ Alongside it, three more things we run:
 - a web app (`web/`): the pages people sign into, and the HTTP API those same
   pages are backed by, which anything holding a token can call
 - a handful of server routes holding the one key that can bypass row level
-  security (`web/src/routes/api/agent/`) — they issue what a member cannot
+  security (`web/src/routes/api/agent/`), which issue what a member cannot
   issue alone: a session for an agent, a session for a host
 - a small Cloudflare Worker (`workers/connection-gateway/`) that passes calls
-  to the company's computer, from a browser or from the API, since neither end
-  can connect to the other directly
+  between the company's computer and whatever cannot reach it directly: a
+  browser, the API, a native messenger app, a person's desktop app
 
 This documentation names those separately, because they behave differently
-even though they deploy together. See the [glossary](/docs/glossary).
+even though they deploy together. See the [glossary](/glossary).
 
 The Supabase project can be a hosted one or your own. The schema is a
 directory of migrations, the app is one build, and which project the app talks
@@ -69,10 +68,10 @@ Each of those would have to be written again.
 ## The host
 
 One computer that stays on. A Linux server, a Mac that does not sleep, a box
-in a cupboard. It runs the agent, the connector to your messenger, the daemons
-around them, a Postgres of its own holding conversations and what the agent
+in a cupboard. It runs the agent, the company's messenger and the connector
+to it, the daemons around them, a Postgres of its own holding conversations and what the agent
 did, and a memory file for each person and circle.
-[Architecture](/docs/architecture#the-processes-on-the-host) lists the
+[Architecture](/architecture#the-processes-on-the-host) lists the
 processes and what each does.
 
 Once it belongs to a company, nothing on it listens beyond the machine itself.
@@ -82,30 +81,33 @@ machine in your office.
 
 ## The software
 
-The agent itself is three repositories.
-[blueclaw](https://github.com/yeomyeonggeori/blueclaw) is the agent host:
-it owns approval and the task ledger, and it is the agent the relay hands
-each message to. [bluecollar](https://github.com/yeomyeonggeori/bluecollar)
-is the agent loop and model client running inside it, and
+The agent is built in separate repositories.
+[blueclaw](https://github.com/yeomyeonggeori/blueclaw) is a meta-harness: it
+runs an agent harness for everyone in the company, owns approval and the task
+ledger, and is the agent the relay hands each message to.
+[bluecollar](https://github.com/yeomyeonggeori/bluecollar) is the harness it
+runs by default, the agent loop and model client, and
 [bluememo](https://github.com/yeomyeonggeori/bluememo) is its long-term
 memory. The skills it loads come from `internkim-plugin`. This repository,
 `internkim`, is the layer that puts those on a machine and operates them: the
 relay, the surrounding daemons, the operator CLI (`cmd/internkim/`), the web
 app and its tool catalog (`web/`) and the schema (`supabase/migrations`).
 blueclaw is vendored at `.dependency/blueclaw/`, the other two inside it.
-[Architecture](/docs/architecture#what-the-agent-is-made-of) shows how they
+[Architecture](/architecture#what-the-agent-is-made-of) shows how they
 fit. Every repository named here is public, and
 [CONTRIBUTING.md](https://github.com/yeomyeonggeori/internkim/blob/main/CONTRIBUTING.md)
 says how to build, check and send a change.
 
 ## What stays yours
 
-Messenger: internkim attaches to the messenger you already run. No conversation
-reaches the records, because the schema has no
-table for one.
+Messenger: the company's messenger runs on its own host. No conversation
+reaches the records, because the schema has no table for one.
 
-Model: the agent calls models with the provider key the host holds,
-through tiers named in one place, `internal/modelladder`.
+Model: the agent asks for tiers named in one place, `internal/modelladder`.
+Each call goes to the central plane's model gateway first, which charges it to
+the company's credits. A call the gateway refuses falls through to the
+company's own OpenRouter key when the host holds one, and a company that runs
+its own model endpoint never reaches the gateway.
 
 Computer: replace it at any time. Company records keep everything the company
 needs after a hardware replacement.
@@ -114,8 +116,8 @@ needs after a hardware replacement.
 
 | | |
 |---|---|
-| [Architecture](/docs/architecture) | what talks to what, and where each process lives in the tree |
-| [Boundaries](/docs/boundaries) | the two things that decide who may do what |
-| [What lives where](/docs/what-lives-where) | which data is central and which is on the box |
-| [Running the host](/docs/running-the-host) | installing, updating and backing up the always-on computer |
-| [Glossary](/docs/glossary) | the words this documentation uses precisely |
+| [Architecture](/architecture) | what talks to what, and where each process lives in the tree |
+| [Boundaries](/boundaries) | the two things that decide who may do what |
+| [What lives where](/what-lives-where) | which data is central and which is on the box |
+| [Running the host](/running-the-host) | installing, updating and backing up the always-on computer |
+| [Glossary](/glossary) | the words this documentation uses precisely |
