@@ -112,11 +112,11 @@ mod tests {
 
     #[test]
     fn refuses_commands_outside_the_read_and_act_lists() {
-        for command in ["mcp", "batch", "session"] {
+        for command in ["mcp", "batch", "session", "sandbox"] {
             let reason = refusal(&[command]).expect("an unlisted command is refused");
             assert!(reason.contains(command), "{reason}");
         }
-        for command in ["eval", "cookies", "upload", "auth"] {
+        for command in ["eval", "cookies", "upload", "auth", "flow"] {
             let reason = browser_refusal(&[command]).expect("an unlisted command is refused");
             assert!(reason.contains(command), "{reason}");
         }
@@ -134,6 +134,10 @@ mod tests {
             browser_refusal(&["open", "https://example.com", "--proxy", "x"])
                 .is_some_and(|reason| reason.contains("--proxy"))
         );
+        for option in ["--capture", "--use-system-ca"] {
+            assert!(browser_refusal(&["open", "https://example.com", option])
+                .is_some_and(|reason| reason.contains(option)));
+        }
     }
 
     #[test]
@@ -168,7 +172,13 @@ mod tests {
         }
         assert!(browser_refusal(&["connect", "9222", "--json"])
             .is_some_and(|reason| reason.contains("connect")));
-        for option in ["--cdp", "--auto-connect", "--profile", "--state"] {
+        for option in [
+            "--cdp",
+            "--cdp-headers",
+            "--auto-connect",
+            "--profile",
+            "--state",
+        ] {
             assert!(
                 browser_refusal(&["open", "https://example.com", option, "x"])
                     .is_some_and(|reason| reason.contains(option))

@@ -23,10 +23,10 @@ esac
 case "$target" in
   aarch64-apple-darwin) desktop_platform="darwin-arm64"; browser_platform="darwin-arm64"; helper="agent-desktop-macos-helper" ;;
   x86_64-apple-darwin) desktop_platform="darwin-x64"; browser_platform="darwin-x64"; helper="agent-desktop-macos-helper" ;;
-  aarch64-unknown-linux-gnu) desktop_platform="linux-arm64"; browser_platform="linux-arm64"; helper="agent-desktop-linux-clipboard-owner" ;;
-  x86_64-unknown-linux-gnu) desktop_platform="linux-x64"; browser_platform="linux-x64"; helper="agent-desktop-linux-clipboard-owner" ;;
-  aarch64-pc-windows-msvc) desktop_platform="win32-arm64"; browser_platform="win32-x64"; helper="" ;;
-  x86_64-pc-windows-msvc) desktop_platform="win32-x64"; browser_platform="win32-x64"; helper="" ;;
+  aarch64-unknown-linux-gnu) desktop_platform="linux-arm64"; browser_platform="linux-arm64-gnu"; helper="agent-desktop-linux-clipboard-owner" ;;
+  x86_64-unknown-linux-gnu) desktop_platform="linux-x64"; browser_platform="linux-x64-gnu"; helper="agent-desktop-linux-clipboard-owner" ;;
+  aarch64-pc-windows-msvc) desktop_platform="win32-arm64"; browser_platform="win32-x64-msvc"; helper="" ;;
+  x86_64-pc-windows-msvc) desktop_platform="win32-x64"; browser_platform="win32-x64-msvc"; helper="" ;;
   *) echo "agent-desktop ships no binary for $target" >&2; exit 1 ;;
 esac
 
@@ -34,40 +34,42 @@ executable_suffix=""
 case "$target" in *-windows-*) executable_suffix=".exe" ;; esac
 
 pinned() {
-  python3 -I -c 'import json, sys; print(json.load(open(sys.argv[1]))["programs"][sys.argv[2]][sys.argv[3]])' "$commands_file" "$1" "$2"
+  python3 -I -c 'import json, sys
+pin = json.load(open(sys.argv[1]))["programs"][sys.argv[2]][sys.argv[3]]
+print(pin[sys.argv[4]] if isinstance(pin, dict) else pin)' "$commands_file" "$1" "$2" "$3"
 }
 
 download_directory="$(mktemp -d)"
 trap 'rm -rf "$download_directory"' EXIT
 
 place() {
-  local package="$1" platform="$2"
-  shift 2
+  local program="$1" package="$2" platform="$3"
+  shift 3
   local version integrity release tarball computed name
-  version="$(pinned "$package" version)"
-  integrity="$(pinned "$package" integrity)"
-  release="$binaries_directory/RELEASE-$package-$target"
+  version="$(pinned "$program" version "$platform")"
+  integrity="$(pinned "$program" integrity "$platform")"
+  release="$binaries_directory/RELEASE-$program-$target"
 
   if is_already_placed "$release" "$version $integrity" "$@"; then
-    echo "$package $version for $target already placed in $binaries_directory"
+    echo "$program $version for $target already placed in $binaries_directory"
     return
   fi
 
-  tarball="$download_directory/$package-$version.tgz"
-  curl -fsSL "https://registry.npmjs.org/$package/-/$package-$version.tgz" -o "$tarball"
+  tarball="$download_directory/$program-$version.tgz"
+  curl -fsSL "https://registry.npmjs.org/$package/-/${package##*/}-$version.tgz" -o "$tarball"
   computed="sha512-$(openssl dgst -sha512 -binary "$tarball" | openssl base64 -A)"
   if [ "$computed" != "$integrity" ]; then
     echo "the $package $version tarball is not the one internal/desktop/commands.json pins: expected $integrity, got $computed" >&2
     exit 1
   fi
 
-  mkdir -p "$binaries_directory" "$download_directory/$package"
+  mkdir -p "$binaries_directory" "$download_directory/$program"
   for name in "$@"; do
-    tar -xzf "$tarball" -C "$download_directory/$package" "package/bin/$(packaged_name_of "$name" "$platform")"
-    install -m 0755 "$download_directory/$package/package/bin/$(packaged_name_of "$name" "$platform")" "$binaries_directory/$(placed_name_of "$name")"
+    tar -xzf "$tarball" -C "$download_directory/$program" "package/bin/$(packaged_name_of "$name" "$package" "$platform")"
+    install -m 0755 "$download_directory/$program/package/bin/$(packaged_name_of "$name" "$package" "$platform")" "$binaries_directory/$(placed_name_of "$name")"
   done
   printf '%s\n' "$version $integrity" > "$release"
-  echo "$package $version for $target placed in $binaries_directory"
+  echo "$program $version for $target placed in $binaries_directory"
 }
 
 is_already_placed() {
@@ -91,13 +93,20 @@ placed_name_of() {
   fi
 }
 
+is_for_one_platform() {
+  [ "$1" != "${1%"-$2"}" ]
+}
+
 packaged_name_of() {
-  if is_helper "$1"; then
-    echo "$1-$2"
+  local name="$1" package="$2" platform="$3"
+  if is_for_one_platform "$package" "$platform"; then
+    echo "$name$executable_suffix"
+  elif is_helper "$name"; then
+    echo "$name-$platform"
   else
-    echo "$1-$2$executable_suffix"
+    echo "$name-$platform$executable_suffix"
   fi
 }
 
-place agent-desktop "$desktop_platform" agent-desktop ${helper:+"$helper"}
-place agent-browser "$browser_platform" agent-browser
+place agent-desktop agent-desktop "$desktop_platform" agent-desktop ${helper:+"$helper"}
+place agent-browser "@agent-browser/cli-$browser_platform" "$browser_platform" agent-browser
