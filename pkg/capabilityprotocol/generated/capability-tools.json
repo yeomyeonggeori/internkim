@@ -18189,6 +18189,7 @@
       },
       "sideEffect": "read",
       "sideEffectClass": "read",
+      "timeoutSecond": 120,
       "version": "1",
       "worksOffline": false
     },
@@ -18372,6 +18373,7 @@
       },
       "sideEffect": "external_write",
       "sideEffectClass": "external_write",
+      "timeoutSecond": 120,
       "version": "1",
       "worksOffline": false
     },

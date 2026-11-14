@@ -8,6 +8,8 @@ import {
 
 import type { CapabilityToolDefinition } from './definition';
 
+export const desktopWorkTimeoutSecond = 120;
+
 export const desktopPrograms = ['agent-desktop', 'agent-browser'] as const;
 
 const desktopProgramSchema = z.enum(desktopPrograms)
@@ -57,6 +59,7 @@ export const desktopToolDefinitions: CapabilityToolDefinition[] = [
     description: "Read the requester's own computer through agent-desktop, which runs inside the internkim desktop app they have open: running apps and windows, an app's accessibility tree with refs, one element's state, a screenshot. A snapshot that names no size is taken interactive and compact. It reaches only the computer of the person who asked, never a colleague's and never the company computer. A call whose arguments the program refuses comes back with that command's usage. [\"skills\", \"get\", \"desktop\"] prints the program's guide to refs, retries and headless input. For a web page use program agent-browser, whose guide is [\"skills\", \"get\", \"core\"]: desktop_act [\"open\", url] opens the page in a browser window of its own, and [\"snapshot\"] reads it.",
     version: '1',
     estimatedLatency: CapabilityEstimatedLatency.Interactive,
+    timeoutSecond: desktopWorkTimeoutSecond,
     requiresUserPresence: true,
     inputSchema: desktopReadInputSchema,
     result: { schema: desktopResultSchema, effects: [] },
@@ -71,6 +74,7 @@ export const desktopToolDefinitions: CapabilityToolDefinition[] = [
     description: "Operate the requester's own computer through agent-desktop: click, type into or set a ref, press keys, launch or close an app, move a window, write the clipboard. It also runs every desktop_read command, snapshot included. The requester sees it happen on their screen. A delivered act answers with a new snapshot of the window or page it left, and the next ref comes from that snapshot, because refs belong to the snapshot that printed them. A call whose arguments the program refuses comes back with that command's usage. Never type a password or a one-time code; ask the requester to enter it themselves.",
     version: '1',
     estimatedLatency: CapabilityEstimatedLatency.Interactive,
+    timeoutSecond: desktopWorkTimeoutSecond,
     requiresUserPresence: true,
     inputSchema: desktopActInputSchema,
     inputIntentSchema: desktopActInputIntentSchema,
