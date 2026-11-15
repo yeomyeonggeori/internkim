@@ -2157,6 +2157,7 @@ class Rig:
         installed = self.restored_machine.shell(
             self.release.install_line(self.restored_machine.host_gateway()), timeout_seconds=2400
         )
+        plane.reach_the_record_from(self.restored_machine)
         shutil.copyfile(self.archive_path, share / self.archive_path.name)
         restored = self.restored_machine.shell(
             f"{PACKAGE_NAME} restore {SHARE_PATH}/{self.archive_path.name} 2>&1", timeout_seconds=1800
