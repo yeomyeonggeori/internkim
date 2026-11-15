@@ -34183,6 +34183,10 @@
             "minLength": 1,
             "type": "string"
           },
+          "usesOwnModelKey": {
+            "description": "Whether the company's own OpenRouter key pays for AI while its computer holds one. False makes credits pay instead and keeps the key; the two are never mixed. The computer follows it the next time its services start.",
+            "type": "boolean"
+          },
           "workLocations": {
             "description": "The work locations attendance can be recorded at, in the order the screens list them. Replaces the whole list.",
             "items": {
@@ -34255,6 +34259,10 @@
             "maxLength": 64,
             "minLength": 1,
             "type": "string"
+          },
+          "usesOwnModelKey": {
+            "description": "Whether the company's own OpenRouter key pays for AI while its computer holds one. False makes credits pay instead and keeps the key; the two are never mixed. The computer follows it the next time its services start.",
+            "type": "boolean"
           },
           "workLocations": {
             "description": "The work locations attendance can be recorded at, in the order the screens list them. Replaces the whole list.",

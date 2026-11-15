@@ -2,6 +2,15 @@ import { z } from 'zod';
 
 export const companyModelPayers = ['subscription', 'company_key', 'nothing'] as const;
 
+export type CompanyModelPayer = (typeof companyModelPayers)[number];
+
+export type WhatPaysForModels = { holdsKey: boolean; usesOwnKey: boolean; creditsCanPay: boolean };
+
+export function payerOfTheModels({ holdsKey, usesOwnKey, creditsCanPay }: WhatPaysForModels): CompanyModelPayer {
+  if (holdsKey && usesOwnKey) return 'company_key';
+  return creditsCanPay ? 'subscription' : 'nothing';
+}
+
 export const companyCreditsResultSchema = z.strictObject({
   paidBy: z.enum(companyModelPayers),
   subscriptionStatus: z.string().nullable(),

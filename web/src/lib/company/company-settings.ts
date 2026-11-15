@@ -21,6 +21,7 @@ export type CompanySettingsChange = {
 	workLocations?: { name: string; color?: string }[];
 	leaveDays?: number;
 	creditUsageLimit?: number;
+	usesOwnModelKey?: boolean;
 };
 
 export function companySettings(): Promise<CompanySettings> {

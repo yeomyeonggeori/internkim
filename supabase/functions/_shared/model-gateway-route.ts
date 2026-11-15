@@ -14,3 +14,7 @@ export function modelGatewayRoute(method: string, pathname: string): ModelGatewa
 	if (apiStart < 0) return null;
 	return routes[`${method} ${pathname.slice(apiStart).replace(/\/+$/, '')}`] ?? null;
 }
+
+export function asksWhoPays(method: string, pathname: string): boolean {
+	return method === 'GET' && pathname.replace(/\/+$/, '').endsWith('/model-gateway/payer');
+}

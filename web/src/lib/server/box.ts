@@ -33,6 +33,7 @@ import {
 	type SigningCredentials
 } from './control-plane';
 import { subscriptionPaysForModels } from './subscription-pays-for-models';
+import { payerOfTheModels } from '$lib/company/credits-contract';
 
 export const boxAssertionAudience = 'internkim-box';
 const boxAssertionLifetime = '2m';
@@ -441,15 +442,26 @@ export function holdsCompanyKey(box: BoxRow, keyring: Keyring | null): boolean {
 
 export async function companyBoxesOf(client: SupabaseClient, companyID: string): Promise<CompanyBoxes> {
 	const [boxes, keyring] = await Promise.all([boxesOfCompany(client, companyID), keyringOf(client, companyID)]);
+	const hasModelKey = Boolean(keyring?.sealedModelKey);
+	const subscriptionPaysForModelsNow = await subscriptionPaysForModels(client, companyID);
+	const usesOwnModelKey = await companyUsesOwnModelKey(client, companyID);
 	return {
 		boxes: boxes.map((box) => connectedBoxOf(box, keyring)),
 		sealingKey: keyring?.sealingKey ?? null,
-		hasModelKey: Boolean(keyring?.sealedModelKey),
+		hasModelKey,
 		newestBackupAt: keyring ? await newestKeptBackupAt(client, companyID, keyring.sealingKey) : null,
 		takeOver: await takeOverOf(client, companyID),
 		isServedByConnectionFile: await companyServedByConnectionFile(client, companyID),
-		subscriptionPaysForModels: await subscriptionPaysForModels(client, companyID)
+		subscriptionPaysForModels: subscriptionPaysForModelsNow,
+		usesOwnModelKey,
+		paidBy: payerOfTheModels({ holdsKey: hasModelKey, usesOwnKey: usesOwnModelKey, creditsCanPay: subscriptionPaysForModelsNow })
 	};
+}
+
+export async function companyUsesOwnModelKey(client: SupabaseClient, companyID: string): Promise<boolean> {
+	const { data, error } = await client.from('company').select('uses_own_model_key').eq('id', companyID).single();
+	if (error) throw new Error(`whether ${companyID} uses its own model key: ${error.message}`);
+	return z.object({ uses_own_model_key: z.boolean() }).parse(data).uses_own_model_key;
 }
 
 async function companyServedByConnectionFile(client: SupabaseClient, companyID: string): Promise<boolean> {
@@ -534,6 +546,17 @@ export async function keepSealedModelKey(
 		.eq('company_id', companyID)
 		.eq('sealing_key', keyring.sealingKey);
 	if (error) throw new Error(`model key of ${companyID}: ${error.message}`);
+	await startUsingOwnModelKey(client, companyID);
+}
+
+export async function forgetSealedModelKey(client: SupabaseClient, companyID: string): Promise<void> {
+	const { error } = await client.from('box_keyring').update({ sealed_model_key: null }).eq('company_id', companyID);
+	if (error) throw new Error(`forgetting the model key of ${companyID}: ${error.message}`);
+}
+
+async function startUsingOwnModelKey(client: SupabaseClient, companyID: string): Promise<void> {
+	const { error } = await client.from('company').update({ uses_own_model_key: true }).eq('id', companyID);
+	if (error) throw new Error(`turning on ${companyID}'s own model key: ${error.message}`);
 }
 
 export async function keepSealedCompanyKeys(

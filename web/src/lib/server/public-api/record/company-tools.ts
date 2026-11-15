@@ -155,6 +155,7 @@ export async function companySettingsUpdate(
 			...(location.color?.trim() ? { color: location.color.trim() } : {})
 		}));
 	}
+	if (input.usesOwnModelKey !== undefined) change.uses_own_model_key = input.usesOwnModelKey;
 	if (input.teamViewVisibleToAll !== undefined || input.creditUsageLimit !== undefined) {
 		const held = await companyRow(context.caller);
 		change.rules = {

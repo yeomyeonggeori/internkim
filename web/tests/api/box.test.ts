@@ -20,6 +20,7 @@ import {
 	companyBoxesOf,
 	keepSealedCompanyKeys,
 	emptyBoxesAt,
+	forgetSealedModelKey,
 	keepSealedModelKey,
 	keepTakeOver,
 	makeBoxServe,
@@ -345,6 +346,20 @@ describe('connecting an empty box', () => {
 		expect(answered?.sealedModelKey).toEqual(sealedModelKey);
 		expect(await companyOfHostSession(credentials, answered?.session.accessToken ?? '')).toBe(companyID);
 		expect((await connectedBox(companyID, box.publicKey))?.lastSeenAt).not.toBeNull();
+	});
+
+	test('entering a key turns using it on, and removing it takes it back from the box', async () => {
+		const box = await aBox();
+		await claimWithCode(companyID, box.publicKey, await announcedCode(box));
+		await client.from('company').update({ uses_own_model_key: false }).eq('id', companyID);
+		const sealedModelKey = { version: 1 as const, recipient: box.encryptionKey, enc: box.encryptionKey, ciphertext: 'c2VhbGVk' };
+
+		await keepSealedModelKey(client, companyID, sealedModelKey);
+		expect(await companyBoxesOf(client, companyID)).toMatchObject({ hasModelKey: true, usesOwnModelKey: true, paidBy: 'company_key' });
+
+		await forgetSealedModelKey(client, companyID);
+		expect(await companyBoxesOf(client, companyID)).toMatchObject({ hasModelKey: false, usesOwnModelKey: true });
+		expect((await boxSessionFor(credentials, box.publicKey, environment, appURL))?.sealedModelKey).toBeNull();
 	});
 
 	test('a model key sealed to a key the company no longer seals to is refused', async () => {

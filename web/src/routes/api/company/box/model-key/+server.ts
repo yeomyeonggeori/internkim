@@ -1,7 +1,7 @@
 import { error, json } from '@sveltejs/kit';
 import { sealedSecretSchema } from '$lib/company/box';
 import { environmentOfPlatform } from '$lib/server/agent-request';
-import { BoxRefused, companyBoxesOf, keepSealedModelKey } from '$lib/server/box';
+import { BoxRefused, companyBoxesOf, forgetSealedModelKey, keepSealedModelKey } from '$lib/server/box';
 import { callingHostAdministrator } from '$lib/server/company-host-setup';
 import type { RequestHandler } from './$types';
 
@@ -16,5 +16,11 @@ export const PUT: RequestHandler = async ({ request, platform }) => {
 		if (refusal instanceof BoxRefused) error(409, refusal.message);
 		throw refusal;
 	}
+	return json(await companyBoxesOf(member.record, member.companyID));
+};
+
+export const DELETE: RequestHandler = async ({ request, platform }) => {
+	const member = await callingHostAdministrator(request, environmentOfPlatform(platform?.env));
+	await forgetSealedModelKey(member.record, member.companyID);
 	return json(await companyBoxesOf(member.record, member.companyID));
 };

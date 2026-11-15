@@ -4,6 +4,7 @@ import { projectURL, publishableKey, serviceRoleKey, signingKey } from '../suppo
 import { heldToTheContract } from './tool-answers';
 import { leavesTaskLabelsUndecided } from '../../src/lib/server/public-api/record/task-labels';
 import { defaultCreditUsageLimit } from '../../src/lib/credit-policy';
+import { companyUsesOwnModelKey } from '../../src/lib/server/box';
 
 mock.module('$env/dynamic/private', () => ({
 	env: { SUPABASE_URL: projectURL, SUPABASE_SECRET_KEY: serviceRoleKey, SUPABASE_PUBLISHABLE_KEY: publishableKey, SUPABASE_JWT_SIGNING_KEY: signingKey }
@@ -114,5 +115,33 @@ describe('the per-member credit limit', () => {
 		const refused = await asSample('company_settings_update', { creditUsageLimit: 1 });
 		expect(refused.status).toBeGreaterThanOrEqual(400);
 		expect(resultOf(await asAdmin('company_credits_get')).usageLimit).toBe(25000);
+	});
+});
+
+describe('who pays for the models', () => {
+	const sealingKey = 'A'.repeat(43);
+	const sealedModelKey = { version: 1, recipient: sealingKey, enc: sealingKey, ciphertext: 'c2VhbGVk' };
+
+	afterAll(async () => {
+		await client.from('box_keyring').delete().eq('company_id', companyID);
+		await client.from('company').update({ uses_own_model_key: true }).eq('id', companyID);
+	}, networkHookTimeout);
+
+	test('the company key pays while it is held and in use, and credits pay once it is turned off', async () => {
+		const { error } = await client.from('box_keyring').insert({ company_id: companyID, sealing_key: sealingKey, sealed_model_key: sealedModelKey });
+		if (error) throw new Error(error.message);
+		expect((await asAdmin('company_settings_update', { usesOwnModelKey: true })).status).toBe(200);
+		expect(resultOf(await asSample('company_credits_get')).paidBy).toBe('company_key');
+
+		expect((await asAdmin('company_settings_update', { usesOwnModelKey: false })).status).toBe(200);
+		expect(await companyUsesOwnModelKey(client, companyID)).toBe(false);
+		expect(resultOf(await asSample('company_credits_get')).paidBy).toBe('subscription');
+		expect((await client.from('box_keyring').select('sealed_model_key').eq('company_id', companyID).single()).data?.sealed_model_key).toEqual(sealedModelKey);
+	});
+
+	test('a member who does not administer cannot choose who pays', async () => {
+		const refused = await asSample('company_settings_update', { usesOwnModelKey: true });
+		expect(refused.status).toBeGreaterThanOrEqual(400);
+		expect(await companyUsesOwnModelKey(client, companyID)).toBe(false);
 	});
 });
