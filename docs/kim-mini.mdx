@@ -265,6 +265,6 @@ A company that pastes no key, or turns "Use our OpenRouter key" off, reaches its
 models through the central plane's model gateway, which calls OpenRouter with our key
 and charges the company's credits. The box asks it with its own session, renewed
 every hour. A pasted key turns the switch on and restarts the box's services once,
-and from then on the box calls OpenRouter with it. The switch is read when the box's
-services start, so turning it off or on takes effect at their next start. Removing
-the key takes it back from the box.
+and from then on the box calls OpenRouter with it. A box that started on the
+other payer starts its services again within a minute of the switch changing.
+Removing the key takes it back from the box and turns the switch off.

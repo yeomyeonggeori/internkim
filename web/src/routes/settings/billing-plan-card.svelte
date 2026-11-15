@@ -4,7 +4,7 @@
 	import * as Card from '$lib/components/ui/card';
 	import type { CompanyCredits } from '$lib/company/credits';
 	import { billingPortalURL, subscriptionCheckoutURL } from '$lib/company/credits';
-	import { holdsAnOpenSubscription } from '$lib/company/credits-contract';
+	import { holdsAnOpenSubscription, isSubscriptionPaying } from '$lib/company/credits-contract';
 	import { currentLocale } from '$lib/i18n/locale.svelte';
 	import { createPageText } from '$lib/i18n/page-text.svelte';
 	import { toast } from 'svelte-sonner';
@@ -44,7 +44,7 @@
 	<Button {variant} onclick={managePayment} disabled={isOpeningPortal}>{text.managePayment}</Button>
 {/snippet}
 
-{#if credits.paidBy === 'subscription'}
+{#if credits.paidBy === 'subscription' && isSubscriptionPaying(credits.subscriptionStatus)}
 	<Card.Root>
 		<Card.Header>
 			<Card.Title class="flex items-center gap-2">

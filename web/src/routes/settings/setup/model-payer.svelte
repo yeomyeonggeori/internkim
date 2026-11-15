@@ -12,24 +12,34 @@
 	let { boxes, onChanged }: { boxes: CompanyBoxes; onChanged: (boxes: CompanyBoxes) => void } = $props();
 
 	const text = createPageText(hostSetupText);
+	let usesOwnModelKey = $derived(boxes.usesOwnModelKey);
 	let isSaving = $state(false);
 	let errorMessage = $state('');
 
 	const payingNow = $derived(
 		{ company_key: text.paidByCompanyKey, subscription: text.paidBySubscription, nothing: text.paidByNothing, unknown: text.paidByUnknown }[boxes.paidBy]
 	);
-	const isKeyOnlyOnTheComputer = $derived(boxes.hostHoldsModelKey === true && !boxes.hasModelKey);
 
-	async function chooseWhoPays(usesOwnModelKey: boolean) {
+	async function chooseWhoPays(chosen: boolean) {
 		isSaving = true;
 		errorMessage = '';
 		try {
-			await saveCompanySettings({ usesOwnModelKey });
+			await saveCompanySettings({ usesOwnModelKey: chosen });
 			onChanged(await fetchBoxes());
 		} catch (error) {
+			usesOwnModelKey = boxes.usesOwnModelKey;
 			errorMessage = error instanceof Error ? error.message : text.usesOwnModelKeyFailed;
 		} finally {
 			isSaving = false;
+		}
+	}
+
+	async function removeKey() {
+		errorMessage = '';
+		try {
+			onChanged(await forgetModelKey());
+		} catch (error) {
+			errorMessage = error instanceof Error ? error.message : text.removeModelKeyFailed;
 		}
 	}
 
@@ -39,7 +49,7 @@
 			description: text.removeModelKeyDescription,
 			confirm: { text: text.removeModelKey },
 			cancel: { text: text.cancel },
-			onConfirm: async () => onChanged(await forgetModelKey())
+			onConfirm: removeKey
 		});
 	}
 </script>
@@ -52,11 +62,12 @@
 			<Field.Label for="uses-own-model-key">{text.usesOwnModelKey}</Field.Label>
 			<Field.Description>{text.usesOwnModelKeyDescription}</Field.Description>
 		</Field.Content>
-		<Switch id="uses-own-model-key" checked={boxes.usesOwnModelKey} onCheckedChange={chooseWhoPays} disabled={isSaving} />
+		<Switch id="uses-own-model-key" bind:checked={usesOwnModelKey} onCheckedChange={chooseWhoPays} disabled={isSaving} />
 	</Field.Field>
+	{#if boxes.isPayerChangeWaiting}<p class="text-sm text-muted-foreground">{text.payerChangeWaiting}</p>{/if}
 	{#if boxes.hasModelKey}
 		<Button variant="outline" class="justify-self-start" onclick={askToRemoveKey}>{text.removeModelKey}</Button>
-	{:else if isKeyOnlyOnTheComputer}
+	{:else if boxes.isModelKeyOnlyOnTheComputer}
 		<p class="text-sm text-muted-foreground">{text.modelKeyOnTheComputer}</p>
 	{/if}
 	{#if errorMessage}<Field.Error>{errorMessage}</Field.Error>{/if}

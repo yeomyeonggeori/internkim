@@ -29,10 +29,11 @@
 		newestBackupAt: null,
 		takeOver: { isAutomatic: false, lapseSeconds: 300 },
 		isServedByConnectionFile: false,
-		subscriptionPaysForModels: false,
-		hostHoldsModelKey: null,
+		creditsCanPayForModels: false,
 		usesOwnModelKey: true,
 		paidBy: 'nothing',
+		isPayerChangeWaiting: false,
+		isModelKeyOnlyOnTheComputer: false,
 		empty: []
 	});
 	let modelKey = $state('');
