@@ -85,3 +85,7 @@ export async function giveModelKey(companyID: string, sealingKey: string, modelK
 	const sealed = await sealModelKey(modelKey.trim(), { companyID, encryptionKey: sealingKey });
 	return companyBoxesSchema.parse(await askCompanyRoute('/api/company/box/model-key', 'PUT', sealed));
 }
+
+export async function forgetModelKey(): Promise<CompanyBoxes> {
+	return companyBoxesSchema.parse(await askCompanyRoute('/api/company/box/model-key', 'DELETE'));
+}

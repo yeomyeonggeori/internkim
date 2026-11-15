@@ -14,6 +14,7 @@
 	import BoxPlacement from './box-placement.svelte';
 	import BoxTakeOver from './box-take-over.svelte';
 	import BoxWifiChange from './box-wifi-change.svelte';
+	import ModelPayer from './model-payer.svelte';
 	import ConnectedComputer from './connected-computer.svelte';
 	import { connectBox, disconnectBox, fetchBoxes, giveModelKey, makeBoxServe, verifyBoxCode, type Boxes } from './host-setup-client';
 	import { hostSetupText } from './text';
@@ -29,6 +30,8 @@
 		takeOver: { isAutomatic: false, lapseSeconds: 300 },
 		isServedByConnectionFile: false,
 		subscriptionPaysForModels: false,
+		usesOwnModelKey: true,
+		paidBy: 'nothing',
 		empty: []
 	});
 	let modelKey = $state('');
@@ -238,11 +241,13 @@
 				<BoxTakeOver takeOver={boxes.takeOver} onKept={(kept) => (boxes = { ...kept, empty: boxes.empty })} />
 			{/if}
 		{/if}
-		{#if boxes.subscriptionPaysForModels}
-			<p class="text-sm text-muted-foreground">{text.subscriptionPaysForModels}</p>
-		{:else if step === 'connected' && !isChangingModelKey}
+		{#if step === 'connected' && !isChangingModelKey}
 			<Button variant="outline" class="justify-self-start" onclick={() => (isChangingModelKey = true)}>{text.changeModelKey}</Button>
 		{/if}
+	{/if}
+
+	{#if isServed}
+		<ModelPayer {boxes} onChanged={(changed) => (boxes = { ...changed, empty: boxes.empty })} />
 	{/if}
 
 	{#if verified}
@@ -288,7 +293,7 @@
 		{@render waitingBoxes()}
 	{/if}
 
-	{#if !boxes.subscriptionPaysForModels && (step === 'givingModelKey' || isChangingModelKey)}
+	{#if step === 'givingModelKey' || isChangingModelKey}
 		<form onsubmit={sendModelKey}>
 			<Field.Field>
 				<Field.Label for="box-model-key">{text.modelKey}</Field.Label>
