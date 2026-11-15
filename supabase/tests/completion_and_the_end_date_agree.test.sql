@@ -99,7 +99,7 @@ select is(
   ('planned'::text, null::timestamptz, null::timestamptz),
   'agree: planning an ended task again clears the dates that already passed');
 
-update public.task set starts_at = (now() at time zone 'Asia/Seoul')::date::timestamptz where id = '99900000-0000-0000-0000-0000000000c1';
+update public.task set starts_at = ((now() at time zone 'Asia/Seoul')::date::timestamp at time zone 'Asia/Seoul') where id = '99900000-0000-0000-0000-0000000000c1';
 select is(
   (select status from public.task where id = '99900000-0000-0000-0000-0000000000c1')::text,
   'in_progress',
