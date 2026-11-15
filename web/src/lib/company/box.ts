@@ -121,10 +121,11 @@ export const companyBoxesSchema = z.object({
 	newestBackupAt: z.string().nullable(),
 	takeOver: takeOverSchema,
 	isServedByConnectionFile: z.boolean(),
-	subscriptionPaysForModels: z.boolean(),
-	hostHoldsModelKey: z.boolean().nullable(),
+	creditsCanPayForModels: z.boolean(),
 	usesOwnModelKey: z.boolean(),
-	paidBy: z.enum(shownModelPayers)
+	paidBy: z.enum(shownModelPayers),
+	isPayerChangeWaiting: z.boolean(),
+	isModelKeyOnlyOnTheComputer: z.boolean()
 }).strict();
 
 export const keptBackupManifestVersion = 2;

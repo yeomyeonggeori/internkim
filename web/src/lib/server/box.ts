@@ -32,8 +32,8 @@ import {
 	type HostSession,
 	type SigningCredentials
 } from './control-plane';
-import { subscriptionPaysForModels } from './subscription-pays-for-models';
-import { isAModelKeyHeld, payerOfTheModels } from '$lib/company/credits-contract';
+import { creditsCanPayForModels, modelKeyReportOf } from './credits-can-pay';
+import { isAModelKeyHeld, isPayerChangeWaiting, payerOfTheModels, payerRunning } from '$lib/company/credits-contract';
 
 export const boxAssertionAudience = 'internkim-box';
 const boxAssertionLifetime = '2m';
@@ -442,37 +442,42 @@ export function holdsCompanyKey(box: BoxRow, keyring: Keyring | null): boolean {
 
 export async function companyBoxesOf(client: SupabaseClient, companyID: string): Promise<CompanyBoxes> {
 	const [boxes, keyring] = await Promise.all([boxesOfCompany(client, companyID), keyringOf(client, companyID)]);
-	const hasModelKey = Boolean(keyring?.sealedModelKey);
-	const subscriptionPaysForModelsNow = await subscriptionPaysForModels(client, companyID);
-	const { usesOwnModelKey, hostHoldsModelKey } = await companyModelKeyFacts(client, companyID);
+	const payer = await modelPayerOf(client, companyID, keyring);
 	return {
 		boxes: boxes.map((box) => connectedBoxOf(box, keyring)),
 		sealingKey: keyring?.sealingKey ?? null,
-		hasModelKey,
+		hasModelKey: Boolean(keyring?.sealedModelKey),
 		newestBackupAt: keyring ? await newestKeptBackupAt(client, companyID, keyring.sealingKey) : null,
 		takeOver: await takeOverOf(client, companyID),
 		isServedByConnectionFile: await companyServedByConnectionFile(client, companyID),
-		subscriptionPaysForModels: subscriptionPaysForModelsNow,
-		hostHoldsModelKey,
-		usesOwnModelKey,
-		paidBy: payerOfTheModels({
-			holdsKey: isAModelKeyHeld(hasModelKey, hostHoldsModelKey),
-			usesOwnKey: usesOwnModelKey,
-			creditsCanPay: subscriptionPaysForModelsNow
-		})
+		...payer
 	};
 }
 
-const modelKeyFactsSchema = z.object({ uses_own_model_key: z.boolean(), host_holds_model_key: z.boolean().nullable() });
+type ModelPayer = Pick<CompanyBoxes, 'creditsCanPayForModels' | 'usesOwnModelKey' | 'paidBy' | 'isPayerChangeWaiting' | 'isModelKeyOnlyOnTheComputer'>;
 
-export async function companyModelKeyFacts(
-	client: SupabaseClient,
-	companyID: string
-): Promise<{ usesOwnModelKey: boolean; hostHoldsModelKey: boolean | null }> {
-	const { data, error } = await client.from('company').select('uses_own_model_key, host_holds_model_key').eq('id', companyID).single();
-	if (error) throw new Error(`what ${companyID} holds and uses as its own model key: ${error.message}`);
-	const facts = modelKeyFactsSchema.parse(data);
-	return { usesOwnModelKey: facts.uses_own_model_key, hostHoldsModelKey: facts.host_holds_model_key };
+async function modelPayerOf(client: SupabaseClient, companyID: string, keyring: Keyring | null): Promise<ModelPayer> {
+	const [creditsCanPay, report, usesOwnKey] = await Promise.all([
+		creditsCanPayForModels(client, companyID),
+		modelKeyReportOf(client, companyID),
+		usesOwnModelKeyOf(client, companyID)
+	]);
+	const isHeldByThePlane = Boolean(keyring?.sealedModelKey);
+	const running = payerRunning(report, creditsCanPay);
+	const intended = payerOfTheModels({ holdsKey: isAModelKeyHeld(isHeldByThePlane, report?.holdsModelKey ?? null), usesOwnKey, creditsCanPay });
+	return {
+		creditsCanPayForModels: creditsCanPay,
+		usesOwnModelKey: usesOwnKey,
+		paidBy: running,
+		isPayerChangeWaiting: isPayerChangeWaiting(running, intended),
+		isModelKeyOnlyOnTheComputer: !isHeldByThePlane && report?.holdsModelKey === true
+	};
+}
+
+export async function usesOwnModelKeyOf(client: SupabaseClient, companyID: string): Promise<boolean> {
+	const { data, error } = await client.from('company').select('uses_own_model_key').eq('id', companyID).single();
+	if (error) throw new Error(`whether ${companyID} uses its own model key: ${error.message}`);
+	return z.object({ uses_own_model_key: z.boolean() }).parse(data).uses_own_model_key;
 }
 
 async function companyServedByConnectionFile(client: SupabaseClient, companyID: string): Promise<boolean> {
@@ -563,6 +568,8 @@ export async function keepSealedModelKey(
 export async function forgetSealedModelKey(client: SupabaseClient, companyID: string): Promise<void> {
 	const { error } = await client.from('box_keyring').update({ sealed_model_key: null }).eq('company_id', companyID);
 	if (error) throw new Error(`forgetting the model key of ${companyID}: ${error.message}`);
+	const stopped = await client.from('company').update({ uses_own_model_key: false }).eq('id', companyID);
+	if (stopped.error) throw new Error(`turning off ${companyID}'s own model key: ${stopped.error.message}`);
 }
 
 async function startUsingOwnModelKey(client: SupabaseClient, companyID: string): Promise<void> {
@@ -613,6 +620,7 @@ export type BoxSession = {
 	hasSeveralBoxes: boolean;
 	takeOver: TakeOver;
 	targetVersion: string | null;
+	restartsToFollowTheModelPayer: boolean;
 };
 
 export async function boxSessionFor(
@@ -641,8 +649,24 @@ export async function boxSessionFor(
 		keepsBackups: await companyKeepsABackup(client, box.companyID),
 		hasSeveralBoxes: (await boxesOfCompany(client, box.companyID)).length > 1,
 		takeOver: await takeOverOf(client, box.companyID),
-		targetVersion: role === 'standby' ? await targetVersionOf(client, box.companyID) : null
+		targetVersion: role === 'standby' ? await targetVersionOf(client, box.companyID) : null,
+		restartsToFollowTheModelPayer: role === 'service' && (await payerChangeWaitsOn(client, box))
 	};
+}
+
+const boxModelKeyReportSchema = z.object({ holds_model_key: z.boolean().nullable(), uses_own_model_key_at_start: z.boolean().nullable() });
+
+async function payerChangeWaitsOn(client: SupabaseClient, box: BoxRow): Promise<boolean> {
+	const [reported, creditsCanPay, usesOwnKey] = await Promise.all([
+		client.from('box').select('holds_model_key, uses_own_model_key_at_start').eq('public_key', box.publicKey).single(),
+		creditsCanPayForModels(client, box.companyID),
+		usesOwnModelKeyOf(client, box.companyID)
+	]);
+	if (reported.error) throw new Error(`what box ${box.publicKey} said about its model key: ${reported.error.message}`);
+	const report = boxModelKeyReportSchema.parse(reported.data);
+	const running = payerRunning({ holdsModelKey: report.holds_model_key, usesOwnModelKeyAtStart: report.uses_own_model_key_at_start }, creditsCanPay);
+	const intended = payerOfTheModels({ holdsKey: report.holds_model_key, usesOwnKey, creditsCanPay });
+	return isPayerChangeWaiting(running, intended);
 }
 
 async function targetVersionOf(client: SupabaseClient, companyID: string): Promise<string | null> {

@@ -62,8 +62,8 @@ Deno.serve(
 );
 
 async function answeredModelKeyReport(request: Request): Promise<Response> {
-	const { client, companyID } = await callingAgent(request);
-	return keptModelKeyReport(client, companyID, await askedObject(request));
+	const { client, companyID, computer } = await callingAgent(request);
+	return keptModelKeyReport(client, companyID, computer, await askedObject(request));
 }
 
 async function requestingMember(request: Request, client: SupabaseClient, companyID: string): Promise<string | null> {

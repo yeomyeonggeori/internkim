@@ -72,12 +72,22 @@ func (daemon Daemon) giveBackModelKey(companyName string) error {
 	return daemon.restartForANewModelKey(companyName)
 }
 
+func (daemon Daemon) followTheModelPayer(session Session) error {
+	if !session.RestartsForModelPayer {
+		return nil
+	}
+	if errorValue := durablefile.Write(daemon.statePath(modelKeyAwaitingRestartFileName), nil, 0o600); errorValue != nil {
+		return errorValue
+	}
+	return daemon.restartForANewModelKey(session.Configuration.Company.Name)
+}
+
 func (daemon Daemon) restartForANewModelKey(companyName string) error {
 	awaitingPath := daemon.statePath(modelKeyAwaitingRestartFileName)
 	if _, errorValue := os.Stat(awaitingPath); errorValue != nil || daemon.RestartServices == nil {
 		return nil
 	}
-	log.Printf("%s changed this box's model key, so its services start again to follow it", companyName)
+	log.Printf("%s changed this box's model key or who pays for its models, so its services start again to follow it", companyName)
 	if errorValue := daemon.RestartServices(); errorValue != nil {
 		return fmt.Errorf("starting %s's services again with its changed model key: %w", companyName, errorValue)
 	}
