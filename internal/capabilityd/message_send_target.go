@@ -156,7 +156,7 @@ func messageChannelQuestion(channelName string, resolution hintResolution[chatdC
 func channelList(channels []chatdChannel) string {
 	titles := make([]string, 0, len(channels))
 	for _, channel := range channels {
-		titles = append(titles, channelTitle(channel))
+		titles = append(titles, channelCandidate(channel))
 	}
 	return strings.Join(titles, "; ")
 }

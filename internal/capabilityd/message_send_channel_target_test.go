@@ -85,8 +85,11 @@ func TestAUniqueChannelNameResolvesToTheExactChannel(t *testing.T) {
 		response := resolveApprovalTargetThroughRoute(t, service, "message_send", channelTargetInput(map[string]string{"channelName": channelName}))
 
 		target := decodeResolvedApprovalTarget(t, response)
-		if target.InputField != "channelID" || target.ID != "channel-general" || !strings.Contains(target.Title, "#general") || !strings.Contains(target.Title, "channel-general") {
+		if target.InputField != "channelID" || target.ID != "channel-general" {
 			t.Fatalf("the approval names exactly which channel receives it for %q, got %+v", channelName, target)
+		}
+		if target.Title != "#general" {
+			t.Fatalf("the person approving reads the channel by its name, never its ID, got %q", target.Title)
 		}
 	}
 }

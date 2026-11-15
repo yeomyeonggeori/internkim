@@ -44,5 +44,9 @@ func (service Service) chatdChannels(ctx context.Context) ([]chatdChannel, error
 }
 
 func channelTitle(channel chatdChannel) string {
-	return "#" + canonicalChannelHint(channel.Name) + " (" + strings.TrimSpace(channel.ChannelID) + ")"
+	return "#" + canonicalChannelHint(channel.Name)
+}
+
+func channelCandidate(channel chatdChannel) string {
+	return channelTitle(channel) + " (" + strings.TrimSpace(channel.ChannelID) + ")"
 }
