@@ -54,39 +54,8 @@ function aConversation(refusal?: string): Conversation {
 	};
 }
 
-type PendingApproval = {
-	isPending: boolean;
-	judged: string[];
-	waitingMessageIDs: Set<string>;
-	answered: PromiseWithResolvers<string>;
-	isAnswer: (reply: string) => boolean;
-	isReissuedOnReconnect: boolean;
-};
-
-function anApprovalAnsweredBy(isAnswer: (reply: string) => boolean): PendingApproval {
-	return { isPending: false, judged: [], waitingMessageIDs: new Set(), answered: Promise.withResolvers<string>(), isAnswer, isReissuedOnReconnect: false };
-}
-
-function aClientThat(
-	answer: AnswerTheTurn,
-	calls: AskCall[],
-	conversation: Conversation,
-	approval: PendingApproval = anApprovalAnsweredBy(() => false)
-): BlueclawACPClient {
+function aClientThat(answer: AnswerTheTurn, calls: AskCall[], conversation: Conversation): BlueclawACPClient {
 	const client = {
-		connect: async (): Promise<void> => {
-			if (approval.isReissuedOnReconnect) approval.isPending = true;
-		},
-		hasPendingApprovalIn: (): boolean => approval.isPending,
-		isWaitingOnApproval: (_conversationID: string, messageID: string): boolean =>
-			approval.isPending && approval.waitingMessageIDs.has(messageID),
-		answerPendingApproval: async (_addressing: Addressing, _messageID: string, reply: string): Promise<boolean> => {
-			approval.judged.push(reply);
-			if (!approval.isAnswer(reply)) return false;
-			approval.isPending = false;
-			approval.answered.resolve(reply);
-			return true;
-		},
 		ask: async (
 			requester: Requester,
 			addressing: Addressing,
@@ -211,24 +180,6 @@ describe('InboundTurns', () => {
 		expect(posted).toEqual(['보냈습니다']);
 	});
 
-	test('an answer that arrives while the agent is reconnecting resolves the question the agent reissues', async () => {
-		const calls: AskCall[] = [];
-		const approval = anApprovalAnsweredBy((reply) => reply === '응 보내줘');
-		approval.isReissuedOnReconnect = true;
-		const conversation = aConversation();
-		const turns = new InboundTurns({
-			client: aClientThat(async () => '새 요청으로 읽었습니다', calls, conversation, approval),
-			queue: new InboundQueue({ directoryPath: directoryForOneTest() }),
-			waitBeforeRetrying: async () => {}
-		});
-
-		await turns.keep(firstKey, aChatdBody({ prompt: '응 보내줘' }));
-		await turns.settled();
-
-		expect(approval.judged).toEqual(['응 보내줘']);
-		expect(calls, 'the answer started a turn of its own').toEqual([]);
-	});
-
 	test('a message the relay already delivered is refused when it is replayed after the relay restarts', async () => {
 		const directoryPath = directoryForOneTest();
 		const calls: AskCall[] = [];
@@ -276,162 +227,45 @@ describe('InboundTurns', () => {
 		});
 	});
 
-	const askedTheQuestion = '박예시에게 보낼까요?';
-	const messageThatAsks = '박예시한테 DM 보내줘';
-
-	function aTurnsThatAskAndWait(calls: AskCall[], approval: PendingApproval, otherTurn?: Promise<string>) {
+	test('a reply to a question a turn ended on is handed to blueclaw as a prompt of its own', async () => {
+		const calls: AskCall[] = [];
 		const conversation = aConversation();
-		const turns: InboundTurns = new InboundTurns({
-			client: aClientThat(
-				async (message, addressing, facts) => {
-					if (message !== messageThatAsks) return otherTurn ? `${await otherTurn}: ${message}` : `답장: ${message}`;
-					await conversation.post(addressing, askedTheQuestion);
-					if (facts) approval.waitingMessageIDs.add(facts.messageID);
-					approval.isPending = true;
-					turns.releaseTurnsWaitingOnApproval(addressing.conversationID);
-					return `보냈습니다: ${await approval.answered.promise}`;
-				},
-				calls,
-				conversation,
-				approval
-			),
+		const turns = new InboundTurns({
+			client: aClientThat(async (message) => (message === '박예시한테 DM 보내줘' ? '박예시에게 보낼까요?' : '보냈습니다'), calls, conversation),
 			queue: new InboundQueue({ directoryPath: directoryForOneTest() }),
 			waitBeforeRetrying: async () => {}
 		});
-		return { turns, conversation };
-	}
 
-	test('a message in a conversation with no pending approval is never put to blueclaw as an answer', async () => {
-		const approval = anApprovalAnsweredBy(() => true);
-		const { turns, conversation } = aTurnsThatAskAndWait([], approval);
+		await turns.keep(firstKey, aRootMessage('message-7', '박예시한테 DM 보내줘'));
+		await turns.settled();
+		await turns.keep(secondKey, aReplyInTheThreadOf('message-7', 'message-8', '응 보내줘'));
+		await turns.settled();
+
+		expect(calls.map((call) => call.message)).toEqual(['박예시한테 DM 보내줘', '응 보내줘']);
+		expect(calls[1].facts).toMatchObject({ messageID: 'message-8', replyTargetID: threadOf('message-7'), isThread: true });
+		expect(conversation.posted).toEqual(['박예시에게 보낼까요?', '보냈습니다']);
+	});
+
+	test('a message waits behind the turn still running in its conversation and then becomes a prompt', async () => {
+		const calls: AskCall[] = [];
+		const running = Promise.withResolvers<string>();
+		const turns = new InboundTurns({
+			client: aClientThat(async (message) => (message === '오늘 일정 알려줘' ? running.promise : '네'), calls, aConversation()),
+			queue: new InboundQueue({ directoryPath: directoryForOneTest() }),
+			waitBeforeRetrying: async () => {}
+		});
 
 		await turns.keep(firstKey, aRootMessage('message-7', '오늘 일정 알려줘'));
-		await waitUntil(() => conversation.posted.length === 1, 'the message to be heard');
+		await waitUntil(() => calls.length === 1, 'the first turn to start');
+		await turns.keep(secondKey, aRootMessage('message-8', '내일 일정도 알려줘'));
+		await Bun.sleep(20);
 
-		expect(approval.judged).toEqual([]);
-	});
+		expect(calls, 'a second turn started while one was still running').toHaveLength(1);
 
-	test('a reply blueclaw calls an answer resolves the approval and does not start a turn', async () => {
-		const calls: AskCall[] = [];
-		const approval = anApprovalAnsweredBy((reply) => reply === '응 보내줘');
-		const { turns, conversation } = aTurnsThatAskAndWait(calls, approval);
+		running.resolve('일정');
+		await turns.settled();
 
-		await turns.keep(firstKey, aRootMessage('message-7', messageThatAsks));
-		await waitUntil(() => approval.isPending, 'the approval to be requested');
-		await turns.keep(secondKey, aReplyInTheThreadOf('message-7', 'message-8', '응 보내줘'));
-		await waitUntil(() => conversation.posted.length === 2, 'the turn to finish on the answer');
-
-		expect(calls, 'the answer started a turn of its own').toHaveLength(1);
-		expect(conversation.posted).toEqual([askedTheQuestion, '보냈습니다: 응 보내줘']);
-		expect(approval.judged).toEqual(['응 보내줘']);
-	});
-
-	test('a reply blueclaw calls not an answer starts a turn while the approval stays pending', async () => {
-		const calls: AskCall[] = [];
-		const approval = anApprovalAnsweredBy((reply) => reply === '응 보내줘');
-		const { turns, conversation } = aTurnsThatAskAndWait(calls, approval);
-
-		await turns.keep(firstKey, aRootMessage('message-7', messageThatAsks));
-		await waitUntil(() => approval.isPending, 'the approval to be requested');
-		await turns.keep(secondKey, aReplyInTheThreadOf('message-7', 'message-8', '오늘 일정 알려줘'));
-		await waitUntil(() => conversation.posted.includes('답장: 오늘 일정 알려줘'), 'the message to start its own turn');
-
-		expect(approval.isPending, 'the approval was closed by a message that was not its answer').toBe(true);
-		expect(calls.map((call) => call.message)).toEqual([messageThatAsks, '오늘 일정 알려줘']);
-
-		await turns.keep(thirdKey, aReplyInTheThreadOf('message-7', 'message-9', '응 보내줘'));
-		await waitUntil(() => conversation.posted.includes('보냈습니다: 응 보내줘'), 'the approval to be answered');
-		expect(calls).toHaveLength(2);
-	});
-
-	test('a message blueclaw called not an answer is never put to it again, also by the relay that follows', async () => {
-		const directoryPath = directoryForOneTest();
-		const approval = anApprovalAnsweredBy(() => false);
-		approval.isPending = true;
-		const otherTurn = Promise.withResolvers<string>();
-		const firstConversation = aConversation();
-		const beforeTheRestart = new InboundTurns({
-			client: aClientThat(() => otherTurn.promise, [], firstConversation, approval),
-			queue: new InboundQueue({ directoryPath }),
-			waitBeforeRetrying: async () => {}
-		});
-		await beforeTheRestart.keep(firstKey, aRootMessage('message-7', '오늘 일정 알려줘'));
-		await waitUntil(() => approval.judged.length === 1, 'the message to be judged');
-		await waitUntil(async () => (await new InboundQueue({ directoryPath }).undelivered())[0]?.isPrompt === true, 'the verdict to reach the disk');
-
-		const afterTheRestart = new InboundTurns({
-			client: aClientThat(async () => '', [], aConversation(), approval),
-			queue: new InboundQueue({ directoryPath }),
-			waitBeforeRetrying: async () => {}
-		});
-		afterTheRestart.startDraining();
-		await afterTheRestart.settled();
-
-		expect(approval.judged, 'the relay that followed asked blueclaw about the same message again').toEqual(['오늘 일정 알려줘']);
-		otherTurn.resolve('');
-	});
-
-	test('a message that is not an answer waits behind the running turn and is judged once', async () => {
-		const calls: AskCall[] = [];
-		const approval = anApprovalAnsweredBy(() => false);
-		const otherTurn = Promise.withResolvers<string>();
-		const { turns, conversation } = aTurnsThatAskAndWait(calls, approval, otherTurn.promise);
-
-		await turns.keep(firstKey, aRootMessage('message-7', messageThatAsks));
-		await waitUntil(() => approval.isPending, 'the approval to be requested');
-		await turns.keep(secondKey, aRootMessage('message-8', '오늘 일정 알려줘'));
-		await waitUntil(() => calls.length === 2, 'the second message to start its turn');
-		await turns.keep(thirdKey, aRootMessage('message-9', '내일 일정도 알려줘'));
-		await waitUntil(() => approval.judged.length === 2, 'both waiting messages to be judged');
-
-		expect(calls, 'a second turn started in the conversation while one was still running').toHaveLength(2);
-		expect(approval.judged).toEqual(['오늘 일정 알려줘', '내일 일정도 알려줘']);
-
-		otherTurn.resolve('일정');
-		await waitUntil(() => calls.length === 3, 'the waiting message to start its turn');
-		expect(approval.judged).toEqual(['오늘 일정 알려줘', '내일 일정도 알려줘']);
-		expect(conversation.posted).toContain('일정: 내일 일정도 알려줘');
-	});
-
-	test('a reply blueclaw calls an answer resolves the approval without waiting for the running turn', async () => {
-		const calls: AskCall[] = [];
-		const approval = anApprovalAnsweredBy((reply) => reply === '응 보내줘');
-		const otherTurn = Promise.withResolvers<string>();
-		const { turns, conversation } = aTurnsThatAskAndWait(calls, approval, otherTurn.promise);
-
-		await turns.keep(firstKey, aRootMessage('message-7', messageThatAsks));
-		await waitUntil(() => approval.isPending, 'the approval to be requested');
-		await turns.keep(secondKey, aRootMessage('message-8', '오늘 일정 알려줘'));
-		await waitUntil(() => calls.length === 2, 'the other turn to start');
-		await turns.keep(thirdKey, aReplyInTheThreadOf('message-7', 'message-9', '응 보내줘'));
-		await waitUntil(() => conversation.posted.includes('보냈습니다: 응 보내줘'), 'the answer to resolve the approval');
-
-		expect(approval.isPending).toBe(false);
-		expect(conversation.posted).not.toContain('일정: 오늘 일정 알려줘');
-		expect(calls, 'the answer started a turn of its own').toHaveLength(2);
-
-		otherTurn.resolve('일정');
-	});
-
-	test('a reply blueclaw calls not an answer still waits for the running turn, and the approval stays pending', async () => {
-		const calls: AskCall[] = [];
-		const approval = anApprovalAnsweredBy((reply) => reply === '응 보내줘');
-		const otherTurn = Promise.withResolvers<string>();
-		const { turns } = aTurnsThatAskAndWait(calls, approval, otherTurn.promise);
-
-		await turns.keep(firstKey, aRootMessage('message-7', messageThatAsks));
-		await waitUntil(() => approval.isPending, 'the approval to be requested');
-		await turns.keep(secondKey, aRootMessage('message-8', '오늘 일정 알려줘'));
-		await waitUntil(() => calls.length === 2, 'the other turn to start');
-		await turns.keep(thirdKey, aReplyInTheThreadOf('message-7', 'message-9', '내일 일정도 알려줘'));
-		await waitUntil(() => approval.judged.includes('내일 일정도 알려줘'), 'the reply to be judged');
-		await Bun.sleep(10);
-
-		expect(approval.isPending).toBe(true);
-		expect(calls, 'a second turn started while one was still running').toHaveLength(2);
-
-		otherTurn.resolve('일정');
-		await waitUntil(() => calls.length === 3, 'the waiting reply to start its turn');
+		expect(calls.map((call) => call.message)).toEqual(['오늘 일정 알려줘', '내일 일정도 알려줘']);
 	});
 
 	test('a turn the agent keeps refusing is retried and then dropped by name, with its reason', async () => {
@@ -439,9 +273,6 @@ describe('InboundTurns', () => {
 		const reported: string[] = [];
 		let attempted = 0;
 		const client = {
-			connect: async (): Promise<void> => {},
-			hasPendingApprovalIn: (): boolean => false,
-			isWaitingOnApproval: (): boolean => false,
 			ask: async (): Promise<StopReason> => {
 				attempted += 1;
 				throw new RequestError(-32603, 'Internal error', { error: 'a prompt with no text is nothing to answer' });
@@ -477,9 +308,6 @@ describe('InboundTurns', () => {
 		const delays: number[] = [];
 		let attempted = 0;
 		const client = {
-			connect: async (): Promise<void> => {},
-			hasPendingApprovalIn: (): boolean => false,
-			isWaitingOnApproval: (): boolean => false,
 			ask: async (): Promise<StopReason> => {
 				attempted += 1;
 				if (attempted <= 5) throw new AgentUnreachable(new Error('connect ENOENT /run/internkim/acp/blueclaw-acp.sock'));

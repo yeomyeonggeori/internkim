@@ -115,14 +115,6 @@ export class ToolProgress {
 		});
 	}
 
-	async waitForThePerson(deliveryID: string, addressing: Addressing, questionMessageID?: string): Promise<void> {
-		const timeline = this.timelineOf(deliveryID);
-		await this.inOrder(timeline, async () => {
-			if (!this.settings.postsProgressMessages) beginNextProgress(timeline);
-			this.settings.work?.said(addressing, { deliveryID, messageID: questionMessageID, isStillWorking: false });
-		});
-	}
-
 	async stop(deliveryID: string): Promise<void> {
 		const timeline = this.deliveries.get(deliveryID);
 		if (!timeline) return;

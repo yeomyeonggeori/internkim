@@ -2,7 +2,7 @@ import { afterAll, afterEach, beforeAll, expect, test } from 'bun:test';
 import { z } from 'zod';
 import { aCompanyPlane, type ACompanyPlane, hostServiceHeaders } from './a-company-plane';
 import {
-	aTurnApprovingTheHeldCall,
+	aTurnAnsweringTheParkedQuestion,
 	aTurnStartingWork,
 	changingNothingTheCheckCanRead,
 	everyScriptWasAskedAndNothingElse,
@@ -55,8 +55,9 @@ test('a message the relay carries becomes a turn, an approval, and a message in 
 	const request = `${recipient.name}한테 DM으로 "${marker}" 보내줘`;
 	const answer = '응 보내줘';
 	await plane.model.decideTurn(aTurnStartingWork(request, ['message_send']));
-	await plane.model.decideTurn(aTurnApprovingTheHeldCall(answer));
+	await plane.model.decideTurn(aTurnAnsweringTheParkedQuestion(answer));
 	await plane.model.answerNext(turnRouterSchemaName, turnWordsOwingOnlyTheReply);
+	await plane.model.answerNext(expectedChangesSchemaName, changingNothingTheCheckCanRead);
 	await plane.model.answerNext(expectedChangesSchemaName, changingNothingTheCheckCanRead);
 	await plane.model.callNext('message_send', sendingTheMessage(recipient.name));
 	await plane.model.callNext('reply', replyingAndFinishing('보냈습니다'));

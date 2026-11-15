@@ -2,7 +2,7 @@ import { mkdir, readFile } from 'node:fs/promises';
 import { dirname } from 'node:path';
 import { devtoolsCommandsFor, readHandoffInputs } from './browser-handoff-input';
 import { defaultViewport, HandoffStream, readViewport, type DevtoolsConnection, type Viewport } from './browser-handoff-stream';
-import type { HandoffClaim } from './acp-session';
+import type { EndedHandoff, HandoffClaim } from './acp-session';
 import { writeDurably } from './durable-write';
 
 export const handoffsPath = '/browser-handoffs';
@@ -26,9 +26,8 @@ export type HandoffRegistration = {
 	signInOrigin: string;
 	expiresAt: number;
 	status: HandoffStatus;
+	sessionID?: string;
 };
-
-export type Settle = () => void;
 
 export type BrowserHandoffSettings = {
 	appURL: string;
@@ -36,6 +35,7 @@ export type BrowserHandoffSettings = {
 	openPage: (devtoolsURL: string) => Promise<DevtoolsConnection>;
 	deliver: (event: Record<string, unknown>, memberID: string) => void;
 	emailOfMember: (memberID: string) => Promise<string | null>;
+	whenEnded?: (ended: EndedHandoff) => void;
 	now?: () => number;
 	unclaimedMilliseconds?: number;
 	report?: (line: string) => void;
@@ -46,7 +46,6 @@ export type Served = { status: number; body: unknown };
 type LiveHandoff = {
 	registration: HandoffRegistration;
 	expiry: ReturnType<typeof setTimeout> | null;
-	settle: Settle | null;
 	requesterMemberID: string | null;
 	stream: HandoffStream | null;
 	opening: Promise<HandoffStream> | null;
@@ -90,7 +89,7 @@ export class BrowserHandoffs {
 		return `${this.settings.appURL.replace(/\/+$/, '')}/handoff/${encodeURIComponent(handoffID)}`;
 	}
 
-	async claim(handoffID: string, requesterEmail: string, settle: Settle): Promise<HandoffClaim> {
+	async claim(handoffID: string, requesterEmail: string, sessionID: string): Promise<HandoffClaim> {
 		const handoff = this.handoffs.get(handoffID);
 		if (!handoff) return 'ended';
 		if (handoff.registration.requesterEmail !== requesterEmail.trim().toLowerCase()) {
@@ -98,19 +97,16 @@ export class BrowserHandoffs {
 			return 'refused';
 		}
 		if (finishedStatuses.has(handoff.registration.status)) return 'ended';
-		handoff.settle = settle;
-		if (handoff.registration.status === 'waiting') {
-			handoff.registration.status = 'open';
-			await this.persist();
-		}
+		handoff.registration.sessionID = sessionID;
+		handoff.registration.status = 'open';
+		await this.persist();
 		return 'open';
 	}
 
-	async answeredInTheThread(handoffID: string, isDone: boolean): Promise<void> {
+	async closeUnfinished(handoffID: string): Promise<void> {
 		const handoff = this.handoffs.get(handoffID);
 		if (!handoff) return;
-		handoff.settle = null;
-		await this.end(handoff, isDone ? 'done' : 'abandoned');
+		await this.finish(handoff, 'abandoned');
 	}
 
 	async serve(capability: string, body: Record<string, unknown>, memberID: string): Promise<Served> {
@@ -131,7 +127,7 @@ export class BrowserHandoffs {
 	}
 
 	private keep(registration: HandoffRegistration): void {
-		const handoff: LiveHandoff = { registration, expiry: null, settle: null, requesterMemberID: null, stream: null, opening: null };
+		const handoff: LiveHandoff = { registration, expiry: null, requesterMemberID: null, stream: null, opening: null };
 		this.handoffs.set(registration.handoffID, handoff);
 		if (finishedStatuses.has(registration.status)) return;
 		handoff.expiry = setTimeout(() => void this.end(handoff, 'expired'), Math.max(0, registration.expiresAt - this.now()));
@@ -204,7 +200,14 @@ export class BrowserHandoffs {
 	}
 
 	private async end(handoff: LiveHandoff, status: HandoffStatus): Promise<void> {
-		if (finishedStatuses.has(handoff.registration.status)) return;
+		if (!(await this.finish(handoff, status))) return;
+		const sessionID = handoff.registration.sessionID;
+		if (!sessionID) return;
+		this.settings.whenEnded?.({ handoffID: handoff.registration.handoffID, sessionID, isHandedBack: status === 'done' });
+	}
+
+	private async finish(handoff: LiveHandoff, status: HandoffStatus): Promise<boolean> {
+		if (finishedStatuses.has(handoff.registration.status)) return false;
 		handoff.registration.status = status;
 		if (handoff.expiry) clearTimeout(handoff.expiry);
 		await this.persist();
@@ -213,9 +216,7 @@ export class BrowserHandoffs {
 			handoff.stream.stop();
 		}
 		this.report(`hand-over ${handoff.registration.handoffID} ended ${status}`);
-		const settle = handoff.settle;
-		handoff.settle = null;
-		settle?.();
+		return true;
 	}
 
 	private persist(): Promise<void> {
@@ -261,7 +262,8 @@ function readKeptRegistration(offered: unknown): HandoffRegistration | null {
 	const status = statuses.find((candidate) => candidate === held.status);
 	const registration = readRegistration({ ...held, expiresAt: new Date(Number(held.expiresAt)).toISOString() });
 	if (!registration || !status) return null;
-	return { ...registration, status };
+	const sessionID = textOf(held.sessionID);
+	return { ...registration, status, ...(sessionID ? { sessionID } : {}) };
 }
 
 function loopbackDevtoolsURLOf(offered: unknown): string {

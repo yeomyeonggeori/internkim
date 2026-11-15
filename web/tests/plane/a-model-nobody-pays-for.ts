@@ -84,7 +84,7 @@ export function aTurnStartingWork(message: string, toolNames: string[]): TurnOut
 	};
 }
 
-export function aTurnApprovingTheHeldCall(message: string): TurnOutcome {
+export function aTurnAnsweringTheParkedQuestion(message: string): TurnOutcome {
 	return {
 		message,
 		addressing: addressedToTheAgent(),

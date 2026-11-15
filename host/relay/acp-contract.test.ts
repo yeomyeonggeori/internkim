@@ -10,14 +10,17 @@ import {
 	type UpdatedToolCall
 } from './tool-progress';
 import {
-	approvalReplyExtensionMethod,
-	approvalReplyRequest,
+	abandonedOptionKey,
 	deliveredExtensionMethod,
 	deliveredReport,
 	deliveryMetaKey,
 	deliveryOf,
+	handedBackOptionKey,
+	handoffClosedExtensionMethod,
+	handoffClosedOf,
+	handoffEndedExtensionMethod,
+	handoffEndedReport,
 	messageMetaKey,
-	readingOf,
 	sessionMetaKey,
 	undeliveredExtensionMethod,
 	undeliveredReport
@@ -32,6 +35,7 @@ type ClientContract = {
 	metaKeys: Record<string, string>;
 	extensionMethods: Record<string, string>;
 	fields: Record<string, string[]>;
+	handoffOptions: Record<string, string>;
 	toolCalls: {
 		startKind: string;
 		startFields: string[];
@@ -46,21 +50,22 @@ function blueclawContract(): ClientContract {
 }
 
 function valueOfDeliveryField(name: string): string | boolean {
-	return name === 'isAlreadyPosted' || name === 'isFinal' ? true : `a ${name}`;
+	return name === 'isFinal' ? true : `a ${name}`;
 }
 
-function fieldsReadFromAnApprovalReplyAnswer(): string[] {
+function fieldsReadFromAHandoffClosedNotice(): string[] {
 	const read = new Set<string>();
-	const answer = new Proxy<Record<string, unknown>>(
-		{ isAnswer: true, optionId: 'approve_once', isInstruction: false },
-		{
-			get: (target, name) => {
-				read.add(String(name));
-				return Reflect.get(target, name);
+	handoffClosedOf(
+		new Proxy<Record<string, unknown>>(
+			{ handoffID: 'handoff' },
+			{
+				get: (target, name) => {
+					read.add(String(name));
+					return Reflect.get(target, name);
+				}
 			}
-		}
+		)
 	);
-	readingOf(answer);
 	return [...read];
 }
 
@@ -95,8 +100,9 @@ describe('the relay speaks the ACP extension blueclaw declares', () => {
 
 	test('under the same extension method names', () => {
 		const relayMethods: Record<string, string> = {
-			approvalReply: approvalReplyExtensionMethod,
 			delivered: deliveredExtensionMethod,
+			handoffClosed: handoffClosedExtensionMethod,
+			handoffEnded: handoffEndedExtensionMethod,
 			undelivered: undeliveredExtensionMethod
 		};
 		expect(relayMethods).toEqual(contract.extensionMethods);
@@ -110,12 +116,15 @@ describe('the relay speaks the ACP extension blueclaw declares', () => {
 			delivery: Object.keys(everyDeliveryField),
 			delivered: Object.keys(deliveredReport('delivery', 'message')),
 			undelivered: Object.keys(undeliveredReport('delivery', 'reason')),
-			approvalReply: Object.keys(
-				approvalReplyRequest('session', 'tool call', 'reply', 'message', { platform: 'buzz', conversationID: 'conversation' }, 'sample@example.com')
-			),
-			approvalReplyAnswer: fieldsReadFromAnApprovalReplyAnswer()
+			handoffClosed: fieldsReadFromAHandoffClosedNotice(),
+			handoffEnded: Object.keys(handoffEndedReport('session', 'handoff', handedBackOptionKey))
 		};
 		expect(sortedFields(relayFields)).toEqual(sortedFields(contract.fields));
+	});
+
+	test('ending a hand-over on the option keys the gate offers', () => {
+		const relayOptions: Record<string, string> = { handedBack: handedBackOptionKey, abandoned: abandonedOptionKey };
+		expect(relayOptions).toEqual(contract.handoffOptions);
 	});
 
 	test('with the same tool call shapes', () => {

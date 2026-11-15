@@ -21,7 +21,7 @@ const (
 
 var blueclawHostTaskEventNamePaths = []string{
 	"../../.dependency/blueclaw/internal/task/host_task_event_names.go",
-	"../../.dependency/blueclaw/internal/approvalgate/permission_asker.go",
+	"../../.dependency/blueclaw/internal/approvalgate/parked_question.go",
 	"../../.dependency/blueclaw/internal/approvalgate/wording.go",
 }
 

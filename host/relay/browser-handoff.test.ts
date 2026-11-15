@@ -10,6 +10,7 @@ import {
 	handoffWatchCapability,
 	type BrowserHandoffSettings
 } from './browser-handoff';
+import type { EndedHandoff } from './acp-session';
 import { handoffFrameEventKind, type DevtoolsConnection } from './browser-handoff-stream';
 import type { DevtoolsEvent } from './devtools-page';
 
@@ -76,12 +77,14 @@ async function eventually(isTrue: () => boolean): Promise<void> {
 	while (!isTrue() && Date.now() < deadline) await Bun.sleep(5);
 }
 
+const claimingSessionID = 'session-1';
+
 async function openedHandoff(overrides: Partial<BrowserHandoffSettings> = {}) {
-	const fixture = handoffsFixture(overrides);
+	const ended: EndedHandoff[] = [];
+	const fixture = handoffsFixture({ whenEnded: (handoff) => ended.push(handoff), ...overrides });
 	expect((await fixture.handoffs.register(registration())).status).toBe(201);
-	let settledCount = 0;
-	expect(await fixture.handoffs.claim('handoff-1', requester.email, () => settledCount++)).toBe('open');
-	return { ...fixture, settledCount: () => settledCount };
+	expect(await fixture.handoffs.claim('handoff-1', requester.email, claimingSessionID)).toBe('open');
+	return { ...fixture, ended };
 }
 
 describe('BrowserHandoffs', () => {
@@ -92,7 +95,7 @@ describe('BrowserHandoffs', () => {
 
 		expect(handoffs.statusOf('handoff-1')).toEqual({ status: 200, body: { status: 'waiting', signInOrigin: 'https://portal.example.com' } });
 		expect(handoffs.linkOf('handoff-1')).toBe('https://intern.example.com/handoff/handoff-1');
-		expect(await handoffs.claim('handoff-1', requester.email, () => {})).toBe('open');
+		expect(await handoffs.claim('handoff-1', requester.email, claimingSessionID)).toBe('open');
 		expect(handoffs.statusOf('handoff-1').body).toEqual({ status: 'open', signInOrigin: 'https://portal.example.com' });
 	});
 
@@ -100,7 +103,7 @@ describe('BrowserHandoffs', () => {
 		const { handoffs } = handoffsFixture();
 		await handoffs.register(registration());
 
-		expect(await handoffs.claim('handoff-1', stranger.email, () => {})).toBe('refused');
+		expect(await handoffs.claim('handoff-1', stranger.email, claimingSessionID)).toBe('refused');
 		expect(handoffs.statusOf('handoff-1').body).toEqual({ status: 'waiting', signInOrigin: 'https://portal.example.com' });
 	});
 
@@ -136,8 +139,8 @@ describe('BrowserHandoffs', () => {
 		expect(await Bun.file(settings.filePath).text()).not.toContain(typed);
 	});
 
-	test('finishing hands the browser back once, tells the page and settles the question', async () => {
-		const { handoffs, delivered, page, settledCount } = await openedHandoff();
+	test('finishing hands the browser back once, tells the page and reports the end to the session that claimed it', async () => {
+		const { handoffs, delivered, page, ended } = await openedHandoff();
 		await handoffs.serve(handoffWatchCapability, { handoffID: 'handoff-1' }, requester.memberID);
 
 		const finished = await handoffs.serve(handoffFinishCapability, { handoffID: 'handoff-1', outcome: 'done' }, requester.memberID);
@@ -145,7 +148,7 @@ describe('BrowserHandoffs', () => {
 
 		expect(finished).toEqual({ status: 200, body: { status: 'done' } });
 		expect(again.status).toBe(404);
-		expect(settledCount()).toBe(1);
+		expect(ended).toEqual([{ handoffID: 'handoff-1', sessionID: claimingSessionID, isHandedBack: true }]);
 		expect(delivered).toContainEqual({ event: { kind: handoffEndedEventKind, handoffID: 'handoff-1', status: 'done' }, memberID: requester.memberID });
 		await Bun.sleep(10);
 		expect(page.methods()).toContain('Emulation.clearDeviceMetricsOverride');
@@ -153,26 +156,26 @@ describe('BrowserHandoffs', () => {
 	});
 
 	test('stopping without finishing is told as abandoned', async () => {
-		const { handoffs, settledCount } = await openedHandoff();
+		const { handoffs, ended } = await openedHandoff();
 
 		await handoffs.serve(handoffFinishCapability, { handoffID: 'handoff-1', outcome: 'abandoned' }, requester.memberID);
 
 		expect(handoffs.statusOf('handoff-1').body).toEqual({ status: 'abandoned', signInOrigin: 'https://portal.example.com' });
-		expect(settledCount()).toBe(1);
+		expect(ended).toEqual([{ handoffID: 'handoff-1', sessionID: claimingSessionID, isHandedBack: false }]);
 	});
 
-	test('a hand-over nobody finishes expires and still settles its question', async () => {
-		const fixture = handoffsFixture();
-		let settled = 0;
+	test('a hand-over nobody finishes expires and still reports its end as not handed back', async () => {
+		const ended: EndedHandoff[] = [];
+		const fixture = handoffsFixture({ whenEnded: (handoff) => ended.push(handoff) });
 		const registering = fixture.handoffs.register(registration(30));
-		const claiming = fixture.handoffs.claim('handoff-1', requester.email, () => settled++);
+		const claiming = fixture.handoffs.claim('handoff-1', requester.email, claimingSessionID);
 		expect(await claiming).toBe('open');
 		await registering;
 
-		await eventually(() => settled > 0);
+		await eventually(() => ended.length > 0);
 
 		expect(fixture.handoffs.statusOf('handoff-1').body).toEqual({ status: 'expired', signInOrigin: 'https://portal.example.com' });
-		expect(settled).toBe(1);
+		expect(ended).toEqual([{ handoffID: 'handoff-1', sessionID: claimingSessionID, isHandedBack: false }]);
 	});
 
 	test('a hand-over no question ever claims expires so the browser is not left locked', async () => {
@@ -184,13 +187,42 @@ describe('BrowserHandoffs', () => {
 		expect(handoffs.statusOf('handoff-1').body).toEqual({ status: 'expired', signInOrigin: 'https://portal.example.com' });
 	});
 
-	test('a reply in the thread ends the hand-over without settling the question twice', async () => {
-		const { handoffs, settledCount } = await openedHandoff();
+	test('a hand-over no session claimed ends without a report, since no run is parked on it', async () => {
+		const ended: EndedHandoff[] = [];
+		const { handoffs } = handoffsFixture({ unclaimedMilliseconds: 20, whenEnded: (handoff) => ended.push(handoff) });
+		await handoffs.register(registration());
 
-		await handoffs.answeredInTheThread('handoff-1', false);
+		await eventually(() => JSON.stringify(handoffs.statusOf('handoff-1').body).includes('expired'));
+
+		expect(ended).toEqual([]);
+	});
+
+	test('a hand-over finished after a relay restart still reports its end to the session that claimed it', async () => {
+		const first = await openedHandoff();
+		const endedAfterTheRestart: EndedHandoff[] = [];
+		const restarted = new BrowserHandoffs({ ...first.settings, whenEnded: (handoff) => endedAfterTheRestart.push(handoff) });
+		await restarted.restore();
+
+		await restarted.serve(handoffFinishCapability, { handoffID: 'handoff-1', outcome: 'done' }, requester.memberID);
+
+		expect(endedAfterTheRestart).toEqual([{ handoffID: 'handoff-1', sessionID: claimingSessionID, isHandedBack: true }]);
+		expect(first.ended).toEqual([]);
+		first.handoffs.close();
+		restarted.close();
+	});
+
+	test('a hand-over closed unfinished ends as abandoned, tells the page, and reports nothing to the session', async () => {
+		const { handoffs, delivered, ended, page } = await openedHandoff();
+		await handoffs.serve(handoffWatchCapability, { handoffID: 'handoff-1' }, requester.memberID);
+
+		await handoffs.closeUnfinished('handoff-1');
+		await handoffs.closeUnfinished('handoff-nobody-registered');
 
 		expect(handoffs.statusOf('handoff-1').body).toEqual({ status: 'abandoned', signInOrigin: 'https://portal.example.com' });
-		expect(settledCount()).toBe(0);
+		expect(delivered).toContainEqual({ event: { kind: handoffEndedEventKind, handoffID: 'handoff-1', status: 'abandoned' }, memberID: requester.memberID });
+		expect(ended).toEqual([]);
+		await Bun.sleep(10);
+		expect(page.isOpen).toBe(false);
 	});
 
 	test('an open hand-over survives a relay restart', async () => {
@@ -200,7 +232,7 @@ describe('BrowserHandoffs', () => {
 		await restarted.restore();
 
 		expect(restarted.statusOf('handoff-1').body).toEqual({ status: 'open', signInOrigin: 'https://portal.example.com' });
-		expect(await restarted.claim('handoff-1', requester.email, () => {})).toBe('open');
+		expect(await restarted.claim('handoff-1', requester.email, claimingSessionID)).toBe('open');
 		first.handoffs.close();
 		restarted.close();
 	});
@@ -209,8 +241,8 @@ describe('BrowserHandoffs', () => {
 		const { handoffs } = await openedHandoff();
 		await handoffs.serve(handoffFinishCapability, { handoffID: 'handoff-1', outcome: 'done' }, requester.memberID);
 
-		expect(await handoffs.claim('handoff-1', requester.email, () => {})).toBe('ended');
-		expect(await handoffs.claim('handoff-unknown', requester.email, () => {})).toBe('ended');
+		expect(await handoffs.claim('handoff-1', requester.email, claimingSessionID)).toBe('ended');
+		expect(await handoffs.claim('handoff-unknown', requester.email, claimingSessionID)).toBe('ended');
 	});
 
 	test('a registration naming a browser off this computer is refused', async () => {
