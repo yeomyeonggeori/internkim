@@ -1,0 +1,14 @@
+[
+  { "holdsKey": true, "usesOwnKey": true, "creditsCanPay": true, "paidBy": "company_key" },
+  { "holdsKey": true, "usesOwnKey": true, "creditsCanPay": false, "paidBy": "company_key" },
+  { "holdsKey": true, "usesOwnKey": false, "creditsCanPay": true, "paidBy": "subscription" },
+  { "holdsKey": true, "usesOwnKey": false, "creditsCanPay": false, "paidBy": "nothing" },
+  { "holdsKey": false, "usesOwnKey": true, "creditsCanPay": true, "paidBy": "subscription" },
+  { "holdsKey": false, "usesOwnKey": true, "creditsCanPay": false, "paidBy": "nothing" },
+  { "holdsKey": false, "usesOwnKey": false, "creditsCanPay": true, "paidBy": "subscription" },
+  { "holdsKey": false, "usesOwnKey": false, "creditsCanPay": false, "paidBy": "nothing" },
+  { "holdsKey": null, "usesOwnKey": true, "creditsCanPay": true, "paidBy": "unknown" },
+  { "holdsKey": null, "usesOwnKey": true, "creditsCanPay": false, "paidBy": "unknown" },
+  { "holdsKey": null, "usesOwnKey": false, "creditsCanPay": true, "paidBy": "subscription" },
+  { "holdsKey": null, "usesOwnKey": false, "creditsCanPay": false, "paidBy": "nothing" }
+]

@@ -35,8 +35,8 @@ own:
   SERVICE_TOKEN_PATH        /run/internkim/secrets/service-token
   POSIX_HELPER_PATH         /usr/local/bin/blueclaw-posix-helper
   MODEL_ENDPOINT            the ladder's own endpoint
-  SUPABASE_URL              the central plane whose model gateway the ladder reaches when MODEL_API_KEY_PATH holds no key
-  MODEL_GATEWAY_KEY_PATH    the file holding this computer's credential, which the gateway is asked with
+  SUPABASE_URL              the central plane whose model gateway the ladder reaches unless MODEL_API_KEY_PATH holds a key the company uses
+  MODEL_GATEWAY_KEY_PATH    the file holding this computer's credential, which the gateway is asked with, including whether the company uses its key
 USAGE
   exit 2
 }

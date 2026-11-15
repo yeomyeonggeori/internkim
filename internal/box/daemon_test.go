@@ -22,6 +22,7 @@ type fakePlane struct {
 	isClaimed        bool
 	accessToken      string
 	sealedModelKey   *SealedModelKey
+	payerIsStale     bool
 	announcements    int
 	codesAskedFor    int
 	pageAddresses    []string
@@ -106,6 +107,7 @@ func (plane *fakePlane) serve(t *testing.T) *httptest.Server {
 				KeepsBackups:            plane.keepsBackups,
 				TakeOver:                plane.takeOver,
 				TargetVersion:           plane.targetVersion,
+				RestartsForModelPayer:   plane.payerIsStale,
 			})
 		case "/api/box/release":
 			plane.releases++
@@ -331,6 +333,63 @@ func TestAModelKeyGivenAfterAKeylessInstallStartsTheServicesAgainOnce(t *testing
 	requireFile(t, places.ModelKeyPath, "sk-or-v1-later\n", 0o600)
 	if len(recorded.requests) != 1 || restarts != 1 {
 		t.Fatalf("installs = %d, restarts = %d; a new key must restart the services once and an unchanged one never", len(recorded.requests), restarts)
+	}
+}
+
+func TestAModelKeyTheCompanyRemovesIsTakenBackFromTheBoxOnce(t *testing.T) {
+	for _, isGivenAtInstall := range []bool{true, false} {
+		plane := &fakePlane{isClaimed: true, accessToken: "header.claims.signature"}
+		daemon, places := daemonFor(t, plane, &installs{})
+		restarts := 0
+		daemon.RestartServices = func() error {
+			restarts++
+			return nil
+		}
+		if isGivenAtInstall {
+			plane.sealedModelKey = sealTo(t, identityOf(t, places), "sk-or-v1-sample")
+		}
+		runSteps(t, daemon, 1)
+		writeCredentialFiles(t, places)
+		plane.sealedModelKey = sealTo(t, identityOf(t, places), "sk-or-v1-sample")
+		runSteps(t, daemon, 1)
+		requireFile(t, places.ModelKeyPath, "sk-or-v1-sample\n", 0o600)
+		restartsWhileHeld := restarts
+
+		plane.sealedModelKey = nil
+		runSteps(t, daemon, 1)
+		runSteps(t, daemon, 1)
+
+		if _, errorValue := os.Stat(places.ModelKeyPath); !errors.Is(errorValue, os.ErrNotExist) {
+			t.Fatalf("given at install %v: the company removed its key and the box still holds it: %v", isGivenAtInstall, errorValue)
+		}
+		if restarts != restartsWhileHeld+1 {
+			t.Fatalf("given at install %v: restarts = %d after %d; taking the key back must restart the services once", isGivenAtInstall, restarts, restartsWhileHeld)
+		}
+	}
+}
+
+func TestAServiceBoxRestartsItsServicesWhenThePlaneSaysItsPayerIsStale(t *testing.T) {
+	plane := &fakePlane{isClaimed: true, accessToken: "header.claims.signature"}
+	daemon, places := daemonFor(t, plane, &installs{})
+	restarts := 0
+	daemon.RestartServices = func() error {
+		restarts++
+		return nil
+	}
+	runSteps(t, daemon, 1)
+	writeCredentialFiles(t, places)
+	runSteps(t, daemon, 1)
+	if restarts != 0 {
+		t.Fatalf("restarts = %d before anything changed", restarts)
+	}
+
+	plane.payerIsStale = true
+	runSteps(t, daemon, 1)
+	plane.payerIsStale = false
+	runSteps(t, daemon, 1)
+
+	if restarts != 1 {
+		t.Fatalf("restarts = %d; a changed payer restarts the services once, and the restart is what makes it current", restarts)
 	}
 }
 

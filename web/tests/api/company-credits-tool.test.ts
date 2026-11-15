@@ -1,9 +1,11 @@
-import { afterAll, beforeAll, describe, expect, mock, test } from 'bun:test';
+import { afterAll, beforeAll, beforeEach, describe, expect, mock, test } from 'bun:test';
 import { addMember, asMember, controlPlane, provisionCompany, sessionForMember } from '../../src/lib/server/control-plane';
 import { projectURL, publishableKey, serviceRoleKey, signingKey } from '../support/supabase-environment';
 import { heldToTheContract } from './tool-answers';
 import { leavesTaskLabelsUndecided } from '../../src/lib/server/public-api/record/task-labels';
 import { defaultCreditUsageLimit } from '../../src/lib/credit-policy';
+import { companyBoxesOf, usesOwnModelKeyOf } from '../../src/lib/server/box';
+import { keptModelKeyReport } from '../../../supabase/functions/_shared/model-key-report';
 
 mock.module('$env/dynamic/private', () => ({
 	env: { SUPABASE_URL: projectURL, SUPABASE_SECRET_KEY: serviceRoleKey, SUPABASE_PUBLISHABLE_KEY: publishableKey, SUPABASE_JWT_SIGNING_KEY: signingKey }
@@ -114,5 +116,69 @@ describe('the per-member credit limit', () => {
 		const refused = await asSample('company_settings_update', { creditUsageLimit: 1 });
 		expect(refused.status).toBeGreaterThanOrEqual(400);
 		expect(resultOf(await asAdmin('company_credits_get')).usageLimit).toBe(25000);
+	});
+});
+
+describe('who pays for the models', () => {
+	const agentKeyHash = `who-pays-${slug}`;
+	const computer = { boxKey: null, agentKeyHash };
+
+	async function usingOwnKey(usesOwnModelKey: boolean) {
+		const { error } = await client.from('company').update({ uses_own_model_key: usesOwnModelKey }).eq('id', companyID);
+		if (error) throw new Error(error.message);
+	}
+
+	async function computerStarts(holdsModelKey: boolean) {
+		return (await keptModelKeyReport(client, companyID, computer, { holdsModelKey })).json();
+	}
+
+	beforeEach(async () => {
+		await client.from('agent').delete().eq('company_id', companyID);
+		const { error } = await client.from('agent').insert({ company_id: companyID, name: 'company-computer', api_key_hash: agentKeyHash });
+		if (error) throw new Error(error.message);
+		await usingOwnKey(true);
+	}, networkHookTimeout);
+
+	afterAll(async () => {
+		await client.from('agent').delete().eq('company_id', companyID);
+		await usingOwnKey(true);
+	}, networkHookTimeout);
+
+	test('until the computer has said what it started with, the page says unknown and the tool says credits', async () => {
+		expect((await companyBoxesOf(client, companyID)).paidBy).toBe('unknown');
+		expect(resultOf(await asSample('company_credits_get')).paidBy).toBe('subscription');
+	});
+
+	test('a key typed into the computer pays once the computer says it started with it', async () => {
+		expect(await computerStarts(true)).toEqual({ usesOwnModelKey: true });
+		expect(await companyBoxesOf(client, companyID)).toMatchObject({ paidBy: 'company_key', isModelKeyOnlyOnTheComputer: true, isPayerChangeWaiting: false });
+		expect(resultOf(await asSample('company_credits_get')).paidBy).toBe('company_key');
+	});
+
+	test('a setting changed after the computer started waits for its next start', async () => {
+		await computerStarts(true);
+		expect((await asAdmin('company_settings_update', { usesOwnModelKey: false })).status).toBe(200);
+		expect(await companyBoxesOf(client, companyID)).toMatchObject({ usesOwnModelKey: false, paidBy: 'company_key', isPayerChangeWaiting: true });
+
+		expect(await computerStarts(true)).toEqual({ usesOwnModelKey: false });
+		expect(await companyBoxesOf(client, companyID)).toMatchObject({ paidBy: 'subscription', isPayerChangeWaiting: false });
+		expect(resultOf(await asSample('company_credits_get')).paidBy).toBe('subscription');
+	});
+
+	test('a computer without a key pays with credits whatever the setting says', async () => {
+		await computerStarts(false);
+		expect(await companyBoxesOf(client, companyID)).toMatchObject({ paidBy: 'subscription', isPayerChangeWaiting: false, isModelKeyOnlyOnTheComputer: false });
+	});
+
+	test('a report that does not say whether the computer holds a key is refused', async () => {
+		const refused = await keptModelKeyReport(client, companyID, computer, {}).catch((refusal: unknown) => refusal);
+		expect(refused instanceof Response ? refused.status : refused).toBe(400);
+	});
+
+	test('a member who does not administer cannot choose who pays', async () => {
+		await usingOwnKey(false);
+		const refused = await asSample('company_settings_update', { usesOwnModelKey: true });
+		expect(refused.status).toBeGreaterThanOrEqual(400);
+		expect(await usesOwnModelKeyOf(client, companyID)).toBe(false);
 	});
 });

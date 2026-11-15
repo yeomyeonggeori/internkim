@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { modelGatewayRoute } from '../../../../supabase/functions/_shared/model-gateway-route.ts';
+import { asksWhoPays, modelGatewayRoute } from '../../../../supabase/functions/_shared/model-gateway-route.ts';
 
 describe('which OpenRouter route a gateway request reaches', () => {
 	test('a chat and a decision are charged, the model list is not', () => {
@@ -15,5 +15,12 @@ describe('which OpenRouter route a gateway request reaches', () => {
 		expect(modelGatewayRoute('POST', '/model-gateway')).toBeNull();
 		expect(modelGatewayRoute('POST', '/model-gateway/api/v1/keys')).toBeNull();
 		expect(modelGatewayRoute('GET', '/model-gateway/api/v1/chat/completions')).toBeNull();
+	});
+
+	test('who pays is answered by the gateway itself and passed to nobody', () => {
+		expect(asksWhoPays('POST', '/functions/v1/model-gateway/payer')).toBe(true);
+		expect(asksWhoPays('POST', '/model-gateway/payer/')).toBe(true);
+		expect(asksWhoPays('GET', '/model-gateway/payer')).toBe(false);
+		expect(modelGatewayRoute('POST', '/model-gateway/payer')).toBeNull();
 	});
 });

@@ -477,7 +477,7 @@
   },
   "SUPABASE_URL": {
     "process": "relay, host, web, connection-gateway worker, web scripts, tools/render-company-runtime",
-    "description": "the Supabase project URL; required across the relay, the host's admind, the web app and the gateway worker, used by web/scripts' one-off ops scripts, and the central plane whose model gateway the rendered model ladder reaches for a company that brought no OpenRouter key",
+    "description": "the Supabase project URL; required across the relay, the host's admind, the web app and the gateway worker, used by web/scripts' one-off ops scripts, and the central plane whose model gateway the rendered model ladder reaches unless the company holds an OpenRouter key and uses it",
     "isRequiredOnPages": true,
     "isInVault": true
   },

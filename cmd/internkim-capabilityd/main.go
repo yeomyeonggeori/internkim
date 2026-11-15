@@ -38,22 +38,29 @@ func main() {
 	flag.IntVar(&configuration.DeviceBrowserCapacity, "device-browser-capacity", defaultConfiguration.DeviceBrowserCapacity, "most device browsers running at once")
 	flag.StringVar(&configuration.DeviceBrowserUserName, "device-browser-user", defaultConfiguration.DeviceBrowserUserName, "user a device browser runs as when capabilityd runs as root")
 	flag.StringVar(&configuration.RelayBaseURL, "relay-url", defaultConfiguration.RelayBaseURL, "URL the relay takes local calls on, where a browser hand-over is put to the requester")
-	flag.StringVar(&configuration.CentralPlaneURL, "central-plane-url", "", "the company's central plane, whose model gateway every model call goes through when the company brought no OpenRouter key")
+	flag.StringVar(&configuration.CentralPlaneURL, "central-plane-url", "", "the company's central plane, whose model gateway capabilityd's model calls go through when the runtime document's ladder reaches it")
+	flag.StringVar(&configuration.RuntimeDocumentPath, "runtime", "", "the runtime document the preparation rendered, whose ladder says who pays for this start of the services")
 	flag.BoolVar(&configuration.LocalOnly, "local-only", defaultConfiguration.LocalOnly, "disable remote LLM fallback")
 	flag.String("companion-url", "", "ignored; device units written before 2026-10-01 still pass it, and an undefined flag stops the daemon")
 	flag.Bool("prefer-companion-llm", false, "ignored; device units written in May 2026 still pass it, and an undefined flag stops the daemon")
 	shouldPrintCapabilities := flag.Bool("print-capabilities", false, "print the capabilities block the agent's runtime document needs, and exit")
 	modelLadderKeyPath := flag.String("print-model-ladder", "", "print the languageModel block the agent's runtime document needs, with this path named as each endpoint's key file, and exit")
 	modelLadderEndpoint := flag.String("model-endpoint", "", "the OpenAI-compatible endpoint the printed ladder reaches, when this company runs its models somewhere of its own")
-	modelLadderGateway := flag.String("model-gateway", "", "the company's central plane, whose model gateway the printed ladder reaches first, so subscription credits pay before the key in the --print-model-ladder file")
-	modelLadderGatewayKeyPath := flag.String("model-gateway-key", "", "the file holding this computer's credential, named as each endpoint's key file when the ladder reaches the model gateway")
+	modelLadderGateway := flag.String("model-gateway", "", "the company's central plane, whose model gateway the printed ladder reaches unless the company holds a key in the --print-model-ladder file and the plane says it uses it")
+	modelLadderGatewayKeyPath := flag.String("model-gateway-key", "", "the file holding this computer's credential, with which the model gateway is asked whether the company uses its key, and named as each endpoint's key file when the ladder reaches the gateway")
 	flag.Parse()
 	if *shouldPrintCapabilities {
 		printCapabilities(configuration.SocketPath)
 		return
 	}
 	if strings.TrimSpace(*modelLadderKeyPath) != "" {
-		printJSONDocument(modelladder.CompanyLanguageModelDocument(*modelLadderGateway, *modelLadderGatewayKeyPath, *modelLadderEndpoint, *modelLadderKeyPath))
+		isCompanyKeyInUse := modelladder.GatewaySaysWhetherTheCompanyKeyIsInUse(*modelLadderGateway, *modelLadderGatewayKeyPath)
+		document, errorValue := modelladder.CompanyLanguageModelDocument(*modelLadderGateway, *modelLadderGatewayKeyPath, *modelLadderEndpoint, *modelLadderKeyPath, isCompanyKeyInUse)
+		if errorValue != nil {
+			fmt.Fprintln(os.Stderr, errorValue.Error())
+			os.Exit(1)
+		}
+		printJSONDocument(document)
 		return
 	}
 	if strings.TrimSpace(configuration.ChatdPlatform) == "" {

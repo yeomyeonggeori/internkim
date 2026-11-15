@@ -30,6 +30,42 @@ func TestEveryBundledUnitWaitsForSomethingInstallWrites(t *testing.T) {
 	}
 }
 
+func TestThePreparationIsOneStartThatWaitsAndTheAgentStartsOnceItIsDone(t *testing.T) {
+	units := map[string]string{}
+	for _, unit := range CompanyHostSystemdUnits(LinuxCompanyHostLayout()) {
+		units[unit.Name] = unit.Contents
+	}
+	prepare := units[CompanyHostPrepareServiceName]
+	for _, expected := range []string{"Type=oneshot\n", "RemainAfterExit=yes\n", "TimeoutStartSec=infinity\n"} {
+		if !strings.Contains(prepare, expected) {
+			t.Fatalf("the preparation, which waits for the central plane while the computer holds a key, needs %q:\n%s", strings.TrimSpace(expected), prepare)
+		}
+	}
+	if strings.Contains(prepare, "Restart=") {
+		t.Fatalf("a preparation that failed and was started again would leave the units that required it failed:\n%s", prepare)
+	}
+	for _, dependent := range []string{CapabilitydServiceName, BlueclawServiceName, AdmindServiceName} {
+		contents := units[dependent]
+		for _, expected := range []string{"Requires=" + CompanyHostPrepareServiceName + ".service", CompanyHostPrepareServiceName + ".service"} {
+			if !strings.Contains(contents, expected) {
+				t.Fatalf("%s must start only once the preparation is done, missing %q:\n%s", dependent, expected, contents)
+			}
+		}
+		if !strings.Contains(afterLineOf(contents), CompanyHostPrepareServiceName+".service") {
+			t.Fatalf("%s must be ordered after the preparation:\n%s", dependent, contents)
+		}
+	}
+}
+
+func afterLineOf(unit string) string {
+	for _, line := range strings.Split(unit, "\n") {
+		if strings.HasPrefix(line, "After=") {
+			return line
+		}
+	}
+	return ""
+}
+
 func TestTheBoxUnitIsThePackagedUnitThatRunsBeforeThereIsACompany(t *testing.T) {
 	bundled := map[string]bool{}
 	for _, unit := range CompanyHostSystemdUnits(LinuxCompanyHostLayout()) {

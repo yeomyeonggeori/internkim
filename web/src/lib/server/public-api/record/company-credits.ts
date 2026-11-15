@@ -1,14 +1,12 @@
 import { z } from 'zod';
-import { keyringOf } from '../../box';
+import { creditsCanPayForModels, modelKeyReportOf } from '../../credits-can-pay';
 import { subscriptionCreditsPerMember } from '../../stripe-subscription-invoice';
-import { subscriptionPaysForModels } from '../../subscription-pays-for-models';
-import type { companyCreditsResultSchema, companyModelPayers } from '$lib/company/credits-contract';
+import { payerRunning, payerTheShippedContractCanSay, type CompanyModelPayer, type companyCreditsResultSchema } from '$lib/company/credits-contract';
 import type { RecordContext } from './company';
 import { creditUsageLimitOf } from './credit-usage-limit';
 import { refusalOfPostgresError } from '../refusal';
 
 type CompanyCreditsResult = z.infer<typeof companyCreditsResultSchema>;
-type CompanyModelPayer = (typeof companyModelPayers)[number];
 
 const creditColumns = z.object({
 	subscription_status: z.string().nullable(),
@@ -36,17 +34,19 @@ async function usageTheRequesterMaySee(context: RecordContext): Promise<z.infer<
 	return usageRows.parse(data ?? []);
 }
 
-async function payerOfTheModels(context: RecordContext): Promise<CompanyModelPayer> {
-	if (await subscriptionPaysForModels(context.caller, context.companyID)) return 'subscription';
-	const keyring = await keyringOf(context.accountDirectory, context.companyID);
-	return keyring?.sealedModelKey ? 'company_key' : 'nothing';
+async function payerRunningOnTheComputer(context: RecordContext): Promise<CompanyModelPayer> {
+	const [creditsCanPay, report] = await Promise.all([
+		creditsCanPayForModels(context.accountDirectory, context.companyID),
+		modelKeyReportOf(context.accountDirectory, context.companyID)
+	]);
+	return payerTheShippedContractCanSay(payerRunning(report, creditsCanPay), creditsCanPay);
 }
 
 export async function companyCreditsGet(context: RecordContext): Promise<CompanyCreditsResult> {
 	const [company, usage, paidBy] = await Promise.all([
 		creditsOfTheCompany(context),
 		usageTheRequesterMaySee(context),
-		payerOfTheModels(context)
+		payerRunningOnTheComputer(context)
 	]);
 	const isAdmin = context.people.some((person) => person.personID === context.requesterID && person.isAdmin);
 	const nameOf = new Map(context.people.map((person) => [person.personID, person.name]));

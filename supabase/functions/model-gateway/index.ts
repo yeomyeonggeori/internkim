@@ -1,9 +1,10 @@
 import { callingAgent } from '../_shared/agent-caller.ts';
 import { defaultCreditUsageLimit } from '../_shared/credit-policy.ts';
 import { askedObject, refuse, serveRefusals } from '../_shared/http.ts';
+import { keptModelKeyReport } from '../_shared/model-key-report.ts';
 import { costOfAnswer, creditsOfCost, dollarsPerCreditOf, streamCostReader } from '../_shared/model-call-cost.ts';
 import { membersOfCompanyByEmail } from '../_shared/member-directory.ts';
-import { modelGatewayRoute } from '../_shared/model-gateway-route.ts';
+import { asksWhoPays, modelGatewayRoute } from '../_shared/model-gateway-route.ts';
 import type { SupabaseClient } from '../_shared/service-client.ts';
 
 const openRouterOrigin = 'https://openrouter.ai';
@@ -13,8 +14,10 @@ type Charge = { client: SupabaseClient; companyID: string; memberID: string | nu
 
 Deno.serve(
 	serveRefusals(async (request) => {
-		const route = modelGatewayRoute(request.method, new URL(request.url).pathname);
-		if (!route) refuse(404, 'the model gateway answers chat completions, decisions and the model list');
+		const pathname = new URL(request.url).pathname;
+		if (asksWhoPays(request.method, pathname)) return answeredModelKeyReport(request);
+		const route = modelGatewayRoute(request.method, pathname);
+		if (!route) refuse(404, 'the model gateway answers chat completions, decisions, the model list and who pays');
 		const { client, companyID } = await callingAgent(request);
 
 		const openRouterKey = Deno.env.get('OPENROUTER_API_KEY') ?? '';
@@ -57,6 +60,11 @@ Deno.serve(
 		return new Response(JSON.stringify(answer), { headers: { 'Content-Type': 'application/json' } });
 	})
 );
+
+async function answeredModelKeyReport(request: Request): Promise<Response> {
+	const { client, companyID, computer } = await callingAgent(request);
+	return keptModelKeyReport(client, companyID, computer, await askedObject(request));
+}
 
 async function requestingMember(request: Request, client: SupabaseClient, companyID: string): Promise<string | null> {
 	const email = (request.headers.get(requesterEmailHeader) ?? '').trim().toLowerCase();

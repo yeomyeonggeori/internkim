@@ -78,6 +78,7 @@ type CapabilitydPlaneArguments = {
 	admindSocketPath: string;
 	relayURL: string;
 	centralPlaneURL: string;
+	runtimeDocumentPath: string;
 };
 
 type BlueclawPlaneArguments = {
@@ -140,7 +141,8 @@ export function capabilitydArgumentsForPlane(argumentsForPlane: CapabilitydPlane
 			'--device-browser-user': 'blueclaw',
 			'--file-read-python': argumentsForPlane.fileReadPythonPath,
 			'--relay-url': argumentsForPlane.relayURL,
-			'--central-plane-url': argumentsForPlane.centralPlaneURL
+			'--central-plane-url': argumentsForPlane.centralPlaneURL,
+			'--runtime': argumentsForPlane.runtimeDocumentPath
 		}
 	);
 }
@@ -461,35 +463,6 @@ export async function aCompanyPlane(request: PlaneRequest = {}): Promise<ACompan
 			embeddingServer
 		);
 
-		started.push(
-			Bun.spawn(
-				[
-					join(binaryDirectory, 'internkim-capabilityd'),
-					...capabilitydArgumentsForPlane({
-						socketPath: capabilitySocketPath,
-						blueclawWorkspacePath: join(runDirectory, 'workspace'),
-						openRouterKeyPath,
-						blueclawURL,
-						embeddingServerURL,
-						admindURL,
-						chatdEndpoint: connector.url,
-						serviceTokenPath,
-						chatdPlatform: capabilitydPlatform,
-						deviceBrowserPath: join(binaryDirectory, 'moli'),
-						deviceBrowserStateDirectory: join(runDirectory, 'state', 'device-browsers'),
-						fileReadPythonPath: 'python3',
-						admindSocketPath: requesterSocketPath,
-						relayURL: `http://127.0.0.1:${arrivalsPort}`,
-						centralPlaneURL: projectURL
-					})
-				],
-				{ ...logsTo(join(runDirectory, 'capabilityd.log')), cwd: runDirectory, env: theBoxEnvironment() }
-			)
-		);
-		// A unix socket is not a file Bun.file() can answer for, so this asks the
-		// filesystem directly.
-		await untilReady('capabilityd', async () => existsSync(capabilitySocketPath));
-
 		// blueclaw keeps its own record, so each run gets a database of its own.
 		const databaseName = `plane_${runIdentifier}`;
 		await runPostgres(`CREATE DATABASE ${databaseName}`);
@@ -541,6 +514,36 @@ export async function aCompanyPlane(request: PlaneRequest = {}): Promise<ACompan
 		if (render.exitCode !== 0) {
 			throw new Error(`render-company-runtime failed: ${render.stderr.toString()}`);
 		}
+
+		started.push(
+			Bun.spawn(
+				[
+					join(binaryDirectory, 'internkim-capabilityd'),
+					...capabilitydArgumentsForPlane({
+						socketPath: capabilitySocketPath,
+						blueclawWorkspacePath: join(runDirectory, 'workspace'),
+						openRouterKeyPath,
+						blueclawURL,
+						embeddingServerURL,
+						admindURL,
+						chatdEndpoint: connector.url,
+						serviceTokenPath,
+						chatdPlatform: capabilitydPlatform,
+						deviceBrowserPath: join(binaryDirectory, 'moli'),
+						deviceBrowserStateDirectory: join(runDirectory, 'state', 'device-browsers'),
+						fileReadPythonPath: 'python3',
+						admindSocketPath: requesterSocketPath,
+						relayURL: `http://127.0.0.1:${arrivalsPort}`,
+						centralPlaneURL: projectURL,
+						runtimeDocumentPath: runtimeConfigurationPath
+					})
+				],
+				{ ...logsTo(join(runDirectory, 'capabilityd.log')), cwd: runDirectory, env: theBoxEnvironment() }
+			)
+		);
+		// A unix socket is not a file Bun.file() can answer for, so this asks the
+		// filesystem directly.
+		await untilReady('capabilityd', async () => existsSync(capabilitySocketPath));
 
 		const fileJournalSocketPath = thePackageValueOf('blueclaw', '-file-journal-socket');
 		mkdirSync(dirname(fileJournalSocketPath), { recursive: true, mode: 0o755 });

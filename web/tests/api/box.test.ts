@@ -20,6 +20,7 @@ import {
 	companyBoxesOf,
 	keepSealedCompanyKeys,
 	emptyBoxesAt,
+	forgetSealedModelKey,
 	keepSealedModelKey,
 	keepTakeOver,
 	makeBoxServe,
@@ -28,6 +29,7 @@ import {
 	releaseBox,
 	releaseBoxOfKey
 } from '../../src/lib/server/box';
+import { keptModelKeyReport } from '../../../supabase/functions/_shared/model-key-report';
 import { pendingWifiChangeOf, recordNearbyNetworks, reportWifiOutcome, requestWifiChange, wifiChangeStatusFor } from '../../src/lib/server/box-wifi';
 import { adminPasswordStatusFor, noteAdminAccount, pendingAdminPasswordOf, reportAdminPasswordOutcome, requestAdminPassword } from '../../src/lib/server/box-admin-password';
 import {
@@ -345,6 +347,34 @@ describe('connecting an empty box', () => {
 		expect(answered?.sealedModelKey).toEqual(sealedModelKey);
 		expect(await companyOfHostSession(credentials, answered?.session.accessToken ?? '')).toBe(companyID);
 		expect((await connectedBox(companyID, box.publicKey))?.lastSeenAt).not.toBeNull();
+	});
+
+	test('entering a key turns using it on, and removing it takes it back from the box and turns it off', async () => {
+		const box = await aBox();
+		await claimWithCode(companyID, box.publicKey, await announcedCode(box));
+		await client.from('company').update({ uses_own_model_key: false }).eq('id', companyID);
+		const sealedModelKey = { version: 1 as const, recipient: box.encryptionKey, enc: box.encryptionKey, ciphertext: 'c2VhbGVk' };
+
+		await keepSealedModelKey(client, companyID, sealedModelKey);
+		expect(await companyBoxesOf(client, companyID)).toMatchObject({ hasModelKey: true, usesOwnModelKey: true });
+
+		await forgetSealedModelKey(client, companyID);
+		expect(await companyBoxesOf(client, companyID)).toMatchObject({ hasModelKey: false, usesOwnModelKey: false });
+		expect((await boxSessionFor(credentials, box.publicKey, environment, appURL))?.sealedModelKey).toBeNull();
+	});
+
+	test('the service box is told to start its services again when the payer it started with is no longer the setting', async () => {
+		const box = await aBox();
+		await claimWithCode(companyID, box.publicKey, await announcedCode(box));
+		await client.from('company').update({ uses_own_model_key: true }).eq('id', companyID);
+		await keptModelKeyReport(client, companyID, { boxKey: box.publicKey, agentKeyHash: null }, { holdsModelKey: true });
+		expect((await boxSessionFor(credentials, box.publicKey, environment, appURL))?.restartsToFollowTheModelPayer).toBe(false);
+
+		await client.from('company').update({ uses_own_model_key: false }).eq('id', companyID);
+		expect((await boxSessionFor(credentials, box.publicKey, environment, appURL))?.restartsToFollowTheModelPayer).toBe(true);
+
+		await keptModelKeyReport(client, companyID, { boxKey: box.publicKey, agentKeyHash: null }, { holdsModelKey: true });
+		expect((await boxSessionFor(credentials, box.publicKey, environment, appURL))?.restartsToFollowTheModelPayer).toBe(false);
 	});
 
 	test('a model key sealed to a key the company no longer seals to is refused', async () => {
