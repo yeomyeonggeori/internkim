@@ -15,7 +15,10 @@
 	let isSaving = $state(false);
 	let errorMessage = $state('');
 
-	const payingNow = $derived({ company_key: text.paidByCompanyKey, subscription: text.paidBySubscription, nothing: text.paidByNothing }[boxes.paidBy]);
+	const payingNow = $derived(
+		{ company_key: text.paidByCompanyKey, subscription: text.paidBySubscription, nothing: text.paidByNothing, unknown: text.paidByUnknown }[boxes.paidBy]
+	);
+	const isKeyOnlyOnTheComputer = $derived(boxes.hostHoldsModelKey === true && !boxes.hasModelKey);
 
 	async function chooseWhoPays(usesOwnModelKey: boolean) {
 		isSaving = true;
@@ -53,6 +56,8 @@
 	</Field.Field>
 	{#if boxes.hasModelKey}
 		<Button variant="outline" class="justify-self-start" onclick={askToRemoveKey}>{text.removeModelKey}</Button>
+	{:else if isKeyOnlyOnTheComputer}
+		<p class="text-sm text-muted-foreground">{text.modelKeyOnTheComputer}</p>
 	{/if}
 	{#if errorMessage}<Field.Error>{errorMessage}</Field.Error>{/if}
 </Field.Set>

@@ -30,6 +30,7 @@
 		takeOver: { isAutomatic: false, lapseSeconds: 300 },
 		isServedByConnectionFile: false,
 		subscriptionPaysForModels: false,
+		hostHoldsModelKey: null,
 		usesOwnModelKey: true,
 		paidBy: 'nothing',
 		empty: []
