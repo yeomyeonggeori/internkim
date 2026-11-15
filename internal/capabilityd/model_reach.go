@@ -1,15 +1,18 @@
 package capabilityd
 
 import (
+	"encoding/json"
+	"fmt"
 	"net/http"
+	"os"
 	"strings"
 
 	"github.com/yeomyeonggeori/internkim/internal/llmbackend"
 	"github.com/yeomyeonggeori/internkim/internal/modelladder"
 )
 
-func (configuration Configuration) reachingModels(isCompanyKeyInUse modelladder.CompanyKeyUse) (Configuration, error) {
-	paysThroughGateway, errorValue := modelladder.PaysThroughGateway(configuration.CentralPlaneURL, configuration.OpenRouterKeyPath, isCompanyKeyInUse)
+func (configuration Configuration) reachingModels() (Configuration, error) {
+	paysThroughGateway, errorValue := configuration.paysThroughGatewayAsPrepared()
 	if errorValue != nil || !paysThroughGateway {
 		return configuration, errorValue
 	}
@@ -21,8 +24,21 @@ func (configuration Configuration) reachingModels(isCompanyKeyInUse modelladder.
 	return configuration, nil
 }
 
-func (configuration Configuration) gatewaySaysWhetherTheCompanyKeyIsInUse() modelladder.CompanyKeyUse {
-	return modelladder.GatewaySaysWhetherTheCompanyKeyIsInUse(configuration.CentralPlaneURL, configuration.HostSessionPath)
+func (configuration Configuration) paysThroughGatewayAsPrepared() (bool, error) {
+	if strings.TrimSpace(configuration.CentralPlaneURL) == "" {
+		return false, nil
+	}
+	document, errorValue := os.ReadFile(configuration.RuntimeDocumentPath)
+	if errorValue != nil {
+		return false, fmt.Errorf("reading who pays for models from the runtime document the preparation wrote: %w", errorValue)
+	}
+	var runtime struct {
+		LanguageModel modelladder.Document `json:"languageModel"`
+	}
+	if errorValue := json.Unmarshal(document, &runtime); errorValue != nil {
+		return false, fmt.Errorf("reading who pays for models from %s: %w", configuration.RuntimeDocumentPath, errorValue)
+	}
+	return modelladder.PaysThroughGatewayIn(runtime.LanguageModel, configuration.CentralPlaneURL), nil
 }
 
 func (service Service) nameRequesterToTheGateway(request *http.Request) {

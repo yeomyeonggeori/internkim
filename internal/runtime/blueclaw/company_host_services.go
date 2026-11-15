@@ -308,6 +308,7 @@ func companyHostCapabilityService(layout CompanyHostLayout) CompanyHostService {
 			"--file-read-python", layout.DocumentPythonPath(),
 			"--relay-url", CompanyHostRelayLocalURL,
 			"--central-plane-url", "${SUPABASE_URL}",
+			"--runtime", layout.RuntimeDocumentPath(),
 		},
 		Environment:           companyHostCommonEnvironment(),
 		RestartAfterSeconds:   5,

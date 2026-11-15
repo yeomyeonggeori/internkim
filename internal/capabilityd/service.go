@@ -59,6 +59,7 @@ type Configuration struct {
 	WorkQueuePath                 string
 	HostSessionPath               string
 	CentralPlaneURL               string
+	RuntimeDocumentPath           string
 	RelayBaseURL                  string
 }
 
@@ -514,8 +515,7 @@ func (configuration Configuration) WithDefaults() Configuration {
 func Run(configuration Configuration) error {
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
-	defaulted := configuration.WithDefaults()
-	reaching, errorValue := defaulted.reachingModels(defaulted.gatewaySaysWhetherTheCompanyKeyIsInUse())
+	reaching, errorValue := configuration.WithDefaults().reachingModels()
 	if errorValue != nil {
 		return fmt.Errorf("capabilityd failed: %w", errorValue)
 	}

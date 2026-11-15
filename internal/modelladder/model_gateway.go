@@ -141,6 +141,21 @@ func CompanyLanguageModelDocument(centralPlaneURL string, gatewayKeyPath string,
 	return gatewayLanguageModelDocument(centralPlaneURL, gatewayKeyPath), nil
 }
 
+func PaysThroughGatewayIn(languageModel Document, centralPlaneURL string) bool {
+	if planeRootOf(centralPlaneURL) == "" {
+		return false
+	}
+	gateway := GatewayEndpoint(centralPlaneURL)
+	for _, rungs := range languageModel.Tiers {
+		for _, rung := range rungs {
+			if rung.Endpoint == gateway {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 func runsItsOwnModels(companyEndpoint string) bool {
 	endpoint := strings.TrimRight(strings.TrimSpace(companyEndpoint), "/")
 	return endpoint != "" && endpoint != Endpoint
