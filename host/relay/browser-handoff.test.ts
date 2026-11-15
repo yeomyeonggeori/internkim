@@ -211,6 +211,20 @@ describe('BrowserHandoffs', () => {
 		restarted.close();
 	});
 
+	test('a hand-over closed unfinished ends as abandoned, tells the page, and reports nothing to the session', async () => {
+		const { handoffs, delivered, ended, page } = await openedHandoff();
+		await handoffs.serve(handoffWatchCapability, { handoffID: 'handoff-1' }, requester.memberID);
+
+		await handoffs.closeUnfinished('handoff-1');
+		await handoffs.closeUnfinished('handoff-nobody-registered');
+
+		expect(handoffs.statusOf('handoff-1').body).toEqual({ status: 'abandoned', signInOrigin: 'https://portal.example.com' });
+		expect(delivered).toContainEqual({ event: { kind: handoffEndedEventKind, handoffID: 'handoff-1', status: 'abandoned' }, memberID: requester.memberID });
+		expect(ended).toEqual([]);
+		await Bun.sleep(10);
+		expect(page.isOpen).toBe(false);
+	});
+
 	test('an open hand-over survives a relay restart', async () => {
 		const first = await openedHandoff();
 		const restarted = new BrowserHandoffs(first.settings);

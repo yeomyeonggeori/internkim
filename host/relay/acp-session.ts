@@ -49,6 +49,7 @@ export const deliveryMetaKey = 'kim.intern/delivery';
 export const deliveredExtensionMethod = '_kim.intern/delivered';
 export const undeliveredExtensionMethod = '_kim.intern/undelivered';
 export const handoffEndedExtensionMethod = '_kim.intern/handoffEnded';
+export const handoffClosedExtensionMethod = '_kim.intern/handoffClosed';
 export const handedBackOptionKey = 'approve';
 export const abandonedOptionKey = 'reject';
 
@@ -64,6 +65,7 @@ export type HandoffClaim = 'open' | 'ended' | 'refused';
 export type HandoffsForQuestions = {
 	claim: (handoffID: string, requesterEmail: string, sessionID: string) => Promise<HandoffClaim>;
 	linkOf: (handoffID: string) => string;
+	closeUnfinished: (handoffID: string) => Promise<void>;
 };
 
 export type EndedHandoff = { handoffID: string; sessionID: string; isHandedBack: boolean };
@@ -296,7 +298,8 @@ export class BlueclawACPClient {
 	private asTheClient(): Client {
 		return {
 			sessionUpdate: (notification: SessionNotification) => this.readUpdate(notification),
-			requestPermission: (request: RequestPermissionRequest) => this.refusePermissionRequest(request)
+			requestPermission: (request: RequestPermissionRequest) => this.refusePermissionRequest(request),
+			extNotification: (method: string, params: Record<string, unknown>) => this.readExtensionNotification(method, params)
 		};
 	}
 
@@ -393,6 +396,16 @@ export class BlueclawACPClient {
 		return cancelled;
 	}
 
+	private async readExtensionNotification(method: string, params: Record<string, unknown>): Promise<void> {
+		if (method !== handoffClosedExtensionMethod) return;
+		const handoffID = handoffClosedOf(params);
+		if (!handoffID) {
+			this.settings.report?.(`blueclaw closed a hand-over without naming it: ${JSON.stringify(params)}`);
+			return;
+		}
+		await this.settings.handoffs?.closeUnfinished(handoffID);
+	}
+
 	async reportHandoffEnded(ended: EndedHandoff): Promise<void> {
 		const report = handoffEndedReport(ended.sessionID, ended.handoffID, ended.isHandedBack ? handedBackOptionKey : abandonedOptionKey);
 		for (let failures = 1; !this.isClosed; failures++) {
@@ -466,6 +479,10 @@ export function deliveredReport(deliveryID: string, messageID: string): Record<s
 
 export function undeliveredReport(deliveryID: string, reason: string): Record<string, string> {
 	return { deliveryID, reason };
+}
+
+export function handoffClosedOf(notice: Record<string, unknown>): string | undefined {
+	return nonEmptyStringIn(notice, 'handoffID');
 }
 
 export function handoffEndedReport(sessionID: string, handoffID: string, optionKey: string): Record<string, string> {

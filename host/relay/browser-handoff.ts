@@ -103,6 +103,12 @@ export class BrowserHandoffs {
 		return 'open';
 	}
 
+	async closeUnfinished(handoffID: string): Promise<void> {
+		const handoff = this.handoffs.get(handoffID);
+		if (!handoff) return;
+		await this.finish(handoff, 'abandoned');
+	}
+
 	async serve(capability: string, body: Record<string, unknown>, memberID: string): Promise<Served> {
 		const handoff = this.handoffs.get(textOf(body.handoffID));
 		if (!handoff || handoff.registration.status !== 'open') return { status: 404, body: { error: 'this browser hand-over is no longer open' } };
@@ -194,7 +200,14 @@ export class BrowserHandoffs {
 	}
 
 	private async end(handoff: LiveHandoff, status: HandoffStatus): Promise<void> {
-		if (finishedStatuses.has(handoff.registration.status)) return;
+		if (!(await this.finish(handoff, status))) return;
+		const sessionID = handoff.registration.sessionID;
+		if (!sessionID) return;
+		this.settings.whenEnded?.({ handoffID: handoff.registration.handoffID, sessionID, isHandedBack: status === 'done' });
+	}
+
+	private async finish(handoff: LiveHandoff, status: HandoffStatus): Promise<boolean> {
+		if (finishedStatuses.has(handoff.registration.status)) return false;
 		handoff.registration.status = status;
 		if (handoff.expiry) clearTimeout(handoff.expiry);
 		await this.persist();
@@ -203,9 +216,7 @@ export class BrowserHandoffs {
 			handoff.stream.stop();
 		}
 		this.report(`hand-over ${handoff.registration.handoffID} ended ${status}`);
-		const sessionID = handoff.registration.sessionID;
-		if (!sessionID) return;
-		this.settings.whenEnded?.({ handoffID: handoff.registration.handoffID, sessionID, isHandedBack: status === 'done' });
+		return true;
 	}
 
 	private persist(): Promise<void> {

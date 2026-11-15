@@ -22,6 +22,7 @@ import {
 	deliveredExtensionMethod,
 	deliveryMetaKey,
 	handedBackOptionKey,
+	handoffClosedExtensionMethod,
 	handoffEndedExtensionMethod,
 	messageMetaKey,
 	sessionMetaKey,
@@ -50,6 +51,7 @@ type AnAgentThatRecords = {
 	connectionsOpened: number;
 	askWithNoTurnOpen: (sessionID: string, toolCallID: string, question: string, delivery: Delivery) => Promise<RequestPermissionResponse>;
 	speakWithNoTurnOpen: (sessionID: string, content: ContentBlock, delivery: Delivery) => Promise<void>;
+	notifyWithNoTurnOpen: (method: string, params: Record<string, unknown>) => Promise<void>;
 	updateWithNoTurnOpen: (sessionID: string, update: SessionUpdate, delivery: Delivery) => Promise<void>;
 };
 
@@ -205,6 +207,10 @@ function anAgentOnASocket(behaviour: AgentBehaviour): AnAgentThatRecords {
 				update: { sessionUpdate: 'agent_message_chunk', content },
 				_meta: { [deliveryMetaKey]: delivery }
 			});
+		},
+		notifyWithNoTurnOpen: async (method, params) => {
+			if (!latestConnection) throw new Error('no connection to the agent yet');
+			await latestConnection.extNotification(method, params);
 		},
 		updateWithNoTurnOpen: async (sessionID, update, delivery) => {
 			if (!latestConnection) throw new Error('no connection to the agent yet');
@@ -1008,14 +1014,18 @@ test('a refusal the agent answers with stays a refusal', async () => {
 
 function handoffsFor(claimant: string, claimOfTheClaimant: HandoffClaim = 'open') {
 	const claims: { handoffID: string; sessionID: string }[] = [];
+	const closed: string[] = [];
 	const handoffs: HandoffsForQuestions = {
 		claim: async (handoffID, requesterEmail, sessionID) => {
 			claims.push({ handoffID, sessionID });
 			return requesterEmail === claimant ? claimOfTheClaimant : 'refused';
 		},
-		linkOf: (handoffID) => `https://intern.example.com/handoff/${handoffID}`
+		linkOf: (handoffID) => `https://intern.example.com/handoff/${handoffID}`,
+		closeUnfinished: async (handoffID) => {
+			closed.push(handoffID);
+		}
 	};
-	return { handoffs, claims };
+	return { handoffs, claims, closed };
 }
 
 const handoffQuestionDelivery = { ...questionDelivery, isFinal: true, handoffID: 'handoff-1' };
@@ -1085,4 +1095,30 @@ test('a hand-over end blueclaw refuses is said once and not sent again', async (
 
 	expect(agent.deliveryReports).toHaveLength(1);
 	expect(reported.some((line) => line.includes('handoff-1'))).toBe(true);
+});
+
+test('a hand-over blueclaw says was left unfinished is closed here, and nothing is reported back', async () => {
+	const agent = anAgentOnASocket({});
+	const handover = handoffsFor(sampleRequester.email);
+	const client = aClientFor(agent.socketPath, aConversation(), { handoffs: handover.handoffs });
+	await aSessionOpenedBy(client);
+	const reportsBefore = agent.deliveryReports.length;
+
+	await agent.notifyWithNoTurnOpen(handoffClosedExtensionMethod, { handoffID: 'handoff-1' });
+	await waitUntil(() => handover.closed.length === 1, 'the hand-over to be closed');
+
+	expect(handover.closed).toEqual(['handoff-1']);
+	expect(agent.deliveryReports).toHaveLength(reportsBefore);
+});
+
+test('a notification this relay does not know closes nothing', async () => {
+	const agent = anAgentOnASocket({ reply: '네' });
+	const handover = handoffsFor(sampleRequester.email);
+	const client = aClientFor(agent.socketPath, aConversation(), { handoffs: handover.handoffs });
+	await aSessionOpenedBy(client);
+
+	await agent.notifyWithNoTurnOpen('_kim.intern/somethingElse', { handoffID: 'handoff-1' });
+	await client.ask(sampleRequester, sampleAddressing, '두 번째');
+
+	expect(handover.closed).toEqual([]);
 });
