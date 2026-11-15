@@ -3,6 +3,7 @@ package modelladder
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -26,6 +27,8 @@ const (
 const RequesterEmailHeader = "X-INTERNKIM-REQUESTER-EMAIL"
 
 type CompanyKeyUse func(isKeyHeld bool) (bool, error)
+
+var errPlaneRefusedThisComputer = errors.New("the central plane refused this computer")
 
 func GatewayEndpoint(centralPlaneURL string) string {
 	return planeRootOf(centralPlaneURL) + modelGatewayPath
@@ -80,8 +83,8 @@ func answeredEventually(report func() (bool, error), wait func(time.Duration)) (
 	pause := firstWaitForThePayer
 	for {
 		isInUse, errorValue := report()
-		if errorValue == nil {
-			return isInUse, nil
+		if errorValue == nil || errors.Is(errorValue, errPlaneRefusedThisComputer) {
+			return isInUse, errorValue
 		}
 		log.Printf("asking the central plane whether the company uses the OpenRouter key this computer holds: %v; asking again in %s", errorValue, pause)
 		wait(pause)
@@ -113,6 +116,10 @@ func reportedTheKey(payerURL string, credentialPath string, isKeyHeld bool) (boo
 }
 
 func usesOwnModelKeyIn(payerURL string, response *http.Response) (bool, error) {
+	if response.StatusCode >= 400 && response.StatusCode < 500 {
+		body, _ := io.ReadAll(io.LimitReader(response.Body, 512))
+		return false, fmt.Errorf("%w: %s answered %s: %s", errPlaneRefusedThisComputer, payerURL, response.Status, strings.TrimSpace(string(body)))
+	}
 	if response.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(io.LimitReader(response.Body, 512))
 		return false, fmt.Errorf("%s answered %s: %s", payerURL, response.Status, strings.TrimSpace(string(body)))
