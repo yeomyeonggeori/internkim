@@ -280,7 +280,7 @@ func systemdUnitFor(layout CompanyHostLayout, service CompanyHostService) string
 		unit.WriteString("SupplementaryGroups=" + strings.Join(ordering.SupplementaryGroups, " ") + "\n")
 	}
 	if service.RunsOnceAndStays {
-		unit.WriteString("Type=oneshot\nRemainAfterExit=yes\n")
+		unit.WriteString("Type=oneshot\nRemainAfterExit=yes\nTimeoutStartSec=infinity\n")
 	}
 	if service.Account == "" {
 		unit.WriteString("User=root\n")

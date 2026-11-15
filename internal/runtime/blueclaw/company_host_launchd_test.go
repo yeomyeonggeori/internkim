@@ -66,6 +66,20 @@ func TestTheSameServicesAreRenderedForBothSupervisors(t *testing.T) {
 // launchd hands ProgramArguments to execve untouched. A ${NAME} that reached a
 // plist would be passed to the daemon as its own value, and the daemon would
 // start and behave wrongly rather than fail.
+func TestThePreparationOnAMacRunsOnceAndIsWaitedOutByTheAgent(t *testing.T) {
+	contents := map[string]string{}
+	for _, daemon := range launchDaemonsForTest(t) {
+		contents[daemon.ServiceName] = daemon.Contents
+	}
+	prepare := contents[CompanyHostPrepareServiceName]
+	if !strings.Contains(prepare, "<key>LaunchOnlyOnce</key>") || strings.Contains(prepare, "<key>KeepAlive</key>") || strings.Contains(prepare, "<key>ExitTimeOut</key>") {
+		t.Fatalf("the preparation runs once, for as long as it waits for the central plane:\n%s", prepare)
+	}
+	if !strings.Contains(contents[BlueclawServiceName], "<key>KeepAlive</key>") {
+		t.Fatalf("launchd has no ordering, so the agent is started again until the preparation has written its document:\n%s", contents[BlueclawServiceName])
+	}
+}
+
 func TestNoLaunchDaemonCarriesAnUnexpandedReference(t *testing.T) {
 	for _, daemon := range launchDaemonsForTest(t) {
 		for _, line := range strings.Split(daemon.Contents, "\n") {
