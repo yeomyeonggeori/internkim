@@ -8,7 +8,6 @@ export type QueuedInboundEvent = {
 	body: unknown;
 	attempts: number;
 	firstQueuedAt: string;
-	isPrompt: boolean;
 };
 
 export type InboundQueueSettings = {
@@ -37,7 +36,7 @@ export class InboundQueue {
 		await this.makeDirectory();
 		const path = this.pathFor(key);
 		if (await alreadyWritten(path) || await alreadyWritten(this.settledPathFor(key))) return false;
-		await this.write(path, { key, body, attempts: 0, firstQueuedAt: new Date().toISOString(), isPrompt: false });
+		await this.write(path, { key, body, attempts: 0, firstQueuedAt: new Date().toISOString() });
 		return true;
 	}
 
@@ -63,13 +62,6 @@ export class InboundQueue {
 		const attempted = { ...event, attempts: event.attempts + 1 };
 		await this.write(path, attempted);
 		return attempted.attempts;
-	}
-
-	async recordAsPrompt(key: string): Promise<void> {
-		const path = this.pathFor(key);
-		const event = await this.readEvent(path);
-		if (!event) return;
-		await this.write(path, { ...event, isPrompt: true });
 	}
 
 	/** Removes the event; it has been delivered, or given up on. */
@@ -139,7 +131,7 @@ function readQueuedEvent(offered: unknown): QueuedInboundEvent | null {
 	if (typeof attempts !== 'number' || !Number.isFinite(attempts)) return null;
 	if (typeof firstQueuedAt !== 'string' || firstQueuedAt === '') return null;
 
-	return { key, body: held.body, attempts, firstQueuedAt, isPrompt: held.isPrompt === true };
+	return { key, body: held.body, attempts, firstQueuedAt };
 }
 
 function nothingWhenUnparsable(written: string): unknown {

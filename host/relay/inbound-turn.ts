@@ -14,8 +14,6 @@ export type InboundTurnSettings = {
 type RunningTurn = {
 	eventKey: string;
 	conversationID: string;
-	messageID: string;
-	isHandedToBlueclaw: boolean;
 	finished: Promise<void>;
 };
 
@@ -32,20 +30,6 @@ export class InboundTurns {
 		this.settings = settings;
 	}
 
-	releaseTurnsWaitingOnApproval = (conversationID: string): void => {
-		const waiting = [...this.turnsInFlight.values()].filter(
-			(running) => running.conversationID === conversationID && this.isWaiting(running)
-		);
-		for (const running of waiting) running.isHandedToBlueclaw = true;
-		Promise.all(waiting.map((running) => this.forget(running.eventKey)))
-			.catch((failure) => this.settings.report?.(`a waiting turn would not leave the queue: ${String(failure)}`))
-			.finally(() => this.startDraining());
-	};
-
-	private isWaiting(running: RunningTurn): boolean {
-		return this.settings.client.isWaitingOnApproval(running.conversationID, running.messageID);
-	}
-
 	async keep(key: string, body: unknown): Promise<boolean> {
 		const isNew = await this.settings.queue.keep(key, body);
 		this.startDraining();
@@ -60,7 +44,7 @@ export class InboundTurns {
 
 	async settled(): Promise<void> {
 		await this.draining;
-		const finishing = this.activeTurns().map((running) => running.finished);
+		const finishing = [...this.turnsInFlight.values()].map((running) => running.finished);
 		if (finishing.length === 0) return;
 		await Promise.all(finishing);
 		await this.settled();
@@ -75,55 +59,30 @@ export class InboundTurns {
 				continue;
 			}
 			if (this.turnsInFlight.has(event.key)) continue;
-			if (await this.isConsumedAsApprovalAnswer(event, inbound)) continue;
 			if (this.activeTurnIn(inbound.addressing.conversationID)) continue;
 			this.beginTurn(event, inbound);
 		}
 	}
 
-	private async isConsumedAsApprovalAnswer(event: QueuedInboundEvent, inbound: InboundMessage): Promise<boolean> {
-		if (event.isPrompt) return false;
-		if (!this.settings.client.hasPendingApprovalIn(inbound.addressing.conversationID, inbound.requester.email)) return false;
-		const { addressing, messageID, message, requester } = inbound;
-		const isAnswer = await this.settings.client.answerPendingApproval(addressing, messageID, message, requester);
-		if (!isAnswer) {
-			await this.settings.queue.recordAsPrompt(event.key);
-			return false;
-		}
-		await this.forget(event.key);
-		return true;
-	}
-
 	private activeTurnIn(conversationID: string): RunningTurn | undefined {
-		return this.activeTurns().find((running) => running.conversationID === conversationID);
-	}
-
-	private activeTurns(): RunningTurn[] {
-		return [...this.turnsInFlight.values()].filter((running) => !this.isWaiting(running));
+		return [...this.turnsInFlight.values()].find((running) => running.conversationID === conversationID);
 	}
 
 	private beginTurn(event: QueuedInboundEvent, inbound: InboundMessage): void {
 		const running: RunningTurn = {
 			eventKey: event.key,
 			conversationID: inbound.addressing.conversationID,
-			messageID: inbound.messageID,
-			isHandedToBlueclaw: false,
 			finished: Promise.resolve()
 		};
 		this.turnsInFlight.set(event.key, running);
-		running.finished = this.runTurn(event, inbound, running).finally(() => {
+		running.finished = this.runTurn(event, inbound).finally(() => {
 			this.turnsInFlight.delete(event.key);
 			this.startDraining();
 		});
 	}
 
-	private async runTurn(
-		event: QueuedInboundEvent,
-		inbound: InboundMessage,
-		running: RunningTurn
-	): Promise<void> {
+	private async runTurn(event: QueuedInboundEvent, inbound: InboundMessage): Promise<void> {
 		try {
-			if (await this.isAnsweredOnceTheAgentIsBack(event, inbound)) return;
 			await this.settings.client.ask(inbound.requester, inbound.addressing, inbound.message, {
 				messageID: inbound.messageID,
 				replyTargetID: inbound.addressing.replyTargetID,
@@ -132,10 +91,6 @@ export class InboundTurns {
 			});
 			await this.forget(event.key);
 		} catch (failure) {
-			if (running.isHandedToBlueclaw) {
-				await this.leaveItToBlueclaw(event, failure);
-				return;
-			}
 			if (failure instanceof AgentUnreachable) {
 				await this.waitForTheAgent(event, failure);
 				return;
@@ -143,14 +98,6 @@ export class InboundTurns {
 			this.unreachedInARow.delete(event.key);
 			await this.giveItAnotherGo(event, failure);
 		}
-	}
-
-	private async isAnsweredOnceTheAgentIsBack(event: QueuedInboundEvent, inbound: InboundMessage): Promise<boolean> {
-		const wasJudgedAlready =
-			event.isPrompt || this.settings.client.hasPendingApprovalIn(inbound.addressing.conversationID, inbound.requester.email);
-		await this.settings.client.connect().catch(() => undefined);
-		if (wasJudgedAlready) return false;
-		return this.isConsumedAsApprovalAnswer(event, inbound);
 	}
 
 	private async forget(key: string): Promise<void> {
@@ -165,11 +112,6 @@ export class InboundTurns {
 			`${event.key} stays queued until the agent takes it (${unreached} in a row): ${failure.message}`
 		);
 		await this.waitBeforeRetrying(unreached);
-	}
-
-	private async leaveItToBlueclaw(event: QueuedInboundEvent, failure: unknown): Promise<void> {
-		this.settings.report?.(`${event.key} is blueclaw's to finish: ${described(failure)}`);
-		await this.forget(event.key);
 	}
 
 	private async giveItAnotherGo(event: QueuedInboundEvent, failure: unknown): Promise<void> {

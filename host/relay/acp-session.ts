@@ -45,15 +45,16 @@ export type MessageFacts = {
 	context: Record<string, unknown>;
 };
 
-export const approvalReplyExtensionMethod = '_kim.intern/approvalReply';
 export const deliveryMetaKey = 'kim.intern/delivery';
 export const deliveredExtensionMethod = '_kim.intern/delivered';
 export const undeliveredExtensionMethod = '_kim.intern/undelivered';
+export const handoffEndedExtensionMethod = '_kim.intern/handoffEnded';
+export const handedBackOptionKey = 'approve';
+export const abandonedOptionKey = 'reject';
 
 export type Delivery = {
 	deliveryID?: string;
 	replyTargetID?: string;
-	isAlreadyPosted?: boolean;
 	isFinal?: boolean;
 	handoffID?: string;
 };
@@ -61,10 +62,11 @@ export type Delivery = {
 export type HandoffClaim = 'open' | 'ended' | 'refused';
 
 export type HandoffsForQuestions = {
-	claim: (handoffID: string, requesterEmail: string, settle: () => void) => Promise<HandoffClaim>;
+	claim: (handoffID: string, requesterEmail: string, sessionID: string) => Promise<HandoffClaim>;
 	linkOf: (handoffID: string) => string;
-	answeredInTheThread: (handoffID: string, isDone: boolean) => Promise<void>;
 };
+
+export type EndedHandoff = { handoffID: string; sessionID: string; isHandedBack: boolean };
 
 export class AgentUnreachable extends Error {
 	constructor(cause: unknown) {
@@ -103,7 +105,6 @@ export type ACPSessionSettings = {
 	editInConversation: EditInConversation;
 	deleteInConversation: DeleteInConversation;
 	sessions: SessionBindingStore;
-	approvalWasRequested: (conversationID: string) => void;
 	work?: WorkWatcher;
 	postsProgressMessages?: boolean;
 	handoffs?: HandoffsForQuestions;
@@ -119,13 +120,6 @@ export type SessionBinding = {
 	catalogTicket: string;
 };
 
-type PendingApproval = {
-	toolCallID: string;
-	waitingMessageIDs: Set<string>;
-	select: (optionID: string) => void;
-	handoff?: { handoffID: string; handedBackOptionID: string };
-};
-
 export class BlueclawACPClient {
 	private readonly settings: ACPSessionSettings;
 	private connection: ClientSideConnection | null = null;
@@ -133,7 +127,6 @@ export class BlueclawACPClient {
 	private closeSocket: (() => void) | null = null;
 	private isClosed = false;
 	private readonly bindingBySpeaker = new Map<string, SessionBinding>();
-	private readonly pendingApprovals = new Map<string, PendingApproval>();
 	private readonly sessionOfPromptInFlight = new Map<string, string>();
 	private readonly deliveriesSeenInSession = new Map<string, Set<string>>();
 	private readonly toolProgress: ToolProgress;
@@ -161,7 +154,6 @@ export class BlueclawACPClient {
 		this.connection = null;
 		this.connecting = null;
 		this.bindingBySpeaker.clear();
-		this.pendingApprovals.clear();
 	}
 
 	async restoreSessionBindings(): Promise<void> {
@@ -233,7 +225,7 @@ export class BlueclawACPClient {
 		const socket = await unixSocketStreams(this.settings.socketPath, () => this.socketEnded());
 		this.closeSocket = socket.close;
 		const connection: ClientSideConnection = new ClientSideConnection(
-			() => this.asTheClient(() => connection),
+			() => this.asTheClient(),
 			ndJsonStream(socket.writable, socket.readable)
 		);
 		await connection.initialize({
@@ -301,10 +293,10 @@ export class BlueclawACPClient {
 		return opened.sessionId;
 	}
 
-	private asTheClient(readConnection: () => ClientSideConnection): Client {
+	private asTheClient(): Client {
 		return {
 			sessionUpdate: (notification: SessionNotification) => this.readUpdate(notification),
-			requestPermission: (request: RequestPermissionRequest) => this.answerApprovalRequest(request, readConnection())
+			requestPermission: (request: RequestPermissionRequest) => this.refusePermissionRequest(request)
 		};
 	}
 
@@ -359,18 +351,24 @@ export class BlueclawACPClient {
 		addressing: Addressing,
 		delivery: Delivery
 	): Promise<string> {
-		const post = this.posterOf(content, requester, addressing);
+		const post = this.posterOf(content, requester, addressing, delivery);
 		if (!delivery.deliveryID) return post();
 		if (!delivery.isFinal) return this.toolProgress.postAlong(delivery.deliveryID, addressing, post);
 		return this.toolProgress.postFinal(delivery.deliveryID, addressing, post);
 	}
 
-	private posterOf(content: ContentBlock, requester: Requester, addressing: Addressing): () => Promise<string> {
-		if (content.type === 'text') return () => this.settings.postToConversation(addressing, content.text);
+	private posterOf(content: ContentBlock, requester: Requester, addressing: Addressing, delivery: Delivery): () => Promise<string> {
+		if (content.type === 'text') return () => this.postText(content.text, requester, addressing, delivery);
 		if (content.type === 'resource_link') {
 			return () => this.settings.postFileToConversation(addressing, requester.email, workspaceFileOf(content));
 		}
 		throw new Error(`this relay posts text and files, so a ${content.type} block did not reach the person`);
+	}
+
+	private async postText(text: string, requester: Requester, addressing: Addressing, delivery: Delivery): Promise<string> {
+		const binding = this.bindingBySpeaker.get(speakerKey(addressing.conversationID, requester.email));
+		const question = binding ? await this.textOfQuestion(text, binding, delivery) : text;
+		return this.settings.postToConversation(addressing, question);
 	}
 
 	private async tellTheAgent(delivery: Delivery, outcome: PostOutcome): Promise<void> {
@@ -388,141 +386,36 @@ export class BlueclawACPClient {
 		}
 	}
 
-	hasPendingApprovalIn(conversationID: string, requesterEmail: string): boolean {
-		const binding = this.bindingBySpeaker.get(speakerKey(conversationID, requesterEmail));
-		return binding !== undefined && this.pendingApprovals.has(binding.sessionID);
-	}
-
-	isWaitingOnApproval(conversationID: string, messageID: string): boolean {
-		return this.bindingsIn(conversationID).some(
-			(binding) => this.pendingApprovals.get(binding.sessionID)?.waitingMessageIDs.has(messageID) === true
+	private async refusePermissionRequest(request: RequestPermissionRequest): Promise<RequestPermissionResponse> {
+		this.settings.report?.(
+			`blueclaw asked permission for ${request.toolCall.toolCallId} over the socket; a held call arrives as a message, so it was cancelled`
 		);
+		return cancelled;
 	}
 
-	private bindingsIn(conversationID: string): SessionBinding[] {
-		return [...this.bindingBySpeaker.values()].filter((binding) => binding.addressing.conversationID === conversationID);
-	}
-
-	async answerPendingApproval(addressing: Addressing, messageID: string, reply: string, replier: Requester): Promise<boolean> {
-		const binding = this.bindingBySpeaker.get(speakerKey(addressing.conversationID, replier.email));
-		const pending = binding && this.pendingApprovals.get(binding.sessionID);
-		if (!binding || !pending) return false;
-		const reading = await this.readApprovalReply(
-			approvalReplyRequest(binding.sessionID, pending.toolCallID, reply, messageID, addressing, replier.email)
-		);
-		if (reading === undefined) return false;
-		this.pendingApprovals.delete(binding.sessionID);
-		if (pending.handoff) {
-			await this.settings.handoffs?.answeredInTheThread(pending.handoff.handoffID, reading.optionID === pending.handoff.handedBackOptionID);
-		}
-		pending.select(reading.optionID);
-		return !reading.isInstruction;
-	}
-
-	private async readApprovalReply(request: Record<string, unknown>): Promise<ApprovalReplyReading | undefined> {
-		try {
-			const agent = await this.agent();
-			return readingOf(await agent.request<Record<string, unknown>>(approvalReplyExtensionMethod, request));
-		} catch (failure) {
-			this.settings.report?.(`blueclaw could not say whether a message answers the pending approval: ${String(failure)}`);
-			return undefined;
+	async reportHandoffEnded(ended: EndedHandoff): Promise<void> {
+		const report = handoffEndedReport(ended.sessionID, ended.handoffID, ended.isHandedBack ? handedBackOptionKey : abandonedOptionKey);
+		for (let failures = 1; !this.isClosed; failures++) {
+			try {
+				const agent = await this.agent();
+				await agent.request(handoffEndedExtensionMethod, report);
+				return;
+			} catch (failure) {
+				this.settings.report?.(`blueclaw did not take the end of hand-over ${ended.handoffID}: ${String(failure)}`);
+				if (failure instanceof RequestError) return;
+				await Bun.sleep(doublingDelayMilliseconds(failures, firstReconnectDelayMilliseconds, longestReconnectDelayMilliseconds));
+			}
 		}
 	}
 
-	private async answerApprovalRequest(
-		request: RequestPermissionRequest,
-		connectionThatAsked: ClientSideConnection
-	): Promise<RequestPermissionResponse> {
-		const delivery = deliveryOf(request._meta);
-		this.noteDelivery(request.sessionId, delivery);
-		const binding = this.sessionBindingOf(request.sessionId);
-		if (!binding) {
-			await this.tellTheAgent(delivery, { reason: `this relay holds no session ${request.sessionId}, so it has no conversation to ask in` });
-			return cancelled;
-		}
-		const approval = this.registerPendingApproval(request, binding, delivery, connectionThatAsked);
-		const question = await this.questionToPost(request, binding, delivery, approval.pending);
-		if (question === null) {
-			approval.withdraw();
-			return cancelled;
-		}
-		if ('handedBackOptionID' in question) {
-			approval.withdraw();
-			return { outcome: { outcome: 'selected', optionId: question.handedBackOptionID } };
-		}
-		const outcome = delivery.isAlreadyPosted
-			? undefined
-			: await attemptPost(() => this.settings.postToConversation(addressedBy(binding, delivery), question.text));
-		if (outcome) await this.tellTheAgent(delivery, outcome);
-		if (outcome && 'reason' in outcome) {
-			approval.withdraw();
-			return cancelled;
-		}
-		if (delivery.deliveryID) {
-			await this.toolProgress.waitForThePerson(delivery.deliveryID, addressedBy(binding, delivery), outcome?.messageID);
-		}
-		this.settings.approvalWasRequested(binding.addressing.conversationID);
-		return approval.answer;
-	}
-
-	private async questionToPost(
-		request: RequestPermissionRequest,
-		binding: SessionBinding,
-		delivery: Delivery,
-		pending: PendingApproval
-	): Promise<{ text: string } | { handedBackOptionID: string } | null> {
-		const title = request.toolCall.title ?? '';
-		if (!delivery.handoffID) return { text: title };
-		const handedBack = request.options.find((option) => option.kind === 'allow_once');
+	private async textOfQuestion(text: string, binding: SessionBinding, delivery: Delivery): Promise<string> {
 		const handoffs = this.settings.handoffs;
-		if (!handedBack || !handoffs) {
-			this.settings.report?.(`hand-over ${delivery.handoffID} has no way to be handed back here, so it was not put to anyone`);
-			return null;
-		}
-		pending.handoff = { handoffID: delivery.handoffID, handedBackOptionID: handedBack.optionId };
-		const claim = await handoffs.claim(delivery.handoffID, binding.requester.email, () =>
-			this.settleHandedBack(request.sessionId, pending, handedBack.optionId)
-		);
-		if (claim === 'refused') return null;
-		if (claim === 'ended') return { handedBackOptionID: handedBack.optionId };
-		return { text: `${title}\n\n${handoffs.linkOf(delivery.handoffID)}` };
-	}
-
-	private settleHandedBack(sessionID: string, pending: PendingApproval, optionID: string): void {
-		if (this.pendingApprovals.get(sessionID) === pending) this.pendingApprovals.delete(sessionID);
-		pending.select(optionID);
-	}
-
-	private registerPendingApproval(
-		request: RequestPermissionRequest,
-		binding: SessionBinding,
-		delivery: Delivery,
-		connectionThatAsked: ClientSideConnection
-	): { answer: Promise<RequestPermissionResponse>; withdraw: () => void; pending: PendingApproval } {
-		const { promise, resolve } = Promise.withResolvers<RequestPermissionResponse>();
-		const pending: PendingApproval = {
-			toolCallID: request.toolCall.toolCallId,
-			waitingMessageIDs: new Set(delivery.isAlreadyPosted ? [] : this.messageIDsInFlightIn(request.sessionId)),
-			select: (optionID) => resolve({ outcome: { outcome: 'selected', optionId: optionID } })
-		};
-		this.pendingApprovals.set(request.sessionId, pending);
-		const withdraw = () => {
-			if (this.pendingApprovals.get(request.sessionId) === pending) this.pendingApprovals.delete(request.sessionId);
-		};
-		connectionThatAsked.signal.addEventListener(
-			'abort',
-			() => {
-				withdraw();
-				this.settings.report?.(`approval ${pending.toolCallID} was cancelled: blueclaw left the socket before it was answered`);
-				resolve(cancelled);
-			},
-			{ once: true }
-		);
-		return { answer: promise, withdraw, pending };
-	}
-
-	private messageIDsInFlightIn(sessionID: string): string[] {
-		return [...this.sessionOfPromptInFlight].filter(([, inSession]) => inSession === sessionID).map(([messageID]) => messageID);
+		if (!delivery.handoffID) return text;
+		if (!handoffs) throw new Error(`hand-over ${delivery.handoffID} has nowhere to be opened on this relay`);
+		const claim = await handoffs.claim(delivery.handoffID, binding.requester.email, binding.sessionID);
+		if (claim === 'refused') throw new Error(`hand-over ${delivery.handoffID} belongs to someone other than this session's requester`);
+		if (claim === 'ended') return text;
+		return `${text}\n\n${handoffs.linkOf(delivery.handoffID)}`;
 	}
 
 	private sessionBindingOf(sessionID: string): SessionBinding | undefined {
@@ -558,7 +451,6 @@ export function deliveryOf(meta: Record<string, unknown> | null | undefined): De
 		...(deliveryID ? { deliveryID } : {}),
 		...(handoffID ? { handoffID } : {}),
 		...(replyTargetID ? { replyTargetID } : {}),
-		...(Reflect.get(carried, 'isAlreadyPosted') === true ? { isAlreadyPosted: true } : {}),
 		...(Reflect.get(carried, 'isFinal') === true ? { isFinal: true } : {})
 	};
 }
@@ -576,32 +468,8 @@ export function undeliveredReport(deliveryID: string, reason: string): Record<st
 	return { deliveryID, reason };
 }
 
-export function approvalReplyRequest(
-	sessionID: string,
-	toolCallID: string,
-	reply: string,
-	messageID: string,
-	addressing: Addressing,
-	replierEmail: string
-): Record<string, unknown> {
-	return {
-		sessionId: sessionID,
-		toolCallId: toolCallID,
-		reply,
-		messageId: messageID,
-		replyTargetId: addressing.replyTargetID,
-		isThread: addressing.isThread,
-		replierEmail
-	};
-}
-
-export type ApprovalReplyReading = { optionID: string; isInstruction: boolean };
-
-export function readingOf(answer: Record<string, unknown>): ApprovalReplyReading | undefined {
-	if (answer.isAnswer !== true) return undefined;
-	const optionID = answer.optionId;
-	if (typeof optionID !== 'string') throw new Error(`blueclaw read the reply as an answer to no option: ${JSON.stringify(answer)}`);
-	return { optionID, isInstruction: answer.isInstruction === true };
+export function handoffEndedReport(sessionID: string, handoffID: string, optionKey: string): Record<string, string> {
+	return { sessionId: sessionID, handoffID, optionKey };
 }
 
 function addressedBy(binding: SessionBinding, delivery: Delivery): Addressing {

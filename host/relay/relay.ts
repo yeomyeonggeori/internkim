@@ -595,6 +595,7 @@ const browserHandoffs = new BrowserHandoffs({
 	openPage: (devtoolsURL) => DevtoolsPage.open(devtoolsURL),
 	deliver: (event, memberID) => gateway?.deliver(event, [memberID]),
 	emailOfMember: (memberID) => dispatch.emailOfMember(memberID),
+	whenEnded: (ended) => void blueclawClient.reportHandoffEnded(ended),
 	report: (line) => console.log(`handoff: ${line}`)
 });
 await browserHandoffs.restore();
@@ -613,7 +614,6 @@ const blueclawClient = new BlueclawACPClient({
 		filePath: `${relayStateDirectory}/sessions.json`,
 		report: (line) => console.log(`sessions: ${line}`)
 	}),
-	approvalWasRequested: (conversationID) => inboundTurns.releaseTurnsWaitingOnApproval(conversationID),
 	work: workShownToBrowsers,
 	postsProgressMessages: messengerPlatform !== buzzPlatform,
 	handoffs: browserHandoffs,
