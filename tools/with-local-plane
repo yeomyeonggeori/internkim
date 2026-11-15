@@ -505,6 +505,14 @@ startStackWhenDown() {
   failToStart
 }
 
+applyMigrationsNotYetApplied() {
+  if (cd "$repositoryRoot" && runQuietlyUnlessItFails supabaseWithin "$startTimeoutSeconds" migration up --local); then
+    return 0
+  fi
+  printf 'the local plane is serving but would not take the migrations this checkout carries\n' >&2
+  exit 1
+}
+
 failToStart() {
   local notReady stackIdentifier
   notReady="$(servicesNotReady)"
@@ -577,6 +585,7 @@ requireStackCommandLine
 writeSigningKeyWhenMissing
 export SUPABASE_AUTH_SIGNING_KEYS_PATH="$signingKeysPath"
 startStackWhenDown
+applyMigrationsNotYetApplied
 
 export LOCAL_PLANE_LOCK_HOLDER="$$"
 commandStatus=0
