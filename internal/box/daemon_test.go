@@ -334,6 +334,38 @@ func TestAModelKeyGivenAfterAKeylessInstallStartsTheServicesAgainOnce(t *testing
 	}
 }
 
+func TestAModelKeyTheCompanyRemovesIsTakenBackFromTheBoxOnce(t *testing.T) {
+	for _, isGivenAtInstall := range []bool{true, false} {
+		plane := &fakePlane{isClaimed: true, accessToken: "header.claims.signature"}
+		daemon, places := daemonFor(t, plane, &installs{})
+		restarts := 0
+		daemon.RestartServices = func() error {
+			restarts++
+			return nil
+		}
+		if isGivenAtInstall {
+			plane.sealedModelKey = sealTo(t, identityOf(t, places), "sk-or-v1-sample")
+		}
+		runSteps(t, daemon, 1)
+		writeCredentialFiles(t, places)
+		plane.sealedModelKey = sealTo(t, identityOf(t, places), "sk-or-v1-sample")
+		runSteps(t, daemon, 1)
+		requireFile(t, places.ModelKeyPath, "sk-or-v1-sample\n", 0o600)
+		restartsWhileHeld := restarts
+
+		plane.sealedModelKey = nil
+		runSteps(t, daemon, 1)
+		runSteps(t, daemon, 1)
+
+		if _, errorValue := os.Stat(places.ModelKeyPath); !errors.Is(errorValue, os.ErrNotExist) {
+			t.Fatalf("given at install %v: the company removed its key and the box still holds it: %v", isGivenAtInstall, errorValue)
+		}
+		if restarts != restartsWhileHeld+1 {
+			t.Fatalf("given at install %v: restarts = %d after %d; taking the key back must restart the services once", isGivenAtInstall, restarts, restartsWhileHeld)
+		}
+	}
+}
+
 func TestARestartThatFailedIsTriedAgainAtTheNextCheck(t *testing.T) {
 	plane := &fakePlane{isClaimed: true, accessToken: "header.claims.signature"}
 	daemon, places := daemonFor(t, plane, &installs{})

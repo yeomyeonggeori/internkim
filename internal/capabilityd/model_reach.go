@@ -8,16 +8,21 @@ import (
 	"github.com/yeomyeonggeori/internkim/internal/modelladder"
 )
 
-func (configuration Configuration) reachingModels() Configuration {
-	if !modelladder.PaysThroughGateway(configuration.OpenRouterKeyPath, configuration.CentralPlaneURL) {
-		return configuration
+func (configuration Configuration) reachingModels(isCompanyKeyInUse modelladder.CompanyKeyUse) (Configuration, error) {
+	paysThroughGateway, errorValue := modelladder.PaysThroughGateway(configuration.CentralPlaneURL, configuration.OpenRouterKeyPath, isCompanyKeyInUse)
+	if errorValue != nil || !paysThroughGateway {
+		return configuration, errorValue
 	}
 	chatCompletionsURL := modelladder.GatewayEndpoint(configuration.CentralPlaneURL) + "/chat/completions"
 	configuration.OpenRouterKeyPath = configuration.HostSessionPath
 	configuration.OpenRouterBaseURL = chatCompletionsURL
 	configuration.OpenRouterWebBaseURL = chatCompletionsURL
 	configuration.ModelGatewayNamesRequester = true
-	return configuration
+	return configuration, nil
+}
+
+func (configuration Configuration) gatewaySaysWhetherTheCompanyKeyIsInUse() modelladder.CompanyKeyUse {
+	return modelladder.GatewaySaysWhetherTheCompanyKeyIsInUse(configuration.CentralPlaneURL, configuration.HostSessionPath)
 }
 
 func (service Service) nameRequesterToTheGateway(request *http.Request) {

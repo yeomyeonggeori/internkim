@@ -19,13 +19,13 @@ func TestACompanyWithoutItsOwnKeyAsksTheGatewayWithThisComputersCredential(t *te
 		OpenRouterKeyPath: filepath.Join(directory, "openrouter-key"),
 		HostSessionPath:   hostSessionPath,
 		CentralPlaneURL:   "https://plane.example",
-	})
+	}, true)
 	if askedURL != "https://plane.example/functions/v1/model-gateway/api/v1/chat/completions" || authorization != "Bearer host-session" {
 		t.Fatalf("a company that brought no key must ask the model gateway as this computer; asked %s with %q", askedURL, authorization)
 	}
 }
 
-func TestACompanyWithItsOwnKeyAsksOpenRouterWithIt(t *testing.T) {
+func TestACompanyUsingItsOwnKeyAsksOpenRouterWithIt(t *testing.T) {
 	directory := t.TempDir()
 	keyPath := filepath.Join(directory, "openrouter-key")
 	writeFileForModelReachTest(t, keyPath, "sk-own")
@@ -33,17 +33,37 @@ func TestACompanyWithItsOwnKeyAsksOpenRouterWithIt(t *testing.T) {
 		OpenRouterKeyPath: keyPath,
 		HostSessionPath:   filepath.Join(directory, "agent-key"),
 		CentralPlaneURL:   "https://plane.example",
-	})
+	}, true)
 	if askedURL != DefaultConfiguration().OpenRouterWebBaseURL || authorization != "Bearer sk-own" {
-		t.Fatalf("a company that brought its own key must ask OpenRouter with it; asked %s with %q", askedURL, authorization)
+		t.Fatalf("a company that uses its own key must ask OpenRouter with it; asked %s with %q", askedURL, authorization)
 	}
 }
 
-func askedByAWebSearch(t *testing.T, configuration Configuration) (string, string) {
+func TestACompanyHoldingAKeyItDoesNotUseAsksTheGateway(t *testing.T) {
+	directory := t.TempDir()
+	keyPath := filepath.Join(directory, "openrouter-key")
+	hostSessionPath := filepath.Join(directory, "agent-key")
+	writeFileForModelReachTest(t, keyPath, "sk-own")
+	writeFileForModelReachTest(t, hostSessionPath, "host-session")
+	askedURL, authorization := askedByAWebSearch(t, Configuration{
+		OpenRouterKeyPath: keyPath,
+		HostSessionPath:   hostSessionPath,
+		CentralPlaneURL:   "https://plane.example",
+	}, false)
+	if askedURL != "https://plane.example/functions/v1/model-gateway/api/v1/chat/completions" || authorization != "Bearer host-session" {
+		t.Fatalf("a company that turned its own key off must pay through the gateway; asked %s with %q", askedURL, authorization)
+	}
+}
+
+func askedByAWebSearch(t *testing.T, configuration Configuration, isCompanyKeyInUse bool) (string, string) {
 	t.Helper()
 	var askedURL, authorization string
+	reaching, errorValue := configuration.WithDefaults().reachingModels(func() (bool, error) { return isCompanyKeyInUse, nil })
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
 	service := Service{
-		Configuration: configuration.WithDefaults().reachingModels(),
+		Configuration: reaching,
 		HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
 			askedURL, authorization = request.URL.String(), request.Header.Get("Authorization")
 			return jsonResponseBody(webSearchAnswer), nil

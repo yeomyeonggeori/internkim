@@ -187,6 +187,11 @@ func (daemon Daemon) serveClaimed(ctx context.Context, session Session, identity
 	if errorValue := daemon.installFor(session, modelKey); errorValue != nil {
 		return 0, errorValue
 	}
+	if modelKey != "" {
+		if errorValue := daemon.noteModelKeyFromCompany(); errorValue != nil {
+			return 0, errorValue
+		}
+	}
 	return daemon.untilNextCheck(session.Session), daemon.keepServiceLease(session.TakeOver)
 }
 
@@ -344,7 +349,7 @@ func (daemon Daemon) renew(session Session, keyring Keyring) error {
 		}
 	}
 	if session.SealedModelKey == nil {
-		return nil
+		return daemon.giveBackModelKey(session.Configuration.Company.Name)
 	}
 	modelKey, errorValue := keyring.OpenModelKey(*session.SealedModelKey, session.Configuration.Company.ID)
 	if errorValue != nil {

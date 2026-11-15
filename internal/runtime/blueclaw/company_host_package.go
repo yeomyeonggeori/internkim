@@ -383,7 +383,7 @@ install -d -o %[3]s -g %[27]s -m %[28]s %[29]s
 install -d -o root -g %[3]s -m 0750 %[5]s
 [ -s %[25]s ] || od -An -tx1 -N32 /dev/urandom | tr -d ' \n' > %[25]s
 install -o root -g %[3]s -m 0440 %[25]s %[6]s
-[ ! -r %[7]s ] || install -o root -g %[3]s -m 0440 %[7]s %[8]s
+if [ -r %[7]s ]; then install -o root -g %[3]s -m 0440 %[7]s %[8]s; else rm -f %[8]s; fi
 install -o root -g %[3]s -m 0440 %[2]s %[34]s
 [ -s %[31]s ] || od -An -tx1 -N32 /dev/urandom | tr -d ' \n' > %[31]s
 install -o root -g %[3]s -m 0440 %[31]s %[32]s
