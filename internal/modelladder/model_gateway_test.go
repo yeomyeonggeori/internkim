@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 )
@@ -227,5 +228,26 @@ func TestACompanyRunningItsOwnModelsNeverReachesTheGateway(t *testing.T) {
 		if rung.Endpoint != "https://models.example.com/v1" {
 			t.Fatalf("a company that runs its own models reached %s", rung.Endpoint)
 		}
+	}
+}
+
+func TestAComputerThePlaneRefusesStopsAskingAndSaysWhy(t *testing.T) {
+	plane := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
+		writer.WriteHeader(http.StatusForbidden)
+		writer.Write([]byte(`{"message":"this box belongs to no company"}`))
+	}))
+	defer plane.Close()
+	report := func() (bool, error) {
+		return reportedTheKey(plane.URL+ModelGatewayPayerPath, keyPathHolding(t, "host-session\n"), true)
+	}
+	_, errorValue := answeredEventually(report, func(time.Duration) {
+		t.Fatal("a refusal is the plane's answer; asking again forever left a restored host's start hung")
+	})
+
+	if errorValue == nil {
+		t.Fatal("a refusal must end the start with an error")
+	}
+	if !strings.Contains(errorValue.Error(), "this box belongs to no company") {
+		t.Fatalf("the refusal must say what the plane said, got %v", errorValue)
 	}
 }
