@@ -2,13 +2,31 @@ import { z } from 'zod';
 
 export const companyModelPayers = ['subscription', 'company_key', 'nothing'] as const;
 
+export const shownModelPayers = [...companyModelPayers, 'unknown'] as const;
+
 export type CompanyModelPayer = (typeof companyModelPayers)[number];
 
-export type WhatPaysForModels = { holdsKey: boolean; usesOwnKey: boolean; creditsCanPay: boolean };
+export type ShownModelPayer = (typeof shownModelPayers)[number];
 
-export function payerOfTheModels({ holdsKey, usesOwnKey, creditsCanPay }: WhatPaysForModels): CompanyModelPayer {
-  if (holdsKey && usesOwnKey) return 'company_key';
+export type WhatPaysForModels = { holdsKey: boolean | null; usesOwnKey: boolean; creditsCanPay: boolean };
+
+export function payerOfTheModels({ holdsKey, usesOwnKey, creditsCanPay }: WhatPaysForModels): ShownModelPayer {
+  if (usesOwnKey && holdsKey === true) return 'company_key';
+  if (usesOwnKey && holdsKey === null) return 'unknown';
+  return payerOfCredits(creditsCanPay);
+}
+
+export function payerTheShippedContractCanSay(facts: WhatPaysForModels): CompanyModelPayer {
+  const shown = payerOfTheModels(facts);
+  return shown === 'unknown' ? payerOfCredits(facts.creditsCanPay) : shown;
+}
+
+function payerOfCredits(creditsCanPay: boolean): CompanyModelPayer {
   return creditsCanPay ? 'subscription' : 'nothing';
+}
+
+export function isAModelKeyHeld(isHeldByThePlane: boolean, isHeldByTheHost: boolean | null): boolean | null {
+  return isHeldByThePlane || isHeldByTheHost;
 }
 
 export const companyCreditsResultSchema = z.strictObject({

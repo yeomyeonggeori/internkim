@@ -1,6 +1,7 @@
 import { callingAgent } from '../_shared/agent-caller.ts';
 import { defaultCreditUsageLimit } from '../_shared/credit-policy.ts';
-import { askedObject, json, refuse, serveRefusals } from '../_shared/http.ts';
+import { askedObject, refuse, serveRefusals } from '../_shared/http.ts';
+import { keptModelKeyReport } from '../_shared/model-key-report.ts';
 import { costOfAnswer, creditsOfCost, dollarsPerCreditOf, streamCostReader } from '../_shared/model-call-cost.ts';
 import { membersOfCompanyByEmail } from '../_shared/member-directory.ts';
 import { asksWhoPays, modelGatewayRoute } from '../_shared/model-gateway-route.ts';
@@ -14,7 +15,7 @@ type Charge = { client: SupabaseClient; companyID: string; memberID: string | nu
 Deno.serve(
 	serveRefusals(async (request) => {
 		const pathname = new URL(request.url).pathname;
-		if (asksWhoPays(request.method, pathname)) return whetherTheCompanyUsesItsKey(await callingAgent(request));
+		if (asksWhoPays(request.method, pathname)) return answeredModelKeyReport(request);
 		const route = modelGatewayRoute(request.method, pathname);
 		if (!route) refuse(404, 'the model gateway answers chat completions, decisions, the model list and who pays');
 		const { client, companyID } = await callingAgent(request);
@@ -60,11 +61,9 @@ Deno.serve(
 	})
 );
 
-async function whetherTheCompanyUsesItsKey({ client, companyID }: { client: SupabaseClient; companyID: string }): Promise<Response> {
-	const { data, error } = await client.from('company').select('uses_own_model_key').eq('id', companyID).single();
-	if (error) refuse(502, `the record could not say whether the company uses its own key: ${error.message}`);
-	if (typeof data.uses_own_model_key !== 'boolean') refuse(502, 'the record holds no answer to whether the company uses its own key');
-	return json({ usesOwnModelKey: data.uses_own_model_key });
+async function answeredModelKeyReport(request: Request): Promise<Response> {
+	const { client, companyID } = await callingAgent(request);
+	return keptModelKeyReport(client, companyID, await askedObject(request));
 }
 
 async function requestingMember(request: Request, client: SupabaseClient, companyID: string): Promise<string | null> {

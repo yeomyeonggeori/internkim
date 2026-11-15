@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { companyModelPayers } from './credits-contract';
+import { shownModelPayers } from './credits-contract';
 import { hostConfigurationSchema } from './host-setup';
 
 export const boxKeySchema = z.string().regex(/^[A-Za-z0-9_-]{43}$/);
@@ -122,8 +122,9 @@ export const companyBoxesSchema = z.object({
 	takeOver: takeOverSchema,
 	isServedByConnectionFile: z.boolean(),
 	subscriptionPaysForModels: z.boolean(),
+	hostHoldsModelKey: z.boolean().nullable(),
 	usesOwnModelKey: z.boolean(),
-	paidBy: z.enum(companyModelPayers)
+	paidBy: z.enum(shownModelPayers)
 }).strict();
 
 export const keptBackupManifestVersion = 2;

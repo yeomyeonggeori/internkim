@@ -8,10 +8,11 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 )
 
 type whoPaysCase struct {
-	HoldsKey      bool   `json:"holdsKey"`
+	HoldsKey      *bool  `json:"holdsKey"`
 	UsesOwnKey    bool   `json:"usesOwnKey"`
 	CreditsCanPay bool   `json:"creditsCanPay"`
 	PaidBy        string `json:"paidBy"`
@@ -43,13 +44,16 @@ func keyPathHolding(t *testing.T, contents string) string {
 }
 
 func answering(isInUse bool) CompanyKeyUse {
-	return func() (bool, error) { return isInUse, nil }
+	return func(bool) (bool, error) { return isInUse, nil }
 }
 
 func TestTheCompanyKeyPaysOnlyWhenItIsHeldAndInUse(t *testing.T) {
 	for _, rule := range whoPaysCases(t) {
+		if rule.HoldsKey == nil {
+			continue
+		}
 		keyPath := keyPathHolding(t, "")
-		if rule.HoldsKey {
+		if *rule.HoldsKey {
 			keyPath = keyPathHolding(t, "sk-or-example\n")
 		}
 		paysThroughGateway, errorValue := PaysThroughGateway("https://plane.example", keyPath, answering(rule.UsesOwnKey))
@@ -69,19 +73,23 @@ func TestAnEmptyKeyFileIsNoKey(t *testing.T) {
 	}
 }
 
-func TestAComputerWithoutAKeyNeverAsksWhetherToUseOne(t *testing.T) {
-	refusing := func() (bool, error) {
-		t.Fatal("a computer that holds no key has nothing to ask about")
-		return false, nil
+func TestAComputerWithoutAKeySaysSoAndPaysThroughTheGatewayWhateverTheAnswer(t *testing.T) {
+	var reported []bool
+	unreachable := func(isKeyHeld bool) (bool, error) {
+		reported = append(reported, isKeyHeld)
+		return true, errors.New("the plane did not answer")
 	}
-	paysThroughGateway, errorValue := PaysThroughGateway("https://plane.example", keyPathHolding(t, ""), refusing)
+	paysThroughGateway, errorValue := PaysThroughGateway("https://plane.example", keyPathHolding(t, ""), unreachable)
 	if errorValue != nil || !paysThroughGateway {
 		t.Fatalf("a computer without a key pays through the gateway, got %v, %v", paysThroughGateway, errorValue)
+	}
+	if len(reported) != 1 || reported[0] {
+		t.Fatalf("a computer without a key tells the plane it holds none, reported %v", reported)
 	}
 }
 
 func TestAComputerThatCannotLearnWhetherToUseItsKeyRefusesToGuess(t *testing.T) {
-	unreachable := func() (bool, error) { return false, errors.New("the plane did not answer") }
+	unreachable := func(bool) (bool, error) { return false, errors.New("the plane did not answer") }
 	_, errorValue := PaysThroughGateway("https://plane.example", keyPathHolding(t, "sk-or-example\n"), unreachable)
 	if errorValue == nil {
 		t.Fatal("a computer holding a key must not guess who pays when the plane cannot say")
@@ -105,22 +113,26 @@ func TestTheGatewayEndpointIsTheModelGatewayFunctionsOpenAIRoot(t *testing.T) {
 	}
 }
 
-func TestTheGatewayIsAskedWithThisComputersCredential(t *testing.T) {
-	var askedPath, authorization string
-	plane := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
-		askedPath, authorization = request.URL.Path, request.Header.Get("Authorization")
-		writer.Write([]byte(`{"usesOwnModelKey":true}`))
-	}))
-	defer plane.Close()
-	credentialPath := keyPathHolding(t, "host-session\n")
+func TestTheGatewayIsToldWhetherThisComputerHoldsAKeyWithItsCredential(t *testing.T) {
+	for _, isKeyHeld := range []bool{true, false} {
+		var method, askedPath, authorization string
+		var told map[string]bool
+		plane := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+			method, askedPath, authorization = request.Method, request.URL.Path, request.Header.Get("Authorization")
+			json.NewDecoder(request.Body).Decode(&told)
+			writer.Write([]byte(`{"usesOwnModelKey":true}`))
+		}))
+		credentialPath := keyPathHolding(t, "host-session\n")
 
-	isInUse, errorValue := GatewaySaysWhetherTheCompanyKeyIsInUse(plane.URL+"/", credentialPath)()
+		_, errorValue := GatewaySaysWhetherTheCompanyKeyIsInUse(plane.URL+"/", credentialPath)(isKeyHeld)
+		plane.Close()
 
-	if errorValue != nil || !isInUse {
-		t.Fatalf("the gateway said the key is in use, got %v, %v", isInUse, errorValue)
-	}
-	if askedPath != ModelGatewayPayerPath || authorization != "Bearer host-session" {
-		t.Fatalf("asked %s with %q", askedPath, authorization)
+		if errorValue != nil {
+			t.Fatal(errorValue)
+		}
+		if method != http.MethodPost || askedPath != ModelGatewayPayerPath || authorization != "Bearer host-session" || told["holdsModelKey"] != isKeyHeld {
+			t.Fatalf("holding a key %v: %s %s with %q told %v", isKeyHeld, method, askedPath, authorization, told)
+		}
 	}
 }
 
@@ -136,11 +148,43 @@ func TestARefusingGatewayIsAnErrorRatherThanAnAnswer(t *testing.T) {
 			writer.WriteHeader(answer.status)
 			writer.Write([]byte(answer.body))
 		}))
-		_, errorValue := GatewaySaysWhetherTheCompanyKeyIsInUse(plane.URL, keyPathHolding(t, "host-session\n"))()
+		_, errorValue := reportedTheKey(plane.URL+ModelGatewayPayerPath, keyPathHolding(t, "host-session\n"), true)
 		plane.Close()
 		if errorValue == nil {
 			t.Fatalf("%d %s must not be read as an answer", answer.status, answer.body)
 		}
+	}
+}
+
+func TestAComputerHoldingAKeyWaitsForTheAnswerRatherThanGuessing(t *testing.T) {
+	attempts := 0
+	report := func() (bool, error) {
+		attempts++
+		if attempts < 9 {
+			return false, errors.New("the plane did not answer")
+		}
+		return true, nil
+	}
+	var waits []time.Duration
+
+	isInUse, errorValue := answeredEventually(report, func(pause time.Duration) { waits = append(waits, pause) })
+
+	if errorValue != nil || !isInUse || attempts != 9 {
+		t.Fatalf("got %v, %v after %d attempts", isInUse, errorValue, attempts)
+	}
+	if waits[0] != firstWaitForThePayer || waits[len(waits)-1] != longestWaitForThePayer {
+		t.Fatalf("the waits grow from %s and stop growing at %s, got %v", firstWaitForThePayer, longestWaitForThePayer, waits)
+	}
+}
+
+func TestAComputerWithoutAKeyIsNotHeldBackByAPlaneThatDoesNotAnswer(t *testing.T) {
+	plane := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
+		writer.WriteHeader(http.StatusNotFound)
+	}))
+	defer plane.Close()
+	_, errorValue := GatewaySaysWhetherTheCompanyKeyIsInUse(plane.URL, keyPathHolding(t, "host-session\n"))(false)
+	if errorValue != nil {
+		t.Fatalf("a computer without a key needs no answer to start, got %v", errorValue)
 	}
 }
 

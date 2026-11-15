@@ -16,5 +16,5 @@ export function modelGatewayRoute(method: string, pathname: string): ModelGatewa
 }
 
 export function asksWhoPays(method: string, pathname: string): boolean {
-	return method === 'GET' && pathname.replace(/\/+$/, '').endsWith('/model-gateway/payer');
+	return method === 'POST' && pathname.replace(/\/+$/, '').endsWith('/model-gateway/payer');
 }

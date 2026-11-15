@@ -18,9 +18,9 @@ describe('which OpenRouter route a gateway request reaches', () => {
 	});
 
 	test('who pays is answered by the gateway itself and passed to nobody', () => {
-		expect(asksWhoPays('GET', '/functions/v1/model-gateway/payer')).toBe(true);
-		expect(asksWhoPays('GET', '/model-gateway/payer/')).toBe(true);
-		expect(asksWhoPays('POST', '/model-gateway/payer')).toBe(false);
-		expect(modelGatewayRoute('GET', '/model-gateway/payer')).toBeNull();
+		expect(asksWhoPays('POST', '/functions/v1/model-gateway/payer')).toBe(true);
+		expect(asksWhoPays('POST', '/model-gateway/payer/')).toBe(true);
+		expect(asksWhoPays('GET', '/model-gateway/payer')).toBe(false);
+		expect(modelGatewayRoute('POST', '/model-gateway/payer')).toBeNull();
 	});
 });

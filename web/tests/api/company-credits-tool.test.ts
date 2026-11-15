@@ -4,7 +4,8 @@ import { projectURL, publishableKey, serviceRoleKey, signingKey } from '../suppo
 import { heldToTheContract } from './tool-answers';
 import { leavesTaskLabelsUndecided } from '../../src/lib/server/public-api/record/task-labels';
 import { defaultCreditUsageLimit } from '../../src/lib/credit-policy';
-import { companyUsesOwnModelKey } from '../../src/lib/server/box';
+import { companyBoxesOf, companyModelKeyFacts } from '../../src/lib/server/box';
+import { keptModelKeyReport } from '../../../supabase/functions/_shared/model-key-report';
 
 mock.module('$env/dynamic/private', () => ({
 	env: { SUPABASE_URL: projectURL, SUPABASE_SECRET_KEY: serviceRoleKey, SUPABASE_PUBLISHABLE_KEY: publishableKey, SUPABASE_JWT_SIGNING_KEY: signingKey }
@@ -124,7 +125,7 @@ describe('who pays for the models', () => {
 
 	afterAll(async () => {
 		await client.from('box_keyring').delete().eq('company_id', companyID);
-		await client.from('company').update({ uses_own_model_key: true }).eq('id', companyID);
+		await client.from('company').update({ uses_own_model_key: true, host_holds_model_key: null }).eq('id', companyID);
 	}, networkHookTimeout);
 
 	test('the company key pays while it is held and in use, and credits pay once it is turned off', async () => {
@@ -134,14 +135,32 @@ describe('who pays for the models', () => {
 		expect(resultOf(await asSample('company_credits_get')).paidBy).toBe('company_key');
 
 		expect((await asAdmin('company_settings_update', { usesOwnModelKey: false })).status).toBe(200);
-		expect(await companyUsesOwnModelKey(client, companyID)).toBe(false);
+		expect((await companyModelKeyFacts(client, companyID)).usesOwnModelKey).toBe(false);
 		expect(resultOf(await asSample('company_credits_get')).paidBy).toBe('subscription');
 		expect((await client.from('box_keyring').select('sealed_model_key').eq('company_id', companyID).single()).data?.sealed_model_key).toEqual(sealedModelKey);
+	});
+
+	test('a key typed into the computer pays once the computer says it holds one, and is unknown until then', async () => {
+		await client.from('box_keyring').delete().eq('company_id', companyID);
+		await client.from('company').update({ uses_own_model_key: true, host_holds_model_key: null }).eq('id', companyID);
+		expect((await companyBoxesOf(client, companyID)).paidBy).toBe('unknown');
+		expect(resultOf(await asSample('company_credits_get')).paidBy).toBe('subscription');
+
+		const answered = await keptModelKeyReport(client, companyID, { holdsModelKey: true });
+		expect(await answered.json()).toEqual({ usesOwnModelKey: true });
+		expect(await companyBoxesOf(client, companyID)).toMatchObject({ hasModelKey: false, hostHoldsModelKey: true, paidBy: 'company_key' });
+		expect(resultOf(await asSample('company_credits_get')).paidBy).toBe('company_key');
+
+		await keptModelKeyReport(client, companyID, { holdsModelKey: false });
+		expect((await companyBoxesOf(client, companyID)).paidBy).toBe('subscription');
+		const refused = await keptModelKeyReport(client, companyID, {}).catch((refusal: unknown) => refusal);
+		expect(refused instanceof Response ? refused.status : refused).toBe(400);
+		await client.from('company').update({ uses_own_model_key: false }).eq('id', companyID);
 	});
 
 	test('a member who does not administer cannot choose who pays', async () => {
 		const refused = await asSample('company_settings_update', { usesOwnModelKey: true });
 		expect(refused.status).toBeGreaterThanOrEqual(400);
-		expect(await companyUsesOwnModelKey(client, companyID)).toBe(false);
+		expect((await companyModelKeyFacts(client, companyID)).usesOwnModelKey).toBe(false);
 	});
 });

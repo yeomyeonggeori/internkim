@@ -58,7 +58,7 @@ func TestACompanyHoldingAKeyItDoesNotUseAsksTheGateway(t *testing.T) {
 func askedByAWebSearch(t *testing.T, configuration Configuration, isCompanyKeyInUse bool) (string, string) {
 	t.Helper()
 	var askedURL, authorization string
-	reaching, errorValue := configuration.WithDefaults().reachingModels(func() (bool, error) { return isCompanyKeyInUse, nil })
+	reaching, errorValue := configuration.WithDefaults().reachingModels(func(bool) (bool, error) { return isCompanyKeyInUse, nil })
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}

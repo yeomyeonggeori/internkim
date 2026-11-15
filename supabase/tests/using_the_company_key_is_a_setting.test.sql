@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(4);
+select plan(6);
 
 insert into auth.users (id, email) values
   ('55600000-0000-0000-0000-000000000001', 'key-owner@example.com'),
@@ -16,6 +16,9 @@ insert into public.member (id, company_id, email, user_id, status, is_admin, nam
 select is((select uses_own_model_key from public.company where id = '55600000-0000-0000-0000-000000000000'), true,
   'a new company uses its own key once its computer holds one');
 
+select is((select host_holds_model_key from public.company where id = '55600000-0000-0000-0000-000000000000'), null::boolean,
+  'whether a company''s computer holds a key is unknown until the computer says');
+
 set local role authenticated;
 select set_config('request.jwt.claim.sub', '55600000-0000-0000-0000-000000000002', true);
 update public.company set uses_own_model_key = false where id = '55600000-0000-0000-0000-000000000000';
@@ -30,6 +33,9 @@ reset role;
 set local role service_role;
 select is((select uses_own_model_key from public.company where id = '55600000-0000-0000-0000-000000000000'), false,
   'the model gateway reads the setting with the service role');
+update public.company set host_holds_model_key = true where id = '55600000-0000-0000-0000-000000000000';
+select is((select host_holds_model_key from public.company where id = '55600000-0000-0000-0000-000000000000'), true,
+  'the model gateway keeps what the computer said about its key');
 reset role;
 
 select * from finish();
