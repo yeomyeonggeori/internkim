@@ -4,7 +4,7 @@ import { companyRecordOfHint } from './company-ledger-tools';
 import { contactOfCRMHint, opportunityOfCRMHint, organizationOfCRMHint } from './crm-tools';
 import { momentIn } from './days';
 import { eventOfHint } from './event-tools';
-import { personOfHint } from './people';
+import { personToRemove } from './people-tools';
 import { taskRowOfHint } from './task-tools';
 import type { RecordContext } from './company';
 import type { TaskRow } from './tasks';
@@ -85,7 +85,7 @@ export async function personTarget(
 	context: RecordContext,
 	input: z.infer<typeof personWithdrawInputSchema>
 ): Promise<PreviewedTarget> {
-	const person = personOfHint(context.people, input.personHint);
+	const person = await personToRemove(context, input);
 	return { inputField: 'personHint', id: person.personID, title: `${person.name} <${person.email}>` };
 }
 

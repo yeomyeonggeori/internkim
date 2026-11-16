@@ -4361,7 +4361,7 @@
         "state": "ok"
       },
       "canonicalName": "person_withdraw",
-      "description": "Withdraw one person from the company: their membership ends, they can no longer sign in, they leave the company messenger, and every screen stops showing them, while the attendance, leave and tasks they left behind still read. Only an administrator withdraws people, and never themselves. With purge, the person is deleted outright instead when nothing refers to them. To delete what they wrote in the messenger, call person_message_delete first, while they are still in the directory. Requires approval; this action is irreversible.",
+      "description": "Withdraw one person from the company: their membership ends, they can no longer sign in, they leave the company messenger, and every screen stops showing them, while the attendance, leave and tasks they left behind still read. Only an administrator withdraws people, and never themselves. With purge, the person is deleted outright instead when nothing refers to them, and purge also reaches somebody who was already withdrawn. To delete what they wrote in the messenger, call person_message_delete first, while they are still in the directory. Requires approval; this action is irreversible.",
       "estimatedLatency": "medium",
       "idempotency": {
         "required": false,

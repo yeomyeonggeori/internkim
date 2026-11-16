@@ -24,6 +24,7 @@ import {
 	mentionOf,
 	personOfCompanyByID,
 	personOfHint,
+	peopleWhoLeft,
 	type RecordPerson
 } from './people';
 import { ascendingPositions, pageOf } from './list-page';
@@ -229,11 +230,19 @@ async function writeTheOrganizationHomeOfANewPerson(
 	if (error) throw refusalOfPostgresError(error);
 }
 
+export async function personToRemove(
+	context: RecordContext,
+	input: { personHint?: string; purge?: boolean }
+): Promise<RecordPerson> {
+	const candidates = input.purge === true ? [...context.people, ...(await peopleWhoLeft(context.caller))] : context.people;
+	return personOfHint(candidates, input.personHint ?? '');
+}
+
 export async function personWithdraw(
 	context: RecordContext,
 	input: { personHint?: string; purge?: boolean }
 ): Promise<PersonWithdrawResult> {
-	const person = personOfHint(context.people, input.personHint ?? '');
+	const person = await personToRemove(context, input);
 	const { wasRemoved } = await removeMemberAsAdministrator(context.caller, context.accountDirectory, person.personID, {
 		purge: input.purge === true
 	});

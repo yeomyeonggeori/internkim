@@ -63,10 +63,18 @@ export function handleOf(email: string): string {
 }
 
 export async function peopleOfCompany(caller: SupabaseClient): Promise<RecordPerson[]> {
+	return membersOfCompany(caller, { isInTheRecord: true });
+}
+
+export async function peopleWhoLeft(caller: SupabaseClient): Promise<RecordPerson[]> {
+	return membersOfCompany(caller, { isInTheRecord: false });
+}
+
+async function membersOfCompany(caller: SupabaseClient, filter: { isInTheRecord: boolean }): Promise<RecordPerson[]> {
 	const { data, error } = await caller
 		.from('member')
 		.select(directoryColumns)
-		.eq('is_in_the_record', true)
+		.eq('is_in_the_record', filter.isInTheRecord)
 		.order('name')
 		.returns<MemberRow[]>();
 	if (error) throw refusalOfPostgresError(error);

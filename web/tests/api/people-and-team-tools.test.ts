@@ -391,6 +391,28 @@ describe('withdrawing somebody through the same function as the members page', (
 		const { data: row } = await client.from('member').select('id').eq('id', mistakenID).maybeSingle();
 		expect(row).toBeNull();
 	}, networkHookTimeout);
+
+	test('deletes somebody already withdrawn outright when asked to purge', async () => {
+		const departedID = await addMember(client, companyID, `${slug}-departed@example.test`);
+		await client.from('member').update({ name: '최예시', status: 'withdrawn' }).eq('id', departedID);
+
+		const purged = resultOf(await asAdmin('person_withdraw', { personHint: '최예시', purge: true }));
+		expect(purged).toMatchObject({ personID: departedID, isDeleted: true });
+
+		const { data: row } = await client.from('member').select('id').eq('id', departedID).maybeSingle();
+		expect(row).toBeNull();
+	}, networkHookTimeout);
+
+	test('does not look among the withdrawn when only asked to withdraw', async () => {
+		const departedID = await addMember(client, companyID, `${slug}-departed-again@example.test`);
+		await client.from('member').update({ name: '이견본', status: 'withdrawn' }).eq('id', departedID);
+
+		const refusal = refusalOf(await asAdmin('person_withdraw', { personHint: '이견본' }));
+		expect(refusal.status).toBe(409);
+
+		const { data: row } = await client.from('member').select('status').eq('id', departedID).single();
+		expect(row!.status).toBe('withdrawn');
+	}, networkHookTimeout);
 });
 
 describe('resetting a password through the same function as the members page', () => {
