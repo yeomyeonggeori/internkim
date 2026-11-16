@@ -70,7 +70,7 @@ func TestPersonaSeedsBothConfigurationDocuments(t *testing.T) {
 	if len(identity.Names) < 2 || identity.Names[0] != "김인턴" || identity.Names[1] != "Intern Kim" || identity.Handle != "internkim" {
 		t.Fatalf("expected the default identity, got %+v", identity)
 	}
-	if soul.Language == nil || soul.Language.Default != "" || !soul.Language.MatchRequester || len(soul.Values) == 0 {
+	if soul.Language == nil || soul.Language.Default != "ko" || !soul.Language.MatchRequester || len(soul.Values) == 0 {
 		t.Fatalf("expected the default soul, got %+v", soul)
 	}
 	for _, fileName := range []string{service.Configuration.IdentityDocumentPath, service.Configuration.SoulDocumentPath} {
@@ -101,7 +101,7 @@ identityExtension: "Be crisp."
 	if errorValue != nil {
 		t.Fatalf("expected the migration to run: %v", errorValue)
 	}
-	if strings.Join(identity.Names, "|") != "김인턴|Kim Secretary|비서" {
+	if strings.Join(identity.Names, "|") != "김인턴|Intern Kim|인턴킴|Kim Secretary|비서" {
 		t.Fatalf("expected the first name by rule and the legacy names after it, got %v", identity.Names)
 	}
 	if identity.Introduction != "회사 일을 돕는 인턴입니다." {
@@ -125,9 +125,73 @@ func TestIdentityRulesRefuseAnotherFirstNameOrHandle(t *testing.T) {
 			t.Fatalf("expected %s to be refused", name)
 		}
 	}
-	identity, errorValue := parseIdentityDocument([]byte(`{"schemaVersion": 1, "names": ["김인턴", " 인턴킴 "]}`))
-	if errorValue != nil || identity.Handle != "" || identity.Names[1] != "인턴킴" {
-		t.Fatalf("expected a handle-less identity with trimmed names, got %+v (%v)", identity, errorValue)
+	identity, errorValue := parseIdentityDocument([]byte(`{"schemaVersion": 1, "names": ["김인턴", " 인턴님 "]}`))
+	if errorValue != nil || identity.Handle != "" || strings.Join(identity.Names, "|") != "김인턴|Intern Kim|인턴킴|인턴님" {
+		t.Fatalf("expected a handle-less identity with trimmed names and the default nicknames kept, got %+v (%v)", identity, errorValue)
+	}
+}
+
+func TestARetiredCreatureAndEmojiAreDroppedWhenAnIdentityLoads(t *testing.T) {
+	identity, errorValue := parseIdentityDocument([]byte(`{"schemaVersion": 1, "names": ["김인턴"], "creature": "고양이", "emoji": "🐱"}`))
+	if errorValue != nil {
+		t.Fatalf("an identity written before creature and emoji retired must still load: %v", errorValue)
+	}
+	document, errorValue := canonicalIdentityDocument(identity)
+	if errorValue != nil || strings.Contains(string(document), "creature") || strings.Contains(string(document), "emoji") {
+		t.Fatalf("the saved identity must not carry the retired fields: %s %v", document, errorValue)
+	}
+}
+
+func TestOnlyAnUntouchedRetiredDefaultIsReplaced(t *testing.T) {
+	retired := retiredDefaultIdentityDocument()
+	replaced := withCurrentDefaultWording(identityDocument{Names: []string{"김인턴"}, Role: retired.Role, Introduction: "안녕하십니까, 샘플 회사의 김인턴입니다."})
+	if replaced.Role != defaultIdentityDocument().Role || replaced.Introduction != "안녕하십니까, 샘플 회사의 김인턴입니다." {
+		t.Fatalf("only the field still at the retired default changes, got %+v", replaced)
+	}
+	retiredSoul, errorValue := canonicalSoulDocument(retiredDefaultSoulDocument())
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if isRetired, errorValue := isRetiredDefaultSoul(retiredSoul); errorValue != nil || !isRetired {
+		t.Fatalf("the retired default soul must be recognized: %v", errorValue)
+	}
+	edited := retiredDefaultSoulDocument()
+	edited.Values = append(edited.Values, "샘플 회사의 보고는 금요일에 한다.")
+	editedSoul, errorValue := canonicalSoulDocument(edited)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if isRetired, _ := isRetiredDefaultSoul(editedSoul); isRetired {
+		t.Fatal("a soul anyone has changed must be left alone")
+	}
+}
+
+func TestAnAdministratorRevisesThePrinciplesUnderTheirOwnName(t *testing.T) {
+	service := personaTestService(t)
+	var revisions []string
+	blueclaw := httptest.NewServer(http.HandlerFunc(func(responseWriter http.ResponseWriter, request *http.Request) {
+		body, _ := io.ReadAll(request.Body)
+		revisions = append(revisions, request.URL.Path+" "+string(body))
+		responseWriter.Header().Set("Content-Type", "application/json")
+		_, _ = responseWriter.Write([]byte(`{"version":3,"origin":"administrator","author":"person-admin"}`))
+	}))
+	defer blueclaw.Close()
+	service.Configuration.BlueclawBaseURL = blueclaw.URL
+	revise := func() *httptest.ResponseRecorder {
+		recorder := httptest.NewRecorder()
+		service.handleAgentLearning(recorder, httptest.NewRequest(http.MethodPost, "/agent-learning/api/soul", strings.NewReader(`{"expectedVersion":2,"document":{"schemaVersion":1,"values":["샘플 원칙"]},"reason":"샘플"}`)))
+		return recorder
+	}
+	stubPersonaActor(t, personaActor{email: "member@example.com", personID: "person-1"}, true)
+	if recorder := revise(); recorder.Code != http.StatusForbidden || len(revisions) != 0 {
+		t.Fatalf("a member must not revise the principles, got %d %v", recorder.Code, revisions)
+	}
+	stubPersonaActor(t, personaActor{email: "admin@example.com", personID: "person-admin", isAdmin: true}, true)
+	if recorder := revise(); recorder.Code != http.StatusOK {
+		t.Fatalf("admin revision status = %d: %s", recorder.Code, recorder.Body.String())
+	}
+	if len(revisions) != 1 || !strings.HasPrefix(revisions[0], "/admin/api/persona/agent/soul ") || !strings.Contains(revisions[0], `"origin":"administrator"`) || !strings.Contains(revisions[0], `"author":"person-admin"`) || !strings.Contains(revisions[0], `"expectedVersion":2`) {
+		t.Fatalf("the revision names its author and the version it replaces, got %v", revisions)
 	}
 }
 
@@ -214,7 +278,7 @@ func TestPersonaIdentityUpdateRequiresAdministratorAndPreservesSoul(t *testing.T
 	}
 	blueclaw := httptest.NewServer(http.HandlerFunc(func(responseWriter http.ResponseWriter, request *http.Request) {
 		responseWriter.Header().Set("Content-Type", "application/json")
-		_, _ = responseWriter.Write([]byte(`{"identity":{"schemaVersion":1,"names":["김인턴"],"handle":"internkim"},"soul":{"schemaVersion":1,"values":["Keep current guidance."]}}`))
+		_, _ = responseWriter.Write([]byte(`{"identity":{"schemaVersion":1,"names":["김인턴","Intern Kim","인턴킴"],"handle":"internkim"},"soul":{"schemaVersion":1,"values":["Keep current guidance."]}}`))
 	}))
 	defer blueclaw.Close()
 	service.Configuration.BlueclawBaseURL = blueclaw.URL

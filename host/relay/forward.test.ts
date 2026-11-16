@@ -149,6 +149,12 @@ describe('persona identity forwarding', () => {
 		expect(workspaceCallOf('person.persona.soul', {}, 'sample@example.test')).toBeNull();
 		expect(workspaceCallOf('person.persona.soul.update', {}, 'sample@example.test')).toBeNull();
 	});
+
+	test('carries a principles revision to the route that checks the administrator', () => {
+		const revision = workspaceCallOf('person.agent_learning.soul.update', { expectedVersion: 2, document: { schemaVersion: 1 }, actor: { role: 'admin' } }, 'sample@example.test');
+		expect(revision).toMatchObject({ method: 'POST', url: 'http://internkim/agent-learning/api/soul', requester: 'sample@example.test' });
+		expect(revision?.body).toBe(JSON.stringify({ expectedVersion: 2, document: { schemaVersion: 1 } }));
+	});
 });
 
 describe('isPersonCapability', () => {

@@ -44,6 +44,7 @@ import { mailToolDefinitions } from './mail';
 import { notificationToolDefinitions } from './notifications';
 import { peopleToolDefinitions } from './people';
 import { personaToolDefinitions } from './persona';
+import { personaLearningToolDefinitions } from './persona-learning';
 import { settingsToolDefinitions } from './settings';
 import { creditsToolDefinitions } from './credits';
 import {
@@ -2173,6 +2174,7 @@ const capabilityToolDefinitions: CapabilityToolDefinition[] = [
   ...mailToolDefinitions,
   ...hostToolDefinitions,
   ...personaToolDefinitions,
+  ...personaLearningToolDefinitions,
 ];
 
 export type TaskAddInput = z.infer<typeof taskAddInputSchema>;

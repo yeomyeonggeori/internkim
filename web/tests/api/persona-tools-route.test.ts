@@ -167,3 +167,39 @@ describe('the agent’s persona identity', () => {
 		expect(carried).toEqual([]);
 	});
 });
+
+describe('the agent’s working principles and learning', () => {
+	const revision = { version: 2, document: { schemaVersion: 1, values: ['성실하게 일한다'] }, reason: 'sample', createdAt: '2026-11-01T00:00:00Z', origin: 'administrator' };
+
+	test('are read by any member', async () => {
+		const carried = gatewayAnswering({ status: 200, body: succeeded('persona_principles_get', { history: [revision] }) });
+		const answered = await invoke('persona_principles_get', memberSession, {});
+
+		expect(answered.status).toBe(200);
+		expect(carried.map((call) => [call.body.path, call.body.requester])).toEqual([['/tools/persona_principles_get/invoke', memberEmail]]);
+	});
+
+	test('are revised as the member who asked, with the fields the call names', async () => {
+		const carried = gatewayAnswering({ status: 200, body: succeeded('persona_principles_update', revision) });
+		const answered = await invoke('persona_principles_update', administratorSession, { boundaries: ['비밀번호를 묻지 않는다'], reason: 'sample' });
+
+		expect(answered.status).toBe(200);
+		expect(carried.map((call) => [call.body.requester, call.body.payload])).toEqual([[administratorEmail, { input: { boundaries: ['비밀번호를 묻지 않는다'], reason: 'sample' } }]]);
+	});
+
+	test('are refused here for a credential that may only read', async () => {
+		const carried = gatewayAnswering({ status: 200, body: succeeded('persona_principles_revert', revision) });
+		const answered = await invoke('persona_principles_revert', readingCredential, { version: 1 });
+
+		expect(answered.status).toBe(403);
+		expect(carried).toEqual([]);
+	});
+
+	test('a learned skill is retired as the member who asked', async () => {
+		const carried = gatewayAnswering({ status: 200, body: succeeded('persona_learned_skill_update', { id: 'sample-skill', action: 'retire', ok: true }) });
+		const answered = await invoke('persona_learned_skill_update', administratorSession, { id: 'sample-skill', retired: true });
+
+		expect(answered.status).toBe(200);
+		expect(carried.map((call) => call.body.path)).toEqual(['/tools/persona_learned_skill_update/invoke']);
+	});
+});

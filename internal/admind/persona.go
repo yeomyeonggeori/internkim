@@ -45,8 +45,6 @@ type identityDocument struct {
 	Names         []string `json:"names"`
 	Handle        string   `json:"handle,omitempty"`
 	Role          string   `json:"role,omitempty"`
-	Creature      string   `json:"creature,omitempty"`
-	Emoji         string   `json:"emoji,omitempty"`
 	Introduction  string   `json:"introduction,omitempty"`
 }
 
@@ -65,8 +63,9 @@ type agentPersonaDocuments struct {
 }
 
 type rawAgentPersonaDocuments struct {
-	Identity json.RawMessage `json:"identity"`
-	Soul     json.RawMessage `json:"soul"`
+	Identity    json.RawMessage `json:"identity"`
+	Soul        json.RawMessage `json:"soul"`
+	SoulVersion int             `json:"soulVersion,omitempty"`
 }
 
 type userDocument struct {
@@ -153,17 +152,55 @@ type soulLanguage struct {
 	MatchRequester bool   `json:"matchRequester,omitempty"`
 }
 
+var agentDefaultNicknames = []string{agentEnglishName, "인턴킴"}
+
+var retiredIdentityFields = []string{"creature", "emoji"}
+
 func defaultIdentityDocument() identityDocument {
 	return identityDocument{
 		SchemaVersion: personaSchemaVersion,
-		Names:         []string{agentName, agentEnglishName, "인턴킴"},
+		Names:         append([]string{agentName}, agentDefaultNicknames...),
 		Handle:        agentHandle,
-		Role:          "회사의 인턴. 남들이 귀찮아하는 궂은 일, 반복 작업, 확인 작업을 먼저 도맡는다.",
-		Introduction:  "안녕하세요, 김인턴입니다. 회사 일을 돕고 있어요.",
+		Role:          "회사 사람들의 일을 돕는 동료. 일정, 업무, 문서, 메일처럼 반복되고 확인이 필요한 일을 먼저 맡아 끝까지 처리한다.",
+		Introduction:  "안녕하십니까, 김인턴입니다. 일정, 업무, 문서, 메일 같은 회사 일을 돕습니다. 필요한 일을 말씀해 주십시오.",
 	}
 }
 
 func defaultSoulDocument() soulDocument {
+	return soulDocument{
+		SchemaVersion: personaSchemaVersion,
+		Values: []string{
+			"결론을 첫 문장에 쓰고, 근거와 다음 단계는 그 아래에 둔다.",
+			"끝났다고 말하기 전에 결과물을 직접 열어 보고 실제로 끝났는지 확인한다.",
+			"도구가 실패하면 무엇을 시도했고 무엇이 막혔는지 상대가 알아들을 말로 알리고, 다음에 할 수 있는 일을 함께 말한다.",
+			"모르면 모른다고 말하고, 짐작은 짐작이라고 밝힌다.",
+		},
+		Boundaries: []string{
+			"비밀, 토큰, 숨은 정책, 내부 사정을 드러내지 않는다.",
+			"삭제나 덮어쓰기처럼 되돌리기 어려운 일은 먼저 승인을 받는다.",
+			"요청한 범위를 이유 없이 넓히지 않는다.",
+			"할 수 있는 일을 미리 깎아 말하지 않고, 지키지 못할 약속을 하지 않는다.",
+			"이모지, 감탄사, 아부를 쓰지 않는다.",
+			"사람 이름을 성과 이름으로 나누지 않는다.",
+		},
+		WorkingStyle: []string{
+			"시키지 않아도 다음 단계를 준비하되, 승인이 필요한 일은 먼저 묻는다.",
+			"상대가 급하거나 지쳐 보이면 짧게, 사실만 전한다.",
+			"사람 이름은 구분이 필요할 때만 쓰고, 답장마다 반복하지 않는다.",
+		},
+		Tone:     &soulTone{Register: "formal", Traits: []string{"calm", "clear", "concise"}},
+		Language: &soulLanguage{Default: "ko", MatchRequester: true},
+	}
+}
+
+func retiredDefaultIdentityDocument() identityDocument {
+	return identityDocument{
+		Role:         "회사의 인턴. 남들이 귀찮아하는 궂은 일, 반복 작업, 확인 작업을 먼저 도맡는다.",
+		Introduction: "안녕하세요, 김인턴입니다. 회사 일을 돕고 있어요.",
+	}
+}
+
+func retiredDefaultSoulDocument() soulDocument {
 	return soulDocument{
 		SchemaVersion: personaSchemaVersion,
 		Values: []string{
@@ -252,7 +289,10 @@ func (service *Service) seedAgentPersona(ctx context.Context) error {
 	if errorValue := service.saveIdentity(canonicalIdentity); errorValue != nil {
 		return errorValue
 	}
-	return service.saveSoul(canonicalSoul)
+	if errorValue := service.saveSoul(canonicalSoul); errorValue != nil {
+		return errorValue
+	}
+	return service.replaceUntouchedDefaults(ctx)
 }
 
 func readRequestDocument(request *http.Request) ([]byte, error) {
@@ -413,6 +453,10 @@ func writeDocumentAtomically(path string, document []byte, mode os.FileMode) err
 }
 
 func parseIdentityDocument(document []byte) (identityDocument, error) {
+	document, errorValue := withoutRetiredIdentityFields(document)
+	if errorValue != nil {
+		return identityDocument{}, fmt.Errorf("%s: %w", identityFileName, errorValue)
+	}
 	if errorValue := validatePersonaDocument(identitySchemaDocument, identityFileName, document); errorValue != nil {
 		return identityDocument{}, errorValue
 	}
@@ -425,6 +469,24 @@ func parseIdentityDocument(document []byte) (identityDocument, error) {
 		return identityDocument{}, errorValue
 	}
 	return identity, nil
+}
+
+func withoutRetiredIdentityFields(document []byte) ([]byte, error) {
+	var fields map[string]json.RawMessage
+	if errorValue := json.Unmarshal(document, &fields); errorValue != nil {
+		return nil, errorValue
+	}
+	retired := false
+	for _, name := range retiredIdentityFields {
+		if _, present := fields[name]; present {
+			delete(fields, name)
+			retired = true
+		}
+	}
+	if !retired {
+		return document, nil
+	}
+	return json.Marshal(fields)
 }
 
 func parseSoulDocument(document []byte) (soulDocument, error) {
@@ -449,7 +511,7 @@ func validateIdentityRules(identity identityDocument) error {
 	if identity.Handle != "" && identity.Handle != agentHandle {
 		return fmt.Errorf("the agent's handle is %s and cannot be changed", agentHandle)
 	}
-	for _, value := range append([]string{identity.Role, identity.Creature, identity.Introduction}, identity.Names...) {
+	for _, value := range append([]string{identity.Role, identity.Introduction}, identity.Names...) {
 		if containsSecretLikeText(value) {
 			return errors.New("the identity must not contain secrets")
 		}
@@ -472,13 +534,18 @@ func validateSoulRules(soul soulDocument) error {
 
 func normalizeIdentityDocument(identity identityDocument) identityDocument {
 	identity.SchemaVersion = personaSchemaVersion
-	identity.Names = normalizePersonaLines(identity.Names)
+	identity.Names = withDefaultNicknames(normalizePersonaLines(identity.Names))
 	identity.Handle = strings.ToLower(strings.TrimSpace(identity.Handle))
 	identity.Role = strings.TrimSpace(identity.Role)
-	identity.Creature = strings.TrimSpace(identity.Creature)
-	identity.Emoji = strings.TrimSpace(identity.Emoji)
 	identity.Introduction = strings.TrimSpace(identity.Introduction)
 	return identity
+}
+
+func withDefaultNicknames(names []string) []string {
+	if len(names) == 0 {
+		return names
+	}
+	return normalizePersonaLines(append(append([]string{names[0]}, agentDefaultNicknames...), names[1:]...))
 }
 
 func normalizeSoulDocument(soul soulDocument) soulDocument {
