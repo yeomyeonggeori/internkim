@@ -153,6 +153,7 @@ WEB_PATTERNS = [
     "docs/web/app/lib/openapi.ts",
     "internal/tasksize/*",
     "internal/admind/persona-schema/*",
+    "internal/admind/persona.go",
     "internal/companyzone/*",
     "internal/desktop/commands.json",
     "internal/*/testdata/*",
