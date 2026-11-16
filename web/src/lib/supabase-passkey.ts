@@ -1,4 +1,6 @@
 import { supabase } from '$lib/supabase';
+import { isInsideTauriDesktopShell } from '$lib/native-shell/shell';
+import { waitingForPasskeyApproval } from '$lib/passkey-first-launch';
 
 export type Passkey = {
 	id: string;
@@ -67,9 +69,17 @@ export async function registerPasskey(): Promise<void> {
 	if (error) throw error;
 }
 
-export async function signInWithPasskey(): Promise<void> {
+async function passkeyCeremony(): Promise<void> {
 	const { error } = await supabase().auth.signInWithPasskey();
 	if (error) throw error;
+}
+
+export function signInWithPasskey(): Promise<void> {
+	return waitingForPasskeyApproval(
+		passkeyCeremony,
+		isInsideTauriDesktopShell(),
+		(error) => refusalOf(error) === 'cancelled'
+	);
 }
 
 export async function listPasskeys(): Promise<Passkey[]> {
