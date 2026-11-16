@@ -131,6 +131,8 @@ export type ChannelSummary = {
 	platform?: string;
 	webURL?: string;
 	unread?: MessengerReadCount;
+	lastMessageAt?: string;
+	hasNoMessages?: boolean;
 };
 
 

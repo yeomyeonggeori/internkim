@@ -180,7 +180,9 @@ export async function bridgeConversations(): Promise<ChannelSummary[]> {
 			description: channel.description,
 			platform: channel.platform,
 			webURL: channel.webURL,
-			unread: channel.unread
+			unread: channel.unread,
+			lastMessageAt: channel.lastMessageAt,
+			hasNoMessages: channel.hasNoMessages
 		}));
 }
 

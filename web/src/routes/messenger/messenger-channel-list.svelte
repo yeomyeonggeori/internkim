@@ -28,6 +28,8 @@
 	import { noticeWhenChannelOrderFails } from './channel-order-notice';
 	import type { ChannelOrderState } from './channel-order-state.svelte';
 	import { ChannelListReorder, type ChannelListSection } from './channel-list-reorder.svelte';
+	import { reorderRowProps, slideRowsOnReorder } from './reorder-slide.svelte';
+	import { PointerHeldOrder } from './pointer-held-order.svelte';
 
 	let {
 		activeID,
@@ -80,6 +82,12 @@
 	const pinnedChannels = $derived(pinnedChannelsOf(groupChannels, channelOrder.pinnedChannels));
 	const unpinnedChannels = $derived(groupChannels.filter((channel) => !channelOrder.isPinned(channel.id)));
 	const reorder = new ChannelListReorder(dropChannel);
+	let directMessageList = $state<HTMLUListElement | null>(null);
+	const directMessageOrder = new PointerHeldOrder(() => directMessages);
+	slideRowsOnReorder(
+		() => directMessageList,
+		() => directMessageOrder.shown.map((conversation) => conversation.id)
+	);
 
 	function dropChannel(section: ChannelListSection, draggedID: string, targetID: string) {
 		const moved =
@@ -214,10 +222,15 @@
 						<PlusIcon />
 					</Sidebar.GroupAction>
 				{/snippet}
-				<Sidebar.Menu>
+				<Sidebar.Menu
+					bind:ref={directMessageList}
+					onpointerenter={directMessageOrder.hold}
+					onpointerleave={directMessageOrder.release}
+				>
 					{#if isLoading}<li><MessengerListSkeleton label={text.loadingConversations} compact /></li>{/if}
-					{#each directMessages as conversation (conversation.id)}
+					{#each directMessageOrder.shown as conversation (conversation.id)}
 						<ConversationMenu
+							itemProps={reorderRowProps(conversation.id)}
 							isMuted={muted.has(conversation.id)}
 							muteLabel={text.muteConversation}
 							unmuteLabel={text.unmuteConversation}
