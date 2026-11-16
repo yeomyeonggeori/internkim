@@ -1418,5 +1418,35 @@
 		"path": "persona_profile_update.result.tone.register",
 		"reason": "A person's or the company's tone can now be plain (haera-che), the written Korean speech level that casual (hae-che) could not express. Only a host that carries the new schema accepts plain, so only such a host can answer with it.",
 		"release": "the web/API deployment that accepts plain goes out before the company host release whose schema stores it, so every reader of a plain answer already takes it"
+	},
+	{
+		"path": "persona_identity_get.result.creature",
+		"reason": "creature and emoji retire from the agent identity: each only added one prompt line, nothing showed them, and emoji contradicted the soul's rule against emoji. A saved identity that still carries them loads with both dropped.",
+		"release": "the web/API deployment that stops asking for creature and emoji goes out before the company host release whose schema drops them; the persona tools are answered by the company host, which reads its own embedded catalog, and the web ignores the two fields an older host still answers with"
+	},
+	{
+		"path": "persona_identity_get.result.emoji",
+		"reason": "creature and emoji retire from the agent identity: each only added one prompt line, nothing showed them, and emoji contradicted the soul's rule against emoji. A saved identity that still carries them loads with both dropped.",
+		"release": "the web/API deployment that stops asking for creature and emoji goes out before the company host release whose schema drops them; the persona tools are answered by the company host, which reads its own embedded catalog, and the web ignores the two fields an older host still answers with"
+	},
+	{
+		"path": "persona_identity_update.input.creature",
+		"reason": "creature and emoji retire from the agent identity: each only added one prompt line, nothing showed them, and emoji contradicted the soul's rule against emoji. A saved identity that still carries them loads with both dropped.",
+		"release": "the web/API deployment that stops asking for creature and emoji goes out before the company host release whose schema drops them; the persona tools are answered by the company host, which reads its own embedded catalog, and the web ignores the two fields an older host still answers with"
+	},
+	{
+		"path": "persona_identity_update.input.emoji",
+		"reason": "creature and emoji retire from the agent identity: each only added one prompt line, nothing showed them, and emoji contradicted the soul's rule against emoji. A saved identity that still carries them loads with both dropped.",
+		"release": "the web/API deployment that stops asking for creature and emoji goes out before the company host release whose schema drops them; the persona tools are answered by the company host, which reads its own embedded catalog, and the web ignores the two fields an older host still answers with"
+	},
+	{
+		"path": "persona_identity_update.result.creature",
+		"reason": "creature and emoji retire from the agent identity: each only added one prompt line, nothing showed them, and emoji contradicted the soul's rule against emoji. A saved identity that still carries them loads with both dropped.",
+		"release": "the web/API deployment that stops asking for creature and emoji goes out before the company host release whose schema drops them; the persona tools are answered by the company host, which reads its own embedded catalog, and the web ignores the two fields an older host still answers with"
+	},
+	{
+		"path": "persona_identity_update.result.emoji",
+		"reason": "creature and emoji retire from the agent identity: each only added one prompt line, nothing showed them, and emoji contradicted the soul's rule against emoji. A saved identity that still carries them loads with both dropped.",
+		"release": "the web/API deployment that stops asking for creature and emoji goes out before the company host release whose schema drops them; the persona tools are answered by the company host, which reads its own embedded catalog, and the web ignores the two fields an older host still answers with"
 	}
 ]
