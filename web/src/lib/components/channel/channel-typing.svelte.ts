@@ -4,6 +4,7 @@ import { isSupabaseConfigured } from '$lib/supabase';
 import {
 	isTimeToAnnounceTyping,
 	typersAfterSignal,
+	typersIn,
 	typersStillTyping,
 	typingEventKind,
 	type SentMessage,
@@ -19,7 +20,7 @@ export function createChannelTyping(channelID: () => string | undefined, message
 	let typersChannelID = $state<string | undefined>(undefined);
 	let now = $state(Date.now());
 	let lastAnnouncedAt: number | null = null;
-	let announcedChannelID: string | undefined;
+	let announcedPlace: string | undefined;
 	let pruneTimer: ReturnType<typeof setInterval> | undefined;
 
 	const stillTyping = $derived(
@@ -34,10 +35,10 @@ export function createChannelTyping(channelID: () => string | undefined, message
 		pruneTimer = undefined;
 	}
 
-	function heard(conversationID: string | undefined, externalID: string | undefined): void {
+	function heard(conversationID: string | undefined, externalID: string | undefined, threadRootID?: string): void {
 		if (!externalID || !conversationID || conversationID !== channelID()) return;
 		now = Date.now();
-		typers = typersAfterSignal(typersChannelID === conversationID ? typers : [], externalID, now);
+		typers = typersAfterSignal(typersChannelID === conversationID ? typers : [], externalID, now, threadRootID);
 		typersChannelID = conversationID;
 		pruneTimer ??= setInterval(prune, pruneIntervalMilliseconds);
 	}
@@ -45,7 +46,7 @@ export function createChannelTyping(channelID: () => string | undefined, message
 	$effect(() => {
 		if (!isSupabaseConfigured()) return;
 		const stopListening = onCompanyEvent((event) => {
-			if (event.kind === typingEventKind) heard(event.conversationID, event.authorExternalID);
+			if (event.kind === typingEventKind) heard(event.conversationID, event.authorExternalID, event.threadRootID);
 		});
 		return () => {
 			stopListening();
@@ -55,18 +56,19 @@ export function createChannelTyping(channelID: () => string | undefined, message
 	});
 
 	return {
-		get typerExternalIDs(): string[] {
-			return stillTyping.map((typer) => typer.externalID);
+		typerExternalIDsIn(threadRootID?: string): string[] {
+			return typersIn(stillTyping, threadRootID).map((typer) => typer.externalID);
 		},
-		announce(): void {
+		announce(threadRootID?: string): void {
 			const conversationID = channelID();
 			if (!conversationID || !isSupabaseConfigured()) return;
 			const at = Date.now();
-			if (announcedChannelID === conversationID && !isTimeToAnnounceTyping(lastAnnouncedAt, at)) return;
+			const place = `${conversationID}/${threadRootID ?? ''}`;
+			if (announcedPlace === place && !isTimeToAnnounceTyping(lastAnnouncedAt, at)) return;
 			lastAnnouncedAt = at;
-			announcedChannelID = conversationID;
-			announceTyping(conversationID).catch((error: unknown) => {
-				console.warn('typing was not announced', { conversationID, error });
+			announcedPlace = place;
+			announceTyping(conversationID, threadRootID).catch((error: unknown) => {
+				console.warn('typing was not announced', { conversationID, threadRootID, error });
 			});
 		}
 	};

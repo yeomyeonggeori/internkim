@@ -15,6 +15,12 @@ describe('companyEventOf', () => {
 		).toEqual({ kind: 'typing.started', conversationID: 'channel-1', authorExternalID: 'person-1' });
 	});
 
+	test('reads which thread someone is typing in', () => {
+		expect(
+			companyEventOf({ kind: 'typing.started', conversationID: 'channel-1', threadRootID: 'root-1', authorExternalID: 'person-1' })
+		).toEqual({ kind: 'typing.started', conversationID: 'channel-1', threadRootID: 'root-1', authorExternalID: 'person-1' });
+	});
+
 	test('keeps only the fields it knows, and needs a kind', () => {
 		expect(companyEventOf({ kind: 'message.arrived', conversationID: 'channel-1', extra: 1 })).toEqual({
 			kind: 'message.arrived',

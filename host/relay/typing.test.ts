@@ -34,6 +34,11 @@ describe('readTyping', () => {
 		expect(readTyping(heard)?.recipientExternalIDs).toEqual(['U-first', 'U-second']);
 	});
 
+	test('typing inside a thread keeps the thread it is in', () => {
+		expect(readTyping({ ...heard, threadRootID: 'root-1' })?.threadRootID).toBe('root-1');
+		expect(readTyping(heard)).not.toHaveProperty('threadRootID');
+	});
+
 	test('typing with no author or no conversation is not typing', () => {
 		expect(readTyping({ ...heard, authorExternalID: '' })).toBeNull();
 		expect(readTyping({ ...heard, conversationID: '' })).toBeNull();
@@ -52,6 +57,18 @@ describe('typingTeller', () => {
 				audience: ['member-1', 'member-2']
 			}
 		]);
+	});
+
+	test('says which thread someone is typing in', async () => {
+		const { tell, delivered } = tellerThatKnows({ 'U-first': 'member-1' });
+
+		await tell(readTyping({ ...heard, threadRootID: 'root-1' })!);
+		expect(delivered[0]?.event).toEqual({
+			kind: 'typing.started',
+			conversationID: 'channel-1',
+			threadRootID: 'root-1',
+			authorExternalID: 'U-author'
+		});
 	});
 
 	test('tells nobody when no recipient is a member, instead of telling everyone', async () => {

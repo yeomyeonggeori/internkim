@@ -1,4 +1,5 @@
 import type { MentionPerson } from '$lib/messenger/mention-candidates';
+import type { Typist } from '$lib/messenger/typing-signal';
 import type { ChannelMessage, ChannelParticipant } from './channel-api';
 
 export function typingPeople(
@@ -24,4 +25,11 @@ function participantOf(externalID: string, participants: MentionPerson[]): Chann
 		memberID: person?.memberID,
 		externalID
 	};
+}
+
+export function typistsOf(people: ChannelParticipant[], agentExternalID: string | undefined): Typist[] {
+	return people.map((person) => ({
+		name: person.name,
+		isAgent: person.externalID !== undefined && person.externalID === agentExternalID
+	}));
 }

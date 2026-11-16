@@ -29,7 +29,7 @@
 	import LiveWorkBubble from './live-work-bubble.svelte';
 	import TypingBubble from './typing-bubble.svelte';
 	import AgentErrorBubble from './agent-error-bubble.svelte';
-	import { typingPeople } from './typing-people';
+	import { typingPeople, typistsOf } from './typing-people';
 	import SenderAvatar from './sender-avatar.svelte';
 	import MessageCaptureBar from './message-capture-bar.svelte';
 	import MessageCaptureOverlay from './message-capture-overlay.svelte';
@@ -72,7 +72,7 @@
 	import type { DraftMentions } from '$lib/messenger/mention-draft';
 	import { latestSettledOf } from '$lib/messenger/conversation-read-marker';
 	import { mentionLabelsOf } from '$lib/messenger/mention-picker.svelte';
-	import { activityLabel } from '$lib/messenger/typing-signal';
+	import { activityLabel, typingLabel } from '$lib/messenger/typing-signal';
 	import { liveWorkAfterEvent, liveWorkShownIn, liveWorkShownInTimeline, liveWorkStillHeard, type LiveWork, type ShownWork } from '$lib/messenger/agent-work';
 	import { whatToCopy } from './message-copy';
 	import { messagesWithReactions } from './channel-reactions';
@@ -277,22 +277,21 @@
 	const workShownInTimeline = $derived(liveWorkShownInTimeline(liveWork, openThreadRoot?.id, loadedMessageIDs));
 	const workShownInThread = $derived(liveWorkShownIn(liveWork, openThreadRoot?.id, loadedMessageIDs));
 	const peopleShownTyping = $derived(
-		typingPeople(typing.typerExternalIDs, messages, participants).filter(
+		typingPeople(typing.typerExternalIDsIn(), messages, participants).filter(
 			(person) => workShownInTimeline.length === 0 || person.externalID !== agent?.externalID
 		)
 	);
-	const activity = $derived(
-		activityLabel(
-			{
-				typists: peopleShownTyping.map((person) => ({
-					name: person.name,
-					isAgent: person.externalID !== undefined && person.externalID === agent?.externalID
-				})),
-				isAgentWorking
-			},
-			text
-		)
+	const peopleTypingInThread = $derived(
+		openThreadRoot
+			? typingPeople(typing.typerExternalIDsIn(openThreadRoot.id), messages, participants).filter(
+					(person) => workShownInThread.length === 0 || person.externalID !== agent?.externalID
+				)
+			: []
 	);
+	const activity = $derived(
+		activityLabel({ typists: typistsOf(peopleShownTyping, agent?.externalID), isAgentWorking }, text)
+	);
+	const threadTypingLabel = $derived(typingLabel(typistsOf(peopleTypingInThread, agent?.externalID), text));
 
 	async function loadConversation() {
 		if (isDestroyed) return;
@@ -922,13 +921,13 @@
 	{/each}
 {/snippet}
 
-{#snippet typingRows(people: ChannelParticipant[])}
+{#snippet typingRows(people: ChannelParticipant[], label: string)}
 	{#each people as person (person.externalID)}
 		<div class="py-1">
 			<Message.Root align="start">
 				{@render senderAvatar(person)}
 				<Message.Content>
-					<TypingBubble label={activity} />
+					<TypingBubble {label} />
 				</Message.Content>
 			</Message.Root>
 		</div>
@@ -962,6 +961,7 @@
 			class="@container/conversation flex min-h-0 flex-1 flex-col-reverse gap-4 [&>:first-child]:mb-auto overflow-y-auto px-4 py-8"
 		>
 			{#if openThreadRoot}
+				{@render typingRows(peopleTypingInThread, threadTypingLabel)}
 				{@render liveWorkRows(workShownInThread)}
 				{@render timelineRows(reversedThreadTimeline, false)}
 			{/if}
@@ -982,6 +982,7 @@
 		{participants}
 		{isGroup}
 		onSend={sendThreadReply}
+		onTyping={() => typing.announce(openThreadRoot?.id)}
 	/>{/key}
 	</div>
 {/snippet}
@@ -1028,7 +1029,7 @@
 					use:chooseMessageOnClick={{ enabled: capture.isCapturing, onChoose: capture.choose }}
 					class="@container/conversation isolate flex min-h-0 flex-1 flex-col-reverse gap-4 [&>:first-child]:mb-auto overflow-x-hidden overflow-y-auto overscroll-y-none px-4 pt-12 pb-[calc(var(--dock-height)+2.5rem)] [scrollbar-gutter:stable]"
 				>
-					{@render typingRows(peopleShownTyping)}
+					{@render typingRows(peopleShownTyping, activity)}
 					{@render liveWorkRows(workShownInTimeline)}
 					{@render timelineRows(reversedTimeline, true)}
 				</div>
@@ -1067,7 +1068,7 @@
 			{participants}
 			{isGroup}
 			onSend={sendToConversation}
-			onTyping={typing.announce}
+			onTyping={() => typing.announce()}
 			onCapture={capture.begin}
 		/>
 		{/key}
