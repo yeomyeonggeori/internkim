@@ -3,6 +3,7 @@ declare global {
 	namespace App {
 		interface PageState {
 			openThreadRootID?: string;
+			isPictureOpen?: boolean;
 			openAttendanceTeamKey?: string;
 		}
 		interface Platform {

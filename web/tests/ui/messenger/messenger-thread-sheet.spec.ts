@@ -183,6 +183,48 @@ test.describe('messenger thread sheet', () => {
 		await expect(threadSheet).toBeVisible();
 	});
 
+	test('going back closes a picture and keeps the conversation open', async ({ page }) => {
+		await page.setViewportSize({ width: 1280, height: 800 });
+		await page.goto(`/messenger?channel=${channelID}`);
+		await page.getByRole('button', { name: 'sample-picture.png' }).click();
+		await expect(page.getByRole('dialog')).toHaveCount(1);
+
+		await page.goBack();
+
+		await expect(page.getByRole('dialog')).toHaveCount(0);
+		await expect(page).toHaveURL(new RegExp(`/messenger\\?channel=${channelID}$`));
+		await expect(page.getByText(unansweredText)).toBeVisible();
+	});
+
+	test('going back closes a picture opened from the thread and keeps the thread open', async ({ page }) => {
+		await page.setViewportSize({ width: 1280, height: 800 });
+		await page.goto(`/messenger?channel=${channelID}`);
+		await page.getByRole('button', { name: /1개 답글/ }).click();
+		const threadSheet = page.getByRole('dialog', { name: '글타래' });
+		await threadSheet.getByRole('button', { name: 'reply-picture.png' }).click();
+		await expect(page.getByRole('dialog')).toHaveCount(2);
+
+		await page.goBack();
+
+		await expect(page.getByRole('dialog')).toHaveCount(1);
+		await expect(threadSheet).toBeVisible();
+	});
+
+	test('closing a picture leaves no extra step for going back', async ({ page }) => {
+		await page.setViewportSize({ width: 1280, height: 800 });
+		await page.goto(`/messenger?channel=${channelID}`);
+		await page.getByRole('button', { name: 'sample-picture.png' }).click();
+		await expect(page.getByRole('dialog')).toHaveCount(1);
+
+		await page.keyboard.press('Escape');
+		await expect(page.getByRole('dialog')).toHaveCount(0);
+		await expect(page).toHaveURL(new RegExp(`/messenger\\?channel=${channelID}$`));
+
+		await page.goBack();
+
+		await expect(page).toHaveURL('about:blank');
+	});
+
 	test('does not open a thread when text in a timeline message is dragged to select it', async ({ page }) => {
 		await page.setViewportSize({ width: 1280, height: 800 });
 		await page.goto(`/messenger?channel=${channelID}`);
@@ -345,6 +387,21 @@ test.describe('messenger thread in the iPhone app', () => {
 
 		await page.goBack();
 		await expect(page.getByRole('navigation', { name: '글타래' })).toHaveCount(0);
+		await expect.poll(() => lastBackGestureChoice(page)).toBe(false);
+	});
+
+	test('turns on the edge swipe that closes an open picture', async ({ page }) => {
+		await insideTheIPhoneApp(page);
+		await mockThreadChannel(page);
+		await page.goto(`/messenger?channel=${channelID}`);
+		await expect.poll(() => lastBackGestureChoice(page)).toBe(false);
+
+		await page.getByRole('button', { name: 'sample-picture.png' }).click();
+		await expect(page.getByRole('dialog')).toHaveCount(1);
+		await expect.poll(() => lastBackGestureChoice(page)).toBe(true);
+
+		await page.goBack();
+		await expect(page.getByRole('dialog')).toHaveCount(0);
 		await expect.poll(() => lastBackGestureChoice(page)).toBe(false);
 	});
 });
