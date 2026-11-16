@@ -58,30 +58,6 @@ export const adminText = {
 			userSaveError: '사용자 저장에 실패했습니다.',
 			userRemoveError: '사용자 제거에 실패했습니다.',
 		},
-		bot: {
-			title: '김인턴의 성격',
-			description: '김인턴이 무엇을 지키고, 무엇을 하지 않고, 어떻게 일하는지를 정합니다. 한 줄에 한 문장씩, 각 항목은 여덟 줄까지입니다. 저장하면 다음 턴부터 그대로 읽습니다.',
-			valuesLabel: '지키는 것',
-			boundariesLabel: '하지 않는 것',
-			workingStyleLabel: '일하는 방식',
-			linesPlaceholder: '한 줄에 한 문장',
-			toneRegisterLabel: '말투',
-			toneRegisters: { formal: '격식체', polite: '공손한 말투', casual: '편한 말투' },
-			traitsLabel: '어조',
-			toneTraits: {
-				calm: '차분한',
-				warm: '따뜻한',
-				clear: '또렷한',
-				concise: '간결한',
-				direct: '단도직입적인',
-				playful: '유쾌한',
-				meticulous: '꼼꼼한',
-				energetic: '활기찬'
-			},
-			languageLabel: '기본 언어',
-			matchRequesterLabel: '요청한 사람의 언어로 답하기',
-			save: '저장'
-		},
 		credentials: {
 			title: '인증 정보',
 			description: '웹 검색과 원격 제공자에 쓰는 키를 관리자만 등록합니다.',
@@ -216,30 +192,6 @@ export const adminText = {
 			userInviteError: 'Could not invite the user.',
 			userSaveError: 'Could not save the user.',
 			userRemoveError: 'Could not remove the user.',
-		},
-		bot: {
-			title: "Intern Kim's soul",
-			description: 'What Intern Kim holds to, never does, and how it works. One sentence per line, up to eight lines each. The agent reads it as saved from its next turn on.',
-			valuesLabel: 'What it holds to',
-			boundariesLabel: 'What it never does',
-			workingStyleLabel: 'How it works',
-			linesPlaceholder: 'one sentence per line',
-			toneRegisterLabel: 'Register',
-			toneRegisters: { formal: 'formal', polite: 'polite', casual: 'casual' },
-			traitsLabel: 'Traits',
-			toneTraits: {
-				calm: 'calm',
-				warm: 'warm',
-				clear: 'clear',
-				concise: 'concise',
-				direct: 'direct',
-				playful: 'playful',
-				meticulous: 'meticulous',
-				energetic: 'energetic'
-			},
-			languageLabel: 'Default language',
-			matchRequesterLabel: 'Answer in the requester\'s language',
-			save: 'Save'
 		},
 		credentials: {
 			title: 'Credentials',

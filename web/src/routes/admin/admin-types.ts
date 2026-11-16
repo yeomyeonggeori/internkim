@@ -25,14 +25,12 @@ export type AdminSession = {
 	mattermostURL?: string;
 };
 
-export type AgentToneRegister = 'formal' | 'polite' | 'casual';
-
 export type AgentUser = {
 	schemaVersion: 1;
 	callMe?: string;
 	about?: string;
 	preferences?: string[];
-	tone?: { register?: AgentToneRegister; traits?: string[] };
+	tone?: { register?: string; traits?: string[] };
 	language?: { default?: string };
 	morningBriefing?: { enabled?: boolean; time?: string };
 	weeklyReport?: { enabled?: boolean; day?: string; time?: string };
