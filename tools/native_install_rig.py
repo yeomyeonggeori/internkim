@@ -653,7 +653,21 @@ class Machine:
             if completed.stdout.strip() in ("running", "degraded"):
                 return completed.stdout.strip()
             time.sleep(3)
-        raise RigFailure(f"{self.name} did not reach a running systemd within {timeout_seconds}s")
+        raise RigFailure(
+            f"{self.name} did not reach a running systemd within {timeout_seconds}s\n"
+            f"its state: {self.container_state()}\n"
+            f"the last of its console:\n{self.console_tail()}"
+        )
+
+    def container_state(self):
+        for existing in self.list_containers():
+            if existing.get("configuration", {}).get("id") == self.name:
+                return existing.get("status", "unknown")
+        return "not listed"
+
+    def console_tail(self, line_count=40):
+        completed = run([self.container_binary, "logs", self.name])
+        return "\n".join(completed.stdout.strip().splitlines()[-line_count:]) or completed.stderr.strip()
 
     def shell(self, script, timeout_seconds=900):
         script_path = self.share_directory / "scripts" / f"step-{hashlib.sha256(script.encode()).hexdigest()[:16]}.sh"
