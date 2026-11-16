@@ -10,6 +10,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 )
 
 // A plane that answers the two calls this seam makes, in the shapes the real
@@ -220,5 +221,35 @@ func TestTheFilesACallCarriesReachThePlaneBesideItsInput(t *testing.T) {
 
 	if len(plane.invoked) != 1 || !strings.Contains(plane.invoked[0].Body, `"transport":{"workspaceFiles":[{"workspacePath":"/workspace/clients.csv","filename":"clients.csv","contentBase64":"bmFtZQ=="}]}`) {
 		t.Fatalf("the plane cannot read the workspace, so the file has to reach it with the call: %v", plane.invoked)
+	}
+}
+
+func TestTheSeamSaysTheOutcomeIsUnknownWhenThePlaneDoesNotAnswerInTime(t *testing.T) {
+	plane := planeAnswering(t, func(string) (int, string) {
+		time.Sleep(500 * time.Millisecond)
+		return http.StatusOK, `{"tool":"person_withdraw","result":{"isDeleted":true}}`
+	})
+	service := serviceReachingThePlane(t, plane)
+	service.HTTPClient = &http.Client{Timeout: 100 * time.Millisecond}
+
+	recorder := askedOnTheSocket(service, "person_withdraw", `{"personHint":"이샘플","purge":true}`, "member@example.com")
+
+	if recorder.Code != http.StatusGatewayTimeout {
+		t.Fatalf("a plane that did not answer in time answered %d: %s", recorder.Code, recorder.Body.String())
+	}
+	var answer struct {
+		Error        string `json:"error"`
+		ErrorCode    string `json:"errorCode"`
+		FailureStage string `json:"failureStage"`
+		Retryable    bool   `json:"retryable"`
+	}
+	if errorValue := json.Unmarshal(recorder.Body.Bytes(), &answer); errorValue != nil {
+		t.Fatalf("the answer is not a structured refusal: %v: %s", errorValue, recorder.Body.String())
+	}
+	if answer.ErrorCode != "timeout" || answer.FailureStage != "record" || answer.Retryable {
+		t.Fatalf("the answer reads %+v", answer)
+	}
+	if !strings.Contains(answer.Error, "may have taken effect") {
+		t.Fatalf("the answer does not say the call may have run: %s", answer.Error)
 	}
 }
