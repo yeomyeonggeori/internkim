@@ -17,6 +17,10 @@ takes the slots a platform masks for itself: the bot avatar, and the
 installed-app tiles in web/static, which are supplied artwork this script does
 not write.
 
+The Mac app's menu bar icon is the round mark as a template image: macOS
+paints its opaque pixels in the menu bar's own colour, so the blue becomes
+ink and the white becomes a hole.
+
 web/static/favicon.svg is the round mark as a vector, and a browser that reads
 SVG icons uses it instead of these rasters. It is drawn by hand, so a new
 round master has to be exported to it as well.
@@ -38,6 +42,9 @@ SQUARE_MASTER = REPOSITORY_ROOT / "assets" / "internkim.square.png"
 MAC_APP_ICON_MASTER = REPOSITORY_ROOT / "assets" / "internkim.icon.png"
 MAC_APP_ICON = "web/src-tauri/icons/icon.icns"
 MAC_APP_ICON_SIDES = [16, 32, 64, 128, 256, 512, 1024]
+MENU_BAR_ICON = "web/src-tauri/plugins/desktop-control/icons/menu-bar.png"
+MENU_BAR_ICON_SIDE = 36
+ROUND_MARK_BLUE_RED_CHANNEL = 14
 DOCS_FAVICON_SIZES = [(48, 48), (32, 32), (16, 16)]
 WEB_FAVICON_SIDES = {"web/static/favicon.png": 32, "web/static/favicon-192.png": 192, "web/static/favicon-512.png": 512}
 
@@ -66,10 +73,24 @@ def write_mac_app_icon() -> None:
     print(MAC_APP_ICON, MAC_APP_ICON_SIDES)
 
 
+def blueness(red: int) -> int:
+    span = 255 - ROUND_MARK_BLUE_RED_CHANNEL
+    return round(max(0, min(255, (255 - red) * 255 / span)))
+
+
+def write_menu_bar_icon(round_mark: Image.Image) -> None:
+    red, _, _, alpha = round_mark.split()
+    ink = Image.composite(red.point(blueness), Image.new("L", round_mark.size, 0), alpha)
+    black = Image.new("L", round_mark.size, 0)
+    template = Image.merge("RGBA", (black, black, black, ink))
+    save(template, MENU_BAR_ICON, MENU_BAR_ICON_SIDE, "RGBA")
+
+
 def main() -> None:
     round_mark = Image.open(ROUND_MASTER).convert("RGBA")
     write_docs_favicon(round_mark)
     write_web_favicons(round_mark)
+    write_menu_bar_icon(round_mark)
 
     square = Image.open(SQUARE_MASTER).convert("RGB")
     save(square, "assets/internkim.png", 512, "RGB")
