@@ -554,6 +554,7 @@ export const workspaceWriteCapabilityPaths: Record<string, string> = {
 	'person.persona.user.update': '/persona/api/user',
 	'person.persona.identity.update': '/persona/api/identity',
 	'person.agent_learning.settings.update': '/agent-learning/api/settings',
+	'person.agent_learning.soul.update': '/agent-learning/api/soul',
 	'person.agent_learning.skills.action': '/agent-learning/api/skills/action'
 };
 

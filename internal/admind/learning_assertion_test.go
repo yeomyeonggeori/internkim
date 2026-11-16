@@ -59,7 +59,7 @@ func TestLearningProxySignsTheCompleteRequestTarget(t *testing.T) {
 	}
 }
 
-func TestLearningRoutesRejectUnsignedReadersAndSoulWrites(t *testing.T) {
+func TestLearningRoutesRejectUnsignedReadersAndStrangersRevisingTheSoul(t *testing.T) {
 	service := NewService(Configuration{StateDirectory: t.TempDir()})
 	for _, path := range []string{"/agent-learning/api/skills", "/agent-learning/api/soul", "/agent-learning/api/soul/history"} {
 		request := httptest.NewRequest(http.MethodGet, path, nil)
@@ -70,12 +70,17 @@ func TestLearningRoutesRejectUnsignedReadersAndSoulWrites(t *testing.T) {
 			t.Fatalf("unsigned reader reached %s: %d", path, response.Code)
 		}
 	}
-	for _, path := range []string{"/agent-learning/api/soul", "/agent-learning/api/soul/history", "/agent-learning/api/soul/restore"} {
+	for _, path := range []string{"/agent-learning/api/soul/history", "/agent-learning/api/soul/restore"} {
 		response := httptest.NewRecorder()
 		service.router().ServeHTTP(response, httptest.NewRequest(http.MethodPost, path, strings.NewReader(`{}`)))
 		if response.Code != http.StatusMethodNotAllowed && response.Code != http.StatusNotFound {
 			t.Fatalf("soul write route accepted %s: %d", path, response.Code)
 		}
+	}
+	response := httptest.NewRecorder()
+	service.router().ServeHTTP(response, httptest.NewRequest(http.MethodPost, "/agent-learning/api/soul", strings.NewReader(`{}`)))
+	if response.Code != http.StatusForbidden {
+		t.Fatalf("a revision from someone the workspace does not know must be refused, got %d", response.Code)
 	}
 }
 

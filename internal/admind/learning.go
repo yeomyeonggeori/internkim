@@ -69,9 +69,13 @@ func (service *Service) registerLearningRoutes(multiplexer *http.ServeMux) {
 
 func (service *Service) handleAgentLearning(responseWriter http.ResponseWriter, request *http.Request) {
 	path := strings.TrimPrefix(request.URL.Path, "/agent-learning/api")
+	if path == "/soul" && request.Method == http.MethodPost {
+		service.reviseSoulAsAdministrator(responseWriter, request)
+		return
+	}
 	if path == "/soul" || path == "/soul/history" {
 		if request.Method != http.MethodGet {
-			http.Error(responseWriter, "working principles are read-only", http.StatusMethodNotAllowed)
+			http.Error(responseWriter, "working principles are read with GET and revised with POST", http.StatusMethodNotAllowed)
 			return
 		}
 		service.forwardLearning(responseWriter, request, "/admin/api/agent-learning"+path)
