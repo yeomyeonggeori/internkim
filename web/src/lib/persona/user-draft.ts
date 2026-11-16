@@ -1,20 +1,17 @@
 import userSchema from '../../../../internal/admind/persona-schema/user.schema.json';
-import type { AgentToneRegister, AgentUser } from '../../routes/admin/admin-types';
+import type { AgentUser } from '../../routes/admin/admin-types';
+import { defaultSpeechRegister } from './registers';
 
 export type UserDraft = {
 	callMe: string;
 	about: string;
 	preferencesText: string;
-	register: AgentToneRegister;
+	register: string;
 	traits: string[];
 	languageDefault: string;
 	morningBriefing?: AgentUser['morningBriefing'];
 	weeklyReport?: AgentUser['weeklyReport'];
 };
-
-export const toneRegisters: AgentToneRegister[] = ['formal', 'polite', 'casual'];
-
-export const defaultToneRegister: AgentToneRegister = 'formal';
 
 export const toneTraits = ['calm', 'warm', 'clear', 'concise', 'direct', 'playful', 'meticulous', 'energetic'];
 
@@ -47,7 +44,7 @@ export function userToDraft(user: AgentUser): UserDraft {
 		callMe: user.callMe ?? '',
 		about: user.about ?? '',
 		preferencesText: linesOf(user.preferences),
-		register: user.tone?.register ?? defaultToneRegister,
+		register: user.tone?.register ?? defaultSpeechRegister,
 		traits: traitTokensOf(user.tone?.traits),
 		languageDefault: user.language?.default ?? '',
 		morningBriefing: user.morningBriefing,
@@ -71,7 +68,7 @@ export function draftToUser(draft: UserDraft): AgentUser {
 	return user;
 }
 
-function toneFrom(register: AgentToneRegister, traits: string[]): AgentUser['tone'] {
+function toneFrom(register: string, traits: string[]): AgentUser['tone'] {
 	const selectedTraits = traits.slice(0, toneTraitLimit);
 	return { register, ...(selectedTraits.length ? { traits: selectedTraits } : {}) };
 }

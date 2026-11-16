@@ -43,7 +43,6 @@ export const companySettingsText = {
 			workingStyleLabel: '일하는 방식',
 			linesPlaceholder: '한 줄에 한 문장',
 			toneRegisterLabel: '말투',
-			toneRegisters: { formal: '격식체', polite: '공손한 말투', casual: '편한 말투' },
 			traitsLabel: '어조',
 			toneTraits: {
 				calm: '차분한',
@@ -252,7 +251,6 @@ export const companySettingsText = {
 			workingStyleLabel: 'How it works',
 			linesPlaceholder: 'one sentence per line',
 			toneRegisterLabel: 'Register',
-			toneRegisters: { formal: 'formal', polite: 'polite', casual: 'casual' },
 			traitsLabel: 'Traits',
 			toneTraits: {
 				calm: 'calm',

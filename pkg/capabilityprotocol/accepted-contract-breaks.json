@@ -1408,5 +1408,15 @@
 		"path": "persona_profile_update.result.weeklyReport",
 		"reason": "blueclaw#734 adds the weekly report of a person's own work to their persona profile, with a default, so every profile now answers with it.",
 		"release": "the host package carries blueclaw with the new profile field and the catalog that reads it together; the persona tools are answered by the company host, which reads its own embedded catalog"
+	},
+	{
+		"path": "persona_profile_get.result.tone.register",
+		"reason": "A person's or the company's tone can now be plain (haera-che), the written Korean speech level that casual (hae-che) could not express. Only a host that carries the new schema accepts plain, so only such a host can answer with it.",
+		"release": "the web/API deployment that accepts plain goes out before the company host release whose schema stores it, so every reader of a plain answer already takes it"
+	},
+	{
+		"path": "persona_profile_update.result.tone.register",
+		"reason": "A person's or the company's tone can now be plain (haera-che), the written Korean speech level that casual (hae-che) could not express. Only a host that carries the new schema accepts plain, so only such a host can answer with it.",
+		"release": "the web/API deployment that accepts plain goes out before the company host release whose schema stores it, so every reader of a plain answer already takes it"
 	}
 ]

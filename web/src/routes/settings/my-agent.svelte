@@ -12,7 +12,9 @@
 	import { Spinner } from '$lib/components/ui/spinner';
 	import { onMount } from 'svelte';
 	import { toast } from 'svelte-sonner';
-	import { draftToUser, toneRegisters, toneTraitLimit, toneTraits, userToDraft, type UserDraft } from '$lib/persona/user-draft';
+	import { draftToUser, toneTraitLimit, toneTraits, userToDraft, type UserDraft } from '$lib/persona/user-draft';
+	import { speechRegisterName, speechRegisterOf, speechRegisters } from '$lib/persona/registers';
+	import { currentLocale } from '$lib/i18n/locale.svelte';
 	import { defaultCallMe, replyLanguageOptions } from '$lib/persona/languages';
 	import { updateMyAgentDocument } from './persona-api';
 	import { companyTimeZoneRead, myAgentDocumentRead } from './settings-reads';
@@ -41,6 +43,7 @@
 	const selectableTraits = $derived([...toneTraits, ...draft.traits.filter((trait) => !toneTraits.includes(trait))]);
 	const isTraitLimitReached = $derived(draft.traits.length >= toneTraitLimit);
 	const languageOptions = $derived(replyLanguageOptions(draft.languageDefault));
+	const selectedRegister = $derived(speechRegisterOf(draft.register));
 	const selectedLanguageLabel = $derived(languageOptions.find((option) => option.value === draft.languageDefault)?.label ?? '');
 
 	onMount(() => {
@@ -176,16 +179,22 @@
 						<Field.Label for="{fieldID}-register">{text.persona.toneRegisterLabel}</Field.Label>
 						<Select.Root type="single" bind:value={draft.register} disabled={isLoading || isSaving}>
 							<Select.Trigger id="{fieldID}-register" class="w-full">
-								{text.persona.toneRegisters[draft.register]}
+								{speechRegisterName(draft.register, currentLocale.value)}
 							</Select.Trigger>
 							<Select.Content>
 								<Select.Group>
-									{#each toneRegisters as register (register)}
-										<Select.Item value={register} label={text.persona.toneRegisters[register]}>{text.persona.toneRegisters[register]}</Select.Item>
+									{#each speechRegisters as register (register.value)}
+										<Select.Item value={register.value} label={speechRegisterName(register.value, currentLocale.value)}>{speechRegisterName(register.value, currentLocale.value)}</Select.Item>
 									{/each}
 								</Select.Group>
 							</Select.Content>
 						</Select.Root>
+						{#if selectedRegister}
+							<Field.Description class="grid gap-0.5">
+								<span>{selectedRegister.korean.example}</span>
+								<span>{selectedRegister.english.example}</span>
+							</Field.Description>
+						{/if}
 					</Field.Field>
 					<Field.Field>
 						<Field.Label>{text.persona.traitsLabel}</Field.Label>

@@ -14,10 +14,15 @@ import (
 )
 
 func TestPersonaSchemasAreTheOnesBlueclawOwns(t *testing.T) {
+	registersDocument, errorValue := os.ReadFile(filepath.Join("persona-schema", "registers.json"))
+	if errorValue != nil {
+		t.Fatalf("expected admind's registers.json, which the web reads: %v", errorValue)
+	}
 	for fileName, embedded := range map[string][]byte{
 		"identity.schema.json": identitySchemaDocument,
 		"soul.schema.json":     soulSchemaDocument,
 		"user.schema.json":     userSchemaDocument,
+		"registers.json":       registersDocument,
 	} {
 		canonical, errorValue := os.ReadFile(filepath.Join("..", "..", ".dependency", "blueclaw", "internal", "persona", "schema", fileName))
 		if errorValue != nil {

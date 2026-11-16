@@ -40257,11 +40257,12 @@
             "additionalProperties": false,
             "properties": {
               "register": {
-                "description": "The level of formality the person wants.",
+                "description": "How formally the person wants the agent to speak to them: formal is hapsyo-che, polite is haeyo-che, casual is hae-che and plain is haera-che, the Korean speech levels, each with an English counterpart.",
                 "enum": [
                   "formal",
                   "polite",
-                  "casual"
+                  "casual",
+                  "plain"
                 ],
                 "type": "string"
               },
@@ -40377,11 +40378,12 @@
               "additionalProperties": false,
               "properties": {
                 "register": {
-                  "description": "The level of formality the person wants.",
+                  "description": "How formally the person wants the agent to speak to them: formal is hapsyo-che, polite is haeyo-che, casual is hae-che and plain is haera-che, the Korean speech levels, each with an English counterpart.",
                   "enum": [
                     "formal",
                     "polite",
-                    "casual"
+                    "casual",
+                    "plain"
                   ],
                   "type": "string"
                 },
@@ -40505,11 +40507,12 @@
             "additionalProperties": false,
             "properties": {
               "register": {
-                "description": "The level of formality the person wants.",
+                "description": "How formally the person wants the agent to speak to them: formal is hapsyo-che, polite is haeyo-che, casual is hae-che and plain is haera-che, the Korean speech levels, each with an English counterpart.",
                 "enum": [
                   "formal",
                   "polite",
-                  "casual"
+                  "casual",
+                  "plain"
                 ],
                 "type": "string"
               },
@@ -40611,11 +40614,12 @@
             "additionalProperties": false,
             "properties": {
               "register": {
-                "description": "The level of formality the person wants.",
+                "description": "How formally the person wants the agent to speak to them: formal is hapsyo-che, polite is haeyo-che, casual is hae-che and plain is haera-che, the Korean speech levels, each with an English counterpart.",
                 "enum": [
                   "formal",
                   "polite",
-                  "casual"
+                  "casual",
+                  "plain"
                 ],
                 "type": "string"
               },
@@ -40729,11 +40733,12 @@
             "additionalProperties": false,
             "properties": {
               "register": {
-                "description": "The level of formality the person wants.",
+                "description": "How formally the person wants the agent to speak to them: formal is hapsyo-che, polite is haeyo-che, casual is hae-che and plain is haera-che, the Korean speech levels, each with an English counterpart.",
                 "enum": [
                   "formal",
                   "polite",
-                  "casual"
+                  "casual",
+                  "plain"
                 ],
                 "type": "string"
               },
@@ -40855,11 +40860,12 @@
               "additionalProperties": false,
               "properties": {
                 "register": {
-                  "description": "The level of formality the person wants.",
+                  "description": "How formally the person wants the agent to speak to them: formal is hapsyo-che, polite is haeyo-che, casual is hae-che and plain is haera-che, the Korean speech levels, each with an English counterpart.",
                   "enum": [
                     "formal",
                     "polite",
-                    "casual"
+                    "casual",
+                    "plain"
                   ],
                   "type": "string"
                 },
