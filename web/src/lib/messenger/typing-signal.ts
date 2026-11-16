@@ -3,7 +3,7 @@ export const typingLifetimeMilliseconds = 8_000;
 export const typingEventKind = 'typing.started';
 const sentJustBeforeMilliseconds = 2_000;
 
-export type Typer = { externalID: string; heardAt: number };
+export type Typer = { externalID: string; threadRootID?: string; heardAt: number };
 
 export type TypingText = {
 	typingAgent: string;
@@ -24,8 +24,15 @@ export type ConversationActivity = {
 
 export type SentMessage = { senderExternalID?: string; sentAt: string };
 
-export function typersAfterSignal(typers: Typer[], externalID: string, now: number): Typer[] {
-	return [...typers.filter((typer) => typer.externalID !== externalID), { externalID, heardAt: now }];
+export function typersAfterSignal(typers: Typer[], externalID: string, now: number, threadRootID?: string): Typer[] {
+	return [
+		...typers.filter((typer) => typer.externalID !== externalID || typer.threadRootID !== threadRootID),
+		{ externalID, ...(threadRootID ? { threadRootID } : {}), heardAt: now }
+	];
+}
+
+export function typersIn(typers: Typer[], threadRootID?: string): Typer[] {
+	return typers.filter((typer) => typer.threadRootID === threadRootID);
 }
 
 export function typersStillTyping(typers: Typer[], messages: SentMessage[], now: number): Typer[] {

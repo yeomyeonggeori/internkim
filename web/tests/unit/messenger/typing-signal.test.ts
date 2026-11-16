@@ -3,6 +3,7 @@ import {
 	activityLabel,
 	isTimeToAnnounceTyping,
 	typersAfterSignal,
+	typersIn,
 	typersStillTyping,
 	typingLabel
 } from '$lib/messenger/typing-signal';
@@ -22,6 +23,24 @@ describe('typersAfterSignal', () => {
 		const typers = typersAfterSignal(typersAfterSignal([], 'person-1', heardAt), 'person-2', heardAt + 500);
 
 		expect(typers.map((typer) => typer.externalID)).toEqual(['person-1', 'person-2']);
+	});
+});
+
+describe('typing inside a thread', () => {
+	test('a person typing in a thread and in the conversation is a separate typer in each', () => {
+		const inConversation = typersAfterSignal([], 'person-1', heardAt);
+		const inBoth = typersAfterSignal(inConversation, 'person-1', heardAt + 500, 'root-1');
+		const again = typersAfterSignal(inBoth, 'person-1', heardAt + 3_000, 'root-1');
+
+		expect(typersIn(again)).toEqual([{ externalID: 'person-1', heardAt }]);
+		expect(typersIn(again, 'root-1')).toEqual([{ externalID: 'person-1', threadRootID: 'root-1', heardAt: heardAt + 3_000 }]);
+	});
+
+	test('someone typing in one thread is not shown in another thread or in the conversation', () => {
+		const typers = typersAfterSignal([], 'person-1', heardAt, 'root-1');
+
+		expect(typersIn(typers, 'root-2')).toEqual([]);
+		expect(typersIn(typers)).toEqual([]);
 	});
 });
 

@@ -1,6 +1,7 @@
 export type CompanyEvent = {
 	kind: string;
 	conversationID?: string;
+	threadRootID?: string;
 	messageID?: string;
 	authorExternalID?: string;
 	transferID?: string;
@@ -14,12 +15,13 @@ export type CompanyEvent = {
 
 export function companyEventOf(offered: unknown): CompanyEvent | null {
 	if (typeof offered !== 'object' || offered === null) return null;
-	const { kind, conversationID, messageID, authorExternalID, transferID, copiedBytes, totalBytes, status, error, result, work } =
+	const { kind, conversationID, threadRootID, messageID, authorExternalID, transferID, copiedBytes, totalBytes, status, error, result, work } =
 		offered as Record<string, unknown>;
 	if (typeof kind !== 'string' || kind === '') return null;
 	return {
 		kind,
 		...(typeof conversationID === 'string' ? { conversationID } : {}),
+		...(typeof threadRootID === 'string' ? { threadRootID } : {}),
 		...(typeof messageID === 'string' ? { messageID } : {}),
 		...(typeof authorExternalID === 'string' ? { authorExternalID } : {}),
 		...(typeof transferID === 'string' ? { transferID } : {}),

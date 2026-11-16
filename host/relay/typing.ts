@@ -6,6 +6,7 @@ const memberMemoryMilliseconds = 5 * 60_000;
 
 export type Typing = {
 	conversationID: string;
+	threadRootID?: string;
 	authorExternalID: string;
 	recipientExternalIDs: string[];
 };
@@ -22,8 +23,10 @@ export function readTyping(offered: unknown): Typing | null {
 	const conversationID = text(held.conversationID);
 	const authorExternalID = text(held.authorExternalID);
 	if (!conversationID || !authorExternalID) return null;
+	const threadRootID = text(held.threadRootID);
 	return {
 		conversationID,
+		...(threadRootID ? { threadRootID } : {}),
 		authorExternalID,
 		recipientExternalIDs: externalIDs(held.recipientExternalIDs, authorExternalID)
 	};
@@ -53,6 +56,7 @@ export function typingTeller(dependencies: TypingTellerDependencies): (typing: T
 			{
 				kind: typingEventKind,
 				conversationID: typing.conversationID,
+				...(typing.threadRootID ? { threadRootID: typing.threadRootID } : {}),
 				authorExternalID: typing.authorExternalID
 			},
 			audience
