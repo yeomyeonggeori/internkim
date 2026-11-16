@@ -1,6 +1,22 @@
+import type { Action } from 'svelte/action';
 import type { TaskRoadmapRow } from './task-roadmap-model';
 
 const rowSelector = '[data-roadmap-task]';
+const userScrollEvents = ['wheel', 'touchstart', 'pointerdown', 'keydown'] as const;
+
+export const onUserScrollIntent: Action<HTMLElement, () => void> = (node, handler) => {
+	let currentHandler = handler;
+	const handle = () => currentHandler();
+	for (const eventName of userScrollEvents) node.addEventListener(eventName, handle, { passive: true });
+	return {
+		update(nextHandler) {
+			currentHandler = nextHandler;
+		},
+		destroy() {
+			for (const eventName of userScrollEvents) node.removeEventListener(eventName, handle);
+		}
+	};
+};
 
 export function taskRoadmapRevealedTaskID(rows: TaskRoadmapRow[]): string | undefined {
 	const overlapping = rows.find((row) => row.bar.kind === 'span');

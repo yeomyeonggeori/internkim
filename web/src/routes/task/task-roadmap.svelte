@@ -21,7 +21,7 @@
 		type TaskRoadmapBar
 	} from './task-roadmap-model';
 	import TaskRoadmapRow from './task-roadmap-row.svelte';
-	import { scrollTaskRoadmapRowToTop, taskRoadmapRevealedTaskID } from './task-roadmap-scroll';
+	import { onUserScrollIntent, scrollTaskRoadmapRowToTop, taskRoadmapRevealedTaskID } from './task-roadmap-scroll';
 	import { slideTaskRoadmap } from './task-roadmap-slide';
 	import { taskRoadmapSwipe, type TaskRoadmapSwipeDirection } from './task-roadmap-swipe-action';
 	import {
@@ -77,6 +77,7 @@
 	let frameElement = $state<HTMLElement | null>(null);
 	let laneWidth = $state(0);
 	let shownStartISO = '';
+	let followsShownWindow = $state(false);
 
 	onMount(() => {
 		const span = taskRoadmapWindowSpan(todayISO);
@@ -90,6 +91,11 @@
 		untrack(() => slideTo(nextStartISO));
 	});
 
+	$effect(() => {
+		const shownRows = rows;
+		if (followsShownWindow && shownRows.length > 0) untrack(() => scrollShownWindowToTop(true));
+	});
+
 	function slideTo(nextStartISO: string): void {
 		const movedDays = shownStartISO ? taskRoadmapDaysBetween(shownStartISO, nextStartISO) : 0;
 		shownStartISO = nextStartISO;
@@ -99,9 +105,13 @@
 
 	export async function revealShownWindow(): Promise<void> {
 		await tick();
+		scrollShownWindowToTop(prefersReducedMotion.current);
+	}
+
+	function scrollShownWindowToTop(jumpWithoutMotion: boolean): void {
 		const taskID = taskRoadmapRevealedTaskID(rows);
 		if (!taskID || !frameElement) return;
-		scrollTaskRoadmapRowToTop(frameElement, taskID, prefersReducedMotion.current);
+		scrollTaskRoadmapRowToTop(frameElement, taskID, jumpWithoutMotion);
 	}
 
 	function moveTo(nextStartISO: string): boolean {
@@ -178,7 +188,8 @@
 	class="max-h-[var(--task-board-height,32rem)] touch-pan-y overflow-x-hidden overflow-y-auto overscroll-contain rounded-lg border"
 	data-task-roadmap
 	use:taskBoardViewportHeight
-	use:rememberTaskRoadmapScroll
+	use:rememberTaskRoadmapScroll={{ onFirstOpen: () => { followsShownWindow = true; } }}
+	use:onUserScrollIntent={() => { followsShownWindow = false; }}
 	use:taskRoadmapSwipe={{ onSwipe: moveWeek }}
 >
 	<TaskRoadmapHeader

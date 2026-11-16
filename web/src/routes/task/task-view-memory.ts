@@ -31,9 +31,11 @@ export function rememberTaskView(change: Partial<TaskViewMemory>): void {
 	writeStoredRecord({ ...readStoredRecord(), ...change });
 }
 
-export const rememberTaskRoadmapScroll: Action<HTMLElement> = (node) => {
+export const rememberTaskRoadmapScroll: Action<HTMLElement, { onFirstOpen: () => void }> = (node, { onFirstOpen }) => {
 	let animationFrameID = requestAnimationFrame(() => {
-		node.scrollTop = rememberedScrollTop(readStoredRecord().roadmapScrollTop);
+		const storedScrollTop = readStoredRecord().roadmapScrollTop;
+		if (storedScrollTop === undefined) onFirstOpen();
+		else node.scrollTop = rememberedScrollTop(storedScrollTop);
 		animationFrameID = 0;
 	});
 	const saveScrollTop = () => {
