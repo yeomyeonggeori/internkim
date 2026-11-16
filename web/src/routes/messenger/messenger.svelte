@@ -62,6 +62,7 @@
 	import { breadcrumbMeta } from '$lib/stores/breadcrumb-meta.svelte';
 	import { syncMattermostToBuzz } from '$lib/buzz-mm-sync';
 	import { orderChannels, orderDirectMessages } from './channel-order';
+	import { spokenDirectMessages } from '$lib/messenger/spoken-direct-messages';
 	import { ChannelOrderState } from './channel-order-state.svelte';
 	import { holdBackNotificationsFor } from '$lib/native-shell/open-conversation';
 	import { adoptRememberedMessengerScope, messengerCacheScope, messengerCacheKey, onMessengerCacheReset, requireCurrentMessengerScope, type MessengerCacheScope } from '$lib/messenger/cache-scope';
@@ -382,7 +383,12 @@
 		)
 	);
 	const directMessages = $derived(
-		orderDirectMessages(shownConversations(conversations).filter((conversation) => conversation.kind === 'dm'))
+		orderDirectMessages(
+			spokenDirectMessages(
+				shownConversations(conversations).filter((conversation) => conversation.kind === 'dm'),
+				activeID
+			)
+		)
 	);
 
 	async function hideDirectMessage(conversation: ChannelSummary) {

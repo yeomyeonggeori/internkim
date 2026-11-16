@@ -31,8 +31,14 @@ export function pinnedChannelsOf(channels: ChannelSummary[], pinnedChannelIDs: s
 export function orderDirectMessages(directMessages: ChannelSummary[]): ChannelSummary[] {
 	return [
 		...directMessages.filter((conversation) => conversation.isWithTheAgent === true),
-		...directMessages.filter((conversation) => conversation.isWithTheAgent !== true)
+		...directMessages
+			.filter((conversation) => conversation.isWithTheAgent !== true)
+			.toSorted((first, second) => lastMessageTimeOf(second) - lastMessageTimeOf(first))
 	];
+}
+
+function lastMessageTimeOf(conversation: ChannelSummary): number {
+	return conversation.lastMessageAt ? Date.parse(conversation.lastMessageAt) : 0;
 }
 
 export function moveChannel(orderedIDs: string[], draggedID: string, targetID: string): string[] {

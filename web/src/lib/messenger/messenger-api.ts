@@ -27,6 +27,8 @@ export type MessengerChannel = {
 	description?: string;
 	roleOfExternalID?: Record<string, string>;
 	unread?: MessengerReadCount;
+	lastMessageAt?: string;
+	hasNoMessages?: boolean;
 };
 
 export type MessengerReadCount = { status: 'exact' | 'at_least'; value: number } | { status: 'unknown' };
@@ -116,6 +118,8 @@ type PersonalConversation = {
 	webURL?: string;
 	roleOfExternalID?: Record<string, string>;
 	unread?: MessengerReadCount;
+	lastMessageAt?: string;
+	hasNoMessages?: boolean;
 };
 type PersonalReaction = { emoji: string; imageURL?: string; byExternalIDs: string[] };
 type PersonalAttachment = {
@@ -203,7 +207,9 @@ export function asChannel(conversation: PersonalConversation, position: number):
 		webURL: conversation.webURL,
 		description: conversation.description,
 		roleOfExternalID: conversation.roleOfExternalID,
-		unread: conversation.unread
+		unread: conversation.unread,
+		lastMessageAt: conversation.lastMessageAt,
+		hasNoMessages: conversation.hasNoMessages
 	};
 }
 

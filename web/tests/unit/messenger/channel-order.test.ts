@@ -50,9 +50,20 @@ describe('pinnedChannelsOf', () => {
 });
 
 describe('orderDirectMessages', () => {
-	test('the conversation with the agent always leads and the rest keep their order', () => {
-		const person = (id: string) => ({ id, name: id, kind: 'dm' as const });
-		const agent = { id: 'agent', name: '김인턴', kind: 'dm' as const, isWithTheAgent: true };
-		expect(orderDirectMessages([person('b'), person('a'), agent]).map((conversation) => conversation.id)).toEqual(['agent', 'b', 'a']);
+	const person = (id: string, lastMessageAt?: string) => ({ id, name: id, kind: 'dm' as const, lastMessageAt });
+
+	test('the conversation with the agent always leads, even when another spoke more recently', () => {
+		const agent = { id: 'agent', name: '김인턴', kind: 'dm' as const, isWithTheAgent: true, lastMessageAt: '2026-11-01T00:00:00.000Z' };
+		const ordered = orderDirectMessages([person('a', '2026-11-16T09:00:00.000Z'), agent]);
+		expect(ordered.map((conversation) => conversation.id)).toEqual(['agent', 'a']);
+	});
+
+	test('the rest run newest message first, and one with no message yet sinks to the bottom', () => {
+		const ordered = orderDirectMessages([
+			person('quiet'),
+			person('older', '2026-11-15T09:00:00.000Z'),
+			person('newest', '2026-11-16T09:00:00.000Z')
+		]);
+		expect(ordered.map((conversation) => conversation.id)).toEqual(['newest', 'older', 'quiet']);
 	});
 });
