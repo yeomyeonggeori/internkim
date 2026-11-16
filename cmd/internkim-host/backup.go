@@ -130,7 +130,8 @@ func runRestore(arguments []string) error {
 		}
 		place := asTheBoxTakingOver(thisBox(), takeOverSessionPath())
 		defer os.Remove(takeOverSessionPath())
-		request.Replace, request.KeepsThisBox, request.BeforeStarting = holdsACompany, true, markThisBoxInstalled
+		starting := startingWithTheTakeOverSession(boxDaemon("").Places, takeOverSessionPath(), markThisBoxInstalled)
+		request.Replace, request.KeepsThisBox, request.BeforeStarting = holdsACompany, true, starting
 		request.RebuildFromWAL, request.ReplayFiles = rebuildTheDatabaseFromKeptWALAs(place), replayTheFileJournalAs(place)
 	}
 	result, errorValue := companyhost.Restore(request, thisComputer{}, os.Stdout)
