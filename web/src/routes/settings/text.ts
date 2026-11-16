@@ -14,7 +14,7 @@ export const companySettingsText = {
 			company: '회사 정보',
 			members: '구성원',
 			attendance: '근태',
-			agent: '에이전트',
+			agent: '김인턴',
 			billing: '결제'
 		},
 		persona: {
@@ -223,7 +223,7 @@ export const companySettingsText = {
 			company: 'Company details',
 			members: 'Members',
 			attendance: 'Attendance',
-			agent: 'Agent',
+			agent: 'InternKim',
 			billing: 'Billing'
 		},
 		persona: {

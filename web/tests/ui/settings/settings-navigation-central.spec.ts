@@ -8,7 +8,7 @@ test.use({ locale: 'ko-KR' });
 
 const settingsPath = `/${exampleCompanySlug}/settings`;
 const memberMenu = ['내 프로필', '로그인·보안', '알림', '내 김인턴', '개발자', '호스트'];
-const subscribedAdministratorMenu = ['내 프로필', '로그인·보안', '알림', '내 김인턴', '개발자', '사용량', '회사 정보', '구성원', '근태', '에이전트', '결제', '호스트'];
+const subscribedAdministratorMenu = ['내 프로필', '로그인·보안', '알림', '내 김인턴', '개발자', '사용량', '회사 정보', '구성원', '근태', '김인턴', '결제', '호스트'];
 
 function settingsMenu(page: Page) {
 	return page.getByRole('navigation', { name: '설정', exact: true });

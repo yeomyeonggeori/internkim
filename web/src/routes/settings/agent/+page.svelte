@@ -7,8 +7,8 @@
 </script>
 
 <SettingsSectionPage section="agent">
-	<LearningSoulSection />
 	<AgentIdentitySection />
+	<LearningSoulSection />
 	<LearnedSkillsSection />
 	<SkillsSection />
 </SettingsSectionPage>

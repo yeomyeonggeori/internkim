@@ -191,8 +191,8 @@ for (const status of [503, 403]) for (const kind of ['skills', 'learned-skills']
 		fixture.empty = false;
 		await prepareAdmin(page, fixture);
 		await page.goto('/example-co/settings/agent');
-		const title = kind === 'skills' ? '스킬' : '배운 절차';
-		const name = kind === 'skills' ? 'fixture-loaded-skill' : 'fixture-learned-skill';
+		const title = kind === 'skills' ? '스킬' : '스스로 배우기';
+		const name = kind === 'skills' ? 'fixture-loaded-skill' : 'Synthetic learned procedure';
 		const card = page.locator('[data-slot="card"]').filter({ has: page.locator('[data-slot="card-title"]').filter({ hasText: new RegExp(`^${title}$`) }) });
 		await expect(card.getByText(name, { exact: true })).toBeVisible();
 		await card.scrollIntoViewIfNeeded();
@@ -249,17 +249,17 @@ for (const deniedBy of ['newer-refresh', 'history']) {
 		};
 		await prepareAdmin(page, fixture);
 		await page.goto('/example-co/settings/agent');
-		const card = page.locator('[data-slot="card"]').filter({ has: page.getByText('배운 절차', { exact: true }) });
-		const skill = card.getByText('fixture-learned-skill', { exact: true });
+		const card = page.locator('[data-slot="card"]').filter({ has: page.locator('[data-slot="card-title"]').filter({ hasText: /^스스로 배우기$/ }) });
+		const skill = card.getByText('Synthetic learned procedure', { exact: true });
 		await expect(skill).toBeVisible();
 		await card.getByRole('button', { name: '새로고침', exact: true }).click();
 		await expect.poll(() => reads).toBe(2);
 		if (deniedBy === 'history') {
 			fixture.statuses.set('person.agent_learning.skills.get', 403);
-			await card.getByRole('button', { name: '변경 이력', exact: true }).click();
+			await card.getByRole('button', { name: '내용과 이력', exact: true }).click();
 		} else {
 			fixture.statuses.set(capability, 403);
-			await card.getByRole('button', { name: '보호', exact: true }).click();
+			await card.getByRole('button', { name: '더 고치지 않게', exact: true }).click();
 			await expect.poll(() => reads).toBe(3);
 		}
 		await expect(card.getByRole('alert')).toBeVisible();
@@ -273,7 +273,7 @@ for (const deniedBy of ['newer-refresh', 'history']) {
 		await card.getByRole('button', { name: '새로고침', exact: true }).click();
 		await expect(skill).toBeVisible();
 		const previousActions = actions;
-		await card.getByRole('button', { name: '보호', exact: true }).click();
+		await card.getByRole('button', { name: '더 고치지 않게', exact: true }).click();
 		await expect.poll(() => actions).toBe(previousActions + 1);
 	});
 }
@@ -292,8 +292,8 @@ test('learned skills denial ends loading while a sibling hangs and allows a new 
 	};
 	await prepareAdmin(page, fixture);
 	await page.goto('/example-co/settings/agent');
-	const card = page.locator('[data-slot="card"]').filter({ has: page.getByText('배운 절차', { exact: true }) });
-	const skill = card.getByText('fixture-learned-skill', { exact: true });
+	const card = page.locator('[data-slot="card"]').filter({ has: page.locator('[data-slot="card-title"]').filter({ hasText: /^스스로 배우기$/ }) });
+	const skill = card.getByText('Synthetic learned procedure', { exact: true });
 	await expect(skill).toBeVisible();
 	fixture.statuses.set('person.agent_learning.skills.list', 403);
 	await card.getByRole('button', { name: '새로고침', exact: true }).click();
