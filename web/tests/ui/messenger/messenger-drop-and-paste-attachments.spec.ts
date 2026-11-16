@@ -79,6 +79,29 @@ test.describe('messenger attachments by dropping and pasting', () => {
 		await expect(page.getByText('여기에 놓으면 첨부돼요')).toBeHidden();
 	});
 
+	test('dropping files on an open thread attaches them inside the thread composer', async ({ page }) => {
+		await mockDeviceMessenger(
+			page,
+			reader,
+			[{ id: channelID, name: '첨부 채널', kind: 'group', myRole: 'member' }],
+			[{ id: 'message-root', sender: { id: 'person-author', name: '박예시' }, text: '스레드 원글', sentAt: '2026-09-28T01:00:00Z' }]
+		);
+		await page.goto(`/messenger?channel=${channelID}`);
+		await page.getByText('스레드 원글').click();
+		const threadSheet = page.getByRole('dialog', { name: '글타래' });
+		await expect(threadSheet.getByRole('combobox', { name: '답글을 입력하세요' })).toBeVisible();
+		const files = await carrying(page, { files: [picture('thread.png')] });
+		const threadBody = threadSheet.locator('.channel-composer').locator('..');
+
+		await dragOnto(threadBody, files, ['dragenter', 'dragover']);
+		await expect(threadSheet.getByText('여기에 놓으면 첨부돼요')).toBeVisible();
+
+		await dragOnto(threadBody, files, ['drop']);
+		await expect(threadSheet.getByText('여기에 놓으면 첨부돼요')).toBeHidden();
+		await expect(threadSheet.locator('.channel-composer').getByText('thread.png')).toBeVisible();
+		await expect(page.locator('[style*="--dock-height"] .channel-composer').getByText('thread.png')).toHaveCount(0);
+	});
+
 	test('pasting a picture attaches it, and pasting words writes the words', async ({ page }) => {
 		const composer = page.getByRole('combobox', { name: /메시지/ });
 		await composer.click();
