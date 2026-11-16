@@ -15,7 +15,7 @@
 
 	$effect(() => {
 		if (isMobile.current) return;
-		void goto(settingsPath(page.url.pathname, firstSettingsSectionID), { replaceState: true });
+		void goto(settingsPath(page.url.pathname, firstSettingsSectionID(access)), { replaceState: true });
 	});
 </script>
 

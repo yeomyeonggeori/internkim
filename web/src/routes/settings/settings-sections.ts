@@ -10,11 +10,13 @@ import GaugeIcon from '@lucide/svelte/icons/gauge';
 import KeyRoundIcon from '@lucide/svelte/icons/key-round';
 import MonitorIcon from '@lucide/svelte/icons/monitor';
 import SparklesIcon from '@lucide/svelte/icons/sparkles';
+import UserRoundIcon from '@lucide/svelte/icons/user-round';
 import UsersIcon from '@lucide/svelte/icons/users';
 
 export type SettingsGroup = 'general' | 'admin';
 
 export type SettingsSectionID =
+	| 'profile'
 	| 'security'
 	| 'notifications'
 	| 'my-agent'
@@ -80,6 +82,7 @@ function forMembersWithSupabase(access: SettingsAccess): SettingsAvailability {
 }
 
 export const settingsSections: SettingsSection[] = [
+	{ id: 'profile', group: 'general', icon: UserRoundIcon, availability: whenSupabaseIsConfigured },
 	{ id: 'security', group: 'general', icon: KeyRoundIcon, availability: always },
 	{ id: 'notifications', group: 'general', icon: BellIcon, availability: always },
 	{ id: 'my-agent', group: 'general', icon: BotIcon, availability: always },
@@ -94,7 +97,10 @@ export const settingsSections: SettingsSection[] = [
 	{ id: 'host', group: 'admin', icon: MonitorIcon, availability: forAdministratorsWithSupabase }
 ];
 
-export const firstSettingsSectionID: SettingsSectionID = settingsSections[0].id;
+export function firstSettingsSectionID(access: SettingsAccess): SettingsSectionID {
+	const first = settingsSections.find((section) => section.availability(access) !== 'hidden');
+	return (first ?? settingsSections[0]).id;
+}
 
 export function settingsAccessOf(
 	role: { isLoading: boolean; isAdmin: boolean },

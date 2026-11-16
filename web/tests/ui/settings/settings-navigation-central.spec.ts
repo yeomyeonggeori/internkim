@@ -7,8 +7,8 @@ test.describe.configure({ mode: 'serial', timeout: 60_000 });
 test.use({ locale: 'ko-KR' });
 
 const settingsPath = `/${exampleCompanySlug}/settings`;
-const memberMenu = ['로그인·보안', '알림', '내 김인턴', '개발자', '호스트'];
-const subscribedAdministratorMenu = ['로그인·보안', '알림', '내 김인턴', '개발자', '사용량', '회사 정보', '구성원', '근태', '에이전트', '결제', '호스트'];
+const memberMenu = ['내 프로필', '로그인·보안', '알림', '내 김인턴', '개발자', '호스트'];
+const subscribedAdministratorMenu = ['내 프로필', '로그인·보안', '알림', '내 김인턴', '개발자', '사용량', '회사 정보', '구성원', '근태', '에이전트', '결제', '호스트'];
 
 function settingsMenu(page: Page) {
 	return page.getByRole('navigation', { name: '설정', exact: true });
@@ -18,7 +18,7 @@ test.afterAll(unsubscribeTheCompany);
 
 test('a member of a company that does not subscribe sees the general menu with the host and without usage', async ({ page }) => {
 	await signInToTheCentralPlane(page, settingsPath, member3Email);
-	await expect(page).toHaveURL(new RegExp(`${settingsPath}/security$`), { timeout: 20000 });
+	await expect(page).toHaveURL(new RegExp(`${settingsPath}/profile$`), { timeout: 20000 });
 	await expect(settingsMenu(page).getByRole('link')).toHaveText(memberMenu, { timeout: 20000 });
 	await expect(settingsMenu(page).getByText('관리자', { exact: true })).toHaveCount(0);
 	await settingsMenu(page).getByRole('link', { name: '호스트', exact: true }).click();
@@ -28,16 +28,16 @@ test('a member of a company that does not subscribe sees the general menu with t
 
 test('a member who opens an administrator page or a hidden usage page is sent back to settings', async ({ page }) => {
 	await signInToTheCentralPlane(page, `${settingsPath}/members`, member3Email);
-	await expect(page).toHaveURL(new RegExp(`${settingsPath}/security$`), { timeout: 20000 });
+	await expect(page).toHaveURL(new RegExp(`${settingsPath}/profile$`), { timeout: 20000 });
 	await expect(page.getByRole('button', { name: '구성원 초대', exact: true })).toHaveCount(0);
 	await page.goto(`${settingsPath}/usage`);
-	await expect(page).toHaveURL(new RegExp(`${settingsPath}/security$`), { timeout: 20000 });
+	await expect(page).toHaveURL(new RegExp(`${settingsPath}/profile$`), { timeout: 20000 });
 });
 
 test('a section read ahead on entering settings opens without waiting for its request', async ({ page }) => {
 	const tokensReadAhead = page.waitForResponse((response) => new URL(response.url()).pathname === '/api/v1/tokens', { timeout: 20000 });
 	await signInToTheCentralPlane(page, settingsPath, member3Email);
-	await expect(page).toHaveURL(new RegExp(`${settingsPath}/security$`), { timeout: 20000 });
+	await expect(page).toHaveURL(new RegExp(`${settingsPath}/profile$`), { timeout: 20000 });
 	await tokensReadAhead;
 
 	await page.route('**/api/v1/tokens', () => {});
@@ -71,7 +71,7 @@ test('on a phone settings is a list, an entry opens its page, and back returns t
 test('an administrator of a subscribed company sees five general and six administrator entries', async ({ page }) => {
 	await subscribeTheCompany();
 	await signInToTheCentralPlane(page, settingsPath);
-	await expect(page).toHaveURL(new RegExp(`${settingsPath}/security$`), { timeout: 20000 });
+	await expect(page).toHaveURL(new RegExp(`${settingsPath}/profile$`), { timeout: 20000 });
 	await expect(settingsMenu(page).getByRole('link')).toHaveText(subscribedAdministratorMenu, { timeout: 20000 });
 	await expect(settingsMenu(page).getByText('일반', { exact: true })).toBeVisible();
 	await expect(settingsMenu(page).getByText('관리자', { exact: true })).toBeVisible();

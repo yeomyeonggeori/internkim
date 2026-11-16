@@ -500,6 +500,12 @@ export async function keepPersonPictureForReading(person: {
 	return answer.picture;
 }
 
+export type KnownPicture = { externalID: string; avatarURL: string };
+
+export function setOwnMessengerPicture(mediaURL: string): Promise<KnownPicture> {
+	return ask<KnownPicture>('person.profile.picture.set', { mediaURL });
+}
+
 export function fetchLinkPreview(url: string): Promise<LinkPreview | null> {
 	return ask<LinkPreview | null>('asset.link', { url });
 }
