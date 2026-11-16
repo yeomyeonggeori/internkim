@@ -16,6 +16,7 @@
 	import XIcon from '@lucide/svelte/icons/x';
 	import ZoomInIcon from '@lucide/svelte/icons/zoom-in';
 	import ZoomOutIcon from '@lucide/svelte/icons/zoom-out';
+	import { untrack } from 'svelte';
 	import { fade } from 'svelte/transition';
 	import LoadingImage from '$lib/components/loading-image.svelte';
 	import DocumentPreview from '$lib/files/preview/document-preview.svelte';
@@ -26,6 +27,7 @@
 	import ChannelVideoPlayer from './channel-video-player.svelte';
 	import { dragsToDismiss, LightboxDragDismiss } from './lightbox-drag-dismiss.svelte';
 	import LightboxPictureMenu from './lightbox-picture-menu.svelte';
+	import { forgetOpenedPicture, isPictureOpenInHistory, rememberOpenedPicture } from './picture-history';
 
 	let { view = $bindable() }: { view: LightboxView | null } = $props();
 
@@ -47,6 +49,24 @@
 		if (view) return;
 		zoomPercent = smallestZoomPercent;
 		drag.reset();
+	});
+
+	let isRememberedInHistory = false;
+
+	$effect(() => {
+		const isOpen = view !== null;
+		untrack(() => {
+			if (isOpen === isRememberedInHistory) return;
+			isRememberedInHistory = isOpen;
+			if (isOpen) rememberOpenedPicture();
+			else forgetOpenedPicture();
+		});
+	});
+
+	$effect(() => {
+		if (isPictureOpenInHistory() || untrack(() => view) === null) return;
+		isRememberedInHistory = false;
+		view = null;
 	});
 
 	function step(delta: number) {

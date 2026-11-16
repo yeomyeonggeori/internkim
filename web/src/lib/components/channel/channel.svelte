@@ -159,6 +159,10 @@
 		onFiles: (files) => void conversationComposer?.attach(files),
 		isDisabled: () => capture.isCapturing
 	});
+	const threadFileDrag = new ConversationFileDrag({
+		onFiles: (files) => void threadComposer?.attach(files),
+		isDisabled: () => false
+	});
 	let loadFailed = $state(false);
 	let hasLoadedOnce = $state(false);
 	let olderMessages = $state<ChannelMessage[]>([]);
@@ -948,6 +952,8 @@
 {/snippet}
 
 {#snippet threadBody()}
+	<div class="relative flex min-h-0 flex-1 flex-col" use:receivesFileDrag={threadFileDrag}>
+	<ConversationFileDropOverlay visible={threadFileDrag.isOver} title={text.dropFilesTitle} description={text.dropFilesDescription} />
 	<div class="relative flex min-h-0 flex-1 flex-col">
 		<div
 			bind:this={threadScroller}
@@ -977,6 +983,7 @@
 		{isGroup}
 		onSend={sendThreadReply}
 	/>{/key}
+	</div>
 {/snippet}
 
 <div class="flex min-h-0 flex-1">
