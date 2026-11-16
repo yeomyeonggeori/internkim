@@ -336,9 +336,11 @@ func boxDaemon(appURL string) box.Daemon {
 			_, errorValue := companyhost.Install(request, thisComputer{}, os.Stdout)
 			return errorValue
 		},
-		TakeOver:  takeOverFromTheNewestBackup,
-		StandDown: standDown,
-		StandUp:   standUp,
+		HoldsAnotherCompany: companyhost.HoldsACompanyOtherThan,
+		ForgetEveryCompany:  forgetEveryCompany,
+		TakeOver:            takeOverFromTheNewestBackup,
+		StandDown:           standDown,
+		StandUp:             standUp,
 		RestartServices: func() error {
 			return companyhost.RestartTheServices(thisComputer{}, os.Stdout)
 		},

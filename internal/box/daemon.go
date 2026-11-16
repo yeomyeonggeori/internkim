@@ -44,27 +44,29 @@ type Places struct {
 }
 
 type Daemon struct {
-	Client            Client
-	Places            Places
-	Install           func(companyhost.Request) error
-	TakeOver          func(ctx context.Context, session Session, keyring Keyring) error
-	StandDown         func() error
-	StandUp           func() error
-	RestartServices   func() error
-	StartKeepingUp    func(ctx context.Context, session Session)
-	FollowRelease     func(targetVersion string) error
-	StartWorking      func(ctx context.Context, session Session)
-	PackageVersion    string
-	NameHost          func(ctx context.Context, companySlug string) error
-	GetOnline         func(ctx context.Context, boxPublicKey string, hasCompany bool) error
-	IsOnANetwork      func(ctx context.Context) bool
-	ChangeWifi        func(ctx context.Context, ssid, password string) error
-	ScanWifi          func(ctx context.Context) ([]NearbyNetwork, error)
-	SetAdminPassword  func(ctx context.Context, password string) error
-	LockAdminPassword func(ctx context.Context) error
-	WatcherSleep      func(ctx context.Context, wait time.Duration) error
-	Sleep             func(context.Context, time.Duration) error
-	Now               func() time.Time
+	Client              Client
+	Places              Places
+	Install             func(companyhost.Request) error
+	HoldsAnotherCompany func(companyID string) (bool, error)
+	ForgetEveryCompany  func() error
+	TakeOver            func(ctx context.Context, session Session, keyring Keyring) error
+	StandDown           func() error
+	StandUp             func() error
+	RestartServices     func() error
+	StartKeepingUp      func(ctx context.Context, session Session)
+	FollowRelease       func(targetVersion string) error
+	StartWorking        func(ctx context.Context, session Session)
+	PackageVersion      string
+	NameHost            func(ctx context.Context, companySlug string) error
+	GetOnline           func(ctx context.Context, boxPublicKey string, hasCompany bool) error
+	IsOnANetwork        func(ctx context.Context) bool
+	ChangeWifi          func(ctx context.Context, ssid, password string) error
+	ScanWifi            func(ctx context.Context) ([]NearbyNetwork, error)
+	SetAdminPassword    func(ctx context.Context, password string) error
+	LockAdminPassword   func(ctx context.Context) error
+	WatcherSleep        func(ctx context.Context, wait time.Duration) error
+	Sleep               func(context.Context, time.Duration) error
+	Now                 func() time.Time
 }
 
 func (daemon Daemon) Run(ctx context.Context) error {
@@ -160,6 +162,9 @@ func (daemon Daemon) step(ctx context.Context, identity Identity, page *pairingP
 }
 
 func (daemon Daemon) serveClaimed(ctx context.Context, session Session, identity Identity) (time.Duration, error) {
+	if errorValue := daemon.forgetAnEarlierCompany(ctx, session.Configuration.Company.ID, session.Configuration.Company.Name); errorValue != nil {
+		return 0, errorValue
+	}
 	keyring, errorValue := daemon.keyringFor(identity, session)
 	if errorValue != nil {
 		return 0, errorValue
@@ -374,6 +379,9 @@ func (daemon Daemon) InstallWithConnectionFile(ctx context.Context, connectionKe
 	}
 	if !isClaimed {
 		return fmt.Errorf("the central plane accepted the connection file and then gave this computer no company")
+	}
+	if errorValue := daemon.forgetAnEarlierCompany(ctx, session.Configuration.Company.ID, session.Configuration.Company.Name); errorValue != nil {
+		return errorValue
 	}
 	if errorValue := rememberAppURL(daemon.Places.StateDirectoryPath, session.Configuration.AppURL); errorValue != nil {
 		return errorValue

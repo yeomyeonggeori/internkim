@@ -174,14 +174,14 @@ func contentsFor(packaged []packagedFile) files.Contents {
 // is a directory because versitygw's posix backend serves one as a bucket; it is what
 // `mc mb` used to do.
 func ownedDirectories() []packagedFile {
-	return []packagedFile{
-		{Destination: blueclaw.CompanyHostStateRoot, Mode: blueclaw.CompanyHostStateRootMode},
-		{Destination: blueclaw.CompanyHostCompaniesRoot, Mode: blueclaw.CompanyHostStateRootMode},
-		{Destination: blueclaw.CompanyHostMediaRootPath, Mode: 0o750},
-		{Destination: blueclaw.CompanyHostMediaBucketPath, Mode: 0o750},
-		{Destination: blueclaw.CompanyHostConfigurationRoot, Mode: 0o755},
-		{Destination: blueclaw.CompanyPackageHelperRoot, Mode: 0o755},
+	directories := []packagedFile{}
+	for _, directory := range blueclaw.CompanyHostStateDirectories() {
+		directories = append(directories, packagedFile{Destination: directory.Path, Mode: directory.Mode})
 	}
+	return append(directories,
+		packagedFile{Destination: blueclaw.CompanyHostConfigurationRoot, Mode: 0o755},
+		packagedFile{Destination: blueclaw.CompanyPackageHelperRoot, Mode: 0o755},
+	)
 }
 
 // packagedGoPrograms are this repository's own binaries and blueclaw's, each named by the

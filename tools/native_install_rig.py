@@ -1396,6 +1396,19 @@ class CompanyPlane:
             "Authorization": "Bearer " + self.settings["SECRET_KEY"],
         }
 
+    def administrator_of_another_company(self, company_id):
+        """A seeded administrator of some other company, found in the record rather than spelled here."""
+        status, document = self.read_record(
+            f"/rest/v1/member?select=email&is_admin=eq.true&status=eq.active&company_id=neq.{company_id}"
+            "&order=company_id&limit=1"
+        )
+        others = json.loads(document) if status == 200 else []
+        if not others:
+            raise RigFailure(
+                f"the local plane seeds no second company an administrator could connect this box to ({status}): {document[:300]!r}"
+            )
+        return others[0]["email"]
+
     def forget_the_company_computer(self, company_id):
         """Take back the agent row the connection document wrote."""
         self.delete_from_record(
