@@ -40257,7 +40257,7 @@
             "additionalProperties": false,
             "properties": {
               "register": {
-                "description": "How formally the person wants the agent to speak to them: formal is 합쇼체, polite is 해요체, casual is 해체, plain is 해라체, each with an English counterpart.",
+                "description": "How formally the person wants the agent to speak to them: formal is hapsyo-che, polite is haeyo-che, casual is hae-che and plain is haera-che, the Korean speech levels, each with an English counterpart.",
                 "enum": [
                   "formal",
                   "polite",
@@ -40378,7 +40378,7 @@
               "additionalProperties": false,
               "properties": {
                 "register": {
-                  "description": "How formally the person wants the agent to speak to them: formal is 합쇼체, polite is 해요체, casual is 해체, plain is 해라체, each with an English counterpart.",
+                  "description": "How formally the person wants the agent to speak to them: formal is hapsyo-che, polite is haeyo-che, casual is hae-che and plain is haera-che, the Korean speech levels, each with an English counterpart.",
                   "enum": [
                     "formal",
                     "polite",
@@ -40507,7 +40507,7 @@
             "additionalProperties": false,
             "properties": {
               "register": {
-                "description": "How formally the person wants the agent to speak to them: formal is 합쇼체, polite is 해요체, casual is 해체, plain is 해라체, each with an English counterpart.",
+                "description": "How formally the person wants the agent to speak to them: formal is hapsyo-che, polite is haeyo-che, casual is hae-che and plain is haera-che, the Korean speech levels, each with an English counterpart.",
                 "enum": [
                   "formal",
                   "polite",
@@ -40614,7 +40614,7 @@
             "additionalProperties": false,
             "properties": {
               "register": {
-                "description": "How formally the person wants the agent to speak to them: formal is 합쇼체, polite is 해요체, casual is 해체, plain is 해라체, each with an English counterpart.",
+                "description": "How formally the person wants the agent to speak to them: formal is hapsyo-che, polite is haeyo-che, casual is hae-che and plain is haera-che, the Korean speech levels, each with an English counterpart.",
                 "enum": [
                   "formal",
                   "polite",
@@ -40733,7 +40733,7 @@
             "additionalProperties": false,
             "properties": {
               "register": {
-                "description": "How formally the person wants the agent to speak to them: formal is 합쇼체, polite is 해요체, casual is 해체, plain is 해라체, each with an English counterpart.",
+                "description": "How formally the person wants the agent to speak to them: formal is hapsyo-che, polite is haeyo-che, casual is hae-che and plain is haera-che, the Korean speech levels, each with an English counterpart.",
                 "enum": [
                   "formal",
                   "polite",
@@ -40860,7 +40860,7 @@
               "additionalProperties": false,
               "properties": {
                 "register": {
-                  "description": "How formally the person wants the agent to speak to them: formal is 합쇼체, polite is 해요체, casual is 해체, plain is 해라체, each with an English counterpart.",
+                  "description": "How formally the person wants the agent to speak to them: formal is hapsyo-che, polite is haeyo-che, casual is hae-che and plain is haera-che, the Korean speech levels, each with an English counterpart.",
                   "enum": [
                     "formal",
                     "polite",
