@@ -9,7 +9,11 @@
 	import { fetchBoxes, forgetModelKey } from './host-setup-client';
 	import { hostSetupText } from './text';
 
-	let { boxes, onChanged }: { boxes: CompanyBoxes; onChanged: (boxes: CompanyBoxes) => void } = $props();
+	let {
+		boxes,
+		onChanged,
+		onChangeModelKey
+	}: { boxes: CompanyBoxes; onChanged: (boxes: CompanyBoxes) => void; onChangeModelKey: (() => void) | null } = $props();
 
 	const text = createPageText(hostSetupText);
 	let usesOwnModelKey = $derived(boxes.usesOwnModelKey);
@@ -65,9 +69,13 @@
 		<Switch id="uses-own-model-key" bind:checked={usesOwnModelKey} onCheckedChange={chooseWhoPays} disabled={isSaving} />
 	</Field.Field>
 	{#if boxes.isPayerChangeWaiting}<p class="text-sm text-muted-foreground">{text.payerChangeWaiting}</p>{/if}
-	{#if boxes.hasModelKey}
-		<Button variant="outline" class="justify-self-start" onclick={askToRemoveKey}>{text.removeModelKey}</Button>
-	{:else if boxes.isModelKeyOnlyOnTheComputer}
+	{#if onChangeModelKey || boxes.hasModelKey}
+		<div class="flex flex-wrap gap-2">
+			{#if onChangeModelKey}<Button variant="outline" onclick={onChangeModelKey}>{text.changeModelKey}</Button>{/if}
+			{#if boxes.hasModelKey}<Button variant="outline" onclick={askToRemoveKey}>{text.removeModelKey}</Button>{/if}
+		</div>
+	{/if}
+	{#if !boxes.hasModelKey && boxes.isModelKeyOnlyOnTheComputer}
 		<p class="text-sm text-muted-foreground">{text.modelKeyOnTheComputer}</p>
 	{/if}
 	{#if errorMessage}<Field.Error>{errorMessage}</Field.Error>{/if}

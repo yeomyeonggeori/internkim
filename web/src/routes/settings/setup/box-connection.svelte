@@ -15,6 +15,7 @@
 	import BoxTakeOver from './box-take-over.svelte';
 	import BoxWifiChange from './box-wifi-change.svelte';
 	import ModelPayer from './model-payer.svelte';
+	import SubscribeInstead from './subscribe-instead.svelte';
 	import ConnectedComputer from './connected-computer.svelte';
 	import { connectBox, disconnectBox, fetchBoxes, giveModelKey, makeBoxServe, verifyBoxCode, type Boxes } from './host-setup-client';
 	import { hostSetupText } from './text';
@@ -243,13 +244,14 @@
 				<BoxTakeOver takeOver={boxes.takeOver} onKept={(kept) => (boxes = { ...kept, empty: boxes.empty })} />
 			{/if}
 		{/if}
-		{#if step === 'connected' && !isChangingModelKey}
-			<Button variant="outline" class="justify-self-start" onclick={() => (isChangingModelKey = true)}>{text.changeModelKey}</Button>
-		{/if}
 	{/if}
 
 	{#if isServed}
-		<ModelPayer {boxes} onChanged={(changed) => (boxes = { ...changed, empty: boxes.empty })} />
+		<ModelPayer
+			{boxes}
+			onChanged={(changed) => (boxes = { ...changed, empty: boxes.empty })}
+			onChangeModelKey={step === 'connected' && !isChangingModelKey ? () => (isChangingModelKey = true) : null}
+		/>
 	{/if}
 
 	{#if verified}
@@ -295,6 +297,7 @@
 		{@render waitingBoxes()}
 	{/if}
 
+	{#if step === 'givingModelKey'}<SubscribeInstead />{/if}
 	{#if step === 'givingModelKey' || isChangingModelKey}
 		<form onsubmit={sendModelKey}>
 			<Field.Field>

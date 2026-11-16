@@ -83,6 +83,6 @@ test('credits are said to pay while the company subscribes and its computer hold
 	await computerStarted({ holdsModelKey: false, usesOwnModelKey: true });
 	await subscribeTheCompany();
 	await signInToTheCentralPlane(page, setupPath, member1Email);
-	await expect(page.getByRole('status').filter({ hasText: '지금은 회사 크레딧이 AI 사용료를 냅니다.' })).toBeVisible({ timeout: 20000 });
+	await expect(page.getByRole('status').filter({ hasText: '구독 사용 중' })).toBeVisible({ timeout: 20000 });
 	await expect(page.getByRole('button', { name: '키 지우기' })).toHaveCount(0);
 });
