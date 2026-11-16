@@ -1,4 +1,4 @@
-import { isInsideCapacitorShell, isInsideTauriPhoneShell, isInsideTauriShell } from './shell';
+import { isInsideTauriPhoneShell } from './shell';
 import { tauriPageTheme } from './page-theme-tauri';
 
 export type PageTheme = {
@@ -23,10 +23,7 @@ function currentPageTheme(): PageTheme | null {
 }
 
 export async function pageThemeShell(): Promise<PageThemePlugin | null> {
-	if (isInsideTauriShell()) return isInsideTauriPhoneShell() ? tauriPageTheme() : null;
-	if (!isInsideCapacitorShell()) return null;
-	const { registerPlugin } = await import('@capacitor/core');
-	return registerPlugin<PageThemePlugin>('PageTheme');
+	return isInsideTauriPhoneShell() ? tauriPageTheme() : null;
 }
 
 export async function keepShellStatusBarOnPageTheme(): Promise<() => void> {

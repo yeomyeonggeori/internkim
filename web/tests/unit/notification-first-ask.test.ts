@@ -1,27 +1,27 @@
-import { afterEach, beforeEach, describe, expect, mock, test } from 'bun:test';
+import { afterEach, beforeEach, describe, expect, test } from 'bun:test';
 
 type PermissionState = 'granted' | 'denied' | 'prompt';
 
 let held: PermissionState = 'prompt';
 let answered: PermissionState = 'denied';
 
-mock.module('@capacitor/push-notifications', () => ({
-	PushNotifications: {
-		checkPermissions: async () => ({ receive: held }),
-		requestPermissions: async () => ({ receive: answered }),
-		unregister: async () => {},
-		register: async () => {},
-		addListener: async () => ({ remove: async () => {} })
-	}
-}));
+const grantedOf: Record<PermissionState, boolean | null> = { granted: true, denied: false, prompt: null };
+
+const pluginAnswers: Record<string, () => unknown> = {
+	'plugin:notifications|is_permission_granted': () => grantedOf[held],
+	'plugin:notifications|request_permission': () => (answered === 'prompt' ? 'default' : answered)
+};
 
 const stored = new Map<string, string>();
 const originalWindow = globalThis.window;
+const originalIsTauri = Reflect.get(globalThis, 'isTauri');
 
 function standIn(isNative: boolean): void {
+	Reflect.set(globalThis, 'isTauri', isNative);
 	Object.defineProperty(globalThis, 'window', {
 		value: {
-			Capacitor: { isNativePlatform: () => isNative, getPlatform: () => 'android' },
+			__TAURI_INTERNALS__: { invoke: async (command: string) => pluginAnswers[command]?.() },
+			__TAURI_OS_PLUGIN_INTERNALS__: { platform: 'android' },
 			localStorage: {
 				getItem: (key: string) => stored.get(key) ?? null,
 				setItem: (key: string, value: string) => void stored.set(key, value),
@@ -46,6 +46,7 @@ describe('asking about notifications once', () => {
 
 	afterEach(() => {
 		Object.defineProperty(globalThis, 'window', { value: originalWindow, configurable: true });
+		Reflect.set(globalThis, 'isTauri', originalIsTauri);
 	});
 
 	test('a browser is never asked', async () => {

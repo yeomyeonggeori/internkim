@@ -1,1 +1,1 @@
-../../../../../ios/App/Shared/SilentPush.swift
+../../../../gen/apple/Shared/SilentPush.swift

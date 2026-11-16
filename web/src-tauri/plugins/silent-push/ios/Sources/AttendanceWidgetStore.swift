@@ -1,1 +1,1 @@
-../../../../../ios/App/Shared/AttendanceWidgetStore.swift
+../../../../gen/apple/Shared/AttendanceWidgetStore.swift

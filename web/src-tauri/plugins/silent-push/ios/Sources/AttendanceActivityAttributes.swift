@@ -1,1 +1,1 @@
-../../../../../ios/App/Shared/AttendanceActivityAttributes.swift
+../../../../gen/apple/Shared/AttendanceActivityAttributes.swift

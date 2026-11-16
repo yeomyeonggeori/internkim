@@ -1,1 +1,1 @@
-../../../../../ios/App/Shared/AttendanceLockScreenCards.swift
+../../../../gen/apple/Shared/AttendanceLockScreenCards.swift

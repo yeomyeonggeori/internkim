@@ -1,4 +1,4 @@
-import { isInsideCapacitorShell, isInsideTauriShell, shellPlatform } from '$lib/native-shell/shell';
+import { isInsideTauriShell, shellPlatform } from '$lib/native-shell/shell';
 import { tauriAttendanceWidget } from './attendance-widget-tauri';
 
 export type WidgetInstall = {
@@ -29,10 +29,8 @@ type AttendanceWidgetShell = { platform: WidgetPlatform; widget: AttendanceWidge
 export async function attendanceWidgetShell(): Promise<AttendanceWidgetShell | null> {
 	const platform = widgetPlatformOf(shellPlatform());
 	if (!platform) return null;
-	if (isInsideTauriShell()) return { platform, widget: await tauriAttendanceWidget() };
-	if (!isInsideCapacitorShell()) return null;
-	const { registerPlugin } = await import('@capacitor/core');
-	return { platform, widget: registerPlugin<AttendanceWidgetPlugin>('AttendanceWidget') };
+	if (!isInsideTauriShell()) return null;
+	return { platform, widget: await tauriAttendanceWidget() };
 }
 
 function widgetPlatformOf(shell: string): WidgetPlatform | null {

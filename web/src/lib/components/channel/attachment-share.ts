@@ -1,8 +1,8 @@
-import { isInsideCapacitorShell, isInsideTauriPhoneShell } from '$lib/native-shell/shell';
+import { isInsideTauriPhoneShell } from '$lib/native-shell/shell';
 
 export function sharesInsteadOfDownloading(): boolean {
 	if (typeof navigator === 'undefined' || typeof navigator.share !== 'function') return false;
-	return isInsideTauriPhoneShell() || isInsideCapacitorShell();
+	return isInsideTauriPhoneShell();
 }
 
 function wasDismissed(failure: unknown): boolean {
