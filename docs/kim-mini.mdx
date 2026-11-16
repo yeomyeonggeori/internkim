@@ -156,7 +156,15 @@ and start the box. It forgets the company it installed, signs a request with its
 own key asking the central plane to release it, retries until the plane answers,
 locks the `admin` password so that company's administrators can no longer log
 in, and deletes the file. It then announces itself as an empty box. The company's
-files stay on the card; writing the card again is what clears them.
+files stay on the card until another company claims the box.
+
+A box that a different company claims removes everything of the earlier one
+before it installs or stands by: its services are stopped, its databases,
+files, messenger media, backups kept on the card, secrets and company key are
+deleted, every account the box made for its people is removed, and the `admin`
+password is locked. The box keeps its own key and its Wi-Fi. The same company
+claiming its box again removes nothing. Nothing is copied anywhere first, so an earlier company that
+wants its data keeps a backup before it disconnects.
 
 ## More than one box
 

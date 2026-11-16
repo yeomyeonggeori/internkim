@@ -196,6 +196,14 @@ OBSERVATION_INTERVAL_SECONDS = 10
 
 LIST_PEOPLE_COMMAND = f"ls -1 {PEOPLE_DIRECTORY} 2>/dev/null"
 
+EARLIER_COMPANY_MARK_PATH = "/workspace/shared/left-by-the-earlier-company"
+PROJECTED_ACCOUNTS_COMMAND = "getent passwd | cut -d: -f1 | grep '^bc_person_' | sort"
+HELD_COMPANIES_COMMAND = f"ls -1 {STATE_DIRECTORY}/companies 2>/dev/null"
+DATABASE_IDENTIFIER_COMMAND = (
+    f"runuser -u {DATABASE_USER} -- {DATA_SERVICE_PATH} psql --dbname blueclaw --tuples-only --no-align --command "
+    '"select system_identifier from pg_control_system()"'
+)
+
 DESCRIBE_PEOPLE_COMMAND = (
     f"for person in $(ls -1 {PEOPLE_DIRECTORY}); do "
     f"stat -c '%n %U:%G %a' {PEOPLE_DIRECTORY}/$person {PEOPLE_DIRECTORY}/$person/.protected 2>&1; done"
@@ -1645,6 +1653,75 @@ class Rig:
         with self.driving(first, self.files_command):
             self.observe_a_standby(step, first, timeout_seconds=600)
 
+    def run_another_company(self):
+        """A box one company disconnects and another connects holds nothing of the first."""
+        step = self.step(14, "a box another company connects holds nothing of the company before it")
+        self.start_the_plane()
+        self.give_the_guest_a_company(step, self.plane)
+        self.observe_running_services(step)
+        earlier_company_id = self.company_id
+        earlier = self.leave_the_marks_of_a_company(step)
+
+        self.disconnect_the_box(step)
+        self.plane.forget_the_company_computer(earlier_company_id)
+        self.plane.administrator_email = self.plane.administrator_of_another_company(earlier_company_id)
+        self.give_the_guest_a_company(step, self.plane)
+
+        self.observe_nothing_of_the_earlier_company(step, earlier_company_id, earlier)
+        self.observe_running_services(step)
+
+    def leave_the_marks_of_a_company(self, step):
+        accounts = self.machine.wait_until(PROJECTED_ACCOUNTS_COMMAND, lambda said: bool(said.strip()), 300).stdout.split()
+        self.machine.checked_shell(f"echo kept > {EARLIER_COMPANY_MARK_PATH}")
+        database = self.machine.shell(DATABASE_IDENTIFIER_COMMAND).stdout.strip()
+        step.observe(
+            "the first company leaves accounts, a file and a database on the box",
+            f"the bc_person_ accounts in the guest's passwd, {EARLIER_COMPANY_MARK_PATH} and the database's system identifier",
+            "a box that held nothing of the first company would show nothing of it afterwards whether or not "
+            "anything removed it",
+        ).record(bool(accounts) and database.isdigit(), f"accounts: {' '.join(accounts) or 'none'}\ndatabase: {database or 'unread'}")
+        return {"accounts": accounts, "database": database}
+
+    def disconnect_the_box(self, step):
+        """What an administrator does on the setup page to give a box up."""
+        status, answer = self.plane.ask_as_administrator(
+            "DELETE", "/api/company/box", {"publicKey": self.box_key_of(self.machine)}
+        )
+        stood_down = self.machine.wait_until(
+            f"test -e {STATE_DIRECTORY}/current && echo held || echo released", lambda said: "released" in said, 300
+        )
+        step.observe(
+            "the box gives the first company up when its administrator disconnects it",
+            f"the answer to DELETE /api/company/box and whether {STATE_DIRECTORY}/current is still there",
+            "a box that kept serving the company that disconnected it would be taken from a company still using it",
+        ).record(status == 200 and "released" in stood_down.stdout, f"{status} {json.dumps(answer)[:300]}\n{stood_down.stdout.strip()}")
+
+    def observe_nothing_of_the_earlier_company(self, step, earlier_company_id, earlier):
+        accounts = self.machine.shell(PROJECTED_ACCOUNTS_COMMAND).stdout.split()
+        kept_accounts = sorted(set(accounts) & set(earlier["accounts"]))
+        step.observe(
+            "no account the box made for the first company's people is left",
+            "the bc_person_ accounts in the guest's passwd, against the ones the first company left",
+            "an account that outlives its company holds a number the next company's people are given",
+        ).record(not kept_accounts, f"left over: {' '.join(kept_accounts) or 'none'}\nnow: {' '.join(accounts) or 'none'}")
+
+        held = self.machine.shell(
+            f"{HELD_COMPANIES_COMMAND}; test -e {EARLIER_COMPANY_MARK_PATH} && echo mark-kept || echo mark-gone"
+        ).stdout.split()
+        step.observe(
+            "the first company's files and secrets are gone",
+            f"the directories under {STATE_DIRECTORY}/companies and whether {EARLIER_COMPANY_MARK_PATH} is still there",
+            "the next company's people read the workspace, and the secrets directory holds the first company's keys",
+        ).record(earlier_company_id not in held and self.company_id in held and "mark-gone" in held, " ".join(held))
+
+        database = self.machine.wait_until(DATABASE_IDENTIFIER_COMMAND, lambda said: said.strip().isdigit(), 300).stdout.strip()
+        step.observe(
+            "the next company starts on a database of its own",
+            "the system identifier of the database the installed services open, against the first company's",
+            "an install that finds a database creates none, so the next company would open the first one's "
+            "conversations and records",
+        ).record(database.isdigit() and database != earlier["database"], f"before: {earlier['database']}\nafter: {database}")
+
     def box_key_of(self, machine):
         reading = machine.checked_shell(
             BOX_PUBLIC_KEY_COMMAND % {"python": HOST_PYTHON_PATH, "state": BOX_STATE_DIRECTORY}
@@ -2401,6 +2478,12 @@ def main():
         "first goes dark, and leaves the first standing by when it comes back (step 13 in place of every other step "
         "after the install)",
     )
+    parser.add_argument(
+        "--another-company",
+        action="store_true",
+        help="judge only whether a box one company disconnects and another connects holds nothing of the first "
+        "(step 14 in place of every other step after the install)",
+    )
     parser.add_argument("--name", default=f"internkim-installrig-{uuid.uuid4().hex[:8]}")
     parser.add_argument("--keep", action="store_true", help="leave the guest running for autopsy")
     parser.add_argument(
@@ -2454,6 +2537,8 @@ def main():
                 rig.run_people_upgrade(releases)
             elif options.several_boxes:
                 rig.run_several_boxes()
+            elif options.another_company:
+                rig.run_another_company()
             else:
                 run_every_step(rig, options, releases, baseline)
         except RigFailure as failure:
