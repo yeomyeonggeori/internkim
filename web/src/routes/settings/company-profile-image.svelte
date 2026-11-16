@@ -13,6 +13,7 @@
 		refusalOfCompanyPicture,
 		saveCompanyProfileImage
 	} from '$lib/company/profile-image';
+	import { pictureFileEveryBrowserShows } from '$lib/files/heic-picture';
 	import { createPageText } from '$lib/i18n/page-text.svelte';
 	import { onMount } from 'svelte';
 	import { toast } from 'svelte-sonner';
@@ -43,18 +44,19 @@
 		const chosen = (event.target as HTMLInputElement).files?.[0];
 		if (chooser) chooser.value = '';
 		if (!chosen) return;
-		const tooBig = refusalOfCompanyPicture(chosen);
-		if (tooBig) {
-			toast.error(
-				text.companyPictureTooBigTemplate
-					.replace('{megabytes}', String(companyPictureMegabytes))
-					.replace('{size}', tooBig)
-			);
-			return;
-		}
 		isBusy = true;
 		try {
-			readableURL = await saveCompanyProfileImage(chosen);
+			const picture = await pictureFileEveryBrowserShows(chosen);
+			const tooBig = refusalOfCompanyPicture(picture);
+			if (tooBig) {
+				toast.error(
+					text.companyPictureTooBigTemplate
+						.replace('{megabytes}', String(companyPictureMegabytes))
+						.replace('{size}', tooBig)
+				);
+				return;
+			}
+			readableURL = await saveCompanyProfileImage(picture);
 			toast.success(text.companyPictureSaved);
 		} catch (failure) {
 			toast.error(text.companyPictureFailed, { description: (failure as Error).message });

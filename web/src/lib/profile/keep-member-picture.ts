@@ -1,4 +1,5 @@
 import { drawnPictureOf } from '$lib/avatar-gradient/drawn-picture';
+import { pictureEveryBrowserShows } from '$lib/files/heic-picture';
 import { externalIDFor, fetchMessengerDirectory } from '$lib/messenger/messenger-directory';
 import { memberAccessToken } from '$lib/public-api-call';
 import { personPicture } from '$lib/stores/person-picture.svelte';
@@ -10,10 +11,11 @@ export async function keepMemberPicture(email: string): Promise<void> {
 	const owner = email.trim().toLowerCase();
 	if (!owner) return;
 
-	const picture = (await messengerPictureOf(owner)) ?? (await drawnPictureOf(owner));
-	const answer = `${owner}:${await fingerprintOf(picture)}`;
+	const source = (await messengerPictureOf(owner)) ?? (await drawnPictureOf(owner));
+	const answer = `${owner}:${await fingerprintOf(source)}`;
 	if (wasAnswered(answer)) return;
 
+	const picture = await pictureEveryBrowserShows(source);
 	const carried = new FormData();
 	carried.set('file', new File([picture], 'picture', { type: picture.type }));
 	const response = await fetch(`/api/v1${memberPicturePath}`, {
