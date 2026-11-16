@@ -45,6 +45,18 @@ export function soulOf(document: unknown): Soul {
 	};
 }
 
+export function soulDocumentOf(soul: Soul): Record<string, unknown> {
+	const linesOf = (lines: string[]) => [...new Set(lines.map((line) => line.trim()).filter((line) => line !== ''))];
+	const tone = soul.register || soul.traits.length ? { ...(soul.register ? { register: soul.register } : {}), ...(soul.traits.length ? { traits: soul.traits } : {}) } : undefined;
+	const language = soul.languageDefault || soul.matchRequester ? { ...(soul.languageDefault ? { default: soul.languageDefault } : {}), ...(soul.matchRequester ? { matchRequester: true } : {}) } : undefined;
+	return {
+		schemaVersion: 1,
+		...Object.fromEntries(lineFields.map((field) => [field, linesOf(soul[field])]).filter(([, lines]) => lines.length > 0)),
+		...(tone ? { tone } : {}),
+		...(language ? { language } : {})
+	};
+}
+
 function lineChanges(field: LineField, before: string[], after: string[]): SoulChange[] {
 	const removed = before.filter((line) => !after.includes(line)).map((line): SoulChange => ({ field, removed: line }));
 	const added = after.filter((line) => !before.includes(line)).map((line): SoulChange => ({ field, added: line }));

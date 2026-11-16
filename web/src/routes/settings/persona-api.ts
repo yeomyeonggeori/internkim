@@ -8,8 +8,6 @@ export type AgentIdentity = {
 	names: string[];
 	handle?: string;
 	role?: string;
-	creature?: string;
-	emoji?: string;
 	introduction?: string;
 };
 
@@ -21,7 +19,7 @@ export function readAgentIdentity(value: unknown): AgentIdentity {
 }
 
 function readOptionalIdentityFields(record: Record<string, unknown>): Omit<AgentIdentity, 'schemaVersion' | 'names'> {
-	const fields = ['handle', 'role', 'creature', 'emoji', 'introduction'] as const;
+	const fields = ['handle', 'role', 'introduction'] as const;
 	return Object.fromEntries(fields.filter((field) => record[field] === undefined || typeof record[field] === 'string').map((field) => [field, record[field]])) as Omit<AgentIdentity, 'schemaVersion' | 'names'>;
 }
 

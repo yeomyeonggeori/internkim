@@ -8,6 +8,7 @@ export type SoulRevision = {
 	reason: string;
 	createdAt: string;
 	origin: string;
+	author: string;
 };
 
 export type SoulHistory = { current: SoulRevision; history: SoulRevision[] };
@@ -34,10 +35,32 @@ async function readHistory(): Promise<Record<string, unknown> | undefined> {
 	return readRecord(await response.json());
 }
 
+export async function reviseLearningSoul(expectedVersion: number, document: unknown, reason: string): Promise<SoulRevision> {
+	const body = { expectedVersion, document, reason };
+	if (isSupabaseConfigured()) { const response = await callCompanyApp({ capability: 'person.agent_learning.soul.update', body }); if (response.status >= 400) throw new SoulRevisionError(response.status); return revisionOrThrow(response.body); }
+	const response = await adminApiFetch('/agent-learning/api/soul', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+	if (!response.ok) throw new SoulRevisionError(response.status);
+	return revisionOrThrow(await response.json());
+}
+
+export class SoulRevisionError extends Error {
+	readonly status: number;
+	constructor(status: number) {
+		super(`Learning soul revision returned ${status}`);
+		this.status = status;
+	}
+}
+
+function revisionOrThrow(value: unknown): SoulRevision {
+	const revision = readRevision(value);
+	if (!revision) throw new Error('Learning soul revision response is incomplete');
+	return revision;
+}
+
 function readRevision(value: unknown): SoulRevision | undefined {
 	const record = readRecord(value);
 	if (!record || typeof record.version !== 'number' || !record.document) return undefined;
-	return { version: record.version, document: record.document, reason: typeof record.reason === 'string' ? record.reason : '', createdAt: typeof record.createdAt === 'string' ? record.createdAt : '', origin: typeof record.origin === 'string' ? record.origin : '' };
+	return { version: record.version, document: record.document, reason: typeof record.reason === 'string' ? record.reason : '', createdAt: typeof record.createdAt === 'string' ? record.createdAt : '', origin: typeof record.origin === 'string' ? record.origin : '', author: typeof record.author === 'string' ? record.author : '' };
 }
 
 function readArray(value: unknown): SoulRevision[] { return Array.isArray(value) ? value.flatMap((entry) => { const revision = readRevision(entry); return revision ? [revision] : []; }) : []; }

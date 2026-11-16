@@ -1,6 +1,7 @@
 <script lang="ts">
 	import type { HostSetupStatus } from '$lib/company/host-setup';
 	import { createPageText } from '$lib/i18n/page-text.svelte';
+	import SkillsSection from '../../admin/skills-section.svelte';
 	import CompanyHost from '../company-host.svelte';
 	import SettingsSectionPage from '../settings-section-page.svelte';
 	import { settingsRole } from '../settings-role.svelte';
@@ -44,4 +45,5 @@
 	{#if role.isAdmin && status}
 		<FirstMessage companySlug={status.company.slug} bind:errorMessage />
 	{/if}
+	{#if role.isAdmin}<SkillsSection />{/if}
 </SettingsSectionPage>
