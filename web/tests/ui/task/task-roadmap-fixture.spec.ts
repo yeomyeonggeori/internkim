@@ -289,9 +289,37 @@ test('supplementary fixture: the window stops six months from this month', async
 	expect(await firstShownDay(roadmap)).toBe('2027-05-23');
 });
 
+test('supplementary fixture: the roadmap opens with the first task of this window at the top', async ({ page }) => {
+	const roadmap = await openRoadmap(page, scrollingFixture());
+	await expect(shownDays(roadmap).first()).toHaveAttribute('data-roadmap-day', november(8));
+	await expect.poll(() => rowOffsetBelowHeader(roadmap, parentID)).toBe(0);
+	expect(await scrollTop(roadmap)).toBeGreaterThan(0);
+});
+
+test('supplementary fixture: on first open the window keeps its first task at the top when the full history adds rows above it', async ({ page }) => {
+	const fixture = new TaskRoadmapFixture();
+	await openRoadmap(page, fixture);
+	let releaseList = () => {};
+	fixture.heldList = new Promise(resolve => { releaseList = resolve; });
+	await page.evaluate(() => sessionStorage.removeItem('internkim:task-view:v1'));
+	await page.reload();
+	await expect(page.locator('[data-task-ready="true"]')).toBeVisible();
+	fixture.tasks = scrollingFixture().tasks;
+	const roadmap = await showRoadmapTab(page);
+	await expect(roadmapRow(roadmap, parentID)).toBeVisible();
+	await expect(roadmapRow(roadmap, '30000000-0000-4000-8000-100000000000')).toHaveCount(0);
+	releaseList();
+	fixture.heldList = null;
+	await expect(roadmapRow(roadmap, '30000000-0000-4000-8000-100000000000')).toHaveCount(1);
+	await expect.poll(() => rowOffsetBelowHeader(roadmap, parentID)).toBe(0);
+	expect(await scrollTop(roadmap)).toBeGreaterThan(0);
+});
+
 test('supplementary fixture: choosing a week brings its first task to the top, and the week arrows leave the list where it is', async ({ page }) => {
 	const roadmap = await openRoadmap(page, scrollingFixture());
-	expect(await scrollTop(roadmap)).toBe(0);
+	await expect.poll(() => scrollTop(roadmap)).toBeGreaterThan(0);
+	await roadmap.evaluate(element => { element.scrollTop = 0; });
+	await expect.poll(() => scrollTop(roadmap)).toBe(0);
 	await chooseWeek(page, '11/22 – 12/5');
 	await expect(shownDays(roadmap).first()).toHaveAttribute('data-roadmap-day', november(22));
 	await expect.poll(() => rowOffsetBelowHeader(roadmap, parentID)).toBe(0);
