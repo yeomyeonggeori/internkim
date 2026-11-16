@@ -224,6 +224,12 @@ describe('canonical capability tools', () => {
       'person_withdraw',
       'persona_identity_get',
       'persona_identity_update',
+      'persona_learned_skill_update',
+      'persona_learning_get',
+      'persona_learning_update',
+      'persona_principles_get',
+      'persona_principles_revert',
+      'persona_principles_update',
       'persona_profile_get',
       'persona_profile_update',
       'schedule_cancel',
@@ -431,6 +437,10 @@ describe('canonical capability tools', () => {
       'host_update',
       'persona_identity_update',
       'persona_profile_update',
+      'persona_principles_update',
+      'persona_principles_revert',
+      'persona_learning_update',
+      'persona_learned_skill_update',
     ]);
 
     for (const tool of stateChangingTools) {

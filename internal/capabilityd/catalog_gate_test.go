@@ -1289,6 +1289,73 @@ func gateCases() map[string]catalogGateCase {
 				expectResultHolds(t, answered, `"morningBriefing":{"enabled":false,"time":"08:00"}`)
 			},
 		},
+		"persona_principles_get": {
+			kind: provesBehaviour,
+			reaches: map[gateBackend]*standingIn{
+				admindOverTheSocket: answering(`{"history":[{"version":1,"document":{"schemaVersion":1},"reason":"defaults","createdAt":"2026-11-01T00:00:00Z","origin":"defaults"}]}`),
+			},
+			input: `{}`,
+			expect: func(t *testing.T, answered capabilities.ToolInvokeResponse) {
+				expectSucceeded(t, answered)
+				expectResultHolds(t, answered, `"origin":"defaults"`)
+			},
+		},
+		"persona_principles_update": {
+			kind: provesBehaviour,
+			reaches: map[gateBackend]*standingIn{
+				admindOverTheSocket: principlesAnswering(`{"version":3,"document":{"schemaVersion":1,"values":["성실하게 일한다"]},"reason":"","createdAt":"2026-11-01T00:00:00Z","origin":"administrator"}`),
+			},
+			input: `{"boundaries":["비밀번호를 묻지 않는다"],"reason":"sample"}`,
+			expect: func(t *testing.T, answered capabilities.ToolInvokeResponse) {
+				expectSucceeded(t, answered)
+				expectResultHolds(t, answered, `"version":3`)
+			},
+		},
+		"persona_principles_revert": {
+			kind: provesBehaviour,
+			reaches: map[gateBackend]*standingIn{
+				admindOverTheSocket: principlesAnswering(earlierAndLaterPrinciples),
+			},
+			input: `{"version":1}`,
+			expect: func(t *testing.T, answered capabilities.ToolInvokeResponse) {
+				expectSucceeded(t, answered)
+				expectResultHolds(t, answered, `"version":3`)
+			},
+		},
+		"persona_learning_get": {
+			kind: provesBehaviour,
+			reaches: map[gateBackend]*standingIn{
+				admindOverTheSocket: answering(`{"skills":[],"settings":{"enabled":true,"activeLimit":12},"activeCount":0}`),
+			},
+			input: `{}`,
+			expect: func(t *testing.T, answered capabilities.ToolInvokeResponse) {
+				expectSucceeded(t, answered)
+				expectResultHolds(t, answered, `"activeLimit":12`)
+			},
+		},
+		"persona_learning_update": {
+			kind: provesBehaviour,
+			reaches: map[gateBackend]*standingIn{
+				admindOverTheSocket: echoingWritesOver(`{"enabled":true,"activeLimit":12}`),
+			},
+			input: `{"enabled":false}`,
+			expect: func(t *testing.T, answered capabilities.ToolInvokeResponse) {
+				expectSucceeded(t, answered)
+				expectResultHolds(t, answered, `"enabled":false`)
+				expectResultHolds(t, answered, `"activeLimit":12`)
+			},
+		},
+		"persona_learned_skill_update": {
+			kind: provesBehaviour,
+			reaches: map[gateBackend]*standingIn{
+				admindOverTheSocket: answering(`{"id":"sample-skill","action":"retire","ok":true}`),
+			},
+			input: `{"id":"sample-skill","retired":true}`,
+			expect: func(t *testing.T, answered capabilities.ToolInvokeResponse) {
+				expectSucceeded(t, answered)
+				expectResultHolds(t, answered, `"action":"retire"`)
+			},
+		},
 		"host_update": {
 			kind: provesBehaviour,
 			reaches: map[gateBackend]*standingIn{

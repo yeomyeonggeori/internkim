@@ -39,6 +39,7 @@ VERBS_BY_EXCEPTION = {
     "person_password_reset": "a reset replaces a password with a temporary one, which no record-level verb describes",
     "crm_record_import": "an import reads a whole file into many records at once, which no single-record verb describes",
     "leave_request": "request is the domain's word for asking for leave",
+    "persona_principles_revert": "revert is the domain's word for bringing back an earlier revision as a new one",
     "leave_decide": "decide is the domain's word for approving or refusing",
     "leave_balance": "answers a computed balance, not a stored record",
     "leave_return_early": "the domain's word for coming back before the leave ends",

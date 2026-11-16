@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import identitySchemaDocument from '../../../../internal/admind/persona-schema/identity.schema.json';
+import soulSchemaDocument from '../../../../internal/admind/persona-schema/soul.schema.json';
 import userSchemaDocument from '../../../../internal/admind/persona-schema/user.schema.json';
 
 type SchemaDocument = Record<string, unknown>;
@@ -20,11 +21,11 @@ function documentSchemaOf(document: SchemaDocument): z.ZodType {
 	return z.fromJSONSchema(schema);
 }
 
-function changeSchemaOf(document: SchemaDocument): z.ZodType {
+function changeSchemaOf(document: SchemaDocument, extraFields: SchemaDocument = {}): z.ZodType {
 	const { properties } = withoutDefaults(document);
 	if (!isSchemaDocument(properties)) throw new Error('a persona schema has no properties');
 	const { schemaVersion: _schemaVersion, ...fields } = properties;
-	const changeDocument: SchemaDocument = { type: 'object', additionalProperties: false, properties: fields };
+	const changeDocument: SchemaDocument = { type: 'object', additionalProperties: false, properties: { ...fields, ...extraFields } };
 	return z.fromJSONSchema(changeDocument);
 }
 
@@ -32,3 +33,8 @@ export const personaIdentitySchema = documentSchemaOf(identitySchemaDocument);
 export const personaIdentityChangeSchema = changeSchemaOf(identitySchemaDocument);
 export const personaProfileSchema = documentSchemaOf(userSchemaDocument);
 export const personaProfileChangeSchema = changeSchemaOf(userSchemaDocument);
+
+const soulChangeReason = { type: 'string', maxLength: 200, description: 'Why the principles change, in one sentence. It is kept with the revision in the history.' };
+
+export const personaSoulSchema = documentSchemaOf(soulSchemaDocument);
+export const personaSoulChangeSchema = changeSchemaOf(soulSchemaDocument, { reason: soulChangeReason });
