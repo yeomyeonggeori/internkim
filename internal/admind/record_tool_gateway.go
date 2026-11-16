@@ -3,7 +3,9 @@ package admind
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"io"
+	"net"
 	"net/http"
 	"strings"
 
@@ -48,6 +50,10 @@ func (service *Service) handleRecordTool(responseWriter http.ResponseWriter, req
 	}
 
 	answer, errorValue := client.InvokeRecordToolCall(request.Context(), requesterEmail, toolName, verb, call)
+	if isTimeout(errorValue) {
+		writeRecordToolOutcomeUnknown(responseWriter, errorValue)
+		return
+	}
 	if errorValue != nil {
 		http.Error(responseWriter, errorValue.Error(), http.StatusBadGateway)
 		return
@@ -56,6 +62,22 @@ func (service *Service) handleRecordTool(responseWriter http.ResponseWriter, req
 	responseWriter.Header().Set("Content-Type", "application/json")
 	responseWriter.WriteHeader(answer.Status)
 	responseWriter.Write(answer.Body)
+}
+
+func isTimeout(errorValue error) bool {
+	var networkError net.Error
+	return errors.As(errorValue, &networkError) && networkError.Timeout()
+}
+
+func writeRecordToolOutcomeUnknown(responseWriter http.ResponseWriter, errorValue error) {
+	responseWriter.Header().Set("Content-Type", "application/json")
+	responseWriter.WriteHeader(http.StatusGatewayTimeout)
+	json.NewEncoder(responseWriter).Encode(map[string]any{
+		"error":        "the record did not answer in time, so the call may have taken effect even though no result came back: " + errorValue.Error(),
+		"errorCode":    "timeout",
+		"failureStage": "record",
+		"retryable":    false,
+	})
 }
 
 const recordToolInputCeiling = 1 << 20
