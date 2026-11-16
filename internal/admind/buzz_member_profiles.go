@@ -62,11 +62,11 @@ func (service *Service) nameMemberFromTheDirectory(
 	recordedName string,
 	language string,
 ) error {
-	secretHex, displayName := service.buzzProfileOwed(ctx, profiles, email, recordedName, language)
+	secretHex, displayName, heldPicture := service.buzzProfileOwed(ctx, profiles, email, recordedName, language)
 	if displayName == "" {
 		return nil
 	}
-	if errorValue := service.publishBuzzProfile(ctx, secretHex, displayName, ""); errorValue != nil {
+	if errorValue := service.publishBuzzProfile(ctx, secretHex, displayName, heldPicture); errorValue != nil {
 		return fmt.Errorf("%s stays a key: %w", email, errorValue)
 	}
 	log.Printf("buzz profiles: %s is %s", email, displayName)
@@ -79,19 +79,20 @@ func (service *Service) buzzProfileOwed(
 	email string,
 	recordedName string,
 	language string,
-) (string, string) {
+) (string, string, string) {
 	if personname.Render(recordedName, language) == "" {
-		return "", ""
+		return "", "", ""
 	}
 	secretHex := service.buzzSecretForEmail(ctx, email)
 	if secretHex == "" {
-		return "", ""
+		return "", "", ""
 	}
 	pubkey, errorValue := buzzPublicKey(secretHex)
 	if errorValue != nil {
-		return "", ""
+		return "", "", ""
 	}
-	return secretHex, buzzProfileNameToWrite(profiles[pubkey], recordedName, language)
+	held := profiles[pubkey]
+	return secretHex, buzzProfileNameToWrite(held, recordedName, language), strings.TrimSpace(held.Picture)
 }
 
 func (service *Service) publishBuzzProfile(ctx context.Context, secretHex string, displayName string, pictureURL string) error {

@@ -92,6 +92,13 @@ class PersonPictureStore {
 		await this.rememberExternals([...people.externalsOfMember.values()].flat());
 	}
 
+	async showChangedPicture(externalID: string, avatarURL: string): Promise<void> {
+		this.avatarURLOfExternal.set(externalID, avatarURL);
+		this.asked.delete(externalID);
+		this.kept.delete(externalID);
+		await this.rememberExternals([externalID]);
+	}
+
 	async rememberExternals(externalIDs: string[]): Promise<void> {
 		if (!isSupabaseConfigured()) return this.rememberHostDirectory();
 		const generation = this.generation;

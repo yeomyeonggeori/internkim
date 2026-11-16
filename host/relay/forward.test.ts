@@ -334,6 +334,34 @@ describe('a message the app sent', () => {
 	});
 });
 
+describe('a picture a member sets for themselves', () => {
+	test('is asked of the messenger as that member, with the file the messenger already holds', async () => {
+		const { dispatch } = dispatchThatKnows({});
+		const asked: { capability: string; body: Record<string, unknown> }[] = [];
+
+		const served = await serveCallForMember(
+			{
+				...dispatch,
+				askChatd: async (capability: string, body: Record<string, unknown>) => {
+					asked.push({ capability, body });
+					return { status: 200, body: { externalID: 'npub-member', avatarURL: body.mediaURL } };
+				}
+			},
+			{
+				callID: 'c1',
+				capability: 'person.profile.picture.set',
+				body: { mediaURL: 'https://relay.example.com/media/face.jpg' }
+			},
+			'member-1'
+		);
+
+		expect(served.status).toBe(200);
+		expect(asked.map((call) => call.capability)).toEqual(['person.profile.picture.set']);
+		expect(asked[0]?.body.mediaURL).toBe('https://relay.example.com/media/face.jpg');
+		expect(asked[0]?.body.actor).toBeDefined();
+	});
+});
+
 describe('an owner the app adds to a channel', () => {
 	function ownerAddAnswered(answer: { status: number; body: unknown }) {
 		const fake = dispatchThatKnows({});

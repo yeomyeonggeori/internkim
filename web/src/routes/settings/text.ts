@@ -4,6 +4,7 @@ export const companySettingsText = {
 		title: '설정',
 		groups: { general: '일반', admin: '관리자' },
 		sections: {
+			profile: '내 프로필',
 			security: '로그인·보안',
 			notifications: '알림',
 			'my-agent': '내 김인턴',
@@ -212,6 +213,7 @@ export const companySettingsText = {
 		title: 'Settings',
 		groups: { general: 'General', admin: 'Administrator' },
 		sections: {
+			profile: 'My profile',
 			security: 'Sign-in and security',
 			notifications: 'Notifications',
 			'my-agent': 'My InternKim',
