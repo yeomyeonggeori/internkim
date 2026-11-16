@@ -1,4 +1,5 @@
 import { environmentOfPlatform } from '$lib/server/agent-request';
+import { checkoutReturnURL } from '$lib/server/checkout-return';
 import { adminCallerOf, asMember, controlPlane, planeCredentialsOf } from '$lib/server/control-plane';
 import { signedInAccessTokenOf } from '$lib/server/member-request';
 import { subscriptionCheckoutURL } from '$lib/server/stripe-checkout';
@@ -15,6 +16,7 @@ export const POST: RequestHandler = async ({ request, platform, url }) => {
 	const secretKey = environment.STRIPE_SECRET_KEY ?? '';
 	const priceID = environment.STRIPE_PRICE_ID ?? '';
 	if (!secretKey || !priceID) error(503, 'Stripe billing is not configured');
+	const returnURL = await checkoutReturnURL(request, url.origin);
 
 	const accessToken = await signedInAccessTokenOf(request, plane);
 	const caller = await adminCallerOf(asMember(plane, accessToken));
@@ -31,7 +33,7 @@ export const POST: RequestHandler = async ({ request, platform, url }) => {
 		memberCount: await billedSeatsOf(record, caller.companyID),
 		companyID: caller.companyID,
 		customerID: company.stripe_customer_id,
-		returnURL: url.origin
+		returnURL
 	});
 	return json({ url: checkoutURL });
 };

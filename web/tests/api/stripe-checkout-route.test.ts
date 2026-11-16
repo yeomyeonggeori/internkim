@@ -16,10 +16,11 @@ const plane = {
 	SUPABASE_JWT_SIGNING_KEY: signingKey
 };
 
-async function statusOfCheckout(environment: Record<string, string>, authorization: string): Promise<number> {
+async function statusOfCheckout(environment: Record<string, string>, authorization: string, body?: unknown): Promise<number> {
 	const request = new Request('https://intern.example.test/api/stripe/checkout', {
 		method: 'POST',
-		headers: { authorization }
+		headers: { authorization },
+		body: body === undefined ? undefined : JSON.stringify(body)
 	});
 	try {
 		const response = await startCheckout({
@@ -42,6 +43,13 @@ describe('the Stripe checkout', () => {
 	test('asks for a sign-in before it reaches Stripe', async () => {
 		const configured = { ...plane, STRIPE_SECRET_KEY: 'sk_test_unused', STRIPE_PRICE_ID: 'price_unused' };
 		expect(await statusOfCheckout(configured, '')).toBe(401);
+	});
+
+	test('refuses to send the payer back anywhere but this site', async () => {
+		const configured = { ...plane, STRIPE_SECRET_KEY: 'sk_test_unused', STRIPE_PRICE_ID: 'price_unused' };
+		expect(await statusOfCheckout(configured, '', { returnPath: '//elsewhere.example.test/settings' })).toBe(400);
+		expect(await statusOfCheckout(configured, '', { returnPath: 'https://elsewhere.example.test/' })).toBe(400);
+		expect(await statusOfCheckout(configured, '', { returnPath: '/settings/setup' })).toBe(401);
 	});
 
 	test('refuses a second subscription while the company still holds one', async () => {

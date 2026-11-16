@@ -43,8 +43,8 @@ export async function saveCreditTopUpSetting(setting: CreditTopUpSetting): Promi
 	await askBilling('/api/stripe/top-up/settings', { method: 'PUT', body: JSON.stringify(setting) });
 }
 
-export async function subscriptionCheckoutURL(): Promise<string> {
-	return checkoutAnswer.parse(await askBilling('/api/stripe/checkout', { method: 'POST' })).url;
+export async function subscriptionCheckoutURL(returnPath?: string): Promise<string> {
+	return checkoutAnswer.parse(await askBilling('/api/stripe/checkout', { method: 'POST', body: JSON.stringify({ returnPath }) })).url;
 }
 
 export async function companyInvoices(): Promise<CompanyInvoice[]> {
