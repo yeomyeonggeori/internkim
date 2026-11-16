@@ -340,16 +340,8 @@ func (daemon Daemon) announce(ctx context.Context, identity Identity, page Local
 }
 
 func (daemon Daemon) renew(session Session, keyring Keyring) error {
-	for _, path := range daemon.Places.CredentialPaths {
-		if errorValue := replaceKeepingOwner(path, session.Session.AccessToken+"\n"); errorValue != nil {
-			return fmt.Errorf("keeping the renewed session at %s: %w", path, errorValue)
-		}
-	}
-	for _, path := range daemon.Places.StagedCredentialPaths {
-		errorValue := replaceKeepingOwner(path, session.Session.AccessToken+"\n")
-		if errorValue != nil && !errors.Is(errorValue, os.ErrNotExist) {
-			return fmt.Errorf("keeping the renewed session at %s: %w", path, errorValue)
-		}
+	if errorValue := KeepTheSession(daemon.Places, session.Session.AccessToken); errorValue != nil {
+		return errorValue
 	}
 	if session.SealedModelKey == nil {
 		return daemon.giveBackModelKey(session.Configuration.Company.Name)
@@ -480,6 +472,21 @@ func (daemon Daemon) sleep(ctx context.Context, wait time.Duration) error {
 	case <-timer.C:
 		return nil
 	}
+}
+
+func KeepTheSession(places Places, accessToken string) error {
+	for _, path := range places.CredentialPaths {
+		if errorValue := replaceKeepingOwner(path, accessToken+"\n"); errorValue != nil {
+			return fmt.Errorf("keeping the renewed session at %s: %w", path, errorValue)
+		}
+	}
+	for _, path := range places.StagedCredentialPaths {
+		errorValue := replaceKeepingOwner(path, accessToken+"\n")
+		if errorValue != nil && !errors.Is(errorValue, os.ErrNotExist) {
+			return fmt.Errorf("keeping the renewed session at %s: %w", path, errorValue)
+		}
+	}
+	return nil
 }
 
 func replaceKeepingOwner(path, contents string) error {
