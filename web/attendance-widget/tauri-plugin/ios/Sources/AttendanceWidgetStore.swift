@@ -1,1 +1,1 @@
-../../../../ios/App/Shared/AttendanceWidgetStore.swift
+../../../../src-tauri/gen/apple/Shared/AttendanceWidgetStore.swift

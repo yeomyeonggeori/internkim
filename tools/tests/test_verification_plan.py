@@ -222,7 +222,7 @@ class VerificationPlanTests(unittest.TestCase):
         groups = verification_module().GROUPS
         for changed_path in [
             "web/attendance-widget/android/src/main/java/app/intern/kim/attendance/AttendanceWidgetStore.java",
-            "web/android/app/src/main/java/app/intern/kim/attendance/AttendanceWidgetPlugin.java",
+            "web/android/variables.gradle",
             "web/sender-notification/android/src/main/java/app/intern/kim/notification/SentNotification.java",
         ]:
             selected = {group.name for group in groups if group.is_touched_by([changed_path])}

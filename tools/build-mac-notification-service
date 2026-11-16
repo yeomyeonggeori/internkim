@@ -3,7 +3,7 @@ set -euo pipefail
 
 repository_root="$(cd "$(dirname "$0")/.." && pwd)"
 tauri_directory="$repository_root/web/src-tauri"
-source_file="$repository_root/web/ios/App/NotificationService/NotificationService.swift"
+source_file="$tauri_directory/gen/apple/NotificationService/NotificationService.swift"
 bundle_template="$tauri_directory/macos/notification-service/Info.plist"
 extension="$tauri_directory/signing/NotificationService.appex"
 

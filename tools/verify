@@ -419,9 +419,7 @@ GROUPS = [
         "android",
         ["web/attendance-widget/android/*", "web/sender-notification/android/*", "web/android/*"],
         [
-            BUN_INSTALL,
-            ["bunx", "cap", "sync", "android"],
-            ["android/gradlew", "-p", "android", "--no-daemon", "--quiet", ":attendance-widget:testDebugUnitTest", ":app:compileDebugJavaWithJavac"],
+            ["android/gradlew", "-p", "android", "--no-daemon", "--quiet", ":attendance-widget:testDebugUnitTest", ":sender-notification:compileDebugJavaWithJavac"],
         ],
         working_directory="web",
         lane="web",

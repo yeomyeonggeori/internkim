@@ -1,8 +1,7 @@
-import { isInsideCapacitorShell, isInsideTauriShell, shellPlatform } from '$lib/native-shell/shell';
+import { isInsideTauriShell, shellPlatform } from '$lib/native-shell/shell';
 import { ownPath } from '$lib/return-path';
 import { pushDeviceKindOfPlatform, type PushDeviceKind, type Reachability } from './reachability';
 import { claimPushDevice, releasePushDevice } from './push-device';
-import { capacitorPushDevice } from './native-device-capacitor';
 import { tauriPushDevice } from './native-device-tauri';
 
 const heldTokenKey = 'internkim.push.deviceToken';
@@ -20,12 +19,7 @@ export type NativePushDevice = {
 const tauriPushPlatforms = ['android', 'ios', 'macos'];
 
 export function hasNativePush(): boolean {
-	if (isInsideTauriShell()) return tauriPushPlatforms.includes(shellPlatform());
-	return isInsideCapacitorShell();
-}
-
-function nativePushDevice(): NativePushDevice {
-	return isInsideTauriShell() ? tauriPushDevice : capacitorPushDevice;
+	return isInsideTauriShell() && tauriPushPlatforms.includes(shellPlatform());
 }
 
 export function nativeDeviceKind(): PushDeviceKind {
@@ -75,11 +69,11 @@ async function claim(token: string): Promise<void> {
 }
 
 export async function nativeReachability(): Promise<Reachability> {
-	return reachabilityOfPermission(await nativePushDevice().permission());
+	return reachabilityOfPermission(await tauriPushDevice.permission());
 }
 
 export async function startBeingNativelyReached(): Promise<Reachability> {
-	const device = nativePushDevice();
+	const device = tauriPushDevice;
 	const asked = await device.askPermission();
 	if (asked !== 'granted') return reachabilityOfPermission(asked);
 	await claim(await device.registeredToken());
@@ -87,7 +81,7 @@ export async function startBeingNativelyReached(): Promise<Reachability> {
 }
 
 export async function stopBeingNativelyReached(): Promise<Reachability> {
-	const device = nativePushDevice();
+	const device = tauriPushDevice;
 	const token = heldToken();
 	if (token) {
 		await releasePushDevice({ endpoint: token, kind: nativeDeviceKind() });
@@ -99,14 +93,14 @@ export async function stopBeingNativelyReached(): Promise<Reachability> {
 
 export async function keepNativeDeviceClaimed(): Promise<void> {
 	if (!hasNativePush()) return;
-	const device = nativePushDevice();
+	const device = tauriPushDevice;
 	if ((await device.permission()) !== 'granted') return;
 	await claim(await device.registeredToken());
 }
 
 export async function goWhereNativeNotificationsPoint(go: (path: string) => void): Promise<() => void> {
 	if (!hasNativePush()) return () => {};
-	return nativePushDevice().whenTapped((tapped) => {
+	return tauriPushDevice.whenTapped((tapped) => {
 		const path = openPathOfTappedNotification(tapped);
 		if (path) go(path);
 	});

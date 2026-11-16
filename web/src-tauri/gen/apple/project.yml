@@ -115,9 +115,9 @@ targets:
     platform: iOS
     deploymentTarget: "17.0"
     sources:
-      - path: ../../../ios/App/AttendanceWidget
+      - path: AttendanceWidget
         excludes: ["Info.plist", "*.entitlements"]
-      - path: ../../../ios/App/Shared
+      - path: Shared
     info:
       path: AttendanceWidget/Info.plist
       properties:
@@ -151,7 +151,7 @@ targets:
     platform: iOS
     deploymentTarget: "15.0"
     sources:
-      - path: ../../../ios/App/NotificationService
+      - path: NotificationService
         excludes: ["Info.plist"]
     info:
       path: NotificationService/Info.plist
@@ -174,3 +174,26 @@ targets:
     dependencies:
       - sdk: Intents.framework
       - sdk: UserNotifications.framework
+  AttendanceWidgetTests:
+    type: bundle.unit-test
+    platform: iOS
+    deploymentTarget: "17.0"
+    sources:
+      - path: AttendanceWidgetTests
+      - path: Shared/AttendanceToday.swift
+      - path: Shared/AttendanceAPI.swift
+      - path: Shared/AttendanceWidgetStore.swift
+      - path: Shared/AttendanceDefaultWorkplace.swift
+      - path: Shared/AttendanceActivityAttributes.swift
+      - path: Shared/AttendanceWidgetCache.swift
+      - path: AttendanceWidget/AttendanceWorkplaceEntity.swift
+      - path: ../../../tests/fixtures/attendance-today-cases.json
+        buildPhase: resources
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: app.intern.kim.AttendanceWidgetTests
+        DEVELOPMENT_TEAM: 54YH9ZX7FX
+        SWIFT_VERSION: "5.0"
+        GENERATE_INFOPLIST_FILE: true
+    scheme:
+      testTargets: [AttendanceWidgetTests]
