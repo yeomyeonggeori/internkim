@@ -2,6 +2,7 @@ import { attendancePreviewEnabled } from '$lib/attendance/attendance-preview';
 import { page } from '$app/state';
 import { adminApiFetch } from '$lib/admin-api';
 import { appBadgeCounts } from '$lib/components/app-badge-counts.svelte';
+import { messengerUnread } from '$lib/messenger/unread-total.svelte';
 import { feedbackFormURL } from '$lib/components/app-rail-config';
 import type { AppRailItem } from '$lib/components/app-rail-types';
 import { appShellText } from '$lib/i18n/app-shell-text';
@@ -43,7 +44,15 @@ class AppNavigation {
 	displayUserName = $derived(this.userName || text.workspace);
 
 	apps = $derived<AppRailItem[]>([
-		{ href: this.link('/messenger/'), label: text.messenger, icon: appSectionIcons.messenger },
+		{
+			href: this.link('/messenger/'),
+			label: text.messenger,
+			icon: appSectionIcons.messenger,
+			badgeCount: messengerUnread.total.addressedToMe,
+			badgeCountLabel: text.unreadMessages,
+			badgeDotLabel: messengerUnread.total.hasChannelNews ? text.unreadChannelPosts : undefined,
+			badgeArrivals: messengerUnread.arrivals
+		},
 		{ href: this.link('/task/'), label: text.task, icon: appSectionIcons.task, badgeCount: appBadgeCounts.requestedTasks },
 		{ href: this.link('/calendar/'), label: text.calendar, icon: appSectionIcons.calendar, badgeCount: appBadgeCounts.participatingEvents },
 		{ href: this.link('/mail/'), label: text.mail, icon: appSectionIcons.mail },
@@ -81,6 +90,7 @@ class AppNavigation {
 		this.userName = session.email ? session.email.split('@')[0] : '';
 		this.userImage = session.image;
 		this.canViewTasks = session.canViewTasks;
+		messengerUnread.follow();
 		if (isSupabaseConfigured()) {
 			const member = await supabaseMember();
 			this.userMemberID = member.memberID;
@@ -136,6 +146,7 @@ class AppNavigation {
 
 	private clearSession() {
 		hostUpdate.forget();
+		messengerUnread.forget();
 		this.userEmail = '';
 		this.userName = '';
 		this.userImage = '';

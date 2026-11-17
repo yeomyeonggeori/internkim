@@ -5,6 +5,9 @@ export type AppRailItem = {
 	label: string;
 	icon: typeof MailIcon;
 	badgeCount?: number;
+	badgeCountLabel?: string;
+	badgeDotLabel?: string;
+	badgeArrivals?: number;
 };
 
 export type AppRailProfileMenuLabels = {

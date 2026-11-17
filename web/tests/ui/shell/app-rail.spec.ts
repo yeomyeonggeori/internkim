@@ -8,6 +8,13 @@ const maximumProfileMenuRailGap = 8;
 
 const memoryFactsFixture = { personID: 'person-1', layers: [{ scopeType: 'person', scopeID: 'person-1' }, { scopeType: 'workspace' }], index: { embeddingModel: 'google/embeddinggemma-2', current: 0, stale: 0 }, facts: [] };
 
+type RailConversation = {
+	id: string;
+	name: string;
+	kind: 'dm' | 'group';
+	unread: { status: 'exact'; value: number };
+};
+
 type RailMetrics = {
 	menuLeft: number | null;
 	railRight: number | null;
@@ -94,6 +101,62 @@ test.describe('app rail', () => {
 		await expect(taskLink).toBeFocused();
 		await expect(page.locator(appRailSelector).getByText('업무', { exact: true })).toBeHidden();
 		await expect(railTooltip(page, '업무')).toBeHidden();
+	});
+
+	test('counts unread direct messages on the messenger rail item while another page is open', async ({ page }) => {
+		await answerConversations(page, [
+			{ id: 'dm-1', name: '박예시', kind: 'dm', unread: { status: 'exact', value: 2 } },
+			{ id: 'dm-2', name: '최견본', kind: 'dm', unread: { status: 'exact', value: 1 } },
+			{ id: 'channel-1', name: '공지', kind: 'group', unread: { status: 'exact', value: 7 } }
+		]);
+		await page.setViewportSize({ width: 930, height: 1904 });
+		await page.goto('/memory/');
+
+		await expect(railItem(page, '메신저').getByTestId('app-rail-nav-badge')).toHaveText(/^읽지 않은 메시지\s*3$/);
+		await expect(railItem(page, '메신저').getByTestId('app-rail-nav-dot')).toHaveCount(0);
+		await expect(railItem(page, '업무').getByTestId('app-rail-nav-badge')).toHaveCount(0);
+	});
+
+	test('keeps the unread count beside the messenger label on an expanded rail', async ({ page }) => {
+		await page.addInitScript(() => localStorage.setItem('internkim.app-rail-mode', 'expanded'));
+		await answerConversations(page, [{ id: 'dm-1', name: '박예시', kind: 'dm', unread: { status: 'exact', value: 150 } }]);
+		await page.setViewportSize({ width: 1280, height: 900 });
+		await page.goto('/memory/');
+
+		const badge = railItem(page, '메신저').getByTestId('app-rail-nav-badge');
+		await expect(badge).toHaveText(/^읽지 않은 메시지\s*99\+$/);
+		const label = page.locator(appRailSelector).getByText('메신저', { exact: true });
+		await expect(label).toBeVisible();
+		const labelBox = (await label.boundingBox())!;
+		const badgeBox = (await badge.boundingBox())!;
+		expect(badgeBox.x).toBeGreaterThan(labelBox.x + labelBox.width);
+	});
+
+	test('marks the messenger rail item with a dot when only channels have new posts', async ({ page }) => {
+		await answerConversations(page, [
+			{ id: 'dm-1', name: '박예시', kind: 'dm', unread: { status: 'exact', value: 0 } },
+			{ id: 'channel-1', name: '공지', kind: 'group', unread: { status: 'exact', value: 7 } }
+		]);
+		await page.setViewportSize({ width: 930, height: 1904 });
+		await page.goto('/memory/');
+
+		await expect(railItem(page, '메신저').getByTestId('app-rail-nav-dot')).toHaveText('채널에 새 글 있음');
+		await expect(railItem(page, '메신저').getByTestId('app-rail-nav-badge')).toHaveCount(0);
+	});
+
+	test('leaves the messenger rail item unmarked when everything is read', async ({ page }) => {
+		await answerConversations(page, [
+			{ id: 'dm-1', name: '박예시', kind: 'dm', unread: { status: 'exact', value: 0 } },
+			{ id: 'channel-1', name: '공지', kind: 'group', unread: { status: 'exact', value: 0 } }
+		]);
+		await page.setViewportSize({ width: 930, height: 1904 });
+		const conversationsRead = page.waitForResponse('**/agent/api/channels');
+		await page.goto('/memory/');
+		await conversationsRead;
+
+		await expect(railItem(page, '메신저')).toBeVisible();
+		await expect(railItem(page, '메신저').getByTestId('app-rail-nav-badge')).toHaveCount(0);
+		await expect(railItem(page, '메신저').getByTestId('app-rail-nav-dot')).toHaveCount(0);
 	});
 
 	test('uses bottom navigation instead of the rail on mobile', async ({ page }) => {
@@ -299,5 +362,15 @@ async function mobileBottomNavigationOverlayMetrics(page: Page): Promise<{
 			navigationHeight: navigationRectangle.height,
 			scrollPaddingBottom: Number.parseFloat(scrollContainerStyle.paddingBottom)
 		};
+	});
+}
+
+function railItem(page: Page, label: string): Locator {
+	return page.locator(`${appRailSelector} [data-sidebar="menu-item"]`).filter({ has: page.getByRole('link', { name: label, exact: true }) });
+}
+
+async function answerConversations(page: Page, conversations: RailConversation[]): Promise<void> {
+	await page.route('**/agent/api/channels', async (route) => {
+		await route.fulfill({ json: { conversations } });
 	});
 }
