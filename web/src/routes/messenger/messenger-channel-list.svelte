@@ -8,6 +8,7 @@
 	import HashIcon from '@lucide/svelte/icons/hash';
 	import InboxIcon from '@lucide/svelte/icons/inbox';
 	import LockIcon from '@lucide/svelte/icons/lock';
+	import PinIcon from '@lucide/svelte/icons/pin';
 	import PlusIcon from '@lucide/svelte/icons/plus';
 	import { channelText } from '$lib/i18n/channel-text';
 	import { conversationExportText } from '$lib/i18n/conversation-export-text';
@@ -97,9 +98,19 @@
 		noticeWhenChannelOrderFails(moved, text.reorderFailed);
 	}
 
+	const givesWayToMenuClass =
+		'md:group-hover/menu-item:opacity-0 md:group-focus-within/menu-item:opacity-0 md:group-has-[[data-sidebar=menu-action][data-state=open]]/menu-item:opacity-0';
+	const stepsAsideForMenuClass =
+		'md:group-hover/menu-item:-translate-x-6 md:group-focus-within/menu-item:-translate-x-6 md:group-has-[[data-sidebar=menu-action][data-state=open]]/menu-item:-translate-x-6';
+
 	function switchPinned(channel: ChannelSummary) {
 		const notice = channelOrder.isPinned(channel.id) ? text.unpinFailed : text.pinFailed;
 		noticeWhenChannelOrderFails(channelOrder.switchPinned(channel.id), notice);
+	}
+
+	function switchPinnedDirectMessage(conversation: ChannelSummary) {
+		const notice = channelOrder.isPinned(conversation.id) ? text.unpinConversationFailed : text.pinConversationFailed;
+		noticeWhenChannelOrderFails(channelOrder.switchPinned(conversation.id), notice);
 	}
 </script>
 
@@ -130,19 +141,31 @@
 {#snippet unreadBadge(unread: MessengerReadCount | undefined, givesWayToMenu: boolean)}
 	{@const label = unreadBadgeLabel(unread)}
 	{#if label}
-		<Sidebar.MenuBadge
-			class={cn(
-				'px-0',
-				givesWayToMenu &&
-					'md:group-hover/menu-item:opacity-0 md:group-focus-within/menu-item:opacity-0 md:group-has-[[data-sidebar=menu-action][data-state=open]]/menu-item:opacity-0'
-			)}
-		>
+		<Sidebar.MenuBadge class={cn('px-0', givesWayToMenu && givesWayToMenuClass)}>
 			<Badge variant="secondary">
 				<span class="sr-only">{text.unreadMessages}</span>
 				{label}
 			</Badge>
 		</Sidebar.MenuBadge>
 	{/if}
+{/snippet}
+
+{#snippet pinnedDirectMessageBadge(unread: MessengerReadCount | undefined)}
+	{@const label = unreadBadgeLabel(unread)}
+	<Sidebar.MenuBadge class="gap-1 px-0">
+		<PinIcon
+			role="img"
+			aria-hidden="false"
+			aria-label={text.pinnedConversation}
+			class={cn('size-3.5 text-muted-foreground transition-transform', !label && stepsAsideForMenuClass)}
+		/>
+		{#if label}
+			<Badge variant="secondary" class={givesWayToMenuClass}>
+				<span class="sr-only">{text.unreadMessages}</span>
+				{label}
+			</Badge>
+		{/if}
+	</Sidebar.MenuBadge>
 {/snippet}
 
 <Sidebar.Provider class={cn('messenger-channel-list h-full min-h-0 w-auto', className)} style="--sidebar-width: {sidebarWidth};">
@@ -229,6 +252,7 @@
 				>
 					{#if isLoading}<li><MessengerListSkeleton label={text.loadingConversations} compact /></li>{/if}
 					{#each directMessageOrder.shown as conversation (conversation.id)}
+						{@const hasPin = channelOrder.isPinned(conversation.id)}
 						<ConversationMenu
 							itemProps={reorderRowProps(conversation.id)}
 							isMuted={muted.has(conversation.id)}
@@ -236,6 +260,10 @@
 							unmuteLabel={text.unmuteConversation}
 							menuLabel={text.conversationMenu}
 							onSwitchMuted={() => switchMuted(conversation.id)}
+							isPinned={hasPin}
+							pinLabel={text.pinChannel}
+							unpinLabel={text.unpinChannel}
+							onSwitchPinned={conversation.isWithTheAgent ? undefined : () => switchPinnedDirectMessage(conversation)}
 							exportLabel={exportText.exportConversation}
 							onExport={() => exportConversation(conversation)}
 							hideLabel={text.hideConversation}
@@ -255,9 +283,13 @@
 									class="size-4"
 								/>
 
-								<span class={conversationNameClass(conversation.unread, muted.has(conversation.id), shownActiveID === conversation.id)}>{conversation.name}</span>
+								<span class={cn(conversationNameClass(conversation.unread, muted.has(conversation.id), shownActiveID === conversation.id), hasPin && 'pr-6')}>{conversation.name}</span>
 							</Sidebar.MenuButton>
-							{@render unreadBadge(conversation.unread, true)}
+							{#if hasPin}
+								{@render pinnedDirectMessageBadge(conversation.unread)}
+							{:else}
+								{@render unreadBadge(conversation.unread, true)}
+							{/if}
 						</ConversationMenu>
 					{/each}
 				</Sidebar.Menu>

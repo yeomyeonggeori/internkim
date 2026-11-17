@@ -28,11 +28,13 @@ export function pinnedChannelsOf(channels: ChannelSummary[], pinnedChannelIDs: s
 	return pinnedChannelIDs.flatMap((channelID) => channelOf.get(channelID) ?? []);
 }
 
-export function orderDirectMessages(directMessages: ChannelSummary[]): ChannelSummary[] {
+export function orderDirectMessages(directMessages: ChannelSummary[], pinnedIDs: string[]): ChannelSummary[] {
+	const withPeople = directMessages.filter((conversation) => conversation.isWithTheAgent !== true);
 	return [
 		...directMessages.filter((conversation) => conversation.isWithTheAgent === true),
-		...directMessages
-			.filter((conversation) => conversation.isWithTheAgent !== true)
+		...pinnedChannelsOf(withPeople, pinnedIDs),
+		...withPeople
+			.filter((conversation) => !pinnedIDs.includes(conversation.id))
 			.toSorted((first, second) => lastMessageTimeOf(second) - lastMessageTimeOf(first))
 	];
 }

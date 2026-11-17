@@ -54,7 +54,7 @@ describe('orderDirectMessages', () => {
 
 	test('the conversation with the agent always leads, even when another spoke more recently', () => {
 		const agent = { id: 'agent', name: '김인턴', kind: 'dm' as const, isWithTheAgent: true, lastMessageAt: '2026-11-01T00:00:00.000Z' };
-		const ordered = orderDirectMessages([person('a', '2026-11-16T09:00:00.000Z'), agent]);
+		const ordered = orderDirectMessages([person('a', '2026-11-16T09:00:00.000Z'), agent], []);
 		expect(ordered.map((conversation) => conversation.id)).toEqual(['agent', 'a']);
 	});
 
@@ -63,7 +63,16 @@ describe('orderDirectMessages', () => {
 			person('quiet'),
 			person('older', '2026-11-15T09:00:00.000Z'),
 			person('newest', '2026-11-16T09:00:00.000Z')
-		]);
+		], []);
 		expect(ordered.map((conversation) => conversation.id)).toEqual(['newest', 'older', 'quiet']);
+	});
+
+	test('pinned conversations sit under the agent in the order they were pinned, ahead of a newer message', () => {
+		const agent = { id: 'agent', name: '김인턴', kind: 'dm' as const, isWithTheAgent: true };
+		const ordered = orderDirectMessages(
+			[person('newest', '2026-11-16T09:00:00.000Z'), person('quiet'), agent, person('older', '2026-11-15T09:00:00.000Z')],
+			['channel-pinned', 'quiet', 'older']
+		);
+		expect(ordered.map((conversation) => conversation.id)).toEqual(['agent', 'quiet', 'older', 'newest']);
 	});
 });

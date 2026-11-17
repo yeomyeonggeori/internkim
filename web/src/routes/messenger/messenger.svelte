@@ -388,7 +388,8 @@
 			spokenDirectMessages(
 				shownConversations(conversations).filter((conversation) => conversation.kind === 'dm'),
 				activeID
-			)
+			),
+			channelOrder.pinnedChannels
 		)
 	);
 
