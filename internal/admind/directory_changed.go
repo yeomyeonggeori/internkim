@@ -18,12 +18,22 @@ var (
 
 func (service *Service) handleDirectoryChanged(responseWriter http.ResponseWriter, request *http.Request) {
 	log.Printf("the company says its directory changed, so this device applies it again")
-	if errorValue := service.applyDirectory(request.Context()); errorValue != nil {
-		log.Printf("the directory is not fully applied: %v", errorValue)
-		http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
-		return
-	}
+	service.askForTheDirectory()
 	responseWriter.WriteHeader(http.StatusAccepted)
+}
+
+func (service *Service) directoryAskedChannel() chan struct{} {
+	service.directoryAskedOnce.Do(func() {
+		service.directoryAsked = make(chan struct{}, 1)
+	})
+	return service.directoryAsked
+}
+
+func (service *Service) askForTheDirectory() {
+	select {
+	case service.directoryAskedChannel() <- struct{}{}:
+	default:
+	}
 }
 
 func (service *Service) startDirectoryApplying(ctx context.Context) {
@@ -31,6 +41,7 @@ func (service *Service) startDirectoryApplying(ctx context.Context) {
 }
 
 func (service *Service) keepTheDirectoryApplied(ctx context.Context) {
+	asked := service.directoryAskedChannel()
 	retryWait := firstDirectoryRetryWait
 	for {
 		wait := directoryApplyInterval
@@ -43,6 +54,7 @@ func (service *Service) keepTheDirectoryApplied(ctx context.Context) {
 		select {
 		case <-ctx.Done():
 			return
+		case <-asked:
 		case <-time.After(wait):
 		}
 	}
