@@ -1,3 +1,5 @@
+#[cfg(target_os = "macos")]
+mod macos_window_lifecycle;
 #[cfg(desktop)]
 mod window_background;
 
@@ -18,6 +20,9 @@ pub fn run() {
         .plugin(tauri_plugin_desktop_control::init())
         .setup(window_background::paint_every_window)
         .on_window_event(window_background::repaint_on_appearance_change);
+    #[cfg(target_os = "macos")]
+    let builder =
+        builder.on_window_event(macos_window_lifecycle::hide_main_window_instead_of_closing);
     #[cfg(any(target_os = "android", target_os = "ios", target_os = "macos"))]
     let builder = builder
         .plugin(tauri_plugin_notifications::init())
@@ -28,7 +33,13 @@ pub fn run() {
         .plugin(tauri_plugin_attendance_activity::init())
         .plugin(tauri_plugin_back_gesture::init())
         .plugin(tauri_plugin_print_sheet::init());
-    builder
-        .run(tauri::generate_context!())
+    let app = builder
+        .build(tauri::generate_context!())
         .expect("the internkim app could not start");
+    app.run(|app_handle, event| {
+        #[cfg(target_os = "macos")]
+        macos_window_lifecycle::show_main_window_on_reopen(app_handle, event);
+        #[cfg(not(target_os = "macos"))]
+        let _ = (app_handle, event);
+    });
 }

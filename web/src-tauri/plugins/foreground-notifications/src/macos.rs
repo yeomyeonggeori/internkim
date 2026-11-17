@@ -11,7 +11,7 @@ use objc2_user_notifications::{
     UNNotification, UNNotificationPresentationOptions, UNNotificationResponse,
     UNPushNotificationTrigger, UNUserNotificationCenter, UNUserNotificationCenterDelegate,
 };
-use tauri::{Manager, Runtime, State};
+use tauri::{AppHandle, Manager, Runtime, State};
 
 type WrappedDelegate = Retained<ProtocolObject<dyn UNUserNotificationCenterDelegate>>;
 
@@ -34,6 +34,7 @@ impl HeldBackTag {
 struct Presenter {
     wrapped: Option<WrappedDelegate>,
     held_back: HeldBackTag,
+    bring_windows_forward: Box<dyn Fn()>,
 }
 
 define_class!(
@@ -76,6 +77,7 @@ define_class!(
             response: &UNNotificationResponse,
             completion_handler: &DynBlock<dyn Fn()>,
         ) {
+            (self.ivars().bring_windows_forward)();
             let selector =
                 sel!(userNotificationCenter:didReceiveNotificationResponse:withCompletionHandler:);
             match self
@@ -151,13 +153,25 @@ fn withdraw_once_delivered(identifier: String) {
     });
 }
 
-pub fn present_pushes_while_the_app_is_open<R: Runtime>(app: &tauri::AppHandle<R>) {
+fn bring_every_window_forward<R: Runtime>(app: &AppHandle<R>) {
+    for window in app.webview_windows().into_values() {
+        if let Err(error) = window.show().and_then(|()| window.set_focus()) {
+            eprintln!("a window could not be brought forward for an opened notification: {error}");
+        }
+    }
+}
+
+pub fn present_pushes_while_the_app_is_open<R: Runtime>(app: &AppHandle<R>) {
     let held_back = HeldBackTag::default();
     app.manage(held_back.clone());
     let center = UNUserNotificationCenter::currentNotificationCenter();
     let presenter = Presenter {
         wrapped: center.delegate(),
         held_back,
+        bring_windows_forward: Box::new({
+            let app = app.clone();
+            move || bring_every_window_forward(&app)
+        }),
     };
     let delegate = ForegroundDelegate::alloc().set_ivars(presenter);
     let delegate: Retained<ForegroundDelegate> = unsafe { msg_send![super(delegate), init] };
