@@ -1,0 +1,3 @@
+[default]
+description = "Lets the web app hand a page to the system print sheet, where it can be printed or saved as a PDF"
+permissions = ["allow-present"]

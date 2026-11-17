@@ -1,6 +1,6 @@
 import { readFile } from 'node:fs/promises';
 import { expect, test, type Page } from '@playwright/test';
-import { insideTheIPhoneApp } from '../support/iphone-app';
+import { insideTheIPhoneApp, invocationsOf } from '../support/iphone-app';
 import { mockDeviceMessenger } from './messenger-device-mock';
 
 const reader = { id: 'person-reader', email: 'reader@example.com' };
@@ -139,4 +139,23 @@ test('inside the iPhone app an export goes to the share sheet instead of opening
 	expect(sharedText).toContain('기록 1번');
 	expect(downloads).toBe(0);
 	await expect(page).toHaveURL(/\/messenger\?channel=channel-plan/);
+});
+
+test('inside the iPhone app a PDF export opens the system print sheet', async ({ page }) => {
+	await insideTheIPhoneApp(page);
+	await mockDeviceMessenger(page, reader, conversations, []);
+	await serveHistoryInPages(page);
+	await page.goto('/messenger?channel=channel-plan');
+
+	await page.getByRole('button', { name: '채널 정보' }).click();
+	await page.getByRole('dialog', { name: '채널 정보' }).getByRole('button', { name: '대화 내보내기' }).click();
+	const dialog = page.getByRole('dialog', { name: '기획팀 대화 내보내기' });
+	await dialog.getByRole('radio', { name: /PDF/ }).click();
+	await dialog.getByRole('button', { name: '내보내기', exact: true }).click();
+
+	await expect.poll(() => invocationsOf(page, 'plugin:print-sheet|present')).toHaveLength(1);
+	const [printed] = (await invocationsOf(page, 'plugin:print-sheet|present')) as { title: string; html: string }[];
+	expect(printed.title).toBe('기획팀');
+	for (const message of history) expect(printed.html).toContain(message.text.replaceAll('"', '&quot;'));
+	await expect(page.locator('iframe[aria-hidden="true"]')).toHaveCount(0);
 });

@@ -81,7 +81,7 @@
 		if (loading.state !== 'ready') return;
 		const whole = documentOf(loading.messages);
 		if (format === 'pdf') {
-			printDocument(conversationAsPrintableHTML(whole));
+			printDocument(whole.title, conversationAsPrintableHTML(whole));
 		} else if (format === 'csv') {
 			saveFile(exportFilename(whole.title, whole.savedAt, 'csv'), conversationAsCSV(whole), 'text/csv;charset=utf-8');
 		} else {
