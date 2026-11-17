@@ -6,7 +6,7 @@
 	import ImageIcon from '@lucide/svelte/icons/image';
 	import type { Snippet } from 'svelte';
 	import { toast } from 'svelte-sonner';
-	import { startDownload } from './attachment-download';
+	import { startDownload } from '$lib/files/download';
 	import { copyPicture } from './message-copy';
 
 	let { source, filename, children }: { source: string; filename: string; children: Snippet } = $props();

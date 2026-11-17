@@ -11,6 +11,7 @@
 		workspaceFileForReading,
 		type WorkspaceEntry
 	} from './files-api';
+	import { downloadFile } from '$lib/files/download';
 	import { fileVisual, formatFileSize, formatModified } from '$lib/files/view';
 	import { filesText } from './text';
 
@@ -44,10 +45,7 @@
 			const address = await workspaceFileForReading(entry, 'download', (copiedBytes, totalBytes) => {
 				preparedFraction = totalBytes > 0 ? copiedBytes / totalBytes : null;
 			});
-			const anchor = document.createElement('a');
-			anchor.href = address;
-			anchor.download = entry.name;
-			anchor.click();
+			await downloadFile(address, entry.name);
 		} catch (failure) {
 			downloadFailure = failure instanceof Error && failure.message ? failure.message : text.downloadFailed;
 		} finally {

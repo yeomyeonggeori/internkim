@@ -27,6 +27,7 @@
 	import { dataRoomRequest } from '$lib/data-room/guest';
 	import DocumentViewer from '$lib/data-room/document-viewer.svelte';
 	import { previewSourceOf, type ViewerDocument } from '$lib/data-room/viewer';
+	import { downloadFile } from '$lib/files/download';
 	import { formatFileSize, formatModified } from '$lib/files/view';
 	import ShareLinks from './share-links.svelte';
 	import SharePreview from './share-preview.svelte';
@@ -129,11 +130,7 @@
 	async function download(document: ViewerDocument) {
 		isDownloading = true;
 		try {
-			const link = window.document.createElement('a');
-			link.href = await signedURL(document.id);
-			link.download = document.fileName ?? document.title;
-			link.rel = 'noopener';
-			link.click();
+			await downloadFile(await signedURL(document.id), document.fileName ?? document.title);
 		} catch (error) {
 			toast.error(error instanceof Error ? error.message : text.loadFailed);
 		} finally {

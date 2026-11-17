@@ -12,7 +12,7 @@
 	import { channelText } from '$lib/i18n/channel-text';
 	import { createPageText } from '$lib/i18n/page-text.svelte';
 	import { attachmentSource } from '$lib/stores/attachment-source.svelte';
-	import { startDownload } from './attachment-download';
+	import { startDownload } from '$lib/files/download';
 	import type { ChannelMessageAttachment } from './channel-api';
 	import { formatAttachmentMeta, preparingLabel } from './channel-attachments';
 
