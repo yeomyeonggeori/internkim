@@ -19,7 +19,8 @@ not write.
 
 The Mac app's menu bar icon is the round mark as a template image: macOS
 paints its opaque pixels in the menu bar's own colour, so the blue becomes
-ink and the white becomes a hole.
+ink and the white becomes a hole. The face's white body fills the bottom
+of the circle, so the ink that remains is centred on its own bounds.
 
 web/static/favicon.svg is the round mark as a vector, and a browser that reads
 SVG icons uses it instead of these rasters. It is drawn by hand, so a new
@@ -78,12 +79,20 @@ def blueness(red: int) -> int:
     return round(max(0, min(255, (255 - red) * 255 / span)))
 
 
+def centre_ink_on_square(template: Image.Image) -> Image.Image:
+    ink = template.crop(template.getchannel("A").getbbox())
+    side = max(ink.size)
+    square = Image.new("RGBA", (side, side), (0, 0, 0, 0))
+    square.paste(ink, ((side - ink.width) // 2, (side - ink.height) // 2))
+    return square
+
+
 def write_menu_bar_icon(round_mark: Image.Image) -> None:
     red, _, _, alpha = round_mark.split()
     ink = Image.composite(red.point(blueness), Image.new("L", round_mark.size, 0), alpha)
     black = Image.new("L", round_mark.size, 0)
     template = Image.merge("RGBA", (black, black, black, ink))
-    save(template, MENU_BAR_ICON, MENU_BAR_ICON_SIDE, "RGBA")
+    save(centre_ink_on_square(template), MENU_BAR_ICON, MENU_BAR_ICON_SIDE, "RGBA")
 
 
 def main() -> None:
