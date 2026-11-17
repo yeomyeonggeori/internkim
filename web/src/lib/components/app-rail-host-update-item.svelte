@@ -2,6 +2,7 @@
 	import CircleArrowUpIcon from '@lucide/svelte/icons/circle-arrow-up';
 	import * as Sidebar from '$lib/components/ui/sidebar/index.js';
 	import { Spinner } from '$lib/components/ui/spinner';
+	import { appRailMode } from '$lib/components/app-rail-mode.svelte';
 	import { hostUpdate } from '$lib/host/host-update.svelte';
 
 	let { label, updatingLabel }: { label: string; updatingLabel: string } = $props();
@@ -15,7 +16,7 @@
 {#if release || watch}
 	<Sidebar.MenuItem>
 		<Sidebar.MenuButton
-			tooltipContent={`${shownLabel} ${version}`}
+			tooltipContent={appRailMode.mode === 'collapsed' ? `${shownLabel} ${version}` : undefined}
 			aria-label={`${shownLabel} ${version}`}
 			aria-disabled={watch !== null}
 			onclick={() => release && !watch && hostUpdate.confirm(release, false)}

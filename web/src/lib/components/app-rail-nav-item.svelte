@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { Badge } from '$lib/components/ui/badge/index.js';
 	import * as Sidebar from '$lib/components/ui/sidebar/index.js';
+	import { appRailMode } from '$lib/components/app-rail-mode.svelte';
 	import type { AppRailItem } from '$lib/components/app-rail-types';
 
 	let {
@@ -18,7 +19,7 @@
 </script>
 
 <Sidebar.MenuItem>
-	<Sidebar.MenuButton isActive={!isExternal && isActive} tooltipContent={item.label}>
+	<Sidebar.MenuButton isActive={!isExternal && isActive} tooltipContent={appRailMode.mode === 'collapsed' ? item.label : undefined}>
 		{#snippet child({ props })}
 			{#if isExternal}
 				<a href={item.href} aria-label={item.label} target="_blank" rel="noopener noreferrer" {...props}>
