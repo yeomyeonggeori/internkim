@@ -51,3 +51,31 @@ func TestATakeOverThatStoppedAfterSettingTheDatabaseAsideCanBeTriedAgain(t *test
 		t.Fatalf("the only copy of this box's own database is gone: %v", errorValue)
 	}
 }
+
+func TestABoxThatNeverRanItsDatabaseHasNothingToSetAside(t *testing.T) {
+	dataPath := filepath.Join(t.TempDir(), "postgres")
+
+	replacedPath, errorValue := setThisBoxDatabaseAside(dataPath, time.Date(2026, 11, 17, 9, 0, 0, 0, time.UTC))
+
+	if errorValue != nil {
+		t.Fatalf("a box that never ran its database could not take the company over: %v", errorValue)
+	}
+	if replacedPath != "" {
+		t.Fatalf("a box that never ran its database is said to have set one aside at %s", replacedPath)
+	}
+}
+
+func TestFallingBackToTheDumpsLeavesNoHalfMadeDatabaseOnABoxThatNeverRanOne(t *testing.T) {
+	dataPath := filepath.Join(t.TempDir(), "postgres")
+	if errorValue := os.MkdirAll(dataPath, 0o700); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+
+	if errorValue := putTheReplacedDataBack(dataPath, ""); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+
+	if _, errorValue := os.Stat(dataPath); !os.IsNotExist(errorValue) {
+		t.Fatalf("the rebuild's empty directory is still at %s", dataPath)
+	}
+}
