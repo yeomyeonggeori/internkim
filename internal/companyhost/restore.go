@@ -92,13 +92,8 @@ func restoreWhileLocked(platform backupPlatform, request RestoreRequest, backupD
 	if errorValue := restoreTheDatabases(platform, archive, machine, directoryPath, connection, request, progress); errorValue != nil {
 		return RestoreResult{}, errorValue
 	}
-	if request.BeforeStarting != nil {
-		if errorValue := request.BeforeStarting(connection.Company.ID); errorValue != nil {
-			return RestoreResult{}, errorValue
-		}
-	}
 	fmt.Fprintln(progress, "6/6 Starting the services and waiting for them to answer…")
-	return result, startTheRestoredHost(platform, machine, directoryPath, connection, progress)
+	return result, startTheRestoredHost(platform, machine, directoryPath, connection, request.BeforeStarting, progress)
 }
 
 func checkTheArchive(platform backupPlatform, request RestoreRequest, machine Machine) (hostbackup.Archive, error) {
@@ -417,10 +412,15 @@ func restoreOneDatabase(platform backupPlatform, archive hostbackup.Archive, mac
 	return nil
 }
 
-func startTheRestoredHost(platform backupPlatform, machine Machine, directoryPath string, connection Connection, progress io.Writer) error {
+func startTheRestoredHost(platform backupPlatform, machine Machine, directoryPath string, connection Connection, beforeStarting func(companyID string) error, progress io.Writer) error {
 	request := Request{Connection: connection, StateDirectoryPath: directoryPath, PromptForModelKey: noModelKeyPrompt}
 	if _, errorValue := prepareCompanyDirectory(platform, machine, directoryPath, connection, request); errorValue != nil {
 		return errorValue
+	}
+	if beforeStarting != nil {
+		if errorValue := beforeStarting(connection.Company.ID); errorValue != nil {
+			return errorValue
+		}
 	}
 	if errorValue := platform.StartTheBox(machine, progress); errorValue != nil {
 		return errorValue
