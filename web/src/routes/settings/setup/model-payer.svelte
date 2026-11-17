@@ -2,11 +2,9 @@
 	import { Button } from '$lib/components/ui/button';
 	import { confirmDelete } from '$lib/components/ui/confirm-delete-dialog';
 	import * as Field from '$lib/components/ui/field';
-	import { Switch } from '$lib/components/ui/switch';
-	import { saveCompanySettings } from '$lib/company/company-settings';
 	import type { CompanyBoxes } from '$lib/company/box';
 	import { createPageText } from '$lib/i18n/page-text.svelte';
-	import { fetchBoxes, forgetModelKey } from './host-setup-client';
+	import { forgetModelKey } from './host-setup-client';
 	import { hostSetupText } from './text';
 
 	let {
@@ -16,27 +14,11 @@
 	}: { boxes: CompanyBoxes; onChanged: (boxes: CompanyBoxes) => void; onChangeModelKey: (() => void) | null } = $props();
 
 	const text = createPageText(hostSetupText);
-	let usesOwnModelKey = $derived(boxes.usesOwnModelKey);
-	let isSaving = $state(false);
 	let errorMessage = $state('');
 
 	const payingNow = $derived(
 		{ company_key: text.paidByCompanyKey, subscription: text.paidBySubscription, nothing: text.paidByNothing, unknown: text.paidByUnknown }[boxes.paidBy]
 	);
-
-	async function chooseWhoPays(chosen: boolean) {
-		isSaving = true;
-		errorMessage = '';
-		try {
-			await saveCompanySettings({ usesOwnModelKey: chosen });
-			onChanged(await fetchBoxes());
-		} catch (error) {
-			usesOwnModelKey = boxes.usesOwnModelKey;
-			errorMessage = error instanceof Error ? error.message : text.usesOwnModelKeyFailed;
-		} finally {
-			isSaving = false;
-		}
-	}
 
 	async function removeKey() {
 		errorMessage = '';
@@ -61,13 +43,7 @@
 <Field.Set>
 	<Field.Legend>{text.modelPayer}</Field.Legend>
 	<p role="status" class="text-sm">{payingNow}</p>
-	<Field.Field orientation="horizontal">
-		<Field.Content>
-			<Field.Label for="uses-own-model-key">{text.usesOwnModelKey}</Field.Label>
-			<Field.Description>{text.usesOwnModelKeyDescription}</Field.Description>
-		</Field.Content>
-		<Switch id="uses-own-model-key" bind:checked={usesOwnModelKey} onCheckedChange={chooseWhoPays} disabled={isSaving} />
-	</Field.Field>
+	<Field.Description>{text.payerRule}</Field.Description>
 	{#if boxes.isPayerChangeWaiting}<p class="text-sm text-muted-foreground">{text.payerChangeWaiting}</p>{/if}
 	{#if onChangeModelKey || boxes.hasModelKey}
 		<div class="flex flex-wrap gap-2">

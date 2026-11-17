@@ -9,17 +9,7 @@ test.use({ locale: 'ko-KR' });
 const setupPath = `/${exampleCompanySlug}/settings/setup`;
 const computerKeyHash = `model-payer-ui-${exampleCompanyID}`;
 const ownKeySwitch = '우리 OpenRouter 키 사용';
-
-async function usesOwnModelKey(): Promise<boolean> {
-	const { data, error } = await centralPlaneAdminClient().from('company').select('uses_own_model_key').eq('id', exampleCompanyID).single();
-	if (error) throw new Error(error.message);
-	return data.uses_own_model_key;
-}
-
-async function companyUsesOwnKey(isUsed: boolean): Promise<void> {
-	const { error } = await centralPlaneAdminClient().from('company').update({ uses_own_model_key: isUsed }).eq('id', exampleCompanyID);
-	if (error) throw new Error(error.message);
-}
+const payerRule = '구독 중에는 크레딧이 내고, 구독이 없으면 회사 컴퓨터가 가진 키가 냅니다.';
 
 async function computerStarted(report: { holdsModelKey: boolean; usesOwnModelKey: boolean } | null): Promise<void> {
 	const { error } = await centralPlaneAdminClient()
@@ -42,30 +32,20 @@ test.beforeAll(async () => {
 
 test.afterAll(async () => {
 	await centralPlaneAdminClient().from('agent').delete().eq('api_key_hash', computerKeyHash);
-	await companyUsesOwnKey(true);
 	await unsubscribeTheCompany();
 });
 
-test('an administrator turns the company key off and on before the computer has said what it runs', async ({ page }) => {
-	await companyUsesOwnKey(true);
+test('the screen says the rule and offers no switch before the computer has said what it runs', async ({ page }) => {
+	await unsubscribeTheCompany();
 	await computerStarted(null);
 	await signInToTheCentralPlane(page, setupPath, member1Email);
-	const ownKey = page.getByRole('switch', { name: ownKeySwitch });
-	await expect(ownKey).toBeChecked({ timeout: 20000 });
-	await expect(page.getByRole('status').filter({ hasText: '아직 알리지 않았습니다.' })).toBeVisible();
-
-	await ownKey.click();
-	await expect(ownKey).not.toBeChecked();
-	await expect.poll(usesOwnModelKey).toBe(false);
-
-	await page.reload();
-	await expect(page.getByRole('switch', { name: ownKeySwitch })).not.toBeChecked({ timeout: 20000 });
-	await page.getByRole('switch', { name: ownKeySwitch }).click();
-	await expect.poll(usesOwnModelKey).toBe(true);
+	await expect(page.getByRole('status').filter({ hasText: '아직 알리지 않았습니다.' })).toBeVisible({ timeout: 20000 });
+	await expect(page.getByText(payerRule)).toBeVisible();
+	await expect(page.getByRole('switch', { name: ownKeySwitch })).toHaveCount(0);
 });
 
-test('a key typed into the computer is said to pay, to live there, and a change to wait for its next start', async ({ page }) => {
-	await companyUsesOwnKey(true);
+test('a key typed into the computer is said to pay and to live there, and subscribing waits for its next start', async ({ page }) => {
+	await unsubscribeTheCompany();
 	await computerStarted({ holdsModelKey: true, usesOwnModelKey: true });
 	await signInToTheCentralPlane(page, setupPath, member1Email);
 	await expect(page.getByRole('status').filter({ hasText: '지금은 회사 OpenRouter 키가 AI 사용료를 냅니다.' })).toBeVisible({ timeout: 20000 });
@@ -73,13 +53,14 @@ test('a key typed into the computer is said to pay, to live there, and a change 
 	await expect(page.getByRole('button', { name: '키 지우기' })).toHaveCount(0);
 	await expect(page.getByText('다음에 시작할 때 적용됩니다', { exact: false })).toHaveCount(0);
 
-	await page.getByRole('switch', { name: ownKeySwitch }).click();
-	await expect(page.getByText('다음에 시작할 때 적용됩니다', { exact: false })).toBeVisible();
+	await subscribeTheCompany();
+	await page.reload();
+	await expect(page.getByText('다음에 시작할 때 적용됩니다', { exact: false })).toBeVisible({ timeout: 20000 });
 	await expect(page.getByRole('status').filter({ hasText: '지금은 회사 OpenRouter 키가 AI 사용료를 냅니다.' })).toBeVisible();
 });
 
 test('credits are said to pay while the company subscribes and its computer holds no key', async ({ page }) => {
-	await companyUsesOwnKey(true);
+	await unsubscribeTheCompany();
 	await computerStarted({ holdsModelKey: false, usesOwnModelKey: true });
 	await subscribeTheCompany();
 	await signInToTheCentralPlane(page, setupPath, member1Email);

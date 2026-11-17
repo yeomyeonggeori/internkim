@@ -562,19 +562,11 @@ export async function keepSealedModelKey(
 		.eq('company_id', companyID)
 		.eq('sealing_key', keyring.sealingKey);
 	if (error) throw new Error(`model key of ${companyID}: ${error.message}`);
-	await startUsingOwnModelKey(client, companyID);
 }
 
 export async function forgetSealedModelKey(client: SupabaseClient, companyID: string): Promise<void> {
 	const { error } = await client.from('box_keyring').update({ sealed_model_key: null }).eq('company_id', companyID);
 	if (error) throw new Error(`forgetting the model key of ${companyID}: ${error.message}`);
-	const stopped = await client.from('company').update({ uses_own_model_key: false }).eq('id', companyID);
-	if (stopped.error) throw new Error(`turning off ${companyID}'s own model key: ${stopped.error.message}`);
-}
-
-async function startUsingOwnModelKey(client: SupabaseClient, companyID: string): Promise<void> {
-	const { error } = await client.from('company').update({ uses_own_model_key: true }).eq('id', companyID);
-	if (error) throw new Error(`turning on ${companyID}'s own model key: ${error.message}`);
 }
 
 export async function keepSealedCompanyKeys(
