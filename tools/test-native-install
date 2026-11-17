@@ -94,6 +94,8 @@ DEFAULT_PACKAGE_DIRECTORY = Path(".artifacts/native-package")
 BOX_UNIT_NAME = "internkim-box.service"
 ADMIND_UNIT_NAME = "internkim-admind.service"
 AGENT_UNIT_NAME = "blueclaw.service"
+TAKE_OVER_UNIT_NAME = "internkim-take-over.service"
+TAKE_OVER_STATE_COMMAND = "systemctl show -p ActiveState -p Result %s"
 
 # The relay used to give a message eight tries, 250 ms apart and doubling, and
 # drop it after the eighth: 32 seconds. A message held past that is one the old
@@ -1851,7 +1853,12 @@ class Rig:
                 lambda reported: "connected=0" not in reported,
                 timeout_seconds=1800,
             )
-        seconds = round(time.monotonic() - started)
+            seconds = round(time.monotonic() - started)
+            finished = self.machine.wait_until(
+                TAKE_OVER_STATE_COMMAND % TAKE_OVER_UNIT_NAME,
+                lambda reported: not {"ActiveState=active", "ActiveState=activating"} & set(reported.split()),
+                timeout_seconds=600,
+            )
         step.observe(
             "with the first box dark, the administrator makes the second serve and it brings the company up",
             "the setup page's answer to making the standby serve, then the second guest's relay reporting the "
@@ -1860,6 +1867,15 @@ class Rig:
         ).record(
             status == 200 and "connected=0" not in connected.stdout,
             f"make serve answered {status}: {str(answer)[:300]}\nthe relay connected {seconds}s later\n{connected.stdout.strip()}",
+        )
+        step.observe(
+            "the take-over runs to its end before the second box's services are judged",
+            f"ActiveState and Result of {TAKE_OVER_UNIT_NAME} on the second guest, read until it is no longer running",
+            "the relay connects while the take-over is still starting the other services, so its socket alone "
+            "does not say they were started",
+        ).record(
+            {"ActiveState=inactive", "Result=success"} <= set(finished.stdout.split()),
+            finished.stdout.strip(),
         )
 
     def observe_the_message_came_across(self, step, newest=False):
