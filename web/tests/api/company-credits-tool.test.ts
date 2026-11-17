@@ -123,8 +123,8 @@ describe('who pays for the models', () => {
 	const agentKeyHash = `who-pays-${slug}`;
 	const computer = { boxKey: null, agentKeyHash };
 
-	async function usingOwnKey(usesOwnModelKey: boolean) {
-		const { error } = await client.from('company').update({ uses_own_model_key: usesOwnModelKey }).eq('id', companyID);
+	async function subscriptionIs(status: 'active' | null) {
+		const { error } = await client.from('company').update({ subscription_status: status }).eq('id', companyID);
 		if (error) throw new Error(error.message);
 	}
 
@@ -136,12 +136,12 @@ describe('who pays for the models', () => {
 		await client.from('agent').delete().eq('company_id', companyID);
 		const { error } = await client.from('agent').insert({ company_id: companyID, name: 'company-computer', api_key_hash: agentKeyHash });
 		if (error) throw new Error(error.message);
-		await usingOwnKey(true);
+		await subscriptionIs(null);
 	}, networkHookTimeout);
 
 	afterAll(async () => {
 		await client.from('agent').delete().eq('company_id', companyID);
-		await usingOwnKey(true);
+		await subscriptionIs('active');
 	}, networkHookTimeout);
 
 	test('until the computer has said what it started with, the page says unknown and the tool says credits', async () => {
@@ -155,9 +155,9 @@ describe('who pays for the models', () => {
 		expect(resultOf(await asSample('company_credits_get')).paidBy).toBe('company_key');
 	});
 
-	test('a setting changed after the computer started waits for its next start', async () => {
+	test('a subscription started after the computer started waits for its next start', async () => {
 		await computerStarts(true);
-		expect((await asAdmin('company_settings_update', { usesOwnModelKey: false })).status).toBe(200);
+		await subscriptionIs('active');
 		expect(await companyBoxesOf(client, companyID)).toMatchObject({ usesOwnModelKey: false, paidBy: 'company_key', isPayerChangeWaiting: true });
 
 		expect(await computerStarts(true)).toEqual({ usesOwnModelKey: false });
@@ -165,7 +165,7 @@ describe('who pays for the models', () => {
 		expect(resultOf(await asSample('company_credits_get')).paidBy).toBe('subscription');
 	});
 
-	test('a computer without a key pays with credits whatever the setting says', async () => {
+	test('a computer without a key pays with credits whatever the subscription says', async () => {
 		await computerStarts(false);
 		expect(await companyBoxesOf(client, companyID)).toMatchObject({ paidBy: 'subscription', isPayerChangeWaiting: false, isModelKeyOnlyOnTheComputer: false });
 	});
@@ -175,10 +175,12 @@ describe('who pays for the models', () => {
 		expect(refused instanceof Response ? refused.status : refused).toBe(400);
 	});
 
-	test('a member who does not administer cannot choose who pays', async () => {
-		await usingOwnKey(false);
-		const refused = await asSample('company_settings_update', { usesOwnModelKey: true });
-		expect(refused.status).toBeGreaterThanOrEqual(400);
+	test('a computer on an older release that still names the retired setting changes nothing about who pays', async () => {
+		await subscriptionIs('active');
+		const alone = await asAdmin('company_settings_update', { usesOwnModelKey: true });
+		expect(alone.status).toBe(400);
+		const alongside = await asAdmin('company_settings_update', { usesOwnModelKey: true, teamViewVisibleToAll: true });
+		expect(alongside.status).toBe(200);
 		expect(await usesOwnModelKeyOf(client, companyID)).toBe(false);
 	});
 });
