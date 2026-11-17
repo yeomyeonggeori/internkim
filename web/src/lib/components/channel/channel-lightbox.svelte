@@ -27,6 +27,7 @@
 	import ChannelVideoPlayer from './channel-video-player.svelte';
 	import { dragsToDismiss, LightboxDragDismiss } from './lightbox-drag-dismiss.svelte';
 	import LightboxPictureMenu from './lightbox-picture-menu.svelte';
+	import { pinchesToZoom } from './lightbox-pinch-zoom';
 	import { forgetOpenedPicture, isPictureOpenInHistory, rememberOpenedPicture } from './picture-history';
 
 	let { view = $bindable() }: { view: LightboxView | null } = $props();
@@ -39,6 +40,7 @@
 	let touchStartX = 0;
 	let touchStartY = 0;
 	let touchMoved = false;
+	let touchHadSeveralFingers = false;
 	let zoomPercent = $state(smallestZoomPercent);
 	const drag = new LightboxDragDismiss({
 		onDismiss: () => (view = null),
@@ -76,8 +78,12 @@
 		view = { items: view.items, index: (view.index + delta + count) % count };
 	}
 
+	function zoomTo(percent: number) {
+		zoomPercent = Math.min(largestZoomPercent, Math.max(smallestZoomPercent, percent));
+	}
+
 	function zoomBy(deltaPercent: number) {
-		zoomPercent = Math.min(largestZoomPercent, Math.max(smallestZoomPercent, zoomPercent + deltaPercent));
+		zoomTo(zoomPercent + deltaPercent);
 	}
 
 	function handleKeydown(event: KeyboardEvent) {
@@ -89,12 +95,18 @@
 	}
 
 	function handleTouchStart(event: TouchEvent) {
+		if (event.touches.length > 1) {
+			touchHadSeveralFingers = true;
+			return;
+		}
+		touchHadSeveralFingers = false;
 		touchStartX = event.changedTouches[0]?.clientX ?? 0;
 		touchStartY = event.changedTouches[0]?.clientY ?? 0;
 		touchMoved = false;
 	}
 
 	function handleTouchEnd(event: TouchEvent) {
+		if (touchHadSeveralFingers) return;
 		const deltaX = (event.changedTouches[0]?.clientX ?? 0) - touchStartX;
 		const deltaY = (event.changedTouches[0]?.clientY ?? 0) - touchStartY;
 		if (Math.abs(deltaX) < 40 || Math.abs(deltaX) < Math.abs(deltaY)) return;
@@ -129,6 +141,7 @@
 		ontouchstart={handleTouchStart}
 		ontouchend={handleTouchEnd}
 		use:dragsToDismiss={drag}
+		use:pinchesToZoom={{ isEnabled: () => currentItem.kind === 'image', zoomPercent: () => zoomPercent, zoomTo }}
 	>
 		<button
 			type="button"
@@ -211,7 +224,7 @@
 					>
 						<ZoomInIcon class="size-5" />
 					</button>
-					<span class="w-12 text-sm tabular-nums text-white/90">{zoomPercent}%</span>
+					<span class="w-12 text-sm tabular-nums text-white/90">{Math.round(zoomPercent)}%</span>
 				</div>
 			{/if}
 			<button
