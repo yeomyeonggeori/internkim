@@ -27,6 +27,7 @@ tauri-plugin-keyboard = { path = "plugins/keyboard" }
 tauri-plugin-silent-push = { path = "plugins/silent-push" }
 tauri-plugin-attendance-activity = { path = "plugins/attendance-activity" }
 tauri-plugin-back-gesture = { path = "plugins/back-gesture" }
+tauri-plugin-print-sheet = { path = "plugins/print-sheet" }
 tauri-plugin-haptics = "2"
 
 [profile.release]

@@ -1,4 +1,12 @@
-export function printDocument(html: string): void {
+import { presentPrintSheet, printsThroughTheSystemSheet } from '$lib/native-shell/print-sheet';
+
+export function printDocument(title: string, html: string): void {
+	if (printsThroughTheSystemSheet()) {
+		presentPrintSheet(title, html).catch((failure: unknown) =>
+			console.warn('the app did not open the print sheet', { title }, failure)
+		);
+		return;
+	}
 	const frame = document.createElement('iframe');
 	frame.setAttribute('aria-hidden', 'true');
 	frame.style.position = 'fixed';
