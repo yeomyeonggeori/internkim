@@ -10,6 +10,7 @@ import {
 import { memberOfCompanyByEmail, membersOfCompanyByExternalID } from './member-credential';
 import { connectedAppCredentialKind, personalAccessTokenCredentialKind } from './public-api/catalog/credential';
 import { recordTokenFor, verifiedRecordToken } from './record-token';
+import { timedPlaneFetch } from './timed-plane-fetch';
 import { defaultTokenLifetimeDays, expiryAfter } from '$lib/token-lifetime';
 import { z } from 'zod';
 
@@ -59,13 +60,14 @@ export type ProvisionedCompany = {
 export function controlPlane(credentials: ControlPlaneCredentials): SupabaseClient {
 	return createClient(credentials.projectURL, credentials.serviceRoleKey, {
 		auth: { autoRefreshToken: false, persistSession: false },
+		global: { fetch: timedPlaneFetch() },
 	});
 }
 
 export function asMember(credentials: MemberCredentials, accessToken: string): SupabaseClient {
 	return createClient(credentials.projectURL, credentials.publishableKey, {
 		auth: { autoRefreshToken: false, persistSession: false },
-		global: { headers: { Authorization: `Bearer ${accessToken}` } },
+		global: { headers: { Authorization: `Bearer ${accessToken}` }, fetch: timedPlaneFetch() },
 	});
 }
 
