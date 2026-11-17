@@ -35,7 +35,7 @@ function companyConversations(): Conversation[] {
 	];
 }
 
-async function signInToTheCompanyApp(page: Page, conversations: Conversation[], sockets: WebSocketRoute[], asked: string[] = []): Promise<void> {
+async function signInToTheCompanyApp(page: Page, conversations: Conversation[], sockets: WebSocketRoute[], asked: string[] = [], pinned: string[] = []): Promise<void> {
 	await page.addInitScript(({ memberID, email }) => {
 		const issuedAt = Math.floor(Date.now() / 1000);
 		const encode = (value: object) => btoa(JSON.stringify(value)).replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_');
@@ -54,6 +54,17 @@ async function signInToTheCompanyApp(page: Page, conversations: Conversation[], 
 	await page.route('**/auth/session**', (route) => route.fulfill({ json: { authenticated: true, email, isAdmin: true } }));
 	await page.route('**/admin/api/locale', (route) => route.fulfill({ json: { locale: 'ko' } }));
 	await page.route('**/agent/api/**', (route) => route.fulfill({ json: {} }));
+	await page.route('**/api/v1/tools/*/invoke', async (route) => {
+		const name = new URL(route.request().url()).pathname.split('/').at(-2) ?? '';
+		const asked: unknown = route.request().postDataJSON();
+		const input: unknown = typeof asked === 'object' && asked !== null ? Reflect.get(asked, 'input') : {};
+		const channelID: unknown = typeof input === 'object' && input !== null ? Reflect.get(input, 'channelID') : '';
+		if (name === 'channel_pin' && typeof channelID === 'string') pinned.push(channelID);
+		if (name === 'channel_unpin') pinned.splice(0, pinned.length, ...pinned.filter((pinnedID) => pinnedID !== channelID));
+		if (name.startsWith('channel_')) return route.fulfill({ json: { tool: name, result: { pinnedChannels: [...pinned], channelOrder: [] } } });
+		if (name === 'notification_settings_get') return route.fulfill({ json: { tool: name, result: { categories: [], mutedConversationIDs: [] } } });
+		await route.fulfill({ json: { tool: name, result: {} } });
+	});
 	await page.routeWebSocket('**/company/*/client', (socket) => {
 		sockets.push(socket);
 		socket.send(JSON.stringify({ kind: 'presence', isServerConnected: true }));
@@ -163,4 +174,54 @@ test('a direct conversation nobody has spoken in shows only while it is open, an
 		socket.send(JSON.stringify({ kind: 'deliver', event: { kind: 'message.arrived', conversationID: 'dm-quiet', messageID: 'arrived-quiet', authorExternalID: 'f'.repeat(64) } }));
 	}
 	await expect.poll(() => directMessageNames(page)).toEqual(['김인턴', '조용한 대화', '박예시', '최견본']);
+});
+
+test('a direct conversation pinned from its menu stays under the agent in pin order, past a newer message, until it is unpinned', async ({ page }) => {
+	const conversations = companyConversations();
+	const sockets: WebSocketRoute[] = [];
+	const pinned: string[] = [];
+	await signInToTheCompanyApp(page, conversations, sockets, [], pinned);
+	await page.setViewportSize({ width: 1280, height: 800 });
+	await page.goto('/messenger?channel=channel-notice');
+	await waitForHydration(page);
+	await expect.poll(() => directMessageNames(page)).toEqual(['김인턴', '박예시', '최견본']);
+	const row = (id: string) => page.locator(`[data-reorder-key="${id}"]`);
+	const pinnedMark = (id: string) => row(id).getByRole('img', { name: '고정됨' });
+
+	await row('dm-agent').click({ button: 'right' });
+	await expect(page.getByRole('menuitem', { name: '이 대화 알림 끄기' })).toBeVisible();
+	await expect(page.getByRole('menuitem', { name: '고정하기' })).toHaveCount(0);
+	await page.keyboard.press('Escape');
+
+	await row('dm-choi').click({ button: 'right' });
+	await page.getByRole('menuitem', { name: '고정하기' }).click();
+	await expect.poll(() => directMessageNames(page)).toEqual(['김인턴', '최견본', '박예시']);
+	await expect(pinnedMark('dm-choi')).toBeVisible();
+	await expect(pinnedMark('dm-park')).toHaveCount(0);
+	expect(pinned).toEqual(['dm-choi']);
+
+	await row('dm-park').click({ button: 'right' });
+	await page.getByRole('menuitem', { name: '고정하기' }).click();
+	await expect.poll(() => pinned).toEqual(['dm-choi', 'dm-park']);
+	await expect(page.getByRole('menu')).toHaveCount(0);
+	await page.mouse.move(800, 400);
+	await expect.poll(() => directMessageNames(page)).toEqual(['김인턴', '최견본', '박예시']);
+
+	conversations.push({ id: 'dm-newcomer', name: '새 대화', kind: 'dm', isPrivate: true, participantExternalIDs: [readerExternalID, 'e'.repeat(64)], lastMessageAt: '2026-11-17T09:00:00.000Z' });
+	for (const socket of sockets) {
+		socket.send(JSON.stringify({ kind: 'deliver', event: { kind: 'message.arrived', conversationID: 'dm-newcomer', messageID: 'arrived-newcomer', authorExternalID: 'e'.repeat(64) } }));
+	}
+	await expect.poll(() => directMessageNames(page)).toEqual(['김인턴', '최견본', '박예시', '새 대화']);
+
+	await row('dm-choi').click({ button: 'right' });
+	await page.getByRole('menuitem', { name: '고정 해제' }).click();
+	await page.mouse.move(800, 400);
+	await expect.poll(() => directMessageNames(page)).toEqual(['김인턴', '박예시', '새 대화', '최견본']);
+	await expect(pinnedMark('dm-choi')).toHaveCount(0);
+	expect(pinned).toEqual(['dm-park']);
+
+	await page.reload();
+	await waitForHydration(page);
+	await expect.poll(() => directMessageNames(page)).toEqual(['김인턴', '박예시', '새 대화', '최견본']);
+	await expect(pinnedMark('dm-park')).toBeVisible();
 });

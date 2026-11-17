@@ -64,6 +64,7 @@ async function signInToTheCompanyApp(page: Page, conversations: Conversation[], 
 			if (message.capability === 'person.identity') return answer({ externalID: readerExternalID, name: '이샘플' });
 			if (message.capability === 'person.messages.list') return answer({ messages: [], hasMoreBefore: false });
 			if (message.capability === 'person.inbox.list') return answer({ items: inboxFromPark });
+			if (message.capability === 'person.people.list') return answer({ people: [{ externalID: parkExternalID, name: '박예시' }, { externalID: choiExternalID, name: '최견본' }] });
 			if (message.capability === 'person.dm.hide') {
 				const hidden = conversations.find((conversation) => conversation.id === message.body?.conversationID);
 				if (hidden) hidden.isHidden = true;
