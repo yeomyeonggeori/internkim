@@ -6,6 +6,7 @@
 	import { billingPortalURL, subscriptionCheckoutURL } from '$lib/company/credits';
 	import { holdsAnOpenSubscription, isSubscriptionPaying } from '$lib/company/credits-contract';
 	import { currentLocale } from '$lib/i18n/locale.svelte';
+	import { goToPageOutsideTheApp } from '$lib/native-shell/external-links';
 	import { createPageText } from '$lib/i18n/page-text.svelte';
 	import { toast } from 'svelte-sonner';
 	import { billingText } from './billing-text';
@@ -22,7 +23,7 @@
 	async function subscribe() {
 		isOpeningCheckout = true;
 		try {
-			window.location.assign(await subscriptionCheckoutURL());
+			if ((await goToPageOutsideTheApp(await subscriptionCheckoutURL())) === 'opened-in-browser') isOpeningCheckout = false;
 		} catch (error) {
 			toast.error(error instanceof Error ? error.message : text.subscribeFailed);
 			isOpeningCheckout = false;
@@ -32,7 +33,7 @@
 	async function managePayment() {
 		isOpeningPortal = true;
 		try {
-			window.location.assign(await billingPortalURL());
+			if ((await goToPageOutsideTheApp(await billingPortalURL())) === 'opened-in-browser') isOpeningPortal = false;
 		} catch (error) {
 			toast.error(error instanceof Error ? error.message : text.managePaymentFailed);
 			isOpeningPortal = false;

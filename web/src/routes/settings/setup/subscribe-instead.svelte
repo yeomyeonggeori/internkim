@@ -5,6 +5,7 @@
 	import * as Item from '$lib/components/ui/item';
 	import { subscriptionCheckoutURL } from '$lib/company/credits';
 	import { createPageText } from '$lib/i18n/page-text.svelte';
+	import { goToPageOutsideTheApp } from '$lib/native-shell/external-links';
 	import { hostSetupText } from './text';
 
 	const text = createPageText(hostSetupText);
@@ -16,7 +17,7 @@
 		isOpeningCheckout = true;
 		errorMessage = '';
 		try {
-			window.location.assign(await subscriptionCheckoutURL(page.url.pathname));
+			if ((await goToPageOutsideTheApp(await subscriptionCheckoutURL(page.url.pathname))) === 'opened-in-browser') isOpeningCheckout = false;
 		} catch (error) {
 			errorMessage = error instanceof Error ? error.message : text.subscribeFailed;
 			isOpeningCheckout = false;

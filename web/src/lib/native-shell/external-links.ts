@@ -11,6 +11,15 @@ export function leavesTheApp(link: LinkAddress, appOrigin: string): boolean {
 	return browserProtocols.includes(link.protocol) && link.origin !== appOrigin;
 }
 
+export async function goToPageOutsideTheApp(url: string): Promise<'navigated' | 'opened-in-browser'> {
+	if (!isInsideTauriShell()) {
+		window.location.assign(url);
+		return 'navigated';
+	}
+	await openInDefaultBrowser(url);
+	return 'opened-in-browser';
+}
+
 export function openLinksLeavingTheAppInBrowser(): () => void {
 	if (!isInsideTauriShell()) return () => {};
 	const openInBrowser = (event: MouseEvent) => {
