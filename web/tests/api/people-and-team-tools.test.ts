@@ -380,6 +380,19 @@ describe('withdrawing somebody through the same function as the members page', (
 		expect(row!.status).toBe('withdrawn');
 	}, networkHookTimeout);
 
+	test('is undone by inviting the same address again, which brings back the same person', async () => {
+		const returningAddress = `${slug}-returning@example.test`;
+		const returningID = await addMember(client, companyID, returningAddress);
+		await client.from('member').update({ name: '박견본' }).eq('id', returningID);
+		resultOf(await asAdmin('person_withdraw', { personHint: '박견본' }));
+
+		const invited = resultOf(await asAdmin('person_invite', { email: returningAddress, name: '박견본' }));
+
+		expect(invited).toMatchObject({ personID: returningID, employmentStatus: 'invited' });
+		const listed = resultOf(await asAdmin('person_list', { searchText: returningAddress }));
+		expect((listed.people as { personID: string }[]).map((person) => person.personID)).toEqual([returningID]);
+	}, networkHookTimeout);
+
 	test('deletes a mistaken address outright when asked to purge', async () => {
 		const mistakenID = await addMember(client, companyID, `${slug}-mistaken@example.test`);
 
