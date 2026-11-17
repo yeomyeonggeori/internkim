@@ -1,3 +1,4 @@
+import { saveIntoDownloadsFolder, savesIntoDownloadsFolder } from '$lib/native-shell/downloads-folder';
 import { isInsideTauriPhoneShell } from '$lib/native-shell/shell';
 
 const downloadParameter = 'download';
@@ -45,6 +46,10 @@ export function downloadAddressOf(source: string, filename: string): string {
 }
 
 export async function downloadFile(source: string, filename: string): Promise<void> {
+	if (savesIntoDownloadsFolder()) {
+		await saveIntoDownloadsFolder(await fetchedFile(source, filename), filename);
+		return;
+	}
 	if (sharesInsteadOfDownloading()) {
 		await shareFile(await fetchedFile(source, filename));
 		return;
@@ -54,11 +59,15 @@ export async function downloadFile(source: string, filename: string): Promise<vo
 
 export function startDownload(source: string, filename: string): void {
 	downloadFile(source, filename).catch((failure: unknown) =>
-		console.warn('the file was not handed to the share sheet', { source, filename, failure })
+		console.warn('the file was not downloaded', { source, filename, failure })
 	);
 }
 
 export async function saveBlob(blob: Blob, filename: string): Promise<void> {
+	if (savesIntoDownloadsFolder()) {
+		await saveIntoDownloadsFolder(blob, filename);
+		return;
+	}
 	if (sharesInsteadOfDownloading()) {
 		await shareFile(new File([blob], filename, { type: blob.type }));
 		return;

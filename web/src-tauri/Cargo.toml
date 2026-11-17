@@ -19,6 +19,7 @@ tauri-plugin-os = "2"
 [target.'cfg(not(any(target_os = "ios", target_os = "android")))'.dependencies]
 tauri-plugin-dialog = "2"
 tauri-plugin-desktop-control = { path = "plugins/desktop-control" }
+tauri-plugin-file-save = { path = "plugins/file-save" }
 
 [target.'cfg(any(target_os = "ios", target_os = "android"))'.dependencies]
 tauri-plugin-attendance-widget = { path = "../attendance-widget/tauri-plugin" }

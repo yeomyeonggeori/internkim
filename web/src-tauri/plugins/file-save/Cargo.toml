@@ -1,0 +1,12 @@
+[package]
+name = "tauri-plugin-file-save"
+version = "0.1.0"
+edition = "2021"
+links = "tauri-plugin-file-save"
+
+[dependencies]
+tauri = { version = "2" }
+percent-encoding = "2"
+
+[build-dependencies]
+tauri-plugin = { version = "2", features = ["build"] }

@@ -18,6 +18,7 @@ pub fn run() {
     let builder = builder
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_desktop_control::init())
+        .plugin(tauri_plugin_file_save::init())
         .setup(window_background::paint_every_window)
         .on_window_event(window_background::repaint_on_appearance_change);
     #[cfg(target_os = "macos")]
