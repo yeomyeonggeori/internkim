@@ -77,10 +77,22 @@ test.describe('app rail', () => {
 		await expect(async () => {
 			await page.mouse.move(600, 600);
 			await taskLink.hover();
-			await expect(taskLink).toHaveAttribute('data-state', /open/, { timeout: 1_000 });
+			await expect(page.locator(appRailSelector).getByText('업무', { exact: true })).toBeVisible({ timeout: 1_000 });
 		}).toPass({ timeout: 15_000 });
 
-		await expect(page.locator(appRailSelector).getByText('업무', { exact: true })).toBeVisible();
+		await expect(railTooltip(page, '업무')).toBeHidden();
+	});
+
+	test('shows no tooltip on a folded rail icon when the rail expands on hover', async ({ page }) => {
+		await page.addInitScript(() => localStorage.setItem('internkim.app-rail-mode', 'hover'));
+		await page.setViewportSize({ width: 930, height: 1904 });
+		await page.goto('/memory/');
+
+		const taskLink = page.locator(appRailSelector).getByRole('link', { name: '업무' });
+		await taskLink.focus();
+
+		await expect(taskLink).toBeFocused();
+		await expect(page.locator(appRailSelector).getByText('업무', { exact: true })).toBeHidden();
 		await expect(railTooltip(page, '업무')).toBeHidden();
 	});
 
