@@ -12,10 +12,9 @@ import (
 )
 
 const (
-	takeOverSessionRenewalMargin = 10 * time.Minute
-	takeOverSessionRetryWait     = time.Minute
-	takeOverSessionAttempts      = 3
-	takeOverSessionFirstBackoff  = 2 * time.Second
+	takeOverSessionRetryWait    = time.Minute
+	takeOverSessionAttempts     = 3
+	takeOverSessionFirstBackoff = 2 * time.Second
 )
 
 type takeOverSession struct {
@@ -48,7 +47,7 @@ func (session takeOverSession) keepFresh(ctx context.Context) {
 			wait = takeOverSessionRetryWait
 			continue
 		}
-		wait = max(time.Until(time.Unix(renewed.ExpiresAt, 0))-takeOverSessionRenewalMargin, takeOverSessionRetryWait)
+		wait = max(time.Until(time.Unix(renewed.ExpiresAt, 0))-box.SessionRenewalMargin, takeOverSessionRetryWait)
 	}
 }
 

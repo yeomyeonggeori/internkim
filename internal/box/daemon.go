@@ -18,7 +18,7 @@ import (
 
 const (
 	announceInterval      = 30 * time.Second
-	sessionRenewalMargin  = 10 * time.Minute
+	SessionRenewalMargin  = 10 * time.Minute
 	shortestSessionWait   = time.Minute
 	companyCheckInterval  = time.Minute
 	companyMarkerFileName = "company"
@@ -428,7 +428,7 @@ func connectionOf(session Session) companyhost.Connection {
 }
 
 func (daemon Daemon) untilNextCheck(session HostSession) time.Duration {
-	untilRenewal := time.Unix(session.ExpiresAt, 0).Sub(daemon.now()) - sessionRenewalMargin
+	untilRenewal := time.Unix(session.ExpiresAt, 0).Sub(daemon.now()) - SessionRenewalMargin
 	return min(max(untilRenewal, shortestSessionWait), companyCheckInterval)
 }
 
