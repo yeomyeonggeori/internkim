@@ -23,7 +23,7 @@
 	import { Slider } from '$lib/components/ui/slider/index.js';
 	import { channelText } from '$lib/i18n/channel-text';
 	import { createPageText } from '$lib/i18n/page-text.svelte';
-	import { startDownload } from './attachment-download';
+	import { startDownload } from '$lib/files/download';
 	import ChannelVideoPlayer from './channel-video-player.svelte';
 	import { dragsToDismiss, LightboxDragDismiss } from './lightbox-drag-dismiss.svelte';
 	import LightboxPictureMenu from './lightbox-picture-menu.svelte';

@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { saveBlob } from '$lib/files/download';
 import { supabase } from '$lib/supabase';
 import { DataRoomRefused } from './viewer';
 export { sharedDataRoomSchema } from './schemas';
@@ -28,12 +29,7 @@ export async function savedDownload(response: Response, fileName: string): Promi
 		const refusal = z.object({ message: z.string() }).safeParse(await response.json().catch(() => null));
 		throw new DataRoomRefused(refusal.success ? refusal.data.message : `data room returned ${response.status}`, response.status);
 	}
-	const address = URL.createObjectURL(await response.blob());
-	const link = document.createElement('a');
-	link.href = address;
-	link.download = fileName;
-	link.click();
-	setTimeout(() => URL.revokeObjectURL(address), 60_000);
+	await saveBlob(await response.blob(), fileName);
 }
 
 export async function publicDataRoomDownload(companyID: string, documentID: string, fileName: string): Promise<void> {

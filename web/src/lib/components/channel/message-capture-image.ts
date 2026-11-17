@@ -1,4 +1,4 @@
-import { startDownload } from './attachment-download';
+import { startDownload } from '$lib/files/download';
 import type { CopyOutcome } from './message-copy';
 
 const capturePixelRatio = 2;

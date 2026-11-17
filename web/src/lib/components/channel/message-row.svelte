@@ -12,7 +12,7 @@
 	import type { ChannelMessage } from './channel-api';
 	import type { MessageCopy } from './message-copy';
 	import type { MessagePicture } from './channel-attachments';
-	import { startDownload } from './attachment-download';
+	import { startDownload } from '$lib/files/download';
 	import ReplyIcon from '@lucide/svelte/icons/reply';
 	import { tick, type Snippet } from 'svelte';
 
