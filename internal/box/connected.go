@@ -20,6 +20,14 @@ type Connected struct {
 	CompanyID string
 }
 
+func LoadIdentity(stateDirectoryPath string) (Identity, error) {
+	identity, errorValue := loadIdentity(identityPathIn(stateDirectoryPath))
+	if errors.Is(errorValue, os.ErrNotExist) {
+		return Identity{}, fmt.Errorf("%w at %s", ErrNoBoxKey, stateDirectoryPath)
+	}
+	return identity, errorValue
+}
+
 func LoadConnected(stateDirectoryPath string) (Connected, error) {
 	identity, errorValue := loadIdentity(identityPathIn(stateDirectoryPath))
 	if errors.Is(errorValue, os.ErrNotExist) {

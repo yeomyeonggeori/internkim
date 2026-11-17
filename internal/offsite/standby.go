@@ -62,6 +62,25 @@ func (cache ChunkCache) fetch(ctx context.Context, destination Destination, chun
 	return os.Rename(partialPath, cache.pathOf(chunkID))
 }
 
+func (cache ChunkCache) FetchMissing(ctx context.Context, destination Destination, chunkIDs []string) error {
+	if errorValue := os.MkdirAll(cache.DirectoryPath, 0o700); errorValue != nil {
+		return errorValue
+	}
+	missing := []string{}
+	isListed := map[string]bool{}
+	for _, chunkID := range chunkIDs {
+		if isListed[chunkID] || cache.holds(chunkID) {
+			continue
+		}
+		isListed[chunkID] = true
+		missing = append(missing, chunkID)
+	}
+	fetch := func(fetching context.Context, chunkID string) (string, error) {
+		return chunkID, cache.fetch(fetching, destination, chunkID)
+	}
+	return FetchAhead(ctx, missing, fetch, func(string) error { return nil })
+}
+
 func (cache ChunkCache) forgetAllBut(manifest Manifest) error {
 	wanted := map[string]bool{}
 	for _, chunkID := range manifest.chunkIDs() {

@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"slices"
 	"strconv"
 	"time"
 
@@ -23,7 +24,10 @@ const (
 	entryContentName = "files"
 )
 
-var ErrNoFullEntry = errors.New("the company keeps no full file journal entry this box can start from")
+var (
+	ErrNoFullEntry         = errors.New("the company keeps no full file journal entry this box can start from")
+	errReachedTheFullEntry = errors.New("the newest full file journal entry was read")
+)
 
 type Entry struct {
 	Version   int       `json:"version"`
@@ -118,24 +122,41 @@ func (journal Journal) sinceNewestFull(ctx context.Context, keyring box.Keyring)
 	if errorValue != nil {
 		return nil, errorValue
 	}
+	slices.Sort(sequences)
+	slices.Reverse(sequences)
 	entries := []Entry{}
-	for index := len(sequences) - 1; index >= 0; index-- {
-		entry, errorValue := journal.Read(ctx, sequences[index], keyring)
-		if errorValue != nil {
-			return nil, errorValue
-		}
-		entries = append([]Entry{entry}, entries...)
-		if entry.IsFull {
-			return entries, nil
-		}
+	read := func(reading context.Context, sequence int64) (Entry, error) {
+		return journal.Read(reading, sequence, keyring)
 	}
-	return nil, ErrNoFullEntry
+	untilTheFullOne := func(entry Entry) error {
+		entries = append(entries, entry)
+		if entry.IsFull {
+			return errReachedTheFullEntry
+		}
+		return nil
+	}
+	errorValue = offsite.FetchAhead(ctx, sequences, read, untilTheFullOne)
+	if errorValue == nil {
+		return nil, ErrNoFullEntry
+	}
+	if !errors.Is(errorValue, errReachedTheFullEntry) {
+		return nil, errorValue
+	}
+	slices.Reverse(entries)
+	return entries, nil
 }
 
 func (journal Journal) Replay(ctx context.Context, keyring box.Keyring, cache offsite.ChunkCache, apply func(Entry, io.Reader) error) (int, error) {
 	entries, errorValue := journal.sinceNewestFull(ctx, keyring)
 	if errorValue != nil {
 		return 0, errorValue
+	}
+	chunkIDs := []string{}
+	for _, entry := range entries {
+		chunkIDs = append(chunkIDs, entry.Chunks...)
+	}
+	if errorValue := cache.FetchMissing(ctx, journal.chunkDestination(), chunkIDs); errorValue != nil {
+		return 0, fmt.Errorf("fetching what the file journal's entries hold: %w", errorValue)
 	}
 	for _, entry := range entries {
 		if errorValue := journal.replayOne(ctx, keyring, cache, entry, apply); errorValue != nil {
