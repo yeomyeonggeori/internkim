@@ -88,8 +88,10 @@ function serverCommandFor(plane: Plane, port: string, isFirstBuiltPlane: boolean
 	return isFirstBuiltPlane ? `bun run build && ${preview}` : preview;
 }
 
+const staticFilePath = '/robots.txt';
+
 function readinessURLOf(plane: Plane): string {
-	return planesServedFromDevelopment.includes(plane) ? `${baseURLOf(plane)}${warmPath}` : baseURLOf(plane);
+	return `${baseURLOf(plane)}${planesServedFromDevelopment.includes(plane) ? warmPath : staticFilePath}`;
 }
 
 function compilesBeforeReady(plane: Plane, firstBuiltPlane: Plane | undefined): boolean {

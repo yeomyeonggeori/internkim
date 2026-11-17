@@ -69,6 +69,7 @@
 	import { keepCachedConversations, readCachedConversations } from '$lib/messenger/conversation-list-cache';
 	import { readCachedInbox } from '$lib/messenger/inbox-cache';
 	import { followBuzzArrivals, stopBuzzArrivals } from '$lib/messenger/buzz-arrivals';
+	import { countUnreadFromOpenMessenger } from '$lib/messenger/unread-total.svelte';
 	import { prefetchArrivedConversation } from '$lib/messenger/arrived-message-prefetch';
 
 	const lastChannelKey = 'messenger-last-channel';
@@ -489,6 +490,12 @@
 
 	let stopListeningForArrivals = () => {};
 	let stopFollowingCacheScope = () => {};
+
+	countUnreadFromOpenMessenger({
+		conversations: () => (hasLoadedConversations ? conversations : undefined),
+		inboxEntries: () => (inbox.hasLoaded ? inbox.entries : undefined),
+		mutedIDs: () => muted
+	});
 
 	const markRead = createReadMarker(markReadThrough);
 
