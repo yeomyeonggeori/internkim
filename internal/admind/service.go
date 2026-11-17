@@ -34,6 +34,8 @@ type Service struct {
 
 	mutex                   sync.Mutex
 	directoryApplying       sync.Mutex
+	directoryAskedOnce      sync.Once
+	directoryAsked          chan struct{}
 	centralPlaneOnce        sync.Once
 	centralPlaneClient      *centralplane.Client
 	mattermostAdminOnce     sync.Once

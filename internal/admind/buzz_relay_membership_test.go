@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/yeomyeonggeori/internkim/internal/buzzidentity"
 )
@@ -130,14 +131,21 @@ func TestDirectoryChangedSeatsMemberBeforeBuzzLogin(t *testing.T) {
 		return jsonResponse(http.StatusOK, `{}`, nil), nil
 	})}
 
+	applyTheDirectoryUntilTheTestEnds(t, service)
 	request := httptest.NewRequest(http.MethodPost, "/admin/api/directory/changed", nil)
 	response := httptest.NewRecorder()
 	service.handleDirectoryChanged(response, request)
-	if response.Code != http.StatusInternalServerError || !strings.Contains(response.Body.String(), "messenger seats") {
-		t.Fatalf("the company's rooms could not be read, so the door must say the seats are not done; it answered %d: %s", response.Code, response.Body.String())
+	if response.Code != http.StatusAccepted {
+		t.Fatalf("the door answered %d: %s", response.Code, response.Body.String())
 	}
 
-	granted, errorValue := os.ReadFile(grantsPath)
+	var granted []byte
+	errorValue := os.ErrNotExist
+	deadline := time.Now().Add(2 * time.Second)
+	for errorValue != nil && time.Now().Before(deadline) {
+		granted, errorValue = os.ReadFile(grantsPath)
+		time.Sleep(10 * time.Millisecond)
+	}
 	if errorValue != nil {
 		t.Fatalf("directory change did not grant relay membership: %v", errorValue)
 	}

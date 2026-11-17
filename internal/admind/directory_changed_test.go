@@ -45,11 +45,39 @@ func deliveredRosterEmails(t *testing.T, service *Service) []string {
 	return rosterPolicyEmails(policyDocument)
 }
 
+func applyTheDirectoryUntilTheTestEnds(t *testing.T, service *Service) {
+	t.Helper()
+	ctx, stop := context.WithCancel(t.Context())
+	stopped := make(chan struct{})
+	go func() {
+		service.keepTheDirectoryApplied(ctx)
+		close(stopped)
+	}()
+	t.Cleanup(func() {
+		stop()
+		<-stopped
+	})
+}
+
+func waitForTheDeliveredRoster(t *testing.T, service *Service) []string {
+	t.Helper()
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		if emails := deliveredRosterEmails(t, service); emails != nil {
+			return emails
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	return nil
+}
+
 func TestTheNotificationAndTheClockApplyTheSameDirectory(t *testing.T) {
-	directoryApplyInterval = 20 * time.Millisecond
-	t.Cleanup(func() { directoryApplyInterval = 2 * time.Minute })
 	triggers := map[string]func(t *testing.T, service *Service){
 		"notification": func(t *testing.T, service *Service) {
+			waitForTheDeliveredRoster(t, service)
+			if errorValue := os.Remove(service.Configuration.BlueclawPolicyDeliveryPath); errorValue != nil {
+				t.Fatalf("clear the roster the first pass delivered: %v", errorValue)
+			}
 			response := httptest.NewRecorder()
 			service.handleDirectoryChanged(response, httptest.NewRequest(http.MethodPost, "/admin/api/directory/changed", nil))
 			if response.Code != http.StatusAccepted {
@@ -57,26 +85,59 @@ func TestTheNotificationAndTheClockApplyTheSameDirectory(t *testing.T) {
 			}
 		},
 		"clock": func(t *testing.T, service *Service) {
-			ctx, stop := context.WithCancel(t.Context())
-			defer stop()
-			service.startDirectoryApplying(ctx)
-			deadline := time.Now().Add(2 * time.Second)
-			for deliveredRosterEmails(t, service) == nil && time.Now().Before(deadline) {
-				time.Sleep(10 * time.Millisecond)
+			waitForTheDeliveredRoster(t, service)
+			if errorValue := os.Remove(service.Configuration.BlueclawPolicyDeliveryPath); errorValue != nil {
+				t.Fatalf("clear the roster the first pass delivered: %v", errorValue)
 			}
 		},
 	}
+	applyIntervals := map[string]time.Duration{"notification": 2 * time.Minute, "clock": 20 * time.Millisecond}
 	for name, trigger := range triggers {
 		t.Run(name, func(t *testing.T) {
+			directoryApplyInterval = applyIntervals[name]
+			t.Cleanup(func() { directoryApplyInterval = 2 * time.Minute })
 			service := serviceWhoseDirectoryDroppedSomebody(t)
+			applyTheDirectoryUntilTheTestEnds(t, service)
 
 			trigger(t, service)
 
-			emails := deliveredRosterEmails(t, service)
+			emails := waitForTheDeliveredRoster(t, service)
 			if !slices.Equal(emails, []string{"member@example.com"}) {
 				t.Fatalf("the %s left the roster at %v; the directory names only member@example.com", name, emails)
 			}
 		})
+	}
+}
+
+func TestTheNotificationIsAnsweredBeforeTheDirectoryIsApplied(t *testing.T) {
+	service := serviceWhoseDirectoryDroppedSomebody(t)
+	release := make(chan struct{})
+	t.Cleanup(func() { close(release) })
+	answering := service.HTTPClient.Transport
+	service.HTTPClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+		select {
+		case <-release:
+		case <-request.Context().Done():
+			return nil, request.Context().Err()
+		}
+		return answering.RoundTrip(request)
+	})}
+	applyTheDirectoryUntilTheTestEnds(t, service)
+
+	answered := make(chan int, 1)
+	go func() {
+		response := httptest.NewRecorder()
+		service.handleDirectoryChanged(response, httptest.NewRequest(http.MethodPost, "/admin/api/directory/changed", nil))
+		answered <- response.Code
+	}()
+
+	select {
+	case status := <-answered:
+		if status != http.StatusAccepted {
+			t.Fatalf("the door answered %d, want 202", status)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("the door waited for a directory pass that has not finished; the company waits on this answer while it writes a person")
 	}
 }
 
