@@ -21,6 +21,8 @@ LABEL_SIZE = 13
 APPLICATION_POSITION = (180, 170)
 APPLICATIONS_POSITION = (480, 170)
 LAYOUT_WAIT_SECONDS = 20
+LAYOUT_FILE = ".DS_Store"
+BACKGROUND_PICTURE_RECORD = b"pBBk"
 
 
 def layout_script(volume: str, application: str, background: str) -> str:
@@ -57,11 +59,18 @@ def stage(application: Path, background: Path, scratch: Path) -> Path:
     return staging
 
 
+def holds_the_background_picture(layout: Path) -> bool:
+    return layout.exists() and BACKGROUND_PICTURE_RECORD in layout.read_bytes()
+
+
 def wait_for_the_layout(volume: Path) -> None:
+    layout = volume / LAYOUT_FILE
     deadline = time.monotonic() + LAYOUT_WAIT_SECONDS
-    while not (volume / ".DS_Store").exists():
+    while not holds_the_background_picture(layout):
         if time.monotonic() > deadline:
-            raise ShipFailure(f"Finder did not write the window layout of {volume} within {LAYOUT_WAIT_SECONDS} seconds")
+            raise ShipFailure(
+                f"Finder did not write the window layout of {volume} with its background picture within {LAYOUT_WAIT_SECONDS} seconds"
+            )
         time.sleep(0.5)
 
 
