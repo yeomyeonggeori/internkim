@@ -138,12 +138,12 @@ func runRestore(arguments []string) error {
 		defer stopRenewing()
 		go session.keepFresh(renewing)
 		place := asTheBoxTakingOver(thisBox(), takeOverSessionPath())
-		starting := startingWithTheTakeOverSession(boxDaemon("").Places, session.fresh, markThisBoxInstalled)
+		starting := startingWithTheTakeOverSession(boxDaemon("").Places, session.fresh)
 		attempts, errorValue := takeOverRetries().read()
 		if errorValue != nil {
 			return errorValue
 		}
-		request.Replace, request.KeepsThisBox, request.BeforeStarting = holdsACompany, true, starting
+		request.Replace, request.KeepsThisBox, request.BeforeStarting, request.OnceServing = holdsACompany, true, starting, markThisBoxInstalled
 		request.EarlierFinding, request.FindingKept = attempts.finding(), takeOverRetries().keepTheFinding
 		request.RebuildFromWAL, request.ReplayFiles = rebuildTheDatabaseFromKeptWALAs(place), replayTheFileJournalAs(place)
 	}

@@ -48,9 +48,7 @@ func TestATakeOverThatOutlivesItsFirstSessionStartsTheCompanyWithOneAskedForAtTh
 	sessions := &sessionsAsked{}
 	session := takeOverSession{Path: sessionPath, Ask: sessions.ask}
 
-	errorValue := startingWithTheTakeOverSession(box.Places{CredentialPaths: []string{hostKeyPath}}, session.fresh, func(string) error {
-		return nil
-	})(exampleCompanyID)
+	errorValue := startingWithTheTakeOverSession(box.Places{CredentialPaths: []string{hostKeyPath}}, session.fresh)(exampleCompanyID)
 
 	if errorValue != nil {
 		t.Fatal(errorValue)
@@ -92,7 +90,7 @@ func TestATakeOverRefusedAFreshSessionLeavesTheCredentialsAlone(t *testing.T) {
 
 	errorValue := startingWithTheTakeOverSession(box.Places{CredentialPaths: []string{hostKeyPath}}, func() (string, error) {
 		return "", refused
-	}, func(string) error { return nil })(exampleCompanyID)
+	})(exampleCompanyID)
 
 	if !errors.Is(errorValue, refused) {
 		t.Fatalf("answered %v", errorValue)

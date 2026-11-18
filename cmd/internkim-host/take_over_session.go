@@ -23,11 +23,8 @@ func keepTheTakeOverSession(sessionPath, accessToken string) error {
 	return durablefile.Write(sessionPath, []byte(accessToken+"\n"), 0o600)
 }
 
-func startingWithTheTakeOverSession(places box.Places, freshSession func() (string, error), before func(companyID string) error) func(companyID string) error {
-	return func(companyID string) error {
-		if errorValue := before(companyID); errorValue != nil {
-			return errorValue
-		}
+func startingWithTheTakeOverSession(places box.Places, freshSession func() (string, error)) func(companyID string) error {
+	return func(string) error {
 		accessToken, errorValue := freshSession()
 		if errorValue != nil {
 			return errorValue
