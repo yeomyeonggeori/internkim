@@ -1,5 +1,5 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
-import { filesSentTo, insideTheIPhoneApp, refuseCommand, withTheDownloadPlugins } from '../support/iphone-app';
+import { filesSentTo, insideTheIPhoneApp, insideTheMacApp, refuseCommand, withTheDownloadPlugins } from '../support/iphone-app';
 import { mockDeviceMessenger } from './messenger-device-mock';
 
 const channelID = 'channel-attachment-download';
@@ -187,5 +187,40 @@ test.describe('messenger attachment download inside the iPhone app', () => {
 		const [shared] = await filesSentTo(page, 'plugin:share-sheet|present');
 		expect(shared).toEqual({ filename: fileName, mediaType: 'application/pdf', text: notesText });
 		expect(await filesSentTo(page, 'plugin:media-save|save')).toEqual([]);
+	});
+});
+
+test.describe('messenger attachment download inside the Mac app', () => {
+	test.beforeEach(async ({ page }) => {
+		await insideTheMacApp(page);
+		await mockStore(page);
+		await mockDeviceMessenger(
+			page,
+			reader,
+			[{ id: channelID, name: '첨부 채널', kind: 'group', myRole: 'member' }],
+			[pictureMessage, fileMessage]
+		);
+		await page.setViewportSize({ width: 1280, height: 800 });
+		await page.goto(`/messenger?channel=${channelID}`);
+	});
+
+	test('a file card sends the file to the downloads folder in chunks', async ({ page }) => {
+		let downloads = 0;
+		page.on('download', () => (downloads += 1));
+		await page.getByRole('button', { name: '다운로드' }).click();
+
+		await expect.poll(async () => (await filesSentTo(page, 'plugin:file-save|save')).map((file) => file.filename)).toEqual([fileName]);
+		const [saved] = await filesSentTo(page, 'plugin:file-save|save');
+		expect(saved).toEqual({ filename: fileName, mediaType: 'application/pdf', text: notesText });
+		expect(downloads).toBe(0);
+	});
+
+	test('the viewer sends the picture to the downloads folder', async ({ page }) => {
+		await page.getByRole('button', { name: pictureName }).click();
+		await page.getByRole('dialog').getByRole('button', { name: '다운로드' }).click();
+
+		await expect.poll(async () => (await filesSentTo(page, 'plugin:file-save|save')).map((file) => file.filename)).toEqual([pictureName]);
+		const [saved] = await filesSentTo(page, 'plugin:file-save|save');
+		expect(saved.mediaType).toBe('image/png');
 	});
 });
