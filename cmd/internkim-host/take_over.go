@@ -99,15 +99,20 @@ func startTheTakeOver(archivePath string, createdAt time.Time) error {
 	if errorValue != nil {
 		return errorValue
 	}
-	output, errorValue := exec.Command("systemd-run",
-		"--unit="+takeOverUnitName,
-		"--description=internkim take-over from the backup made "+createdAt.UTC().Format(time.RFC3339),
-		hostCommandPath, "restore", "--taking-over", archivePath,
-	).CombinedOutput()
+	output, errorValue := exec.Command("systemd-run", takeOverUnitArguments(hostCommandPath, archivePath, createdAt)...).CombinedOutput()
 	if errorValue != nil {
 		return fmt.Errorf("systemd-run refused the take-over: %v: %s", errorValue, strings.TrimSpace(string(output)))
 	}
 	return box.ErrTakeOverUnderway
+}
+
+func takeOverUnitArguments(hostCommandPath, archivePath string, createdAt time.Time) []string {
+	return []string{
+		"--unit=" + takeOverUnitName,
+		"--description=internkim take-over from the backup made " + createdAt.UTC().Format(time.RFC3339),
+		"--property=OnFailure=" + blueclaw.BoxServiceName + ".service",
+		hostCommandPath, "restore", "--taking-over", archivePath,
+	}
 }
 
 func standDown() error {

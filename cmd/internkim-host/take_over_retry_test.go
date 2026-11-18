@@ -4,8 +4,11 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"slices"
 	"testing"
 	"time"
+
+	"github.com/yeomyeonggeori/internkim/internal/runtime/blueclaw"
 )
 
 type retryClock struct{ now time.Time }
@@ -156,5 +159,16 @@ func TestATakeOverThatSucceededForgetsItsRecordAndLeavesItsSafetyBackup(t *testi
 	}
 	if _, errorValue := os.Stat(archive); errorValue != nil {
 		t.Fatalf("a take-over that succeeded removed its safety backup: %v", errorValue)
+	}
+}
+
+func TestATakeOverThatFailsBringsTheBoxBackToTryItAgain(t *testing.T) {
+	arguments := takeOverUnitArguments("/usr/bin/internkim", "/var/lib/internkim-backups/snapshot.tar", time.Date(2026, 11, 18, 9, 0, 0, 0, time.UTC))
+
+	if !slices.Contains(arguments, "--property=OnFailure="+blueclaw.BoxServiceName+".service") {
+		t.Fatalf("the take-over unit is started without bringing the box back when it fails: %v", arguments)
+	}
+	if !slices.Contains(arguments, "--unit="+takeOverUnitName) {
+		t.Fatalf("the take-over unit is not started under its name: %v", arguments)
 	}
 }
