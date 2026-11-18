@@ -1716,6 +1716,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "incoming-file"
+version = "0.1.0"
+dependencies = [
+ "percent-encoding",
+ "serde_json",
+ "tauri",
+]
+
+[[package]]
 name = "indexmap"
 version = "1.9.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1763,11 +1772,13 @@ dependencies = [
  "tauri-plugin-foreground-notifications",
  "tauri-plugin-haptics",
  "tauri-plugin-keyboard",
+ "tauri-plugin-media-save",
  "tauri-plugin-notifications",
  "tauri-plugin-opener",
  "tauri-plugin-os",
  "tauri-plugin-page-theme",
  "tauri-plugin-print-sheet",
+ "tauri-plugin-share-sheet",
  "tauri-plugin-silent-push",
 ]
 
@@ -3859,6 +3870,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "tauri-plugin-media-save"
+version = "0.1.0"
+dependencies = [
+ "incoming-file",
+ "serde",
+ "tauri",
+ "tauri-plugin",
+]
+
+[[package]]
 name = "tauri-plugin-notifications"
 version = "0.5.0-rc.16"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3937,6 +3958,16 @@ dependencies = [
 name = "tauri-plugin-print-sheet"
 version = "0.1.0"
 dependencies = [
+ "tauri",
+ "tauri-plugin",
+]
+
+[[package]]
+name = "tauri-plugin-share-sheet"
+version = "0.1.0"
+dependencies = [
+ "incoming-file",
+ "serde",
  "tauri",
  "tauri-plugin",
 ]

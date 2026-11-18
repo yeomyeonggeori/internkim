@@ -1,0 +1,13 @@
+[package]
+name = "tauri-plugin-media-save"
+version = "0.1.0"
+edition = "2021"
+links = "tauri-plugin-media-save"
+
+[dependencies]
+tauri = { version = "2" }
+serde = { version = "1", features = ["derive"] }
+incoming-file = { path = "../incoming-file" }
+
+[build-dependencies]
+tauri-plugin = { version = "2", features = ["build"] }

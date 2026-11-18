@@ -1,0 +1,9 @@
+[package]
+name = "incoming-file"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+tauri = { version = "2" }
+percent-encoding = "2"
+serde_json = "1"
