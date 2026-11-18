@@ -1,5 +1,5 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
-import { filesSentTo, insideTheIPhoneApp, withTheDownloadPlugins } from '../support/iphone-app';
+import { filesSentTo, insideTheIPhoneApp, refuseCommand, withTheDownloadPlugins } from '../support/iphone-app';
 import { mockDeviceMessenger } from './messenger-device-mock';
 
 const channelID = 'channel-attachment-download';
@@ -159,15 +159,25 @@ test.describe('messenger attachment download inside the iPhone app', () => {
 		await page.goto(`/messenger?channel=${channelID}`);
 	});
 
-	test('the viewer saves the picture into the photo gallery', async ({ page }) => {
+	test('the viewer saves the picture into the photo gallery and says so', async ({ page }) => {
 		await page.getByRole('button', { name: pictureName }).click();
 		await page.getByRole('dialog').getByRole('button', { name: '다운로드' }).click();
 
+		await expect(page.getByText('사진 보관함에 저장했습니다.')).toBeVisible();
 
 		await expect.poll(async () => (await filesSentTo(page, 'plugin:media-save|save')).map((file) => file.filename)).toEqual([pictureName]);
 		const [saved] = await filesSentTo(page, 'plugin:media-save|save');
 		expect(saved.mediaType).toBe('image/png');
 		expect(await filesSentTo(page, 'plugin:share-sheet|present')).toEqual([]);
+	});
+
+	test('a picture the gallery refuses is reported as not saved', async ({ page }) => {
+		await refuseCommand(page, 'plugin:media-save|save');
+		await page.getByRole('button', { name: pictureName }).click();
+		await page.getByRole('dialog').getByRole('button', { name: '다운로드' }).click();
+
+		await expect(page.getByText(/^사진 보관함에 저장하지 못했습니다\./)).toBeVisible();
+		await expect(page.getByText('사진 보관함에 저장했습니다.')).toHaveCount(0);
 	});
 
 	test('a file card hands the file to the share sheet', async ({ page }) => {

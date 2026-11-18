@@ -11,6 +11,8 @@ export async function insideTheIPhoneApp(page: Page) {
 		Reflect.set(window, '__TAURI_INTERNALS__', {
 			invoke: async (command: string, args: { isAllowed?: boolean }, options: unknown) => {
 				invocations.push({ command, args, options });
+				const refused: unknown = Reflect.get(window, 'refusedCommands');
+				if (Array.isArray(refused) && refused.includes(command)) throw new Error(`${command} was refused`);
 				if (command === 'plugin:back-gesture|apply' && typeof args.isAllowed === 'boolean') choices.push(args.isAllowed);
 				return null;
 			},
@@ -24,6 +26,10 @@ export async function withTheDownloadPlugins(page: Page) {
 		Object.defineProperty(window, '__INTERNKIM_MEDIA_SAVE__', { value: true });
 		Object.defineProperty(window, '__INTERNKIM_SHARE_SHEET__', { value: true });
 	});
+}
+
+export async function refuseCommand(page: Page, command: string) {
+	await page.evaluate((refused) => Reflect.set(window, 'refusedCommands', [refused]), command);
 }
 
 export async function lastBackGestureChoice(page: Page): Promise<boolean | null> {
