@@ -6,7 +6,10 @@ use std::{
     io::{ErrorKind, Write},
     path::{Path, PathBuf},
 };
-use tauri::ipc::{InvokeBody, Request};
+use tauri::{
+    http::HeaderMap,
+    ipc::{InvokeBody, Request},
+};
 
 const TRANSFER_HEADER: &str = "transfer";
 const FILENAME_HEADER: &str = "filename";
@@ -27,6 +30,10 @@ impl IncomingChunk<'_> {
     pub fn is_first(&self) -> bool {
         self.index == 0
     }
+
+    pub fn transfer_folder_in(&self, folder: &Path) -> PathBuf {
+        folder.join(&self.transfer)
+    }
 }
 
 pub struct ReceivedFile {
@@ -35,9 +42,8 @@ pub struct ReceivedFile {
     pub media_type: String,
 }
 
-fn header_of(request: &Request<'_>, name: &str) -> Result<String, String> {
-    let value = request
-        .headers()
+fn header_of(headers: &HeaderMap, name: &str) -> Result<String, String> {
+    let value = headers
         .get(name)
         .ok_or_else(|| format!("the file chunk has no {name} header"))?;
     let encoded = value
@@ -57,8 +63,8 @@ fn bare_filename(named: &str) -> Result<String, String> {
         .ok_or_else(|| format!("{named:?} has no file name to keep the file under"))
 }
 
-fn transfer_of(request: &Request<'_>) -> Result<String, String> {
-    let transfer = header_of(request, TRANSFER_HEADER)?;
+fn transfer_of(headers: &HeaderMap) -> Result<String, String> {
+    let transfer = header_of(headers, TRANSFER_HEADER)?;
     let is_identifier = !transfer.is_empty() && transfer.chars().all(|character| character.is_ascii_hexdigit() || character == '-');
     if !is_identifier {
         return Err(format!("{transfer:?} is not a transfer identifier"));
@@ -78,8 +84,8 @@ fn bytes_of(numbers: &[Value]) -> Result<Vec<u8>, String> {
         .collect()
 }
 
-fn content_of<'request>(request: &'request Request<'_>) -> Result<Cow<'request, [u8]>, String> {
-    match request.body() {
+fn content_of(body: &InvokeBody) -> Result<Cow<'_, [u8]>, String> {
+    match body {
         InvokeBody::Raw(content) => Ok(Cow::Borrowed(content)),
         InvokeBody::Json(Value::Array(numbers)) => bytes_of(numbers).map(Cow::Owned),
         InvokeBody::Json(other) => Err(format!("the file chunk arrived as {other} instead of bytes")),
@@ -87,21 +93,25 @@ fn content_of<'request>(request: &'request Request<'_>) -> Result<Cow<'request, 
 }
 
 pub fn chunk_of<'request>(request: &'request Request<'_>) -> Result<IncomingChunk<'request>, String> {
-    let index = header_of(request, CHUNK_HEADER)?;
+    chunk_from(request.body(), request.headers())
+}
+
+pub fn chunk_from<'body>(body: &'body InvokeBody, headers: &HeaderMap) -> Result<IncomingChunk<'body>, String> {
+    let index = header_of(headers, CHUNK_HEADER)?;
     Ok(IncomingChunk {
-        transfer: transfer_of(request)?,
-        filename: bare_filename(&header_of(request, FILENAME_HEADER)?)?,
-        media_type: header_of(request, MEDIA_TYPE_HEADER)?,
+        transfer: transfer_of(headers)?,
+        filename: bare_filename(&header_of(headers, FILENAME_HEADER)?)?,
+        media_type: header_of(headers, MEDIA_TYPE_HEADER)?,
         index: index
             .parse()
             .map_err(|error| format!("the {CHUNK_HEADER} header {index:?} is not a chunk number: {error}"))?,
-        is_last: header_of(request, LAST_CHUNK_HEADER)? == "true",
-        content: content_of(request)?,
+        is_last: header_of(headers, LAST_CHUNK_HEADER)? == "true",
+        content: content_of(body)?,
     })
 }
 
 pub fn write_chunk(folder: &Path, chunk: &IncomingChunk<'_>) -> Result<Option<ReceivedFile>, String> {
-    let transfer_folder = folder.join(&chunk.transfer);
+    let transfer_folder = chunk.transfer_folder_in(folder);
     let destination = transfer_folder.join(&chunk.filename);
     if chunk.is_first() {
         fs::create_dir_all(&transfer_folder)
@@ -160,6 +170,51 @@ mod tests {
         discard(&folder).unwrap();
         assert!(!folder.exists());
         discard(&folder).unwrap();
+    }
+
+    fn sent_headers(index: u64, is_last: bool) -> HeaderMap {
+        let mut headers = HeaderMap::new();
+        for (name, value) in [
+            (TRANSFER_HEADER, "6f1c2b3a00004000800000000000000a".to_owned()),
+            (FILENAME_HEADER, "%ED%9A%8C%EC%9D%98%EB%A1%9D.txt".to_owned()),
+            (MEDIA_TYPE_HEADER, "text%2Fplain".to_owned()),
+            (CHUNK_HEADER, index.to_string()),
+            (LAST_CHUNK_HEADER, is_last.to_string()),
+        ] {
+            headers.insert(name, value.parse().unwrap());
+        }
+        headers
+    }
+
+    #[test]
+    fn writes_a_file_whose_chunks_arrived_as_number_arrays() {
+        let folder = std::env::temp_dir().join(format!("incoming-file-json-test-{}", std::process::id()));
+        let first_body = InvokeBody::Json(Value::from(vec![104, 105]));
+        let last_body = InvokeBody::Json(Value::from(vec![33]));
+        let first = chunk_from(&first_body, &sent_headers(0, false)).unwrap();
+        assert!(write_chunk(&folder, &first).unwrap().is_none());
+        let last = chunk_from(&last_body, &sent_headers(1, true)).unwrap();
+        let received = write_chunk(&folder, &last).unwrap().unwrap();
+        assert_eq!(fs::read(&received.path).unwrap(), b"hi!");
+        assert_eq!(received.path.file_name().unwrap(), "회의록.txt");
+        assert_eq!(received.media_type, "text/plain");
+        discard(&folder).unwrap();
+    }
+
+    #[test]
+    fn writes_a_file_whose_chunk_arrived_as_raw_bytes() {
+        let folder = std::env::temp_dir().join(format!("incoming-file-raw-test-{}", std::process::id()));
+        let body = InvokeBody::Raw(b"hi".to_vec());
+        let only = chunk_from(&body, &sent_headers(0, true)).unwrap();
+        let received = write_chunk(&folder, &only).unwrap().unwrap();
+        assert_eq!(fs::read(&received.path).unwrap(), b"hi");
+        discard(&folder).unwrap();
+    }
+
+    #[test]
+    fn refuses_a_body_that_is_not_bytes() {
+        let body = InvokeBody::Json(Value::from("hi"));
+        assert!(chunk_from(&body, &sent_headers(0, true)).is_err());
     }
 
     #[test]

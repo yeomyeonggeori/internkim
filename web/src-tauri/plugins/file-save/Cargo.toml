@@ -6,7 +6,10 @@ links = "tauri-plugin-file-save"
 
 [dependencies]
 tauri = { version = "2" }
-percent-encoding = "2"
+incoming-file = { path = "../incoming-file" }
+
+[dev-dependencies]
+serde_json = "1"
 
 [build-dependencies]
 tauri-plugin = { version = "2", features = ["build"] }

@@ -1,13 +1,13 @@
 import type { Page } from '@playwright/test';
 
-export async function insideTheIPhoneApp(page: Page) {
-	await page.addInitScript(() => {
+async function insideTheTauriApp(page: Page, platform: string) {
+	await page.addInitScript((shellPlatform) => {
 		const choices: boolean[] = [];
 		const invocations: { command: string; args: unknown; options: unknown }[] = [];
 		Reflect.set(window, 'backGestureChoices', choices);
 		Reflect.set(window, 'tauriInvocations', invocations);
 		Reflect.set(window, 'isTauri', true);
-		Reflect.set(window, '__TAURI_OS_PLUGIN_INTERNALS__', { platform: 'ios' });
+		Reflect.set(window, '__TAURI_OS_PLUGIN_INTERNALS__', { platform: shellPlatform });
 		Reflect.set(window, '__TAURI_INTERNALS__', {
 			invoke: async (command: string, args: { isAllowed?: boolean }, options: unknown) => {
 				invocations.push({ command, args, options });
@@ -18,7 +18,15 @@ export async function insideTheIPhoneApp(page: Page) {
 			},
 			transformCallback: () => 0
 		});
-	});
+	}, platform);
+}
+
+export async function insideTheIPhoneApp(page: Page) {
+	await insideTheTauriApp(page, 'ios');
+}
+
+export async function insideTheMacApp(page: Page) {
+	await insideTheTauriApp(page, 'macos');
 }
 
 export async function withTheDownloadPlugins(page: Page) {

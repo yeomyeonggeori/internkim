@@ -3806,7 +3806,7 @@ dependencies = [
 name = "tauri-plugin-file-save"
 version = "0.1.0"
 dependencies = [
- "percent-encoding",
+ "incoming-file",
  "tauri",
  "tauri-plugin",
 ]
