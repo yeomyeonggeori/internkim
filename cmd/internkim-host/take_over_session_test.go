@@ -10,6 +10,10 @@ import (
 	"github.com/yeomyeonggeori/internkim/internal/box"
 )
 
+func thisBoxOwnSession() (string, error) {
+	return "this-box-own-session", nil
+}
+
 func TestATakeOverStartsTheCompanyWithThisBoxSessionAndNotTheOneTheBackupCarried(t *testing.T) {
 	directory := t.TempDir()
 	hostKeyPath := filepath.Join(directory, "agent-key")
@@ -19,14 +23,10 @@ func TestATakeOverStartsTheCompanyWithThisBoxSessionAndNotTheOneTheBackupCarried
 			t.Fatal(errorValue)
 		}
 	}
-	sessionPath := filepath.Join(directory, "backups", takeOverSessionFileName)
-	if errorValue := keepTheTakeOverSession(sessionPath, "this-box-own-session"); errorValue != nil {
-		t.Fatal(errorValue)
-	}
 	places := box.Places{CredentialPaths: []string{hostKeyPath, relayKeyPath}, StagedCredentialPaths: []string{filepath.Join(directory, "not-staged-yet")}}
 	marked := ""
 
-	errorValue := startingWithTheTakeOverSession(places, sessionPath, func(companyID string) error {
+	errorValue := startingWithTheTakeOverSession(places, thisBoxOwnSession, func(companyID string) error {
 		marked = companyID
 		return nil
 	})(exampleCompanyID)
@@ -54,13 +54,9 @@ func TestATakeOverThatCannotMarkTheBoxLeavesTheCredentialsAlone(t *testing.T) {
 	if errorValue := os.WriteFile(hostKeyPath, []byte("the-session-the-backup-carried\n"), 0o640); errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	sessionPath := filepath.Join(directory, takeOverSessionFileName)
-	if errorValue := keepTheTakeOverSession(sessionPath, "this-box-own-session"); errorValue != nil {
-		t.Fatal(errorValue)
-	}
 	refused := errors.New("the marker could not be written")
 
-	errorValue := startingWithTheTakeOverSession(box.Places{CredentialPaths: []string{hostKeyPath}}, sessionPath, func(string) error {
+	errorValue := startingWithTheTakeOverSession(box.Places{CredentialPaths: []string{hostKeyPath}}, thisBoxOwnSession, func(string) error {
 		return refused
 	})(exampleCompanyID)
 

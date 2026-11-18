@@ -128,9 +128,17 @@ func runRestore(arguments []string) error {
 		if errorValue != nil {
 			return errorValue
 		}
-		place := asTheBoxTakingOver(thisBox(), takeOverSessionPath())
+		ask, errorValue := askingForThisBoxSession()
+		if errorValue != nil {
+			return errorValue
+		}
+		session := takeOverSession{Path: takeOverSessionPath(), Ask: ask}
 		defer os.Remove(takeOverSessionPath())
-		starting := startingWithTheTakeOverSession(boxDaemon("").Places, takeOverSessionPath(), markThisBoxInstalled)
+		renewing, stopRenewing := context.WithCancel(context.Background())
+		defer stopRenewing()
+		go session.keepFresh(renewing)
+		place := asTheBoxTakingOver(thisBox(), takeOverSessionPath())
+		starting := startingWithTheTakeOverSession(boxDaemon("").Places, session.fresh, markThisBoxInstalled)
 		request.Replace, request.KeepsThisBox, request.BeforeStarting = holdsACompany, true, starting
 		request.RebuildFromWAL, request.ReplayFiles = rebuildTheDatabaseFromKeptWALAs(place), replayTheFileJournalAs(place)
 	}

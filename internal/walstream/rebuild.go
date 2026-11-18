@@ -55,14 +55,14 @@ func RebuildDataDirectory(ctx context.Context, destination offsite.Destination, 
 	if errorValue := os.MkdirAll(walDirectoryPath, dataDirectoryMode); errorValue != nil {
 		return Rebuilt{}, errorValue
 	}
-	for _, name := range plan.Pieces {
-		piece, errorValue := kept.Read(ctx, name, keyring)
-		if errorValue != nil {
-			return Rebuilt{}, errorValue
-		}
-		if errorValue := writeIntoSegments(walDirectoryPath, piece); errorValue != nil {
-			return Rebuilt{}, errorValue
-		}
+	read := func(reading context.Context, name PieceName) (Piece, error) {
+		return kept.Read(reading, name, keyring)
+	}
+	write := func(piece Piece) error {
+		return writeIntoSegments(walDirectoryPath, piece)
+	}
+	if errorValue := offsite.FetchAhead(ctx, plan.Pieces, read, write); errorValue != nil {
+		return Rebuilt{}, errorValue
 	}
 	for _, history := range plan.Histories {
 		if errorValue := os.WriteFile(filepath.Join(walDirectoryPath, history.FileName()), history.Content, dataFileMode); errorValue != nil {

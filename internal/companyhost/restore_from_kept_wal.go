@@ -41,7 +41,7 @@ func rebuildTheDatabaseFromKeptWAL(platform backupPlatform, machine Machine, reb
 		return false, nil
 	}
 	if errorValue != nil {
-		return false, fmt.Errorf("rebuilding the database from the company's kept WAL (this box's own database is kept at %s): %w", replacedPath, errorValue)
+		return false, fmt.Errorf("rebuilding the database from the company's kept WAL (%s): %w", whereThisBoxDatabaseIsKept(replacedPath), errorValue)
 	}
 	owner := blueclaw.CompanyHostDatabaseUser + ":" + blueclaw.CompanyHostDatabaseUser
 	if errorValue := machine.Run("chown", []string{"-R", owner, dataPath}, nil, progress); errorValue != nil {
@@ -50,10 +50,17 @@ func rebuildTheDatabaseFromKeptWAL(platform backupPlatform, machine Machine, reb
 	fmt.Fprintln(progress, "  replaying the kept WAL; a day of it can take some minutes")
 	recovery := []string{"-u", blueclaw.CompanyHostDatabaseUser, "--", platform.Layout().DataServicePath(), "postgres-recover"}
 	if errorValue := machine.Run("runuser", recovery, nil, progress); errorValue != nil {
-		return false, fmt.Errorf("replaying the kept WAL into the rebuilt database (this box's own database is kept at %s): %w", replacedPath, errorValue)
+		return false, fmt.Errorf("replaying the kept WAL into the rebuilt database (%s): %w", whereThisBoxDatabaseIsKept(replacedPath), errorValue)
 	}
-	fmt.Fprintf(progress, "  this box's own database is kept at %s\n", replacedPath)
+	fmt.Fprintf(progress, "  %s\n", whereThisBoxDatabaseIsKept(replacedPath))
 	return true, nil
+}
+
+func whereThisBoxDatabaseIsKept(replacedPath string) string {
+	if replacedPath == "" {
+		return "this box had no database of its own to keep"
+	}
+	return "this box's own database is kept at " + replacedPath
 }
 
 func setThisBoxDatabaseAside(dataPath string, now time.Time) (string, error) {
@@ -76,7 +83,7 @@ func whereAnEarlierTakeOverSetTheDatabaseAside(dataPath string) (string, error) 
 		return "", errorValue
 	}
 	if len(earlier) == 0 {
-		return "", fmt.Errorf("this box holds no database at %s and none an earlier take-over set aside", dataPath)
+		return "", nil
 	}
 	return slices.Max(earlier), nil
 }
@@ -84,6 +91,9 @@ func whereAnEarlierTakeOverSetTheDatabaseAside(dataPath string) (string, error) 
 func putTheReplacedDataBack(dataPath, replacedPath string) error {
 	if errorValue := os.RemoveAll(dataPath); errorValue != nil {
 		return errorValue
+	}
+	if replacedPath == "" {
+		return nil
 	}
 	return os.Rename(replacedPath, dataPath)
 }
