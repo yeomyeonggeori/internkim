@@ -144,7 +144,7 @@ func runRestore(arguments []string) error {
 			return errorValue
 		}
 		request.Replace, request.KeepsThisBox, request.BeforeStarting = holdsACompany, true, starting
-		request.KeptSafetyBackup, request.SafetyBackupTaken = attempts.SafetyBackup, takeOverRetries().keepSafetyBackup
+		request.EarlierFinding, request.FindingKept = attempts.finding(), takeOverRetries().keepTheFinding
 		request.RebuildFromWAL, request.ReplayFiles = rebuildTheDatabaseFromKeptWALAs(place), replayTheFileJournalAs(place)
 	}
 	result, errorValue := companyhost.Restore(request, thisComputer{}, os.Stdout)

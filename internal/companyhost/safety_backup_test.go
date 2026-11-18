@@ -6,31 +6,40 @@ import (
 	"testing"
 )
 
-func TestAnAttemptWithNoRecordedSafetyBackupTakesOne(t *testing.T) {
-	relied, errorValue := safetyBackupToRelyOn("")
-
-	if errorValue != nil || relied != "" {
-		t.Fatalf("an attempt with no recorded safety backup relies on %q: %v", relied, errorValue)
+func requireSafetyStep(t *testing.T, earlier SafetyFinding, holdsACompany bool, want safetyStep) {
+	t.Helper()
+	step, errorValue := safetyStepFor(earlier, holdsACompany)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if step != want {
+		t.Fatalf("with %+v found earlier and a company held %v, the step is %d, want %d", earlier, holdsACompany, step, want)
 	}
 }
 
-func TestAnAttemptWhoseRecordedSafetyBackupIsGoneTakesOne(t *testing.T) {
-	relied, errorValue := safetyBackupToRelyOn(filepath.Join(t.TempDir(), "internkim-backup-20261118T090000Z.tar"))
-
-	if errorValue != nil || relied != "" {
-		t.Fatalf("an attempt relies on a safety backup that is gone: %q %v", relied, errorValue)
-	}
+func TestAFirstAttemptOnABoxHoldingACompanyTakesASafetyBackup(t *testing.T) {
+	requireSafetyStep(t, SafetyFinding{}, true, takeASafetyBackup)
 }
 
-func TestAnAttemptWhoseRecordedSafetyBackupIsThereReliesOnIt(t *testing.T) {
+func TestAFirstAttemptOnABoxHoldingNoCompanyRecordsThatItHeldNone(t *testing.T) {
+	requireSafetyStep(t, SafetyFinding{}, false, recordThatNoCompanyWasHeld)
+}
+
+func TestALaterAttemptAfterOneThatFoundNoCompanyKeepsNothing(t *testing.T) {
+	requireSafetyStep(t, SafetyFinding{HeldNoCompany: true}, true, keepNothingAnEarlierAttemptFound)
+}
+
+func TestALaterAttemptReliesOnTheArchiveTheFirstAttemptKept(t *testing.T) {
 	kept := filepath.Join(t.TempDir(), "internkim-backup-20261118T090000Z.tar")
 	if errorValue := os.WriteFile(kept, []byte("archive"), 0o600); errorValue != nil {
 		t.Fatal(errorValue)
 	}
 
-	relied, errorValue := safetyBackupToRelyOn(kept)
+	requireSafetyStep(t, SafetyFinding{Archive: kept}, true, relyOnTheEarlierArchive)
+}
 
-	if errorValue != nil || relied != kept {
-		t.Fatalf("an attempt with %s still there relies on %q: %v", kept, relied, errorValue)
-	}
+func TestALaterAttemptWhoseArchiveIsGoneTakesANewOne(t *testing.T) {
+	gone := filepath.Join(t.TempDir(), "internkim-backup-20261118T090000Z.tar")
+
+	requireSafetyStep(t, SafetyFinding{Archive: gone}, true, takeASafetyBackup)
 }

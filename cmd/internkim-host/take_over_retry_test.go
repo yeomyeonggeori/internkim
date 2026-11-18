@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/yeomyeonggeori/internkim/internal/companyhost"
 	"github.com/yeomyeonggeori/internkim/internal/runtime/blueclaw"
 )
 
@@ -98,7 +99,7 @@ func TestATakeOverThatEndedWithoutFailingStartsTheNextFailureFromTheFirstWait(t 
 
 func TestTheSafetyBackupATakeOverTookIsKeptThroughItsRetries(t *testing.T) {
 	retry, clock, _ := aTakeOverRetry(t)
-	if errorValue := retry.keepSafetyBackup("/var/lib/internkim-backups/internkim-backup-20261118T090000Z.tar"); errorValue != nil {
+	if errorValue := retry.keepTheFinding(companyhost.SafetyFinding{Archive: "/var/lib/internkim-backups/internkim-backup-20261118T090000Z.tar"}); errorValue != nil {
 		t.Fatal(errorValue)
 	}
 
@@ -123,7 +124,7 @@ func TestForgettingATakeOverLeavesItsSafetyBackupWhereItIs(t *testing.T) {
 	if errorValue := os.WriteFile(archive, []byte("archive"), 0o600); errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	if errorValue := retry.keepSafetyBackup(archive); errorValue != nil {
+	if errorValue := retry.keepTheFinding(companyhost.SafetyFinding{Archive: archive}); errorValue != nil {
 		t.Fatal(errorValue)
 	}
 
@@ -146,7 +147,7 @@ func TestATakeOverThatSucceededForgetsItsRecordAndLeavesItsSafetyBackup(t *testi
 	if errorValue := os.WriteFile(archive, []byte("archive"), 0o600); errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	if errorValue := retry.keepSafetyBackup(archive); errorValue != nil {
+	if errorValue := retry.keepTheFinding(companyhost.SafetyFinding{Archive: archive}); errorValue != nil {
 		t.Fatal(errorValue)
 	}
 
@@ -170,5 +171,26 @@ func TestATakeOverThatFailsBringsTheBoxBackToTryItAgain(t *testing.T) {
 	}
 	if !slices.Contains(arguments, "--unit="+takeOverUnitName) {
 		t.Fatalf("the take-over unit is not started under its name: %v", arguments)
+	}
+}
+
+func TestAFirstAttemptThatFoundNoCompanyIsRememberedThroughItsRetries(t *testing.T) {
+	retry, clock, _ := aTakeOverRetry(t)
+	if errorValue := retry.keepTheFinding(companyhost.SafetyFinding{HeldNoCompany: true}); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+
+	retry.clearTheFailedUnitWhenItIsTime()
+	clock.now = clock.now.Add(firstTakeOverRetryWait)
+	if errorValue := retry.clearTheFailedUnitWhenItIsTime(); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+
+	attempts, errorValue := retry.read()
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if !attempts.finding().HeldNoCompany {
+		t.Fatalf("after a retry the take-over forgot that its first attempt found no company: %+v", attempts)
 	}
 }

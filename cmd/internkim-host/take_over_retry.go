@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/yeomyeonggeori/internkim/internal/companyhost"
 	"github.com/yeomyeonggeori/internkim/internal/durablefile"
 	"github.com/yeomyeonggeori/internkim/internal/runtime/blueclaw"
 )
@@ -26,6 +27,7 @@ type takeOverAttempts struct {
 	Retried       int       `json:"retried"`
 	FailureSeenAt time.Time `json:"failureSeenAt"`
 	SafetyBackup  string    `json:"safetyBackup,omitempty"`
+	HeldNoCompany bool      `json:"heldNoCompany,omitempty"`
 }
 
 type takeOverRetry struct {
@@ -68,15 +70,19 @@ func (retry takeOverRetry) clearTheFailedUnitWhenItIsTime() error {
 	if errorValue := retry.ResetFailed(); errorValue != nil {
 		return fmt.Errorf("clearing the failed take-over to try it again: %w", errorValue)
 	}
-	return retry.write(takeOverAttempts{Retried: attempts.Retried + 1, SafetyBackup: attempts.SafetyBackup})
+	return retry.write(takeOverAttempts{Retried: attempts.Retried + 1, SafetyBackup: attempts.SafetyBackup, HeldNoCompany: attempts.HeldNoCompany})
 }
 
-func (retry takeOverRetry) keepSafetyBackup(archivePath string) error {
+func (attempts takeOverAttempts) finding() companyhost.SafetyFinding {
+	return companyhost.SafetyFinding{Archive: attempts.SafetyBackup, HeldNoCompany: attempts.HeldNoCompany}
+}
+
+func (retry takeOverRetry) keepTheFinding(finding companyhost.SafetyFinding) error {
 	attempts, errorValue := retry.read()
 	if errorValue != nil {
 		return errorValue
 	}
-	attempts.SafetyBackup = archivePath
+	attempts.SafetyBackup, attempts.HeldNoCompany = finding.Archive, finding.HeldNoCompany
 	return retry.write(attempts)
 }
 

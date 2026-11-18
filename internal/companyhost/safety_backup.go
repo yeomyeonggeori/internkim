@@ -8,14 +8,66 @@ import (
 	"os"
 )
 
-func keepASafetyBackup(platform backupPlatform, request RestoreRequest, backupDirectoryPath string, machine Machine, progress io.Writer) (string, error) {
-	relied, errorValue := safetyBackupToRelyOn(request.KeptSafetyBackup)
+type SafetyFinding struct {
+	Archive       string
+	HeldNoCompany bool
+}
+
+type safetyStep int
+
+const (
+	takeASafetyBackup safetyStep = iota
+	relyOnTheEarlierArchive
+	recordThatNoCompanyWasHeld
+	keepNothingAnEarlierAttemptFound
+)
+
+func safetyStepFor(earlier SafetyFinding, holdsACompany bool) (safetyStep, error) {
+	if earlier.HeldNoCompany {
+		return keepNothingAnEarlierAttemptFound, nil
+	}
+	isKept, errorValue := archiveIsKept(earlier.Archive)
+	if errorValue != nil {
+		return takeASafetyBackup, errorValue
+	}
+	if isKept {
+		return relyOnTheEarlierArchive, nil
+	}
+	if !holdsACompany {
+		return recordThatNoCompanyWasHeld, nil
+	}
+	return takeASafetyBackup, nil
+}
+
+func archiveIsKept(archivePath string) (bool, error) {
+	if archivePath == "" {
+		return false, nil
+	}
+	_, errorValue := os.Stat(archivePath)
+	if errors.Is(errorValue, fs.ErrNotExist) {
+		return false, nil
+	}
+	if errorValue != nil {
+		return false, fmt.Errorf("reading the safety backup an earlier attempt of this take-over kept at %s: %w", archivePath, errorValue)
+	}
+	return true, nil
+}
+
+func keepWhatThisComputerHolds(platform backupPlatform, request RestoreRequest, backupDirectoryPath string, machine Machine, progress io.Writer) (string, error) {
+	step, errorValue := safetyStepFor(request.EarlierFinding, request.Replace)
 	if errorValue != nil {
 		return "", errorValue
 	}
-	if relied != "" {
-		fmt.Fprintf(progress, "2/6 An earlier attempt of this take-over kept what this computer held in %s, so it is not backed up again…\n", relied)
-		return relied, nil
+	switch step {
+	case keepNothingAnEarlierAttemptFound:
+		fmt.Fprintln(progress, "2/6 An earlier attempt of this take-over found no company on this computer to keep, so nothing is backed up…")
+		return "", nil
+	case relyOnTheEarlierArchive:
+		fmt.Fprintf(progress, "2/6 An earlier attempt of this take-over kept what this computer held in %s, so it is not backed up again…\n", request.EarlierFinding.Archive)
+		return request.EarlierFinding.Archive, nil
+	case recordThatNoCompanyWasHeld:
+		fmt.Fprintln(progress, "2/6 This computer holds no company, so there is nothing to keep before restoring…")
+		return "", recordTheFinding(request, SafetyFinding{HeldNoCompany: true})
 	}
 	fmt.Fprintln(progress, "2/6 Backing up what this computer holds now, so the restore can be undone…")
 	safety, errorValue := backupWhileLocked(platform, BackupRequest{DirectoryPath: backupDirectoryPath, Now: request.Now}, machine, io.Discard)
@@ -23,25 +75,15 @@ func keepASafetyBackup(platform backupPlatform, request RestoreRequest, backupDi
 		return "", fmt.Errorf("the backup of this computer's current state failed, so nothing was restored: %w", errorValue)
 	}
 	fmt.Fprintf(progress, "  %s\n", safety.ArchivePath)
-	if request.SafetyBackupTaken == nil {
-		return safety.ArchivePath, nil
-	}
-	if errorValue := request.SafetyBackupTaken(safety.ArchivePath); errorValue != nil {
-		return "", fmt.Errorf("the safety backup %s was taken, and could not be recorded for a later attempt: %w", safety.ArchivePath, errorValue)
-	}
-	return safety.ArchivePath, nil
+	return safety.ArchivePath, recordTheFinding(request, SafetyFinding{Archive: safety.ArchivePath})
 }
 
-func safetyBackupToRelyOn(keptPath string) (string, error) {
-	if keptPath == "" {
-		return "", nil
+func recordTheFinding(request RestoreRequest, finding SafetyFinding) error {
+	if request.FindingKept == nil {
+		return nil
 	}
-	_, errorValue := os.Stat(keptPath)
-	if errors.Is(errorValue, fs.ErrNotExist) {
-		return "", nil
+	if errorValue := request.FindingKept(finding); errorValue != nil {
+		return fmt.Errorf("what this computer held was not recorded for a later attempt of the take-over, so nothing was restored: %w", errorValue)
 	}
-	if errorValue != nil {
-		return "", fmt.Errorf("reading the safety backup an earlier attempt of this take-over kept at %s: %w", keptPath, errorValue)
-	}
-	return keptPath, nil
+	return nil
 }
