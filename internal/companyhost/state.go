@@ -3,7 +3,6 @@ package companyhost
 import (
 	"crypto/rand"
 	"encoding/hex"
-	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -34,11 +33,7 @@ func PrepareStateDirectory(directoryPath string, connection Connection) (string,
 	if errorValue := os.Chmod(secretDirectoryPath, 0o700); errorValue != nil {
 		return "", errorValue
 	}
-	document, errorValue := json.MarshalIndent(connection, "", "  ")
-	if errorValue != nil {
-		return "", errorValue
-	}
-	if errorValue := durablefile.Write(filepath.Join(directoryPath, connectionFileName), append(document, '\n'), 0o600); errorValue != nil {
+	if errorValue := writeConnection(filepath.Join(directoryPath, connectionFileName), connection); errorValue != nil {
 		return "", errorValue
 	}
 	if errorValue := durablefile.Write(filepath.Join(secretDirectoryPath, agentKeyFileName), []byte(connection.AgentKey+"\n"), 0o600); errorValue != nil {

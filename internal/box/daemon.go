@@ -491,7 +491,7 @@ func KeepTheSession(places Places, accessToken string) error {
 			return fmt.Errorf("keeping the renewed session at %s: %w", path, errorValue)
 		}
 	}
-	return nil
+	return keepTheSessionInTheConnection(places.ConnectionFilePath, accessToken)
 }
 
 func replaceKeepingOwner(path, contents string) error {

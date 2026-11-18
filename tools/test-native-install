@@ -118,6 +118,16 @@ sys.stdout.buffer.write(bytes.fromhex('302e020100300506032b657004220420') + base
   | %(python)s -c "import base64, sys; print(base64.urlsafe_b64encode(sys.stdin.buffer.read()).decode().rstrip('='))"
 """
 
+CONNECTION_SESSION_COMMAND = r"""
+%(python)s -c "import base64, json
+carried = json.load(open('%(state)s/current/connection.json'))['agentKey']
+kept = open('%(state)s/current/secrets/agent-key').read().strip()
+claims = carried.split('.')[1]
+payload = json.loads(base64.urlsafe_b64decode(claims + '=' * (-len(claims) %% 4)))
+print('fleet=' + str(payload.get('app_metadata', {}).get('fleet_id')))
+print('kept=' + ('same' if carried == kept else 'different'))"
+"""
+
 POINT_THE_BOX_AT_THE_PLANE_COMMAND = r"""
 set -eu
 mkdir -p /etc/systemd/system/%(unit)s.d
@@ -1647,6 +1657,7 @@ class Rig:
             self.observe_the_message_came_across(step)
             self.observe_the_message_came_across(step, newest=True)
             self.observe_the_host_holds_the_gateway_socket(step)
+            self.observe_the_connection_carries_the_session(step, second_key)
             self.message_text = message_asking_for_an_answer("after the second box took over")
             self.observe_the_member_round_trip(step, self.plane)
 
@@ -1724,6 +1735,16 @@ class Rig:
             "an install that finds a database creates none, so the next company would open the first one's "
             "conversations and records",
         ).record(database.isdigit() and database != earlier["database"], f"before: {earlier['database']}\nafter: {database}")
+
+    def observe_the_connection_carries_the_session(self, step, box_key):
+        reading = self.machine.shell(CONNECTION_SESSION_COMMAND % {"python": HOST_PYTHON_PATH, "state": STATE_DIRECTORY})
+        said = reading.stdout.split()
+        step.observe(
+            "the connection file carries the session this box holds, not the one the backup carried",
+            f"the fleet of the agent key in {STATE_DIRECTORY}/current/connection.json, and whether it is the session "
+            "the box keeps in secrets/agent-key",
+            "a connection file left on the backup's key hands the first box's session to whatever reads it next",
+        ).record(f"fleet={box_key}" in said and "kept=same" in said, f"box {box_key}\n{reading.stdout.strip()}")
 
     def box_key_of(self, machine):
         reading = machine.checked_shell(
