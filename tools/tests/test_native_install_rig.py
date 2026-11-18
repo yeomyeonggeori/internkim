@@ -11,6 +11,7 @@ import subprocess
 import tempfile
 import threading
 import unittest
+import unittest.mock
 import urllib.request
 from pathlib import Path
 
@@ -785,3 +786,92 @@ class ShippedFileVerificationTests(unittest.TestCase):
             load_driver().shipped_files_dpkg_found_changed(verification),
             ["??5??????   /opt/internkim/skills/office/SKILL.md", "missing     /opt/internkim/skills/office/scripts/office"],
         )
+
+
+class StandInStorage(http.server.ThreadingHTTPServer):
+    def __init__(self, stored):
+        super().__init__(("127.0.0.1", 0), StandInStorageHandler)
+        self.stored = set(stored)
+        self.removal_batches = []
+
+
+class StandInStorageHandler(http.server.BaseHTTPRequestHandler):
+    def log_message(self, *arguments):
+        return
+
+    def read_body(self):
+        return json.loads(self.rfile.read(int(self.headers["Content-Length"])))
+
+    def answer(self, document):
+        payload = json.dumps(document).encode()
+        self.send_response(200)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(payload)))
+        self.end_headers()
+        self.wfile.write(payload)
+
+    def do_POST(self):
+        asked = self.read_body()
+        prefix = asked["prefix"]
+        children = {}
+        for path in sorted(self.server.stored):
+            if not path.startswith(prefix):
+                continue
+            name, separator, _ = path[len(prefix):].partition("/")
+            children[name] = None if separator else path
+        listed = [{"name": name, "id": None if path is None else path} for name, path in sorted(children.items())]
+        self.answer(listed[asked["offset"]:asked["offset"] + asked["limit"]])
+
+    def do_DELETE(self):
+        prefixes = self.read_body()["prefixes"]
+        self.server.removal_batches.append(prefixes)
+        self.server.stored -= set(prefixes)
+        self.answer([{"name": path} for path in prefixes])
+
+
+class CompanyBackupRemovalTests(unittest.TestCase):
+    company_id = "00000000-0000-4000-8000-000000000001"
+    other_company_id = "00000000-0000-4000-8000-000000000002"
+
+    def plane_over(self, stored):
+        storage = StandInStorage(stored)
+        threading.Thread(target=storage.serve_forever, daemon=True).start()
+        self.addCleanup(storage.shutdown)
+        plane = rig.CompanyPlane.__new__(rig.CompanyPlane)
+        plane.settings = {"API_URL": f"http://127.0.0.1:{storage.server_port}", "SECRET_KEY": "stand-in-secret"}
+        return plane, storage
+
+    def test_every_object_the_company_kept_is_removed_and_another_companys_stays(self):
+        kept = [
+            f"{self.company_id}/snapshots/internkim-snapshot-20261117T100019Z.json",
+            f"{self.company_id}/chunks/chunk-one",
+            f"{self.company_id}/file-journal/00000000000000000001",
+            f"{self.company_id}/wal/7709082510051636331/000000010000000000000003",
+        ]
+        another = f"{self.other_company_id}/snapshots/internkim-snapshot-20261117T100019Z.json"
+        plane, storage = self.plane_over(kept + [another])
+
+        plane.forget_the_company_backups(self.company_id)
+
+        self.assertEqual(storage.stored, {another})
+
+    def test_a_company_with_more_objects_than_one_listing_holds_is_removed_whole(self):
+        kept = [f"{self.company_id}/chunks/chunk-{index:03d}" for index in range(7)]
+        plane, storage = self.plane_over(kept)
+
+        with unittest.mock.patch.object(rig, "BACKUP_LISTING_PAGE", 2), unittest.mock.patch.object(rig, "BACKUP_REMOVAL_BATCH", 3):
+            plane.forget_the_company_backups(self.company_id)
+
+        self.assertEqual(storage.stored, set())
+        self.assertEqual([len(batch) for batch in storage.removal_batches], [3, 3, 1])
+
+    def test_a_company_that_kept_nothing_asks_for_no_removal(self):
+        plane, storage = self.plane_over([])
+
+        plane.forget_the_company_backups(self.company_id)
+
+        self.assertEqual(storage.removal_batches, [])
+
+    def test_the_bucket_is_the_one_the_boxes_keep_their_backups_in(self):
+        source = (repository_root / "internal" / "offsite" / "store.go").read_text()
+        self.assertIn(f'const Bucket = "{rig.BACKUP_BUCKET}"', source)

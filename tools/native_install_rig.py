@@ -969,6 +969,9 @@ def installed_units(machine, files_command=f"dpkg-query -L {PACKAGE_NAME}"):
 CENTRAL_TEST_UTILITIES_PATH = REPOSITORY_ROOT / "web" / "tests" / "ui" / "support" / "central-test-utils.ts"
 GATEWAY_WORKER_PATH = REPOSITORY_ROOT / "workers" / "connection-gateway"
 COMPANY_COMPUTER_AGENT_NAME = "company-computer"
+BACKUP_BUCKET = "box_backup"
+BACKUP_LISTING_PAGE = 1000
+BACKUP_REMOVAL_BATCH = 100
 MEMBER_SESSION_SCRIPT = REPOSITORY_ROOT / "tools" / "native-install-member-session.ts"
 MESSENGER_CREDENTIAL_KIND_SCHEMA = (
     REPOSITORY_ROOT
@@ -1414,6 +1417,47 @@ class CompanyPlane:
         self.delete_from_record(
             f"/rest/v1/agent?company_id=eq.{company_id}&name=eq.{COMPANY_COMPUTER_AGENT_NAME}"
         )
+
+    def forget_the_company_backups(self, company_id):
+        """Remove what the company's boxes kept off the box, so no run inherits an earlier run's backups."""
+        paths = self.stored_backup_paths(company_id + "/")
+        headers = {**self.record_headers(), "Content-Type": "application/json"}
+        for start in range(0, len(paths), BACKUP_REMOVAL_BATCH):
+            batch = paths[start:start + BACKUP_REMOVAL_BATCH]
+            status, document = answered(
+                f"{self.settings['API_URL']}/storage/v1/object/{BACKUP_BUCKET}",
+                headers,
+                json.dumps({"prefixes": batch}).encode(),
+                "DELETE",
+            )
+            if status != 200:
+                raise RigFailure(
+                    f"the backups of company {company_id} could not be removed ({status}): {document[:300]!r}"
+                )
+
+    def stored_backup_paths(self, prefix):
+        headers = {**self.record_headers(), "Content-Type": "application/json"}
+        paths = []
+        offset = 0
+        while True:
+            status, document = answered(
+                f"{self.settings['API_URL']}/storage/v1/object/list/{BACKUP_BUCKET}",
+                headers,
+                json.dumps({"prefix": prefix, "limit": BACKUP_LISTING_PAGE, "offset": offset}).encode(),
+                "POST",
+            )
+            if status != 200:
+                raise RigFailure(f"the backups under {prefix} could not be listed ({status}): {document[:300]!r}")
+            listed = json.loads(document)
+            for stored in listed:
+                path = prefix + stored["name"]
+                if stored.get("id") is None:
+                    paths.extend(self.stored_backup_paths(path + "/"))
+                else:
+                    paths.append(path)
+            if len(listed) < BACKUP_LISTING_PAGE:
+                return paths
+            offset += BACKUP_LISTING_PAGE
 
     def forget_the_messenger_credentials(self, company_id):
         status, document = self.read_record(f"/rest/v1/member?select=id&company_id=eq.{company_id}")
