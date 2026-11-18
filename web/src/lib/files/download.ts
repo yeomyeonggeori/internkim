@@ -1,18 +1,9 @@
 import { saveIntoDownloadsFolder, savesIntoDownloadsFolder } from '$lib/native-shell/downloads-folder';
-import { belongsInPhotoGallery, saveIntoPhotoGallery } from '$lib/native-shell/media-save';
-import { presentShareSheet } from '$lib/native-shell/share-sheet';
-import { isInsideTauriPhoneShell } from '$lib/native-shell/shell';
+import { keepOnThePhone, keepsFilesOnThePhone } from './phone-keeping';
+import { shareThroughTheWebPage, sharesThroughTheWebPage } from './web-share';
 
 const downloadParameter = 'download';
 const objectAddressLifetimeMilliseconds = 60_000;
-
-async function keepOnThePhone(file: Blob, filename: string): Promise<void> {
-	if (belongsInPhotoGallery(file.type)) {
-		await saveIntoPhotoGallery(file, filename);
-		return;
-	}
-	await presentShareSheet(file, filename);
-}
 
 async function fetchedBlob(source: string): Promise<Blob> {
 	const answer = await fetch(source);
@@ -40,8 +31,12 @@ export async function downloadFile(source: string, filename: string): Promise<vo
 		await saveIntoDownloadsFolder(await fetchedBlob(source), filename);
 		return;
 	}
-	if (isInsideTauriPhoneShell()) {
+	if (keepsFilesOnThePhone()) {
 		await keepOnThePhone(await fetchedBlob(source), filename);
+		return;
+	}
+	if (sharesThroughTheWebPage()) {
+		await shareThroughTheWebPage(await fetchedBlob(source), filename);
 		return;
 	}
 	clickDownloadLink(downloadAddressOf(source, filename), filename);
@@ -58,8 +53,12 @@ export async function saveBlob(blob: Blob, filename: string): Promise<void> {
 		await saveIntoDownloadsFolder(blob, filename);
 		return;
 	}
-	if (isInsideTauriPhoneShell()) {
+	if (keepsFilesOnThePhone()) {
 		await keepOnThePhone(blob, filename);
+		return;
+	}
+	if (sharesThroughTheWebPage()) {
+		await shareThroughTheWebPage(blob, filename);
 		return;
 	}
 	const address = URL.createObjectURL(blob);

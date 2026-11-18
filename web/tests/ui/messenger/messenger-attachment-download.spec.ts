@@ -1,5 +1,5 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
-import { filesSentTo, insideTheIPhoneApp } from '../support/iphone-app';
+import { filesSentTo, insideTheIPhoneApp, withTheDownloadPlugins } from '../support/iphone-app';
 import { mockDeviceMessenger } from './messenger-device-mock';
 
 const channelID = 'channel-attachment-download';
@@ -147,6 +147,7 @@ test.describe('messenger attachment download', () => {
 test.describe('messenger attachment download inside the iPhone app', () => {
 	test.beforeEach(async ({ page }) => {
 		await insideTheIPhoneApp(page);
+		await withTheDownloadPlugins(page);
 		await mockStore(page);
 		await mockDeviceMessenger(
 			page,
@@ -161,6 +162,7 @@ test.describe('messenger attachment download inside the iPhone app', () => {
 	test('the viewer saves the picture into the photo gallery', async ({ page }) => {
 		await page.getByRole('button', { name: pictureName }).click();
 		await page.getByRole('dialog').getByRole('button', { name: '다운로드' }).click();
+
 
 		await expect.poll(async () => (await filesSentTo(page, 'plugin:media-save|save')).map((file) => file.filename)).toEqual([pictureName]);
 		const [saved] = await filesSentTo(page, 'plugin:media-save|save');

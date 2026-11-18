@@ -14,6 +14,7 @@ const ANDROID_CLASS: &str = "MediaSavePlugin";
 #[cfg(target_os = "ios")]
 tauri::ios_plugin_binding!(init_plugin_media_save);
 
+const PRESENCE_SCRIPT: &str = "Object.defineProperty(window, '__INTERNKIM_MEDIA_SAVE__', { value: true });";
 const RECEIVING_FOLDER: &str = "media-save";
 
 struct Gallery<R: Runtime>(PluginHandle<R>);
@@ -55,6 +56,7 @@ async fn save<R: Runtime>(app: AppHandle<R>, gallery: State<'_, Gallery<R>>, req
 
 pub fn init<R: Runtime>() -> TauriPlugin<R> {
     Builder::new("media-save")
+        .js_init_script(PRESENCE_SCRIPT)
         .invoke_handler(tauri::generate_handler![save])
         .setup(|app, api| {
             #[cfg(target_os = "android")]

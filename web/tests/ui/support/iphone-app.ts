@@ -19,6 +19,13 @@ export async function insideTheIPhoneApp(page: Page) {
 	});
 }
 
+export async function withTheDownloadPlugins(page: Page) {
+	await page.addInitScript(() => {
+		Object.defineProperty(window, '__INTERNKIM_MEDIA_SAVE__', { value: true });
+		Object.defineProperty(window, '__INTERNKIM_SHARE_SHEET__', { value: true });
+	});
+}
+
 export async function lastBackGestureChoice(page: Page): Promise<boolean | null> {
 	return page.evaluate(() => (Reflect.get(window, 'backGestureChoices') as boolean[]).at(-1) ?? null);
 }
