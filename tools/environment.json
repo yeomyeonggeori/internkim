@@ -358,15 +358,15 @@
   },
   "MODEL_API_KEY_PATH": {
     "process": "tools/render-company-runtime",
-    "description": "the path to the file holding the key the rendered model ladder names on every endpoint, so the key never lands in the runtime document; defaults to the file capabilityd is given"
+    "description": "the path to the file holding the key the rendered model ladder names on every endpoint when no central plane is named or MODEL_ENDPOINT is set, so the key never lands in the runtime document; defaults to the file capabilityd is given"
   },
   "MODEL_ENDPOINT": {
     "process": "tools/render-company-runtime",
     "description": "the OpenAI-compatible endpoint the rendered model ladder reaches, for a company running its models through a gateway of its own; defaults to the ladder's own endpoint"
   },
-  "MODEL_GATEWAY_KEY_PATH": {
+  "MODEL_ROUTE_URL": {
     "process": "tools/render-company-runtime",
-    "description": "the file holding this computer's credential to the central plane, which the rendered model ladder names on every endpoint when MODEL_API_KEY_PATH holds no key and the ladder reaches the model gateway instead"
+    "description": "the URL of capabilityd's model route, which the rendered ladder reaches on a central plane so each model call goes to whoever pays at that moment; defaults to the address the company host's capabilityd answers on"
   },
   "OPENROUTER_API_KEY": {
     "process": "cli, model-gateway edge function",
@@ -477,7 +477,7 @@
   },
   "SUPABASE_URL": {
     "process": "relay, host, web, connection-gateway worker, web scripts, tools/render-company-runtime",
-    "description": "the Supabase project URL; required across the relay, the host's admind, the web app and the gateway worker, used by web/scripts' one-off ops scripts, and the central plane whose model gateway the rendered model ladder reaches unless the company holds an OpenRouter key and uses it",
+    "description": "the Supabase project URL; required across the relay, the host's admind, the web app and the gateway worker, used by web/scripts' one-off ops scripts, and the central plane whose presence points the rendered model ladder at capabilityd's model route",
     "isRequiredOnPages": true,
     "isInVault": true
   },

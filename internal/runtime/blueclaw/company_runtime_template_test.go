@@ -44,3 +44,24 @@ func TestTheRenderedRuntimeNamesAHelperWhicheverInstalledIt(t *testing.T) {
 		t.Fatalf("the packaged prepare script does not render the helper as %s, which is what the package installs", LinuxCompanyHostLayout().POSIXHelperPath())
 	}
 }
+
+// The ladder the renderer writes names the model route, and capabilityd
+// answers it at the address the roster gives; a renderer defaulting to any
+// other address leaves the agent calling a port nothing listens on.
+func TestTheRenderedLadderReachesTheModelRouteCapabilitydAnswers(t *testing.T) {
+	renderer, errorValue := os.ReadFile(filepath.Clean(companyRuntimeRendererPath))
+	if errorValue != nil {
+		t.Fatalf("expected the company runtime renderer: %v", errorValue)
+	}
+	if !strings.Contains(string(renderer), `: "${MODEL_ROUTE_URL:=`+CompanyHostModelRouteURL+`}"`) {
+		t.Fatalf("render-company-runtime does not default the model route to %s", CompanyHostModelRouteURL)
+	}
+	if !strings.Contains(CompanyHostPrepareScript(), "MODEL_ROUTE_URL="+CompanyHostModelRouteURL) {
+		t.Fatalf("the packaged prepare script does not render the model route as %s", CompanyHostModelRouteURL)
+	}
+	for _, service := range CompanyHostServices(LinuxCompanyHostLayout()) {
+		if service.Name == CapabilitydServiceName && !strings.Contains(service.CommandLine(), "--model-route-listen "+CompanyHostModelRouteListenAddress) {
+			t.Fatalf("capabilityd is not started on the model route the ladder names: %s", service.CommandLine())
+		}
+	}
+}

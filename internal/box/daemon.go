@@ -207,10 +207,7 @@ func (daemon Daemon) keepServing(session Session, keyring Keyring) error {
 	if errorValue := daemon.keepServiceLease(session.TakeOver); errorValue != nil {
 		return errorValue
 	}
-	if errorValue := daemon.renew(session, keyring); errorValue != nil {
-		return errorValue
-	}
-	return daemon.followTheModelPayer(session)
+	return daemon.renew(session, keyring)
 }
 
 func (daemon Daemon) takeOver(ctx context.Context, session Session, keyring Keyring) (bool, error) {

@@ -24,7 +24,7 @@ test('the plane starts every daemon with the current company-box contract', () =
 		serviceTokenPath: '/tmp/service-token',
 		relayURL: 'http://127.0.0.1:18091',
 		centralPlaneURL: 'http://127.0.0.1:54321',
-		runtimeDocumentPath: '/tmp/runtime.json'
+		modelRouteListenAddress: '127.0.0.1:18093'
 	});
 
 	expect(argumentsForCapabilityd).toContain('--device-browser');
@@ -32,7 +32,7 @@ test('the plane starts every daemon with the current company-box contract', () =
 	expect(argumentsForCapabilityd).toContain('--embedding-url');
 	expect(argumentsForCapabilityd).not.toContain('--device-browser-cdp');
 	expect(argumentsForCapabilityd).toContain('--service-token');
-	expect(argumentsForCapabilityd).toContain('--runtime');
+	expect(argumentsForCapabilityd).toContain('--model-route-listen');
 
 	const argumentsForBlueclaw = blueclawArgumentsForPlane({
 		runtimeConfigurationPath: '/tmp/runtime.json',

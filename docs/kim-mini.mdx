@@ -273,6 +273,7 @@ The subscription decides which pays. While it is `active` or `trialing`, the box
 reaches its models through the central plane's model gateway, which calls
 OpenRouter with our key and charges the company's credits. The box asks it with
 its own session, renewed every hour. Without a subscription, a box that holds a
-key calls OpenRouter with it. A box that started on the other payer starts its
-services again within a minute of the subscription changing. Removing the key
-takes it back from the box.
+key calls OpenRouter with it. The box asks the plane who pays about once a
+minute, and at once when the gateway refuses a call for credits. Its next model
+call goes to the new payer without a restart, and a call already under way
+finishes where it started. Removing the key takes it back from the box.

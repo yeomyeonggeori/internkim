@@ -59,7 +59,7 @@ type Configuration struct {
 	WorkQueuePath                 string
 	HostSessionPath               string
 	CentralPlaneURL               string
-	RuntimeDocumentPath           string
+	ModelRouteListenAddress       string
 	RelayBaseURL                  string
 }
 
@@ -515,11 +515,11 @@ func (configuration Configuration) WithDefaults() Configuration {
 func Run(configuration Configuration) error {
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
-	reaching, errorValue := configuration.WithDefaults().reachingModels()
-	if errorValue != nil {
+	defaulted := configuration.WithDefaults()
+	if errorValue := startModelRoute(ctx, defaulted); errorValue != nil {
 		return fmt.Errorf("capabilityd failed: %w", errorValue)
 	}
-	service := Service{Configuration: reaching}
+	service := Service{Configuration: defaulted.reachingModels()}
 	if errorValue := service.Run(ctx); errorValue != nil {
 		return fmt.Errorf("capabilityd failed: %w", errorValue)
 	}

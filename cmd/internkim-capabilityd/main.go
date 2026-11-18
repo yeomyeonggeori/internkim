@@ -38,24 +38,26 @@ func main() {
 	flag.IntVar(&configuration.DeviceBrowserCapacity, "device-browser-capacity", defaultConfiguration.DeviceBrowserCapacity, "most device browsers running at once")
 	flag.StringVar(&configuration.DeviceBrowserUserName, "device-browser-user", defaultConfiguration.DeviceBrowserUserName, "user a device browser runs as when capabilityd runs as root")
 	flag.StringVar(&configuration.RelayBaseURL, "relay-url", defaultConfiguration.RelayBaseURL, "URL the relay takes local calls on, where a browser hand-over is put to the requester")
-	flag.StringVar(&configuration.CentralPlaneURL, "central-plane-url", "", "the company's central plane, whose model gateway capabilityd's model calls go through when the runtime document's ladder reaches it")
-	flag.StringVar(&configuration.RuntimeDocumentPath, "runtime", "", "the runtime document the preparation rendered, whose ladder says who pays for this start of the services")
+	flag.StringVar(&configuration.CentralPlaneURL, "central-plane-url", "", "the company's central plane, which says who pays for the models the model route reaches")
+	flag.StringVar(&configuration.ModelRouteListenAddress, "model-route-listen", "", "loopback address the model route answers on, sending each model call to whoever pays for it now; with --central-plane-url, capabilityd's own model calls go through it too")
+	flag.String("runtime", "", "ignored; units written before the model route still pass it, and an undefined flag stops the daemon")
 	flag.BoolVar(&configuration.LocalOnly, "local-only", defaultConfiguration.LocalOnly, "disable remote LLM fallback")
 	flag.String("companion-url", "", "ignored; device units written before 2026-10-01 still pass it, and an undefined flag stops the daemon")
 	flag.Bool("prefer-companion-llm", false, "ignored; device units written in May 2026 still pass it, and an undefined flag stops the daemon")
 	shouldPrintCapabilities := flag.Bool("print-capabilities", false, "print the capabilities block the agent's runtime document needs, and exit")
 	modelLadderKeyPath := flag.String("print-model-ladder", "", "print the languageModel block the agent's runtime document needs, with this path named as each endpoint's key file, and exit")
 	modelLadderEndpoint := flag.String("model-endpoint", "", "the OpenAI-compatible endpoint the printed ladder reaches, when this company runs its models somewhere of its own")
-	modelLadderGateway := flag.String("model-gateway", "", "the company's central plane, whose model gateway the printed ladder reaches unless the company holds a key in the --print-model-ladder file and the plane says it uses it")
-	modelLadderGatewayKeyPath := flag.String("model-gateway-key", "", "the file holding this computer's credential, with which the model gateway is asked whether the company uses its key, and named as each endpoint's key file when the ladder reaches the gateway")
+	modelLadderGateway := flag.String("model-gateway", "", "the company's central plane; with one, the printed ladder reaches the --model-route, which follows whoever pays")
+	modelLadderRoute := flag.String("model-route", "", "the URL of the model route capabilityd answers on, which the printed ladder reaches when it names a central plane")
+	modelLadderRouteKeyPath := flag.String("model-route-key", "", "the file holding the service token, named as each endpoint's key file when the ladder reaches the model route")
+	flag.String("model-gateway-key", "", "ignored; the model route asks the plane who pays, and a preparation written before it still passes this")
 	flag.Parse()
 	if *shouldPrintCapabilities {
 		printCapabilities(configuration.SocketPath)
 		return
 	}
 	if strings.TrimSpace(*modelLadderKeyPath) != "" {
-		isCompanyKeyInUse := modelladder.GatewaySaysWhetherTheCompanyKeyIsInUse(*modelLadderGateway, *modelLadderGatewayKeyPath)
-		document, errorValue := modelladder.CompanyLanguageModelDocument(*modelLadderGateway, *modelLadderGatewayKeyPath, *modelLadderEndpoint, *modelLadderKeyPath, isCompanyKeyInUse)
+		document, errorValue := modelladder.CompanyLanguageModelDocument(*modelLadderGateway, *modelLadderRoute, *modelLadderRouteKeyPath, *modelLadderEndpoint, *modelLadderKeyPath)
 		if errorValue != nil {
 			fmt.Fprintln(os.Stderr, errorValue.Error())
 			os.Exit(1)

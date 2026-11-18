@@ -133,6 +133,13 @@ const (
 	CompanyHostBrowserCapacity     = 4
 )
 
+// capabilityd answers model calls here and sends each one to whoever pays for
+// it at that moment, so the agent's ladder names this address and never a payer.
+const (
+	CompanyHostModelRouteListenAddress = "127.0.0.1:18093"
+	CompanyHostModelRouteURL           = "http://" + CompanyHostModelRouteListenAddress
+)
+
 // CompanyPackageUnit is one systemd unit the package installs.
 type CompanyPackageUnit struct {
 	Name     string
@@ -404,7 +411,7 @@ else
   WORKSPACE_ROOT_PATH=%[12]s \
   LOG_DIRECTORY_PATH=%[9]s \
   MODEL_API_KEY_PATH=%[8]s \
-  MODEL_GATEWAY_KEY_PATH=%[34]s \
+  MODEL_ROUTE_URL=%[36]s \
   ADMIN_ASSERTION_KEY_PATH=%[6]s \
   SERVICE_TOKEN_PATH=%[32]s \
   POSIX_HELPER_PATH=%[23]s \
@@ -456,5 +463,6 @@ fi
 		layout.RunServiceTokenPath(),
 		layout.RelayServiceTokenPath(),
 		layout.RunAgentKeyPath(),
-		fmt.Sprintf("%04o", CompanyHostLogDirectoryMode))
+		fmt.Sprintf("%04o", CompanyHostLogDirectoryMode),
+		CompanyHostModelRouteURL)
 }

@@ -35,8 +35,8 @@ own:
   SERVICE_TOKEN_PATH        /run/internkim/secrets/service-token
   POSIX_HELPER_PATH         /usr/local/bin/blueclaw-posix-helper
   MODEL_ENDPOINT            the ladder's own endpoint
-  SUPABASE_URL              the central plane whose model gateway the ladder reaches unless MODEL_API_KEY_PATH holds a key the company uses
-  MODEL_GATEWAY_KEY_PATH    the file holding this computer's credential, which the gateway is asked with, including whether the company uses its key
+  SUPABASE_URL              the central plane; with one, the ladder reaches capabilityd's model route, which follows whoever pays
+  MODEL_ROUTE_URL           http://127.0.0.1:18093
 USAGE
   exit 2
 }
@@ -75,6 +75,7 @@ fi
 : "${ADMIN_ASSERTION_KEY_PATH:=/root/.internkim/secrets/agent-key}"
 : "${SERVICE_TOKEN_PATH:=/run/internkim/secrets/service-token}"
 : "${POSIX_HELPER_PATH:=/usr/local/bin/blueclaw-posix-helper}"
+: "${MODEL_ROUTE_URL:=http://127.0.0.1:18093}"
 
 if [ -z "${workDirectory}" ]; then
   workDirectory="$(dirname "${outputPath}")"
@@ -115,5 +116,5 @@ jq \
 
 "${capabilitydPath}" --print-capabilities --socket "${CAPABILITY_SOCKET_PATH}" > "${capabilitiesPath}"
 "${capabilitydPath}" --print-model-ladder "${MODEL_API_KEY_PATH}" --model-endpoint "${MODEL_ENDPOINT:-}" \
-  --model-gateway "${SUPABASE_URL:-}" --model-gateway-key "${MODEL_GATEWAY_KEY_PATH:-}" > "${languageModelPath}"
+  --model-gateway "${SUPABASE_URL:-}" --model-route "${MODEL_ROUTE_URL}" --model-route-key "${SERVICE_TOKEN_PATH}" > "${languageModelPath}"
 jq -s '.[0] * {capabilities: .[1], languageModel: .[2], memory: {embeddingModel: .[2].embedding.model, embeddingDimensions: .[2].embedding.dimensions}}' "${renderedPath}" "${capabilitiesPath}" "${languageModelPath}" > "${outputPath}"

@@ -78,7 +78,7 @@ type CapabilitydPlaneArguments = {
 	admindSocketPath: string;
 	relayURL: string;
 	centralPlaneURL: string;
-	runtimeDocumentPath: string;
+	modelRouteListenAddress: string;
 };
 
 type BlueclawPlaneArguments = {
@@ -142,7 +142,7 @@ export function capabilitydArgumentsForPlane(argumentsForPlane: CapabilitydPlane
 			'--file-read-python': argumentsForPlane.fileReadPythonPath,
 			'--relay-url': argumentsForPlane.relayURL,
 			'--central-plane-url': argumentsForPlane.centralPlaneURL,
-			'--runtime': argumentsForPlane.runtimeDocumentPath
+			'--model-route-listen': argumentsForPlane.modelRouteListenAddress
 		}
 	);
 }
@@ -439,6 +439,7 @@ export async function aCompanyPlane(request: PlaneRequest = {}): Promise<ACompan
 		const capabilitySocketPath = join(socketDirectory, 'capability.sock');
 		const blueclawACPSocketPath = join(socketDirectory, 'blueclaw-acp.sock');
 		const arrivalsPort = await aFreePort();
+		const modelRouteListenAddress = `127.0.0.1:${await aFreePort()}`;
 		const relayInboundURL = `http://127.0.0.1:${arrivalsPort}/inbound`;
 		// The public API only trusts a requester that arrived on this socket, which is
 		// the door the relay uses; over TCP the same call is an anonymous 401.
@@ -503,6 +504,7 @@ export async function aCompanyPlane(request: PlaneRequest = {}): Promise<ACompan
 					CHATD_ENDPOINT: connector.url,
 					MODEL_ENDPOINT: standInModel.url,
 					MODEL_API_KEY_PATH: openRouterKeyPath,
+					MODEL_ROUTE_URL: `http://${modelRouteListenAddress}`,
 					ADMIN_ASSERTION_KEY_PATH: blueclawAssertionKeyPath,
 					SERVICE_TOKEN_PATH: serviceTokenPath,
 					WORKSPACE_ROOT_PATH: join(runDirectory, 'workspace'),
@@ -535,7 +537,7 @@ export async function aCompanyPlane(request: PlaneRequest = {}): Promise<ACompan
 						admindSocketPath: requesterSocketPath,
 						relayURL: `http://127.0.0.1:${arrivalsPort}`,
 						centralPlaneURL: projectURL,
-						runtimeDocumentPath: runtimeConfigurationPath
+						modelRouteListenAddress
 					})
 				],
 				{ ...logsTo(join(runDirectory, 'capabilityd.log')), cwd: runDirectory, env: theBoxEnvironment() }
