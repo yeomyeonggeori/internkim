@@ -559,13 +559,13 @@ and delete the duplicates.
   here, copies it to the host, keeps it beside the last two, installs it and
   watches `blueclaw` for two minutes, putting the host back on the version it
   ran when that fails. It is the everyday deploy: a release builds eight
-  packages, uploads about 2 GB and runs two rigs, more than an hour.
+  packages, uploads about 2 GB and runs three rigs, more than an hour.
 - `tools/ship-host --release` takes `origin/main` to stable and onto our own
   host in one command. It cuts the testing release, checks the packages against
-  `SHA256SUMS`, runs the Debian 13 rig and its `--people-upgrade` step (a host
-  that already has people and memory must stay up through the upgrade),
-  installs the release on our host by its tag while still on testing, watches
-  `blueclaw` for two minutes, and only then promotes it. A failure on the host
+  `SHA256SUMS`, runs the Debian 13 rig, its `--people-upgrade` step (a host
+  with people and memory stays up through it) and the `--several-boxes`
+  rig, installs the release on our host by its tag while still on testing,
+  watches `blueclaw` for two minutes, and only then promotes it. A failure on the host
   puts the host back on the release it ran and leaves the failed one on
   testing; stable never moved. If the failed release migrated the database,
   the release the host ran may not start, and ship-host says so. `--plan`

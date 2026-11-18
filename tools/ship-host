@@ -316,9 +316,12 @@ def rig_command(shipment, extra_arguments):
         WITH_LOCAL_PLANE, INSTALL_RIG,
         "--distribution", RIG_DISTRIBUTION,
         "--package-directory", str(shipment.directory / package_directory_name(shipment.tag)),
-        "--older-package-directory", str(shipment.directory / package_directory_name(shipment.previous_tag)),
         *extra_arguments,
     ]
+
+
+def older_package_arguments(shipment):
+    return ["--older-package-directory", str(shipment.directory / package_directory_name(shipment.previous_tag))]
 
 
 def rig_log_path(shipment, name):
@@ -326,11 +329,18 @@ def rig_log_path(shipment, name):
 
 
 def run_install_rig(shipment):
-    shipment.run(rig_command(shipment, []), log_path=rig_log_path(shipment, "install-rig"))
+    shipment.run(rig_command(shipment, older_package_arguments(shipment)), log_path=rig_log_path(shipment, "install-rig"))
 
 
 def run_people_upgrade_rig(shipment):
-    shipment.run(rig_command(shipment, ["--people-upgrade"]), log_path=rig_log_path(shipment, "people-upgrade-rig"))
+    shipment.run(
+        rig_command(shipment, [*older_package_arguments(shipment), "--people-upgrade"]),
+        log_path=rig_log_path(shipment, "people-upgrade-rig"),
+    )
+
+
+def run_several_boxes_rig(shipment):
+    shipment.run(rig_command(shipment, ["--several-boxes"]), log_path=rig_log_path(shipment, "several-boxes-rig"))
 
 
 def promote_to_stable(shipment):
@@ -461,6 +471,7 @@ def planned_steps(options):
         (lambda shipment: f"download {shipment.tag} and {shipment.previous_tag} and verify their checksums", download_and_verify),
         (lambda shipment: f"run the {RIG_DISTRIBUTION} install and upgrade rig, {shipment.previous_tag} to {shipment.tag}", run_install_rig),
         (lambda shipment: f"upgrade a host that already has people, {shipment.previous_tag} to {shipment.tag}", run_people_upgrade_rig),
+        (lambda shipment: f"take the company over from one box to a second on {shipment.tag}", run_several_boxes_rig),
     ]
     if options.skip_host:
         return steps

@@ -226,7 +226,7 @@ class PlanTest(unittest.TestCase):
         output = ship_quietly(shipment_with(commands, options))
         self.assertIn(NEW_TAG, output)
         self.assertIn(PREVIOUS_TAG, output)
-        self.assertEqual(len([line for line in output.splitlines() if line[:1].isdigit()]), 8)
+        self.assertEqual(len([line for line in output.splitlines() if line[:1].isdigit()]), 9)
         self.assertEqual(
             [call[1:3] for call in commands.calls], [["release", "view"], ["fetch", "--quiet"], ["release", "version"]]
         )
@@ -246,14 +246,14 @@ class PlanTest(unittest.TestCase):
         output = ship_quietly(shipment_with(ScriptedCommands(), options))
         self.assertNotIn("our own host", output)
         self.assertNotIn("stable", output.split("\n", 2)[2])
-        self.assertEqual(len([line for line in output.splitlines() if line[:1].isdigit()]), 5)
+        self.assertEqual(len([line for line in output.splitlines() if line[:1].isdigit()]), 6)
 
     def test_the_plan_runs_the_release_on_our_host_before_promoting_it(self):
         options = ship_host.Options(skip_host=False, is_plan=True)
         output = ship_quietly(shipment_with(ScriptedCommands(), options))
         steps = [line for line in output.splitlines() if line[:1].isdigit()]
         self.assertIn(f"upgrade our own host to {NEW_TAG} while it is on testing", steps[-2])
-        self.assertEqual(steps[-1], f"8. promote {NEW_TAG} to stable")
+        self.assertEqual(steps[-1], f"9. promote {NEW_TAG} to stable")
 
 
 class OrderTest(unittest.TestCase):
@@ -274,11 +274,21 @@ class OrderTest(unittest.TestCase):
             commands.matching("gh release download")[0],
             commands.matching("test-native-install")[0],
             commands.matching("--people-upgrade")[0],
+            commands.matching("--several-boxes")[0],
             commands.matching("install.sh")[0],
             commands.matching("NRestarts")[-1],
             commands.matching("--channel stable")[0],
         ]
         self.assertEqual(positions, sorted(positions))
+
+    def test_the_several_boxes_rig_takes_over_on_the_release_alone(self):
+        commands = ScriptedCommands()
+        with tempfile.TemporaryDirectory() as directory:
+            ship_quietly(shipment_with(commands, directory=directory))
+        several_boxes = commands.calls[commands.matching("--several-boxes")[0]]
+        self.assertIn(NEW_TAG, " ".join(several_boxes))
+        self.assertNotIn("--older-package-directory", several_boxes)
+        self.assertIn("--older-package-directory", commands.calls[commands.matching("--people-upgrade")[0]])
 
     def test_skip_host_leaves_the_release_on_testing(self):
         commands = ScriptedCommands()
@@ -579,12 +589,12 @@ RIG_REPORT = """boot noise
 
 
 class RigFailureTest(unittest.TestCase):
-    def test_both_rigs_run_under_the_test_profile(self):
+    def test_every_rig_runs_under_the_test_profile(self):
         commands = ScriptedCommands()
         with tempfile.TemporaryDirectory() as directory:
             ship_quietly(shipment_with(commands, directory=directory))
         rig_calls = [commands.calls[index] for index in commands.matching("test-native-install")]
-        self.assertEqual(len(rig_calls), 2)
+        self.assertEqual(len(rig_calls), 3)
         for call in rig_calls:
             self.assertEqual(call[:3], ["monkeys", "run", "@test"])
 
