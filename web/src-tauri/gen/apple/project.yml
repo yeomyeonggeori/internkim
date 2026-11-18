@@ -63,6 +63,7 @@ targets:
         UIBackgroundModes: [remote-notification]
         NSUserActivityTypes: [INSendMessageIntent]
         NSSupportsLiveActivities: true
+        NSPhotoLibraryAddUsageDescription: InternKim saves the pictures and videos you download into your photo library.
     entitlements:
       path: internkim-tauri_iOS/internkim-tauri_iOS.entitlements
       properties:

@@ -19,6 +19,7 @@
 		25531FF5545C50D83629356B /* SwiftUI.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 2E9EBBE39CDCB7926A50CD38 /* SwiftUI.framework */; };
 		2AC2AE86A5F4CD60E0310143 /* AttendanceLockScreenCards.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2D6CFC6167511DD1F9B8752D /* AttendanceLockScreenCards.swift */; };
 		3593D97A8C6885F754B25870 /* AttendanceWorkplaceEntity.swift in Sources */ = {isa = PBXBuildFile; fileRef = 16330B6ABF52AF8265733E88 /* AttendanceWorkplaceEntity.swift */; };
+		38EB3E02C5638EB2F894A358 /* InfoPlist.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = 23B16A68ADED9663C4C3BE02 /* InfoPlist.xcstrings */; };
 		4D10CE0CCDE783569138CD75 /* AttendanceWorkplaceEntity.swift in Sources */ = {isa = PBXBuildFile; fileRef = 16330B6ABF52AF8265733E88 /* AttendanceWorkplaceEntity.swift */; };
 		5055A35A131DAB76C9EC10C8 /* AttendanceAPI.swift in Sources */ = {isa = PBXBuildFile; fileRef = 376FC6076767C2870C11BF3F /* AttendanceAPI.swift */; };
 		5DEF13ED5C9707DCE3D6AD65 /* AttendanceWidgetStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = E05D905ADA03C94AA2AA0BCA /* AttendanceWidgetStore.swift */; };
@@ -100,6 +101,7 @@
 		16330B6ABF52AF8265733E88 /* AttendanceWorkplaceEntity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AttendanceWorkplaceEntity.swift; sourceTree = "<group>"; };
 		16E78634EFE7CAE87F5FB3B8 /* bindings.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = bindings.h; sourceTree = "<group>"; };
 		1E325EE50A373F150EBC7D45 /* NotificationService.appex */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = "wrapper.app-extension"; path = NotificationService.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		23B16A68ADED9663C4C3BE02 /* InfoPlist.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; path = InfoPlist.xcstrings; sourceTree = "<group>"; };
 		24DA84C388F8E8474DE3E1CD /* Security.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Security.framework; path = System/Library/Frameworks/Security.framework; sourceTree = SDKROOT; };
 		2739763D54579EB68F9D27C8 /* AttendanceWidget.appex */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = "wrapper.app-extension"; path = AttendanceWidget.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		2D6CFC6167511DD1F9B8752D /* AttendanceLockScreenCards.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AttendanceLockScreenCards.swift; sourceTree = "<group>"; };
@@ -188,6 +190,7 @@
 			isa = PBXGroup;
 			children = (
 				3C3111013F6EF92B41DC5A08 /* Info.plist */,
+				23B16A68ADED9663C4C3BE02 /* InfoPlist.xcstrings */,
 				B15C35A169EFBB342C1E61C3 /* internkim-tauri_iOS.entitlements */,
 			);
 			path = "internkim-tauri_iOS";
@@ -489,6 +492,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				C21645D3D25E65757ABE0151 /* Assets.xcassets in Resources */,
+				38EB3E02C5638EB2F894A358 /* InfoPlist.xcstrings in Resources */,
 				87CBAEFE935690D0C38821A8 /* LaunchScreen.storyboard in Resources */,
 				7E4032AA876343F525818F73 /* assets in Resources */,
 			);

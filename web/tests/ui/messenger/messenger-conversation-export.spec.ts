@@ -1,6 +1,6 @@
 import { readFile } from 'node:fs/promises';
 import { expect, test, type Page } from '@playwright/test';
-import { insideTheIPhoneApp, invocationsOf } from '../support/iphone-app';
+import { filesSentTo, insideTheIPhoneApp, invocationsOf, withTheDownloadPlugins } from '../support/iphone-app';
 import { mockDeviceMessenger } from './messenger-device-mock';
 
 const reader = { id: 'person-reader', email: 'reader@example.com' };
@@ -110,7 +110,15 @@ test('a direct message exports as CSV from the conversation menu', async ({ page
 	expect(rows[1]).toBe('2026-10-01,오전 10:00,이샘플,"기록 1번, ""따옴표""",');
 });
 
-test('inside the iPhone app an export goes to the share sheet instead of opening in the app', async ({ page }) => {
+async function exportAsCSV(page: Page): Promise<void> {
+	await page.getByRole('button', { name: '채널 정보' }).click();
+	await page.getByRole('dialog', { name: '채널 정보' }).getByRole('button', { name: '대화 내보내기' }).click();
+	const dialog = page.getByRole('dialog', { name: '기획팀 대화 내보내기' });
+	await dialog.getByRole('radio', { name: /CSV/ }).click();
+	await dialog.getByRole('button', { name: '내보내기', exact: true }).click();
+}
+
+test('an iPhone app built before the share-sheet plugin shares an export through the page', async ({ page }) => {
 	await insideTheIPhoneApp(page);
 	await page.addInitScript(() => {
 		const shared: { name: string; text: Promise<string> }[] = [];
@@ -123,20 +131,32 @@ test('inside the iPhone app an export goes to the share sheet instead of opening
 	await mockDeviceMessenger(page, reader, conversations, []);
 	await serveHistoryInPages(page);
 	await page.goto('/messenger?channel=channel-plan');
-	let downloads = 0;
-	page.on('download', () => (downloads += 1));
 
-	await page.getByRole('button', { name: '채널 정보' }).click();
-	await page.getByRole('dialog', { name: '채널 정보' }).getByRole('button', { name: '대화 내보내기' }).click();
-	const dialog = page.getByRole('dialog', { name: '기획팀 대화 내보내기' });
-	await dialog.getByRole('radio', { name: /CSV/ }).click();
-	await dialog.getByRole('button', { name: '내보내기', exact: true }).click();
+	await exportAsCSV(page);
 
 	await expect
 		.poll(() => page.evaluate(() => (Reflect.get(window, 'sharedFiles') as { name: string }[]).map((file) => file.name)))
 		.toEqual([expect.stringMatching(/^기획팀-\d{4}-\d{2}-\d{2}\.csv$/)]);
-	const sharedText = await page.evaluate(() => (Reflect.get(window, 'sharedFiles') as { text: Promise<string> }[])[0].text);
-	expect(sharedText).toContain('기록 1번');
+	expect(await filesSentTo(page, 'plugin:share-sheet|present')).toEqual([]);
+});
+
+test('inside the iPhone app an export goes to the share sheet instead of opening in the app', async ({ page }) => {
+	await insideTheIPhoneApp(page);
+	await withTheDownloadPlugins(page);
+	await mockDeviceMessenger(page, reader, conversations, []);
+	await serveHistoryInPages(page);
+	await page.goto('/messenger?channel=channel-plan');
+	let downloads = 0;
+	page.on('download', () => (downloads += 1));
+
+	await exportAsCSV(page);
+
+	await expect.poll(async () => (await filesSentTo(page, 'plugin:share-sheet|present')).map((file) => file.filename)).toEqual([
+		expect.stringMatching(/^기획팀-\d{4}-\d{2}-\d{2}\.csv$/)
+	]);
+	const [shared] = await filesSentTo(page, 'plugin:share-sheet|present');
+	expect(shared.text).toContain('기록 1번');
+	expect(await filesSentTo(page, 'plugin:media-save|save')).toEqual([]);
 	expect(downloads).toBe(0);
 	await expect(page).toHaveURL(/\/messenger\?channel=channel-plan/);
 });

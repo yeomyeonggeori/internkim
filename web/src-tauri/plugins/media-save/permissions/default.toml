@@ -1,0 +1,3 @@
+[default]
+description = "Lets the web app save a picture or a video it downloaded into the phone's photo gallery"
+permissions = ["allow-save"]

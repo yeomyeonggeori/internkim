@@ -1,33 +1,14 @@
 import { saveIntoDownloadsFolder, savesIntoDownloadsFolder } from '$lib/native-shell/downloads-folder';
-import { isInsideTauriPhoneShell } from '$lib/native-shell/shell';
+import { keepOnThePhone, keepsFilesOnThePhone } from './phone-keeping';
+import { shareThroughTheWebPage, sharesThroughTheWebPage } from './web-share';
 
 const downloadParameter = 'download';
 const objectAddressLifetimeMilliseconds = 60_000;
 
-function sharesInsteadOfDownloading(): boolean {
-	if (typeof navigator === 'undefined' || typeof navigator.share !== 'function') return false;
-	return isInsideTauriPhoneShell();
-}
-
-function wasDismissed(failure: unknown): boolean {
-	return failure instanceof DOMException && failure.name === 'AbortError';
-}
-
-async function shareFile(file: File): Promise<void> {
-	if (!navigator.canShare?.({ files: [file] })) throw new Error(`this phone cannot share a ${file.type || 'file'} file`);
-	try {
-		await navigator.share({ files: [file] });
-	} catch (failure) {
-		if (wasDismissed(failure)) return;
-		throw failure;
-	}
-}
-
-async function fetchedFile(source: string, filename: string): Promise<File> {
+async function fetchedBlob(source: string): Promise<Blob> {
 	const answer = await fetch(source);
 	if (!answer.ok) throw new Error(`the file did not arrive: HTTP ${answer.status}`);
-	const arrived = await answer.blob();
-	return new File([arrived], filename, { type: arrived.type });
+	return answer.blob();
 }
 
 function clickDownloadLink(address: string, filename: string): void {
@@ -47,11 +28,15 @@ export function downloadAddressOf(source: string, filename: string): string {
 
 export async function downloadFile(source: string, filename: string): Promise<void> {
 	if (savesIntoDownloadsFolder()) {
-		await saveIntoDownloadsFolder(await fetchedFile(source, filename), filename);
+		await saveIntoDownloadsFolder(await fetchedBlob(source), filename);
 		return;
 	}
-	if (sharesInsteadOfDownloading()) {
-		await shareFile(await fetchedFile(source, filename));
+	if (keepsFilesOnThePhone()) {
+		await keepOnThePhone(await fetchedBlob(source), filename);
+		return;
+	}
+	if (sharesThroughTheWebPage()) {
+		await shareThroughTheWebPage(await fetchedBlob(source), filename);
 		return;
 	}
 	clickDownloadLink(downloadAddressOf(source, filename), filename);
@@ -68,8 +53,12 @@ export async function saveBlob(blob: Blob, filename: string): Promise<void> {
 		await saveIntoDownloadsFolder(blob, filename);
 		return;
 	}
-	if (sharesInsteadOfDownloading()) {
-		await shareFile(new File([blob], filename, { type: blob.type }));
+	if (keepsFilesOnThePhone()) {
+		await keepOnThePhone(blob, filename);
+		return;
+	}
+	if (sharesThroughTheWebPage()) {
+		await shareThroughTheWebPage(blob, filename);
 		return;
 	}
 	const address = URL.createObjectURL(blob);
