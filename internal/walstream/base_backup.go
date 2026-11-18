@@ -220,7 +220,7 @@ func NewestBaseBackup(ctx context.Context, destination offsite.Destination) (Bas
 	}
 	for index := len(names) - 1; index >= 0; index-- {
 		backup, isReadable := readBaseBackup(ctx, destination, names[index])
-		if isReadable && backup.SealingKey == destination.SealingKey {
+		if isReadable && destination.SealsTo(backup.SealingKey) {
 			return backup, nil
 		}
 	}

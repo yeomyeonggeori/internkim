@@ -38,6 +38,10 @@ type Destination struct {
 	ChunkFolder string
 }
 
+func (destination Destination) SealsTo(sealingKey string) bool {
+	return sealingKey == destination.SealingKey
+}
+
 func (destination Destination) chunkFolderPath() string {
 	folder := destination.ChunkFolder
 	if folder == "" {
@@ -231,7 +235,7 @@ func Newest(ctx context.Context, destination Destination) (Manifest, error) {
 	}
 	for index := len(names) - 1; index >= 0; index-- {
 		manifest, isReadable := readManifest(ctx, destination, names[index])
-		if isReadable && manifest.SealingKey == destination.SealingKey {
+		if isReadable && destination.SealsTo(manifest.SealingKey) {
 			return manifest, nil
 		}
 	}

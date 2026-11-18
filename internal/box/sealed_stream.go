@@ -2,6 +2,7 @@ package box
 
 import (
 	"bufio"
+	"bytes"
 	"crypto/ecdh"
 	"crypto/hpke"
 	"encoding/binary"
@@ -140,18 +141,34 @@ type streamOpener struct {
 	isDone    bool
 }
 
-func (keyring Keyring) OpenStream(source io.Reader, purpose SealPurpose) (io.Reader, error) {
-	buffered := bufio.NewReader(source)
+func SealedTo(sealed []byte) (string, error) {
+	header, errorValue := readSealedStreamHeader(bufio.NewReader(bytes.NewReader(sealed)))
+	if errorValue != nil {
+		return "", errorValue
+	}
+	return header.Recipient, nil
+}
+
+func readSealedStreamHeader(buffered *bufio.Reader) (sealedStreamHeader, error) {
 	headerLine, errorValue := buffered.ReadBytes('\n')
 	if errorValue != nil {
-		return nil, fmt.Errorf("the sealed stream's header: %w", errorValue)
+		return sealedStreamHeader{}, fmt.Errorf("the sealed stream's header: %w", errorValue)
 	}
 	var header sealedStreamHeader
 	if errorValue := json.Unmarshal(headerLine, &header); errorValue != nil {
-		return nil, fmt.Errorf("the sealed stream's header: %w", errorValue)
+		return sealedStreamHeader{}, fmt.Errorf("the sealed stream's header: %w", errorValue)
 	}
 	if header.Version != sealedStreamVersion {
-		return nil, fmt.Errorf("the stream is sealed in version %d, and this box opens version %d", header.Version, sealedStreamVersion)
+		return sealedStreamHeader{}, fmt.Errorf("the stream is sealed in version %d, and this box opens version %d", header.Version, sealedStreamVersion)
+	}
+	return header, nil
+}
+
+func (keyring Keyring) OpenStream(source io.Reader, purpose SealPurpose) (io.Reader, error) {
+	buffered := bufio.NewReader(source)
+	header, errorValue := readSealedStreamHeader(buffered)
+	if errorValue != nil {
+		return nil, errorValue
 	}
 	privateKey, errorValue := keyring.privateKeyFor(header.Recipient)
 	if errorValue != nil {
