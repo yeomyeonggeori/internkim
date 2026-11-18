@@ -27,6 +27,7 @@ const (
 var (
 	ErrNoFullEntry         = errors.New("the company keeps no full file journal entry this box can start from")
 	errReachedTheFullEntry = errors.New("the newest full file journal entry was read")
+	errSealedToARetiredKey = errors.New("the file journal entry is sealed to a key the company no longer seals to")
 )
 
 type Entry struct {
@@ -103,6 +104,13 @@ func (journal Journal) Read(ctx context.Context, sequence int64, keyring box.Key
 	if errorValue != nil {
 		return Entry{}, fmt.Errorf("reading the file journal entry %d: %w", sequence, errorValue)
 	}
+	recipient, errorValue := box.SealedTo(sealed)
+	if errorValue != nil {
+		return Entry{}, fmt.Errorf("opening the file journal entry %d: %w", sequence, errorValue)
+	}
+	if !journal.Destination.SealsTo(recipient) {
+		return Entry{}, fmt.Errorf("the file journal entry %d: %w", sequence, errSealedToARetiredKey)
+	}
 	opened, errorValue := keyring.OpenStream(bytes.NewReader(sealed), box.FileJournalPurpose(journal.Destination.CompanyID, name))
 	if errorValue != nil {
 		return Entry{}, fmt.Errorf("opening the file journal entry %d: %w", sequence, errorValue)
@@ -136,7 +144,7 @@ func (journal Journal) sinceNewestFull(ctx context.Context, keyring box.Keyring)
 		return nil
 	}
 	errorValue = offsite.FetchAhead(ctx, sequences, read, untilTheFullOne)
-	if errorValue == nil {
+	if errorValue == nil || errors.Is(errorValue, errSealedToARetiredKey) {
 		return nil, ErrNoFullEntry
 	}
 	if !errors.Is(errorValue, errReachedTheFullEntry) {
