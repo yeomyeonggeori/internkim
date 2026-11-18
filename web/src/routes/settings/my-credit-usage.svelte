@@ -31,7 +31,6 @@
 		</Card.Content>
 		<Card.Footer class="flex-col items-start gap-0.5 text-sm text-muted-foreground">
 			<span>{filled(text.myUsageResets, { date: billingDay(credits.periodEndsAt, currentLocale.value) })}</span>
-			<span>{text.myUsageAtLimit}</span>
 		</Card.Footer>
 	</Card.Root>
 {/if}
