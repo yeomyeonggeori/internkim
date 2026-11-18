@@ -138,6 +138,7 @@ test('choosing a thread reply shows only that thread beside the inbox and marks 
 	await expect.poll(() => fixture.marks).toContainEqual({ conversationID: 'channel-1', parentID: 'root-1', messageID: 'reply-1' });
 	const inboxButton = page.getByRole('button', { name: '수신함', exact: true });
 	await expect(page.getByRole('listitem').filter({ has: inboxButton })).toContainText('1');
+	expect(fixture.marks).not.toContainEqual({ conversationID: 'channel-1', messageID: 'mention-1' });
 });
 
 test('the thread title leaves the inbox for the channel with that thread open', async ({ page }) => {
@@ -409,3 +410,16 @@ for (const width of everyScreen) {
 		}
 	});
 }
+
+test('a mention read in its channel stops counting as unread in the inbox', async ({ page }) => {
+	const fixture = new MessengerInboxFixture();
+	fixture.hold('person.messages.list');
+	await openMessenger(page, 1280, fixture, '/messenger?channel=channel-1');
+	const inboxItem = page.getByRole('listitem').filter({ has: page.getByRole('button', { name: '수신함', exact: true }) });
+	await expect(inboxItem).toContainText('2');
+
+	fixture.release('person.messages.list');
+
+	await expect.poll(() => fixture.marks).toContainEqual({ conversationID: 'channel-1', messageID: 'mention-1' });
+	await expect(inboxItem).toContainText('1');
+});

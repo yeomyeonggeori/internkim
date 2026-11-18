@@ -105,6 +105,7 @@
 	const inbox = new MessengerInboxState();
 	let isInboxOpen = $state(isSupabaseConfigured() && !page.url.searchParams.has('channel'));
 	let chosenInboxEntryID = $state<string | undefined>(undefined);
+	let inboxRevealsUnderway = $state(0);
 	const inboxEntry = $derived(
 		isSupabaseConfigured() ? { isActive: isInboxOpen, unread: inbox.unread, open: openInbox } : undefined
 	);
@@ -129,8 +130,13 @@
 		if (conversations.some((conversation) => conversation.id === entry.conversationID && conversation.isHidden === true)) {
 			bringBackHiddenConversation(entry.conversationID);
 		}
-		await tick();
-		await channelView?.revealMessage(entry.id, inboxThreadRootOf(entry, conversationOf(entry.conversationID), !isMobile.current));
+		inboxRevealsUnderway += 1;
+		try {
+			await tick();
+			await channelView?.revealMessage(entry.id, inboxThreadRootOf(entry, conversationOf(entry.conversationID), !isMobile.current));
+		} finally {
+			inboxRevealsUnderway -= 1;
+		}
 	}
 
 	async function leaveInboxForChosenPlace() {
@@ -504,7 +510,9 @@
 		if (!conversationID || !isSupabaseConfigured()) return;
 		markRead(conversationID, messageID, threadRootID)
 			.then((isNewlyRead) => {
-				if (isNewlyRead) rereadConversationList();
+				if (!isNewlyRead) return;
+				rereadConversationList();
+				inbox.showReadThrough(conversationID, threadRootID);
 			})
 			.catch((failure: unknown) => console.warn('the messenger did not record how far this conversation was read', failure));
 	}
@@ -767,7 +775,7 @@
 						canModerate={activeConversation?.myRole === 'owner' || activeConversation?.myRole === 'admin'}
 						isWithTheAgent={activeConversation?.isWithTheAgent === true}
 						threadLayout={isInboxOpen || isMobile.current ? 'focus' : 'sheet'}
-						onReadThrough={isChannelCoveredByInbox ? undefined : (messageID, threadRootID) => readThrough(activeID, messageID, threadRootID)}
+						onReadThrough={isChannelCoveredByInbox || inboxRevealsUnderway > 0 ? undefined : (messageID, threadRootID) => readThrough(activeID, messageID, threadRootID)}
 					/>
 				{/key}
 				{/if}

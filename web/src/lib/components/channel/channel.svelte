@@ -370,8 +370,10 @@
 		isMine
 	});
 
+	const isConversationBehindThread = $derived(threadLayout === 'focus' && openThreadRoot !== null);
+
 	$effect(() => {
-		if (!onReadThrough || !isPageVisible || conversationAnchor.isAwayFromLatest || !latestSettledMessage) return;
+		if (!onReadThrough || !isPageVisible || isConversationBehindThread || conversationAnchor.isAwayFromLatest || !latestSettledMessage) return;
 		onReadThrough(latestSettledMessage.id);
 	});
 
@@ -988,7 +990,7 @@
 {/snippet}
 
 <div class="flex min-h-0 flex-1">
-<div class={['relative flex min-h-0 min-w-0 flex-1 flex-col', threadLayout === 'focus' && openThreadRoot && 'hidden']} style:--dock-height="{dockHeight}px" use:receivesFileDrag={fileDrag}>
+<div class={['relative flex min-h-0 min-w-0 flex-1 flex-col', isConversationBehindThread && 'hidden']} style:--dock-height="{dockHeight}px" use:receivesFileDrag={fileDrag}>
 	<ConversationFileDropOverlay visible={fileDrag.isOver} title={text.dropFilesTitle} description={text.dropFilesDescription} />
 	<div class="min-h-0 min-w-0 flex-1 overflow-hidden">
 			{#if !hasLoadedOnce}

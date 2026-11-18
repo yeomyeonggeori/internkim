@@ -69,6 +69,12 @@ export class MessengerInboxState {
 		await markReadThrough(chosen.conversationID, chosen.id, chosen.threadRootId);
 	}
 
+	showReadThrough(conversationID: string, threadRootID?: string): void {
+		const isReadNow = (entry: InboxEntry) => entry.isUnread && entry.conversationID === conversationID && entry.threadRootId === threadRootID;
+		if (!this.entries.some(isReadNow)) return;
+		this.entries = this.entries.map((entry) => (isReadNow(entry) ? { ...entry, isUnread: false } : entry));
+	}
+
 	async refresh(): Promise<void> {
 		if (this.isLoading) {
 			this.isRefreshWanted = true;
