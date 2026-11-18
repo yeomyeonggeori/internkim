@@ -1,6 +1,6 @@
 import { readFile } from 'node:fs/promises';
 import { expect, test, type Page } from '@playwright/test';
-import { insideTheIPhoneApp, invocationsOf } from '../support/iphone-app';
+import { filesSentTo, insideTheIPhoneApp, invocationsOf } from '../support/iphone-app';
 import { mockDeviceMessenger } from './messenger-device-mock';
 
 const reader = { id: 'person-reader', email: 'reader@example.com' };
@@ -112,14 +112,6 @@ test('a direct message exports as CSV from the conversation menu', async ({ page
 
 test('inside the iPhone app an export goes to the share sheet instead of opening in the app', async ({ page }) => {
 	await insideTheIPhoneApp(page);
-	await page.addInitScript(() => {
-		const shared: { name: string; text: Promise<string> }[] = [];
-		Reflect.set(window, 'sharedFiles', shared);
-		Reflect.set(navigator, 'canShare', () => true);
-		Reflect.set(navigator, 'share', async ({ files }: { files: File[] }) => {
-			for (const file of files) shared.push({ name: file.name, text: file.text() });
-		});
-	});
 	await mockDeviceMessenger(page, reader, conversations, []);
 	await serveHistoryInPages(page);
 	await page.goto('/messenger?channel=channel-plan');
@@ -132,11 +124,12 @@ test('inside the iPhone app an export goes to the share sheet instead of opening
 	await dialog.getByRole('radio', { name: /CSV/ }).click();
 	await dialog.getByRole('button', { name: '내보내기', exact: true }).click();
 
-	await expect
-		.poll(() => page.evaluate(() => (Reflect.get(window, 'sharedFiles') as { name: string }[]).map((file) => file.name)))
-		.toEqual([expect.stringMatching(/^기획팀-\d{4}-\d{2}-\d{2}\.csv$/)]);
-	const sharedText = await page.evaluate(() => (Reflect.get(window, 'sharedFiles') as { text: Promise<string> }[])[0].text);
-	expect(sharedText).toContain('기록 1번');
+	await expect.poll(async () => (await filesSentTo(page, 'plugin:share-sheet|present')).map((file) => file.filename)).toEqual([
+		expect.stringMatching(/^기획팀-\d{4}-\d{2}-\d{2}\.csv$/)
+	]);
+	const [shared] = await filesSentTo(page, 'plugin:share-sheet|present');
+	expect(shared.text).toContain('기록 1번');
+	expect(await filesSentTo(page, 'plugin:media-save|save')).toEqual([]);
 	expect(downloads).toBe(0);
 	await expect(page).toHaveURL(/\/messenger\?channel=channel-plan/);
 });

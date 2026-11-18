@@ -1,4 +1,5 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
+import { filesSentTo, insideTheIPhoneApp } from '../support/iphone-app';
 import { mockDeviceMessenger } from './messenger-device-mock';
 
 const channelID = 'channel-attachment-download';
@@ -7,6 +8,7 @@ const author = { id: 'person-author', name: '박예시', email: 'author@example.
 const storeOrigin = 'https://store.example.com';
 const pictureName = '회의 사진.png';
 const fileName = '회의록 초안.pdf';
+const notesText = '회의록 초안 본문';
 const onePixelPNG = Buffer.from(
 	'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==',
 	'base64'
@@ -48,10 +50,15 @@ const fileMessage = {
 
 async function mockStore(page: Page): Promise<void> {
 	await page.route(`${storeOrigin}/**`, async (route) => {
-		const downloadAs = new URL(route.request().url()).searchParams.get('download');
+		const address = new URL(route.request().url());
+		const downloadAs = address.searchParams.get('download');
 		const headers: Record<string, string> = downloadAs
 			? { 'content-disposition': `attachment; filename*=UTF-8''${encodeURIComponent(downloadAs)}` }
 			: {};
+		if (address.pathname.endsWith('.pdf')) {
+			await route.fulfill({ body: notesText, contentType: 'application/pdf', headers });
+			return;
+		}
 		await route.fulfill({ body: onePixelPNG, contentType: 'image/png', headers });
 	});
 }
@@ -134,5 +141,39 @@ test.describe('messenger attachment download', () => {
 		const downloading = page.waitForEvent('download');
 		await page.getByRole('button', { name: '다운로드' }).click();
 		expect((await downloading).suggestedFilename()).toBe(fileName);
+	});
+});
+
+test.describe('messenger attachment download inside the iPhone app', () => {
+	test.beforeEach(async ({ page }) => {
+		await insideTheIPhoneApp(page);
+		await mockStore(page);
+		await mockDeviceMessenger(
+			page,
+			reader,
+			[{ id: channelID, name: '첨부 채널', kind: 'group', myRole: 'member' }],
+			[pictureMessage, fileMessage]
+		);
+		await page.setViewportSize({ width: 1280, height: 800 });
+		await page.goto(`/messenger?channel=${channelID}`);
+	});
+
+	test('the viewer saves the picture into the photo gallery', async ({ page }) => {
+		await page.getByRole('button', { name: pictureName }).click();
+		await page.getByRole('dialog').getByRole('button', { name: '다운로드' }).click();
+
+		await expect.poll(async () => (await filesSentTo(page, 'plugin:media-save|save')).map((file) => file.filename)).toEqual([pictureName]);
+		const [saved] = await filesSentTo(page, 'plugin:media-save|save');
+		expect(saved.mediaType).toBe('image/png');
+		expect(await filesSentTo(page, 'plugin:share-sheet|present')).toEqual([]);
+	});
+
+	test('a file card hands the file to the share sheet', async ({ page }) => {
+		await page.getByRole('button', { name: '다운로드' }).click();
+
+		await expect.poll(async () => (await filesSentTo(page, 'plugin:share-sheet|present')).map((file) => file.filename)).toEqual([fileName]);
+		const [shared] = await filesSentTo(page, 'plugin:share-sheet|present');
+		expect(shared).toEqual({ filename: fileName, mediaType: 'application/pdf', text: notesText });
+		expect(await filesSentTo(page, 'plugin:media-save|save')).toEqual([]);
 	});
 });
