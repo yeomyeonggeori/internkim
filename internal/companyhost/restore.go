@@ -16,13 +16,15 @@ import (
 )
 
 type RestoreRequest struct {
-	ArchivePath    string
-	Replace        bool
-	KeepsThisBox   bool
-	RebuildFromWAL func(companyID, dataDirectoryPath string) error
-	ReplayFiles    FileJournalReplay
-	BeforeStarting func(companyID string) error
-	Now            time.Time
+	ArchivePath       string
+	Replace           bool
+	KeepsThisBox      bool
+	KeptSafetyBackup  string
+	SafetyBackupTaken func(archivePath string) error
+	RebuildFromWAL    func(companyID, dataDirectoryPath string) error
+	ReplayFiles       FileJournalReplay
+	BeforeStarting    func(companyID string) error
+	Now               time.Time
 }
 
 type RestoreResult struct {
@@ -63,13 +65,11 @@ func restoreWhileLocked(platform backupPlatform, request RestoreRequest, backupD
 	}
 	result := RestoreResult{Manifest: archive.Manifest, Supervisor: platform.NameOfItsSupervisor()}
 	if request.Replace {
-		fmt.Fprintln(progress, "2/6 Backing up what this computer holds now, so the restore can be undone…")
-		safety, errorValue := backupWhileLocked(platform, BackupRequest{DirectoryPath: backupDirectoryPath, Now: request.Now}, machine, io.Discard)
+		safetyBackup, errorValue := keepASafetyBackup(platform, request, backupDirectoryPath, machine, progress)
 		if errorValue != nil {
-			return RestoreResult{}, fmt.Errorf("the backup of this computer's current state failed, so nothing was restored: %w", errorValue)
+			return RestoreResult{}, errorValue
 		}
-		result.SafetyBackup = safety.ArchivePath
-		fmt.Fprintf(progress, "  %s\n", safety.ArchivePath)
+		result.SafetyBackup = safetyBackup
 	} else {
 		fmt.Fprintln(progress, "2/6 This computer holds no company, so there is nothing to keep before restoring…")
 	}

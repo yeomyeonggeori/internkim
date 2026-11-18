@@ -41,7 +41,13 @@ func takeOverFromTheNewestBackup(ctx context.Context, session box.Session, keyri
 	case "active", "activating":
 		return box.ErrTakeOverUnderway
 	case "failed":
-		return fmt.Errorf("the last take-over failed; read `journalctl -u %s`, then run `systemctl reset-failed %s` to let this box try again", takeOverUnitName, takeOverUnitName)
+		if errorValue := takeOverRetries().clearTheFailedUnitWhenItIsTime(); errorValue != nil {
+			return errorValue
+		}
+	default:
+		if errorValue := takeOverRetries().forget(); errorValue != nil {
+			return errorValue
+		}
 	}
 	destination := companyDestinationOf(session)
 	manifest, errorValue := offsite.Newest(ctx, destination)

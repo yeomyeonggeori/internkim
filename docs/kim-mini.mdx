@@ -210,8 +210,9 @@ the database from the newest base backup and every piece of WAL kept after it,
 replays the file journal over the files, and starts the company from them. While the company keeps no snapshot, the switch is refused, since the new
 box would have nothing to start from, and a box that cannot open the snapshots
 the company keeps stops with an error instead of starting the company empty. A
-take-over that fails is not retried until
-`systemctl reset-failed internkim-take-over` says to.
+take-over that fails is tried again by the box itself, one minute after the
+failure and then twice as long after each failure, up to half an hour, until
+it succeeds or another box is made to serve.
 
 A company can let its boxes do this by themselves. Every box is seen by the
 hosted service once a minute. With automatic take-over on, a standby box that

@@ -139,7 +139,12 @@ func runRestore(arguments []string) error {
 		go session.keepFresh(renewing)
 		place := asTheBoxTakingOver(thisBox(), takeOverSessionPath())
 		starting := startingWithTheTakeOverSession(boxDaemon("").Places, session.fresh, markThisBoxInstalled)
+		attempts, errorValue := takeOverRetries().read()
+		if errorValue != nil {
+			return errorValue
+		}
 		request.Replace, request.KeepsThisBox, request.BeforeStarting = holdsACompany, true, starting
+		request.KeptSafetyBackup, request.SafetyBackupTaken = attempts.SafetyBackup, takeOverRetries().keepSafetyBackup
 		request.RebuildFromWAL, request.ReplayFiles = rebuildTheDatabaseFromKeptWALAs(place), replayTheFileJournalAs(place)
 	}
 	result, errorValue := companyhost.Restore(request, thisComputer{}, os.Stdout)
@@ -147,7 +152,10 @@ func runRestore(arguments []string) error {
 		return errorValue
 	}
 	printRestore(os.Stdout, result)
-	return nil
+	if !*isTakingOver {
+		return nil
+	}
+	return takeOverRetries().finishTheTakeOver()
 }
 
 func printRestore(output io.Writer, result companyhost.RestoreResult) {

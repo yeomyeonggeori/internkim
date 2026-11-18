@@ -59,7 +59,7 @@ func (session takeOverSession) fresh() (string, error) {
 			return renewed.AccessToken, nil
 		}
 		if attempt == takeOverSessionAttempts {
-			return "", fmt.Errorf("%w; the company's services were not started; `systemctl reset-failed %s` lets this box try again", errorValue, takeOverUnitName)
+			return "", fmt.Errorf("%w; the company's services were not started, and this box tries the take-over again by itself", errorValue)
 		}
 		log.Printf("%v; trying again in %s", errorValue, backoff)
 		time.Sleep(backoff)

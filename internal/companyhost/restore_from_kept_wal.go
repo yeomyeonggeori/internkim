@@ -18,6 +18,7 @@ var ErrNoKeptWAL = errors.New("the company keeps no base backup and WAL to rebui
 const (
 	replacedDataTimeLayout = "20060102T150405Z"
 	replacedDataMarker     = ".before-take-over-"
+	rebuildingMarkerSuffix = ".rebuilding"
 )
 
 func rebuildTheDatabaseFromKeptWAL(platform backupPlatform, machine Machine, rebuild func(dataDirectoryPath string) error, now time.Time, progress io.Writer) (bool, error) {
@@ -28,32 +29,56 @@ func rebuildTheDatabaseFromKeptWAL(platform backupPlatform, machine Machine, reb
 	if errorValue := machine.Run("systemctl", []string{"stop", blueclaw.CompanyHostDatabaseServiceName + ".service"}, nil, progress); errorValue != nil {
 		return false, fmt.Errorf("the database could not be stopped to rebuild it: %w", errorValue)
 	}
+	replay := func() error {
+		owner := blueclaw.CompanyHostDatabaseUser + ":" + blueclaw.CompanyHostDatabaseUser
+		if errorValue := machine.Run("chown", []string{"-R", owner, dataPath}, nil, progress); errorValue != nil {
+			return fmt.Errorf("giving the rebuilt database to %s: %w", blueclaw.CompanyHostDatabaseUser, errorValue)
+		}
+		fmt.Fprintln(progress, "  replaying the kept WAL; a day of it can take some minutes")
+		recovery := []string{"-u", blueclaw.CompanyHostDatabaseUser, "--", platform.Layout().DataServicePath(), "postgres-recover"}
+		if errorValue := machine.Run("runuser", recovery, nil, progress); errorValue != nil {
+			return fmt.Errorf("replaying the kept WAL into the rebuilt database: %w", errorValue)
+		}
+		return nil
+	}
+	return rebuildKeepingThisBoxDatabase(dataPath, now, rebuild, replay, progress)
+}
+
+func rebuildKeepingThisBoxDatabase(dataPath string, now time.Time, rebuild func(dataDirectoryPath string) error, replay func() error, progress io.Writer) (bool, error) {
 	replacedPath, errorValue := setThisBoxDatabaseAside(dataPath, now)
 	if errorValue != nil {
 		return false, errorValue
 	}
+	if errorValue := os.WriteFile(dataPath+rebuildingMarkerSuffix, nil, 0o600); errorValue != nil {
+		return false, errors.Join(fmt.Errorf("marking %s as being rebuilt: %w", dataPath, errorValue), putTheDatabaseBackAfter(dataPath, replacedPath))
+	}
 	errorValue = rebuild(dataPath)
 	if errors.Is(errorValue, ErrNoKeptWAL) {
 		fmt.Fprintln(progress, "  the company keeps no WAL yet, so the databases come from the snapshot's dumps")
-		if errorValue := putTheReplacedDataBack(dataPath, replacedPath); errorValue != nil {
-			return false, errorValue
-		}
-		return false, nil
+		return false, putTheDatabaseBackAfter(dataPath, replacedPath)
+	}
+	if errorValue == nil {
+		errorValue = replay()
 	}
 	if errorValue != nil {
-		return false, fmt.Errorf("rebuilding the database from the company's kept WAL (%s): %w", whereThisBoxDatabaseIsKept(replacedPath), errorValue)
+		return false, errors.Join(fmt.Errorf("rebuilding the database from the company's kept WAL: %w", errorValue), putTheDatabaseBackAfter(dataPath, replacedPath))
 	}
-	owner := blueclaw.CompanyHostDatabaseUser + ":" + blueclaw.CompanyHostDatabaseUser
-	if errorValue := machine.Run("chown", []string{"-R", owner, dataPath}, nil, progress); errorValue != nil {
-		return false, errorValue
-	}
-	fmt.Fprintln(progress, "  replaying the kept WAL; a day of it can take some minutes")
-	recovery := []string{"-u", blueclaw.CompanyHostDatabaseUser, "--", platform.Layout().DataServicePath(), "postgres-recover"}
-	if errorValue := machine.Run("runuser", recovery, nil, progress); errorValue != nil {
-		return false, fmt.Errorf("replaying the kept WAL into the rebuilt database (%s): %w", whereThisBoxDatabaseIsKept(replacedPath), errorValue)
+	if errorValue := os.Remove(dataPath + rebuildingMarkerSuffix); errorValue != nil {
+		return false, fmt.Errorf("the database was rebuilt, and its marker at %s could not be removed: %w", dataPath+rebuildingMarkerSuffix, errorValue)
 	}
 	fmt.Fprintf(progress, "  %s\n", whereThisBoxDatabaseIsKept(replacedPath))
 	return true, nil
+}
+
+func putTheDatabaseBackAfter(dataPath, replacedPath string) error {
+	if errorValue := putTheReplacedDataBack(dataPath, replacedPath); errorValue != nil {
+		return fmt.Errorf("putting this box's own database back at %s: %w", dataPath, errorValue)
+	}
+	errorValue := os.Remove(dataPath + rebuildingMarkerSuffix)
+	if errorValue != nil && !errors.Is(errorValue, fs.ErrNotExist) {
+		return fmt.Errorf("this box's own database is back at %s, and the marker of the rebuild could not be removed: %w", dataPath, errorValue)
+	}
+	return nil
 }
 
 func whereThisBoxDatabaseIsKept(replacedPath string) string {
@@ -64,6 +89,9 @@ func whereThisBoxDatabaseIsKept(replacedPath string) string {
 }
 
 func setThisBoxDatabaseAside(dataPath string, now time.Time) (string, error) {
+	if errorValue := discardARebuildThatWasCutOff(dataPath); errorValue != nil {
+		return "", errorValue
+	}
 	if _, errorValue := os.Stat(dataPath); errors.Is(errorValue, fs.ErrNotExist) {
 		return whereAnEarlierTakeOverSetTheDatabaseAside(dataPath)
 	}
@@ -109,4 +137,14 @@ func forgetEarlierReplacedData(dataPath string) error {
 		}
 	}
 	return nil
+}
+
+func discardARebuildThatWasCutOff(dataPath string) error {
+	if _, errorValue := os.Stat(dataPath + rebuildingMarkerSuffix); errors.Is(errorValue, fs.ErrNotExist) {
+		return nil
+	}
+	if errorValue := os.RemoveAll(dataPath); errorValue != nil {
+		return fmt.Errorf("removing the rebuild an earlier take-over left unfinished at %s: %w", dataPath, errorValue)
+	}
+	return os.Remove(dataPath + rebuildingMarkerSuffix)
 }
