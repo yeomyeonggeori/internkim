@@ -12,7 +12,7 @@
 	import { billingText } from './billing-text';
 	import { billingDay, creditCount, filled } from './billing-format';
 
-	let { credits }: { credits: CompanyCredits } = $props();
+	let { credits, isPayerChangeWaiting }: { credits: CompanyCredits; isPayerChangeWaiting: boolean | null } = $props();
 
 	const text = createPageText(billingText);
 	let isOpeningCheckout = $state(false);
@@ -45,7 +45,7 @@
 	<Button {variant} onclick={managePayment} disabled={isOpeningPortal}>{text.managePayment}</Button>
 {/snippet}
 
-{#if credits.paidBy === 'subscription' && isSubscriptionPaying(credits.subscriptionStatus)}
+{#if isSubscriptionPaying(credits.subscriptionStatus)}
 	<Card.Root>
 		<Card.Header>
 			<Card.Title class="flex items-center gap-2">
@@ -56,6 +56,13 @@
 				{filled(text.subscriptionSeats, { seats: String(credits.billedSeats ?? 0), credits: perSeat })}
 			</Card.Description>
 		</Card.Header>
+		{#if credits.paidBy === 'company_key' && isPayerChangeWaiting !== null}
+			<Card.Content>
+				<p class="text-sm text-muted-foreground">
+					{isPayerChangeWaiting ? text.companyKeyPaysUntilNextStart : text.companyKeyPaysNow}
+				</p>
+			</Card.Content>
+		{/if}
 		<Card.Footer class="flex flex-wrap items-center justify-between gap-3">
 			<span class="text-sm text-muted-foreground">
 				{filled(text.subscriptionRenews, { date: billingDay(credits.periodEndsAt, currentLocale.value) })}
