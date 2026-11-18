@@ -13,6 +13,35 @@ test.describe.configure({ mode: 'serial', timeout: 60_000 });
 test.use({ locale: 'ko-KR' });
 
 const settingsPath = `/${exampleCompanySlug}/settings`;
+const computerKeyHash = `billing-ui-${exampleCompanyID}`;
+const keyPaysUntilNextStart = '회사 컴퓨터가 아직 회사 OpenRouter 키로 AI 사용료를 내고 있습니다. 서비스가 다음에 시작하면 크레딧으로 바뀝니다.';
+const keyPaysNow = '지금은 회사 OpenRouter 키가 AI 사용료를 냅니다.';
+
+async function computerStartedWithItsKey(): Promise<void> {
+	const { error } = await centralPlaneAdminClient().from('agent').upsert(
+		{
+			company_id: exampleCompanyID,
+			name: 'company-computer',
+			api_key_hash: computerKeyHash,
+			revoked_at: null,
+			holds_model_key: true,
+			uses_own_model_key_at_start: true,
+			model_key_reported_at: new Date().toISOString()
+		},
+		{ onConflict: 'company_id,name' }
+	);
+	if (error) throw new Error(error.message);
+}
+
+async function forgetTheComputer(): Promise<void> {
+	const { error } = await centralPlaneAdminClient().from('agent').delete().eq('api_key_hash', computerKeyHash);
+	if (error) throw new Error(error.message);
+}
+
+async function companyKeyPays(usesOwnModelKey: boolean): Promise<void> {
+	const { error } = await centralPlaneAdminClient().from('company').update({ uses_own_model_key: usesOwnModelKey }).eq('id', exampleCompanyID);
+	if (error) throw new Error(error.message);
+}
 
 async function openBilling(page: Page): Promise<void> {
 	await signInToTheCentralPlane(page, `${settingsPath}/billing`);
@@ -31,7 +60,10 @@ async function subscribeTheCompanyWithUsage(): Promise<void> {
 	if (used.error) throw new Error(used.error.message);
 }
 
-test.afterAll(unsubscribeTheCompany);
+test.afterAll(async () => {
+	await forgetTheComputer();
+	await unsubscribeTheCompany();
+});
 
 test('an administrator of an unsubscribed company is offered the subscription', async ({ page }) => {
 	await openBilling(page);
@@ -69,6 +101,8 @@ test('an administrator of a subscribed company sees the credits and sets one lim
 	await subscribeTheCompanyWithUsage();
 	await openBilling(page);
 	await expect(page.getByText('이용 중', { exact: true })).toBeVisible();
+	await expect(page.getByText(keyPaysUntilNextStart)).toHaveCount(0);
+	await expect(page.getByText(keyPaysNow)).toHaveCount(0);
 	await expect(page.getByText('31,600 남음')).toBeVisible();
 	await expect(page.getByText('8,400 / 10,000')).toBeVisible();
 	await expect(page.getByRole('button', { name: '결제 관리' })).toBeVisible();
@@ -103,4 +137,43 @@ test('an administrator whose card was declined is not offered a second subscript
 	await expect(page.getByText('결제 확인 필요', { exact: true })).toBeVisible();
 	await expect(page.getByRole('button', { name: '구독 시작' })).toHaveCount(0);
 	await expect(page.getByRole('button', { name: '결제 관리' })).toBeVisible();
+});
+
+test('a subscribed company whose computer still runs on its key is told the subscription is active and when credits take over', async ({ page }) => {
+	await subscribeTheCompany();
+	await companyKeyPays(false);
+	await computerStartedWithItsKey();
+	await openBilling(page);
+	await expect(page.getByText('이용 중', { exact: true })).toBeVisible();
+	await expect(page.getByText('결제 확인 필요', { exact: true })).toHaveCount(0);
+	await expect(page.getByText(keyPaysUntilNextStart)).toBeVisible();
+	await expect(page.getByText(keyPaysNow)).toHaveCount(0);
+	await expect(page.getByText('회사 크레딧', { exact: true })).toBeVisible();
+	await expect(page.getByText('자동 충전', { exact: true })).toBeVisible();
+	await expect(page.getByText('팀원별 사용량', { exact: true })).toBeVisible();
+});
+
+test('a subscribed company an operator set to pay with its key is told the key pays now', async ({ page }) => {
+	await subscribeTheCompany();
+	await companyKeyPays(true);
+	await computerStartedWithItsKey();
+	await openBilling(page);
+	await expect(page.getByText('이용 중', { exact: true })).toBeVisible();
+	await expect(page.getByText(keyPaysNow)).toBeVisible();
+	await expect(page.getByText(keyPaysUntilNextStart)).toHaveCount(0);
+});
+
+test('a subscribed company that spent the period\'s credits is told the subscription is active and that nothing is left', async ({ page }) => {
+	await forgetTheComputer();
+	await subscribeTheCompany();
+	const spent = await centralPlaneAdminClient()
+		.from('company')
+		.update({ subscription_credits: 0, permanent_credits: 0 })
+		.eq('id', exampleCompanyID);
+	if (spent.error) throw new Error(spent.error.message);
+	await openBilling(page);
+	await expect(page.getByText('이용 중', { exact: true })).toBeVisible();
+	await expect(page.getByText('결제 확인 필요', { exact: true })).toHaveCount(0);
+	await expect(page.getByText('0 남음', { exact: true })).toBeVisible();
+	await expect(page.getByText('자동 충전', { exact: true })).toBeVisible();
 });
