@@ -19,9 +19,12 @@ type RestoreRequest struct {
 	ArchivePath    string
 	Replace        bool
 	KeepsThisBox   bool
+	EarlierFinding SafetyFinding
+	FindingKept    func(SafetyFinding) error
 	RebuildFromWAL func(companyID, dataDirectoryPath string) error
 	ReplayFiles    FileJournalReplay
 	BeforeStarting func(companyID string) error
+	OnceServing    func(companyID string) error
 	Now            time.Time
 }
 
@@ -62,17 +65,11 @@ func restoreWhileLocked(platform backupPlatform, request RestoreRequest, backupD
 		return RestoreResult{}, errorValue
 	}
 	result := RestoreResult{Manifest: archive.Manifest, Supervisor: platform.NameOfItsSupervisor()}
-	if request.Replace {
-		fmt.Fprintln(progress, "2/6 Backing up what this computer holds now, so the restore can be undone…")
-		safety, errorValue := backupWhileLocked(platform, BackupRequest{DirectoryPath: backupDirectoryPath, Now: request.Now}, machine, io.Discard)
-		if errorValue != nil {
-			return RestoreResult{}, fmt.Errorf("the backup of this computer's current state failed, so nothing was restored: %w", errorValue)
-		}
-		result.SafetyBackup = safety.ArchivePath
-		fmt.Fprintf(progress, "  %s\n", safety.ArchivePath)
-	} else {
-		fmt.Fprintln(progress, "2/6 This computer holds no company, so there is nothing to keep before restoring…")
+	safetyBackup, errorValue := keepWhatThisComputerHolds(platform, request, backupDirectoryPath, machine, progress)
+	if errorValue != nil {
+		return RestoreResult{}, errorValue
 	}
+	result.SafetyBackup = safetyBackup
 	fmt.Fprintln(progress, "3/6 Stopping the services…")
 	if errorValue := platform.StopTheHost(machine, progress); errorValue != nil {
 		return RestoreResult{}, errorValue
@@ -93,7 +90,7 @@ func restoreWhileLocked(platform backupPlatform, request RestoreRequest, backupD
 		return RestoreResult{}, errorValue
 	}
 	fmt.Fprintln(progress, "6/6 Starting the services and waiting for them to answer…")
-	return result, startTheRestoredHost(platform, machine, directoryPath, connection, request.BeforeStarting, progress)
+	return result, startTheRestoredHost(platform, machine, directoryPath, connection, request.BeforeStarting, request.OnceServing, progress)
 }
 
 func checkTheArchive(platform backupPlatform, request RestoreRequest, machine Machine) (hostbackup.Archive, error) {
@@ -412,7 +409,7 @@ func restoreOneDatabase(platform backupPlatform, archive hostbackup.Archive, mac
 	return nil
 }
 
-func startTheRestoredHost(platform backupPlatform, machine Machine, directoryPath string, connection Connection, beforeStarting func(companyID string) error, progress io.Writer) error {
+func startTheRestoredHost(platform backupPlatform, machine Machine, directoryPath string, connection Connection, beforeStarting func(companyID string) error, onceServing func(companyID string) error, progress io.Writer) error {
 	request := Request{Connection: connection, StateDirectoryPath: directoryPath, PromptForModelKey: noModelKeyPrompt}
 	if _, errorValue := prepareCompanyDirectory(platform, machine, directoryPath, connection, request); errorValue != nil {
 		return errorValue
@@ -422,13 +419,23 @@ func startTheRestoredHost(platform backupPlatform, machine Machine, directoryPat
 			return errorValue
 		}
 	}
+	return startTheServicesThenConfirm(platform, machine, connection.Company.ID, onceServing, progress)
+}
+
+func startTheServicesThenConfirm(platform backupPlatform, machine Machine, companyID string, onceServing func(companyID string) error, progress io.Writer) error {
 	if errorValue := platform.StartTheBox(machine, progress); errorValue != nil {
 		return errorValue
 	}
 	if errorValue := platform.SuperviseTheBundle(machine, progress); errorValue != nil {
 		return errorValue
 	}
-	return waitUntilTheServerAnswers(platform, machine, progress)
+	if errorValue := waitUntilTheServerAnswers(platform, machine, progress); errorValue != nil {
+		return errorValue
+	}
+	if onceServing == nil {
+		return nil
+	}
+	return onceServing(companyID)
 }
 
 func noModelKeyPrompt() (string, error) {
