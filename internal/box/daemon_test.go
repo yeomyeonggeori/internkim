@@ -90,7 +90,7 @@ func (plane *fakePlane) serve(t *testing.T) *httptest.Server {
 				http.Error(writer, "this box belongs to no company yet", http.StatusNotFound)
 				return
 			}
-			json.NewEncoder(writer).Encode(Session{
+			json.NewEncoder(writer).Encode(sessionAsTheWebSendsIt{RestartsToFollowTheModelPayer: plane.payerIsStale, Session: Session{
 				Configuration: Configuration{
 					SchemaVersion: 1,
 					AppURL:        "https://intern.example.test",
@@ -107,8 +107,7 @@ func (plane *fakePlane) serve(t *testing.T) *httptest.Server {
 				KeepsBackups:            plane.keepsBackups,
 				TakeOver:                plane.takeOver,
 				TargetVersion:           plane.targetVersion,
-				RestartsForModelPayer:   plane.payerIsStale,
-			})
+			}})
 		case "/api/box/release":
 			plane.releases++
 			plane.isClaimed = false
@@ -368,7 +367,14 @@ func TestAModelKeyTheCompanyRemovesIsTakenBackFromTheBoxOnce(t *testing.T) {
 	}
 }
 
-func TestAServiceBoxRestartsItsServicesWhenThePlaneSaysItsPayerIsStale(t *testing.T) {
+// The web still tells an older box to restart when its payer changed; this
+// box's capabilityd follows the payer itself, so the flag must change nothing.
+type sessionAsTheWebSendsIt struct {
+	Session
+	RestartsToFollowTheModelPayer bool `json:"restartsToFollowTheModelPayer"`
+}
+
+func TestAServiceBoxKeepsItsServicesRunningWhenThePlaneSaysItsPayerIsStale(t *testing.T) {
 	plane := &fakePlane{isClaimed: true, accessToken: "header.claims.signature"}
 	daemon, places := daemonFor(t, plane, &installs{})
 	restarts := 0
@@ -379,17 +385,14 @@ func TestAServiceBoxRestartsItsServicesWhenThePlaneSaysItsPayerIsStale(t *testin
 	runSteps(t, daemon, 1)
 	writeCredentialFiles(t, places)
 	runSteps(t, daemon, 1)
-	if restarts != 0 {
-		t.Fatalf("restarts = %d before anything changed", restarts)
-	}
 
 	plane.payerIsStale = true
 	runSteps(t, daemon, 1)
 	plane.payerIsStale = false
 	runSteps(t, daemon, 1)
 
-	if restarts != 1 {
-		t.Fatalf("restarts = %d; a changed payer restarts the services once, and the restart is what makes it current", restarts)
+	if restarts != 0 {
+		t.Fatalf("restarts = %d; capabilityd follows a changed payer while the services run, so the box restarts nothing for it", restarts)
 	}
 }
 

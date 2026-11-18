@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log"
 	"net/http"
 	"os"
 	"strings"
@@ -15,23 +14,29 @@ import (
 
 const (
 	modelGatewayFunctionPath = "/functions/v1/model-gateway"
-	modelGatewayPath         = modelGatewayFunctionPath + chatAPIPath
 	ModelGatewayPayerPath    = modelGatewayFunctionPath + "/payer"
-)
-
-const (
-	firstWaitForThePayer   = time.Second
-	longestWaitForThePayer = time.Minute
 )
 
 const RequesterEmailHeader = "X-INTERNKIM-REQUESTER-EMAIL"
 
 type CompanyKeyUse func(isKeyHeld bool) (bool, error)
 
-var errPlaneRefusedThisComputer = errors.New("the central plane refused this computer")
+var errNoModelRoute = errors.New("the ladder reaches the model route on this computer, and no model route was named")
 
-func GatewayEndpoint(centralPlaneURL string) string {
-	return planeRootOf(centralPlaneURL) + modelGatewayPath
+// GatewayOrigin is the root the model gateway answers OpenRouter's own paths
+// under.
+func GatewayOrigin(centralPlaneURL string) string {
+	return planeRootOf(centralPlaneURL) + modelGatewayFunctionPath
+}
+
+func OpenRouterOrigin() string {
+	return apiRootOf(Endpoint)
+}
+
+// ModelRouteEndpoint is the OpenAI-compatible root of the route capabilityd
+// answers on loopback, which sends each call to whoever pays at that moment.
+func ModelRouteEndpoint(modelRouteURL string) string {
+	return strings.TrimRight(strings.TrimSpace(modelRouteURL), "/") + chatAPIPath
 }
 
 func planeRootOf(centralPlaneURL string) string {
@@ -61,34 +66,12 @@ func holdsKey(path string) bool {
 	return errorValue == nil && strings.TrimSpace(string(document)) != ""
 }
 
+// GatewaySaysWhetherTheCompanyKeyIsInUse asks the plane once per call, and the
+// asking is also the report the setup page reads the payer from.
 func GatewaySaysWhetherTheCompanyKeyIsInUse(centralPlaneURL string, credentialPath string) CompanyKeyUse {
 	payerURL := planeRootOf(centralPlaneURL) + ModelGatewayPayerPath
 	return func(isKeyHeld bool) (bool, error) {
-		report := func() (bool, error) { return reportedTheKey(payerURL, credentialPath, isKeyHeld) }
-		if !isKeyHeld {
-			return reportedOnce(report)
-		}
-		return answeredEventually(report, time.Sleep)
-	}
-}
-
-func reportedOnce(report func() (bool, error)) (bool, error) {
-	if _, errorValue := report(); errorValue != nil {
-		log.Printf("telling the central plane this computer holds no OpenRouter key: %v; it pays through the gateway all the same", errorValue)
-	}
-	return false, nil
-}
-
-func answeredEventually(report func() (bool, error), wait func(time.Duration)) (bool, error) {
-	pause := firstWaitForThePayer
-	for {
-		isInUse, errorValue := report()
-		if errorValue == nil || errors.Is(errorValue, errPlaneRefusedThisComputer) {
-			return isInUse, errorValue
-		}
-		log.Printf("asking the central plane whether the company uses the OpenRouter key this computer holds: %v; asking again in %s", errorValue, pause)
-		wait(pause)
-		pause = min(2*pause, longestWaitForThePayer)
+		return reportedTheKey(payerURL, credentialPath, isKeyHeld)
 	}
 }
 
@@ -118,7 +101,7 @@ func reportedTheKey(payerURL string, credentialPath string, isKeyHeld bool) (boo
 func usesOwnModelKeyIn(payerURL string, response *http.Response) (bool, error) {
 	if response.StatusCode >= 400 && response.StatusCode < 500 {
 		body, _ := io.ReadAll(io.LimitReader(response.Body, 512))
-		return false, fmt.Errorf("%w: %s answered %s: %s", errPlaneRefusedThisComputer, payerURL, response.Status, strings.TrimSpace(string(body)))
+		return false, fmt.Errorf("the central plane refused this computer: %s answered %s: %s", payerURL, response.Status, strings.TrimSpace(string(body)))
 	}
 	if response.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(io.LimitReader(response.Body, 512))
@@ -136,31 +119,18 @@ func usesOwnModelKeyIn(payerURL string, response *http.Response) (bool, error) {
 	return *answer.UsesOwnModelKey, nil
 }
 
-func CompanyLanguageModelDocument(centralPlaneURL string, gatewayKeyPath string, companyEndpoint string, companyKeyPath string, reportingTheKey CompanyKeyUse) (Document, error) {
-	companyDocument := LanguageModelDocument(companyEndpoint, companyKeyPath)
-	if runsItsOwnModels(companyEndpoint) {
-		return companyDocument, nil
+// CompanyLanguageModelDocument is the ladder the agent starts with. A company
+// on a central plane reaches its models through capabilityd's model route,
+// which follows the payer while the services run; the route takes the service
+// token, and names the requester to the gateway only.
+func CompanyLanguageModelDocument(centralPlaneURL string, modelRouteURL string, modelRouteKeyPath string, companyEndpoint string, companyKeyPath string) (Document, error) {
+	if runsItsOwnModels(companyEndpoint) || planeRootOf(centralPlaneURL) == "" {
+		return LanguageModelDocument(companyEndpoint, companyKeyPath), nil
 	}
-	paysThroughGateway, errorValue := PaysThroughGateway(centralPlaneURL, companyKeyPath, reportingTheKey)
-	if errorValue != nil || !paysThroughGateway {
-		return companyDocument, errorValue
+	if strings.TrimSpace(modelRouteURL) == "" {
+		return Document{}, errNoModelRoute
 	}
-	return gatewayLanguageModelDocument(centralPlaneURL, gatewayKeyPath), nil
-}
-
-func PaysThroughGatewayIn(languageModel Document, centralPlaneURL string) bool {
-	if planeRootOf(centralPlaneURL) == "" {
-		return false
-	}
-	gateway := GatewayEndpoint(centralPlaneURL)
-	for _, rungs := range languageModel.Tiers {
-		for _, rung := range rungs {
-			if rung.Endpoint == gateway {
-				return true
-			}
-		}
-	}
-	return false
+	return requesterNamingLanguageModelDocument(ModelRouteEndpoint(modelRouteURL), modelRouteKeyPath), nil
 }
 
 func runsItsOwnModels(companyEndpoint string) bool {
@@ -168,8 +138,8 @@ func runsItsOwnModels(companyEndpoint string) bool {
 	return endpoint != "" && endpoint != Endpoint
 }
 
-func gatewayLanguageModelDocument(centralPlaneURL string, gatewayKeyPath string) Document {
-	document := LanguageModelDocument(GatewayEndpoint(centralPlaneURL), gatewayKeyPath)
+func requesterNamingLanguageModelDocument(endpoint string, keyPath string) Document {
+	document := LanguageModelDocument(endpoint, keyPath)
 	for _, rungs := range document.Tiers {
 		for index := range rungs {
 			rungs[index].RequesterEmailHeader = RequesterEmailHeader

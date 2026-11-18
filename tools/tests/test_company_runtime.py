@@ -145,6 +145,46 @@ class CompanyRuntimeTests(unittest.TestCase):
             left_behind = sorted(entry.name for entry in run_directory.iterdir())
         self.assertEqual(left_behind, ["runtime.json"])
 
+    def test_the_ladder_is_asked_for_the_model_route_with_the_service_token(self):
+        """On a central plane the ladder reaches capabilityd's model route, which
+        follows whoever pays while the services run, so the renderer must hand
+        capabilityd the route and the token the route asks for."""
+        repository_root = Path(__file__).resolve().parents[2]
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            temporary_path = Path(temporary_directory)
+            asked_path = temporary_path / "ladder-arguments"
+            capabilityd_path = temporary_path / "capabilityd"
+            capabilityd_path.write_text(
+                "#!/bin/sh\n"
+                "case \"$1\" in\n"
+                "--print-capabilities) printf '{\"tools\":[]}' ;;\n"
+                f"--print-model-ladder) echo \"$@\" > {asked_path}; printf '{{\"embedding\":{{\"model\":\"example/embedding\",\"dimensions\":768}}}}' ;;\n"
+                "*) exit 1 ;;\n"
+                "esac\n"
+            )
+            capabilityd_path.chmod(capabilityd_path.stat().st_mode | stat.S_IXUSR)
+            subprocess.run(
+                [
+                    str(repository_root / "tools/render-company-runtime"),
+                    "--template", str(repository_root / "host/runtime.template.json"),
+                    "--capabilityd", str(capabilityd_path),
+                    "--out", str(temporary_path / "runtime.json"),
+                    "--work", str(temporary_path / "work"),
+                ],
+                check=True,
+                env=os.environ | {
+                    "DATABASE_URL": "postgres://example",
+                    "MESSENGER_PLATFORM": "buzz",
+                    "SUPABASE_URL": "https://plane.example",
+                },
+                capture_output=True,
+                text=True,
+            )
+            asked = asked_path.read_text().split()
+        self.assertEqual(asked[asked.index("--model-gateway") + 1], "https://plane.example")
+        self.assertEqual(asked[asked.index("--model-route") + 1], "http://127.0.0.1:18093")
+        self.assertEqual(asked[asked.index("--model-route-key") + 1], "/run/internkim/secrets/service-token")
+
 
 if __name__ == "__main__":
     unittest.main()

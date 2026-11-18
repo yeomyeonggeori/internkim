@@ -9,7 +9,6 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
-	"time"
 )
 
 type whoPaysCase struct {
@@ -104,13 +103,22 @@ func TestAComputerWithNoCentralPlaneHasNoGatewayToPayThrough(t *testing.T) {
 	}
 }
 
-func TestTheGatewayEndpointIsTheModelGatewayFunctionsOpenAIRoot(t *testing.T) {
-	endpoint := GatewayEndpoint("https://plane.example/")
-	if endpoint != "https://plane.example/functions/v1/model-gateway/api/v1" {
-		t.Fatalf("unexpected gateway endpoint %q", endpoint)
+func TestTheGatewayAnswersOpenRoutersPathsUnderItsFunction(t *testing.T) {
+	if origin := GatewayOrigin("https://plane.example/"); origin != "https://plane.example/functions/v1/model-gateway" {
+		t.Fatalf("unexpected gateway origin %q", origin)
 	}
-	if DecisionsURL(endpoint) != "https://plane.example/functions/v1/model-gateway/api/alpha/decisions" {
-		t.Fatalf("the decisions route must stay behind the gateway, got %q", DecisionsURL(endpoint))
+	if origin := OpenRouterOrigin(); origin != "https://openrouter.ai" {
+		t.Fatalf("unexpected OpenRouter origin %q", origin)
+	}
+}
+
+func TestTheModelRouteAnswersTheSamePathsOpenRouterDoes(t *testing.T) {
+	endpoint := ModelRouteEndpoint("http://127.0.0.1:18093/")
+	if endpoint != "http://127.0.0.1:18093/api/v1" {
+		t.Fatalf("unexpected model route endpoint %q", endpoint)
+	}
+	if DecisionsURL(endpoint) != "http://127.0.0.1:18093/api/alpha/decisions" {
+		t.Fatalf("the decisions route must stay behind the model route, got %q", DecisionsURL(endpoint))
 	}
 }
 
@@ -157,70 +165,48 @@ func TestARefusingGatewayIsAnErrorRatherThanAnAnswer(t *testing.T) {
 	}
 }
 
-func TestAComputerHoldingAKeyWaitsForTheAnswerRatherThanGuessing(t *testing.T) {
-	attempts := 0
-	report := func() (bool, error) {
-		attempts++
-		if attempts < 9 {
-			return false, errors.New("the plane did not answer")
-		}
-		return true, nil
-	}
-	var waits []time.Duration
-
-	isInUse, errorValue := answeredEventually(report, func(pause time.Duration) { waits = append(waits, pause) })
-
-	if errorValue != nil || !isInUse || attempts != 9 {
-		t.Fatalf("got %v, %v after %d attempts", isInUse, errorValue, attempts)
-	}
-	if waits[0] != firstWaitForThePayer || waits[len(waits)-1] != longestWaitForThePayer {
-		t.Fatalf("the waits grow from %s and stop growing at %s, got %v", firstWaitForThePayer, longestWaitForThePayer, waits)
-	}
-}
-
-func TestAComputerWithoutAKeyIsNotHeldBackByAPlaneThatDoesNotAnswer(t *testing.T) {
-	plane := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
-		writer.WriteHeader(http.StatusNotFound)
-	}))
-	defer plane.Close()
-	_, errorValue := GatewaySaysWhetherTheCompanyKeyIsInUse(plane.URL, keyPathHolding(t, "host-session\n"))(false)
+func TestTheLadderReachesTheModelRouteWithTheServiceTokenAndNamesTheRequester(t *testing.T) {
+	document, errorValue := CompanyLanguageModelDocument("https://plane.example", "http://127.0.0.1:18093", "/run/service-token", "", keyPathHolding(t, "sk-or-example\n"))
 	if errorValue != nil {
-		t.Fatalf("a computer without a key needs no answer to start, got %v", errorValue)
+		t.Fatal(errorValue)
+	}
+	for tier, rungs := range document.Tiers {
+		if len(rungs) != len(ModelNames()) {
+			t.Fatalf("tier %s has %d rungs, want %d", tier, len(rungs), len(ModelNames()))
+		}
+		for _, rung := range rungs {
+			if rung.Endpoint != "http://127.0.0.1:18093/api/v1" || rung.APIKeyPath != "/run/service-token" || rung.RequesterEmailHeader != RequesterEmailHeader {
+				t.Fatalf("tier %s rung %+v", tier, rung)
+			}
+		}
+	}
+	for _, rung := range []Rung{document.Decision, document.VisualReview} {
+		if rung.Endpoint != "http://127.0.0.1:18093/api/alpha/decisions" || rung.APIKeyPath != "/run/service-token" || rung.RequesterEmailHeader != RequesterEmailHeader {
+			t.Fatalf("decisions and visual review go through the same route, got %+v", rung)
+		}
 	}
 }
 
-func TestTheLadderReachesOnlyTheOneWhoPays(t *testing.T) {
-	keyPath := keyPathHolding(t, "sk-or-example\n")
-	gateway := GatewayEndpoint("https://plane.example")
-	for _, isInUse := range []bool{true, false} {
-		document, errorValue := CompanyLanguageModelDocument("https://plane.example", "/run/session", "", keyPath, answering(isInUse))
-		if errorValue != nil {
-			t.Fatal(errorValue)
-		}
-		wantEndpoint, wantKey, wantHeader := gateway, "/run/session", RequesterEmailHeader
-		if isInUse {
-			wantEndpoint, wantKey, wantHeader = Endpoint, keyPath, ""
-		}
-		for tier, rungs := range document.Tiers {
-			if len(rungs) != len(ModelNames()) {
-				t.Fatalf("tier %s has %d rungs, want one payer's %d", tier, len(rungs), len(ModelNames()))
-			}
-			for _, rung := range rungs {
-				if rung.Endpoint != wantEndpoint || rung.APIKeyPath != wantKey || rung.RequesterEmailHeader != wantHeader {
-					t.Fatalf("key in use %v: tier %s rung %+v", isInUse, tier, rung)
-				}
-			}
-		}
-		for _, rung := range []Rung{document.Decision, document.VisualReview} {
-			if rung.APIKeyPath != wantKey || rung.RequesterEmailHeader != wantHeader {
-				t.Fatalf("key in use %v: decisions and visual review follow the same payer, got %+v", isInUse, rung)
-			}
+func TestALadderOnACentralPlaneWithoutAModelRouteIsRefused(t *testing.T) {
+	if _, errorValue := CompanyLanguageModelDocument("https://plane.example", "", "/run/service-token", "", ""); errorValue == nil {
+		t.Fatal("a ladder on a central plane has nowhere to reach without the model route")
+	}
+}
+
+func TestAComputerWithNoCentralPlaneCallsOpenRouterWithTheCompanyKey(t *testing.T) {
+	document, errorValue := CompanyLanguageModelDocument("", "http://127.0.0.1:18093", "/run/service-token", "", "/run/example-key")
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	for _, rung := range document.Tiers["medium"] {
+		if rung.Endpoint != Endpoint || rung.APIKeyPath != "/run/example-key" || rung.RequesterEmailHeader != "" {
+			t.Fatalf("a computer with no central plane reached %+v", rung)
 		}
 	}
 }
 
 func TestACompanyRunningItsOwnModelsNeverReachesTheGateway(t *testing.T) {
-	document, errorValue := CompanyLanguageModelDocument("https://plane.example", "/run/session", "https://models.example.com/v1", "/run/example-key", nil)
+	document, errorValue := CompanyLanguageModelDocument("https://plane.example", "http://127.0.0.1:18093", "/run/service-token", "https://models.example.com/v1", "/run/example-key")
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
@@ -231,23 +217,15 @@ func TestACompanyRunningItsOwnModelsNeverReachesTheGateway(t *testing.T) {
 	}
 }
 
-func TestAComputerThePlaneRefusesStopsAskingAndSaysWhy(t *testing.T) {
+func TestAComputerThePlaneRefusesHearsWhy(t *testing.T) {
 	plane := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
 		writer.WriteHeader(http.StatusForbidden)
 		writer.Write([]byte(`{"message":"this box belongs to no company"}`))
 	}))
 	defer plane.Close()
-	report := func() (bool, error) {
-		return reportedTheKey(plane.URL+ModelGatewayPayerPath, keyPathHolding(t, "host-session\n"), true)
-	}
-	_, errorValue := answeredEventually(report, func(time.Duration) {
-		t.Fatal("a refusal is the plane's answer; asking again forever left a restored host's start hung")
-	})
+	_, errorValue := GatewaySaysWhetherTheCompanyKeyIsInUse(plane.URL, keyPathHolding(t, "host-session\n"))(true)
 
-	if errorValue == nil {
-		t.Fatal("a refusal must end the start with an error")
-	}
-	if !strings.Contains(errorValue.Error(), "this box belongs to no company") {
+	if errorValue == nil || !strings.Contains(errorValue.Error(), "this box belongs to no company") {
 		t.Fatalf("the refusal must say what the plane said, got %v", errorValue)
 	}
 }
