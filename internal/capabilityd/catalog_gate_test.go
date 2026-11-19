@@ -1382,6 +1382,17 @@ func gateCases() map[string]catalogGateCase {
 				expectResultHolds(t, answered, `"size":"M"`)
 			},
 		},
+		"task_draft_get": {
+			kind: provesBehaviour,
+			reaches: map[gateBackend]*standingIn{
+				admindOverTheSocket: answering(`{"tasks":[{"title":"견적서"}]}`),
+			},
+			input: `{"note":"견적서 보내기"}`,
+			expect: func(t *testing.T, answered capabilities.ToolInvokeResponse) {
+				expectSucceeded(t, answered)
+				expectResultHolds(t, answered, `"title":"견적서"`)
+			},
+		},
 		"person_update": {
 			kind:    provesCarrying,
 			reaches: map[gateBackend]*standingIn{admindOverTheSocket: answering(`{"tool":"person_update","result":{"personID":"person-1","name":"\uc774\uc0d8\ud50c","email":"member@example.com","handle":"sample","mention":"@\uc774\uc0d8\ud50c","jobTitle":"\ud3b8\uc9d1\uc7a5","teamID":"team-1","teamName":"\ud3b8\uc9d1\ud300","supervisorID":"","supervisorName":"","phoneNumber":"","hireDate":"2026-03-02","isAdmin":false,"employmentStatus":"active"}}`)},

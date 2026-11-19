@@ -1,5 +1,4 @@
 import { tick } from 'svelte';
-import type { TaskQuickTaskCreateResult } from './task-types';
 
 const closeAnimationDurationMilliseconds = 400;
 
@@ -44,11 +43,6 @@ export class TaskQuickAddController {
 		if (restoreFocus) {
 			void tick().then(() => this.launcherElement?.focus());
 		}
-	};
-
-	submitWith = async (createTask: () => Promise<TaskQuickTaskCreateResult>): Promise<void> => {
-		const result = await createTask();
-		if (result === 'created') this.close(true);
 	};
 
 	handleKeydown = (event: KeyboardEvent): void => {

@@ -44,29 +44,31 @@ type Places struct {
 }
 
 type Daemon struct {
-	Client              Client
-	Places              Places
-	Install             func(companyhost.Request) error
-	HoldsAnotherCompany func(companyID string) (bool, error)
-	ForgetEveryCompany  func() error
-	TakeOver            func(ctx context.Context, session Session, keyring Keyring) error
-	StandDown           func() error
-	StandUp             func() error
-	RestartServices     func() error
-	StartKeepingUp      func(ctx context.Context, session Session)
-	FollowRelease       func(targetVersion string) error
-	StartWorking        func(ctx context.Context, session Session)
-	PackageVersion      string
-	NameHost            func(ctx context.Context, companySlug string) error
-	GetOnline           func(ctx context.Context, boxPublicKey string, hasCompany bool) error
-	IsOnANetwork        func(ctx context.Context) bool
-	ChangeWifi          func(ctx context.Context, ssid, password string) error
-	ScanWifi            func(ctx context.Context) ([]NearbyNetwork, error)
-	SetAdminPassword    func(ctx context.Context, password string) error
-	LockAdminPassword   func(ctx context.Context) error
-	WatcherSleep        func(ctx context.Context, wait time.Duration) error
-	Sleep               func(context.Context, time.Duration) error
-	Now                 func() time.Time
+	Client                 Client
+	Places                 Places
+	Install                func(companyhost.Request) error
+	CompaniesHeld          func() (companyhost.CompaniesHeld, error)
+	ForgetCompanyDirectory func(companyID string) error
+	ForgetEveryCompany     func() error
+	TakeOverIsUnderway     func() bool
+	TakeOver               func(ctx context.Context, session Session, keyring Keyring) error
+	StandDown              func() error
+	StandUp                func() error
+	RestartServices        func() error
+	StartKeepingUp         func(ctx context.Context, session Session)
+	FollowRelease          func(targetVersion string) error
+	StartWorking           func(ctx context.Context, session Session)
+	PackageVersion         string
+	NameHost               func(ctx context.Context, companySlug string) error
+	GetOnline              func(ctx context.Context, boxPublicKey string, hasCompany bool) error
+	IsOnANetwork           func(ctx context.Context) bool
+	ChangeWifi             func(ctx context.Context, ssid, password string) error
+	ScanWifi               func(ctx context.Context) ([]NearbyNetwork, error)
+	SetAdminPassword       func(ctx context.Context, password string) error
+	LockAdminPassword      func(ctx context.Context) error
+	WatcherSleep           func(ctx context.Context, wait time.Duration) error
+	Sleep                  func(context.Context, time.Duration) error
+	Now                    func() time.Time
 }
 
 func (daemon Daemon) Run(ctx context.Context) error {

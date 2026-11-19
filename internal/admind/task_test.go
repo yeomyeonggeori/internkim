@@ -7,42 +7,6 @@ import (
 	"time"
 )
 
-func TestTasksWithMatchingOwnerAndDates(t *testing.T) {
-	tasks := []Task{
-		{ID: "same-owner-and-date", OwnerID: "owner-1", StartDate: "2026-05-07", EndDate: "2026-05-07", Content: "10분 회의"},
-		{ID: "different-owner", OwnerID: "owner-2", StartDate: "2026-05-07", EndDate: "2026-05-07", Content: "10분 회의"},
-		{ID: "different-start", OwnerID: "owner-1", StartDate: "2026-05-08", EndDate: "2026-05-07", Content: "10분 회의"},
-		{ID: "different-end", OwnerID: "owner-1", StartDate: "2026-05-07", EndDate: "2026-05-08", Content: "10분 회의"},
-	}
-
-	matches := tasksWithMatchingOwnerAndDates(tasks, Task{
-		ID:        "candidate",
-		OwnerID:   "owner-1",
-		StartDate: "2026-05-07",
-		EndDate:   "2026-05-07",
-		Content:   "완전히 다른 표현이어도 owner와 날짜로 후보를 고른다",
-	})
-
-	if len(matches) != 1 || matches[0].ID != "same-owner-and-date" {
-		t.Fatalf("matches = %+v", matches)
-	}
-}
-
-func TestTaskDuplicateLLMRequestConstrainsDuplicateTaskIDToExistingTasks(t *testing.T) {
-	request := taskDuplicateLLMRequest(Task{ID: "candidate"}, []Task{
-		{ID: "task-1", Content: "10분 회의"},
-		{ID: "task-2", Content: "짧은 미팅"},
-	})
-	schema := request["structuredOutputSchema"].(map[string]any)["document"].(map[string]any)
-	properties := schema["properties"].(map[string]any)
-	duplicateTaskID := properties["duplicateTaskID"].(map[string]any)
-	values := duplicateTaskID["enum"].([]string)
-
-	if len(values) != 3 || values[0] != "" || values[1] != "task-1" || values[2] != "task-2" {
-		t.Fatalf("duplicate task enum = %+v", values)
-	}
-}
-
 func TestTaskMembersWithoutFleetCredentialsDoesNotReturnSeedMembers(t *testing.T) {
 	emptyPolicyServer := httptest.NewServer(http.HandlerFunc(func(responseWriter http.ResponseWriter, _ *http.Request) {
 		responseWriter.Header().Set("Content-Type", "application/json")
@@ -86,25 +50,6 @@ func TestNormalizeTaskDatesLeavesPlannedWorkUndated(t *testing.T) {
 
 	if dates.StartDate != "" || dates.EndDate != "" || dates.WeekCode != "26W24" {
 		t.Fatalf("dates = %+v", dates)
-	}
-}
-
-func TestStatusCompletedWhenEnded(t *testing.T) {
-	for _, testCase := range []struct {
-		status  string
-		endDate string
-		want    string
-	}{
-		{status: "planned", endDate: "2026-06-11", want: "completed"},
-		{status: "in_progress", endDate: "2026-06-10", want: "completed"},
-		{status: "planned", endDate: "2026-06-12", want: "planned"},
-		{status: "planned", endDate: "", want: "planned"},
-		{status: "requested", endDate: "2026-06-10", want: "requested"},
-		{status: "stopped", endDate: "2026-06-10", want: "stopped"},
-	} {
-		if got := statusCompletedWhenEnded(testCase.status, testCase.endDate, "2026-06-11"); got != testCase.want {
-			t.Fatalf("statusCompletedWhenEnded(%q, %q) = %q, want %q", testCase.status, testCase.endDate, got, testCase.want)
-		}
 	}
 }
 

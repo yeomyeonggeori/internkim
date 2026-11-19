@@ -3599,6 +3599,246 @@
       "worksOffline": false
     },
     {
+      "answeredBy": "company",
+      "availability": {
+        "state": "ok"
+      },
+      "canonicalName": "task_draft_get",
+      "description": "Get the task_add inputs a note describes, written by the company's model with task_add as the only tool it may call. Nothing is added: each input is meant for a task_add call of its own.",
+      "estimatedLatency": "medium",
+      "idempotency": {
+        "required": false,
+        "scope": "operation",
+        "supported": false
+      },
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "note": {
+            "description": "What a person wrote about the work they want added, as they wrote it. It may describe one task or several.",
+            "minLength": 1,
+            "pattern": "\\S",
+            "type": "string"
+          }
+        },
+        "required": [
+          "note"
+        ],
+        "type": "object"
+      },
+      "inputSchemaStrict": true,
+      "modelName": "task_draft_get",
+      "modelVisibility": "hidden",
+      "modelVisible": false,
+      "name": "task_draft_get",
+      "namespace": "task",
+      "namespaceSummary": "The team's work items: add, find, update, and who takes part.",
+      "outputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "tasks": {
+            "description": "One task_add input for each piece of work the note describes, in the order the note gives them. Empty when the note describes no work.",
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "business": {
+                  "description": "The company business this work is for, from registeredLabels.businesses in a task_list result, whenever the conversation or the work itself shows which one. Omit it only when that is unknown: the record then decides it from the company's own definitions.",
+                  "type": "string"
+                },
+                "childTaskHints": {
+                  "description": "Existing tasks to move under the new task, each an exact task ID or exact CURRENT title from a task_list result. Every one of them must stand on its own already; when any cannot move, the new task is not added either.",
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                "endsAt": {
+                  "description": "When the work is due. ISO 8601 with timezone for a moment, or YYYY-MM-DD for a whole day. Resolve relative dates from the current date. Omit when the user did not specify one.",
+                  "type": "string"
+                },
+                "opportunityHint": {
+                  "description": "Names the deal this work belongs to, as a crm_opportunity_list result shows it, or its exact opportunity ID. The deal already says which organization it is with.",
+                  "maxLength": 256,
+                  "type": "string"
+                },
+                "organizationHint": {
+                  "description": "Names the organization this work is for, as a crm_organization_list result shows it, or its exact organization ID. Omit for work that is about nobody outside the company.",
+                  "maxLength": 256,
+                  "type": "string"
+                },
+                "parentTaskHint": {
+                  "description": "The task this one belongs under: its exact task ID or its exact CURRENT title as it appears in a task_list result. Never a new or intended title. Omit for work that stands on its own.",
+                  "maxLength": 256,
+                  "type": "string"
+                },
+                "participantPersonHints": {
+                  "description": "The people the task belongs to, each by name or job title without honorific or particle, email, @handle, or the personID a tool result showed. Omit it when the work is the requester’s own, which is the usual case; the name the requester used to address you is not a participant.",
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                "size": {
+                  "description": "Only a size the user names. Omit it otherwise: the record decides the business, type and size a new task leaves out, from the company's own definitions.",
+                  "enum": [
+                    "XS",
+                    "S",
+                    "M",
+                    "L",
+                    "XL",
+                    "XXL"
+                  ],
+                  "type": "string"
+                },
+                "startsAt": {
+                  "description": "When the work starts. ISO 8601 with timezone for a moment, or YYYY-MM-DD for a whole day. Resolve relative dates from the current date. Omit when the user did not specify one.",
+                  "type": "string"
+                },
+                "status": {
+                  "description": "Initial task status. Defaults to planned. Work whose participants leave out the requester is added as requested, with the requester as the one who asked; only an administrator may add it in another status.",
+                  "enum": [
+                    "planned",
+                    "in_progress",
+                    "completed",
+                    "paused",
+                    "rejected",
+                    "stopped"
+                  ],
+                  "type": "string"
+                },
+                "title": {
+                  "description": "Concise noun-phrase title for the work itself, in the user's language. Keep the user's exact title when they give one; otherwise write one rather than reusing their sentence. People belong in the person fields, not the title.",
+                  "type": "string"
+                },
+                "type": {
+                  "description": "Only a type the user names. Omit it otherwise: the record decides the business, type and size a new task leaves out, from the company's own definitions.",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "title"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "tasks"
+        ],
+        "type": "object"
+      },
+      "outputSchemaStrict": true,
+      "policyResource": "tool:task_draft_get",
+      "privacyClass": "workspace_task",
+      "requiresUserPresence": false,
+      "resultContract": {
+        "effects": [],
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "additionalProperties": false,
+          "properties": {
+            "tasks": {
+              "description": "One task_add input for each piece of work the note describes, in the order the note gives them. Empty when the note describes no work.",
+              "items": {
+                "additionalProperties": false,
+                "properties": {
+                  "business": {
+                    "description": "The company business this work is for, from registeredLabels.businesses in a task_list result, whenever the conversation or the work itself shows which one. Omit it only when that is unknown: the record then decides it from the company's own definitions.",
+                    "type": "string"
+                  },
+                  "childTaskHints": {
+                    "description": "Existing tasks to move under the new task, each an exact task ID or exact CURRENT title from a task_list result. Every one of them must stand on its own already; when any cannot move, the new task is not added either.",
+                    "items": {
+                      "type": "string"
+                    },
+                    "type": "array"
+                  },
+                  "endsAt": {
+                    "description": "When the work is due. ISO 8601 with timezone for a moment, or YYYY-MM-DD for a whole day. Resolve relative dates from the current date. Omit when the user did not specify one.",
+                    "type": "string"
+                  },
+                  "opportunityHint": {
+                    "description": "Names the deal this work belongs to, as a crm_opportunity_list result shows it, or its exact opportunity ID. The deal already says which organization it is with.",
+                    "maxLength": 256,
+                    "type": "string"
+                  },
+                  "organizationHint": {
+                    "description": "Names the organization this work is for, as a crm_organization_list result shows it, or its exact organization ID. Omit for work that is about nobody outside the company.",
+                    "maxLength": 256,
+                    "type": "string"
+                  },
+                  "parentTaskHint": {
+                    "description": "The task this one belongs under: its exact task ID or its exact CURRENT title as it appears in a task_list result. Never a new or intended title. Omit for work that stands on its own.",
+                    "maxLength": 256,
+                    "type": "string"
+                  },
+                  "participantPersonHints": {
+                    "description": "The people the task belongs to, each by name or job title without honorific or particle, email, @handle, or the personID a tool result showed. Omit it when the work is the requester’s own, which is the usual case; the name the requester used to address you is not a participant.",
+                    "items": {
+                      "type": "string"
+                    },
+                    "type": "array"
+                  },
+                  "size": {
+                    "description": "Only a size the user names. Omit it otherwise: the record decides the business, type and size a new task leaves out, from the company's own definitions.",
+                    "enum": [
+                      "XS",
+                      "S",
+                      "M",
+                      "L",
+                      "XL",
+                      "XXL"
+                    ],
+                    "type": "string"
+                  },
+                  "startsAt": {
+                    "description": "When the work starts. ISO 8601 with timezone for a moment, or YYYY-MM-DD for a whole day. Resolve relative dates from the current date. Omit when the user did not specify one.",
+                    "type": "string"
+                  },
+                  "status": {
+                    "description": "Initial task status. Defaults to planned. Work whose participants leave out the requester is added as requested, with the requester as the one who asked; only an administrator may add it in another status.",
+                    "enum": [
+                      "planned",
+                      "in_progress",
+                      "completed",
+                      "paused",
+                      "rejected",
+                      "stopped"
+                    ],
+                    "type": "string"
+                  },
+                  "title": {
+                    "description": "Concise noun-phrase title for the work itself, in the user's language. Keep the user's exact title when they give one; otherwise write one rather than reusing their sentence. People belong in the person fields, not the title.",
+                    "type": "string"
+                  },
+                  "type": {
+                    "description": "Only a type the user names. Omit it otherwise: the record decides the business, type and size a new task leaves out, from the company's own definitions.",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "title"
+                ],
+                "type": "object"
+              },
+              "type": "array"
+            }
+          },
+          "required": [
+            "tasks"
+          ],
+          "type": "object"
+        }
+      },
+      "sideEffect": "computation",
+      "sideEffectClass": "computation",
+      "version": "1",
+      "worksOffline": false
+    },
+    {
       "answeredBy": "record",
       "availability": {
         "state": "ok"

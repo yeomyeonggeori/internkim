@@ -143,7 +143,7 @@
 		{onEdit}
 		onCopyText={() => onCopy(copyable)}
 		onCopyPicture={() => onCopy({ kind: 'picture', address: pictureToCopy })}
-		onDownloadPicture={() => pictureToDownload && startDownload(pictureToDownload.address, pictureToDownload.filename)}
+		onDownloadPicture={() => pictureToDownload && startDownload(pictureToDownload.address, pictureToDownload.filename, pictureToDownload.identity)}
 		{onDelete}
 		{onCapture}
 	>

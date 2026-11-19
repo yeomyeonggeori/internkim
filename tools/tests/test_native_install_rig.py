@@ -944,3 +944,88 @@ class CompanyFilesTests(unittest.TestCase):
         for role, path in native_install_files.BACKUP_ROOTS:
             self.assertIn(f'= "{role}"', backup)
             self.assertTrue(f'"{path}"' in backup + layout or f'"{path.removeprefix("/var/lib/")}"' in layout, path)
+
+
+class WhatABoxHoldsTests(unittest.TestCase):
+    standing_by = (
+        "companies=\ncurrent=absent\nmark=absent\nworkspace-entries=0\ndatabase-entries=0\ndatabase-system=\n"
+        "set-aside-databases=\ncache-entries=0\nsafety-backups=0\nbackup-files=\nretry-record=absent\naccounts=\n"
+        "circle-groups=\nconfiguration-files=company-host.env \nrelay-key-digest=\n"
+    )
+    serving = (
+        "companies=00000000-0000-4000-8000-0000000000c1 \ncurrent=present\nmark=absent\nworkspace-entries=3\n"
+        "database-entries=19\ndatabase-system=7400000000000000002\n"
+        "set-aside-databases=internkim-postgres.before-take-over-20261119T050000Z:7400000000000000003 \n"
+        "cache-entries=2\nsafety-backups=0\nbackup-files=internkim-snapshot-20261119T050000Z.tar \nretry-record=absent\n"
+        "accounts=bc_person_current1 \ncircle-groups=bc_circle_current1 \nconfiguration-files=agent-key company-host.env \n"
+        "relay-key-digest=bbbbbbbbbbbbbbbb\n"
+    )
+
+    def setUp(self):
+        driver = load_driver()
+        disconnected = (
+            "companies=00000000-0000-4000-8000-0000000000e1 \ncurrent=absent\nmark=present\nworkspace-entries=3\n"
+            "database-entries=19\ndatabase-system=7400000000000000001\nset-aside-databases=\ncache-entries=2\n"
+            "safety-backups=1\nbackup-files=internkim-backup-20261119T040000Z.tar internkim-snapshot-20261119T040000Z.tar \n"
+            "retry-record=absent\naccounts=bc_person_earlier1 \ncircle-groups=bc_circle_earlier1 \n"
+            "configuration-files=agent-key company-host.env \nrelay-key-digest=aaaaaaaaaaaaaaaa\n"
+        )
+        self.earlier = {
+            "company_id": "00000000-0000-4000-8000-0000000000e1",
+            "database": "7400000000000000001",
+            "held": driver.what_a_box_holds(disconnected),
+        }
+
+    def test_a_standby_emptied_of_the_earlier_company_holds_nothing_of_it(self):
+        driver = load_driver()
+        self.assertTrue(driver.holds_nothing_of(driver.what_a_box_holds(self.standing_by), self.earlier, True))
+
+    def test_an_account_of_the_earlier_company_is_something_of_it(self):
+        driver = load_driver()
+        reading = self.standing_by.replace("accounts=\n", "accounts=bc_person_earlier1 \n")
+        self.assertFalse(driver.holds_nothing_of(driver.what_a_box_holds(reading), self.earlier, True))
+
+    def test_the_earlier_companys_directory_is_something_of_it(self):
+        driver = load_driver()
+        reading = self.standing_by.replace("companies=\n", f"companies={self.earlier['company_id']} \n")
+        self.assertFalse(driver.holds_nothing_of(driver.what_a_box_holds(reading), self.earlier, True))
+
+    def test_a_standby_with_a_database_left_holds_something(self):
+        driver = load_driver()
+        reading = self.standing_by.replace("database-entries=0", "database-entries=19")
+        self.assertFalse(driver.holds_nothing_of(driver.what_a_box_holds(reading), self.earlier, True))
+
+    def test_a_serving_box_may_hold_a_database_and_a_company_of_its_own(self):
+        driver = load_driver()
+        self.assertTrue(driver.holds_nothing_of(driver.what_a_box_holds(self.serving), self.earlier, False))
+
+    def test_the_earlier_companys_database_set_aside_by_a_take_over_is_something_of_it(self):
+        driver = load_driver()
+        reading = self.serving.replace(":7400000000000000003", ":7400000000000000001")
+        self.assertFalse(driver.holds_nothing_of(driver.what_a_box_holds(reading), self.earlier, False))
+
+    def test_a_backup_file_of_the_earlier_company_is_something_of_it(self):
+        driver = load_driver()
+        reading = self.serving.replace("backup-files=", "backup-files=internkim-snapshot-20261119T040000Z.tar ")
+        self.assertFalse(driver.holds_nothing_of(driver.what_a_box_holds(reading), self.earlier, False))
+
+    def test_a_standby_with_a_circle_group_left_holds_something(self):
+        driver = load_driver()
+        reading = self.standing_by.replace("circle-groups=", "circle-groups=bc_circle_earlier1 ")
+        self.assertFalse(driver.holds_nothing_of(driver.what_a_box_holds(reading), self.earlier, True))
+
+    def test_a_serving_box_may_have_a_circle_named_like_one_of_the_earlier_companys(self):
+        driver = load_driver()
+        reading = self.serving.replace("circle-groups=", "circle-groups=bc_circle_earlier1 ")
+        self.assertTrue(driver.holds_nothing_of(driver.what_a_box_holds(reading), self.earlier, False))
+
+    def test_the_earlier_companys_relay_key_is_something_of_it(self):
+        driver = load_driver()
+        reading = self.serving.replace("relay-key-digest=bbbbbbbbbbbbbbbb", "relay-key-digest=aaaaaaaaaaaaaaaa")
+        self.assertFalse(driver.holds_nothing_of(driver.what_a_box_holds(reading), self.earlier, False))
+
+    def test_a_standby_with_a_workspace_or_cache_left_holds_something(self):
+        driver = load_driver()
+        for left in ("workspace-entries=2", "cache-entries=2"):
+            reading = self.standing_by.replace(left.split("=")[0] + "=0", left)
+            self.assertFalse(driver.holds_nothing_of(driver.what_a_box_holds(reading), self.earlier, True), left)

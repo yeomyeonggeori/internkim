@@ -7,14 +7,14 @@ import (
 const (
 	taskAPIPrefix           = "/task/api"
 	retiredTaskAPIPrefix    = "/flow/api"
-	quickTaskPath           = taskAPIPrefix + "/tasks/quick"
+	taskDraftsPath          = taskAPIPrefix + "/drafts"
 	taskLabelsPath          = taskAPIPrefix + "/labels"
 	taskResolvedActorHeader = "X-INTERNKIM-RESOLVED-ACTOR-EMAIL"
 )
 
 func (service *Service) taskAPIHandlers() map[string]http.HandlerFunc {
 	return map[string]http.HandlerFunc{
-		quickTaskPath:  service.createQuickTask,
+		taskDraftsPath: service.answerTaskDrafts,
 		taskLabelsPath: service.answerTaskLabels,
 	}
 }
@@ -32,8 +32,4 @@ func (service *Service) handleTaskAPI(responseWriter http.ResponseWriter, reques
 		return
 	}
 	handler(responseWriter, request)
-}
-
-func writeTaskRequestError(responseWriter http.ResponseWriter, errorValue error) {
-	http.Error(responseWriter, errorValue.Error(), http.StatusBadRequest)
 }

@@ -47,8 +47,6 @@ export type Task = {
 	canUpdate?: boolean;
 };
 
-export type TaskQuickTaskCreateResult = 'created' | 'duplicate' | 'failed' | 'ignored';
-
 export type TaskMetrics = {
 	totalTasks: number;
 	completedTasks: number;

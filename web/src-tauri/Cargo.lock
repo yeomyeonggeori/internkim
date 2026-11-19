@@ -1768,6 +1768,7 @@ dependencies = [
  "tauri-plugin-back-gesture",
  "tauri-plugin-desktop-control",
  "tauri-plugin-dialog",
+ "tauri-plugin-file-download",
  "tauri-plugin-file-save",
  "tauri-plugin-foreground-notifications",
  "tauri-plugin-haptics",
@@ -3800,6 +3801,17 @@ dependencies = [
  "tauri-plugin-fs",
  "thiserror 2.0.21",
  "url",
+]
+
+[[package]]
+name = "tauri-plugin-file-download"
+version = "0.1.0"
+dependencies = [
+ "incoming-file",
+ "serde",
+ "serde_json",
+ "tauri",
+ "tauri-plugin",
 ]
 
 [[package]]

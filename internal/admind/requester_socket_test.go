@@ -17,7 +17,7 @@ func TestARequesterHeaderOnTheTCPListenerNamesNobody(t *testing.T) {
 	tcpServer := httptest.NewServer(service.router())
 	defer tcpServer.Close()
 
-	response := postQuickTaskAsRequester(t, tcpServer.Client(), tcpServer.URL, "member@example.com")
+	response := postTaskDraftAsRequester(t, tcpServer.Client(), tcpServer.URL, "member@example.com")
 	defer response.Body.Close()
 
 	if response.StatusCode != http.StatusForbidden {
@@ -30,7 +30,7 @@ func TestARequesterHeaderOnTheSocketNamesThePerson(t *testing.T) {
 	service := newTaskAuthorizationTestService(t)
 	socketPath, socketClient := serveOnARequesterSocket(t, service)
 
-	response := postQuickTaskAsRequester(t, socketClient, "http://internkim", "member@example.com")
+	response := postTaskDraftAsRequester(t, socketClient, "http://internkim", "member@example.com")
 	defer response.Body.Close()
 
 	if response.StatusCode == http.StatusForbidden {
@@ -75,9 +75,9 @@ func serveOnARequesterSocket(t *testing.T, service *Service) (string, *http.Clie
 	return socketPath, socketClient
 }
 
-func postQuickTaskAsRequester(t *testing.T, client *http.Client, baseURL string, requesterEmail string) *http.Response {
+func postTaskDraftAsRequester(t *testing.T, client *http.Client, baseURL string, requesterEmail string) *http.Response {
 	t.Helper()
-	request, errorValue := http.NewRequest(http.MethodPost, baseURL+quickTaskPath, strings.NewReader(`{"prompt":"보고서"}`))
+	request, errorValue := http.NewRequest(http.MethodPost, baseURL+taskDraftsPath, strings.NewReader(`{"note":"보고서"}`))
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}

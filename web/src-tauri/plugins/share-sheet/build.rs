@@ -1,4 +1,4 @@
-const COMMANDS: &[&str] = &["present"];
+const COMMANDS: &[&str] = &["present", "present_download"];
 
 fn main() {
     tauri_plugin::Builder::new(COMMANDS).ios_path("ios").build();

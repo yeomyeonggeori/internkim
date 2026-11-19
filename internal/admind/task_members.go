@@ -120,20 +120,3 @@ func membersFromUserRecords(records []adminUserMutation) []taskMember {
 	})
 	return members
 }
-
-
-func memberIDs(members []taskMember) []string {
-	values := make([]string, 0, len(members))
-	for _, member := range members {
-		values = append(values, member.ID)
-	}
-	return values
-}
-
-func memberNames(members []taskMember) []string {
-	values := make([]string, 0, len(members))
-	for _, member := range members {
-		values = append(values, member.Name)
-	}
-	return values
-}

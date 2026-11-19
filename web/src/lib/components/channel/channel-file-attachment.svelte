@@ -13,8 +13,11 @@
 	import { createPageText } from '$lib/i18n/page-text.svelte';
 	import { attachmentSource } from '$lib/stores/attachment-source.svelte';
 	import { startDownload } from '$lib/files/download';
+	import DownloadIndicator from '$lib/files/download-indicator.svelte';
+	import { downloadProgress } from '$lib/files/download-progress.svelte';
+	import { downloadText } from '$lib/i18n/download-text';
 	import type { ChannelMessageAttachment } from './channel-api';
-	import { formatAttachmentMeta, preparingLabel } from './channel-attachments';
+	import { formatAttachmentMeta, formatReceivedBytes, preparingLabel } from './channel-attachments';
 
 	let {
 		attachment,
@@ -23,6 +26,7 @@
 	}: { attachment: ChannelMessageAttachment; attachmentState: AttachmentState; onOpen?: () => void } = $props();
 
 	const text = createPageText(channelText);
+	const downloadingText = createPageText(downloadText);
 	const filename = $derived(attachment.filename ?? attachment.url);
 	const visual = $derived(fileVisual(filename));
 	const FileTypeIcon = $derived(visual.icon);
@@ -32,6 +36,13 @@
 	const isAwaitingThumbnail = $derived(wantsThumbnail && !hasThumbnailSettled && attachmentState !== 'error');
 	const pageAspectRatio = $derived(pageAspectRatioOf(thumbnail));
 	const description = $derived([formatAttachmentMeta(attachment), countOf(thumbnail)].filter(Boolean).join(' · '));
+	const download = $derived(downloadProgress.stateOf(attachment.url));
+
+	function receivingDescription(receivedBytes: number, totalBytes: number): string {
+		const knownTotalBytes = totalBytes > 0 ? totalBytes : (attachment.sizeBytes ?? 0);
+		if (receivedBytes <= 0 && knownTotalBytes <= 0) return downloadingText.receiving;
+		return `${downloadingText.receiving} · ${formatReceivedBytes(receivedBytes, knownTotalBytes)}`;
+	}
 
 	function pageAspectRatioOf(shown: Thumbnail | null): number | undefined {
 		if (shown?.kind === 'page') return shown.aspectRatio;
@@ -103,6 +114,10 @@
 			<Attachment.Description>
 				{preparingLabel(text.attachmentPreparing, attachmentSource.progress(attachment.url))}
 			</Attachment.Description>
+		{:else if download?.phase === 'running'}
+			<Attachment.Description>
+				<span class="tabular-nums">{receivingDescription(download.progress.receivedBytes, download.progress.totalBytes)}</span>
+			</Attachment.Description>
 		{:else if description}
 			<Attachment.Description>{description}</Attachment.Description>
 		{/if}
@@ -119,9 +134,13 @@
 			<Attachment.Action
 				variant={wantsThumbnail ? 'secondary' : 'ghost'}
 				aria-label={text.downloadAttachment}
-				onclick={() => startDownload(source, filename)}
+				onclick={() => startDownload(source, filename, attachment.url)}
 			>
-				<DownloadIcon />
+				<DownloadIndicator identity={attachment.url} class="size-6">
+					{#snippet idle()}
+						<DownloadIcon />
+					{/snippet}
+				</DownloadIndicator>
 			</Attachment.Action>
 		</Attachment.Actions>
 	{/if}

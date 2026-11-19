@@ -67,6 +67,7 @@
 		lightboxItemsOf
 	} from './channel-attachments';
 	import ChannelAttachmentGroup from './channel-attachment-group.svelte';
+	import DownloadBadge from './download-badge.svelte';
 	import { messageActionsFor } from './channel-message-actions';
 	import type { MentionPerson } from '$lib/messenger/mention-candidates';
 	import type { DraftMentions } from '$lib/messenger/mention-draft';
@@ -747,6 +748,7 @@
 				variant="message"
 				onOpen={() => openLightbox(attachments, loneVideo.source ?? '')}
 			/>
+			<DownloadBadge identity={loneVideo.url} />
 			{@render timeStamp(message)}
 		</div>
 	{:else if loneImage}
@@ -779,6 +781,7 @@
 					class="rounded-lg"
 				/>
 			</button>
+			<DownloadBadge identity={loneImage.url} />
 			{@render timeStamp(message)}
 		</div>
 	{:else if attachments.length > 0}

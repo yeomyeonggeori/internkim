@@ -480,9 +480,9 @@ func TestAdminUsersProxyRefusesToRemoveTheLastAdmin(t *testing.T) {
 	}
 }
 
-func TestQuickTaskRejectsUnauthenticatedRemoteCaller(t *testing.T) {
+func TestTaskDraftsRejectAnUnauthenticatedRemoteCaller(t *testing.T) {
 	service := newTaskAuthorizationTestService(t)
-	request := httptest.NewRequest(http.MethodPost, quickTaskPath, strings.NewReader(`{"prompt":"보고서"}`))
+	request := httptest.NewRequest(http.MethodPost, taskDraftsPath, strings.NewReader(`{"note":"보고서"}`))
 	request.RemoteAddr = "198.51.100.10:443"
 	response := httptest.NewRecorder()
 
@@ -730,9 +730,9 @@ func webSessionFailureForTest(service *Service, cookieValue string) error {
 	return errorValue
 }
 
-func TestQuickTaskOnTheLocalSocketRequiresARequesterActor(t *testing.T) {
+func TestTaskDraftsOnTheLocalSocketRequireARequesterActor(t *testing.T) {
 	service := newTaskAuthorizationTestService(t)
-	unnamed := httptest.NewRequest(http.MethodPost, quickTaskPath, strings.NewReader(`{"prompt":"보고서"}`))
+	unnamed := httptest.NewRequest(http.MethodPost, taskDraftsPath, strings.NewReader(`{"note":"보고서"}`))
 	unnamed.RemoteAddr = "127.0.0.1:12345"
 	unnamedResponse := httptest.NewRecorder()
 
@@ -742,7 +742,7 @@ func TestQuickTaskOnTheLocalSocketRequiresARequesterActor(t *testing.T) {
 		t.Fatalf("a local call naming nobody = %d body = %s", unnamedResponse.Code, unnamedResponse.Body.String())
 	}
 
-	named := httptest.NewRequest(http.MethodPost, quickTaskPath, strings.NewReader(`{"prompt":"보고서"}`))
+	named := httptest.NewRequest(http.MethodPost, taskDraftsPath, strings.NewReader(`{"note":"보고서"}`))
 	named.Header.Set(requesterEmailHeader, "member@example.com")
 	namedResponse := httptest.NewRecorder()
 	service.router().ServeHTTP(namedResponse, arrivingOnTheRequesterSocket(named))

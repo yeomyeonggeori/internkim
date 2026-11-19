@@ -23,6 +23,7 @@ const (
 type KeptPieces struct {
 	Destination offsite.Destination
 	SystemID    string
+	Counted     *PiecesSinceBaseBackup
 }
 
 func (kept KeptPieces) folder() string {
@@ -60,6 +61,9 @@ func (kept KeptPieces) Keep(ctx context.Context, piece Piece) error {
 	}
 	if errorValue != nil {
 		return fmt.Errorf("keeping the WAL piece %s (%d bytes) after %d attempts: %w", name, len(piece.Bytes), keepAttempts, errorValue)
+	}
+	if kept.Counted != nil {
+		kept.Counted.add()
 	}
 	return nil
 }

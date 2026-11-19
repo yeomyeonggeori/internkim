@@ -4,39 +4,25 @@
 	import PlusIcon from '@lucide/svelte/icons/plus';
 	import XIcon from '@lucide/svelte/icons/x';
 	import { TaskQuickAddController } from './task-quick-add-controller.svelte';
+	import type { TaskQuickCreateController } from './task-quick-create-controller.svelte';
 	import TaskQuickAddPanel from './task-quick-add-panel.svelte';
 	import { quickAddOverlayClass, quickAddPanelClass } from './task-quick-add-style';
-	import type { TaskQuickTaskCreateResult } from './task-types';
 	import { taskText } from './text';
 	import type { PageText } from '$lib/i18n/page-text.svelte';
 
 	type TaskPageText = PageText<typeof taskText>;
 
 	type Props = {
-		quickTaskText: string;
-		taskErrorMessage: string;
-		quickTaskDuplicateMessage: string;
-		isCreatingQuickTask: boolean;
+		quickTask: TaskQuickCreateController;
 		hasMembers: boolean;
 		text: TaskPageText['task'];
-		createQuickTask: () => Promise<TaskQuickTaskCreateResult>;
-		confirmQuickTaskDuplicate: () => Promise<TaskQuickTaskCreateResult>;
 	};
 
-	let {
-		quickTaskText = $bindable(''),
-		taskErrorMessage,
-		quickTaskDuplicateMessage,
-		isCreatingQuickTask,
-		hasMembers,
-		text,
-		createQuickTask,
-		confirmQuickTaskDuplicate
-	}: Props = $props();
+	let { quickTask, hasMembers, text }: Props = $props();
 
 	const quickAddPanel = new TaskQuickAddController();
 
-	let launcherLabel = $derived(quickAddPanel.isOpen ? text.quickAddClose : text.quickAdd);
+	let launcherLabel = $derived(quickAddPanel.isOpen ? text.quickAddClose : text.quickAddTitle);
 	let panelClass = $derived(quickAddPanelClass(quickAddPanel.isPanelVisible));
 	let overlayClass = $derived(quickAddOverlayClass(quickAddPanel.isPanelVisible));
 
@@ -46,18 +32,6 @@
 
 	function closeQuickAddPanel(): void {
 		quickAddPanel.close(true);
-	}
-
-	async function submitQuickTask(): Promise<void> {
-		await submitQuickTaskWith(createQuickTask);
-	}
-
-	async function confirmDuplicateQuickTask(): Promise<void> {
-		await submitQuickTaskWith(confirmQuickTaskDuplicate);
-	}
-
-	async function submitQuickTaskWith(createTask: () => Promise<TaskQuickTaskCreateResult>): Promise<void> {
-		await quickAddPanel.submitWith(createTask);
 	}
 
 	onDestroy(() => {
@@ -75,24 +49,19 @@
 		onclick={closeQuickAddPanel}
 	></button>
 	<div
-		id="task-ai-quick-add-panel"
+		id="task-quick-add-panel"
 		role="dialog"
 		aria-modal="true"
-		aria-labelledby="task-ai-quick-add-title"
-		aria-describedby="task-ai-quick-add-description"
+		aria-labelledby="task-quick-add-title"
+		aria-describedby="task-quick-add-description"
 		class={panelClass}
 	>
 		<TaskQuickAddPanel
-			bind:quickTaskText
-			taskErrorMessage={taskErrorMessage}
-			quickTaskDuplicateMessage={quickTaskDuplicateMessage}
-			isCreatingQuickTask={isCreatingQuickTask}
-			hasMembers={hasMembers}
-			text={text}
+			{quickTask}
+			{hasMembers}
+			{text}
 			bind:textareaElement={quickAddPanel.textareaElement}
 			bind:submitButtonElement={quickAddPanel.submitButtonElement}
-			submitQuickTask={submitQuickTask}
-			confirmQuickTaskDuplicate={confirmDuplicateQuickTask}
 		/>
 	</div>
 {/if}
@@ -101,7 +70,7 @@
 	bind:ref={quickAddPanel.launcherElement}
 	label={launcherLabel}
 	data-task-quick-add-launcher
-	aria-controls="task-ai-quick-add-panel"
+	aria-controls="task-quick-add-panel"
 	aria-expanded={quickAddPanel.isOpen}
 	disabled={!hasMembers && !quickAddPanel.isOpen}
 	onclick={toggleQuickAddPanel}

@@ -29,10 +29,10 @@ describe('taskText', () => {
 	});
 
 	test('localizes task accessibility labels', () => {
-		expect(taskText.ko.task.quickAddClose).toBe('AI 업무 추가 닫기');
-		expect(taskText.en.task.quickAddClose).toBe('Close add with AI');
-		expect(taskText.ko.task.quickAddBackdropClose).toBe('AI 업무 추가 팝업 배경 닫기');
-		expect(taskText.en.task.quickAddBackdropClose).toBe('Close add with AI backdrop');
+		expect(taskText.ko.task.quickAddClose).toBe('업무 추가 닫기');
+		expect(taskText.en.task.quickAddClose).toBe('Close add tasks');
+		expect(taskText.ko.task.quickAddBackdropClose).toBe('업무 추가 창 닫기');
+		expect(taskText.en.task.quickAddBackdropClose).toBe('Close the add tasks panel');
 		expect(taskText.ko.task.removeParticipantAction.replace('{name}', '김철수')).toBe('김철수 제거');
 		expect(taskText.en.task.removeParticipantAction.replace('{name}', 'Alice')).toBe('Remove Alice');
 	});

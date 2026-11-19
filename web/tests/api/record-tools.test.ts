@@ -395,7 +395,7 @@ describe('a task written through the record', () => {
 	test('refuses a label the company never registered, and says what it has', async () => {
 		const refused = await run('task_add', { title: '엉뚱한 라벨', business: '마케팅' });
 		expect(refused.status).toBe(409);
-		expect((refused.body as { registered: string[] }).registered).toEqual(['영업', '개발']);
+		expect(refused.body).toMatchObject({ hint: '마케팅', registered: ['영업', '개발'] });
 	});
 
 	test('refuses a hint several tasks answer to, and names them with their ids', async () => {
