@@ -1,11 +1,13 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, test } from 'bun:test';
+import { fileDownloadPresenceMarker } from '$lib/native-shell/file-download';
 import { mediaSavePresenceMarker } from '$lib/native-shell/media-save';
 import { shareSheetPresenceMarker } from '$lib/native-shell/share-sheet';
 
 const plugins = [
 	{ source: 'src-tauri/plugins/media-save/src/lib.rs', marker: mediaSavePresenceMarker },
-	{ source: 'src-tauri/plugins/share-sheet/src/lib.rs', marker: shareSheetPresenceMarker }
+	{ source: 'src-tauri/plugins/share-sheet/src/lib.rs', marker: shareSheetPresenceMarker },
+	{ source: 'src-tauri/plugins/file-download/src/phone.rs', marker: fileDownloadPresenceMarker }
 ];
 
 function announcedMarkerOf(rust: string): string {

@@ -35,7 +35,8 @@ pub fn run() {
         .plugin(tauri_plugin_back_gesture::init())
         .plugin(tauri_plugin_print_sheet::init())
         .plugin(tauri_plugin_media_save::init())
-        .plugin(tauri_plugin_share_sheet::init());
+        .plugin(tauri_plugin_share_sheet::init())
+        .plugin(tauri_plugin_file_download::init());
     let app = builder
         .build(tauri::generate_context!())
         .expect("the internkim app could not start");

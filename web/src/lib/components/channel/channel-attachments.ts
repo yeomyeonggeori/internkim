@@ -33,12 +33,12 @@ export function pictureAddressesOf(attachments: ChannelMessageAttachment[]): str
 		.map((attachment) => attachment.source ?? '');
 }
 
-export type MessagePicture = { address: string; filename: string };
+export type MessagePicture = { address: string; filename: string; identity: string };
 
 export function messagePicturesOf(attachments: ChannelMessageAttachment[]): MessagePicture[] {
 	return attachments
 		.filter((attachment) => attachment.kind === 'image' && attachment.source)
-		.map((attachment) => ({ address: attachment.source ?? '', filename: attachment.filename ?? '' }));
+		.map((attachment) => ({ address: attachment.source ?? '', filename: attachment.filename ?? '', identity: attachment.url }));
 }
 
 export function lightboxItemsOf(attachments: ChannelMessageAttachment[]): LightboxItem[] {
@@ -51,6 +51,7 @@ export function lightboxItemsOf(attachments: ChannelMessageAttachment[]): Lightb
 				kind,
 				source: attachment.source,
 				filename: attachment.filename ?? '',
+				identity: attachment.url,
 				width: attachment.widthPixels,
 				height: attachment.heightPixels
 			}
@@ -81,10 +82,20 @@ function attachmentTypeLabel(mimeType?: string, filename?: string): string {
 	return mimeType?.split('/')[1]?.toUpperCase() ?? '';
 }
 
+const kilobyte = 1024;
+const megabyte = 1024 * 1024;
+
 function formatBytes(bytes: number): string {
-	if (bytes < 1024) return `${bytes} B`;
-	if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
-	return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+	if (bytes < kilobyte) return `${bytes} B`;
+	if (bytes < megabyte) return `${Math.round(bytes / kilobyte)} KB`;
+	return `${(bytes / megabyte).toFixed(1)} MB`;
+}
+
+export function formatReceivedBytes(receivedBytes: number, totalBytes: number): string {
+	if (totalBytes <= 0) return formatBytes(receivedBytes);
+	if (totalBytes < kilobyte) return `${receivedBytes} / ${totalBytes} B`;
+	if (totalBytes < megabyte) return `${Math.round(receivedBytes / kilobyte)} / ${Math.round(totalBytes / kilobyte)} KB`;
+	return `${(receivedBytes / megabyte).toFixed(1)} / ${(totalBytes / megabyte).toFixed(1)} MB`;
 }
 
 const maxImageDimension = 2048;

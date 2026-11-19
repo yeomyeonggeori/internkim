@@ -163,7 +163,7 @@ test.describe('messenger attachment download inside the iPhone app', () => {
 		await page.getByRole('button', { name: pictureName }).click();
 		await page.getByRole('dialog').getByRole('button', { name: '다운로드' }).click();
 
-		await expect(page.getByText('사진 보관함에 저장했습니다.')).toBeVisible();
+		await expect(page.getByText('사진함에 저장했습니다.')).toBeVisible();
 
 		await expect.poll(async () => (await filesSentTo(page, 'plugin:media-save|save')).map((file) => file.filename)).toEqual([pictureName]);
 		const [saved] = await filesSentTo(page, 'plugin:media-save|save');
@@ -176,8 +176,8 @@ test.describe('messenger attachment download inside the iPhone app', () => {
 		await page.getByRole('button', { name: pictureName }).click();
 		await page.getByRole('dialog').getByRole('button', { name: '다운로드' }).click();
 
-		await expect(page.getByText(/^사진 보관함에 저장하지 못했습니다\./)).toBeVisible();
-		await expect(page.getByText('사진 보관함에 저장했습니다.')).toHaveCount(0);
+		await expect(page.getByText('저장하지 못했습니다. 다시 시도해 주세요.')).toBeVisible();
+		await expect(page.getByText('사진함에 저장했습니다.')).toHaveCount(0);
 	});
 
 	test('a file card hands the file to the share sheet', async ({ page }) => {
@@ -213,6 +213,7 @@ test.describe('messenger attachment download inside the Mac app', () => {
 		const [saved] = await filesSentTo(page, 'plugin:file-save|save');
 		expect(saved).toEqual({ filename: fileName, mediaType: 'application/pdf', text: notesText });
 		expect(downloads).toBe(0);
+		await expect(page.getByText('저장했습니다.', { exact: true })).toBeVisible();
 	});
 
 	test('the viewer sends the picture to the downloads folder', async ({ page }) => {

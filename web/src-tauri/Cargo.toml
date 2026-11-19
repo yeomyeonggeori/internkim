@@ -31,6 +31,7 @@ tauri-plugin-back-gesture = { path = "plugins/back-gesture" }
 tauri-plugin-print-sheet = { path = "plugins/print-sheet" }
 tauri-plugin-media-save = { path = "plugins/media-save" }
 tauri-plugin-share-sheet = { path = "plugins/share-sheet" }
+tauri-plugin-file-download = { path = "plugins/file-download" }
 tauri-plugin-haptics = "2"
 
 [profile.release]

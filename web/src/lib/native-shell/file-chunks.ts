@@ -1,13 +1,11 @@
+import { newTransferIdentifier } from './transfer-identifier';
+
 const chunkBytes = 2 * 1024 * 1024;
 const unnamedMediaType = 'application/octet-stream';
-const transferIdentifierBytes = 16;
 
-function newTransferIdentifier(): string {
-	const randomBytes = crypto.getRandomValues(new Uint8Array(transferIdentifierBytes));
-	return Array.from(randomBytes, (byte) => byte.toString(16).padStart(2, '0')).join('');
-}
+export type ReportSentBytes = (sentBytes: number, totalBytes: number) => void;
 
-export async function sendFileInChunks(command: string, file: Blob, filename: string): Promise<void> {
+export async function sendFileInChunks(command: string, file: Blob, filename: string, onSent?: ReportSentBytes): Promise<void> {
 	const { invoke } = await import('@tauri-apps/api/core');
 	const transfer = newTransferIdentifier();
 	const mediaType = encodeURIComponent(file.type || unnamedMediaType);
@@ -24,5 +22,6 @@ export async function sendFileInChunks(command: string, file: Blob, filename: st
 				'last-chunk': String(index === chunkCount - 1)
 			}
 		});
+		onSent?.(Math.min(file.size, start + chunkBytes), file.size);
 	}
 }

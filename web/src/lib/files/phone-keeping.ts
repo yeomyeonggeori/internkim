@@ -1,39 +1,37 @@
-import { toast } from 'svelte-sonner';
-import { createPageText } from '$lib/i18n/page-text.svelte';
-import { phoneDownloadText } from '$lib/i18n/phone-download-text';
-import { belongsInPhotoGallery, hasPhotoGallerySaving, saveIntoPhotoGallery } from '$lib/native-shell/media-save';
-import { hasNativeShareSheet, presentShareSheet } from '$lib/native-shell/share-sheet';
+import type { ReportSentBytes } from '$lib/native-shell/file-chunks';
+import type { NativeDownload } from '$lib/native-shell/file-download';
+import {
+	belongsInPhotoGallery,
+	hasPhotoGallerySaving,
+	saveDownloadIntoPhotoGallery,
+	saveIntoPhotoGallery
+} from '$lib/native-shell/media-save';
+import { hasNativeShareSheet, presentDownloadInShareSheet, presentShareSheet } from '$lib/native-shell/share-sheet';
 import { isInsideTauriPhoneShell } from '$lib/native-shell/shell';
-
-const text = createPageText(phoneDownloadText);
+import type { KeptFile } from './kept-file';
 
 export function keepsFilesOnThePhone(): boolean {
 	return isInsideTauriPhoneShell() && hasNativeShareSheet();
 }
 
-async function saveIntoGalleryAndTell(file: Blob, filename: string): Promise<void> {
-	try {
-		await saveIntoPhotoGallery(file, filename);
-	} catch (failure) {
-		toast.error(text.notSavedToGallery);
-		throw failure;
-	}
-	toast.success(text.savedToGallery);
+function belongsInTheGallery(mediaType: string): boolean {
+	return hasPhotoGallerySaving() && belongsInPhotoGallery(mediaType);
 }
 
-async function presentShareSheetOrTell(file: Blob, filename: string): Promise<void> {
-	try {
-		await presentShareSheet(file, filename);
-	} catch (failure) {
-		toast.error(text.shareSheetFailed);
-		throw failure;
+export async function keepOnThePhone(file: Blob, filename: string, onSent: ReportSentBytes): Promise<KeptFile> {
+	if (belongsInTheGallery(file.type)) {
+		await saveIntoPhotoGallery(file, filename, onSent);
+		return 'photoLibrary';
 	}
+	await presentShareSheet(file, filename, onSent);
+	return 'shareSheet';
 }
 
-export async function keepOnThePhone(file: Blob, filename: string): Promise<void> {
-	if (hasPhotoGallerySaving() && belongsInPhotoGallery(file.type)) {
-		await saveIntoGalleryAndTell(file, filename);
-		return;
+export async function keepDownloadOnThePhone(download: NativeDownload): Promise<KeptFile> {
+	if (belongsInTheGallery(download.mediaType)) {
+		await saveDownloadIntoPhotoGallery(download);
+		return 'photoLibrary';
 	}
-	await presentShareSheetOrTell(file, filename);
+	await presentDownloadInShareSheet(download);
+	return 'shareSheet';
 }

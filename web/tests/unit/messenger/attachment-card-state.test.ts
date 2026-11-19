@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { attachmentStateOf, formatAttachmentMeta } from '../../../src/lib/components/channel/channel-attachments';
+import { attachmentStateOf, formatAttachmentMeta, formatReceivedBytes } from '../../../src/lib/components/channel/channel-attachments';
 
 describe('what an attachment card says while its file is fetched', () => {
 	test('shimmers while the relay is still copying the file', () => {
@@ -28,5 +28,16 @@ describe('what an attachment card says the file is', () => {
 
 	test('falls back to the media type when the file has no extension', () => {
 		expect(formatAttachmentMeta({ mimeType: 'application/pdf', filename: 'quote' })).toBe('PDF');
+	});
+});
+
+describe('what an attachment card says while it is downloaded', () => {
+	test('counts what arrived in the unit of the whole file', () => {
+		expect(formatReceivedBytes(10_171_187, 24_222_105)).toBe('9.7 / 23.1 MB');
+		expect(formatReceivedBytes(512, 18_432)).toBe('1 / 18 KB');
+	});
+
+	test('counts only what arrived when the size is unknown', () => {
+		expect(formatReceivedBytes(2_097_152, 0)).toBe('2.0 MB');
 	});
 });

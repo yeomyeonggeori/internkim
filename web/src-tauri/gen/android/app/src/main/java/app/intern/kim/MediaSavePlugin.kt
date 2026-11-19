@@ -19,6 +19,7 @@ import java.io.File
 import java.io.IOException
 
 private const val STORAGE_PERMISSION = "storage"
+private const val PHOTO_PERMISSION_REFUSED = "photoPermissionRefused"
 
 @InvokeArg
 class GalleryItem {
@@ -42,7 +43,7 @@ class MediaSavePlugin(private val activity: Activity) : Plugin(activity) {
   @PermissionCallback
   private fun storagePermissionAnswered(invoke: Invoke) {
     if (getPermissionState(STORAGE_PERMISSION) != PermissionState.GRANTED) {
-      invoke.reject("the app may not add to the photo gallery: storage permission was not granted")
+      invoke.reject("the app may not add to the photo gallery: storage permission was not granted", PHOTO_PERMISSION_REFUSED)
       return
     }
     save(invoke)
