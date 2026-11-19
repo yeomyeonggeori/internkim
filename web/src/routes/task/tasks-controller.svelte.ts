@@ -25,7 +25,7 @@ import {
 	currentTaskMember,
 } from './task-workspace-model';
 import { taskText } from './text';
-import type { TaskQuickTaskCreateResult, TaskSummary, Task } from './task-types';
+import type { TaskSummary, Task } from './task-types';
 import type { PageText } from '$lib/i18n/page-text.svelte';
 
 type TaskPageText = PageText<typeof taskText>;
@@ -93,7 +93,6 @@ class TasksController {
 		this.filters.sync(this.summary);
 		this.quickTask.sync({
 			summary: this.summary,
-			text: this.text,
 			loadTask: this.loadTask
 		});
 		this.board.sync({
@@ -180,7 +179,6 @@ class TasksController {
 	setTaskParents = (taskIDs: string[], parentTaskID: string): Promise<boolean> =>
 		this.relationshipsReady && this.summary?.completeness === 'full' ? this.relationships.setParents(taskIDs, parentTaskID) : Promise.resolve(false);
 
-	createQuickTask = (allowDuplicate = false): Promise<TaskQuickTaskCreateResult> => this.quickTask.createQuickTask(allowDuplicate);
 
 	saveTask = this.editor.saveTask;
 

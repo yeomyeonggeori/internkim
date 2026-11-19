@@ -487,6 +487,16 @@ export const taskAddInputSchema = z.strictObject({
 
 export const taskAddInputIntentSchema = taskAddInputSchema.partial();
 
+export const taskDraftGetToolName = 'task_draft_get';
+
+const taskDraftGetInputSchema = z.strictObject({
+  note: z.string().min(1).regex(/\S/).describe('What a person wrote about the work they want added, as they wrote it. It may describe one task or several.'),
+});
+
+const taskDraftGetResultSchema = z.strictObject({
+  tasks: z.array(taskAddInputSchema).describe('One task_add input for each piece of work the note describes, in the order the note gives them. Empty when the note describes no work.'),
+});
+
 export const taskListInputSchema = z.strictObject({
   query: z.string()
     .describe("Free-text keyword filter matched against task titles and notes, e.g. 'budget'. Do not put dates, week codes, or person names here — use the dedicated fields instead.")
@@ -1141,6 +1151,20 @@ const taskToolDefinitions: CapabilityToolDefinition[] = [
     modelVisibility: CapabilityModelVisibility.Hidden,
     inputSchema: taskLabelGetInputSchema,
     result: { schema: taskLabelGetResultSchema, effects: [] },
+    sideEffect: CapabilitySideEffect.Computation,
+  },
+  {
+    name: taskDraftGetToolName,
+    namespace: 'task',
+    answeredBy: CapabilityAnsweredBy.Company,
+    privacyClass: 'workspace_task',
+    policyResource: `tool:${taskDraftGetToolName}`,
+    description: "Get the task_add inputs a note describes, written by the company's model with task_add as the only tool it may call. Nothing is added: each input is meant for a task_add call of its own.",
+    version: '1',
+    estimatedLatency: CapabilityEstimatedLatency.Medium,
+    modelVisibility: CapabilityModelVisibility.Hidden,
+    inputSchema: taskDraftGetInputSchema,
+    result: { schema: taskDraftGetResultSchema, effects: [] },
     sideEffect: CapabilitySideEffect.Computation,
   },
 ];

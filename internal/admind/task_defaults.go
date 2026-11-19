@@ -35,12 +35,3 @@ func taskSizeLabelForLocale(size taskSizeDefinition, locale string) string {
 	}
 	return fmt.Sprintf("%dkm · 최대 %dh", size.DistanceKM, size.MaxHours)
 }
-
-func containsTaskSize(values []taskSizeDefinition, target string) bool {
-	for _, value := range values {
-		if value.Name == target {
-			return true
-		}
-	}
-	return false
-}

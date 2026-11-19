@@ -11,21 +11,6 @@ import {
 	updateTaskParent as setTaskParentOnRecord,
 	updateTaskParents as setTaskParentsOnRecord
 } from '$lib/task/task-state';
-import { callCompanyApp } from '$lib/host-bridge';
-import { markTaskSnapshotStale } from './task-snapshot-storage';
-
-export type TaskQuickTaskRequest = {
-	prompt: string;
-	ownerID: string;
-	participantIDs: string[];
-	weekCode: string;
-	allowDuplicate?: boolean;
-};
-
-export type TaskQuickTaskResult = {
-	status: 'created' | 'skipped_duplicate';
-	reason: string;
-};
 
 export const taskStateDependency = 'app:task-state';
 
@@ -63,28 +48,6 @@ export function mergeTaskSummary(state: TaskState, weeklySummary: TaskWeeklySumm
 	};
 }
 
-export async function createQuickTask(
-	request: TaskQuickTaskRequest,
-	fallbackMessage: string
-): Promise<TaskQuickTaskResult> {
-	markTaskSnapshotStale();
-	const answer = await callCompanyApp({
-		capability: 'person.task.quick_task',
-		body: {
-			prompt: request.prompt,
-			allowDuplicate: request.allowDuplicate ?? false
-		}
-	});
-	if (answer.status >= 400) throw new Error(companyAppErrorMessage(answer.body, fallbackMessage));
-	markTaskSnapshotStale();
-	return quickTaskResultFromResponse(answer.body);
-}
-
-function companyAppErrorMessage(body: unknown, fallback: string): string {
-	if (isRecord(body) && typeof body.error === 'string' && body.error.trim() !== '') return body.error;
-	return fallback;
-}
-
 export function saveTask(
 	task: Task,
 	originalTask?: Task,
@@ -116,19 +79,4 @@ export function saveTaskDefinitions(
 	inUseMessage: string
 ): Promise<void> {
 	return saveTaskVocabulary(definitions, { failure: fallbackMessage, inUse: inUseMessage });
-}
-
-function quickTaskResultFromResponse(value: unknown): TaskQuickTaskResult {
-	if (!isRecord(value)) return { status: 'created', reason: '' };
-	if (value.status === 'skipped_duplicate') {
-		return {
-			status: 'skipped_duplicate',
-			reason: typeof value.reason === 'string' ? value.reason : ''
-		};
-	}
-	return { status: 'created', reason: '' };
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-	return typeof value === 'object' && value !== null && !Array.isArray(value);
 }

@@ -19,20 +19,6 @@ func emailDomain(email string) string {
 	return parts[1]
 }
 
-func uniqueNonEmpty(values []string) []string {
-	seen := map[string]bool{}
-	result := []string{}
-	for _, value := range values {
-		trimmedValue := strings.TrimSpace(value)
-		if trimmedValue == "" || seen[trimmedValue] {
-			continue
-		}
-		seen[trimmedValue] = true
-		result = append(result, trimmedValue)
-	}
-	return result
-}
-
 func containsString(values []string, target string) bool {
 	for _, value := range values {
 		if value == target {
@@ -40,15 +26,4 @@ func containsString(values []string, target string) bool {
 		}
 	}
 	return false
-}
-
-
-func firstNonEmptySlice(values ...[]string) []string {
-	for _, value := range values {
-		cleanedValue := uniqueNonEmpty(value)
-		if len(cleanedValue) > 0 {
-			return cleanedValue
-		}
-	}
-	return []string{}
 }

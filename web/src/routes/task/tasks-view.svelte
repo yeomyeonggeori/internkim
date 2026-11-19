@@ -80,7 +80,6 @@
 		});
 	});
 
-	$effect(page.quickTask.clearStaleDuplicatePrompt);
 
 	let openedFocusedTaskID = '';
 
@@ -224,16 +223,7 @@
 <TaskChildCompletionDialog question={page.board.childCompletionQuestion} text={text.task.childCompletion} />
 
 {#if page.editor.taskDraft === null}
-	<TaskQuickAdd
-		bind:quickTaskText={page.quickTask.quickTaskText}
-		taskErrorMessage={page.quickTask.taskErrorMessage}
-		quickTaskDuplicateMessage={page.quickTask.quickTaskDuplicateMessage}
-		isCreatingQuickTask={page.quickTask.isCreatingQuickTask}
-		hasMembers={page.members().length > 0}
-		text={text.task}
-		createQuickTask={() => page.createQuickTask(false)}
-		confirmQuickTaskDuplicate={() => page.createQuickTask(true)}
-	/>
+	<TaskQuickAdd quickTask={page.quickTask} hasMembers={page.members().length > 0} text={text.task} />
 {/if}
 
 <TaskEditor

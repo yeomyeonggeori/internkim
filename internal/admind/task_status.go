@@ -12,12 +12,6 @@ const (
 	taskStatusStopped    = "stopped"
 )
 
-
-
-func defaultTaskStatus() string {
-	return taskStatusPlanned
-}
-
 func taskStatusOptions() []string {
 	return []string{
 		taskStatusRequested,
@@ -56,11 +50,6 @@ func isAllowedTaskStatus(status string) bool {
 	return containsString(taskStatusOptions(), cleanTaskStatus(status))
 }
 
-
-func isTaskInProgressStatus(status string) bool {
-	return cleanTaskStatus(status) == taskStatusInProgress
-}
-
 func isTaskCompletedStatus(status string) bool {
 	return cleanTaskStatus(status) == taskStatusCompleted
 }
@@ -68,7 +57,3 @@ func isTaskCompletedStatus(status string) bool {
 func isTaskPlannedStatus(status string) bool {
 	return cleanTaskStatus(status) == taskStatusPlanned
 }
-
-
-
-
