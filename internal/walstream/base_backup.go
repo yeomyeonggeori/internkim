@@ -60,6 +60,14 @@ func (backup BaseBackup) StartLSN() (pglogrepl.LSN, error) {
 	return pglogrepl.ParseLSN(backup.Start)
 }
 
+func (backup BaseBackup) FirstWALNeeded() (pglogrepl.LSN, error) {
+	start, errorValue := backup.StartLSN()
+	if errorValue != nil {
+		return 0, fmt.Errorf("the base backup %s names no start: %w", backup.Name, errorValue)
+	}
+	return segmentStartOf(start), nil
+}
+
 func (backup BaseBackup) EndLSN() (pglogrepl.LSN, error) {
 	return pglogrepl.ParseLSN(backup.End)
 }

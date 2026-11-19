@@ -150,22 +150,34 @@ func baseBackupsToKeep(backups []BaseBackup, now time.Time) ([]BaseBackup, []Bas
 }
 
 func prunePiecesBefore(ctx context.Context, destination offsite.Destination, oldestKept BaseBackup) error {
-	start, errorValue := oldestKept.StartLSN()
-	if errorValue != nil {
-		return fmt.Errorf("the base backup %s names no start: %w", oldestKept.Name, errorValue)
-	}
 	kept := KeptPieces{Destination: destination, SystemID: oldestKept.SystemID}
 	names, errorValue := kept.Names(ctx)
 	if errorValue != nil {
 		return errorValue
 	}
-	stale := []string{}
+	stale, errorValue := stalePieces(names, oldestKept)
+	if errorValue != nil {
+		return errorValue
+	}
+	paths := make([]string, 0, len(stale))
+	for _, name := range stale {
+		paths = append(paths, kept.pathOf(name.String()))
+	}
+	return removeInBatches(ctx, destination.Store, paths)
+}
+
+func stalePieces(names []PieceName, oldestKept BaseBackup) ([]PieceName, error) {
+	first, errorValue := oldestKept.FirstWALNeeded()
+	if errorValue != nil {
+		return nil, errorValue
+	}
+	stale := []PieceName{}
 	for _, name := range names {
-		if name.Timeline <= oldestKept.Timeline && name.End <= start {
-			stale = append(stale, kept.pathOf(name.String()))
+		if name.Timeline <= oldestKept.Timeline && name.End <= first {
+			stale = append(stale, name)
 		}
 	}
-	return removeInBatches(ctx, destination.Store, stale)
+	return stale, nil
 }
 
 func sweepUnreferencedBaseChunks(ctx context.Context, destination offsite.Destination, kept []BaseBackup, now time.Time) error {

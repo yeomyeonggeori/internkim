@@ -2,6 +2,7 @@ package walstream
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"math"
 
@@ -21,6 +22,25 @@ func (plan replayPlan) replaysTo() pglogrepl.LSN {
 
 const endless = pglogrepl.LSN(math.MaxUint64)
 
+var errANewerBaseBackupIsNeeded = errors.New("the company no longer keeps the start of the WAL segment the base backup begins in, so a newer base backup is needed")
+
+func requireTheWALFrom(names []PieceName, backup BaseBackup) error {
+	first, errorValue := backup.FirstWALNeeded()
+	if errorValue != nil {
+		return errorValue
+	}
+	for _, name := range names {
+		if name.Timeline != backup.Timeline || name.End <= first {
+			continue
+		}
+		if name.Start > first {
+			return fmt.Errorf("%w: %s needs WAL from %s and the kept WAL on timeline %d begins at %s", errANewerBaseBackupIsNeeded, backup.Name, first, backup.Timeline, name.Start)
+		}
+		return nil
+	}
+	return fmt.Errorf("%w: %s needs WAL from %s and none is kept on timeline %d", errANewerBaseBackupIsNeeded, backup.Name, first, backup.Timeline)
+}
+
 func consistentReach(stretch timelineStretch, backupEnd pglogrepl.LSN) pglogrepl.LSN {
 	if stretch.To == endless {
 		return backupEnd
@@ -35,9 +55,9 @@ type timelineStretch struct {
 }
 
 func planTheReplay(ctx context.Context, kept KeptPieces, backup BaseBackup, keyring box.Keyring) (replayPlan, error) {
-	start, errorValue := backup.StartLSN()
+	start, errorValue := backup.FirstWALNeeded()
 	if errorValue != nil {
-		return replayPlan{}, fmt.Errorf("the base backup %s names no start: %w", backup.Name, errorValue)
+		return replayPlan{}, errorValue
 	}
 	end, errorValue := backup.EndLSN()
 	if errorValue != nil {
@@ -46,6 +66,9 @@ func planTheReplay(ctx context.Context, kept KeptPieces, backup BaseBackup, keyr
 	names, errorValue := kept.Names(ctx)
 	if errorValue != nil {
 		return replayPlan{}, fmt.Errorf("listing the company's kept WAL: %w", errorValue)
+	}
+	if errorValue := requireTheWALFrom(names, backup); errorValue != nil {
+		return replayPlan{}, errorValue
 	}
 	newest := backup.Timeline
 	for _, name := range names {
