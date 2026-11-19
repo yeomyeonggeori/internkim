@@ -877,6 +877,75 @@ class CompanyBackupRemovalTests(unittest.TestCase):
         self.assertIn(f'const Bucket = "{rig.BACKUP_BUCKET}"', source)
 
 
+class CompanyFilesTests(unittest.TestCase):
+    row = "entry\tworkspace\tprivate/people/p1/note.txt\tf\t6\t600\tbc_person_a\tbc_person_a\t100003\t100003\t\n"
+    digest = "digest\tworkspace\t/workspace\tabc123  /workspace/private/people/p1/note.txt\n"
+
+    def manifest(self, reading):
+        import native_install_files
+        return native_install_files.manifest_of(reading)
+
+    def test_a_manifest_carries_the_digest_of_a_file_under_its_relative_path(self):
+        entry = self.manifest(self.row + self.digest)[("workspace", "private/people/p1/note.txt")]
+        self.assertEqual((entry["owner"], entry["mode"], entry["digest"], entry["uid"]), ("bc_person_a", "600", "abc123", "100003"))
+
+    def test_the_same_files_under_new_numbers_do_not_differ(self):
+        import native_install_files
+        before = self.manifest(self.row + self.digest)
+        after = self.manifest(self.row.replace("100003", "100014") + self.digest)
+        comparison = native_install_files.compare(before, before, after)
+        renumbered, is_consistent = native_install_files.renumbered_names(before, after)
+        self.assertEqual(comparison.differences, [])
+        self.assertTrue(is_consistent)
+        self.assertEqual(renumbered, ["group bc_person_a: 100003 -> 100014", "user bc_person_a: 100003 -> 100014"])
+
+    def test_another_owner_name_differs(self):
+        import native_install_files
+        before = self.manifest(self.row + self.digest)
+        after = self.manifest(self.row.replace("\tbc_person_a\tbc_person_a", "\troot\troot") + self.digest)
+        self.assertEqual(len(native_install_files.compare(before, before, after).differences), 1)
+
+    def test_a_missing_or_extra_or_changed_file_differs(self):
+        import native_install_files
+        before = self.manifest(self.row + self.digest)
+        changed = self.manifest(self.row + self.digest.replace("abc123", "def456"))
+        self.assertEqual(native_install_files.compare(before, before, {}).differences[0].split()[0], "missing")
+        self.assertEqual(native_install_files.compare({}, {}, before).differences[0].split()[0], "extra")
+        self.assertEqual(native_install_files.compare(before, before, changed).differences[0].split()[0], "differs")
+
+    def test_a_file_changed_after_the_backup_may_arrive_as_either(self):
+        import native_install_files
+        at_backup = self.manifest(self.row + self.digest)
+        before_dark = self.manifest(self.row + self.digest.replace("abc123", "def456"))
+        comparison = native_install_files.compare(at_backup, before_dark, at_backup)
+        self.assertEqual((comparison.differences, comparison.changed_after_the_backup), ([], 1))
+        self.assertEqual(native_install_files.compare(at_backup, before_dark, before_dark).differences, [])
+
+    def test_only_a_named_subtree_is_exempt(self):
+        import native_install_files
+        identity = self.manifest("entry\tstate\tbox/identity.json\tf\t6\t600\troot\troot\t0\t0\t\n")
+        lookalike = self.manifest("entry\tstate\tboxes/identity.json\tf\t6\t600\troot\troot\t0\t0\t\n")
+        self.assertEqual(native_install_files.compare(identity, identity, {}).differences, [])
+        self.assertEqual(len(native_install_files.compare(lookalike, lookalike, {}).differences), 1)
+
+    def test_the_walls_hold_only_when_every_attempt_answers_as_expected(self):
+        import native_install_files
+        holding = "\n".join(f"{name}={wanted}" for name, wanted in native_install_files.EXPECTED_ACCESS.items())
+        self.assertTrue(native_install_files.walls_hold(holding))
+        self.assertFalse(native_install_files.walls_hold(holding.replace("another-persons-private-file=refused", "another-persons-private-file=allowed")))
+
+    def test_the_backup_roots_are_the_ones_a_backup_carries(self):
+        import native_install_files
+        backup = (repository_root / "internal" / "companyhost" / "backup.go").read_text()
+        layout = "".join(
+            (repository_root / "internal" / "runtime" / "blueclaw" / name).read_text()
+            for name in ("company_host_package.go", "blueclaw_contract.go", "relay_service.go", "company_host_layout.go")
+        )
+        for role, path in native_install_files.BACKUP_ROOTS:
+            self.assertIn(f'= "{role}"', backup)
+            self.assertTrue(f'"{path}"' in backup + layout or f'"{path.removeprefix("/var/lib/")}"' in layout, path)
+
+
 class WhatABoxHoldsTests(unittest.TestCase):
     standing_by = (
         "companies=\ncurrent=absent\nmark=absent\nworkspace-entries=0\ndatabase-entries=0\ndatabase-system=\n"
