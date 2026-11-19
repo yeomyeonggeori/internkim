@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/yeomyeonggeori/internkim/internal/box"
 	"github.com/yeomyeonggeori/internkim/internal/companyhost"
 	"github.com/yeomyeonggeori/internkim/internal/durablefile"
 	"github.com/yeomyeonggeori/internkim/internal/runtime/blueclaw"
@@ -18,7 +19,6 @@ import (
 const (
 	firstTakeOverRetryWait   = time.Minute
 	longestTakeOverRetryWait = 30 * time.Minute
-	takeOverRetryFileName    = "take-over-retry.json"
 )
 
 var errTakeOverWaitsToRetry = errors.New("the last take-over failed, and this box tries it again")
@@ -38,7 +38,7 @@ type takeOverRetry struct {
 
 func takeOverRetries() takeOverRetry {
 	return takeOverRetry{
-		StatePath:   filepath.Join(blueclaw.CompanyHostBoxStatePath, takeOverRetryFileName),
+		StatePath:   filepath.Join(blueclaw.CompanyHostBoxStatePath, box.TakeOverRetryFileName),
 		Now:         time.Now,
 		ResetFailed: resetTheFailedTakeOver,
 	}

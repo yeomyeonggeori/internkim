@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/yeomyeonggeori/internkim/internal/box"
 	"github.com/yeomyeonggeori/internkim/internal/companyhost"
 	"github.com/yeomyeonggeori/internkim/internal/runtime/blueclaw"
 )
@@ -28,7 +29,7 @@ func aTakeOverRetry(t *testing.T) (takeOverRetry, *retryClock, *unitsCleared) {
 	clock := &retryClock{now: time.Date(2026, 11, 18, 9, 0, 0, 0, time.UTC)}
 	units := &unitsCleared{}
 	retry := takeOverRetry{
-		StatePath:   filepath.Join(t.TempDir(), takeOverRetryFileName),
+		StatePath:   filepath.Join(t.TempDir(), box.TakeOverRetryFileName),
 		Now:         clock.read,
 		ResetFailed: units.resetFailed,
 	}

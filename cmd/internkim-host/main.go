@@ -336,11 +336,13 @@ func boxDaemon(appURL string) box.Daemon {
 			_, errorValue := companyhost.Install(request, thisComputer{}, os.Stdout)
 			return errorValue
 		},
-		HoldsAnotherCompany: companyhost.HoldsACompanyOtherThan,
-		ForgetEveryCompany:  forgetEveryCompany,
-		TakeOver:            takeOverFromTheNewestBackup,
-		StandDown:           standDown,
-		StandUp:             standUp,
+		CompaniesHeld:          companyhost.CompaniesHeldHere,
+		ForgetCompanyDirectory: companyhost.ForgetCompanyDirectory,
+		ForgetEveryCompany:     forgetEveryCompany,
+		TakeOverIsUnderway:     takeOverIsUnderway,
+		TakeOver:               takeOverFromTheNewestBackup,
+		StandDown:              standDown,
+		StandUp:                standUp,
 		RestartServices: func() error {
 			return companyhost.RestartTheServices(thisComputer{}, os.Stdout)
 		},

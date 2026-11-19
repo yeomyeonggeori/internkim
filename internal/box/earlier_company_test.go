@@ -5,10 +5,31 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"slices"
 	"testing"
+
+	"github.com/yeomyeonggeori/internkim/internal/companyhost"
 )
 
 const earlierCompanyID = "00000000-0000-4000-8000-00000000000e"
+
+func holding(current string, directories ...string) func() (companyhost.CompaniesHeld, error) {
+	return func() (companyhost.CompaniesHeld, error) {
+		return companyhost.CompaniesHeld{Current: current, Directories: directories}, nil
+	}
+}
+
+type directoryRemovals struct {
+	companyIDs []string
+}
+
+func (removals *directoryRemovals) watching(daemon Daemon) Daemon {
+	daemon.ForgetCompanyDirectory = func(companyID string) error {
+		removals.companyIDs = append(removals.companyIDs, companyID)
+		return nil
+	}
+	return daemon
+}
 
 type forgetting struct {
 	times          int
@@ -104,11 +125,7 @@ func TestAConnectionFileForAnotherCompanyEmptiesTheComputerFirst(t *testing.T) {
 	plane := &fakePlane{accessToken: "file.session.token"}
 	installed := &installs{}
 	daemon, places := daemonFor(t, plane, installed)
-	asked := ""
-	daemon.HoldsAnotherCompany = func(companyID string) (bool, error) {
-		asked = companyID
-		return true, nil
-	}
+	daemon.CompaniesHeld = holding("", earlierCompanyID)
 	forgotten := &forgetting{}
 	if errorValue := os.MkdirAll(places.StateDirectoryPath, 0o700); errorValue != nil {
 		t.Fatal(errorValue)
@@ -121,10 +138,102 @@ func TestAConnectionFileForAnotherCompanyEmptiesTheComputerFirst(t *testing.T) {
 		t.Fatal(errorValue)
 	}
 
-	if asked != sampleCompanyID || forgotten.times != 1 || forgotten.installsBefore != 0 || len(installed.requests) != 1 {
-		t.Fatalf("asked about %q, emptied %d times with %d installs before it, installs = %d", asked, forgotten.times, forgotten.installsBefore, len(installed.requests))
+	if forgotten.times != 1 || forgotten.installsBefore != 0 || len(installed.requests) != 1 {
+		t.Fatalf("emptied %d times with %d installs before it, installs = %d", forgotten.times, forgotten.installsBefore, len(installed.requests))
 	}
 	if _, errorValue := os.Stat(filepath.Join(places.StateDirectoryPath, serviceLeaseFileName)); !errors.Is(errorValue, os.ErrNotExist) {
 		t.Fatalf("the earlier company's service lease is still held: %v", errorValue)
+	}
+}
+
+func TestABoxThatHoldsOnlyAnotherCompanysDirectoryIsEmptiedAndForgetsItsTakeOverNotes(t *testing.T) {
+	plane := &fakePlane{isClaimed: true, accessToken: "first.session.token"}
+	installed := &installs{}
+	daemon, places := daemonFor(t, plane, installed)
+	daemon.CompaniesHeld = holding("", earlierCompanyID)
+	daemon.Places.SeveralBoxesPath = filepath.Join(places.StateDirectoryPath, "several-boxes")
+	for _, path := range []string{filepath.Join(places.StateDirectoryPath, TakeOverRetryFileName), daemon.Places.SeveralBoxesPath} {
+		if errorValue := os.MkdirAll(filepath.Dir(path), 0o700); errorValue != nil {
+			t.Fatal(errorValue)
+		}
+		if errorValue := os.WriteFile(path, []byte("{}"), 0o600); errorValue != nil {
+			t.Fatal(errorValue)
+		}
+	}
+	forgotten := &forgetting{}
+
+	runSteps(t, forgotten.watching(daemon, installed), 1)
+
+	if forgotten.times != 1 {
+		t.Fatalf("a box holding another company's directory without its key or current link was emptied %d times", forgotten.times)
+	}
+	if _, errorValue := os.Stat(filepath.Join(places.StateDirectoryPath, TakeOverRetryFileName)); !errors.Is(errorValue, os.ErrNotExist) {
+		t.Fatal("the earlier company's take-over record outlived its data")
+	}
+}
+
+func TestAServingBoxKeepsItsCompanysDataAndLosesOnlyAStaleDirectoryOfAnother(t *testing.T) {
+	plane := &fakePlane{isClaimed: true, accessToken: "first.session.token"}
+	installed := &installs{}
+	daemon, places := daemonFor(t, plane, installed)
+	if errorValue := os.MkdirAll(places.StateDirectoryPath, 0o700); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if errorValue := MarkInstalledCompany(places.StateDirectoryPath, sampleCompanyID); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	daemon.CompaniesHeld = holding(sampleCompanyID, sampleCompanyID, earlierCompanyID)
+	forgotten, removed := &forgetting{}, &directoryRemovals{}
+
+	runSteps(t, removed.watching(forgotten.watching(daemon, installed)), 2)
+
+	if forgotten.times != 0 {
+		t.Fatalf("a box serving its company was emptied %d times because another company's directory was found", forgotten.times)
+	}
+	if !slices.Equal(removed.companyIDs, []string{earlierCompanyID, earlierCompanyID}) {
+		t.Fatalf("removed the directories of %v; only the other company's goes, on each step it is found", removed.companyIDs)
+	}
+}
+
+func TestAServingBoxWhoseCurrentLinkNamesItsCompanyIsNotEmptiedBeforeItIsMarked(t *testing.T) {
+	plane := &fakePlane{isClaimed: true, accessToken: "first.session.token"}
+	installed := &installs{}
+	daemon, _ := daemonFor(t, plane, installed)
+	daemon.CompaniesHeld = holding(sampleCompanyID, sampleCompanyID, earlierCompanyID)
+	forgotten, removed := &forgetting{}, &directoryRemovals{}
+
+	runSteps(t, removed.watching(forgotten.watching(daemon, installed)), 1)
+
+	if forgotten.times != 0 || !slices.Equal(removed.companyIDs, []string{earlierCompanyID}) {
+		t.Fatalf("emptied %d times and removed %v; a box already restored for its company keeps the shared places", forgotten.times, removed.companyIDs)
+	}
+}
+
+func TestNothingIsEmptiedWhileATakeOverIsUnderway(t *testing.T) {
+	plane := &fakePlane{isClaimed: true, accessToken: "first.session.token"}
+	installed := &installs{}
+	daemon, _ := daemonFor(t, plane, installed)
+	daemon.CompaniesHeld = holding("", earlierCompanyID)
+	daemon.TakeOverIsUnderway = func() bool { return true }
+	forgotten, removed := &forgetting{}, &directoryRemovals{}
+
+	runSteps(t, removed.watching(forgotten.watching(daemon, installed)), 1)
+
+	if forgotten.times != 0 || len(removed.companyIDs) != 0 {
+		t.Fatalf("emptied %d times and removed %v while a take-over was restoring the company", forgotten.times, removed.companyIDs)
+	}
+}
+
+func TestAStandbyHoldingItsOwnCompanysDirectoryKeepsIt(t *testing.T) {
+	plane := &fakePlane{isClaimed: true, accessToken: "first.session.token", role: RoleStandby}
+	installed := &installs{}
+	daemon, _ := daemonFor(t, plane, installed)
+	daemon.CompaniesHeld = holding("", sampleCompanyID)
+	forgotten, removed := &forgetting{}, &directoryRemovals{}
+
+	runSteps(t, removed.watching(forgotten.watching(daemon, installed)), 1)
+
+	if forgotten.times != 0 || len(removed.companyIDs) != 0 {
+		t.Fatalf("a standby of its own company was emptied %d times and lost %v", forgotten.times, removed.companyIDs)
 	}
 }

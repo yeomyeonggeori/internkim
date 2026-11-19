@@ -5,9 +5,14 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
+	"log"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
+	"sync"
+
+	"github.com/google/uuid"
 
 	"github.com/yeomyeonggeori/internkim/internal/runtime/blueclaw"
 )
@@ -42,12 +47,80 @@ func companyPlacesOn(layout blueclaw.CompanyHostLayout) companyPlaces {
 	}
 }
 
-func HoldsACompanyOtherThan(companyID string) (bool, error) {
-	installed, errorValue := installedCompanyID()
-	if errorValue != nil {
-		return false, errorValue
+type CompaniesHeld struct {
+	Current     string
+	Directories []string
+}
+
+func (held CompaniesHeld) OtherThan(companyID string) []string {
+	others := []string{}
+	for _, heldID := range append([]string{held.Current}, held.Directories...) {
+		if heldID != "" && heldID != companyID && !slices.Contains(others, heldID) {
+			others = append(others, heldID)
+		}
 	}
-	return installed != "" && installed != companyID, nil
+	return others
+}
+
+func CompaniesHeldHere() (CompaniesHeld, error) {
+	current, errorValue := installedCompanyID()
+	if errorValue != nil {
+		return CompaniesHeld{}, errorValue
+	}
+	directories, unrecognized, errorValue := companyDirectoriesIn(blueclaw.CompanyHostCompaniesRoot)
+	if errorValue != nil {
+		return CompaniesHeld{}, errorValue
+	}
+	for _, name := range unrecognized {
+		if _, isReported := reportedUnrecognizedDirectories.LoadOrStore(name, true); !isReported {
+			log.Printf("%s holds %s, which is not named by a company id; it is no company's and is left where it is", blueclaw.CompanyHostCompaniesRoot, name)
+		}
+	}
+	return CompaniesHeld{Current: current, Directories: directories}, nil
+}
+
+var reportedUnrecognizedDirectories sync.Map
+
+func companyDirectoriesIn(companiesRootPath string) ([]string, []string, error) {
+	entries, errorValue := os.ReadDir(companiesRootPath)
+	if errors.Is(errorValue, fs.ErrNotExist) {
+		return nil, nil, nil
+	}
+	if errorValue != nil {
+		return nil, nil, fmt.Errorf("reading which companies %s holds: %w", companiesRootPath, errorValue)
+	}
+	companyIDs, unrecognized := []string{}, []string{}
+	for _, entry := range entries {
+		if entry.IsDir() && isCompanyID(entry.Name()) {
+			companyIDs = append(companyIDs, entry.Name())
+			continue
+		}
+		unrecognized = append(unrecognized, entry.Name())
+	}
+	return companyIDs, unrecognized, nil
+}
+
+func isCompanyID(name string) bool {
+	parsed, errorValue := uuid.Parse(name)
+	return errorValue == nil && parsed.String() == name
+}
+
+func ForgetCompanyDirectory(companyID string) error {
+	current, errorValue := installedCompanyID()
+	if errorValue != nil {
+		return errorValue
+	}
+	return forgetCompanyDirectoryIn(blueclaw.CompanyHostCompaniesRoot, current, companyID)
+}
+
+func forgetCompanyDirectoryIn(companiesRootPath, current, companyID string) error {
+	if !isCompanyID(companyID) {
+		return fmt.Errorf("%q is not a company id, so no directory under %s is removed for it", companyID, companiesRootPath)
+	}
+	if companyID == current {
+		return fmt.Errorf("company %s is the one %s serves, so its directory under %s stays", companyID, blueclaw.CompanyHostCurrentPath, companiesRootPath)
+	}
+	return os.RemoveAll(filepath.Join(companiesRootPath, companyID))
 }
 
 func ForgetEveryCompany(machine Machine, progress io.Writer) error {
@@ -63,6 +136,11 @@ func ForgetEveryCompany(machine Machine, progress io.Writer) error {
 }
 
 func forgetEveryCompanyOn(platform linuxPlatform, places companyPlaces, machine Machine, progress io.Writer) error {
+	held, _, errorValue := companyDirectoriesIn(filepath.Join(places.StateRootPath, filepath.Base(blueclaw.CompanyHostCompaniesRoot)))
+	if errorValue != nil {
+		return errorValue
+	}
+	fmt.Fprintf(progress, "removing the data of companies %s: their services, people's accounts, %s, the databases set aside by a take-over and %s apart from %s\n", strings.Join(held, ", "), strings.Join(append(append([]string{}, places.RemovedPaths...), places.EmptiedPaths...), ", "), places.StateRootPath, places.KeptInStateRoot)
 	if errorValue := platform.stopEveryCompanyService(machine, progress); errorValue != nil {
 		return errorValue
 	}
