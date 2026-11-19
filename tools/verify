@@ -573,6 +573,7 @@ GROUPS = [
             "web/tests/e2e/tasks/*",
             "tools/tests/test_e2e_tasks.py",
             "tools/native_install_messenger.py",
+            "tools/native_install_files.py",
             "tools/native_install_assets/*",
             "internal/admind/host_update.go",
             "internal/hostupdate/*",

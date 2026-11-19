@@ -27,6 +27,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from native_install_families import FAMILIES  # noqa: E402
 import native_install_agent_update as agent_update  # noqa: E402
 import native_install_messenger as messenger  # noqa: E402
+import native_install_files as company_files  # noqa: E402
 from native_install_rig import (  # noqa: E402
     AGENT_HEALTH,
     RELAY_UNIT_NAME,
@@ -1644,15 +1645,20 @@ class Rig:
         self.observe_the_roles(step, {first_key: "service", second_key: "standby"}, "after the second box joined")
         self.observe_a_standby(step, second)
         self.observe_the_standby_takes_work(step, second)
+        spread = self.leave_a_spread_of_files(step)
         self.keep_a_snapshot(step)
+        at_backup = self.manifest_of_the_company_files("at-the-backup")
         self.observe_the_standby_keeps_up(step, second)
         self.observe_the_company_keeps_wal(step)
         self.message_text = message_asking_for_an_answer("after the newest snapshot, just before the first box goes dark")
         self.observe_the_member_round_trip(step, self.plane)
+        before_dark = self.manifest_of_the_company_files("before-going-dark")
 
         first.power_off()
         self.take_over_with(step, second, second_key)
         with self.driving(second, self.files_command):
+            self.observe_every_file_came_across(step, at_backup, before_dark)
+            self.observe_the_access_walls(step, spread)
             self.observe_running_services(step)
             self.observe_the_message_came_across(step)
             self.observe_the_message_came_across(step, newest=True)
@@ -1845,6 +1851,67 @@ class Rig:
             "it logged about browser work",
             "the gateway gives work only to a box that holds this socket and has said how much room it has",
         ).record(not reading.stdout.startswith("sockets=0"), reading.stdout.strip())
+
+    def leave_a_spread_of_files(self, step):
+        """Files of every kind a company holds, written as each person's own account where a person writes them.
+
+        The circle's memory, the shared note and the .protected source of truth are written as
+        root and given the owner of the directory they sit in, because only the agent's service
+        writes those and the rig cannot ask it to write a chosen file.
+        """
+        written = self.machine.shell(company_files.SPREAD_COMMAND)
+        spread = company_files.spread_names(written.stdout)
+        step.observe(
+            "the serving box holds private files of three people, a circle's memory, a shared file and a .protected source of truth",
+            "the people, circle and outsider the spread was written for, including a file with a Korean name, one with "
+            "spaces, one of mode 0640, a symlink and an empty directory",
+            "a take-over that carries only the files a fresh install makes says nothing about the files people make",
+        ).record(written.returncode == 0 and bool(spread.get("outsider")), written.stdout.strip()[-600:] or written.stderr.strip()[-600:])
+        return spread
+
+    def manifest_of_the_company_files(self, name):
+        output = f"{SHARE_PATH}/manifest-{name}.tsv"
+        self.machine.checked_shell(company_files.manifest_command(output), timeout_seconds=1800)
+        return company_files.manifest_of((self.machine.share_directory / f"manifest-{name}.tsv").read_text(errors="surrogateescape"))
+
+    def observe_every_file_came_across(self, step, at_backup, before_dark):
+        after = self.manifest_of_the_company_files("after-the-take-over")
+        comparison = company_files.compare(at_backup, before_dark, after)
+        renumbered, is_consistent = company_files.renumbered_names(at_backup, after)
+        found = company_files.spread_found_in(after)
+        exemptions = "\n".join(company_files.exemption_list())
+        step.observe(
+            "every file the backup carries arrives on the box that took over with its content, mode, owner and group",
+            "a manifest as root of every entry under the backup's roots on the serving box right after the snapshot, "
+            "again just before it went dark, and on the box that took over: path, type, size, mode, owner and group "
+            "by name, link target and SHA-256",
+            "a restore run as root over the whole backup can land a file another person may not read with the wrong "
+            "owner, and only reading every one of them says it did not",
+        ).record(
+            not comparison.differences and all(found.values()) and is_consistent,
+            f"compared {comparison.compared} paths, {comparison.changed_after_the_backup} changed after the backup, "
+            f"{comparison.exempted} exempt, {len(comparison.differences)} differ\n"
+            + "\n".join(comparison.differences[:200])
+            + f"\nspread found: {json.dumps(found, ensure_ascii=False)}\n{exemptions}\n"
+            + f"each name keeps one number on each box: {is_consistent}\nrenumbered: " + ("; ".join(renumbered) or "none"),
+        )
+
+    def observe_the_access_walls(self, step, spread):
+        observation = step.observe(
+            "on the box that took over, a person reads their own file and nobody else's, and nobody writes under .protected",
+            "as one person's Linux account, reading their own private file and another person's, as a person outside "
+            "a circle, listing the circle's directory and reading its memory, and as a person, creating a file under "
+            "their .protected",
+            "a mode that reads right can still be enforced by an owner the take-over renumbered, so the wall is "
+            "judged by what the kernel lets each account do",
+        )
+        if not company_files.walls_can_be_tried(spread):
+            observation.record(False, f"the spread named no people, circle or outsider to try: {json.dumps(spread)}")
+            return
+        reading = self.machine.shell(
+            company_files.ACCESS_WALLS_COMMAND % {key.replace("-", "_"): shlex.quote(value) for key, value in spread.items()}
+        )
+        observation.record(company_files.walls_hold(reading.stdout), reading.stdout.strip())
 
     def keep_a_snapshot(self, step):
         shipped = self.machine.shell(f"{PACKAGE_NAME} snapshot 2>&1", timeout_seconds=1800)
