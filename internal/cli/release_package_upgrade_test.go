@@ -75,10 +75,11 @@ func TestAnUpgradeWhoseCompanyDoesNotComeBackFailsAndSaysHowToRetry(t *testing.T
 	}
 }
 
-func TestAnUpgradeOfAnEmptyBoxRestartsTheUnitsAndRefreshesNothing(t *testing.T) {
+func TestAnUpgradeOfABoxWithoutACompanyRestartsTheBoxAndOnlyTheUnitsAlreadyRunning(t *testing.T) {
 	run := runTheUpgradeBranch(t, false, true)
-	if !run.exitedCleanly || len(run.calls) != 1 || run.calls[0] != "systemctl restart "+restartedUnitFileNames() {
-		t.Fatalf("an upgrade with no company ran %v\n%s", run.calls, run.output)
+	expected := []string{"systemctl restart " + boxUnitFileName(), "systemctl try-restart " + companyUnitFileNames()}
+	if !run.exitedCleanly || !slices.Equal(run.calls, expected) {
+		t.Fatalf("an upgrade with no company ran %v, expected %v\n%s", run.calls, expected, run.output)
 	}
 }
 
