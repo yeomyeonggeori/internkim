@@ -91,15 +91,15 @@ test('the quick add panel stays inside a narrow viewport', async ({ page }) => {
 	expect(bounds.x + bounds.width).toBeLessThanOrEqual(430);
 });
 
-test('a note adds every task drafted from it through task_add, and says which one it could not add', async ({ page }) => {
+test('a note adds every task drafted from it through task_add, leaving out a person nobody answers to', async ({ page }) => {
 	const addedTitle = 'E2E 빠른 추가로 적은 업무';
-	const refusedTitle = 'E2E 빠른 추가로 맡긴 업무';
+	const narrowedTitle = 'E2E 빠른 추가로 맡긴 업무';
 	await page.route('**/api/v1/tools/task_draft_get/invoke', (route) =>
 		route.fulfill({
 			json: {
 				toolName: 'task_draft_get',
 				outcome: 'succeeded',
-				result: { tasks: [{ title: addedTitle }, { title: refusedTitle, participantPersonHints: ['아무도아닌이름'] }] }
+				result: { tasks: [{ title: addedTitle }, { title: narrowedTitle, participantPersonHints: ['아무도아닌이름'] }] }
 			}
 		})
 	);
@@ -113,14 +113,18 @@ test('a note adds every task drafted from it through task_add, and says which on
 
 	const outcomes = panel.locator('[data-task-quick-add-outcomes]');
 	await expect(outcomes.getByRole('listitem').filter({ hasText: addedTitle }).getByLabel('추가함')).toBeVisible();
-	await expect(outcomes.getByRole('listitem').filter({ hasText: refusedTitle }).getByLabel('추가하지 못함')).toBeVisible();
-	await expect(note).toHaveValue('적은 업무 하나, 아무도아닌이름에게 맡긴 업무 하나');
+	const narrowed = outcomes.getByRole('listitem').filter({ hasText: narrowedTitle });
+	await expect(narrowed.getByLabel('추가함')).toBeVisible();
+	await expect(narrowed).toContainText('확실하지 않아 뺌: 아무도아닌이름');
+	await expect(note).toHaveValue('');
 
 	const added = await taskRowTitled(addedTitle);
 	expect(added).not.toBeNull();
 	if (!added) return;
 	seededTaskIDs.push(added.id);
-	expect(await taskRowTitled(refusedTitle)).toBeNull();
+	const narrowedRow = await taskRowTitled(narrowedTitle);
+	expect(narrowedRow).not.toBeNull();
+	if (narrowedRow) seededTaskIDs.push(narrowedRow.id);
 	await page.keyboard.press('Escape');
 	await expect(taskCard(page, added.id)).toBeVisible();
 });

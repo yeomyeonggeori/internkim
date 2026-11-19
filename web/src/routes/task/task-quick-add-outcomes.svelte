@@ -42,8 +42,11 @@
 						<p class="truncate font-medium">{outcome.title}</p>
 						{#if outcome.kind === 'added'}
 							{#if addedDetail(outcome)}<p class="text-xs text-muted-foreground">{addedDetail(outcome)}</p>{/if}
+							{#if outcome.leftOut.length > 0}
+								<p class="break-words text-xs text-muted-foreground">{text.quickAddLeftOut.replace('{values}', outcome.leftOut.join(', '))}</p>
+							{/if}
 						{:else}
-							<p class="break-words text-xs text-muted-foreground">{outcome.reason}</p>
+							<p class="break-words text-xs text-muted-foreground" title={outcome.reason}>{text.quickAddRefusedReason}</p>
 						{/if}
 					</div>
 				</li>

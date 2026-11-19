@@ -22,7 +22,7 @@ export class LabelUnresolved extends Refusal {
 	}
 
 	get details() {
-		return { registered: this.registered };
+		return { hint: this.asked, registered: this.registered };
 	}
 }
 

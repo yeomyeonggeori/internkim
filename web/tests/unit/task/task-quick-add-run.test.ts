@@ -27,22 +27,41 @@ describe('adding tasks from a note', () => {
 			{ name: 'task_add', input: drafts[1] }
 		]);
 		expect(outcomes).toEqual([
-			{ kind: 'added', title: '견적서 보내기', ownerName: '이샘플', endDate: '2026-11-20' },
-			{ kind: 'added', title: '디자인 리뷰', ownerName: '이샘플', endDate: '' }
+			{ kind: 'added', title: '견적서 보내기', ownerName: '이샘플', endDate: '2026-11-20', leftOut: [] },
+			{ kind: 'added', title: '디자인 리뷰', ownerName: '이샘플', endDate: '', leftOut: [] }
 		]);
 		expect(isEveryTaskAdded(outcomes)).toBe(true);
 	});
 
-	test('keeps adding after task_add refuses one, and carries the refusal', async () => {
-		const { invoke } = invokerAnswering([{ title: '첫째' }, { title: '둘째', participantPersonHints: ['박'] }, { title: '셋째' }], (input) => {
-			if (input.title === '둘째') throw new ToolRefused('several people answer to 박', 'person_ambiguous', 409);
+	test('leaves out each value the record could not resolve, and adds the task without it', async () => {
+		const unresolved = new Set(['박예시', '마케팅']);
+		const { calls, invoke } = invokerAnswering(
+			[{ title: '디자인 리뷰', participantPersonHints: ['박예시', '이샘플'], business: '마케팅', endsAt: '2026-11-20' }],
+			(input) => {
+				const people = Array.isArray(input.participantPersonHints) ? input.participantPersonHints : [];
+				const named = [...people, input.business].find((value) => typeof value === 'string' && unresolved.has(value));
+				if (typeof named === 'string') throw new ToolRefused(`${named} is uncertain`, 'interaction_required', 409, named);
+				return { taskID: 'added', content: input.title, ownerName: '이샘플' };
+			}
+		);
+
+		const outcomes = await addTasksFromNote('박예시, 이샘플과 디자인 리뷰', invoke);
+
+		expect(calls.at(-1)?.input).toEqual({ title: '디자인 리뷰', participantPersonHints: ['이샘플'], endsAt: '2026-11-20' });
+		expect(outcomes).toEqual([{ kind: 'added', title: '디자인 리뷰', ownerName: '이샘플', endDate: '', leftOut: ['박예시', '마케팅'] }]);
+	});
+
+	test('keeps adding after task_add refuses one for a reason no left-out value answers', async () => {
+		const { invoke } = invokerAnswering([{ title: '첫째' }, { title: '둘째' }, { title: '셋째', participantPersonHints: ['박'] }], (input) => {
+			if (input.title === '둘째') throw new ToolRefused('the caller may not write tasks', 'task_write_forbidden', 403);
+			if (input.title === '셋째') throw new ToolRefused('박 is uncertain', 'interaction_required', 409, '이샘플');
 			return { taskID: String(input.title), content: input.title };
 		});
 
 		const outcomes = await addTasksFromNote('세 가지', invoke);
 
-		expect(outcomes.map((outcome) => outcome.kind)).toEqual(['added', 'refused', 'added']);
-		expect(outcomes[1]).toEqual({ kind: 'refused', title: '둘째', reason: 'several people answer to 박' });
+		expect(outcomes.map((outcome) => outcome.kind)).toEqual(['added', 'refused', 'refused']);
+		expect(outcomes[1]).toEqual({ kind: 'refused', title: '둘째', reason: 'the caller may not write tasks' });
 		expect(isEveryTaskAdded(outcomes)).toBe(false);
 	});
 

@@ -4,7 +4,7 @@ import { ToolRefused } from '$lib/tool-answer';
 export type TaskToolInvoker = (name: string, input: Record<string, unknown>) => Promise<unknown>;
 
 export type QuickAddOutcome =
-	| { kind: 'added'; title: string; ownerName: string; endDate: string }
+	| { kind: 'added'; title: string; ownerName: string; endDate: string; leftOut: string[] }
 	| { kind: 'refused'; title: string; reason: string };
 
 const draftedTaskSchema = z.looseObject({ title: z.string() });
@@ -27,13 +27,40 @@ export async function addTasksFromNote(note: string, invoke: TaskToolInvoker): P
 }
 
 async function addDraftedTask(draft: DraftedTask, invoke: TaskToolInvoker): Promise<QuickAddOutcome> {
-	try {
-		const added = addedTaskSchema.parse(await invoke('task_add', draft));
-		return { kind: 'added', title: added.content ?? draft.title, ownerName: added.ownerName ?? '', endDate: added.endDate ?? '' };
-	} catch (refusal) {
-		if (!(refusal instanceof ToolRefused)) throw refusal;
-		return { kind: 'refused', title: draft.title, reason: refusal.message };
+	let attempt = draft;
+	const leftOut: string[] = [];
+	for (;;) {
+		try {
+			const added = addedTaskSchema.parse(await invoke('task_add', attempt));
+			return { kind: 'added', title: added.content ?? draft.title, ownerName: added.ownerName ?? '', endDate: added.endDate ?? '', leftOut };
+		} catch (refusal) {
+			if (!(refusal instanceof ToolRefused)) throw refusal;
+			const unresolved = refusal.hint;
+			const narrower = unresolved === undefined ? undefined : withoutValue(attempt, unresolved);
+			if (!narrower || unresolved === undefined) return { kind: 'refused', title: draft.title, reason: refusal.message };
+			attempt = narrower;
+			leftOut.push(unresolved);
+		}
 	}
+}
+
+function withoutValue(draft: DraftedTask, value: string): DraftedTask | undefined {
+	let isRemoved = false;
+	const narrower: DraftedTask = { title: draft.title };
+	for (const [field, written] of Object.entries(draft)) {
+		if (field === 'title') continue;
+		if (written === value) {
+			isRemoved = true;
+			continue;
+		}
+		if (Array.isArray(written) && written.includes(value)) {
+			isRemoved = true;
+			narrower[field] = written.filter((item) => item !== value);
+			continue;
+		}
+		narrower[field] = written;
+	}
+	return isRemoved ? narrower : undefined;
 }
 
 export function isEveryTaskAdded(outcomes: QuickAddOutcome[]): boolean {
