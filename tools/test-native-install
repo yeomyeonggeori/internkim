@@ -972,15 +972,25 @@ class Rig:
         return step
 
     def plant_state(self):
+        self.machine.checked_shell(f"set -eu\nprintf '%s\\n' '{CONFFILE_EDIT}' >> {CONFFILE_PATH}\n")
+
+    def plant_a_company_key(self):
+        """A key of known bytes in the company's own secrets, written just before the package is removed.
+
+        It goes into the company the box serves, because a box empties any other company's
+        directory it finds, and into a stand-in company only when the rig gave the box none.
+        """
+        secrets = f"{STATE_DIRECTORY}/companies/{self.company_id or PLANTED_COMPANY_ID}/secrets"
+        self.planted_key_path = f"{secrets}/rig-planted-key"
         self.machine.checked_shell(
             f"set -eu\n"
-            f"install -d -m 0700 {STATE_DIRECTORY}/companies/{PLANTED_COMPANY_ID}/secrets\n"
-            f"printf '%s\\n' '{PLANTED_SECRET}' > {STATE_DIRECTORY}/companies/{PLANTED_COMPANY_ID}/secrets/agent-key\n"
-            f"chmod 0600 {STATE_DIRECTORY}/companies/{PLANTED_COMPANY_ID}/secrets/agent-key\n"
-            f"printf '%s\\n' '{CONFFILE_EDIT}' >> {CONFFILE_PATH}\n"
+            f"install -d -m 0700 {secrets}\n"
+            f"printf '%s\\n' '{PLANTED_SECRET}' > {self.planted_key_path}\n"
+            f"chmod 0600 {self.planted_key_path}\n"
         )
 
     def run_step_four(self, step):
+        self.plant_a_company_key()
         owned_before = self.machine.shell(f"dpkg-query -L {PACKAGE_NAME}").stdout.split()
         unit_names = self.units()
 
@@ -1033,12 +1043,12 @@ class Rig:
 
         kept = self.machine.shell(
             f"test -d {CONFIGURATION_DIRECTORY} && echo etc-kept; "
-            f"cat {STATE_DIRECTORY}/companies/{PLANTED_COMPANY_ID}/secrets/agent-key 2>/dev/null; "
-            f"stat -c '%a' {STATE_DIRECTORY}/companies/{PLANTED_COMPANY_ID}/secrets/agent-key 2>/dev/null"
+            f"cat {self.planted_key_path} 2>/dev/null; "
+            f"stat -c '%a' {self.planted_key_path} 2>/dev/null"
         )
         step.observe(
             "remove keeps the configuration and the company, byte for byte",
-            f"the presence of {CONFIGURATION_DIRECTORY} and the contents and mode of the planted agent-key",
+            f"the presence of {CONFIGURATION_DIRECTORY} and the contents and mode of the key planted in the company's secrets",
             "the agent key is the company's identity on the plane and cannot be reissued, so the "
             "assertion has to read the bytes rather than the directory's existence",
         ).record(
@@ -1057,11 +1067,11 @@ class Rig:
 
         state = self.machine.shell(
             f"test -e {CONFIGURATION_DIRECTORY} && echo etc-survived || echo etc-gone; "
-            f"cat {STATE_DIRECTORY}/companies/{PLANTED_COMPANY_ID}/secrets/agent-key 2>/dev/null || echo company-gone"
+            f"cat {self.planted_key_path} 2>/dev/null || echo company-gone"
         )
         step.observe(
             "purge removes the configuration and keeps the company, as the plan says it must",
-            f"the presence of {CONFIGURATION_DIRECTORY} and the bytes of the planted agent-key after purge",
+            f"the presence of {CONFIGURATION_DIRECTORY} and the bytes of the key planted in the company's secrets after purge",
             "this departs from what purge usually means, so asserting the usual semantics would "
             "make the rig demand the bug; the plan's §5 reason is that the keys are not "
             "recoverable, so deleting them is left to the person, by the command purge prints",
