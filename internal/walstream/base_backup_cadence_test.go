@@ -1,6 +1,7 @@
 package walstream
 
 import (
+	"slices"
 	"testing"
 	"time"
 )
@@ -77,5 +78,46 @@ func TestOnlyPiecesFromTheBaseBackupsStartAreCounted(t *testing.T) {
 
 	if count := piecesFrom(names, 0x200); count != 2 {
 		t.Fatalf("counted %d pieces from 0x200, want 2", count)
+	}
+}
+
+func baseBackupTakenAgo(name string, ago time.Duration) BaseBackup {
+	return BaseBackup{Name: name, CreatedAt: cadenceNow.Add(-ago)}
+}
+
+func TestPruningKeepsTheNewestTwoAndAnyATakeOverMayStillBeUsing(t *testing.T) {
+	backups := []BaseBackup{
+		baseBackupTakenAgo("oldest", 5*time.Hour),
+		baseBackupTakenAgo("an-hour-and-more", 2*time.Hour),
+		baseBackupTakenAgo("recent", 50*time.Minute),
+		baseBackupTakenAgo("newer", 20*time.Minute),
+		baseBackupTakenAgo("newest", 5*time.Minute),
+	}
+
+	kept, stale := baseBackupsToKeep(backups, cadenceNow)
+
+	keptNames, staleNames := []string{}, []string{}
+	for _, backup := range kept {
+		keptNames = append(keptNames, backup.Name)
+	}
+	for _, backup := range stale {
+		staleNames = append(staleNames, backup.Name)
+	}
+	if !slices.Equal(keptNames, []string{"recent", "newer", "newest"}) || !slices.Equal(staleNames, []string{"oldest", "an-hour-and-more"}) {
+		t.Fatalf("kept %v and pruned %v", keptNames, staleNames)
+	}
+}
+
+func TestPruningKeepsTheNewestTwoEvenWhenTheyAreOld(t *testing.T) {
+	backups := []BaseBackup{
+		baseBackupTakenAgo("three-days", 72*time.Hour),
+		baseBackupTakenAgo("two-days", 48*time.Hour),
+		baseBackupTakenAgo("one-day", 24*time.Hour),
+	}
+
+	kept, stale := baseBackupsToKeep(backups, cadenceNow)
+
+	if len(kept) != 2 || kept[0].Name != "two-days" || len(stale) != 1 || stale[0].Name != "three-days" {
+		t.Fatalf("kept %v and pruned %v", kept, stale)
 	}
 }

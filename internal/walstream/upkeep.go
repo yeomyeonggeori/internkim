@@ -15,11 +15,12 @@ import (
 )
 
 const (
-	baseBackupEvery        = 24 * time.Hour
-	upkeepCheckEvery       = time.Hour
-	baseBackupsKept        = 2
-	unreferencedChunkGrace = time.Hour
-	removeBatchSize        = 1000
+	baseBackupEvery                    = 24 * time.Hour
+	upkeepCheckEvery                   = time.Hour
+	baseBackupsKept                    = 2
+	baseBackupKeptForATakeOverUnderway = time.Hour
+	unreferencedChunkGrace             = time.Hour
+	removeBatchSize                    = 1000
 )
 
 func KeepBaseBackups(ctx context.Context, replicationConnection string, destination offsite.Destination, keyring box.Keyring, pieces *PiecesSinceBaseBackup) {
@@ -112,25 +113,40 @@ func PruneBehindBaseBackups(ctx context.Context, destination offsite.Destination
 	if len(names) <= baseBackupsKept {
 		return nil
 	}
-	kept := []BaseBackup{}
-	for _, name := range names[len(names)-baseBackupsKept:] {
+	backups := []BaseBackup{}
+	for _, name := range names {
 		backup, isReadable := readBaseBackup(ctx, destination, name)
 		if !isReadable {
-			return fmt.Errorf("the kept base backup %s cannot be read, so nothing behind it is pruned until it is", name)
+			return fmt.Errorf("the base backup %s cannot be read, so nothing is pruned until it is", name)
 		}
-		kept = append(kept, backup)
+		backups = append(backups, backup)
 	}
-	stale := []string{}
-	for _, name := range names[:len(names)-baseBackupsKept] {
-		stale = append(stale, baseBackupPath(destination, name))
+	kept, stale := baseBackupsToKeep(backups, now)
+	stalePaths := make([]string, 0, len(stale))
+	for _, backup := range stale {
+		stalePaths = append(stalePaths, baseBackupPath(destination, backup.Name))
 	}
-	if errorValue := removeInBatches(ctx, destination.Store, stale); errorValue != nil {
+	if errorValue := removeInBatches(ctx, destination.Store, stalePaths); errorValue != nil {
 		return errorValue
 	}
 	if errorValue := prunePiecesBefore(ctx, destination, kept[0]); errorValue != nil {
 		return errorValue
 	}
 	return sweepUnreferencedBaseChunks(ctx, destination, kept, now)
+}
+
+func baseBackupsToKeep(backups []BaseBackup, now time.Time) ([]BaseBackup, []BaseBackup) {
+	kept, stale := []BaseBackup{}, []BaseBackup{}
+	for index, backup := range backups {
+		isAmongTheNewest := index >= len(backups)-baseBackupsKept
+		mayBeInUse := now.Sub(backup.CreatedAt) < baseBackupKeptForATakeOverUnderway
+		if isAmongTheNewest || mayBeInUse {
+			kept = append(kept, backup)
+			continue
+		}
+		stale = append(stale, backup)
+	}
+	return kept, stale
 }
 
 func prunePiecesBefore(ctx context.Context, destination offsite.Destination, oldestKept BaseBackup) error {
