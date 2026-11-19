@@ -38,8 +38,10 @@ select ok(exists (select 1 from public.company_field
 
 select ok(internal.data_room_company_shown('44300000-0000-0000-0000-000000000000', array['GP']) ? 'activity',
   'a reader of the company profile sees the company at work');
+update public.company_field set is_public = false
+  where company_id = '44300000-0000-0000-0000-000000000000' and kind = 'profile' and field = 'activity';
 select ok(not internal.data_room_company_shown('44300000-0000-0000-0000-000000000000', array['FS']) ? 'activity',
-  'a reader of other categories does not');
+  'a reader of other categories does not, once the activity is off the public page');
 
 select is(internal.data_room_activity('44300000-0000-0000-0000-000000000000') -> 'people',
   jsonb_build_object(

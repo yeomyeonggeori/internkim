@@ -15,7 +15,7 @@
 	const text = $derived(dataRoomCompanyText[locale].activity);
 	const statusText = $derived(taskText[locale].status);
 	const tasks = $derived(activityTasks(activity));
-	const total = $derived(Object.values(activity.board.counts).reduce((sum, count) => sum + count, 0));
+	const total = $derived(Object.values(activity.board?.counts ?? {}).reduce((sum, count) => sum + count, 0));
 
 	provideActivityListContext(() => ({ people: activity.people, hiddenLabel: text.hidden }));
 

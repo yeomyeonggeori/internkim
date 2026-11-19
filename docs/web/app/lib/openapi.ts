@@ -891,7 +891,7 @@ function createPaths(copy: ApiCopy) {
 		'/data-room/public/{slug}': {
 			get: {
 				operationId: 'findPublicDataRoom', summary: 'Find the company whose public data room page an address names',
-				description: 'Answers the companyID behind <zone>/<slug>/room. Every company has a public page; it shows the company name and logo, and only the fields and documents an administrator put on it. Read it anonymously at /data-room/{companyID}.',
+				description: 'Answers the companyID behind <zone>/<slug>/room. Every company has a public page; the page of a new company starts with its introduction and its activity with names masked, and it shows only the fields and documents left on it. Read it anonymously at /data-room/{companyID}.',
 				security: [],
 				parameters: [{ name: 'slug', in: 'path', required: true, schema: { type: 'string' } }],
 				responses: { '200': { description: 'companyID' }, '404': { description: 'No company has this address' } }
