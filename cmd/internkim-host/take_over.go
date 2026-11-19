@@ -89,6 +89,14 @@ func startKeepingUpWithTheServiceBox(ctx context.Context, session box.Session) {
 	}()
 }
 
+func takeOverIsUnderway() bool {
+	switch takeOverUnitState() {
+	case "active", "activating":
+		return true
+	}
+	return false
+}
+
 func takeOverUnitState() string {
 	output, _ := exec.Command("systemctl", "show", "--property=ActiveState", "--value", takeOverUnitName+".service").Output()
 	return strings.TrimSpace(string(output))

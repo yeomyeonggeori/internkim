@@ -7,27 +7,74 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"slices"
+	"strings"
+
+	"github.com/yeomyeonggeori/internkim/internal/companyhost"
 )
 
 func (daemon Daemon) forgetAnEarlierCompany(ctx context.Context, companyID, companyName string) error {
-	if daemon.ForgetEveryCompany == nil {
+	if daemon.ForgetEveryCompany == nil || daemon.takeOverIsUnderway() {
 		return nil
 	}
-	holdsAnother, errorValue := daemon.holdsAnotherCompany(companyID)
+	held, errorValue := daemon.companiesHeld()
 	if errorValue != nil {
 		return fmt.Errorf("asking whose data this computer holds before it serves %s: %w", companyName, errorValue)
 	}
-	if !holdsAnother {
+	if daemon.installedCompany() == companyID || held.Current == companyID {
+		return daemon.forgetOtherCompanyDirectories(held, companyID, companyName)
+	}
+	others, errorValue := daemon.companiesOtherThan(held, companyID)
+	if errorValue != nil {
+		return fmt.Errorf("asking whose data this computer holds before it serves %s: %w", companyName, errorValue)
+	}
+	if len(others) == 0 {
 		return nil
 	}
-	log.Printf("this computer holds another company's data; removing all of it before it serves %s", companyName)
+	log.Printf("this computer holds the data of companies %s; removing all of it before it serves %s", strings.Join(others, ", "), companyName)
 	if errorValue := daemon.ForgetEveryCompany(); errorValue != nil {
-		return fmt.Errorf("removing the earlier company's data, so %s is not installed beside it: %w", companyName, errorValue)
+		return fmt.Errorf("removing the data of companies %s, so %s is not installed beside it: %w", strings.Join(others, ", "), companyName, errorValue)
 	}
 	if errorValue := daemon.lockTheEarlierCompanyOut(ctx); errorValue != nil {
 		return errorValue
 	}
 	return daemon.forgetTheEarlierCompanyHere()
+}
+
+func (daemon Daemon) takeOverIsUnderway() bool {
+	return daemon.TakeOverIsUnderway != nil && daemon.TakeOverIsUnderway()
+}
+
+func (daemon Daemon) companiesHeld() (companyhost.CompaniesHeld, error) {
+	if daemon.CompaniesHeld == nil {
+		return companyhost.CompaniesHeld{}, nil
+	}
+	return daemon.CompaniesHeld()
+}
+
+func (daemon Daemon) companiesOtherThan(held companyhost.CompaniesHeld, companyID string) ([]string, error) {
+	keyOwner, errorValue := companyKeyOwner(daemon.Places.StateDirectoryPath)
+	if errorValue != nil {
+		return nil, errorValue
+	}
+	held.Directories = append(slices.Clone(held.Directories), keyOwner, daemon.installedCompany())
+	return held.OtherThan(companyID), nil
+}
+
+func (daemon Daemon) forgetOtherCompanyDirectories(held companyhost.CompaniesHeld, companyID, companyName string) error {
+	if daemon.ForgetCompanyDirectory == nil {
+		return nil
+	}
+	for _, otherID := range held.OtherThan(companyID) {
+		if otherID == held.Current {
+			continue
+		}
+		log.Printf("removing the directory of company %s, which this computer serving %s does not use", otherID, companyName)
+		if errorValue := daemon.ForgetCompanyDirectory(otherID); errorValue != nil {
+			return fmt.Errorf("removing the directory of company %s before serving %s: %w", otherID, companyName, errorValue)
+		}
+	}
+	return nil
 }
 
 func (daemon Daemon) lockTheEarlierCompanyOut(ctx context.Context) error {
@@ -38,20 +85,6 @@ func (daemon Daemon) lockTheEarlierCompanyOut(ctx context.Context) error {
 		return fmt.Errorf("locking the admin password the earlier company set: %w", errorValue)
 	}
 	return nil
-}
-
-func (daemon Daemon) holdsAnotherCompany(companyID string) (bool, error) {
-	keyOwner, errorValue := companyKeyOwner(daemon.Places.StateDirectoryPath)
-	if errorValue != nil {
-		return false, errorValue
-	}
-	if keyOwner != "" && keyOwner != companyID {
-		return true, nil
-	}
-	if daemon.HoldsAnotherCompany == nil {
-		return false, nil
-	}
-	return daemon.HoldsAnotherCompany(companyID)
 }
 
 const TakeOverRetryFileName = "take-over-retry.json"
