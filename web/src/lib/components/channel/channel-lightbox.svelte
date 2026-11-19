@@ -3,6 +3,7 @@
 		kind: 'image' | 'video' | 'document';
 		source: string;
 		filename: string;
+		identity: string;
 		width?: number;
 		height?: number;
 	};
@@ -24,6 +25,7 @@
 	import { channelText } from '$lib/i18n/channel-text';
 	import { createPageText } from '$lib/i18n/page-text.svelte';
 	import { startDownload } from '$lib/files/download';
+	import DownloadIndicator from '$lib/files/download-indicator.svelte';
 	import ChannelVideoPlayer from './channel-video-player.svelte';
 	import { dragsToDismiss, LightboxDragDismiss } from './lightbox-drag-dismiss.svelte';
 	import LightboxPictureMenu from './lightbox-picture-menu.svelte';
@@ -170,7 +172,7 @@
 					<DocumentPreview fileName={currentItem.filename} readURL={() => Promise.resolve(currentItem.source)} />
 				</div>
 			{:else}
-				<LightboxPictureMenu source={currentItem.source} filename={currentItem.filename}>
+				<LightboxPictureMenu source={currentItem.source} filename={currentItem.filename} identity={currentItem.identity}>
 					<div
 						class={['z-10', !drag.isDragging && 'transition-transform']}
 						style:transform={`translateY(${drag.offset}px) scale(${zoomPercent / 100})`}
@@ -194,9 +196,13 @@
 				type="button"
 				class="flex size-9 items-center justify-center rounded-full transition hover:bg-white/20"
 				aria-label={text.downloadAttachment}
-				onclick={() => startDownload(currentItem.source, currentItem.filename)}
+				onclick={() => startDownload(currentItem.source, currentItem.filename, currentItem.identity)}
 			>
-				<DownloadIcon class="size-5" />
+				<DownloadIndicator identity={currentItem.identity}>
+					{#snippet idle()}
+						<DownloadIcon class="size-5" />
+					{/snippet}
+				</DownloadIndicator>
 			</button>
 			{#if currentItem.kind === 'image'}
 				<div class="flex items-center gap-2 max-md:hidden">

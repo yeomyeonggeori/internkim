@@ -12,6 +12,7 @@
 	import { previewKindOf } from '$lib/files/preview/kind';
 	import { attachmentStateOf, preparingLabel } from './channel-attachments';
 	import ChannelFileAttachment from './channel-file-attachment.svelte';
+	import DownloadBadge from './download-badge.svelte';
 
 	let {
 		attachments,
@@ -61,6 +62,7 @@
 									imageClass="object-cover"
 								/>
 							</button>
+							<DownloadBadge identity={attachment.url} />
 						{:else if attachmentState === 'error'}
 							<button
 								type="button"

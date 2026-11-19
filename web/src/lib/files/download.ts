@@ -1,15 +1,21 @@
 import { saveIntoDownloadsFolder, savesIntoDownloadsFolder } from '$lib/native-shell/downloads-folder';
-import { keepOnThePhone, keepsFilesOnThePhone } from './phone-keeping';
+import type { ReportSentBytes } from '$lib/native-shell/file-chunks';
+import { downloadNatively, hasNativeDownloading, isFetchableByTheApp } from '$lib/native-shell/file-download';
+import { tellKept, tellNotKept } from './download-notice';
+import {
+	downloadProgress,
+	fetchingBeforeHandingOverProgress,
+	handingOverAfterFetchingProgress,
+	receivingProgress,
+	type ReportProgress
+} from './download-progress.svelte';
+import { fetchedWithProgress } from './fetched-with-progress';
+import type { KeptFile } from './kept-file';
+import { keepDownloadOnThePhone, keepOnThePhone, keepsFilesOnThePhone } from './phone-keeping';
 import { shareThroughTheWebPage, sharesThroughTheWebPage } from './web-share';
 
 const downloadParameter = 'download';
 const objectAddressLifetimeMilliseconds = 60_000;
-
-async function fetchedBlob(source: string): Promise<Blob> {
-	const answer = await fetch(source);
-	if (!answer.ok) throw new Error(`the file did not arrive: HTTP ${answer.status}`);
-	return answer.blob();
-}
 
 function clickDownloadLink(address: string, filename: string): void {
 	const link = document.createElement('a');
@@ -26,42 +32,64 @@ export function downloadAddressOf(source: string, filename: string): string {
 	return address.toString();
 }
 
-export async function downloadFile(source: string, filename: string): Promise<void> {
-	if (savesIntoDownloadsFolder()) {
-		await saveIntoDownloadsFolder(await fetchedBlob(source), filename);
-		return;
-	}
-	if (keepsFilesOnThePhone()) {
-		await keepOnThePhone(await fetchedBlob(source), filename);
-		return;
-	}
-	if (sharesThroughTheWebPage()) {
-		await shareThroughTheWebPage(await fetchedBlob(source), filename);
-		return;
-	}
-	clickDownloadLink(downloadAddressOf(source, filename), filename);
+function keepsFilesInsideTheApp(): boolean {
+	return savesIntoDownloadsFolder() || keepsFilesOnThePhone() || sharesThroughTheWebPage();
 }
 
-export function startDownload(source: string, filename: string): void {
-	downloadFile(source, filename).catch((failure: unknown) =>
-		console.warn('the file was not downloaded', { source, filename, failure })
+async function keptBlobInsideTheApp(file: Blob, filename: string, onSent: ReportSentBytes): Promise<KeptFile> {
+	if (savesIntoDownloadsFolder()) {
+		await saveIntoDownloadsFolder(file, filename, onSent);
+		return 'downloadsFolder';
+	}
+	if (keepsFilesOnThePhone()) return keepOnThePhone(file, filename, onSent);
+	await shareThroughTheWebPage(file, filename);
+	return 'shareSheet';
+}
+
+async function keptInsideTheApp(source: string, filename: string, report: ReportProgress): Promise<KeptFile> {
+	if (keepsFilesOnThePhone() && hasNativeDownloading() && isFetchableByTheApp(source)) {
+		const download = await downloadNatively(source, filename, (receivedBytes, totalBytes) =>
+			report(receivingProgress(receivedBytes, totalBytes))
+		);
+		return keepDownloadOnThePhone(download);
+	}
+	const file = await fetchedWithProgress(source, (receivedBytes, totalBytes) =>
+		report(fetchingBeforeHandingOverProgress(receivedBytes, totalBytes))
+	);
+	return keptBlobInsideTheApp(file, filename, (sentBytes, totalBytes) =>
+		report(handingOverAfterFetchingProgress(sentBytes, totalBytes))
 	);
 }
 
+async function downloadWithProgress(source: string, filename: string, identity: string): Promise<void> {
+	await downloadProgress.run(identity, async (report) => tellKept(await keptInsideTheApp(source, filename, report)));
+}
+
+export async function downloadFile(source: string, filename: string, identity: string = source): Promise<void> {
+	if (!keepsFilesInsideTheApp()) {
+		clickDownloadLink(downloadAddressOf(source, filename), filename);
+		return;
+	}
+	await downloadWithProgress(source, filename, identity);
+}
+
+export function startDownload(source: string, filename: string, identity: string = source): void {
+	if (!keepsFilesInsideTheApp()) {
+		clickDownloadLink(downloadAddressOf(source, filename), filename);
+		return;
+	}
+	downloadWithProgress(source, filename, identity).catch((failure: unknown) => {
+		tellNotKept(failure);
+		console.warn('the file was not downloaded', { source, filename, failure });
+	});
+}
+
 export async function saveBlob(blob: Blob, filename: string): Promise<void> {
-	if (savesIntoDownloadsFolder()) {
-		await saveIntoDownloadsFolder(blob, filename);
+	if (!keepsFilesInsideTheApp()) {
+		const address = URL.createObjectURL(blob);
+		clickDownloadLink(address, filename);
+		setTimeout(() => URL.revokeObjectURL(address), objectAddressLifetimeMilliseconds);
 		return;
 	}
-	if (keepsFilesOnThePhone()) {
-		await keepOnThePhone(blob, filename);
-		return;
-	}
-	if (sharesThroughTheWebPage()) {
-		await shareThroughTheWebPage(blob, filename);
-		return;
-	}
-	const address = URL.createObjectURL(blob);
-	clickDownloadLink(address, filename);
-	setTimeout(() => URL.revokeObjectURL(address), objectAddressLifetimeMilliseconds);
+	tellKept(await keptBlobInsideTheApp(blob, filename, () => {}));
 }

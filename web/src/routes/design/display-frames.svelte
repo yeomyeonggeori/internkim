@@ -20,6 +20,7 @@
 	import * as Marker from '$lib/components/ui/marker/index.js';
 	import { markerVariants } from '$lib/components/ui/marker/index.js';
 	import Meter from '$lib/components/ui/meter/meter.svelte';
+	import { ProgressRing } from '$lib/components/ui/progress-ring/index.js';
 	import { Separator } from '$lib/components/ui/separator/index.js';
 	import { Skeleton } from '$lib/components/ui/skeleton/index.js';
 	import { Spinner } from '$lib/components/ui/spinner/index.js';
@@ -252,6 +253,20 @@
 				<Spinner />
 				<Spinner class="size-6" />
 				<Button disabled size="sm"><Spinner data-icon="inline-start" />{text.sample.saving}</Button>
+			</div>
+		{/snippet}
+	</DesignFrame>
+
+	<DesignFrame id="progress-ring" name="Progress ring" source="ui/progress-ring">
+		{#snippet children()}
+			<div class="flex items-center gap-4">
+				<ProgressRing value={0} aria-label="0%" />
+				<ProgressRing value={42} aria-label="42%" />
+				<ProgressRing value={100} aria-label="100%" />
+				<ProgressRing value={null} aria-label={text.sample.saving} />
+				<span class="flex size-9 items-center justify-center rounded-full bg-black/60 text-white">
+					<ProgressRing value={42} aria-label="42%" />
+				</span>
 			</div>
 		{/snippet}
 	</DesignFrame>

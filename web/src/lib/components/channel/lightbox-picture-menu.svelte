@@ -9,7 +9,12 @@
 	import { startDownload } from '$lib/files/download';
 	import { copyPicture } from './message-copy';
 
-	let { source, filename, children }: { source: string; filename: string; children: Snippet } = $props();
+	let {
+		source,
+		filename,
+		identity,
+		children
+	}: { source: string; filename: string; identity: string; children: Snippet } = $props();
 
 	const text = createPageText(channelText);
 
@@ -29,7 +34,7 @@
 			<ImageIcon />
 			<span>{text.copyPicture}</span>
 		</ContextMenu.Item>
-		<ContextMenu.Item onSelect={() => startDownload(source, filename)}>
+		<ContextMenu.Item onSelect={() => startDownload(source, filename, identity)}>
 			<DownloadIcon />
 			<span>{text.downloadPicture}</span>
 		</ContextMenu.Item>
