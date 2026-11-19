@@ -545,7 +545,6 @@ export const workspaceCapabilityPaths: Record<string, string> = {
 
 export const workspaceWriteCapabilityPaths: Record<string, string> = {
 	'person.memory.facts.forget': '/memory/api/facts/forget',
-	'person.task.quick_task': '/task/api/tasks/quick',
 	'person.runs.approve': '/runs/api/approve',
 	'person.runs.retry': '/runs/api/retry',
 	'person.memory.schedule_cancel': '/memory/api/schedules/cancel',
