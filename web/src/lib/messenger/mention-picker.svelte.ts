@@ -37,6 +37,12 @@ export function createMentionPicker(people: () => MentionPerson[], isGroup: () =
 		get active(): number {
 			return active;
 		},
+		get labels(): MentionLabel[] {
+			return chosen.map((mention) => ({
+				label: mention.label,
+				...(mention.externalID ? { externalID: mention.externalID } : {})
+			}));
+		},
 		get isOpen(): boolean {
 			return rows.length > 0;
 		},

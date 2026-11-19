@@ -17,6 +17,8 @@
 	} from './composer-formatting';
 	import { composerDocumentOf, markdownOfComposer } from './composer-markdown';
 	import type { WrittenMention } from '$lib/messenger/mention-draft';
+	import type { MentionLabel } from '$lib/messenger/mention-text';
+	import { composerMentionHighlight } from './composer-mention-highlight';
 	import { feelHaptic } from '$lib/native-shell/haptics';
 	import { filesToAttachFromClipboard } from './clipboard-files';
 	import { pastedParagraphsAsCopiedLines, pastedTextSlice } from './composer-paste';
@@ -28,6 +30,7 @@
 		disabled,
 		acceptsDrop,
 		ariaAttributes,
+		mentionLabels,
 		onKeydown,
 		onInput,
 		onSelectionChange,
@@ -40,6 +43,7 @@
 		disabled: boolean;
 		acceptsDrop: boolean;
 		ariaAttributes: Record<string, string>;
+		mentionLabels: () => MentionLabel[];
 		onKeydown: (event: KeyboardEvent) => boolean;
 		onInput: () => void;
 		onSelectionChange: () => void;
@@ -154,7 +158,7 @@
 		emittedValue = value;
 		editor = new Editor({
 			element,
-			extensions,
+			extensions: [...extensions, composerMentionHighlight(() => mentionLabels())],
 			editable: !disabled,
 			editorProps: {
 				attributes: { ...ariaAttributes, class: editorClass, 'aria-multiline': 'true' },
