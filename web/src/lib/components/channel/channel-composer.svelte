@@ -255,6 +255,7 @@
 			bind:activeFormats
 			placeholder={disabled ? text.composerDisabledPlaceholder : placeholder}
 			ariaAttributes={editorAriaAttributes}
+			mentionLabels={() => mentions.labels}
 			{disabled}
 			acceptsDrop={!typesOnTouchKeyboard.current}
 			onKeydown={handleKeydown}

@@ -94,3 +94,15 @@ test('a person whose name the edit removes is no longer called on', async ({ pag
 	await expect.poll(() => fixture.edits).toHaveLength(1);
 	expect(fixture.edits[0]).toMatchObject({ mentions: { externalIDs: [], isEveryone: false } });
 });
+
+test('a person picked in the composer is highlighted there before the message is sent', async ({ page }) => {
+	await openChannel(page);
+	const composer = page.getByRole('combobox', { name: '메시지를 입력하세요' });
+
+	await composer.click();
+	await composer.pressSequentially('@최');
+	await page.getByRole('option', { name: /최견본/ }).click();
+	await composer.pressSequentially('확인 부탁해요');
+
+	await expect(composer.locator('[data-mention]')).toHaveText('@최견본');
+});
