@@ -875,3 +875,38 @@ class CompanyBackupRemovalTests(unittest.TestCase):
     def test_the_bucket_is_the_one_the_boxes_keep_their_backups_in(self):
         source = (repository_root / "internal" / "offsite" / "store.go").read_text()
         self.assertIn(f'const Bucket = "{rig.BACKUP_BUCKET}"', source)
+
+
+class WhatABoxHoldsTests(unittest.TestCase):
+    earlier = {"company_id": "00000000-0000-4000-8000-0000000000e1", "accounts": ["bc_person_earlier1"]}
+    standing_by = (
+        "companies=\ncurrent=absent\nmark=absent\ndatabase-entries=0\nsafety-backups=0\nretry-record=absent\n"
+        "accounts=\n"
+    )
+
+    def test_a_standby_emptied_of_the_earlier_company_holds_nothing_of_it(self):
+        driver = load_driver()
+        self.assertTrue(driver.holds_nothing_of(driver.what_a_box_holds(self.standing_by), self.earlier, True))
+
+    def test_an_account_of_the_earlier_company_is_something_of_it(self):
+        driver = load_driver()
+        reading = self.standing_by.replace("accounts=\n", "accounts=bc_person_earlier1 \n")
+        self.assertFalse(driver.holds_nothing_of(driver.what_a_box_holds(reading), self.earlier, True))
+
+    def test_the_earlier_companys_directory_is_something_of_it(self):
+        driver = load_driver()
+        reading = self.standing_by.replace("companies=\n", f"companies={self.earlier['company_id']} \n")
+        self.assertFalse(driver.holds_nothing_of(driver.what_a_box_holds(reading), self.earlier, True))
+
+    def test_a_standby_with_a_database_left_holds_something(self):
+        driver = load_driver()
+        reading = self.standing_by.replace("database-entries=0", "database-entries=19")
+        self.assertFalse(driver.holds_nothing_of(driver.what_a_box_holds(reading), self.earlier, True))
+
+    def test_a_serving_box_may_hold_a_database_and_a_company_of_its_own(self):
+        driver = load_driver()
+        reading = (
+            "companies=00000000-0000-4000-8000-0000000000c1 \ncurrent=present\nmark=absent\ndatabase-entries=19\n"
+            "safety-backups=0\nretry-record=absent\naccounts=bc_person_current1 \n"
+        )
+        self.assertTrue(driver.holds_nothing_of(driver.what_a_box_holds(reading), self.earlier, False))

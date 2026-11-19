@@ -211,6 +211,19 @@ LIST_PEOPLE_COMMAND = f"ls -1 {PEOPLE_DIRECTORY} 2>/dev/null"
 EARLIER_COMPANY_MARK_PATH = "/workspace/shared/left-by-the-earlier-company"
 PROJECTED_ACCOUNTS_COMMAND = "getent passwd | cut -d: -f1 | grep '^bc_person_' | sort"
 HELD_COMPANIES_COMMAND = f"ls -1 {STATE_DIRECTORY}/companies 2>/dev/null"
+EARLIER_COMPANY_CONVERSATION = "rig-earlier-company-conversation"
+EARLIER_COMPANY_ROW_COUNT = "select count(*) from conversation where display_name = '%(phrase)s';"
+TAKE_OVER_RETRY_PATH = "/var/lib/internkim/box/take-over-retry.json"
+WHAT_A_BOX_HOLDS_COMMAND = r"""
+printf 'companies=%%s\n' "$(ls -1 %(state)s/companies 2>/dev/null | tr '\n' ' ')"
+printf 'current=%%s\n' "$(test -e %(state)s/current && echo present || echo absent)"
+printf 'mark=%%s\n' "$(test -e %(mark)s && echo present || echo absent)"
+printf 'database-entries=%%s\n' "$(ls -A %(database)s 2>/dev/null | wc -l | tr -d ' ')"
+printf 'safety-backups=%%s\n' "$(ls -1 %(backups)s 2>/dev/null | grep -c '\.tar$' || true)"
+printf 'retry-record=%%s\n' "$(test -e %(retry)s && echo present || echo absent)"
+printf 'accounts=%%s\n' "$(getent passwd | cut -d: -f1 | grep '^bc_person_' | tr '\n' ' ')"
+"""
+
 DATABASE_IDENTIFIER_COMMAND = (
     f"runuser -u {DATABASE_USER} -- {DATA_SERVICE_PATH} psql --dbname blueclaw --tuples-only --no-align --command "
     '"select system_identifier from pg_control_system()"'
@@ -417,6 +430,28 @@ APT_PROGRESS = ("(Reading database", "Selecting previously", "Adding 'diversion"
 
 MESSENGER_PICTURE_SOURCE = Path(__file__).resolve().parent / "native_install_assets" / messenger.PICTURE_NAME
 LONGEST_WAIT_FOR_THE_AGENT_SECONDS = 600
+
+
+def what_a_box_holds(reading):
+    """The key=value lines WHAT_A_BOX_HOLDS_COMMAND prints, as a dictionary."""
+    held = {}
+    for line in reading.splitlines():
+        key, separator, value = line.partition("=")
+        if separator:
+            held[key.strip()] = value.strip()
+    return held
+
+
+def holds_nothing_of(held, earlier, is_standing_by):
+    """Whether what a box holds carries nothing of the company it served before."""
+    accounts = set(held.get("accounts", "").split())
+    if earlier["company_id"] in held.get("companies", "").split() or accounts & set(earlier["accounts"]):
+        return False
+    if held.get("mark") != "absent" or held.get("safety-backups") != "0" or held.get("retry-record") != "absent":
+        return False
+    if is_standing_by:
+        return held.get("current") == "absent" and held.get("database-entries") == "0"
+    return True
 
 
 def message_asking_for_an_answer(occasion):
@@ -634,6 +669,7 @@ class Rig:
         self.dependencies = []
         self.plane = None
         self.company_id = ""
+        self.earlier_company_id = ""
         self.package_under_test = None
         self.message_text = message_asking_for_an_answer("")
         self.remembered_phrase = f"rig remembers {uuid.uuid4().hex[:12]}"
@@ -1628,7 +1664,7 @@ class Rig:
         self.upgrade_through_the_line(releases[1])
         self.observe_the_agent_stays_up(step)
 
-    def run_several_boxes(self):
+    def run_several_boxes(self, after_another_company=False):
         """A second box joins the company, keeps up, and takes over when the first goes dark."""
         step = self.step(13, "a second box joins the company, keeps up with it and takes over when the first goes dark")
         self.start_the_plane()
@@ -1640,9 +1676,13 @@ class Rig:
         first, first_key = self.machine, self.box_key_of(self.machine)
 
         second = self.start_a_second_machine()
+        earlier = self.serve_another_company_first(step, second) if after_another_company else None
         second_key = self.join_as_an_added_box(step, second)
         self.observe_the_roles(step, {first_key: "service", second_key: "standby"}, "after the second box joined")
         self.observe_a_standby(step, second)
+        if earlier:
+            with self.driving(second, self.files_command):
+                self.observe_what_the_box_holds_of(step, earlier, "after it joined as a standby", is_standing_by=True)
         self.observe_the_standby_takes_work(step, second)
         self.keep_a_snapshot(step)
         self.observe_the_standby_keeps_up(step, second)
@@ -1658,6 +1698,11 @@ class Rig:
             self.observe_the_message_came_across(step, newest=True)
             self.observe_the_host_holds_the_gateway_socket(step)
             self.observe_the_connection_carries_the_session(step, second_key)
+            if earlier:
+                self.observe_nothing_of_the_earlier_company(step, earlier["company_id"], earlier)
+                self.observe_what_the_box_holds_of(step, earlier, "after it took the company over", is_standing_by=False)
+                self.observe_the_earlier_companys_row_is_not_in_the_database(step, earlier)
+                self.observe_the_earlier_companys_backups_are_untouched(step, earlier)
             self.message_text = message_asking_for_an_answer("after the second box took over")
             self.observe_the_member_round_trip(step, self.plane)
 
@@ -1666,6 +1711,53 @@ class Rig:
         self.observe_the_roles(step, {first_key: "standby", second_key: "service"}, "after the first box came back")
         with self.driving(first, self.files_command):
             self.observe_a_standby(step, first, timeout_seconds=600)
+
+    def serve_another_company_first(self, step, second):
+        """The second box serves another seeded company, then that company disconnects it."""
+        company_id, administrator_email = self.company_id, self.plane.administrator_email
+        self.plane.administrator_email = self.plane.administrator_of_another_company(company_id)
+        with self.driving(second, self.files_command):
+            self.give_the_guest_a_company(step, self.plane)
+            self.earlier_company_id = self.company_id
+            earlier = self.leave_the_marks_of_a_company(step)
+            phrase = f"left by the earlier company {uuid.uuid4().hex}"
+            written = self.machine.shell(in_the_agents_database(REMEMBERED_ROW % {"conversation": EARLIER_COMPANY_CONVERSATION, "phrase": phrase}))
+            if written.returncode != 0:
+                raise RigFailure(f"the earlier company's row could not be written: {written.stdout.strip()[-300:]}")
+            self.disconnect_the_box(step)
+        earlier.update({"company_id": self.earlier_company_id, "phrase": phrase, "plane_objects": len(self.plane.stored_backup_paths(self.earlier_company_id + "/"))})
+        self.plane.forget_the_company_computer(self.earlier_company_id)
+        self.company_id, self.plane.administrator_email = company_id, administrator_email
+        return earlier
+
+    def observe_what_the_box_holds_of(self, step, earlier, when, is_standing_by):
+        reading = self.machine.shell(
+            WHAT_A_BOX_HOLDS_COMMAND
+            % {"state": STATE_DIRECTORY, "mark": EARLIER_COMPANY_MARK_PATH, "database": DATABASE_DATA_DIRECTORY, "backups": BACKUPS_DIRECTORY, "retry": TAKE_OVER_RETRY_PATH}
+        )
+        held = what_a_box_holds(reading.stdout)
+        step.observe(
+            f"the box holds nothing of the company it served before, {when}",
+            f"the directories under {STATE_DIRECTORY}/companies, {EARLIER_COMPANY_MARK_PATH}, the bc_person_ accounts, "
+            f"the safety backups under {BACKUPS_DIRECTORY} and {TAKE_OVER_RETRY_PATH}",
+            "a box that kept another company's files, accounts or backups hands them to the company it serves next",
+        ).record(holds_nothing_of(held, earlier, is_standing_by), reading.stdout.strip())
+
+    def observe_the_earlier_companys_row_is_not_in_the_database(self, step, earlier):
+        counted = self.machine.shell(in_the_agents_database(EARLIER_COMPANY_ROW_COUNT % {"phrase": earlier["phrase"]}))
+        step.observe(
+            "the database the box took over holds nothing the earlier company wrote",
+            "the rows of the taken-over agent database whose name is the phrase written into the earlier company's database",
+            "a take-over that kept the earlier company's database would answer this company's people from it",
+        ).record(counted.returncode == 0 and counted.stdout.strip() == "0", counted.stdout.strip()[-300:] or "no answer")
+
+    def observe_the_earlier_companys_backups_are_untouched(self, step, earlier):
+        now = len(self.plane.stored_backup_paths(earlier["company_id"] + "/"))
+        step.observe(
+            "the earlier company's backups on the plane are left as they were",
+            f"the objects under box_backup/{earlier['company_id']}/ before the box joined this company and after it took it over",
+            "a box that removed or rewrote another company's backups would destroy what that company keeps",
+        ).record(now == earlier["plane_objects"], f"before: {earlier['plane_objects']}\nafter: {now}")
 
     def run_another_company(self):
         """A box one company disconnects and another connects holds nothing of the first."""
@@ -2517,6 +2609,12 @@ def main():
         "after the install)",
     )
     parser.add_argument(
+        "--several-boxes-after-another-company",
+        action="store_true",
+        help="judge step 13 with a second box that first served another company and was disconnected from it, "
+        "and that nothing of that company survives on it through the take-over",
+    )
+    parser.add_argument(
         "--another-company",
         action="store_true",
         help="judge only whether a box one company disconnects and another connects holds nothing of the first "
@@ -2575,6 +2673,8 @@ def main():
                 rig.run_people_upgrade(releases)
             elif options.several_boxes:
                 rig.run_several_boxes()
+            elif options.several_boxes_after_another_company:
+                rig.run_several_boxes(after_another_company=True)
             elif options.another_company:
                 rig.run_another_company()
             else:
@@ -2595,6 +2695,9 @@ def main():
                     if rig.company_id:
                         rig.plane.forget_the_company_computer(rig.company_id)
                         rig.plane.forget_the_company_backups(rig.company_id)
+                    if rig.earlier_company_id:
+                        rig.plane.forget_the_company_computer(rig.earlier_company_id)
+                        rig.plane.forget_the_company_backups(rig.earlier_company_id)
                 except RigFailure as failure:
                     print(f"✗ the rig's clean-up of the plane\n    {failure}", file=sys.stderr)
                 finally:
