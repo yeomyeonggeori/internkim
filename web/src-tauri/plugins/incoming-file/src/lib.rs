@@ -16,6 +16,7 @@ const FILENAME_HEADER: &str = "filename";
 const MEDIA_TYPE_HEADER: &str = "media-type";
 const CHUNK_HEADER: &str = "chunk";
 const LAST_CHUNK_HEADER: &str = "last-chunk";
+pub const DOWNLOADS_FOLDER: &str = "file-download";
 
 pub struct IncomingChunk<'request> {
     transfer: String,
@@ -63,12 +64,17 @@ fn bare_filename(named: &str) -> Result<String, String> {
         .ok_or_else(|| format!("{named:?} has no file name to keep the file under"))
 }
 
-fn transfer_of(headers: &HeaderMap) -> Result<String, String> {
-    let transfer = header_of(headers, TRANSFER_HEADER)?;
+fn transfer_identifier(transfer: &str) -> Result<&str, String> {
     let is_identifier = !transfer.is_empty() && transfer.chars().all(|character| character.is_ascii_hexdigit() || character == '-');
     if !is_identifier {
         return Err(format!("{transfer:?} is not a transfer identifier"));
     }
+    Ok(transfer)
+}
+
+fn transfer_of(headers: &HeaderMap) -> Result<String, String> {
+    let transfer = header_of(headers, TRANSFER_HEADER)?;
+    transfer_identifier(&transfer)?;
     Ok(transfer)
 }
 
@@ -134,6 +140,33 @@ pub fn write_chunk(folder: &Path, chunk: &IncomingChunk<'_>) -> Result<Option<Re
         folder: transfer_folder,
         media_type: chunk.media_type.clone(),
     }))
+}
+
+fn download_folder(cache: &Path, transfer: &str) -> Result<PathBuf, String> {
+    Ok(cache.join(DOWNLOADS_FOLDER).join(transfer_identifier(transfer)?))
+}
+
+pub fn download_destination(cache: &Path, transfer: &str, filename: &str) -> Result<PathBuf, String> {
+    let folder = download_folder(cache, transfer)?;
+    let destination = folder.join(bare_filename(filename)?);
+    discard(&folder)?;
+    fs::create_dir_all(&folder).map_err(|error| format!("the folder {} could not be made: {error}", folder.display()))?;
+    Ok(destination)
+}
+
+pub fn downloaded_file(cache: &Path, transfer: &str, media_type: &str) -> Result<ReceivedFile, String> {
+    let folder = download_folder(cache, transfer)?;
+    let mut entries = fs::read_dir(&folder)
+        .map_err(|error| format!("download {transfer} has no folder at {}: {error}", folder.display()))?;
+    let entry = entries
+        .next()
+        .ok_or_else(|| format!("download {transfer} left no file in {}", folder.display()))?
+        .map_err(|error| format!("the folder of download {transfer} could not be read: {error}"))?;
+    Ok(ReceivedFile {
+        path: entry.path(),
+        folder,
+        media_type: media_type.to_owned(),
+    })
 }
 
 pub fn discard(folder: &Path) -> Result<(), String> {
@@ -222,6 +255,46 @@ mod tests {
         let numbers = vec![Value::from(0), Value::from(255)];
         assert_eq!(bytes_of(&numbers).unwrap(), vec![0, 255]);
         assert!(bytes_of(&[Value::from(256)]).is_err());
+    }
+
+    #[test]
+    fn finds_a_download_where_its_destination_was_given() {
+        let cache = std::env::temp_dir().join(format!("incoming-file-download-test-{}", std::process::id()));
+        let transfer = "0a1b2c3d4e5f60718293a4b5c6d7e8f9";
+        let destination = download_destination(&cache, transfer, "../회의록.pdf").unwrap();
+        assert_eq!(destination, cache.join(DOWNLOADS_FOLDER).join(transfer).join("회의록.pdf"));
+        fs::write(&destination, b"pdf").unwrap();
+
+        let downloaded = downloaded_file(&cache, transfer, "application/pdf").unwrap();
+
+        assert_eq!(downloaded.path, destination);
+        assert_eq!(downloaded.media_type, "application/pdf");
+        assert_eq!(fs::read(&downloaded.path).unwrap(), b"pdf");
+        discard(&downloaded.folder).unwrap();
+        discard(&cache).unwrap();
+    }
+
+    #[test]
+    fn starts_a_download_in_an_empty_folder() {
+        let cache = std::env::temp_dir().join(format!("incoming-file-download-again-test-{}", std::process::id()));
+        let transfer = "0a1b2c3d4e5f60718293a4b5c6d7e8fa";
+        let earlier = download_destination(&cache, transfer, "earlier.txt").unwrap();
+        fs::write(&earlier, b"earlier").unwrap();
+
+        let later = download_destination(&cache, transfer, "later.txt").unwrap();
+
+        assert!(!earlier.exists());
+        assert!(!later.exists());
+        assert!(later.parent().unwrap().is_dir());
+        discard(&cache).unwrap();
+    }
+
+    #[test]
+    fn refuses_a_download_named_outside_its_folder() {
+        let cache = std::env::temp_dir().join("incoming-file-download-refused-test");
+        assert!(download_destination(&cache, "../elsewhere", "file.txt").is_err());
+        assert!(downloaded_file(&cache, "../elsewhere", "text/plain").is_err());
+        assert!(downloaded_file(&cache, "0a1b2c3d", "text/plain").is_err());
     }
 
     #[test]

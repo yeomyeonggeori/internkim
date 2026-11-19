@@ -1,0 +1,3 @@
+[default]
+description = "Lets the web app ask the phone to download a file from its address, reporting progress, and keep it for the gallery or the share sheet"
+permissions = ["allow-download"]

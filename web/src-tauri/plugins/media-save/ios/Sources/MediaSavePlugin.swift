@@ -1,6 +1,8 @@
 import Photos
 import Tauri
 
+private let photoPermissionRefused = "photoPermissionRefused"
+
 class GalleryItem: Decodable {
     let path: String
     let mediaType: String
@@ -11,7 +13,7 @@ class MediaSavePlugin: Plugin {
         let item = try invoke.parseArgs(GalleryItem.self)
         PHPhotoLibrary.requestAuthorization(for: .addOnly) { status in
             guard status == .authorized else {
-                invoke.reject("the app may not add to the photo library (authorization status \(status.rawValue))")
+                invoke.reject("the app may not add to the photo library (authorization status \(status.rawValue))", code: photoPermissionRefused)
                 return
             }
             Self.add(item, invoke)
