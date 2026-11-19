@@ -53,16 +53,17 @@ func runWalFollow(arguments []string) error {
 	if !kept.isJournaled {
 		return keepNoWAL(watched, kept)
 	}
+	pieces := walstream.NewPiecesSinceBaseBackup()
 	errorValue = walstream.Follower{
 		ReplicationConnection: companyReplicationConnection(),
 		KeptFor: func(systemID string) walstream.Keeper {
-			return walstream.KeptPieces{Destination: kept.destination, SystemID: systemID}
+			return walstream.KeptPieces{Destination: kept.destination, SystemID: systemID, Counted: pieces}
 		},
 		OnStreaming: func(ctx context.Context) error {
 			if errorValue := walstream.RequireTheStandby(ctx, companyDatabaseConnection()); errorValue != nil {
 				return errorValue
 			}
-			go walstream.KeepBaseBackups(ctx, companyReplicationConnection(), kept.destination, kept.keyring)
+			go walstream.KeepBaseBackups(ctx, companyReplicationConnection(), kept.destination, kept.keyring, pieces)
 			return nil
 		},
 	}.Run(watched)

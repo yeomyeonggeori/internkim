@@ -22,38 +22,73 @@ const (
 	removeBatchSize        = 1000
 )
 
-func KeepBaseBackups(ctx context.Context, replicationConnection string, destination offsite.Destination, keyring box.Keyring) {
+func KeepBaseBackups(ctx context.Context, replicationConnection string, destination offsite.Destination, keyring box.Keyring, pieces *PiecesSinceBaseBackup) {
+	lastFailedAt := time.Time{}
 	for {
-		if errorValue := keepABaseBackupWhenDue(ctx, replicationConnection, destination, keyring, time.Now()); errorValue != nil && ctx.Err() == nil {
-			log.Printf("keeping a base backup of the company database: %v; trying again in %s", errorValue, upkeepCheckEvery)
+		if !aFailedAttemptIsRecent(lastFailedAt, time.Now()) {
+			lastFailedAt = time.Time{}
+			if errorValue := keepABaseBackupWhenDue(ctx, replicationConnection, destination, keyring, pieces, time.Now()); errorValue != nil && ctx.Err() == nil {
+				log.Printf("keeping a base backup of the company database: %v; trying again in %s", errorValue, upkeepCheckEvery)
+				lastFailedAt = time.Now()
+			}
 		}
 		select {
 		case <-ctx.Done():
 			return
 		case <-time.After(upkeepCheckEvery):
+		case <-pieces.reached:
 		}
 	}
 }
 
-func keepABaseBackupWhenDue(ctx context.Context, replicationConnection string, destination offsite.Destination, keyring box.Keyring, now time.Time) error {
+func keepABaseBackupWhenDue(ctx context.Context, replicationConnection string, destination offsite.Destination, keyring box.Keyring, pieces *PiecesSinceBaseBackup, now time.Time) error {
 	system, errorValue := identify(ctx, replicationConnection)
 	if errorValue != nil {
 		return errorValue
 	}
 	newest, errorValue := NewestBaseBackup(ctx, destination)
-	isDue := errors.Is(errorValue, ErrNoBaseBackup) || newest.SystemID != system.SystemID || newest.Timeline != system.Timeline || now.Sub(newest.CreatedAt) >= baseBackupEvery
 	if errorValue != nil && !errors.Is(errorValue, ErrNoBaseBackup) {
 		return errorValue
 	}
-	if !isDue {
+	facts := baseBackupFacts{
+		hasNewest:       errorValue == nil,
+		newestTakenAt:   newest.CreatedAt,
+		isOtherDatabase: newest.SystemID != system.SystemID || newest.Timeline != system.Timeline,
+	}
+	if facts.hasNewest && !facts.isOtherDatabase {
+		piecesSince, errorValue := piecesSinceTheNewest(ctx, destination, newest, pieces)
+		if errorValue != nil {
+			return errorValue
+		}
+		facts.piecesSince = piecesSince
+	}
+	if !baseBackupIsDue(facts, now) {
 		return nil
 	}
 	backup, errorValue := TakeBaseBackup(ctx, replicationConnection, destination, keyring, now)
 	if errorValue != nil {
 		return errorValue
 	}
-	log.Printf("kept the base backup %s of the company database, from %s on timeline %d", backup.Name, backup.Start, backup.Timeline)
+	pieces.start(0)
+	log.Printf("kept the base backup %s of the company database, from %s on timeline %d, after %d pieces of WAL", backup.Name, backup.Start, backup.Timeline, facts.piecesSince)
 	return PruneBehindBaseBackups(ctx, destination, now)
+}
+
+func piecesSinceTheNewest(ctx context.Context, destination offsite.Destination, newest BaseBackup, pieces *PiecesSinceBaseBackup) (int, error) {
+	if count, isInitialized := pieces.counted(); isInitialized {
+		return count, nil
+	}
+	start, errorValue := newest.StartLSN()
+	if errorValue != nil {
+		return 0, fmt.Errorf("the base backup %s names no start: %w", newest.Name, errorValue)
+	}
+	names, errorValue := KeptPieces{Destination: destination, SystemID: newest.SystemID}.Names(ctx)
+	if errorValue != nil {
+		return 0, errorValue
+	}
+	count := piecesFrom(names, start)
+	pieces.start(count)
+	return count, nil
 }
 
 func identify(ctx context.Context, replicationConnection string) (pglogrepl.IdentifySystemResult, error) {
