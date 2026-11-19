@@ -7,6 +7,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 
 	"github.com/yeomyeonggeori/internkim/internal/runtime/blueclaw"
@@ -47,7 +48,35 @@ func HoldsACompanyOtherThan(companyID string) (bool, error) {
 	if errorValue != nil {
 		return false, errorValue
 	}
-	return installed != "" && installed != companyID, nil
+	if installed != "" && installed != companyID {
+		return true, nil
+	}
+	held, errorValue := companiesHeldIn(blueclaw.CompanyHostCompaniesRoot)
+	if errorValue != nil {
+		return false, errorValue
+	}
+	return holdsAnyOtherThan(held, companyID), nil
+}
+
+func companiesHeldIn(companiesRootPath string) ([]string, error) {
+	entries, errorValue := os.ReadDir(companiesRootPath)
+	if errors.Is(errorValue, fs.ErrNotExist) {
+		return nil, nil
+	}
+	if errorValue != nil {
+		return nil, fmt.Errorf("reading which companies %s holds: %w", companiesRootPath, errorValue)
+	}
+	held := []string{}
+	for _, entry := range entries {
+		if entry.IsDir() {
+			held = append(held, entry.Name())
+		}
+	}
+	return held, nil
+}
+
+func holdsAnyOtherThan(held []string, companyID string) bool {
+	return slices.ContainsFunc(held, func(heldID string) bool { return heldID != companyID })
 }
 
 func ForgetEveryCompany(machine Machine, progress io.Writer) error {
@@ -63,6 +92,11 @@ func ForgetEveryCompany(machine Machine, progress io.Writer) error {
 }
 
 func forgetEveryCompanyOn(platform linuxPlatform, places companyPlaces, machine Machine, progress io.Writer) error {
+	held, errorValue := companiesHeldIn(filepath.Join(places.StateRootPath, filepath.Base(blueclaw.CompanyHostCompaniesRoot)))
+	if errorValue != nil {
+		return errorValue
+	}
+	fmt.Fprintf(progress, "removing the data of companies %s: their services, people's accounts, %s, the databases set aside by a take-over and %s apart from %s\n", strings.Join(held, ", "), strings.Join(append(append([]string{}, places.RemovedPaths...), places.EmptiedPaths...), ", "), places.StateRootPath, places.KeptInStateRoot)
 	if errorValue := platform.stopEveryCompanyService(machine, progress); errorValue != nil {
 		return errorValue
 	}

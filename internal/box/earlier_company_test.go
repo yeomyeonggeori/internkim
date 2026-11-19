@@ -128,3 +128,29 @@ func TestAConnectionFileForAnotherCompanyEmptiesTheComputerFirst(t *testing.T) {
 		t.Fatalf("the earlier company's service lease is still held: %v", errorValue)
 	}
 }
+
+func TestABoxThatHoldsOnlyAnotherCompanysDirectoryIsEmptiedAndForgetsItsTakeOverNotes(t *testing.T) {
+	plane := &fakePlane{isClaimed: true, accessToken: "first.session.token"}
+	installed := &installs{}
+	daemon, places := daemonFor(t, plane, installed)
+	daemon.HoldsAnotherCompany = func(companyID string) (bool, error) { return companyID != earlierCompanyID, nil }
+	daemon.Places.SeveralBoxesPath = filepath.Join(places.StateDirectoryPath, "several-boxes")
+	for _, path := range []string{filepath.Join(places.StateDirectoryPath, TakeOverRetryFileName), daemon.Places.SeveralBoxesPath} {
+		if errorValue := os.MkdirAll(filepath.Dir(path), 0o700); errorValue != nil {
+			t.Fatal(errorValue)
+		}
+		if errorValue := os.WriteFile(path, []byte("{}"), 0o600); errorValue != nil {
+			t.Fatal(errorValue)
+		}
+	}
+	forgotten := &forgetting{}
+
+	runSteps(t, forgotten.watching(daemon, installed), 1)
+
+	if forgotten.times != 1 {
+		t.Fatalf("a box holding another company's directory without its key or current link was emptied %d times", forgotten.times)
+	}
+	if _, errorValue := os.Stat(filepath.Join(places.StateDirectoryPath, TakeOverRetryFileName)); !errors.Is(errorValue, os.ErrNotExist) {
+		t.Fatal("the earlier company's take-over record outlived its data")
+	}
+}

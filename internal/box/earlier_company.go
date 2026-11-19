@@ -54,6 +54,8 @@ func (daemon Daemon) holdsAnotherCompany(companyID string) (bool, error) {
 	return daemon.HoldsAnotherCompany(companyID)
 }
 
+const TakeOverRetryFileName = "take-over-retry.json"
+
 func (daemon Daemon) forgetTheEarlierCompanyHere() error {
 	daemon.forgetTheQueueAddress()
 	return errors.Join(
@@ -61,8 +63,17 @@ func (daemon Daemon) forgetTheEarlierCompanyHere() error {
 		daemon.forgetServiceLease(),
 		removeIfPresent(daemon.statePath(modelKeyAwaitingRestartFileName)),
 		removeIfPresent(daemon.statePath(modelKeyFromCompanyFileName)),
+		removeIfPresent(daemon.statePath(TakeOverRetryFileName)),
+		daemon.forgetSeveralBoxes(),
 		removeIfPresent(companyKeyPathIn(daemon.Places.StateDirectoryPath)),
 	)
+}
+
+func (daemon Daemon) forgetSeveralBoxes() error {
+	if daemon.Places.SeveralBoxesPath == "" {
+		return nil
+	}
+	return removeIfPresent(daemon.Places.SeveralBoxesPath)
 }
 
 func companyKeyOwner(stateDirectoryPath string) (string, error) {
