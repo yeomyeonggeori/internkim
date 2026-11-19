@@ -214,14 +214,25 @@ HELD_COMPANIES_COMMAND = f"ls -1 {STATE_DIRECTORY}/companies 2>/dev/null"
 EARLIER_COMPANY_CONVERSATION = "rig-earlier-company-conversation"
 EARLIER_COMPANY_ROW_COUNT = "select count(*) from conversation where display_name = '%(phrase)s';"
 TAKE_OVER_RETRY_PATH = "/var/lib/internkim/box/take-over-retry.json"
+WORKSPACE_DIRECTORY = "/workspace"
+CACHE_DATA_DIRECTORY = "/var/lib/internkim-cache"
 WHAT_A_BOX_HOLDS_COMMAND = r"""
+system_of() { od -An -tu8 -N8 "$1/global/pg_control" 2>/dev/null | tr -d ' '; }
 printf 'companies=%%s\n' "$(ls -1 %(state)s/companies 2>/dev/null | tr '\n' ' ')"
 printf 'current=%%s\n' "$(test -e %(state)s/current && echo present || echo absent)"
 printf 'mark=%%s\n' "$(test -e %(mark)s && echo present || echo absent)"
+printf 'workspace-entries=%%s\n' "$(ls -A %(workspace)s 2>/dev/null | wc -l | tr -d ' ')"
 printf 'database-entries=%%s\n' "$(ls -A %(database)s 2>/dev/null | wc -l | tr -d ' ')"
-printf 'safety-backups=%%s\n' "$(ls -1 %(backups)s 2>/dev/null | grep -c '\.tar$' || true)"
+printf 'database-system=%%s\n' "$(system_of %(database)s)"
+printf 'set-aside-databases=%%s\n' "$(for copy in %(database)s.before-take-over-*; do test -d "$copy" && echo "$(basename "$copy"):$(system_of "$copy")"; done | tr '\n' ' ')"
+printf 'cache-entries=%%s\n' "$(ls -A %(cache)s 2>/dev/null | wc -l | tr -d ' ')"
+printf 'safety-backups=%%s\n' "$(ls -1 %(backups)s 2>/dev/null | grep -c '^internkim-backup-.*\.tar$' || true)"
+printf 'backup-files=%%s\n' "$(ls -1 %(backups)s 2>/dev/null | grep -v '^standby-chunks$' | tr '\n' ' ')"
 printf 'retry-record=%%s\n' "$(test -e %(retry)s && echo present || echo absent)"
 printf 'accounts=%%s\n' "$(getent passwd | cut -d: -f1 | grep '^bc_person_' | tr '\n' ' ')"
+printf 'circle-groups=%%s\n' "$(getent group | cut -d: -f1 | grep '^bc_circle_' | tr '\n' ' ')"
+printf 'configuration-files=%%s\n' "$(ls -1 %(configuration)s 2>/dev/null | tr '\n' ' ')"
+printf 'relay-key-digest=%%s\n' "$(sha256sum %(configuration)s/agent-key 2>/dev/null | cut -c1-16)"
 """
 
 DATABASE_IDENTIFIER_COMMAND = (
@@ -443,15 +454,35 @@ def what_a_box_holds(reading):
 
 
 def holds_nothing_of(held, earlier, is_standing_by):
-    """Whether what a box holds carries nothing of the company it served before."""
-    accounts = set(held.get("accounts", "").split())
-    if earlier["company_id"] in held.get("companies", "").split() or accounts & set(earlier["accounts"]):
+    """Whether what a box holds carries nothing of the company it served before.
+
+    earlier carries the company_id, the system identifier of its database under database, and
+    under held what the box held, in the same shape, when that company disconnected it. A
+    circle's group is named after the circle, which two companies may both have, so only a
+    standby is required to hold none.
+    """
+    def shared(key):
+        return set(held.get(key, "").split()) & set(earlier["held"].get(key, "").split())
+
+    if earlier["company_id"] in held.get("companies", "").split():
+        return False
+    if any(shared(key) for key in ("companies", "accounts", "backup-files")):
+        return False
+    set_aside_systems = {entry.rpartition(":")[2] for entry in held.get("set-aside-databases", "").split()}
+    if earlier["database"] in set_aside_systems | {held.get("database-system", "")}:
+        return False
+    earlier_key = earlier["held"].get("relay-key-digest", "")
+    if earlier_key and held.get("relay-key-digest") == earlier_key:
         return False
     if held.get("mark") != "absent" or held.get("safety-backups") != "0" or held.get("retry-record") != "absent":
         return False
-    if is_standing_by:
-        return held.get("current") == "absent" and held.get("database-entries") == "0"
-    return True
+    if not is_standing_by:
+        return True
+    held_only_for_a_company = ("companies", "accounts", "circle-groups", "set-aside-databases", "backup-files", "relay-key-digest", "database-system")
+    if any(held.get(key, "") for key in held_only_for_a_company):
+        return False
+    counted = ("workspace-entries", "database-entries", "cache-entries")
+    return held.get("current") == "absent" and all(held.get(key) == "0" for key in counted)
 
 
 def message_asking_for_an_answer(occasion):
@@ -1725,23 +1756,39 @@ class Rig:
             if written.returncode != 0:
                 raise RigFailure(f"the earlier company's row could not be written: {written.stdout.strip()[-300:]}")
             self.disconnect_the_box(step)
+            earlier["held"] = self.what_the_box_holds()[1]
         earlier.update({"company_id": self.earlier_company_id, "phrase": phrase, "plane_objects": len(self.plane.stored_backup_paths(self.earlier_company_id + "/"))})
         self.plane.forget_the_company_computer(self.earlier_company_id)
         self.company_id, self.plane.administrator_email = company_id, administrator_email
         return earlier
 
-    def observe_what_the_box_holds_of(self, step, earlier, when, is_standing_by):
+    def what_the_box_holds(self):
         reading = self.machine.shell(
             WHAT_A_BOX_HOLDS_COMMAND
-            % {"state": STATE_DIRECTORY, "mark": EARLIER_COMPANY_MARK_PATH, "database": DATABASE_DATA_DIRECTORY, "backups": BACKUPS_DIRECTORY, "retry": TAKE_OVER_RETRY_PATH}
+            % {
+                "state": STATE_DIRECTORY,
+                "mark": EARLIER_COMPANY_MARK_PATH,
+                "workspace": WORKSPACE_DIRECTORY,
+                "database": DATABASE_DATA_DIRECTORY,
+                "cache": CACHE_DATA_DIRECTORY,
+                "backups": BACKUPS_DIRECTORY,
+                "retry": TAKE_OVER_RETRY_PATH,
+                "configuration": CONFIGURATION_DIRECTORY,
+            }
         )
-        held = what_a_box_holds(reading.stdout)
+        return reading.stdout.strip(), what_a_box_holds(reading.stdout)
+
+    def observe_what_the_box_holds_of(self, step, earlier, when, is_standing_by):
+        reading, held = self.what_the_box_holds()
         step.observe(
             f"the box holds nothing of the company it served before, {when}",
-            f"the directories under {STATE_DIRECTORY}/companies, {EARLIER_COMPANY_MARK_PATH}, the bc_person_ accounts, "
-            f"the safety backups under {BACKUPS_DIRECTORY} and {TAKE_OVER_RETRY_PATH}",
-            "a box that kept another company's files, accounts or backups hands them to the company it serves next",
-        ).record(holds_nothing_of(held, earlier, is_standing_by), reading.stdout.strip())
+            f"the directories under {STATE_DIRECTORY}/companies, {EARLIER_COMPANY_MARK_PATH}, {WORKSPACE_DIRECTORY}, "
+            f"{DATABASE_DATA_DIRECTORY} and the system identifier of every copy a take-over set beside it, "
+            f"{CACHE_DATA_DIRECTORY}, the files under {BACKUPS_DIRECTORY}, {TAKE_OVER_RETRY_PATH}, the bc_person_ accounts, "
+            f"the bc_circle_ groups and the relay key under {CONFIGURATION_DIRECTORY}, against what the box held when the "
+            "earlier company disconnected it",
+            "a box that kept another company's files, accounts, database, backups or key hands them to the company it serves next",
+        ).record(holds_nothing_of(held, earlier, is_standing_by), f"{reading}\nwhen disconnected: {json.dumps(earlier['held'])}")
 
     def observe_the_earlier_companys_row_is_not_in_the_database(self, step, earlier):
         counted = self.machine.shell(in_the_agents_database(EARLIER_COMPANY_ROW_COUNT % {"phrase": earlier["phrase"]}))
