@@ -120,7 +120,8 @@ func bringTheCompanyBackOnThisRelease(currentPath string, refresh string) string
 		`  systemctl restart ` + boxUnitFileName() + ` >/dev/null 2>&1 || true`,
 		`  ` + refresh + ` || refuse "this release is installed and the company's server did not come back on it; the lines above name what is silent. Once that is fixed, run 'sudo ` + refresh + `'"`,
 		`else`,
-		`  systemctl restart ` + restartedUnitFileNames() + ` >/dev/null 2>&1 || true`,
+		`  systemctl restart ` + boxUnitFileName() + ` >/dev/null 2>&1 || true`,
+		`  systemctl try-restart ` + companyUnitFileNames() + ` >/dev/null 2>&1 || true`,
 		`fi`,
 	}, "\n")
 }
@@ -166,10 +167,10 @@ func backupUnitFileNames() string {
 	return strings.Join(names, " ")
 }
 
-func restartedUnitFileNames() string {
+func companyUnitFileNames() string {
 	names := []string{}
 	for _, unit := range blueclaw.CompanyPackageUnits() {
-		if !unit.IsDataService() {
+		if !unit.IsDataService() && unit.Name != blueclaw.BoxServiceName {
 			names = append(names, unit.FileName())
 		}
 	}
