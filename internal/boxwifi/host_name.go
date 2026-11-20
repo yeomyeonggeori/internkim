@@ -20,7 +20,7 @@ var hostLabel = regexp.MustCompile(`^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$`)
 
 func HostNameFor(companySlug string) string {
 	if !hostLabel.MatchString(companySlug) {
-		return SetupNetworkName
+		return EmptyBoxHostName
 	}
 	return companySlug
 }

@@ -19,8 +19,8 @@ func TestAClaimedBoxIsNamedAfterItsCompanySlug(t *testing.T) {
 
 func TestABoxWithoutAUsableSlugIsNamedKimmini(t *testing.T) {
 	for _, slug := range []string{"", "Sample", "-sample", "sample-", "sample_company", "sample.company", strings.Repeat("a", 64)} {
-		if got := HostNameFor(slug); got != SetupNetworkName {
-			t.Errorf("host name for %q = %q, want %q", slug, got, SetupNetworkName)
+		if got := HostNameFor(slug); got != EmptyBoxHostName {
+			t.Errorf("host name for %q = %q, want %q", slug, got, EmptyBoxHostName)
 		}
 	}
 }

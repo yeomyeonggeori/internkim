@@ -331,8 +331,9 @@ increases their size.
 ## Network access
 
 The host opens outbound connections and listens only on local interfaces. The
-exception is a Linux host that belongs to no company yet, which serves its
-pairing code on port 18088 until it is claimed. To administer the computer, use
+exceptions are a Linux host that belongs to no company yet, which serves its
+pairing code on port 18088 until it is claimed, and a host whose [setup
+Wi-Fi](#wifi) is open, which serves the setup page on that network. To administer the computer, use
 a shell on the same network or a remote access method your company controls.
 
 On Linux, installing or upgrading the package also downloads the host's one
@@ -343,3 +344,54 @@ keeps beside the skill's files: Python libraries from `pypi.org` and
 `registry.npmjs.org`. If any of them is unreachable, the install stops and names what it could not fetch. The host needs no Python
 from the distribution. The skills run on the same runtime, as `python3` in each
 person's commands, and install nothing the first time someone uses them.
+
+## Wi-Fi [#wifi]
+
+A Linux host whose Wi-Fi NetworkManager manages can be moved to a new network
+with a phone. A host that belongs to no company opens a Wi-Fi network of its own
+whenever it cannot get online. A host that has a company opens it only when it is
+joined to no network at all, wired or wireless, so one carried to another office
+can be given that office's network while an internet outage leaves it on the
+network it has. A wired server therefore never opens it. At boot the host first
+waits 60 seconds for a network it has saved. While NetworkManager is connecting to
+a network, the host waits up to two minutes for it to finish before opening its
+own, and the network closes once the host is online.
+
+The network is named after the computer's host name at the moment it opens, such
+as `jetson-host`, cut to the 32 bytes a Wi-Fi name allows. Its password is
+`intern-kim` on every host. Joining it opens the setup page, because every name
+resolves to the host. The page asks for the office network's name and password,
+and the host joins it.
+
+Once a host is connected, an administrator can move it to another network from
+company setup. The change form is offered while the host has reported nearby
+networks. The browser seals the new name and password to the box key with the
+purpose `internkim wifi network`, and the central plane relays ciphertext only.
+The host reports whether it joined the new network or could not change it. A
+host connected with a connection file has no box key, so it opens the setup
+network when off every network but takes no change from company setup.
+
+The shared password carries three risks. When the host falls back from WPA3 to
+WPA2, someone nearby who has the published password and captures a handshake can
+decrypt the plain-HTTP setup page and read the office network's password. Anyone
+can broadcast a look-alike network with the same name and password to collect the
+office password. And while a host is off every network, anyone in range who joins
+its setup network can point it at another network.
+
+A computer whose Wi-Fi NetworkManager does not manage, such as a Mac or a server
+without Wi-Fi, does none of this. To turn it off on one that does, give the box
+service `--no-wifi-setup`:
+
+```bash
+sudo systemctl edit internkim-box
+```
+
+```ini
+[Service]
+ExecStart=
+ExecStart=/usr/bin/internkim box --no-wifi-setup
+```
+
+On a Kim mini, add the flag to the command line in its own drop-in,
+`/etc/systemd/system/internkim-box.service.d/kim-mini.conf`, which carries the
+box's other flags. `sudo systemctl restart internkim-box` applies the change.

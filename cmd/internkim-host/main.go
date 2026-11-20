@@ -149,7 +149,7 @@ func stopOnFailure(whatStopped string, errorValue error) {
 
 func printUsage(command string) {
 	fmt.Fprintf(os.Stderr, "Usage: %s install <internkim-host.json> [--model-key-file FILE]\n", command)
-	fmt.Fprintf(os.Stderr, "       %s box [--app-url URL] [--wifi-setup] [--host-name-from-company] [--admin-account NAME]\n", command)
+	fmt.Fprintf(os.Stderr, "       %s box [--app-url URL] [--no-wifi-setup] [--host-name-from-company] [--admin-account NAME]\n", command)
 	fmt.Fprintf(os.Stderr, "       %s box code\n", command)
 	fmt.Fprintf(os.Stderr, "       %s backup [--directory DIR] [--keep N]\n", command)
 	fmt.Fprintf(os.Stderr, "       %s restore <archive> [--replace]\n", command)
@@ -165,12 +165,8 @@ func runBox(arguments []string) {
 		printPairingCode()
 		return
 	}
-	flags := flag.NewFlagSet("box", flag.ExitOnError)
-	appURL := flags.String("app-url", blueclaw.CompanyPackageHomepage, "the address this company signs in at, which a box announces itself to")
-	setsUpWifi := flags.Bool("wifi-setup", false, "while this box is empty and offline, open the kimmini network and ask for the office Wi-Fi")
-	namesHostFromCompany := flags.Bool("host-name-from-company", false, "name this computer after the company it belongs to, and kimmini while it belongs to none, as a Kim mini is named")
-	adminAccount := flags.String("admin-account", "", "the login account whose password the company sets from company setup, as a Kim mini's admin is")
-	madeOnPath := flags.String("made-on-file", boxwifi.DefaultMadeOnPath, "a file holding the day this box was made as YYYY-MM-DD, added to the kimmini network's name")
+	var options boxOptions
+	flags := boxFlags(&options, flag.ExitOnError)
 	flags.Parse(arguments)
 	if errorValue := companyhost.RequireAdministrator(); errorValue != nil {
 		fmt.Fprintln(os.Stderr, errorValue)
@@ -178,16 +174,16 @@ func runBox(arguments []string) {
 	}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
-	announcedTo := announcedAppURL(flags, *appURL, blueclaw.CompanyHostBoxStatePath, companyhost.CurrentConnectionPath())
+	announcedTo := announcedAppURL(flags, options.AppURL, blueclaw.CompanyHostBoxStatePath, companyhost.CurrentConnectionPath())
 	daemon := boxDaemon(announcedTo)
-	if *setsUpWifi {
-		daemon = withWifiSetup(daemon, announcedTo, madeOnFrom(*madeOnPath))
+	if setsUpWifi(options, func() bool { return boxwifi.NetworkManagerRadio{}.ManagesWifi(ctx) }) {
+		daemon = withWifiSetup(daemon, announcedTo, madeOnFrom(options.MadeOnPath))
 	}
-	if *namesHostFromCompany {
+	if options.NamesHostFromCompany {
 		daemon = withHostNameFromCompany(daemon)
 	}
-	if *adminAccount != "" {
-		daemon = withAdminPasswordFor(daemon, *adminAccount)
+	if options.AdminAccount != "" {
+		daemon = withAdminPasswordFor(daemon, options.AdminAccount)
 	}
 	errorValue := daemon.Run(ctx)
 	if errors.Is(errorValue, box.ErrConnectedByFile) {
@@ -198,6 +194,36 @@ func runBox(arguments []string) {
 		fmt.Fprintln(os.Stderr, errorValue)
 		os.Exit(1)
 	}
+}
+
+type boxOptions struct {
+	AppURL               string
+	ForcesWifiSetup      bool
+	TurnsOffWifiSetup    bool
+	NamesHostFromCompany bool
+	AdminAccount         string
+	MadeOnPath           string
+}
+
+func boxFlags(options *boxOptions, errorHandling flag.ErrorHandling) *flag.FlagSet {
+	flags := flag.NewFlagSet("box", errorHandling)
+	flags.StringVar(&options.AppURL, "app-url", blueclaw.CompanyPackageHomepage, "the address this company signs in at, which a box announces itself to")
+	flags.BoolVar(&options.TurnsOffWifiSetup, "no-wifi-setup", false, "never open a setup Wi-Fi network or change networks from company settings, even where NetworkManager manages a Wi-Fi device")
+	flags.BoolVar(&options.ForcesWifiSetup, "wifi-setup", false, "set up Wi-Fi even where NetworkManager manages no Wi-Fi device; without either flag, a computer whose Wi-Fi NetworkManager manages sets it up")
+	flags.BoolVar(&options.NamesHostFromCompany, "host-name-from-company", false, "name this computer after the company it belongs to, and kimmini while it belongs to none, as a Kim mini is named")
+	flags.StringVar(&options.AdminAccount, "admin-account", "", "the login account whose password the company sets from company setup, as a Kim mini's admin is")
+	flags.StringVar(&options.MadeOnPath, "made-on-file", boxwifi.DefaultMadeOnPath, "a file holding the day this box was made as YYYY-MM-DD, added to the setup network's name")
+	return flags
+}
+
+func setsUpWifi(options boxOptions, managesWifi func() bool) bool {
+	if options.TurnsOffWifiSetup {
+		return false
+	}
+	if options.ForcesWifiSetup {
+		return true
+	}
+	return managesWifi()
 }
 
 func announcedAppURL(flags *flag.FlagSet, flagged string, boxStatePath string, connectionPath string) string {
@@ -218,7 +244,7 @@ func announcedAppURL(flags *flag.FlagSet, flagged string, boxStatePath string, c
 func madeOnFrom(path string) time.Time {
 	madeOn, errorValue := boxwifi.ReadMadeOn(path)
 	if errorValue != nil {
-		log.Printf("naming the kimmini network without a date: %v", errorValue)
+		log.Printf("naming the setup network without a date: %v", errorValue)
 	}
 	return madeOn
 }
@@ -227,8 +253,8 @@ func withWifiSetup(daemon box.Daemon, appURL string, madeOn time.Time) box.Daemo
 	radio := boxwifi.NetworkManagerRadio{ReachesPlane: func(ctx context.Context) bool { return reachesURL(ctx, appURL) }}
 	watcherRadio := radio
 	watcherRadio.RescanMode = passiveRescanMode
-	daemon.GetOnline = func(ctx context.Context, boxPublicKey string, hasCompany bool) error {
-		setup := boxwifi.Setup{Radio: radio, NetworkName: boxwifi.SetupNetworkNameFor(madeOn)}
+	daemon.GetOnline = func(ctx context.Context, hasCompany bool) error {
+		setup := boxwifi.Setup{Radio: radio, MadeOn: madeOn}
 		if hasCompany {
 			setup.IsOnANetwork = radio.IsOnANetwork
 		}

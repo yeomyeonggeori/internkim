@@ -60,7 +60,7 @@ type Daemon struct {
 	StartWorking           func(ctx context.Context, session Session)
 	PackageVersion         string
 	NameHost               func(ctx context.Context, companySlug string) error
-	GetOnline              func(ctx context.Context, boxPublicKey string, hasCompany bool) error
+	GetOnline              func(ctx context.Context, hasCompany bool) error
 	IsOnANetwork           func(ctx context.Context) bool
 	ChangeWifi             func(ctx context.Context, ssid, password string) error
 	ScanWifi               func(ctx context.Context) ([]NearbyNetwork, error)
@@ -73,7 +73,7 @@ type Daemon struct {
 
 func (daemon Daemon) Run(ctx context.Context) error {
 	if daemon.connectedByFile() && !daemon.isResetAsked() {
-		return ErrConnectedByFile
+		return daemon.keepAComputerConnectedByFileOnANetwork(ctx)
 	}
 	identity, errorValue := LoadOrCreateIdentity(identityPathIn(daemon.Places.StateDirectoryPath))
 	if errorValue != nil {
@@ -86,7 +86,7 @@ func (daemon Daemon) Run(ctx context.Context) error {
 	if errorValue := daemon.resetIfAsked(ctx, identity); errorValue != nil {
 		return errorValue
 	}
-	daemon.getOnlineWhenOffline(ctx, identity)
+	daemon.getOnlineWhenOffline(ctx)
 	if daemon.ChangeWifi != nil {
 		watcherContext, stopWatcher := context.WithCancel(ctx)
 		watcherDone := make(chan struct{})
@@ -120,7 +120,7 @@ func (daemon Daemon) Run(ctx context.Context) error {
 		if errorValue != nil {
 			log.Printf("%v; trying again in %s", errorValue, announceInterval)
 			wait = announceInterval
-			daemon.getOnlineWhenOffline(ctx, identity)
+			daemon.getOnlineWhenOffline(ctx)
 		}
 		if errorValue := daemon.sleep(ctx, wait); errorValue != nil {
 			return nil
@@ -440,20 +440,38 @@ func (daemon Daemon) nameHost(ctx context.Context, companySlug string) {
 	}
 }
 
-func (daemon Daemon) getOnlineWhenOffline(ctx context.Context, identity Identity) {
+func (daemon Daemon) keepAComputerConnectedByFileOnANetwork(ctx context.Context) error {
+	if daemon.GetOnline == nil {
+		return ErrConnectedByFile
+	}
+	log.Printf("%v; it only gets back online when it is off every network", ErrConnectedByFile)
+	for {
+		daemon.getOnlineWhenOffline(ctx)
+		if errorValue := daemon.sleep(ctx, announceInterval); errorValue != nil {
+			return nil
+		}
+	}
+}
+
+func (daemon Daemon) getOnlineWhenOffline(ctx context.Context) {
 	if daemon.GetOnline == nil {
 		return
 	}
-	if daemon.installedCompany() != "" && !daemon.isOffEveryNetwork(ctx) {
+	hasCompany := daemon.holdsACompany()
+	if hasCompany && !daemon.isOffEveryNetwork(ctx) {
 		return
 	}
-	if errorValue := daemon.GetOnline(ctx, identity.PublicKey(), daemon.installedCompany() != ""); errorValue != nil {
+	if errorValue := daemon.GetOnline(ctx, hasCompany); errorValue != nil {
 		log.Printf("getting this box online: %v; it announces itself once a network is there", errorValue)
 	}
 }
 
 func (daemon Daemon) isOffEveryNetwork(ctx context.Context) bool {
 	return daemon.IsOnANetwork != nil && !daemon.IsOnANetwork(ctx)
+}
+
+func (daemon Daemon) holdsACompany() bool {
+	return daemon.installedCompany() != "" || daemon.connectedByFile()
 }
 
 func (daemon Daemon) installedCompany() string {

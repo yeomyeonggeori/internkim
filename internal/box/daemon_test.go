@@ -9,6 +9,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -510,6 +511,39 @@ func TestAComputerConnectedWithAFileIsNotAnnouncedAsEmpty(t *testing.T) {
 	}
 }
 
+func computerConnectedWithAFile(t *testing.T, isOnANetwork bool) (Daemon, *fakePlane, Places, *[]bool) {
+	t.Helper()
+	plane := &fakePlane{}
+	daemon, places := daemonFor(t, plane, &installs{})
+	writeConnectionFile(t, places.ConnectionFilePath, sampleConnectionDocument(t))
+	daemon.IsOnANetwork = func(context.Context) bool { return isOnANetwork }
+	attempts := []bool{}
+	daemon.GetOnline = func(ctx context.Context, hasCompany bool) error {
+		attempts = append(attempts, hasCompany)
+		return nil
+	}
+	return daemon, plane, places, &attempts
+}
+
+func TestAComputerConnectedWithAFileGetsOnlineAsACompanyWhenOffEveryNetwork(t *testing.T) {
+	daemon, plane, places, attempts := computerConnectedWithAFile(t, false)
+	runSteps(t, daemon, 2)
+	if len(*attempts) < 2 || slices.Contains(*attempts, false) {
+		t.Fatalf("a computer connected with a file and off every network got online as %v, want again and again as one holding a company", *attempts)
+	}
+	if plane.announcements != 0 || isABox(places.StateDirectoryPath) {
+		t.Fatalf("getting online made the computer a box: announcements = %d, box = %t", plane.announcements, isABox(places.StateDirectoryPath))
+	}
+}
+
+func TestAComputerConnectedWithAFileKeepsItsNetworkWhileTheInternetIsDown(t *testing.T) {
+	daemon, _, _, attempts := computerConnectedWithAFile(t, true)
+	runSteps(t, daemon, 2)
+	if len(*attempts) != 0 {
+		t.Fatalf("a computer connected with a file and still on its network opened the setup network %d times, want never", len(*attempts))
+	}
+}
+
 func TestAConnectionFileClaimsThisComputerAndInstallsFromItsSession(t *testing.T) {
 	plane := &fakePlane{accessToken: "file.session.token"}
 	recorded := &installs{}
@@ -594,7 +628,7 @@ func TestAnEmptyBoxGetsOnlineBeforeItAnnounces(t *testing.T) {
 	recorded := &installs{}
 	daemon, _ := daemonFor(t, plane, recorded)
 	announcementsWhenAsked := -1
-	daemon.GetOnline = func(context.Context, string, bool) error {
+	daemon.GetOnline = func(context.Context, bool) error {
 		announcementsWhenAsked = plane.announcements
 		return nil
 	}
@@ -654,7 +688,7 @@ func offlineBoxWithACompany(t *testing.T, isOnANetwork bool) (Daemon, *int) {
 	daemon.Client = Client{AppURL: "http://127.0.0.1:1"}
 	daemon.IsOnANetwork = func(context.Context) bool { return isOnANetwork }
 	attempts := 0
-	daemon.GetOnline = func(context.Context, string, bool) error {
+	daemon.GetOnline = func(context.Context, bool) error {
 		attempts++
 		return nil
 	}
@@ -683,7 +717,7 @@ func TestAnEmptyBoxThatLosesItsNetworkTriesToGetOnlineAgain(t *testing.T) {
 	daemon, _ := daemonFor(t, plane, recorded)
 	daemon.Client = Client{AppURL: "http://127.0.0.1:1"}
 	attempts := 0
-	daemon.GetOnline = func(context.Context, string, bool) error {
+	daemon.GetOnline = func(context.Context, bool) error {
 		attempts++
 		return nil
 	}

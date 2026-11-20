@@ -141,11 +141,64 @@ func TestRunStillStreamsWhatTheCommandSays(t *testing.T) {
 func TestWifiSetupWiresGetOnlineChangeWifiAndScanWifiTogether(t *testing.T) {
 	without := boxDaemon("https://example.com")
 	if without.GetOnline != nil || without.ChangeWifi != nil || without.ScanWifi != nil {
-		t.Fatalf("a daemon built without the flag has wifi hooks: %+v", without)
+		t.Fatalf("a daemon built without Wi-Fi setup has wifi hooks: %+v", without)
 	}
 	with := withWifiSetup(box.Daemon{}, "https://example.com", time.Time{})
 	if with.GetOnline == nil || with.ChangeWifi == nil || with.ScanWifi == nil {
-		t.Fatalf("a daemon built with the flag lacks a wifi hook: GetOnline=%t ChangeWifi=%t ScanWifi=%t", with.GetOnline != nil, with.ChangeWifi != nil, with.ScanWifi != nil)
+		t.Fatalf("a daemon built with Wi-Fi setup lacks a wifi hook: GetOnline=%t ChangeWifi=%t ScanWifi=%t", with.GetOnline != nil, with.ChangeWifi != nil, with.ScanWifi != nil)
+	}
+}
+
+func TestWifiSetupFollowsWhetherNetworkManagerManagesAWifiDevice(t *testing.T) {
+	managesWifi := func() bool { return true }
+	managesNoWifi := func() bool { return false }
+	cases := []struct {
+		name        string
+		options     boxOptions
+		managesWifi func() bool
+		want        bool
+	}{
+		{name: "a computer with managed Wi-Fi", managesWifi: managesWifi, want: true},
+		{name: "a computer without managed Wi-Fi", managesWifi: managesNoWifi, want: false},
+		{name: "--no-wifi-setup on a computer with managed Wi-Fi", options: boxOptions{TurnsOffWifiSetup: true}, managesWifi: managesWifi, want: false},
+		{name: "--wifi-setup on a computer without managed Wi-Fi", options: boxOptions{ForcesWifiSetup: true}, managesWifi: managesNoWifi, want: true},
+		{name: "--wifi-setup and --no-wifi-setup together", options: boxOptions{ForcesWifiSetup: true, TurnsOffWifiSetup: true}, managesWifi: managesWifi, want: false},
+	}
+	for _, testCase := range cases {
+		if got := setsUpWifi(testCase.options, testCase.managesWifi); got != testCase.want {
+			t.Errorf("%s sets up Wi-Fi = %t, want %t", testCase.name, got, testCase.want)
+		}
+	}
+}
+
+func TestTurningWifiSetupOffNeverAsksNetworkManager(t *testing.T) {
+	setsUpWifi(boxOptions{TurnsOffWifiSetup: true}, func() bool {
+		t.Fatal("--no-wifi-setup still asked NetworkManager about its devices")
+		return true
+	})
+}
+
+func parsedBoxOptions(t *testing.T, arguments []string) boxOptions {
+	t.Helper()
+	var options boxOptions
+	flags := boxFlags(&options, flag.ContinueOnError)
+	flags.SetOutput(io.Discard)
+	if errorValue := flags.Parse(arguments); errorValue != nil {
+		t.Fatalf("internkim box %v would not start: %v", arguments, errorValue)
+	}
+	return options
+}
+
+func TestAKimMiniDropInFromBeforeTheDefaultStillStartsTheBox(t *testing.T) {
+	options := parsedBoxOptions(t, []string{"--wifi-setup", "--host-name-from-company", "--admin-account", "admin"})
+	if !options.ForcesWifiSetup || !options.NamesHostFromCompany || options.AdminAccount != "admin" {
+		t.Fatalf("the Kim mini drop-in's flags parsed as %+v", options)
+	}
+	if turnedOff := parsedBoxOptions(t, []string{"--no-wifi-setup"}); !turnedOff.TurnsOffWifiSetup {
+		t.Fatalf("--no-wifi-setup parsed as %+v", turnedOff)
+	}
+	if plain := parsedBoxOptions(t, nil); plain.ForcesWifiSetup || plain.TurnsOffWifiSetup {
+		t.Fatalf("the packaged unit's plain internkim box parsed as %+v", plain)
 	}
 }
 
