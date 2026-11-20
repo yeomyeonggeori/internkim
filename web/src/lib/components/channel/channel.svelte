@@ -715,7 +715,7 @@
 			? attachments[0]
 			: undefined}
 	{#if message.isError}
-		<AgentErrorBubble text={bodyText}>
+		<AgentErrorBubble text={bodyText} isRawReason={message.isRawError === true}>
 			{@render timeStamp(message)}
 		</AgentErrorBubble>
 	{:else if bodyText && message.id === editingMessageID}

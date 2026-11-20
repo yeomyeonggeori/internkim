@@ -82,6 +82,7 @@ export type ChannelMessage = {
 	editedAt?: string;
 	mentions?: ChannelMentions;
 	isError?: boolean;
+	isRawError?: boolean;
 	interaction?: ChannelInteraction;
 	reactions?: ChannelMessageReaction[];
 	attachments?: ChannelMessageAttachment[];
