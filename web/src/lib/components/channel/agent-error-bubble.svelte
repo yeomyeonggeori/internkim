@@ -4,17 +4,23 @@
 	import * as Collapsible from '$lib/components/ui/collapsible/index.js';
 	import { channelText } from '$lib/i18n/channel-text';
 	import { createPageText } from '$lib/i18n/page-text.svelte';
+	import type { FailureCause } from '$lib/messenger/failure-cause';
 	import CircleAlertIcon from '@lucide/svelte/icons/circle-alert';
 	import ChevronDownIcon from '@lucide/svelte/icons/chevron-down';
 
 	let {
 		text,
 		isRawReason = false,
+		cause,
 		children
-	}: { text: string; isRawReason?: boolean; children?: Snippet } = $props();
+	}: { text: string; isRawReason?: boolean; cause?: FailureCause; children?: Snippet } = $props();
 
 	const channel = createPageText(channelText);
 	let isShowingReason = $state(false);
+
+	const causeExplanation = $derived(
+		cause === 'transient' ? channel.failureCauseTransient : cause === 'administrator' ? channel.failureCauseAdministrator : undefined
+	);
 </script>
 
 <Bubble.Root variant="muted" class="max-w-[min(80%,32rem)]">
@@ -23,6 +29,9 @@
 		{#if isRawReason}
 			<Collapsible.Root bind:open={isShowingReason} class="grid min-w-0 gap-1">
 				<p class="font-medium">{channel.requestNotFinished}</p>
+				{#if causeExplanation}
+					<p class="text-muted-foreground">{causeExplanation}</p>
+				{/if}
 				<Collapsible.Trigger
 					class="text-muted-foreground hover:text-foreground focus-visible:ring-ring/50 inline-flex w-fit items-center gap-0.5 rounded-sm text-xs outline-none focus-visible:ring-3"
 				>

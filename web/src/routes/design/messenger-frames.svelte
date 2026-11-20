@@ -161,7 +161,13 @@
 			<Message.Root>
 				{@render avatar(agent)}
 				<Message.Content>
-					<AgentErrorBubble text={text.sampleRawErrorReason} isRawReason />
+					<AgentErrorBubble text={text.sampleRawErrorReason} isRawReason cause="transient" />
+				</Message.Content>
+			</Message.Root>
+			<Message.Root>
+				{@render avatar(agent)}
+				<Message.Content>
+					<AgentErrorBubble text={text.sampleAdministratorErrorReason} isRawReason cause="administrator" />
 				</Message.Content>
 			</Message.Root>
 			{/snippet}

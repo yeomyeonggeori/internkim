@@ -11,6 +11,7 @@ import {
 	bridgeRemoveReaction,
 	bridgeSendMessage
 } from '$lib/messenger/channel-over-bridge';
+import type { FailureCause } from '$lib/messenger/failure-cause';
 
 import { reactionsWithValues } from './channel-reactions';
 import { publishBuzzMessage } from '$lib/buzz-relay-client';
@@ -83,6 +84,7 @@ export type ChannelMessage = {
 	mentions?: ChannelMentions;
 	isError?: boolean;
 	isRawError?: boolean;
+	failureCause?: FailureCause;
 	interaction?: ChannelInteraction;
 	reactions?: ChannelMessageReaction[];
 	attachments?: ChannelMessageAttachment[];

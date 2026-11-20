@@ -5,6 +5,7 @@ import { customEmoji } from '$lib/stores/custom-emoji.svelte';
 import { personPicture } from '$lib/stores/person-picture.svelte';
 import { attachmentSource } from '$lib/stores/attachment-source.svelte';
 import { emojifyText, glyphOfEmojiName } from './emoji-glyph';
+import type { FailureCause } from './failure-cause';
 import { attachmentKindOf, type AttachmentKind } from './attachment-kind';
 import { customEmojiNamesIn } from './custom-emoji-names';
 import { messengerCacheScope, requireCurrentMessengerScope } from './cache-scope';
@@ -83,6 +84,7 @@ type Message = {
 	interaction?: ChannelInteraction;
 	isError?: boolean;
 	isRawError?: boolean;
+	failureCause?: FailureCause;
 };
 type Mentions = { externalIDs: string[]; isEveryone: boolean };
 type Conversation = {
@@ -300,6 +302,7 @@ function messageOf(post: MessengerPost, people: MessengerPeople, viewer: Viewer)
 		interaction: post.ask ? interactionOf(post.ask, people, viewer) : undefined,
 		isError: post.isError,
 		isRawError: post.isRawError,
+		failureCause: post.failureCause,
 		reactions: post.reactions.map((reaction) => ({
 			emoji: glyphOfEmojiName(reaction.emoji) ?? reaction.emoji,
 			value: reaction.emoji,
