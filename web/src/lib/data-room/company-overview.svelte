@@ -132,7 +132,6 @@
 	<div class="bg-background text-muted-foreground rounded-lg border px-4 py-12 text-center text-sm">{text.empty}</div>
 {:else}
 	<div class="grid gap-10 break-keep">
-		{#if conversionNotice}<p class="text-muted-foreground -mb-6 text-xs">{conversionNotice}</p>{/if}
 		{#if hasIntroduction}
 			<header class="grid gap-5">
 				{#if raising}<CompanyRaise round={raising} contact={profile.email} {sharedWith} {locale} />{/if}
@@ -220,6 +219,9 @@
 			</section>
 		{/if}
 
-		<p class="text-muted-foreground border-t pt-4 text-xs leading-5">{isPublished ? text.publishedScope : text.scope}</p>
+		<footer class="text-muted-foreground grid gap-1 border-t pt-4 text-xs leading-5">
+			<p>{isPublished ? text.publishedScope : text.scope}</p>
+			{#if conversionNotice}<p>{conversionNotice}</p>{/if}
+		</footer>
 	</div>
 {/if}
