@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, jest, test } from 'bun:test';
-import { HostUnreachableError, frameOf, isPresence, readyWithPresence, type Frame } from '../../src/lib/host-presence';
+import { HostUnreachableError, frameOf, isPresence, isServerOfflineAnswer, readyWithPresence, type Frame } from '../../src/lib/host-presence';
+import { serverOfflineAnswer } from '../../../workers/connection-gateway/src/routing';
 
 class FakeWebSocket {
 	readonly listeners = new Map<string, ((event: { data?: unknown }) => void)[]>();
@@ -108,5 +109,19 @@ describe('frameOf and isPresence', () => {
 		expect(isPresence({ kind: 'presence', isServerConnected: false })).toBe(true);
 		expect(isPresence({ kind: 'presence' })).toBe(false);
 		expect(isPresence({ kind: 'deliver' })).toBe(false);
+	});
+});
+
+describe('isServerOfflineAnswer', () => {
+	test('recognises the answer the gateway gives when no company computer is connected', () => {
+		const { status, body } = serverOfflineAnswer('request-1');
+		expect(isServerOfflineAnswer({ status, body })).toBe(true);
+	});
+
+	test('leaves every other refusal to its caller', () => {
+		expect(isServerOfflineAnswer({ status: 503, body: { error: 'call_timed_out' } })).toBe(false);
+		expect(isServerOfflineAnswer({ status: 500, body: { error: 'server_offline' } })).toBe(false);
+		expect(isServerOfflineAnswer({ status: 503, body: 'server_offline' })).toBe(false);
+		expect(isServerOfflineAnswer({ status: 503, body: null })).toBe(false);
 	});
 });

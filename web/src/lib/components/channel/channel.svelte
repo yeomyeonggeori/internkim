@@ -120,6 +120,7 @@
 		isGroup = false,
 		isWithTheAgent = true,
 		isThreadOpen = $bindable(false),
+		isOfflineNoticeShown = false,
 		onReadThrough
 	}: {
 		isActive?: boolean;
@@ -131,6 +132,7 @@
 		isGroup?: boolean;
 		isWithTheAgent?: boolean;
 		isThreadOpen?: boolean;
+		isOfflineNoticeShown?: boolean;
 		onReadThrough?: (messageID: string, threadRootID?: string) => void;
 	} = $props();
 
@@ -998,6 +1000,8 @@
 	<div class="min-h-0 min-w-0 flex-1 overflow-hidden">
 			{#if !hasLoadedOnce}
 				<ChannelLoadingSkeleton label={text.loadingMessages} />
+		{:else if loadFailed && shownMessages.length === 0 && isOfflineNoticeShown}
+			<div class="h-full"></div>
 		{:else if loadFailed && shownMessages.length === 0}
 			<div class="flex h-full items-center justify-center px-6 pb-[var(--dock-height)]">
 				<div role="alert" class="grid max-w-sm gap-3 rounded-lg border border-destructive/30 bg-destructive/10 p-4 text-sm">

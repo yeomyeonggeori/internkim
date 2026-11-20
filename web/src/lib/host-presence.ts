@@ -7,6 +7,12 @@ export class HostUnreachableError extends Error {
 
 export const presenceTimeoutMilliseconds = 5_000;
 
+export function isServerOfflineAnswer(answer: { status: number; body: unknown }): boolean {
+	if (answer.status !== 503) return false;
+	const { body } = answer;
+	return typeof body === 'object' && body !== null && 'error' in body && body.error === 'server_offline';
+}
+
 export type Frame = Record<string, unknown>;
 
 export function frameOf(data: unknown): Frame | null {
