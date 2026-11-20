@@ -2,7 +2,7 @@ import { gatewayURL, supabase } from '$lib/supabase';
 import { supabaseMember } from '$lib/supabase-session';
 import { companyEventOf, type CompanyEvent } from '$lib/company-event';
 import { handoffEventOf, type HandoffEvent } from '$lib/browser-handoff/handoff-event';
-import { HostUnreachableError, readyWithPresence, type Frame } from '$lib/host-presence';
+import { HostUnreachableError, isServerOfflineAnswer, readyWithPresence, type Frame } from '$lib/host-presence';
 import { createRepeatedArrivalFilter } from '$lib/repeated-arrivals';
 
 export { HostUnreachableError };
@@ -194,6 +194,6 @@ export async function callCompanyApp(call: HostCall, expectedOwner?: CompanyAppO
 	}
 
 	const answer = await answered;
-	if (!answer) throw new HostUnreachableError();
+	if (!answer || isServerOfflineAnswer(answer)) throw new HostUnreachableError();
 	return answer;
 }

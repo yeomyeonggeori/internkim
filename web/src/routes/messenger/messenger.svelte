@@ -8,6 +8,7 @@
 	import { inboxPlaceOf, inboxThreadRootOf } from './messenger-inbox-place';
 	import { linkedMessageIDOf, withoutLinkedMessage } from './messenger-linked-message';
 	import MessengerInboxPlaceLink from './messenger-inbox-place-link.svelte';
+	import MessengerOfflineBanner from './messenger-offline-banner.svelte';
 	import MessengerThreadCrumbs from './messenger-thread-crumbs.svelte';
 	import { leaveOpenedThreadThroughHistory } from '$lib/components/channel/thread-history';
 	import { swipeToOpenChannelList } from './swipe-to-open-channel-list';
@@ -49,7 +50,7 @@
 		type Person
 	} from '$lib/components/channel/channel-api';
 	import { onDestroy, onMount, setContext, tick } from 'svelte';
-	import { onCompanyEvent } from '$lib/host-bridge';
+	import { HostUnreachableError, onCompanyEvent } from '$lib/host-bridge';
 	import type { CompanyEvent } from '$lib/company-event';
 	import { isSupabaseConfigured } from '$lib/supabase';
 	import { keepCentralBuzzIdentity } from '$lib/central-buzz-identity';
@@ -96,6 +97,8 @@
 	let isLoadingConversations = $state(true);
 	let hasLoadedConversations = $state(false);
 	let conversationError = $state('');
+	let isCompanyComputerOffline = $state(false);
+	let reconnectGeneration = $state(0);
 	let conversationReadSequence = 0;
 	let isDestroyed = false;
 	let activeID = $state<string | undefined>(undefined);
@@ -250,6 +253,22 @@
 		loadConversationList().catch((failure: unknown) => console.warn(why, failure));
 	}
 
+	function recordConversationFailure(failure: unknown) {
+		isCompanyComputerOffline = failure instanceof HostUnreachableError;
+		if (isCompanyComputerOffline) conversationError = '';
+		else conversationError = failure instanceof Error ? failure.message : text.unavailableDescription;
+	}
+
+	function recordConversationsAnswered() {
+		if (isCompanyComputerOffline) reconnectGeneration += 1;
+		isCompanyComputerOffline = false;
+	}
+
+	function reconnect() {
+		refreshConversations('the channel list did not refresh on reconnect');
+		if (isSupabaseConfigured()) void inbox.load();
+	}
+
 	async function leftChannel(channelID: string) {
 		conversations = conversations.filter((conversation) => conversation.id !== channelID);
 		if (activeID !== channelID) {
@@ -285,10 +304,11 @@
 			if (sequence !== conversationReadSequence) return;
 			conversations = next;
 			hasLoadedConversations = true;
+			recordConversationsAnswered();
 			if (activeID === undefined) selectInitialChannel();
 			keepCachedConversations(scope, conversations);
 		} catch (failure) {
-			if (sequence === conversationReadSequence) conversationError = failure instanceof Error ? failure.message : text.unavailableDescription;
+			if (sequence === conversationReadSequence) recordConversationFailure(failure);
 			throw failure;
 		} finally {
 			if (sequence === conversationReadSequence) isLoadingConversations = false;
@@ -551,6 +571,7 @@
 			peopleReadSequence += 1;
 			hasLoadedConversations = false;
 			conversationError = '';
+			isCompanyComputerOffline = false;
 			isLoadingPeople = false;
 			peopleError = '';
 			conversations = [];
@@ -589,7 +610,7 @@
 		let scope: MessengerCacheScope;
 		try { scope = await messengerCacheScope(); } catch (failure) {
 			if (isDestroyed || mountedGeneration !== cacheGeneration) return;
-			conversationError = failure instanceof Error ? failure.message : text.unavailableDescription;
+			recordConversationFailure(failure);
 			isLoadingConversations = false;
 			return;
 		}
@@ -653,8 +674,15 @@
 		/>
 	</Sheet.Content>
 
-	<div class="flex min-h-0 w-full flex-1">
-		<div class="flex min-h-0 w-full flex-row overflow-hidden">
+	<div class="flex min-h-0 w-full flex-1 flex-col">
+		{#if isCompanyComputerOffline}
+			<MessengerOfflineBanner
+				isShowingSavedConversations={hasLoadedConversations}
+				isReconnecting={isLoadingConversations}
+				{reconnect}
+			/>
+		{/if}
+		<div class="flex min-h-0 w-full flex-1 flex-row overflow-hidden">
 			<MessengerChannelList
 				class="border-r max-sm:hidden"
 				isLoading={isLoadingConversations && !hasLoadedConversations}
@@ -683,6 +711,7 @@
 						{inbox}
 						{conversations}
 						{hasLoadedConversations}
+						isOfflineNoticeShown={isCompanyComputerOffline}
 						chosenID={chosenInboxEntryID}
 						choose={chooseInboxEntry}
 					>
@@ -761,16 +790,19 @@
 				</header>
 				{#if !hasLoadedConversations && isLoadingConversations}
 					<ChannelLoadingSkeleton label={text.loadingConversations} />
+				{:else if !hasLoadedConversations && isCompanyComputerOffline}
+					<div class="flex-1"></div>
 				{:else if !hasLoadedConversations && conversationError}
 					<div class="grid flex-1 place-content-center gap-3 p-6"><p role="alert" class="text-sm text-destructive">{conversationError}</p><Button variant="outline" onclick={() => refreshConversations('the channel list did not refresh')}>{text.retry}</Button></div>
 				{:else}
-				{#key `${cacheGeneration}:${activeID}`}
+				{#key `${cacheGeneration}:${reconnectGeneration}:${activeID}`}
 					<Channel
 						bind:this={channelView}
 						bind:isThreadOpen
 						channelId={activeID}
 						participants={mentionPeopleOf(activeConversation)}
 						isGroup={activeConversation?.kind === 'group'}
+						isOfflineNoticeShown={isCompanyComputerOffline}
 						showSenderNames={activeConversation?.kind === 'group'}
 						canModerate={activeConversation?.myRole === 'owner' || activeConversation?.myRole === 'admin'}
 						isWithTheAgent={activeConversation?.isWithTheAgent === true}

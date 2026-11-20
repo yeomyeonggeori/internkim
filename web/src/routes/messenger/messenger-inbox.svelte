@@ -23,6 +23,7 @@
 		inbox,
 		conversations,
 		hasLoadedConversations,
+		isOfflineNoticeShown = false,
 		chosenID,
 		choose,
 		leading,
@@ -31,6 +32,7 @@
 		inbox: MessengerInboxState;
 		conversations: ChannelSummary[];
 		hasLoadedConversations: boolean;
+		isOfflineNoticeShown?: boolean;
 		chosenID: string | undefined;
 		choose: (entry: InboxEntry) => void;
 		leading?: Snippet;
@@ -60,7 +62,9 @@
 			</Tabs.List>
 		</Tabs.Root>
 	</header>
-	{#if inbox.error && !inbox.hasLoaded}
+	{#if inbox.error && !inbox.hasLoaded && isOfflineNoticeShown}
+		<div class="flex-1"></div>
+	{:else if inbox.error && !inbox.hasLoaded}
 		<div class="space-y-2 px-4 py-3">
 			<p role="alert" class="text-destructive text-sm">{text.loadFailed}</p>
 			<Button variant="outline" size="sm" onclick={() => inbox.load()}>{text.retry}</Button>
