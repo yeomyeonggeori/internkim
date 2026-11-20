@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(14);
+select plan(15);
 
 delete from public.company;
 
@@ -63,20 +63,26 @@ select is(
 update public.agent
   set api_key_hash = repeat('d', 64), revoked_at = null
   where company_id = '7d000000-0000-0000-0000-0000000000c3' and name = 'company-computer';
-select is(
-  public.claim_box_with_connection_file(repeat('d', 64), 'company-computer', 'another-computer', repeat('m', 43)),
-  '7d000000-0000-0000-0000-0000000000c3'::uuid,
-  'a new connection file claims another computer into the same company'
+select throws_ok(
+  $$select public.claim_box_with_connection_file(repeat('d', 64), 'company-computer', 'another-computer', repeat('m', 43))$$,
+  '55000',
+  null,
+  'a connection file does not claim a computer into a company a box already serves'
 );
 select is(
-  (select role from public.box where public_key = 'another-computer'),
-  'standby',
-  'which stands by beside the box that serves, as a box claimed by its code would'
+  (select revoked_at from public.agent where api_key_hash = repeat('d', 64)),
+  null,
+  'so the file still stands for the computer that holds it'
 );
 select is(
-  (select count(*)::integer from public.box where company_id = '7d000000-0000-0000-0000-0000000000c3'),
-  3,
-  'and replaces none of them'
+  (select count(*)::integer from public.box where public_key = 'another-computer'),
+  0,
+  'and the computer it was installed on is no box of the company'
+);
+select is(
+  (select array_agg(public_key || ':' || role order by public_key) from public.box where company_id = '7d000000-0000-0000-0000-0000000000c3'),
+  array['computer:service', 'standing-by:standby'],
+  'while the boxes of the company keep their roles'
 );
 
 select is(

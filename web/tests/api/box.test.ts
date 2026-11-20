@@ -797,19 +797,21 @@ describe('setting the admin password of a connected box', () => {
 
 describe('a connection file claims the computer it is installed on', () => {
 	test('the file names the company once, and the computer then gets its session', async () => {
+		const served = await aCompany('file-claims');
 		const box = await aBox();
-		const issued = await issueAgentKey(client, companyID, companyComputerName, { replaceStanding: true });
+		const issued = await issueAgentKey(client, served.companyID, companyComputerName, { replaceStanding: true });
 
-		expect(await claimBoxWithConnectionFile(client, box.publicKey, box.encryptionKey, issued.apiKey)).toBe(companyID);
+		expect(await claimBoxWithConnectionFile(client, box.publicKey, box.encryptionKey, issued.apiKey)).toBe(served.companyID);
 		const answered = await boxSessionFor(credentials, box.publicKey, environment, appURL);
 
-		expect(answered?.configuration.company.id).toBe(companyID);
+		expect(answered?.configuration.company.id).toBe(served.companyID);
 	});
 
 	test('a file already used claims nothing more', async () => {
+		const served = await aCompany('file-spent');
 		const first = await aBox();
 		const second = await aBox();
-		const issued = await issueAgentKey(client, companyID, companyComputerName, { replaceStanding: true });
+		const issued = await issueAgentKey(client, served.companyID, companyComputerName, { replaceStanding: true });
 		await claimBoxWithConnectionFile(client, first.publicKey, first.encryptionKey, issued.apiKey);
 
 		expect(await claimBoxWithConnectionFile(client, second.publicKey, second.encryptionKey, issued.apiKey)).toBeNull();
@@ -821,6 +823,20 @@ describe('a connection file claims the computer it is installed on', () => {
 		const other = await issueAgentKey(client, companyID, `another-caller-${stamp}`);
 
 		expect(await claimBoxWithConnectionFile(client, box.publicKey, box.encryptionKey, other.apiKey)).toBeNull();
+	});
+
+	test('a file of a company a box serves claims nothing, and still stands', async () => {
+		const served = await aCompany('box-serves');
+		const serving = await aBox();
+		await claimWithCode(served.companyID, serving.publicKey, await announcedCode(serving));
+		const issued = await issueAgentKey(client, served.companyID, companyComputerName);
+		const computer = await aBox();
+
+		await expect(claimBoxWithConnectionFile(client, computer.publicKey, computer.encryptionKey, issued.apiKey)).rejects.toMatchObject({ status: 409 });
+
+		expect((await companyBoxesOf(client, served.companyID)).boxes.map((box) => `${box.publicKey}:${box.role}`)).toEqual([`${serving.publicKey}:service`]);
+		const stillStanding = await sessionForHost(credentials, issued.apiKey);
+		expect(await companyOfHostSession(credentials, stillStanding.accessToken)).toBe(served.companyID);
 	});
 });
 
@@ -877,6 +893,21 @@ describe('a box added to a company its connection file computer serves', () => {
 		expect(held.sealingKey).toBe(standing.encryptionKey);
 		expect(held.hasModelKey).toBe(true);
 		expect((await connectedBox(served.companyID, computer.publicKey))?.holdsCompanyKey).toBe(false);
+	});
+
+	test('serves when the computer installs its own connection file beside another agent key of the company', async () => {
+		const served = await aCompanyOnAConnectionFile('beside-another-key');
+		await issueAgentKey(client, served.companyID, 'relay sample unit');
+		const computer = await aBox();
+
+		expect(await claimBoxWithConnectionFile(client, computer.publicKey, computer.encryptionKey, served.connectionKey)).toBe(served.companyID);
+
+		const held = await companyBoxesOf(client, served.companyID);
+		expect(held.isServedByConnectionFile).toBe(false);
+		expect(held.boxes.map((box) => `${box.publicKey}:${box.role}`)).toEqual([`${computer.publicKey}:service`]);
+		expect(held.sealingKey).toBe(computer.encryptionKey);
+		expect((await connectedBox(served.companyID, computer.publicKey))?.holdsCompanyKey).toBe(true);
+		expect((await boxSessionFor(credentials, computer.publicKey, environment, appURL))?.role).toBe('service');
 	});
 
 	test('replaces the computer only when asked, which ends the computer\'s session', async () => {
