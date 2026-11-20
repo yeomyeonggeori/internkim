@@ -928,6 +928,16 @@ class CompanyFilesTests(unittest.TestCase):
         self.assertEqual(native_install_files.compare(identity, identity, {}).differences, [])
         self.assertEqual(len(native_install_files.compare(lookalike, lookalike, {}).differences), 1)
 
+    def test_the_skill_index_is_compared_by_mode_and_owner_and_not_by_content(self):
+        import native_install_files
+        row = "entry\tworkspace\t.blueclaw/skill-index.json\tf\t253745\t644\tblueclaw\tblueclaw\t996\t996\t\n"
+        digest = "digest\tworkspace\t/workspace\tabc123  /workspace/.blueclaw/skill-index.json\n"
+        served = self.manifest(row + digest)
+        rewritten = self.manifest(row.replace("253745", "31027") + digest.replace("abc123", "def456"))
+        self.assertEqual(native_install_files.compare(served, served, rewritten).differences, [])
+        for changed in (row.replace("\t644\t", "\t600\t"), row.replace("\tblueclaw\tblueclaw\t", "\troot\troot\t")):
+            self.assertEqual(len(native_install_files.compare(served, served, self.manifest(changed + digest)).differences), 1)
+
     def test_the_walls_hold_only_when_every_attempt_answers_as_expected(self):
         import native_install_files
         holding = "\n".join(f"{name}={wanted}" for name, wanted in native_install_files.EXPECTED_ACCESS.items())
