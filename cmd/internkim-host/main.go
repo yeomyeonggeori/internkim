@@ -151,6 +151,7 @@ func printUsage(command string) {
 	fmt.Fprintf(os.Stderr, "Usage: %s install <internkim-host.json> [--model-key-file FILE]\n", command)
 	fmt.Fprintf(os.Stderr, "       %s box [--app-url URL] [--no-wifi-setup] [--host-name-from-company] [--admin-account NAME]\n", command)
 	fmt.Fprintf(os.Stderr, "       %s box code\n", command)
+	fmt.Fprintf(os.Stderr, "       %s box reset\n", command)
 	fmt.Fprintf(os.Stderr, "       %s backup [--directory DIR] [--keep N]\n", command)
 	fmt.Fprintf(os.Stderr, "       %s restore <archive> [--replace]\n", command)
 	fmt.Fprintf(os.Stderr, "       %s snapshot [--keep N]\n", command)
@@ -163,6 +164,10 @@ func printUsage(command string) {
 func runBox(arguments []string) {
 	if len(arguments) > 0 && arguments[0] == "code" {
 		printPairingCode()
+		return
+	}
+	if len(arguments) > 0 && arguments[0] == "reset" {
+		stopOnFailure("This computer was not reset", runBoxReset(arguments[1:]))
 		return
 	}
 	var options boxOptions
@@ -350,7 +355,7 @@ func boxDaemon(appURL string) box.Daemon {
 			WorkQueuePath:             blueclaw.CompanyHostWorkQueuePath,
 			SeveralBoxesPath:          blueclaw.CompanyHostSeveralBoxesPath,
 			ModelKeyPath:              blueclaw.CompanyHostModelKeyPath,
-			ResetRequestPath:          blueclaw.CompanyHostBoxResetRequestPath,
+			BootResetRequestPath:      blueclaw.CompanyHostBootResetRequestPath,
 			CompanyStateDirectoryPath: companyhost.DefaultStateDirectoryPath,
 		},
 		Install: func(request companyhost.Request) error {

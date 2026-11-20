@@ -42,7 +42,7 @@ type fakePlane struct {
 	claimsReplacing  []bool
 	takeOver         TakeOverPolicy
 	targetVersion    string
-	releases         int
+	disconnectedWith []string
 }
 
 func (plane *fakePlane) sessionRole() Role {
@@ -130,10 +130,12 @@ func (plane *fakePlane) serve(t *testing.T) *httptest.Server {
 				TakeOver:                plane.takeOver,
 				TargetVersion:           plane.targetVersion,
 			}})
-		case "/api/box/release":
-			plane.releases++
+		case "/api/box/disconnect":
+			var body disconnection
+			json.NewDecoder(request.Body).Decode(&body)
+			plane.disconnectedWith = append(plane.disconnectedWith, body.ConnectionKey)
 			plane.isClaimed = false
-			writer.Write([]byte(`{"wasClaimed":true}`))
+			writer.WriteHeader(http.StatusNoContent)
 		case "/api/box/company-key":
 			var body struct {
 				SealedKeys []SealedCompanyKey `json:"sealedKeys"`

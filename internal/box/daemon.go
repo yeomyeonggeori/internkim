@@ -38,7 +38,7 @@ type Places struct {
 	WorkQueuePath             string
 	SeveralBoxesPath          string
 	ModelKeyPath              string
-	ResetRequestPath          string
+	BootResetRequestPath      string
 	CompanyStateDirectoryPath func(companyID string) string
 }
 
@@ -80,11 +80,11 @@ func (daemon Daemon) Run(ctx context.Context) error {
 	if errorValue != nil {
 		return errorValue
 	}
-	if errorValue := rememberThisComputerIsABox(daemon.Places.StateDirectoryPath); errorValue != nil {
-		return errorValue
-	}
 	log.Printf("this box is %s", identity.PublicKey())
 	if errorValue := daemon.resetIfAsked(ctx, identity); errorValue != nil {
+		return errorValue
+	}
+	if errorValue := rememberThisComputerIsABox(daemon.Places.StateDirectoryPath); errorValue != nil {
 		return errorValue
 	}
 	daemon.getOnlineWhenOffline(ctx)
@@ -409,11 +409,7 @@ func MarkInstalledCompany(stateDirectoryPath, companyID string) error {
 }
 
 func ForgetInstalledCompany(stateDirectoryPath string) error {
-	errorValue := os.Remove(filepath.Join(stateDirectoryPath, companyMarkerFileName))
-	if errors.Is(errorValue, os.ErrNotExist) {
-		return nil
-	}
-	return errorValue
+	return removeIfPresent(filepath.Join(stateDirectoryPath, companyMarkerFileName))
 }
 
 func connectionOf(session Session) companyhost.Connection {

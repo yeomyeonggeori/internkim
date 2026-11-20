@@ -141,6 +141,28 @@ last directory holds its backups:
 sudo rm -rf /var/lib/internkim /var/lib/internkim-postgres /var/lib/internkim-cache /var/lib/internkim-backups
 ```
 
+## Reset [#reset]
+
+Only the company a computer belongs to can disconnect it in company setup, so a
+computer another company claimed by mistake is taken back by whoever holds it.
+On Linux, run:
+
+```bash
+sudo internkim box reset
+```
+
+`internkim-box` restarts and, before anything else, forgets the company. It
+signs a request with its box key asking the central plane to disconnect it and,
+when it still serves on a connection file, to revoke that file's key, and it
+retries until the plane answers. A computer whose box service was started with
+`--admin-account`, as a Kim mini's is, then locks that password so the
+company's administrators can no longer log in. The computer announces itself as
+an empty box with a new code, and the company's files stay on it until another
+company claims it. If `internkim-box` cannot restart, because it is masked for
+instance, nothing is reset and the command says why. A Mac runs no
+`internkim-box` and refuses the command. A [Kim mini](/kim-mini) can also be
+reset from its card, without a login.
+
 ## Check services
 
 On Linux, systemd shows the host service state and logs:

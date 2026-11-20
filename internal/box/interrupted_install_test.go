@@ -74,17 +74,15 @@ func TestAResetFileIsHonouredOnAComputerThatLooksConnectedByFile(t *testing.T) {
 	recorded := &installs{}
 	daemon, places := daemonFor(t, plane, recorded)
 	writeConnectionFile(t, places.ConnectionFilePath, sampleConnectionDocument(t))
-	daemon.Places.ResetRequestPath = filepath.Join(filepath.Dir(places.StateDirectoryPath), "boot", "internkim-reset")
-	writeConnectionFile(t, daemon.Places.ResetRequestPath, nil)
+	daemon.Places.BootResetRequestPath = filepath.Join(filepath.Dir(places.StateDirectoryPath), "boot", "internkim-reset")
+	askThroughTheBootPartition(t, daemon)
 
 	runSteps(t, daemon, 1)
 
-	if plane.releases != 1 || plane.announcements != 1 {
-		t.Fatalf("releases = %d, announcements = %d", plane.releases, plane.announcements)
+	if len(plane.disconnectedWith) != 1 || plane.announcements != 1 {
+		t.Fatalf("disconnections = %d, announcements = %d", len(plane.disconnectedWith), plane.announcements)
 	}
-	if _, errorValue := os.Stat(daemon.Places.ResetRequestPath); !errors.Is(errorValue, os.ErrNotExist) {
-		t.Fatalf("the reset file is still there: %v", errorValue)
-	}
+	requireNoResetRequest(t, daemon)
 
 	runSteps(t, daemon, 1)
 

@@ -273,6 +273,21 @@ export async function releaseBoxOfKey(client: SupabaseClient, publicKey: string)
 	return releaseBox(client, box.companyID, publicKey);
 }
 
+export async function disconnectComputer(client: SupabaseClient, publicKey: string, connectionKey: string | undefined): Promise<void> {
+	await releaseBoxOfKey(client, publicKey);
+	if (connectionKey) await revokeConnectionKey(client, connectionKey);
+}
+
+async function revokeConnectionKey(client: SupabaseClient, connectionKey: string): Promise<void> {
+	const { error } = await client
+		.from('agent')
+		.update({ revoked_at: new Date().toISOString() })
+		.eq('api_key_hash', await hashOf(connectionKey))
+		.eq('name', companyComputerName)
+		.is('revoked_at', null);
+	if (error) throw new Error(`revoking a connection file's key: ${error.message}`);
+}
+
 const otherComputersRefusal =
 	'the company runs on another box or computer, so this one moves onto a box key only when a person makes it the company\'s host';
 

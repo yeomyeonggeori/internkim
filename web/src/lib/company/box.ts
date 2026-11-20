@@ -82,6 +82,8 @@ export const boxFileClaimSchema = z.object({
 	replacesOtherComputers: z.boolean().default(true)
 }).strict();
 
+export const boxDisconnectionSchema = z.object({ connectionKey: z.string().min(1).max(4096).optional() }).strict();
+
 export const sealedSecretVersion = 1;
 
 export const sealedSecretSchema = z.object({

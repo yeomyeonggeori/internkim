@@ -15,11 +15,21 @@ import (
 const boxMarkerFileName = "is-a-box"
 
 func (daemon Daemon) connectedByFile() bool {
+	_, isConnectedByFile := daemon.fileConnection()
+	return isConnectedByFile
+}
+
+func (daemon Daemon) keyOfTheConnectionFile() string {
+	connection, _ := daemon.fileConnection()
+	return connection.AgentKey
+}
+
+func (daemon Daemon) fileConnection() (companyhost.Connection, bool) {
 	if daemon.installedCompany() != "" || isABox(daemon.Places.StateDirectoryPath) {
-		return false
+		return companyhost.Connection{}, false
 	}
-	_, errorValue := companyhost.ReadConnection(daemon.Places.ConnectionFilePath)
-	return errorValue == nil
+	connection, errorValue := companyhost.ReadConnection(daemon.Places.ConnectionFilePath)
+	return connection, errorValue == nil
 }
 
 func (daemon Daemon) moveOffTheConnectionFile(ctx context.Context) error {

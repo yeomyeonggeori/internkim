@@ -155,6 +155,25 @@ func TestAComputerBesideOtherBoxesStaysOnItsConnectionFileAndAsksOnce(t *testing
 	}
 }
 
+func TestAResetOfAComputerOnItsConnectionFileGivesBackTheFileKeyAndLeavesAnEmptyBox(t *testing.T) {
+	plane := &fakePlane{otherComputers: true}
+	daemon, _, _ := computerServingOnAConnectionFile(t, plane)
+	askThroughTheCommand(t, daemon)
+
+	runSteps(t, daemon, 2)
+
+	if len(plane.claimedWith) != 0 {
+		t.Fatalf("a computer asked to reset claimed itself with %v", plane.claimedWith)
+	}
+	if !slices.Equal(plane.disconnectedWith, []string{connectionFileKey}) {
+		t.Fatalf("disconnected with %q, want once carrying the key the connection file holds", plane.disconnectedWith)
+	}
+	if daemon.connectedByFile() || plane.announcements != 2 {
+		t.Fatalf("connected by file = %v, announcements = %d, want an empty box announcing itself", daemon.connectedByFile(), plane.announcements)
+	}
+	requireNoResetRequest(t, daemon)
+}
+
 func TestAnInstallFromAConnectionFileReplacesTheOtherComputers(t *testing.T) {
 	plane := &fakePlane{otherComputers: true, accessToken: "file.session.token"}
 	daemon, _ := daemonFor(t, plane, &installs{})
