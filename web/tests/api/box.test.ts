@@ -829,7 +829,7 @@ describe('a box added to a company its connection file computer serves', () => {
 		const served = await aCompany(label);
 		const issued = await issueAgentKey(client, served.companyID, companyComputerName);
 		const hostSession = await sessionForHost(credentials, issued.apiKey);
-		return { companyID: served.companyID, hostSession };
+		return { companyID: served.companyID, hostSession, connectionKey: issued.apiKey };
 	}
 
 	async function roleOfHostSession(accessToken: string): Promise<unknown> {
@@ -858,6 +858,25 @@ describe('a box added to a company its connection file computer serves', () => {
 
 		expect(await makeBoxServe(client, served.companyID, box.publicKey)).toBe('served_by_connection_file');
 		expect((await boxSessionFor(credentials, box.publicKey, environment, appURL))?.role).toBe('standby');
+	});
+
+	test('is kept when the computer installs its own connection file, with the keys the company seals to', async () => {
+		const served = await aCompanyOnAConnectionFile('joined');
+		const standing = await aBox();
+		await claimWithCode(served.companyID, standing.publicKey, await announcedCode(standing), 'add');
+		await keepSealedModelKey(client, served.companyID, { version: 1, recipient: standing.encryptionKey, enc: standing.encryptionKey, ciphertext: 'c2VhbGVk' });
+		const computer = await aBox();
+
+		expect(await claimBoxWithConnectionFile(client, computer.publicKey, computer.encryptionKey, served.connectionKey)).toBe(served.companyID);
+
+		const held = await companyBoxesOf(client, served.companyID);
+		expect(held.isServedByConnectionFile).toBe(false);
+		expect(held.boxes.map((box) => `${box.publicKey}:${box.role}`).sort()).toEqual(
+			[`${standing.publicKey}:standby`, `${computer.publicKey}:service`].sort()
+		);
+		expect(held.sealingKey).toBe(standing.encryptionKey);
+		expect(held.hasModelKey).toBe(true);
+		expect((await connectedBox(served.companyID, computer.publicKey))?.holdsCompanyKey).toBe(false);
 	});
 
 	test('replaces the computer only when asked, which ends the computer\'s session', async () => {

@@ -28,7 +28,6 @@ import {
 	controlPlane,
 	hashOf,
 	hostSessionOfCompany,
-	spendAgentKey,
 	type HostSession,
 	type SigningCredentials
 } from './control-plane';
@@ -240,25 +239,6 @@ export async function claimBox(
 	return boxRoleSchema.parse(data.given_role);
 }
 
-async function keepClaimedBox(
-	client: SupabaseClient,
-	companyID: string,
-	publicKey: string,
-	encryptionKey: string,
-	hostName: string | null,
-	intent: ClaimIntent
-): Promise<BoxRole> {
-	const { data, error } = await client.rpc('keep_claimed_box', {
-		claiming_company: companyID,
-		box_key: publicKey,
-		box_encryption_key: encryptionKey,
-		box_host_name: hostName,
-		is_replacing: intent === 'replace'
-	});
-	if (error) throw new Error(`keeping box ${publicKey} for ${companyID}: ${error.message}`);
-	return boxRoleSchema.parse(data);
-}
-
 function claimTicketHashOf(ticket: string): Promise<string> {
 	return hashOf(`claim-ticket:${ticket}`);
 }
@@ -299,12 +279,14 @@ export async function claimBoxWithConnectionFile(
 	encryptionKey: string,
 	connectionKey: string
 ): Promise<string | null> {
-	const companyID = await spendAgentKey(client, connectionKey, companyComputerName);
-	if (!companyID) return null;
-	await keepClaimedBox(client, companyID, publicKey, encryptionKey, null, 'replace');
-	const removed = await client.from('empty_box').delete().eq('public_key', publicKey);
-	if (removed.error) throw new Error(`claiming box ${publicKey}: ${removed.error.message}`);
-	return companyID;
+	const { data, error } = await client.rpc('claim_box_with_connection_file', {
+		connection_key_hash: await hashOf(connectionKey),
+		connection_agent_name: companyComputerName,
+		box_key: publicKey,
+		box_encryption_key: encryptionKey
+	});
+	if (error) throw new Error(`claiming box ${publicKey}: ${error.message}`);
+	return z.uuid().nullable().parse(data);
 }
 
 const legacySealedModelKeySchema = z.object({

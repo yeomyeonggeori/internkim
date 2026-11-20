@@ -515,7 +515,7 @@ func TestAConnectionFileClaimsThisComputerAndInstallsFromItsSession(t *testing.T
 	recorded := &installs{}
 	daemon, _ := daemonFor(t, plane, recorded)
 
-	if errorValue := daemon.InstallWithConnectionFile(context.Background(), "connection-file-key", "sk-or-v1-typed"); errorValue != nil {
+	if _, errorValue := daemon.InstallWithConnectionFile(context.Background(), "connection-file-key", "sk-or-v1-typed", askNobodyForAModelKey); errorValue != nil {
 		t.Fatal(errorValue)
 	}
 
@@ -524,6 +524,47 @@ func TestAConnectionFileClaimsThisComputerAndInstallsFromItsSession(t *testing.T
 	}
 	if len(recorded.requests) != 1 || recorded.requests[0].Connection.AgentKey != "file.session.token" || recorded.requests[0].ModelKey != "sk-or-v1-typed" {
 		t.Fatalf("installed %+v", recorded.requests)
+	}
+}
+
+func TestAConnectionFileThatJoinsAServedCompanyStandsByAndInstallsNothing(t *testing.T) {
+	plane := &fakePlane{accessToken: "file.session.token", role: RoleStandby}
+	recorded := &installs{}
+	daemon, places := daemonFor(t, plane, recorded)
+
+	role, errorValue := daemon.InstallWithConnectionFile(context.Background(), "connection-file-key", "sk-or-v1-typed", askNobodyForAModelKey)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+
+	if role != RoleStandby || len(recorded.requests) != 0 {
+		t.Fatalf("role = %q, installs = %d; a standby box starts no second copy of the company beside the box that serves it", role, len(recorded.requests))
+	}
+	if installed := installedCompanyIn(places.StateDirectoryPath); installed != "" {
+		t.Fatalf("a standby box is marked as having installed %q", installed)
+	}
+}
+
+func TestAConnectionFileAsksForTheModelKeyOnlyThroughTheInstall(t *testing.T) {
+	plane := &fakePlane{accessToken: "file.session.token"}
+	recorded := &installs{}
+	daemon, _ := daemonFor(t, plane, recorded)
+	asked := 0
+	prompt := func() (string, error) {
+		asked++
+		return "sk-or-v1-asked", nil
+	}
+
+	if _, errorValue := daemon.InstallWithConnectionFile(context.Background(), "connection-file-key", "", prompt); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+
+	if asked != 0 || len(recorded.requests) != 1 {
+		t.Fatalf("asked %d times before the install, installs = %d", asked, len(recorded.requests))
+	}
+	answer, errorValue := recorded.requests[0].PromptForModelKey()
+	if errorValue != nil || answer != "sk-or-v1-asked" || asked != 1 {
+		t.Fatalf("the install asks %q (%v) after %d prompts; it asks the person only when the computer keeps no key", answer, errorValue, asked)
 	}
 }
 
@@ -537,7 +578,7 @@ func TestAConnectionFileTellsTheMediaGateHowManyBoxesBeforeTheServicesStart(t *t
 		return nil
 	}
 
-	if errorValue := daemon.InstallWithConnectionFile(context.Background(), "connection-file-key", "sk-or-v1-typed"); errorValue != nil {
+	if _, errorValue := daemon.InstallWithConnectionFile(context.Background(), "connection-file-key", "sk-or-v1-typed", askNobodyForAModelKey); errorValue != nil {
 		t.Fatal(errorValue)
 	}
 
@@ -559,7 +600,7 @@ func TestABoxRemembersTheAppOfTheCompanyThatClaimedIt(t *testing.T) {
 
 	claimedByFile := &fakePlane{accessToken: "file.session.token"}
 	daemon, places = daemonFor(t, claimedByFile, &installs{})
-	if errorValue := daemon.InstallWithConnectionFile(context.Background(), "connection-file-key", "sk-or-v1-typed"); errorValue != nil {
+	if _, errorValue := daemon.InstallWithConnectionFile(context.Background(), "connection-file-key", "sk-or-v1-typed", askNobodyForAModelKey); errorValue != nil {
 		t.Fatal(errorValue)
 	}
 	if remembered := RememberedAppURL(places.StateDirectoryPath); remembered != "https://intern.example.test" {
@@ -571,7 +612,7 @@ func TestAComputerInstalledFromAFileKeepsRenewingWithNoSealedModelKey(t *testing
 	plane := &fakePlane{accessToken: "file.session.token"}
 	recorded := &installs{}
 	daemon, places := daemonFor(t, plane, recorded)
-	if errorValue := daemon.InstallWithConnectionFile(context.Background(), "connection-file-key", "sk-or-v1-typed"); errorValue != nil {
+	if _, errorValue := daemon.InstallWithConnectionFile(context.Background(), "connection-file-key", "sk-or-v1-typed", askNobodyForAModelKey); errorValue != nil {
 		t.Fatal(errorValue)
 	}
 	for _, path := range append([]string{places.ModelKeyPath}, places.CredentialPaths...) {

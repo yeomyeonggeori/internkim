@@ -387,6 +387,15 @@
       ]
     },
     {
+      "name": "claim_box_with_connection_file",
+      "arguments": "connection_key_hash text, connection_agent_name text, box_key text, box_encryption_key text",
+      "returns": "uuid",
+      "security": "definer",
+      "callableBy": [
+        "service_role"
+      ]
+    },
+    {
       "name": "claim_empty_box",
       "arguments": "claiming_company uuid, box_key text, ticket_hash text, fresh_since timestamp with time zone, is_replacing boolean",
       "returns": "TABLE(outcome text, given_role text)",
@@ -451,6 +460,15 @@
       ]
     },
     {
+      "name": "company_credits_can_pay",
+      "arguments": "target_company uuid",
+      "returns": "boolean",
+      "security": "definer",
+      "callableBy": [
+        "service_role"
+      ]
+    },
+    {
       "name": "company_credits_refunded",
       "arguments": "target_company uuid, target_event text, refunded_kind text, refunded_credits bigint",
       "returns": "bigint",
@@ -499,6 +517,15 @@
       "name": "company_member_credit_refusal",
       "arguments": "target_company uuid, target_member uuid, default_usage_limit bigint",
       "returns": "text",
+      "security": "definer",
+      "callableBy": [
+        "service_role"
+      ]
+    },
+    {
+      "name": "company_model_key_report",
+      "arguments": "target_company uuid",
+      "returns": "TABLE(holds_model_key boolean, uses_own_model_key_at_start boolean)",
       "security": "definer",
       "callableBy": [
         "service_role"
@@ -940,6 +967,15 @@
       "name": "keep_claimed_box",
       "arguments": "claiming_company uuid, box_key text, box_encryption_key text, box_host_name text, is_replacing boolean",
       "returns": "text",
+      "security": "definer",
+      "callableBy": [
+        "service_role"
+      ]
+    },
+    {
+      "name": "keep_model_key_report",
+      "arguments": "reporting_company uuid, reporting_box text, reporting_agent_key_hash text, holds boolean",
+      "returns": "boolean",
       "security": "definer",
       "callableBy": [
         "service_role"
@@ -1714,6 +1750,7 @@
     "announce_task_write",
     "ask_the_subscription_to_follow_its_seats",
     "bind_member_to_new_user",
+    "company_payer_follows_its_subscription",
     "data_room_guard_category",
     "data_room_guard_document",
     "enforce_crm_reference_consistency",
