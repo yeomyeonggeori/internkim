@@ -44,6 +44,11 @@ CONTENT_DIFFERS_BY_DESIGN = {
     ("administration", "state/internkim.sqlite"): SQLITE_COPY,
     ("workspace", ".blueclaw/state/record-index.db"): SQLITE_COPY,
     ("workspace", f"private/protected/{SEEDED_FIRST_MEMBER}/memory.db"): SQLITE_COPY,
+    ("workspace", ".blueclaw/skill-index.json"): (
+        "the agent's cache of skill embeddings, keyed by each SKILL.md's path and SHA-256 and rewritten from the skills "
+        "on hand at start-up and at every skill search (refresh in bluecollar loop/skill_retriever.go), so its size "
+        "follows the last search"
+    ),
 }
 
 ARRIVING_BY_DESIGN = {
