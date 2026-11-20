@@ -16,11 +16,11 @@ Usage:
   tools/build-kim-mini-image --release <vMAJOR.MINOR.PATCH> [--wifi-country KR] [--time-zone Asia/Seoul] [--base-image-url <url>]
   tools/build-kim-mini-image --release-directory <dir> --release <name> [--wifi-country KR] [--time-zone Asia/Seoul] [--base-image-url <url>]
 
-Builds the Kim mini SD card image: Raspberry Pi OS Lite with the internkim host
-package of that release installed, the box started with
---host-name-from-company, and Wi-Fi turned on for the country the box is sold in,
-which Raspberry Pi OS otherwise leaves off until someone picks one. The clock
-keeps that country's time zone, where Raspberry Pi OS would keep Europe/London.
+Builds the Kim mini SD card image: Raspberry Pi OS Lite named kimmini, with the
+internkim host package of that release installed and Wi-Fi turned on for the
+country the box is sold in, which Raspberry Pi OS otherwise leaves off until
+someone picks one. The clock keeps that country's time zone, where Raspberry Pi
+OS would keep Europe/London.
 A login shell opens with fastfetch beside the round mark.
 It runs in a privileged arm64 Linux container through Docker and writes
 .artifacts/kim-mini/kim-mini-<release>.img.xz. Write it to a card with

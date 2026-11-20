@@ -19,14 +19,11 @@ No per-box password, sticker, serial registered to a buyer or key is put in at
 assembly. On first boot the box generates an Ed25519 signing key and an X25519
 encryption key in `/var/lib/internkim/box`. The private halves never leave its disk.
 
-A box started with `--host-name-from-company`, as every Kim mini is, is named
-`kimmini` while it belongs to no company and takes its company's address, such as
-`yeomyeonggeori`, once claimed. Disconnecting it names it `kimmini` again. Two
-empty boxes on one network do not collide: multicast DNS gives the second one to
-answer `kimmini-2.local`, and the box reports the name it was given. The box
-renames itself only when its name differs and points `127.0.1.1` in `/etc/hosts`
-at the new name. A Linux computer that installed the host package keeps the name
-it has.
+Every box is named `kimmini` while it belongs to no company, and the [host
+name rule](/running-the-host#host-name) gives it its company's address once
+claimed. Two empty boxes on one network do not collide: multicast DNS gives the
+second one to answer `kimmini-2.local`, and the box reports the name it was
+given.
 
 ## Getting online
 
@@ -47,9 +44,8 @@ file the name has no date.
 A box is a Raspberry Pi with an SD card written from one image.
 `tools/build-kim-mini-image --release <tag>` builds it in an arm64 Linux
 container through Docker. It starts from Raspberry Pi OS Lite and installs that
-release's host package. The box service runs with
-`--host-name-from-company`, and Wi-Fi is on for the country given by
-`--wifi-country`, `KR` unless told otherwise. Raspberry Pi OS keeps Wi-Fi off
+release's host package. The image is named `kimmini`, and Wi-Fi is on for the
+country given by `--wifi-country`, `KR` unless told otherwise. Raspberry Pi OS keeps Wi-Fi off
 until a country is chosen, and a new box has nobody to choose one. The box's
 clock keeps the time zone given by `--time-zone`, `Asia/Seoul` unless told
 otherwise, where Raspberry Pi OS would keep `Europe/London`. The package is
@@ -71,24 +67,11 @@ the file system.
 
 ## Nobody on a box holds root
 
-A box has one login account, `admin`, and it has no `sudo`. It is in
-`systemd-journal`, so it reads every log, and in `internkim-admin`, so it restarts
-the host's services. The host is updated from company setup, as any host is.
-
-The image leaves `admin` without a password. Once the box is connected, an
-administrator sets one in company setup, on the monitor or over SSH it is the
-same password, and changes it there later. The browser seals it to the box key
-with the purpose `internkim admin password`, the central plane relays the
-ciphertext, and the box opens it and hands it to `chpasswd`, which keeps only a
-hash. The box asks for a new password every minute and reports whether it was
-applied, and its first ask is what tells company setup it has an `admin` to set.
-Because nothing on the box raises an account to root, `admin` cannot open another
-person's workspace either, and the file permissions that keep people apart hold
-for the company's administrators too.
-
-The image removes Raspberry Pi OS's `pi` account, which is in `sudo`, and its
-first-boot dialog, which would otherwise give whoever reaches the console first a
-`sudo` account. SSH is on and refuses `root`. Anyone who needs root on the
+A box's one login is the [`admin` account](/running-the-host#admin-account)
+that every Linux host makes, which has no `sudo`. The image removes Raspberry Pi
+OS's `pi` account, which is in `sudo`, and its first-boot dialog, which would
+otherwise give whoever reaches the console first a `sudo` account. SSH is on,
+takes the `admin` password and refuses `root`. Anyone who needs root on the
 hardware installs Raspberry Pi OS and the host package themselves.
 
 ## Claiming a box
@@ -254,7 +237,8 @@ once in its log and does not ask again until `internkim-box` restarts. `sudo
 internkim install` with a new connection file moves it anyway and disconnects the
 others. Running `sudo systemctl mask internkim-box` before an update keeps any
 host on its connection file, and also turns off the
-[Wi-Fi setup](/docs/running-the-host#wifi) the box daemon runs.
+[Wi-Fi setup](/docs/running-the-host#wifi) and the
+[admin account](/docs/running-the-host#admin-account) the box daemon runs.
 
 ## Models
 

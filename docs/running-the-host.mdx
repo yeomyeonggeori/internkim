@@ -166,6 +166,28 @@ database answers on `127.0.0.1:18432` and the cache on a socket in its own
 directory, so a PostgreSQL or Redis you already run with `brew services` keeps
 its port and its data.
 
+## The admin account [#admin-account]
+
+On Linux, the box service makes one login account, `admin`, the first time it
+starts. It is in `systemd-journal`, so it reads every log, and in
+`internkim-admin`, so it restarts the host's services. It has no `sudo`, and
+nothing the package installs raises it to root, so `admin` cannot open another
+person's workspace either. The file permissions that keep people apart hold for
+the company's administrators too.
+
+Its password starts locked. Once the computer is connected, an administrator sets
+one in company setup and changes it there later. It is the same password at the
+console and over SSH, wherever the computer's SSH server takes passwords. The
+browser seals it to the box key with the purpose `internkim admin password`, the
+central plane relays the ciphertext, and the computer opens it and hands it to
+`chpasswd`, which keeps only a hash. The computer asks for a new password every
+minute and reports whether it was applied, and its first ask is what tells
+company setup it has an `admin` to set.
+
+The box service remembers in `/var/lib/internkim/box` the account it made and
+touches no other. A computer that already had an `admin` of its own keeps it as
+it was, and company setup offers no password for it.
+
 ## Settings
 
 The installer writes company connection details and generated credentials to
@@ -345,6 +367,16 @@ keeps beside the skill's files: Python libraries from `pypi.org` and
 from the distribution. The skills run on the same runtime, as `python3` in each
 person's commands, and install nothing the first time someone uses them.
 
+## Host name [#host-name]
+
+A Linux host renames itself only from a name InternKim gave. A computer named
+`kimmini`, as a Kim mini arrives, or `kimmini-2` and so on, takes its company's
+address, such as `yeomyeonggeori`, once claimed. The box service remembers each name it gives in
+`/var/lib/internkim/box`, so a computer it named follows a later company and is
+named `kimmini` again when it is disconnected. A computer someone named keeps
+that name whoever claims it. A rename also points `127.0.1.1` in `/etc/hosts` at
+the new name.
+
 ## Wi-Fi [#wifi]
 
 A Linux host whose Wi-Fi NetworkManager manages can be moved to a new network
@@ -390,6 +422,4 @@ ExecStart=
 ExecStart=/usr/bin/internkim box --no-wifi-setup
 ```
 
-On a Kim mini, add the flag to the command line in its own drop-in,
-`/etc/systemd/system/internkim-box.service.d/kim-mini.conf`, which carries the
-box's other flags. `sudo systemctl restart internkim-box` applies the change.
+`sudo systemctl restart internkim-box` applies the change.

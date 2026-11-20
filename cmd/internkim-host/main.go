@@ -149,7 +149,7 @@ func stopOnFailure(whatStopped string, errorValue error) {
 
 func printUsage(command string) {
 	fmt.Fprintf(os.Stderr, "Usage: %s install <internkim-host.json> [--model-key-file FILE]\n", command)
-	fmt.Fprintf(os.Stderr, "       %s box [--app-url URL] [--no-wifi-setup] [--host-name-from-company] [--admin-account NAME]\n", command)
+	fmt.Fprintf(os.Stderr, "       %s box [--app-url URL] [--no-wifi-setup]\n", command)
 	fmt.Fprintf(os.Stderr, "       %s box code\n", command)
 	fmt.Fprintf(os.Stderr, "       %s backup [--directory DIR] [--keep N]\n", command)
 	fmt.Fprintf(os.Stderr, "       %s restore <archive> [--replace]\n", command)
@@ -175,16 +175,12 @@ func runBox(arguments []string) {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 	announcedTo := announcedAppURL(flags, options.AppURL, blueclaw.CompanyHostBoxStatePath, companyhost.CurrentConnectionPath())
+	adoptWhatAnOlderKimMiniImageMade(options, thisComputersHostNamer(), thisComputersAdminAccount())
 	daemon := boxDaemon(announcedTo)
 	if setsUpWifi(options, func() bool { return boxwifi.NetworkManagerRadio{}.ManagesWifi(ctx) }) {
 		daemon = withWifiSetup(daemon, announcedTo, madeOnFrom(options.MadeOnPath))
 	}
-	if options.NamesHostFromCompany {
-		daemon = withHostNameFromCompany(daemon)
-	}
-	if options.AdminAccount != "" {
-		daemon = withAdminPasswordFor(daemon, options.AdminAccount)
-	}
+	daemon = withAdminAccount(ctx, daemon, thisComputersAdminAccount())
 	if errorValue := daemon.Run(ctx); errorValue != nil {
 		fmt.Fprintln(os.Stderr, errorValue)
 		os.Exit(1)
@@ -205,8 +201,8 @@ func boxFlags(options *boxOptions, errorHandling flag.ErrorHandling) *flag.FlagS
 	flags.StringVar(&options.AppURL, "app-url", blueclaw.CompanyPackageHomepage, "the address this company signs in at, which a box announces itself to")
 	flags.BoolVar(&options.TurnsOffWifiSetup, "no-wifi-setup", false, "never open a setup Wi-Fi network or change networks from company settings, even where NetworkManager manages a Wi-Fi device")
 	flags.BoolVar(&options.ForcesWifiSetup, "wifi-setup", false, "set up Wi-Fi even where NetworkManager manages no Wi-Fi device; without either flag, a computer whose Wi-Fi NetworkManager manages sets it up")
-	flags.BoolVar(&options.NamesHostFromCompany, "host-name-from-company", false, "name this computer after the company it belongs to, and kimmini while it belongs to none, as a Kim mini is named")
-	flags.StringVar(&options.AdminAccount, "admin-account", "", "the login account whose password the company sets from company setup, as a Kim mini's admin is")
+	flags.BoolVar(&options.NamesHostFromCompany, "host-name-from-company", false, "kept for Kim mini images that pass it: takes this computer's current host name as one InternKim gave it")
+	flags.StringVar(&options.AdminAccount, "admin-account", "", "kept for Kim mini images that pass it: --admin-account admin takes the existing admin account as the one InternKim made")
 	flags.StringVar(&options.MadeOnPath, "made-on-file", boxwifi.DefaultMadeOnPath, "a file holding the day this box was made as YYYY-MM-DD, added to the setup network's name")
 	return flags
 }
@@ -263,35 +259,40 @@ func withWifiSetup(daemon box.Daemon, appURL string, madeOn time.Time) box.Daemo
 	return daemon
 }
 
-func withHostNameFromCompany(daemon box.Daemon) box.Daemon {
-	daemon.NameHost = boxwifi.HostNamer{}.Name
+func thisComputersHostNamer() boxwifi.HostNamer {
+	return boxwifi.HostNamer{StateDirectoryPath: blueclaw.CompanyHostBoxStatePath}
+}
+
+func thisComputersAdminAccount() companyhost.AdminAccount {
+	return companyhost.AdminAccount{StateDirectoryPath: blueclaw.CompanyHostBoxStatePath}
+}
+
+func adoptWhatAnOlderKimMiniImageMade(options boxOptions, namer boxwifi.HostNamer, account companyhost.AdminAccount) {
+	if options.NamesHostFromCompany {
+		if errorValue := namer.AdoptCurrentName(); errorValue != nil {
+			log.Printf("taking this computer's host name as one InternKim gave: %v", errorValue)
+		}
+	}
+	if options.AdminAccount == companyhost.AdminAccountName {
+		if errorValue := account.Adopt(); errorValue != nil {
+			log.Printf("taking the %s account as the one InternKim made: %v", companyhost.AdminAccountName, errorValue)
+		}
+	}
+}
+
+func withAdminAccount(ctx context.Context, daemon box.Daemon, account companyhost.AdminAccount) box.Daemon {
+	isInternKims, errorValue := account.Ensure(ctx)
+	if errorValue != nil {
+		log.Printf("company setup cannot set the %s password: %v", companyhost.AdminAccountName, errorValue)
+		return daemon
+	}
+	if !isInternKims {
+		log.Printf("this computer has an account named %s that InternKim did not make; company setup leaves it alone", companyhost.AdminAccountName)
+		return daemon
+	}
+	daemon.SetAdminPassword = account.SetPassword
+	daemon.LockAdminPassword = account.Lock
 	return daemon
-}
-
-func withAdminPasswordFor(daemon box.Daemon, account string) box.Daemon {
-	daemon.SetAdminPassword = func(ctx context.Context, password string) error {
-		return setPassword(ctx, account, password)
-	}
-	daemon.LockAdminPassword = func(ctx context.Context) error {
-		return lockPassword(ctx, account)
-	}
-	return daemon
-}
-
-func lockPassword(ctx context.Context, account string) error {
-	if output, errorValue := exec.CommandContext(ctx, "passwd", "--lock", account).CombinedOutput(); errorValue != nil {
-		return fmt.Errorf("passwd could not lock %s: %v: %s", account, errorValue, strings.TrimSpace(string(output)))
-	}
-	return nil
-}
-
-func setPassword(ctx context.Context, account, password string) error {
-	command := exec.CommandContext(ctx, "chpasswd")
-	command.Stdin = strings.NewReader(account + ":" + password + "\n")
-	if output, errorValue := command.CombinedOutput(); errorValue != nil {
-		return fmt.Errorf("chpasswd refused the password for %s: %v: %s", account, errorValue, strings.TrimSpace(string(output)))
-	}
-	return nil
 }
 
 func reachesURL(ctx context.Context, address string) bool {
@@ -371,6 +372,7 @@ func boxDaemon(appURL string) box.Daemon {
 		FollowRelease:  followTheServiceBoxRelease,
 		StartWorking:   startWorkingForTheServiceBox,
 		PackageVersion: thisBoxRelease(),
+		NameHost:       thisComputersHostNamer().Name,
 	}
 }
 

@@ -10,12 +10,15 @@ import (
 	"net/http/httptest"
 	"os"
 	"os/exec"
+	"os/user"
 	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/yeomyeonggeori/internkim/internal/box"
+	"github.com/yeomyeonggeori/internkim/internal/boxwifi"
+	"github.com/yeomyeonggeori/internkim/internal/companyhost"
 )
 
 func TestTheConnectionFileIsFoundWhereverItSitsAmongTheOptions(t *testing.T) {
@@ -202,18 +205,66 @@ func TestAKimMiniDropInFromBeforeTheDefaultStillStartsTheBox(t *testing.T) {
 	}
 }
 
-func TestOnlyAComputerAskedToIsRenamedAfterItsKey(t *testing.T) {
-	if without := boxDaemon("https://example.com"); without.NameHost != nil {
-		t.Fatal("a daemon built without --host-name-from-company would rename this computer")
+func TestEveryBoxFollowsTheOneHostNameRule(t *testing.T) {
+	if daemon := boxDaemon("https://example.com"); daemon.NameHost == nil {
+		t.Fatal("a box built with no flags never names this computer, so an empty Kim mini would keep kimmini once claimed")
 	}
-	if with := withHostNameFromCompany(box.Daemon{}); with.NameHost == nil {
-		t.Fatal("a daemon built with --host-name-from-company does not rename this computer")
+}
+
+func adminAccountWithUserIDs(t *testing.T, userIDs map[string]string) companyhost.AdminAccount {
+	t.Helper()
+	return companyhost.AdminAccount{
+		StateDirectoryPath: t.TempDir(),
+		Run: func(ctx context.Context, input string, name string, arguments ...string) error {
+			if name == "useradd" {
+				userIDs[companyhost.AdminAccountName] = "1000"
+			}
+			return nil
+		},
+		LookupUserID: func(name string) (string, error) {
+			if userID, isPresent := userIDs[name]; isPresent {
+				return userID, nil
+			}
+			return "", user.UnknownUserError(name)
+		},
 	}
-	if without := boxDaemon("https://example.com"); without.SetAdminPassword != nil {
-		t.Fatal("a daemon built without --admin-account would set an account's password")
+}
+
+func TestCompanySetupSetsThePasswordOnlyOfTheAdminAccountInternKimMade(t *testing.T) {
+	made := withAdminAccount(context.Background(), box.Daemon{}, adminAccountWithUserIDs(t, map[string]string{}))
+	if made.SetAdminPassword == nil || made.LockAdminPassword == nil {
+		t.Fatal("a box that made the admin account does not set and lock its password")
 	}
-	if with := withAdminPasswordFor(box.Daemon{}, "admin"); with.SetAdminPassword == nil || with.LockAdminPassword == nil {
-		t.Fatal("a daemon built with --admin-account does not set and lock that account's password")
+	someoneElses := withAdminAccount(context.Background(), box.Daemon{}, adminAccountWithUserIDs(t, map[string]string{companyhost.AdminAccountName: "1000"}))
+	if someoneElses.SetAdminPassword != nil || someoneElses.LockAdminPassword != nil {
+		t.Fatal("a box would set the password of an admin account someone else made")
+	}
+}
+
+func TestAKimMiniDropInAdoptsTheNameAndTheAccountItsImageGave(t *testing.T) {
+	stateDirectoryPath := t.TempDir()
+	hostName := "sample-company"
+	namer := boxwifi.HostNamer{
+		Run: func(ctx context.Context, name string, arguments ...string) ([]byte, error) {
+			if name == "hostnamectl" {
+				hostName = arguments[len(arguments)-1]
+			}
+			return nil, nil
+		},
+		CurrentHostName:    func() (string, error) { return hostName, nil },
+		HostsPath:          filepath.Join(t.TempDir(), "hosts"),
+		StateDirectoryPath: stateDirectoryPath,
+	}
+	if errorValue := os.WriteFile(namer.HostsPath, nil, 0o644); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	account := adminAccountWithUserIDs(t, map[string]string{companyhost.AdminAccountName: "1000"})
+	adoptWhatAnOlderKimMiniImageMade(parsedBoxOptions(t, []string{"--host-name-from-company", "--admin-account", "admin"}), namer, account)
+	if errorValue := namer.Name(context.Background(), ""); errorValue != nil || hostName != boxwifi.EmptyBoxHostName {
+		t.Fatalf("a disconnected Kim mini named %q by its image became %q, %v; want %s", "sample-company", hostName, errorValue, boxwifi.EmptyBoxHostName)
+	}
+	if daemon := withAdminAccount(context.Background(), box.Daemon{}, account); daemon.SetAdminPassword == nil {
+		t.Fatal("company setup no longer sets the password of the admin account a Kim mini image made")
 	}
 }
 

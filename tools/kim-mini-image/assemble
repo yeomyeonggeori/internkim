@@ -75,12 +75,6 @@ else
 fi
 rm "$root/tmp/internkim-install.sh"
 
-boxUnit="$(chroot "$root" sh -c 'for directory in /usr/lib/systemd/system /lib/systemd/system /etc/systemd/system; do [ -e "$directory/internkim-box.service" ] && echo "$directory/internkim-box.service" && break; done')"
-[ -n "$boxUnit" ] || { echo "the package installed no internkim-box.service" >&2; exit 1; }
-boxCommand="$(sed -n 's/^ExecStart=//p' "$root$boxUnit")"
-mkdir -p "$root/etc/systemd/system/internkim-box.service.d"
-printf '[Service]\nExecStart=\nExecStart=%s --host-name-from-company --admin-account admin\n' "$boxCommand" > "$root/etc/systemd/system/internkim-box.service.d/kim-mini.conf"
-
 chroot "$root" raspi-config nonint do_wifi_country "$wifiCountry"
 grep -q "cfg80211.ieee80211_regdom=$wifiCountry" "$root/boot/firmware/cmdline.txt" || { echo "raspi-config did not set the Wi-Fi country to $wifiCountry" >&2; exit 1; }
 sed -i 's/^WirelessEnabled=.*/WirelessEnabled=true/' "$root/var/lib/NetworkManager/NetworkManager.state"
@@ -93,10 +87,6 @@ install -D -m 0644 /work/tools/fastfetch.jsonc "$root/etc/xdg/fastfetch/config.j
 python3 /work/tools/draw-logo /work/round-mark.png /work/tools/fastfetch.jsonc "$root"
 install -m 0644 /work/tools/fastfetch-at-login.sh "$root/etc/profile.d/kim-mini-fastfetch.sh"
 
-administratorGroup="$(awk '$1 == "g" { print $2 }' "$root/usr/lib/sysusers.d/internkim.conf")"
-[ -n "$administratorGroup" ] || { echo "the package declares no administrator group, so the box would have no admin account" >&2; exit 1; }
-chroot "$root" useradd --create-home --shell /bin/bash --groups "systemd-journal,$administratorGroup" admin
-chroot "$root" passwd --lock admin >/dev/null
 chroot "$root" userdel --remove pi 2>/dev/null
 chroot "$root" systemctl mask userconfig.service >/dev/null 2>&1
 [ -z "$(chroot "$root" getent group sudo | cut -d: -f4)" ] || { echo "someone on the box is still in the sudo group" >&2; exit 1; }
