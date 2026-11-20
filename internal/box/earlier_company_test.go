@@ -134,7 +134,7 @@ func TestAConnectionFileForAnotherCompanyEmptiesTheComputerFirst(t *testing.T) {
 		t.Fatal(errorValue)
 	}
 
-	if errorValue := forgotten.watching(daemon, installed).InstallWithConnectionFile(context.Background(), "connection-file-key", "sk-or-v1-typed"); errorValue != nil {
+	if _, errorValue := forgotten.watching(daemon, installed).InstallWithConnectionFile(context.Background(), "connection-file-key", "sk-or-v1-typed", askNobodyForAModelKey); errorValue != nil {
 		t.Fatal(errorValue)
 	}
 
@@ -143,6 +143,26 @@ func TestAConnectionFileForAnotherCompanyEmptiesTheComputerFirst(t *testing.T) {
 	}
 	if _, errorValue := os.Stat(filepath.Join(places.StateDirectoryPath, serviceLeaseFileName)); !errors.Is(errorValue, os.ErrNotExist) {
 		t.Fatalf("the earlier company's service lease is still held: %v", errorValue)
+	}
+}
+
+func TestAConnectionFileForTheCompanyThisComputerServesKeepsItsData(t *testing.T) {
+	plane := &fakePlane{accessToken: "file.session.token"}
+	installed := &installs{}
+	daemon, places := daemonFor(t, plane, installed)
+	daemon.CompaniesHeld = holding(sampleCompanyID, sampleCompanyID)
+	removals := &directoryRemovals{}
+	forgotten := &forgetting{}
+
+	if _, errorValue := removals.watching(forgotten.watching(daemon, installed)).InstallWithConnectionFile(context.Background(), "connection-file-key", "", askNobodyForAModelKey); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+
+	if forgotten.times != 0 || len(removals.companyIDs) != 0 {
+		t.Fatalf("emptied %d times and removed directories %v of the company this computer serves", forgotten.times, removals.companyIDs)
+	}
+	if len(installed.requests) != 1 || installed.requests[0].StateDirectoryPath != places.CompanyStateDirectoryPath(sampleCompanyID) {
+		t.Fatalf("installed %+v; the install runs over the directory the company already has", installed.requests)
 	}
 }
 

@@ -421,12 +421,12 @@ func runInstall(arguments []string) error {
 		return errorValue
 	}
 	if companyhost.ThisMachineKeepsABoxSessionFresh() {
-		return installByClaiming(parsed, connection, modelKey)
+		return installByClaiming(connection, modelKey)
 	}
 	installation, errorValue := companyhost.Install(companyhost.Request{
 		Connection:        connection,
 		ModelKey:          modelKey,
-		PromptForModelKey: func() (string, error) { return readModelKey(os.Stdin, os.Stdout) },
+		PromptForModelKey: promptForModelKey,
 	}, thisComputer{}, os.Stdout)
 	if errorValue != nil {
 		return errorValue
@@ -437,24 +437,26 @@ func runInstall(arguments []string) error {
 	return nil
 }
 
-func installByClaiming(parsed installArguments, connection companyhost.Connection, modelKey string) error {
-	if modelKey == "" {
-		var errorValue error
-		modelKey, errorValue = readModelKey(os.Stdin, os.Stdout)
-		if errorValue != nil {
-			return errorValue
-		}
-	}
+func installByClaiming(connection companyhost.Connection, modelKey string) error {
 	daemon := boxDaemon(connection.AppURL)
-	if errorValue := daemon.InstallWithConnectionFile(context.Background(), connection.AgentKey, strings.TrimSpace(modelKey)); errorValue != nil {
+	role, errorValue := daemon.InstallWithConnectionFile(context.Background(), connection.AgentKey, modelKey, promptForModelKey)
+	if errorValue != nil {
 		return errorValue
 	}
 	if errorValue := companyhost.KeepTheBoxSessionFresh(thisComputer{}, os.Stdout); errorValue != nil {
 		return errorValue
 	}
-	fmt.Printf("\nServer ready. Open %s/settings/setup and choose Check connection.\n", connection.AppURL)
+	if role == box.RoleStandby {
+		fmt.Printf("\nThis computer stands by for %s beside the box that serves it.\n", connection.Company.Name)
+	} else {
+		fmt.Printf("\nServer ready. Open %s/settings/setup and choose Check connection.\n", connection.AppURL)
+	}
 	fmt.Println("The connection file is spent: this computer now proves itself with its own key, and systemd keeps it signed in.")
 	return nil
+}
+
+func promptForModelKey() (string, error) {
+	return readModelKey(os.Stdin, os.Stdout)
 }
 
 func readModelKeyFile(path string) (string, error) {

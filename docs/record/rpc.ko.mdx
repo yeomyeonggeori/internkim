@@ -47,6 +47,7 @@ description: "PostgREST가 /rest/v1/rpc로 노출하는 함수 전부와, 누가
 | `circle_channel_add` | `target_company uuid, target_circle text, channel_name text` | `void` | definer | authenticated, service_role |
 | `circle_channel_delete` | `target_company uuid, target_circle text, confirmed_name text` | `void` | definer | authenticated, service_role |
 | `circle_set` | `target_company uuid, circle_id text, circle_name text, readable_categories text[]` | `void` | definer | authenticated, service_role |
+| `claim_box_with_connection_file` | `connection_key_hash text, connection_agent_name text, box_key text, box_encryption_key text` | `uuid` | definer | service_role |
 | `claim_empty_box` | `claiming_company uuid, box_key text, ticket_hash text, fresh_since timestamp with time zone, is_replacing boolean` | `TABLE(outcome text, given_role text)` | definer | service_role |
 | `company_billed_seats` | `target_company uuid` | `integer` | definer | service_role |
 | `company_credit_top_up_configured` | `target_company uuid, is_enabled boolean, threshold bigint, charged_amount bigint` | `void` | definer | service_role |
@@ -54,12 +55,14 @@ description: "PostgREST가 /rest/v1/rpc로 노출하는 함수 전부와, 누가
 | `company_credit_top_up_paid` | `target_top_up uuid, target_event text, target_invoice text, granted_credits bigint` | `void` | definer | service_role |
 | `company_credit_usage` | — | `TABLE(member_id uuid, credits_used bigint, takes_a_seat boolean)` | definer | authenticated, service_role |
 | `company_credit_usage_charged` | `target_company uuid, target_member uuid, used_credits bigint` | `void` | definer | service_role |
+| `company_credits_can_pay` | `target_company uuid` | `boolean` | definer | service_role |
 | `company_credits_refunded` | `target_company uuid, target_event text, refunded_kind text, refunded_credits bigint` | `bigint` | definer | service_role |
 | `company_documents_matching` | `target_query text, target_limit integer, minimum_relevance real DEFAULT 0` | `SETOF company_document` | invoker | authenticated |
 | `company_holidays_merge` | `target_company uuid, target_holidays jsonb` | `jsonb` | invoker | service_role |
 | `company_holidays_save` | `target_holidays jsonb` | `jsonb` | definer | authenticated |
 | `company_keeps_a_backup` | `kept_company uuid` | `boolean` | definer | service_role |
 | `company_member_credit_refusal` | `target_company uuid, target_member uuid, default_usage_limit bigint` | `text` | definer | service_role |
+| `company_model_key_report` | `target_company uuid` | `TABLE(holds_model_key boolean, uses_own_model_key_at_start boolean)` | definer | service_role |
 | `company_of_member` | `target_member uuid` | `uuid` | invoker | authenticated, service_role |
 | `company_of_messenger_address` | `address_slug text` | `uuid` | definer | anon, authenticated, service_role |
 | `company_of_task` | `target_task uuid` | `uuid` | invoker | authenticated, service_role |
@@ -104,6 +107,7 @@ description: "PostgREST가 /rest/v1/rpc로 노출하는 함수 전부와, 누가
 | `is_public_identity_credential` | `kind text` | `boolean` | definer | authenticated, service_role |
 | `is_work_hours` | `schedule jsonb` | `boolean` | invoker | anon, authenticated, service_role |
 | `keep_claimed_box` | `claiming_company uuid, box_key text, box_encryption_key text, box_host_name text, is_replacing boolean` | `text` | definer | service_role |
+| `keep_model_key_report` | `reporting_company uuid, reporting_box text, reporting_agent_key_hash text, holds boolean` | `boolean` | definer | service_role |
 | `leave_accrue_due` | — | `jsonb` | definer | authenticated, service_role |
 | `leave_balances` | `target_year integer` | `jsonb` | definer | authenticated, service_role |
 | `leave_days_in_year` | `starts_at timestamp with time zone, ends_at timestamp with time zone, total_days numeric, time_zone text, target_year integer, year_start_month integer DEFAULT 1, year_start_day integer DEFAULT 1` | `numeric` | invoker | anon, authenticated, service_role |
@@ -192,6 +196,7 @@ description: "PostgREST가 /rest/v1/rpc로 노출하는 함수 전부와, 누가
 | `announce_task_write` |
 | `ask_the_subscription_to_follow_its_seats` |
 | `bind_member_to_new_user` |
+| `company_payer_follows_its_subscription` |
 | `data_room_guard_category` |
 | `data_room_guard_document` |
 | `enforce_crm_reference_consistency` |

@@ -191,7 +191,7 @@ func (daemon Daemon) serveClaimed(ctx context.Context, session Session, identity
 	if errorValue != nil {
 		return 0, errorValue
 	}
-	if errorValue := daemon.installFor(session, modelKey); errorValue != nil {
+	if errorValue := daemon.installFor(session, modelKey, askNobodyForAModelKey); errorValue != nil {
 		return 0, errorValue
 	}
 	if modelKey != "" {
@@ -364,39 +364,46 @@ func companyModelKey(session Session, keyring Keyring) (string, error) {
 	return keyring.OpenModelKey(*session.SealedModelKey, session.Configuration.Company.ID)
 }
 
-func (daemon Daemon) InstallWithConnectionFile(ctx context.Context, connectionKey string, modelKey string) error {
+func (daemon Daemon) InstallWithConnectionFile(ctx context.Context, connectionKey string, modelKey string, promptForModelKey func() (string, error)) (Role, error) {
 	identity, errorValue := LoadOrCreateIdentity(identityPathIn(daemon.Places.StateDirectoryPath))
 	if errorValue != nil {
-		return errorValue
+		return "", errorValue
 	}
 	if errorValue := daemon.Client.Claim(ctx, identity, connectionKey); errorValue != nil {
-		return errorValue
+		return "", errorValue
 	}
 	session, isClaimed, errorValue := daemon.Client.Session(ctx, identity, daemon.PackageVersion)
 	if errorValue != nil {
-		return errorValue
+		return "", errorValue
 	}
 	if !isClaimed {
-		return fmt.Errorf("the central plane accepted the connection file and then gave this computer no company")
+		return "", fmt.Errorf("the central plane accepted the connection file and then gave this computer no company")
 	}
 	if errorValue := daemon.forgetAnEarlierCompany(ctx, session.Configuration.Company.ID, session.Configuration.Company.Name); errorValue != nil {
-		return errorValue
+		return "", errorValue
 	}
 	if errorValue := rememberAppURL(daemon.Places.StateDirectoryPath, session.Configuration.AppURL); errorValue != nil {
-		return errorValue
+		return "", errorValue
+	}
+	if session.Role == RoleStandby {
+		return RoleStandby, nil
 	}
 	daemon.noteSeveralBoxes(session.HasSeveralBoxes)
-	return daemon.installFor(session, modelKey)
+	return RoleService, daemon.installFor(session, modelKey, promptForModelKey)
 }
 
-func (daemon Daemon) installFor(session Session, modelKey string) error {
+func askNobodyForAModelKey() (string, error) {
+	return "", nil
+}
+
+func (daemon Daemon) installFor(session Session, modelKey string, promptForModelKey func() (string, error)) error {
 	connection := connectionOf(session)
 	log.Printf("installing the server for %s", connection.Company.Name)
 	if errorValue := daemon.Install(companyhost.Request{
 		Connection:         connection,
 		StateDirectoryPath: daemon.Places.CompanyStateDirectoryPath(connection.Company.ID),
 		ModelKey:           modelKey,
-		PromptForModelKey:  func() (string, error) { return modelKey, nil },
+		PromptForModelKey:  promptForModelKey,
 	}); errorValue != nil {
 		return fmt.Errorf("installing the server for %s: %w", connection.Company.Name, errorValue)
 	}
