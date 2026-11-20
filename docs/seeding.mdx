@@ -6,173 +6,156 @@ icon: Share2
 
 This page is the design for keeping a company's data on its boxes the way a
 swarm keeps a torrent: each piece on some of the boxes, spread to save space,
-and pulled from all of them at once by a box that takes over. A box is any host
-claimed into a company, on any hardware, by a pairing code or a connection file
-alike. The plane makes one box the service box and the rest standbys, as
-[Kim mini](/docs/kim-mini#more-than-one-box) describes.
-
-## What a piece is
-
-Everything kept off a box is already cut into sealed pieces in the hosted store,
-the `box_backup` bucket, under the company's folder:
-
-| Folder | What its pieces are |
-|---|---|
-| `snapshots/`, `chunks/` | snapshot manifests and the chunks they name |
-| `base/`, `base-chunks/` | base backups of the database and their chunks |
-| `wal/<system>/`, `wal-history/<system>/` | WAL pieces named by timeline and LSN range, and timeline histories |
-| `file-journal/`, `file-chunks/` | file journal entries and the file contents they name |
-
-A manifest lists the chunks of each archive member
-(`internal/offsite/snapshot.go`). A chunk is cut by its content, typically
-2 MiB, and named by an HMAC of its plaintext under a key derived from the
-company key, so the same bytes always get the same name. Each piece is sealed
-to the company key with HPKE, binding the company, the piece's name and its kind
-(`internal/box/sealed_stream.go`). Every box of the company may read the
-folder, and only the service box may write it
-(`supabase/migrations/20261112000001_a_box_reads_its_backups_by_their_folder.sql`).
-
-The store holds every piece. A standby holds only the newest snapshot's chunks,
-in `/var/lib/internkim-backups/standby-chunks`, so a take-over fetches the base
-backup, the WAL and the file journal from the store after the service box has
-failed (`cmd/internkim-host/take_over.go`).
+and pulled from all of them at once by a box that takes over.
+[Kim mini](/docs/kim-mini#more-than-one-box) says what a box, the service box
+and a standby are.
 
 ## The rule
 
-Every piece is held by at least `copies` seeds. A seed is the hosted store or a
-standby holding the company key. The default is two: the store and one standby.
-`copies` is a company setting in the record beside the take-over lapse in
-`box_take_over`, set in company setup from two up to the number of seeds.
+The service box holds the company live, the hosted store holds its whole log,
+and the standbys hold the log once more between them, each piece on one standby.
 
-With two copies the company survives losing any one box together with the
-store. If the service box and the store go, a standby holds each piece. If a
-standby and the store go, the service box still holds the live company and
-seeds it again on whatever seed is left or comes back; only history the lost
-standby alone held is gone.
+The rule has no setting and treats no number of boxes differently. A company on
+one box is in two places. A standby makes three, and any two can go with nothing
+saved lost.
 
-The store stays the seed of last resort: it holds every piece, sealed, and a box
-fetches from it only what no reachable box holds. A company with one box relies
-on it alone.
+| Lost | What remains |
+|---|---|
+| The service box and the store | The standbys hold the log whole |
+| The store and a standby | The service box holds the company live |
+| The service box and a standby | The store holds the log whole |
 
-## The boundary
+With the store gone, standbys on different networks cannot reach each other,
+and their shares meet when it returns or the boxes share a network.
 
-The service box always holds the complete live database and workspace, since
-PostgreSQL cannot run on part of its data, and is no seed. Seeding covers what
-standbys hold: snapshots, base backups, WAL pieces, file journal entries, and
-the history kept, eight snapshots and two base backups by default. At take-over
-the new service box gathers the pieces it lacks and becomes complete; its share
-stops counting, and what it held is seeded again on the boxes that remain.
+The service box counts as a place and holds no share of the log. It is the one
+box missing at every take-over, so a piece placed there would be absent exactly
+when it is read, and it sends each piece to the store without keeping it
+(`internal/walstream/kept_pieces.go`).
+
+## One log for each kind of state
+
+| State | Its log | Folders in `box_backup` |
+|---|---|---|
+| The databases | A base backup, then WAL | `base/`, `base-chunks/`, `wal/&lt;system&gt;/`, `wal-history/&lt;system&gt;/` |
+| The files | A full entry, then an entry for each change | `file-journal/`, `file-chunks/` |
+
+A base backup and a file entry are cut into chunks by content, typically 2 MiB
+(`internal/offsite/chunker.go`). Every piece is sealed to the company key, and
+the seal binds the company, the piece's name and its kind
+(`internal/box/sealed_stream.go`), so a box checks a piece by opening it and
+needs no trust in the box it came from. Every box of the company may read the
+folders and only the service box may write them
+(`supabase/migrations/20261112000001_a_box_reads_its_backups_by_their_folder.sql`).
+
+A write counts once the store holds its piece. PostgreSQL waits for the WAL
+follower, which acknowledges a position only after its upload
+(`internal/walstream/follower.go`), and a reply waits at the file barrier until
+its entry is kept (`internal/filestream/barrier.go`). A standby on the service
+box's network never stands in for the store here, so one building's power cut
+costs no write.
+
+The log starts when a company's first box is claimed, while the database is
+empty and its first base backup is small. Following stops asking how many boxes
+there are (`isJournaled` in `cmd/internkim-host/kept_off_the_box.go`), which
+deletes the several-boxes marker, `keepNoWAL`, `ForgetKeptWAL` and the
+unjournaled barrier.
 
 ## Placement
 
-A piece's seeds are the standbys that rank first for it by weighted rendezvous
-score, weighted by `box.weight`, the kind of score the record already uses to
-choose which standby takes over
-(`supabase/migrations/20261021000002_a_lapsed_box_is_taken_over_by_the_freshest_standby.sql`).
-Every box computes its share from the list of its company's boxes, so no table
-assigns pieces, and a box that joins or leaves moves only the pieces it ranks
-first for. A box joining a company of one box ranks first for everything and
-becomes a full clone.
+A piece belongs to the standby whose public key, hashed with the piece's path,
+scores highest among the standbys that hold the company key and were seen
+within the take-over lapse. The check-in answers with that list, and every box
+computes its share from it and the manifests in the store. No table assigns
+pieces, and a box that joins or leaves moves only the pieces it wins. One
+standby holds the whole log. Four hold a quarter each.
 
-Replication puts whole pieces on `copies − 1` standbys. Erasure coding cuts
-each group of k pieces into n fragments, any k of which rebuild the group. For a
-company keeping 100 GB of sealed pieces, each standby holds:
+A box that becomes the service box stops ranking, and its share goes to the
+standbys that remain. A box keeps a piece that left its share until the standby
+it went to reports holding it. A piece the store's manifests no longer name is
+dropped, so the service box's pruning reaches every copy.
 
-| Boxes | Standbys | One copy on the boxes | Two copies on the boxes | Erasure coded, one standby may be missing |
-|---|---|---|---|---|
-| 2 | 1 | 100 GB | impossible | impossible |
-| 3 | 2 | 50 GB | 100 GB | 100 GB, since 1 of 2 is replication |
-| 5 | 4 | 25 GB | 50 GB | 33 GB as 3 of 4 |
+## Fetching
 
-The store holds its own 100 GB on top.
+A box fetches a piece from a box on its own network that has it, asking in rank
+order, and from the store otherwise. The store is the one holder every box
+reaches, since boxes accept no connection from other networks
+([Architecture](/docs/architecture#why-the-host-has-no-inbound-port)).
 
-The recommendation is replication. Erasure coding saves space only from four
-standbys on, against a second copy the rule does not ask for, and costs fixed
-stripes over chunks of varying size, re-encoding whenever a standby joins or
-leaves, and k fetches per chunk. A company that wants more sets `copies` to
-three.
+A take-over reads its own share from disk and fetches the rest sixteen at a
+time (`offsite.FetchAhead`).
 
-## Discovery and transfer
+To answer its neighbours a box serves sealed pieces by name, read-only, on the
+LAN address its check-in carries, to requests signed by another box of its
+company.
 
-The plane is the tracker. A box reports each piece it has verified as a row
-naming the box and the piece's path, and the record answers which pieces are
-below their count and who holds a piece.
+## What a box reports
 
-A piece needs no trust in the box it came from. Opening it fails if it was
-altered or swapped, because the seal binds the name. A chunk's name is then
-checked against the HMAC of its contents, and a WAL piece's length against the
-range its name carries.
+At each check a standby reports a digest of the standby list it ranked against,
+the base backup its share starts from, and the WAL position and file entry its
+share is whole through. Those four values on its `box` row stand where a row
+per piece would be 50,000 rows for each 100 GB.
 
-Boxes accept no connection from other networks
-([Architecture](/docs/architecture#why-the-host-has-no-inbound-port)), so pieces
-move two ways:
+The setup page reads it, and so does a box deciding whether to drop a piece
+that left its share. Fetching does without it, so a stale report costs one
+request to the store.
 
-- Between networks, through the store. The service box writes each piece there
-  once and each seed pulls its share, so the office line carries one upload
-  however many boxes there are.
-- Within one network, directly. A box serves sealed pieces by name, read-only,
-  on its LAN address, to requests signed by another box of its company, and its
-  check-in carries that address beside its site. A take-over pulls from every
-  box on its network in parallel and the rest from the store, as
-  `offsite.FetchAhead` pulls from the store.
+## The snapshot goes
 
-The service box keeps each sealed piece it writes until a standby holds it, so
-a standby on its network can take a piece before the upload finishes.
+Every fifteen minutes the service box dumps both databases and archives every
+file root into a snapshot (`companyhost.SnapshotTo`). A take-over that finds
+both logs uses neither half: the database comes from the base backup and the
+WAL, and the newest full entry empties each root before the journal is replayed
+(`internal/companyhost/restore_file_journal.go`). The seven older snapshots
+have no reader, since no command fetches one.
 
-A box's rows stop counting once it has gone unseen for the take-over lapse, or
-is disconnected or replaced. Its pieces fall below their count, and the next
-standby by score pulls them. Pieces no kept manifest names are dropped, as
-`ChunkCache.forgetAllBut` drops an older snapshot's chunks.
+Three things ride on the snapshot alone and move first.
 
-## What it closes and what it leaves
+1. The roster. `policy.json` is under `/run/internkim`, outside every
+   journaled root, and a restore recreates the people's accounts from it before
+   files get their owners back (`recreateThePeople`). It joins the file journal.
+2. The release and the PostgreSQL major. The snapshot's manifest carries both
+   (`hostbackup.Manifest`), and a restore refuses a newer release. The base
+   backup's document carries them, and a box on another major refuses before
+   anything changes, since WAL replays only on the major that wrote it.
+3. The plane's question. `company_keeps_a_backup` looks under `snapshots/`,
+   and the setup page reads the newest manifest's time
+   (`web/src/lib/server/box.ts`). Both read the logs.
 
-- The window before the first base backup closes. Kept WAL is useless until a
-  base backup gives it a start, and a take-over in that window falls back to
-  the newest snapshot's dumps (`internal/companyhost/restore_from_kept_wal.go`).
-  The first base backup and the first full file journal entry cross the office
-  line whole, hours for a large database. A standby on the same network holds
-  them in the time a copy across the room takes.
-- Take-over gets faster. The new service box holds its share of the base backup
-  and up to 750 WAL pieces before the old one fails, and pulls the rest from its
-  peers in parallel.
-- Each standby holds its share, a quarter of the pieces with five boxes.
+Dumps stay in the daily archive on the box (`internkim-host backup`), the one
+form that restores onto another PostgreSQL major.
 
-Two things stay separate work. Fencing keeps a service box that lost its place
-from acting on anything. A caught-up handover lets a deliberate move bring the
-new box level before the old one stops, where Make this box serve stops the old
-box first and costs the time a take-over takes.
+What is then deleted: the `snapshot` verb, its timer and `SNAPSHOTS_KEPT`;
+`Ship`, `Newest`, `Prune`, `KeepUp` and `Materialize` in `internal/offsite`;
+the `snapshots/` and `chunks/` folders; the archive `restore --taking-over`
+is given; and the fallbacks to a snapshot's dumps and files (`ErrNoKeptWAL`,
+`ErrNoFileJournal`). `offsite.Snapshot` stays as the chunk writer both logs
+use.
 
-## Pull requests
+## Order
 
-1. The tracker: a holdings table where a box writes only its own rows, the
-   `copies` setting, and a function naming pieces below their count.
-2. A standby keeps its share: `ChunkCache.KeepUp` widens from the newest
-   snapshot to every folder, ranks itself per piece, verifies and reports,
-   pulling from the store.
-3. A take-over reads what it holds before asking the store.
-4. Re-seeding after a box goes unseen or is removed.
-5. Transfer within one network: the signed read-only piece server, the LAN
-   address in the check-in, and parallel pulls from peers.
-6. The first base backup at LAN speed: the service box keeps sealed pieces until
-   a standby holds them.
+1. The log starts with the first box.
+2. The three things above move, and a take-over starts from the logs alone.
+3. The snapshot is deleted, once every company keeps a base backup and a full
+   entry.
+4. A standby keeps its share and reports it, and a take-over reads its own
+   share before asking the store.
+5. Shares move when a box joins, leaves, goes unseen or changes role.
+6. Boxes on one network answer each other.
 
-Each changes the pages describing what it changes,
-[Kim mini](/docs/kim-mini) and [What lives where](/docs/what-lives-where) first.
+Each step changes [Kim mini](/docs/kim-mini) and
+[What lives where](/docs/what-lives-where) with it.
 
 ## Open questions
 
-1. May a box listen on its LAN, ending "every arrow points outward" for peers on
-   one network? Recommendation: yes, bound to the LAN address, only while
+1. Should a company on one box wait on the store for each write?
+   [Kim mini](/docs/kim-mini#more-than-one-box) says its writes never wait on
+   the internet, and the price is whatever was saved since its last snapshot.
+   Recommendation: wait, as every other company does. People reach a box
+   through the hosted service, so a box without its line has no one writing to
+   it. The alternative is to follow without waiting and lose the last seconds.
+2. May a box listen on its LAN, ending "every arrow points outward" for boxes
+   on one network? Recommendation: yes, bound to the LAN address, only while
    another box of the company shares its site, answering only box-signed
-   requests for sealed pieces. Without it steps 5 and 6 drop out and 1 to 4
-   stand.
-2. May a standby on the service box's site acknowledge a write, so writes go on
-   through an internet outage? Recommendation: no. A write counts once a seed on
-   another site holds its piece, which is the store unless a standby's site
-   differs. One building's power cut should cost no write.
-3. Should the standby first in line to take over hold everything?
-   Recommendation: no. Spreading with parallel pulls is what saves space, and
-   `copies` of three serves a company that wants more.
-4. Should the store drop pieces the boxes hold enough of? Recommendation: no. A
-   company with one box relies on it, and it is the one seed every box reaches
-   from any network.
+   requests for sealed pieces. Without it step 6 drops out and every fetch goes
+   to the store.
