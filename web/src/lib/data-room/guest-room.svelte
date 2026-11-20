@@ -25,6 +25,7 @@
 	} from './guest-room';
 	import { dataRoomText } from './text';
 	import { previewSourceOf, type ViewerDocument } from './viewer';
+	import type { LinkPreview } from '$lib/messenger/messenger-api';
 
 	let {
 		room,
@@ -35,7 +36,8 @@
 		isDownloading = false,
 		onRefresh,
 		fillsViewport = true,
-		isPublished = false
+		isPublished = false,
+		websitePreview = null
 	}: {
 		room: SharedRoom;
 		canDownload?: boolean;
@@ -45,6 +47,7 @@
 		isDownloading?: boolean;
 		fillsViewport?: boolean;
 		isPublished?: boolean;
+		websitePreview?: LinkPreview | null;
 		onRefresh: () => void;
 	} = $props();
 
@@ -195,7 +198,7 @@
 					<h2 id="guest-room-company" class="text-xl font-semibold">{companyText.company}</h2>
 					<CurrencySwitcher label={companyText.currency.label} asRecorded={companyText.currency.asRecorded} />
 				</div>
-				<CompanyOverview company={room.company} sharedWith={room.viewer} {isPublished} />
+				<CompanyOverview company={room.company} sharedWith={room.viewer} {isPublished} {websitePreview} />
 			</section>
 		{/if}
 	</div>

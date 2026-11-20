@@ -24,6 +24,12 @@ export async function companyShownToCircle(
 	return shownCompany(await caller.rpc('data_room_circle_company', { target_company: companyID, target_circle: circleID }), plane);
 }
 
+export async function websiteShownTo(caller: SupabaseClient, companyID: string): Promise<string | undefined> {
+	const { data, error: refusal } = await caller.rpc('data_room_company', { target_company: companyID });
+	if (refusal) error(502, 'the company could not be read');
+	return storedCompanySchema.parse(data).profile.website;
+}
+
 async function shownCompany({ data, error: refusal }: Answer, plane: ControlPlaneCredentials): Promise<DataRoomCompany> {
 	if (refusal) error(502, 'the company could not be read');
 	const { activity, logoPath, ...company } = storedCompanySchema.parse(data);

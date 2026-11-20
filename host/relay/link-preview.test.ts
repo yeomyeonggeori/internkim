@@ -72,8 +72,8 @@ describe('decodePage', () => {
 });
 
 describe('readMetaTags', () => {
-	test('reads a value the page wrote as character references as the text it stands for', async () => {
-		const tags = await readMetaTags(
+	test('reads a value the page wrote as character references as the text it stands for', () => {
+		const tags = readMetaTags(
 			'<meta property="og:title" content="&#xc0d8;&#xd50c; on Instagram: &quot;hi&quot;">' +
 				'<meta property="og:image" content="https://cdn.example.com/one.jpg?a=1&amp;b=2">'
 		);
@@ -81,8 +81,8 @@ describe('readMetaTags', () => {
 		expect(tags.get('og:image')).toBe('https://cdn.example.com/one.jpg?a=1&b=2');
 	});
 
-	test('reads the document title the same way', async () => {
-		const tags = await readMetaTags('<title>Tom &amp; Jerry &#8212; one</title>');
+	test('reads the document title the same way', () => {
+		const tags = readMetaTags('<title>Tom &amp; Jerry &#8212; one</title>');
 		expect(tags.get('title')).toBe('Tom & Jerry — one');
 	});
 });

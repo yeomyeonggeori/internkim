@@ -5,6 +5,8 @@
 	import { formatCompactMoney } from '$lib/money';
 	import { currentLocale } from '$lib/i18n/locale.svelte';
 	import { cn } from '$lib/utils';
+	import ChannelLinkCard from '$lib/components/channel/channel-link-card.svelte';
+	import type { LinkPreview } from '$lib/messenger/messenger-api';
 	import CompanyActivity from './company-activity.svelte';
 	import CompanyMetricCard from './company-metric-card.svelte';
 	import CompanyOwnership from './company-ownership.svelte';
@@ -46,8 +48,15 @@
 		company: recordedCompany,
 		sharedWith,
 		asRecorded = false,
-		isPublished = false
-	}: { company: DataRoomCompany; sharedWith?: string | null; asRecorded?: boolean; isPublished?: boolean } = $props();
+		isPublished = false,
+		websitePreview = null
+	}: {
+		company: DataRoomCompany;
+		sharedWith?: string | null;
+		asRecorded?: boolean;
+		isPublished?: boolean;
+		websitePreview?: LinkPreview | null;
+	} = $props();
 
 	let exchangeRates = $state<ExchangeRates>(new Map());
 
@@ -67,6 +76,7 @@
 		});
 	});
 	const profile = $derived(company.profile);
+	const websiteAsLink = $derived(websitePreview ? '' : (profile.website ?? ''));
 	const slogan = $derived(localized(profile.slogan, locale));
 	const description = $derived(localized(profile.description, locale));
 	const factGroups = $derived(companyFactGroups(profile, locale));
@@ -132,9 +142,10 @@
 						{#if description}<p class="text-muted-foreground leading-relaxed text-pretty">{description}</p>{/if}
 					</div>
 				{/if}
-				{#if profile.website || profile.email || profile.phone}
+				{#if websitePreview}<ChannelLinkCard preview={websitePreview} />{/if}
+				{#if websiteAsLink || profile.email || profile.phone}
 					<div class="flex flex-wrap gap-x-5 gap-y-1 text-sm">
-						{#if profile.website}<a class="inline-flex items-center gap-1.5 hover:underline" href={profile.website} target="_blank" rel="noreferrer"><GlobeIcon class="text-muted-foreground size-4" />{profile.website.replace(/^https?:\/\//, '')}</a>{/if}
+						{#if websiteAsLink}<a class="inline-flex items-center gap-1.5 hover:underline" href={websiteAsLink} target="_blank" rel="noreferrer"><GlobeIcon class="text-muted-foreground size-4" />{websiteAsLink.replace(/^https?:\/\//, '')}</a>{/if}
 						{#if profile.email}<a class="inline-flex items-center gap-1.5 hover:underline" href={`mailto:${profile.email}`}><MailIcon class="text-muted-foreground size-4" />{profile.email}</a>{/if}
 						{#if profile.phone}<a class="inline-flex items-center gap-1.5 tabular-nums hover:underline" href={`tel:${profile.phone}`}><PhoneIcon class="text-muted-foreground size-4" />{profile.phone}</a>{/if}
 					</div>
