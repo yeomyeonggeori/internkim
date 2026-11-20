@@ -53,7 +53,7 @@ const activityBaseSchema = z.object({
 		}),
 		counts: z.record(z.string(), count),
 		tasks: z.array(activityTaskSchema)
-	}),
+	}).optional(),
 	contributions: z.array(z.object({ date: z.string(), count }))
 });
 
@@ -76,7 +76,7 @@ const contributionLevels = 4;
 const daysPerWeek = 7;
 
 export function activityTasks(activity: CompanyActivity): Task[] {
-	return activity.board.tasks.map((task) => {
+	return (activity.board?.tasks ?? []).map((task) => {
 		const names = task.people.map((person) => activity.people[person]?.name ?? '');
 		return {
 			id: task.id,

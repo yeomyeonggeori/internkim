@@ -68,8 +68,10 @@
 			{/if}
 		</div>
 
-		<div class="grid gap-3">
-			<h4 class="text-sm font-semibold">{text.board}</h4>
-			<ActivityTaskList {activity} {locale} />
-		</div>
+		{#if activity.board}
+			<div class="grid gap-3">
+				<h4 class="text-sm font-semibold">{text.board}</h4>
+				<ActivityTaskList {activity} {locale} />
+			</div>
+		{/if}
 	</section>

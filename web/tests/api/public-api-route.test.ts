@@ -1453,7 +1453,7 @@ describe('a task invitation', () => {
 
 describe('the public data room page', () => {
 	afterAll(async () => {
-		await client.from('company_field').update({ is_public: false }).eq('company_id', companyID).eq('kind', 'profile').eq('field', 'slogan');
+		await client.from('company_field').update({ is_public: false }).eq('company_id', companyID).eq('kind', 'profile').eq('field', 'officeAddress');
 	}, networkHookTimeout);
 
 	test('is found by the company address and shows only what an administrator published', async () => {
@@ -1462,13 +1462,13 @@ describe('the public data room page', () => {
 
 		const ambiguous = await invoke('dataroom_publication_update', administratorsToken, { isPublic: true });
 		expect(ambiguous.status).toBe(400);
-		const refused = await invoke('dataroom_publication_update', holdersToken, { kind: 'profile', field: 'slogan', isPublic: true });
+		const refused = await invoke('dataroom_publication_update', holdersToken, { kind: 'profile', field: 'officeAddress', isPublic: true });
 		expect(refused.status).toBe(403);
-		const published = await invoke('dataroom_publication_update', administratorsToken, { kind: 'profile', field: 'slogan', isPublic: true });
-		expect(resultOf(published)).toEqual({ kind: 'profile', field: 'slogan', isPublic: true });
+		const published = await invoke('dataroom_publication_update', administratorsToken, { kind: 'profile', field: 'officeAddress', isPublic: true });
+		expect(resultOf(published)).toEqual({ kind: 'profile', field: 'officeAddress', isPublic: true });
 		const fields = z.array(z.object({ field: z.string(), isPublic: z.boolean() }))
 			.parse(resultOf(await invoke('dataroom_get', administratorsToken, {})).fields);
-		expect(fields.filter((field) => field.isPublic).map((field) => field.field).toSorted()).toEqual(['name', 'slogan']);
+		expect(fields.filter((field) => field.isPublic).map((field) => field.field)).toContain('officeAddress');
 
 		const request = asking(`/data-room/${companyID}`, null);
 		const anonymous = await answerOf(() => Promise.resolve(readDataRoom({ request, url: new URL(request.url),

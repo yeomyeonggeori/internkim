@@ -72,9 +72,11 @@ select is(public.data_room_company('65000000-0000-0000-0000-000000000010'),
 
 select set_config('request.jwt.claims', '{}', true);
 set local role anon;
-select is(public.data_room_company('65000000-0000-0000-0000-000000000010'),
-  '{"profile": {}, "metrics": [], "records": []}'::jsonb,
-  'a stranger sees nothing');
+select is((select jsonb_build_object('profile', shown -> 'profile', 'metrics', shown -> 'metrics',
+      'recordCategories', jsonb_path_query_array(shown, '$.records[*].category'))
+    from public.data_room_company('65000000-0000-0000-0000-000000000010') shown),
+  '{"profile": {"brandName": {"ko": "샘플"}}, "metrics": [], "recordCategories": ["history"]}'::jsonb,
+  'a stranger sees the introduction the public page starts with, and no capital, metric or funding');
 
 set local role authenticated;
 select set_config('request.jwt.claims', '{"sub":"65000000-0000-0000-0000-000000000002"}', true);

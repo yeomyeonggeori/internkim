@@ -54,6 +54,7 @@
 	let query = $state('');
 	let openID = $state<string | null>(null);
 	const hasCompany = $derived(!isEmptyCompany(room.company));
+	const hasDocumentsToShow = $derived(!isPublished || room.documents.length > 0 || !hasCompany);
 	const companyText = $derived(dataRoomCompanyText[currentLocale.value]);
 	const roomTitle = $derived(localized(room.company.profile.name, currentLocale.value) || text.sharedRoom);
 	const selectedCategory = $derived(room.categories.find((category) => category.code === selectedCode));
@@ -161,6 +162,7 @@
 	</header>
 
 	<div class="mx-auto grid w-full max-w-5xl flex-1 content-start gap-12 px-4 py-6">
+		{#if hasDocumentsToShow}
 		<div class="grid min-w-0 gap-4">
 			<div class="flex flex-wrap items-center justify-between gap-3">
 				{#if selectedCode}<FolderBreadcrumb crumbs={breadcrumbs} onOpen={openFolder} />{:else}<h2 class="text-xl font-semibold">{companyText.documents}</h2>{/if}
@@ -186,6 +188,7 @@
 			</AnimatedHeight>
 			<p class="text-muted-foreground text-xs">{isPublished ? text.publishedNotice : text.confidential}</p>
 		</div>
+		{/if}
 		{#if hasCompany}
 			<section class="grid gap-4" aria-labelledby="guest-room-company">
 				<div class="flex items-center justify-between gap-3">

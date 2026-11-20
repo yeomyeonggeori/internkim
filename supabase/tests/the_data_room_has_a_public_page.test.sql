@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(10);
+select plan(11);
 
 insert into auth.users (id, email) values
   ('72000000-0000-0000-0000-000000000001', 'public-admin@example.com'),
@@ -18,9 +18,15 @@ insert into public.attendance (member_id, kind, occurred_at, location) values
 insert into public.task (company_id, title, status, starts_at, ends_at) values
   ('72000000-0000-0000-0000-000000000000', '공개 전 검토', 'in_progress', now(), now() + interval '1 day');
 
-select is((select array_agg(kind || ':' || field) from public.company_field
+select is((select array_agg(kind || ':' || field order by kind, field) from public.company_field
     where company_id = '72000000-0000-0000-0000-000000000000' and is_public),
-  array['profile:name'], 'a new company publishes its name and nothing else');
+  array['profile:activity', 'profile:brandName', 'profile:description', 'profile:foundedDate', 'profile:name',
+    'profile:slogan', 'profile:website', 'record:award', 'record:history', 'record:product'],
+  'a new company publishes its introduction and its masked activity');
+select is((select count(*)::integer from internal.data_room_fields_public_by_default() shown
+    where not exists (select 1 from internal.data_room_template_fields() template
+      where template.kind = shown.kind and template.field = shown.field)),
+  0, 'every field public by default is one the template gives a new company');
 select is(public.data_room_public_company('public-sample'), '72000000-0000-0000-0000-000000000000'::uuid,
   'the public page finds its company by address');
 
