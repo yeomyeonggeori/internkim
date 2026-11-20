@@ -39,8 +39,8 @@ select is(
 update public.task set status = 'in_progress' where id = '99700000-0000-0000-0000-0000000000b2';
 select is(
   (select (status::text, (starts_at = pg_temp.day_at(-9)), ends_at) from public.task where id = '99700000-0000-0000-0000-0000000000b2'),
-  ('in_progress'::text, true, null::timestamptz),
-  'named status: reopening a finished task clears the end it passed and keeps its start');
+  ('in_progress'::text, true, pg_temp.day_at(-8)),
+  'named status: reopening finished work keeps its start and the end it missed');
 
 update public.task set status = 'planned' where id = '99700000-0000-0000-0000-0000000000b3';
 select is(
@@ -165,8 +165,7 @@ select is(
     where title = 'every move'
       and status::text in ('planned', 'in_progress', 'completed')
       and not case status::text
-        when 'in_progress' then (starts_at is null or public.task_first_day(task) <= (select day from today_in_seoul))
-          and (ends_at is null or public.task_last_day(task) >= (select day from today_in_seoul))
+        when 'in_progress' then starts_at is null or public.task_first_day(task) <= (select day from today_in_seoul)
         when 'completed' then ends_at is not null and public.task_last_day(task) <= (select day from today_in_seoul)
         else ends_at is null or public.task_last_day(task) >= (select day from today_in_seoul)
       end),

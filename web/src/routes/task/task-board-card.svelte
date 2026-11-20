@@ -8,6 +8,7 @@
 	import { buildTaskBoardCardDisplay } from './task-board-card-model';
 	import TaskChildProgress from './task-child-progress.svelte';
 	import TaskDateRange from './task-date-range.svelte';
+	import ClockAlertIcon from '@lucide/svelte/icons/clock-alert';
 	import DefinitionBadge from '$lib/components/definition-badge.svelte';
 	import { sizeBadgeClass } from './task-style';
 	import { taskDefinitionBadgeStyle } from './task-definition-colors';
@@ -28,7 +29,8 @@
 		content?: Snippet;
 		isInteractive?: boolean;
 		memberEmail?: (memberID: string) => string;
-		isOverduePlan?: boolean;
+		isPastItsEnd?: boolean;
+		pastItsEndLabel?: string;
 		businessColor?: (business: string | null) => string;
 		taskTypeColor?: (type: string | null) => string;
 		childProgress?: ChildProgress;
@@ -48,7 +50,8 @@
 		content,
 		isInteractive = true,
 		memberEmail = () => '',
-		isOverduePlan = false,
+		isPastItsEnd = false,
+		pastItsEndLabel = '',
 		businessColor = () => '#64748b',
 		taskTypeColor = () => '#64748b',
 		childProgress,
@@ -195,12 +198,17 @@
 				{/each}
 				{#if task.startDate || task.endDate}
 					<Badge
-						variant={isOverduePlan ? 'destructive' : 'secondary'}
+						variant={isPastItsEnd ? 'destructive' : 'secondary'}
 						class={cn(
-							'h-5 max-w-full rounded-md px-1.5 py-0 text-[11px] font-medium shadow-none',
-							!isOverduePlan && 'bg-muted text-foreground/75'
+							'h-5 max-w-full gap-1 rounded-md px-1.5 py-0 text-[11px] font-medium shadow-none',
+							!isPastItsEnd && 'bg-muted text-foreground/75'
 						)}
+						title={isPastItsEnd ? pastItsEndLabel : undefined}
 					>
+						{#if isPastItsEnd}
+							<ClockAlertIcon class="size-3 shrink-0" aria-hidden="true" />
+							<span class="sr-only">{pastItsEndLabel}</span>
+						{/if}
 						<TaskDateRange startDate={task.startDate} endDate={task.endDate} />
 					</Badge>
 				{/if}

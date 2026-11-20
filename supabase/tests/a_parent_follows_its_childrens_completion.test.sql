@@ -173,10 +173,10 @@ select is(
 
 update public.task set ends_at = ((now() at time zone 'Asia/Seoul')::date - 1)::timestamptz
   where id = '77700000-0000-0000-0000-000000001002';
-select is(
+select isnt(
   (select status from public.task where id = '77700000-0000-0000-0000-000000001001')::text,
   'completed',
-  'follows: a child the dates complete, without naming its status, completes the parent');
+  'follows: a child whose end passes is late, not done, so its parent stays open');
 
 select lives_ok($block$do $$
 declare

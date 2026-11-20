@@ -7,7 +7,8 @@
 	import { TaskBoardDragController } from './task-board-drag-controller.svelte';
 	import type { TaskBoardMoveRequest } from './task-board-drag';
 	import { taskBoardViewportHeight } from './task-board-viewport-height';
-	import { buildTaskBoard, isTaskBoardStatus, isOverdueTaskPlan, type TaskBoardWeekPosition } from './task-board-model';
+	import { buildTaskBoard, isTaskBoardStatus, isTaskPastItsEnd, type TaskBoardWeekPosition } from './task-board-model';
+	import { localDateISO } from './task-roadmap-model';
 	import { taskStatusIcon } from './task-status-style';
 	import { statusIconClass } from './task-style';
 	import { buildTaskChildProgressByParent, type TaskChildProgress } from './task-relationships';
@@ -22,6 +23,7 @@
 		addTask: string;
 		addTaskShort: string;
 		taskCount: string;
+		pastItsEnd: string;
 	};
 
 	type Props = {
@@ -87,6 +89,7 @@
 		moveTask: (request) => moveTask(request)
 	});
 
+	const todayISO = localDateISO(new Date());
 	let childProgressByParent = $derived(serverChildProgress ? new Map(Object.entries(serverChildProgress)) : buildTaskChildProgressByParent(allTasks));
 	let columns = $derived(buildTaskBoard(tasks, {
 		weekStartISO,
@@ -174,7 +177,8 @@
 										{task}
 										childProgress={childProgressByParent.get(task.id)}
 										{memberEmail}
-										isOverduePlan={isOverdueTaskPlan(task, weekStartISO)}
+										isPastItsEnd={isTaskPastItsEnd(task, todayISO)}
+										pastItsEndLabel={boardText.pastItsEnd}
 										{businessColor}
 										{taskTypeColor}
 										{childProgressLabel}
