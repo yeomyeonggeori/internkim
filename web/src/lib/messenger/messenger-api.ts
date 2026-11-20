@@ -6,6 +6,7 @@ import {
 	type TransferProgress
 } from '$lib/transfer/company-transfer';
 import { callCompanyApp } from '$lib/host-bridge';
+import { failureCauseOf, type FailureCause } from './failure-cause';
 import { z } from 'zod';
 import type { LinkPreview, LinkVideo } from '../../../../host/relay/link-preview';
 
@@ -87,6 +88,7 @@ export type MessengerPost = {
 	ask?: MessengerAsk;
 	isError?: boolean;
 	isRawError?: boolean;
+	failureCause?: FailureCause;
 };
 
 export type MessengerSearchMatch = Pick<MessengerPost, 'id' | 'channelID' | 'parentID' | 'author' | 'body' | 'postedAt'>;
@@ -133,6 +135,7 @@ type PersonalMessage = {
 	ask?: unknown;
 	isFailure?: unknown;
 	isRawFailure?: unknown;
+	failureCause?: unknown;
 };
 
 type PersonalMessageMatch = Pick<
@@ -236,7 +239,8 @@ function asPost(message: PersonalMessage): MessengerPost {
 		})),
 		ask: askOf(message),
 		isError: message.isFailure === true,
-		isRawError: message.isRawFailure === true
+		isRawError: message.isRawFailure === true,
+		failureCause: failureCauseOf(message.failureCause)
 	};
 }
 
