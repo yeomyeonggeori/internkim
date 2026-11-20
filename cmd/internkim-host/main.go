@@ -185,12 +185,7 @@ func runBox(arguments []string) {
 	if options.AdminAccount != "" {
 		daemon = withAdminPasswordFor(daemon, options.AdminAccount)
 	}
-	errorValue := daemon.Run(ctx)
-	if errors.Is(errorValue, box.ErrConnectedByFile) {
-		fmt.Println(errorValue)
-		return
-	}
-	if errorValue != nil {
+	if errorValue := daemon.Run(ctx); errorValue != nil {
 		fmt.Fprintln(os.Stderr, errorValue)
 		os.Exit(1)
 	}

@@ -25,7 +25,6 @@ const (
 )
 
 var (
-	ErrConnectedByFile   = errors.New("this computer was connected to its company with a connection file")
 	ErrNothingToTakeOver = errors.New("the company keeps no backup this box can open")
 	ErrTakeOverUnderway  = errors.New("this box is restoring the company's newest backup")
 )
@@ -73,7 +72,9 @@ type Daemon struct {
 
 func (daemon Daemon) Run(ctx context.Context) error {
 	if daemon.connectedByFile() && !daemon.isResetAsked() {
-		return daemon.keepAComputerConnectedByFileOnANetwork(ctx)
+		if errorValue := daemon.moveOffTheConnectionFile(ctx); errorValue != nil {
+			return nil
+		}
 	}
 	identity, errorValue := LoadOrCreateIdentity(identityPathIn(daemon.Places.StateDirectoryPath))
 	if errorValue != nil {
@@ -369,7 +370,7 @@ func (daemon Daemon) InstallWithConnectionFile(ctx context.Context, connectionKe
 	if errorValue != nil {
 		return errorValue
 	}
-	if errorValue := daemon.Client.Claim(ctx, identity, connectionKey); errorValue != nil {
+	if errorValue := daemon.Client.Claim(ctx, identity, connectionKey, true); errorValue != nil {
 		return errorValue
 	}
 	session, isClaimed, errorValue := daemon.Client.Session(ctx, identity, daemon.PackageVersion)
@@ -437,19 +438,6 @@ func (daemon Daemon) nameHost(ctx context.Context, companySlug string) {
 	}
 	if errorValue := daemon.NameHost(ctx, companySlug); errorValue != nil {
 		log.Printf("naming this box for its company: %v; it keeps its current host name", errorValue)
-	}
-}
-
-func (daemon Daemon) keepAComputerConnectedByFileOnANetwork(ctx context.Context) error {
-	if daemon.GetOnline == nil {
-		return ErrConnectedByFile
-	}
-	log.Printf("%v; it only gets back online when it is off every network", ErrConnectedByFile)
-	for {
-		daemon.getOnlineWhenOffline(ctx)
-		if errorValue := daemon.sleep(ctx, announceInterval); errorValue != nil {
-			return nil
-		}
 	}
 }
 

@@ -28,7 +28,6 @@ import {
 	controlPlane,
 	hashOf,
 	hostSessionOfCompany,
-	spendAgentKey,
 	type HostSession,
 	type SigningCredentials
 } from './control-plane';
@@ -240,25 +239,6 @@ export async function claimBox(
 	return boxRoleSchema.parse(data.given_role);
 }
 
-async function keepClaimedBox(
-	client: SupabaseClient,
-	companyID: string,
-	publicKey: string,
-	encryptionKey: string,
-	hostName: string | null,
-	intent: ClaimIntent
-): Promise<BoxRole> {
-	const { data, error } = await client.rpc('keep_claimed_box', {
-		claiming_company: companyID,
-		box_key: publicKey,
-		box_encryption_key: encryptionKey,
-		box_host_name: hostName,
-		is_replacing: intent === 'replace'
-	});
-	if (error) throw new Error(`keeping box ${publicKey} for ${companyID}: ${error.message}`);
-	return boxRoleSchema.parse(data);
-}
-
 function claimTicketHashOf(ticket: string): Promise<string> {
 	return hashOf(`claim-ticket:${ticket}`);
 }
@@ -293,18 +273,31 @@ export async function releaseBoxOfKey(client: SupabaseClient, publicKey: string)
 	return releaseBox(client, box.companyID, publicKey);
 }
 
+const otherComputersRefusal =
+	'the company runs on another box or computer, so this one moves onto a box key only when a person makes it the company\'s host';
+
+type FileClaimOutcome = 'claimed' | 'not_standing' | 'company_has_other_computers';
+
 export async function claimBoxWithConnectionFile(
 	client: SupabaseClient,
 	publicKey: string,
 	encryptionKey: string,
-	connectionKey: string
+	connectionKey: string,
+	replacesOtherComputers: boolean
 ): Promise<string | null> {
-	const companyID = await spendAgentKey(client, connectionKey, companyComputerName);
-	if (!companyID) return null;
-	await keepClaimedBox(client, companyID, publicKey, encryptionKey, null, 'replace');
-	const removed = await client.from('empty_box').delete().eq('public_key', publicKey);
-	if (removed.error) throw new Error(`claiming box ${publicKey}: ${removed.error.message}`);
-	return companyID;
+	const { data, error } = await client
+		.rpc('claim_box_with_connection_file', {
+			connection_key_hash: await hashOf(connectionKey),
+			connection_agent_name: companyComputerName,
+			box_key: publicKey,
+			box_encryption_key: encryptionKey,
+			is_replacing: replacesOtherComputers
+		})
+		.single<{ outcome: FileClaimOutcome; claimed_company: string | null }>();
+	if (error) throw new Error(`claiming box ${publicKey} with a connection file: ${error.message}`);
+	if (data.outcome === 'company_has_other_computers') throw new BoxRefused(otherComputersRefusal, 409);
+	if (data.outcome === 'not_standing') return null;
+	return z.uuid().parse(data.claimed_company);
 }
 
 const legacySealedModelKeySchema = z.object({

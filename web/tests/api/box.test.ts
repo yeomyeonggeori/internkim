@@ -800,7 +800,7 @@ describe('a connection file claims the computer it is installed on', () => {
 		const box = await aBox();
 		const issued = await issueAgentKey(client, companyID, companyComputerName, { replaceStanding: true });
 
-		expect(await claimBoxWithConnectionFile(client, box.publicKey, box.encryptionKey, issued.apiKey)).toBe(companyID);
+		expect(await claimBoxWithConnectionFile(client, box.publicKey, box.encryptionKey, issued.apiKey, true)).toBe(companyID);
 		const answered = await boxSessionFor(credentials, box.publicKey, environment, appURL);
 
 		expect(answered?.configuration.company.id).toBe(companyID);
@@ -810,17 +810,26 @@ describe('a connection file claims the computer it is installed on', () => {
 		const first = await aBox();
 		const second = await aBox();
 		const issued = await issueAgentKey(client, companyID, companyComputerName, { replaceStanding: true });
-		await claimBoxWithConnectionFile(client, first.publicKey, first.encryptionKey, issued.apiKey);
+		await claimBoxWithConnectionFile(client, first.publicKey, first.encryptionKey, issued.apiKey, true);
 
-		expect(await claimBoxWithConnectionFile(client, second.publicKey, second.encryptionKey, issued.apiKey)).toBeNull();
+		expect(await claimBoxWithConnectionFile(client, second.publicKey, second.encryptionKey, issued.apiKey, true)).toBeNull();
 		expect(await boxSessionFor(credentials, second.publicKey, environment, appURL)).toBeNull();
+	});
+
+	test('a claim the record cannot keep leaves the file standing, so its computer still signs in', async () => {
+		const box = await aBox();
+		const issued = await issueAgentKey(client, companyID, companyComputerName, { replaceStanding: true });
+
+		await expect(claimBoxWithConnectionFile(client, box.publicKey, 'not an encryption key', issued.apiKey, true)).rejects.toThrow();
+
+		expect(await companyOfHostSession(credentials, (await sessionForHost(credentials, issued.apiKey)).accessToken)).toBe(companyID);
 	});
 
 	test('only a connection file key claims, not another key the company holds', async () => {
 		const box = await aBox();
 		const other = await issueAgentKey(client, companyID, `another-caller-${stamp}`);
 
-		expect(await claimBoxWithConnectionFile(client, box.publicKey, box.encryptionKey, other.apiKey)).toBeNull();
+		expect(await claimBoxWithConnectionFile(client, box.publicKey, box.encryptionKey, other.apiKey, true)).toBeNull();
 	});
 });
 

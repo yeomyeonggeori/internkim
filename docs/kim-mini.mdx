@@ -243,6 +243,19 @@ A computer the company brings follows the same shape. On Linux, `sudo internkim
 install` spends the downloaded key, and the machine signs in with one it generated
 from then on.
 
+A Linux host that still signs in with its connection file's key moves over by
+itself the next time `internkim-box` starts, which every update does, when it is
+the company's only computer. It claims itself with that key, which then stops
+working, and serves on its own sessions while the company's data stays where it
+is. Until the central plane answers it as the box that serves the company, it
+keeps the key and tries again every 30 seconds. A host with boxes connected beside
+it stays on its connection file, because moving would disconnect them. It says so
+once in its log and does not ask again until `internkim-box` restarts. `sudo
+internkim install` with a new connection file moves it anyway and disconnects the
+others. Running `sudo systemctl mask internkim-box` before an update keeps any
+host on its connection file, and also turns off the
+[Wi-Fi setup](/docs/running-the-host#wifi) the box daemon runs.
+
 ## Models
 
 The administrator pastes an OpenRouter key at `intern.kim`. The browser encrypts it

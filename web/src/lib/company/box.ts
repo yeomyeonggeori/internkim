@@ -78,7 +78,8 @@ export function boxFingerprintOf(publicKey: string): string {
 
 export const boxFileClaimSchema = z.object({
 	encryptionKey: boxKeySchema,
-	connectionKey: z.string().regex(/^[a-f0-9]{64}$/)
+	connectionKey: z.string().regex(/^[a-f0-9]{64}$/),
+	replacesOtherComputers: z.boolean().default(true)
 }).strict();
 
 export const sealedSecretVersion = 1;

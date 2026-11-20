@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -115,8 +116,20 @@ func (client Client) Announce(ctx context.Context, identity Identity, asked Anno
 	}, nil
 }
 
-func (client Client) Claim(ctx context.Context, identity Identity, connectionKey string) error {
-	body, errorValue := json.Marshal(map[string]string{"encryptionKey": identity.EncryptionPublicKey(), "connectionKey": connectionKey})
+var ErrCompanyHasOtherComputers = errors.New("the company runs on another box or computer besides this one")
+
+type fileClaim struct {
+	EncryptionKey          string `json:"encryptionKey"`
+	ConnectionKey          string `json:"connectionKey"`
+	ReplacesOtherComputers bool   `json:"replacesOtherComputers"`
+}
+
+func (client Client) Claim(ctx context.Context, identity Identity, connectionKey string, replacesOtherComputers bool) error {
+	body, errorValue := json.Marshal(fileClaim{
+		EncryptionKey:          identity.EncryptionPublicKey(),
+		ConnectionKey:          connectionKey,
+		ReplacesOtherComputers: replacesOtherComputers,
+	})
 	if errorValue != nil {
 		return errorValue
 	}
@@ -125,6 +138,9 @@ func (client Client) Claim(ctx context.Context, identity Identity, connectionKey
 		return errorValue
 	}
 	defer response.Body.Close()
+	if response.StatusCode == http.StatusConflict {
+		return ErrCompanyHasOtherComputers
+	}
 	if response.StatusCode != http.StatusOK {
 		return refusalOf(response, "claiming this computer with the connection file")
 	}

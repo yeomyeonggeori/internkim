@@ -36,6 +36,10 @@ type fakePlane struct {
 	ownKey           func() string
 	keepsBackups     bool
 	isAway           bool
+	refusesClaims    bool
+	losesClaimAnswer bool
+	otherComputers   bool
+	claimsReplacing  []bool
 	takeOver         TakeOverPolicy
 	targetVersion    string
 	releases         int
@@ -77,10 +81,27 @@ func (plane *fakePlane) serve(t *testing.T) *httptest.Server {
 				"pairingCodeExpiresAt": time.Now().Add(15 * time.Minute).UTC().Format(time.RFC3339Nano),
 			})
 		case "/api/box/claim":
-			var body map[string]string
+			if plane.isAway {
+				http.Error(writer, "the central plane is out of reach", http.StatusServiceUnavailable)
+				return
+			}
+			var body fileClaim
 			json.NewDecoder(request.Body).Decode(&body)
-			plane.claimedWith = append(plane.claimedWith, body["connectionKey"])
+			plane.claimedWith = append(plane.claimedWith, body.ConnectionKey)
+			plane.claimsReplacing = append(plane.claimsReplacing, body.ReplacesOtherComputers)
+			if plane.otherComputers && !body.ReplacesOtherComputers {
+				http.Error(writer, "the company runs on another box or computer", http.StatusConflict)
+				return
+			}
+			if plane.refusesClaims {
+				http.Error(writer, "that connection file was already used or replaced", http.StatusForbidden)
+				return
+			}
 			plane.isClaimed = true
+			if plane.losesClaimAnswer {
+				http.Error(writer, "the answer was lost on its way back", http.StatusBadGateway)
+				return
+			}
 			writer.Write([]byte(`{"companyID":"` + sampleCompanyID + `"}`))
 		case "/api/box/session":
 			if plane.isAway {
@@ -498,22 +519,9 @@ func requireFile(t *testing.T, path, contents string, mode os.FileMode) {
 	}
 }
 
-func TestAComputerConnectedWithAFileIsNotAnnouncedAsEmpty(t *testing.T) {
-	plane := &fakePlane{}
-	recorded := &installs{}
-	daemon, places := daemonFor(t, plane, recorded)
-	writeConnectionFile(t, places.ConnectionFilePath, sampleConnectionDocument(t))
-
-	errorValue := daemon.Run(context.Background())
-
-	if !errors.Is(errorValue, ErrConnectedByFile) || plane.announcements != 0 {
-		t.Fatalf("error = %v, announcements = %d", errorValue, plane.announcements)
-	}
-}
-
 func computerConnectedWithAFile(t *testing.T, isOnANetwork bool) (Daemon, *fakePlane, Places, *[]bool) {
 	t.Helper()
-	plane := &fakePlane{}
+	plane := &fakePlane{isAway: true}
 	daemon, places := daemonFor(t, plane, &installs{})
 	writeConnectionFile(t, places.ConnectionFilePath, sampleConnectionDocument(t))
 	daemon.IsOnANetwork = func(context.Context) bool { return isOnANetwork }
