@@ -146,16 +146,17 @@ use.
 Each step changes [Kim mini](/docs/kim-mini) and
 [What lives where](/docs/what-lives-where) with it.
 
-## Open questions
+## Decisions
 
-1. Should a company on one box wait on the store for each write?
-   [Kim mini](/docs/kim-mini#more-than-one-box) says its writes never wait on
-   the internet, and the price is whatever was saved since its last snapshot.
-   Recommendation: wait, as every other company does. People reach a box
-   through the hosted service, so a box without its line has no one writing to
-   it. The alternative is to follow without waiting and lose the last seconds.
-2. May a box listen on its LAN, ending "every arrow points outward" for boxes
-   on one network? Recommendation: yes, bound to the LAN address, only while
-   another box of the company shares its site, answering only box-signed
-   requests for sealed pieces. Without it step 6 drops out and every fetch goes
-   to the store.
+1. A company on one box waits on the store for each write, as every other
+   company does. People reach a box through the hosted service, so a box
+   without its line has no one writing to it. Step 1 starts by tracing what
+   writes on a box while its line is down, such as scheduled jobs and agent
+   work in flight, and how each behaves while its write waits.
+   [Kim mini](/docs/kim-mini#more-than-one-box), which says such a company's
+   writes never wait on the internet, changes with that step.
+2. A box listens on its LAN, bound to its LAN address, only while another box
+   of the company shares its site, and answers only box-signed requests for
+   sealed pieces. For boxes on one network this ends "every arrow points
+   outward", and [Architecture](/docs/architecture#why-the-host-has-no-inbound-port)
+   changes with step 6.
