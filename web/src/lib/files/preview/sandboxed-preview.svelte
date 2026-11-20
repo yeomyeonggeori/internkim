@@ -6,8 +6,17 @@
 		bytes,
 		frameDocument,
 		countLabel,
+		isMiniature = false,
+		onAspectRatio,
 		onFailure
-	}: { bytes: ArrayBuffer; frameDocument: string; countLabel: string; onFailure: (error: unknown) => void } = $props();
+	}: {
+		bytes: ArrayBuffer;
+		frameDocument: string;
+		countLabel: string;
+		isMiniature?: boolean;
+		onAspectRatio?: (aspectRatio: number) => void;
+		onFailure: (error: unknown) => void;
+	} = $props();
 
 	let frame = $state<HTMLIFrameElement | null>(null);
 	let count = $state<number | null>(null);
@@ -17,7 +26,10 @@
 		const message = frameMessageSchema.safeParse(event.data);
 		if (!message.success) return;
 		if (message.data.type === 'ready') frame.contentWindow?.postMessage(bytes.slice(0), '*');
-		if (message.data.type === 'rendered') count = message.data.count;
+		if (message.data.type === 'rendered') {
+			count = message.data.count;
+			onAspectRatio?.(message.data.aspectRatio);
+		}
 		if (message.data.type === 'failed') onFailure(new Error(message.data.message));
 	}
 </script>
@@ -25,12 +37,12 @@
 <svelte:window onmessage={receive} />
 
 <div class="relative flex h-full min-h-0 flex-col">
-	{#if count !== null}
+	{#if count === null}
+		<div class="absolute inset-0 flex items-center justify-center"><Spinner /></div>
+	{:else if !isMiniature}
 		<p class="text-muted-foreground bg-background/80 border-b px-3 py-1.5 text-xs tabular-nums backdrop-blur">
 			{count} {countLabel}
 		</p>
-	{:else}
-		<div class="absolute inset-0 flex items-center justify-center"><Spinner /></div>
 	{/if}
 	<iframe
 		bind:this={frame}

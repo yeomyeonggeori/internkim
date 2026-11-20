@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
+	import type { Attachment } from 'svelte/attachments';
 	import SvelteMarkdown from '@humanspeak/svelte-markdown';
 	import FileQuestionIcon from '@lucide/svelte/icons/file-question';
 	import * as Code from '$lib/components/ui/code';
@@ -18,8 +19,16 @@
 	let {
 		fileName,
 		size,
-		readURL
-	}: { fileName: string; size?: number; readURL: () => Promise<string> } = $props();
+		readURL,
+		isMiniature = false,
+		onAspectRatio
+	}: {
+		fileName: string;
+		size?: number;
+		readURL: () => Promise<string>;
+		isMiniature?: boolean;
+		onAspectRatio?: (aspectRatio: number) => void;
+	} = $props();
 
 	const text = createPageText(previewText);
 	const kind = $derived(previewKindOf(fileName));
@@ -55,6 +64,14 @@
 		return name.toLowerCase().endsWith('.svg') ? 'image/svg+xml' : '';
 	}
 
+	const reportsAspectRatio: Attachment<HTMLElement> = (element) => {
+		const observer = new ResizeObserver(() => {
+			if (element.offsetHeight > 0) onAspectRatio?.(element.offsetWidth / element.offsetHeight);
+		});
+		observer.observe(element);
+		return () => observer.disconnect();
+	};
+
 	function showFailure(error: unknown) {
 		console.error('preview failed', error);
 		failure = text.failed;
@@ -78,23 +95,29 @@
 {:else if kind === 'spreadsheet'}
 	<SpreadsheetPreview {bytes} fileName={fileName} onFailure={showFailure} />
 {:else if kind === 'presentation'}
-	<PresentationPreview {bytes} onFailure={showFailure} />
+	<PresentationPreview {bytes} {isMiniature} {onAspectRatio} onFailure={showFailure} />
 {:else if kind === 'word'}
-	<WordPreview {bytes} onFailure={showFailure} />
+	<WordPreview {bytes} {isMiniature} {onAspectRatio} onFailure={showFailure} />
 {:else if kind === 'html'}
-	<HtmlPreview {bytes} />
+	<HtmlPreview {bytes} {isMiniature} />
 {:else if kind === 'image'}
 	<div class="flex h-full items-center justify-center overflow-auto p-4">
 		<img src={imageURL} alt={fileName} class="max-h-full max-w-full object-contain shadow-sm" />
 	</div>
 {:else if kind === 'markdown'}
-	<div class="h-full overflow-auto p-6">
-		<article class="prose prose-sm dark:prose-invert mx-auto max-w-3xl break-words"><SvelteMarkdown source={plainText} /></article>
+	<div class="h-full overflow-auto">
+		<div class="p-6" {@attach reportsAspectRatio}>
+			<article class="prose prose-sm dark:prose-invert mx-auto max-w-3xl break-words"><SvelteMarkdown source={plainText} /></article>
+		</div>
 	</div>
 {:else if kind === 'code'}
-	<div class="h-full overflow-auto p-4">
-		<Code.Root code={plainText} lang={codeLanguageForFile(fileName) ?? 'bash'} class="text-xs" />
+	<div class="h-full overflow-auto">
+		<div class="p-4" {@attach reportsAspectRatio}>
+			<Code.Root code={plainText} lang={codeLanguageForFile(fileName) ?? 'bash'} class="text-xs" />
+		</div>
 	</div>
 {:else}
-	<pre class="h-full overflow-auto p-6 font-sans text-sm leading-relaxed break-words whitespace-pre-wrap">{plainText}</pre>
+	<div class="h-full overflow-auto">
+		<pre class="p-6 font-sans text-sm leading-relaxed break-words whitespace-pre-wrap" {@attach reportsAspectRatio}>{plainText}</pre>
+	</div>
 {/if}

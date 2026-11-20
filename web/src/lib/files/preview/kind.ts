@@ -59,6 +59,24 @@ export function isTooLargeToPreview(fileName: string, size: number): boolean {
 	return size > limit;
 }
 
+export type CardPreview = 'thumbnail' | 'document' | 'none';
+
+const maxCardPreviewBytes = 20 * 1024 * 1024;
+
+export function cardPreviewOf(fileName: string, sizeBytes?: number): CardPreview {
+	const kind = previewKindOf(fileName);
+	if (kind === 'none') return 'none';
+	if (sizeBytes !== undefined && (sizeBytes > maxCardPreviewBytes || isTooLargeToPreview(fileName, sizeBytes))) return 'none';
+	return kind === 'pdf' || kind === 'spreadsheet' ? 'thumbnail' : 'document';
+}
+
+const tallestCardAspectRatio = Math.SQRT1_2;
+const widestCardAspectRatio = 3;
+
+export function cardAspectRatioOf(documentAspectRatio: number): number {
+	return Math.min(widestCardAspectRatio, Math.max(tallestCardAspectRatio, documentAspectRatio));
+}
+
 export type SheetGrid = { rows: string[][]; columnCount: number; isTruncated: boolean };
 
 export const maxPreviewRows = 1000;

@@ -2,7 +2,7 @@ import { z } from 'zod';
 
 export const frameMessageSchema = z.discriminatedUnion('type', [
 	z.object({ type: z.literal('ready') }),
-	z.object({ type: z.literal('rendered'), count: z.number().int() }),
+	z.object({ type: z.literal('rendered'), count: z.number().int(), aspectRatio: z.number().positive() }),
 	z.object({ type: z.literal('failed'), message: z.string() })
 ]);
 
@@ -17,6 +17,7 @@ ${scripts}
 <script>
 const pages = document.getElementById('pages');
 const maxPageWidth = 960;
+const verticalPadding = 32;
 let bytes = null;
 let renderedWidth = 0;
 
@@ -32,7 +33,9 @@ function report(error) {
 
 async function show() {
 	renderedWidth = availableWidth();
-	parent.postMessage({ type: 'rendered', count: await render(renderedWidth) }, '*');
+	const rendered = await render(renderedWidth);
+	const aspectRatio = document.documentElement.clientWidth / (rendered.firstPageHeight + verticalPadding);
+	parent.postMessage({ type: 'rendered', count: rendered.count, aspectRatio }, '*');
 }
 
 addEventListener('message', (event) => {
@@ -73,7 +76,7 @@ async function render(width) {
 		previewer.destroy();
 		previewer = await slidesAt(width, ratio);
 	}
-	return previewer.slideCount;
+	return { count: previewer.slideCount, firstPageHeight: Math.round(width * ratio) };
 }`
 	});
 }
@@ -99,7 +102,7 @@ async function render(width) {
 	const sections = pages.querySelectorAll('section.docx');
 	const widest = Math.max(...Array.from(sections, (section) => section.offsetWidth));
 	if (widest > width) pages.style.zoom = String(width / widest);
-	return sections.length;
+	return { count: sections.length, firstPageHeight: sections[0] ? sections[0].getBoundingClientRect().height : width };
 }`
 	});
 }
