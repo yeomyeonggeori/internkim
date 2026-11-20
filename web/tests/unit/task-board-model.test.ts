@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { BOARD_STATUS_VALUES, buildTaskBoard, isOverdueTaskPlan } from '../../src/routes/task/task-board-model';
+import { BOARD_STATUS_VALUES, buildTaskBoard, isTaskPastItsEnd } from '../../src/routes/task/task-board-model';
 import type { Task } from '../../src/routes/task/task-types';
 
 describe('flow task board model', () => {
@@ -126,11 +126,18 @@ describe('flow task board model', () => {
 		]);
 	});
 
-	test('marks a plan as overdue only when its date falls before the selected week', () => {
-		expect(isOverdueTaskPlan(task({ status: 'planned', startDate: '2026-05-18', endDate: '2026-05-22' }), '2026-06-01')).toBe(true);
-		expect(isOverdueTaskPlan(task({ status: 'planned', startDate: '2026-05-18', endDate: '' }), '2026-06-01')).toBe(true);
-		expect(isOverdueTaskPlan(task({ status: 'planned', startDate: '2026-06-02', endDate: '2026-06-05' }), '2026-06-01')).toBe(false);
-		expect(isOverdueTaskPlan(task({ status: 'in_progress', startDate: '2026-05-18', endDate: '2026-05-22' }), '2026-06-01')).toBe(false);
+	test('marks open work whose last day is behind today as past its end', () => {
+		expect(isTaskPastItsEnd(task({ status: 'planned', startDate: '2026-05-18', endDate: '2026-05-22' }), '2026-06-01')).toBe(true);
+		expect(isTaskPastItsEnd(task({ status: 'planned', startDate: '2026-05-18', endDate: '' }), '2026-06-01')).toBe(true);
+		expect(isTaskPastItsEnd(task({ status: 'in_progress', startDate: '2026-05-18', endDate: '2026-05-22' }), '2026-06-01')).toBe(true);
+	});
+
+	test('leaves work that ends today, has no end, or is no longer open unmarked', () => {
+		expect(isTaskPastItsEnd(task({ status: 'in_progress', startDate: '2026-05-18', endDate: '2026-06-01' }), '2026-06-01')).toBe(false);
+		expect(isTaskPastItsEnd(task({ status: 'in_progress', startDate: '2026-05-18', endDate: '' }), '2026-06-01')).toBe(false);
+		expect(isTaskPastItsEnd(task({ status: 'planned', startDate: '2026-06-02', endDate: '2026-06-05' }), '2026-06-01')).toBe(false);
+		expect(isTaskPastItsEnd(task({ status: 'completed', startDate: '2026-05-18', endDate: '2026-05-22' }), '2026-06-01')).toBe(false);
+		expect(isTaskPastItsEnd(task({ status: 'paused', startDate: '2026-05-18', endDate: '2026-05-22' }), '2026-06-01')).toBe(false);
 	});
 
 	test('hides an empty request column when asked, and keeps it when it has tasks', () => {

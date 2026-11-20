@@ -50,8 +50,8 @@ set ends_at = ((now() at time zone 'Asia/Seoul')::date - 2)::timestamp at time z
 where id = '99800000-0000-0000-0000-0000000000b6';
 select is(
   (select (starts_at = ends_at, status::text) from public.task where id = '99800000-0000-0000-0000-0000000000b6'),
-  (true, 'completed'::text),
-  'end came: pulling a startless end into the past completes the task and starts it at its end');
+  (true, 'planned'::text),
+  'end came: pulling a startless end into the past starts the work at its end and leaves it open');
 
 set constraints all immediate;
 alter table public.task disable trigger task_status_and_dates_agree;
@@ -63,9 +63,9 @@ alter table public.task enable trigger task_status_and_dates_agree;
 
 select public.advance_tasks_by_their_dates();
 select is(
-  (select (starts_at = ends_at, status::text) from public.task where id = '99800000-0000-0000-0000-0000000000b7'),
-  (true, 'completed'::text),
-  'end came: the completing pass starts a startless task at its end');
+  (select status::text from public.task where id = '99800000-0000-0000-0000-0000000000b7'),
+  'planned',
+  'end came: the pass leaves startless work past its end open');
 
 update public.task
 set ends_at = ((now() at time zone 'Asia/Seoul')::date - 1)::timestamp at time zone 'Asia/Seoul'

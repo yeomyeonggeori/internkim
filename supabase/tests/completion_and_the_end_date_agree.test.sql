@@ -48,10 +48,10 @@ select is(
   'agree: a passed end date is the truer one and stays');
 
 update public.task set ends_at = ((now() at time zone 'Asia/Seoul')::date - 1)::timestamptz where id = '99900000-0000-0000-0000-0000000000b4';
-select is(
+select isnt(
   (select status from public.task where id = '99900000-0000-0000-0000-0000000000b4')::text,
   'completed',
-  'agree: pulling the end date to the past completes the task');
+  'agree: pulling the end date of work into the past leaves it open');
 
 update public.task set ends_at = ((now() at time zone 'Asia/Seoul')::date - 1)::timestamptz, status = 'paused' where id = '99900000-0000-0000-0000-0000000000b5';
 select is(

@@ -60,10 +60,15 @@ function compareAscendingOptionalDate(left: string | undefined, right: string | 
 	return leftValue.localeCompare(rightValue);
 }
 
-export function isOverdueTaskPlan(task: Task, weekStartISO: string): boolean {
-	if (task.status !== 'planned' || !weekStartISO) return false;
-	const plannedDate = task.endDate?.trim() || task.startDate?.trim() || '';
-	return plannedDate !== '' && plannedDate < weekStartISO;
+export function isTaskPastItsEnd(task: Task, todayISO: string): boolean {
+	const lastDate = lastOpenDateOf(task);
+	return lastDate !== '' && lastDate < todayISO;
+}
+
+function lastOpenDateOf(task: Task): string {
+	if (task.status === 'in_progress') return task.endDate?.trim() ?? '';
+	if (task.status === 'planned') return task.endDate?.trim() || task.startDate?.trim() || '';
+	return '';
 }
 
 function isBoardColumnVisible(status: TaskBoardStatus, options: TaskBoardOptions): boolean {

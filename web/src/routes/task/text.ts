@@ -225,7 +225,8 @@ export const taskText = {
 			board: {
 				addTask: '{status} 업무 추가',
 				addTaskShort: '업무 추가',
-				taskCount: '업무 {count}개'
+				taskCount: '업무 {count}개',
+				pastItsEnd: '기한 지남'
 			}
 		},
 		table: {
@@ -507,7 +508,8 @@ export const taskText = {
 			board: {
 				addTask: 'Add {status} task',
 				addTaskShort: 'Add task',
-				taskCount: 'Tasks: {count}'
+				taskCount: 'Tasks: {count}',
+				pastItsEnd: 'Past due'
 			}
 		},
 		table: {
