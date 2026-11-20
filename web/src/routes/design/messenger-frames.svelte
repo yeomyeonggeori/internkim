@@ -158,6 +158,12 @@
 					<AgentErrorBubble text={text.sampleErrorNotice} />
 				</Message.Content>
 			</Message.Root>
+			<Message.Root>
+				{@render avatar(agent)}
+				<Message.Content>
+					<AgentErrorBubble text={text.sampleRawErrorReason} isRawReason />
+				</Message.Content>
+			</Message.Root>
 			{/snippet}
 		</DesignFrame>
 

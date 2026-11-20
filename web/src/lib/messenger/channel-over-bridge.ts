@@ -82,6 +82,7 @@ type Message = {
 	attachments?: Attachment[];
 	interaction?: ChannelInteraction;
 	isError?: boolean;
+	isRawError?: boolean;
 };
 type Mentions = { externalIDs: string[]; isEveryone: boolean };
 type Conversation = {
@@ -298,6 +299,7 @@ function messageOf(post: MessengerPost, people: MessengerPeople, viewer: Viewer)
 		mentions: post.mentions,
 		interaction: post.ask ? interactionOf(post.ask, people, viewer) : undefined,
 		isError: post.isError,
+		isRawError: post.isRawError,
 		reactions: post.reactions.map((reaction) => ({
 			emoji: glyphOfEmojiName(reaction.emoji) ?? reaction.emoji,
 			value: reaction.emoji,

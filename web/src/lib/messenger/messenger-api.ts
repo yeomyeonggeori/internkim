@@ -85,6 +85,7 @@ export type MessengerPost = {
 	attachments: MessengerAttachment[];
 	ask?: MessengerAsk;
 	isError?: boolean;
+	isRawError?: boolean;
 };
 
 export type MessengerSearchMatch = Pick<MessengerPost, 'id' | 'channelID' | 'parentID' | 'author' | 'body' | 'postedAt'>;
@@ -144,6 +145,7 @@ type PersonalMessage = {
 	attachments: PersonalAttachment[];
 	ask?: unknown;
 	isFailure?: unknown;
+	isRawFailure?: unknown;
 };
 
 type PersonalMessageMatch = Pick<
@@ -246,7 +248,8 @@ function asPost(message: PersonalMessage): MessengerPost {
 			heightPixels: attachment.heightPixels
 		})),
 		ask: askOf(message),
-		isError: message.isFailure === true
+		isError: message.isFailure === true,
+		isRawError: message.isRawFailure === true
 	};
 }
 
