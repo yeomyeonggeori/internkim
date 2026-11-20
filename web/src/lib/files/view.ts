@@ -3,34 +3,42 @@ import type { Component } from 'svelte';
 import FileIcon from '@lucide/svelte/icons/file';
 import FileTextIcon from '@lucide/svelte/icons/file-text';
 import FileCodeIcon from '@lucide/svelte/icons/file-code';
+import FileArchiveIcon from '@lucide/svelte/icons/file-archive';
 import FileImageIcon from '@lucide/svelte/icons/file-image';
+import FileMusicIcon from '@lucide/svelte/icons/file-music';
+import FilePlayIcon from '@lucide/svelte/icons/file-play';
 import FileSpreadsheetIcon from '@lucide/svelte/icons/file-spreadsheet';
 import PresentationIcon from '@lucide/svelte/icons/presentation';
 
 export type FileVisual = {
 	icon: Component;
 	colorClass: string;
+	tileClass: string;
 };
 
-const extensionGroups: { icon: Component; colorClass: string; extensions: string[] }[] = [
+const extensionGroups: (FileVisual & { extensions: string[] })[] = [
 	{
 		icon: FileImageIcon,
 		colorClass: 'text-violet-500',
-		extensions: ['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg', 'bmp', 'ico', 'avif']
+		tileClass: 'bg-violet-500',
+		extensions: ['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg', 'bmp', 'ico', 'avif', 'heic', 'heif', 'tif', 'tiff']
 	},
 	{
 		icon: FileSpreadsheetIcon,
 		colorClass: 'text-emerald-600',
-		extensions: ['csv', 'tsv', 'xls', 'xlsx']
+		tileClass: 'bg-emerald-600',
+		extensions: ['csv', 'tsv', 'xls', 'xlsx', 'xlsm', 'ods', 'numbers']
 	},
 	{
 		icon: PresentationIcon,
 		colorClass: 'text-orange-600',
+		tileClass: 'bg-orange-600',
 		extensions: ['ppt', 'pptx', 'key', 'odp']
 	},
 	{
 		icon: FileCodeIcon,
 		colorClass: 'text-sky-600',
+		tileClass: 'bg-sky-600',
 		extensions: [
 			'ts', 'tsx', 'js', 'jsx', 'mjs', 'cjs', 'go', 'rs', 'py', 'c', 'h', 'sh', 'bash', 'zsh',
 			'svelte', 'html', 'htm', 'xml', 'css', 'json', 'jsonc', 'yaml', 'yml', 'toml', 'ini',
@@ -40,20 +48,40 @@ const extensionGroups: { icon: Component; colorClass: string; extensions: string
 	{
 		icon: FileIcon,
 		colorClass: 'text-red-600',
+		tileClass: 'bg-red-600',
 		extensions: ['pdf']
 	},
 	{
 		icon: FileTextIcon,
 		colorClass: 'text-amber-600',
-		extensions: ['md', 'markdown', 'txt', 'text', 'log', 'doc', 'docx', 'rtf']
+		tileClass: 'bg-amber-600',
+		extensions: ['md', 'markdown', 'txt', 'text', 'log', 'doc', 'docx', 'rtf', 'odt', 'pages', 'hwp', 'hwpx']
+	},
+	{
+		icon: FilePlayIcon,
+		colorClass: 'text-rose-600',
+		tileClass: 'bg-rose-600',
+		extensions: ['mp4', 'mov', 'm4v', 'webm', 'mkv', 'avi']
+	},
+	{
+		icon: FileMusicIcon,
+		colorClass: 'text-fuchsia-600',
+		tileClass: 'bg-fuchsia-600',
+		extensions: ['mp3', 'wav', 'm4a', 'aac', 'ogg', 'flac']
+	},
+	{
+		icon: FileArchiveIcon,
+		colorClass: 'text-stone-500',
+		tileClass: 'bg-stone-500',
+		extensions: ['zip', 'tar', 'gz', 'tgz', '7z', 'rar']
 	}
 ];
 
 export function fileVisual(fileName: string): FileVisual {
 	const extension = fileName.split('.').pop()?.toLowerCase() ?? '';
 	const group = extensionGroups.find((candidate) => candidate.extensions.includes(extension));
-	if (group) return { icon: group.icon, colorClass: group.colorClass };
-	return { icon: FileIcon, colorClass: 'text-muted-foreground' };
+	if (group) return { icon: group.icon, colorClass: group.colorClass, tileClass: group.tileClass };
+	return { icon: FileIcon, colorClass: 'text-muted-foreground', tileClass: 'bg-muted-foreground' };
 }
 
 export function formatFileSize(bytes: number): string {

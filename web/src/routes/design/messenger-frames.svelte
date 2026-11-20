@@ -11,6 +11,8 @@
 	import type { ChannelInteraction } from '$lib/components/channel/channel-api';
 	import ChannelTextBubble from '$lib/components/channel/channel-text-bubble.svelte';
 	import ChannelLinkCard from '$lib/components/channel/channel-link-card.svelte';
+	import ChannelFileAttachment from '$lib/components/channel/channel-file-attachment.svelte';
+	import type { ChannelMessageAttachment } from '$lib/components/channel/channel-api';
 	import FailedMessageActions from '$lib/components/channel/failed-message-actions.svelte';
 	import ActivityMarker from '$lib/components/channel/activity-marker.svelte';
 	import ChannelComposer from '$lib/components/channel/channel-composer.svelte';
@@ -64,6 +66,37 @@
 	const cardFor = (interaction: ChannelInteraction, readerID = reader) =>
 		choiceCardOf(interaction, readerID, undefined, approvalLabels);
 	const sendNothing = async () => {};
+
+	const megabyte = 1024 * 1024;
+	const readableAs = (content: string) => `data:text/plain;charset=utf-8,${encodeURIComponent(content)}`;
+	const fileOf = (filename: string, sizeBytes: number, source?: string): ChannelMessageAttachment => ({
+		kind: 'file',
+		url: `design-file:${filename}`,
+		filename,
+		sizeBytes,
+		source
+	});
+	const previewedFiles = $derived([
+		fileOf('meeting-notes.md', 3 * 1024, readableAs(text.sampleFileNotes)),
+		fileOf('release-memo.txt', 812, readableAs(text.sampleFileMemo)),
+		fileOf('settings.json', 1024, readableAs('{\n  "channel": "testing",\n  "retries": 3,\n  "notify": "member1@example.com"\n}\n')),
+		fileOf('order-items.csv', 2 * 1024, readableAs('item,quantity,price\nlaptop,12,1480000\nmonitor,24,329000\ndock,12,189000\nkeyboard,30,89000\n')),
+		fileOf('weekly-report.html', 4 * 1024, readableAs(`<body style="font-family:sans-serif;padding:24px"><h1>${text.sampleLinkTitle}</h1><p>${text.sampleLinkDescription}</p></body>`))
+	]);
+	const iconFiles = [
+		fileOf('business-plan.hwp', 2 * megabyte, 'about:blank'),
+		fileOf('old-contract.doc', 310 * 1024, 'about:blank'),
+		fileOf('old-deck.ppt', 3 * megabyte, 'about:blank'),
+		fileOf('floor-plan.pdf', 58 * megabyte, 'about:blank'),
+		fileOf('ledger.xlsx', 64 * megabyte, 'about:blank'),
+		fileOf('export.json', 3 * megabyte, 'about:blank'),
+		fileOf('scan.tiff', 12 * megabyte, 'about:blank'),
+		fileOf('demo.mkv', 23 * megabyte, 'about:blank'),
+		fileOf('meeting.m4a', 14 * megabyte, 'about:blank'),
+		fileOf('originals.zip', 48 * megabyte, 'about:blank'),
+		fileOf('data.bin', megabyte, 'about:blank')
+	];
+	const pendingFile = fileOf('pending-notes.md', 3 * 1024);
 </script>
 
 {#snippet avatar(person: SamplePerson, isOnline?: boolean)}
@@ -288,6 +321,36 @@
 					/>
 				</Message.Content>
 			</Message.Root>
+			{/snippet}
+		</DesignFrame>
+
+		<DesignFrame id="messenger-file-preview" source="channel/channel-file-attachment.svelte" name={text.filePreviewTitle} note={text.filePreviewCondition} class="w-[30rem]">
+			{#snippet children()}
+			<div class="flex flex-wrap items-start gap-2">
+				{#each previewedFiles as attachment (attachment.url)}
+					<ChannelFileAttachment {attachment} attachmentState="done" onOpen={doNothing} />
+				{/each}
+			</div>
+			{/snippet}
+		</DesignFrame>
+
+		<DesignFrame id="messenger-file-icon" source="channel/channel-file-attachment.svelte" name={text.fileIconTitle} note={text.fileIconCondition} class="w-[30rem]">
+			{#snippet children()}
+			<div class="flex flex-wrap items-start gap-2">
+				{#each iconFiles as attachment (attachment.url)}
+					<ChannelFileAttachment {attachment} attachmentState="done" />
+				{/each}
+			</div>
+			{/snippet}
+		</DesignFrame>
+
+		<DesignFrame id="messenger-file-state" source="channel/channel-file-attachment.svelte" name={text.fileStateTitle} note={text.fileStateCondition} class="w-[30rem]">
+			{#snippet children()}
+			<div class="flex flex-wrap items-start gap-2">
+				<ChannelFileAttachment attachment={pendingFile} attachmentState="uploading" />
+				<ChannelFileAttachment attachment={pendingFile} attachmentState="processing" />
+				<ChannelFileAttachment attachment={pendingFile} attachmentState="error" />
+			</div>
 			{/snippet}
 		</DesignFrame>
 	</DesignSection>

@@ -23,7 +23,8 @@ describe('wordFrameDocument', () => {
 
 describe('frameMessageSchema', () => {
 	test('reads the messages the frame sends and nothing else', () => {
-		expect(frameMessageSchema.safeParse({ type: 'rendered', count: 3 }).success).toBeTrue();
+		expect(frameMessageSchema.safeParse({ type: 'rendered', count: 3, aspectRatio: 16 / 9 }).success).toBeTrue();
+		expect(frameMessageSchema.safeParse({ type: 'rendered', count: 3 }).success).toBeFalse();
 		expect(frameMessageSchema.safeParse({ type: 'navigate', to: '/' }).success).toBeFalse();
 		expect(frameMessageSchema.safeParse('ready').success).toBeFalse();
 	});

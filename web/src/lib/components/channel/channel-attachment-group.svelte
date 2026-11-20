@@ -12,6 +12,7 @@
 	import { previewKindOf } from '$lib/files/preview/kind';
 	import { attachmentStateOf, preparingLabel } from './channel-attachments';
 	import ChannelFileAttachment from './channel-file-attachment.svelte';
+	import ChannelVideoPlayer from './channel-video-player.svelte';
 	import DownloadBadge from './download-badge.svelte';
 
 	let {
@@ -87,10 +88,23 @@
 	{/if}
 	{#each files as attachment (attachment.url)}
 		{@const source = attachment.source}
-		<ChannelFileAttachment
-			{attachment}
-			attachmentState={stateOf(attachment)}
-			onOpen={source && previewKindOf(attachment.filename ?? '') !== 'none' ? () => openSource(source) : undefined}
-		/>
+		{#if attachment.kind === 'video' && source && stateOf(attachment) === 'done'}
+			<div class="relative w-fit max-w-full">
+				<ChannelVideoPlayer
+					{source}
+					width={attachment.widthPixels}
+					height={attachment.heightPixels}
+					variant="message"
+					onOpen={() => openSource(source)}
+				/>
+				<DownloadBadge identity={attachment.url} />
+			</div>
+		{:else}
+			<ChannelFileAttachment
+				{attachment}
+				attachmentState={stateOf(attachment)}
+				onOpen={source && previewKindOf(attachment.filename ?? '') !== 'none' ? () => openSource(source) : undefined}
+			/>
+		{/if}
 	{/each}
 </div>

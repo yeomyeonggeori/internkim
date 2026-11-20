@@ -10,14 +10,7 @@ const thumbnailWidthPixels = 416;
 export const usualPageAspectRatio = Math.SQRT1_2;
 const sheetRows = 14;
 const sheetColumns = 6;
-const maxThumbnailBytes = 20 * 1024 * 1024;
 const thumbnailsByURL = new Map<string, Promise<Thumbnail | null>>();
-
-export function hasThumbnail(fileName: string, sizeBytes?: number): boolean {
-	if (sizeBytes !== undefined && sizeBytes > maxThumbnailBytes) return false;
-	const kind = previewKindOf(fileName);
-	return kind === 'pdf' || kind === 'spreadsheet';
-}
 
 export function thumbnailOf(url: string, readAddress: () => string, fileName: string): Promise<Thumbnail | null> {
 	const known = thumbnailsByURL.get(url);

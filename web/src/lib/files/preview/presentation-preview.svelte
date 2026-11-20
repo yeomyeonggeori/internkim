@@ -5,10 +5,20 @@
 	import SandboxedPreview from './sandboxed-preview.svelte';
 	import { previewText } from './text';
 
-	let { bytes, onFailure }: { bytes: ArrayBuffer; onFailure: (error: unknown) => void } = $props();
+	let {
+		bytes,
+		isMiniature = false,
+		onAspectRatio,
+		onFailure
+	}: {
+		bytes: ArrayBuffer;
+		isMiniature?: boolean;
+		onAspectRatio?: (aspectRatio: number) => void;
+		onFailure: (error: unknown) => void;
+	} = $props();
 
 	const text = createPageText(previewText);
 	const frameDocument = presentationFrameDocument(new URL(libraryURL, window.location.href).href);
 </script>
 
-<SandboxedPreview {bytes} {frameDocument} countLabel={text.slides} {onFailure} />
+<SandboxedPreview {bytes} {frameDocument} countLabel={text.slides} {isMiniature} {onAspectRatio} {onFailure} />
