@@ -1,4 +1,4 @@
-import { decodeHTML, decodeHTMLAttribute } from 'entities';
+import { Parser } from 'htmlparser2';
 
 export type LinkPreview = {
 	url: string;
@@ -26,7 +26,7 @@ export async function readLinkPreview(link: string): Promise<LinkPreview | null>
 	const page = await readCapped(address, pageByteCap, 'text/html');
 	if (!page) return null;
 
-	const tags = await readMetaTags(decodePage(page.bytes, page.declaredType));
+	const tags = readMetaTags(decodePage(page.bytes, page.declaredType));
 	const title = tags.get('og:title') ?? tags.get('title') ?? '';
 	if (!title) return null;
 
@@ -124,15 +124,22 @@ async function readCapped(
 		return null;
 	}
 
-	const chunks: Uint8Array[] = [];
+	return { bytes: await leadingBytes(response.body, byteCap), contentType, declaredType };
+}
+
+async function leadingBytes(body: ReadableStream<Uint8Array>, byteCap: number): Promise<Uint8Array> {
+	const reader = body.getReader();
+	const bytes = new Uint8Array(byteCap);
 	let read = 0;
-	for await (const chunk of response.body) {
-		chunks.push(chunk);
-		read += chunk.byteLength;
-		if (read >= byteCap) break;
+	while (read < byteCap) {
+		const { done, value } = await reader.read();
+		if (done) break;
+		const kept = value.subarray(0, byteCap - read);
+		bytes.set(kept, read);
+		read += kept.byteLength;
 	}
-	await response.body.cancel().catch(() => undefined);
-	return { bytes: Bun.concatArrayBuffers(chunks, byteCap, true), contentType, declaredType };
+	await reader.cancel().catch(() => undefined);
+	return bytes.subarray(0, read);
 }
 
 export function decodePage(bytes: Uint8Array, declaredType: string): string {
@@ -156,25 +163,31 @@ function decodeWith(bytes: Uint8Array, label: string): string {
 	}
 }
 
-export async function readMetaTags(html: string): Promise<Map<string, string>> {
+export function readMetaTags(html: string): Map<string, string> {
 	const tags = new Map<string, string>();
 	let title = '';
-	await new HTMLRewriter()
-		.on('meta', {
-			element(tag) {
-				const key = tag.getAttribute('property') ?? tag.getAttribute('name');
-				const value = tag.getAttribute('content');
-				if (key && value && !tags.has(key)) tags.set(key, decodeHTMLAttribute(value));
+	let isInsideTitle = false;
+	const parser = new Parser(
+		{
+			onopentag(name, attributes) {
+				if (name === 'title') isInsideTitle = true;
+				if (name !== 'meta') return;
+				const key = attributes.property ?? attributes.name;
+				const value = attributes.content;
+				if (key && value && !tags.has(key)) tags.set(key, value);
+			},
+			ontext(text) {
+				if (isInsideTitle) title += text;
+			},
+			onclosetag(name) {
+				if (name === 'title') isInsideTitle = false;
 			}
-		})
-		.on('title', {
-			text(chunk) {
-				title += chunk.text;
-			}
-		})
-		.transform(new Response(html))
-		.text();
-	const documentTitle = decodeHTML(title).trim();
+		},
+		{ decodeEntities: true }
+	);
+	parser.write(html);
+	parser.end();
+	const documentTitle = title.trim();
 	if (documentTitle && !tags.has('title')) tags.set('title', documentTitle);
 	return tags;
 }

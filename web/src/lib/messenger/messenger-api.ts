@@ -7,6 +7,7 @@ import {
 } from '$lib/transfer/company-transfer';
 import { callCompanyApp } from '$lib/host-bridge';
 import { z } from 'zod';
+import type { LinkPreview, LinkVideo } from '../../../../host/relay/link-preview';
 
 export type MessengerPerson = {
 	memberID?: string;
@@ -90,21 +91,7 @@ export type MessengerPost = {
 
 export type MessengerSearchMatch = Pick<MessengerPost, 'id' | 'channelID' | 'parentID' | 'author' | 'body' | 'postedAt'>;
 
-export type LinkPreview = {
-	url: string;
-	title: string;
-	description: string;
-	siteName: string;
-	imageURL: string;
-	video: LinkVideo | null;
-};
-
-export type LinkVideo = {
-	url: string;
-	kind: 'file' | 'player';
-	width: number;
-	height: number;
-};
+export type { LinkPreview, LinkVideo };
 
 type PersonalConversation = {
 	id: string;

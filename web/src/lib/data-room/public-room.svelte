@@ -7,21 +7,29 @@
 	import { publicDataRoomRead, publicDataRoomDownload, publicDataRoomFile, sharedDataRoomSchema } from '$lib/data-room/guest';
 	import { createPageText } from '$lib/i18n/page-text.svelte';
 	import { dataRoomText } from '$lib/data-room/text';
+	import { publicWebsitePreviewOf } from '$lib/data-room/website-preview';
+	import type { LinkPreview } from '$lib/messenger/messenger-api';
 
 	let { findCompany }: { findCompany: () => Promise<string> } = $props();
 	const text = createPageText(dataRoomText);
 	let room = $state<SharedRoom | null>(null);
 	let companyID = $state('');
 	let failure = $state('');
+	let websitePreview = $state<LinkPreview | null>(null);
 
 	async function load() {
 		failure = '';
 		try {
 			companyID ||= await findCompany();
 			room = sharedDataRoomSchema.parse(await publicDataRoomRead(`/api/v1/data-room/${companyID}`));
+			void showWebsitePreview(room);
 		} catch (error) {
 			failure = error instanceof Error ? error.message : text.loadFailed;
 		}
+	}
+
+	async function showWebsitePreview(shown: SharedRoom) {
+		websitePreview = shown.company.profile.website ? await publicWebsitePreviewOf(companyID).catch(() => null) : null;
 	}
 
 	async function download(documentID: string, fileName: string) {
@@ -46,6 +54,7 @@
 		signFile={(documentID, derivedFileName) => publicDataRoomFile(companyID, documentID, derivedFileName)}
 		onDownload={download}
 		onRefresh={load}
+		{websitePreview}
 		isPublished
 	/>
 {:else if !failure}

@@ -63,6 +63,7 @@ accepts the sessions issued before it until they expire.
 ```bash
 cd web
 bun install
+bun install --cwd ../host/relay
 bun run build
 bun run scripts/deploy-pages.ts --project <your-pages-project> --output .svelte-kit/cloudflare --production
 ```

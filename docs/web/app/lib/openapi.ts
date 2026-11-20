@@ -864,6 +864,15 @@ function createPaths(copy: ApiCopy) {
 					'401': errorResponse(copy.errors.unauthorized), '404': { description: 'Document unavailable' } }
 			}
 		},
+		'/data-room/{companyID}/website-preview': {
+			get: {
+				operationId: 'readDataRoomWebsitePreview', summary: 'Read the link preview of the company website the caller is shown',
+				description: 'Answers the title, description and picture the company\'s website declares for itself, read by the server. preview is null when the caller is not shown the website, or when the site cannot be read or declares no title.',
+				security: [{ memberToken: [] }, {}],
+				parameters: [{ name: 'companyID', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }],
+				responses: { '200': { description: 'preview, or null' }, '401': errorResponse(copy.errors.unauthorized) }
+			}
+		},
 		'/data-room/company': {
 			get: {
 				operationId: 'readDataRoomCompany', summary: 'Read the company page the calling member may see',

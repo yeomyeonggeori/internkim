@@ -33,6 +33,7 @@ const { GET: readDataRoomLink, POST: unlockDataRoomLink } = await import('../../
 const { GET: previewDataRoomCircle } = await import('../../src/routes/api/v1/data-room/preview/[circleID]/+server');
 const { GET: readDataRoomCompany } = await import('../../src/routes/api/v1/data-room/company/+server');
 const { GET: findPublicDataRoom } = await import('../../src/routes/api/v1/data-room/public/[slug]/+server');
+const { GET: readWebsitePreview } = await import('../../src/routes/api/v1/data-room/[companyID]/website-preview/+server');
 const { POST: acceptTaskInvitation } = await import('../../src/routes/api/v1/tasks/invitations/[invitationID]/+server');
 const { GET: readSharedTasks } = await import('../../src/routes/api/v1/tasks/shared/[companyID]/+server');
 
@@ -202,6 +203,12 @@ function revoke(token: string, name: string): Promise<RouteAnswer> {
 			} as unknown as Parameters<typeof revokeToken>[0])
 		)
 	);
+}
+
+function websitePreviewAs(token: string | null): Promise<RouteAnswer> {
+	const request = asking(`/data-room/${companyID}/website-preview`, token);
+	return answerOf(() => Promise.resolve(readWebsitePreview({ request, url: new URL(request.url),
+		params: { companyID }, platform: undefined } as Parameters<typeof readWebsitePreview>[0])));
 }
 
 function invoke(name: string, token: string | null, input: unknown): Promise<RouteAnswer> {
@@ -1077,6 +1084,7 @@ function reachDocumented(operation: Operation, revocableName: string): Promise<R
 		return answerOf(() => Promise.resolve(route({ request, url: new URL(request.url),
 			params: { linkID }, platform: undefined, cookies: { get: () => dataRoomLinkCookie, set: () => {} }, getClientAddress: () => '127.0.0.1' })));
 	}
+	if (path === '/data-room/{companyID}/website-preview') return websitePreviewAs(sessionToken);
 	if (path === '/data-room/{companyID}') {
 		const request = asking(`/data-room/${companyID}`, sessionToken);
 		return answerOf(() => Promise.resolve(readDataRoom({ request, url: new URL(request.url),
@@ -1165,6 +1173,7 @@ describe('the documented endpoints', () => {
 			'get /agent/replies',
 			'get /diagnostics/{view}',
 			'get /data-room/{companyID}',
+			'get /data-room/{companyID}/website-preview',
 			'get /data-room/public/{slug}',
 			'get /data-room/links/{linkID}',
 			'post /data-room/links/{linkID}',
@@ -1475,5 +1484,37 @@ describe('the public data room page', () => {
 			params: { companyID }, platform: undefined } as Parameters<typeof readDataRoom>[0])));
 		expect(anonymous.status).toBe(200);
 		expect((anonymous.body as { documents: unknown[] }).documents).toEqual([]);
+	}, networkHookTimeout);
+
+	test('previews the website a stranger is shown, and none of a website taken off the page', async () => {
+		const website = 'https://website.example.com/';
+		const { data: recorded } = await client.from('company').select('profile').eq('id', companyID).single();
+		const profile = z.record(z.string(), z.unknown()).parse(recorded?.profile ?? {});
+		await client.from('company').update({ profile: { ...profile, website } }).eq('id', companyID);
+		const originalFetch = globalThis.fetch;
+		const websiteReads: string[] = [];
+		globalThis.fetch = createMockFetch(async (input, options) => {
+			const address = input instanceof Request ? input.url : String(input);
+			if (address !== website) return originalFetch(input, options);
+			websiteReads.push(address);
+			return new Response(
+				'<title>Sample</title><meta property="og:title" content="Sample &amp; Co."><meta property="og:image" content="/cover.png">',
+				{ headers: { 'content-type': 'text/html; charset=utf-8' } }
+			);
+		});
+		try {
+			expect(await websitePreviewAs(null)).toEqual({
+				status: 200,
+				body: { preview: { url: website, title: 'Sample & Co.', description: '', siteName: 'website.example.com', imageURL: 'https://website.example.com/cover.png', video: null } }
+			});
+			await invoke('dataroom_publication_update', administratorsToken, { kind: 'profile', field: 'website', isPublic: false });
+			const readsBeforeWithdrawal = websiteReads.length;
+			expect(await websitePreviewAs(null)).toEqual({ status: 200, body: { preview: null } });
+			expect(websiteReads.length).toBe(readsBeforeWithdrawal);
+		} finally {
+			globalThis.fetch = originalFetch;
+			await invoke('dataroom_publication_update', administratorsToken, { kind: 'profile', field: 'website', isPublic: true });
+			await client.from('company').update({ profile }).eq('id', companyID);
+		}
 	}, networkHookTimeout);
 });

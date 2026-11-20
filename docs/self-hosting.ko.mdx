@@ -58,6 +58,7 @@ Supabase도 같은 Postgres와 같은 row level security를 제공하므로 `sup
 ```bash
 cd web
 bun install
+bun install --cwd ../host/relay
 bun run build
 bun run scripts/deploy-pages.ts --project <your-pages-project> --output .svelte-kit/cloudflare --production
 ```
