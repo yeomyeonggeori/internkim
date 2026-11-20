@@ -4,8 +4,11 @@
 	import ActivityAvatar from './activity-avatar.svelte';
 	import ActivityTaskList from './activity-task-list.svelte';
 	import ActivityContributions from './activity-contributions.svelte';
+	import RedactedText from './redacted-text.svelte';
 	import { dataRoomCompanyText } from './company-text';
 	import { contributionTotal, type CompanyActivity } from './activity';
+	import { redactedPersonName } from '$lib/person-name';
+	import { currentPersonNameLocale } from '$lib/person-name.svelte';
 
 	type ActivityTeam = CompanyActivity['attendance']['teams'][number];
 	type ShownPerson = { person: string; name: string };
@@ -62,6 +65,7 @@
 					{#each teams as team (team.teamKey)}
 						<AttendanceTeamCard {team} name={team.name}>
 							{#snippet face(shown: ShownPerson)}<ActivityAvatar person={activity.people[shown.person]} seed={shown.person} class="size-6" />{/snippet}
+							{#snippet personName(shown: ShownPerson)}<RedactedText text={redactedPersonName(shown.name, currentPersonNameLocale())} seed={shown.person} label={text.hidden} />{/snippet}
 						</AttendanceTeamCard>
 					{/each}
 				</div>

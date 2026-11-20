@@ -26,6 +26,7 @@
 		name,
 		isCallerTeam = false,
 		face,
+		personName,
 		onStatus,
 		footer
 	}: {
@@ -33,6 +34,7 @@
 		name: string;
 		isCallerTeam?: boolean;
 		face: Snippet<[Person, number]>;
+		personName?: Snippet<[Person]>;
 		onStatus?: (status: TeamCardStatus) => void;
 		footer?: Snippet;
 	} = $props();
@@ -64,9 +66,9 @@
 		return status === 'done' || status === 'notStarted';
 	}
 
-	function namesOf(people: Person[], count: number): { named: string; rest: number } {
-		const shown = count <= namesShownWhole ? people.slice(0, namesShownWhole) : people.slice(0, 1);
-		return { named: shown.map((person) => displayPersonName(person.name)).join(', '), rest: count - shown.length };
+	function namesOf(people: Person[], count: number): { named: Person[]; rest: number } {
+		const named = count <= namesShownWhole ? people.slice(0, namesShownWhole) : people.slice(0, 1);
+		return { named, rest: count - named.length };
 	}
 </script>
 
@@ -86,7 +88,7 @@
 	</span>
 	<span class={cn('flex min-w-0 items-baseline gap-1 text-left text-sm', isDimmed(row.status) && 'text-muted-foreground', !row.count && 'text-muted-foreground/60')}>
 		{#if row.count}
-			<span class="min-w-0 truncate">{names.named}</span>
+			<span class="min-w-0 truncate">{#each names.named as person, index (index)}{#if index > 0},&#32;{/if}{#if personName}{@render personName(person)}{:else}{displayPersonName(person.name)}{/if}{/each}</span>
 			{#if names.rest > 0}<span class="text-muted-foreground shrink-0">{text.teamOthers.replace('{count}', String(names.rest))}</span>{/if}
 		{:else}—{/if}
 	</span>
