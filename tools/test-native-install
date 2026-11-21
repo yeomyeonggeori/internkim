@@ -1169,6 +1169,7 @@ class Rig:
         self.company_id = connection["company"]["id"]
         plane.forget_the_messenger_credentials(self.company_id)
         plane.forget_the_company_backups(self.company_id)
+        plane.forget_the_company_boxes(self.company_id)
         installed = install_the_company(self.machine, connection)
         pointed = self.machine.shell(
             f"readlink -f {STATE_DIRECTORY}/current 2>/dev/null; "
@@ -2821,9 +2822,11 @@ def main():
                     if rig.company_id:
                         rig.plane.forget_the_company_computer(rig.company_id)
                         rig.plane.forget_the_company_backups(rig.company_id)
+                        rig.plane.forget_the_company_boxes(rig.company_id)
                     if rig.earlier_company_id:
                         rig.plane.forget_the_company_computer(rig.earlier_company_id)
                         rig.plane.forget_the_company_backups(rig.earlier_company_id)
+                        rig.plane.forget_the_company_boxes(rig.earlier_company_id)
                 except RigFailure as failure:
                     print(f"✗ the rig's clean-up of the plane\n    {failure}", file=sys.stderr)
                 finally:
