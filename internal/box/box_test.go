@@ -169,6 +169,32 @@ func TestAnUnclaimedBoxHasNoSession(t *testing.T) {
 	}
 }
 
+func TestARefusedClaimSaysTheAppsSentence(t *testing.T) {
+	sentence := "that connection file was already used or replaced; download a new one from company setup"
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		if request.Header.Get("Accept") != "application/json" {
+			writer.Header().Set("Content-Type", "text/html")
+			writer.WriteHeader(http.StatusForbidden)
+			writer.Write([]byte("<!doctype html><html><head><title>" + sentence + "</title><style>body { --bg: white; }</style></head></html>"))
+			return
+		}
+		writer.Header().Set("Content-Type", "application/json")
+		writer.WriteHeader(http.StatusForbidden)
+		json.NewEncoder(writer).Encode(map[string]string{"message": sentence})
+	}))
+	defer server.Close()
+	identity, errorValue := freshIdentity()
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+
+	errorValue = Client{AppURL: server.URL}.Claim(context.Background(), identity, "connection-key")
+	want := "claiming this computer with the connection file: the central plane answered 403: " + sentence
+	if errorValue == nil || errorValue.Error() != want {
+		t.Fatalf("claim error = %v, want %q", errorValue, want)
+	}
+}
+
 func TestAnnouncementNamesTheEncryptionKey(t *testing.T) {
 	identity, errorValue := freshIdentity()
 	if errorValue != nil {

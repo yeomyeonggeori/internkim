@@ -199,6 +199,7 @@ func (client Client) post(ctx context.Context, identity Identity, path string, b
 	}
 	request.Header.Set("Authorization", "Bearer "+identity.Assertion(client.now()))
 	request.Header.Set("Content-Type", "application/json")
+	request.Header.Set("Accept", "application/json")
 	return client.httpClient().Do(request)
 }
 
@@ -218,5 +219,15 @@ func (client Client) httpClient() *http.Client {
 
 func refusalOf(response *http.Response, doing string) error {
 	detail, _ := io.ReadAll(io.LimitReader(response.Body, 1024))
-	return fmt.Errorf("%s: the central plane answered %d: %s", doing, response.StatusCode, strings.TrimSpace(string(detail)))
+	return fmt.Errorf("%s: the central plane answered %d: %s", doing, response.StatusCode, refusalSentence(detail))
+}
+
+func refusalSentence(detail []byte) string {
+	var refusal struct {
+		Message string `json:"message"`
+	}
+	if json.Unmarshal(detail, &refusal) == nil && refusal.Message != "" {
+		return refusal.Message
+	}
+	return strings.TrimSpace(string(detail))
 }
