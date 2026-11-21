@@ -1418,6 +1418,10 @@ class CompanyPlane:
             f"/rest/v1/agent?company_id=eq.{company_id}&name=eq.{COMPANY_COMPUTER_AGENT_NAME}"
         )
 
+    def forget_the_company_boxes(self, company_id):
+        """Take back the boxes a run claimed, so the next run's box is not refused beside one still serving."""
+        self.delete_from_record(f"/rest/v1/box?company_id=eq.{company_id}")
+
     def forget_the_company_backups(self, company_id):
         """Remove what the company's boxes kept off the box, so no run inherits an earlier run's backups."""
         paths = self.stored_backup_paths(company_id + "/")

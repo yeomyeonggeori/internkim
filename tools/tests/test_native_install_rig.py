@@ -757,6 +757,22 @@ class MessengerCredentialsLeftOnThePlaneTests(unittest.TestCase):
         self.assertEqual([method for method, _ in seen], ["GET"])
 
 
+class BoxesLeftOnThePlaneTests(unittest.TestCase):
+    def test_every_box_of_the_rig_company_is_taken_back(self):
+        PlaneStandIn.members = []
+        PlaneStandIn.seen = []
+        server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), PlaneStandIn)
+        threading.Thread(target=server.serve_forever, daemon=True).start()
+        plane = object.__new__(rig.CompanyPlane)
+        plane.settings = {"API_URL": f"http://127.0.0.1:{server.server_port}", "SECRET_KEY": "service"}
+        try:
+            plane.forget_the_company_boxes("company-1")
+        finally:
+            server.shutdown()
+
+        self.assertEqual(PlaneStandIn.seen, [("DELETE", "/rest/v1/box?company_id=eq.company-1")])
+
+
 class UnprivilegedPostTests(unittest.TestCase):
     refused = (
         "identity=bc_person_sample token-staged=yes reads-token=no chatd-post=401 blueclaw-approve=401 "
