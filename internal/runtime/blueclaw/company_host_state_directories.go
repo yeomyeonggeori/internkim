@@ -13,5 +13,6 @@ func CompanyHostStateDirectories() []CompanyHostDirectory {
 		{Path: CompanyHostCompaniesRoot, Mode: CompanyHostStateRootMode},
 		{Path: CompanyHostMediaRootPath, Mode: 0o750},
 		{Path: CompanyHostMediaBucketPath, Mode: 0o750},
+		{Path: CompanyHostBackupsPath, Mode: CompanyHostStateRootMode},
 	}
 }

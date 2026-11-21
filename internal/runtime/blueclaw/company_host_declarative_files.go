@@ -71,14 +71,13 @@ func CompanyHostPolkitRules() string {
 }
 
 func CompanyHostTmpfilesFile() string {
-	stateMode := fmt.Sprintf("%04o", CompanyHostStateRootMode)
-	lines := []string{
-		fmt.Sprintf("d %s 0750 %s %s -", BlueclawHomePath, BlueclawUser, BlueclawUser),
-		fmt.Sprintf("d %s %s root root -", CompanyHostStateRoot, stateMode),
-		fmt.Sprintf("d %s %s root root -", CompanyHostCompaniesRoot, stateMode),
+	lines := []string{fmt.Sprintf("d %s 0750 %s %s -", BlueclawHomePath, BlueclawUser, BlueclawUser)}
+	for _, directory := range CompanyHostStateDirectories() {
+		lines = append(lines, fmt.Sprintf("d %s %04o root root -", directory.Path, directory.Mode))
+	}
+	return strings.Join(append(lines,
 		fmt.Sprintf("d %s 0755 root root -", CompanyHostConfigurationRoot),
 		fmt.Sprintf("z %s 4755 root root -", LinuxCompanyHostLayout().POSIXHelperPath()),
 		"",
-	}
-	return strings.Join(lines, "\n")
+	), "\n")
 }

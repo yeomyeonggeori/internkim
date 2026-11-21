@@ -111,12 +111,22 @@ func TestTheDeclaredDirectoriesCarryTheStateRootModeAndTheHelpersSetuidBit(t *te
 	for _, line := range []string{
 		"d " + blueclaw.CompanyHostStateRoot + " 0700 root root -",
 		"d " + blueclaw.CompanyHostCompaniesRoot + " 0700 root root -",
+		"d " + blueclaw.CompanyHostBackupsPath + " 0700 root root -",
 		"z " + packageLayout.POSIXHelperPath() + " 4755 root root -",
 	} {
 		if !strings.Contains(declared, line) {
 			t.Errorf("tmpfiles does not carry %q:\n%s", line, declared)
 		}
 	}
+}
+
+func TestEveryBoxHasTheBackupsDirectoryHoweverItWasClaimed(t *testing.T) {
+	for _, directory := range ownedDirectories() {
+		if directory.Destination == blueclaw.CompanyHostBackupsPath && directory.Mode == blueclaw.CompanyHostStateRootMode {
+			return
+		}
+	}
+	t.Fatalf("the package does not create %s %o, so the file and WAL followers find no scratch directory on a box no backup has run on", blueclaw.CompanyHostBackupsPath, blueclaw.CompanyHostStateRootMode)
 }
 
 func TestOnlyARemovalStopsTheUnitsInEveryFormat(t *testing.T) {

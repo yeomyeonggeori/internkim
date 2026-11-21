@@ -107,10 +107,6 @@ NOT_YET = {
     SETUP_SAYS_READY: "pass condition 2: GET /api/company/box says whether each box is ready",
     SHARES_REPORTED: "seeding step 4: a standby keeps its share and reports it",
     SHARES_ON_DISK: "seeding steps 1 and 4: the log starts with the first box, and each standby keeps its share on disk",
-    WRITERS_ACKNOWLEDGED: (
-        "pass condition 1: on a box claimed by its code internkim-file-follow restarts in a loop on "
-        "'stat /var/lib/internkim-backups: no such file or directory' once a second box joins, so no barrier answers"
-    ),
     AUTOMATIC_TAKE_OVER: "pass condition 3: a standby takes over by itself, with no administrator call",
     TAKEN_OVER_RUNS: NEEDS_A_TAKE_OVER,
     COMMITS_KEPT: NEEDS_A_TAKE_OVER,
