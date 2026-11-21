@@ -75,8 +75,8 @@ def install_a_company_host(package_directory):
     machine.preflight()
     machine.create()
     machine.wait_until_running()
-    install_the_package(machine, package_directory)
     plane = CompanyPlane(STATE_DIRECTORY / "plane", machine.host_gateway())
+    install_the_package(machine, package_directory, plane.application_url)
     plane.start()
     plane.reach_the_record_from(machine)
     company_id = give_the_company(machine, plane)
@@ -86,12 +86,12 @@ def install_a_company_host(package_directory):
     return machine, plane, company_id
 
 
-def install_the_package(machine, package_directory):
+def install_the_package(machine, package_directory, app_url):
     release = Release(STATE_DIRECTORY / "release")
     release.publish(package_directory)
     release.serve()
     try:
-        machine.checked_shell(release.install_line(machine.host_gateway()), timeout_seconds=1800)
+        machine.checked_shell(release.install_line(machine.host_gateway(), app_url), timeout_seconds=1800)
     finally:
         release.stop()
 

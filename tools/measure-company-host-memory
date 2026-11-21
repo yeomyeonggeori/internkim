@@ -441,7 +441,7 @@ class Measurement:
             return
 
     def install_the_package(self, machine):
-        return machine.shell(self.release.install_line(machine.host_gateway()), timeout_seconds=2400)
+        return machine.shell(self.release.install_line(machine.host_gateway(), self.plane.application_url), timeout_seconds=2400)
 
     def wait_until_ready(self, machine, timeout_seconds=900):
         probes = "; ".join(

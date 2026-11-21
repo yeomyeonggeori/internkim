@@ -63,6 +63,10 @@ SKILLS_PATH = "/opt/internkim/skills"
 OFFICE_COMMAND_PATH = SKILLS_PATH + "/office/scripts/office"
 CAPABILITYD_UNIT = "internkim-capabilityd.service"
 PACKAGE_NAME = "internkim"
+BOX_UNIT_NAME = "internkim-box.service"
+BOX_COMMAND = f"/usr/bin/{PACKAGE_NAME} box"
+BOX_DROP_IN_DIRECTORY = f"/etc/systemd/system/{BOX_UNIT_NAME}.d"
+BOX_DROP_IN_PATH = BOX_DROP_IN_DIRECTORY + "/app-url.conf"
 SHARE_PATH = "/srv/internkim-rig"
 MESSENGER_PROBE_SOURCE = Path(__file__).resolve().parent / "native_install_messenger.py"
 STATE_DIRECTORY = "/var/lib/internkim"
@@ -273,6 +277,15 @@ def write_release_directory(directory, package_path, suffix=".deb"):
     return directory
 
 
+def box_drop_in(app_url):
+    """What an administrator whose company signs in at `app_url` puts beside the box unit."""
+    return f"[Service]\nExecStart=\nExecStart={BOX_COMMAND} --app-url {app_url}\n"
+
+
+def application_url_at(address, port):
+    return f"http://{address}:{port}"
+
+
 class Release:
     """A GitHub release's download directory, served to the guest over HTTP.
 
@@ -332,10 +345,12 @@ class Release:
     def download_url(self, host):
         return f"http://{host}:{self.port}/{RELEASE_DOWNLOAD_PATH}"
 
-    def install_line(self, host, arguments=""):
-        """The published one line, with only the release address pointed at this Mac."""
+    def install_line(self, host, app_url, arguments=""):
+        """The published one line, with the release address pointed at this Mac, after the box is given its app."""
         return (
-            f"set -eu\nexport INTERNKIM_INSTALL_RELEASE_URL={self.download_url(host)}\n"
+            f"set -eu\nmkdir -p {BOX_DROP_IN_DIRECTORY}\n"
+            f"cat > {BOX_DROP_IN_PATH} <<'DROP_IN'\n{box_drop_in(app_url)}DROP_IN\n"
+            f"export INTERNKIM_INSTALL_RELEASE_URL={self.download_url(host)}\n"
             f"curl -fsSL http://{host}:{self.port}/install.sh | sh -s -- host {arguments}\n"
         )
 
@@ -1158,7 +1173,7 @@ class CompanyPlane:
 
     @property
     def application_url(self):
-        return f"http://{self.address}:{self.application_port}"
+        return application_url_at(self.address, self.application_port)
 
     @property
     def project_url(self):
