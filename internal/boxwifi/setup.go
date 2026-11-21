@@ -14,6 +14,7 @@ const (
 	defaultOnlineWait             = 45 * time.Second
 	defaultSavedNetworkWaitAtBoot = 60 * time.Second
 	defaultSetupWindow            = 10 * time.Minute
+	connectingWait                = 2 * time.Minute
 	onlinePollInterval            = 3 * time.Second
 )
 
@@ -41,12 +42,11 @@ func (setup Setup) Run(ctx context.Context) error {
 	if setup.waitUntilOnline(ctx, setup.savedNetworkWaitAtBoot()) {
 		return nil
 	}
-	if setup.IsOnANetwork != nil && setup.IsOnANetwork(ctx) {
-		setup.logf("joined a network that does not reach the internet, so %s stays closed", setup.networkName())
-		return nil
-	}
 	hasJoinFailed := false
 	for {
+		if setup.keepsTheSetupNetworkClosed(ctx) {
+			return nil
+		}
 		networks, errorValue := setup.Radio.Scan(ctx)
 		if errorValue != nil {
 			setup.logf("scanning for nearby networks: %v", errorValue)
@@ -78,6 +78,26 @@ func (setup Setup) Run(ctx context.Context) error {
 		}
 		hasJoinFailed = true
 	}
+}
+
+func (setup Setup) keepsTheSetupNetworkClosed(ctx context.Context) bool {
+	if setup.waitWhileConnecting(ctx) && setup.Radio.IsOnline(ctx) {
+		return true
+	}
+	if setup.IsOnANetwork == nil || !setup.IsOnANetwork(ctx) {
+		return false
+	}
+	setup.logf("joined a network that does not reach the internet, so %s stays closed", setup.networkName())
+	return true
+}
+
+func (setup Setup) waitWhileConnecting(ctx context.Context) bool {
+	if !setup.Radio.IsConnecting(ctx) {
+		return false
+	}
+	setup.logf("NetworkManager is connecting to a network, so %s waits for it", setup.networkName())
+	waitUntil(ctx, connectingWait, setup.now, setup.sleep, func() bool { return !setup.Radio.IsConnecting(ctx) })
+	return true
 }
 
 func (setup Setup) serveUntilSubmitted(ctx context.Context, address string, networks []Network, hasJoinFailed bool) (submission, error) {

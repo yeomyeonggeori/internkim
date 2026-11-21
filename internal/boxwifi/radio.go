@@ -27,6 +27,7 @@ type Network struct {
 
 type Radio interface {
 	IsOnline(ctx context.Context) bool
+	IsConnecting(ctx context.Context) bool
 	Scan(ctx context.Context) ([]Network, error)
 	OpenSetupNetwork(ctx context.Context, name string) (address string, errorValue error)
 	CloseSetupNetwork(ctx context.Context) error

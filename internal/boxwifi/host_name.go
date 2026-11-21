@@ -5,8 +5,11 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"regexp"
 	"strings"
+
+	"github.com/yeomyeonggeori/internkim/internal/durablefile"
 )
 
 const (
@@ -14,6 +17,7 @@ const (
 	loopbackHostAddress = "127.0.1.1"
 	hostsFileMode       = 0o644
 	multicastDNSService = "avahi-daemon.service"
+	givenHostNameFile   = "host-name"
 )
 
 var hostLabel = regexp.MustCompile(`^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$`)
@@ -26,22 +30,29 @@ func HostNameFor(companySlug string) string {
 }
 
 type HostNamer struct {
-	Run             func(ctx context.Context, name string, arguments ...string) ([]byte, error)
-	CurrentHostName func() (string, error)
-	HostsPath       string
+	Run                func(ctx context.Context, name string, arguments ...string) ([]byte, error)
+	CurrentHostName    func() (string, error)
+	HostsPath          string
+	StateDirectoryPath string
 }
 
 func (namer HostNamer) Name(ctx context.Context, companySlug string) error {
-	name := HostNameFor(companySlug)
 	current, errorValue := namer.currentHostName()
 	if errorValue != nil {
 		return fmt.Errorf("reading this computer's host name: %w", errorValue)
 	}
+	if !namer.isNameInternKimGave(current) {
+		return nil
+	}
+	name := HostNameFor(companySlug)
 	if current == name {
 		return namer.pointLoopbackAt(name)
 	}
 	if _, errorValue := namer.run(ctx, "hostnamectl", "set-hostname", name); errorValue != nil {
 		return fmt.Errorf("naming this computer %s: %w", name, errorValue)
+	}
+	if errorValue := namer.rememberGivenName(name); errorValue != nil {
+		return errorValue
 	}
 	if errorValue := namer.pointLoopbackAt(name); errorValue != nil {
 		return errorValue
@@ -50,6 +61,29 @@ func (namer HostNamer) Name(ctx context.Context, companySlug string) error {
 		return fmt.Errorf("restarting %s so %s.local answers: %w", multicastDNSService, name, errorValue)
 	}
 	return nil
+}
+
+func (namer HostNamer) isNameInternKimGave(current string) bool {
+	return current == HostNameFor("") || current == namer.givenName()
+}
+
+func (namer HostNamer) givenName() string {
+	document, errorValue := os.ReadFile(namer.givenNamePath())
+	if errorValue != nil {
+		return ""
+	}
+	return strings.TrimSpace(string(document))
+}
+
+func (namer HostNamer) rememberGivenName(name string) error {
+	if errorValue := durablefile.Write(namer.givenNamePath(), []byte(name+"\n"), 0o600); errorValue != nil {
+		return fmt.Errorf("remembering that InternKim named this computer %s: %w", name, errorValue)
+	}
+	return nil
+}
+
+func (namer HostNamer) givenNamePath() string {
+	return filepath.Join(namer.StateDirectoryPath, givenHostNameFile)
 }
 
 func (namer HostNamer) run(ctx context.Context, name string, arguments ...string) ([]byte, error) {

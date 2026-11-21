@@ -149,7 +149,7 @@ func stopOnFailure(whatStopped string, errorValue error) {
 
 func printUsage(command string) {
 	fmt.Fprintf(os.Stderr, "Usage: %s install <internkim-host.json> [--model-key-file FILE]\n", command)
-	fmt.Fprintf(os.Stderr, "       %s box [--app-url URL] [--wifi-setup] [--host-name-from-company] [--admin-account NAME]\n", command)
+	fmt.Fprintf(os.Stderr, "       %s box [--app-url URL]\n", command)
 	fmt.Fprintf(os.Stderr, "       %s box code\n", command)
 	fmt.Fprintf(os.Stderr, "       %s backup [--directory DIR] [--keep N]\n", command)
 	fmt.Fprintf(os.Stderr, "       %s restore <archive> [--replace]\n", command)
@@ -167,9 +167,6 @@ func runBox(arguments []string) {
 	}
 	flags := flag.NewFlagSet("box", flag.ExitOnError)
 	appURL := flags.String("app-url", blueclaw.CompanyPackageHomepage, "the address this company signs in at, which a box announces itself to")
-	setsUpWifi := flags.Bool("wifi-setup", false, "while this box is empty and offline, open the kimmini network and ask for the office Wi-Fi")
-	namesHostFromCompany := flags.Bool("host-name-from-company", false, "name this computer after the company it belongs to, and kimmini while it belongs to none, as a Kim mini is named")
-	adminAccount := flags.String("admin-account", "", "the login account whose password the company sets from company setup, as a Kim mini's admin is")
 	madeOnPath := flags.String("made-on-file", boxwifi.DefaultMadeOnPath, "a file holding the day this box was made as YYYY-MM-DD, added to the kimmini network's name")
 	flags.Parse(arguments)
 	if errorValue := companyhost.RequireAdministrator(); errorValue != nil {
@@ -179,16 +176,7 @@ func runBox(arguments []string) {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 	announcedTo := announcedAppURL(flags, *appURL, blueclaw.CompanyHostBoxStatePath, companyhost.CurrentConnectionPath())
-	daemon := boxDaemon(announcedTo)
-	if *setsUpWifi {
-		daemon = withWifiSetup(daemon, announcedTo, madeOnFrom(*madeOnPath))
-	}
-	if *namesHostFromCompany {
-		daemon = withHostNameFromCompany(daemon)
-	}
-	if *adminAccount != "" {
-		daemon = withAdminPasswordFor(daemon, *adminAccount)
-	}
+	daemon := withWhatThisComputerHas(ctx, boxDaemon(announcedTo), announcedTo, *madeOnPath)
 	errorValue := daemon.Run(ctx)
 	if errors.Is(errorValue, box.ErrConnectedByFile) {
 		fmt.Println(errorValue)
@@ -223,6 +211,18 @@ func madeOnFrom(path string) time.Time {
 	return madeOn
 }
 
+func withWhatThisComputerHas(ctx context.Context, daemon box.Daemon, appURL string, madeOnPath string) box.Daemon {
+	if (boxwifi.NetworkManagerRadio{}).ManagesWifi(ctx) {
+		log.Printf("NetworkManager manages a Wi-Fi device here, so this box sets up its Wi-Fi")
+		daemon = withWifiSetup(daemon, appURL, madeOnFrom(madeOnPath))
+	}
+	if (companyhost.AccountDirectory{}).HasAdminAccount() {
+		log.Printf("%s is in %s, so company setup sets its password", companyhost.AdminAccountName, blueclaw.CompanyHostAdministratorGroup)
+		daemon = withAdminPasswordFor(daemon, companyhost.AdminAccountName)
+	}
+	return daemon
+}
+
 func withWifiSetup(daemon box.Daemon, appURL string, madeOn time.Time) box.Daemon {
 	radio := boxwifi.NetworkManagerRadio{ReachesPlane: func(ctx context.Context) bool { return reachesURL(ctx, appURL) }}
 	watcherRadio := radio
@@ -239,11 +239,6 @@ func withWifiSetup(daemon box.Daemon, appURL string, madeOn time.Time) box.Daemo
 	daemon.ScanWifi = func(ctx context.Context) ([]box.NearbyNetwork, error) {
 		return scanNearbyNetworks(ctx, watcherRadio)
 	}
-	return daemon
-}
-
-func withHostNameFromCompany(daemon box.Daemon) box.Daemon {
-	daemon.NameHost = boxwifi.HostNamer{}.Name
 	return daemon
 }
 
@@ -350,6 +345,7 @@ func boxDaemon(appURL string) box.Daemon {
 		FollowRelease:  followTheServiceBoxRelease,
 		StartWorking:   startWorkingForTheServiceBox,
 		PackageVersion: thisBoxRelease(),
+		NameHost:       boxwifi.HostNamer{StateDirectoryPath: blueclaw.CompanyHostBoxStatePath}.Name,
 	}
 }
 

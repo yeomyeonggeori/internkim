@@ -17,8 +17,8 @@ Usage:
   tools/build-kim-mini-image --release-directory <dir> --release <name> [--wifi-country KR] [--time-zone Asia/Seoul] [--base-image-url <url>]
 
 Builds the Kim mini SD card image: Raspberry Pi OS Lite with the internkim host
-package of that release installed, the box started with --wifi-setup and
---host-name-from-company, and Wi-Fi turned on for the country the box is sold in,
+package of that release installed, named kimmini, with an admin login in the
+package's administrator group, and Wi-Fi turned on for the country the box is sold in,
 which Raspberry Pi OS otherwise leaves off until someone picks one. The clock
 keeps that country's time zone, where Raspberry Pi OS would keep Europe/London.
 A login shell opens with fastfetch beside the round mark.
