@@ -73,6 +73,13 @@ repository-wide rule, are guards. They live in
   Whoever makes the change reads the diff, names the areas whose screens it can
   break, and says in the pull request which ran and why. A web change run
   without `--ui` prints `ui not run`.
+- `tools/test-native-install --boxes` runs for a change to anything the box
+  daemon compiles, the schema, the box routes, the gateway or the rig. It
+  installs three guests with one install line, cuts the service box's power
+  while writers run, moves the company to another box and times a restore.
+  A list in `tools/native_install_boxes.py` names each observation that does
+  not hold yet and the pull request expected to fix it. The run passes only
+  while what fails is exactly that list, so the list can only shrink.
 
 `tools/verify --plan` prints what a change would run without running it, and
 `tools/verify --all` runs everything.
