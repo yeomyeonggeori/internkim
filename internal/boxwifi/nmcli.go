@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -50,21 +51,59 @@ func (radio NetworkManagerRadio) IsOnline(ctx context.Context) bool {
 	return radio.ReachesPlane != nil && radio.ReachesPlane(ctx)
 }
 
-func (radio NetworkManagerRadio) IsOnANetwork(ctx context.Context) bool {
+type networkDevice struct {
+	kind  string
+	state string
+}
+
+func (device networkDevice) carriesTraffic() bool {
+	return device.kind == "wifi" || device.kind == "ethernet"
+}
+
+func (radio NetworkManagerRadio) devices(ctx context.Context) ([]networkDevice, error) {
 	output, errorValue := radio.run(ctx, "-t", "-f", "TYPE,STATE", "device")
+	if errorValue != nil {
+		return nil, errorValue
+	}
+	var devices []networkDevice
+	for _, line := range strings.Split(strings.TrimRight(string(output), "\n"), "\n") {
+		fields := splitTerseFields(line)
+		if len(fields) < 2 {
+			continue
+		}
+		devices = append(devices, networkDevice{kind: fields[0], state: fields[1]})
+	}
+	return devices, nil
+}
+
+func (radio NetworkManagerRadio) IsOnANetwork(ctx context.Context) bool {
+	devices, errorValue := radio.devices(ctx)
 	if errorValue != nil {
 		return true
 	}
-	for _, line := range strings.Split(strings.TrimRight(string(output), "\n"), "\n") {
-		fields := splitTerseFields(line)
-		if len(fields) < 2 || fields[1] != "connected" {
-			continue
-		}
-		if fields[0] == "wifi" || fields[0] == "ethernet" {
-			return true
-		}
+	return slices.ContainsFunc(devices, func(device networkDevice) bool {
+		return device.carriesTraffic() && device.state == "connected"
+	})
+}
+
+func (radio NetworkManagerRadio) IsConnecting(ctx context.Context) bool {
+	devices, errorValue := radio.devices(ctx)
+	if errorValue != nil {
+		return false
 	}
-	return false
+	return slices.ContainsFunc(devices, func(device networkDevice) bool {
+		return device.carriesTraffic() && strings.HasPrefix(device.state, "connecting")
+	})
+}
+
+func (radio NetworkManagerRadio) ManagesWifi(ctx context.Context) bool {
+	devices, errorValue := radio.devices(ctx)
+	if errorValue != nil {
+		return false
+	}
+	return slices.ContainsFunc(devices, func(device networkDevice) bool {
+		return device.kind == "wifi" && device.state != "unmanaged"
+	})
 }
 
 func (radio NetworkManagerRadio) rescanMode() string {

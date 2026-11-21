@@ -322,3 +322,56 @@ func TestScanPassesTheRescanModeAndDefaultsToAuto(t *testing.T) {
 		}
 	}
 }
+
+func TestOnlyAComputerWhoseWifiNetworkManagerManagesSetsUpWifi(t *testing.T) {
+	cases := []struct {
+		devices string
+		want    bool
+	}{
+		{devices: "ethernet:connected\nwifi:disconnected\nloopback:connected (externally)\n", want: true},
+		{devices: "wifi:unavailable\n", want: true},
+		{devices: "ethernet:connected\nloopback:connected (externally)\n", want: false},
+		{devices: "wifi:unmanaged\nethernet:connected\n", want: false},
+		{devices: "wifi-p2p:disconnected\nethernet:connected\n", want: false},
+	}
+	for _, testCase := range cases {
+		radio := NetworkManagerRadio{Run: func(ctx context.Context, name string, arguments ...string) ([]byte, error) {
+			return []byte(testCase.devices), nil
+		}}
+		if got := radio.ManagesWifi(context.Background()); got != testCase.want {
+			t.Errorf("ManagesWifi with devices %q = %t, want %t", testCase.devices, got, testCase.want)
+		}
+	}
+}
+
+func TestADeviceNetworkManagerIsActivatingIsConnectingAndNotYetOnANetwork(t *testing.T) {
+	devices := "wifi:connecting (getting IP configuration)\nethernet:unavailable\nloopback:connected (externally)\n"
+	radio := NetworkManagerRadio{Run: func(ctx context.Context, name string, arguments ...string) ([]byte, error) {
+		return []byte(devices), nil
+	}}
+	if !radio.IsConnecting(context.Background()) {
+		t.Fatalf("devices %q were not judged to be connecting", devices)
+	}
+	if radio.IsOnANetwork(context.Background()) {
+		t.Fatalf("devices %q were judged to be on a network before the connection finished", devices)
+	}
+	settled := NetworkManagerRadio{Run: func(ctx context.Context, name string, arguments ...string) ([]byte, error) {
+		return []byte("wifi:disconnected\nethernet:connected\n"), nil
+	}}
+	if settled.IsConnecting(context.Background()) {
+		t.Fatal("devices that finished connecting were still judged to be connecting")
+	}
+}
+
+func TestAComputerWithoutNetworkManagerDoesNotSetUpWifi(t *testing.T) {
+	t.Setenv("PATH", t.TempDir())
+	if (NetworkManagerRadio{}).ManagesWifi(context.Background()) {
+		t.Fatal("a computer without nmcli was judged to manage a Wi-Fi device")
+	}
+	failing := NetworkManagerRadio{Run: func(ctx context.Context, name string, arguments ...string) ([]byte, error) {
+		return []byte("Error: NetworkManager is not running."), errors.New("exit status 8")
+	}}
+	if failing.ManagesWifi(context.Background()) {
+		t.Fatal("a computer whose NetworkManager is not running was judged to manage a Wi-Fi device")
+	}
+}

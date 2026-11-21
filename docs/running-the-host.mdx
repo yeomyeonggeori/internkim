@@ -175,6 +175,26 @@ database answers on `127.0.0.1:18432` and the cache on a socket in its own
 directory, so a PostgreSQL or Redis you already run with `brew services` keeps
 its port and its data.
 
+## What the computer has [#what-the-computer-has]
+
+On Linux, the box service `internkim-box` does three things only on a computer
+that has what each one needs. A Kim mini has all three. Taking the thing away
+turns its behaviour off.
+
+| The box | when the computer has | Turn it off with |
+|---|---|---|
+| opens a setup Wi-Fi network while it is offline, and joins a network an administrator gives it in company setup | a Wi-Fi device NetworkManager manages | `unmanaged-devices=interface-name:wlan0` under `[keyfile]` in `/etc/NetworkManager/conf.d/` |
+| is named after its company's address once claimed, and `kimmini` again once disconnected | the host name `kimmini`, or the name it last gave, which it keeps in `/var/lib/internkim/box/host-name` | `sudo hostnamectl set-hostname <name>` |
+| sets the password company setup sends for `admin`, and locks it on a reset or when another company claims the box | an `admin` account in `internkim-admin` | `sudo gpasswd --delete admin internkim-admin` |
+
+An unmanaged Wi-Fi device is one NetworkManager no longer connects either, so a
+computer online over that device needs another way onto its network first.
+`sudo nmcli device set wlan0 managed no` does the same until NetworkManager
+restarts. The box looks for the Wi-Fi device and the account when it starts, so
+`sudo systemctl restart internkim-box` applies those two changes. It reads the
+host name before every rename. The box never makes a login account itself, and a
+Mac does none of the three.
+
 ## Settings
 
 The installer writes company connection details and generated credentials to
@@ -340,8 +360,9 @@ increases their size.
 ## Network access
 
 The host opens outbound connections and listens only on local interfaces. The
-exception is a Linux host that belongs to no company yet, which serves its
-pairing code on port 18088 until it is claimed. To administer the computer, use
+exceptions are a Linux host that belongs to no company yet, which serves its
+pairing code on port 18088 until it is claimed, and a box whose setup Wi-Fi
+network is open, which serves the setup page on it. To administer the computer, use
 a shell on the same network or a remote access method your company controls.
 
 On Linux, installing or upgrading the package also downloads the host's one
