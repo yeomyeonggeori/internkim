@@ -130,14 +130,14 @@ func (radio NetworkManagerRadio) OpenSetupNetwork(ctx context.Context, name stri
 		"autoconnect", "no", "ssid", name,
 		"802-11-wireless.mode", "ap", "ipv4.method", "shared", "ipv4.addresses", setupNetworkAddress+"/24",
 		"wifi-sec.key-mgmt", "sae", "wifi-sec.psk", SetupNetworkPassword); errorValue != nil {
-		return "", fmt.Errorf("creating the %s access point: %w", SetupNetworkName, errorValue)
+		return "", fmt.Errorf("creating the %s access point: %w", name, errorValue)
 	}
 	if _, errorValue := radio.run(ctx, "--wait", wpa3AccessPointWaitSeconds, "connection", "up", "id", setupConnectionName); errorValue != nil {
 		if _, modifyError := radio.run(ctx, "connection", "modify", "id", setupConnectionName, "wifi-sec.key-mgmt", "wpa-psk"); modifyError != nil {
-			return "", fmt.Errorf("falling back to WPA2 for the %s access point: %w", SetupNetworkName, modifyError)
+			return "", fmt.Errorf("falling back to WPA2 for the %s access point: %w", name, modifyError)
 		}
 		if _, errorValue := radio.run(ctx, "connection", "up", "id", setupConnectionName); errorValue != nil {
-			return "", fmt.Errorf("starting the %s access point: %w", SetupNetworkName, errorValue)
+			return "", fmt.Errorf("starting the %s access point: %w", name, errorValue)
 		}
 	}
 	return radio.setupNetworkAddress(ctx)
@@ -146,7 +146,7 @@ func (radio NetworkManagerRadio) OpenSetupNetwork(ctx context.Context, name stri
 func (radio NetworkManagerRadio) setupNetworkAddress(ctx context.Context) (string, error) {
 	output, errorValue := radio.run(ctx, "-g", "IP4.ADDRESS", "connection", "show", "id", setupConnectionName)
 	if errorValue != nil {
-		return "", fmt.Errorf("reading the %s access point's address: %w", SetupNetworkName, errorValue)
+		return "", fmt.Errorf("reading the setup access point's address: %w", errorValue)
 	}
 	address := strings.TrimSpace(string(output))
 	if slash := strings.Index(address, "/"); slash >= 0 {
@@ -158,10 +158,10 @@ func (radio NetworkManagerRadio) setupNetworkAddress(ctx context.Context) (strin
 func (radio NetworkManagerRadio) CloseSetupNetwork(ctx context.Context) error {
 	var failures []error
 	if _, errorValue := radio.run(ctx, "connection", "down", "id", setupConnectionName); errorValue != nil {
-		failures = append(failures, fmt.Errorf("closing the %s access point: %w", SetupNetworkName, errorValue))
+		failures = append(failures, fmt.Errorf("closing the setup access point: %w", errorValue))
 	}
 	if _, errorValue := radio.run(ctx, "connection", "delete", "id", setupConnectionName); errorValue != nil {
-		failures = append(failures, fmt.Errorf("deleting the %s access point profile: %w", SetupNetworkName, errorValue))
+		failures = append(failures, fmt.Errorf("deleting the setup access point profile: %w", errorValue))
 	}
 	if errorValue := os.Remove(radio.captiveDNSPath()); errorValue != nil && !os.IsNotExist(errorValue) {
 		failures = append(failures, fmt.Errorf("removing %s: %w", radio.captiveDNSPath(), errorValue))

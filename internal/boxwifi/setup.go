@@ -7,6 +7,7 @@ import (
 	"log"
 	"net"
 	"net/http"
+	"os"
 	"time"
 )
 
@@ -27,7 +28,8 @@ type submission struct {
 
 type Setup struct {
 	Radio                  Radio
-	NetworkName            string
+	MadeOn                 time.Time
+	HostName               func() (string, error)
 	Listen                 func(address string) (net.Listener, error)
 	Sleep                  func(context.Context, time.Duration) error
 	Now                    func() time.Time
@@ -52,13 +54,14 @@ func (setup Setup) Run(ctx context.Context) error {
 			setup.logf("scanning for nearby networks: %v", errorValue)
 			networks = nil
 		}
-		address, errorValue := setup.Radio.OpenSetupNetwork(ctx, setup.networkName())
+		name := setup.networkName()
+		address, errorValue := setup.Radio.OpenSetupNetwork(ctx, name)
 		if errorValue != nil {
-			setup.closeSetupNetwork()
-			return fmt.Errorf("opening the %s access point: %w", setup.networkName(), errorValue)
+			setup.closeSetupNetwork(name)
+			return fmt.Errorf("opening the %s access point: %w", name, errorValue)
 		}
 		result, errorValue := setup.serveUntilSubmitted(ctx, address, networks, hasJoinFailed)
-		setup.closeSetupNetwork()
+		setup.closeSetupNetwork(name)
 		if errors.Is(errorValue, errSetupWindowElapsed) {
 			if setup.waitUntilOnline(ctx, setup.onlineWait()) {
 				return nil
@@ -87,7 +90,7 @@ func (setup Setup) keepsTheSetupNetworkClosed(ctx context.Context) bool {
 	if setup.IsOnANetwork == nil || !setup.IsOnANetwork(ctx) {
 		return false
 	}
-	setup.logf("joined a network that does not reach the internet, so %s stays closed", setup.networkName())
+	setup.logf("joined a network that does not reach the internet, so the setup network stays closed")
 	return true
 }
 
@@ -95,7 +98,7 @@ func (setup Setup) waitWhileConnecting(ctx context.Context) bool {
 	if !setup.Radio.IsConnecting(ctx) {
 		return false
 	}
-	setup.logf("NetworkManager is connecting to a network, so %s waits for it", setup.networkName())
+	setup.logf("NetworkManager is connecting to a network, so the setup network waits for it")
 	waitUntil(ctx, connectingWait, setup.now, setup.sleep, func() bool { return !setup.Radio.IsConnecting(ctx) })
 	return true
 }
@@ -137,9 +140,9 @@ func (setup Setup) now() time.Time {
 	return time.Now()
 }
 
-func (setup Setup) closeSetupNetwork() {
+func (setup Setup) closeSetupNetwork(name string) {
 	if errorValue := setup.Radio.CloseSetupNetwork(context.Background()); errorValue != nil {
-		setup.logf("closing the %s access point: %v", setup.networkName(), errorValue)
+		setup.logf("closing the %s access point: %v", name, errorValue)
 	}
 }
 
@@ -186,10 +189,18 @@ func (setup Setup) setupWindow() time.Duration {
 }
 
 func (setup Setup) networkName() string {
-	if setup.NetworkName != "" {
-		return setup.NetworkName
+	hostName, errorValue := setup.hostName()
+	if errorValue != nil {
+		setup.logf("naming the setup network without this computer's host name: %v", errorValue)
 	}
-	return SetupNetworkName
+	return SetupNetworkNameFor(hostName, setup.MadeOn)
+}
+
+func (setup Setup) hostName() (string, error) {
+	if setup.HostName != nil {
+		return setup.HostName()
+	}
+	return os.Hostname()
 }
 
 func (setup Setup) logf(format string, arguments ...any) {

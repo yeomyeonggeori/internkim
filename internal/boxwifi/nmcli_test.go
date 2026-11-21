@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 	"time"
+	"unicode/utf8"
 )
 
 func TestScanParsesEscapedColonsDedupesAndSortsBySignal(t *testing.T) {
@@ -154,13 +155,39 @@ func TestJoinStillTriesAHiddenNetworkThatNeverAppearsInAScan(t *testing.T) {
 	}
 }
 
-func TestTheSetupNetworkIsNamedForTheDayTheBoxWasMade(t *testing.T) {
+func TestTheSetupNetworkIsNamedAfterTheHostAndTheDayTheBoxWasMade(t *testing.T) {
 	madeOn := time.Date(2026, 10, 2, 0, 0, 0, 0, time.UTC)
-	if got := SetupNetworkNameFor(madeOn); got != "kimmini-261002" {
-		t.Fatalf("setup network name = %q, want kimmini-261002 for a box made on 2026-10-02", got)
+	cases := []struct {
+		hostName string
+		madeOn   time.Time
+		want     string
+	}{
+		{hostName: "kimmini", madeOn: madeOn, want: "kimmini-261002"},
+		{hostName: "internkim", want: "internkim"},
+		{hostName: "internkim", madeOn: madeOn, want: "internkim-261002"},
+		{hostName: "yeomyeonggeori", madeOn: madeOn, want: "yeomyeonggeori-261002"},
+		{hostName: "", want: EmptyBoxHostName},
 	}
-	if got := SetupNetworkNameFor(time.Time{}); got != SetupNetworkName {
-		t.Fatalf("setup network name without a day = %q, want %q", got, SetupNetworkName)
+	for _, testCase := range cases {
+		if got := SetupNetworkNameFor(testCase.hostName, testCase.madeOn); got != testCase.want {
+			t.Errorf("setup network name for host %q made on %v = %q, want %q", testCase.hostName, testCase.madeOn, got, testCase.want)
+		}
+	}
+}
+
+func TestTheSetupNetworkNameFitsTheWifiLimitAndKeepsItsDate(t *testing.T) {
+	madeOn := time.Date(2026, 10, 2, 0, 0, 0, 0, time.UTC)
+	longHostName := strings.Repeat("a", 63)
+	dated := SetupNetworkNameFor(longHostName, madeOn)
+	if len(dated) != 32 || !strings.HasSuffix(dated, "-261002") {
+		t.Fatalf("setup network name = %q (%d bytes), want 32 bytes ending in -261002", dated, len(dated))
+	}
+	if undated := SetupNetworkNameFor(longHostName, time.Time{}); undated != strings.Repeat("a", 32) {
+		t.Fatalf("setup network name without a day = %q, want the host name cut to 32 bytes", undated)
+	}
+	multibyte := SetupNetworkNameFor(strings.Repeat("a", 24)+"사무실", madeOn)
+	if len(multibyte) > 32 || !utf8.ValidString(multibyte) {
+		t.Fatalf("setup network name = %q (%d bytes), want at most 32 bytes of valid UTF-8", multibyte, len(multibyte))
 	}
 }
 

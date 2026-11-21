@@ -19,8 +19,8 @@ func TestAClaimedBoxIsNamedAfterItsCompanySlug(t *testing.T) {
 
 func TestABoxWithoutAUsableSlugIsNamedKimmini(t *testing.T) {
 	for _, slug := range []string{"", "Sample", "-sample", "sample-", "sample_company", "sample.company", strings.Repeat("a", 64)} {
-		if got := HostNameFor(slug); got != SetupNetworkName {
-			t.Errorf("host name for %q = %q, want %q", slug, got, SetupNetworkName)
+		if got := HostNameFor(slug); got != EmptyBoxHostName {
+			t.Errorf("host name for %q = %q, want %q", slug, got, EmptyBoxHostName)
 		}
 	}
 }
@@ -117,11 +117,11 @@ func TestANameInternKimGivesIsRecordedSoItCanBeTakenBack(t *testing.T) {
 	if errorValue := renamed.Name(context.Background(), ""); errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	if !containsCall(recorded.calls, []string{"hostnamectl", "set-hostname", SetupNetworkName}) {
-		t.Fatalf("a disconnected computer InternKim named was not named %s again; calls = %v", SetupNetworkName, recorded.calls)
+	if !containsCall(recorded.calls, []string{"hostnamectl", "set-hostname", EmptyBoxHostName}) {
+		t.Fatalf("a disconnected computer InternKim named was not named %s again; calls = %v", EmptyBoxHostName, recorded.calls)
 	}
-	if given := renamed.givenName(); given != SetupNetworkName {
-		t.Fatalf("the recorded host name after disconnect = %q, want %q", given, SetupNetworkName)
+	if given := renamed.givenName(); given != EmptyBoxHostName {
+		t.Fatalf("the recorded host name after disconnect = %q, want %q", given, EmptyBoxHostName)
 	}
 }
 

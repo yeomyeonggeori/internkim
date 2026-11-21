@@ -167,7 +167,7 @@ func runBox(arguments []string) {
 	}
 	flags := flag.NewFlagSet("box", flag.ExitOnError)
 	appURL := flags.String("app-url", blueclaw.CompanyPackageHomepage, "the address this company signs in at, which a box announces itself to")
-	madeOnPath := flags.String("made-on-file", boxwifi.DefaultMadeOnPath, "a file holding the day this box was made as YYYY-MM-DD, added to the kimmini network's name")
+	madeOnPath := flags.String("made-on-file", boxwifi.DefaultMadeOnPath, "a file holding the day this box was made as YYYY-MM-DD, added to the setup network's name")
 	flags.Parse(arguments)
 	if errorValue := companyhost.RequireAdministrator(); errorValue != nil {
 		fmt.Fprintln(os.Stderr, errorValue)
@@ -206,7 +206,7 @@ func announcedAppURL(flags *flag.FlagSet, flagged string, boxStatePath string, c
 func madeOnFrom(path string) time.Time {
 	madeOn, errorValue := boxwifi.ReadMadeOn(path)
 	if errorValue != nil {
-		log.Printf("naming the kimmini network without a date: %v", errorValue)
+		log.Printf("naming the setup network without a date: %v", errorValue)
 	}
 	return madeOn
 }
@@ -228,7 +228,7 @@ func withWifiSetup(daemon box.Daemon, appURL string, madeOn time.Time) box.Daemo
 	watcherRadio := radio
 	watcherRadio.RescanMode = passiveRescanMode
 	daemon.GetOnline = func(ctx context.Context, boxPublicKey string, hasCompany bool) error {
-		setup := boxwifi.Setup{Radio: radio, NetworkName: boxwifi.SetupNetworkNameFor(madeOn)}
+		setup := boxwifi.Setup{Radio: radio, MadeOn: madeOn}
 		if hasCompany {
 			setup.IsOnANetwork = radio.IsOnANetwork
 		}
