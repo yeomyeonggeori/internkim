@@ -56,10 +56,12 @@ box's network never stands in for the store here, so one building's power cut
 costs no write.
 
 The log starts when a company's first box is claimed, while the database is
-empty and its first base backup is small. Following stops asking how many boxes
-there are (`isJournaled` in `cmd/internkim-host/kept_off_the_box.go`), which
-deletes the several-boxes marker, `keepNoWAL`, `ForgetKeptWAL` and the
-unjournaled barrier.
+empty and its first base backup is small. A box follows whenever it holds the
+company key, whatever the number of boxes
+(`cmd/internkim-host/kept_off_the_box.go`). A computer that holds no company key
+keeps no log, and the file barrier answers it that nothing is journaled.
+`company_keeps_a_backup` and the setup page count a base backup as a backup, so
+a box can be made to serve as soon as the log has one.
 
 ## Placement
 
@@ -109,7 +111,7 @@ WAL, and the newest full entry empties each root before the journal is replayed
 (`internal/companyhost/restore_file_journal.go`). The seven older snapshots
 have no reader, since no command fetches one.
 
-Three things ride on the snapshot alone and move first.
+Two things ride on the snapshot alone and move first.
 
 1. The roster. `policy.json` is under `/run/internkim`, outside every
    journaled root, and a restore recreates the people's accounts from it before
@@ -118,10 +120,6 @@ Three things ride on the snapshot alone and move first.
    (`hostbackup.Manifest`), and a restore refuses a newer release. The base
    backup's document carries them, and a box on another major refuses before
    anything changes, since WAL replays only on the major that wrote it.
-3. The plane's question. `company_keeps_a_backup` looks under `snapshots/`,
-   and the setup page reads the newest manifest's time
-   (`web/src/lib/server/box.ts`). Both read the logs.
-
 Dumps stay in the daily archive on the box (`internkim-host backup`), the one
 form that restores onto another PostgreSQL major.
 
@@ -135,7 +133,7 @@ use.
 ## Order
 
 1. The log starts with the first box.
-2. The three things above move, and a take-over starts from the logs alone.
+2. The two things above move, and a take-over starts from the logs alone.
 3. The snapshot is deleted, once every company keeps a base backup and a full
    entry.
 4. A standby keeps its share and reports it, and a take-over reads its own
@@ -149,12 +147,16 @@ Each step changes [Kim mini](/docs/kim-mini) and
 ## Decisions
 
 1. A company on one box waits on the store for each write, as every other
-   company does. People reach a box through the hosted service, so a box
-   without its line has no one writing to it. Step 1 starts by tracing what
-   writes on a box while its line is down, such as scheduled jobs and agent
-   work in flight, and how each behaves while its write waits.
-   [Kim mini](/docs/kim-mini#more-than-one-box), which says such a company's
-   writes never wait on the internet, changes with that step.
+   company does. People reach a box through the hosted service, and nothing a
+   person uses on the box's own network writes: the pairing page only reads,
+   and Wi-Fi and the admin password come from the hosted service. While the
+   line is down the agent still writes when a schedule falls due or work is in
+   flight. Its commits wait without a deadline, each holding one of its 30
+   database connections, so its scheduler stops at its next claim and the agent
+   carries on from there when the line returns. admind stops waiting after two
+   minutes, which leaves that write on the box alone. Mail is fetched only when
+   asked and the relay's inbound queue is files, so neither writes to the
+   database.
 2. A box listens on its LAN, bound to its LAN address, only while another box
    of the company shares its site, and answers only box-signed requests for
    sealed pieces. For boxes on one network this ends "every arrow points

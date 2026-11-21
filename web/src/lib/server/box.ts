@@ -9,6 +9,7 @@ import {
 	boxKeySchema,
 	boxRoleSchema,
 	keptBackupManifestSchema,
+	keptBaseBackupSchema,
 	nearbyNetworkListSchema,
 	sealedSecretSchema,
 	wifiOutcomeSchema,
@@ -20,7 +21,7 @@ import {
 	type CompanyBoxes,
 	type ConnectedBox,
 	type EmptyBox,
-	type KeptBackupManifest,
+	type KeptBackupDocument,
 	type SealedSecret
 } from '$lib/company/box';
 import type { Environment } from './agent-request';
@@ -476,21 +477,43 @@ async function companyServedByConnectionFile(client: SupabaseClient, companyID: 
 const keptBackupBucket = 'box_backup';
 
 export async function newestKeptBackupAt(client: SupabaseClient, companyID: string, sealingKey: string): Promise<string | null> {
+	const [snapshot, baseBackup] = await Promise.all([
+		newestSealedDocumentAt(client, `${companyID}/snapshots`, keptBackupManifestSchema, sealingKey),
+		newestSealedDocumentAt(client, `${companyID}/base`, keptBaseBackupSchema, sealingKey)
+	]);
+	return newerOf(snapshot, baseBackup);
+}
+
+function newerOf(first: string | null, second: string | null): string | null {
+	if (!first || !second) return first ?? second;
+	return Date.parse(first) >= Date.parse(second) ? first : second;
+}
+
+async function newestSealedDocumentAt(
+	client: SupabaseClient,
+	folder: string,
+	schema: typeof keptBackupManifestSchema,
+	sealingKey: string
+): Promise<string | null> {
 	const { data, error } = await client.storage
 		.from(keptBackupBucket)
-		.list(`${companyID}/snapshots`, { limit: 1000, sortBy: { column: 'name', order: 'desc' } });
-	if (error) throw new Error(`kept snapshots of ${companyID}: ${error.message}`);
-	for (const snapshot of data) {
-		const manifest = await keptManifestOf(client, `${companyID}/snapshots/${snapshot.name}`);
-		if (manifest?.name === snapshot.name && manifest.sealingKey === sealingKey) return manifest.createdAt;
+		.list(folder, { limit: 1000, sortBy: { column: 'name', order: 'desc' } });
+	if (error) throw new Error(`kept backups under ${folder}: ${error.message}`);
+	for (const kept of data) {
+		const document = await keptDocumentOf(client, `${folder}/${kept.name}`, schema);
+		if (document?.name === kept.name && document.sealingKey === sealingKey) return document.createdAt;
 	}
 	return null;
 }
 
-async function keptManifestOf(client: SupabaseClient, path: string): Promise<KeptBackupManifest | null> {
+async function keptDocumentOf(
+	client: SupabaseClient,
+	path: string,
+	schema: typeof keptBackupManifestSchema
+): Promise<KeptBackupDocument | null> {
 	const { data } = await client.storage.from(keptBackupBucket).download(path);
 	if (!data) return null;
-	const parsed = keptBackupManifestSchema.safeParse(documentOf(await data.text()));
+	const parsed = schema.safeParse(documentOf(await data.text()));
 	return parsed.success ? parsed.data : null;
 }
 
@@ -596,7 +619,6 @@ export type BoxSession = {
 	sealedModelKey: HeldModelKey | null;
 	boxesAwaitingCompanyKey: AwaitingBox[];
 	keepsBackups: boolean;
-	hasSeveralBoxes: boolean;
 	takeOver: TakeOver;
 	targetVersion: string | null;
 	restartsToFollowTheModelPayer: boolean;
@@ -626,7 +648,6 @@ export async function boxSessionFor(
 		sealedModelKey: holdsKey ? keyring.sealedModelKey : null,
 		boxesAwaitingCompanyKey: holdsKey ? await boxesAwaitingCompanyKey(client, box.companyID) : [],
 		keepsBackups: await companyKeepsABackup(client, box.companyID),
-		hasSeveralBoxes: (await boxesOfCompany(client, box.companyID)).length > 1,
 		takeOver: await takeOverOf(client, box.companyID),
 		targetVersion: role === 'standby' ? await targetVersionOf(client, box.companyID) : null,
 		restartsToFollowTheModelPayer: role === 'service' && (await payerChangeWaitsOn(client, box))

@@ -37,7 +37,7 @@ func runFileFollow(arguments []string) error {
 }
 
 func serveTheFileJournal(ctx context.Context, kept keptOffTheBox, socketPath string) error {
-	if !kept.isJournaled {
+	if !kept.holdsTheCompanyKey {
 		return filestream.NewUnjournaledBarrier().Serve(ctx, socketPath, fileJournalSocketMode)
 	}
 	barrier := filestream.NewBarrier(blueclaw.CompanyHostStateRoot, companyhost.BarrierRole)

@@ -4,12 +4,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log"
 	"os"
 	"os/signal"
 	"path/filepath"
 	"syscall"
-	"time"
 
 	"github.com/yeomyeonggeori/internkim/internal/companyhost"
 	"github.com/yeomyeonggeori/internkim/internal/offsite"
@@ -17,12 +15,9 @@ import (
 	"github.com/yeomyeonggeori/internkim/internal/walstream"
 )
 
-const (
-	releaseVerb             = "release"
-	forgetKeptWALAgainAfter = time.Minute
-)
+const releaseVerb = "release"
 
-var errNotAServingBox = errors.New("this computer is not a box holding its company's key, so it keeps no WAL for the company's other boxes")
+var errNotAServingBox = errors.New("this computer is not a box holding its company's key, so it keeps no WAL off the box")
 
 func companyDatabaseConnection() string {
 	return fmt.Sprintf("host=%s port=%s user=%s dbname=postgres", blueclaw.CompanyHostDatabaseSocketDirectory, blueclaw.CompanyHostDatabasePort, blueclaw.CompanyHostDatabaseUser)
@@ -40,7 +35,7 @@ func runWalFollow(arguments []string) error {
 		return walstream.ReleaseTheStandby(context.Background(), companyDatabaseConnection())
 	}
 	if len(arguments) != 0 {
-		return fmt.Errorf("wal-follow takes no arguments, or %q to let the database commit without the company's other boxes", releaseVerb)
+		return fmt.Errorf("wal-follow takes no arguments, or %q to let the database commit without waiting for the hosted store", releaseVerb)
 	}
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGTERM, os.Interrupt)
 	defer stop()
@@ -50,8 +45,8 @@ func runWalFollow(arguments []string) error {
 	}
 	watched, cancel := whileThisBoxKeepsTheSame(ctx, kept)
 	defer cancel()
-	if !kept.isJournaled {
-		return keepNoWAL(watched, kept)
+	if !kept.holdsTheCompanyKey {
+		return keepNoWAL(watched)
 	}
 	pieces := walstream.NewPiecesSinceBaseBackup()
 	errorValue = walstream.Follower{
@@ -73,30 +68,12 @@ func runWalFollow(arguments []string) error {
 	return errorValue
 }
 
-func keepNoWAL(ctx context.Context, kept keptOffTheBox) error {
+func keepNoWAL(ctx context.Context) error {
 	if errorValue := walstream.ReleaseTheStandby(ctx, companyDatabaseConnection()); errorValue != nil {
 		return errorValue
 	}
-	if kept.holdsTheCompanyKey {
-		untilTheKeptWALIsForgotten(ctx, kept.destination)
-	}
 	<-ctx.Done()
 	return nil
-}
-
-func untilTheKeptWALIsForgotten(ctx context.Context, destination offsite.Destination) {
-	for {
-		errorValue := walstream.ForgetKeptWAL(ctx, companyReplicationConnection(), destination)
-		if errorValue == nil || ctx.Err() != nil {
-			return
-		}
-		log.Printf("the WAL kept for the company's other boxes is not forgotten yet: %v; trying again in %s", errorValue, forgetKeptWALAgainAfter)
-		select {
-		case <-ctx.Done():
-			return
-		case <-time.After(forgetKeptWALAgainAfter):
-		}
-	}
 }
 
 func rebuildTheDatabaseFromKeptWALAs(place offsite.ThisBox) func(companyID, dataDirectoryPath string) error {

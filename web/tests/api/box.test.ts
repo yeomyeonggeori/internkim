@@ -502,18 +502,16 @@ describe('connecting an empty box', () => {
 		const second = await aBox();
 		const stranger = await aBox();
 		await claimWithCode(switching.companyID, first.publicKey, await announcedCode(first));
-		expect(await boxSessionFor(credentials, first.publicKey, environment, appURL)).toMatchObject({ hasSeveralBoxes: false });
 		await claimWithCode(switching.companyID, second.publicKey, await announcedCode(second), 'add');
 
 		expect(await makeBoxServe(client, switching.companyID, stranger.publicKey)).toBe('not_its_box');
 		expect(await makeBoxServe(client, switching.companyID, second.publicKey)).toBe('no_backup');
 		expect(await boxSessionFor(credentials, second.publicKey, environment, appURL)).toMatchObject({
 			role: 'standby',
-			keepsBackups: false,
-			hasSeveralBoxes: true
+			keepsBackups: false
 		});
 
-		const keptManifest = `${switching.companyID}/snapshots/internkim-snapshot-20261020T000000Z.json`;
+		const keptManifest = `${switching.companyID}/base/internkim-base-20261020T000000Z.json`;
 		await client.storage.from('box_backup').upload(keptManifest, new Blob(['{}'], { type: 'application/json' }));
 		expect(await makeBoxServe(client, switching.companyID, second.publicKey)).toBe('serving');
 
@@ -594,6 +592,24 @@ describe('connecting an empty box', () => {
 			`${snapshots}/internkim-snapshot-20261018T030000Z.json`,
 			`${snapshots}/internkim-snapshot-20261019T030000Z.json`
 		]);
+	});
+
+	test('the base backup the log starts from is a backup the boxes share before any snapshot', async () => {
+		const logging = await aCompany('logging');
+		const first = await aBox();
+		await claimWithCode(logging.companyID, first.publicKey, await announcedCode(first));
+		const bucket = client.storage.from('box_backup');
+		const snapshot = `${logging.companyID}/snapshots/internkim-snapshot-20261021T030000Z.json`;
+		const baseBackup = `${logging.companyID}/base/internkim-base-20261022T030000Z.json`;
+		const documentOf = (version: number, name: string, createdAt: string) =>
+			new Blob([JSON.stringify({ version, name, sealingKey: first.encryptionKey, createdAt })], { type: 'application/json' });
+
+		await bucket.upload(baseBackup, documentOf(1, 'internkim-base-20261022T030000Z.json', '2026-10-22T03:00:00Z'));
+		expect(await newestKeptBackupAt(client, logging.companyID, first.encryptionKey)).toBe('2026-10-22T03:00:00Z');
+
+		await bucket.upload(snapshot, documentOf(2, 'internkim-snapshot-20261021T030000Z.json', '2026-10-21T03:00:00Z'));
+		expect(await newestKeptBackupAt(client, logging.companyID, first.encryptionKey)).toBe('2026-10-22T03:00:00Z');
+		await bucket.remove([snapshot, baseBackup]);
 	});
 
 
