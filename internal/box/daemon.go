@@ -372,6 +372,9 @@ func (daemon Daemon) InstallWithConnectionFile(ctx context.Context, connectionKe
 	if errorValue := daemon.Client.Claim(ctx, identity, connectionKey); errorValue != nil {
 		return "", errorValue
 	}
+	if errorValue := rememberThisComputerIsABox(daemon.Places.StateDirectoryPath); errorValue != nil {
+		return "", errorValue
+	}
 	session, isClaimed, errorValue := daemon.Client.Session(ctx, identity, daemon.PackageVersion)
 	if errorValue != nil {
 		return "", errorValue

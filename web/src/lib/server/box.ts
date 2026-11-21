@@ -285,9 +285,14 @@ export async function claimBoxWithConnectionFile(
 		box_key: publicKey,
 		box_encryption_key: encryptionKey
 	});
+	if (error?.code === objectNotInPrerequisiteState) {
+		throw new BoxRefused('a box already serves this company, so a connection file cannot make this computer serve it; add it from company setup with the code it shows', 409);
+	}
 	if (error) throw new Error(`claiming box ${publicKey}: ${error.message}`);
 	return z.uuid().nullable().parse(data);
 }
+
+const objectNotInPrerequisiteState = '55000';
 
 const legacySealedModelKeySchema = z.object({
 	ephemeralPublicKey: boxKeySchema,

@@ -543,6 +543,9 @@ func TestAConnectionFileThatJoinsAServedCompanyStandsByAndInstallsNothing(t *tes
 	if installed := installedCompanyIn(places.StateDirectoryPath); installed != "" {
 		t.Fatalf("a standby box is marked as having installed %q", installed)
 	}
+
+	writeConnectionFile(t, places.ConnectionFilePath, sampleConnectionDocument(t))
+	runSteps(t, daemon, 1)
 }
 
 func TestAConnectionFileAsksForTheModelKeyOnlyThroughTheInstall(t *testing.T) {
@@ -628,6 +631,62 @@ func TestAComputerInstalledFromAFileKeepsRenewingWithNoSealedModelKey(t *testing
 		requireFile(t, path, "renewed.session.token\n", 0o640)
 	}
 	requireFile(t, places.ModelKeyPath, "installed\n", 0o640)
+}
+
+func installingTheCompanyFiles(t *testing.T, places Places, recorded *installs) func(companyhost.Request) error {
+	return func(request companyhost.Request) error {
+		writeConnectionFile(t, places.ConnectionFilePath, sampleConnectionDocument(t))
+		for _, path := range places.CredentialPaths {
+			if errorValue := os.WriteFile(path, []byte(request.Connection.AgentKey+"\n"), 0o640); errorValue != nil {
+				t.Fatal(errorValue)
+			}
+		}
+		return recorded.install(request)
+	}
+}
+
+func TestAComputerServingOnAConnectionFileRunsAsABoxOnceItsFileClaimsIt(t *testing.T) {
+	plane := &fakePlane{accessToken: "file.session.token"}
+	recorded := &installs{}
+	daemon, places := daemonFor(t, plane, recorded)
+	writeConnectionFile(t, places.ConnectionFilePath, sampleConnectionDocument(t))
+	daemon.Install = installingTheCompanyFiles(t, places, recorded)
+	if _, errorValue := daemon.InstallWithConnectionFile(context.Background(), "connection-file-key", "sk-or-v1-typed", askNobodyForAModelKey); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+
+	plane.accessToken = "renewed.session.token"
+	runSteps(t, daemon, 2)
+
+	if len(recorded.requests) != 1 {
+		t.Fatalf("installs = %d; the box keeps the company it installed", len(recorded.requests))
+	}
+	for _, path := range places.CredentialPaths {
+		requireFile(t, path, "renewed.session.token\n", 0o640)
+	}
+}
+
+func TestAComputerClaimedByItsConnectionFileRunsAsABoxThoughItsInstallWasCutShort(t *testing.T) {
+	plane := &fakePlane{accessToken: "file.session.token"}
+	recorded := &installs{}
+	daemon, places := daemonFor(t, plane, recorded)
+	writeConnectionFile(t, places.ConnectionFilePath, sampleConnectionDocument(t))
+	cutShort := daemon
+	cutShort.Install = func(companyhost.Request) error { return errors.New("the power went out") }
+	if _, errorValue := cutShort.InstallWithConnectionFile(context.Background(), "connection-file-key", "sk-or-v1-typed", askNobodyForAModelKey); errorValue == nil {
+		t.Fatal("an install cut short reported success")
+	}
+
+	daemon.Install = installingTheCompanyFiles(t, places, recorded)
+	plane.accessToken = "renewed.session.token"
+	runSteps(t, daemon, 2)
+
+	if len(recorded.requests) != 1 || daemon.installedCompany() != sampleCompanyID {
+		t.Fatalf("installs = %d, installed company = %q; the file was spent, so only the box can bring the company back", len(recorded.requests), daemon.installedCompany())
+	}
+	for _, path := range places.CredentialPaths {
+		requireFile(t, path, "renewed.session.token\n", 0o640)
+	}
 }
 
 func TestAnEmptyBoxGetsOnlineBeforeItAnnounces(t *testing.T) {
