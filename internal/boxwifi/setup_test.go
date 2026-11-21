@@ -36,6 +36,7 @@ type fakeRadio struct {
 	scanCalls  int
 	openCalls  int
 	closeCalls int
+	openNames  []string
 }
 
 func (radio *fakeRadio) IsOnline(ctx context.Context) bool {
@@ -71,6 +72,7 @@ func (radio *fakeRadio) OpenSetupNetwork(ctx context.Context, name string) (stri
 	radio.mutex.Lock()
 	defer radio.mutex.Unlock()
 	radio.openCalls++
+	radio.openNames = append(radio.openNames, name)
 	radio.events = append(radio.events, "open")
 	if radio.openError != nil {
 		return "", radio.openError
@@ -517,16 +519,25 @@ func (manager *fakeNetworkManager) run(ctx context.Context, name string, argumen
 }
 
 func (manager *fakeNetworkManager) hasOpenedTheSetupNetwork() bool {
+	return manager.openedSetupNetworkName() != ""
+}
+
+func (manager *fakeNetworkManager) openedSetupNetworkName() string {
 	manager.mutex.Lock()
 	defer manager.mutex.Unlock()
-	return slices.ContainsFunc(manager.calls, func(arguments []string) bool {
-		return slices.Contains(arguments, "add") && slices.Contains(arguments, "ap")
-	})
+	for _, arguments := range manager.calls {
+		ssidIndex := slices.Index(arguments, "ssid")
+		if slices.Contains(arguments, "add") && slices.Contains(arguments, "ap") && ssidIndex >= 0 && ssidIndex+1 < len(arguments) {
+			return arguments[ssidIndex+1]
+		}
+	}
+	return ""
 }
 
 func setupForAHostWithACompany(t *testing.T, manager *fakeNetworkManager, listenerReady chan<- net.Listener) Setup {
 	radio := NetworkManagerRadio{Run: manager.run, CaptiveDNSPath: filepath.Join(t.TempDir(), "internkim-setup.conf")}
-	return withFakeClock(Setup{Radio: radio, IsOnANetwork: radio.IsOnANetwork, Listen: testListener(listenerReady)})
+	hostName := func() (string, error) { return "internkim", nil }
+	return withFakeClock(Setup{Radio: radio, IsOnANetwork: radio.IsOnANetwork, Listen: testListener(listenerReady), HostName: hostName})
 }
 
 func TestAHostWithACompanyOnAWiredNetworkWithoutTheInternetNeverOpensTheSetupNetwork(t *testing.T) {
@@ -552,7 +563,43 @@ func TestAHostWithACompanyOffEveryNetworkOpensTheSetupNetwork(t *testing.T) {
 	<-listenerReady
 	cancel()
 	<-runErrors
-	if !manager.hasOpenedTheSetupNetwork() {
-		t.Fatalf("a host off every network did not open the setup network; nmcli calls = %v", manager.calls)
+	if opened := manager.openedSetupNetworkName(); opened != "internkim" {
+		t.Fatalf("a host named internkim off every network opened the setup network %q, want internkim; nmcli calls = %v", opened, manager.calls)
+	}
+}
+
+func TestTheSetupNetworkTakesTheHostNameItHasWhenItOpens(t *testing.T) {
+	radio := &fakeRadio{address: "10.0.0.5"}
+	listenerReady := make(chan net.Listener, 8)
+	var hostNameMutex sync.Mutex
+	hostNames := []string{"kimmini", "yeomyeonggeori"}
+	setup := withFakeClock(Setup{
+		Radio:                  radio,
+		Listen:                 testListener(listenerReady),
+		SavedNetworkWaitAtBoot: time.Nanosecond,
+		SetupWindow:            20 * time.Millisecond,
+		MadeOn:                 time.Date(2026, 10, 2, 0, 0, 0, 0, time.UTC),
+		HostName: func() (string, error) {
+			hostNameMutex.Lock()
+			defer hostNameMutex.Unlock()
+			current := hostNames[0]
+			if len(hostNames) > 1 {
+				hostNames = hostNames[1:]
+			}
+			return current, nil
+		},
+	})
+	ctx, cancel := context.WithCancel(context.Background())
+	runErrors := make(chan error, 1)
+	go func() { runErrors <- setup.Run(ctx) }()
+
+	<-listenerReady
+	<-listenerReady
+	cancel()
+	<-runErrors
+	radio.mutex.Lock()
+	defer radio.mutex.Unlock()
+	if len(radio.openNames) < 2 || radio.openNames[0] != "kimmini-261002" || radio.openNames[1] != "yeomyeonggeori-261002" {
+		t.Fatalf("opened %v, want kimmini-261002 and then yeomyeonggeori-261002 as the host name changed", radio.openNames)
 	}
 }

@@ -33,13 +33,15 @@ turned off.
 ## Getting online
 
 A box whose Wi-Fi NetworkManager manages, as a Kim mini's is, opens its own Wi-Fi
-network while it is offline, named `kimmini-` plus the day the box was made as `YYMMDD`, for example
-`kimmini-261002`. A box that already has a company opens it only when it is joined
+network while it is offline. The network is named after the computer's host name
+when it opens, plus `-` and the day the box was made as `YYMMDD`, cut to the 32
+bytes a Wi-Fi name allows. An empty Kim mini opens `kimmini-261002`, and a Linux
+box named `internkim` without a recorded day opens `internkim`. A box that already has a company opens it only when it is joined
 to no network at all, wired or wireless, so one carried to another office can be
 given that office's network while an internet outage leaves it on the network it
 has. While NetworkManager is connecting a device, the box waits up to two minutes
 for it before it opens its own. The network appears only
-while the box is offline and closes once it is online. Boxes made on the same day share a
+while the box is offline and closes once it is online. Empty boxes made on the same day share a
 name, and a phone joins one of them; once that box is online its network closes
 and the next one is the only one left. Its password is `intern-kim`, the same on every box.
 
