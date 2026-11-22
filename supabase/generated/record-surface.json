@@ -1310,6 +1310,15 @@
       ]
     },
     {
+      "name": "note_box_move",
+      "arguments": "box_key text, stopped_timeline integer, stopped_position pg_lsn, stopped_entry bigint",
+      "returns": "text",
+      "security": "definer",
+      "callableBy": [
+        "service_role"
+      ]
+    },
+    {
       "name": "note_box_seen",
       "arguments": "box_key text, seen_version text",
       "returns": "text",

@@ -63,6 +63,15 @@ func (daemon Daemon) keepServiceLease(policy TakeOverPolicy) error {
 	return durablefile.Write(daemon.statePath(serviceLeaseFileName), document, 0o600)
 }
 
+func ConfirmTheLease(stateDirectoryPath string, confirmedAt time.Time) error {
+	daemon := Daemon{Places: Places{StateDirectoryPath: stateDirectoryPath}, Now: func() time.Time { return confirmedAt }}
+	lease, isKept := daemon.serviceLease()
+	if !isKept {
+		return nil
+	}
+	return daemon.keepServiceLease(TakeOverPolicy{IsAutomatic: true, LapseSeconds: lease.LapseSeconds})
+}
+
 func (daemon Daemon) runningLease() (serviceLease, bool) {
 	if daemon.hasStoodDown() {
 		return serviceLease{}, false
@@ -113,7 +122,7 @@ func (daemon Daemon) standDownWhenTheLeaseRunsOut() {
 		log.Printf("stopping the company's services: %v; trying again at the next check", errorValue)
 		return
 	}
-	if errorValue := durablefile.Write(daemon.statePath(stoodDownFileName), []byte(lease.ConfirmedAt.UTC().Format(time.RFC3339)+"\n"), 0o600); errorValue != nil {
+	if errorValue := daemon.noteStoodDown(lease.ConfirmedAt.UTC().Format(time.RFC3339)); errorValue != nil {
 		log.Printf("noting that this box stood down: %v", errorValue)
 	}
 }

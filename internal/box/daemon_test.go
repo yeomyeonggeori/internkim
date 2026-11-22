@@ -40,6 +40,9 @@ type fakePlane struct {
 	isHanging        bool
 	targetVersion    string
 	releases         int
+	move             *Move
+	movesReported    []LogPosition
+	moveOutcome      MoveOutcome
 }
 
 func (plane *fakePlane) sessionRole() Role {
@@ -115,7 +118,13 @@ func (plane *fakePlane) serve(t *testing.T) *httptest.Server {
 				TakeOver:                plane.takeOver,
 				ServiceLapsesInSeconds:  plane.lapsesIn,
 				TargetVersion:           plane.targetVersion,
+				Move:                    plane.move,
 			}})
+		case "/api/box/move":
+			var position LogPosition
+			json.NewDecoder(request.Body).Decode(&position)
+			plane.movesReported = append(plane.movesReported, position)
+			json.NewEncoder(writer).Encode(map[string]MoveOutcome{"outcome": plane.moveOutcome})
 		case "/api/box/release":
 			plane.releases++
 			plane.isClaimed = false

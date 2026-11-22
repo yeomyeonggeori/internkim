@@ -72,10 +72,10 @@ func keepNoWAL(ctx context.Context) error {
 	return nil
 }
 
-func rebuildTheDatabaseFromKeptWAL(kept keptOffTheBox) func(dataDirectoryPath string) error {
+func rebuildTheDatabaseFromKeptWAL(kept keptOffTheBox, through walstream.Position) func(dataDirectoryPath string) error {
 	return func(dataDirectoryPath string) error {
 		cache := offsite.ChunkCache{DirectoryPath: filepath.Join(blueclaw.CompanyHostBackupsPath, "base-chunks")}
-		rebuilt, errorValue := walstream.RebuildDataDirectory(context.Background(), kept.destination, kept.keyring, cache, dataDirectoryPath)
+		rebuilt, errorValue := walstream.RebuildDataDirectory(context.Background(), kept.destination, kept.keyring, cache, dataDirectoryPath, through)
 		if errors.Is(errorValue, walstream.ErrNoBaseBackup) {
 			return companyhost.ErrNoKeptWAL
 		}
