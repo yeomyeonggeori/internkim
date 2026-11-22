@@ -304,6 +304,10 @@
     "process": "tools/native-install-member-session.ts",
     "description": "the connection gateway URL the member session opens its websocket against"
   },
+  "MEMBER_SESSION_KEEPS_TALKING": {
+    "process": "tools/native-install-member-session.ts",
+    "description": "set to 1 by the boxes scenario so the member session posts each line it reads on stdin and prints each answer, until stdin closes; any other value posts MEMBER_SESSION_MESSAGE once"
+  },
   "MEMBER_SESSION_MESSAGE": {
     "process": "tools/native-install-member-session.ts",
     "description": "the message text the native-install rig's member session asks the company to post"

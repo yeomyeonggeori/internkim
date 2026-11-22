@@ -30,7 +30,8 @@ const settings = {
 	companyID: required('MEMBER_SESSION_COMPANY_ID'),
 	email: required('MEMBER_SESSION_EMAIL'),
 	password: required('MEMBER_SESSION_PASSWORD'),
-	messageText: required('MEMBER_SESSION_MESSAGE'),
+	messageText: process.env.MEMBER_SESSION_MESSAGE?.trim() ?? '',
+	keepsTalking: process.env.MEMBER_SESSION_KEEPS_TALKING === '1',
 	answerTimeoutMilliseconds: Number(process.env.MEMBER_SESSION_ANSWER_TIMEOUT_MS ?? 60_000),
 	typingWaitMilliseconds: Number(process.env.MEMBER_SESSION_TYPING_WAIT_MS ?? 0),
 	memberID: process.env.MEMBER_SESSION_MEMBER_ID?.trim() ?? '',
@@ -162,6 +163,10 @@ class MemberConnection {
 		}
 	}
 
+	isOpen(): boolean {
+		return this.socket.readyState === WebSocket.OPEN;
+	}
+
 	close(): void {
 		this.socket.close();
 	}
@@ -212,34 +217,83 @@ async function keptAttachment(connection: MemberConnection, bearer: string, file
 	return keptAttachmentOf(result, file);
 }
 
-const session = await signIn();
-const connection = await MemberConnection.open(session.accessToken);
-const presence = await connection.whetherTheHostIsConnected();
-const attachments: KeptAttachment[] = [];
-for (const file of settings.attachmentFiles) {
-	attachments.push(await keptAttachment(connection, session.accessToken, file));
+type Talk = { connection: MemberConnection; conversationID: string };
+
+type Said = { talk: Talk | null; answer: Record<string, unknown> };
+
+async function startTalking(): Promise<Talk> {
+	const session = await signIn();
+	const connection = await MemberConnection.open(session.accessToken);
+	const conversation = await connection.ask('person.dm.ensure', { counterpartExternalIDs: [] });
+	const conversationID = answerField(conversation, 'id');
+	if (conversationID) return { connection, conversationID };
+	connection.close();
+	throw new Error(`person.dm.ensure answered ${conversation.status}: ${JSON.stringify(conversation.body)}`);
 }
 
-const conversation = await connection.ask('person.dm.ensure', { counterpartExternalIDs: [] });
-const conversationID = answerField(conversation, 'id');
-const sent = await connection.ask('person.message.send', {
-	conversationID,
-	body: settings.messageText,
-	...(settings.parentID ? { parentID: settings.parentID } : {}),
-	...(attachments.length > 0 ? { attachments } : {}),
-	timeZone: settings.timeZone
-});
-await connection.untilSomeoneTypesIn(conversationID, settings.typingWaitMilliseconds);
-connection.close();
+function reasonOf(failure: unknown): string {
+	return failure instanceof Error ? failure.message : String(failure);
+}
 
-console.log(
-	JSON.stringify({
-		tokenAlgorithm: session.algorithm,
-		presence,
-		conversation: { status: conversation.status, id: conversationID, body: conversation.body },
-		sent: { status: sent.status, messageID: answerField(sent, 'id'), body: sent.body },
-		attachments,
-		delivered: connection.delivered,
-		typing: connection.delivered.filter((frame) => isTypingIn(frame, conversationID)).map((frame) => frame.event)
-	})
-);
+async function said(talk: Talk | null, text: string): Promise<Said> {
+	const startedAt = Date.now();
+	try {
+		const open = talk?.connection.isOpen() ? talk : await startTalking();
+		const sent = await open.connection.ask('person.message.send', { conversationID: open.conversationID, body: text, timeZone: settings.timeZone });
+		const answer = { status: sent.status, messageID: answerField(sent, 'id'), body: sent.body, startedAt, answeredAt: Date.now() };
+		if (sent.status !== 0) return { talk: open, answer };
+		open.connection.close();
+		return { talk: null, answer };
+	} catch (failure) {
+		return { talk: null, answer: { status: 0, error: reasonOf(failure), startedAt, answeredAt: Date.now() } };
+	}
+}
+
+async function keepTalking(): Promise<void> {
+	let talk: Talk | null = null;
+	for await (const line of console) {
+		const text = line.trim();
+		if (!text) continue;
+		const answered = await said(talk, text);
+		talk = answered.talk;
+		console.log(JSON.stringify(answered.answer));
+	}
+	talk?.connection.close();
+}
+
+async function sayOnce(): Promise<void> {
+	if (!settings.messageText) throw new Error('set MEMBER_SESSION_MESSAGE');
+	const session = await signIn();
+	const connection = await MemberConnection.open(session.accessToken);
+	const presence = await connection.whetherTheHostIsConnected();
+	const attachments: KeptAttachment[] = [];
+	for (const file of settings.attachmentFiles) {
+		attachments.push(await keptAttachment(connection, session.accessToken, file));
+	}
+
+	const conversation = await connection.ask('person.dm.ensure', { counterpartExternalIDs: [] });
+	const conversationID = answerField(conversation, 'id');
+	const sent = await connection.ask('person.message.send', {
+		conversationID,
+		body: settings.messageText,
+		...(settings.parentID ? { parentID: settings.parentID } : {}),
+		...(attachments.length > 0 ? { attachments } : {}),
+		timeZone: settings.timeZone
+	});
+	await connection.untilSomeoneTypesIn(conversationID, settings.typingWaitMilliseconds);
+	connection.close();
+
+	console.log(
+		JSON.stringify({
+			tokenAlgorithm: session.algorithm,
+			presence,
+			conversation: { status: conversation.status, id: conversationID, body: conversation.body },
+			sent: { status: sent.status, messageID: answerField(sent, 'id'), body: sent.body },
+			attachments,
+			delivered: connection.delivered,
+			typing: connection.delivered.filter((frame) => isTypingIn(frame, conversationID)).map((frame) => frame.event)
+		})
+	);
+}
+
+await (settings.keepsTalking ? keepTalking() : sayOnce());
