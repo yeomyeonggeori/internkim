@@ -46,6 +46,7 @@ type Session struct {
 	TakeOver                TakeOverPolicy  `json:"takeOver"`
 	ServiceLapsesInSeconds  *int            `json:"serviceLapsesInSeconds"`
 	TargetVersion           string          `json:"targetVersion"`
+	Move                    *Move           `json:"move"`
 }
 
 type BoxShortOfRelease struct {

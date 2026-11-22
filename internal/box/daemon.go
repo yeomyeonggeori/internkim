@@ -54,6 +54,7 @@ type Daemon struct {
 	StandDown              func() error
 	StopServices           func() error
 	StandUp                func() error
+	HandOver               func(ctx context.Context, session Session) (LogPosition, error)
 	RestartServices        func() error
 	StartKeepingUp         func(ctx context.Context, session Session)
 	FollowRelease          func(targetVersion string) error
@@ -178,7 +179,13 @@ func (daemon Daemon) serveClaimed(ctx context.Context, session Session, identity
 		return announceInterval, nil
 	}
 	if session.Role == RoleStandby {
+		if session.MoveTo(identity.PublicKey()) != nil {
+			return daemon.catchUp(ctx, session, keyring)
+		}
 		return daemon.standBy(ctx, session)
+	}
+	if session.isMovingFrom(identity.PublicKey()) && daemon.installedCompany() == session.Configuration.Company.ID {
+		return moveCheckInterval, daemon.handOver(ctx, session, identity)
 	}
 	daemon.keepTheQueueAddress(session)
 	if daemon.installedCompany() == session.Configuration.Company.ID {

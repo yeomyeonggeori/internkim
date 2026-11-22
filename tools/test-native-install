@@ -105,6 +105,7 @@ ADMIND_UNIT_NAME = "internkim-admind.service"
 AGENT_UNIT_NAME = "blueclaw.service"
 TAKE_OVER_UNIT_NAME = "internkim-take-over.service"
 TAKE_OVER_STATE_COMMAND = "systemctl show -p ActiveState -p Result %s"
+MOVE_JOURNAL_COMMAND = "journalctl %(units)s --since @%(since)d --no-pager -o short-precise 2>&1 | grep -v \"Removed '/etc/systemd\" | tail -n 150"
 
 AGENT_HOLD_PATH = "/run/internkim-rig/hold-the-agent"
 AGENT_HOLD_DROP_IN = f"/etc/systemd/system/{AGENT_UNIT_NAME}.d/rig-held-until-the-state-is-read.conf"
@@ -2358,7 +2359,7 @@ class Rig:
 
         def interruption():
             if not moved:
-                return False, f"the box made to serve never held the gateway ({status} {str(answer)[:300]})"
+                return False, f"the box made to serve never held the gateway ({status} {str(answer)[:300]})\n{self.move_journals(serving, target, pressed)}"
             self.acknowledgements.wait_for_messages_after(writer, served, 2, boxes.LONGEST_WAIT_FOR_WRITERS_SECONDS)
             landed = self.acknowledgements.times_of("messages", writer, 0)
             attempts = self.acknowledgements.attempts_of(writer, 0)
@@ -2371,7 +2372,8 @@ class Rig:
                 f"{len([at for at in landed if at < pressed])} messages landed before the move, "
                 f"{len([at for at in landed if at >= pressed])} after it was asked for; "
                 f"a message took {round_trip_told} to land before the move\n"
-                "messages that did not land around the move: " + ("; ".join(reasons) or "none")
+                "messages that did not land around the move: " + ("; ".join(reasons) or "none") + "\n"
+                + self.move_journals(serving, target, pressed)
             )
             if longest is None:
                 return False, f"no message landed in the {boxes.WRITING_BEFORE_THE_MOVE_SECONDS}s before the move or none after the box served, so no wait across it can be told\n{told}"
@@ -2393,6 +2395,11 @@ class Rig:
         self.observe_the_old_box_fenced(step, serving, target, database_url)
         serving.shell("systemctl stop 'rig-*-writer-*' 2>/dev/null; true")
         return target
+
+    def move_journals(self, old, new, pressed):
+        """What each box of a move logged from the moment it was asked, so a slow move shows where its time went."""
+        command = MOVE_JOURNAL_COMMAND % {"since": int(pressed), "units": f"-u {BOX_UNIT_NAME} -u {TAKE_OVER_UNIT_NAME}"}
+        return "\n".join(f"{name} from {pressed:.0f}:\n{machine.shell(command).stdout.strip()[-8000:]}" for name, machine in (("moved from", old), ("moved to", new)))
 
     def database_url_of(self, machine):
         return machine.shell(f"sed -n 's/^DATABASE_URL=//p' {COMPANY_CONDITION_PATH} | head -1").stdout.strip()

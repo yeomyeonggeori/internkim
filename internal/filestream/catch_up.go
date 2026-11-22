@@ -16,7 +16,7 @@ func (state *following) catchUp(ctx context.Context) error {
 	if state.entriesKept > fullEntryAfter {
 		return state.keepFull(ctx)
 	}
-	entries, errorValue := state.Journal.sinceNewestFull(ctx, state.Keyring)
+	entries, errorValue := state.Journal.sinceNewestFull(ctx, state.Keyring, nil)
 	if errors.Is(errorValue, ErrNoFullEntry) || (errorValue == nil && time.Since(entries[0].CreatedAt) >= fullEntryEvery) {
 		return state.keepFull(ctx)
 	}

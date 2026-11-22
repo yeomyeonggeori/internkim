@@ -46,3 +46,36 @@ func TestAReplayHandsOverEveryEntrySinceTheFullOneInTheOrderTheyWereKept(t *test
 		t.Fatalf("the entries' contents were %d bytes off what the journal recorded", sizes)
 	}
 }
+
+func TestAMoveReplaysTheFileJournalThroughTheEntryTheOldBoxStoppedAt(t *testing.T) {
+	kept := &keptObjects{objects: map[string][]byte{}}
+	follower := aFollower(t, kept)
+	state, errorValue := follower.start(context.Background())
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	for number := range 5 {
+		keepOneChange(t, state, number)
+	}
+	newest, hasEntries, errorValue := follower.Journal.Newest(context.Background())
+	if errorValue != nil || !hasEntries {
+		t.Fatalf("newest entry %d, held %v: %v", newest, hasEntries, errorValue)
+	}
+	cache := offsite.ChunkCache{DirectoryPath: filepath.Join(t.TempDir(), "file-chunks")}
+	through := newest - 2
+	applied := []int64{}
+
+	_, errorValue = follower.Journal.ReplayThrough(context.Background(), follower.Keyring, cache, &through, func(entry Entry, contents io.Reader) error {
+		applied = append(applied, entry.Sequence)
+		_, errorValue := io.Copy(io.Discard, contents)
+		return errorValue
+	})
+
+	if errorValue != nil || applied[len(applied)-1] != through {
+		t.Fatalf("replaying through %d applied %v: %v", through, applied, errorValue)
+	}
+	missing := newest + 1
+	if _, errorValue := follower.Journal.ReplayThrough(context.Background(), follower.Keyring, cache, &missing, func(Entry, io.Reader) error { return nil }); errorValue == nil {
+		t.Fatal("a replay through an entry the store does not hold went ahead")
+	}
+}

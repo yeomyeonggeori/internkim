@@ -8,7 +8,7 @@
 	import { Spinner } from '$lib/components/ui/spinner';
 	import { createPageText } from '$lib/i18n/page-text.svelte';
 	import { boxStepOf, isCompanyServed, shortBoxName } from './box-step';
-	import type { BoxClaimIntent, ConnectedBox, EmptyBox, VerifiedBoxAnswer } from '$lib/company/box';
+	import type { BoxClaimIntent, BoxMove, ConnectedBox, EmptyBox, VerifiedBoxAnswer } from '$lib/company/box';
 	import { confirmDelete } from '$lib/components/ui/confirm-delete-dialog';
 	import BoxAdminPassword from './box-admin-password.svelte';
 	import BoxPlacement from './box-placement.svelte';
@@ -25,6 +25,7 @@
 	const refreshMilliseconds = 5000;
 	let boxes = $state<Boxes>({
 		boxes: [],
+		move: null,
 		sealingKey: null,
 		hasModelKey: false,
 		newestBackupAt: null,
@@ -54,7 +55,7 @@
 	onMount(() => {
 		void refresh();
 		refreshTimer = setInterval(() => {
-			if (step !== 'connected' || boxes.boxes.some((box) => !box.holdsCompanyKey)) void refresh();
+			if (step !== 'connected' || boxes.move || boxes.boxes.some((box) => !box.holdsCompanyKey)) void refresh();
 		}, refreshMilliseconds);
 	});
 
@@ -129,6 +130,16 @@
 
 	function backupMoment(isoTime: string): string {
 		return new Date(isoTime).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' });
+	}
+
+	function nameOfBox(publicKey: string): string {
+		return boxes.boxes.find((box) => box.publicKey === publicKey)?.hostName ?? shortBoxName(publicKey);
+	}
+
+	function moveStatusOf(move: BoxMove): string {
+		const named = (line: string) => line.replace('{box}', nameOfBox(move.toBox)).replace('{from}', nameOfBox(move.fromBox));
+		if (move.stoppedAt) return named(text.movingCatchingUp);
+		return named(move.isToBoxListening ? text.moving : text.movingWaitsForTheBox);
 	}
 
 	async function serveFrom(box: ConnectedBox) {
@@ -213,7 +224,7 @@
 				<Item.Content>
 					<Item.Title>{text.makeServeTitle.replace('{box}', box.hostName ?? shortBoxName(box.publicKey))}</Item.Title>
 					{#if boxes.newestBackupAt}
-						<Item.Description>{text.makeServeFromBackup.replace('{when}', backupMoment(boxes.newestBackupAt))}</Item.Description>
+						<Item.Description>{text.makeServeCatchesUp}</Item.Description>
 						<Item.Description>{text.makeServeOld}</Item.Description>
 					{:else}
 						<Item.Description>{text.makeServeNeedsBackup}</Item.Description>
@@ -233,6 +244,18 @@
 			<BoxWifiChange {box} />
 		{/if}
 	{/each}
+
+	{#if boxes.move}
+		<p role="status" class="text-sm">{moveStatusOf(boxes.move)}</p>
+		{#if !boxes.move.stoppedAt && boxes.move.fromBoxLapsesAt}
+			<p class="text-sm text-muted-foreground">
+				{text.movingFallsBack
+					.replace('{from}', nameOfBox(boxes.move.fromBox))
+					.replace('{box}', nameOfBox(boxes.move.toBox))
+					.replace('{when}', backupMoment(boxes.move.fromBoxLapsesAt))}
+			</p>
+		{/if}
+	{/if}
 
 	{#if hasBoxes}
 		<p role="status" class="text-sm">{step === 'connected' ? text.boxConnected : text.boxClaimed}</p>

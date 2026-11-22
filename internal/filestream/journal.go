@@ -125,8 +125,27 @@ func (journal Journal) Read(ctx context.Context, sequence int64, keyring box.Key
 	return entry, nil
 }
 
-func (journal Journal) sinceNewestFull(ctx context.Context, keyring box.Keyring) ([]Entry, error) {
+func (journal Journal) Newest(ctx context.Context) (int64, bool, error) {
 	sequences, errorValue := journal.Sequences(ctx)
+	if errorValue != nil || len(sequences) == 0 {
+		return 0, false, errorValue
+	}
+	return slices.Max(sequences), true, nil
+}
+
+func (journal Journal) sequencesThrough(ctx context.Context, through *int64) ([]int64, error) {
+	sequences, errorValue := journal.Sequences(ctx)
+	if errorValue != nil || through == nil {
+		return sequences, errorValue
+	}
+	if !slices.Contains(sequences, *through) {
+		return nil, fmt.Errorf("the company's file journal holds no entry %d to replay through", *through)
+	}
+	return slices.DeleteFunc(sequences, func(sequence int64) bool { return sequence > *through }), nil
+}
+
+func (journal Journal) sinceNewestFull(ctx context.Context, keyring box.Keyring, through *int64) ([]Entry, error) {
+	sequences, errorValue := journal.sequencesThrough(ctx, through)
 	if errorValue != nil {
 		return nil, errorValue
 	}
@@ -155,7 +174,11 @@ func (journal Journal) sinceNewestFull(ctx context.Context, keyring box.Keyring)
 }
 
 func (journal Journal) Replay(ctx context.Context, keyring box.Keyring, cache offsite.ChunkCache, apply func(Entry, io.Reader) error) (int, error) {
-	entries, errorValue := journal.sinceNewestFull(ctx, keyring)
+	return journal.ReplayThrough(ctx, keyring, cache, nil, apply)
+}
+
+func (journal Journal) ReplayThrough(ctx context.Context, keyring box.Keyring, cache offsite.ChunkCache, through *int64, apply func(Entry, io.Reader) error) (int, error) {
+	entries, errorValue := journal.sinceNewestFull(ctx, keyring, through)
 	if errorValue != nil {
 		return 0, errorValue
 	}

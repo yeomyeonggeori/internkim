@@ -24,6 +24,7 @@ import {
 	keepSealedModelKey,
 	keepTakeOver,
 	makeBoxServe,
+	noteBoxMove,
 	placeBox,
 	newestKeptBackupAt,
 	releaseBox,
@@ -520,6 +521,38 @@ describe('connecting an empty box', () => {
 			keepsBackups: true
 		});
 		expect((await boxSessionFor(credentials, first.publicKey, environment, appURL))?.role).toBe('standby');
+		await client.storage.from('box_backup').remove([keptManifest]);
+	});
+
+	test('a move to a standby box waits for the service box to stop, and serves the new box once it replayed exactly that far', async () => {
+		const moving = await aCompany('moving');
+		const first = await aBox();
+		const second = await aBox();
+		await claimWithCode(moving.companyID, first.publicKey, await announcedCode(first));
+		await claimWithCode(moving.companyID, second.publicKey, await announcedCode(second), 'add');
+		const keptManifest = `${moving.companyID}/base/internkim-base-20261124T000000Z.json`;
+		await client.storage.from('box_backup').upload(keptManifest, new Blob(['{}'], { type: 'application/json' }));
+		await boxSessionFor(credentials, first.publicKey, environment, appURL);
+		const stop = { walTimeline: 2, walPosition: '0/3000148', fileEntry: 41 };
+
+		expect(await makeBoxServe(client, moving.companyID, second.publicKey)).toBe('moving');
+		expect((await boxSessionFor(credentials, first.publicKey, environment, appURL))?.move).toBeNull();
+		expect(await boxSessionFor(credentials, second.publicKey, environment, appURL)).toMatchObject({
+			role: 'standby',
+			move: { fromBox: first.publicKey, toBox: second.publicKey, stop: null }
+		});
+		expect((await companyBoxesOf(client, moving.companyID)).move).toMatchObject({ fromBox: first.publicKey, toBox: second.publicKey, isToBoxListening: true, stoppedAt: null });
+		expect((await boxSessionFor(credentials, first.publicKey, environment, appURL))?.move).toMatchObject({ toBox: second.publicKey, stop: null });
+		expect(await noteBoxMove(client, second.publicKey, stop)).toBe('waiting');
+
+		expect(await noteBoxMove(client, first.publicKey, stop)).toBe('stopped');
+		expect((await boxSessionFor(credentials, second.publicKey, environment, appURL))?.move?.stop).toEqual(stop);
+		expect(await noteBoxMove(client, second.publicKey, { ...stop, walPosition: '0/3000000' })).toBe('behind');
+		expect(await noteBoxMove(client, second.publicKey, stop)).toBe('serving');
+
+		expect(await boxSessionFor(credentials, second.publicKey, environment, appURL)).toMatchObject({ role: 'service', move: null });
+		expect((await boxSessionFor(credentials, first.publicKey, environment, appURL))?.role).toBe('standby');
+		expect((await companyBoxesOf(client, moving.companyID)).move).toBeNull();
 		await client.storage.from('box_backup').remove([keptManifest]);
 	});
 

@@ -114,8 +114,34 @@ export const connectedBoxSchema = z.object({
 
 export type ConnectedBox = z.infer<typeof connectedBoxSchema>;
 
+export const walPositionSchema = z.string().regex(/^[0-9A-F]{1,8}\/[0-9A-F]{1,8}$/);
+
+export const logPositionSchema = z.object({
+	walTimeline: z.number().int().positive(),
+	walPosition: walPositionSchema,
+	fileEntry: z.number().int().nonnegative().nullable()
+}).strict();
+
+export type LogPosition = z.infer<typeof logPositionSchema>;
+
+export const boxMoveOutcomeSchema = z.enum(['stopped', 'waiting', 'behind', 'serving', 'no_move']);
+
+export type BoxMoveOutcome = z.infer<typeof boxMoveOutcomeSchema>;
+
+export const boxMoveSchema = z.object({
+	fromBox: boxKeySchema,
+	toBox: boxKeySchema,
+	askedAt: z.string(),
+	isToBoxListening: z.boolean(),
+	stoppedAt: z.string().nullable(),
+	fromBoxLapsesAt: z.string().nullable()
+}).strict();
+
+export type BoxMove = z.infer<typeof boxMoveSchema>;
+
 export const companyBoxesSchema = z.object({
 	boxes: z.array(connectedBoxSchema),
+	move: boxMoveSchema.nullable(),
 	sealingKey: boxKeySchema.nullable(),
 	hasModelKey: z.boolean(),
 	newestBackupAt: z.string().nullable(),
