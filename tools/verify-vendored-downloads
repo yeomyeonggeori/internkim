@@ -28,14 +28,16 @@ The pins are the exception to reading source text, and they have to be. A Go
 constant assembled from pieces reads as its first fragment, so a scan of the
 source would probe none of them. So this asks the package instead: a throwaway
 program prints what `HostPayloadDownloads` resolves to, for every target it
-knows.
+knows. It lives in a temporary directory and reaches the module through
+`go run -overlay`, which leaves the checkout exactly as it was.
 """
 
+import json
 import pathlib
 import re
-import shutil
 import subprocess
 import sys
+import tempfile
 import urllib.error
 import urllib.request
 
@@ -43,6 +45,7 @@ REPOSITORY_ROOT = pathlib.Path(__file__).resolve().parent.parent
 SOURCE_DIRECTORIES = ("internal/runtime/blueclaw",)
 URL_PATTERN = re.compile(r'https://[A-Za-z0-9._~:/?#@!$&*+,;=%${}-]+')
 REQUEST_TIMEOUT_SECONDS = 20
+PIN_PACKAGE = "internal/runtime/blueclaw/_verify_vendored_downloads"
 
 
 PIN_PROGRAM = """package main
@@ -77,22 +80,24 @@ func main() {
 
 def urls_the_pins_name():
     """Ask the package what its pins resolve to, for every target it knows."""
-    directory = REPOSITORY_ROOT / "internal" / "runtime" / "blueclaw" / "_verify_vendored_downloads"
-    directory.mkdir(parents=True, exist_ok=True)
-    program = directory / "main.go"
-    try:
-        program.write_text(PIN_PROGRAM, encoding="utf-8")
-        completed = subprocess.run(
-            ["go", "run", "./" + str(directory.relative_to(REPOSITORY_ROOT))],
-            cwd=REPOSITORY_ROOT, capture_output=True, text=True,
-        )
-    finally:
-        shutil.rmtree(directory, ignore_errors=True)
+    with tempfile.TemporaryDirectory() as scratch:
+        completed = run_pin_program(pathlib.Path(scratch))
     if completed.returncode != 0:
         print(f"could not ask the package what its pins are:\n{completed.stderr}", file=sys.stderr)
         return []
     origin = "internal/runtime/blueclaw (pins)"
     return [(line.strip(), origin) for line in completed.stdout.split("\n") if line.strip()]
+
+
+def run_pin_program(scratch):
+    program = scratch / "main.go"
+    program.write_text(PIN_PROGRAM, encoding="utf-8")
+    overlay = scratch / "overlay.json"
+    overlay.write_text(json.dumps({"Replace": {str(REPOSITORY_ROOT / PIN_PACKAGE / "main.go"): str(program)}}), encoding="utf-8")
+    return subprocess.run(
+        ["go", "run", "-overlay", str(overlay), "./" + PIN_PACKAGE],
+        cwd=REPOSITORY_ROOT, capture_output=True, text=True,
+    )
 
 
 def is_a_web_page(url):
