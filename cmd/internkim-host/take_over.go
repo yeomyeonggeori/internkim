@@ -152,11 +152,28 @@ func takeOverUnitArguments(hostCommandPath string, source takeOverSource) []stri
 }
 
 func standDown() error {
+	if errorValue := stopTheTakeOver(); errorValue != nil {
+		return errorValue
+	}
 	return companyhost.StandDown(thisComputer{}, os.Stdout)
 }
 
 func stopTheServices() error {
+	if errorValue := stopTheTakeOver(); errorValue != nil {
+		return errorValue
+	}
 	return companyhost.StopTheServices(thisComputer{}, os.Stdout)
+}
+
+func stopTheTakeOver() error {
+	if !takeOverIsUnderway() {
+		return nil
+	}
+	output, errorValue := exec.Command("systemctl", "stop", takeOverUnitName+".service").CombinedOutput()
+	if errorValue != nil {
+		return fmt.Errorf("systemctl stop %s: %v: %s", takeOverUnitName, errorValue, strings.TrimSpace(string(output)))
+	}
+	return nil
 }
 
 func standUp() error {

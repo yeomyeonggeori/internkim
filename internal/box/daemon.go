@@ -185,7 +185,7 @@ func (daemon Daemon) serveClaimed(ctx context.Context, session Session, identity
 		return daemon.untilNextCheck(session), daemon.keepServing(session, keyring)
 	}
 	if isTakingOver, errorValue := daemon.takeOver(ctx, session, keyring); errorValue != nil || isTakingOver {
-		return announceInterval, errorValue
+		return min(announceInterval, daemon.untilNextCheck(session)), errorValue
 	}
 	modelKey, errorValue := companyModelKey(session, keyring)
 	if errorValue != nil {
@@ -225,7 +225,7 @@ func (daemon Daemon) takeOver(ctx context.Context, session Session, keyring Keyr
 		return false, nil
 	case errors.Is(errorValue, ErrTakeOverUnderway):
 		log.Printf("this box is taking %s over from its newest backup", session.Configuration.Company.Name)
-		return true, nil
+		return true, daemon.keepTheLeaseThroughTheTakeOver(session.TakeOver)
 	case errorValue != nil:
 		return true, fmt.Errorf("taking %s over: %w", session.Configuration.Company.Name, errorValue)
 	}
@@ -264,8 +264,8 @@ func (daemon Daemon) standBy(ctx context.Context, session Session) (time.Duratio
 }
 
 func (daemon Daemon) stopServing(reason string) error {
-	if daemon.installedCompany() == "" {
-		return nil
+	if daemon.installedCompany() == "" && !daemon.takeOverIsUnderway() {
+		return daemon.forgetServiceLease()
 	}
 	log.Printf("%s, so this box stops the company's services", reason)
 	daemon.forgetTheQueueAddress()

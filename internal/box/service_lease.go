@@ -64,10 +64,17 @@ func (daemon Daemon) keepServiceLease(policy TakeOverPolicy) error {
 }
 
 func (daemon Daemon) runningLease() (serviceLease, bool) {
-	if daemon.installedCompany() == "" || daemon.hasStoodDown() {
+	if daemon.hasStoodDown() {
 		return serviceLease{}, false
 	}
 	return daemon.serviceLease()
+}
+
+func (daemon Daemon) keepTheLeaseThroughTheTakeOver(policy TakeOverPolicy) error {
+	if errorValue := removeIfPresent(daemon.statePath(stoodDownFileName)); errorValue != nil {
+		return errorValue
+	}
+	return daemon.keepServiceLease(policy)
 }
 
 func (daemon Daemon) waitWithinTheLease(wait time.Duration) time.Duration {
