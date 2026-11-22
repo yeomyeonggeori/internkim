@@ -561,10 +561,77 @@ exit 0
 """
 
 
+PACKAGE_CACHE_ROOT = Path.home() / "Library" / "Caches" / "internkim-rig" / "packages"
+PACKAGE_CACHE_LIMIT_BYTES = 4 * 1024**3
+PACKAGE_CACHE_LONGEST_AGE_SECONDS = 30 * 24 * 3600
+PACKAGE_CACHE_STRAY_AGE_SECONDS = 24 * 3600
+GUEST_PACKAGE_CACHE_PATH = "/var/cache/internkim-rig-packages"
+GUEST_PACKAGE_HOOK_PATH = "/usr/local/sbin/internkim-rig-packages"
+GUEST_PACKAGE_HOOK = f"""#!/bin/sh
+kept={GUEST_PACKAGE_CACHE_PATH}
+[ -d "$kept" ] || exit 0
+mkdir -p "$kept/archives" "$kept/lists"
+copy() {{
+  mkdir -p "$2"
+  for file in "$1"/*; do
+    [ -f "$file" ] || continue
+    name="${{file##*/}}"
+    [ "$name" = lock ] && continue
+    if [ "$3" = new ] && [ -e "$2/$name" ]; then continue; fi
+    cp $4 "$file" "$2/$name.partial.$$" && mv "$2/$name.partial.$$" "$2/$name"
+  done
+}}
+case "$1" in
+  seed) copy "$kept/archives" /var/cache/apt/archives new ;;
+  keep) copy /var/cache/apt/archives "$kept/archives" new ;;
+  seed-lists) ls /var/lib/apt/lists/*Release >/dev/null 2>&1 || copy "$kept/lists" /var/lib/apt/lists all -p ;;
+  keep-lists) copy /var/lib/apt/lists "$kept/lists" all -p ;;
+esac
+exit 0
+"""
+GUEST_PACKAGE_HOOKS = (
+    f'APT::Update::Post-Invoke {{ "{GUEST_PACKAGE_HOOK_PATH} keep-lists"; "{GUEST_PACKAGE_HOOK_PATH} seed"; }};\n'
+    f'DPkg::Pre-Invoke {{ "{GUEST_PACKAGE_HOOK_PATH} keep"; }};\n'
+)
+GUEST_PACKAGE_HOOKS_PATH = "/etc/apt/apt.conf.d/zz-internkim-rig-packages"
+
+
+def package_cache_for(image):
+    return PACKAGE_CACHE_ROOT / f"{re.sub(r'[^A-Za-z0-9.-]+', '-', image)}-{ARCHITECTURE}"
+
+
+def prune_package_cache(directory, now=None, limit_bytes=PACKAGE_CACHE_LIMIT_BYTES):
+    """Bound the Mac's copy of the guests' packages: nothing older than thirty days, nothing past the limit, oldest first."""
+    now = time.time() if now is None else now
+    archives = directory / "archives"
+    archives.mkdir(parents=True, exist_ok=True)
+    (directory / "lists").mkdir(exist_ok=True)
+    kept = []
+    for path in archives.iterdir():
+        age = now - path.stat().st_mtime
+        is_stray = ".partial." in path.name and age > PACKAGE_CACHE_STRAY_AGE_SECONDS
+        if is_stray or (path.suffix == ".deb" and age > PACKAGE_CACHE_LONGEST_AGE_SECONDS):
+            path.unlink()
+        elif path.suffix == ".deb":
+            kept.append(path)
+    kept.sort(key=lambda path: path.stat().st_mtime, reverse=True)
+    total = 0
+    for path in kept:
+        total += path.stat().st_size
+        if total > limit_bytes:
+            path.unlink()
+
+
 BOOTSTRAP_SCRIPT = "\n".join(
     [
         "set -eu",
         "export DEBIAN_FRONTEND=noninteractive",
+        "if [ -d /etc/apt/apt.conf.d ]; then",
+        f"  cat > {GUEST_PACKAGE_HOOK_PATH} <<'EOF'\n{GUEST_PACKAGE_HOOK}EOF",
+        f"  chmod 0755 {GUEST_PACKAGE_HOOK_PATH}",
+        f"  printf '%s' '{GUEST_PACKAGE_HOOKS}' > {GUEST_PACKAGE_HOOKS_PATH}",
+        f"  {GUEST_PACKAGE_HOOK_PATH} seed-lists",
+        "fi",
         "if [ ! -x /lib/systemd/systemd ]; then",
         "  for attempt in 1 2 3; do",
         "    apt-get update && apt-get install -y --no-install-recommends systemd systemd-sysv curl ca-certificates && break",
@@ -598,10 +665,12 @@ class Machine:
         distribution=DEFAULT_DISTRIBUTION,
         image=None,
         bootstrap_script=BOOTSTRAP_SCRIPT,
+        package_cache_directory=None,
     ):
         self.name = name
         self.image = image or DISTRIBUTIONS[distribution]
         self.bootstrap_script = bootstrap_script
+        self.package_cache_directory = Path(package_cache_directory or package_cache_for(self.image))
         self.share_directory = Path(share_directory)
         self.container_binary = container_binary
         self.uses_runtime_kernel = str(kernel_image_path) == RUNTIME_KERNEL
@@ -630,6 +699,7 @@ class Machine:
     # step 5 has PostgreSQL, Redis, an S3 server, the messenger and the agent resident
     # at once, and a rig with more memory than the product would not be measuring it.
     def create(self, cpu_count=4, memory_mebibytes=4096):
+        prune_package_cache(self.package_cache_directory)
         checked(
             [
                 self.container_binary, "create",
@@ -641,6 +711,7 @@ class Machine:
                 *([] if self.uses_runtime_kernel else ["--kernel", str(self.kernel_image_path)]),
                 "--platform", "linux/" + ARCHITECTURE,
                 "--volume", f"{self.share_directory}:{SHARE_PATH}",
+                "--volume", f"{self.package_cache_directory}:{GUEST_PACKAGE_CACHE_PATH}",
                 self.image,
                 "sh", "-c", (ROSETTA_BOOTSTRAP if ARCHITECTURE == "amd64" else "") + self.bootstrap_script,
             ]
