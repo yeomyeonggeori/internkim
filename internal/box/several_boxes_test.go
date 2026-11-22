@@ -11,15 +11,15 @@ import (
 	"github.com/yeomyeonggeori/internkim/internal/workqueue"
 )
 
-func TestAStandbyBoxHoldsTheCompanyKeyInstallsNothingAndKeepsUpWithTheServiceBox(t *testing.T) {
+func TestAStandbyBoxHoldsTheCompanyKeyInstallsNothingAndKeepsItsShareOfTheLog(t *testing.T) {
 	plane := &fakePlane{isClaimed: true, accessToken: "standby.session.token", role: RoleStandby}
 	recorded := &installs{}
 	daemon, places := daemonFor(t, plane, recorded)
 	plane.sealedModelKey = sealTo(t, identityOf(t, places), "sk-or-v1-sample")
 	keptUp := 0
-	daemon.StartKeepingUp = func(_ context.Context, session Session) {
-		if session.Session.AccessToken != "standby.session.token" {
-			t.Fatalf("kept up with %+v", session.Session)
+	daemon.KeepTheShare = func(_ context.Context, keeping ShareKeeping) {
+		if keeping.Session.Session.AccessToken != "standby.session.token" || keeping.PublicKey != identityOf(t, places).PublicKey() {
+			t.Fatalf("kept the share with %+v as %s", keeping.Session.Session, keeping.PublicKey)
 		}
 		keptUp++
 	}
@@ -30,7 +30,7 @@ func TestAStandbyBoxHoldsTheCompanyKeyInstallsNothingAndKeepsUpWithTheServiceBox
 		t.Fatalf("a standby box installed the company's services: %+v", recorded.requests)
 	}
 	if keptUp != 2 {
-		t.Fatalf("a standby box kept up with the service box %d times in two checks", keptUp)
+		t.Fatalf("a standby box kept its share %d times in two checks", keptUp)
 	}
 }
 

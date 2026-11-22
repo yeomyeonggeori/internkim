@@ -26,6 +26,8 @@ type KeptPieces struct {
 	Counted     *PiecesSinceBaseBackup
 }
 
+var LogFolders = []string{baseBackupFolder + "/", baseBackupChunkFolder + "/", pieceFolder + "/", historyFolder + "/"}
+
 func (kept KeptPieces) folder() string {
 	return kept.Destination.CompanyID + "/" + pieceFolder + "/" + kept.SystemID + "/"
 }

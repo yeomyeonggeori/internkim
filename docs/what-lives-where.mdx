@@ -93,7 +93,7 @@ belong to no company.
 Backing the host up is the company's job, and `internkim backup` does it every
 day ([Running the host](/running-the-host) says how). A company's service box also keeps its
 database's WAL and every changed file off the box, sealed to its key, before a write counts, which a standby box takes it over from
-([Kim Mini](/kim-mini)). Losing the host loses the agent's memory,
+([Kim Mini](/kim-mini)). The standby boxes hold that log once more between them, each piece on one standby's disk. Losing the host loses the agent's memory,
 its history, the files and any message still queued, and loses none of the
 company's records. That asymmetry is deliberate: keeping the agent's memory
 central would mean holding a company's internal knowledge on our side, the

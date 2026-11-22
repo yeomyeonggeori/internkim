@@ -56,7 +56,7 @@ type Daemon struct {
 	StandUp                func() error
 	HandOver               func(ctx context.Context, session Session) (LogPosition, error)
 	RestartServices        func() error
-	StartKeepingUp         func(ctx context.Context, session Session)
+	KeepTheShare           func(ctx context.Context, keeping ShareKeeping)
 	FollowRelease          func(targetVersion string) error
 	StartWorking           func(ctx context.Context, session Session)
 	PackageVersion         string
@@ -178,6 +178,7 @@ func (daemon Daemon) serveClaimed(ctx context.Context, session Session, identity
 		log.Printf("%s connected this box; it waits for another of the company's boxes to hand it the company key", session.Configuration.Company.Name)
 		return announceInterval, nil
 	}
+	daemon.keepTheShare(ctx, session, identity)
 	if session.Role == RoleStandby {
 		if session.MoveTo(identity.PublicKey()) != nil {
 			return daemon.catchUp(ctx, session, keyring)
@@ -262,9 +263,6 @@ func (daemon Daemon) standBy(ctx context.Context, session Session) (time.Duratio
 	daemon.followTheRelease(session)
 	if daemon.StartWorking != nil {
 		daemon.StartWorking(ctx, session)
-	}
-	if daemon.StartKeepingUp != nil {
-		daemon.StartKeepingUp(ctx, session)
 	}
 	reason := fmt.Sprintf("another box serves %s now", session.Configuration.Company.Name)
 	return daemon.untilNextCheck(session), daemon.stopServing(reason)

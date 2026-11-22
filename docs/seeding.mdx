@@ -67,8 +67,8 @@ a box can be made to serve as soon as the log has one.
 
 A piece belongs to the standby whose public key, hashed with the piece's path,
 scores highest among the standbys that hold the company key and were seen
-within the take-over lapse. The check-in answers with that list, and every box
-computes its share from it and the manifests in the store. No table assigns
+within the take-over lapse. The answer to a box's share report carries that
+list, and every box computes its share from it and the listing of the store. No table assigns
 pieces, and a box that joins or leaves moves only the pieces it wins. One
 standby holds the whole log. Four hold a quarter each.
 
@@ -93,14 +93,21 @@ company.
 
 ## What a box reports
 
-At each check a standby reports a digest of the standby list it ranked against,
-the base backup its share starts from, and the WAL position and file entry its
-share is whole through. Those four values on its `box` row stand where a row
-per piece would be 50,000 rows for each 100 GB.
+Every ten seconds a box lists the log, fetches what its share lacks, drops what
+it no longer keeps, and reports to `/api/box/share`: a digest of the standby
+list it ranked against, the store's time for the newest piece its share is
+whole through, and how many pieces its share, its disk and the log hold. Those
+values on its `box` row stand where a row per piece would be 50,000 rows for
+each 100 GB. One time orders every folder of the log, chunks named by their
+content included, which a WAL position and a file entry cannot.
 
-The setup page reads it, and so does a box deciding whether to drop a piece
-that left its share. Fetching does without it, so a stale report costs one
-request to the store.
+`internal.box_is_ready` reads it. A standby is ready once it ranked against the
+list as it stands, holds its share through the newest piece the store keeps,
+and holds no piece of another standby's share. The service box is ready while
+it holds the company key and is seen within the lapse. The setup page and
+`GET /api/company/box` show that and each standby's share. A box deciding
+whether to drop a piece that left its share reads the same report. Fetching
+does without it, so a stale report costs one request to the store.
 
 ## The snapshot goes
 

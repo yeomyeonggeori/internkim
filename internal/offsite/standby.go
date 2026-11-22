@@ -30,27 +30,6 @@ func (cache ChunkCache) holds(chunkID string) bool {
 	return errorValue == nil
 }
 
-func (cache ChunkCache) KeepUp(ctx context.Context, destination Destination) (Manifest, int, error) {
-	manifest, errorValue := Newest(ctx, destination)
-	if errorValue != nil {
-		return Manifest{}, 0, errorValue
-	}
-	if errorValue := os.MkdirAll(cache.DirectoryPath, 0o700); errorValue != nil {
-		return Manifest{}, 0, errorValue
-	}
-	fetched := 0
-	for _, chunkID := range manifest.chunkIDs() {
-		if cache.holds(chunkID) {
-			continue
-		}
-		if errorValue := cache.fetch(ctx, destination, chunkID); errorValue != nil {
-			return Manifest{}, fetched, errorValue
-		}
-		fetched++
-	}
-	return manifest, fetched, cache.forgetAllBut(manifest)
-}
-
 func (cache ChunkCache) fetch(ctx context.Context, destination Destination, chunkID string) error {
 	sealed, errorValue := destination.Store.Get(ctx, destination.chunkPath(chunkID))
 	if errorValue != nil {
@@ -76,26 +55,6 @@ func (cache ChunkCache) FetchMissing(ctx context.Context, destination Destinatio
 		return chunkID, cache.fetch(fetching, destination, chunkID)
 	}
 	return FetchAhead(ctx, missing, fetch, func(string) error { return nil })
-}
-
-func (cache ChunkCache) forgetAllBut(manifest Manifest) error {
-	wanted := map[string]bool{}
-	for _, chunkID := range manifest.chunkIDs() {
-		wanted[chunkID] = true
-	}
-	entries, errorValue := os.ReadDir(cache.DirectoryPath)
-	if errorValue != nil {
-		return errorValue
-	}
-	for _, entry := range entries {
-		if wanted[entry.Name()] {
-			continue
-		}
-		if errorValue := os.Remove(filepath.Join(cache.DirectoryPath, entry.Name())); errorValue != nil && !errors.Is(errorValue, fs.ErrNotExist) {
-			return errorValue
-		}
-	}
-	return nil
 }
 
 func (cache ChunkCache) Materialize(ctx context.Context, destination Destination, manifest Manifest, keyring box.Keyring, archivePath string) error {
