@@ -37,17 +37,15 @@ func runWalFollow(arguments []string) error {
 	}
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGTERM, os.Interrupt)
 	defer stop()
-	kept, errorValue := whatThisBoxKeeps()
-	if errorValue != nil {
-		return errorValue
-	}
-	watched, cancel := whileThisBoxKeepsTheSame(ctx, kept)
-	defer cancel()
+	return keepWhatThisBoxKeeps(ctx, keepTheWAL)
+}
+
+func keepTheWAL(ctx, watched context.Context, kept keptOffTheBox) error {
 	if !kept.holdsTheCompanyKey {
 		return keepNoWAL(watched)
 	}
 	pieces := walstream.NewPiecesSinceBaseBackup()
-	errorValue = walstream.Follower{
+	errorValue := walstream.Follower{
 		ReplicationConnection: companyReplicationConnection(),
 		KeptFor: func(systemID string) walstream.Keeper {
 			return walstream.KeptPieces{Destination: kept.destination, SystemID: systemID, Counted: pieces}
