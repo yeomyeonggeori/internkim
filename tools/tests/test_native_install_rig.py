@@ -323,6 +323,12 @@ class AddressesTheRigSpellsTests(unittest.TestCase):
         self.assertEqual(rig.CONFFILE_PATH, self.package("CompanyHostSettingsPath"))
         self.assertEqual(rig.COMPANY_CONDITION_PATH, self.package("CompanyHostEnvironmentPath"))
 
+    def test_a_claimed_box_is_read_once_the_box_daemon_marks_its_install_done(self):
+        daemon = (rig.REPOSITORY_ROOT / "internal" / "box" / "daemon.go").read_text()
+        marker = re.search(r'^\tcompanyMarkerFileName\s+=\s*"([^"]+)"', daemon, re.MULTILINE)
+        self.assertIsNotNone(marker, "internal/box no longer declares companyMarkerFileName")
+        self.assertEqual(rig.INSTALLED_COMPANY_MARKER_PATH, self.package("CompanyHostBoxStatePath") + "/" + marker.group(1))
+
     def test_the_skills_tree_is_where_the_package_delivers_the_skills(self):
         self.assertEqual(rig.SKILLS_PATH, self.package("CompanyPackageLibraryRoot") + "/skills")
 

@@ -66,6 +66,7 @@ PACKAGE_NAME = "internkim"
 SHARE_PATH = "/srv/internkim-rig"
 MESSENGER_PROBE_SOURCE = Path(__file__).resolve().parent / "native_install_messenger.py"
 STATE_DIRECTORY = "/var/lib/internkim"
+INSTALLED_COMPANY_MARKER_PATH = STATE_DIRECTORY + "/box/company"
 CONFIGURATION_DIRECTORY = "/etc/internkim"
 # Where anything asks whether a service is up, and which of those answers
 # carries the revision the running process reports. Only the admin gateway's
