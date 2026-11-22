@@ -71,23 +71,29 @@ func TestTheBoxUnitIsThePackagedUnitThatRunsBeforeThereIsACompany(t *testing.T) 
 	for _, unit := range CompanyHostSystemdUnits(LinuxCompanyHostLayout()) {
 		bundled[unit.Name] = true
 	}
+	boxServices := map[string]bool{}
+	for _, service := range CompanyHostBoxServices(LinuxCompanyHostLayout()) {
+		boxServices[service.Name] = true
+	}
 	for _, unit := range CompanyPackageUnits() {
 		if bundled[unit.Name] {
 			continue
 		}
-		if unit.Name != BoxServiceName {
-			t.Fatalf("%s is packaged outside the bundle and is not the box unit", unit.FileName())
+		if !boxServices[unit.Name] {
+			t.Fatalf("%s is packaged outside the bundle and is not one of the box's services", unit.FileName())
 		}
 		if strings.Contains(unit.Contents, "ConditionPathExists=") {
-			t.Fatalf("%s waits for a company, and it is what a company is claimed through", unit.FileName())
+			t.Fatalf("%s waits for a company, and the box is what a company is claimed and taken over through", unit.FileName())
 		}
 		bundled[unit.Name] = true
 	}
 	if !bundled[BoxServiceName] {
 		t.Fatal("the package ships no box unit, so a box nobody configured never announces itself")
 	}
-	if _, isBundled := CompanyHostServiceNamed(LinuxCompanyHostLayout(), BoxServiceName); isBundled {
-		t.Fatal("the box unit is in the bundle, so the install it runs would restart it halfway through")
+	for name := range boxServices {
+		if _, isBundled := CompanyHostServiceNamed(LinuxCompanyHostLayout(), name); isBundled {
+			t.Fatalf("%s is in the bundle, so the install or the take-over it runs would stop it halfway through", name)
+		}
 	}
 }
 

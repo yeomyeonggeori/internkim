@@ -291,7 +291,8 @@ func TestEveryDaemonIsWrittenAndBootstrappedIntoTheSystemDomain(t *testing.T) {
 	daemonRoot := t.TempDir()
 	layout := blueclaw.MacCompanyHostLayout(homebrewPrefixForTest)
 	machine := &recordedMachine{}
-	if errorValue := writeAndBootstrapLaunchDaemons(daemonRoot, bundleDaemonsForTest(t, layout), machine, io.Discard); errorValue != nil {
+	platform := macPlatform{homebrewPrefix: homebrewPrefixForTest, launchDaemonRoot: daemonRoot}
+	if errorValue := platform.superviseLaunchDaemons(bundleDaemonsForTest(t, layout), machine, io.Discard); errorValue != nil {
 		t.Fatalf("write the daemons: %v", errorValue)
 	}
 	for _, service := range blueclaw.CompanyHostServices(layout) {
@@ -316,7 +317,7 @@ func TestEveryDaemonIsWrittenAndBootstrappedIntoTheSystemDomain(t *testing.T) {
 func TestASecondInstallUnloadsBeforeItLoads(t *testing.T) {
 	layout := blueclaw.MacCompanyHostLayout(homebrewPrefixForTest)
 	machine := &recordedMachine{}
-	if errorValue := writeAndBootstrapLaunchDaemons(t.TempDir(), bundleDaemonsForTest(t, layout), machine, io.Discard); errorValue != nil {
+	if errorValue := macPlatformForTest(t).superviseLaunchDaemons(bundleDaemonsForTest(t, layout), machine, io.Discard); errorValue != nil {
 		t.Fatal(errorValue)
 	}
 	for index, run := range machine.runs {

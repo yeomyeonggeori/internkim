@@ -498,8 +498,8 @@ class AddressesTheRigSpellsTests(unittest.TestCase):
 
     def test_the_box_drop_in_starts_the_command_the_package_ships_with_only_its_app_given(self):
         self.assertEqual(rig.BOX_COMMAND, f"{self.package('CompanyPackageBinaryRoot')}/{self.package('CompanyPackageName')} box")
-        unit = (rig.REPOSITORY_ROOT / "internal" / "runtime" / "blueclaw" / "company_host_package.go").read_text()
-        self.assertIn('"ExecStart=" + layout.BinaryPath(CompanyPackageName) + " box\\n"', unit)
+        declaration = (rig.REPOSITORY_ROOT / "internal" / "runtime" / "blueclaw" / "company_host_box_services.go").read_text()
+        self.assertIn('Command:             []string{layout.BinaryPath(CompanyPackageName), "box"}', declaration)
         self.assertEqual(
             rig.box_drop_in("http://192.0.2.1:4321"),
             f"[Service]\nExecStart=\nExecStart={rig.BOX_COMMAND} --app-url http://192.0.2.1:4321\n",
@@ -624,6 +624,10 @@ class WhatThePackageCarriesHasOneSpelling(unittest.TestCase):
         self.assertEqual(rig.DATABASE_USER, self.declared("company_host_data_services.go", "CompanyHostDatabaseUser"))
         self.assertEqual(rig.expected_enablement(rig.BACKUP_UNIT_NAME), "static")
         self.assertEqual(rig.expected_enablement(rig.BACKUP_TIMER_NAME), "enabled")
+
+    def test_the_take_over_the_rig_reads_is_the_unit_the_box_starts_when_asked(self):
+        self.assertEqual(rig.TAKE_OVER_SERVICE_NAME, self.declared("company_host_box_services.go", "CompanyHostTakeOverServiceName"))
+        self.assertEqual(rig.expected_enablement(rig.TAKE_OVER_UNIT_NAME), "static")
 
     def test_every_distribution_the_rig_boots_is_one_the_package_is_promised_to_install_on(self):
         self.assertEqual(sorted(rig.DISTRIBUTIONS), ["debian-13", "ubuntu-22.04", "ubuntu-24.04"])

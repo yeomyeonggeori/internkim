@@ -17,14 +17,19 @@ func TestABoxStopsForAMoveItsMessengerLastOfItsWritersThenTheDatabaseAndOnlyThen
 		return nil
 	}
 
-	if errorValue := (linuxPlatform{}).stopForTheMove(machine, io.Discard, keep); errorValue != nil {
+	if errorValue := stopForTheMove(linuxPlatform{}, machine, io.Discard, keep); errorValue != nil {
 		t.Fatal(errorValue)
 	}
 
-	if len(machine.runs) != 4 {
+	if len(machine.runs) != 8 {
 		t.Fatalf("ran %v", machine.runs)
 	}
-	agent, messenger, database, followers := machine.runs[0], machine.runs[1], machine.runs[2], machine.runs[3]
+	for index, run := range machine.runs {
+		if want := []string{"disable", "stop"}[index%2]; run[1] != want {
+			t.Fatalf("run %d was %v; each step keeps its services from starting again, then stops them", index, run)
+		}
+	}
+	agent, messenger, database, followers := machine.runs[1], machine.runs[3], machine.runs[5], machine.runs[7]
 	relay := blueclaw.RelayServiceName + ".service"
 	wal, files := blueclaw.CompanyHostWALFollowServiceName+".service", blueclaw.CompanyHostFileFollowServiceName+".service"
 	if !slices.Contains(agent, blueclaw.BlueclawServiceName+".service") || slices.Contains(agent, relay) || slices.Contains(agent, wal) || slices.Contains(agent, files) {
@@ -39,7 +44,7 @@ func TestABoxStopsForAMoveItsMessengerLastOfItsWritersThenTheDatabaseAndOnlyThen
 	if !slices.Contains(followers, wal) || !slices.Contains(followers, files) {
 		t.Fatalf("the last stop was %v", followers)
 	}
-	if stopsBeforeTheBarrier != 2 {
+	if stopsBeforeTheBarrier != 4 {
 		t.Fatalf("the file barrier was asked after %d stops; it is asked once every writer stopped and before the database does", stopsBeforeTheBarrier)
 	}
 }
@@ -47,9 +52,9 @@ func TestABoxStopsForAMoveItsMessengerLastOfItsWritersThenTheDatabaseAndOnlyThen
 func TestABoxWhoseLastFilesWereNotKeptLeavesItsDatabaseRunning(t *testing.T) {
 	machine := &recordedMachine{}
 
-	errorValue := (linuxPlatform{}).stopForTheMove(machine, io.Discard, func() error { return errors.New("the file journal did not answer") })
+	errorValue := stopForTheMove(linuxPlatform{}, machine, io.Discard, func() error { return errors.New("the file journal did not answer") })
 
-	if errorValue == nil || len(machine.runs) != 2 {
+	if errorValue == nil || len(machine.runs) != 4 {
 		t.Fatalf("got %v after %v; a move whose last file changes were not kept stops nothing more", errorValue, machine.runs)
 	}
 }

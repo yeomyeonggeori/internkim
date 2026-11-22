@@ -32,13 +32,17 @@ func (linuxPlatform) EnsureServiceAccounts(Machine) error {
 	return nil
 }
 
-func (linuxPlatform) StartTheDatabaseAndTheCache(machine Machine) error {
-	database := companyHostDataServiceNames[databaseServiceName] + ".service"
-	units := []string{database, companyHostDataServiceNames[cacheServiceName] + ".service"}
-	if errorValue := machine.Run("systemctl", append([]string{"enable", "--now"}, units...), nil, io.Discard); errorValue != nil {
+func (platform linuxPlatform) StartTheDatabaseAndTheCache(machine Machine) error {
+	names := dataServiceNames()
+	database := platform.SupervisorIdentityFor(blueclaw.CompanyHostDatabaseServiceName)
+	errorValue := platform.EnableServices(machine, names)
+	if errorValue == nil {
+		errorValue = platform.StartServices(machine, names, io.Discard)
+	}
+	if errorValue != nil {
 		return fmt.Errorf(
 			"%s could not be started. They are this package's own database and cache, run from the PostgreSQL and Redis or Valkey servers this machine installed, and the company server keeps everything it knows in them: %w",
-			strings.Join(units, " and "), errorValue)
+			strings.Join(platform.unitsNamed(names), " and "), errorValue)
 	}
 	if errorValue := machine.Run("systemctl", []string{"reload", database}, nil, io.Discard); errorValue != nil {
 		return fmt.Errorf(
@@ -67,21 +71,85 @@ func asAnotherAccount(account string, command ...string) []string {
 }
 
 func (platform linuxPlatform) SuperviseTheBundle(machine Machine, progress io.Writer) error {
-	names := []string{}
-	restarted := []string{}
-	for _, unit := range blueclaw.CompanyHostSystemdUnits(platform.Layout()) {
-		names = append(names, unit.FileName())
-		if !unit.IsDataService() {
-			restarted = append(restarted, unit.FileName())
-		}
-	}
-	if errorValue := machine.Run("systemctl", append([]string{"enable"}, names...), nil, io.Discard); errorValue != nil {
+	restarted := platform.CompanyServiceNames()
+	if errorValue := platform.EnableServices(machine, append(dataServiceNames(), restarted...)); errorValue != nil {
 		return fmt.Errorf("the company server's services could not be enabled, so they would not come back after a restart: %w", errorValue)
 	}
-	if errorValue := machine.Run("systemctl", append([]string{"restart"}, restarted...), nil, progress); errorValue != nil {
+	if errorValue := platform.RestartServices(machine, restarted, progress); errorValue != nil {
 		return fmt.Errorf("the company server's services could not be started: %w", errorValue)
 	}
 	return nil
+}
+
+func (platform linuxPlatform) CompanyServiceNames() []string {
+	names := []string{}
+	for _, unit := range blueclaw.CompanyHostSystemdUnits(platform.Layout()) {
+		if !unit.IsDataService() {
+			names = append(names, unit.Name)
+		}
+	}
+	return names
+}
+
+func (platform linuxPlatform) SuperviseTheBox(machine Machine, progress io.Writer) error {
+	return superviseTheBoxService(platform, machine, progress)
+}
+
+func (linuxPlatform) BoxAbilities() BoxAbilities {
+	return BoxAbilities{CanSetUpWifi: true, CanRenameItself: true, CanSetAdminPassword: true}
+}
+
+func (platform linuxPlatform) EnableServices(machine Machine, names []string) error {
+	return platform.systemctl(machine, "enable", names, io.Discard)
+}
+
+func (platform linuxPlatform) DisableServices(machine Machine, names []string) error {
+	return platform.systemctl(machine, "disable", names, io.Discard)
+}
+
+func (platform linuxPlatform) StartServices(machine Machine, names []string, progress io.Writer) error {
+	return platform.systemctl(machine, "start", names, progress)
+}
+
+func (platform linuxPlatform) StopServices(machine Machine, names []string, progress io.Writer) error {
+	return platform.systemctl(machine, "stop", names, progress)
+}
+
+func (platform linuxPlatform) RestartServices(machine Machine, names []string, progress io.Writer) error {
+	return platform.systemctl(machine, "restart", names, progress)
+}
+
+func (platform linuxPlatform) StateOfService(machine Machine, name string) ServiceState {
+	return serviceStateFromSystemd(platform.SupervisorStateOf(machine, platform.SupervisorIdentityFor(name)))
+}
+
+func serviceStateFromSystemd(activeState string) ServiceState {
+	switch activeState {
+	case "active", "activating", "reloading", "refreshing", "deactivating":
+		return ServiceRunning
+	case "failed":
+		return ServiceFailed
+	}
+	return ServiceStopped
+}
+
+func (platform linuxPlatform) systemctl(machine Machine, verb string, names []string, output io.Writer) error {
+	if len(names) == 0 {
+		return nil
+	}
+	units := platform.unitsNamed(names)
+	if errorValue := machine.Run("systemctl", append([]string{verb}, units...), nil, output); errorValue != nil {
+		return fmt.Errorf("systemctl %s %s: %w", verb, strings.Join(units, " "), errorValue)
+	}
+	return nil
+}
+
+func (platform linuxPlatform) unitsNamed(names []string) []string {
+	units := []string{}
+	for _, name := range names {
+		units = append(units, platform.SupervisorIdentityFor(name))
+	}
+	return units
 }
 
 // A person reads one command, not a list of names to look up. The

@@ -9,9 +9,8 @@ hardware. The same software runs on any computer a company already has, and
 [the host](/docs/running-the-host) is what both install.
 
 This page describes how a box that has never been configured becomes one
-company's host, and how it proves itself afterwards. A Linux computer that
-installed the host package without a connection file waits in the same way, as
-an empty box.
+company's host, and how it proves itself afterwards. A computer that installed
+the host without a connection file waits in the same way, as an empty box.
 
 ## Every box starts identical
 
@@ -282,9 +281,9 @@ every reader of that file reads it per request. A stolen session dies within the
 | a leaked request log gives | the key | an expired session |
 | taking it back | revoke in the web app | disconnect it in the web app, reset it, or claim another |
 
-A computer the company brings follows the same shape. On Linux, `sudo internkim
-install` spends the downloaded key, and the machine signs in with one it generated
-from then on.
+A computer the company brings follows the same shape. `sudo internkim install`
+spends the downloaded key, and the machine signs in with one it generated from
+then on.
 
 ## Models
 

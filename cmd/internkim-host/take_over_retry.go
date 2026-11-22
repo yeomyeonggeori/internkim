@@ -5,9 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
-	"strings"
 	"time"
 
 	"github.com/yeomyeonggeori/internkim/internal/box"
@@ -31,28 +29,18 @@ type takeOverAttempts struct {
 }
 
 type takeOverRetry struct {
-	StatePath   string
-	Now         func() time.Time
-	ResetFailed func() error
+	StatePath string
+	Now       func() time.Time
 }
 
 func takeOverRetries() takeOverRetry {
 	return takeOverRetry{
-		StatePath:   filepath.Join(blueclaw.CompanyHostBoxStatePath, box.TakeOverRetryFileName),
-		Now:         time.Now,
-		ResetFailed: resetTheFailedTakeOver,
+		StatePath: filepath.Join(blueclaw.CompanyHostBoxStatePath, box.TakeOverRetryFileName),
+		Now:       time.Now,
 	}
 }
 
-func resetTheFailedTakeOver() error {
-	output, errorValue := exec.Command("systemctl", "reset-failed", takeOverUnitName+".service").CombinedOutput()
-	if errorValue != nil {
-		return fmt.Errorf("systemctl reset-failed %s: %v: %s", takeOverUnitName, errorValue, strings.TrimSpace(string(output)))
-	}
-	return nil
-}
-
-func (retry takeOverRetry) clearTheFailedUnitWhenItIsTime() error {
+func (retry takeOverRetry) allowARetryWhenItIsTime() error {
 	attempts, errorValue := retry.read()
 	if errorValue != nil {
 		return errorValue
@@ -65,10 +53,7 @@ func (retry takeOverRetry) clearTheFailedUnitWhenItIsTime() error {
 	}
 	retryAt := attempts.FailureSeenAt.Add(takeOverRetryWait(attempts.Retried))
 	if retry.Now().Before(retryAt) {
-		return fmt.Errorf("%w at %s; `journalctl -u %s` says why it failed", errTakeOverWaitsToRetry, retryAt.Format(time.RFC3339), takeOverUnitName)
-	}
-	if errorValue := retry.ResetFailed(); errorValue != nil {
-		return fmt.Errorf("clearing the failed take-over to try it again: %w", errorValue)
+		return fmt.Errorf("%w at %s; `journalctl -u %s` says why it failed", errTakeOverWaitsToRetry, retryAt.Format(time.RFC3339), blueclaw.CompanyHostTakeOverServiceName)
 	}
 	return retry.write(takeOverAttempts{Retried: attempts.Retried + 1, SafetyBackup: attempts.SafetyBackup, HeldNoCompany: attempts.HeldNoCompany})
 }
