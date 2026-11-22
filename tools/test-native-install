@@ -20,6 +20,7 @@ import shutil
 import sys
 import tarfile
 import tempfile
+import threading
 import time
 import urllib.parse
 import uuid
@@ -105,6 +106,26 @@ AGENT_UNIT_NAME = "blueclaw.service"
 TAKE_OVER_UNIT_NAME = "internkim-take-over.service"
 TAKE_OVER_STATE_COMMAND = "systemctl show -p ActiveState -p Result %s"
 
+AGENT_HOLD_PATH = "/run/internkim-rig/hold-the-agent"
+AGENT_HOLD_DROP_IN = f"/etc/systemd/system/{AGENT_UNIT_NAME}.d/rig-held-until-the-state-is-read.conf"
+
+HOLD_THE_AGENT_COMMAND = f"""
+set -eu
+install -d -m 0755 /run/internkim-rig "$(dirname {AGENT_HOLD_DROP_IN})"
+cat > {AGENT_HOLD_DROP_IN} <<'EOF'
+[Service]
+ExecStartPre=/bin/sh -c 'timeout {boxes.LONGEST_HOLD_OF_THE_AGENT_SECONDS} sh -c "while test -e {AGENT_HOLD_PATH}; do sleep 1; done"; true'
+TimeoutStartSec={boxes.LONGEST_HOLD_OF_THE_AGENT_SECONDS + 300}
+EOF
+touch {AGENT_HOLD_PATH}
+systemctl daemon-reload
+"""
+
+AGENT_HELD_COMMAND = f"test -e {AGENT_HOLD_PATH} && systemctl show -p SubState --value {AGENT_UNIT_NAME}"
+
+RELEASE_THE_AGENT_COMMAND = f"rm -f {AGENT_HOLD_PATH} {AGENT_HOLD_DROP_IN} && systemctl daemon-reload"
+QUICK_GUEST_ANSWER_SECONDS = 30
+
 # The relay used to give a message eight tries, 250 ms apart and doubling, and
 # drop it after the eighth: 32 seconds. A message held past that is one the old
 # relay would have lost.
@@ -115,6 +136,7 @@ CODE_WRITTEN_AFTER_ITS_ISSUE_SECONDS = 5
 
 BOX_STATE_DIRECTORY = "/var/lib/internkim/box"
 STANDBY_PIECES_DIRECTORY = f"{BACKUPS_DIRECTORY}/standby-chunks"
+CHATD_DELIVERED_LEDGER_PATH = f"{STATE_DIRECTORY}/chatd/delivered-messages.jsonl"
 
 # The record knows a box by its signing key, and the box keeps only that key's
 # seed. OpenSSL takes a raw Ed25519 seed once it is wrapped in the PKCS#8
@@ -729,6 +751,9 @@ class Rig:
         self.acknowledgements = None
         self.written_files_directory = ""
         self.schedule_creation = ""
+        self.schedule_due_at = 0.0
+        self.member_conversation = None
+        self.message_tokens = {}
 
     def step(self, number, name):
         step = Step(number, name)
@@ -1787,6 +1812,8 @@ class Rig:
             self.boxes_stopped_because = str(failure)
         finally:
             self.acknowledgements.stop_the_messages()
+            if self.member_conversation:
+                self.member_conversation.close()
 
     def judged_observation(self, step, name, observes, not_a_proxy, judge):
         """One named observation whose reading cannot stop the scenario: a failure to read is a failure to hold."""
@@ -1959,14 +1986,18 @@ class Rig:
 
     def the_power_goes(self, step, serving, standbys):
         spread = self.with_the_spread(serving)
-        before = self.read_the_state(serving)
-        schedule_id = self.schedule_just_after_the_state_was_read(serving)
         writer = "power-cut"
         self.start_the_writers(serving, writer)
         self.observe_the_writers_acknowledged(step, writer, serving)
+        self.acknowledgements.pause_the_messages()
+        at_rest = self.wait_for_the_agent_at_rest(serving, writer)
+        schedule_id = self.schedule_just_after_the_state_is_read(serving)
+        for machine in standbys:
+            machine.checked_shell(HOLD_THE_AGENT_COMMAND)
+        before = self.read_the_state(serving)
         serving.power_off()
         powered_off = time.monotonic()
-        successor = self.wait_for_a_take_over(step, standbys, powered_off)
+        successor, held_after = self.take_over_reading_while_the_agent_is_held(step, standbys, powered_off)
         with self.driving(successor, self.files_command):
             self.folded_observation(
                 step,
@@ -1976,7 +2007,7 @@ class Rig:
                 lambda scratch: (self.wait_for_the_take_over_unit(), self.observe_running_services(scratch)),
             )
             self.observe_the_writes_kept(step, writer, (boxes.COMMITS_KEPT, boxes.FILE_WRITES_KEPT, boxes.MESSAGES_KEPT))
-            self.observe_the_state_kept(step, before, schedule_id)
+            self.observe_the_state_kept(step, before, held_after, at_rest)
             self.folded_observation(
                 step,
                 boxes.WALLS_HOLD,
@@ -1984,8 +2015,58 @@ class Rig:
                 "a mode that reads right can still be enforced by an owner the take-over renumbered",
                 lambda scratch: self.observe_the_access_walls(scratch, spread),
             )
-            self.observe_the_schedule_runs(step, schedule_id)
+            self.observe_the_schedule_runs(step, schedule_id, powered_off)
         return successor
+
+    def take_over_reading_while_the_agent_is_held(self, step, standbys, powered_off):
+        """The box that took over, and the state it was given, read before its agent started.
+
+        Each standby holds its agent at the start of its unit until the rig has read the state there, so a
+        schedule falling due, or anything else the agent does on the new box, is not read as what the take-over
+        carried. The relay, the messenger and the database start as they would.
+        """
+        giving_up = threading.Event()
+        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+            reading = pool.submit(self.state_while_the_agent_is_held, standbys, giving_up)
+            try:
+                successor = self.wait_for_a_take_over(step, standbys, powered_off)
+                held, state = reading.result(timeout=boxes.AUTOMATIC_TAKE_OVER_SECONDS)
+            except concurrent.futures.TimeoutError:
+                held, state = None, None
+            finally:
+                giving_up.set()
+                for machine in standbys:
+                    self.release_the_agent(machine)
+        return successor, state if held is successor else None
+
+    def state_while_the_agent_is_held(self, standbys, giving_up):
+        while not giving_up.is_set():
+            for machine in standbys:
+                if self.is_the_agent_held(machine):
+                    return machine, self.state_then_the_agent_released(machine)
+            giving_up.wait(2)
+        return None, None
+
+    def release_the_agent(self, machine):
+        try:
+            machine.shell(RELEASE_THE_AGENT_COMMAND, timeout_seconds=QUICK_GUEST_ANSWER_SECONDS)
+        except RigFailure as failure:
+            print(f"the rig could not release the agent it held on {machine.name}: {failure}", flush=True)
+
+    def is_the_agent_held(self, machine):
+        try:
+            return machine.shell(AGENT_HELD_COMMAND, timeout_seconds=QUICK_GUEST_ANSWER_SECONDS).stdout.strip() == "start-pre"
+        except RigFailure:
+            return False
+
+    def state_then_the_agent_released(self, machine):
+        try:
+            return self.read_the_state(machine, timeout_seconds=boxes.LONGEST_HOLD_OF_THE_AGENT_SECONDS // 2)
+        except RigFailure as failure:
+            print(f"the rig could not read {machine.name} while its agent was held: {failure}", flush=True)
+            return None
+        finally:
+            self.release_the_agent(machine)
 
     def with_the_spread(self, machine):
         with self.driving(machine, self.files_command):
@@ -2000,21 +2081,51 @@ class Rig:
             f"install -m 0644 {SHARE_PATH}/native_install_boxes.py {boxes.GUEST_DIRECTORY}/native_install_boxes.py\n"
         )
 
-    def read_the_state(self, machine):
+    def read_the_state(self, machine, timeout_seconds=1800):
         self.give_the_box_the_scenario(machine)
         roots = json.dumps(list(company_files.BACKUP_ROOTS))
         reading = machine.checked_shell(
             f"{HOST_PYTHON_PATH} {boxes.GUEST_DIRECTORY}/native_install_boxes.py read-the-state {shlex.quote(roots)} "
             f"{COMPANY_CONDITION_PATH} {AGENT_UNIT_NAME} {STATE_DIRECTORY}/current/secrets",
-            timeout_seconds=1800,
+            timeout_seconds=timeout_seconds,
         )
         return json.loads(reading.stdout)
 
-    def schedule_just_after_the_state_was_read(self, machine):
-        schedule_id = f"rig-schedule-{uuid.uuid4().hex[:12]}"
-        created = machine.shell(self.in_the_agents_database_as_the_agent(boxes.SCHEDULE_INSERT % {"schedule": schedule_id, "seconds": boxes.SCHEDULED_SECONDS_AFTER_THE_STATE}))
-        self.schedule_creation = (created.stdout + created.stderr).strip()[-600:]
-        return schedule_id if created.returncode == 0 and created.stdout.split()[-1:] == ["1"] else ""
+    def wait_for_the_agent_at_rest(self, machine, writer):
+        """Whether the agent took the newest message in and runs no turn, read so twice in a row a few seconds apart."""
+        landed = self.acknowledgements.of("messages", writer)
+        newest = landed[-1] if landed else "no-message"
+        script = boxes.AGENT_AT_REST_COMMAND % {
+            "environment": COMPANY_CONDITION_PATH,
+            "token": self.message_tokens.get(newest, "no-token"),
+            "message": newest,
+            "delivered": CHATD_DELIVERED_LEDGER_PATH,
+        } + RELAY_QUEUE_COMMAND % {"relay": RELAY_UNIT_NAME, "seconds": 0}
+        deadline = time.monotonic() + boxes.LONGEST_WAIT_FOR_THE_AGENT_AT_REST_SECONDS
+        was_at_rest = False
+        while True:
+            reading = machine.shell(script).stdout
+            is_at_rest = boxes.agent_is_at_rest(reading)
+            if (is_at_rest and was_at_rest) or time.monotonic() > deadline:
+                return is_at_rest and was_at_rest, reading.strip()
+            was_at_rest = is_at_rest
+            time.sleep(5)
+
+    def schedule_just_after_the_state_is_read(self, machine):
+        """The schedule_create the agent carries out for a person who asks, in their direct conversation, to be reminded."""
+        self.give_the_box_the_scenario(machine)
+        socket_path = capabilityd_argument(machine, "--admind-socket")
+        asked_at = time.monotonic()
+        created = machine.shell(
+            f"{HOST_PYTHON_PATH} {boxes.GUEST_DIRECTORY}/native_install_boxes.py schedule-a-task {COMPANY_CONDITION_PATH} "
+            f"{shlex.quote(socket_path or 'capabilityd-names-no-admind-socket')} {shlex.quote(self.plane.administrator_email)} "
+            f"{shlex.quote(self.plane.member_identity(self.company_id) or 'no-member')} {boxes.SCHEDULED_SECONDS_AFTER_THE_STATE} "
+            f"{shlex.quote(boxes.SCHEDULED_INSTRUCTION)}"
+        )
+        self.schedule_due_at = asked_at + boxes.SCHEDULED_SECONDS_AFTER_THE_STATE
+        self.schedule_creation = (created.stdout + created.stderr).strip()[-900:]
+        answer = json.loads(created.stdout) if created.returncode == 0 and created.stdout.startswith("{") else {}
+        return answer.get("scheduleID", "") if answer.get("status") == 200 else ""
 
     def in_the_agents_database_as_the_agent(self, statements):
         return boxes.AGENT_DATABASE_COMMAND % {"environment": COMPANY_CONDITION_PATH, "statements": shlex.quote(statements)}
@@ -2043,11 +2154,18 @@ class Rig:
             f"{boxes.FILE_JOURNAL_SOCKET_PATH}\n"
         )
         self.written_files_directory = directory
-        self.acknowledgements.keep_sending_messages(lambda index: self.send_a_counted_message(writer, index), writer)
+        if not self.member_conversation:
+            self.member_conversation = self.plane.member_conversation(self.company_id, self.working_directory / "member-conversation.log")
+        self.acknowledgements.keep_sending_messages(lambda index: self.say_a_counted_message(writer, index), writer)
 
-    def send_a_counted_message(self, writer, index):
-        sent = self.plane.member_session(self.company_id, f"rig message {writer} {index}").get("sent") or {}
-        return sent.get("messageID") if sent.get("status") == 200 else ""
+    def say_a_counted_message(self, writer, index):
+        token = uuid.uuid4().hex[:12]
+        answer = self.member_conversation.say(f"rig message {writer} {index} {token}")
+        identifier = (answer.get("messageID") or "") if answer.get("status") == 200 else ""
+        if identifier:
+            self.message_tokens[identifier] = token
+            return identifier, ""
+        return "", f"{answer.get('status')} {answer.get('error') or json.dumps(answer.get('body'))}"[:240]
 
     def observe_the_writers_acknowledged(self, step, writer, machine):
         def judge():
@@ -2157,49 +2275,75 @@ class Rig:
             stored_messages,
         )
 
-    def observe_the_state_kept(self, step, before, schedule_id):
-        after = self.read_the_state(self.machine)
+    def observe_the_state_kept(self, step, before, held_after, at_rest):
+        is_at_rest, rest_reading = at_rest
+        after = held_after or self.read_the_state(self.machine)
+        unreadable = []
+        if not is_at_rest:
+            unreadable.append(f"the agent had not come to rest on the service box when the state was read there:\n{rest_reading}")
+        if held_after is None:
+            unreadable.append(
+                "the rig never read the box that took over while its agent was held at its start, so the reading there "
+                "was taken after the agent began to work"
+            )
 
         def files():
             differences = boxes.compare_to_the_state_read(before["files"], after["files"])
-            exempt = "\n".join([*(f"not compared {role}/{path}: {reason}" for (role, path), reason in boxes.EXEMPT.items()), f"not compared: {boxes.EXEMPT_SESSION_KEYS}"])
-            return not differences, f"{len(before['files'])} paths read before, {len(after['files'])} after, {len(differences)} differ\n" + "\n".join(differences[:200]) + "\n" + exempt
+            exempt = "\n".join([
+                *(f"not compared {role}/{path}: {reason}" for (role, path), reason in boxes.EXEMPT.items()),
+                f"not compared: {boxes.EXEMPT_SESSION_KEYS}",
+                f"not counted when only added: {boxes.ADDED_WHEN_A_BOX_STARTS}",
+            ])
+            summary = f"{len(before['files'])} paths read before, {len(after['files'])} after, {len(differences)} differ"
+            return not differences and not unreadable, "\n".join([*unreadable, summary, *differences[:200], exempt])
 
         def schedules():
-            kept = [schedule for schedule in json.loads(after["schedules"] or "[]") if schedule.get("schedule_id") != schedule_id] if not after["schedules"].startswith("refused") else after["schedules"]
+            kept = json.loads(after["schedules"] or "[]") if not after["schedules"].startswith("refused") else after["schedules"]
             expected = json.loads(before["schedules"] or "[]") if not before["schedules"].startswith("refused") else before["schedules"]
-            return kept == expected, f"before: {json.dumps(expected)[:600]}\nafter: {json.dumps(kept)[:600]}"
+            return kept == expected and not unreadable, "\n".join([*unreadable, f"before: {json.dumps(expected)[:600]}", f"after: {json.dumps(kept)[:600]}"])
 
         for name, observes, judge in (
             (boxes.FILES_EQUAL, "every entry under the backup's roots off the write paths: type, mode, owner and group by name, link target, and the SHA-256 of a file (a SQLite database's of its dump)", files),
             (boxes.ACCOUNTS_EQUAL, "every bc_ user with its uid, gid, home and shell and every bc_ group with its gid and members, from getent", lambda: (before["accounts"] == after["accounts"], "\n".join(sorted(set(before["accounts"]) ^ set(after["accounts"]))) or f"{len(after['accounts'])} the same")),
-            (boxes.SCHEDULES_EQUAL, "every row of the agent's schedule table but the one the rig made after the reading", schedules),
+            (boxes.SCHEDULES_EQUAL, "every row of the agent's schedule table, the one the rig asked for just before the reading among them", schedules),
             (boxes.ROSTER_EQUAL, "the SHA-256 of the policy file the agent's unit names", lambda: (before["roster"] == after["roster"], f"before {before['roster']}\nafter {after['roster']}")),
             (boxes.SECRETS_EQUAL, "the SHA-256 of the model key and every mail credential file under the company's secrets", lambda: (before["secrets"] == after["secrets"], f"before {json.dumps(before['secrets'])}\nafter {json.dumps(after['secrets'])}")),
         ):
-            self.judged_observation(step, name, f"{observes}, read as root on the serving box before the power went and on the box that took over", "a take-over is the company only if what was there before is there after, with nothing allowed to have been either way", judge)
+            self.judged_observation(
+                step,
+                name,
+                f"{observes}, read as root on the serving box at the last moment before the power went, with the agent at rest "
+                "and the member's messages paused, and on the box that took over before its agent started",
+                "a take-over is the company only if what was there before is there after, with nothing allowed to have been either way",
+                judge,
+            )
 
-    def observe_the_schedule_runs(self, step, schedule_id):
+    def observe_the_schedule_runs(self, step, schedule_id, powered_off):
         def judge():
             if not schedule_id:
                 return False, f"the rig could not make the schedule: {self.schedule_creation}"
+            if self.schedule_due_at <= powered_off:
+                return False, f"the schedule fell due {powered_off - self.schedule_due_at:.0f}s before the power went, so its run says nothing of the box that took over"
             ran = self.machine.wait_until(
                 self.in_the_agents_database_as_the_agent(boxes.SCHEDULE_RUN_QUERY % {"schedule": schedule_id}),
-                lambda said: said.strip().startswith("ran"),
+                boxes.schedule_ran,
                 timeout_seconds=boxes.LONGEST_WAIT_FOR_THE_SCHEDULE_SECONDS,
             )
-            return ran.stdout.strip().startswith("ran"), ran.stdout.strip()[-600:]
+            return boxes.schedule_ran(ran.stdout), f"{ran.stdout.strip()[-600:]}\nasked for: {self.schedule_creation}"
 
         self.judged_observation(
             step,
             boxes.SCHEDULE_RUNS,
-            f"the schedule row the rig made due {boxes.SCHEDULED_SECONDS_AFTER_THE_STATE}s after the reading, on the box that took over: a task run it started",
+            f"the task runs on the box that took over of the schedule a person asked for in their direct conversation, due "
+            f"{boxes.SCHEDULED_SECONDS_AFTER_THE_STATE}s after it was asked for, just before the state was read and the power went; "
+            "asked through admind's schedule tool with the delivery the agent recorded for that person's newest task",
             "a schedule carried across and never run is a reminder nobody gets",
             judge,
         )
 
     def the_company_moves(self, step, serving):
         writer = "move"
+        database_url = self.database_url_of(serving)
         self.start_the_writers(serving, writer)
         time.sleep(boxes.WRITING_BEFORE_THE_MOVE_SECONDS)
         standbys = [machine for machine in self.box_machines if machine is not serving and machine.container_state() == "running"]
@@ -2210,19 +2354,34 @@ class Rig:
         pressed = time.time()
         status, answer = self.plane.ask_as_administrator("PATCH", "/api/company/box", {"publicKey": target_key})
         moved = self.wait_for_a_serving_standby({target_key: target}, time.monotonic(), boxes.LONGEST_TAKE_OVER_SECONDS) if status == 200 else None
+        served = time.time() if moved else None
 
         def interruption():
             if not moved:
                 return False, f"the box made to serve never held the gateway ({status} {str(answer)[:300]})"
-            self.acknowledgements.wait_for_messages_after(writer, time.time(), 2, boxes.LONGEST_WAIT_FOR_WRITERS_SECONDS)
-            longest = self.acknowledgements.longest_message_gap(writer, pressed - boxes.WRITING_BEFORE_THE_MOVE_SECONDS)
-            return longest < boxes.LONGEST_MOVE_INTERRUPTION_SECONDS, f"the longest a member waited between two acknowledged messages around the move: {longest:.0f}s"
+            self.acknowledgements.wait_for_messages_after(writer, served, 2, boxes.LONGEST_WAIT_FOR_WRITERS_SECONDS)
+            landed = self.acknowledgements.times_of("messages", writer, 0)
+            attempts = self.acknowledgements.attempts_of(writer, 0)
+            longest = boxes.move_interruption(landed, pressed, served, boxes.WRITING_BEFORE_THE_MOVE_SECONDS)
+            round_trip = boxes.message_round_trip([attempt for attempt in attempts if attempt.finished < pressed])
+            round_trip_told = "no time, none having landed" if round_trip is None else f"{round_trip:.1f}s"
+            reasons = boxes.unanswered_reasons(attempts, pressed - boxes.WRITING_BEFORE_THE_MOVE_SECONDS, time.time())
+            told = (
+                f"the box held the gateway {served - pressed:.0f}s after it was made to serve; "
+                f"{len([at for at in landed if at < pressed])} messages landed before the move, "
+                f"{len([at for at in landed if at >= pressed])} after it was asked for; "
+                f"a message took {round_trip_told} to land before the move\n"
+                "messages that did not land around the move: " + ("; ".join(reasons) or "none")
+            )
+            if longest is None:
+                return False, f"no message landed in the {boxes.WRITING_BEFORE_THE_MOVE_SECONDS}s before the move or none after the box served, so no wait across it can be told\n{told}"
+            return longest < boxes.LONGEST_MOVE_INTERRUPTION_SECONDS, f"the longest a member waited for a message to land across the move: {longest:.0f}s\n{told}"
 
         self.judged_observation(
             step,
             boxes.MOVE_INTERRUPTS_BRIEFLY,
-            "the times this Mac received each acknowledged message from the member session, from before the administrator made "
-            "another box serve until two more were acknowledged after it held the gateway",
+            "the times this Mac received each message a member's open session landed, one after another, from the last that "
+            "landed before the administrator made another box serve to the first that landed once that box held the gateway",
             "the record moving the role is a promise; the gap a person waits between two messages landing is the interruption",
             interruption,
         )
@@ -2231,44 +2390,74 @@ class Rig:
         with self.driving(target, self.files_command):
             self.wait_for_the_take_over_unit()
             self.observe_the_writes_kept(step, writer, (boxes.COMMITS_MOVED, boxes.FILE_WRITES_MOVED, boxes.MESSAGES_MOVED))
-        self.observe_the_old_box_fenced(step, serving)
+        self.observe_the_old_box_fenced(step, serving, target, database_url)
         serving.shell("systemctl stop 'rig-*-writer-*' 2>/dev/null; true")
         return target
 
-    def observe_the_old_box_fenced(self, step, old):
+    def database_url_of(self, machine):
+        return machine.shell(f"sed -n 's/^DATABASE_URL=//p' {COMPANY_CONDITION_PATH} | head -1").stdout.strip()
+
+    def observe_the_old_box_fenced(self, step, old, serving, database_url):
         def commits():
-            tried = old.shell(self.in_the_agents_database_as_the_agent(boxes.FENCE_PROBE_INSERT))
-            return tried.returncode != 0, f"psql exited {tried.returncode}: {tried.stdout.strip()[-300:]}"
+            tried = old.shell(
+                boxes.FENCE_PROBE_COMMAND
+                % {"url": shlex.quote(database_url), "seconds": boxes.FENCE_PROBE_SECONDS, "writer": f"fence-probe-{uuid.uuid4().hex[:12]}"},
+                timeout_seconds=boxes.FENCE_PROBE_SECONDS * 3,
+            )
+            return boxes.fence_refused_the_commit(tried.stdout), f"with the database URL the box's services held before the move:\n{tried.stdout.strip()[-600:]}"
 
         def store_writes():
-            session = old.shell(f"cat {STATE_DIRECTORY}/current/secrets/agent-key 2>/dev/null").stdout.strip()
-            if not session:
-                return True, "the old box holds no session key to write with"
-            path = f"{self.company_id}/rig-fence-probe-{uuid.uuid4().hex}"
-            status, document = answered(
-                f"{self.plane.settings['API_URL']}/storage/v1/object/box_backup/{path}",
-                {"apikey": self.plane.settings["PUBLISHABLE_KEY"], "Authorization": "Bearer " + session, "Content-Type": "application/octet-stream"},
-                b"written by the box the company moved from",
-                "POST",
-            )
-            if status == 200:
-                self.plane.delete_from_record(f"/storage/v1/object/box_backup/{path}")
-            return status is not None and status >= 400, f"the store answered {status}: {str(document)[:300]}"
+            control_status, control = self.store_write_by_the_key_of(serving)
+            if control_status != 200:
+                return False, f"the serving box's own write, the control, was answered {control_status}: {control}"
+            status, told = self.store_write_by_the_key_of(old)
+            return status not in (0, 200), f"the box the company moved to: 200\nthe box it moved from: {status} {told}"
 
         self.judged_observation(
             step,
             boxes.OLD_BOX_COMMITS_REFUSED,
-            "an insert into rig_written run with psql on the box the company moved from",
+            "an insert into rig_written on the box the company moved from, through its local PostgreSQL as the role its "
+            "services used, with the database URL they held before the move",
             "a box that still commits after the move holds writes the company's new box never sees",
             commits,
         )
         self.judged_observation(
             step,
             boxes.OLD_BOX_STORE_WRITES_REFUSED,
-            "an upload into the company's box_backup folder with the session key the old box still holds",
+            "an upload into the company's box_backup folder on a session the hosted service gives for an assertion signed "
+            "with the old box's identity key, beside the same upload by the box the company moved to",
             "the store is where the next take-over reads from; a fenced box that can still write there can rewrite the log",
             store_writes,
         )
+
+    def store_write_by_the_key_of(self, machine):
+        """What the store answers an upload made on the session a box's identity key is given; 404 when no session is."""
+        self.give_the_box_the_scenario(machine)
+        signed = machine.shell(f"{HOST_PYTHON_PATH} {boxes.GUEST_DIRECTORY}/native_install_boxes.py box-assertion {BOX_STATE_DIRECTORY}/identity.json")
+        if signed.returncode != 0:
+            return 0, f"the box could not sign an assertion: {(signed.stdout + signed.stderr).strip()[-300:]}"
+        status, document = answered(
+            f"{self.plane.application_url}/api/box/session",
+            {"Authorization": "Bearer " + signed.stdout.strip(), "Content-Type": "application/json"},
+            b"{}",
+            "POST",
+            timeout_seconds=60,
+        )
+        if status == 404:
+            return 404, "the hosted service gave the box no session: it belongs to no company"
+        if status != 200:
+            return 0, f"asking for the box's session answered {status}: {document[:300]!r}"
+        session = json.loads(document)
+        path = f"{self.company_id}/rig-fence-probe-{uuid.uuid4().hex}"
+        written, answer = answered(
+            f"{self.plane.settings['API_URL']}/storage/v1/object/box_backup/{path}",
+            {"apikey": self.plane.settings["PUBLISHABLE_KEY"], "Authorization": "Bearer " + session["session"]["accessToken"], "Content-Type": "application/octet-stream"},
+            b"written by the rig's fence probe",
+            "POST",
+        )
+        if written == 200:
+            self.plane.delete_from_record(f"/storage/v1/object/box_backup/{path}")
+        return written, f"as {session.get('role')}: {answer[:300]!r}"
 
     def more_boxes_are_faster(self, step, serving):
         dead = [machine for machine in self.box_machines if machine.container_state() != "running"]
@@ -2279,26 +2468,39 @@ class Rig:
         self.observe_the_store_link_limited(step, live)
         self.fill_the_company(serving)
         standbys = [machine for machine in live if machine is not serving]
-        held_by_standbys = self.seconds_to_take_over(serving, standbys)
-        survivor = self.serving_box_among(standbys)
-        empty = self.seconds_for_an_empty_box(survivor) if survivor else None
+        held_by_standbys = {machine.name: self.pieces_held_by(machine) for machine in standbys}
+        share_seconds, survivor = self.seconds_to_take_over(serving, standbys)
+        keeper = next((machine for machine in standbys if machine is not survivor), None)
+        empty_seconds, fresh_pieces = self.seconds_for_an_empty_box(serving, survivor, keeper) if survivor and keeper else (None, None)
 
         def judge():
-            if held_by_standbys is None or empty is None:
-                return False, f"a standby holding its share took {held_by_standbys}s; an empty box took {empty}s"
-            return held_by_standbys < empty, (
-                f"from the role changing to the relay holding the gateway: a standby holding its share {held_by_standbys:.0f}s, "
-                f"an empty box restoring from the store alone {empty:.0f}s, with {boxes.FILL_MEBIBYTES} MiB written"
+            told = (
+                f"pieces each standby held when the service box lost its power: {json.dumps(held_by_standbys)}; "
+                f"the empty box held {fresh_pieces} when it was made to serve\n"
+                f"from the role changing to the relay holding the gateway: a standby holding its share {share_seconds}s, an empty "
+                f"box restoring from the store alone {empty_seconds}s, with {boxes.FILL_MEBIBYTES} MiB written"
             )
+            if share_seconds is None or empty_seconds is None:
+                return False, told
+            if not survivor or not held_by_standbys.get(survivor.name):
+                return False, f"the standby that took over held none of the company's pieces, so it was an empty box too\n{told}"
+            if fresh_pieces:
+                return False, f"the empty box already held pieces when it was made to serve\n{told}"
+            return share_seconds < empty_seconds, told
 
         self.judged_observation(
             step,
             boxes.HALF_HELD_IS_FASTER,
             "the seconds from the record naming a new service box to its relay holding the gateway, once for a standby "
-            "holding its share of the log and once for a fresh box with nothing, with the store link limited",
+            "holding its share of the log and once for a fresh box an administrator added beside the dead one, given the "
+            "company key by the standby left and made to serve at once, with the store link limited",
             "more boxes holding pieces is the claim; the clock on the take-over is what a company feels",
             judge,
         )
+
+    def pieces_held_by(self, machine):
+        listed = machine.shell(f"find {STANDBY_PIECES_DIRECTORY} -type f 2>/dev/null | wc -l").stdout.strip()
+        return int(listed) if listed.isdigit() else 0
 
     def observe_the_store_link_limited(self, step, machines):
         def judge():
@@ -2337,10 +2539,6 @@ class Rig:
         print(f"filled the company with {boxes.FILL_MEBIBYTES} MiB: {filled.stdout.strip()[-300:]}", flush=True)
         time.sleep(boxes.SETTLING_AFTER_THE_FILL_SECONDS)
 
-    def serving_box_among(self, machines):
-        roles = {box["publicKey"]: box["role"] for box in self.boxes_in_the_record().get("boxes", [])}
-        return next((machine for machine in machines if roles.get(self.box_key_of(machine)) == "service"), None)
-
     def seconds_to_take_over(self, serving, standbys):
         serving.power_off()
         keys = {self.box_key_of(machine): machine for machine in standbys}
@@ -2350,11 +2548,11 @@ class Rig:
             chosen_key = next(iter(keys))
             status, _ = self.plane.ask_as_administrator("PATCH", "/api/company/box", {"publicKey": chosen_key})
             if status != 200:
-                return None
+                return None, None
             changed = (chosen_key, time.monotonic())
         key, at = changed
         successor = self.wait_for_a_serving_standby({key: keys[key]}, at, boxes.LONGEST_TAKE_OVER_SECONDS)
-        return time.monotonic() - at if successor else None
+        return (round(time.monotonic() - at), successor) if successor else (None, None)
 
     def wait_for_the_role_to_change(self, keys, since, timeout_seconds):
         while time.monotonic() < since + timeout_seconds:
@@ -2365,24 +2563,42 @@ class Rig:
             time.sleep(2)
         return None
 
-    def seconds_for_an_empty_box(self, survivor):
-        survivor_key = self.box_key_of(survivor)
-        for box in self.boxes_in_the_record().get("boxes", []):
-            if box["publicKey"] != survivor_key:
-                self.plane.ask_as_administrator("DELETE", "/api/company/box", {"publicKey": box["publicKey"]})
-        for machine in self.box_machines:
-            if machine is not survivor:
-                machine.destroy()
+    def seconds_for_an_empty_box(self, dead, survivor, keeper):
+        """A fresh box an administrator adds beside the dead one, timed from being made to serve to holding the gateway.
+
+        The standby left hands it the company key, as any box that holds it does, and then loses its power too,
+        so the fresh box can read nothing but the store. It is made to serve the moment it holds the key, before
+        it could keep a share of its own.
+        """
+        dead.destroy()
         fresh = self.start_a_box("D")
         fresh.checked_shell(self.release.install_line(fresh.host_gateway()), timeout_seconds=2400)
         self.plane.reach_the_record_from(fresh)
         fresh.shell(boxes.STORE_LINK_LIMIT_COMMAND % {"port": self.plane.record_forward.port, "rate": boxes.STORE_LINK_RATE})
         survivor.power_off()
         scratch = Step(0, "an empty box")
-        key = self.join_as_an_added_box(scratch, fresh, "replace")
-        claimed = time.monotonic()
-        successor = self.wait_for_a_serving_standby({key: fresh}, claimed, boxes.LONGEST_TAKE_OVER_SECONDS)
-        return time.monotonic() - claimed if successor and scratch.observations[-1].passed else None
+        key = self.join_as_an_added_box(scratch, fresh, "add")
+        if not scratch.observations[-1].passed or not self.wait_for_the_company_key(key):
+            print(f"the empty box was not added with the company key: {scratch.observations[-1].detail[:600]}", flush=True)
+            return None, None
+        keeper.power_off()
+        fresh_pieces = self.pieces_held_by(fresh)
+        status, answer = self.plane.ask_as_administrator("PATCH", "/api/company/box", {"publicKey": key})
+        if status != 200:
+            print(f"the setup page refused to make the empty box serve: {status} {str(answer)[:300]}", flush=True)
+            return None, fresh_pieces
+        made_to_serve = time.monotonic()
+        successor = self.wait_for_a_serving_standby({key: fresh}, made_to_serve, boxes.LONGEST_TAKE_OVER_SECONDS)
+        return (round(time.monotonic() - made_to_serve) if successor else None), fresh_pieces
+
+    def wait_for_the_company_key(self, public_key):
+        deadline = time.monotonic() + boxes.LONGEST_WAIT_FOR_THE_COMPANY_KEY_SECONDS
+        while time.monotonic() < deadline:
+            listed = self.boxes_in_the_record().get("boxes", [])
+            if any(box["publicKey"] == public_key and box.get("holdsCompanyKey") for box in listed):
+                return True
+            time.sleep(5)
+        return False
 
     def boxes_ratchet(self):
         recorded = {observation.name: observation.passed for step in self.steps for observation in step.observations}

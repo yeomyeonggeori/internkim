@@ -7,17 +7,23 @@ listed observation that holds, so the list only shrinks. An observation the run 
 not hold.
 """
 
+import base64
+import datetime
 import grp
 import hashlib
+import http.client
 import http.server
 import json
 import os
 import pwd
+import re
 import socket
 import sqlite3
 import stat
+import statistics
 import subprocess
 import sys
+import tempfile
 import threading
 import time
 import urllib.request
@@ -101,25 +107,14 @@ NOT_YET = {
     SETUP_SAYS_READY: "pass condition 2: GET /api/company/box says whether each box is ready",
     SHARES_REPORTED: "seeding step 4: a standby keeps its share and reports it",
     SHARES_ON_DISK: "seeding step 4: the store holds the log from the first box on, and no standby keeps a share of it on disk",
-    FILES_EQUAL: (
-        "the reading is taken before the rig's writers start, and the agent's work on their messages changes files after "
-        "it: launching a person's task takes group and other bits off their home (0644 to 0600, 0755 to 0700), and "
-        "memory.db, chatd's delivered log, the relay's settled markers and the media store's packs change; the media "
-        "store's lock files differ too, which hostFileRoots leaves out of every backup"
-    ),
-    SCHEDULE_RUNS: (
-        "the schedule row the rig inserts names no platform or reply target, so the agent's scheduler refuses it with "
-        "\"scheduled task platform is required\" on any box, taken over or not"
-    ),
-    MOVE_INTERRUPTS_BRIEFLY: (
-        "pass condition 4: members waited 1556 s between two acknowledged messages around the move, which restores the "
-        "whole company from the log; how much of that is the move and how much the member session's round trip is not "
-        "yet diagnosed"
+    OLD_BOX_COMMITS_REFUSED: (
+        "pass condition 4, fencing: on the box the company moved from, an insert as its services' role through the "
+        "database URL they held is neither refused nor answered within 30 s; its PostgreSQL still takes the "
+        "connection and the commit waits"
     ),
     HALF_HELD_IS_FASTER: (
-        "the empty box never takes over: the rig deletes every other box and claims it with intent replace, which makes "
-        "its own key the company key, so no base backup or snapshot is sealed to it; then seeding step 4, a take-over "
-        "reads its own share first"
+        "seeding step 4: a standby keeps a few pieces of the log on disk after the fill at most, and none in some runs, "
+        "so the standby that takes over restores nearly everything from the store as the empty box does, and is no sooner"
     ),
 }
 
@@ -245,18 +240,42 @@ WRITE_PATH_PREFIX = "rig-writes-"
 
 EXEMPT = {
     ("state", "box"): "each box keeps its own identity, pairing state and session under box/",
+    ("state", "media/.vgwlocks"): (
+        "the media store's lock files, empty and made and removed as objects are written: a lock is not data, and "
+        "hostFileRoots in internal/companyhost/backup.go leaves them out of every backup and every journal"
+    ),
+    ("state", ".file-journal-barrier"): (
+        "the file barrier's markers, each empty and removed once the journal holds the writes before it "
+        "(internal/filestream/barrier.go): a marker is not data, and JournaledFileRoots in "
+        "internal/companyhost/file_journal_roots.go leaves them out of the journal"
+    ),
 }
+RELAY_PROBE_WRITER = "relay-probe"
+RELAY_PROBE_NONCE = rb"[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}"
+RELAY_PROBE_BODY = re.compile(
+    rb"probe-(?:sequential|inm-race)-" + RELAY_PROBE_NONCE + rb"-[0-9]+"
+    rb"|probe-etag-[0-9]+-" + RELAY_PROBE_NONCE
+    + rb"|probe-pointer-seed"
+    rb"|round=[0-9]+,racer=[0-9]+,nonce=" + RELAY_PROBE_NONCE
+)
+RELAY_PROBE_LARGEST_BYTES = 128
+ADDED_WHEN_A_BOX_STARTS = (
+    "an object the relay's store probe writes each time the relay starts, known by the body run_conformance_probe "
+    "writes (buzz-relay/src/crates/buzz-relay/src/api/git/store.rs), is not counted when the box that took over "
+    "added it; one that was there before the power went is still compared"
+)
 EXEMPT_SESSION_KEYS = (
     "the serving box's session key, in agent-key and as connection.json's agentKey, which the take-over "
     "writes for the box that serves"
 )
 
 
+def is_under(role, path, places):
+    return any(role == place_role and (path == place_path or path.startswith(place_path + "/")) for place_role, place_path in places)
+
+
 def is_exempt(role, path):
-    for (exempt_role, exempt_path) in EXEMPT:
-        if role == exempt_role and (path == exempt_path or path.startswith(exempt_path + "/")):
-            return True
-    return path.rsplit("/", 1)[-1] == SESSION_KEY_NAME
+    return is_under(role, path, EXEMPT) or path.rsplit("/", 1)[-1] == SESSION_KEY_NAME
 
 
 def compare_to_the_state_read(before, after):
@@ -269,7 +288,8 @@ def compare_to_the_state_read(before, after):
         if key not in after:
             differences.append(f"missing {role}/{path}: {before[key]}")
         elif key not in before:
-            differences.append(f"extra {role}/{path}: {after[key]}")
+            if f"written-by={RELAY_PROBE_WRITER}" not in after[key].split():
+                differences.append(f"extra {role}/{path}: {after[key]}")
         elif before[key] != after[key]:
             differences.append(f"differs {role}/{path}: {before[key]} -> {after[key]}")
     return differences
@@ -283,13 +303,30 @@ LONGEST_WAIT_FOR_WRITERS_SECONDS = 180
 AUTOMATIC_TAKE_OVER_SECONDS = 300
 LONGEST_TAKE_OVER_SECONDS = 1800
 SCHEDULED_SECONDS_AFTER_THE_STATE = 120
+SCHEDULED_INSTRUCTION = "Tell me in one short message that the reminder the native install rig asked for has come due."
 LONGEST_WAIT_FOR_THE_SCHEDULE_SECONDS = 600
 WRITING_BEFORE_THE_MOVE_SECONDS = 30
 LONGEST_MOVE_INTERRUPTION_SECONDS = 60
+LONGEST_MESSAGE_SECONDS = 180
+MESSAGE_INTERVAL_SECONDS = 2
+LONGEST_WAIT_FOR_THE_AGENT_AT_REST_SECONDS = 1200
+LONGEST_HOLD_OF_THE_AGENT_SECONDS = 900
+LONGEST_WAIT_FOR_THE_COMPANY_KEY_SECONDS = 600
+FENCE_PROBE_SECONDS = 30
 STORE_LINK_RATE = "100mbit"
 FILL_MEBIBYTES = 1024
 FILL_FILE_MEBIBYTES = 64
 SETTLING_AFTER_THE_FILL_SECONDS = 120
+
+
+@dataclass(frozen=True)
+class MessageAttempt:
+    writer: str
+    index: int
+    started: float
+    finished: float
+    identifier: str
+    reason: str
 
 
 class Acknowledgements:
@@ -298,11 +335,15 @@ class Acknowledgements:
     def __init__(self, log_path, address):
         self.log_path = Path(log_path)
         self.received = []
+        self.attempts = []
         self.lock = threading.Lock()
         self.message_sender = None
         self.message_counts = {}
         self.is_stopped = threading.Event()
         self.message_thread = None
+        self.messages = threading.Condition()
+        self.is_paused = False
+        self.is_sending = False
         acknowledgements = self
 
         class Handler(http.server.BaseHTTPRequestHandler):
@@ -342,39 +383,101 @@ class Acknowledgements:
         with self.lock:
             return [at for at, held_kind, held_writer, _ in self.received if held_kind == kind and held_writer == writer and at >= since]
 
+    def attempts_of(self, writer, since):
+        with self.lock:
+            return [attempt for attempt in self.attempts if attempt.writer == writer and attempt.finished >= since]
+
     def keep_sending_messages(self, send, writer):
-        """Send counted messages one after another for this writer, recording the identifier of each one answered."""
-        self.message_sender = (send, writer)
+        """Send a counted message every few seconds for this writer until paused; send(index) answers (identifier, reason)."""
+        with self.messages:
+            self.message_sender = (send, writer)
+            self.is_paused = False
+            self.messages.notify_all()
         if self.message_thread:
             return
         self.message_thread = threading.Thread(target=self.send_messages, daemon=True)
         self.message_thread.start()
 
+    def pause_the_messages(self):
+        """Stop sending, and return once the message in flight, if any, has its answer."""
+        with self.messages:
+            self.is_paused = True
+            while self.is_sending:
+                self.messages.wait()
+
     def send_messages(self):
         while not self.is_stopped.is_set():
-            send, writer = self.message_sender
-            index = self.message_counts.get(writer, 0) + 1
-            identifier = send(index)
-            if identifier:
-                self.message_counts[writer] = index
-                self.record("messages", writer, identifier)
-            else:
-                self.is_stopped.wait(2)
+            with self.messages:
+                while self.is_paused and not self.is_stopped.is_set():
+                    self.messages.wait(1)
+                if self.is_stopped.is_set():
+                    return
+                self.is_sending = True
+                send, writer = self.message_sender
+            try:
+                self.send_one(send, writer)
+            finally:
+                with self.messages:
+                    self.is_sending = False
+                    self.messages.notify_all()
+            self.is_stopped.wait(MESSAGE_INTERVAL_SECONDS)
+
+    def send_one(self, send, writer):
+        index = self.message_counts.get(writer, 0) + 1
+        started = time.time()
+        identifier, reason = send(index)
+        finished = time.time()
+        with self.lock:
+            self.attempts.append(MessageAttempt(writer, index, started, finished, identifier, reason))
+            with self.log_path.open("a") as log:
+                log.write(f"{finished:.3f}\tattempt\t{writer}\t{index}\t{finished - started:.3f}s\t{identifier or reason}\n")
+        if identifier:
+            self.message_counts[writer] = index
+            self.record("messages", writer, identifier)
 
     def wait_for_messages_after(self, writer, since, count, timeout_seconds):
         deadline = time.monotonic() + timeout_seconds
         while len(self.times_of("messages", writer, since)) < count and time.monotonic() < deadline:
             time.sleep(2)
 
-    def longest_message_gap(self, writer, since):
-        times = [since, *self.times_of("messages", writer, since)]
-        return max((later - earlier for earlier, later in zip(times, times[1:])), default=float("inf"))
-
     def stop_the_messages(self):
         self.is_stopped.set()
+        with self.messages:
+            self.messages.notify_all()
         if self.message_thread:
-            self.message_thread.join(timeout=660)
+            self.message_thread.join(timeout=LONGEST_MESSAGE_SECONDS)
         self.server.shutdown()
+
+
+def move_interruption(landed_at, pressed, served, writing_seconds):
+    """The longest a member waited between two messages landing across a move, or None when it cannot say.
+
+    It runs from the last message that landed before the administrator made another box serve to the first
+    that landed once that box held the gateway. When no message landed in the writing before the move, the
+    member's messages were not landing anyway, and a wait measured from then measures that, not the move.
+    """
+    landed = sorted(landed_at)
+    before = [at for at in landed if pressed - writing_seconds <= at < pressed]
+    after = [at for at in landed if served is not None and at >= served]
+    if not before or not after:
+        return None
+    around = [at for at in landed if before[-1] <= at <= after[0]]
+    return max(later - earlier for earlier, later in zip(around, around[1:]))
+
+
+def message_round_trip(attempts):
+    """The median seconds a member's message took to land, of the attempts that landed."""
+    landed = [attempt.finished - attempt.started for attempt in attempts if attempt.identifier]
+    return statistics.median(landed) if landed else None
+
+
+def unanswered_reasons(attempts, since, until):
+    """Each distinct reason a message did not land between two moments, with how often it was given."""
+    counted = {}
+    for attempt in attempts:
+        if not attempt.identifier and since <= attempt.finished <= until:
+            counted[attempt.reason] = counted.get(attempt.reason, 0) + 1
+    return [f"{count}x {reason}" for reason, count in sorted(counted.items(), key=lambda item: -item[1])]
 
 
 DATABASE_WRITER_SCRIPT = r"""
@@ -398,25 +501,145 @@ WRITER_JOURNAL_COMMAND = "journalctl -u rig-database-writer-%(writer)s -u rig-fi
 
 WRITTEN_ROWS_QUERY = "select n from rig_written where writer = '%(writer)s' order by n;"
 
-FENCE_PROBE_INSERT = "insert into rig_written values ('fence-probe', 1);"
-
-SCHEDULE_INSERT = """
-insert into schedule (schedule_id, creator_person_id, name, prompt, execution_mode, agent_profile_name, schedule_kind,
-  run_at, next_run_at, next_attempt_at, time_zone, delivery_conversation_id, max_run_count, approved_at, created_at, updated_at)
-select '%(schedule)s', requester_person_id, 'rig schedule', 'rig scheduled run', 'agent', current_agent_profile_name, 'once',
-  moment.due, moment.due, moment.due, 'Asia/Seoul', coalesce(origin_conversation_id, ''), 1, now(), now(), now()
-from task_run, (select now() + interval '%(seconds)s seconds' as due) moment
-where requester_person_id is not null
-order by created_at desc
-limit 1;
-select count(*) from schedule where schedule_id = '%(schedule)s';
+FENCE_PROBE_COMMAND = r"""
+url=%(url)s
+[ -n "$url" ] || { echo "probe=the rig remembered no database URL for this box"; exit 0; }
+timeout %(seconds)s psql "$url" --quiet --set ON_ERROR_STOP=1 --command "insert into rig_written values ('%(writer)s', 1)" 2>&1
+printf 'insert=%%s\n' "$?"
+printf 'kept=%%s\n' "$(timeout %(seconds)s psql "$url" -tAc "select count(*) from rig_written where writer = '%(writer)s'" 2>&1 | tr -d ' \n')"
 """
 
+
+def fence_refused_the_commit(reading):
+    """Whether the old box's database answered the probe's insert with a refusal and holds no probe row.
+
+    An insert that waits past the probe's time is not refused: the row may be committed on the box while its
+    commit waits, so it is judged by whether the row is there.
+    """
+    reported = dict(line.split("=", 1) for line in reading.splitlines() if line.startswith(("insert=", "kept=", "probe=")))
+    if "probe" in reported:
+        return False
+    return reported.get("insert") not in ("0", "124") and reported.get("kept") != "1"
+
+
+SCHEDULE_TOOL_PATH = "/memory/api/schedules/tool-create"
+REQUESTER_EMAIL_HEADER = "X-INTERNKIM-REQUESTER-EMAIL"
+LAUNCH_ORIGIN_EVENT = "blueclaw.launch.origin"
+SCHEDULE_SESSION_PREFIX = "schedule:"
+
+LAUNCH_ORIGIN_QUERY = (
+    "select launched.body from task_event launched join task_run run using (task_run_id) "
+    f"where launched.name = '{LAUNCH_ORIGIN_EVENT}' and run.requester_person_id = '%(person)s' "
+    f"and coalesce(run.origin_conversation_id, '') not like '{SCHEDULE_SESSION_PREFIX}%%' "
+    "order by launched.created_at desc limit 1"
+)
+
 SCHEDULE_RUN_QUERY = (
-    "select case when last_task_run_id is not null then 'ran ' || last_task_run_id else 'waiting next_run_at=' || "
-    "coalesce(next_run_at::text, 'none') || ' failures=' || failure_count || ' error=' || last_error end "
+    "select 'runs=' || count(*) || ' first=' || coalesce(min(created_at)::text, 'none') from task_run "
+    f"where origin_conversation_id = '{SCHEDULE_SESSION_PREFIX}%(schedule)s';"
+    "select 'next_run_at=' || coalesce(next_run_at::text, 'none') || ' failures=' || failure_count || ' error=' || last_error "
     "from schedule where schedule_id = '%(schedule)s';"
 )
+
+
+def schedule_ran(reading):
+    runs = next((word.split("=", 1)[1] for word in reading.split() if word.startswith("runs=")), "0")
+    return runs.isdigit() and int(runs) > 0
+
+
+class AdmindConnection(http.client.HTTPConnection):
+    def __init__(self, socket_path):
+        super().__init__("internkim", timeout=60)
+        self.socket_path = socket_path
+
+    def connect(self):
+        self.sock = socket.socket(socket.AF_UNIX)
+        self.sock.settimeout(self.timeout)
+        self.sock.connect(self.socket_path)
+
+
+def asked_of_admind(socket_path, path, requester_email, body):
+    connection = AdmindConnection(socket_path)
+    try:
+        connection.request("POST", path, json.dumps(body), {"Content-Type": "application/json", REQUESTER_EMAIL_HEADER: requester_email})
+        response = connection.getresponse()
+        return response.status, response.read().decode(errors="replace")
+    finally:
+        connection.close()
+
+
+def schedule_a_task(environment_path, socket_path, requester_email, person_id, seconds, instruction):
+    """What capabilityd asks admind when the agent calls schedule_create in a person's direct conversation.
+
+    The delivery binding is the one the agent recorded when it launched that person's newest task there, which is
+    the context capabilityd would add to the call. The schedule is not approved: only the approval gate approves.
+    """
+    origin = agent_database_answer(environment_path, LAUNCH_ORIGIN_QUERY % {"person": person_id})
+    binding = json.loads(origin) if origin.startswith("{") else {}
+    run_at = datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(seconds=int(seconds))
+    body = {
+        "taskInstruction": instruction,
+        "description": "rig schedule",
+        "kind": "once",
+        "runAt": run_at.strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "platform": binding.get("platform", ""),
+        "conversationID": binding.get("conversationID", ""),
+        "replyTargetID": binding.get("replyTargetID", ""),
+        "isApproved": False,
+    }
+    status, answer = asked_of_admind(socket_path, SCHEDULE_TOOL_PATH, requester_email, body)
+    created = json.loads(answer) if status == 200 and answer.startswith("{") else {}
+    return {"status": status, "scheduleID": created.get("scheduleID", ""), "runAt": body["runAt"], "binding": origin, "answer": answer[:600]}
+
+
+BOX_ASSERTION_AUDIENCE = "internkim-box"
+BOX_ASSERTION_LIFETIME_SECONDS = 60
+ED25519_PRIVATE_KEY_PREFIX = bytes.fromhex("302e020100300506032b657004220420")
+
+
+def unpadded(data):
+    return base64.urlsafe_b64encode(data).decode().rstrip("=")
+
+
+def box_assertion(identity_path):
+    """A box session assertion signed with the box identity key in identity_path, as internal/box/assertion.go signs one."""
+    with open(identity_path) as identity:
+        seed = json.load(identity)["signingSeed"]
+    with tempfile.TemporaryDirectory() as directory:
+        key_path = os.path.join(directory, "key.der")
+        with open(key_path, "wb") as key:
+            key.write(ED25519_PRIVATE_KEY_PREFIX + base64.urlsafe_b64decode(seed + "=" * (-len(seed) % 4)))
+        public_key = subprocess.run(
+            ["openssl", "pkey", "-inform", "DER", "-in", key_path, "-pubout", "-outform", "DER"], capture_output=True, check=True
+        ).stdout[-32:]
+        issued = int(time.time())
+        header = unpadded(json.dumps({"alg": "EdDSA", "typ": "JWT"}).encode())
+        claims = unpadded(json.dumps({"iss": unpadded(public_key), "aud": BOX_ASSERTION_AUDIENCE, "iat": issued, "exp": issued + BOX_ASSERTION_LIFETIME_SECONDS}).encode())
+        signing_input_path = os.path.join(directory, "signing-input")
+        with open(signing_input_path, "w") as signing_input:
+            signing_input.write(header + "." + claims)
+        signature = subprocess.run(
+            ["openssl", "pkeyutl", "-sign", "-inkey", key_path, "-keyform", "DER", "-rawin", "-in", signing_input_path],
+            capture_output=True,
+            check=True,
+        ).stdout
+    return header + "." + claims + "." + unpadded(signature)
+
+
+AGENT_AT_REST_COMMAND = r"""
+agent_url="$(sed -n 's/^DATABASE_URL=//p' %(environment)s 2>/dev/null | head -1)"
+printf 'running=%%s\n' "$(psql "$agent_url" -tAc "select coalesce(string_agg(status, ','), '') from task_run where status in ('planned', 'running')" 2>&1 | tr -d ' \n')"
+printf 'taken=%%s\n' "$(psql "$agent_url" -tAc "select count(*) from task_run where position('%(token)s' in prompt) > 0" 2>&1 | tr -d ' \n')"
+printf 'delivered=%%s\n' "$(grep -c '%(message)s' %(delivered)s 2>/dev/null || true)"
+"""
+
+
+def agent_is_at_rest(reading):
+    """No turn of the agent running, its newest message taken in, and the relay holding nothing inbound."""
+    reported = dict(line.split("=", 1) for line in reading.splitlines() if "=" in line)
+    is_taken_in = reported.get("taken", "0") not in ("", "0") or reported.get("delivered", "0") not in ("", "0")
+    return reported.get("running") == "" and reported.get("queued") == "0" and is_taken_in
+
 
 STORED_MESSAGES_COMMAND = r"""
 url="$(sed -n 's/^DATABASE_URL=//p' %(path)s 2>/dev/null | head -1)"
@@ -527,6 +750,13 @@ CONNECTION_FILE_NAME = "connection.json"
 CONNECTION_SESSION_FIELD = "agentKey"
 
 
+def is_a_relay_probe_object(path, size):
+    if size > RELAY_PROBE_LARGEST_BYTES:
+        return False
+    with open(path, "rb") as source:
+        return RELAY_PROBE_BODY.fullmatch(source.read()) is not None
+
+
 def is_a_database(path):
     if not os.path.isfile(path) or os.path.islink(path):
         return False
@@ -558,6 +788,8 @@ def entry_of(path):
         described["target"] = os.readlink(path)
     if kind == "f":
         described["digest"] = digest_of(path)
+        if is_a_relay_probe_object(path, held.st_size):
+            described["written-by"] = RELAY_PROBE_WRITER
     return " ".join(f"{field}={value}" for field, value in described.items())
 
 
@@ -638,10 +870,16 @@ def main(arguments):
     elif command == "read-the-state":
         roots, environment_path, agent_unit, secrets_directory = rest
         print(json.dumps(read_the_state(json.loads(roots), environment_path, agent_unit, secrets_directory)))
+    elif command == "schedule-a-task":
+        print(json.dumps(schedule_a_task(*rest)))
+    elif command == "box-assertion":
+        print(box_assertion(*rest))
     else:
-        raise SystemExit(f"no such command {command!r}; the commands are write-files, ask-the-barrier, files-written and read-the-state")
+        raise SystemExit(
+            f"no such command {command!r}; the commands are write-files, ask-the-barrier, files-written, read-the-state, "
+            "schedule-a-task and box-assertion"
+        )
 
 
 if __name__ == "__main__":
-
     main(sys.argv[1:])
