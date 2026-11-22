@@ -15,6 +15,7 @@ import {
 	wifiOutcomeSchema,
 	type AwaitingBox,
 	type BoxConfiguration,
+	type BoxShareReport,
 	type BoxPlacement,
 	type BoxRole,
 	type TakeOver,
@@ -22,7 +23,8 @@ import {
 	type ConnectedBox,
 	type EmptyBox,
 	type KeptBackupDocument,
-	type SealedSecret
+	type SealedSecret,
+	type SharePlacement
 } from '$lib/company/box';
 import type { Environment } from './agent-request';
 import {
@@ -429,10 +431,14 @@ export function holdsCompanyKey(box: BoxRow, keyring: Keyring | null): boolean {
 }
 
 export async function companyBoxesOf(client: SupabaseClient, companyID: string): Promise<CompanyBoxes> {
-	const [boxes, keyring] = await Promise.all([boxesOfCompany(client, companyID), keyringOf(client, companyID)]);
+	const [boxes, keyring, readiness] = await Promise.all([
+		boxesOfCompany(client, companyID),
+		keyringOf(client, companyID),
+		boxReadinessOf(client, companyID)
+	]);
 	const payer = await modelPayerOf(client, companyID, keyring);
 	return {
-		boxes: boxes.map((box) => connectedBoxOf(box, keyring)),
+		boxes: boxes.map((box) => connectedBoxOf(box, keyring, readiness.get(box.publicKey))),
 		sealingKey: keyring?.sealingKey ?? null,
 		hasModelKey: Boolean(keyring?.sealedModelKey),
 		newestBackupAt: keyring ? await newestKeptBackupAt(client, companyID, keyring.sealingKey) : null,
@@ -542,7 +548,17 @@ async function companyKeepsABackup(client: SupabaseClient, companyID: string): P
 	return data === true;
 }
 
-function connectedBoxOf(box: BoxRow, keyring: Keyring | null): ConnectedBox {
+const boxReadinessSchema = z.array(z.object({ public_key: z.string(), is_ready: z.boolean(), share: z.number().nullable() }));
+
+type BoxReadiness = { isReady: boolean; share: number | null };
+
+async function boxReadinessOf(client: SupabaseClient, companyID: string): Promise<Map<string, BoxReadiness>> {
+	const { data, error } = await client.rpc('box_readiness_of', { ready_company: companyID });
+	if (error) throw new Error(`readiness of the boxes of ${companyID}: ${error.message}`);
+	return new Map(boxReadinessSchema.parse(data).map((row) => [row.public_key, { isReady: row.is_ready, share: row.share }]));
+}
+
+function connectedBoxOf(box: BoxRow, keyring: Keyring | null, readiness: BoxReadiness | undefined): ConnectedBox {
 	return {
 		companyID: box.companyID,
 		publicKey: box.publicKey,
@@ -552,8 +568,39 @@ function connectedBoxOf(box: BoxRow, keyring: Keyring | null): ConnectedBox {
 		site: box.site,
 		lastSeenAt: box.lastSeenAt,
 		holdsCompanyKey: holdsCompanyKey(box, keyring),
-		hasAdminAccount: box.settings.hasAdminAccount ?? false
+		hasAdminAccount: box.settings.hasAdminAccount ?? false,
+		isReady: readiness?.isReady ?? false,
+		share: readiness?.share ?? null
 	};
+}
+
+const sharePlacementSchema = z.array(z.object({ public_key: z.string(), kept_through: z.string().nullable() }));
+
+export async function reportBoxShare(client: SupabaseClient, box: BoxRow, report: BoxShareReport | null): Promise<SharePlacement> {
+	if (report) await noteBoxShare(client, box, report);
+	const [digest, placed] = await Promise.all([
+		client.rpc('standbys_digest_of', { standing_company: box.companyID }),
+		client.rpc('share_placement_of', { placed_company: box.companyID })
+	]);
+	if (digest.error) throw new Error(`standbys of ${box.companyID}: ${digest.error.message}`);
+	if (placed.error) throw new Error(`where the log of ${box.companyID} is placed: ${placed.error.message}`);
+	return {
+		standbysDigest: z.string().parse(digest.data),
+		standbys: sharePlacementSchema.parse(placed.data).map((standby) => ({ publicKey: standby.public_key, keptThrough: standby.kept_through }))
+	};
+}
+
+async function noteBoxShare(client: SupabaseClient, box: BoxRow, report: BoxShareReport): Promise<void> {
+	const { error } = await client.rpc('note_box_share', {
+		box_key: box.publicKey,
+		reported_digest: report.rankedAgainst,
+		reported_kept_through: report.keptThrough,
+		reported_share_pieces: report.sharePieces,
+		reported_held_pieces: report.heldPieces,
+		reported_log_pieces: report.logPieces
+	});
+	if (error?.code === checkViolation) throw new BoxRefused(`the record refused this share: ${error.message}`, 400);
+	if (error) throw new Error(`share of box ${box.publicKey}: ${error.message}`);
 }
 
 export async function keepSealedModelKey(

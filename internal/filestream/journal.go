@@ -46,6 +46,8 @@ func (entry Entry) name() string {
 	return fmt.Sprintf(entryNameLayout, entry.Sequence)
 }
 
+var LogFolders = []string{journalFolder + "/", fileChunkFolder + "/"}
+
 type Journal struct {
 	Destination offsite.Destination
 }

@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"maps"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -29,11 +30,12 @@ type storedBody struct {
 }
 
 type fakeStorage struct {
-	mutex   sync.Mutex
-	objects map[string]storedBody
-	token   string
-	now     time.Time
-	puts    int
+	mutex        sync.Mutex
+	objects      map[string]storedBody
+	token        string
+	now          time.Time
+	puts         int
+	refusesReads bool
 }
 
 func newFakeStorage() *fakeStorage {
@@ -60,6 +62,10 @@ func (storage *fakeStorage) serve(t *testing.T) Store {
 			writer.Write([]byte(`{}`))
 		case request.Method == http.MethodGet && strings.HasPrefix(path, "/object/authenticated/"+Bucket+"/"):
 			body, isKept := storage.objects[strings.TrimPrefix(path, "/object/authenticated/"+Bucket+"/")]
+			if storage.refusesReads {
+				http.Error(writer, "the store is out of reach", http.StatusServiceUnavailable)
+				return
+			}
 			if !isKept {
 				http.Error(writer, "not found", http.StatusBadRequest)
 				return
@@ -87,18 +93,23 @@ func (storage *fakeStorage) list(writer http.ResponseWriter, request *http.Reque
 		Offset int    `json:"offset"`
 	}
 	json.NewDecoder(request.Body).Decode(&asked)
-	names := []string{}
-	created := map[string]time.Time{}
+	listed := map[string]StoredObject{}
 	for path, body := range storage.objects {
-		if rest, isUnder := strings.CutPrefix(path, asked.Prefix); isUnder && !strings.Contains(rest, "/") {
-			names = append(names, rest)
-			created[rest] = body.createdAt
+		rest, isUnder := strings.CutPrefix(path, asked.Prefix)
+		if !isUnder {
+			continue
 		}
+		if folder, _, isNested := strings.Cut(rest, "/"); isNested {
+			listed[folder] = StoredObject{Name: folder}
+			continue
+		}
+		identifier := "object-" + path
+		listed[rest] = StoredObject{ID: &identifier, Name: rest, CreatedAt: body.createdAt}
 	}
-	slices.Sort(names)
+	names := slices.Sorted(maps.Keys(listed))
 	page := []StoredObject{}
 	for index := asked.Offset; index < len(names) && index < asked.Offset+asked.Limit; index++ {
-		page = append(page, StoredObject{Name: names[index], CreatedAt: created[names[index]]})
+		page = append(page, listed[names[index]])
 	}
 	json.NewEncoder(writer).Encode(page)
 }
@@ -207,13 +218,12 @@ func TestAStandbyBoxRebuildsTheArchiveTheServiceBoxSnapshotted(t *testing.T) {
 		}
 	}
 
-	cache := ChunkCache{DirectoryPath: t.TempDir()}
-	newest, fetched, errorValue := cache.KeepUp(context.Background(), destination)
-	if errorValue != nil || newest.Name != shipped.Name || fetched != len(shipped.chunkIDs()) {
-		t.Fatalf("kept up with %s fetching %d, %v", newest.Name, fetched, errorValue)
+	newest, errorValue := Newest(context.Background(), destination)
+	if errorValue != nil || newest.Name != shipped.Name {
+		t.Fatalf("the newest snapshot is %s, %v", newest.Name, errorValue)
 	}
 	archivePath := filepath.Join(t.TempDir(), "taken-over.tar")
-	if errorValue := cache.Materialize(context.Background(), destination, newest, keyring, archivePath); errorValue != nil {
+	if errorValue := (ChunkCache{DirectoryPath: t.TempDir()}).Materialize(context.Background(), destination, newest, keyring, archivePath); errorValue != nil {
 		t.Fatal(errorValue)
 	}
 	rebuilt := membersOfArchive(t, archivePath)
@@ -320,25 +330,5 @@ func TestPruningKeepsTheNewestSnapshotsAndSweepsOnlyChunksNothingKeptNeedsAndNot
 	newest, errorValue := Newest(context.Background(), destination)
 	if errorValue != nil || newest.Name != kept.Name {
 		t.Fatalf("newest after pruning %s, %v", newest.Name, errorValue)
-	}
-}
-
-func TestAStandbyCacheForgetsWhatTheNewestSnapshotNoLongerNeeds(t *testing.T) {
-	storage := newFakeStorage()
-	keyring := aKeyring(t)
-	destination := destinationFor(t, storage, keyring)
-	cache := ChunkCache{DirectoryPath: t.TempDir()}
-	shipSnapshot(t, destination, keyring, hostMembers{hostbackup.FilesMemberName: []byte("before")}, time.Now())
-	if _, _, errorValue := cache.KeepUp(context.Background(), destination); errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	newest, _ := shipSnapshot(t, destination, keyring, hostMembers{hostbackup.FilesMemberName: []byte("after")}, time.Now().Add(time.Minute))
-
-	if _, fetched, errorValue := cache.KeepUp(context.Background(), destination); errorValue != nil || fetched != 1 {
-		t.Fatalf("fetched %d, %v", fetched, errorValue)
-	}
-	entries, _ := os.ReadDir(cache.DirectoryPath)
-	if len(entries) != len(newest.chunkIDs()) {
-		t.Fatalf("the cache holds %d chunks for a snapshot of %d", len(entries), len(newest.chunkIDs()))
 	}
 }

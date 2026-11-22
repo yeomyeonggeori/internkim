@@ -19,11 +19,17 @@ type Store struct {
 	PublishableKey string
 	AccessToken    func() (string, error)
 	HTTPClient     *http.Client
+	Held           Share
 }
 
 type StoredObject struct {
+	ID        *string   `json:"id"`
 	Name      string    `json:"name"`
 	CreatedAt time.Time `json:"created_at"`
+}
+
+func (object StoredObject) isFolder() bool {
+	return object.ID == nil
 }
 
 func (store Store) Put(ctx context.Context, path string, body []byte) error {
@@ -42,6 +48,9 @@ func (store Store) Put(ctx context.Context, path string, body []byte) error {
 }
 
 func (store Store) Get(ctx context.Context, path string) ([]byte, error) {
+	if held, isHeld := store.Held.read(path); isHeld {
+		return held, nil
+	}
 	response, errorValue := store.send(ctx, http.MethodGet, store.authenticatedObjectURL(path), nil, nil)
 	if errorValue != nil {
 		return nil, errorValue
@@ -68,6 +77,29 @@ func (store Store) List(ctx context.Context, prefix string) ([]StoredObject, err
 }
 
 const listPageSize = 1000
+
+func (store Store) ListEvery(ctx context.Context, folder string) ([]StoredObject, error) {
+	listed, errorValue := store.List(ctx, folder)
+	if errorValue != nil {
+		return nil, errorValue
+	}
+	every := []StoredObject{}
+	for _, object := range listed {
+		if !object.isFolder() {
+			every = append(every, object)
+			continue
+		}
+		nested, errorValue := store.ListEvery(ctx, folder+object.Name+"/")
+		if errorValue != nil {
+			return nil, errorValue
+		}
+		for _, inside := range nested {
+			inside.Name = object.Name + "/" + inside.Name
+			every = append(every, inside)
+		}
+	}
+	return every, nil
+}
 
 func (store Store) listPage(ctx context.Context, prefix string, offset int) ([]StoredObject, error) {
 	body, errorValue := json.Marshal(map[string]any{

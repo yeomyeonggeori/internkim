@@ -109,10 +109,27 @@ export const connectedBoxSchema = z.object({
 	site: z.string(),
 	lastSeenAt: z.string().nullable(),
 	holdsCompanyKey: z.boolean(),
-	hasAdminAccount: z.boolean()
+	hasAdminAccount: z.boolean(),
+	isReady: z.boolean(),
+	share: z.number().nullable()
 }).strict();
 
 export type ConnectedBox = z.infer<typeof connectedBoxSchema>;
+
+export const boxShareReportSchema = z.object({
+	rankedAgainst: z.string().regex(/^[0-9a-f]{64}$/),
+	keptThrough: z.iso.datetime({ offset: true }).nullable(),
+	sharePieces: z.number().int(),
+	heldPieces: z.number().int(),
+	logPieces: z.number().int()
+}).strict();
+
+export type BoxShareReport = z.infer<typeof boxShareReportSchema>;
+
+export type SharePlacement = {
+	standbysDigest: string;
+	standbys: { publicKey: string; keptThrough: string | null }[];
+};
 
 export const companyBoxesSchema = z.object({
 	boxes: z.array(connectedBoxSchema),

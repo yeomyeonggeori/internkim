@@ -11,7 +11,9 @@ const connected = {
 	site: '',
 	lastSeenAt: null,
 	holdsCompanyKey: true,
-	hasAdminAccount: false
+	hasAdminAccount: false,
+	isReady: true,
+	share: null
 };
 const announced = { publicKey, announcedAt: '2026-09-27T00:00:00.000Z', hostName: null, pairingPageAddresses: [] };
 const noBoxes = { boxes: [], sealingKey: null, hasModelKey: false, newestBackupAt: null, takeOver: { isAutomatic: false, lapseSeconds: 300 }, isServedByConnectionFile: false, creditsCanPayForModels: false, usesOwnModelKey: true, paidBy: 'nothing' as const, isPayerChangeWaiting: false, isModelKeyOnlyOnTheComputer: false };

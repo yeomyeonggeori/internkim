@@ -109,6 +109,9 @@ func extractTheDataDirectory(ctx context.Context, destination offsite.Destinatio
 	if index < 0 {
 		return fmt.Errorf("the base backup %s holds no %s", backup.Name, DataDirectoryArchive)
 	}
+	if errorValue := cache.FetchMissing(ctx, destination, backup.Chunks[DataDirectoryArchive]); errorValue != nil {
+		return fmt.Errorf("fetching what the base backup %s holds: %w", backup.Name, errorValue)
+	}
 	reading, writing := io.Pipe()
 	go func() {
 		writing.CloseWithError(cache.WriteMember(ctx, destination, backup.ChunkManifest(), backup.Members[index], keyring, writing))

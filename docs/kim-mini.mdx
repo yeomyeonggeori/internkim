@@ -183,8 +183,7 @@ Every fifteen minutes the service box takes a snapshot of everything a backup
 holds and keeps it in the hosted service, sealed to the company key, where any
 of the company's boxes can open it and nothing else can. A snapshot is cut into
 chunks by their content, and only chunks the service box has not kept before
-are sent, so a quiet quarter hour costs a few megabytes. Each standby box
-fetches the newest snapshot's chunks as they appear. Only the service box may
+are sent, so a quiet quarter hour costs a few megabytes. Only the service box may
 write snapshots, so a box that has just stopped serving cannot leave a stale
 one behind. The setup page shows when the newest one was made, and
 `SNAPSHOTS_KEPT` in `/etc/internkim/company-host.env` says how many are kept,
@@ -205,12 +204,18 @@ stops after two minutes, and the agent sends its reply after 30 seconds.
 `internkim wal-follow release` lets the database commit without waiting for the
 hosted service.
 
+The standby boxes hold that log once more between them, each piece on one of
+them, so two standbys hold half each ([Seeding across boxes](/docs/seeding)).
+The setup page says when each box is ready: a standby once it holds its whole
+share up to the newest piece the hosted service keeps.
+
 When the service box's building loses power or its line, an administrator chooses
 Make this box serve on a standby box. The serving box, if it is still up, stops
 its services and stands by. The new service box rebuilds the database from the
 newest base backup and every piece of WAL kept after it, replays the file
 journal from its newest full entry, and starts the company from them while
-keeping its own identity. A company that keeps no base backup yet is taken over
+keeping its own identity. It reads the pieces of its own share from its disk
+and fetches the rest from the hosted service sixteen at a time. A company that keeps no base backup yet is taken over
 from its newest snapshot instead. While the company keeps neither, the switch is
 refused, since the new box would have nothing to start from, and a box that
 cannot open what the company keeps stops with an error instead of starting the

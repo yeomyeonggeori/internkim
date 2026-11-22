@@ -346,7 +346,7 @@ func boxDaemon(appURL string) box.Daemon {
 		RestartServices: func() error {
 			return companyhost.RestartTheServices(thisComputer{}, os.Stdout)
 		},
-		StartKeepingUp: startKeepingUpWithTheServiceBox,
+		KeepTheShare:   keepThisBoxShare,
 		FollowRelease:  followTheServiceBoxRelease,
 		StartWorking:   startWorkingForTheServiceBox,
 		PackageVersion: thisBoxRelease(),

@@ -4,12 +4,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/yeomyeonggeori/internkim/internal/box"
@@ -27,14 +25,11 @@ func companyDestinationOf(session box.Session) offsite.Destination {
 			ProjectURL:     session.Configuration.CentralPlane.ProjectURL,
 			PublishableKey: session.Configuration.CentralPlane.PublishableKey,
 			AccessToken:    func() (string, error) { return session.Session.AccessToken, nil },
+			Held:           thisBoxShare(),
 		},
 		CompanyID:  session.Configuration.Company.ID,
 		SealingKey: session.SealingKey,
 	}
-}
-
-func standbyChunks() offsite.ChunkCache {
-	return offsite.ChunkCache{DirectoryPath: blueclaw.CompanyHostStandbyChunksPath}
 }
 
 type takeOverSource struct {
@@ -88,29 +83,12 @@ func newestSnapshotToTakeOverFrom(ctx context.Context, destination offsite.Desti
 	if errorValue := os.MkdirAll(filepath.Dir(archivePath), 0o700); errorValue != nil {
 		return takeOverSource{}, errorValue
 	}
-	if errorValue := standbyChunks().Materialize(ctx, destination, manifest, keyring, archivePath); errorValue != nil {
+	cache := offsite.ChunkCache{DirectoryPath: filepath.Join(blueclaw.CompanyHostBackupsPath, "snapshot-chunks")}
+	defer os.RemoveAll(cache.DirectoryPath)
+	if errorValue := cache.Materialize(ctx, destination, manifest, keyring, archivePath); errorValue != nil {
 		return takeOverSource{}, errorValue
 	}
 	return takeOverSource{Description: "the snapshot made " + manifest.CreatedAt.UTC().Format(time.RFC3339), ArchivePath: archivePath}, nil
-}
-
-var keepingUp sync.Mutex
-
-func startKeepingUpWithTheServiceBox(ctx context.Context, session box.Session) {
-	if !keepingUp.TryLock() {
-		return
-	}
-	go func() {
-		defer keepingUp.Unlock()
-		manifest, fetched, errorValue := standbyChunks().KeepUp(ctx, companyDestinationOf(session))
-		switch {
-		case errors.Is(errorValue, offsite.ErrNoBackup):
-		case errorValue != nil:
-			log.Printf("keeping up with the service box's newest snapshot: %v; trying again at the next check", errorValue)
-		case fetched > 0:
-			log.Printf("this box holds %s now, %d chunks newer than what it held", manifest.Name, fetched)
-		}
-	}()
 }
 
 func takeOverIsUnderway() bool {
