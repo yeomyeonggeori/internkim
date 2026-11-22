@@ -4,12 +4,14 @@ import importlib.machinery
 import importlib.util
 import io
 import json
+import os
 import sys
 import tarfile
 import re
 import subprocess
 import tempfile
 import threading
+import time
 import unittest
 import unittest.mock
 import urllib.request
@@ -29,6 +31,87 @@ def load_driver():
     module = importlib.util.module_from_spec(specification)
     loader.exec_module(module)
     return module
+
+
+class GuestPackageCacheTests(unittest.TestCase):
+    def directory(self):
+        return Path(self.enterContext(tempfile.TemporaryDirectory()))
+
+    def run_hook(self, verb, kept, archives, lists):
+        hook = (
+            rig.GUEST_PACKAGE_HOOK.replace(rig.GUEST_PACKAGE_CACHE_PATH, str(kept))
+            .replace("/var/cache/apt/archives", str(archives))
+            .replace("/var/lib/apt/lists", str(lists))
+        )
+        subprocess.run(["sh", "-c", hook, "hook", verb], check=True)
+
+    def test_every_guest_mounts_the_one_cache_its_image_and_architecture_share(self):
+        cache = self.directory() / "debian"
+        machine = rig.Machine("guest", self.directory(), package_cache_directory=cache)
+        with unittest.mock.patch.object(rig, "checked") as ran:
+            machine.create()
+        created = ran.call_args_list[0].args[0]
+        self.assertIn(f"{cache}:{rig.GUEST_PACKAGE_CACHE_PATH}", created)
+        self.assertEqual(rig.package_cache_for("debian:trixie-slim"), rig.package_cache_for("debian:trixie-slim"))
+        self.assertNotEqual(rig.package_cache_for("debian:trixie-slim"), rig.package_cache_for("ubuntu:24.04"))
+
+    def test_the_hooks_are_in_place_before_the_guest_first_asks_apt_for_anything(self):
+        script = rig.BOOTSTRAP_SCRIPT
+        self.assertLess(script.index(rig.GUEST_PACKAGE_HOOKS_PATH), script.index("apt-get update"))
+        self.assertLess(script.index("seed-lists"), script.index("apt-get update"))
+
+    def test_a_guest_takes_the_packages_it_lacks_and_gives_back_the_ones_it_fetched(self):
+        kept, archives, lists = self.directory(), self.directory(), self.directory()
+        (kept / "archives").mkdir()
+        (kept / "archives" / "curl_8.deb").write_text("kept curl")
+        (archives / "curl_8.deb").write_text("the guest's own curl")
+        (kept / "archives" / "jq_1.deb").write_text("kept jq")
+
+        self.run_hook("seed", kept, archives, lists)
+        (archives / "systemd_257.deb").write_text("fetched systemd")
+        os.utime(archives / "systemd_257.deb", (1_700_000_000, 1_700_000_000))
+        self.run_hook("keep", kept, archives, lists)
+
+        self.assertEqual((archives / "jq_1.deb").read_text(), "kept jq")
+        self.assertEqual((archives / "curl_8.deb").read_text(), "the guest's own curl")
+        self.assertEqual((kept / "archives" / "systemd_257.deb").read_text(), "fetched systemd")
+        self.assertGreater((kept / "archives" / "systemd_257.deb").stat().st_mtime, time.time() - 60)
+        self.assertEqual([path.name for path in (kept / "archives").iterdir() if ".partial." in path.name], [])
+
+    def test_the_lists_keep_their_times_so_apt_still_asks_the_mirror_what_changed(self):
+        kept, archives, lists = self.directory(), self.directory(), self.directory()
+        index = lists / "deb.debian.org_debian_dists_trixie_InRelease"
+        index.write_text("release")
+        os.utime(index, (1_700_000_000, 1_700_000_000))
+        (lists / "lock").write_text("")
+
+        self.run_hook("keep-lists", kept, archives, lists)
+        fresh = self.directory()
+        self.run_hook("seed-lists", kept, archives, fresh)
+
+        self.assertEqual(os.stat(fresh / index.name).st_mtime, 1_700_000_000)
+        self.assertFalse((kept / "lists" / "lock").exists())
+
+    def test_the_cache_drops_what_is_old_or_past_its_limit_oldest_first(self):
+        cache = self.directory()
+        (cache / "archives").mkdir()
+        now = 2_000_000_000
+
+        def kept(name, size, age):
+            path = cache / "archives" / name
+            path.write_bytes(b"x" * size)
+            os.utime(path, (now - age, now - age))
+            return path
+
+        stale = kept("old_1.deb", 10, rig.PACKAGE_CACHE_LONGEST_AGE_SECONDS + 1)
+        stray = kept("half.deb.partial.42", 10, rig.PACKAGE_CACHE_STRAY_AGE_SECONDS + 1)
+        newest = kept("new_1.deb", 60, 10)
+        older = kept("older_1.deb", 60, 20)
+
+        rig.prune_package_cache(cache, now=now, limit_bytes=100)
+
+        self.assertEqual(sorted(path.name for path in (cache / "archives").iterdir()), [newest.name])
+        self.assertFalse(stale.exists() or stray.exists() or older.exists())
 
 
 class StandInPackageTests(unittest.TestCase):
