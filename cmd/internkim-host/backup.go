@@ -112,60 +112,97 @@ func runRestore(arguments []string) error {
 		archivePaths = append(archivePaths, flags.Arg(0))
 		remaining = flags.Args()[1:]
 	}
-	if len(archivePaths) != 1 {
-		return fmt.Errorf("name the one backup archive to restore")
+	if len(archivePaths) > 1 || (len(archivePaths) == 0 && !*isTakingOver) {
+		return fmt.Errorf("name the one backup archive to restore; only a take-over restores the company from its log, with none named")
 	}
 	if errorValue := companyhost.RequireAdministrator(); errorValue != nil {
 		return errorValue
 	}
 	request := companyhost.RestoreRequest{
-		ArchivePath: archivePaths[0],
-		Replace:     *isReplacing,
-		Now:         time.Now(),
+		Replace: *isReplacing,
+		Now:     time.Now(),
+	}
+	if len(archivePaths) == 1 {
+		request.ArchivePath = archivePaths[0]
 	}
 	if *isTakingOver {
-		holdsACompany, errorValue := companyhost.HoldsACompany()
-		if errorValue != nil {
-			return errorValue
-		}
-		ask, errorValue := askingForThisBoxSession()
-		if errorValue != nil {
-			return errorValue
-		}
-		session := takeOverSession{Path: takeOverSessionPath(), Ask: ask}
-		defer os.Remove(takeOverSessionPath())
-		renewing, stopRenewing := context.WithCancel(context.Background())
-		defer stopRenewing()
-		go session.keepFresh(renewing)
-		place := asTheBoxTakingOver(thisBox(), takeOverSessionPath())
-		starting := startingWithTheTakeOverSession(boxDaemon("").Places, session.fresh)
-		attempts, errorValue := takeOverRetries().read()
-		if errorValue != nil {
-			return errorValue
-		}
-		request.Replace, request.KeepsThisBox, request.BeforeStarting, request.OnceServing = holdsACompany, true, starting, markThisBoxInstalled
-		request.EarlierFinding, request.FindingKept = attempts.finding(), takeOverRetries().keepTheFinding
-		request.RebuildFromWAL, request.ReplayFiles = rebuildTheDatabaseFromKeptWALAs(place), replayTheFileJournalAs(place)
+		return takeOverWith(request)
 	}
 	result, errorValue := companyhost.Restore(request, thisComputer{}, os.Stdout)
 	if errorValue != nil {
 		return errorValue
 	}
 	printRestore(os.Stdout, result)
-	if !*isTakingOver {
-		return nil
+	return nil
+}
+
+func takeOverWith(request companyhost.RestoreRequest) error {
+	holdsACompany, errorValue := companyhost.HoldsACompany()
+	if errorValue != nil {
+		return errorValue
 	}
+	defer os.Remove(takeOverSessionPath())
+	session, kept, errorValue := claimTheCompanyToTakeOver()
+	if errorValue != nil {
+		return errorValue
+	}
+	if request.ArchivePath == "" {
+		if request.Log, errorValue = theCompanysLog(kept); errorValue != nil {
+			return errorValue
+		}
+	}
+	renewing, stopRenewing := context.WithCancel(context.Background())
+	defer stopRenewing()
+	go session.keepFresh(renewing)
+	attempts, errorValue := takeOverRetries().read()
+	if errorValue != nil {
+		return errorValue
+	}
+	request.Replace, request.KeepsThisBox = holdsACompany, true
+	request.BeforeStarting = startingWithTheTakeOverSession(boxDaemon("").Places, session.fresh)
+	request.OnceServing = markThisBoxInstalled
+	request.EarlierFinding, request.FindingKept = attempts.finding(), takeOverRetries().keepTheFinding
+	request.RebuildFromWAL, request.ReplayFiles = rebuildTheDatabaseFromKeptWAL(kept), replayTheFileJournal(kept)
+	result, errorValue := companyhost.Restore(request, thisComputer{}, os.Stdout)
+	if errorValue != nil {
+		return errorValue
+	}
+	printRestore(os.Stdout, result)
 	return takeOverRetries().finishTheTakeOver()
 }
 
+func claimTheCompanyToTakeOver() (takeOverSession, keptOffTheBox, error) {
+	ask, errorValue := askingForThisBoxClaim()
+	if errorValue != nil {
+		return takeOverSession{}, keptOffTheBox{}, errorValue
+	}
+	claim, errorValue := ask(context.Background())
+	if errorValue != nil {
+		return takeOverSession{}, keptOffTheBox{}, fmt.Errorf("asking which company this box takes over: %w", errorValue)
+	}
+	if errorValue := keepTheTakeOverSession(takeOverSessionPath(), claim.Session.AccessToken); errorValue != nil {
+		return takeOverSession{}, keptOffTheBox{}, fmt.Errorf("keeping the session this box takes the company over with: %w", errorValue)
+	}
+	kept, errorValue := keptForTheTakeOver(claim, blueclaw.CompanyHostBoxStatePath, takeOverSessionPath())
+	return takeOverSession{Path: takeOverSessionPath(), Ask: sessionOf(ask)}, kept, errorValue
+}
+
 func printRestore(output io.Writer, result companyhost.RestoreResult) {
-	fmt.Fprintf(output, "\nRestored %s from the backup made %s.\n", result.Connection.Company.Name, result.Manifest.CreatedAt.Local().Format("2006-01-02 15:04"))
+	fmt.Fprintf(output, "\nRestored %s from %s.\n", result.Connection.Company.Name, describeWhatWasRestored(result))
 	fmt.Fprintf(output, "  %d files, %s, under %v\n", result.Files.Files, companyhost.DescribeSize(result.Files.Bytes), result.Manifest.FileRoots)
 	printUnresolved(output, result.Unresolved)
 	if result.SafetyBackup != "" {
 		fmt.Fprintf(output, "What this computer held before is in %s; restore it with --replace to undo this.\n", result.SafetyBackup)
 	}
 	fmt.Fprintf(output, "%s runs the server again. Open %s/settings/setup and choose Check connection.\n", result.Supervisor, result.Connection.AppURL)
+}
+
+func describeWhatWasRestored(result companyhost.RestoreResult) string {
+	madeAt := result.Manifest.CreatedAt.Local().Format("2006-01-02 15:04")
+	if result.IsFromTheLog {
+		return "its log, the base backup made " + madeAt + " and everything kept after it"
+	}
+	return "the backup made " + madeAt
 }
 
 func printUnresolved(output io.Writer, unresolved []hostbackup.Ownership) {

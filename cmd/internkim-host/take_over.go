@@ -16,6 +16,7 @@ import (
 	"github.com/yeomyeonggeori/internkim/internal/companyhost"
 	"github.com/yeomyeonggeori/internkim/internal/offsite"
 	"github.com/yeomyeonggeori/internkim/internal/runtime/blueclaw"
+	"github.com/yeomyeonggeori/internkim/internal/walstream"
 )
 
 const takeOverUnitName = "internkim-take-over"
@@ -36,6 +37,11 @@ func standbyChunks() offsite.ChunkCache {
 	return offsite.ChunkCache{DirectoryPath: blueclaw.CompanyHostStandbyChunksPath}
 }
 
+type takeOverSource struct {
+	Description string
+	ArchivePath string
+}
+
 func takeOverFromTheNewestBackup(ctx context.Context, session box.Session, keyring box.Keyring) error {
 	switch takeOverUnitState() {
 	case "active", "activating":
@@ -49,25 +55,43 @@ func takeOverFromTheNewestBackup(ctx context.Context, session box.Session, keyri
 			return errorValue
 		}
 	}
-	destination := companyDestinationOf(session)
-	manifest, errorValue := offsite.Newest(ctx, destination)
-	if errors.Is(errorValue, offsite.ErrNoBackup) {
-		return box.ErrNothingToTakeOver
-	}
+	source, errorValue := newestSourceToTakeOverFrom(ctx, companyDestinationOf(session), keyring)
 	if errorValue != nil {
-		return errorValue
-	}
-	archivePath := filepath.Join(companyhost.DefaultBackupDirectoryPath(), strings.TrimSuffix(manifest.Name, ".json")+".tar")
-	if errorValue := os.MkdirAll(filepath.Dir(archivePath), 0o700); errorValue != nil {
-		return errorValue
-	}
-	if errorValue := standbyChunks().Materialize(ctx, destination, manifest, keyring, archivePath); errorValue != nil {
 		return errorValue
 	}
 	if errorValue := keepTheTakeOverSession(takeOverSessionPath(), session.Session.AccessToken); errorValue != nil {
 		return fmt.Errorf("keeping this box's session for the take-over: %w", errorValue)
 	}
-	return startTheTakeOver(archivePath, manifest.CreatedAt)
+	return startTheTakeOver(source)
+}
+
+func newestSourceToTakeOverFrom(ctx context.Context, destination offsite.Destination, keyring box.Keyring) (takeOverSource, error) {
+	baseBackup, errorValue := walstream.NewestBaseBackup(ctx, destination)
+	if errorValue == nil {
+		return takeOverSource{Description: "the company's log, from the base backup made " + baseBackup.CreatedAt.UTC().Format(time.RFC3339)}, nil
+	}
+	if !errors.Is(errorValue, walstream.ErrNoBaseBackup) {
+		return takeOverSource{}, errorValue
+	}
+	return newestSnapshotToTakeOverFrom(ctx, destination, keyring)
+}
+
+func newestSnapshotToTakeOverFrom(ctx context.Context, destination offsite.Destination, keyring box.Keyring) (takeOverSource, error) {
+	manifest, errorValue := offsite.Newest(ctx, destination)
+	if errors.Is(errorValue, offsite.ErrNoBackup) {
+		return takeOverSource{}, box.ErrNothingToTakeOver
+	}
+	if errorValue != nil {
+		return takeOverSource{}, errorValue
+	}
+	archivePath := filepath.Join(companyhost.DefaultBackupDirectoryPath(), strings.TrimSuffix(manifest.Name, ".json")+".tar")
+	if errorValue := os.MkdirAll(filepath.Dir(archivePath), 0o700); errorValue != nil {
+		return takeOverSource{}, errorValue
+	}
+	if errorValue := standbyChunks().Materialize(ctx, destination, manifest, keyring, archivePath); errorValue != nil {
+		return takeOverSource{}, errorValue
+	}
+	return takeOverSource{Description: "the snapshot made " + manifest.CreatedAt.UTC().Format(time.RFC3339), ArchivePath: archivePath}, nil
 }
 
 var keepingUp sync.Mutex
@@ -102,25 +126,29 @@ func takeOverUnitState() string {
 	return strings.TrimSpace(string(output))
 }
 
-func startTheTakeOver(archivePath string, createdAt time.Time) error {
+func startTheTakeOver(source takeOverSource) error {
 	hostCommandPath, errorValue := os.Executable()
 	if errorValue != nil {
 		return errorValue
 	}
-	output, errorValue := exec.Command("systemd-run", takeOverUnitArguments(hostCommandPath, archivePath, createdAt)...).CombinedOutput()
+	output, errorValue := exec.Command("systemd-run", takeOverUnitArguments(hostCommandPath, source)...).CombinedOutput()
 	if errorValue != nil {
 		return fmt.Errorf("systemd-run refused the take-over: %v: %s", errorValue, strings.TrimSpace(string(output)))
 	}
 	return box.ErrTakeOverUnderway
 }
 
-func takeOverUnitArguments(hostCommandPath, archivePath string, createdAt time.Time) []string {
-	return []string{
+func takeOverUnitArguments(hostCommandPath string, source takeOverSource) []string {
+	arguments := []string{
 		"--unit=" + takeOverUnitName,
-		"--description=internkim take-over from the backup made " + createdAt.UTC().Format(time.RFC3339),
+		"--description=internkim take-over from " + source.Description,
 		"--property=OnFailure=" + blueclaw.BoxServiceName + ".service",
-		hostCommandPath, "restore", "--taking-over", archivePath,
+		hostCommandPath, "restore", "--taking-over",
 	}
+	if source.ArchivePath == "" {
+		return arguments
+	}
+	return append(arguments, source.ArchivePath)
 }
 
 func standDown() error {

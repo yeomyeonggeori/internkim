@@ -17,19 +17,34 @@ import (
 
 type RestoreRequest struct {
 	ArchivePath    string
+	Log            KeptLog
 	Replace        bool
 	KeepsThisBox   bool
 	EarlierFinding SafetyFinding
 	FindingKept    func(SafetyFinding) error
-	RebuildFromWAL func(companyID, dataDirectoryPath string) error
+	RebuildFromWAL func(dataDirectoryPath string) error
 	ReplayFiles    FileJournalReplay
 	BeforeStarting func(companyID string) error
 	OnceServing    func(companyID string) error
 	Now            time.Time
 }
 
+type KeptLog struct {
+	CompanyID       string
+	BaseBackupName  string
+	TakenAt         time.Time
+	PackageVersion  string
+	PostgreSQLMajor int
+}
+
+type restoreSource struct {
+	Manifest hostbackup.Manifest
+	archive  *hostbackup.Archive
+}
+
 type RestoreResult struct {
 	Manifest     hostbackup.Manifest
+	IsFromTheLog bool
 	Connection   Connection
 	Files        hostbackup.ExtractionReport
 	Unresolved   []hostbackup.Ownership
@@ -60,11 +75,11 @@ func Restore(request RestoreRequest, machine Machine, progress io.Writer) (Resto
 
 func restoreWhileLocked(platform backupPlatform, request RestoreRequest, backupDirectoryPath string, machine Machine, progress io.Writer) (RestoreResult, error) {
 	fmt.Fprintln(progress, "1/6 Checking the backup before anything changes…")
-	archive, errorValue := checkTheArchive(platform, request, machine)
+	source, errorValue := checkTheSource(platform, request, machine)
 	if errorValue != nil {
 		return RestoreResult{}, errorValue
 	}
-	result := RestoreResult{Manifest: archive.Manifest, Supervisor: platform.NameOfItsSupervisor()}
+	result := RestoreResult{Manifest: source.Manifest, IsFromTheLog: source.archive == nil, Supervisor: platform.NameOfItsSupervisor()}
 	safetyBackup, errorValue := keepWhatThisComputerHolds(platform, request, backupDirectoryPath, machine, progress)
 	if errorValue != nil {
 		return RestoreResult{}, errorValue
@@ -75,22 +90,72 @@ func restoreWhileLocked(platform backupPlatform, request RestoreRequest, backupD
 		return RestoreResult{}, errorValue
 	}
 	fmt.Fprintln(progress, "4/6 Restoring the files and the people's accounts…")
-	extracted, unresolved, errorValue := restoreTheFiles(platform, archive, machine, request, progress)
+	extracted, unresolved, errorValue := restoreTheFiles(platform, source, machine, request, progress)
 	if errorValue != nil {
 		return RestoreResult{}, errorValue
 	}
 	result.Files, result.Unresolved = extracted, unresolved
-	connection, directoryPath, errorValue := restoredCompany(archive.Manifest)
+	connection, directoryPath, errorValue := restoredCompany(source.Manifest)
 	if errorValue != nil {
 		return RestoreResult{}, errorValue
 	}
 	result.Connection = connection
 	fmt.Fprintln(progress, "5/6 Restoring the databases…")
-	if errorValue := restoreTheDatabases(platform, archive, machine, directoryPath, connection, request, progress); errorValue != nil {
+	if errorValue := restoreTheDatabases(platform, source, machine, directoryPath, connection, request, progress); errorValue != nil {
 		return RestoreResult{}, errorValue
 	}
 	fmt.Fprintln(progress, "6/6 Starting the services and waiting for them to answer…")
 	return result, startTheRestoredHost(platform, machine, directoryPath, connection, request.BeforeStarting, request.OnceServing, progress)
+}
+
+func checkTheSource(platform backupPlatform, request RestoreRequest, machine Machine) (restoreSource, error) {
+	if request.ArchivePath == "" {
+		return checkTheLog(platform, request, machine)
+	}
+	archive, errorValue := checkTheArchive(platform, request, machine)
+	if errorValue != nil {
+		return restoreSource{}, errorValue
+	}
+	return restoreSource{Manifest: archive.Manifest, archive: &archive}, nil
+}
+
+func checkTheLog(platform backupPlatform, request RestoreRequest, machine Machine) (restoreSource, error) {
+	kept := request.Log
+	if kept.CompanyID == "" || request.RebuildFromWAL == nil || request.ReplayFiles == nil {
+		return restoreSource{}, errors.New("a restore names the archive it restores, or restores a company from its log by rebuilding the database from its WAL and replaying its file journal")
+	}
+	if errorValue := refuseANewerPackage(kept.PackageVersion, PackageVersion); errorValue != nil {
+		return restoreSource{}, errorValue
+	}
+	if errorValue := refuseAnotherMajor(platform, kept, machine); errorValue != nil {
+		return restoreSource{}, errorValue
+	}
+	if errorValue := refuseToOverwriteWithoutConsent(kept.CompanyID, request.Replace); errorValue != nil {
+		return restoreSource{}, errorValue
+	}
+	return restoreSource{Manifest: hostbackup.Manifest{
+		CreatedAt:       kept.TakenAt,
+		PackageVersion:  kept.PackageVersion,
+		CompanyID:       kept.CompanyID,
+		PostgreSQLMajor: kept.PostgreSQLMajor,
+		FileRoots:       rolesOf(hostFileRoots(platform.Layout())),
+	}}, nil
+}
+
+func refuseAnotherMajor(platform backupPlatform, kept KeptLog, machine Machine) error {
+	if kept.PostgreSQLMajor == 0 {
+		return fmt.Errorf("the base backup %s does not say which PostgreSQL major wrote it, and its WAL replays only on that major, so nothing was restored", kept.BaseBackupName)
+	}
+	hostMajor, errorValue := platform.DatabaseMajor(machine)
+	if errorValue != nil {
+		return errorValue
+	}
+	if hostMajor != kept.PostgreSQLMajor {
+		return fmt.Errorf(
+			"the company's database was kept by PostgreSQL %d and this computer runs PostgreSQL %d. WAL replays only on the major that wrote it, so install PostgreSQL %d here first",
+			kept.PostgreSQLMajor, hostMajor, kept.PostgreSQLMajor)
+	}
+	return nil
 }
 
 func checkTheArchive(platform backupPlatform, request RestoreRequest, machine Machine) (hostbackup.Archive, error) {
@@ -145,7 +210,7 @@ func refuseUnknownMembers(manifest hostbackup.Manifest) error {
 }
 
 func isRestorableMember(name string) bool {
-	if name == hostbackup.FilesMemberName || name == hostbackup.RosterMemberName {
+	if name == hostbackup.FilesMemberName {
 		return true
 	}
 	database, isDatabase := hostbackup.DatabaseNamedBy(name)
@@ -225,34 +290,38 @@ func containsRole(roles []string, wanted string) bool {
 	return false
 }
 
-func restoreTheFiles(platform backupPlatform, archive hostbackup.Archive, machine Machine, request RestoreRequest, progress io.Writer) (hostbackup.ExtractionReport, []hostbackup.Ownership, error) {
+func restoreTheFiles(platform backupPlatform, source restoreSource, machine Machine, request RestoreRequest, progress io.Writer) (hostbackup.ExtractionReport, []hostbackup.Ownership, error) {
 	var extracted hostbackup.ExtractionReport
 	extract := func() error {
-		destinations, errorValue := emptiedDestinations(platform, archive)
-		if errorValue != nil {
+		destinations := destinationsOf(platform, source.Manifest.FileRoots)
+		if errorValue := extractTheArchivedFiles(source, destinations, &extracted); errorValue != nil {
 			return errorValue
 		}
-		if errorValue := archive.ReadMember(hostbackup.FilesMemberName, func(input io.Reader) error {
-			report, errorValue := hostbackup.ExtractFiles(input, destinations)
-			extracted = report
-			return errorValue
-		}); errorValue != nil {
-			return errorValue
-		}
-		if request.ReplayFiles == nil {
-			return nil
-		}
-		return replayTheFileJournal(request.ReplayFiles, destinations, &extracted, progress)
+		return replayTheFileJournalOnto(source, request.ReplayFiles, destinations, &extracted, progress)
 	}
 	errorValue := extractKeepingThisBoxIf(request.KeepsThisBox, extract)
 	if errorValue != nil {
 		return hostbackup.ExtractionReport{}, nil, errorValue
 	}
-	if errorValue := recreateThePeople(platform, archive, machine); errorValue != nil {
+	if errorValue := recreateThePeople(platform, machine, progress); errorValue != nil {
 		return hostbackup.ExtractionReport{}, nil, errorValue
 	}
 	unresolved, errorValue := ownWhatThePeopleOwn(extracted.Unresolved)
 	return extracted, unresolved, errorValue
+}
+
+func extractTheArchivedFiles(source restoreSource, destinations map[string]string, extracted *hostbackup.ExtractionReport) error {
+	if source.archive == nil {
+		return nil
+	}
+	if errorValue := emptyTheDestinations(destinations); errorValue != nil {
+		return errorValue
+	}
+	return source.archive.ReadMember(hostbackup.FilesMemberName, func(input io.Reader) error {
+		report, errorValue := hostbackup.ExtractFiles(input, destinations)
+		*extracted = report
+		return errorValue
+	})
 }
 
 func extractKeepingThisBoxIf(keepsThisBox bool, extract func() error) error {
@@ -262,18 +331,23 @@ func extractKeepingThisBoxIf(keepsThisBox bool, extract func() error) error {
 	return keepingThisBoxThrough(blueclaw.CompanyHostBoxStatePath, extract)
 }
 
-func emptiedDestinations(platform backupPlatform, archive hostbackup.Archive) (map[string]string, error) {
+func destinationsOf(platform backupPlatform, roles []string) map[string]string {
 	destinations := map[string]string{}
 	for _, root := range hostFileRoots(platform.Layout()) {
-		if !containsRole(archive.Manifest.FileRoots, root.Role) {
-			continue
+		if containsRole(roles, root.Role) {
+			destinations[root.Role] = root.Path
 		}
-		if errorValue := emptyTheDirectory(root.Path); errorValue != nil {
-			return nil, errorValue
-		}
-		destinations[root.Role] = root.Path
 	}
-	return destinations, nil
+	return destinations
+}
+
+func emptyTheDestinations(destinations map[string]string) error {
+	for _, rootPath := range destinations {
+		if errorValue := emptyTheDirectory(rootPath); errorValue != nil {
+			return errorValue
+		}
+	}
+	return nil
 }
 
 func emptyTheDirectory(directoryPath string) error {
@@ -292,27 +366,21 @@ func emptyTheDirectory(directoryPath string) error {
 	return nil
 }
 
-func recreateThePeople(platform backupPlatform, archive hostbackup.Archive, machine Machine) error {
-	if _, hasRoster := archive.Manifest.Member(hostbackup.RosterMemberName); !hasRoster {
+func recreateThePeople(platform backupPlatform, machine Machine, progress io.Writer) error {
+	layout := platform.Layout()
+	rosterPath := layout.PolicyDocumentPath()
+	_, errorValue := os.Stat(rosterPath)
+	if errors.Is(errorValue, fs.ErrNotExist) {
+		fmt.Fprintf(progress, "  the restored files hold no roster at %s, so no person's account is recreated until admind delivers the roster\n", rosterPath)
 		return nil
 	}
-	roster, errorValue := os.CreateTemp("", "internkim-restored-roster-*.json")
 	if errorValue != nil {
 		return errorValue
 	}
-	defer os.Remove(roster.Name())
-	defer roster.Close()
-	if errorValue := archive.ReadMember(hostbackup.RosterMemberName, func(input io.Reader) error {
-		_, errorValue := io.Copy(roster, input)
-		return errorValue
-	}); errorValue != nil {
-		return errorValue
-	}
-	layout := platform.Layout()
-	arguments := []string{"sync", "--policy", roster.Name(), "--workspace", layout.WorkspacePath}
+	arguments := []string{"sync", "--policy", rosterPath, "--workspace", layout.WorkspacePath}
 	var complaint strings.Builder
 	if errorValue := machine.Run(layout.POSIXHelperPath(), arguments, nil, &complaint); errorValue != nil {
-		return fmt.Errorf("the people's accounts could not be recreated from the backup's roster (%w): %s", errorValue, strings.TrimSpace(complaint.String()))
+		return fmt.Errorf("the people's accounts could not be recreated from the restored roster at %s (%w): %s", rosterPath, errorValue, strings.TrimSpace(complaint.String()))
 	}
 	return nil
 }
@@ -344,7 +412,7 @@ func restoredCompany(manifest hostbackup.Manifest) (Connection, string, error) {
 	return connection, directoryPath, nil
 }
 
-func restoreTheDatabases(platform backupPlatform, archive hostbackup.Archive, machine Machine, directoryPath string, connection Connection, request RestoreRequest, progress io.Writer) error {
+func restoreTheDatabases(platform backupPlatform, source restoreSource, machine Machine, directoryPath string, connection Connection, request RestoreRequest, progress io.Writer) error {
 	if _, errorValue := PrepareStateDirectory(directoryPath, connection); errorValue != nil {
 		return errorValue
 	}
@@ -357,10 +425,7 @@ func restoreTheDatabases(platform backupPlatform, archive hostbackup.Archive, ma
 	}
 	settings := companyHostSettings{DirectoryPath: directoryPath, Connection: connection, DatabasePassword: password}
 	if request.RebuildFromWAL != nil {
-		rebuild := func(dataDirectoryPath string) error {
-			return request.RebuildFromWAL(connection.Company.ID, dataDirectoryPath)
-		}
-		isRebuilt, errorValue := rebuildTheDatabaseFromKeptWAL(platform, machine, rebuild, request.Now, progress)
+		isRebuilt, errorValue := rebuildTheDatabaseFromKeptWAL(platform, machine, request.RebuildFromWAL, request.Now, progress)
 		if errorValue != nil {
 			return errorValue
 		}
@@ -371,6 +436,10 @@ func restoreTheDatabases(platform backupPlatform, archive hostbackup.Archive, ma
 			return rehomeTheMessengerCommunity(platform, machine, connection, progress)
 		}
 	}
+	if source.archive == nil {
+		return ErrNoKeptWAL
+	}
+	fmt.Fprintln(progress, "  the databases come from the backup's dumps")
 	if errorValue := platform.StartTheDatabaseAndTheCache(machine); errorValue != nil {
 		return errorValue
 	}
@@ -381,7 +450,7 @@ func restoreTheDatabases(platform backupPlatform, archive hostbackup.Archive, ma
 		return errorValue
 	}
 	for _, database := range hostDatabases {
-		if errorValue := restoreOneDatabase(platform, archive, machine, database, progress); errorValue != nil {
+		if errorValue := restoreOneDatabase(platform, *source.archive, machine, database, progress); errorValue != nil {
 			return errorValue
 		}
 	}

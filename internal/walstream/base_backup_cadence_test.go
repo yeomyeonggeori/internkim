@@ -9,7 +9,7 @@ import (
 var cadenceNow = time.Date(2026, 11, 19, 9, 0, 0, 0, time.UTC)
 
 func TestABaseBackupIsDueWhenTheNewestIsADayOld(t *testing.T) {
-	facts := baseBackupFacts{hasNewest: true, newestTakenAt: cadenceNow.Add(-baseBackupEvery), piecesSince: 10}
+	facts := baseBackupFacts{hasNewest: true, namesItsMajor: true, newestTakenAt: cadenceNow.Add(-baseBackupEvery), piecesSince: 10}
 
 	if !baseBackupIsDue(facts, cadenceNow) {
 		t.Fatal("a base backup a day old was kept as the newest")
@@ -17,7 +17,7 @@ func TestABaseBackupIsDueWhenTheNewestIsADayOld(t *testing.T) {
 }
 
 func TestABaseBackupIsDueWhenATakeOverWouldFetchTooManyPieces(t *testing.T) {
-	facts := baseBackupFacts{hasNewest: true, newestTakenAt: cadenceNow.Add(-time.Hour), piecesSince: piecesATakeOverFetchesAtMost}
+	facts := baseBackupFacts{hasNewest: true, namesItsMajor: true, newestTakenAt: cadenceNow.Add(-time.Hour), piecesSince: piecesATakeOverFetchesAtMost}
 
 	if !baseBackupIsDue(facts, cadenceNow) {
 		t.Fatalf("a take-over would fetch %d pieces and no base backup is due", piecesATakeOverFetchesAtMost)
@@ -25,15 +25,23 @@ func TestABaseBackupIsDueWhenATakeOverWouldFetchTooManyPieces(t *testing.T) {
 }
 
 func TestNoBaseBackupIsDueWhileTheNewestIsRecentAndFewPiecesFollowIt(t *testing.T) {
-	facts := baseBackupFacts{hasNewest: true, newestTakenAt: cadenceNow.Add(-time.Hour), piecesSince: piecesATakeOverFetchesAtMost - 1}
+	facts := baseBackupFacts{hasNewest: true, namesItsMajor: true, newestTakenAt: cadenceNow.Add(-time.Hour), piecesSince: piecesATakeOverFetchesAtMost - 1}
 
 	if baseBackupIsDue(facts, cadenceNow) {
 		t.Fatal("a base backup is due while the newest is an hour old and few pieces follow it")
 	}
 }
 
+func TestABaseBackupIsDueWhenTheNewestDoesNotNameThePostgreSQLMajorThatWroteIt(t *testing.T) {
+	facts := baseBackupFacts{hasNewest: true, newestTakenAt: cadenceNow.Add(-time.Hour), piecesSince: 1}
+
+	if !baseBackupIsDue(facts, cadenceNow) {
+		t.Fatal("the newest base backup names no PostgreSQL major, so no take-over can start from it, and no newer one is due")
+	}
+}
+
 func TestABaseBackupIsDueWhenItIsBothOldAndFollowedByManyPieces(t *testing.T) {
-	facts := baseBackupFacts{hasNewest: true, newestTakenAt: cadenceNow.Add(-2 * baseBackupEvery), piecesSince: 2 * piecesATakeOverFetchesAtMost}
+	facts := baseBackupFacts{hasNewest: true, namesItsMajor: true, newestTakenAt: cadenceNow.Add(-2 * baseBackupEvery), piecesSince: 2 * piecesATakeOverFetchesAtMost}
 
 	if !baseBackupIsDue(facts, cadenceNow) {
 		t.Fatal("an old base backup followed by many pieces was kept as the newest")

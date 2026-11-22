@@ -105,21 +105,22 @@ request to the store.
 ## The snapshot goes
 
 Every fifteen minutes the service box dumps both databases and archives every
-file root into a snapshot (`companyhost.SnapshotTo`). A take-over that finds
-both logs uses neither half: the database comes from the base backup and the
-WAL, and the newest full entry empties each root before the journal is replayed
+file root into a snapshot (`companyhost.SnapshotTo`). A take-over reads one
+only when the company keeps no base backup. Otherwise it starts from the logs
+alone: the database comes from the base backup and the WAL, and the newest full
+entry empties each root before the journal is replayed
 (`internal/companyhost/restore_file_journal.go`). The seven older snapshots
 have no reader, since no command fetches one.
 
-Two things ride on the snapshot alone and move first.
+Two things rode on the snapshot alone and moved first.
 
-1. The roster. `policy.json` is under `/run/internkim`, outside every
-   journaled root, and a restore recreates the people's accounts from it before
-   files get their owners back (`recreateThePeople`). It joins the file journal.
-2. The release and the PostgreSQL major. The snapshot's manifest carries both
-   (`hostbackup.Manifest`), and a restore refuses a newer release. The base
-   backup's document carries them, and a box on another major refuses before
-   anything changes, since WAL replays only on the major that wrote it.
+1. The roster. `policy.json` is under `/var/lib/internkim-roster`, a root the
+   file journal carries, and a restore recreates the people's accounts from the
+   restored copy before files get their owners back (`recreateThePeople`).
+2. The release and the PostgreSQL major. The base backup's document carries
+   both (`walstream.BaseBackup`). A take-over refuses a newer release, and a
+   box on another major, before anything changes, since WAL replays only on the
+   major that wrote it.
 Dumps stay in the daily archive on the box (`internkim-host backup`), the one
 form that restores onto another PostgreSQL major.
 

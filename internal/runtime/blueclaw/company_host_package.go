@@ -65,6 +65,7 @@ const (
 	CompanyHostLogPath                     = "/var/log/internkim"
 	CompanyHostBrowserStatePath            = browserruntime.DeviceBrowsersStateDirectory
 	CompanyHostRunPath                     = "/run/internkim"
+	CompanyHostRosterPath                  = "/var/lib/internkim-roster"
 	CompanyHostWorkQueuePath               = "/run/internkim/work-queue.json"
 
 	CompanyHostConfigurationRoot = "/etc/internkim"
@@ -107,6 +108,7 @@ const (
 	// The ACP socket's directory is blueclaw's so blueclaw can create the socket,
 	// and setgid with the relay's group so that socket is the relay's group's.
 	CompanyHostACPSocketDirectoryMode = 0o2750
+	CompanyHostRosterDirectoryMode    = 0o770
 
 	// The one file an operator is expected to open. Every value in it is the
 	// default the unit would use anyway, and it is the single place the object
@@ -421,10 +423,11 @@ else
   chmod 0640 %[14]s
 fi
 
+install -d -o root -g %[3]s -m %[38]s %[37]s
 if [ -r %[21]s ]; then
   install -o %[3]s -g %[3]s -m 0640 %[21]s %[22]s
-else
-  [ -s %[22]s ] || printf '{"circles":[],"resourceAccess":[],"channels":[],"retention":{}}\n' > %[22]s
+elif [ ! -s %[22]s ]; then
+  printf '{"circles":[],"resourceAccess":[],"channels":[],"retention":{}}\n' > %[22]s
   chown %[3]s:%[3]s %[22]s
   chmod 0640 %[22]s
 fi
@@ -464,5 +467,7 @@ fi
 		layout.RelayServiceTokenPath(),
 		layout.RunAgentKeyPath(),
 		fmt.Sprintf("%04o", CompanyHostLogDirectoryMode),
-		CompanyHostModelRouteURL)
+		CompanyHostModelRouteURL,
+		CompanyHostRosterPath,
+		fmt.Sprintf("%04o", CompanyHostRosterDirectoryMode))
 }

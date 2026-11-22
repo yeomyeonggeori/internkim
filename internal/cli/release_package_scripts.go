@@ -135,7 +135,7 @@ func boxUnitFileName() string {
 }
 
 func keptStatePaths() []string {
-	return []string{blueclaw.CompanyHostStateRoot, blueclaw.CompanyHostDatabaseDataPath, blueclaw.CompanyHostCacheDataPath, blueclaw.CompanyHostBackupsPath}
+	return []string{blueclaw.CompanyHostStateRoot, blueclaw.CompanyHostRosterPath, blueclaw.CompanyHostDatabaseDataPath, blueclaw.CompanyHostCacheDataPath, blueclaw.CompanyHostBackupsPath}
 }
 
 func keptStateList() string {

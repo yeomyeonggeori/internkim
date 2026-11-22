@@ -15,14 +15,14 @@
     ],
     "members": [
       {
-        "name": "roster.json",
+        "name": "files.tar",
         "size": 2,
         "sha256": "00"
       }
     ]
   },
   "chunks": {
-    "roster.json": [
+    "files.tar": [
       "00"
     ]
   }

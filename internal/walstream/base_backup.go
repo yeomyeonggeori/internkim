@@ -39,16 +39,18 @@ const (
 var ErrNoBaseBackup = errors.New("the company keeps no base backup this box can open")
 
 type BaseBackup struct {
-	Version    int                 `json:"version"`
-	Name       string              `json:"name"`
-	SealingKey string              `json:"sealingKey"`
-	CreatedAt  time.Time           `json:"createdAt"`
-	SystemID   string              `json:"systemID"`
-	Timeline   int32               `json:"timeline"`
-	Start      string              `json:"start"`
-	End        string              `json:"end"`
-	Members    []hostbackup.Member `json:"members"`
-	Chunks     map[string][]string `json:"chunks"`
+	Version         int                 `json:"version"`
+	Name            string              `json:"name"`
+	SealingKey      string              `json:"sealingKey"`
+	CreatedAt       time.Time           `json:"createdAt"`
+	PackageVersion  string              `json:"packageVersion"`
+	PostgreSQLMajor int                 `json:"postgresqlMajor"`
+	SystemID        string              `json:"systemID"`
+	Timeline        int32               `json:"timeline"`
+	Start           string              `json:"start"`
+	End             string              `json:"end"`
+	Members         []hostbackup.Member `json:"members"`
+	Chunks          map[string][]string `json:"chunks"`
 }
 
 func BaseBackupDestination(destination offsite.Destination) offsite.Destination {
@@ -80,13 +82,14 @@ func baseBackupPath(destination offsite.Destination, name string) string {
 	return destination.CompanyID + "/" + baseBackupFolder + "/" + name
 }
 
-func TakeBaseBackup(ctx context.Context, replicationConnection string, destination offsite.Destination, keyring box.Keyring, now time.Time) (BaseBackup, error) {
+func TakeBaseBackup(ctx context.Context, replicationConnection string, destination offsite.Destination, keyring box.Keyring, release string, now time.Time) (BaseBackup, error) {
 	connection, errorValue := pgconn.Connect(ctx, replicationConnection)
 	if errorValue != nil {
 		return BaseBackup{}, fmt.Errorf("connecting to the company database for a base backup: %w", errorValue)
 	}
 	defer connection.Close(context.Background())
-	if errorValue := requireStreamingBaseBackup(connection); errorValue != nil {
+	major, errorValue := streamingMajor(connection)
+	if errorValue != nil {
 		return BaseBackup{}, errorValue
 	}
 	system, errorValue := pglogrepl.IdentifySystem(ctx, connection)
@@ -126,16 +129,18 @@ func TakeBaseBackup(ctx context.Context, replicationConnection string, destinati
 		return BaseBackup{}, fmt.Errorf("finishing the base backup of the company database: %w", errorValue)
 	}
 	backup := BaseBackup{
-		Version:    baseBackupVersion,
-		Name:       baseBackupNamePrefix + now.UTC().Format(baseBackupTimeLayout) + baseBackupNameSuffix,
-		SealingKey: destination.SealingKey,
-		CreatedAt:  now.UTC(),
-		SystemID:   system.SystemID,
-		Timeline:   started.TimelineID,
-		Start:      started.LSN.String(),
-		End:        finished.LSN.String(),
-		Members:    snapshot.Members(),
-		Chunks:     snapshot.Chunks(),
+		Version:         baseBackupVersion,
+		Name:            baseBackupNamePrefix + now.UTC().Format(baseBackupTimeLayout) + baseBackupNameSuffix,
+		SealingKey:      destination.SealingKey,
+		CreatedAt:       now.UTC(),
+		PackageVersion:  release,
+		PostgreSQLMajor: major,
+		SystemID:        system.SystemID,
+		Timeline:        started.TimelineID,
+		Start:           started.LSN.String(),
+		End:             finished.LSN.String(),
+		Members:         snapshot.Members(),
+		Chunks:          snapshot.Chunks(),
 	}
 	if !slices.ContainsFunc(backup.Members, func(member hostbackup.Member) bool { return member.Name == DataDirectoryArchive }) {
 		return BaseBackup{}, fmt.Errorf("the base backup of the company database sent no %s", DataDirectoryArchive)
@@ -147,14 +152,14 @@ func TakeBaseBackup(ctx context.Context, replicationConnection string, destinati
 	return backup, destination.Store.Put(ctx, baseBackupPath(destination, backup.Name), document)
 }
 
-func requireStreamingBaseBackup(connection *pgconn.PgConn) error {
+func streamingMajor(connection *pgconn.PgConn) (int, error) {
 	version := connection.ParameterStatus("server_version")
 	major, _, _ := strings.Cut(version, ".")
 	var number int
 	if _, errorValue := fmt.Sscanf(major, "%d", &number); errorValue != nil || number < oldestStreamingVersion {
-		return fmt.Errorf("the company database runs PostgreSQL %s; keeping a base backup needs PostgreSQL %d or newer", version, oldestStreamingVersion)
+		return 0, fmt.Errorf("the company database runs PostgreSQL %s; keeping a base backup needs PostgreSQL %d or newer", version, oldestStreamingVersion)
 	}
-	return nil
+	return number, nil
 }
 
 type baseBackupStream struct {

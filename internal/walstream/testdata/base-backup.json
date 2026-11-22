@@ -3,6 +3,8 @@
   "name": "internkim-base-20261122T030000Z.json",
   "sealingKey": "c2FtcGxlLXNlYWxpbmcta2V5LXNhbXBsZS1zZWFsaW4",
   "createdAt": "2026-11-22T03:00:00Z",
+  "packageVersion": "1:0.0.1",
+  "postgresqlMajor": 17,
   "systemID": "7300000000000000001",
   "timeline": 1,
   "start": "0/2000028",

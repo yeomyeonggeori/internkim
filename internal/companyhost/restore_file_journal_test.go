@@ -47,7 +47,7 @@ func TestATakeOverReplaysTheFileJournalOverTheSnapshot(t *testing.T) {
 		}
 		return len(entries), nil
 	}
-	if errorValue := replayTheFileJournal(replay, map[string]string{"workspace": workspace}, &extracted, io.Discard); errorValue != nil {
+	if _, errorValue := replayTheFileJournal(replay, map[string]string{"workspace": workspace}, &extracted); errorValue != nil {
 		t.Fatal(errorValue)
 	}
 	for name, want := range map[string]string{"report.txt": "second", "last.txt": "written last"} {

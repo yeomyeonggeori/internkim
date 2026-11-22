@@ -217,7 +217,7 @@ func (daemon Daemon) takeOver(ctx context.Context, session Session, keyring Keyr
 	errorValue := daemon.TakeOver(ctx, session, keyring)
 	switch {
 	case errors.Is(errorValue, ErrNothingToTakeOver) && session.KeepsBackups:
-		return true, fmt.Errorf("%s keeps backups and none is sealed to a key this box holds, so this box does not start the company fresh", session.Configuration.Company.Name)
+		return true, fmt.Errorf("%s keeps backups, and the hosted store holds no base backup or snapshot sealed to the company's current key, so this box does not start the company fresh", session.Configuration.Company.Name)
 	case errors.Is(errorValue, ErrNothingToTakeOver):
 		log.Printf("%s keeps no backup yet, so this box starts the company fresh", session.Configuration.Company.Name)
 		return false, nil

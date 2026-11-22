@@ -207,15 +207,14 @@ hosted service.
 
 When the service box's building loses power or its line, an administrator chooses
 Make this box serve on a standby box. The serving box, if it is still up, stops
-its services and stands by. The new service box rebuilds the newest snapshot
-from the chunks it holds, restores it while keeping its own identity, rebuilds
-the database from the newest base backup and every piece of WAL kept after it,
-replays the file journal over the files, and starts the company from them. While the company keeps neither a snapshot nor a base backup, the switch is
-refused, since the new box would have nothing to start from. A take-over starts
-from the newest snapshot, so a box made to serve before the first one is kept,
-or one that cannot open the snapshots the company keeps, stops with an error
-instead of starting the company empty. A
-take-over that fails is tried again by the box itself, one minute after the
+its services and stands by. The new service box rebuilds the database from the
+newest base backup and every piece of WAL kept after it, replays the file
+journal from its newest full entry, and starts the company from them while
+keeping its own identity. A company that keeps no base backup yet is taken over
+from its newest snapshot instead. While the company keeps neither, the switch is
+refused, since the new box would have nothing to start from, and a box that
+cannot open what the company keeps stops with an error instead of starting the
+company empty. A take-over that fails is tried again by the box itself, one minute after the
 failure and then twice as long after each failure, up to half an hour, until
 it succeeds or another box is made to serve.
 
