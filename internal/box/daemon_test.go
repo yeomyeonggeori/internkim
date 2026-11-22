@@ -36,6 +36,8 @@ type fakePlane struct {
 	keepsBackups     bool
 	isAway           bool
 	takeOver         TakeOverPolicy
+	lapsesIn         *int
+	isHanging        bool
 	targetVersion    string
 	releases         int
 }
@@ -82,6 +84,11 @@ func (plane *fakePlane) serve(t *testing.T) *httptest.Server {
 			plane.isClaimed = true
 			writer.Write([]byte(`{"companyID":"` + sampleCompanyID + `"}`))
 		case "/api/box/session":
+			if plane.isHanging {
+				io.Copy(io.Discard, request.Body)
+				<-request.Context().Done()
+				return
+			}
 			if plane.isAway {
 				http.Error(writer, "the central plane is out of reach", http.StatusServiceUnavailable)
 				return
@@ -106,6 +113,7 @@ func (plane *fakePlane) serve(t *testing.T) *httptest.Server {
 				BoxesAwaitingCompanyKey: plane.awaiting,
 				KeepsBackups:            plane.keepsBackups,
 				TakeOver:                plane.takeOver,
+				ServiceLapsesInSeconds:  plane.lapsesIn,
 				TargetVersion:           plane.targetVersion,
 			}})
 		case "/api/box/release":

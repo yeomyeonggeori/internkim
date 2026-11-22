@@ -19,13 +19,6 @@ update public.box set sealed_company_key = '{"version":1}'::jsonb where public_k
 select is(public.note_box_seen('annex', null), 'standby', 'a standby box is told it stands by');
 select is(public.note_box_seen('nobody', null), null, 'a box no company has is nothing');
 
-update public.box set last_seen_at = now() - interval '1 hour' where public_key = 'head-office';
-select is(
-  public.note_box_seen('annex', null),
-  'standby',
-  'a company that has not turned on automatic take-over keeps its lapsed service box'
-);
-
 insert into public.box_take_over (company_id, is_automatic, lapse_seconds)
 values ('7f000000-0000-0000-0000-0000000000c1', true, 300);
 
@@ -41,6 +34,14 @@ select is(
 
 insert into storage.objects (bucket_id, name)
 values ('box_backup', '7f000000-0000-0000-0000-0000000000c1/snapshots/internkim-snapshot-20261020T000000Z.json');
+
+update public.box_take_over set is_automatic = false where company_id = '7f000000-0000-0000-0000-0000000000c1';
+select is(
+  public.note_box_seen('annex', null),
+  'standby',
+  'a company whose administrator turned automatic take-over off keeps its lapsed service box'
+);
+update public.box_take_over set is_automatic = true where company_id = '7f000000-0000-0000-0000-0000000000c1';
 
 select public.note_box_seen('head-office-spare', null);
 select public.note_box_seen('waiting', null);
@@ -71,10 +72,9 @@ select is(
 );
 
 select throws_ok(
-  $$insert into public.box_take_over (company_id, lapse_seconds) values ('7f000000-0000-0000-0000-0000000000c1', 299)
-    on conflict (company_id) do update set lapse_seconds = excluded.lapse_seconds$$,
+  $$update public.box_take_over set lapse_seconds = 89 where company_id = '7f000000-0000-0000-0000-0000000000c1'$$,
   '23514', null,
-  'a lapse under five minutes is refused, since the service box stops itself at half of it and checks in once a minute'
+  'a lapse under ninety seconds is refused, since the service box stops itself at half of it and renews that every sixth of it'
 );
 
 set local role authenticated;

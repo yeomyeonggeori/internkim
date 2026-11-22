@@ -44,6 +44,7 @@ type Session struct {
 	BoxesAwaitingCompanyKey []AwaitingBox   `json:"boxesAwaitingCompanyKey"`
 	KeepsBackups            bool            `json:"keepsBackups"`
 	TakeOver                TakeOverPolicy  `json:"takeOver"`
+	ServiceLapsesInSeconds  *int            `json:"serviceLapsesInSeconds"`
 	TargetVersion           string          `json:"targetVersion"`
 }
 

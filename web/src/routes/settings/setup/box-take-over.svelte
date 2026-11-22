@@ -10,7 +10,7 @@
 	let { takeOver, onKept }: { takeOver: TakeOver; onKept: (boxes: CompanyBoxes) => void } = $props();
 
 	const text = createPageText(hostSetupText);
-	const lapseChoices = [300, 900, 3600, 14400];
+	const lapseChoices = [90, 300, 900, 3600, 14400];
 	let isSaving = $state(false);
 	let errorMessage = $state('');
 

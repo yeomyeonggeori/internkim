@@ -554,6 +554,39 @@ describe('connecting an empty box', () => {
 		await client.storage.from('box_backup').remove([keptManifest]);
 	});
 
+	test('a company with a standby takes over by itself ninety seconds after its service box was last seen, and its standby is told when that is', async () => {
+		const quiet = await aCompany('quiet');
+		const first = await aBox();
+		const second = await aBox();
+		await claimWithCode(quiet.companyID, first.publicKey, await announcedCode(first));
+		expect((await companyBoxesOf(client, quiet.companyID)).takeOver).toEqual({ isAutomatic: false, lapseSeconds: 90 });
+		expect(await boxSessionFor(credentials, first.publicKey, environment, appURL)).toMatchObject({
+			role: 'service',
+			takeOver: { isAutomatic: false, lapseSeconds: 90 },
+			serviceLapsesInSeconds: null
+		});
+
+		await claimWithCode(quiet.companyID, second.publicKey, await announcedCode(second), 'add');
+		const holder = await boxOfPublicKey(client, first.publicKey);
+		if (!holder) throw new Error('a claimed box is found by its public key');
+		const sealed = { version: 1 as const, recipient: second.encryptionKey, enc: second.encryptionKey, ciphertext: 'a2V5' };
+		await keepSealedCompanyKeys(client, holder, [{ publicKey: second.publicKey, sealed }]);
+		const keptManifest = `${quiet.companyID}/snapshots/internkim-snapshot-20261122T000000Z.json`;
+		await client.storage.from('box_backup').upload(keptManifest, new Blob(['{}'], { type: 'application/json' }));
+
+		expect((await boxSessionFor(credentials, first.publicKey, environment, appURL))?.takeOver).toEqual({ isAutomatic: true, lapseSeconds: 90 });
+		await client.from('box').update({ last_seen_at: new Date(Date.now() - 60_000).toISOString() }).eq('public_key', first.publicKey);
+		const waiting = await boxSessionFor(credentials, second.publicKey, environment, appURL);
+		expect(waiting?.role).toBe('standby');
+		expect(waiting?.serviceLapsesInSeconds).toBeGreaterThanOrEqual(29);
+		expect(waiting?.serviceLapsesInSeconds).toBeLessThanOrEqual(31);
+
+		await client.from('box').update({ last_seen_at: new Date(Date.now() - 91_000).toISOString() }).eq('public_key', first.publicKey);
+		expect(await boxSessionFor(credentials, second.publicKey, environment, appURL)).toMatchObject({ role: 'service', serviceLapsesInSeconds: null });
+		expect((await boxSessionFor(credentials, first.publicKey, environment, appURL))?.role).toBe('standby');
+		await client.storage.from('box_backup').remove([keptManifest]);
+	});
+
 	test('a standby box is aimed at the release the service box is about to take, and the service box waits for it', async () => {
 		const updating = await aCompany('updating');
 		const first = await aBox();

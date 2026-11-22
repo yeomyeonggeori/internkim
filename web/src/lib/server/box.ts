@@ -620,6 +620,7 @@ export type BoxSession = {
 	boxesAwaitingCompanyKey: AwaitingBox[];
 	keepsBackups: boolean;
 	takeOver: TakeOver;
+	serviceLapsesInSeconds: number | null;
 	targetVersion: string | null;
 	restartsToFollowTheModelPayer: boolean;
 };
@@ -649,6 +650,7 @@ export async function boxSessionFor(
 		boxesAwaitingCompanyKey: holdsKey ? await boxesAwaitingCompanyKey(client, box.companyID) : [],
 		keepsBackups: await companyKeepsABackup(client, box.companyID),
 		takeOver: await takeOverOf(client, box.companyID),
+		serviceLapsesInSeconds: role === 'standby' ? await secondsUntilTheServiceBoxLapses(client, box.companyID) : null,
 		targetVersion: role === 'standby' ? await targetVersionOf(client, box.companyID) : null,
 		restartsToFollowTheModelPayer: role === 'service' && (await payerChangeWaitsOn(client, box))
 	};
@@ -703,18 +705,17 @@ async function noteBoxSeen(client: SupabaseClient, box: BoxRow, packageVersion: 
 
 const takeOverRecordSchema = z.object({ is_automatic: z.boolean(), lapse_seconds: z.number().int() });
 
-export const defaultTakeOver: TakeOver = { isAutomatic: false, lapseSeconds: 300 };
-
 export async function takeOverOf(client: SupabaseClient, companyID: string): Promise<TakeOver> {
-	const { data, error } = await client
-		.from('box_take_over')
-		.select('is_automatic, lapse_seconds')
-		.eq('company_id', companyID)
-		.maybeSingle();
+	const { data, error } = await client.rpc('take_over_of', { taken_company: companyID }).single();
 	if (error) throw new Error(`take-over of ${companyID}: ${error.message}`);
-	if (!data) return defaultTakeOver;
 	const record = takeOverRecordSchema.parse(data);
 	return { isAutomatic: record.is_automatic, lapseSeconds: record.lapse_seconds };
+}
+
+async function secondsUntilTheServiceBoxLapses(client: SupabaseClient, companyID: string): Promise<number | null> {
+	const { data, error } = await client.rpc('seconds_until_the_service_box_lapses', { lapsing_company: companyID });
+	if (error) throw new Error(`when the service box of ${companyID} lapses: ${error.message}`);
+	return z.number().int().nullable().parse(data);
 }
 
 const checkViolation = '23514';

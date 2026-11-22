@@ -151,8 +151,10 @@ description: "PostgREST가 /rest/v1/rpc로 노출하는 함수 전부와, 누가
 | `read_member_secret` | `target_member uuid, target_kind text` | `text` | definer | service_role |
 | `reopen_parent_for_an_unfinished_child` | `parent_id uuid` | `void` | definer | service_role |
 | `reserve_document_number` | `target_company uuid, requested_prefix text` | `text` | definer | authenticated, service_role |
+| `seconds_until_the_service_box_lapses` | `lapsing_company uuid` | `integer` | definer | service_role |
 | `size_bytes` | `document company_document` | `bigint` | invoker | authenticated, service_role |
 | `status_my_leave_request_takes` | — | `leave_status` | definer | authenticated, service_role |
+| `take_over_of` | `taken_company uuid` | `TABLE(is_automatic boolean, lapse_seconds integer)` | definer | service_role |
 | `task_children_link` | `parent_id uuid, child_ids uuid[]` | `void` | definer | authenticated |
 | `task_deletable` | `task task` | `boolean` | invoker | authenticated |
 | `task_descendant_ids` | `ancestor_task_id uuid` | `SETOF uuid` | invoker | authenticated |

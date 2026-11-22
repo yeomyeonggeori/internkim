@@ -1,6 +1,7 @@
 package box
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"log"
@@ -14,6 +15,9 @@ import (
 const (
 	serviceLeaseFileName = "service-lease"
 	stoodDownFileName    = "stood-down"
+	checksPerLease       = 3
+	retriesPerLease      = 9
+	shortestLeaseWait    = time.Second
 )
 
 type TakeOverPolicy struct {
@@ -26,8 +30,26 @@ type serviceLease struct {
 	LapseSeconds int       `json:"lapseSeconds"`
 }
 
-func (lease serviceLease) hasRunOut(now time.Time) bool {
-	return now.Sub(lease.ConfirmedAt) >= time.Duration(lease.LapseSeconds)*time.Second/2
+func leaseLength(lapseSeconds int) time.Duration {
+	return time.Duration(lapseSeconds) * time.Second / 2
+}
+
+func (lease serviceLease) runsOutAt() time.Time {
+	return lease.ConfirmedAt.Add(leaseLength(lease.LapseSeconds))
+}
+
+func (lease serviceLease) retryInterval() time.Duration {
+	return leaseLength(lease.LapseSeconds) / retriesPerLease
+}
+
+func untilTheTakeOverNeedsACheck(session Session) time.Duration {
+	if session.Role == RoleStandby && session.ServiceLapsesInSeconds != nil {
+		return time.Duration(max(*session.ServiceLapsesInSeconds, 0)+1) * time.Second
+	}
+	if session.Role == RoleService && session.TakeOver.IsAutomatic && session.TakeOver.LapseSeconds > 0 {
+		return leaseLength(session.TakeOver.LapseSeconds) / checksPerLease
+	}
+	return companyCheckInterval
 }
 
 func (daemon Daemon) keepServiceLease(policy TakeOverPolicy) error {
@@ -41,17 +63,46 @@ func (daemon Daemon) keepServiceLease(policy TakeOverPolicy) error {
 	return durablefile.Write(daemon.statePath(serviceLeaseFileName), document, 0o600)
 }
 
-func (daemon Daemon) standDownWhenTheLeaseRunsOut() {
-	if daemon.installedCompany() == "" || daemon.StandDown == nil || daemon.hasStoodDown() {
-		return
+func (daemon Daemon) runningLease() (serviceLease, bool) {
+	if daemon.installedCompany() == "" || daemon.hasStoodDown() {
+		return serviceLease{}, false
 	}
-	lease, isKept := daemon.serviceLease()
-	if !isKept || !lease.hasRunOut(daemon.now()) {
+	return daemon.serviceLease()
+}
+
+func (daemon Daemon) waitWithinTheLease(wait time.Duration) time.Duration {
+	lease, isRunning := daemon.runningLease()
+	if !isRunning {
+		return wait
+	}
+	return min(wait, max(lease.runsOutAt().Sub(daemon.now()), shortestLeaseWait))
+}
+
+func (daemon Daemon) retryWait() time.Duration {
+	lease, isRunning := daemon.runningLease()
+	if !isRunning {
+		return announceInterval
+	}
+	return min(announceInterval, max(lease.retryInterval(), shortestLeaseWait))
+}
+
+func (daemon Daemon) withinTheLease(ctx context.Context) (context.Context, context.CancelFunc) {
+	lease, isRunning := daemon.runningLease()
+	left := lease.runsOutAt().Sub(daemon.now())
+	if !isRunning || left <= 0 {
+		return context.WithCancel(ctx)
+	}
+	return context.WithTimeout(ctx, left)
+}
+
+func (daemon Daemon) standDownWhenTheLeaseRunsOut() {
+	lease, isRunning := daemon.runningLease()
+	if !isRunning || daemon.StopServices == nil || daemon.now().Before(lease.runsOutAt()) {
 		return
 	}
 	log.Printf("the central plane has not confirmed this box serves its company since %s, half the take-over lapse, so it stops its services before a standby box takes over", lease.ConfirmedAt.UTC().Format(time.RFC3339))
 	daemon.forgetTheQueueAddress()
-	if errorValue := daemon.StandDown(); errorValue != nil {
+	if errorValue := daemon.StopServices(); errorValue != nil {
 		log.Printf("stopping the company's services: %v; trying again at the next check", errorValue)
 		return
 	}

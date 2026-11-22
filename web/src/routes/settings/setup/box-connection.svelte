@@ -28,7 +28,7 @@
 		sealingKey: null,
 		hasModelKey: false,
 		newestBackupAt: null,
-		takeOver: { isAutomatic: false, lapseSeconds: 300 },
+		takeOver: { isAutomatic: false, lapseSeconds: 90 },
 		isServedByConnectionFile: false,
 		creditsCanPayForModels: false,
 		usesOwnModelKey: true,

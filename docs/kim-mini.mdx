@@ -218,19 +218,25 @@ company empty. A take-over that fails is tried again by the box itself, one minu
 failure and then twice as long after each failure, up to half an hour, until
 it succeeds or another box is made to serve.
 
-A company can let its boxes do this by themselves. Every box is seen by the
-hosted service once a minute. With automatic take-over on, a standby box that
-holds the company key takes the company over once the service box has not been
-seen for the lapse the administrator chose, five minutes at the shortest of the
-offered choices. One on another site goes before one on the lapsed box's site,
-and among those the first to check in after the lapse. The record makes
-the change in one transaction, so two standby boxes never both serve, and it makes
-none while the company keeps no backup to take over from. The service box stops
-its own services once half the lapse passes without the hosted service seeing it,
-and starts them again when it is seen and still serves, so a box cut off from the
-internet and the box that took its place never serve at once. It is off
-until an administrator turns it on, since a lapse that was only a slow router
-still moves the company to another box, with the take-over's minute of outage.
+A company with a standby box lets its boxes do this by themselves. A standby box
+that holds the company key takes the company over once the service box has not
+been seen for the lapse: ninety seconds, unless an administrator chose a longer
+one or turned take-over off. One on another site goes before one on the lapsed
+box's site, and among those the first to check in after the lapse. The record
+makes the change in one transaction, so two standby boxes never both serve, and
+it makes none while the company keeps no backup to take over from. A company on
+one box has nowhere to move, so its box checks in once a minute and never stops
+itself.
+
+The service box of a company that can move checks in every sixth of the lapse.
+It stops its own services once half the lapse passes without the hosted service
+seeing it, and starts them again when it is seen and still serves, so a box cut
+off from the internet and the box that took its place never serve at once. A
+standby box checks in once a minute and is told when the service box will
+lapse, so it checks in again at that moment. A cut-off of under thirty
+seconds goes unnoticed, one shorter than the lapse stops the services until the
+box is seen again, and a longer one moves the company to another box, with the
+take-over's outage.
 
 Standby boxes also share the work. The service box runs a browser call itself
 while one of its four browsers is free. When all four are busy it puts the call

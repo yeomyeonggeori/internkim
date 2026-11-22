@@ -115,18 +115,25 @@ func (platform linuxPlatform) companyServiceUnits() []string {
 }
 
 func StandDown(machine Machine, progress io.Writer) error {
+	if errorValue := StopTheServices(machine, progress); errorValue != nil {
+		return errorValue
+	}
+	return forgetTheCurrentCompany()
+}
+
+func StopTheServices(machine Machine, progress io.Writer) error {
 	platform, errorValue := ThisMachine()
 	if errorValue != nil {
 		return errorValue
 	}
 	linux, isLinux := platform.(linuxPlatform)
 	if !isLinux {
-		return fmt.Errorf("a box stands by on a Linux host; on %s the company's services are Homebrew's", platform.Describe())
+		return fmt.Errorf("a box stops its services on a Linux host; on %s the company's services are Homebrew's", platform.Describe())
 	}
 	if errorValue := machine.Run("systemctl", append([]string{"disable", "--now"}, linux.companyServiceUnits()...), nil, progress); errorValue != nil {
-		return fmt.Errorf("the company's services could not be stopped on this standby box: %w", errorValue)
+		return fmt.Errorf("the company's services could not be stopped on this box: %w", errorValue)
 	}
-	return forgetTheCurrentCompany()
+	return nil
 }
 
 func forgetTheCurrentCompany() error {

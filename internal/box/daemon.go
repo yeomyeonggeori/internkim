@@ -52,6 +52,7 @@ type Daemon struct {
 	TakeOverIsUnderway     func() bool
 	TakeOver               func(ctx context.Context, session Session, keyring Keyring) error
 	StandDown              func() error
+	StopServices           func() error
 	StandUp                func() error
 	RestartServices        func() error
 	StartKeepingUp         func(ctx context.Context, session Session)
@@ -117,11 +118,11 @@ func (daemon Daemon) Run(ctx context.Context) error {
 			page = daemon.pairingPageFor(isClaimed, page, identity)
 		}
 		if errorValue != nil {
-			log.Printf("%v; trying again in %s", errorValue, announceInterval)
-			wait = announceInterval
+			wait = daemon.retryWait()
+			log.Printf("%v; trying again in %s", errorValue, wait)
 			daemon.getOnlineWhenOffline(ctx, identity)
 		}
-		if errorValue := daemon.sleep(ctx, wait); errorValue != nil {
+		if errorValue := daemon.sleep(ctx, daemon.waitWithinTheLease(wait)); errorValue != nil {
 			return nil
 		}
 	}
@@ -139,7 +140,8 @@ func (daemon Daemon) pairingPageFor(isClaimed bool, page *pairingPage, identity 
 }
 
 func (daemon Daemon) step(ctx context.Context, identity Identity, page *pairingPage) (time.Duration, bool, error) {
-	session, isClaimed, errorValue := daemon.Client.Session(ctx, identity, daemon.PackageVersion)
+	daemon.standDownWhenTheLeaseRunsOut()
+	session, isClaimed, errorValue := daemon.sessionWithinTheLease(ctx, identity)
 	if errorValue != nil {
 		daemon.standDownWhenTheLeaseRunsOut()
 		return 0, false, errorValue
@@ -180,7 +182,7 @@ func (daemon Daemon) serveClaimed(ctx context.Context, session Session, identity
 	}
 	daemon.keepTheQueueAddress(session)
 	if daemon.installedCompany() == session.Configuration.Company.ID {
-		return daemon.untilNextCheck(session.Session), daemon.keepServing(session, keyring)
+		return daemon.untilNextCheck(session), daemon.keepServing(session, keyring)
 	}
 	if isTakingOver, errorValue := daemon.takeOver(ctx, session, keyring); errorValue != nil || isTakingOver {
 		return announceInterval, errorValue
@@ -197,7 +199,7 @@ func (daemon Daemon) serveClaimed(ctx context.Context, session Session, identity
 			return 0, errorValue
 		}
 	}
-	return daemon.untilNextCheck(session.Session), daemon.keepServiceLease(session.TakeOver)
+	return daemon.untilNextCheck(session), daemon.keepServiceLease(session.TakeOver)
 }
 
 func (daemon Daemon) keepServing(session Session, keyring Keyring) error {
@@ -258,7 +260,7 @@ func (daemon Daemon) standBy(ctx context.Context, session Session) (time.Duratio
 		daemon.StartKeepingUp(ctx, session)
 	}
 	reason := fmt.Sprintf("another box serves %s now", session.Configuration.Company.Name)
-	return daemon.untilNextCheck(session.Session), daemon.stopServing(reason)
+	return daemon.untilNextCheck(session), daemon.stopServing(reason)
 }
 
 func (daemon Daemon) stopServing(reason string) error {
@@ -424,9 +426,15 @@ func connectionOf(session Session) companyhost.Connection {
 	}
 }
 
-func (daemon Daemon) untilNextCheck(session HostSession) time.Duration {
-	untilRenewal := time.Unix(session.ExpiresAt, 0).Sub(daemon.now()) - SessionRenewalMargin
-	return min(max(untilRenewal, shortestSessionWait), companyCheckInterval)
+func (daemon Daemon) untilNextCheck(session Session) time.Duration {
+	untilRenewal := time.Unix(session.Session.ExpiresAt, 0).Sub(daemon.now()) - SessionRenewalMargin
+	return min(max(untilRenewal, shortestSessionWait), untilTheTakeOverNeedsACheck(session))
+}
+
+func (daemon Daemon) sessionWithinTheLease(ctx context.Context, identity Identity) (Session, bool, error) {
+	bounded, cancel := daemon.withinTheLease(ctx)
+	defer cancel()
+	return daemon.Client.Session(bounded, identity, daemon.PackageVersion)
 }
 
 func (daemon Daemon) nameHost(ctx context.Context, companySlug string) {

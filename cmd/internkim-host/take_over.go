@@ -155,6 +155,10 @@ func standDown() error {
 	return companyhost.StandDown(thisComputer{}, os.Stdout)
 }
 
+func stopTheServices() error {
+	return companyhost.StopTheServices(thisComputer{}, os.Stdout)
+}
+
 func standUp() error {
 	return companyhost.StandUp(thisComputer{}, os.Stdout)
 }

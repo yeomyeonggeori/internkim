@@ -341,6 +341,7 @@ func boxDaemon(appURL string) box.Daemon {
 		TakeOverIsUnderway:     takeOverIsUnderway,
 		TakeOver:               takeOverFromTheNewestBackup,
 		StandDown:              standDown,
+		StopServices:           stopTheServices,
 		StandUp:                standUp,
 		RestartServices: func() error {
 			return companyhost.RestartTheServices(thisComputer{}, os.Stdout)
