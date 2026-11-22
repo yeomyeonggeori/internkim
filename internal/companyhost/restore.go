@@ -86,7 +86,7 @@ func restoreWhileLocked(platform backupPlatform, request RestoreRequest, backupD
 	}
 	result.SafetyBackup = safetyBackup
 	fmt.Fprintln(progress, "3/6 Stopping the services…")
-	if errorValue := platform.StopTheHost(machine, progress); errorValue != nil {
+	if errorValue := stopTheHost(platform, machine, progress); errorValue != nil {
 		return RestoreResult{}, errorValue
 	}
 	fmt.Fprintln(progress, "4/6 Restoring the files and the people's accounts…")
@@ -492,7 +492,7 @@ func startTheRestoredHost(platform backupPlatform, machine Machine, directoryPat
 }
 
 func startTheServicesThenConfirm(platform backupPlatform, machine Machine, companyID string, onceServing func(companyID string) error, progress io.Writer) error {
-	if errorValue := platform.StartTheBox(machine, progress); errorValue != nil {
+	if errorValue := platform.SuperviseTheBox(machine, progress); errorValue != nil {
 		return errorValue
 	}
 	if errorValue := platform.SuperviseTheBundle(machine, progress); errorValue != nil {

@@ -75,6 +75,18 @@ func CompanyHostLaunchDaemons(layout CompanyHostLayout, environmentFiles map[str
 	return daemons, nil
 }
 
+func CompanyHostBoxLaunchDaemons(layout CompanyHostLayout) ([]CompanyHostLaunchDaemon, error) {
+	daemons := []CompanyHostLaunchDaemon{}
+	for _, service := range CompanyHostBoxServices(layout) {
+		daemon, errorValue := companyHostLaunchDaemon(layout, service, nil)
+		if errorValue != nil {
+			return nil, errorValue
+		}
+		daemons = append(daemons, daemon)
+	}
+	return daemons, nil
+}
+
 func companyHostLaunchDaemon(layout CompanyHostLayout, service CompanyHostService, environmentFiles map[string]string) (CompanyHostLaunchDaemon, error) {
 	environment, errorValue := companyHostServiceEnvironment(service, environmentFiles)
 	if errorValue != nil {
@@ -176,7 +188,7 @@ func launchDaemonPlist(service CompanyHostService, command []string, environment
 	if service.WorkingDirectory != "" {
 		writePlistString(plist, "WorkingDirectory", service.WorkingDirectory)
 	}
-	writePlistBoolean(plist, "RunAtLoad", true)
+	writePlistBoolean(plist, "RunAtLoad", !service.StartsOnlyWhenAsked)
 	writeLaunchDaemonLifetime(plist, service)
 	logPath := CompanyHostLogPath + "/" + service.Name + ".log"
 	writePlistString(plist, "StandardOutPath", logPath)
@@ -185,12 +197,14 @@ func launchDaemonPlist(service CompanyHostService, command []string, environment
 	return plist.String()
 }
 
-// The three lifetimes the declaration distinguishes, in launchd's vocabulary.
-// A step that runs once and stays done is LaunchOnlyOnce with no KeepAlive; a
+// The four lifetimes the declaration distinguishes, in launchd's vocabulary.
+// A process started only when asked runs once each time and is not kept alive;
+// a step that runs once and stays done is LaunchOnlyOnce with no KeepAlive; a
 // service that must be up whatever happens is KeepAlive true; everything else is
 // restarted only when it exits badly, which is what Restart=on-failure means.
 func writeLaunchDaemonLifetime(plist *strings.Builder, service CompanyHostService) {
 	switch {
+	case service.StartsOnlyWhenAsked:
 	case service.RunsOnceAndStays:
 		writePlistBoolean(plist, "LaunchOnlyOnce", true)
 	case service.RestartsEvenOnACleanExit:

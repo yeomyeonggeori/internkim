@@ -25,7 +25,11 @@ func TestTheMacRigExpectsEveryDaemonTheInstallWrites(t *testing.T) {
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	written := len(blueclaw.CompanyHostServices(layout)) + len(dataDaemons)
+	boxDaemons, errorValue := blueclaw.CompanyHostBoxLaunchDaemons(layout)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	written := len(blueclaw.CompanyHostServices(layout)) + len(dataDaemons) + len(boxDaemons)
 
 	match := regexp.MustCompile(`(?m)^DAEMON_COUNT = (\d+)$`).FindStringSubmatch(readTheMacInstallRig(t))
 	if match == nil {

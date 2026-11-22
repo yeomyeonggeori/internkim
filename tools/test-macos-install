@@ -59,7 +59,8 @@ LAUNCH_DAEMON_ROOT = Path("/Library/LaunchDaemons")
 LAUNCH_DAEMON_PREFIX = "kim.intern."
 STATE_ROOT = Path("/var/lib/internkim")
 SERVICE_ACCOUNTS = ("blueclaw", "internkim", "internkim-embedding", "internkim-postgres", "internkim-cache")
-DAEMON_COUNT = 13
+DAEMON_COUNT = 15
+STARTS_ONLY_WHEN_ASKED = "<key>RunAtLoad</key>\n\t<false/>"
 DATA_DIRECTORIES = (
     Path("/var/lib/internkim-postgres"),
     Path("/var/lib/internkim-cache"),
@@ -160,6 +161,8 @@ def what_a_company_would_change(with_company):
     if not with_company:
         return []
     return [
+        "claim this Mac as one of the company's boxes, which spends the connection document; "
+        "Disconnect on the company setup page releases it, and --undo does not",
         f"create the {', '.join(SERVICE_ACCOUNTS)} accounts in this Mac's directory service",
         f"write {DAEMON_COUNT} {LAUNCH_DAEMON_PREFIX}* plists into {LAUNCH_DAEMON_ROOT} and bootstrap them into the system domain",
         f"write this company's keys and settings under {STATE_ROOT}, which --undo leaves in place",
@@ -412,12 +415,15 @@ def step_seven_the_company_is_supervised(connection_path):
         # Homebrew's does not: the same libexpat break the keg carries its own
         # interpreter for.
         label = path.stem
+        written = path.read_text()
+        if STARTS_ONLY_WHEN_ASKED in written:
+            continue
         printed = run(["sudo", "launchctl", "print", f"system/{label}"], check=False)
         if printed.returncode != 0:
             raise RigFailure(f"{label} is not loaded in the system domain")
-        if "state = running" not in printed.stdout and "LaunchOnlyOnce" not in path.read_text():
+        if "state = running" not in printed.stdout and "LaunchOnlyOnce" not in written:
             raise RigFailure(f"{label} is loaded and not running:\n{printed.stdout[:2000]}")
-    observations.append(f"all {DAEMON_COUNT} daemons are loaded in the system domain")
+    observations.append(f"every daemon but the take-over, which the box starts when it is made to serve, is loaded in the system domain")
 
     helper = installed_keg_path() / "libexec/blueclaw-posix-helper"
     mode = helper.stat()

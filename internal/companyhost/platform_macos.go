@@ -183,7 +183,7 @@ func (platform macPlatform) StartTheDatabaseAndTheCache(machine Machine) error {
 	if errorValue != nil {
 		return errorValue
 	}
-	if errorValue := writeAndBootstrapLaunchDaemons(platform.launchDaemonRoot, daemons, machine, io.Discard); errorValue != nil {
+	if errorValue := platform.superviseLaunchDaemons(daemons, machine, io.Discard); errorValue != nil {
 		return errorValue
 	}
 	return waitForOne(platform, machine, databaseProbe(layout), time.Now().Add(waitForTheServerBudget), io.Discard)
@@ -193,16 +193,22 @@ func (platform macPlatform) StartTheDatabaseAndTheCache(machine Machine) error {
 // made here too: launchd opens a daemon's log before it starts the daemon and
 // creates no directory to do it, and the data daemons start before the bundle's
 // preparation step would have made it.
+type ownedDirectory struct {
+	path  string
+	owner string
+	mode  os.FileMode
+}
+
+var theLogDirectory = ownedDirectory{blueclaw.CompanyHostLogPath, blueclaw.BlueclawUser, blueclaw.CompanyHostLogDirectoryMode}
+
 func makeTheDataDirectories(machine Machine) error {
-	directories := []struct {
-		path  string
-		owner string
-		mode  os.FileMode
-	}{
-		{blueclaw.CompanyHostDatabaseDataPath, blueclaw.CompanyHostDatabaseUser, 0o700},
-		{blueclaw.CompanyHostCacheDataPath, blueclaw.CompanyHostCacheUser, 0o700},
-		{blueclaw.CompanyHostLogPath, blueclaw.BlueclawUser, blueclaw.CompanyHostLogDirectoryMode},
-	}
+	return makeOwnedDirectories(machine,
+		ownedDirectory{blueclaw.CompanyHostDatabaseDataPath, blueclaw.CompanyHostDatabaseUser, 0o700},
+		ownedDirectory{blueclaw.CompanyHostCacheDataPath, blueclaw.CompanyHostCacheUser, 0o700},
+		theLogDirectory)
+}
+
+func makeOwnedDirectories(machine Machine, directories ...ownedDirectory) error {
 	for _, directory := range directories {
 		arguments := []string{"-d", "-o", directory.owner, "-g", directory.owner, "-m", fmt.Sprintf("%04o", directory.mode), directory.path}
 		if errorValue := machine.Run("install", arguments, nil, io.Discard); errorValue != nil {
@@ -254,28 +260,196 @@ func (platform macPlatform) SuperviseTheBundle(machine Machine, progress io.Writ
 	if errorValue != nil {
 		return errorValue
 	}
-	return writeAndBootstrapLaunchDaemons(platform.launchDaemonRoot, daemons, machine, progress)
+	return platform.superviseLaunchDaemons(daemons, machine, progress)
 }
 
-func writeAndBootstrapLaunchDaemons(daemonRoot string, daemons []blueclaw.CompanyHostLaunchDaemon, machine Machine, progress io.Writer) error {
-	if errorValue := os.MkdirAll(daemonRoot, 0o755); errorValue != nil {
+// launchd opens a daemon's log before it starts the daemon and creates no
+// directory to do it.
+func (platform macPlatform) SuperviseTheBox(machine Machine, progress io.Writer) error {
+	if errorValue := platform.EnsureServiceAccounts(machine); errorValue != nil {
+		return errorValue
+	}
+	if errorValue := makeOwnedDirectories(machine, theLogDirectory); errorValue != nil {
+		return errorValue
+	}
+	daemons, errorValue := blueclaw.CompanyHostBoxLaunchDaemons(platform.Layout())
+	if errorValue != nil {
+		return errorValue
+	}
+	if errorValue := platform.writeLaunchDaemons(daemons, progress); errorValue != nil {
+		return errorValue
+	}
+	if errorValue := platform.EnableServices(machine, serviceNamesOf(daemons)); errorValue != nil {
+		return fmt.Errorf("the services that keep this computer's session fresh and take its company over could not be enabled: %w", errorValue)
+	}
+	return platform.RestartServices(machine, []string{blueclaw.BoxServiceName}, progress)
+}
+
+func (platform macPlatform) superviseLaunchDaemons(daemons []blueclaw.CompanyHostLaunchDaemon, machine Machine, progress io.Writer) error {
+	if errorValue := platform.writeLaunchDaemons(daemons, progress); errorValue != nil {
+		return errorValue
+	}
+	names := serviceNamesOf(daemons)
+	if errorValue := platform.EnableServices(machine, names); errorValue != nil {
+		return errorValue
+	}
+	return platform.RestartServices(machine, names, progress)
+}
+
+func (platform macPlatform) writeLaunchDaemons(daemons []blueclaw.CompanyHostLaunchDaemon, progress io.Writer) error {
+	if errorValue := os.MkdirAll(platform.launchDaemonRoot, 0o755); errorValue != nil {
 		return errorValue
 	}
 	for _, daemon := range daemons {
-		path := filepath.Join(daemonRoot, daemon.FileName())
+		path := filepath.Join(platform.launchDaemonRoot, daemon.FileName())
 		if errorValue := os.WriteFile(path, []byte(daemon.Contents), 0o644); errorValue != nil {
 			return fmt.Errorf("write the %s daemon: %w", daemon.Label, errorValue)
 		}
 		fmt.Fprintf(progress, "  wrote %s\n", path)
-		// bootout first, because bootstrap refuses a label already loaded and
-		// an install that runs twice is the ordinary case: a company host is
-		// installed again whenever its connection file is downloaded again.
-		machine.Run("launchctl", []string{"bootout", "system/" + daemon.Label}, nil, io.Discard)
-		if errorValue := machine.Run("launchctl", []string{"bootstrap", "system", path}, nil, progress); errorValue != nil {
-			return fmt.Errorf("launchd would not take %s: %w", daemon.Label, errorValue)
+	}
+	return nil
+}
+
+func serviceNamesOf(daemons []blueclaw.CompanyHostLaunchDaemon) []string {
+	names := []string{}
+	for _, daemon := range daemons {
+		names = append(names, daemon.ServiceName)
+	}
+	return names
+}
+
+func (platform macPlatform) CompanyServiceNames() []string {
+	names := []string{}
+	for _, service := range blueclaw.CompanyHostServices(platform.Layout()) {
+		names = append(names, service.Name)
+	}
+	return names
+}
+
+func (macPlatform) BoxAbilities() BoxAbilities {
+	return BoxAbilities{}
+}
+
+// launchd enables a label in its own override database, apart from loading
+// it: a disabled label is not loaded at boot and `launchctl bootstrap` refuses it.
+func (platform macPlatform) EnableServices(machine Machine, names []string) error {
+	return platform.launchctlForEach(machine, "enable", names)
+}
+
+func (platform macPlatform) DisableServices(machine Machine, names []string) error {
+	return platform.launchctlForEach(machine, "disable", names)
+}
+
+func (platform macPlatform) launchctlForEach(machine Machine, verb string, names []string) error {
+	for _, name := range names {
+		identity := platform.SupervisorIdentityFor(name)
+		if errorValue := machine.Run("launchctl", []string{verb, identity}, nil, io.Discard); errorValue != nil {
+			return fmt.Errorf("launchctl %s %s: %w", verb, identity, errorValue)
 		}
 	}
 	return nil
+}
+
+func (platform macPlatform) StartServices(machine Machine, names []string, progress io.Writer) error {
+	for _, name := range names {
+		if !platform.isLoaded(machine, name) {
+			if errorValue := platform.bootstrap(machine, name, progress); errorValue != nil {
+				return errorValue
+			}
+		}
+		if errorValue := platform.kickWhenItWaitsToBeAsked(machine, name, progress); errorValue != nil {
+			return errorValue
+		}
+	}
+	return nil
+}
+
+// Stopping is unloading: KeepAlive starts again a daemon that is only killed.
+func (platform macPlatform) StopServices(machine Machine, names []string, progress io.Writer) error {
+	for _, name := range names {
+		if !platform.isLoaded(machine, name) {
+			continue
+		}
+		if errorValue := platform.bootout(machine, name, progress); errorValue != nil {
+			return errorValue
+		}
+	}
+	return nil
+}
+
+// Unloading and loading again is what makes launchd read a plist that was
+// rewritten, and `launchctl bootstrap` refuses a label already loaded.
+func (platform macPlatform) RestartServices(machine Machine, names []string, progress io.Writer) error {
+	for _, name := range names {
+		if errorValue := platform.StopServices(machine, []string{name}, progress); errorValue != nil {
+			return errorValue
+		}
+		if errorValue := platform.bootstrap(machine, name, progress); errorValue != nil {
+			return errorValue
+		}
+		if errorValue := platform.kickWhenItWaitsToBeAsked(machine, name, progress); errorValue != nil {
+			return errorValue
+		}
+	}
+	return nil
+}
+
+func (platform macPlatform) StateOfService(machine Machine, name string) ServiceState {
+	printed, errorValue := machine.Output("launchctl", []string{"print", platform.SupervisorIdentityFor(name)})
+	if errorValue != nil {
+		return ServiceStopped
+	}
+	return serviceStateFromLaunchd(printed)
+}
+
+func serviceStateFromLaunchd(printed string) ServiceState {
+	settings := launchdSettingsIn(printed)
+	if settings["state"] == "running" {
+		return ServiceRunning
+	}
+	exitCode, _, _ := strings.Cut(settings["last exit code"], ":")
+	if code, errorValue := strconv.Atoi(strings.TrimSpace(exitCode)); errorValue == nil && code != 0 {
+		return ServiceFailed
+	}
+	return ServiceStopped
+}
+
+func (platform macPlatform) isLoaded(machine Machine, name string) bool {
+	_, errorValue := machine.Output("launchctl", []string{"print", platform.SupervisorIdentityFor(name)})
+	return errorValue == nil
+}
+
+func (platform macPlatform) bootstrap(machine Machine, name string, progress io.Writer) error {
+	label := platform.labelOf(name)
+	path := filepath.Join(platform.launchDaemonRoot, label+".plist")
+	if errorValue := machine.Run("launchctl", []string{"bootstrap", "system", path}, nil, progress); errorValue != nil {
+		return fmt.Errorf("launchd would not take %s: %w", label, errorValue)
+	}
+	return nil
+}
+
+func (platform macPlatform) bootout(machine Machine, name string, progress io.Writer) error {
+	identity := platform.SupervisorIdentityFor(name)
+	if errorValue := machine.Run("launchctl", []string{"bootout", identity}, nil, progress); errorValue != nil {
+		return fmt.Errorf("launchd would not stop %s: %w", identity, errorValue)
+	}
+	return nil
+}
+
+func (platform macPlatform) kickWhenItWaitsToBeAsked(machine Machine, name string, progress io.Writer) error {
+	service, isDeclared := blueclaw.CompanyHostDeclaredServiceNamed(platform.Layout(), name)
+	if !isDeclared || !service.StartsOnlyWhenAsked {
+		return nil
+	}
+	identity := platform.SupervisorIdentityFor(name)
+	if errorValue := machine.Run("launchctl", []string{"kickstart", identity}, nil, progress); errorValue != nil {
+		return fmt.Errorf("launchd would not start %s: %w", identity, errorValue)
+	}
+	return nil
+}
+
+func (platform macPlatform) labelOf(name string) string {
+	return strings.TrimPrefix(platform.SupervisorIdentityFor(name), "system/")
 }
 
 // The setuid bit is what lets the unprivileged agent act as the person who
@@ -382,20 +556,31 @@ func (macPlatform) SupervisorStateOf(machine Machine, identity string) string {
 }
 
 func launchdStateLines(printed string) []string {
-	wanted := map[string]bool{"state": true, "last exit code": true, "pid": true}
 	found := []string{}
-	for _, line := range strings.Split(printed, "\n") {
-		name, value, isSetting := strings.Cut(strings.TrimSpace(line), "=")
-		if !isSetting || !wanted[strings.TrimSpace(name)] {
-			continue
-		}
-		found = append(found, strings.TrimSpace(name)+" "+strings.TrimSpace(value))
+	for name, value := range launchdSettingsIn(printed) {
+		found = append(found, name+" "+value)
 	}
 	sort.Strings(found)
 	if len(found) == 0 {
 		return []string{"loaded"}
 	}
 	return found
+}
+
+// The first of each setting is the job's own; the same names recur inside the
+// dictionaries `launchctl print` nests under it.
+func launchdSettingsIn(printed string) map[string]string {
+	wanted := map[string]bool{"state": true, "last exit code": true, "pid": true}
+	settings := map[string]string{}
+	for _, line := range strings.Split(printed, "\n") {
+		name, value, isSetting := strings.Cut(strings.TrimSpace(line), "=")
+		name = strings.TrimSpace(name)
+		if _, isSeen := settings[name]; !isSetting || !wanted[name] || isSeen {
+			continue
+		}
+		settings[name] = strings.TrimSpace(value)
+	}
+	return settings
 }
 
 func (macPlatform) HowToSeeWhyItIsSilent(identity string) []string {

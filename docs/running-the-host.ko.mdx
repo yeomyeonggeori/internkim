@@ -30,15 +30,20 @@ OpenRouter API 키가 없으면 키를 받은 뒤 호스트 서비스를 등록�
 에이전트가 회사 명단을 받은 뒤에 끝나므로, 구성원은 바로 에이전트에게 말을 걸 수
 있습니다. 그다음 화면에 나온 회사 설정 주소에서 연결 확인을 누르세요.
 
-Linux에서 둘째 명령은 이 컴퓨터를 회사의 박스 하나로 연결하고 연결 파일을
+둘째 명령은 이 컴퓨터를 회사의 박스 하나로 연결하고 연결 파일을
 써 버립니다. 그 뒤로 컴퓨터는 자기 키로 로그인하고 회사를 서비스합니다. 이미
 서비스 중인 박스가 있으면 연결은 거절되고 연결 파일은 그대로 남습니다. 그때는
 아래처럼 컴퓨터가 띄우는 코드로 연결하세요. 이미 같은 회사를 서비스하는 컴퓨터에서 실행하면 그 자리에서 박스가
 됩니다. 데이터베이스, 작업 공간, 비밀값, 모델 키, 백업, 구성원 계정은 그대로
 남고 서비스는 한 번 다시 시작합니다. 한 번 쓴 연결 파일로는 다시 연결되지 않으니,
-다시 설치하려면 회사 설정에서 새로 받으세요.
+다시 설치하려면 회사 설정에서 새로 받으세요. Mac은 회사를 서비스하거나, 서비스하는
+박스 곁에서 대기하고, 회사를 넘겨받지는 않습니다. 다른 박스가 회사를 맡고 있던 중에
+관리자가 Mac에 서비스를 맡기거나 그 박스가 조용해져 Mac이 맡게 되면 Mac은 거절하고,
+`/var/log/internkim/internkim-box.log`에 이유를 남깁니다. 넘겨받기는 회사를
+복원하는 일이고, 복원은 Linux에서 실행됩니다.
 
-Linux에서는 연결 파일 없이도 됩니다. 첫 명령만 실행하면 컴퓨터는 회사를 기다리며
+연결 파일 없이도 됩니다. Linux에서 첫 명령만 실행하거나 Mac에서 파일 없이
+`sudo internkim install`을 실행하면 컴퓨터는 회사를 기다리며
 같은 네트워크의 `http://<컴퓨터>.local:18088/`에 8자리 연결 코드를 띄웁니다.
 `sudo internkim box code`로도 같은 코드를 볼 수 있습니다. 같은 네트워크에 있는
 관리자가 회사 설정 화면에 코드를 넣고, 컴퓨터 키의 마지막 네 글자를 확인한 뒤
@@ -166,20 +171,20 @@ PostgreSQL이나 Redis는 포트와 데이터를 그대로 지킵니다.
 
 ## 컴퓨터가 가진 것 [#what-the-computer-has]
 
-Linux에서 상자 서비스 `internkim-box`는 세 가지 일을 각각 필요한 것을 가진 컴퓨터에서만 합니다.
+상자 서비스 `internkim-box`는 세 가지 일을 각각 필요한 것을 가진 Linux 컴퓨터에서만 합니다.
 김미니는 셋을 모두 가졌습니다. 그것을 치우면 그 일도 꺼집니다.
 
-| 상자는 | 컴퓨터에 이것이 있을 때 | 끄는 방법 |
-|---|---|---|
-| 오프라인인 동안 설정용 Wi-Fi 네트워크를 열고, 관리자가 회사 설정에서 준 네트워크에 접속합니다 | NetworkManager가 관리하는 Wi-Fi 장치 | `/etc/NetworkManager/conf.d/`의 `[keyfile]` 아래에 `unmanaged-devices=interface-name:wlan0` |
-| 연결되면 회사 주소를 이름으로 쓰고, 연결을 끊으면 다시 `kimmini`가 됩니다 | 호스트 이름 `kimmini`, 또는 상자가 마지막으로 주고 `/var/lib/internkim/box/host-name`에 적어 둔 이름 | `sudo hostnamectl set-hostname <name>` |
-| 회사 설정이 보낸 `admin` 비밀번호를 정하고, 초기화하거나 다른 회사가 상자를 연결하면 잠급니다 | `internkim-admin` 그룹에 있는 `admin` 계정 | `sudo gpasswd --delete admin internkim-admin` |
+| 상자는 | 컴퓨터에 이것이 있을 때 | 끄는 방법 | Mac에서는 |
+|---|---|---|---|
+| 오프라인인 동안 설정용 Wi-Fi 네트워크를 열고, 관리자가 회사 설정에서 준 네트워크에 접속합니다 | NetworkManager가 관리하는 Wi-Fi 장치 | `/etc/NetworkManager/conf.d/`의 `[keyfile]` 아래에 `unmanaged-devices=interface-name:wlan0` | 하지 않습니다. macOS에는 NetworkManager가 없습니다 |
+| 연결되면 회사 주소를 이름으로 쓰고, 연결을 끊으면 다시 `kimmini`가 됩니다 | 호스트 이름 `kimmini`, 또는 상자가 마지막으로 주고 `/var/lib/internkim/box/host-name`에 적어 둔 이름 | `sudo hostnamectl set-hostname <name>` | 하지 않습니다. 시스템 설정이 준 이름을 지킵니다 |
+| 회사 설정이 보낸 `admin` 비밀번호를 정하고, 초기화하거나 다른 회사가 상자를 연결하면 잠급니다 | `internkim-admin` 그룹에 있는 `admin` 계정 | `sudo gpasswd --delete admin internkim-admin` | 하지 않습니다. 어느 계정의 비밀번호도 정하지 않습니다 |
 
 관리하지 않는 Wi-Fi 장치는 NetworkManager가 연결하지도 않으므로, 그 장치로 온라인인 컴퓨터는 먼저
 네트워크에 닿을 다른 길이 있어야 합니다. `sudo nmcli device set wlan0 managed no`는 NetworkManager가
 다시 시작할 때까지 같은 일을 합니다. 상자는 시작할 때 Wi-Fi 장치와 계정을 살피므로, 이 두 변경은
 `sudo systemctl restart internkim-box`로 적용합니다. 호스트 이름은 이름을 바꿀 때마다 읽습니다. 상자는
-로그인 계정을 스스로 만들지 않고, Mac은 셋 중 어느 것도 하지 않습니다.
+로그인 계정을 스스로 만들지 않습니다.
 
 ## 설정
 
@@ -339,7 +344,7 @@ sudo cat /var/lib/internkim-backups/internkim-backup-20261001T031500Z.tar \
 ## 네트워크 연결
 
 호스트는 바깥으로 연결하고 로컬 인터페이스에서만 요청을 받습니다. 예외는 둘입니다. 아직
-회사가 없는 Linux 호스트는 연결될 때까지 포트 18088에 연결 코드를 띄우고, 설정 Wi-Fi
+회사가 없는 호스트는 연결될 때까지 포트 18088에 연결 코드를 띄우고, 설정 Wi-Fi
 네트워크를 연 상자는 그 네트워크에서 설정 페이지를 띄웁니다.
 컴퓨터 관리는 같은 네트워크의 셸이나 회사가 관리하는 원격 접속 방법을 사용하세요.
 

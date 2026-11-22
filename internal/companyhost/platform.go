@@ -31,6 +31,7 @@ var companyHostDataServiceNames = map[string]string{
 }
 
 type companyHostPlatform interface {
+	serviceSupervisor
 	Describe() string
 	NameOfItsSupervisor() string
 	Layout() blueclaw.CompanyHostLayout
@@ -60,18 +61,11 @@ type companyHostPlatform interface {
 	SupervisorStateOf(machine Machine, identity string) string
 	// HowToSeeWhyItIsSilent is the two commands whose output explains it.
 	HowToSeeWhyItIsSilent(identity string) []string
-}
-
-func ThisMachineKeepsABoxSessionFresh() bool {
-	return runtime.GOOS == "linux"
-}
-
-func KeepTheBoxSessionFresh(machine Machine, progress io.Writer) error {
-	unit := blueclaw.BoxServiceName + ".service"
-	if errorValue := machine.Run("systemctl", []string{"enable", unit}, nil, io.Discard); errorValue != nil {
-		return fmt.Errorf("the unit that keeps this computer's session fresh could not be enabled: %w", errorValue)
-	}
-	return machine.Run("systemctl", []string{"restart", unit}, nil, progress)
+	// CompanyServiceNames are the company's services apart from its database
+	// and its cache, which a box stops when it stands down and starts again.
+	CompanyServiceNames() []string
+	SuperviseTheBox(machine Machine, progress io.Writer) error
+	BoxAbilities() BoxAbilities
 }
 
 // ThisMachine is the platform the installer is running on. A machine this

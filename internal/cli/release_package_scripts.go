@@ -54,7 +54,7 @@ func postInstallBody(format linuxPackageFormat) string {
 		hostSetupLines(packageLayout.InstallStepCommands()),
 		``,
 		`systemctl daemon-reload >/dev/null 2>&1 || refuse "systemd did not reload; this package supervises its services with systemd"`,
-		`for unit in ` + unitFileNames() + `; do`,
+		`for unit in ` + enabledUnitFileNames() + `; do`,
 		`  [ "$(systemctl is-enabled "$unit" 2>/dev/null)" = masked ] && continue`,
 		`  systemctl enable "$unit" >/dev/null 2>&1 || refuse "could not enable $unit"`,
 		`done`,
@@ -169,8 +169,18 @@ func backupUnitFileNames() string {
 
 func companyUnitFileNames() string {
 	names := []string{}
+	for _, unit := range blueclaw.CompanyHostSystemdUnits(packageLayout) {
+		if !unit.IsDataService() {
+			names = append(names, unit.FileName())
+		}
+	}
+	return strings.Join(names, " ")
+}
+
+func enabledUnitFileNames() string {
+	names := []string{}
 	for _, unit := range blueclaw.CompanyPackageUnits() {
-		if !unit.IsDataService() && unit.Name != blueclaw.BoxServiceName {
+		if !unit.StartsOnlyWhenAsked {
 			names = append(names, unit.FileName())
 		}
 	}

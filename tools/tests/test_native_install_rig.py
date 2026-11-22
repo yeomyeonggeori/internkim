@@ -454,6 +454,10 @@ class WhatThePackageCarriesHasOneSpelling(unittest.TestCase):
         self.assertEqual(rig.expected_enablement(rig.BACKUP_UNIT_NAME), "static")
         self.assertEqual(rig.expected_enablement(rig.BACKUP_TIMER_NAME), "enabled")
 
+    def test_the_take_over_the_rig_reads_is_the_unit_the_box_starts_when_asked(self):
+        self.assertEqual(rig.TAKE_OVER_SERVICE_NAME, self.declared("company_host_box_services.go", "CompanyHostTakeOverServiceName"))
+        self.assertEqual(rig.expected_enablement(rig.TAKE_OVER_UNIT_NAME), "static")
+
     def test_every_distribution_the_rig_boots_is_one_the_package_is_promised_to_install_on(self):
         self.assertEqual(sorted(rig.DISTRIBUTIONS), ["debian-13", "ubuntu-22.04", "ubuntu-24.04"])
 

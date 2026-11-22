@@ -43,7 +43,8 @@ from native_install_rig import (  # noqa: E402
     ARCHITECTURE,
     BACKUP_TIMER_NAME,
     BACKUP_UNIT_NAME,
-    TIMED_UNIT_NAMES,
+    STATIC_UNIT_NAMES,
+    TAKE_OVER_UNIT_NAME,
     BACKUPS_DIRECTORY,
     DATA_SERVICE_PATH,
     DATABASE_DATA_DIRECTORY,
@@ -102,7 +103,6 @@ DEFAULT_PACKAGE_DIRECTORY = Path(".artifacts/native-package")
 BOX_UNIT_NAME = "internkim-box.service"
 ADMIND_UNIT_NAME = "internkim-admind.service"
 AGENT_UNIT_NAME = "blueclaw.service"
-TAKE_OVER_UNIT_NAME = "internkim-take-over.service"
 TAKE_OVER_STATE_COMMAND = "systemctl show -p ActiveState -p Result %s"
 
 # The relay used to give a message eight tries, 250 ms apart and doubling, and
@@ -1203,7 +1203,7 @@ class Rig:
         )
 
     def observe_running_services(self, step):
-        unit_names = [name for name in self.units() if name not in TIMED_UNIT_NAMES]
+        unit_names = [name for name in self.units() if name not in STATIC_UNIT_NAMES]
         states = dict(
             line.split("=", 1)
             for line in self.machine.shell(UNIT_STATE_COMMAND % " ".join(unit_names)).stdout.split()

@@ -20,8 +20,6 @@ type backupPlatform interface {
 	RestoreDatabase(machine Machine, database string, input io.Reader, listPath string) error
 	ListDump(machine Machine, input io.Reader) (string, error)
 	OwnersInDump(machine Machine, input io.Reader) ([]string, error)
-	StopTheHost(machine Machine, progress io.Writer) error
-	StartTheBox(machine Machine, progress io.Writer) error
 }
 
 func backupPlatformOf(platform companyHostPlatform) (backupPlatform, error) {
@@ -96,46 +94,6 @@ func (platform linuxPlatform) OwnersInDump(machine Machine, input io.Reader) ([]
 	return owners, nil
 }
 
-func (platform linuxPlatform) StopTheHost(machine Machine, progress io.Writer) error {
-	units := append([]string{blueclaw.BoxServiceName + ".service"}, platform.companyServiceUnits()...)
-	if errorValue := machine.Run("systemctl", append([]string{"stop"}, units...), nil, progress); errorValue != nil {
-		return fmt.Errorf("the host's services could not be stopped, so nothing was restored: %w", errorValue)
-	}
-	return nil
-}
-
-func (platform linuxPlatform) companyServiceUnits() []string {
-	units := []string{}
-	for _, unit := range blueclaw.CompanyHostSystemdUnits(platform.Layout()) {
-		if !unit.IsDataService() {
-			units = append(units, unit.FileName())
-		}
-	}
-	return units
-}
-
-func StandDown(machine Machine, progress io.Writer) error {
-	if errorValue := StopTheServices(machine, progress); errorValue != nil {
-		return errorValue
-	}
-	return forgetTheCurrentCompany()
-}
-
-func StopTheServices(machine Machine, progress io.Writer) error {
-	platform, errorValue := ThisMachine()
-	if errorValue != nil {
-		return errorValue
-	}
-	linux, isLinux := platform.(linuxPlatform)
-	if !isLinux {
-		return fmt.Errorf("a box stops its services on a Linux host; on %s the company's services are Homebrew's", platform.Describe())
-	}
-	if errorValue := machine.Run("systemctl", append([]string{"disable", "--now"}, linux.companyServiceUnits()...), nil, progress); errorValue != nil {
-		return fmt.Errorf("the company's services could not be stopped on this box: %w", errorValue)
-	}
-	return nil
-}
-
 func forgetTheCurrentCompany() error {
 	errorValue := os.Remove(blueclaw.CompanyHostCurrentPath)
 	if errors.Is(errorValue, fs.ErrNotExist) {
@@ -147,23 +105,4 @@ func forgetTheCurrentCompany() error {
 func HoldsACompany() (bool, error) {
 	companyID, errorValue := installedCompanyID()
 	return companyID != "", errorValue
-}
-
-func StandUp(machine Machine, progress io.Writer) error {
-	platform, errorValue := ThisMachine()
-	if errorValue != nil {
-		return errorValue
-	}
-	linux, isLinux := platform.(linuxPlatform)
-	if !isLinux {
-		return fmt.Errorf("a box stands up on a Linux host; on %s the company's services are Homebrew's", platform.Describe())
-	}
-	if errorValue := machine.Run("systemctl", append([]string{"enable", "--now"}, linux.companyServiceUnits()...), nil, progress); errorValue != nil {
-		return fmt.Errorf("the company's services could not be started again on this box: %w", errorValue)
-	}
-	return nil
-}
-
-func (linuxPlatform) StartTheBox(machine Machine, progress io.Writer) error {
-	return KeepTheBoxSessionFresh(machine, progress)
 }
