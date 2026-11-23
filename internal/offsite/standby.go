@@ -13,6 +13,7 @@ import (
 	"path/filepath"
 
 	"github.com/yeomyeonggeori/internkim/internal/box"
+	"github.com/yeomyeonggeori/internkim/internal/durablefile"
 	"github.com/yeomyeonggeori/internkim/internal/hostbackup"
 )
 
@@ -55,11 +56,7 @@ func (cache ChunkCache) fetch(ctx context.Context, destination Destination, chun
 	if errorValue != nil {
 		return errorValue
 	}
-	partialPath := cache.pathOf(chunkID) + ".partial"
-	if errorValue := os.WriteFile(partialPath, sealed, 0o600); errorValue != nil {
-		return errorValue
-	}
-	return os.Rename(partialPath, cache.pathOf(chunkID))
+	return durablefile.Write(cache.pathOf(chunkID), sealed, 0o600)
 }
 
 func (cache ChunkCache) FetchMissing(ctx context.Context, destination Destination, chunkIDs []string) error {
@@ -141,22 +138,48 @@ func (cache ChunkCache) WriteMember(ctx context.Context, destination Destination
 }
 
 func (cache ChunkCache) writeChunk(ctx context.Context, destination Destination, chunkID string, keyring box.Keyring, output io.Writer) error {
-	if !cache.holds(chunkID) {
-		if errorValue := os.MkdirAll(cache.DirectoryPath, 0o700); errorValue != nil {
-			return errorValue
-		}
-		if errorValue := cache.fetch(ctx, destination, chunkID); errorValue != nil {
-			return errorValue
-		}
-	}
-	sealed, errorValue := os.ReadFile(cache.pathOf(chunkID))
+	opened, errorValue := cache.openedChunk(ctx, destination, chunkID, keyring)
 	if errorValue != nil {
 		return errorValue
+	}
+	_, errorValue = output.Write(opened)
+	return errorValue
+}
+
+func (cache ChunkCache) openedChunk(ctx context.Context, destination Destination, chunkID string, keyring box.Keyring) ([]byte, error) {
+	if cache.holds(chunkID) {
+		opened, errorValue := cache.open(destination, chunkID, keyring)
+		if errorValue == nil || errors.Is(errorValue, box.ErrCompanyKeyNotHeld) {
+			return opened, errorValue
+		}
+		if errorValue := os.Remove(cache.pathOf(chunkID)); errorValue != nil && !errors.Is(errorValue, fs.ErrNotExist) {
+			return nil, fmt.Errorf("removing the cached chunk %s, which does not open, to fetch it again: %w", chunkID, errorValue)
+		}
+	}
+	if errorValue := os.MkdirAll(cache.DirectoryPath, 0o700); errorValue != nil {
+		return nil, errorValue
+	}
+	if errorValue := cache.fetch(ctx, destination, chunkID); errorValue != nil {
+		return nil, fmt.Errorf("fetching the chunk %s: %w", chunkID, errorValue)
+	}
+	opened, errorValue := cache.open(destination, chunkID, keyring)
+	if errors.Is(errorValue, box.ErrCompanyKeyNotHeld) {
+		return nil, errorValue
+	}
+	if errorValue != nil {
+		return nil, fmt.Errorf("the chunk %s does not open as the plane holds it, so the plane's copy is bad: %w", chunkID, errorValue)
+	}
+	return opened, nil
+}
+
+func (cache ChunkCache) open(destination Destination, chunkID string, keyring box.Keyring) ([]byte, error) {
+	sealed, errorValue := os.ReadFile(cache.pathOf(chunkID))
+	if errorValue != nil {
+		return nil, errorValue
 	}
 	opened, errorValue := keyring.OpenStream(bytes.NewReader(sealed), box.BackupChunkPurpose(destination.CompanyID, chunkID))
 	if errorValue != nil {
-		return errorValue
+		return nil, errorValue
 	}
-	_, errorValue = io.Copy(output, opened)
-	return errorValue
+	return io.ReadAll(opened)
 }
