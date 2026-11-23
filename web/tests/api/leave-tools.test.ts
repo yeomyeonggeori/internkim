@@ -496,6 +496,70 @@ describe('a leave asked under autonomous work', () => {
 	});
 });
 
+describe('an approved leave that has not started', () => {
+	async function approvedLeaveOn(day: string): Promise<string> {
+		const filed = resultOf(await asSample('leave_request', { kind: '연차', startsAt: day, endsAt: day, days: 1 }));
+		resultOf(await asAdmin('leave_decide', { leaveHint: filed.leaveID as string, decision: 'approved' }));
+		return filed.leaveID as string;
+	}
+
+	async function leaveListedIn(window: { from: string; to: string }): Promise<{ leaveID: string; status: string }[]> {
+		return resultOf(await asSample('leave_list', window)).leave as { leaveID: string; status: string }[];
+	}
+
+	test('moves to other days once the request that replaces it is approved', async () => {
+		const originalID = await approvedLeaveOn('2027-03-02');
+
+		const asked = resultOf(
+			await asSample('leave_request', {
+				kind: '연차',
+				startsAt: '2027-03-09',
+				endsAt: '2027-03-09',
+				days: 1,
+				originalLeaveHint: originalID
+			})
+		);
+		expect(asked).toMatchObject({
+			status: 'requested',
+			originalLeaveID: originalID,
+			replacedLeave: { leaveID: originalID, startDate: '2027-03-02', endDate: '2027-03-02' }
+		});
+		const waiting = await leaveListedIn({ from: '2027-03-01', to: '2027-03-31' });
+		expect(waiting.find((row) => row.leaveID === originalID)?.status).toBe('approved');
+
+		resultOf(await asAdmin('leave_decide', { leaveHint: asked.leaveID as string, decision: 'approved' }));
+		const moved = await leaveListedIn({ from: '2027-03-01', to: '2027-03-31' });
+		expect(moved.some((row) => row.leaveID === originalID)).toBe(false);
+		expect(moved.find((row) => row.leaveID === asked.leaveID)?.status).toBe('approved');
+	});
+
+	test('stays as it was when the request that replaces it is rejected', async () => {
+		const originalID = await approvedLeaveOn('2027-04-06');
+		const asked = resultOf(
+			await asSample('leave_request', {
+				kind: '연차',
+				startsAt: '2027-04-13',
+				endsAt: '2027-04-13',
+				days: 1,
+				originalLeaveHint: originalID
+			})
+		);
+
+		resultOf(await asAdmin('leave_decide', { leaveHint: asked.leaveID as string, decision: 'rejected' }));
+		const kept = await leaveListedIn({ from: '2027-04-01', to: '2027-04-30' });
+		expect(kept.find((row) => row.leaveID === originalID)?.status).toBe('approved');
+	});
+
+	test('is taken back by the person it belongs to', async () => {
+		const approvedID = await approvedLeaveOn('2027-05-04');
+
+		const taken = resultOf(await asSample('leave_delete', { leaveHint: approvedID }));
+		expect(taken).toMatchObject({ leaveID: approvedID, status: 'approved' });
+		const left = await leaveListedIn({ from: '2027-05-01', to: '2027-05-31' });
+		expect(left.some((row) => row.leaveID === approvedID)).toBe(false);
+	});
+});
+
 describe('leave_list read a page at a time', () => {
 	test('walks every row newest first, once, and says when no page is left', async () => {
 		const days = ['2027-02-02', '2027-02-09', '2027-02-16'];

@@ -111,7 +111,7 @@ The record answers these directly. A caller reaches one at `POST /rest/v1/rpc/<n
 | `leave_accrue_due` | — | `jsonb` | definer | authenticated, service_role |
 | `leave_balances` | `target_year integer` | `jsonb` | definer | authenticated, service_role |
 | `leave_days_in_year` | `starts_at timestamp with time zone, ends_at timestamp with time zone, total_days numeric, time_zone text, target_year integer, year_start_month integer DEFAULT 1, year_start_day integer DEFAULT 1` | `numeric` | invoker | anon, authenticated, service_role |
-| `leave_in_full` | — | `TABLE(id uuid, member_id uuid, kind text, is_paid boolean, is_deducted boolean, days numeric, status leave_status, starts_at timestamp with time zone, ends_at timestamp with time zone, note text)` | definer | authenticated, service_role |
+| `leave_in_full` | — | `TABLE(id uuid, member_id uuid, kind text, is_paid boolean, is_deducted boolean, days numeric, status leave_status, starts_at timestamp with time zone, ends_at timestamp with time zone, note text, original_leave_id uuid)` | definer | authenticated, service_role |
 | `leave_management_source` | — | `jsonb` | definer | authenticated, service_role |
 | `leave_return_early` | `work_location text` | `jsonb` | definer | authenticated, service_role |
 | `make_box_serve` | `serving_company uuid, box_key text` | `text` | definer | service_role |
@@ -200,6 +200,7 @@ These run when a row changes. Nobody calls them.
 | --- |
 | `abandon_the_profile_image` |
 | `announce_task_write` |
+| `approved_replacement_removes_its_original` |
 | `ask_the_subscription_to_follow_its_seats` |
 | `bind_member_to_new_user` |
 | `company_payer_follows_its_subscription` |
@@ -213,6 +214,7 @@ These run when a row changes. Nobody calls them.
 | `leave_carries_the_terms_of_its_kind` |
 | `leave_granted_to_a_new_member` |
 | `leave_grants_restart_when_the_opening_rule_changes` |
+| `leave_replaces_an_approved_leave_of_its_own` |
 | `leave_stays_within_its_units` |
 | `leave_stays_within_its_usage_limit` |
 | `leave_under_autonomous_work_is_taken_not_asked` |

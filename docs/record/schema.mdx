@@ -147,6 +147,11 @@ company and by country. Half and quarter days are just fractions of `days`.
 on the company's country, so it belongs to the policy. The span and `days`
 legitimately disagree: a Friday to Monday leave spans four days and costs two.
 
+A request for different days names the approved leave it would replace in
+`original_leave_id`. That leave stands while the request waits, and is removed
+when the request is approved. One approved leave has one such request waiting
+at a time, and the owner of an approved leave takes it back until it starts.
+
 ## Credits [#credits]
 
 A company subscribes through Stripe and spends credits through our OpenRouter

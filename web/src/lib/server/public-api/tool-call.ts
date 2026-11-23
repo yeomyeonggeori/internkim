@@ -1,6 +1,7 @@
 import { isHttpError } from '@sveltejs/kit';
 import { z } from 'zod';
 import { askWhoAnswersFor, type AttendanceAsked } from '$lib/server/ask-who-answers';
+import { withTheLeaveChangeTold } from '$lib/server/tell-leave-change';
 import { taskChangesAnnouncedAs } from './task-announcement';
 import { attendanceAnnouncedAs } from './attendance-announcement';
 import { fullPublicAPIPermission, reachesPermission } from '$lib/public-api-permission';
@@ -116,7 +117,11 @@ async function toolAnswered(
 	if (answered.status < 300) await tellTheCompanyWhatItMirrorsChanged(environment, member, name);
 	return {
 		status: answered.status,
-		body: await withTheCompanyTold(environment, member, name, inputOfTheCall(name, payload.input) as AttendanceAsked, answered.body)
+		body: await withTheLeaveChangeTold(
+			{ environment, record: member.record, companyID: member.companyID, memberID: member.memberID },
+			name,
+			await withTheCompanyTold(environment, member, name, inputOfTheCall(name, payload.input) as AttendanceAsked, answered.body)
+		)
 	};
 }
 

@@ -35,6 +35,8 @@ export type AnsweredLeave = {
 	startsAt: string;
 	endsAt: string;
 	note: string | null;
+	originalLeaveID: string | null;
+	replacedLeave?: { leaveID: string; startDate: string; endDate: string };
 };
 
 const halfADay = 0.5;
@@ -65,7 +67,8 @@ function answeredLeave(context: RecordContext, row: LeaveRow): AnsweredLeave {
 		endDate: lastDayCovered(context.labels.timezone, row),
 		startsAt: new Date(row.starts_at).toISOString(),
 		endsAt: new Date(row.ends_at).toISOString(),
-		note: row.note
+		note: row.note,
+		originalLeaveID: row.original_leave_id
 	};
 }
 
@@ -257,6 +260,9 @@ export async function leaveRequest(
 	if (days <= 0) throw new InputRefused('a leave request says how many days it consumes; a half day is 0.5');
 
 	const kind = leaveKindOf(context.leaveKinds, input.kind ?? '');
+	const original = input.originalLeaveHint?.trim()
+		? answeredLeave(context, leaveOfHint(context, await leaveOfCompany(context.caller), input.originalLeaveHint))
+		: null;
 	const written = {
 		member_id: targetMember(context, input.personHint),
 		kind: kind.id,
@@ -269,13 +275,21 @@ export async function leaveRequest(
 			days > halfADay
 				? midnightAfter(context.labels.timezone, input.endsAt)
 				: instantWritten(context.labels.timezone, input.endsAt, true),
-		note: input.note?.trim() || null
+		note: input.note?.trim() || null,
+		original_leave_id: original?.leaveID ?? null
 	};
 
 	const { data, error } = await context.caller.from('leave').insert(written).select('id').single<{ id: string }>();
 	if (error) throw refusalOfPostgresError(error);
+	const filed = answeredLeave(context, await leaveByID(context, data.id));
+	if (original) {
+		return {
+			...filed,
+			replacedLeave: { leaveID: original.leaveID, startDate: original.startDate, endDate: original.endDate }
+		};
+	}
 	if (written.member_id === context.requesterID) await announceAttendance?.({ what: 'leave' });
-	return answeredLeave(context, await leaveByID(context, data.id));
+	return filed;
 }
 
 export type LeaveUpdateInput = z.infer<typeof leaveUpdateInputSchema>;
