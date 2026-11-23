@@ -15,7 +15,7 @@ const admin = createClient(databaseURL, process.env.SUPABASE_SECRET_KEY ?? '', {
 const client = createClient(databaseURL, process.env.SUPABASE_PUBLISHABLE_KEY ?? '', { auth: { persistSession: false } });
 const { data: auth, error: authError } = await client.auth.signInWithPassword({ email: 'member1@example.com', password: 'seed-password' });
 if (authError || !auth.session) throw new Error('The seeded local member could not sign in');
-const companyID = '000000cc-0000-0000-0000-000000000001';
+const companyID = '000000cc-0000-4000-8000-000000000001';
 const memberID = '000000ee-0000-0000-0000-000000000001';
 const now = new Date();
 const dateISO = now.toISOString().slice(0, 10);

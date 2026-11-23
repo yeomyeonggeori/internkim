@@ -16,7 +16,7 @@ export interface RecordAccess {
 	secretKey: string;
 }
 
-export const seedCompanyID = '000000cc-0000-0000-0000-000000000001';
+export const seedCompanyID = '000000cc-0000-4000-8000-000000000001';
 const companyTimeZone = 'Asia/Seoul';
 
 type Scalar = string | number | boolean | null;

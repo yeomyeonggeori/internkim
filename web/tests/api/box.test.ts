@@ -1028,3 +1028,30 @@ describe('the routes a company computer calls accept its session', () => {
 		await expect(sessionForHost(credentials, memberSession.accessToken)).rejects.toThrow('no company computer');
 	});
 });
+
+describe('the seeded company', () => {
+	const seededCompanyID = '000000cc-0000-4000-8000-000000000001';
+
+	test('a connection file claims a computer for it through the claim route', async () => {
+		const { POST: claimRoute } = await import('../../src/routes/api/box/claim/+server');
+		const { data: standing } = await client.from('agent').select('*').eq('company_id', seededCompanyID).eq('name', companyComputerName).maybeSingle();
+		const box = await aBox();
+		const issued = await issueAgentKey(client, seededCompanyID, companyComputerName, { replaceStanding: true });
+		try {
+			const request = new Request('https://intern.example.test/api/box/claim', {
+				method: 'POST',
+				headers: { authorization: `Bearer ${await box.sign()}`, 'content-type': 'application/json' },
+				body: JSON.stringify({ encryptionKey: box.encryptionKey, connectionKey: issued.apiKey })
+			});
+			const response = await claimRoute({ request, platform: { env: environment }, url: new URL(request.url) } as never);
+
+			expect(response.status).toBe(200);
+			const answered: unknown = await response.json();
+			expect(answered).toEqual({ companyID: seededCompanyID });
+		} finally {
+			await client.from('box').delete().eq('public_key', box.publicKey);
+			if (standing) await client.from('agent').upsert(standing);
+			if (!standing) await client.from('agent').delete().eq('id', issued.agentID);
+		}
+	});
+});

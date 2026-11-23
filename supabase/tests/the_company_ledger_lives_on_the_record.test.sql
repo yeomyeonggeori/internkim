@@ -12,8 +12,8 @@ insert into public.company (id, name, slug, country, locale, timezone) values
   ('00000000-0000-0000-0000-0000000000c0', 'Company C', 'company-c', 'KR', 'ko', 'Asia/Seoul');
 
 insert into public.member (id, company_id, email, user_id, status, is_admin) values
-  ('000000cc-0000-0000-0000-000000000009', '00000000-0000-0000-0000-0000000000c0', 'ledger-admin@example.test', '00000000-0000-0000-0000-0000000000c9', 'active', true),
-  ('000000cc-0000-0000-0000-000000000001', '00000000-0000-0000-0000-0000000000c0', 'ledger-member@example.test', '00000000-0000-0000-0000-0000000000c1', 'active', false);
+  ('000000cc-0000-4000-8000-000000000009', '00000000-0000-0000-0000-0000000000c0', 'ledger-admin@example.test', '00000000-0000-0000-0000-0000000000c9', 'active', true),
+  ('000000cc-0000-4000-8000-000000000001', '00000000-0000-0000-0000-0000000000c0', 'ledger-member@example.test', '00000000-0000-0000-0000-0000000000c1', 'active', false);
 
 do $$
 begin
@@ -113,7 +113,7 @@ begin
   set local role authenticated;
   perform set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-0000000000c1","role":"authenticated"}', true);
   insert into public.company_document (company_id, kind, document_number, document_type, title, counterpart, summary, requester_id, category_code)
-  values ('00000000-0000-0000-0000-0000000000c0', 'issued', 'Q-2026-001', 'quote', 'ABC Trading onboarding quote', 'ABC Trading', 'A quote for the onboarding consulting.', '000000cc-0000-0000-0000-000000000001', 'X');
+  values ('00000000-0000-0000-0000-0000000000c0', 'issued', 'Q-2026-001', 'quote', 'ABC Trading onboarding quote', 'ABC Trading', 'A quote for the onboarding consulting.', '000000cc-0000-4000-8000-000000000001', 'X');
 end;
 $$;
 
@@ -121,7 +121,7 @@ reset role;
 
 select is(
   (select requester_id from public.company_document where document_number = 'Q-2026-001'),
-  '000000cc-0000-0000-0000-000000000001'::uuid,
+  '000000cc-0000-4000-8000-000000000001'::uuid,
   'anybody who works here registers a document, as themselves'
 );
 
@@ -130,7 +130,7 @@ begin
   set local role authenticated;
   perform set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-0000000000c1","role":"authenticated"}', true);
   insert into public.company_document (company_id, document_number, document_type, title, requester_id, category_code)
-  values ('00000000-0000-0000-0000-0000000000c0', 'Q-2026-001', 'quote', 'A second quote claiming the same number', '000000cc-0000-0000-0000-000000000001', 'X');
+  values ('00000000-0000-0000-0000-0000000000c0', 'Q-2026-001', 'quote', 'A second quote claiming the same number', '000000cc-0000-4000-8000-000000000001', 'X');
   reset role;
 end $$;$block$, '23505', null, 'one company hands out a document number once');
 
@@ -139,7 +139,7 @@ begin
   set local role authenticated;
   perform set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-0000000000c1","role":"authenticated"}', true);
   insert into public.company_document (company_id, document_type, title, kind, requester_id, category_code)
-  values ('00000000-0000-0000-0000-0000000000c0', 'quote', 'A quote of no known kind', 'draft', '000000cc-0000-0000-0000-000000000001', 'X');
+  values ('00000000-0000-0000-0000-0000000000c0', 'quote', 'A quote of no known kind', 'draft', '000000cc-0000-4000-8000-000000000001', 'X');
   reset role;
 end $$;$block$, '23514', null, 'a document is issued, received or internal');
 

@@ -6,7 +6,7 @@ describe('share link contract', () => {
 	test('accepts existing PostgreSQL company identifiers when a guest session opens', () => {
 		const session = {
 			sessionID: '25c20378-a3a6-4fe2-a12f-1c2e83c3b430',
-			companyID: '000000cc-0000-0000-0000-000000000001',
+			companyID: '000000cc-0000-4000-8000-000000000001',
 			expiresAt: '2026-10-02T06:00:00.123456+00:00'
 		};
 		expect(dataRoomLinkSessionSchema.parse(session)).toEqual(session);

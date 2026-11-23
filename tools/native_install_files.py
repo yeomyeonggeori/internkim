@@ -19,7 +19,7 @@ BACKUP_ROOTS = (
 
 COMPARED_FIELDS = ("type", "size", "mode", "owner", "group", "target", "digest")
 
-SEEDED_COMPANY = "000000cc-0000-0000-0000-000000000001"
+SEEDED_COMPANY = "000000cc-0000-4000-8000-000000000001"
 SEEDED_FIRST_MEMBER = "000000ee-0000-0000-0000-000000000001"
 SQLITE_COPY = (
     "a SQLite database the backup copies as one consolidated file through SQLite's own snapshot "

@@ -21,7 +21,7 @@ const now = new Date();
 const startsAt = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 9).toISOString();
 const endsAt = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 10).toISOString();
 const memberID = '000000ee-0000-0000-0000-000000000001';
-const { data: tasks, error: seedError } = await admin.from('task').insert(Array.from({ length: 120 }, (_, index) => ({ company_id: '000000cc-0000-0000-0000-000000000001', title: `Restart benchmark task ${index}`, is_event: false, is_whole_day: false, status: 'planned', starts_at: startsAt, ends_at: endsAt, requester_id: memberID }))).select('id');
+const { data: tasks, error: seedError } = await admin.from('task').insert(Array.from({ length: 120 }, (_, index) => ({ company_id: '000000cc-0000-4000-8000-000000000001', title: `Restart benchmark task ${index}`, is_event: false, is_whole_day: false, status: 'planned', starts_at: startsAt, ends_at: endsAt, requester_id: memberID }))).select('id');
 if (seedError || !tasks) throw new Error('Local fixture creation failed');
 const ids = tasks.map(task => task.id);
 const parent = await mkdtemp(join(tmpdir(), 'internkim-task-restart-'));
