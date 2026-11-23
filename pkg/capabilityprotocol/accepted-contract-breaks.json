@@ -1448,5 +1448,55 @@
 		"path": "persona_identity_update.result.emoji",
 		"reason": "creature and emoji retire from the agent identity: each only added one prompt line, nothing showed them, and emoji contradicted the soul's rule against emoji. A saved identity that still carries them loads with both dropped.",
 		"release": "the web/API deployment that stops asking for creature and emoji goes out before the company host release whose schema drops them; the persona tools are answered by the company host, which reads its own embedded catalog, and the web ignores the two fields an older host still answers with"
+	},
+	{
+		"path": "leave_request.result.originalLeaveID",
+		"reason": "A leave can ask to replace an approved one, and its answer names that leave so a screen can show the days it moves from. The fields are optional and nothing answers with them yet.",
+		"release": "this catalog reaches company hosts in a host release before the web/API deployment that starts answering with the two fields; until then the web omits them, which both the shipped contract and this one accept"
+	},
+	{
+		"path": "leave_request.result.replacedLeave",
+		"reason": "A leave can ask to replace an approved one, and its answer names that leave so a screen can show the days it moves from. The fields are optional and nothing answers with them yet.",
+		"release": "this catalog reaches company hosts in a host release before the web/API deployment that starts answering with the two fields; until then the web omits them, which both the shipped contract and this one accept"
+	},
+	{
+		"path": "leave_update.result.originalLeaveID",
+		"reason": "A leave can ask to replace an approved one, and its answer names that leave so a screen can show the days it moves from. The fields are optional and nothing answers with them yet.",
+		"release": "this catalog reaches company hosts in a host release before the web/API deployment that starts answering with the two fields; until then the web omits them, which both the shipped contract and this one accept"
+	},
+	{
+		"path": "leave_update.result.replacedLeave",
+		"reason": "A leave can ask to replace an approved one, and its answer names that leave so a screen can show the days it moves from. The fields are optional and nothing answers with them yet.",
+		"release": "this catalog reaches company hosts in a host release before the web/API deployment that starts answering with the two fields; until then the web omits them, which both the shipped contract and this one accept"
+	},
+	{
+		"path": "leave_delete.result.originalLeaveID",
+		"reason": "A leave can ask to replace an approved one, and its answer names that leave so a screen can show the days it moves from. The fields are optional and nothing answers with them yet.",
+		"release": "this catalog reaches company hosts in a host release before the web/API deployment that starts answering with the two fields; until then the web omits them, which both the shipped contract and this one accept"
+	},
+	{
+		"path": "leave_delete.result.replacedLeave",
+		"reason": "A leave can ask to replace an approved one, and its answer names that leave so a screen can show the days it moves from. The fields are optional and nothing answers with them yet.",
+		"release": "this catalog reaches company hosts in a host release before the web/API deployment that starts answering with the two fields; until then the web omits them, which both the shipped contract and this one accept"
+	},
+	{
+		"path": "leave_decide.result.originalLeaveID",
+		"reason": "A leave can ask to replace an approved one, and its answer names that leave so a screen can show the days it moves from. The fields are optional and nothing answers with them yet.",
+		"release": "this catalog reaches company hosts in a host release before the web/API deployment that starts answering with the two fields; until then the web omits them, which both the shipped contract and this one accept"
+	},
+	{
+		"path": "leave_decide.result.replacedLeave",
+		"reason": "A leave can ask to replace an approved one, and its answer names that leave so a screen can show the days it moves from. The fields are optional and nothing answers with them yet.",
+		"release": "this catalog reaches company hosts in a host release before the web/API deployment that starts answering with the two fields; until then the web omits them, which both the shipped contract and this one accept"
+	},
+	{
+		"path": "leave_list.result.leave[].originalLeaveID",
+		"reason": "A leave can ask to replace an approved one, and its answer names that leave so a screen can show the days it moves from. The fields are optional and nothing answers with them yet.",
+		"release": "this catalog reaches company hosts in a host release before the web/API deployment that starts answering with the two fields; until then the web omits them, which both the shipped contract and this one accept"
+	},
+	{
+		"path": "leave_list.result.leave[].replacedLeave",
+		"reason": "A leave can ask to replace an approved one, and its answer names that leave so a screen can show the days it moves from. The fields are optional and nothing answers with them yet.",
+		"release": "this catalog reaches company hosts in a host release before the web/API deployment that starts answering with the two fields; until then the web omits them, which both the shipped contract and this one accept"
 	}
 ]

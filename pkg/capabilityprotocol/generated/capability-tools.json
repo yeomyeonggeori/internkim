@@ -6923,11 +6923,45 @@
                     }
                   ]
                 },
+                "originalLeaveID": {
+                  "anyOf": [
+                    {
+                      "minLength": 1,
+                      "pattern": "^\\S(?:.*\\S)?$",
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
                 "person": {
                   "type": "string"
                 },
                 "personID": {
                   "type": "string"
+                },
+                "replacedLeave": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "endDate": {
+                      "type": "string"
+                    },
+                    "leaveID": {
+                      "minLength": 1,
+                      "pattern": "^\\S(?:.*\\S)?$",
+                      "type": "string"
+                    },
+                    "startDate": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "leaveID",
+                    "startDate",
+                    "endDate"
+                  ],
+                  "type": "object"
                 },
                 "startDate": {
                   "type": "string"
@@ -7070,11 +7104,45 @@
                       }
                     ]
                   },
+                  "originalLeaveID": {
+                    "anyOf": [
+                      {
+                        "minLength": 1,
+                        "pattern": "^\\S(?:.*\\S)?$",
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
                   "person": {
                     "type": "string"
                   },
                   "personID": {
                     "type": "string"
+                  },
+                  "replacedLeave": {
+                    "additionalProperties": false,
+                    "properties": {
+                      "endDate": {
+                        "type": "string"
+                      },
+                      "leaveID": {
+                        "minLength": 1,
+                        "pattern": "^\\S(?:.*\\S)?$",
+                        "type": "string"
+                      },
+                      "startDate": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "leaveID",
+                      "startDate",
+                      "endDate"
+                    ],
+                    "type": "object"
                   },
                   "startDate": {
                     "type": "string"
@@ -7522,11 +7590,45 @@
               }
             ]
           },
+          "originalLeaveID": {
+            "anyOf": [
+              {
+                "minLength": 1,
+                "pattern": "^\\S(?:.*\\S)?$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "person": {
             "type": "string"
           },
           "personID": {
             "type": "string"
+          },
+          "replacedLeave": {
+            "additionalProperties": false,
+            "properties": {
+              "endDate": {
+                "type": "string"
+              },
+              "leaveID": {
+                "minLength": 1,
+                "pattern": "^\\S(?:.*\\S)?$",
+                "type": "string"
+              },
+              "startDate": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "leaveID",
+              "startDate",
+              "endDate"
+            ],
+            "type": "object"
           },
           "startDate": {
             "type": "string"
@@ -7609,11 +7711,45 @@
                 }
               ]
             },
+            "originalLeaveID": {
+              "anyOf": [
+                {
+                  "minLength": 1,
+                  "pattern": "^\\S(?:.*\\S)?$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
             "person": {
               "type": "string"
             },
             "personID": {
               "type": "string"
+            },
+            "replacedLeave": {
+              "additionalProperties": false,
+              "properties": {
+                "endDate": {
+                  "type": "string"
+                },
+                "leaveID": {
+                  "minLength": 1,
+                  "pattern": "^\\S(?:.*\\S)?$",
+                  "type": "string"
+                },
+                "startDate": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "leaveID",
+                "startDate",
+                "endDate"
+              ],
+              "type": "object"
             },
             "startDate": {
               "type": "string"
@@ -7783,11 +7919,45 @@
               }
             ]
           },
+          "originalLeaveID": {
+            "anyOf": [
+              {
+                "minLength": 1,
+                "pattern": "^\\S(?:.*\\S)?$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "person": {
             "type": "string"
           },
           "personID": {
             "type": "string"
+          },
+          "replacedLeave": {
+            "additionalProperties": false,
+            "properties": {
+              "endDate": {
+                "type": "string"
+              },
+              "leaveID": {
+                "minLength": 1,
+                "pattern": "^\\S(?:.*\\S)?$",
+                "type": "string"
+              },
+              "startDate": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "leaveID",
+              "startDate",
+              "endDate"
+            ],
+            "type": "object"
           },
           "startDate": {
             "type": "string"
@@ -7871,11 +8041,45 @@
                 }
               ]
             },
+            "originalLeaveID": {
+              "anyOf": [
+                {
+                  "minLength": 1,
+                  "pattern": "^\\S(?:.*\\S)?$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
             "person": {
               "type": "string"
             },
             "personID": {
               "type": "string"
+            },
+            "replacedLeave": {
+              "additionalProperties": false,
+              "properties": {
+                "endDate": {
+                  "type": "string"
+                },
+                "leaveID": {
+                  "minLength": 1,
+                  "pattern": "^\\S(?:.*\\S)?$",
+                  "type": "string"
+                },
+                "startDate": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "leaveID",
+                "startDate",
+                "endDate"
+              ],
+              "type": "object"
             },
             "startDate": {
               "type": "string"
@@ -7998,11 +8202,45 @@
               }
             ]
           },
+          "originalLeaveID": {
+            "anyOf": [
+              {
+                "minLength": 1,
+                "pattern": "^\\S(?:.*\\S)?$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "person": {
             "type": "string"
           },
           "personID": {
             "type": "string"
+          },
+          "replacedLeave": {
+            "additionalProperties": false,
+            "properties": {
+              "endDate": {
+                "type": "string"
+              },
+              "leaveID": {
+                "minLength": 1,
+                "pattern": "^\\S(?:.*\\S)?$",
+                "type": "string"
+              },
+              "startDate": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "leaveID",
+              "startDate",
+              "endDate"
+            ],
+            "type": "object"
           },
           "startDate": {
             "type": "string"
@@ -8086,11 +8324,45 @@
                 }
               ]
             },
+            "originalLeaveID": {
+              "anyOf": [
+                {
+                  "minLength": 1,
+                  "pattern": "^\\S(?:.*\\S)?$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
             "person": {
               "type": "string"
             },
             "personID": {
               "type": "string"
+            },
+            "replacedLeave": {
+              "additionalProperties": false,
+              "properties": {
+                "endDate": {
+                  "type": "string"
+                },
+                "leaveID": {
+                  "minLength": 1,
+                  "pattern": "^\\S(?:.*\\S)?$",
+                  "type": "string"
+                },
+                "startDate": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "leaveID",
+                "startDate",
+                "endDate"
+              ],
+              "type": "object"
             },
             "startDate": {
               "type": "string"
@@ -8231,11 +8503,45 @@
               }
             ]
           },
+          "originalLeaveID": {
+            "anyOf": [
+              {
+                "minLength": 1,
+                "pattern": "^\\S(?:.*\\S)?$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "person": {
             "type": "string"
           },
           "personID": {
             "type": "string"
+          },
+          "replacedLeave": {
+            "additionalProperties": false,
+            "properties": {
+              "endDate": {
+                "type": "string"
+              },
+              "leaveID": {
+                "minLength": 1,
+                "pattern": "^\\S(?:.*\\S)?$",
+                "type": "string"
+              },
+              "startDate": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "leaveID",
+              "startDate",
+              "endDate"
+            ],
+            "type": "object"
           },
           "startDate": {
             "type": "string"
@@ -8319,11 +8625,45 @@
                 }
               ]
             },
+            "originalLeaveID": {
+              "anyOf": [
+                {
+                  "minLength": 1,
+                  "pattern": "^\\S(?:.*\\S)?$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
             "person": {
               "type": "string"
             },
             "personID": {
               "type": "string"
+            },
+            "replacedLeave": {
+              "additionalProperties": false,
+              "properties": {
+                "endDate": {
+                  "type": "string"
+                },
+                "leaveID": {
+                  "minLength": 1,
+                  "pattern": "^\\S(?:.*\\S)?$",
+                  "type": "string"
+                },
+                "startDate": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "leaveID",
+                "startDate",
+                "endDate"
+              ],
+              "type": "object"
             },
             "startDate": {
               "type": "string"

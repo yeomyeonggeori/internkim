@@ -1252,6 +1252,12 @@ export const leaveResultSchema = z.strictObject({
   startsAt: z.string(),
   endsAt: z.string(),
   note: z.string().nullable(),
+  originalLeaveID: resourceIDSchema.nullable().optional(),
+  replacedLeave: z.strictObject({
+    leaveID: resourceIDSchema,
+    startDate: z.string(),
+    endDate: z.string(),
+  }).optional(),
 });
 
 export const leaveListResultSchema = z.strictObject({
