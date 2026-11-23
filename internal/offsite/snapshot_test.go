@@ -34,10 +34,11 @@ type fakeStorage struct {
 	token   string
 	now     time.Time
 	puts    int
+	gets    map[string]int
 }
 
 func newFakeStorage() *fakeStorage {
-	return &fakeStorage{objects: map[string]storedBody{}, token: "host.session.token", now: time.Now()}
+	return &fakeStorage{objects: map[string]storedBody{}, token: "host.session.token", now: time.Now(), gets: map[string]int{}}
 }
 
 func (storage *fakeStorage) serve(t *testing.T) Store {
@@ -59,7 +60,9 @@ func (storage *fakeStorage) serve(t *testing.T) Store {
 			storage.puts++
 			writer.Write([]byte(`{}`))
 		case request.Method == http.MethodGet && strings.HasPrefix(path, "/object/authenticated/"+Bucket+"/"):
-			body, isKept := storage.objects[strings.TrimPrefix(path, "/object/authenticated/"+Bucket+"/")]
+			objectPath := strings.TrimPrefix(path, "/object/authenticated/"+Bucket+"/")
+			storage.gets[objectPath]++
+			body, isKept := storage.objects[objectPath]
 			if !isKept {
 				http.Error(writer, "not found", http.StatusBadRequest)
 				return
