@@ -1,5 +1,6 @@
 import type {
 	LeaveManagementAdjustment,
+	LeaveManagementDaysCorrection,
 	LeaveManagementPastLeave,
 	LeaveManagementPayload,
 	LeaveManagementTimeCorrection
@@ -7,6 +8,7 @@ import type {
 import {
 	adjustSupabaseManagedLeave,
 	cancelSupabaseManagedLeaveRequest,
+	correctSupabaseManagedLeaveDays,
 	correctSupabaseManagedLeaveTime,
 	createSupabaseManagedPastLeave,
 	supabaseLeaveManagement
@@ -26,6 +28,13 @@ export function createManagedPastLeave(input: LeaveManagementPastLeave): Promise
 
 export function cancelManagedLeaveRequest(requestID: string): Promise<void> {
 	return cancelSupabaseManagedLeaveRequest(requestID);
+}
+
+export function correctManagedLeaveDays(
+	requestID: string,
+	input: LeaveManagementDaysCorrection
+): Promise<void> {
+	return correctSupabaseManagedLeaveDays(requestID, input);
 }
 
 export function correctManagedLeaveTime(

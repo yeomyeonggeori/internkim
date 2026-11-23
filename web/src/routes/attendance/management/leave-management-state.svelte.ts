@@ -5,6 +5,7 @@ import { employeeLeaveErrorMessage } from '../leave/employee-leave-error';
 import {
 	adjustManagedLeave,
 	cancelManagedLeaveRequest,
+	correctManagedLeaveDays,
 	correctManagedLeaveTime,
 	createManagedPastLeave,
 	fetchLeaveManagement
@@ -13,6 +14,7 @@ import type {
 	LeaveManagementAdjustment,
 	LeaveManagementPastLeave,
 	LeaveManagementPayload,
+	LeaveManagementDaysCorrection,
 	LeaveManagementTimeCorrection
 } from './leave-management-types';
 
@@ -71,6 +73,11 @@ export class LeaveManagementState {
 	async cancelRequest(requestID: string): Promise<void> {
 		if (!this.selectedEmployeeEmail) return;
 		await this.mutate(() => cancelManagedLeaveRequest(requestID));
+	}
+
+	async correctDays(requestID: string, input: LeaveManagementDaysCorrection): Promise<void> {
+		if (!this.selectedEmployeeEmail) return;
+		await this.mutate(() => correctManagedLeaveDays(requestID, input));
 	}
 
 	async correctTime(

@@ -550,6 +550,24 @@ describe('an approved leave that has not started', () => {
 		expect(kept.find((row) => row.leaveID === originalID)?.status).toBe('approved');
 	});
 
+	test('is moved by an administrator, and the answer says where it was', async () => {
+		const approvedID = await approvedLeaveOn('2027-06-01');
+
+		const moved = resultOf(
+			await asAdmin('leave_update', {
+				leaveHint: approvedID,
+				startsAt: '2027-06-08',
+				endsAt: '2027-06-08',
+				reason: '일정 변경'
+			})
+		);
+		expect(moved).toMatchObject({
+			leaveID: approvedID,
+			startDate: '2027-06-08',
+			replacedLeave: { leaveID: approvedID, startDate: '2027-06-01', endDate: '2027-06-01' }
+		});
+	});
+
 	test('is taken back by the person it belongs to', async () => {
 		const approvedID = await approvedLeaveOn('2027-05-04');
 

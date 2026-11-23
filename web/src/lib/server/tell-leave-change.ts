@@ -4,7 +4,7 @@ import type { Environment } from './agent-request';
 import { tellByDirectMessage, type Told } from './tell';
 import { whoAnswersFor } from './who-answers';
 
-export type LeaveChange = { title: string; body: string };
+export type LeaveChange = { title: string; body: string; personID?: string };
 
 export type LeaveChangeTold = { messaged: number; failures: string[] };
 
@@ -26,13 +26,24 @@ const answeredLeaveSchema = z.object({
 
 type AnsweredLeave = z.infer<typeof answeredLeaveSchema>['result'];
 
-export function leaveChangeOf(toolName: string, body: unknown, memberID: string): LeaveChange | null {
+export function leaveChangeOf(toolName: string, body: unknown, memberID: string, reason = ''): LeaveChange | null {
 	const answered = answeredLeaveSchema.safeParse(body);
-	if (!answered.success || answered.data.result.personID !== memberID) return null;
+	if (!answered.success) return null;
 	const leave = answered.data.result;
+	if (leave.personID !== memberID) return toolName === 'leave_update' ? movedByAnother(leave, reason) : null;
 	if (toolName === 'leave_delete') return takenBack(leave);
 	if (toolName === 'leave_request') return replaced(leave);
 	return null;
+}
+
+function movedByAnother(leave: AnsweredLeave, reason: string): LeaveChange | null {
+	if (!leave.replacedLeave) return null;
+	const moved = `${leave.kind} ${daysOf(leave.replacedLeave)} → ${daysOf(leave)}`;
+	return {
+		title: '휴가 수정',
+		body: reason.trim() === '' ? moved : `${moved} · 사유: ${reason.trim()}`,
+		personID: leave.personID
+	};
 }
 
 function takenBack(leave: AnsweredLeave): LeaveChange | null {
@@ -53,24 +64,37 @@ function daysOf(span: { startDate: string; endDate: string }): string {
 	return span.startDate === span.endDate ? span.startDate : `${span.startDate} ~ ${span.endDate}`;
 }
 
+const reasonedInputSchema = z.object({ reason: z.string() });
+
 export async function withTheLeaveChangeTold(
 	changer: LeaveChanger,
 	toolName: string,
+	input: unknown,
 	body: unknown
 ): Promise<unknown> {
-	const change = leaveChangeOf(toolName, body, changer.memberID);
+	const reasoned = reasonedInputSchema.safeParse(input);
+	const change = leaveChangeOf(toolName, body, changer.memberID, reasoned.success ? reasoned.data.reason : '');
 	if (!change) return body;
 	return { ...(body as Record<string, unknown>), notified: await toldWhoAnswers(changer, change) };
 }
 
 async function toldWhoAnswers(changer: LeaveChanger, change: LeaveChange): Promise<LeaveChangeTold> {
 	try {
-		const answerers = await whoAnswersFor(changer.record, changer.companyID, changer.memberID);
+		const told = change.personID
+			? [change.personID]
+			: await whoAnswersFor(changer.record, changer.companyID, changer.memberID);
 		const deliveries = await Promise.all(
-			answerers.map((memberID) =>
+			told.map((memberID) =>
 				tellByDirectMessage(
 					changer.environment,
-					{ memberID, category: 'leave', ...change, openPath: attendancePath, senderMemberID: changer.memberID },
+					{
+						memberID,
+						category: 'leave',
+						title: change.title,
+						body: change.body,
+						openPath: attendancePath,
+						senderMemberID: changer.memberID
+					},
 					changer.record
 				)
 			)

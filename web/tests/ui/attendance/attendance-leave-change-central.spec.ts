@@ -1,7 +1,7 @@
 import { expect, test, type Page } from '@playwright/test';
 import { pickDate } from './date-picker-test-utils';
 import { leaveRowsOf, seoulDateToday, seoulInstant, signInToAttendance } from './attendance-central-test-utils';
-import { cleanupLeave, member1ID, seedLeave } from '../support/central-test-utils';
+import { cleanupLeave, member1ID, member3ID, member3Name, seedLeave } from '../support/central-test-utils';
 
 test.describe.configure({ mode: 'serial', timeout: 120_000 });
 test.use({ locale: 'ko-KR' });
@@ -9,9 +9,11 @@ test.use({ locale: 'ko-KR' });
 const movedSubject = 'E2E 변경 원본';
 const movedReason = 'E2E 변경 요청';
 const takenBackSubject = 'E2E 취소 대상';
+const correctedSubject = 'E2E 날짜 수정 대상';
 
 let movedLeaveID = '';
 let takenBackLeaveID = '';
+let correctedLeaveID = '';
 
 function seoulDateShifted(date: string, offsetDays: number): string {
 	const day = new Date(`${date}T00:00:00+09:00`);
@@ -26,10 +28,12 @@ function seoulDateAfter(offsetDays: number): string {
 const movedFrom = seoulDateAfter(40);
 const movedTo = seoulDateAfter(41);
 const takenBackDate = seoulDateAfter(43);
+const correctedFrom = seoulDateAfter(-10);
+const correctedTo = seoulDateAfter(-9);
 
-function approvedWholeDay(date: string, note: string) {
+function approvedWholeDay(date: string, note: string, memberID = member1ID) {
 	return {
-		memberID: member1ID,
+		memberID,
 		kind: 'annual',
 		days: 1,
 		status: 'approved' as const,
@@ -42,13 +46,14 @@ function approvedWholeDay(date: string, note: string) {
 test.beforeAll(async () => {
 	[movedLeaveID] = await seedLeave([approvedWholeDay(movedFrom, movedSubject)]);
 	[takenBackLeaveID] = await seedLeave([approvedWholeDay(takenBackDate, takenBackSubject)]);
+	[correctedLeaveID] = await seedLeave([approvedWholeDay(correctedFrom, correctedSubject, member3ID)]);
 });
 
 test.afterAll(async () => {
 	const left = (await leaveRowsOf(member1ID)).filter((row) =>
 		[movedSubject, movedReason, takenBackSubject].includes(row.note ?? '')
 	);
-	await cleanupLeave([movedLeaveID, takenBackLeaveID, ...left.map((row) => row.id)]);
+	await cleanupLeave([movedLeaveID, takenBackLeaveID, correctedLeaveID, ...left.map((row) => row.id)]);
 });
 
 async function openLeaveHistory(page: Page): Promise<void> {
@@ -123,4 +128,30 @@ test('an approved leave that has not started is taken back by its owner', async 
 		.poll(async () => (await leaveRowsOf(member1ID)).some((row) => row.id === takenBackLeaveID), { timeout: 30000 })
 		.toBe(false);
 	await expect(approved).toHaveCount(0, { timeout: 20000 });
+});
+
+test('an administrator moves a past leave to other days and has to say why', async ({ page }) => {
+	await signInToAttendance(page);
+	await page.getByTestId('leave-management-navigation').click();
+	await page.getByTestId('leave-management-view').waitFor({ state: 'visible', timeout: 20000 });
+	await page.getByTestId('leave-management-employee-row').filter({ hasText: member3Name }).first().click();
+
+	const managed = page.locator(`[data-managed-leave-request="${correctedLeaveID}"]`);
+	await managed.getByRole('button', { name: '날짜 수정' }).click();
+	const dialog = page.getByTestId('leave-days-correction-dialog');
+	const save = dialog.getByRole('button', { name: '날짜 저장' });
+	await pickDate(page, dialog.getByTestId('leave-days-correction-start').getByRole('button'), correctedTo);
+	await expect(save).toBeDisabled();
+	await dialog.getByRole('textbox').fill('E2E 일정 정정');
+	await save.click();
+
+	await expect
+		.poll(
+			async () => {
+				const corrected = (await leaveRowsOf(member3ID)).find((row) => row.id === correctedLeaveID);
+				return corrected ? new Date(corrected.starts_at).toISOString() : 'missing';
+			},
+			{ timeout: 30000 }
+		)
+		.toBe(new Date(seoulInstant(correctedTo, '00:00')).toISOString());
 });
