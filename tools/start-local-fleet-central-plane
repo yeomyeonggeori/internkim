@@ -36,7 +36,7 @@ appLogPath="$stateRoot/central-plane-app.log"
 
 # The fixture company the seed builds. A fleet run wants the same company every
 # time, so the device belongs to that one rather than to a fresh uuid.
-fixtureCompanyID="000000cc-0000-0000-0000-000000000001"
+fixtureCompanyID="000000cc-0000-4000-8000-000000000001"
 
 cd "$repositoryRoot"
 

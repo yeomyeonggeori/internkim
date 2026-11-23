@@ -1,7 +1,7 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { inWorkerCompany, workerCompanyEmail, workerCompanySlug } from './worker-company';
 
-export const exampleCompanyID = inWorkerCompany('000000cc-0000-0000-0000-000000000001');
+export const exampleCompanyID = inWorkerCompany('000000cc-0000-4000-8000-000000000001');
 export const exampleCompanySlug = workerCompanySlug;
 export const member1ID = inWorkerCompany('000000ee-0000-0000-0000-000000000001');
 export const member2ID = inWorkerCompany('000000ee-0000-0000-0000-000000000002');

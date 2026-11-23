@@ -23,7 +23,7 @@ const appURL = `http://localhost:${port}`;
 const samplePassword = 'docs-sample-1';
 const seedMemberEmail = 'member1@example.com';
 const seedMemberPassword = 'seed-password';
-const seedCompanyID = '000000cc-0000-0000-0000-000000000001';
+const seedCompanyID = '000000cc-0000-4000-8000-000000000001';
 const firstCompileMilliseconds = 120_000;
 const locales: Locale[] = ['ko', 'en'];
 

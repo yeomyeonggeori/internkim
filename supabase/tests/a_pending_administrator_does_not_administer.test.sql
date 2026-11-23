@@ -11,7 +11,7 @@ insert into public.company (id, name, slug, country, locale, timezone, currency_
   ('00000000-0000-0000-0000-0000000000c0', 'Company C', 'company-c', 'KR', 'ko', 'Asia/Seoul', 'KRW');
 
 insert into public.member (id, company_id, email, user_id, status, is_admin) values
-  ('000000cc-0000-0000-0000-000000000001', '00000000-0000-0000-0000-0000000000c0', 'pending-admin@example.test', '00000000-0000-0000-0000-0000000000c9', 'pending', true);
+  ('000000cc-0000-4000-8000-000000000001', '00000000-0000-0000-0000-0000000000c0', 'pending-admin@example.test', '00000000-0000-0000-0000-0000000000c9', 'pending', true);
 
 do $$
 begin
@@ -37,7 +37,7 @@ begin
   reset role;
 end $$;$block$, '42501', null, 'a pending administrator does not save company holidays through the function');
 
-update public.member set status = 'active' where id = '000000cc-0000-0000-0000-000000000001';
+update public.member set status = 'active' where id = '000000cc-0000-4000-8000-000000000001';
 
 do $$
 begin

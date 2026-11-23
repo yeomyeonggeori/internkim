@@ -8,7 +8,12 @@ if (!Number.isInteger(workerCompanyNumber) || workerCompanyNumber >= workerCompa
 	throw new Error(`worker ${workerCompanyNumber} has no seeded company: supabase/seed.dev.sql seeds ${workerCompanyCount}`);
 }
 
+const versionedFixtureGroups = '-4000-8';
+
 export function idInCompany(exampleID: string, companyNumber: number): string {
+	if (exampleID.slice(13, 20) === versionedFixtureGroups) {
+		return `${exampleID.slice(0, 20)}${String(companyNumber).padStart(3, '0')}${exampleID.slice(23)}`;
+	}
 	return `${exampleID.slice(0, 19)}${String(companyNumber).padStart(4, '0')}${exampleID.slice(23)}`;
 }
 

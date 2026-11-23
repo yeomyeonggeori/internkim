@@ -18,6 +18,8 @@ describe('supabase/seed.dev.sql seeds the companies the UI test workers sign in 
 	test('it names a worker company the way the specs look it up', () => {
 		expect(idInCompany('000000ee-0000-0000-0000-000000000003', 5)).toBe('000000ee-0000-0000-0005-000000000003');
 		expect(seeded).toContain("overlay(fixture_id::text placing lpad(company_number::text, 4, '0') from 20 for 4)");
+		expect(idInCompany('000000cc-0000-4000-8000-000000000001', 5)).toBe('000000cc-0000-4000-8005-000000000001');
+		expect(seeded).toContain("overlay(fixture_id::text placing lpad(company_number::text, 3, '0') from 21 for 3)");
 		expect(emailInCompany('member1@example.com', 5)).toBe('member1+company5@example.com');
 		expect(seeded).toContain("replace(email, '@', '+company' || company_number || '@')");
 		expect(slugOfCompany(5)).toBe('example-co-5');
