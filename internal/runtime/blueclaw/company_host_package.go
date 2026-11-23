@@ -63,6 +63,7 @@ const (
 	CompanyHostChatdStatePath              = "/var/lib/internkim/chatd"
 	CompanyHostWorkspacePath               = "/workspace"
 	CompanyHostLogPath                     = "/var/log/internkim"
+	CompanyHostDownloadCachePath           = "/var/cache/internkim"
 	CompanyHostBrowserStatePath            = browserruntime.DeviceBrowsersStateDirectory
 	CompanyHostRunPath                     = "/run/internkim"
 	CompanyHostRosterPath                  = "/var/lib/internkim-roster"

@@ -576,7 +576,11 @@ exit 0
 """
 
 
-PACKAGE_CACHE_ROOT = Path.home() / "Library" / "Caches" / "internkim-rig" / "packages"
+RIG_CACHE_ROOT = Path.home() / "Library" / "Caches" / "internkim-rig"
+PACKAGE_CACHE_ROOT = RIG_CACHE_ROOT / "packages"
+DOWNLOAD_CACHE_DIRECTORY = RIG_CACHE_ROOT / "downloads"
+DOWNLOAD_CACHE_USE_MARKER = ".last-used"
+GUEST_DOWNLOAD_CACHE_PATH = "/var/cache/internkim"
 PACKAGE_CACHE_LIMIT_BYTES = 4 * 1024**3
 PACKAGE_CACHE_LONGEST_AGE_SECONDS = 30 * 24 * 3600
 PACKAGE_CACHE_STRAY_AGE_SECONDS = 24 * 3600
@@ -637,6 +641,22 @@ def prune_package_cache(directory, now=None, limit_bytes=PACKAGE_CACHE_LIMIT_BYT
             path.unlink()
 
 
+def prune_download_cache(directory, now=None, limit_bytes=PACKAGE_CACHE_LIMIT_BYTES):
+    """Bound what the guests' install step kept by the package cache's rules, as one whole: uv indexes its own cache, so dropping files one by one would leave it pointing at nothing."""
+    now = time.time() if now is None else now
+    marker = directory / DOWNLOAD_CACHE_USE_MARKER
+    is_unused = marker.exists() and now - marker.stat().st_mtime > PACKAGE_CACHE_LONGEST_AGE_SECONDS
+    if directory.exists() and (is_unused or size_of(directory) > limit_bytes):
+        shutil.rmtree(directory)
+    directory.mkdir(parents=True, exist_ok=True)
+    marker.touch()
+    os.utime(marker, (now, now))
+
+
+def size_of(directory):
+    return sum((Path(root) / name).lstat().st_size for root, _, names in os.walk(directory) for name in names)
+
+
 BOOTSTRAP_SCRIPT = "\n".join(
     [
         "set -eu",
@@ -681,11 +701,13 @@ class Machine:
         image=None,
         bootstrap_script=BOOTSTRAP_SCRIPT,
         package_cache_directory=None,
+        download_cache_directory=None,
     ):
         self.name = name
         self.image = image or DISTRIBUTIONS[distribution]
         self.bootstrap_script = bootstrap_script
         self.package_cache_directory = Path(package_cache_directory or package_cache_for(self.image))
+        self.download_cache_directory = Path(download_cache_directory or DOWNLOAD_CACHE_DIRECTORY)
         self.share_directory = Path(share_directory)
         self.container_binary = container_binary
         self.uses_runtime_kernel = str(kernel_image_path) == RUNTIME_KERNEL
@@ -715,6 +737,7 @@ class Machine:
     # at once, and a rig with more memory than the product would not be measuring it.
     def create(self, cpu_count=4, memory_mebibytes=4096):
         prune_package_cache(self.package_cache_directory)
+        prune_download_cache(self.download_cache_directory)
         checked(
             [
                 self.container_binary, "create",
@@ -727,6 +750,7 @@ class Machine:
                 "--platform", "linux/" + ARCHITECTURE,
                 "--volume", f"{self.share_directory}:{SHARE_PATH}",
                 "--volume", f"{self.package_cache_directory}:{GUEST_PACKAGE_CACHE_PATH}",
+                "--volume", f"{self.download_cache_directory}:{GUEST_DOWNLOAD_CACHE_PATH}",
                 self.image,
                 "sh", "-c", (ROSETTA_BOOTSTRAP if ARCHITECTURE == "amd64" else "") + self.bootstrap_script,
             ]

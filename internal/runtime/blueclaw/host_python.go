@@ -9,6 +9,14 @@ const HostPythonVersion = "3.13.13"
 const documentModulesTheConversionImports = "import plistlib, platform, xml.etree.ElementTree, " +
 	"anydoc, bs4, markdownify, pypdf, pypdfium2"
 
+func (layout CompanyHostLayout) ResolverCachePath() string {
+	return layout.DownloadCachePath + "/uv"
+}
+
+func (layout CompanyHostLayout) PythonDownloadCachePath() string {
+	return layout.DownloadCachePath + "/python"
+}
+
 // HostSetupCommand is one program the package's install step runs.
 type HostSetupCommand struct {
 	Purpose   string
@@ -30,21 +38,22 @@ func (layout CompanyHostLayout) PythonSetupCommands() []HostSetupCommand {
 			Purpose: "install CPython " + HostPythonVersion + " in " + layout.PythonRoot() + " as " + layout.PythonPath(),
 			Arguments: []string{
 				"env", "UV_PYTHON_INSTALL_DIR=" + layout.PythonRoot(), "UV_PYTHON_BIN_DIR=" + layout.PythonCommandsPath(),
-				resolver, "--no-cache", "python", "install", "--default", "--preview-features", "python-install-default",
+				"UV_PYTHON_CACHE_DIR=" + layout.PythonDownloadCachePath(),
+				resolver, "--cache-dir", layout.ResolverCachePath(), "python", "install", "--default", "--preview-features", "python-install-default",
 				HostPythonVersion,
 			},
 		},
 		{
 			Purpose: "make " + layout.DocumentVirtualEnvironmentPath() + " on " + layout.PythonPath(),
 			Arguments: []string{
-				resolver, "--no-cache", "venv", "--clear", "--no-python-downloads",
+				resolver, "--cache-dir", layout.ResolverCachePath(), "venv", "--clear", "--no-python-downloads",
 				"--python", layout.PythonPath(), layout.DocumentVirtualEnvironmentPath(),
 			},
 		},
 		{
 			Purpose: "install the packages " + layout.DocumentRequirementsPath() + " locks",
 			Arguments: []string{
-				resolver, "--no-cache", "pip", "sync", "--require-hashes", "--no-build",
+				resolver, "--cache-dir", layout.ResolverCachePath(), "pip", "sync", "--require-hashes", "--no-build",
 				"--python", layout.DocumentPythonPath(), layout.DocumentRequirementsPath(),
 			},
 		},

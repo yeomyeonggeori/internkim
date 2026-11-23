@@ -3,6 +3,7 @@ package blueclaw_test
 import (
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -87,5 +88,34 @@ func TestThePrepareScriptNamesTheMigrationsEachLayoutInstalls(t *testing.T) {
 		if !strings.Contains(blueclaw.CompanyHostPrepareScriptFor(layout), "MIGRATION_DIRECTORY_PATH="+layout.MigrationPath+" ") {
 			t.Errorf("the prepare script does not render the runtime document with %s", layout.MigrationPath)
 		}
+	}
+}
+
+func TestTheInstallStepKeepsWhatItDownloadsInTheHostsDownloadCache(t *testing.T) {
+	for _, layout := range []blueclaw.CompanyHostLayout{blueclaw.LinuxCompanyHostLayout(), blueclaw.MacCompanyHostLayout("/opt/homebrew")} {
+		commands := layout.PythonSetupCommands()
+		for _, command := range commands[:3] {
+			arguments := strings.Join(command.Arguments, " ")
+			if strings.Contains(arguments, "--no-cache") || !strings.Contains(arguments, " --cache-dir "+layout.ResolverCachePath()+" ") {
+				t.Fatalf("%s does not keep what uv fetches in %s: %s", command.Purpose, layout.ResolverCachePath(), arguments)
+			}
+		}
+		if !slices.Contains(commands[0].Arguments, "UV_PYTHON_CACHE_DIR="+layout.PythonDownloadCachePath()) {
+			t.Fatalf("the interpreter's archive is not kept in %s: %v", layout.PythonDownloadCachePath(), commands[0].Arguments)
+		}
+		if layout.BundledSkillsPlace().ResolverCachePath != layout.ResolverCachePath() {
+			t.Fatalf("the skills keep what uv fetched in %q, not %s", layout.BundledSkillsPlace().ResolverCachePath, layout.ResolverCachePath())
+		}
+	}
+}
+
+func TestNoPersonIsHandedTheDownloadCache(t *testing.T) {
+	for _, layout := range []blueclaw.CompanyHostLayout{blueclaw.LinuxCompanyHostLayout(), blueclaw.MacCompanyHostLayout("/opt/homebrew")} {
+		if strings.HasPrefix(layout.DownloadCachePath, layout.WorkspacePath+"/") || strings.Contains(layout.SearchPath(), layout.DownloadCachePath) {
+			t.Fatalf("the download cache %s is in the workspace or on the PATH a person's command gets: %s", layout.DownloadCachePath, layout.SearchPath())
+		}
+	}
+	if blueclaw.LinuxCompanyHostLayout().DownloadCachePath != "/var/cache/internkim" {
+		t.Fatalf("a Linux host keeps its downloads in %s, not where the FHS keeps a package's cache", blueclaw.LinuxCompanyHostLayout().DownloadCachePath)
 	}
 }
