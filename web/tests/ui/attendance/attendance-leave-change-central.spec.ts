@@ -87,6 +87,31 @@ test('an approved leave asks for other days and stands until they are approved',
 	await expect(original.getByRole('button', { name: '변경', exact: true })).toHaveCount(0);
 });
 
+test('the approval inbox shows the days a request moves from, and approving it moves the leave', async ({ page }) => {
+	const asked = (await leaveRowsOf(member1ID)).find((row) => row.note === movedReason);
+	expect(asked).toBeDefined();
+
+	await signInToAttendance(page);
+	await page.getByTestId('leave-approval-navigation').click();
+	const card = page.getByTestId(`leave-approval-request-${asked?.id}`);
+	await expect(card.getByTestId('leave-approval-replaces')).toBeVisible({ timeout: 20000 });
+	await expect(card).toContainText(`${movedFrom} → ${movedTo}`);
+
+	await card.getByRole('button', { name: '승인', exact: true }).click();
+	await expect
+		.poll(
+			async () => {
+				const rows = await leaveRowsOf(member1ID);
+				return {
+					asked: rows.find((row) => row.id === asked?.id)?.status ?? 'missing',
+					original: rows.find((row) => row.id === movedLeaveID)?.status ?? 'missing'
+				};
+			},
+			{ timeout: 30000 }
+		)
+		.toEqual({ asked: 'approved', original: 'missing' });
+});
+
 test('an approved leave that has not started is taken back by its owner', async ({ page }) => {
 	await openLeaveHistory(page);
 

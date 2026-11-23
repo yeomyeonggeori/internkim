@@ -19,6 +19,7 @@ export type LeaveApprovalRequest = {
 	reason: string;
 	createdAt: string;
 	updatedAt: string;
+	replaces?: { startDate: string; endDate?: string };
 };
 
 export type LeaveApprovalInbox = {
