@@ -36,6 +36,12 @@ export type EmployeeLeaveSummary = {
 	availableMilliDays: number;
 };
 
+export type EmployeeLeaveReplaced = {
+	id: string;
+	startDate: string;
+	endDate?: string;
+};
+
 export type EmployeeLeaveRequest = {
 	id: string;
 	leaveTypeID: string;
@@ -50,6 +56,8 @@ export type EmployeeLeaveRequest = {
 	deductionMilliDays: number;
 	reason: string;
 	canCancel: boolean;
+	canChange?: boolean;
+	replaces?: EmployeeLeaveReplaced;
 	createdAt: string;
 	updatedAt?: string;
 };
@@ -90,6 +98,7 @@ export type EmployeeLeavePreview = {
 
 export type EmployeeLeaveSubmission = EmployeeLeavePreviewRequest & {
 	reason: string;
+	originalRequestID?: string;
 };
 
 

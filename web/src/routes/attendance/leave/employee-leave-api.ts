@@ -28,7 +28,8 @@ export function previewEmployeeLeave(
 export function createEmployeeLeaveRequest(request: EmployeeLeaveSubmission): Promise<void> {
 	return createSupabaseLeaveRequest({
 		...normalizePreviewRequest(request),
-		reason: request.reason.trim()
+		reason: request.reason.trim(),
+		...(request.originalRequestID ? { originalRequestID: request.originalRequestID } : {})
 	});
 }
 

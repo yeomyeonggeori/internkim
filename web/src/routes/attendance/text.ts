@@ -134,6 +134,14 @@ export const attendanceText = {
 			cancelConfirmDescription: '취소한 신청은 승인 대기 목록에서 제거됩니다.',
 			cancelConfirmAction: '신청 취소',
 			cancelConfirmClose: '돌아가기',
+			changeRequest: '변경',
+			changeDialogTitle: '휴가 변경 요청',
+			changeDialogDescription: '새 일정을 입력합니다. 승인되면 기존 휴가를 대신합니다.',
+			changedFrom: '변경 전',
+			cancelApproved: '휴가 취소',
+			cancelApprovedConfirmTitle: '승인된 휴가를 취소할까요?',
+			cancelApprovedConfirmDescription: '바로 취소되고 관리자에게 알림이 갑니다.',
+			cancelApprovedConfirmAction: '휴가 취소',
 			dateTimeLocale: 'ko-KR'
 		},
 		approval: {
@@ -585,6 +593,14 @@ export const attendanceText = {
 			cancelConfirmDescription: 'The request will be removed from pending approvals.',
 			cancelConfirmAction: 'Cancel request',
 			cancelConfirmClose: 'Go back',
+			changeRequest: 'Change',
+			changeDialogTitle: 'Change this leave',
+			changeDialogDescription: 'Enter the new schedule. Once approved, it replaces the leave you have.',
+			changedFrom: 'Was',
+			cancelApproved: 'Cancel leave',
+			cancelApprovedConfirmTitle: 'Cancel this approved leave?',
+			cancelApprovedConfirmDescription: 'It is cancelled right away and the administrators are told.',
+			cancelApprovedConfirmAction: 'Cancel leave',
 			dateTimeLocale: 'en-US'
 		},
 		approval: {

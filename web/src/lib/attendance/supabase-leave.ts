@@ -30,6 +30,7 @@ import {
 	leaveTimestampRange
 } from './supabase-leave-range';
 import { EmployeeLeaveAPIError } from '../../routes/attendance/leave/employee-leave-api-error';
+import { ownLeaveRequests } from './own-leave-changes';
 import { summarizeSupabaseLeave } from './supabase-leave-summary';
 import {
 	supabaseLeaveTypeDirectory,
@@ -56,6 +57,7 @@ export type LeaveRow = {
 	starts_at: string;
 	ends_at: string;
 	note: string | null;
+	original_leave_id: string | null;
 };
 
 const statusWords: Record<LeaveStatus, EmployeeLeaveStatus> = {
@@ -75,7 +77,8 @@ export function leaveRowOf(taken: RecordLeave): LeaveRow {
 		status: taken.status,
 		starts_at: taken.startsAt,
 		ends_at: taken.endsAt,
-		note: taken.note
+		note: taken.note,
+		original_leave_id: taken.originalLeaveID ?? null
 	};
 }
 
@@ -102,7 +105,7 @@ export async function supabaseEmployeeLeave(): Promise<EmployeeLeavePayload> {
 		row,
 		request: employeeLeaveRequestOfRow(row, timeZone, directory.nameOf)
 	}));
-	const requests = mappedLeave.map(({ request }) => request);
+	const requests = ownLeaveRequests(mappedLeave, new Date());
 	const targetYear = answeredBalance.year;
 	const remainingDays = balanceOfMine.remainingDays;
 	const balance = summarizeSupabaseLeave(
@@ -162,7 +165,8 @@ export async function createSupabaseLeaveRequest(request: EmployeeLeaveSubmissio
 		startsAt: span.startsAt,
 		endsAt: span.endsAt,
 		days: preview.totalDeductionMilliDays / 1000,
-		note: request.reason
+		note: request.reason,
+		...(request.originalRequestID ? { originalLeaveHint: request.originalRequestID } : {})
 	});
 }
 
