@@ -579,7 +579,7 @@ export type MoveForBox = { fromBox: string; toBox: string; askedAt: string; stop
 async function moveOfBox(client: SupabaseClient, box: BoxRow): Promise<MoveForBox | null> {
 	const move = await moveRecordOf(client, box.companyID);
 	if (!move || (move.from_box !== box.publicKey && move.to_box !== box.publicKey)) return null;
-	if (move.from_box === box.publicKey && !hasCheckedInSinceAsked(await boxOfPublicKey(client, move.to_box), move)) return null;
+	if (move.from_box === box.publicKey && !move.stopped_at && !hasCheckedInSinceAsked(await boxOfPublicKey(client, move.to_box), move)) return null;
 	return { fromBox: move.from_box, toBox: move.to_box, askedAt: move.asked_at, stop: stopOf(move) };
 }
 
@@ -748,6 +748,7 @@ export async function boxSessionFor(
 	const keyring = await keyringOf(client, box.companyID);
 	if (!keyring) throw new Error(`company ${box.companyID} has a box and no keyring`);
 
+	const move = await moveOfBox(client, box);
 	const role = await noteBoxSeen(client, box, packageVersion);
 	const holdsKey = holdsCompanyKey(box, keyring);
 	return {
@@ -760,7 +761,7 @@ export async function boxSessionFor(
 		boxesAwaitingCompanyKey: holdsKey ? await boxesAwaitingCompanyKey(client, box.companyID) : [],
 		keepsBackups: await companyKeepsABackup(client, box.companyID),
 		takeOver: await takeOverOf(client, box.companyID),
-		move: await moveOfBox(client, box),
+		move,
 		serviceLapsesInSeconds: role === 'standby' ? await secondsUntilTheServiceBoxLapses(client, box.companyID) : null,
 		targetVersion: role === 'standby' ? await targetVersionOf(client, box.companyID) : null,
 		restartsToFollowTheModelPayer: role === 'service' && (await payerChangeWaitsOn(client, box))
