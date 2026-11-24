@@ -55,7 +55,7 @@
 	onMount(() => {
 		void refresh();
 		refreshTimer = setInterval(() => {
-			if (step !== 'connected' || boxes.move || boxes.boxes.some((box) => !box.holdsCompanyKey)) void refresh();
+			if (step !== 'connected' || boxes.move || boxes.boxes.some((box) => !box.holdsCompanyKey || !box.isReady)) void refresh();
 		}, refreshMilliseconds);
 	});
 
@@ -77,6 +77,13 @@
 	function roleOf(box: ConnectedBox): string {
 		if (!box.holdsCompanyKey) return text.boxAwaitingCompanyKey;
 		return box.role === 'service' ? text.boxRoleService : text.boxRoleStandby;
+	}
+
+	function readinessOf(box: ConnectedBox): string {
+		const readiness = box.isReady ? text.boxReady : text.boxNotReady;
+		if (box.share === null) return readiness;
+		const percent = new Intl.NumberFormat(undefined, { style: 'percent' }).format(box.share);
+		return `${readiness} · ${text.boxShare.replace('{percent}', percent)}`;
 	}
 
 	async function verify(event: SubmitEvent, publicKey: string) {
@@ -208,6 +215,9 @@
 			<Item.Content>
 				<Item.Title>{box.hostName ?? text.foundBox}</Item.Title>
 				<Item.Description><span class="font-mono">{shortBoxName(box.publicKey)}</span> · {roleOf(box)}{box.site ? ` · ${box.site}` : ''}</Item.Description>
+				{#if hasSeveralBoxes && box.holdsCompanyKey}
+					<Item.Description>{readinessOf(box)}</Item.Description>
+				{/if}
 				{#if hasSeveralBoxes && box.lastSeenAt}
 					<Item.Description>{text.lastSeen.replace('{when}', backupMoment(box.lastSeenAt))}</Item.Description>
 				{/if}

@@ -22,7 +22,7 @@ type keptUpCache struct {
 	members     hostMembers
 }
 
-func aCacheKeptUpWithASnapshot(t *testing.T) keptUpCache {
+func aCacheHoldingASnapshot(t *testing.T) keptUpCache {
 	t.Helper()
 	storage := newFakeStorage()
 	keyring := aKeyring(t)
@@ -33,7 +33,7 @@ func aCacheKeptUpWithASnapshot(t *testing.T) keptUpCache {
 	}
 	shipped, _ := shipSnapshot(t, destination, keyring, members, time.Now())
 	cache := ChunkCache{DirectoryPath: t.TempDir()}
-	if _, _, errorValue := cache.KeepUp(context.Background(), destination); errorValue != nil {
+	if errorValue := cache.FetchMissing(context.Background(), destination, shipped.chunkIDs()); errorValue != nil {
 		t.Fatal(errorValue)
 	}
 	return keptUpCache{storage: storage, keyring: keyring, destination: destination, cache: cache, shipped: shipped, members: members}
@@ -65,7 +65,7 @@ func replaceCachedChunk(t *testing.T, kept keptUpCache, chunkID string, contents
 }
 
 func TestAZeroByteCachedChunkIsFetchedAgainOnce(t *testing.T) {
-	kept := aCacheKeptUpWithASnapshot(t)
+	kept := aCacheHoldingASnapshot(t)
 	chunkID := kept.databaseChunk()
 	replaceCachedChunk(t, kept, chunkID, nil)
 
@@ -77,7 +77,7 @@ func TestAZeroByteCachedChunkIsFetchedAgainOnce(t *testing.T) {
 }
 
 func TestACachedChunkCutBeforeItsHeaderEndsIsFetchedAgain(t *testing.T) {
-	kept := aCacheKeptUpWithASnapshot(t)
+	kept := aCacheHoldingASnapshot(t)
 	chunkID := kept.databaseChunk()
 	sealed, _ := os.ReadFile(kept.cache.pathOf(chunkID))
 	replaceCachedChunk(t, kept, chunkID, sealed[:bytes.IndexByte(sealed, '\n')])
@@ -90,7 +90,7 @@ func TestACachedChunkCutBeforeItsHeaderEndsIsFetchedAgain(t *testing.T) {
 }
 
 func TestACachedChunkHoldingOtherContentIsFetchedAgain(t *testing.T) {
-	kept := aCacheKeptUpWithASnapshot(t)
+	kept := aCacheHoldingASnapshot(t)
 	chunkID := kept.databaseChunk()
 	other, _ := os.ReadFile(kept.cache.pathOf(kept.shipped.Chunks[hostbackup.DatabaseMemberName("blueclaw")][1]))
 	replaceCachedChunk(t, kept, chunkID, other)
@@ -122,7 +122,7 @@ func TestAChunkBadOnThePlaneTooFailsNamingItAfterOneFetch(t *testing.T) {
 }
 
 func TestAFetchedChunkIsWholeAndLeavesNothingBeside(t *testing.T) {
-	kept := aCacheKeptUpWithASnapshot(t)
+	kept := aCacheHoldingASnapshot(t)
 
 	entries, errorValue := os.ReadDir(kept.cache.DirectoryPath)
 	if errorValue != nil {

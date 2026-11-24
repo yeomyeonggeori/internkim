@@ -104,12 +104,10 @@ OBSERVATIONS = (
 )
 
 NOT_YET = {
-    SETUP_SAYS_READY: "pass condition 2: GET /api/company/box says whether each box is ready",
-    SHARES_REPORTED: "seeding step 4: a standby keeps its share and reports it",
-    SHARES_ON_DISK: "seeding step 4: the store holds the log from the first box on, and no standby keeps a share of it on disk",
     HALF_HELD_IS_FASTER: (
-        "seeding step 4: a standby keeps a few pieces of the log on disk after the fill at most, and none in some runs, "
-        "so the standby that takes over restores nearly everything from the store as the empty box does, and is no sooner"
+        "the standbys hold their shares when the power goes (2611 and 2635 pieces), but after the 1 GiB fill, whose file "
+        "barrier answered deadline exceeded on the 100 Mbit link, the standby's take-over never reached holding the "
+        "gateway in the rig's wait, so it was not timed and the empty box was never tried; not yet diagnosed"
     ),
 }
 

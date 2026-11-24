@@ -28,7 +28,8 @@ import {
 	placeBox,
 	newestKeptBackupAt,
 	releaseBox,
-	releaseBoxOfKey
+	releaseBoxOfKey,
+	reportBoxShare
 } from '../../src/lib/server/box';
 import { keptModelKeyReport } from '../../../supabase/functions/_shared/model-key-report';
 import { pendingWifiChangeOf, recordNearbyNetworks, reportWifiOutcome, requestWifiChange, wifiChangeStatusFor } from '../../src/lib/server/box-wifi';
@@ -1000,6 +1001,42 @@ describe('a box added to a company its connection file computer serves', () => {
 
 		expect((await companyBoxesOf(client, served.companyID)).isServedByConnectionFile).toBe(false);
 		expect(await companyOfHostSession(credentials, served.hostSession.accessToken)).toBeNull();
+	});
+});
+
+describe('a standby keeps its share of the log', () => {
+	test('a standby is ready once it reports holding its whole share through the newest piece the store keeps', async () => {
+		const sharing = await aCompany('sharing');
+		const first = await aBox();
+		const second = await aBox();
+		await claimWithCode(sharing.companyID, first.publicKey, await announcedCode(first));
+		await claimWithCode(sharing.companyID, second.publicKey, await announcedCode(second), 'add');
+		const holder = await boxOfPublicKey(client, first.publicKey);
+		if (!holder) throw new Error('a claimed box is found by its public key');
+		const sealed = { version: 1 as const, recipient: second.encryptionKey, enc: second.encryptionKey, ciphertext: 'a2V5' };
+		await keepSealedCompanyKeys(client, holder, [{ publicKey: second.publicKey, sealed }]);
+		await boxSessionFor(credentials, first.publicKey, environment, appURL);
+		await boxSessionFor(credentials, second.publicKey, environment, appURL);
+		const walFolder = `${sharing.companyID}/wal/7000`;
+		const piece = `${walFolder}/00000001-0000000001000000-0000000001000100`;
+		await client.storage.from('box_backup').upload(piece, new Blob(['sealed']), { contentType: 'application/octet-stream' });
+		const listed = await client.storage.from('box_backup').list(walFolder);
+		const keptAt = listed.data?.[0]?.created_at ?? null;
+		const standby = await boxOfPublicKey(client, second.publicKey);
+		if (!standby || !keptAt) throw new Error('the standby and the piece it holds are in the record');
+
+		const placement = await reportBoxShare(client, standby, null);
+		expect(placement.standbys).toEqual([{ publicKey: second.publicKey, keptThrough: null }]);
+		expect(await connectedBox(sharing.companyID, second.publicKey)).toMatchObject({ isReady: false, share: null });
+		expect(await connectedBox(sharing.companyID, first.publicKey)).toMatchObject({ isReady: true, share: null });
+
+		const report = { rankedAgainst: placement.standbysDigest, keptThrough: keptAt, sharePieces: 1, heldPieces: 1, logPieces: 1 };
+		const reported = await reportBoxShare(client, standby, report);
+		expect(Date.parse(reported.standbys[0]?.keptThrough ?? '')).toBe(Date.parse(keptAt));
+		expect(await connectedBox(sharing.companyID, second.publicKey)).toMatchObject({ isReady: true, share: 1 });
+
+		await expect(reportBoxShare(client, standby, { ...report, sharePieces: 2 })).rejects.toMatchObject({ status: 400 });
+		await client.storage.from('box_backup').remove([piece]);
 	});
 });
 
