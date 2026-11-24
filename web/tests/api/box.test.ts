@@ -557,6 +557,73 @@ describe('connecting an empty box', () => {
 		await client.storage.from('box_backup').remove([keptManifest]);
 	});
 
+	const movedStop = { walTimeline: 2, walPosition: '0/3000148', fileEntry: 41 };
+
+	async function aMoveTheServiceBoxStoppedFor(label: string) {
+		const moving = await aCompany(label);
+		const from = await aBox();
+		const to = await aBox();
+		await claimWithCode(moving.companyID, from.publicKey, await announcedCode(from));
+		await claimWithCode(moving.companyID, to.publicKey, await announcedCode(to), 'add');
+		const keptManifest = `${moving.companyID}/base/internkim-base-20261124T000000Z.json`;
+		await client.storage.from('box_backup').upload(keptManifest, new Blob(['{}'], { type: 'application/json' }));
+		await boxSessionFor(credentials, from.publicKey, environment, appURL);
+		expect(await makeBoxServe(client, moving.companyID, to.publicKey)).toBe('moving');
+		await boxSessionFor(credentials, to.publicKey, environment, appURL);
+		expect(await noteBoxMove(client, from.publicKey, movedStop)).toBe('stopped');
+		return { companyID: moving.companyID, from, to, keptManifest };
+	}
+
+	async function requestsOfACheckIn(publicKey: string, afterRequest: (count: number) => Promise<void>) {
+		const planeFetch = globalThis.fetch;
+		let count = 0;
+		const counting = async (input: RequestInfo | URL, init?: RequestInit) => {
+			const response = await planeFetch(input, init);
+			count += 1;
+			await afterRequest(count);
+			return response;
+		};
+		globalThis.fetch = Object.assign(counting, { preconnect: planeFetch.preconnect });
+		try {
+			const session = await boxSessionFor(credentials, publicKey, environment, appURL);
+			return { session, count };
+		} finally {
+			globalThis.fetch = planeFetch;
+		}
+	}
+
+	test('the box a company moved from is never told it serves with no move, wherever during its check-in the move ends', async () => {
+		const rehearsal = await aMoveTheServiceBoxStoppedFor('move-rehearsal');
+		const { count } = await requestsOfACheckIn(rehearsal.from.publicKey, async () => {});
+		await client.storage.from('box_backup').remove([rehearsal.keptManifest]);
+
+		const told: string[] = [];
+		for (let endsAfter = 0; endsAfter <= count; endsAfter += 1) {
+			const moving = await aMoveTheServiceBoxStoppedFor(`move-ends-after-${endsAfter}`);
+			const endTheMove = async () => {
+				expect(await noteBoxMove(client, moving.to.publicKey, movedStop)).toBe('serving');
+			};
+			if (endsAfter === 0) await endTheMove();
+			const { session } = await requestsOfACheckIn(moving.from.publicKey, async (seen) => {
+				if (seen === endsAfter) await endTheMove();
+			});
+			told.push(`after request ${endsAfter}: ${session?.role} ${session?.move ? 'moving' : 'not moving'}`);
+			await client.storage.from('box_backup').remove([moving.keptManifest]);
+		}
+		expect(told.filter((line) => line.endsWith('service not moving'))).toEqual([]);
+	}, networkHookTimeout * 2);
+
+	test('asking again for the box a company moves to keeps the box that stopped told of the move', async () => {
+		const moving = await aMoveTheServiceBoxStoppedFor('move-asked-again');
+		expect(await makeBoxServe(client, moving.companyID, moving.to.publicKey)).toBe('moving');
+
+		expect(await boxSessionFor(credentials, moving.from.publicKey, environment, appURL)).toMatchObject({
+			role: 'service',
+			move: { fromBox: moving.from.publicKey, toBox: moving.to.publicKey, stop: movedStop }
+		});
+		await client.storage.from('box_backup').remove([moving.keptManifest]);
+	}, networkHookTimeout);
+
 	test('a standby box that holds the company key takes over a service box the company has not seen, once the company lets it and keeps a backup', async () => {
 		const lapsing = await aCompany('lapsing');
 		const first = await aBox();
