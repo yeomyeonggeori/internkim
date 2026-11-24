@@ -24,6 +24,7 @@
 	import { Slider } from '$lib/components/ui/slider/index.js';
 	import { channelText } from '$lib/i18n/channel-text';
 	import { createPageText } from '$lib/i18n/page-text.svelte';
+	import { attachmentSource } from '$lib/stores/attachment-source.svelte';
 	import { downloadAttachment } from './attachment-download';
 	import DownloadIndicator from '$lib/files/download-indicator.svelte';
 	import ChannelVideoPlayer from './channel-video-player.svelte';
@@ -133,6 +134,7 @@
 {#if view}
 	{@const currentItem = view.items[view.index]}
 	{@const hasMultiple = view.items.length > 1}
+	{@const shown = attachmentSource.openable(currentItem.identity) || currentItem.source}
 	<div
 		class="pointer-events-auto fixed inset-0 z-(--layer-alert) flex items-center justify-center pt-[calc(env(safe-area-inset-top)+3.75rem)] pb-[calc(env(safe-area-inset-bottom)+3.75rem)]"
 		data-channel-lightbox
@@ -156,7 +158,9 @@
 			{#if currentItem.kind === 'video'}
 				<div class="z-10" role="presentation" ontouchstart={keepTouchOnPlayer} ontouchend={keepTouchOnPlayer}>
 					<ChannelVideoPlayer
-						source={currentItem.source}
+						source={shown}
+						identity={currentItem.identity}
+						onFailed={() => attachmentSource.renew(currentItem.identity)}
 						width={currentItem.width}
 						height={currentItem.height}
 						variant="viewer"
@@ -169,16 +173,17 @@
 					ontouchstart={keepTouchOnPlayer}
 					ontouchend={keepTouchOnPlayer}
 				>
-					<DocumentPreview fileName={currentItem.filename} readURL={() => Promise.resolve(currentItem.source)} />
+					<DocumentPreview fileName={currentItem.filename} readURL={() => attachmentSource.readable(currentItem.identity, shown)} />
 				</div>
 			{:else}
-				<LightboxPictureMenu source={currentItem.source} filename={currentItem.filename} identity={currentItem.identity}>
+				<LightboxPictureMenu source={shown} filename={currentItem.filename} identity={currentItem.identity}>
 					<div
 						class={['z-10', !drag.isDragging && 'transition-transform']}
 						style:transform={`translateY(${drag.offset}px) scale(${zoomPercent / 100})`}
 					>
 						<LoadingImage
-							src={currentItem.source}
+							src={shown}
+							onFailed={() => attachmentSource.renew(currentItem.identity)}
 							width={currentItem.width}
 							height={currentItem.height}
 							alt=""
@@ -196,7 +201,7 @@
 				type="button"
 				class="flex size-9 items-center justify-center rounded-full transition hover:bg-white/20"
 				aria-label={text.downloadAttachment}
-				onclick={() => downloadAttachment(currentItem.source, currentItem.filename, currentItem.identity)}
+				onclick={() => downloadAttachment(shown, currentItem.filename, currentItem.identity)}
 			>
 				<DownloadIndicator identity={currentItem.identity}>
 					{#snippet idle()}

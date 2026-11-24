@@ -74,14 +74,18 @@
 
 	const canChangeThis = $derived(canChange && isSettled);
 	const hasActions = $derived(canChangeThis || canReply || copyable.kind !== 'nothing' || onCapture !== undefined);
-	const pictureToCopy = $derived(pictureUnderPointer || (copyable.kind === 'picture' ? copyable.address : ''));
-	const pictureToDownload = $derived(pictures.find((picture) => picture.address === pictureToCopy));
+	const pictureUnderMenu = $derived(
+		pictureUnderPointer
+			? pictures.find((picture) => picture.identity === pictureUnderPointer)
+			: copyable.kind === 'picture'
+				? copyable.picture
+				: undefined
+	);
 	const hasHeader = $derived(startsGroup && !mine && senderName !== '');
 
 	function notePictureUnderPointer(event: PointerEvent): void {
 		const touched = event.target;
-		const isMessagePicture = touched instanceof HTMLImageElement && touched.dataset.messagePicture !== undefined;
-		pictureUnderPointer = isMessagePicture ? touched.currentSrc || touched.src : '';
+		pictureUnderPointer = touched instanceof HTMLImageElement ? (touched.dataset.messagePicture ?? '') : '';
 	}
 
 	async function openPickerOnceTheMenuHasClosed(): Promise<void> {
@@ -132,8 +136,8 @@
 		{canDelete}
 		{canEdit}
 		canCopyText={copyable.kind === 'text'}
-		canCopyPicture={pictureToCopy !== ''}
-		canDownloadPicture={pictureToDownload !== undefined}
+		canCopyPicture={pictureUnderMenu !== undefined}
+		canDownloadPicture={pictureUnderMenu !== undefined}
 		disabled={!isSettled || !hasActions}
 		bind:open={() => isContextMenuOpen, setContextMenuOpen}
 		omitsWhatTheBarOffers={isMenuFromBar}
@@ -142,8 +146,8 @@
 		{onReply}
 		{onEdit}
 		onCopyText={() => onCopy(copyable)}
-		onCopyPicture={() => onCopy({ kind: 'picture', address: pictureToCopy })}
-		onDownloadPicture={() => pictureToDownload && downloadAttachment(pictureToDownload.address, pictureToDownload.filename, pictureToDownload.identity)}
+		onCopyPicture={() => pictureUnderMenu && onCopy({ kind: 'picture', picture: pictureUnderMenu })}
+		onDownloadPicture={() => pictureUnderMenu && downloadAttachment(pictureUnderMenu.address, pictureUnderMenu.filename, pictureUnderMenu.identity)}
 		{onDelete}
 		{onCapture}
 	>

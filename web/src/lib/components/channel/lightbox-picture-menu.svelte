@@ -6,6 +6,7 @@
 	import ImageIcon from '@lucide/svelte/icons/image';
 	import type { Snippet } from 'svelte';
 	import { toast } from 'svelte-sonner';
+	import { attachmentSource } from '$lib/stores/attachment-source.svelte';
 	import { downloadAttachment } from './attachment-download';
 	import { copyPicture } from './message-copy';
 
@@ -19,7 +20,7 @@
 	const text = createPageText(channelText);
 
 	async function copy() {
-		const outcome = await copyPicture(source);
+		const outcome = await copyPicture(attachmentSource.readable(identity, source));
 		if (outcome === 'success') toast.success(text.pictureCopied);
 		else toast.error(text.pictureCopyFailed);
 	}

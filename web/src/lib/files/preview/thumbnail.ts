@@ -12,10 +12,11 @@ const sheetRows = 14;
 const sheetColumns = 6;
 const thumbnailsByURL = new Map<string, Promise<Thumbnail | null>>();
 
-export function thumbnailOf(url: string, readAddress: () => string, fileName: string): Promise<Thumbnail | null> {
+export function thumbnailOf(url: string, readAddress: () => Promise<string>, fileName: string): Promise<Thumbnail | null> {
 	const known = thumbnailsByURL.get(url);
 	if (known) return known;
-	const drawing = fetchBytes(readAddress())
+	const drawing = readAddress()
+		.then(fetchBytes)
 		.then((bytes) => drawThumbnail(bytes, fileName))
 		.catch((error: unknown) => {
 			thumbnailsByURL.delete(url);

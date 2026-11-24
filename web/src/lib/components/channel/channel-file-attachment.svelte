@@ -64,8 +64,16 @@
 		return '';
 	}
 
-	function drawThumbnail(source: string) {
-		thumbnailOf(attachment.url, () => source, filename)
+	function readAddress(): Promise<string> {
+		return attachmentSource.readable(attachment.url, attachment.source ?? '');
+	}
+
+	function downloadThisFile(): void {
+		downloadAttachment(attachment.source ?? '', filename, attachment.url);
+	}
+
+	function drawThumbnail() {
+		thumbnailOf(attachment.url, readAddress, filename)
 			.then(
 				(drawn) => (thumbnail = drawn),
 				(error: unknown) => console.warn('attachment thumbnail failed', error)
@@ -73,14 +81,14 @@
 			.finally(() => (hasThumbnailSettled = true));
 	}
 
-	function previewsWhenSeen(source: string): ElementAttachment<HTMLElement> {
+	function previewsWhenSeen(): ElementAttachment<HTMLElement> {
 		return (element) => {
 			const observer = new IntersectionObserver(
 				([entry]) => {
 					if (!entry?.isIntersecting) return;
 					observer.disconnect();
 					isSeen = true;
-					if (wantsThumbnail) drawThumbnail(source);
+					if (wantsThumbnail) drawThumbnail();
 				},
 				{ rootMargin: '400px 0px' }
 			);
@@ -98,7 +106,7 @@
 		variant={thumbnail || isDocumentShown ? 'image' : 'icon'}
 		class={isIconShown ? visual.tileClass : undefined}
 		style={pageAspectRatio ? `aspect-ratio: ${pageAspectRatio}` : undefined}
-		{@attach hasPreview && attachment.source ? previewsWhenSeen(attachment.source) : undefined}
+		{@attach hasPreview && attachment.source ? previewsWhenSeen() : undefined}
 	>
 		{#if thumbnail?.kind === 'page'}
 			<img src={thumbnail.address} alt="" class="h-full w-full bg-white object-cover object-top" />
@@ -107,13 +115,12 @@
 				<div style="zoom: 0.55"><SheetGridTable grid={thumbnail.grid} /></div>
 			</div>
 		{:else if isDocumentShown && attachment.source}
-			{@const source = attachment.source}
 			<div aria-hidden="true" inert class="bg-background pointer-events-none absolute inset-0 overflow-hidden text-left">
 				<div class="h-[200%] w-[200%] origin-top-left scale-50">
 					<DocumentPreview
 						fileName={filename}
 						size={attachment.sizeBytes}
-						readURL={() => Promise.resolve(source)}
+						readURL={readAddress}
 						isMiniature
 						onAspectRatio={(aspectRatio) => (documentAspectRatio = cardAspectRatioOf(aspectRatio))}
 					/>
@@ -128,7 +135,9 @@
 	<Attachment.Content>
 		<Attachment.Title title={filename}>
 			{#if !onOpen && attachment.source && attachmentState === 'done'}
-				<a href={attachment.source} target="_blank" rel="noreferrer">{filename}</a>
+				<button type="button" class="max-w-full truncate text-left hover:underline" onclick={downloadThisFile}>
+					{filename}
+				</button>
 			{:else}
 				{filename}
 			{/if}
@@ -156,12 +165,11 @@
 			</Attachment.Action>
 		</Attachment.Actions>
 	{:else if attachment.source && attachmentState !== 'uploading'}
-		{@const source = attachment.source}
 		<Attachment.Actions>
 			<Attachment.Action
 				variant={hasPreview ? 'secondary' : 'ghost'}
 				aria-label={text.downloadAttachment}
-				onclick={() => downloadAttachment(source, filename, attachment.url)}
+				onclick={downloadThisFile}
 			>
 				<DownloadIndicator identity={attachment.url} class="size-6">
 					{#snippet idle()}

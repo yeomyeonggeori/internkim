@@ -3,6 +3,7 @@ import { MessengerRefusal } from '$lib/messenger/messenger-api';
 import { confirmDelete } from '$lib/components/ui/confirm-delete-dialog';
 import { copyText } from '$lib/hooks/use-clipboard.svelte';
 import { feelHaptic } from '$lib/native-shell/haptics';
+import { attachmentSource } from '$lib/stores/attachment-source.svelte';
 import { deleteWarningFor } from './channel-delete-warning';
 import {
 	addChannelReaction,
@@ -97,7 +98,7 @@ export function messageActionsFor(host: MessageActionHost): MessageActions {
 			if (wanted.kind === 'nothing') return;
 			const text = host.text();
 			if (wanted.kind === 'picture') {
-				const outcome = await copyPicture(wanted.address);
+				const outcome = await copyPicture(attachmentSource.readable(wanted.picture.identity, wanted.picture.address));
 				if (outcome === 'success') toast.success(text.pictureCopied);
 				else toast.error(text.pictureCopyFailed);
 				return;

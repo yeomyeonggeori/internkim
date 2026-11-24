@@ -1,4 +1,4 @@
-const playersBySource = new Map<string, HTMLVideoElement[]>();
+const playersByIdentity = new Map<string, HTMLVideoElement[]>();
 
 function seek(video: HTMLVideoElement, seconds: number): void {
 	if (video.readyState >= HTMLMediaElement.HAVE_METADATA) {
@@ -15,19 +15,19 @@ function handOff(from: HTMLVideoElement, to: HTMLVideoElement): void {
 	if (wasPlaying) void to.play();
 }
 
-export function videoPlaybackHandoff(video: HTMLVideoElement, source: string): { destroy(): void } {
-	const players = playersBySource.get(source) ?? [];
+export function videoPlaybackHandoff(video: HTMLVideoElement, identity: string): { destroy(): void } {
+	const players = playersByIdentity.get(identity) ?? [];
 	const previous = players.at(-1);
 	if (previous) handOff(previous, video);
-	playersBySource.set(source, [...players, video]);
+	playersByIdentity.set(identity, [...players, video]);
 
 	return {
 		destroy() {
-			const remaining = (playersBySource.get(source) ?? []).filter((player) => player !== video);
+			const remaining = (playersByIdentity.get(identity) ?? []).filter((player) => player !== video);
 			const next = remaining.at(-1);
 			if (next) handOff(video, next);
-			if (remaining.length === 0) playersBySource.delete(source);
-			else playersBySource.set(source, remaining);
+			if (remaining.length === 0) playersByIdentity.delete(identity);
+			else playersByIdentity.set(identity, remaining);
 		}
 	};
 }
