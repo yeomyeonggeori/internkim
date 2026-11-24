@@ -152,8 +152,18 @@ class WriterTests(unittest.TestCase):
 
 class ShareTests(unittest.TestCase):
     def test_the_log_is_the_store_s_pieces_of_both_logs_under_the_company(self):
-        stored = ["company/wal/7/a", "company/file-chunks/b", "company/snapshots/x/manifest.json", "other/wal/7/c"]
-        self.assertEqual(boxes.pieces_of_the_log(stored, "company"), ["file-chunks/b", "wal/7/a"])
+        stored = {"company/wal/7/a": "1", "company/file-chunks/b": "2", "company/snapshots/x/manifest.json": "3", "other/wal/7/c": "4"}
+        self.assertEqual(boxes.pieces_of_the_log(stored, "company"), {"file-chunks/b": "2", "wal/7/a": "1"})
+
+    def test_a_piece_kept_after_a_standby_last_listed_the_log_is_not_yet_due_on_it(self):
+        pieces = {"a": "2026-11-24T08:05:00.100Z", "b": "2026-11-24T08:05:01.200Z", "c": "2026-11-24T08:05:09.000Z"}
+        kept_through = {"B": "2026-11-24T08:05:01.200+00:00", "C": "2026-11-24T08:05:05.000+00:00"}
+        self.assertTrue(boxes.shares_split_through(pieces, kept_through, {"B": {"a"}, "C": {"b"}})[0])
+        self.assertFalse(boxes.shares_split_through(pieces, kept_through, {"B": {"a"}, "C": set()})[0])
+        self.assertFalse(boxes.shares_split_through(pieces, {"B": None, "C": "2026-11-24T08:05:05.000+00:00"}, {"B": {"a"}, "C": {"b", "c"}})[0])
+
+    def test_the_moment_a_standby_reports_is_compared_to_the_millisecond_its_listing_gives(self):
+        self.assertTrue(boxes.shares_split_through({"a": "2026-11-24T08:05:01.200731+00:00"}, {"B": "2026-11-24T08:05:01.200+00:00"}, {"B": {"a"}})[0])
 
     def test_the_standbys_split_the_pieces_with_none_left_out_and_none_twice(self):
         pieces = ["a", "b", "c", "d"]
