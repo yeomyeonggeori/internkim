@@ -33,6 +33,15 @@ def load_driver():
     return module
 
 
+class ContainerStateTests(unittest.TestCase):
+    def test_a_guest_reads_running_from_either_shape_the_container_cli_lists(self):
+        machine = rig.Machine("guest", Path(tempfile.gettempdir()))
+        for status in ("running", {"state": "running", "networks": []}):
+            listed = [{"configuration": {"id": "guest"}, "id": "guest", "status": status}]
+            with unittest.mock.patch.object(machine, "list_containers", return_value=listed):
+                self.assertEqual(machine.container_state(), "running")
+
+
 class GuestPackageCacheTests(unittest.TestCase):
     def directory(self):
         return Path(self.enterContext(tempfile.TemporaryDirectory()))
@@ -1016,7 +1025,10 @@ class StandInStorageHandler(http.server.BaseHTTPRequestHandler):
                 continue
             name, separator, _ = path[len(prefix):].partition("/")
             children[name] = None if separator else path
-        listed = [{"name": name, "id": None if path is None else path} for name, path in sorted(children.items())]
+        listed = [
+            {"name": name, "id": None, "created_at": None} if path is None else {"name": name, "id": path, "created_at": "2026-11-24T08:05:01.393Z"}
+            for name, path in sorted(children.items())
+        ]
         self.answer(listed[asked["offset"]:asked["offset"] + asked["limit"]])
 
     def do_DELETE(self):
