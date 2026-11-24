@@ -61,6 +61,7 @@ import { saidEventKind, workingEventKind } from '../../web/src/lib/messenger/age
 import { ArrivalWatchers, activeMemberIDsOf, arrivalsPath, keepWatchingArrivals } from './arrival-watchers';
 import { readTyping, typingPath, typingTeller } from './typing';
 import { readWithdrawal, withdrawalsPath, withdrawalTeller, WithdrawnMessages } from './withdrawn';
+import { readClearingTeller } from './read-clearing';
 import { fetchWhenChatdListens } from './chatd-reach';
 import { seatedOwnerMuter } from './seated-owner';
 import { asAHostService, carriesTheHostServiceToken } from './host-service-token';
@@ -266,6 +267,7 @@ const messenger = new MessengerRelay(messengerRelayURL.replace(/^ws/, 'http'), m
 
 const dispatch = {
 	messageArrived: tellBrowsers,
+	conversationRead: (memberID: string, body: Record<string, unknown>) => void clearReadConversation(memberID, body),
 	serveAsset: asset,
 	serveMessenger: (capability: string, body: Record<string, unknown>) => messenger.serve(capability, body),
 	askChatd: (capability: string, body: Record<string, unknown>, largestBytes?: number) =>
@@ -422,6 +424,11 @@ const notificationPictureSources: NotificationPictureSources = {
 };
 
 const withdrawnMessages = new WithdrawnMessages();
+
+const clearReadConversation = readClearingTeller({
+	askTheProject: (request) => askTheProject('clear-read-notifications', request),
+	report: (line) => console.error(line)
+});
 
 const tellWithdrawalTo = withdrawalTeller({
 	withdrawn: withdrawnMessages,

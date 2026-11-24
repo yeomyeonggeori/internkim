@@ -32,3 +32,5 @@ export function secureImageURLOf(notification: Notification): string {
 }
 
 export type PushOutcome = 'delivered' | 'gone' | 'refused';
+
+export const readTagKey = 'readTag';

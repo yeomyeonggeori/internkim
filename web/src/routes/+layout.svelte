@@ -40,6 +40,7 @@
 	import { openLinksLeavingTheAppInBrowser } from '$lib/native-shell/external-links';
 	import { askToUseThisComputerOnce, keepDesktopControlled } from '$lib/native-shell/desktop-control';
 	import { goWhereNativeNotificationsPoint, keepNativeDeviceClaimed } from '$lib/notifications/native-device';
+	import { keepReadConversationsCleared } from '$lib/native-shell/read-notifications';
 	import { askToBeReachedOnce } from '$lib/notifications/ask-once';
 	import { keepWidgetSupplied } from '$lib/widget/attendance-widget-supply';
 	import { keepActivityTokensClaimed } from '$lib/widget/attendance-activity-tokens';
@@ -148,7 +149,15 @@
 		keepNativeDeviceClaimed().catch((failure: unknown) =>
 			console.warn('this device is not claimed for push', failure)
 		);
+		let stopClearingReadConversations = () => {};
+		keepReadConversationsCleared().then(
+			(stop) => {
+				stopClearingReadConversations = stop;
+			},
+			(failure: unknown) => console.warn('the shell is not clearing conversations read elsewhere', failure)
+		);
 		return () => {
+			stopClearingReadConversations();
 			stopFollowingPageTheme();
 			stopFollowingNativeNotifications();
 			stopFollowingNotifications();

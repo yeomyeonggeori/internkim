@@ -56,12 +56,16 @@ export type NotifyRequest = Told & {
 	messagePicturePath: string;
 };
 
+export function messageTagOf(conversationID: string): string {
+	return `message:${conversationID}`;
+}
+
 export function tellingOf(arrived: ArrivedMessage, authorName: string): Told {
 	return {
 		title: authorName || 'internkim',
 		body: arrived.preview,
 		openPath: messagePathOf(arrived),
-		tag: `message:${arrived.conversationID}`
+		tag: messageTagOf(arrived.conversationID)
 	};
 }
 

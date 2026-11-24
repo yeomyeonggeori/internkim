@@ -3,6 +3,7 @@ package app.intern.kim
 import android.content.Intent
 import app.intern.kim.attendance.AttendanceWidgetPush
 import app.intern.kim.notification.MessagePicture
+import app.intern.kim.notification.ReadNotificationClearing
 import app.intern.kim.notification.SenderNotificationPoster
 import app.intern.kim.notification.SenderPicture
 import app.intern.kim.notification.SentNotification
@@ -18,6 +19,10 @@ class SenderNotificationService : FirebaseMessagingService() {
   override fun onMessageReceived(message: RemoteMessage) {
     if (AttendanceWidgetPush.isFor(message.data)) {
       AttendanceWidgetPush.redrawFromServer(this)
+      return
+    }
+    if (ReadNotificationClearing.isFor(message.data)) {
+      ReadNotificationClearing.clear(this, message.data)
       return
     }
     SentNotification.from(message)?.let { sent ->
