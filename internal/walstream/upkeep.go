@@ -23,12 +23,12 @@ const (
 	removeBatchSize                    = 1000
 )
 
-func KeepBaseBackups(ctx context.Context, replicationConnection string, destination offsite.Destination, keyring box.Keyring, pieces *PiecesSinceBaseBackup) {
+func KeepBaseBackups(ctx context.Context, replicationConnection string, destination offsite.Destination, keyring box.Keyring, release string, pieces *PiecesSinceBaseBackup) {
 	lastFailedAt := time.Time{}
 	for {
 		if !aFailedAttemptIsRecent(lastFailedAt, time.Now()) {
 			lastFailedAt = time.Time{}
-			if errorValue := keepABaseBackupWhenDue(ctx, replicationConnection, destination, keyring, pieces, time.Now()); errorValue != nil && ctx.Err() == nil {
+			if errorValue := keepABaseBackupWhenDue(ctx, replicationConnection, destination, keyring, release, pieces, time.Now()); errorValue != nil && ctx.Err() == nil {
 				log.Printf("keeping a base backup of the company database: %v; trying again in %s", errorValue, upkeepCheckEvery)
 				lastFailedAt = time.Now()
 			}
@@ -42,7 +42,7 @@ func KeepBaseBackups(ctx context.Context, replicationConnection string, destinat
 	}
 }
 
-func keepABaseBackupWhenDue(ctx context.Context, replicationConnection string, destination offsite.Destination, keyring box.Keyring, pieces *PiecesSinceBaseBackup, now time.Time) error {
+func keepABaseBackupWhenDue(ctx context.Context, replicationConnection string, destination offsite.Destination, keyring box.Keyring, release string, pieces *PiecesSinceBaseBackup, now time.Time) error {
 	system, errorValue := identify(ctx, replicationConnection)
 	if errorValue != nil {
 		return errorValue
@@ -55,6 +55,7 @@ func keepABaseBackupWhenDue(ctx context.Context, replicationConnection string, d
 		hasNewest:       errorValue == nil,
 		newestTakenAt:   newest.CreatedAt,
 		isOtherDatabase: newest.SystemID != system.SystemID || newest.Timeline != system.Timeline,
+		namesItsMajor:   newest.PostgreSQLMajor != 0,
 	}
 	if facts.hasNewest && !facts.isOtherDatabase {
 		piecesSince, errorValue := piecesSinceTheNewest(ctx, destination, newest, pieces)
@@ -66,7 +67,7 @@ func keepABaseBackupWhenDue(ctx context.Context, replicationConnection string, d
 	if !baseBackupIsDue(facts, now) {
 		return nil
 	}
-	backup, errorValue := TakeBaseBackup(ctx, replicationConnection, destination, keyring, now)
+	backup, errorValue := TakeBaseBackup(ctx, replicationConnection, destination, keyring, release, now)
 	if errorValue != nil {
 		return errorValue
 	}

@@ -201,7 +201,7 @@ func TestAStandbyBoxRebuildsTheArchiveTheServiceBoxSnapshotted(t *testing.T) {
 	destination := destinationFor(t, storage, keyring)
 	members := hostMembers{
 		hostbackup.DatabaseMemberName("blueclaw"): randomBytes(t, 5*typicalChunkBytes),
-		hostbackup.RosterMemberName:               []byte(`{"people":[]}`),
+		hostbackup.FilesMemberName:                []byte(`{"people":[]}`),
 	}
 	shipped, _ := shipSnapshot(t, destination, keyring, members, time.Now())
 	for path, kept := range storage.objects {
@@ -246,7 +246,7 @@ func TestABoxWithoutTheCompanyKeyCannotRebuildASnapshotAndLeavesNoArchive(t *tes
 	storage := newFakeStorage()
 	keyring := aKeyring(t)
 	destination := destinationFor(t, storage, keyring)
-	shipped, _ := shipSnapshot(t, destination, keyring, hostMembers{hostbackup.RosterMemberName: []byte("{}")}, time.Now())
+	shipped, _ := shipSnapshot(t, destination, keyring, hostMembers{hostbackup.FilesMemberName: []byte("{}")}, time.Now())
 	stranger := aKeyring(t)
 
 	archivePath := filepath.Join(t.TempDir(), "taken-over.tar")
@@ -267,7 +267,7 @@ func TestAChunkAlteredInTheStoreIsRefused(t *testing.T) {
 	storage := newFakeStorage()
 	keyring := aKeyring(t)
 	destination := destinationFor(t, storage, keyring)
-	shipped, _ := shipSnapshot(t, destination, keyring, hostMembers{hostbackup.RosterMemberName: []byte(`{"people":["sample"]}`)}, time.Now())
+	shipped, _ := shipSnapshot(t, destination, keyring, hostMembers{hostbackup.FilesMemberName: []byte(`{"people":["sample"]}`)}, time.Now())
 	chunkPath := destination.chunkPath(shipped.chunkIDs()[0])
 	altered := storage.objects[chunkPath]
 	altered.bytes[len(altered.bytes)-1] ^= 1
@@ -285,8 +285,8 @@ func TestOnlyASnapshotSealedToTheCurrentKeyIsTheNewest(t *testing.T) {
 	retired := aKeyring(t)
 	destination := destinationFor(t, storage, current)
 	retiredDestination := destinationFor(t, storage, retired)
-	older, _ := shipSnapshot(t, destination, current, hostMembers{hostbackup.RosterMemberName: []byte("{}")}, time.Now())
-	shipSnapshot(t, retiredDestination, retired, hostMembers{hostbackup.RosterMemberName: []byte("{}")}, time.Now().Add(time.Minute))
+	older, _ := shipSnapshot(t, destination, current, hostMembers{hostbackup.FilesMemberName: []byte("{}")}, time.Now())
+	shipSnapshot(t, retiredDestination, retired, hostMembers{hostbackup.FilesMemberName: []byte("{}")}, time.Now().Add(time.Minute))
 	storage.objects[destination.snapshotPath(snapshotNameAt(time.Now().Add(2*time.Minute)))] = storedBody{bytes: []byte("not a manifest")}
 
 	newest, errorValue := Newest(context.Background(), destination)
@@ -306,10 +306,10 @@ func TestPruningKeepsTheNewestSnapshotsAndSweepsOnlyChunksNothingKeptNeedsAndNot
 	destination := destinationFor(t, storage, keyring)
 	start := time.Now()
 	storage.now = start.Add(-3 * time.Hour)
-	shipSnapshot(t, destination, keyring, hostMembers{hostbackup.RosterMemberName: []byte("first")}, start.Add(-3*time.Hour))
-	shipSnapshot(t, destination, keyring, hostMembers{hostbackup.RosterMemberName: []byte("second")}, start.Add(-2*time.Hour))
+	shipSnapshot(t, destination, keyring, hostMembers{hostbackup.FilesMemberName: []byte("first")}, start.Add(-3*time.Hour))
+	shipSnapshot(t, destination, keyring, hostMembers{hostbackup.FilesMemberName: []byte("second")}, start.Add(-2*time.Hour))
 	storage.now = start
-	kept, _ := shipSnapshot(t, destination, keyring, hostMembers{hostbackup.RosterMemberName: []byte("third")}, start)
+	kept, _ := shipSnapshot(t, destination, keyring, hostMembers{hostbackup.FilesMemberName: []byte("third")}, start)
 	storage.objects[destination.chunkPath("being-written")] = storedBody{bytes: []byte("sealed"), createdAt: start}
 
 	pruned, errorValue := Prune(context.Background(), destination, 1, start)
@@ -331,11 +331,11 @@ func TestAStandbyCacheForgetsWhatTheNewestSnapshotNoLongerNeeds(t *testing.T) {
 	keyring := aKeyring(t)
 	destination := destinationFor(t, storage, keyring)
 	cache := ChunkCache{DirectoryPath: t.TempDir()}
-	shipSnapshot(t, destination, keyring, hostMembers{hostbackup.RosterMemberName: []byte("before")}, time.Now())
+	shipSnapshot(t, destination, keyring, hostMembers{hostbackup.FilesMemberName: []byte("before")}, time.Now())
 	if _, _, errorValue := cache.KeepUp(context.Background(), destination); errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	newest, _ := shipSnapshot(t, destination, keyring, hostMembers{hostbackup.RosterMemberName: []byte("after")}, time.Now().Add(time.Minute))
+	newest, _ := shipSnapshot(t, destination, keyring, hostMembers{hostbackup.FilesMemberName: []byte("after")}, time.Now().Add(time.Minute))
 
 	if _, fetched, errorValue := cache.KeepUp(context.Background(), destination); errorValue != nil || fetched != 1 {
 		t.Fatalf("fetched %d, %v", fetched, errorValue)

@@ -67,7 +67,14 @@ func (session takeOverSession) fresh() (string, error) {
 	}
 }
 
-func askingForThisBoxSession() (func(context.Context) (box.HostSession, error), error) {
+func sessionOf(ask func(context.Context) (box.Session, error)) func(context.Context) (box.HostSession, error) {
+	return func(ctx context.Context) (box.HostSession, error) {
+		claim, errorValue := ask(ctx)
+		return claim.Session, errorValue
+	}
+}
+
+func askingForThisBoxClaim() (func(context.Context) (box.Session, error), error) {
 	identity, errorValue := box.LoadIdentity(blueclaw.CompanyHostBoxStatePath)
 	if errorValue != nil {
 		return nil, errorValue
@@ -77,15 +84,15 @@ func askingForThisBoxSession() (func(context.Context) (box.HostSession, error), 
 		return nil, errorValue
 	}
 	client := box.Client{AppURL: appURL}
-	return func(ctx context.Context) (box.HostSession, error) {
+	return func(ctx context.Context) (box.Session, error) {
 		session, isClaimed, errorValue := client.Session(ctx, identity, thisBoxRelease())
 		if errorValue != nil {
-			return box.HostSession{}, errorValue
+			return box.Session{}, errorValue
 		}
 		if !isClaimed {
-			return box.HostSession{}, fmt.Errorf("no company holds this box any longer")
+			return box.Session{}, fmt.Errorf("no company holds this box any longer")
 		}
-		return session.Session, nil
+		return session, nil
 	}, nil
 }
 

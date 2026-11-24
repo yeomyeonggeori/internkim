@@ -98,45 +98,46 @@ func TestACompanyKeyThatCannotBeReadIsAnErrorAndNotABoxStillWaiting(t *testing.T
 	}
 }
 
-func TestABoxTakingOverReachesItsCompanysBackupsBeforeItIsMarkedInstalled(t *testing.T) {
-	place := boxWithAConnectionAndNoCompany(t)
-	holdTheCompanyKey(t, place, identityOfTheBoxAt(t, place))
+func claimOf(identity box.Identity) box.Session {
+	claim := box.Session{SealingKey: identity.EncryptionPublicKey()}
+	claim.Configuration.Company.ID = exampleCompanyID
+	claim.Configuration.Company.Name = "Example Co"
+	claim.Configuration.CentralPlane.ProjectURL = "https://project.supabase.co"
+	claim.Configuration.CentralPlane.PublishableKey = "publishable"
+	return claim
+}
 
-	_, _, isConnectedByItsMarker, errorValue := place.Destination()
+func TestABoxTakingOverReachesItsCompanysBackupsWithNoCompanyInstalledAndNoConnectionFile(t *testing.T) {
+	boxStatePath := filepath.Join(t.TempDir(), "box")
+	place := offsite.ThisBox{BoxStatePath: boxStatePath}
+	identity := identityOfTheBoxAt(t, place)
+	holdTheCompanyKey(t, place, identity)
+
+	kept, errorValue := keptForTheTakeOver(claimOf(identity), boxStatePath, filepath.Join(t.TempDir(), takeOverSessionFileName))
+
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	destination, _, isConnectedWhenTold, errorValue := place.DestinationOf(exampleCompanyID)
-	if errorValue != nil {
-		t.Fatal(errorValue)
-	}
-
-	if isConnectedByItsMarker {
-		t.Fatal("a box that has installed no company answered as one serving it, so this test tells nothing")
-	}
-	if !isConnectedWhenTold || destination.CompanyID != exampleCompanyID {
-		t.Fatalf("a box holding the company key could not reach %s's backups when told the company: connected=%v, company=%q", exampleCompanyID, isConnectedWhenTold, destination.CompanyID)
+	if kept.destination.CompanyID != exampleCompanyID || kept.destination.SealingKey != identity.EncryptionPublicKey() || kept.destination.Store.ProjectURL != "https://project.supabase.co" {
+		t.Fatalf("a standby holding the company key reaches %+v for the take-over", kept.destination)
 	}
 }
 
 func TestABoxTakingOverSignsInAsItselfAndNotWithTheSessionTheBackupCarries(t *testing.T) {
-	place := boxWithAConnectionAndNoCompany(t)
-	holdTheCompanyKey(t, place, identityOfTheBoxAt(t, place))
-	directory := t.TempDir()
-	place.AccessTokenPath = filepath.Join(directory, "agent-key")
-	if errorValue := os.WriteFile(place.AccessTokenPath, []byte("the-session-the-backup-carried\n"), 0o600); errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	sessionPath := filepath.Join(directory, "backups", takeOverSessionFileName)
+	boxStatePath := filepath.Join(t.TempDir(), "box")
+	place := offsite.ThisBox{BoxStatePath: boxStatePath}
+	identity := identityOfTheBoxAt(t, place)
+	holdTheCompanyKey(t, place, identity)
+	sessionPath := filepath.Join(t.TempDir(), "backups", takeOverSessionFileName)
 	if errorValue := keepTheTakeOverSession(sessionPath, "this-box-own-session"); errorValue != nil {
 		t.Fatal(errorValue)
 	}
 
-	destination, _, isConnected, errorValue := asTheBoxTakingOver(place, sessionPath).DestinationOf(exampleCompanyID)
-	if errorValue != nil || !isConnected {
-		t.Fatalf("connected=%v: %v", isConnected, errorValue)
+	kept, errorValue := keptForTheTakeOver(claimOf(identity), boxStatePath, sessionPath)
+	if errorValue != nil {
+		t.Fatal(errorValue)
 	}
-	token, errorValue := destination.Store.AccessToken()
+	token, errorValue := kept.destination.Store.AccessToken()
 
 	if errorValue != nil {
 		t.Fatal(errorValue)
@@ -149,17 +150,16 @@ func TestABoxTakingOverSignsInAsItselfAndNotWithTheSessionTheBackupCarries(t *te
 	}
 }
 
-func TestABoxWithoutTheCompanyKeyDoesNotReachTheBackupsOfTheCompanyItIsTold(t *testing.T) {
-	place := boxWithAConnectionAndNoCompany(t)
-	identityOfTheBoxAt(t, place)
+func TestABoxWithoutTheCompanyKeyDoesNotTakeTheCompanyOver(t *testing.T) {
+	boxStatePath := filepath.Join(t.TempDir(), "box")
+	identity := identityOfTheBoxAt(t, offsite.ThisBox{BoxStatePath: boxStatePath})
+	claim := claimOf(identity)
+	claim.SealingKey = "a-key-another-box-made"
 
-	_, _, isConnected, errorValue := place.DestinationOf(exampleCompanyID)
+	_, errorValue := keptForTheTakeOver(claim, boxStatePath, filepath.Join(t.TempDir(), takeOverSessionFileName))
 
-	if errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	if isConnected {
-		t.Fatal("a box that holds no company key answered that it can open the company's backups")
+	if errorValue == nil {
+		t.Fatal("a box that holds no company key was given the company's backups to take over from")
 	}
 }
 

@@ -202,27 +202,8 @@ func writeBackupMembers(platform backupPlatform, writer hostbackup.MemberWriter,
 			return hostbackup.FilesReport{}, errorValue
 		}
 	}
-	if errorValue := addTheRoster(writer, platform.Layout().PolicyDocumentPath(), progress); errorValue != nil {
-		return hostbackup.FilesReport{}, errorValue
-	}
 	fmt.Fprintln(progress, "Archiving the company's files…")
 	return addTheFiles(writer, roots, directoryPath)
-}
-
-func addTheRoster(writer hostbackup.MemberWriter, rosterPath string, progress io.Writer) error {
-	roster, errorValue := os.Open(rosterPath)
-	if errors.Is(errorValue, fs.ErrNotExist) {
-		fmt.Fprintf(progress, "No roster at %s, so a restore will recreate no person's account until the agent syncs the roster again.\n", rosterPath)
-		return nil
-	}
-	if errorValue != nil {
-		return errorValue
-	}
-	defer roster.Close()
-	return writer.AddMember(hostbackup.RosterMemberName, func(output io.Writer) error {
-		_, errorValue := io.Copy(output, roster)
-		return errorValue
-	})
 }
 
 func addTheFiles(writer hostbackup.MemberWriter, roots []hostbackup.FileRoot, directoryPath string) (hostbackup.FilesReport, error) {
@@ -251,8 +232,12 @@ func presentRoots(roots []hostbackup.FileRoot) []hostbackup.FileRoot {
 }
 
 func rootRoles(roots []hostbackup.FileRoot) []string {
+	return rolesOf(presentRoots(roots))
+}
+
+func rolesOf(roots []hostbackup.FileRoot) []string {
 	roles := []string{}
-	for _, root := range presentRoots(roots) {
+	for _, root := range roots {
 		roles = append(roles, root.Role)
 	}
 	return roles
@@ -360,6 +345,7 @@ const AdministrationStateRoot = "/root/.internkim"
 
 const (
 	stateRole          = "state"
+	rosterRole         = "roster"
 	relayRole          = "relay"
 	configurationRole  = "configuration"
 	administrationRole = "administration"
@@ -371,6 +357,7 @@ var inFlightInboundEvents = []string{"inbound/*.json", "inbound/*.writing"}
 func hostFileRoots(layout blueclaw.CompanyHostLayout) []hostbackup.FileRoot {
 	return []hostbackup.FileRoot{
 		{Role: stateRole, Path: blueclaw.CompanyHostStateRoot, Excluded: []string{"media/.vgwlocks", "media/*/.sgwtmp"}},
+		{Role: rosterRole, Path: blueclaw.CompanyHostRosterPath},
 		{Role: relayRole, Path: blueclaw.RelayStateDirectoryPath(blueclaw.CompanyHostRelayStateDirectoryName), Excluded: inFlightInboundEvents},
 		{Role: configurationRole, Path: blueclaw.CompanyHostConfigurationRoot},
 		{Role: administrationRole, Path: AdministrationStateRoot},

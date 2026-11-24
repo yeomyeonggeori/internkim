@@ -29,11 +29,6 @@ func (place ThisBox) Destination() (Destination, box.Keyring, bool, error) {
 	return place.destinationOf(connected, errorValue)
 }
 
-func (place ThisBox) DestinationOf(companyID string) (Destination, box.Keyring, bool, error) {
-	connected, errorValue := box.LoadConnectedTo(place.BoxStatePath, companyID)
-	return place.destinationOf(connected, errorValue)
-}
-
 func (place ThisBox) destinationOf(connected box.Connected, errorValue error) (Destination, box.Keyring, bool, error) {
 	if errors.Is(errorValue, box.ErrNoBoxKey) || errors.Is(errorValue, box.ErrNoCompanyInstalled) {
 		return Destination{}, box.Keyring{}, false, nil

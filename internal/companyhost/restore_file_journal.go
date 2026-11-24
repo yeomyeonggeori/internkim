@@ -17,13 +17,28 @@ type FileJournalApplier func(isFull bool, removed []string, contents io.Reader) 
 
 type FileJournalReplay func(apply FileJournalApplier) (int, error)
 
-func replayTheFileJournal(replay FileJournalReplay, destinations map[string]string, extracted *hostbackup.ExtractionReport, progress io.Writer) error {
-	replayed, errorValue := replay(func(isFull bool, removed []string, contents io.Reader) error {
+func replayTheFileJournalOnto(source restoreSource, replay FileJournalReplay, destinations map[string]string, extracted *hostbackup.ExtractionReport, progress io.Writer) error {
+	if replay == nil {
+		return nil
+	}
+	replayed, errorValue := replayTheFileJournal(replay, destinations, extracted)
+	isOverAnArchive := source.archive != nil
+	switch {
+	case errors.Is(errorValue, ErrNoFileJournal) && isOverAnArchive:
+		fmt.Fprintln(progress, "  the company keeps no file journal yet, so the files are the backup's")
+		return nil
+	case errorValue != nil:
+		return fmt.Errorf("replaying the company's file journal: %w", errorValue)
+	}
+	fmt.Fprintf(progress, "  replayed %d entries of the company's file journal\n", replayed)
+	return nil
+}
+
+func replayTheFileJournal(replay FileJournalReplay, destinations map[string]string, extracted *hostbackup.ExtractionReport) (int, error) {
+	return replay(func(isFull bool, removed []string, contents io.Reader) error {
 		if isFull {
-			for _, rootPath := range destinations {
-				if errorValue := emptyTheDirectory(rootPath); errorValue != nil {
-					return errorValue
-				}
+			if errorValue := emptyTheDestinations(destinations); errorValue != nil {
+				return errorValue
 			}
 		}
 		for _, archivedName := range removed {
@@ -40,15 +55,6 @@ func replayTheFileJournal(replay FileJournalReplay, destinations map[string]stri
 		extracted.Unresolved = append(extracted.Unresolved, report.Unresolved...)
 		return nil
 	})
-	if errors.Is(errorValue, ErrNoFileJournal) {
-		fmt.Fprintln(progress, "  the company keeps no file journal yet, so the files are the snapshot's")
-		return nil
-	}
-	if errorValue != nil {
-		return fmt.Errorf("replaying the company's file journal over the snapshot: %w", errorValue)
-	}
-	fmt.Fprintf(progress, "  replayed %d entries of the company's file journal over the snapshot\n", replayed)
-	return nil
 }
 
 func removeArchived(destinations map[string]string, archivedName string) error {

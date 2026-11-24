@@ -76,6 +76,7 @@ func CompanyHostTmpfilesFile() string {
 		lines = append(lines, fmt.Sprintf("d %s %04o root root -", directory.Path, directory.Mode))
 	}
 	return strings.Join(append(lines,
+		fmt.Sprintf("d %s %04o root %s -", CompanyHostRosterPath, CompanyHostRosterDirectoryMode, BlueclawUser),
 		fmt.Sprintf("d %s 0755 root root -", CompanyHostConfigurationRoot),
 		fmt.Sprintf("z %s 4755 root root -", LinuxCompanyHostLayout().POSIXHelperPath()),
 		"",

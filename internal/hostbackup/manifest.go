@@ -13,9 +13,8 @@ const (
 	FormatName    = "internkim-host-backup"
 	FormatVersion = 1
 
-	ManifestName     = "manifest.json"
-	FilesMemberName  = "files.tar"
-	RosterMemberName = "roster.json"
+	ManifestName    = "manifest.json"
+	FilesMemberName = "files.tar"
 
 	databaseMemberDirectory = "databases"
 	databaseMemberSuffix    = ".dump"

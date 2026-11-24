@@ -51,10 +51,11 @@ type baseBackupFacts struct {
 	newestTakenAt   time.Time
 	piecesSince     int
 	isOtherDatabase bool
+	namesItsMajor   bool
 }
 
 func baseBackupIsDue(facts baseBackupFacts, now time.Time) bool {
-	if !facts.hasNewest || facts.isOtherDatabase {
+	if !facts.hasNewest || facts.isOtherDatabase || !facts.namesItsMajor {
 		return true
 	}
 	if now.Sub(facts.newestTakenAt) >= baseBackupEvery {

@@ -36,6 +36,7 @@ func companyPlacesOn(layout blueclaw.CompanyHostLayout) companyPlaces {
 			AdministrationStateRoot,
 			layout.WorkspacePath,
 			layout.RunPath,
+			blueclaw.CompanyHostRosterPath,
 			blueclaw.CompanyHostDatabaseDataPath,
 			blueclaw.CompanyHostCacheDataPath,
 			blueclaw.CompanyHostBackupsPath,

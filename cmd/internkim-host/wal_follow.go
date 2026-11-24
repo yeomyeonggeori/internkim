@@ -17,8 +17,6 @@ import (
 
 const releaseVerb = "release"
 
-var errNotAServingBox = errors.New("this computer is not a box holding its company's key, so it keeps no WAL off the box")
-
 func companyDatabaseConnection() string {
 	return fmt.Sprintf("host=%s port=%s user=%s dbname=postgres", blueclaw.CompanyHostDatabaseSocketDirectory, blueclaw.CompanyHostDatabasePort, blueclaw.CompanyHostDatabaseUser)
 }
@@ -58,7 +56,7 @@ func runWalFollow(arguments []string) error {
 			if errorValue := walstream.RequireTheStandby(ctx, companyDatabaseConnection()); errorValue != nil {
 				return errorValue
 			}
-			go walstream.KeepBaseBackups(ctx, companyReplicationConnection(), kept.destination, kept.keyring, pieces)
+			go walstream.KeepBaseBackups(ctx, companyReplicationConnection(), kept.destination, kept.keyring, companyhost.PackageVersion, pieces)
 			return nil
 		},
 	}.Run(watched)
@@ -76,17 +74,10 @@ func keepNoWAL(ctx context.Context) error {
 	return nil
 }
 
-func rebuildTheDatabaseFromKeptWALAs(place offsite.ThisBox) func(companyID, dataDirectoryPath string) error {
-	return func(companyID, dataDirectoryPath string) error {
-		destination, keyring, isConnected, errorValue := place.DestinationOf(companyID)
-		if errorValue != nil {
-			return errorValue
-		}
-		if !isConnected {
-			return errNotAServingBox
-		}
+func rebuildTheDatabaseFromKeptWAL(kept keptOffTheBox) func(dataDirectoryPath string) error {
+	return func(dataDirectoryPath string) error {
 		cache := offsite.ChunkCache{DirectoryPath: filepath.Join(blueclaw.CompanyHostBackupsPath, "base-chunks")}
-		rebuilt, errorValue := walstream.RebuildDataDirectory(context.Background(), destination, keyring, cache, dataDirectoryPath)
+		rebuilt, errorValue := walstream.RebuildDataDirectory(context.Background(), kept.destination, kept.keyring, cache, dataDirectoryPath)
 		if errors.Is(errorValue, walstream.ErrNoBaseBackup) {
 			return companyhost.ErrNoKeptWAL
 		}

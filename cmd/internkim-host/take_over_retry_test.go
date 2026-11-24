@@ -165,13 +165,21 @@ func TestATakeOverThatSucceededForgetsItsRecordAndLeavesItsSafetyBackup(t *testi
 }
 
 func TestATakeOverThatFailsBringsTheBoxBackToTryItAgain(t *testing.T) {
-	arguments := takeOverUnitArguments("/usr/bin/internkim", "/var/lib/internkim-backups/snapshot.tar", time.Date(2026, 11, 18, 9, 0, 0, 0, time.UTC))
+	arguments := takeOverUnitArguments("/usr/bin/internkim", takeOverSource{Description: "the snapshot made 2026-11-18T09:00:00Z", ArchivePath: "/var/lib/internkim-backups/snapshot.tar"})
 
 	if !slices.Contains(arguments, "--property=OnFailure="+blueclaw.BoxServiceName+".service") {
 		t.Fatalf("the take-over unit is started without bringing the box back when it fails: %v", arguments)
 	}
 	if !slices.Contains(arguments, "--unit="+takeOverUnitName) {
 		t.Fatalf("the take-over unit is not started under its name: %v", arguments)
+	}
+}
+
+func TestATakeOverFromTheLogRestoresNoArchive(t *testing.T) {
+	arguments := takeOverUnitArguments("/usr/bin/internkim", takeOverSource{Description: "the company's log, from the base backup made 2026-11-18T09:00:00Z"})
+
+	if !slices.Equal(arguments[len(arguments)-3:], []string{"/usr/bin/internkim", "restore", "--taking-over"}) {
+		t.Fatalf("a take-over from the company's log is started as %v", arguments)
 	}
 }
 

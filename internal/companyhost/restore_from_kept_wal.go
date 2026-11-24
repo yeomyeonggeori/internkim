@@ -54,7 +54,7 @@ func rebuildKeepingThisBoxDatabase(dataPath string, now time.Time, rebuild func(
 	}
 	errorValue = rebuild(dataPath)
 	if errors.Is(errorValue, ErrNoKeptWAL) {
-		fmt.Fprintln(progress, "  the company keeps no WAL yet, so the databases come from the snapshot's dumps")
+		fmt.Fprintln(progress, "  the company keeps no base backup and WAL yet")
 		return false, putTheDatabaseBackAfter(dataPath, replacedPath)
 	}
 	if errorValue == nil {

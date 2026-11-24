@@ -26,9 +26,9 @@ func TestTheSnapshotManifestIsTheOneTheWebAppReads(t *testing.T) {
 			CompanyID:       companyID,
 			PostgreSQLMajor: 17,
 			FileRoots:       []string{"state"},
-			Members:         []hostbackup.Member{{Name: hostbackup.RosterMemberName, Size: 2, SHA256: "00"}},
+			Members:         []hostbackup.Member{{Name: hostbackup.FilesMemberName, Size: 2, SHA256: "00"}},
 		},
-		Chunks: map[string][]string{hostbackup.RosterMemberName: {"00"}},
+		Chunks: map[string][]string{hostbackup.FilesMemberName: {"00"}},
 	}
 	written, errorValue := json.MarshalIndent(sample, "", "  ")
 	if errorValue != nil {

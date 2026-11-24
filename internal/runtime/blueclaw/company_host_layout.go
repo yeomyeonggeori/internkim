@@ -228,7 +228,7 @@ func (layout CompanyHostLayout) RuntimeDocumentPath() string {
 }
 
 func (layout CompanyHostLayout) PolicyDocumentPath() string {
-	return layout.RunPath + "/policy.json"
+	return CompanyHostRosterPath + "/policy.json"
 }
 
 // ACPSocketDirectoryPath holds the one socket blueclaw serves the relay on, and

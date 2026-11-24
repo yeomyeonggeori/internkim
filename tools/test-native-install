@@ -71,6 +71,7 @@ from native_install_rig import (  # noqa: E402
     SHARE_PATH,
     STATE_DIRECTORY,
     COMPANY_CONDITION_PATH,
+    INSTALLED_COMPANY_MARKER_PATH,
     MESSENGER_BRIDGE,
     MESSENGER_DATABASE_PATH,
     BOX_DROP_IN_DIRECTORY,
@@ -1857,7 +1858,7 @@ class Rig:
         first_key = self.claim_by_code(step, first, "replace", boxes.A_CLAIMED)
         if self.company_of_box(first_key) != self.company_id:
             raise RigFailure(f"box A ({first_key}) is not the company's after its claim: {json.dumps(self.boxes_in_the_record())[:600]}")
-        self.wait_in_machine(first, f"test -s {COMPANY_CONDITION_PATH} && echo held || echo waiting", lambda said: "held" in said, 900)
+        self.wait_in_machine(first, f"cat {INSTALLED_COMPANY_MARKER_PATH} 2>/dev/null || echo waiting", lambda said: self.company_id in said, 900)
         self.folded_observation(
             step,
             boxes.A_SERVES,

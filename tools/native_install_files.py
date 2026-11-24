@@ -11,6 +11,7 @@ from dataclasses import dataclass
 
 BACKUP_ROOTS = (
     ("state", "/var/lib/internkim"),
+    ("roster", "/var/lib/internkim-roster"),
     ("relay", "/var/lib/internkim-relay"),
     ("configuration", "/etc/internkim"),
     ("administration", "/root/.internkim"),

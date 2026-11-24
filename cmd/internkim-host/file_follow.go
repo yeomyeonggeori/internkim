@@ -73,17 +73,10 @@ func endedByKeepingSomethingElse(errorValue error, outer context.Context) error 
 	return errorValue
 }
 
-func replayTheFileJournalAs(place offsite.ThisBox) companyhost.FileJournalReplay {
+func replayTheFileJournal(kept keptOffTheBox) companyhost.FileJournalReplay {
 	return func(apply companyhost.FileJournalApplier) (int, error) {
-		destination, keyring, isConnected, errorValue := place.Destination()
-		if errorValue != nil {
-			return 0, errorValue
-		}
-		if !isConnected {
-			return 0, errNotAServingBox
-		}
 		cache := offsite.ChunkCache{DirectoryPath: filepath.Join(blueclaw.CompanyHostBackupsPath, "file-chunks")}
-		replayed, errorValue := filestream.Journal{Destination: destination}.Replay(context.Background(), keyring, cache, func(entry filestream.Entry, contents io.Reader) error {
+		replayed, errorValue := filestream.Journal{Destination: kept.destination}.Replay(context.Background(), kept.keyring, cache, func(entry filestream.Entry, contents io.Reader) error {
 			return apply(entry.IsFull, entry.Removed, contents)
 		})
 		if errors.Is(errorValue, filestream.ErrNoFullEntry) {

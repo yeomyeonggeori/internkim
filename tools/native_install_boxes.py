@@ -97,37 +97,35 @@ OBSERVATIONS = (
     HALF_HELD_IS_FASTER,
 )
 
-NEEDS_A_TAKE_OVER = (
-    "not reached until a take-over runs: the setup page makes a standby serve once the log has its base backup, and "
-    "the standby then refuses to start because a take-over still reads only a snapshot and none is kept in the first "
-    "quarter hour; seeding step 2, a take-over starts from the logs alone"
-)
-NEEDS_A_FENCED_MOVE = "not reached until a take-over runs (seeding step 2); then pass condition 4, a move catches up and fences the old box"
-
 NOT_YET = {
     SETUP_SAYS_READY: "pass condition 2: GET /api/company/box says whether each box is ready",
     SHARES_REPORTED: "seeding step 4: a standby keeps its share and reports it",
     SHARES_ON_DISK: "seeding step 4: the store holds the log from the first box on, and no standby keeps a share of it on disk",
     AUTOMATIC_TAKE_OVER: "pass condition 3: a standby takes over by itself, with no administrator call",
-    TAKEN_OVER_RUNS: NEEDS_A_TAKE_OVER,
-    COMMITS_KEPT: NEEDS_A_TAKE_OVER,
-    FILE_WRITES_KEPT: NEEDS_A_TAKE_OVER,
-    MESSAGES_KEPT: NEEDS_A_TAKE_OVER,
-    FILES_EQUAL: NEEDS_A_TAKE_OVER,
-    ACCOUNTS_EQUAL: NEEDS_A_TAKE_OVER,
-    SCHEDULES_EQUAL: NEEDS_A_TAKE_OVER,
-    ROSTER_EQUAL: NEEDS_A_TAKE_OVER,
-    SECRETS_EQUAL: NEEDS_A_TAKE_OVER,
-    WALLS_HOLD: NEEDS_A_TAKE_OVER,
-    SCHEDULE_RUNS: NEEDS_A_TAKE_OVER,
-    MOVE_INTERRUPTS_BRIEFLY: NEEDS_A_FENCED_MOVE,
-    COMMITS_MOVED: NEEDS_A_FENCED_MOVE,
-    FILE_WRITES_MOVED: NEEDS_A_FENCED_MOVE,
-    MESSAGES_MOVED: NEEDS_A_FENCED_MOVE,
-    OLD_BOX_COMMITS_REFUSED: NEEDS_A_FENCED_MOVE,
-    OLD_BOX_STORE_WRITES_REFUSED: NEEDS_A_FENCED_MOVE,
-    STORE_LINK_LIMITED: NEEDS_A_TAKE_OVER,
-    HALF_HELD_IS_FASTER: "not reached until a take-over runs (seeding step 2); then seeding step 4, a take-over reads its own share first",
+    TAKEN_OVER_RUNS: (
+        "internkim-wal-follow and internkim-file-follow restart once on the box that took over: the take-over starts "
+        "them before it marks the box as the company's, so they start keeping nothing and restart when the mark appears"
+    ),
+    FILES_EQUAL: (
+        "the reading is taken before the rig's writers start, and the agent's work on their messages changes files after "
+        "it: launching a person's task takes group and other bits off their home (0644 to 0600, 0755 to 0700), and "
+        "memory.db, chatd's delivered log, the relay's settled markers and the media store's packs change; the media "
+        "store's lock files differ too, which hostFileRoots leaves out of every backup"
+    ),
+    SCHEDULE_RUNS: (
+        "the schedule row the rig inserts names no platform or reply target, so the agent's scheduler refuses it with "
+        "\"scheduled task platform is required\" on any box, taken over or not"
+    ),
+    MOVE_INTERRUPTS_BRIEFLY: (
+        "pass condition 4: members waited 1556 s between two acknowledged messages around the move, which restores the "
+        "whole company from the log; how much of that is the move and how much the member session's round trip is not "
+        "yet diagnosed"
+    ),
+    HALF_HELD_IS_FASTER: (
+        "the empty box never takes over: the rig deletes every other box and claims it with intent replace, which makes "
+        "its own key the company key, so no base backup or snapshot is sealed to it; then seeding step 4, a take-over "
+        "reads its own share first"
+    ),
 }
 
 
