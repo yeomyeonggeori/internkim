@@ -272,7 +272,7 @@ func TestAServiceBoxItsCompanyLetsGoStopsItsServicesBeforeAnnouncing(t *testing.
 	}
 }
 
-type serviceSwitches struct{ downs, ups int }
+type serviceSwitches struct{ downs, ups, forgotten int }
 
 func cutOffServiceBox(t *testing.T, takeOver TakeOverPolicy) (*fakePlane, *installs, Daemon, *time.Time, *serviceSwitches) {
 	t.Helper()
@@ -280,10 +280,12 @@ func cutOffServiceBox(t *testing.T, takeOver TakeOverPolicy) (*fakePlane, *insta
 	recorded := &installs{}
 	daemon, places := daemonFor(t, plane, recorded)
 	plane.sealedModelKey = sealTo(t, identityOf(t, places), "sk-or-v1-sample")
+	keepInstalledCredentials(t, places)
 	clock := time.Date(2026, 10, 20, 9, 0, 0, 0, time.UTC)
 	switches := &serviceSwitches{}
 	daemon.Now = func() time.Time { return clock }
-	daemon.StandDown = func() error { switches.downs++; return nil }
+	daemon.StopServices = func() error { switches.downs++; return nil }
+	daemon.StandDown = func() error { switches.forgotten++; return nil }
 	daemon.StandUp = func() error { switches.ups++; return nil }
 	runSteps(t, daemon, 1)
 	if len(recorded.requests) != 1 {
@@ -312,6 +314,186 @@ func TestAServiceBoxCutOffForHalfTheLapseStopsItsServicesAndStartsThemWhenConfir
 	if switches.ups != 1 || len(recorded.requests) != 1 {
 		t.Fatalf("stood up %d times and installed %d times", switches.ups, len(recorded.requests))
 	}
+	if switches.forgotten != 0 {
+		t.Fatal("a box that stopped for a cut-off let go of the company it still serves, so starting its services again finds no company")
+	}
+}
+
+func TestAServiceBoxCutOffStopsItsServicesBeforeTheRecordCouldLetAStandbyServe(t *testing.T) {
+	const lapse = 90 * time.Second
+	plane, _, daemon, clock, switches := cutOffServiceBox(t, TakeOverPolicy{IsAutomatic: true, LapseSeconds: 90})
+	plane.isAway = false
+	lastSeen := *clock
+	var stoppedAt time.Time
+	daemon.StopServices = func() error { switches.downs++; stoppedAt = *clock; return nil }
+	checks := 0
+
+	runStepsOnTheClock(t, daemon, clock, 40, func(wait time.Duration) {
+		checks++
+		if !plane.isAway {
+			lastSeen = *clock
+			if wait > lapse/6 {
+				t.Fatalf("a service box a standby can take over from waits %s between check-ins, so two missed checks run its lease out", wait)
+			}
+		}
+		if checks == 4 {
+			plane.isAway = true
+		}
+	})
+
+	if switches.downs != 1 {
+		t.Fatalf("a box cut off for the whole lapse stopped its services %d times", switches.downs)
+	}
+	if stoppedAt.After(lastSeen.Add(lapse / 2)) {
+		t.Fatalf("the box stopped its services %s after the record last saw it; the record lets a standby serve %s after it", stoppedAt.Sub(lastSeen), lapse)
+	}
+}
+
+func TestABoxTakingOverThatLosesTheRecordStopsTheTakeOverBeforeTheRecordCouldLetAnotherServe(t *testing.T) {
+	const lapse = 90 * time.Second
+	plane, daemon, clock, takeOver := boxTakingOver(t)
+	lastSeen := *clock
+	var stoppedAt time.Time
+	stops := 0
+	daemon.StopServices = func() error { stops++; stoppedAt = *clock; takeOver.isUnderway = false; return nil }
+	checks := 0
+
+	runStepsOnTheClock(t, daemon, clock, 30, func(wait time.Duration) {
+		checks++
+		if !plane.isAway {
+			lastSeen = *clock
+			if wait > lapse/6 {
+				t.Fatalf("a box taking over waits %s between check-ins, so two missed checks run its lease out", wait)
+			}
+		}
+		if checks == 2 {
+			plane.isAway = true
+		}
+	})
+
+	if stops != 1 {
+		t.Fatalf("a box cut off for the whole lapse in the middle of its take-over stopped %d times", stops)
+	}
+	if stoppedAt.After(lastSeen.Add(lapse / 2)) {
+		t.Fatalf("the box stopped its take-over %s after the record last saw it; the record lets another box serve %s after it", stoppedAt.Sub(lastSeen), lapse)
+	}
+}
+
+func TestABoxMadeAStandbyWhileItTakesOverStopsTheTakeOverAndKeepsNoLease(t *testing.T) {
+	plane, daemon, _, takeOver := boxTakingOver(t)
+	standDowns := 0
+	daemon.StandDown = func() error { standDowns++; takeOver.isUnderway = false; return nil }
+
+	plane.role = RoleStandby
+	runSteps(t, daemon, 1)
+
+	if standDowns != 1 {
+		t.Fatalf("a box made a standby in the middle of its take-over stood down %d times", standDowns)
+	}
+	if _, isKept := daemon.serviceLease(); isKept {
+		t.Fatal("a box made a standby kept the lease it held while taking over")
+	}
+}
+
+type takeOverUnit struct{ isUnderway bool }
+
+func boxTakingOver(t *testing.T) (*fakePlane, Daemon, *time.Time, *takeOverUnit) {
+	t.Helper()
+	plane := &fakePlane{isClaimed: true, accessToken: "taking.over.token", keepsBackups: true, takeOver: TakeOverPolicy{IsAutomatic: true, LapseSeconds: 90}}
+	daemon, places := daemonFor(t, plane, &installs{})
+	plane.sealedModelKey = sealTo(t, identityOf(t, places), "sk-or-v1-sample")
+	clock := time.Date(2026, 11, 22, 9, 0, 0, 0, time.UTC)
+	daemon.Now = func() time.Time { return clock }
+	unit := &takeOverUnit{}
+	daemon.TakeOver = func(context.Context, Session, Keyring) error { unit.isUnderway = true; return ErrTakeOverUnderway }
+	daemon.TakeOverIsUnderway = func() bool { return unit.isUnderway }
+	runSteps(t, daemon, 1)
+	if _, isKept := daemon.serviceLease(); !isKept {
+		t.Fatal("a box the record made serve keeps no lease while it takes the company over")
+	}
+	return plane, daemon, &clock, unit
+}
+
+func TestAServiceBoxStopsItsServicesWhenItsLeaseRunsOutDuringAHungCheck(t *testing.T) {
+	plane, _, daemon, clock, switches := cutOffServiceBox(t, TakeOverPolicy{IsAutomatic: true, LapseSeconds: 90})
+	plane.isAway = false
+	plane.isHanging = true
+	startedAt := time.Now()
+	leaseEnds := clock.Add(45 * time.Second)
+	nearTheEnd := leaseEnds.Add(-300 * time.Millisecond)
+	daemon.Now = func() time.Time { return nearTheEnd.Add(time.Since(startedAt)) }
+
+	runSteps(t, daemon, 1)
+
+	if switches.downs != 1 {
+		t.Fatal("a check that hung past the end of the lease left the services running")
+	}
+	if held := time.Since(startedAt); held > 5*time.Second {
+		t.Fatalf("a hung check held the box for %s, past the end of its lease", held)
+	}
+}
+
+func TestAServiceBoxNoStandbyCanTakeOverFromChecksInOnceAMinute(t *testing.T) {
+	plane := &fakePlane{isClaimed: true, accessToken: "service.session.token", takeOver: TakeOverPolicy{IsAutomatic: false, LapseSeconds: 90}}
+	daemon, places := daemonFor(t, plane, &installs{})
+	plane.sealedModelKey = sealTo(t, identityOf(t, places), "sk-or-v1-sample")
+	keepInstalledCredentials(t, places)
+
+	waits := waitsOverSteps(t, daemon, 2)
+
+	if waits[1] != time.Minute {
+		t.Fatalf("a box no standby takes over from waits %s between check-ins", waits[1])
+	}
+}
+
+func TestAStandbyChecksInAgainTheMomentTheServiceBoxLapses(t *testing.T) {
+	lapsesIn := 20
+	plane := &fakePlane{isClaimed: true, accessToken: "standby.session.token", role: RoleStandby, lapsesIn: &lapsesIn}
+	daemon, places := daemonFor(t, plane, &installs{})
+	plane.sealedModelKey = sealTo(t, identityOf(t, places), "sk-or-v1-sample")
+
+	if waits := waitsOverSteps(t, daemon, 1); waits[0] != 21*time.Second {
+		t.Fatalf("a standby told the service box lapses in 20s waits %s", waits[0])
+	}
+	plane.lapsesIn = nil
+	if waits := waitsOverSteps(t, daemon, 1); waits[0] != time.Minute {
+		t.Fatalf("a standby with no lapse to wait for waits %s", waits[0])
+	}
+}
+
+func runStepsOnTheClock(t *testing.T, daemon Daemon, clock *time.Time, steps int, beforeEachSleep func(wait time.Duration)) {
+	t.Helper()
+	taken := 0
+	daemon.Sleep = func(_ context.Context, wait time.Duration) error {
+		beforeEachSleep(wait)
+		*clock = clock.Add(wait)
+		taken++
+		if taken >= steps {
+			return context.Canceled
+		}
+		return nil
+	}
+	if errorValue := daemon.Run(context.Background()); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+}
+
+func keepInstalledCredentials(t *testing.T, places Places) {
+	t.Helper()
+	for _, path := range places.CredentialPaths {
+		if errorValue := os.WriteFile(path, []byte("installed.session.token\n"), 0o600); errorValue != nil {
+			t.Fatal(errorValue)
+		}
+	}
+}
+
+func waitsOverSteps(t *testing.T, daemon Daemon, steps int) []time.Duration {
+	t.Helper()
+	clock := time.Now()
+	daemon.Now = func() time.Time { return clock }
+	waits := []time.Duration{}
+	runStepsOnTheClock(t, daemon, &clock, steps, func(wait time.Duration) { waits = append(waits, wait) })
+	return waits
 }
 
 func TestAServiceBoxThatNoStandbyTakesOverFromKeepsServingWhileCutOff(t *testing.T) {

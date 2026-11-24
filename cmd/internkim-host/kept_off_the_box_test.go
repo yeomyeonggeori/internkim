@@ -43,6 +43,35 @@ func TestAnAttachmentIsStoredOnABoxThatHasItsOwnKeyAndNoCompanyYet(t *testing.T)
 	}
 }
 
+func TestAFollowerStartsKeepingWhenTheBoxBecomesTheCompanysWithoutStoppingItsProcess(t *testing.T) {
+	place := boxWithAConnectionAndNoCompany(t)
+	identity := identityOfTheBoxAt(t, place)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	held := []bool{}
+
+	errorValue := keepWhatTheBoxKeeps(ctx, place, 10*time.Millisecond, func(_, watched context.Context, kept keptOffTheBox) error {
+		held = append(held, kept.holdsTheCompanyKey)
+		if kept.holdsTheCompanyKey {
+			cancel()
+			return nil
+		}
+		if errorValue := box.MarkInstalledCompany(place.BoxStatePath, exampleCompanyID); errorValue != nil {
+			return errorValue
+		}
+		holdTheCompanyKey(t, place, identity)
+		<-watched.Done()
+		return watched.Err()
+	})
+
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if fmt.Sprint(held) != "[false true]" {
+		t.Fatalf("a follower kept %v across the box becoming the company's, so systemd had to start it again to keep the company", held)
+	}
+}
+
 func TestABoxOfACompanyWithoutTheCompanyKeyJournalsNothing(t *testing.T) {
 	place := boxWithAConnectionAndNoCompany(t)
 	identityOfTheBoxAt(t, place)

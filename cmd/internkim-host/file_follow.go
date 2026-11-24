@@ -27,13 +27,9 @@ func runFileFollow(arguments []string) error {
 	}
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGTERM, os.Interrupt)
 	defer stop()
-	kept, errorValue := whatThisBoxKeeps()
-	if errorValue != nil {
-		return errorValue
-	}
-	watched, cancel := whileThisBoxKeepsTheSame(ctx, kept)
-	defer cancel()
-	return endedByKeepingSomethingElse(serveTheFileJournal(watched, kept, blueclaw.CompanyHostFileJournalSocketPath), ctx)
+	return keepWhatThisBoxKeeps(ctx, func(_, watched context.Context, kept keptOffTheBox) error {
+		return serveTheFileJournal(watched, kept, blueclaw.CompanyHostFileJournalSocketPath)
+	})
 }
 
 func serveTheFileJournal(ctx context.Context, kept keptOffTheBox, socketPath string) error {
@@ -64,13 +60,6 @@ func serveTheFileJournal(ctx context.Context, kept keptOffTheBox, socketPath str
 	case errorValue := <-following:
 		return errorValue
 	}
-}
-
-func endedByKeepingSomethingElse(errorValue error, outer context.Context) error {
-	if outer.Err() == nil && errors.Is(errorValue, context.Canceled) {
-		return nil
-	}
-	return errorValue
 }
 
 func replayTheFileJournal(kept keptOffTheBox) companyhost.FileJournalReplay {

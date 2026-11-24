@@ -1430,6 +1430,15 @@
       ]
     },
     {
+      "name": "seconds_until_the_service_box_lapses",
+      "arguments": "lapsing_company uuid",
+      "returns": "integer",
+      "security": "definer",
+      "callableBy": [
+        "service_role"
+      ]
+    },
+    {
       "name": "size_bytes",
       "arguments": "document company_document",
       "returns": "bigint",
@@ -1446,6 +1455,15 @@
       "security": "definer",
       "callableBy": [
         "authenticated",
+        "service_role"
+      ]
+    },
+    {
+      "name": "take_over_of",
+      "arguments": "taken_company uuid",
+      "returns": "TABLE(is_automatic boolean, lapse_seconds integer)",
+      "security": "definer",
+      "callableBy": [
         "service_role"
       ]
     },

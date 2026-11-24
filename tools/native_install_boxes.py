@@ -101,11 +101,6 @@ NOT_YET = {
     SETUP_SAYS_READY: "pass condition 2: GET /api/company/box says whether each box is ready",
     SHARES_REPORTED: "seeding step 4: a standby keeps its share and reports it",
     SHARES_ON_DISK: "seeding step 4: the store holds the log from the first box on, and no standby keeps a share of it on disk",
-    AUTOMATIC_TAKE_OVER: "pass condition 3: a standby takes over by itself, with no administrator call",
-    TAKEN_OVER_RUNS: (
-        "internkim-wal-follow and internkim-file-follow restart once on the box that took over: the take-over starts "
-        "them before it marks the box as the company's, so they start keeping nothing and restart when the mark appears"
-    ),
     FILES_EQUAL: (
         "the reading is taken before the rig's writers start, and the agent's work on their messages changes files after "
         "it: launching a person's task takes group and other bits off their home (0644 to 0600, 0755 to 0700), and "
