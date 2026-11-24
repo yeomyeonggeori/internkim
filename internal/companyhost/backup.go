@@ -23,7 +23,6 @@ const (
 	backupArchivePrefix    = "internkim-backup-"
 	backupArchiveSuffix    = ".tar"
 	backupStampLayout      = "20060102T150405Z"
-	backupDirectoryMode    = 0o700
 	backupLockFileName     = ".lock"
 	backupScratchPattern   = ".scratch-"
 	backupPartialExtension = ".partial"
@@ -288,10 +287,10 @@ func prepareBackupDirectory(requested string) (string, error) {
 	if errorValue != nil {
 		return "", errorValue
 	}
-	if errorValue := os.MkdirAll(directoryPath, backupDirectoryMode); errorValue != nil {
+	if errorValue := os.MkdirAll(directoryPath, blueclaw.CompanyHostStateRootMode); errorValue != nil {
 		return "", errorValue
 	}
-	return directoryPath, os.Chmod(directoryPath, backupDirectoryMode)
+	return directoryPath, os.Chmod(directoryPath, blueclaw.CompanyHostStateRootMode)
 }
 
 func holdTheBackupLock(directoryPath string) (func(), error) {
