@@ -141,26 +141,26 @@ func TestRunStillStreamsWhatTheCommandSays(t *testing.T) {
 func TestWifiSetupWiresGetOnlineChangeWifiAndScanWifiTogether(t *testing.T) {
 	without := boxDaemon("https://example.com")
 	if without.GetOnline != nil || without.ChangeWifi != nil || without.ScanWifi != nil {
-		t.Fatalf("a daemon built without the flag has wifi hooks: %+v", without)
+		t.Fatalf("a daemon built before looking for Wi-Fi has wifi hooks: %+v", without)
 	}
 	with := withWifiSetup(box.Daemon{}, "https://example.com", time.Time{})
 	if with.GetOnline == nil || with.ChangeWifi == nil || with.ScanWifi == nil {
-		t.Fatalf("a daemon built with the flag lacks a wifi hook: GetOnline=%t ChangeWifi=%t ScanWifi=%t", with.GetOnline != nil, with.ChangeWifi != nil, with.ScanWifi != nil)
+		t.Fatalf("a daemon given Wi-Fi setup lacks a wifi hook: GetOnline=%t ChangeWifi=%t ScanWifi=%t", with.GetOnline != nil, with.ChangeWifi != nil, with.ScanWifi != nil)
 	}
 }
 
-func TestOnlyAComputerAskedToIsRenamedAfterItsKey(t *testing.T) {
-	if without := boxDaemon("https://example.com"); without.NameHost != nil {
-		t.Fatal("a daemon built without --host-name-from-company would rename this computer")
+func TestEveryBoxAsksWhetherItsHostNameIsOneInternKimGave(t *testing.T) {
+	if daemon := boxDaemon("https://example.com"); daemon.NameHost == nil {
+		t.Fatal("a box never offers to rename its computer, so a Kim mini keeps kimmini once claimed")
 	}
-	if with := withHostNameFromCompany(box.Daemon{}); with.NameHost == nil {
-		t.Fatal("a daemon built with --host-name-from-company does not rename this computer")
-	}
-	if without := boxDaemon("https://example.com"); without.SetAdminPassword != nil {
-		t.Fatal("a daemon built without --admin-account would set an account's password")
+}
+
+func TestAnAdminAccountWiresSettingAndLockingItsPasswordTogether(t *testing.T) {
+	if without := boxDaemon("https://example.com"); without.SetAdminPassword != nil || without.LockAdminPassword != nil {
+		t.Fatal("a daemon built before looking for an admin account would set an account's password")
 	}
 	if with := withAdminPasswordFor(box.Daemon{}, "admin"); with.SetAdminPassword == nil || with.LockAdminPassword == nil {
-		t.Fatal("a daemon built with --admin-account does not set and lock that account's password")
+		t.Fatal("a daemon given an admin account does not set and lock that account's password")
 	}
 }
 

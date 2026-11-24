@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 	"time"
+	"unicode/utf8"
 )
 
 func TestScanParsesEscapedColonsDedupesAndSortsBySignal(t *testing.T) {
@@ -154,13 +155,39 @@ func TestJoinStillTriesAHiddenNetworkThatNeverAppearsInAScan(t *testing.T) {
 	}
 }
 
-func TestTheSetupNetworkIsNamedForTheDayTheBoxWasMade(t *testing.T) {
+func TestTheSetupNetworkIsNamedAfterTheHostAndTheDayTheBoxWasMade(t *testing.T) {
 	madeOn := time.Date(2026, 10, 2, 0, 0, 0, 0, time.UTC)
-	if got := SetupNetworkNameFor(madeOn); got != "kimmini-261002" {
-		t.Fatalf("setup network name = %q, want kimmini-261002 for a box made on 2026-10-02", got)
+	cases := []struct {
+		hostName string
+		madeOn   time.Time
+		want     string
+	}{
+		{hostName: "kimmini", madeOn: madeOn, want: "kimmini-261002"},
+		{hostName: "internkim", want: "internkim"},
+		{hostName: "internkim", madeOn: madeOn, want: "internkim-261002"},
+		{hostName: "yeomyeonggeori", madeOn: madeOn, want: "yeomyeonggeori-261002"},
+		{hostName: "", want: EmptyBoxHostName},
 	}
-	if got := SetupNetworkNameFor(time.Time{}); got != SetupNetworkName {
-		t.Fatalf("setup network name without a day = %q, want %q", got, SetupNetworkName)
+	for _, testCase := range cases {
+		if got := SetupNetworkNameFor(testCase.hostName, testCase.madeOn); got != testCase.want {
+			t.Errorf("setup network name for host %q made on %v = %q, want %q", testCase.hostName, testCase.madeOn, got, testCase.want)
+		}
+	}
+}
+
+func TestTheSetupNetworkNameFitsTheWifiLimitAndKeepsItsDate(t *testing.T) {
+	madeOn := time.Date(2026, 10, 2, 0, 0, 0, 0, time.UTC)
+	longHostName := strings.Repeat("a", 63)
+	dated := SetupNetworkNameFor(longHostName, madeOn)
+	if len(dated) != 32 || !strings.HasSuffix(dated, "-261002") {
+		t.Fatalf("setup network name = %q (%d bytes), want 32 bytes ending in -261002", dated, len(dated))
+	}
+	if undated := SetupNetworkNameFor(longHostName, time.Time{}); undated != strings.Repeat("a", 32) {
+		t.Fatalf("setup network name without a day = %q, want the host name cut to 32 bytes", undated)
+	}
+	multibyte := SetupNetworkNameFor(strings.Repeat("a", 24)+"사무실", madeOn)
+	if len(multibyte) > 32 || !utf8.ValidString(multibyte) {
+		t.Fatalf("setup network name = %q (%d bytes), want at most 32 bytes of valid UTF-8", multibyte, len(multibyte))
 	}
 }
 
@@ -320,5 +347,58 @@ func TestScanPassesTheRescanModeAndDefaultsToAuto(t *testing.T) {
 		if !containsCall(calls, want) {
 			t.Fatalf("mode %q: calls = %v, want %v", testCase.mode, calls, want)
 		}
+	}
+}
+
+func TestOnlyAComputerWhoseWifiNetworkManagerManagesSetsUpWifi(t *testing.T) {
+	cases := []struct {
+		devices string
+		want    bool
+	}{
+		{devices: "ethernet:connected\nwifi:disconnected\nloopback:connected (externally)\n", want: true},
+		{devices: "wifi:unavailable\n", want: true},
+		{devices: "ethernet:connected\nloopback:connected (externally)\n", want: false},
+		{devices: "wifi:unmanaged\nethernet:connected\n", want: false},
+		{devices: "wifi-p2p:disconnected\nethernet:connected\n", want: false},
+	}
+	for _, testCase := range cases {
+		radio := NetworkManagerRadio{Run: func(ctx context.Context, name string, arguments ...string) ([]byte, error) {
+			return []byte(testCase.devices), nil
+		}}
+		if got := radio.ManagesWifi(context.Background()); got != testCase.want {
+			t.Errorf("ManagesWifi with devices %q = %t, want %t", testCase.devices, got, testCase.want)
+		}
+	}
+}
+
+func TestADeviceNetworkManagerIsActivatingIsConnectingAndNotYetOnANetwork(t *testing.T) {
+	devices := "wifi:connecting (getting IP configuration)\nethernet:unavailable\nloopback:connected (externally)\n"
+	radio := NetworkManagerRadio{Run: func(ctx context.Context, name string, arguments ...string) ([]byte, error) {
+		return []byte(devices), nil
+	}}
+	if !radio.IsConnecting(context.Background()) {
+		t.Fatalf("devices %q were not judged to be connecting", devices)
+	}
+	if radio.IsOnANetwork(context.Background()) {
+		t.Fatalf("devices %q were judged to be on a network before the connection finished", devices)
+	}
+	settled := NetworkManagerRadio{Run: func(ctx context.Context, name string, arguments ...string) ([]byte, error) {
+		return []byte("wifi:disconnected\nethernet:connected\n"), nil
+	}}
+	if settled.IsConnecting(context.Background()) {
+		t.Fatal("devices that finished connecting were still judged to be connecting")
+	}
+}
+
+func TestAComputerWithoutNetworkManagerDoesNotSetUpWifi(t *testing.T) {
+	t.Setenv("PATH", t.TempDir())
+	if (NetworkManagerRadio{}).ManagesWifi(context.Background()) {
+		t.Fatal("a computer without nmcli was judged to manage a Wi-Fi device")
+	}
+	failing := NetworkManagerRadio{Run: func(ctx context.Context, name string, arguments ...string) ([]byte, error) {
+		return []byte("Error: NetworkManager is not running."), errors.New("exit status 8")
+	}}
+	if failing.ManagesWifi(context.Background()) {
+		t.Fatal("a computer whose NetworkManager is not running was judged to manage a Wi-Fi device")
 	}
 }

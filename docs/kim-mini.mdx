@@ -19,23 +19,29 @@ No per-box password, sticker, serial registered to a buyer or key is put in at
 assembly. On first boot the box generates an Ed25519 signing key and an X25519
 encryption key in `/var/lib/internkim/box`. The private halves never leave its disk.
 
-A box started with `--host-name-from-company`, as every Kim mini is, is named
-`kimmini` while it belongs to no company and takes its company's address, such as
-`yeomyeonggeori`, once claimed. Disconnecting it names it `kimmini` again. Two
-empty boxes on one network do not collide: multicast DNS gives the second one to
-answer `kimmini-2.local`, and the box reports the name it was given. The box
-renames itself only when its name differs and points `127.0.1.1` in `/etc/hosts`
-at the new name. A Linux computer that installed the host package keeps the name
-it has.
+A Kim mini is named `kimmini` while it belongs to no company and takes its
+company's address, such as `yeomyeonggeori`, once claimed. Disconnecting it names
+it `kimmini` again. Two empty boxes on one network do not collide: multicast DNS
+gives the second one to answer `kimmini-2.local`, and the box reports the name it
+was given. The box renames itself only when its name differs and points
+`127.0.1.1` in `/etc/hosts` at the new name. Any Linux box named `kimmini` is
+renamed the same way, and one named anything else keeps its name. [What the
+computer has](/docs/running-the-host#what-the-computer-has) says when a box
+renames itself, sets up Wi-Fi or sets the `admin` password, and how each is
+turned off.
 
 ## Getting online
 
-A box started with `--wifi-setup` that is offline opens its own Wi-Fi network
-named `kimmini-` plus the day the box was made as `YYMMDD`, for example
-`kimmini-261002`. A box that already has a company opens it only when it is joined
-to no network at all, so one carried to another office can be given that office's
-network while an internet outage leaves it on the network it has. The network appears only
-while the box is offline and closes once it is online. Boxes made on the same day share a
+A box whose Wi-Fi NetworkManager manages, as a Kim mini's is, opens its own Wi-Fi
+network while it is offline. The network is named after the computer's host name
+when it opens, plus `-` and the day the box was made as `YYMMDD`, cut to the 32
+bytes a Wi-Fi name allows. An empty Kim mini opens `kimmini-261002`, and a Linux
+box named `internkim` without a recorded day opens `internkim`. A box that already has a company opens it only when it is joined
+to no network at all, wired or wireless, so one carried to another office can be
+given that office's network while an internet outage leaves it on the network it
+has. While NetworkManager is connecting a device, the box waits up to two minutes
+for it before it opens its own. The network appears only
+while the box is offline and closes once it is online. Empty boxes made on the same day share a
 name, and a phone joins one of them; once that box is online its network closes
 and the next one is the only one left. Its password is `intern-kim`, the same on every box.
 
@@ -67,8 +73,8 @@ at another network.
 A box is a Raspberry Pi with an SD card written from one image.
 `tools/build-kim-mini-image --release <tag>` builds it in an arm64 Linux
 container through Docker. It starts from Raspberry Pi OS Lite and installs that
-release's host package. The box service runs with `--wifi-setup` and
-`--host-name-from-company`, and Wi-Fi is on for the country given by
+release's host package. The image names the box `kimmini`, makes its `admin`
+account, and turns Wi-Fi on for the country given by
 `--wifi-country`, `KR` unless told otherwise. Raspberry Pi OS keeps Wi-Fi off
 until a country is chosen, and a new box has nobody to choose one. The box's
 clock keeps the time zone given by `--time-zone`, `Asia/Seoul` unless told
@@ -91,9 +97,10 @@ the file system.
 
 ## Nobody on a box holds root
 
-A box has one login account, `admin`, and it has no `sudo`. It is in
-`systemd-journal`, so it reads every log, and in `internkim-admin`, so it restarts
-the host's services. The host is updated from company setup, as any host is.
+A box has one login account, `admin`, which the image makes, and it has no
+`sudo`. It is in `systemd-journal`, so it reads every log, and in
+`internkim-admin`, so it restarts the host's services and company setup can set
+its password. The host is updated from company setup, as any host is.
 
 The image leaves `admin` without a password. Once the box is connected, an
 administrator sets one in company setup, on the monitor or over SSH it is the
