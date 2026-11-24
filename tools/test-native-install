@@ -3373,7 +3373,8 @@ class Rig:
             backed_up.returncode == 0
             and "700 root:root" in listed.stdout and "600 root:root" in listed.stdout
             and all(member in listed.stdout for member in (
-                "manifest.json", "databases/blueclaw.dump", "databases/buzz.dump", "files.tar", "roster.json"))
+                "manifest.json", "databases/blueclaw.dump", "databases/buzz.dump", "files.tar"))
+            and '"roster"' in listed.stdout
             and f'"companyID": "{self.company_id}"' in listed.stdout
             and listed.stdout.strip().endswith("active active"),
             f"{backed_up.stdout.strip()[-900:]}\n{listed.stdout.strip()[-1500:]}",
