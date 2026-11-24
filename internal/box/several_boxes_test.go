@@ -447,17 +447,29 @@ func TestAServiceBoxNoStandbyCanTakeOverFromChecksInOnceAMinute(t *testing.T) {
 }
 
 func TestAStandbyChecksInAgainTheMomentTheServiceBoxLapses(t *testing.T) {
-	lapsesIn := 20
-	plane := &fakePlane{isClaimed: true, accessToken: "standby.session.token", role: RoleStandby, lapsesIn: &lapsesIn}
+	lapsesIn := 10
+	plane := &fakePlane{isClaimed: true, accessToken: "standby.session.token", role: RoleStandby, lapsesIn: &lapsesIn, takeOver: TakeOverPolicy{IsAutomatic: true, LapseSeconds: 90}}
 	daemon, places := daemonFor(t, plane, &installs{})
 	plane.sealedModelKey = sealTo(t, identityOf(t, places), "sk-or-v1-sample")
 
-	if waits := waitsOverSteps(t, daemon, 1); waits[0] != 21*time.Second {
-		t.Fatalf("a standby told the service box lapses in 20s waits %s", waits[0])
+	if waits := waitsOverSteps(t, daemon, 1); waits[0] != 11*time.Second {
+		t.Fatalf("a standby told the service box lapses in 10s waits %s", waits[0])
+	}
+}
+
+func TestAStandbyChecksInOftenEnoughToNoticeAMoveWithinAThirdOfTheLease(t *testing.T) {
+	lapsesIn := 85
+	plane := &fakePlane{isClaimed: true, accessToken: "standby.session.token", role: RoleStandby, lapsesIn: &lapsesIn, takeOver: TakeOverPolicy{IsAutomatic: true, LapseSeconds: 90}}
+	daemon, places := daemonFor(t, plane, &installs{})
+	plane.sealedModelKey = sealTo(t, identityOf(t, places), "sk-or-v1-sample")
+
+	if waits := waitsOverSteps(t, daemon, 1); waits[0] != 15*time.Second {
+		t.Fatalf("a standby whose service box lapses in 85s waits %s, so a move asked of it in that time waits for it as long", waits[0])
 	}
 	plane.lapsesIn = nil
-	if waits := waitsOverSteps(t, daemon, 1); waits[0] != time.Minute {
-		t.Fatalf("a standby with no lapse to wait for waits %s", waits[0])
+	plane.takeOver = TakeOverPolicy{IsAutomatic: false, LapseSeconds: 90}
+	if waits := waitsOverSteps(t, daemon, 1); waits[0] != 15*time.Second {
+		t.Fatalf("a standby of a company that does not take over by itself waits %s, and an administrator may still move the company to it", waits[0])
 	}
 }
 

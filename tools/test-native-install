@@ -118,7 +118,7 @@ du -sh %(backups)s/* 2>/dev/null
 dmesg 2>/dev/null | grep -iE 'out of memory|oom|killed process' | tail -5
 """
 
-MOVE_JOURNAL_COMMAND = "journalctl %(units)s --since @%(since)d --no-pager -o short-precise 2>&1 | grep -v \"Removed '/etc/systemd\" | tail -n 150"
+MOVE_JOURNAL_COMMAND = "journalctl %(units)s --since @%(since)d --no-pager -o short-precise 2>&1 | grep -vE \"Removed '/etc/systemd|pam_unix| UTC \\[[0-9]+\\] (LOG|DETAIL|HINT): \" | tail -n 150"
 
 AGENT_HOLD_PATH = "/run/internkim-rig/hold-the-agent"
 AGENT_HOLD_DROP_IN = f"/etc/systemd/system/{AGENT_UNIT_NAME}.d/rig-held-until-the-state-is-read.conf"
@@ -2428,7 +2428,7 @@ class Rig:
     def move_journals(self, old, new, pressed):
         """What each box of a move logged from the moment it was asked, so a slow move shows where its time went."""
         command = MOVE_JOURNAL_COMMAND % {"since": int(pressed), "units": f"-u {BOX_UNIT_NAME} -u {TAKE_OVER_UNIT_NAME}"}
-        return "\n".join(f"{name} from {pressed:.0f}:\n{machine.shell(command).stdout.strip()[-8000:]}" for name, machine in (("moved from", old), ("moved to", new)))
+        return "\n".join(f"{name} from {pressed:.0f}:\n{machine.shell(command).stdout.strip()[-16000:]}" for name, machine in (("moved from", old), ("moved to", new)))
 
     def database_url_of(self, machine):
         return machine.shell(f"sed -n 's/^DATABASE_URL=//p' {COMPANY_CONDITION_PATH} | head -1").stdout.strip()
