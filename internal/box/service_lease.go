@@ -43,13 +43,25 @@ func (lease serviceLease) retryInterval() time.Duration {
 }
 
 func UntilTheTakeOverNeedsACheck(session Session) time.Duration {
-	if session.Role == RoleStandby && session.ServiceLapsesInSeconds != nil {
-		return time.Duration(max(*session.ServiceLapsesInSeconds, 0)+1) * time.Second
+	if session.Role == RoleStandby {
+		return untilAStandbyChecks(session)
 	}
 	if session.Role == RoleService && session.TakeOver.IsAutomatic && session.TakeOver.LapseSeconds > 0 {
 		return leaseLength(session.TakeOver.LapseSeconds) / checksPerLease
 	}
 	return companyCheckInterval
+}
+
+func untilAStandbyChecks(session Session) time.Duration {
+	untilAMoveIsNoticed := companyCheckInterval
+	if session.TakeOver.LapseSeconds > 0 {
+		untilAMoveIsNoticed = leaseLength(session.TakeOver.LapseSeconds) / checksPerLease
+	}
+	if session.ServiceLapsesInSeconds == nil {
+		return untilAMoveIsNoticed
+	}
+	untilTheServiceBoxLapses := time.Duration(max(*session.ServiceLapsesInSeconds, 0)+1) * time.Second
+	return min(untilTheServiceBoxLapses, untilAMoveIsNoticed)
 }
 
 func (daemon Daemon) keepServiceLease(policy TakeOverPolicy) error {
