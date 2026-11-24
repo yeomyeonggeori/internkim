@@ -1990,12 +1990,13 @@ class Rig:
             return boxes.shares_reported_evenly(shares)
 
         def on_disk():
-            pieces = boxes.pieces_of_the_log(self.plane.stored_backup_paths(self.company_id + "/"), self.company_id)
+            kept_through = self.shares_kept_through(standbys)
+            pieces = boxes.pieces_of_the_log(self.plane.stored_backup_times(self.company_id + "/"), self.company_id)
             held = {}
             for letter, machine in standbys.items():
                 listing = machine.shell(f"cd {STANDBY_PIECES_DIRECTORY} 2>/dev/null && find . -type f | sed 's#^./##'")
                 held[letter] = set(listing.stdout.split())
-            return boxes.shares_split(pieces, held)
+            return boxes.shares_split_through(pieces, kept_through, held)
 
         self.judged_observation(
             step,
@@ -2008,11 +2009,19 @@ class Rig:
         self.judged_observation(
             step,
             boxes.SHARES_ON_DISK,
-            f"the pieces under {', '.join(boxes.LOG_FOLDERS)} in the company's box_backup folder, against the files each "
-            f"standby holds under {STANDBY_PIECES_DIRECTORY}",
+            f"the pieces under {', '.join(boxes.LOG_FOLDERS)} in the company's box_backup folder kept no later than the "
+            f"share_kept_through each standby last reported, read before the store, against the files each standby holds under "
+            f"{STANDBY_PIECES_DIRECTORY}",
             "the report is the box's account of itself; a take-over reads what is on the disk",
             on_disk,
         )
+
+    def shares_kept_through(self, standbys):
+        status, document = self.plane.read_record(f"/rest/v1/box?select=public_key,share_kept_through&company_id=eq.{self.company_id}")
+        if status != 200:
+            raise RigFailure(f"the boxes of company {self.company_id} could not be read ({status}): {document[:300]!r}")
+        reported = {row["public_key"]: row["share_kept_through"] for row in json.loads(document)}
+        return {letter: reported.get(self.box_key_of(machine)) for letter, machine in standbys.items()}
 
     def the_power_goes(self, step, serving, standbys):
         spread = self.with_the_spread(serving)
@@ -2543,7 +2552,7 @@ class Rig:
             readings = []
             for machine in machines:
                 limited = machine.shell(boxes.STORE_LINK_LIMIT_COMMAND % {"port": self.plane.record_forward.port, "rate": boxes.STORE_LINK_RATE})
-                readings.append(f"{machine.name} (exit {limited.returncode}):\n{limited.stdout.strip()[-600:]}")
+                readings.append(f"{machine.name} (exit {limited.returncode}):\n{limited.stdout.strip()[-600:]}\n{limited.stderr.strip()[-600:]}")
                 if limited.returncode != 0:
                     return False, "\n".join(readings)
             return True, "\n".join(readings)

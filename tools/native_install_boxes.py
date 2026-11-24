@@ -188,11 +188,36 @@ LOG_FOLDERS = ("base/", "base-chunks/", "wal/", "wal-history/", "file-journal/",
 SHARE_TOLERANCE = 0.1
 
 
-def pieces_of_the_log(stored_paths, company_id):
-    """The store's pieces of the company's two logs, by their path under the company's folder."""
+def pieces_of_the_log(stored_times, company_id):
+    """When the store kept each piece of the company's two logs, by the piece's path under the company's folder."""
     prefix = company_id + "/"
-    relative = (path.removeprefix(prefix) for path in stored_paths if path.startswith(prefix))
-    return sorted(path for path in relative if path.startswith(LOG_FOLDERS))
+    relative = {path.removeprefix(prefix): kept_at for path, kept_at in stored_times.items() if path.startswith(prefix)}
+    return {path: kept_at for path, kept_at in sorted(relative.items()) if path.startswith(LOG_FOLDERS)}
+
+
+def moment_to_the_millisecond(text):
+    moment = datetime.datetime.fromisoformat(text)
+    return moment.replace(microsecond=moment.microsecond // 1000 * 1000)
+
+
+def oldest_kept_through(kept_through_by_standby):
+    """The oldest moment a standby reports holding its share through, or None when a standby reports none."""
+    reported = list(kept_through_by_standby.values())
+    if not reported or None in reported:
+        return None
+    return min(moment_to_the_millisecond(kept_through) for kept_through in reported)
+
+
+def shares_split_through(piece_times, kept_through_by_standby, held_by_standby):
+    """Whether the standbys hold between them, each on one, every piece the store kept by the time each reports holding its share through."""
+    through = oldest_kept_through(kept_through_by_standby)
+    due = [piece for piece, kept_at in piece_times.items() if through is not None and moment_to_the_millisecond(kept_at) <= through]
+    is_split, told = shares_split(due, held_by_standby)
+    reported = json.dumps(kept_through_by_standby, sort_keys=True)
+    return is_split, (
+        f"{told}; kept through, as each standby reports: {reported}; "
+        f"{len(piece_times) - len(due)} of the store's {len(piece_times)} pieces were kept after the oldest of those"
+    )
 
 
 def shares_split(pieces, held_by_standby):

@@ -692,6 +692,12 @@ BOOTSTRAP_SCRIPT = "\n".join(
 PRESEEDED_PACKAGES = ("systemd", "systemd-sysv", "curl", "ca-certificates")
 
 
+def state_of(listed_container):
+    """The state `container ls --format json` gives a container: a string in earlier releases, {"state": ...} in 1.7.1."""
+    status = listed_container.get("status", "unknown")
+    return status.get("state", "unknown") if isinstance(status, dict) else status
+
+
 class Machine:
     """One disposable guest of a Debian or Ubuntu release, created and destroyed by this rig alone."""
 
@@ -751,6 +757,7 @@ class Machine:
                 "--tmpfs", "/run",
                 "--tmpfs", "/run/lock",
                 "--cap-add", "CAP_SYS_TIME",
+                "--cap-add", "CAP_NET_ADMIN",
                 *([] if self.uses_runtime_kernel else ["--kernel", str(self.kernel_image_path)]),
                 "--platform", "linux/" + ARCHITECTURE,
                 "--volume", f"{self.share_directory}:{SHARE_PATH}",
@@ -779,7 +786,7 @@ class Machine:
     def container_state(self):
         for existing in self.list_containers():
             if existing.get("configuration", {}).get("id") == self.name:
-                return existing.get("status", "unknown")
+                return state_of(existing)
         return "not listed"
 
     def console_tail(self, line_count=40):
@@ -1652,8 +1659,11 @@ class CompanyPlane:
                 )
 
     def stored_backup_paths(self, prefix):
+        return list(self.stored_backup_times(prefix))
+
+    def stored_backup_times(self, prefix):
         headers = {**self.record_headers(), "Content-Type": "application/json"}
-        paths = []
+        kept_at = {}
         offset = 0
         while True:
             status, document = answered(
@@ -1668,11 +1678,11 @@ class CompanyPlane:
             for stored in listed:
                 path = prefix + stored["name"]
                 if stored.get("id") is None:
-                    paths.extend(self.stored_backup_paths(path + "/"))
+                    kept_at.update(self.stored_backup_times(path + "/"))
                 else:
-                    paths.append(path)
+                    kept_at[path] = stored["created_at"]
             if len(listed) < BACKUP_LISTING_PAGE:
-                return paths
+                return kept_at
             offset += BACKUP_LISTING_PAGE
 
     def forget_the_messenger_credentials(self, company_id):

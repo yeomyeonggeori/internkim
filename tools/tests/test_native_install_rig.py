@@ -33,6 +33,15 @@ def load_driver():
     return module
 
 
+class ContainerStateTests(unittest.TestCase):
+    def test_a_guest_reads_running_from_either_shape_the_container_cli_lists(self):
+        machine = rig.Machine("guest", Path(tempfile.gettempdir()))
+        for status in ("running", {"state": "running", "networks": []}):
+            listed = [{"configuration": {"id": "guest"}, "id": "guest", "status": status}]
+            with unittest.mock.patch.object(machine, "list_containers", return_value=listed):
+                self.assertEqual(machine.container_state(), "running")
+
+
 class GuestPackageCacheTests(unittest.TestCase):
     def directory(self):
         return Path(self.enterContext(tempfile.TemporaryDirectory()))
@@ -54,6 +63,13 @@ class GuestPackageCacheTests(unittest.TestCase):
         self.assertIn(f"{cache}:{rig.GUEST_PACKAGE_CACHE_PATH}", created)
         self.assertEqual(rig.package_cache_for("debian:trixie-slim"), rig.package_cache_for("debian:trixie-slim"))
         self.assertNotEqual(rig.package_cache_for("debian:trixie-slim"), rig.package_cache_for("ubuntu:24.04"))
+
+    def test_every_guest_may_limit_its_own_link_to_the_store(self):
+        machine = rig.Machine("guest", self.directory(), package_cache_directory=self.directory(), download_cache_directory=self.directory())
+        with unittest.mock.patch.object(rig, "checked") as ran:
+            machine.create()
+        created = ran.call_args_list[0].args[0]
+        self.assertIn(("--cap-add", "CAP_NET_ADMIN"), list(zip(created, created[1:])))
 
     def test_every_guest_keeps_what_its_install_step_downloads_where_the_host_keeps_it(self):
         downloads = self.directory() / "downloads"
@@ -1045,7 +1061,10 @@ class StandInStorageHandler(http.server.BaseHTTPRequestHandler):
                 continue
             name, separator, _ = path[len(prefix):].partition("/")
             children[name] = None if separator else path
-        listed = [{"name": name, "id": None if path is None else path} for name, path in sorted(children.items())]
+        listed = [
+            {"name": name, "id": None, "created_at": None} if path is None else {"name": name, "id": path, "created_at": "2026-11-24T08:05:01.393Z"}
+            for name, path in sorted(children.items())
+        ]
         self.answer(listed[asked["offset"]:asked["offset"] + asked["limit"]])
 
     def do_DELETE(self):
