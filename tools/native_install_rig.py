@@ -1244,10 +1244,18 @@ def carry_bytes(source, destination):
                 pass
 
 
+LISTENING_PORTS = range(20000, 32768)
+
+
 def free_port():
-    with socket.socket() as held:
-        held.bind(("127.0.0.1", 0))
-        return held.getsockname()[1]
+    for port in secrets.SystemRandom().sample(LISTENING_PORTS, len(LISTENING_PORTS)):
+        with socket.socket() as held:
+            try:
+                held.bind(("0.0.0.0", port))
+            except OSError:
+                continue
+            return port
+    raise RigFailure(f"no port from {LISTENING_PORTS.start} to {LISTENING_PORTS.stop - 1} is free on this Mac")
 
 
 def local_plane_settings():
