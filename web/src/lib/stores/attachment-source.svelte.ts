@@ -20,6 +20,7 @@ class AttachmentSourceStore {
 	private openingByURL = $state<Map<string, Promise<void>>>(new Map());
 	private notShownURLs = $state<Set<string>>(new Set());
 	private asked = new Map<string, MessengerAttachment>();
+	private hostCopyByURL = new Map<string, string>();
 	private reopenedAfterFailure = new Set<string>();
 	private generation = 0;
 
@@ -32,6 +33,7 @@ class AttachmentSourceStore {
 			this.openingByURL = new Map();
 			this.notShownURLs = new Set();
 			this.asked.clear();
+			this.hostCopyByURL.clear();
 			this.reopenedAfterFailure.clear();
 			void forgetAttachmentFiles();
 		});
@@ -104,7 +106,7 @@ class AttachmentSourceStore {
 
 	private openAgain(attachment: MessengerAttachment): void {
 		this.openableByURL = withoutKey(this.openableByURL, attachment.url);
-		void this.open(attachment, { withoutDeviceCopy: true });
+		void this.open(attachment, { withoutKeptCopies: true });
 	}
 
 	private isFresh(url: string): boolean {
@@ -121,7 +123,7 @@ class AttachmentSourceStore {
 		return this.failureByURL.has(url) && !this.openingByURL.has(url);
 	}
 
-	private open(attachment: MessengerAttachment, options: { withoutDeviceCopy?: boolean } = {}): Promise<void> {
+	private open(attachment: MessengerAttachment, options: { withoutKeptCopies?: boolean } = {}): Promise<void> {
 		const url = attachment.url;
 		const inFlight = this.openingByURL.get(url);
 		if (inFlight) return inFlight;
@@ -132,21 +134,22 @@ class AttachmentSourceStore {
 		return pending;
 	}
 
-	private async load(attachment: MessengerAttachment, { withoutDeviceCopy = false }: { withoutDeviceCopy?: boolean }): Promise<void> {
+	private async load(attachment: MessengerAttachment, { withoutKeptCopies = false }: { withoutKeptCopies?: boolean }): Promise<void> {
 		const generation = this.generation;
 		const url = attachment.url;
 		try {
-			if (withoutDeviceCopy) await forgetAttachmentFile(url);
+			if (withoutKeptCopies) {
+				this.hostCopyByURL.delete(url);
+				await forgetAttachmentFile(url);
+			}
 			const kept = isKeptAsFile(attachment.contentType) ? await keptAttachmentFile(url) : '';
 			if (generation !== this.generation) return;
 			if (kept) {
 				this.opened(url, { address: kept, expiresAt: Number.POSITIVE_INFINITY });
 				return;
 			}
-			const address = keptAssetPathOf(projectURL(), url) ? url : await this.copied(attachment, generation);
-			if (generation !== this.generation) return;
 			const expiresAt = Date.now() + readableForSeconds * 1000;
-			const signed = await signedForReading(address);
+			const signed = await this.signedCopyOf(attachment, generation);
 			if (generation !== this.generation) return;
 			this.opened(url, { address: signed, expiresAt });
 			if (isKeptAsFile(attachment.contentType)) void keepAttachmentFile(url, signed);
@@ -158,6 +161,26 @@ class AttachmentSourceStore {
 			if (generation !== this.generation) return;
 			this.progressByURL = withoutKey(this.progressByURL, url);
 		}
+	}
+
+	private async signedCopyOf(attachment: MessengerAttachment, generation: number): Promise<string> {
+		const url = attachment.url;
+		if (keptAssetPathOf(projectURL(), url)) return signedForReading(url);
+		const remembered = this.hostCopyByURL.get(url);
+		if (remembered) {
+			const signed = await signedForReading(remembered).catch((failure: unknown) => this.forgetHostCopy(url, failure));
+			if (signed) return signed;
+		}
+		const copy = await this.copied(attachment, generation);
+		if (generation !== this.generation) return '';
+		this.hostCopyByURL.set(url, copy);
+		return signedForReading(copy);
+	}
+
+	private forgetHostCopy(url: string, failure: unknown): string {
+		console.warn('the store would not sign the copy the company computer made, so it is asked for a new one', { url, failure });
+		this.hostCopyByURL.delete(url);
+		return '';
 	}
 
 	private opened(url: string, openable: Openable): void {

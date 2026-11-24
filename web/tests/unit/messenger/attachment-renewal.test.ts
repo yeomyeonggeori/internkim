@@ -28,4 +28,15 @@ describe('a messenger attachment whose signed address runs out', () => {
 			refused: 'the store would not sign for this copy'
 		});
 	}, ownProcessTimeoutMilliseconds);
+
+	test('signs the copy the company computer already made, and asks for a new one only once that copy is gone', async () => {
+		const read = JSON.parse(await runInItsOwnProcess(new URL('./attachment-host-copy.fixture.ts', import.meta.url), 'browser'));
+		expect(read).toEqual({
+			first: 'copy-1-signed-1',
+			afterAnHour: 'copy-1-signed-2',
+			copiesAfterAnHour: 1,
+			afterTheCopyExpired: 'copy-2-signed-3',
+			copies: 2
+		});
+	}, ownProcessTimeoutMilliseconds);
 });
