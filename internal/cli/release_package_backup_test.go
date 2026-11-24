@@ -77,7 +77,7 @@ func TestThePostInstallNeverUnmasksAUnit(t *testing.T) {
 
 func TestTheBackupServiceIsNeitherEnabledNorRestartedByThePackage(t *testing.T) {
 	service := dailyBackupUnits().Service.FileName()
-	for name, names := range map[string]string{"enabled": unitFileNames(), "restarted": companyUnitFileNames()} {
+	for name, names := range map[string]string{"enabled": enabledUnitFileNames(), "restarted": companyUnitFileNames()} {
 		if strings.Contains(names, service) {
 			t.Errorf("%s is %s with the bundle, so installing the package would run a backup", service, name)
 		}

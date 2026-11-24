@@ -104,7 +104,9 @@ BACKUP_SERVICE_NAME = "internkim-backup"
 BACKUP_UNIT_NAME = BACKUP_SERVICE_NAME + ".service"
 BACKUP_TIMER_NAME = BACKUP_SERVICE_NAME + ".timer"
 SNAPSHOT_SERVICE_NAME = "internkim-snapshot"
-TIMED_UNIT_NAMES = (BACKUP_UNIT_NAME, SNAPSHOT_SERVICE_NAME + ".service")
+TAKE_OVER_SERVICE_NAME = "internkim-take-over"
+TAKE_OVER_UNIT_NAME = TAKE_OVER_SERVICE_NAME + ".service"
+STATIC_UNIT_NAMES = (BACKUP_UNIT_NAME, SNAPSHOT_SERVICE_NAME + ".service", TAKE_OVER_UNIT_NAME)
 BACKUPS_DIRECTORY = "/var/lib/internkim-backups"
 DATABASE_USER = "internkim-postgres"
 DATA_SERVICE_PATH = "/usr/lib/internkim/data-service"
@@ -121,7 +123,7 @@ RETIRED_MEMORY_STORE_COMMAND = (
 
 
 def expected_enablement(unit_name):
-    return "static" if unit_name in TIMED_UNIT_NAMES else "enabled"
+    return "static" if unit_name in STATIC_UNIT_NAMES else "enabled"
 
 
 # The package's one configuration file dpkg protects, and the file every unit

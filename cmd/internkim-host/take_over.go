@@ -4,21 +4,26 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 	"time"
 
 	"github.com/yeomyeonggeori/internkim/internal/box"
 	"github.com/yeomyeonggeori/internkim/internal/companyhost"
+	"github.com/yeomyeonggeori/internkim/internal/durablefile"
 	"github.com/yeomyeonggeori/internkim/internal/filestream"
 	"github.com/yeomyeonggeori/internkim/internal/offsite"
 	"github.com/yeomyeonggeori/internkim/internal/runtime/blueclaw"
 	"github.com/yeomyeonggeori/internkim/internal/walstream"
 )
 
-const takeOverUnitName = "internkim-take-over"
+const takeOverArchiveFileName = "take-over-archive"
+
+func takeOverArchivePath() string {
+	return filepath.Join(blueclaw.CompanyHostBoxStatePath, takeOverArchiveFileName)
+}
 
 func companyDestinationOf(session box.Session) offsite.Destination {
 	return offsite.Destination{
@@ -35,24 +40,23 @@ func companyDestinationOf(session box.Session) offsite.Destination {
 
 type takeOverSource struct {
 	Description string
+	Snapshot    *offsite.Manifest
 	ArchivePath string
 }
 
 func takeOverFromTheNewestBackup(ctx context.Context, session box.Session, keyring box.Keyring) error {
-	switch takeOverUnitState() {
-	case "active", "activating":
-		return box.ErrTakeOverUnderway
-	case "failed":
-		if errorValue := takeOverRetries().clearTheFailedUnitWhenItIsTime(); errorValue != nil {
-			return errorValue
-		}
-	default:
-		if errorValue := takeOverRetries().forget(); errorValue != nil {
-			return errorValue
-		}
+	if errorValue := waitForTheLastTakeOver(); errorValue != nil {
+		return errorValue
 	}
-	source, errorValue := newestSourceToTakeOverFrom(ctx, companyDestinationOf(session), keyring)
+	destination := companyDestinationOf(session)
+	source, errorValue := newestSourceToTakeOverFrom(ctx, destination)
 	if errorValue != nil {
+		return errorValue
+	}
+	if errorValue := companyhost.TakesOverACompany(); errorValue != nil {
+		return fmt.Errorf("this box stands by and does not take the company over: %w", errorValue)
+	}
+	if source, errorValue = source.materialized(ctx, destination, keyring); errorValue != nil {
 		return errorValue
 	}
 	if errorValue := keepTheTakeOverSession(takeOverSessionPath(), session.Session.AccessToken); errorValue != nil {
@@ -61,7 +65,21 @@ func takeOverFromTheNewestBackup(ctx context.Context, session box.Session, keyri
 	return startTheTakeOver(source)
 }
 
-func newestSourceToTakeOverFrom(ctx context.Context, destination offsite.Destination, keyring box.Keyring) (takeOverSource, error) {
+func waitForTheLastTakeOver() error {
+	state, errorValue := takeOverState()
+	if errorValue != nil {
+		return errorValue
+	}
+	switch state {
+	case companyhost.ServiceRunning:
+		return box.ErrTakeOverUnderway
+	case companyhost.ServiceFailed:
+		return takeOverRetries().allowARetryWhenItIsTime()
+	}
+	return takeOverRetries().forget()
+}
+
+func newestSourceToTakeOverFrom(ctx context.Context, destination offsite.Destination) (takeOverSource, error) {
 	baseBackup, errorValue := walstream.NewestBaseBackup(ctx, destination)
 	if errorValue == nil {
 		return takeOverSource{Description: "the company's log, from the base backup made " + baseBackup.CreatedAt.UTC().Format(time.RFC3339)}, nil
@@ -69,10 +87,6 @@ func newestSourceToTakeOverFrom(ctx context.Context, destination offsite.Destina
 	if !errors.Is(errorValue, walstream.ErrNoBaseBackup) {
 		return takeOverSource{}, errorValue
 	}
-	return newestSnapshotToTakeOverFrom(ctx, destination, keyring)
-}
-
-func newestSnapshotToTakeOverFrom(ctx context.Context, destination offsite.Destination, keyring box.Keyring) (takeOverSource, error) {
 	manifest, errorValue := offsite.Newest(ctx, destination)
 	if errors.Is(errorValue, offsite.ErrNoBackup) {
 		return takeOverSource{}, box.ErrNothingToTakeOver
@@ -80,54 +94,70 @@ func newestSnapshotToTakeOverFrom(ctx context.Context, destination offsite.Desti
 	if errorValue != nil {
 		return takeOverSource{}, errorValue
 	}
-	archivePath := filepath.Join(companyhost.DefaultBackupDirectoryPath(), strings.TrimSuffix(manifest.Name, ".json")+".tar")
+	return takeOverSource{Description: "the snapshot made " + manifest.CreatedAt.UTC().Format(time.RFC3339), Snapshot: &manifest}, nil
+}
+
+func (source takeOverSource) materialized(ctx context.Context, destination offsite.Destination, keyring box.Keyring) (takeOverSource, error) {
+	if source.Snapshot == nil {
+		return source, nil
+	}
+	archivePath := filepath.Join(companyhost.DefaultBackupDirectoryPath(), strings.TrimSuffix(source.Snapshot.Name, ".json")+".tar")
 	if errorValue := os.MkdirAll(filepath.Dir(archivePath), 0o700); errorValue != nil {
 		return takeOverSource{}, errorValue
 	}
 	cache := offsite.ChunkCache{DirectoryPath: filepath.Join(blueclaw.CompanyHostBackupsPath, "snapshot-chunks")}
 	defer os.RemoveAll(cache.DirectoryPath)
-	if errorValue := cache.Materialize(ctx, destination, manifest, keyring, archivePath); errorValue != nil {
+	if errorValue := cache.Materialize(ctx, destination, *source.Snapshot, keyring, archivePath); errorValue != nil {
 		return takeOverSource{}, errorValue
 	}
-	return takeOverSource{Description: "the snapshot made " + manifest.CreatedAt.UTC().Format(time.RFC3339), ArchivePath: archivePath}, nil
+	source.ArchivePath = archivePath
+	return source, nil
 }
 
 func takeOverIsUnderway() bool {
-	switch takeOverUnitState() {
-	case "active", "activating":
-		return true
+	state, errorValue := takeOverState()
+	if errorValue != nil {
+		log.Printf("reading whether a take-over is underway: %v", errorValue)
+		return false
 	}
-	return false
+	return state == companyhost.ServiceRunning
 }
 
-func takeOverUnitState() string {
-	output, _ := exec.Command("systemctl", "show", "--property=ActiveState", "--value", takeOverUnitName+".service").Output()
-	return strings.TrimSpace(string(output))
+func takeOverState() (companyhost.ServiceState, error) {
+	return companyhost.StateOfTheService(thisComputer{}, blueclaw.CompanyHostTakeOverServiceName)
 }
 
 func startTheTakeOver(source takeOverSource) error {
-	hostCommandPath, errorValue := os.Executable()
-	if errorValue != nil {
-		return errorValue
+	if errorValue := nameTheArchiveToTakeOverFrom(takeOverArchivePath(), source.ArchivePath); errorValue != nil {
+		return fmt.Errorf("naming the snapshot the take-over restores: %w", errorValue)
 	}
-	output, errorValue := exec.Command("systemd-run", takeOverUnitArguments(hostCommandPath, source)...).CombinedOutput()
-	if errorValue != nil {
-		return fmt.Errorf("systemd-run refused the take-over: %v: %s", errorValue, strings.TrimSpace(string(output)))
+	log.Printf("taking the company over from %s", source.Description)
+	if errorValue := companyhost.StartTheService(thisComputer{}, blueclaw.CompanyHostTakeOverServiceName, os.Stdout); errorValue != nil {
+		return fmt.Errorf("the take-over could not be started: %w", errorValue)
 	}
 	return box.ErrTakeOverUnderway
 }
 
-func takeOverUnitArguments(hostCommandPath string, source takeOverSource) []string {
-	arguments := []string{
-		"--unit=" + takeOverUnitName,
-		"--description=internkim take-over from " + source.Description,
-		"--property=OnFailure=" + blueclaw.BoxServiceName + ".service",
-		hostCommandPath, "restore", "--taking-over",
+func nameTheArchiveToTakeOverFrom(path string, archivePath string) error {
+	if archivePath != "" {
+		return durablefile.Write(path, []byte(archivePath+"\n"), 0o600)
 	}
-	if source.ArchivePath == "" {
-		return arguments
+	errorValue := os.Remove(path)
+	if errors.Is(errorValue, os.ErrNotExist) {
+		return nil
 	}
-	return append(arguments, source.ArchivePath)
+	return errorValue
+}
+
+func archiveToTakeOverFrom(path string) (string, error) {
+	document, errorValue := os.ReadFile(path)
+	if errors.Is(errorValue, os.ErrNotExist) {
+		return "", nil
+	}
+	if errorValue != nil {
+		return "", errorValue
+	}
+	return strings.TrimSpace(string(document)), nil
 }
 
 func standDown() error {
@@ -148,11 +178,7 @@ func stopTheTakeOver() error {
 	if !takeOverIsUnderway() {
 		return nil
 	}
-	output, errorValue := exec.Command("systemctl", "stop", takeOverUnitName+".service").CombinedOutput()
-	if errorValue != nil {
-		return fmt.Errorf("systemctl stop %s: %v: %s", takeOverUnitName, errorValue, strings.TrimSpace(string(output)))
-	}
-	return nil
+	return companyhost.StopTheService(thisComputer{}, blueclaw.CompanyHostTakeOverServiceName, os.Stdout)
 }
 
 func handOverTheCompany(ctx context.Context, session box.Session) (box.LogPosition, error) {
@@ -177,8 +203,9 @@ func keepTheLastFileChanges(ctx context.Context) error {
 
 const lastFileChangesWait = time.Minute
 
-func isActive(unitName string) bool {
-	return exec.Command("systemctl", "is-active", "--quiet", unitName+".service").Run() == nil
+func isActive(serviceName string) bool {
+	state, errorValue := companyhost.StateOfTheService(thisComputer{}, serviceName)
+	return errorValue == nil && state == companyhost.ServiceRunning
 }
 
 func whereTheCompanysLogsEnd(ctx context.Context, destination offsite.Destination) (box.LogPosition, error) {

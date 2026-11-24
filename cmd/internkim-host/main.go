@@ -149,6 +149,7 @@ func stopOnFailure(whatStopped string, errorValue error) {
 
 func printUsage(command string) {
 	fmt.Fprintf(os.Stderr, "Usage: %s install <internkim-host.json> [--model-key-file FILE]\n", command)
+	fmt.Fprintf(os.Stderr, "       %s install\n", command)
 	fmt.Fprintf(os.Stderr, "       %s box [--app-url URL]\n", command)
 	fmt.Fprintf(os.Stderr, "       %s box code\n", command)
 	fmt.Fprintf(os.Stderr, "       %s backup [--directory DIR] [--keep N]\n", command)
@@ -175,9 +176,14 @@ func runBox(arguments []string) {
 	}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
+	abilities, errorValue := companyhost.BoxAbilitiesOfThisMachine()
+	if errorValue != nil {
+		fmt.Fprintln(os.Stderr, errorValue)
+		os.Exit(1)
+	}
 	announcedTo := announcedAppURL(flags, *appURL, blueclaw.CompanyHostBoxStatePath, companyhost.CurrentConnectionPath())
-	daemon := withWhatThisComputerHas(ctx, boxDaemon(announcedTo), announcedTo, *madeOnPath)
-	errorValue := daemon.Run(ctx)
+	daemon := withWhatThisComputerHas(ctx, boxDaemon(announcedTo), abilities, announcedTo, *madeOnPath)
+	errorValue = daemon.Run(ctx)
 	if errors.Is(errorValue, box.ErrConnectedByFile) {
 		fmt.Println(errorValue)
 		return
@@ -211,12 +217,15 @@ func madeOnFrom(path string) time.Time {
 	return madeOn
 }
 
-func withWhatThisComputerHas(ctx context.Context, daemon box.Daemon, appURL string, madeOnPath string) box.Daemon {
-	if (boxwifi.NetworkManagerRadio{}).ManagesWifi(ctx) {
+func withWhatThisComputerHas(ctx context.Context, daemon box.Daemon, abilities companyhost.BoxAbilities, appURL string, madeOnPath string) box.Daemon {
+	if abilities.CanRenameItself {
+		daemon.NameHost = boxwifi.HostNamer{StateDirectoryPath: blueclaw.CompanyHostBoxStatePath}.Name
+	}
+	if abilities.CanSetUpWifi && (boxwifi.NetworkManagerRadio{}).ManagesWifi(ctx) {
 		log.Printf("NetworkManager manages a Wi-Fi device here, so this box sets up its Wi-Fi")
 		daemon = withWifiSetup(daemon, appURL, madeOnFrom(madeOnPath))
 	}
-	if (companyhost.AccountDirectory{}).HasAdminAccount() {
+	if abilities.CanSetAdminPassword && (companyhost.AccountDirectory{}).HasAdminAccount() {
 		log.Printf("%s is in %s, so company setup sets its password", companyhost.AdminAccountName, blueclaw.CompanyHostAdministratorGroup)
 		daemon = withAdminPasswordFor(daemon, companyhost.AdminAccountName)
 	}
@@ -320,7 +329,7 @@ func boxDaemon(appURL string) box.Daemon {
 			PairingPageListenAddress:  blueclaw.CompanyHostBoxPairingPageListenAddress,
 			ConnectionFilePath:        companyhost.CurrentConnectionPath(),
 			CredentialPaths:           []string{blueclaw.CompanyHostAgentKeyPath, blueclaw.RelayAgentKeyPath},
-			StagedCredentialPaths:     []string{blueclaw.LinuxCompanyHostLayout().RunAgentKeyPath()},
+			StagedCredentialPaths:     stagedCredentialPaths(),
 			WorkQueuePath:             blueclaw.CompanyHostWorkQueuePath,
 			ModelKeyPath:              blueclaw.CompanyHostModelKeyPath,
 			ResetRequestPath:          blueclaw.CompanyHostBoxResetRequestPath,
@@ -346,8 +355,16 @@ func boxDaemon(appURL string) box.Daemon {
 		FollowRelease:  followTheServiceBoxRelease,
 		StartWorking:   startWorkingForTheServiceBox,
 		PackageVersion: thisBoxRelease(),
-		NameHost:       boxwifi.HostNamer{StateDirectoryPath: blueclaw.CompanyHostBoxStatePath}.Name,
 	}
+}
+
+func stagedCredentialPaths() []string {
+	platform, errorValue := companyhost.ThisMachine()
+	if errorValue != nil {
+		log.Printf("finding where this computer stages the agent's key: %v", errorValue)
+		return nil
+	}
+	return []string{platform.Layout().RunAgentKeyPath()}
 }
 
 func parseInstallArguments(arguments []string) (installArguments, error) {
@@ -365,8 +382,14 @@ func parseInstallArguments(arguments []string) (installArguments, error) {
 		connectionPaths = append(connectionPaths, flags.Arg(0))
 		remaining = flags.Args()[1:]
 	}
-	if len(connectionPaths) != 1 {
-		return installArguments{}, fmt.Errorf("name the internkim-host.json downloaded from company setup")
+	if len(connectionPaths) > 1 {
+		return installArguments{}, fmt.Errorf("name the one internkim-host.json downloaded from company setup")
+	}
+	if len(connectionPaths) == 0 && *modelKeyPath != "" {
+		return installArguments{}, fmt.Errorf("name the internkim-host.json the OpenRouter key goes with; a computer added with its code is given the key on the company setup page")
+	}
+	if len(connectionPaths) == 0 {
+		return installArguments{}, nil
 	}
 	return installArguments{
 		ConnectionPath: connectionPaths[0],
@@ -409,6 +432,9 @@ func runInstall(arguments []string) error {
 	if errorValue := companyhost.RequireAdministrator(); errorValue != nil {
 		return errorValue
 	}
+	if parsed.ConnectionPath == "" {
+		return waitForACompany()
+	}
 	modelKey, errorValue := readModelKeyFile(parsed.ModelKeyPath)
 	if errorValue != nil {
 		return errorValue
@@ -417,20 +443,15 @@ func runInstall(arguments []string) error {
 	if errorValue != nil {
 		return errorValue
 	}
-	if companyhost.ThisMachineKeepsABoxSessionFresh() {
-		return installByClaiming(connection, modelKey)
-	}
-	installation, errorValue := companyhost.Install(companyhost.Request{
-		Connection:        connection,
-		ModelKey:          modelKey,
-		PromptForModelKey: promptForModelKey,
-	}, thisComputer{}, os.Stdout)
-	if errorValue != nil {
+	return installByClaiming(connection, modelKey)
+}
+
+func waitForACompany() error {
+	if errorValue := companyhost.KeepTheBoxSessionFresh(thisComputer{}, os.Stdout); errorValue != nil {
 		return errorValue
 	}
-	fmt.Printf("\nServer ready. Open %s/settings/setup and choose Check connection.\n", installation.Connection.AppURL)
-	fmt.Printf("Private settings: %s\n%s starts the server when this computer starts. Keep it awake.\n",
-		installation.StateDirectoryPath, installation.Supervisor)
+	fmt.Printf("\nThis computer waits for a company. `sudo %s box code` prints the code to enter at %s/settings/setup.\n",
+		blueclaw.CompanyPackageName, blueclaw.CompanyPackageHomepage)
 	return nil
 }
 
@@ -448,7 +469,7 @@ func installByClaiming(connection companyhost.Connection, modelKey string) error
 	} else {
 		fmt.Printf("\nServer ready. Open %s/settings/setup and choose Check connection.\n", connection.AppURL)
 	}
-	fmt.Println("The connection file is spent: this computer now proves itself with its own key, and systemd keeps it signed in.")
+	fmt.Printf("The connection file is spent: this computer now proves itself with its own key, and %s keeps it signed in.\n", blueclaw.BoxServiceName)
 	return nil
 }
 

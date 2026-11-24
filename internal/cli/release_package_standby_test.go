@@ -19,8 +19,8 @@ func theTwoBranchesOf(t *testing.T, script string) (string, string) {
 func TestAnUpgradeOnABoxWithoutACompanyStartsNoneOfTheCompanysUnits(t *testing.T) {
 	_, withoutCompany := theTwoBranchesOf(t, bringTheCompanyBackOnThisRelease(blueclaw.CompanyHostCurrentPath, refreshCommand()))
 
-	for _, unit := range blueclaw.CompanyPackageUnits() {
-		if unit.Name == blueclaw.BoxServiceName || unit.IsDataService() {
+	for _, unit := range blueclaw.CompanyHostSystemdUnits(packageLayout) {
+		if unit.IsDataService() {
 			continue
 		}
 		for _, line := range strings.Split(withoutCompany, "\n") {

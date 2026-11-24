@@ -145,8 +145,9 @@ const (
 
 // CompanyPackageUnit is one systemd unit the package installs.
 type CompanyPackageUnit struct {
-	Name     string
-	Contents string
+	Name                string
+	Contents            string
+	StartsOnlyWhenAsked bool
 }
 
 func (unit CompanyPackageUnit) FileName() string {
@@ -157,31 +158,26 @@ func (unit CompanyPackageUnit) InstalledPath() string {
 	return CompanyPackageUnitRoot + "/" + unit.FileName()
 }
 
-// CompanyPackageUnits is every unit the package installs, in start order. Each one
-// carries ConditionPathExists over a file `internkim install` writes, so a box that
-// has the package but not yet a company sits inactive rather than restarting into a
-// failure it cannot explain.
+// CompanyPackageUnits is every unit the package installs, in start order. Each
+// unit of the bundle carries ConditionPathExists over a file `internkim install`
+// writes, so a box that has the package but not yet a company sits inactive
+// rather than restarting into a failure it cannot explain.
 func CompanyPackageUnits() []CompanyPackageUnit {
 	layout := LinuxCompanyHostLayout()
-	return append(CompanyHostSystemdUnits(layout), CompanyPackageUnit{Name: BoxServiceName, Contents: boxServiceUnit(layout)})
+	return append(CompanyHostSystemdUnits(layout), CompanyHostBoxSystemdUnits(layout)...)
 }
 
-// The box unit is shipped beside the bundle and never inside it. Installing a
-// company restarts every unit of the bundle, and it is this unit that installs
-// one, so a box unit in the bundle would stop itself halfway through.
-func boxServiceUnit(layout CompanyHostLayout) string {
-	return "[Unit]\n" +
-		"Description=internkim box, which a company claims from its own network\n" +
-		"Documentation=https://docs.intern.kim/kim-mini/\n" +
-		"After=network-online.target\n" +
-		"Wants=network-online.target\n" +
-		"\n[Service]\n" +
-		"User=root\n" +
-		"Restart=on-failure\n" +
-		"RestartSec=30\n" +
-		"ExecStart=" + layout.BinaryPath(CompanyPackageName) + " box\n" +
-		"\n[Install]\n" +
-		"WantedBy=multi-user.target\n"
+// CompanyHostBoxSystemdUnits renders the box's own services for systemd.
+func CompanyHostBoxSystemdUnits(layout CompanyHostLayout) []CompanyPackageUnit {
+	units := []CompanyPackageUnit{}
+	for _, service := range CompanyHostBoxServices(layout) {
+		units = append(units, CompanyPackageUnit{
+			Name:                service.Name,
+			Contents:            systemdUnitFor(layout, service),
+			StartsOnlyWhenAsked: service.StartsOnlyWhenAsked,
+		})
+	}
+	return units
 }
 
 // CompanyHostSystemdUnits renders the bundle for systemd. What each unit runs comes
@@ -217,6 +213,7 @@ type companyHostUnitOrdering struct {
 	Wants               []string
 	Requires            []string
 	BindsTo             []string
+	OnFailure           []string
 	DocumentationURL    string
 }
 
@@ -227,6 +224,15 @@ const (
 
 func companyHostOrderingFor(serviceName string) companyHostUnitOrdering {
 	switch serviceName {
+	case BoxServiceName:
+		return companyHostUnitOrdering{
+			DocumentationURL: "https://docs.intern.kim/kim-mini/",
+		}
+	case CompanyHostTakeOverServiceName:
+		return companyHostUnitOrdering{
+			OnFailure:        []string{BoxServiceName + ".service"},
+			DocumentationURL: companyHostSnapshotDocumentation,
+		}
 	case CompanyHostPrepareServiceName:
 		return companyHostUnitOrdering{
 			DocumentationURL: "https://docs.intern.kim/running-the-host/",
@@ -283,7 +289,10 @@ func systemdUnitFor(layout CompanyHostLayout, service CompanyHostService) string
 	unit.WriteString("Wants=" + strings.Join(append([]string{"network-online.target"}, ordering.Wants...), " ") + "\n")
 	writeSystemdList(unit, "Requires", ordering.Requires)
 	writeSystemdList(unit, "BindsTo", ordering.BindsTo)
-	unit.WriteString("ConditionPathExists=" + service.WaitsForTheFileAtPath + "\n")
+	writeSystemdList(unit, "OnFailure", ordering.OnFailure)
+	if service.WaitsForTheFileAtPath != "" {
+		unit.WriteString("ConditionPathExists=" + service.WaitsForTheFileAtPath + "\n")
+	}
 
 	unit.WriteString("\n[Service]\n")
 	if len(ordering.SupplementaryGroups) > 0 {
@@ -314,7 +323,9 @@ func systemdUnitFor(layout CompanyHostLayout, service CompanyHostService) string
 	if service.StopTimeoutSeconds > 0 {
 		unit.WriteString("KillMode=mixed\nTimeoutStopSec=" + strconv.Itoa(service.StopTimeoutSeconds) + "\n")
 	}
-	unit.WriteString("\n[Install]\nWantedBy=multi-user.target\n")
+	if !service.StartsOnlyWhenAsked {
+		unit.WriteString("\n[Install]\nWantedBy=multi-user.target\n")
+	}
 	return unit.String()
 }
 

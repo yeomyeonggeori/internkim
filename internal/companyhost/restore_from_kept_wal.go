@@ -26,7 +26,7 @@ func rebuildTheDatabaseFromKeptWAL(platform backupPlatform, machine Machine, reb
 		return false, fmt.Errorf("the database is rebuilt from kept WAL only where the data-service script runs it, and on %s it does not", platform.Describe())
 	}
 	dataPath := blueclaw.CompanyHostDatabaseDataPath
-	if errorValue := machine.Run("systemctl", []string{"stop", blueclaw.CompanyHostDatabaseServiceName + ".service"}, nil, progress); errorValue != nil {
+	if errorValue := platform.StopServices(machine, []string{blueclaw.CompanyHostDatabaseServiceName}, progress); errorValue != nil {
 		return false, fmt.Errorf("the database could not be stopped to rebuild it: %w", errorValue)
 	}
 	replay := func() error {

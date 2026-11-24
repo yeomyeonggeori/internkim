@@ -156,6 +156,11 @@ func takeOverWith(request companyhost.RestoreRequest) error {
 		return errorValue
 	}
 	if request.ArchivePath == "" {
+		if request.ArchivePath, errorValue = archiveToTakeOverFrom(takeOverArchivePath()); errorValue != nil {
+			return errorValue
+		}
+	}
+	if request.ArchivePath == "" {
 		if request.Log, errorValue = theCompanysLog(kept); errorValue != nil {
 			return errorValue
 		}
@@ -177,6 +182,9 @@ func takeOverWith(request companyhost.RestoreRequest) error {
 		return errorValue
 	}
 	printRestore(os.Stdout, result)
+	if errorValue := nameTheArchiveToTakeOverFrom(takeOverArchivePath(), ""); errorValue != nil {
+		return errorValue
+	}
 	return takeOverRetries().finishTheTakeOver()
 }
 

@@ -4,65 +4,63 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
-	"slices"
 	"testing"
 	"time"
 
 	"github.com/yeomyeonggeori/internkim/internal/box"
 	"github.com/yeomyeonggeori/internkim/internal/companyhost"
-	"github.com/yeomyeonggeori/internkim/internal/runtime/blueclaw"
 )
 
 type retryClock struct{ now time.Time }
 
 func (clock *retryClock) read() time.Time { return clock.now }
 
-type unitsCleared struct{ cleared int }
-
-func (units *unitsCleared) resetFailed() error {
-	units.cleared++
-	return nil
-}
-
-func aTakeOverRetry(t *testing.T) (takeOverRetry, *retryClock, *unitsCleared) {
+func aTakeOverRetry(t *testing.T) (takeOverRetry, *retryClock) {
 	t.Helper()
 	clock := &retryClock{now: time.Date(2026, 11, 18, 9, 0, 0, 0, time.UTC)}
-	units := &unitsCleared{}
 	retry := takeOverRetry{
-		StatePath:   filepath.Join(t.TempDir(), box.TakeOverRetryFileName),
-		Now:         clock.read,
-		ResetFailed: units.resetFailed,
+		StatePath: filepath.Join(t.TempDir(), box.TakeOverRetryFileName),
+		Now:       clock.read,
 	}
-	return retry, clock, units
+	return retry, clock
 }
 
-func TestAFailedTakeOverIsClearedForAnotherTryOnceTheFirstWaitHasPassed(t *testing.T) {
-	retry, clock, units := aTakeOverRetry(t)
+func retriedOf(t *testing.T, retry takeOverRetry) int {
+	t.Helper()
+	attempts, errorValue := retry.read()
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	return attempts.Retried
+}
 
-	if errorValue := retry.clearTheFailedUnitWhenItIsTime(); !errors.Is(errorValue, errTakeOverWaitsToRetry) {
+func TestAFailedTakeOverIsTriedAgainOnceTheFirstWaitHasPassed(t *testing.T) {
+	retry, clock := aTakeOverRetry(t)
+
+	if errorValue := retry.allowARetryWhenItIsTime(); !errors.Is(errorValue, errTakeOverWaitsToRetry) {
 		t.Fatalf("a take-over that has just failed was tried again at once: %v", errorValue)
 	}
 	clock.now = clock.now.Add(firstTakeOverRetryWait - time.Second)
-	if errorValue := retry.clearTheFailedUnitWhenItIsTime(); !errors.Is(errorValue, errTakeOverWaitsToRetry) {
-		t.Fatalf("the failed take-over was cleared before its wait was over: %v", errorValue)
+	if errorValue := retry.allowARetryWhenItIsTime(); !errors.Is(errorValue, errTakeOverWaitsToRetry) {
+		t.Fatalf("the failed take-over was tried again before its wait was over: %v", errorValue)
 	}
 	clock.now = clock.now.Add(time.Second)
 
-	if errorValue := retry.clearTheFailedUnitWhenItIsTime(); errorValue != nil {
+	if errorValue := retry.allowARetryWhenItIsTime(); errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	if units.cleared != 1 {
-		t.Fatalf("the failed unit was cleared %d times", units.cleared)
+	if retried := retriedOf(t, retry); retried != 1 {
+		t.Fatalf("the failed take-over was tried again %d times", retried)
 	}
 }
 
 func TestEachFailureDoublesTheWaitUntilItReachesTheLongest(t *testing.T) {
-	retry, clock, units := aTakeOverRetry(t)
+	retry, clock := aTakeOverRetry(t)
 	waits := []time.Duration{}
 	for range 7 {
-		retry.clearTheFailedUnitWhenItIsTime()
+		retry.allowARetryWhenItIsTime()
 		seenAt := clock.now
-		for retry.clearTheFailedUnitWhenItIsTime() != nil {
+		for retry.allowARetryWhenItIsTime() != nil {
 			clock.now = clock.now.Add(time.Minute)
 		}
 		waits = append(waits, clock.now.Sub(seenAt))
@@ -74,39 +72,39 @@ func TestEachFailureDoublesTheWaitUntilItReachesTheLongest(t *testing.T) {
 			t.Fatalf("waits were %v, want %v", waits, want)
 		}
 	}
-	if units.cleared != len(want) {
-		t.Fatalf("the failed unit was cleared %d times for %d failures", units.cleared, len(want))
+	if retried := retriedOf(t, retry); retried != len(want) {
+		t.Fatalf("the failed take-over was tried again %d times for %d failures", retried, len(want))
 	}
 }
 
 func TestATakeOverThatEndedWithoutFailingStartsTheNextFailureFromTheFirstWait(t *testing.T) {
-	retry, clock, _ := aTakeOverRetry(t)
+	retry, clock := aTakeOverRetry(t)
 	for range 3 {
-		retry.clearTheFailedUnitWhenItIsTime()
+		retry.allowARetryWhenItIsTime()
 		clock.now = clock.now.Add(longestTakeOverRetryWait)
-		retry.clearTheFailedUnitWhenItIsTime()
+		retry.allowARetryWhenItIsTime()
 	}
 
 	if errorValue := retry.forget(); errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	retry.clearTheFailedUnitWhenItIsTime()
+	retry.allowARetryWhenItIsTime()
 	clock.now = clock.now.Add(firstTakeOverRetryWait)
 
-	if errorValue := retry.clearTheFailedUnitWhenItIsTime(); errorValue != nil {
+	if errorValue := retry.allowARetryWhenItIsTime(); errorValue != nil {
 		t.Fatalf("a later failure waited longer than the first wait: %v", errorValue)
 	}
 }
 
 func TestTheSafetyBackupATakeOverTookIsKeptThroughItsRetries(t *testing.T) {
-	retry, clock, _ := aTakeOverRetry(t)
+	retry, clock := aTakeOverRetry(t)
 	if errorValue := retry.keepTheFinding(companyhost.SafetyFinding{Archive: "/var/lib/internkim-backups/internkim-backup-20261118T090000Z.tar"}); errorValue != nil {
 		t.Fatal(errorValue)
 	}
 
-	retry.clearTheFailedUnitWhenItIsTime()
+	retry.allowARetryWhenItIsTime()
 	clock.now = clock.now.Add(firstTakeOverRetryWait)
-	if errorValue := retry.clearTheFailedUnitWhenItIsTime(); errorValue != nil {
+	if errorValue := retry.allowARetryWhenItIsTime(); errorValue != nil {
 		t.Fatal(errorValue)
 	}
 
@@ -120,7 +118,7 @@ func TestTheSafetyBackupATakeOverTookIsKeptThroughItsRetries(t *testing.T) {
 }
 
 func TestForgettingATakeOverLeavesItsSafetyBackupWhereItIs(t *testing.T) {
-	retry, _, _ := aTakeOverRetry(t)
+	retry, _ := aTakeOverRetry(t)
 	archive := filepath.Join(t.TempDir(), "internkim-backup-20261118T090000Z.tar")
 	if errorValue := os.WriteFile(archive, []byte("archive"), 0o600); errorValue != nil {
 		t.Fatal(errorValue)
@@ -143,7 +141,7 @@ func TestForgettingATakeOverLeavesItsSafetyBackupWhereItIs(t *testing.T) {
 }
 
 func TestATakeOverThatSucceededForgetsItsRecordAndLeavesItsSafetyBackup(t *testing.T) {
-	retry, _, _ := aTakeOverRetry(t)
+	retry, _ := aTakeOverRetry(t)
 	archive := filepath.Join(t.TempDir(), "internkim-backup-20261118T090000Z.tar")
 	if errorValue := os.WriteFile(archive, []byte("archive"), 0o600); errorValue != nil {
 		t.Fatal(errorValue)
@@ -164,34 +162,45 @@ func TestATakeOverThatSucceededForgetsItsRecordAndLeavesItsSafetyBackup(t *testi
 	}
 }
 
-func TestATakeOverThatFailsBringsTheBoxBackToTryItAgain(t *testing.T) {
-	arguments := takeOverUnitArguments("/usr/bin/internkim", takeOverSource{Description: "the snapshot made 2026-11-18T09:00:00Z", ArchivePath: "/var/lib/internkim-backups/snapshot.tar"})
-
-	if !slices.Contains(arguments, "--property=OnFailure="+blueclaw.BoxServiceName+".service") {
-		t.Fatalf("the take-over unit is started without bringing the box back when it fails: %v", arguments)
+func TestATakeOverRestoresTheSnapshotTheBoxNamedForIt(t *testing.T) {
+	path := filepath.Join(t.TempDir(), takeOverArchiveFileName)
+	if errorValue := nameTheArchiveToTakeOverFrom(path, "/var/lib/internkim-backups/snapshot.tar"); errorValue != nil {
+		t.Fatal(errorValue)
 	}
-	if !slices.Contains(arguments, "--unit="+takeOverUnitName) {
-		t.Fatalf("the take-over unit is not started under its name: %v", arguments)
+
+	archive, errorValue := archiveToTakeOverFrom(path)
+	if errorValue != nil || archive != "/var/lib/internkim-backups/snapshot.tar" {
+		t.Fatalf("the take-over reads %q (%v) where the box named the snapshot", archive, errorValue)
 	}
 }
 
-func TestATakeOverFromTheLogRestoresNoArchive(t *testing.T) {
-	arguments := takeOverUnitArguments("/usr/bin/internkim", takeOverSource{Description: "the company's log, from the base backup made 2026-11-18T09:00:00Z"})
+func TestATakeOverFromTheLogRestoresNoArchiveAnEarlierOneNamed(t *testing.T) {
+	path := filepath.Join(t.TempDir(), takeOverArchiveFileName)
+	if errorValue := nameTheArchiveToTakeOverFrom(path, "/var/lib/internkim-backups/snapshot.tar"); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if errorValue := nameTheArchiveToTakeOverFrom(path, ""); errorValue != nil {
+		t.Fatal(errorValue)
+	}
 
-	if !slices.Equal(arguments[len(arguments)-3:], []string{"/usr/bin/internkim", "restore", "--taking-over"}) {
-		t.Fatalf("a take-over from the company's log is started as %v", arguments)
+	archive, errorValue := archiveToTakeOverFrom(path)
+	if errorValue != nil || archive != "" {
+		t.Fatalf("a take-over from the company's log restores %q (%v)", archive, errorValue)
+	}
+	if errorValue := nameTheArchiveToTakeOverFrom(path, ""); errorValue != nil {
+		t.Fatalf("a second take-over from the log failed where nothing was named: %v", errorValue)
 	}
 }
 
 func TestAFirstAttemptThatFoundNoCompanyIsRememberedThroughItsRetries(t *testing.T) {
-	retry, clock, _ := aTakeOverRetry(t)
+	retry, clock := aTakeOverRetry(t)
 	if errorValue := retry.keepTheFinding(companyhost.SafetyFinding{HeldNoCompany: true}); errorValue != nil {
 		t.Fatal(errorValue)
 	}
 
-	retry.clearTheFailedUnitWhenItIsTime()
+	retry.allowARetryWhenItIsTime()
 	clock.now = clock.now.Add(firstTakeOverRetryWait)
-	if errorValue := retry.clearTheFailedUnitWhenItIsTime(); errorValue != nil {
+	if errorValue := retry.allowARetryWhenItIsTime(); errorValue != nil {
 		t.Fatal(errorValue)
 	}
 
