@@ -7,7 +7,7 @@ insert into auth.users (id, email) values
   ('65000000-0000-0000-0000-000000000002', 'company-employee@example.com');
 insert into public.company (id, name, slug, country, locale, timezone, profile)
   values ('65000000-0000-0000-0000-000000000010', 'Company Sample', 'company-sample', 'KR', 'ko', 'Asia/Seoul',
-    '{"brandName": {"ko": "샘플"}, "capital": {"amount": 500000000, "currency": "KRW"}, "bankAccount": {"ko": "예시은행 000-000"}}');
+    '{"brandName": {"ko": "샘플"}, "legalAttributes": {"ko": {"사업자등록번호": "000-00-00000"}}, "capital": {"amount": 500000000, "currency": "KRW"}, "bankAccount": {"ko": "예시은행 000-000"}}');
 insert into public.member (id, company_id, user_id, email, status, is_admin) values
   ('65000000-0000-0000-0000-000000000011', '65000000-0000-0000-0000-000000000010', '65000000-0000-0000-0000-000000000001', 'company-admin@example.com', 'active', true),
   ('65000000-0000-0000-0000-000000000012', '65000000-0000-0000-0000-000000000010', '65000000-0000-0000-0000-000000000002', 'company-employee@example.com', 'active', false);
@@ -42,14 +42,14 @@ delete from public.company_field where company_id = '65000000-0000-0000-0000-000
 set local role authenticated;
 select set_config('request.jwt.claims', '{"sub":"65000000-0000-0000-0000-000000000002"}', true);
 select is(public.data_room_company('65000000-0000-0000-0000-000000000010'),
-  '{"profile": {"brandName": {"ko": "샘플"}, "employeeCount": 2}, "metrics": [], "records": [{"category": "history", "date": "2024-01-02", "title": "Company founded", "status": "completed", "attributes": {}}]}'::jsonb,
-  'a member sees what the member circle reads, with the headcount counted from the organization');
+  '{"profile": {"brandName": {"ko": "샘플"}, "legalAttributes": {"ko": {"사업자등록번호": "000-00-00000"}}, "employeeCount": 2}, "metrics": [], "records": [{"category": "history", "date": "2024-01-02", "title": "Company founded", "status": "completed", "attributes": {}}]}'::jsonb,
+  'a member sees what the member circle reads and what the public page shows, with the headcount counted from the organization');
 
 select set_config('request.jwt.claims', '{"sub":"65000000-0000-0000-0000-000000000001"}', true);
 select is(jsonb_array_length(public.data_room_company('65000000-0000-0000-0000-000000000010') -> 'metrics'), 2,
   'leadership reads X, so it sees a metric no category names');
 select is(public.data_room_circle_company('65000000-0000-0000-0000-000000000010', 'investor') -> 'profile',
-  '{"brandName": {"ko": "샘플"}, "capital": {"amount": 500000000, "currency": "KRW"}}'::jsonb,
+  '{"brandName": {"ko": "샘플"}, "legalAttributes": {"ko": {"사업자등록번호": "000-00-00000"}}, "capital": {"amount": 500000000, "currency": "KRW"}}'::jsonb,
   'an investor preview shows ownership but not the bank account');
 select is(jsonb_path_query_array(public.data_room_circle_company('65000000-0000-0000-0000-000000000010', 'investor'), '$.metrics[*].metric'),
   '["annualRevenue"]'::jsonb,
@@ -75,8 +75,8 @@ set local role anon;
 select is((select jsonb_build_object('profile', shown -> 'profile', 'metrics', shown -> 'metrics',
       'recordCategories', jsonb_path_query_array(shown, '$.records[*].category'))
     from public.data_room_company('65000000-0000-0000-0000-000000000010') shown),
-  '{"profile": {"brandName": {"ko": "샘플"}}, "metrics": [], "recordCategories": ["history"]}'::jsonb,
-  'a stranger sees the introduction the public page starts with, and no capital, metric or funding');
+  '{"profile": {"brandName": {"ko": "샘플"}, "legalAttributes": {"ko": {"사업자등록번호": "000-00-00000"}}}, "metrics": [], "recordCategories": ["history"]}'::jsonb,
+  'a stranger sees the introduction and registration the public page starts with, and no capital, metric or funding');
 
 set local role authenticated;
 select set_config('request.jwt.claims', '{"sub":"65000000-0000-0000-0000-000000000002"}', true);
@@ -90,7 +90,7 @@ update public.company_field set category_code = 'GP'
 insert into public.company_field (company_id, kind, field, category_code, names)
   values ('65000000-0000-0000-0000-000000000010', 'metric', 'burnRate', 'FS', '{"ko": "월 소진액", "en": "Monthly burn"}');
 select is(jsonb_path_query_array(public.data_room_circle_company('65000000-0000-0000-0000-000000000010', 'member'), '$.profile.keyvalue().key'),
-  '["capital", "brandName", "employeeCount"]'::jsonb,
+  '["capital", "brandName", "employeeCount", "legalAttributes"]'::jsonb,
   'an administrator moves a field into a category the member circle reads');
 select ok(public.data_room_circle_company('65000000-0000-0000-0000-000000000010', 'investor') -> 'metrics' @> '[{"metric": "burnRate"}]',
   'a field named by no category becomes visible once one names it');
