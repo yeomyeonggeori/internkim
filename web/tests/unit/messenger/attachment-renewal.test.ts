@@ -5,7 +5,7 @@ async function outcome() {
 	return JSON.parse(await runInItsOwnProcess(new URL('./attachment-renewal.fixture.ts', import.meta.url), 'browser'));
 }
 
-describe('a messenger picture whose signed address runs out', () => {
+describe('a messenger attachment whose signed address runs out', () => {
 	test('is signed again once the address is about to expire, and not before', async () => {
 		expect(await outcome()).toEqual({
 			first: 'signed-1',
@@ -16,4 +16,16 @@ describe('a messenger picture whose signed address runs out', () => {
 		});
 	}, ownProcessTimeoutMilliseconds);
 
+	test('is signed again when it is about to be read, once for readers asking together', async () => {
+		const read = JSON.parse(await runInItsOwnProcess(new URL('./attachment-readable.fixture.ts', import.meta.url), 'browser'));
+		expect(read).toEqual({
+			unknown: 'blob:sent',
+			whileFresh: 'signed-1',
+			signingsWhileFresh: 1,
+			afterAnHour: 'signed-2',
+			together: 'signed-2',
+			signingsAfterAnHour: 2,
+			refused: 'the store would not sign for this copy'
+		});
+	}, ownProcessTimeoutMilliseconds);
 });

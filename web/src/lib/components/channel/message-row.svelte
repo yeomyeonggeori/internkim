@@ -12,7 +12,7 @@
 	import type { ChannelMessage } from './channel-api';
 	import type { MessageCopy } from './message-copy';
 	import type { MessagePicture } from './channel-attachments';
-	import { startDownload } from '$lib/files/download';
+	import { downloadAttachment } from './attachment-download';
 	import ReplyIcon from '@lucide/svelte/icons/reply';
 	import { tick, type Snippet } from 'svelte';
 
@@ -143,7 +143,7 @@
 		{onEdit}
 		onCopyText={() => onCopy(copyable)}
 		onCopyPicture={() => onCopy({ kind: 'picture', address: pictureToCopy })}
-		onDownloadPicture={() => pictureToDownload && startDownload(pictureToDownload.address, pictureToDownload.filename, pictureToDownload.identity)}
+		onDownloadPicture={() => pictureToDownload && downloadAttachment(pictureToDownload.address, pictureToDownload.filename, pictureToDownload.identity)}
 		{onDelete}
 		{onCapture}
 	>

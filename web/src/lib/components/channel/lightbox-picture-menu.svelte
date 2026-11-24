@@ -6,7 +6,7 @@
 	import ImageIcon from '@lucide/svelte/icons/image';
 	import type { Snippet } from 'svelte';
 	import { toast } from 'svelte-sonner';
-	import { startDownload } from '$lib/files/download';
+	import { downloadAttachment } from './attachment-download';
 	import { copyPicture } from './message-copy';
 
 	let {
@@ -34,7 +34,7 @@
 			<ImageIcon />
 			<span>{text.copyPicture}</span>
 		</ContextMenu.Item>
-		<ContextMenu.Item onSelect={() => startDownload(source, filename, identity)}>
+		<ContextMenu.Item onSelect={() => downloadAttachment(source, filename, identity)}>
 			<DownloadIcon />
 			<span>{text.downloadPicture}</span>
 		</ContextMenu.Item>

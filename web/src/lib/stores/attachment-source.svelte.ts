@@ -17,7 +17,7 @@ class AttachmentSourceStore {
 	private openableByURL = $state<Map<string, Openable>>(new Map());
 	private progressByURL = $state<Map<string, AttachmentProgress>>(new Map());
 	private failureByURL = $state<Map<string, string>>(new Map());
-	private loadingURLs = $state<Set<string>>(new Set());
+	private openingByURL = $state<Map<string, Promise<void>>>(new Map());
 	private notShownURLs = $state<Set<string>>(new Set());
 	private asked = new Map<string, MessengerAttachment>();
 	private reopenedAfterFailure = new Set<string>();
@@ -29,7 +29,7 @@ class AttachmentSourceStore {
 			this.openableByURL = new Map();
 			this.progressByURL = new Map();
 			this.failureByURL = new Map();
-			this.loadingURLs = new Set();
+			this.openingByURL = new Map();
 			this.notShownURLs = new Set();
 			this.asked.clear();
 			this.reopenedAfterFailure.clear();
@@ -44,7 +44,7 @@ class AttachmentSourceStore {
 	status(url: string): AttachmentSourceStatus {
 		if (this.openableByURL.has(url)) return 'ready';
 		if (this.failureByURL.has(url)) return 'failed';
-		if (this.loadingURLs.has(url)) return 'loading';
+		if (this.openingByURL.has(url)) return 'loading';
 		return 'unasked';
 	}
 
@@ -60,6 +60,15 @@ class AttachmentSourceStore {
 		return this.notShownURLs.has(url);
 	}
 
+	async readable(url: string, shown: string): Promise<string> {
+		const attachment = this.asked.get(url);
+		if (!attachment) return shown;
+		if (this.isFresh(url)) return this.openable(url);
+		await this.open(attachment);
+		if (this.isFresh(url)) return this.openable(url);
+		throw new Error(this.failure(url) || `the attachment ${url} could not be signed again`);
+	}
+
 	wants(attachments: MessengerAttachment[]): void {
 		if (!isSupabaseConfigured()) return;
 		for (const attachment of attachments) {
@@ -73,7 +82,7 @@ class AttachmentSourceStore {
 	renew(url: string): void {
 		const attachment = this.asked.get(url);
 		const shown = this.openableByURL.get(url);
-		if (!attachment || !shown || this.loadingURLs.has(url)) return;
+		if (!attachment || !shown || this.openingByURL.has(url)) return;
 		if (isStale(shown, Date.now())) {
 			void this.open(attachment);
 			return;
@@ -88,7 +97,7 @@ class AttachmentSourceStore {
 
 	retry(url: string): void {
 		const attachment = this.asked.get(url);
-		if (!attachment || this.loadingURLs.has(url)) return;
+		if (!attachment || this.openingByURL.has(url)) return;
 		this.failureByURL = withoutKey(this.failureByURL, url);
 		this.openAgain(attachment);
 	}
@@ -98,19 +107,34 @@ class AttachmentSourceStore {
 		void this.open(attachment, { withoutDeviceCopy: true });
 	}
 
+	private isFresh(url: string): boolean {
+		const openable = this.openableByURL.get(url);
+		return Boolean(openable && !isStale(openable, Date.now()));
+	}
+
 	private needsRenewal(url: string, now: number = Date.now()): boolean {
 		const openable = this.openableByURL.get(url);
-		return Boolean(openable && isStale(openable, now) && !this.loadingURLs.has(url));
+		return Boolean(openable && isStale(openable, now) && !this.openingByURL.has(url));
 	}
 
 	private hasFailed(url: string): boolean {
-		return this.failureByURL.has(url) && !this.loadingURLs.has(url);
+		return this.failureByURL.has(url) && !this.openingByURL.has(url);
 	}
 
-	private async open(attachment: MessengerAttachment, { withoutDeviceCopy = false }: { withoutDeviceCopy?: boolean } = {}): Promise<void> {
+	private open(attachment: MessengerAttachment, options: { withoutDeviceCopy?: boolean } = {}): Promise<void> {
+		const url = attachment.url;
+		const inFlight = this.openingByURL.get(url);
+		if (inFlight) return inFlight;
+		const pending = this.load(attachment, options).finally(() => {
+			if (this.openingByURL.get(url) === pending) this.openingByURL = withoutKey(this.openingByURL, url);
+		});
+		this.openingByURL = new Map(this.openingByURL).set(url, pending);
+		return pending;
+	}
+
+	private async load(attachment: MessengerAttachment, { withoutDeviceCopy = false }: { withoutDeviceCopy?: boolean }): Promise<void> {
 		const generation = this.generation;
 		const url = attachment.url;
-		this.loadingURLs = new Set([...this.loadingURLs, url]);
 		try {
 			if (withoutDeviceCopy) await forgetAttachmentFile(url);
 			const kept = isKeptAsFile(attachment.contentType) ? await keptAttachmentFile(url) : '';
@@ -133,7 +157,6 @@ class AttachmentSourceStore {
 		} finally {
 			if (generation !== this.generation) return;
 			this.progressByURL = withoutKey(this.progressByURL, url);
-			this.loadingURLs = new Set([...this.loadingURLs].filter((loading) => loading !== url));
 		}
 	}
 
