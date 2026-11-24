@@ -33,6 +33,23 @@ def load_driver():
     return module
 
 
+class FreePortTests(unittest.TestCase):
+    def test_a_port_is_picked_below_the_range_outgoing_connections_take_theirs_from(self):
+        ephemeral_first = int(subprocess.run(
+            ["sysctl", "-n", "net.inet.ip.portrange.first"], capture_output=True, text=True, check=True
+        ).stdout)
+        self.assertLess(rig.free_port(), ephemeral_first)
+
+    def test_a_port_another_listener_holds_on_every_address_is_never_picked(self):
+        with rig.socket.socket() as listener:
+            listener.bind(("0.0.0.0", 0))
+            listener.listen()
+            held_port = listener.getsockname()[1]
+            with unittest.mock.patch.object(rig, "LISTENING_PORTS", range(held_port, held_port + 1)):
+                with self.assertRaises(rig.RigFailure):
+                    rig.free_port()
+
+
 class ContainerStateTests(unittest.TestCase):
     def test_a_guest_reads_running_from_either_shape_the_container_cli_lists(self):
         machine = rig.Machine("guest", Path(tempfile.gettempdir()))
