@@ -63,9 +63,70 @@ func TestATakeOverReplaysTheFileJournalOverTheSnapshot(t *testing.T) {
 	}
 }
 
+func TestATakeOverOwnsOnlyWhatTheFileJournalLeft(t *testing.T) {
+	workspace := resolvedTemporaryDirectory(t)
+	entries := []journalEntry{
+		{files: map[string]string{"workspace/memory.db-wal": "checkpointed soon", "workspace/notes/draft.txt": "dropped with its folder", "workspace/kept.txt": "stays"}},
+		{removed: []string{"workspace/memory.db-wal", "workspace/notes"}},
+	}
+	extracted := replayed(t, workspace, entries)
+	if paths := pathsOf(extracted.Unresolved); len(paths) != 1 || paths[0] != filepath.Join(workspace, "kept.txt") {
+		t.Errorf("left to own once the people exist: %v, want only kept.txt", paths)
+	}
+	if _, errorValue := ownWhatThePeopleOwn(extracted.Unresolved); errorValue != nil {
+		t.Errorf("owning what the journal left: %v", errorValue)
+	}
+}
+
+func TestAFullFileJournalEntryLeavesNothingEarlierToOwn(t *testing.T) {
+	workspace := resolvedTemporaryDirectory(t)
+	entries := []journalEntry{
+		{files: map[string]string{"workspace/before.txt": "emptied"}},
+		{isFull: true, files: map[string]string{"workspace/after.txt": "stays"}},
+	}
+	extracted := replayed(t, workspace, entries)
+	if paths := pathsOf(extracted.Unresolved); len(paths) != 1 || paths[0] != filepath.Join(workspace, "after.txt") {
+		t.Errorf("left to own once the people exist: %v, want only after.txt", paths)
+	}
+}
+
+func replayed(t *testing.T, workspace string, entries []journalEntry) hostbackup.ExtractionReport {
+	t.Helper()
+	replay := func(apply FileJournalApplier) (int, error) {
+		for index, entry := range entries {
+			if errorValue := apply(entry.isFull, entry.removed, tarOf(t, entry.files)); errorValue != nil {
+				return index, errorValue
+			}
+		}
+		return len(entries), nil
+	}
+	var extracted hostbackup.ExtractionReport
+	if _, errorValue := replayTheFileJournal(replay, map[string]string{"workspace": workspace}, &extracted); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	return extracted
+}
+
+func resolvedTemporaryDirectory(t *testing.T) string {
+	t.Helper()
+	directory, errorValue := filepath.EvalSymlinks(t.TempDir())
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	return directory
+}
+
+func pathsOf(ownerships []hostbackup.Ownership) []string {
+	paths := []string{}
+	for _, ownership := range ownerships {
+		paths = append(paths, ownership.Path)
+	}
+	return paths
+}
+
 func TestTheFileJournalNeverRemovesOutsideItsRoot(t *testing.T) {
 	for _, name := range []string{"workspace/../escape", "workspace/", "nowhere/file", "workspace"} {
-		if errorValue := removeArchived(map[string]string{"workspace": t.TempDir()}, name); errorValue == nil {
+		if _, errorValue := removeArchived(map[string]string{"workspace": t.TempDir()}, name); errorValue == nil {
 			t.Errorf("%q was removed", name)
 		}
 	}

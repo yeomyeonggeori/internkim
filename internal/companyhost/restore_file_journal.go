@@ -40,11 +40,14 @@ func replayTheFileJournal(replay FileJournalReplay, destinations map[string]stri
 			if errorValue := emptyTheDestinations(destinations); errorValue != nil {
 				return errorValue
 			}
+			extracted.Unresolved = nil
 		}
 		for _, archivedName := range removed {
-			if errorValue := removeArchived(destinations, archivedName); errorValue != nil {
+			removedPath, errorValue := removeArchived(destinations, archivedName)
+			if errorValue != nil {
 				return errorValue
 			}
+			extracted.Unresolved = ownershipsOutside(extracted.Unresolved, removedPath)
 		}
 		report, errorValue := hostbackup.ExtractFiles(contents, destinations)
 		if errorValue != nil {
@@ -57,15 +60,30 @@ func replayTheFileJournal(replay FileJournalReplay, destinations map[string]stri
 	})
 }
 
-func removeArchived(destinations map[string]string, archivedName string) error {
+func removeArchived(destinations map[string]string, archivedName string) (string, error) {
 	role, relative, isNamed := strings.Cut(archivedName, "/")
 	rootPath, isKnown := destinations[role]
 	if !isNamed || !isKnown {
-		return fmt.Errorf("the file journal removes %q, which names no root this restore writes", archivedName)
+		return "", fmt.Errorf("the file journal removes %q, which names no root this restore writes", archivedName)
 	}
 	cleaned := filepath.Clean(filepath.FromSlash(relative))
 	if cleaned == "." || filepath.IsAbs(cleaned) || cleaned == ".." || strings.HasPrefix(cleaned, ".."+string(filepath.Separator)) {
-		return fmt.Errorf("the file journal removes %q, which lies outside its root", archivedName)
+		return "", fmt.Errorf("the file journal removes %q, which lies outside its root", archivedName)
 	}
-	return os.RemoveAll(filepath.Join(rootPath, cleaned))
+	resolvedRoot, errorValue := filepath.EvalSymlinks(rootPath)
+	if errorValue != nil {
+		return "", errorValue
+	}
+	removedPath := filepath.Join(resolvedRoot, cleaned)
+	return removedPath, os.RemoveAll(removedPath)
+}
+
+func ownershipsOutside(ownerships []hostbackup.Ownership, removedPath string) []hostbackup.Ownership {
+	kept := []hostbackup.Ownership{}
+	for _, ownership := range ownerships {
+		if ownership.Path != removedPath && !strings.HasPrefix(ownership.Path, removedPath+string(filepath.Separator)) {
+			kept = append(kept, ownership)
+		}
+	}
+	return kept
 }
