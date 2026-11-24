@@ -433,7 +433,7 @@ func connectionOf(session Session) companyhost.Connection {
 
 func (daemon Daemon) untilNextCheck(session Session) time.Duration {
 	untilRenewal := time.Unix(session.Session.ExpiresAt, 0).Sub(daemon.now()) - SessionRenewalMargin
-	return min(max(untilRenewal, shortestSessionWait), untilTheTakeOverNeedsACheck(session))
+	return min(max(untilRenewal, shortestSessionWait), UntilTheTakeOverNeedsACheck(session))
 }
 
 func (daemon Daemon) sessionWithinTheLease(ctx context.Context, identity Identity) (Session, bool, error) {

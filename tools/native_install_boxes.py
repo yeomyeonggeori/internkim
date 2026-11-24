@@ -103,13 +103,7 @@ OBSERVATIONS = (
     HALF_HELD_IS_FASTER,
 )
 
-NOT_YET = {
-    HALF_HELD_IS_FASTER: (
-        "the standbys hold their shares when the power goes (2611 and 2635 pieces), but after the 1 GiB fill, whose file "
-        "barrier answered deadline exceeded on the 100 Mbit link, the standby's take-over never reached holding the "
-        "gateway in the rig's wait, so it was not timed and the empty box was never tried; not yet diagnosed"
-    ),
-}
+NOT_YET = {}
 
 
 @dataclass(frozen=True)

@@ -193,7 +193,7 @@ func claimTheCompanyToTakeOver() (takeOverSession, box.Session, keptOffTheBox, e
 		return takeOverSession{}, box.Session{}, keptOffTheBox{}, fmt.Errorf("keeping the session this box takes the company over with: %w", errorValue)
 	}
 	kept, errorValue := keptForTheTakeOver(claim, blueclaw.CompanyHostBoxStatePath, takeOverSessionPath())
-	return takeOverSession{Path: takeOverSessionPath(), Ask: sessionOf(confirmingTheLeaseOf(ask, blueclaw.CompanyHostBoxStatePath))}, claim, kept, errorValue
+	return takeOverSession{Path: takeOverSessionPath(), Ask: confirmingTheLeaseOf(ask, blueclaw.CompanyHostBoxStatePath)}, claim, kept, errorValue
 }
 
 func printRestore(output io.Writer, result companyhost.RestoreResult) {
