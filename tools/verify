@@ -630,6 +630,7 @@ GROUPS = [
             "tools/native_install_files.py",
             "tools/native_install_boxes.py",
             "tools/tests/test_native_install_boxes.py",
+            "tools/native_install_unset_clock.py",
             "tools/native_install_assets/*",
             "internal/admind/host_update.go",
             "internal/hostupdate/*",

@@ -33,6 +33,7 @@ import native_install_agent_update as agent_update  # noqa: E402
 import native_install_messenger as messenger  # noqa: E402
 import native_install_files as company_files  # noqa: E402
 import native_install_boxes as boxes  # noqa: E402
+import native_install_unset_clock as unset_clock  # noqa: E402
 from native_install_rig import (  # noqa: E402
     AGENT_HEALTH,
     RELAY_UNIT_NAME,
@@ -1750,6 +1751,21 @@ class Rig:
         self.write_prior_memory(people)
         self.upgrade_through_the_line(releases[1])
         self.observe_the_agent_stays_up(step)
+
+    def run_unset_clock(self):
+        step = self.step(16, "a host restarted with its clock at 1970 hands the agent no message it already let go")
+        self.start_the_plane()
+        self.give_the_guest_a_company(step, self.plane)
+        self.observe_running_services(step)
+        self.observe_the_member_round_trip(step, self.plane)
+        self.observe_the_agent_answered(step)
+        unset_clock.observe_a_restart_at_the_epoch(
+            self,
+            step,
+            message_asking_for_an_answer("sent a month before a restart at 1970"),
+            COMPANY_CONDITION_PATH,
+            MESSENGER_DATABASE_PATH,
+        )
 
     def run_several_boxes(self, after_another_company=False):
         """A second box joins the company, keeps up, and takes over when the first goes dark."""
@@ -3630,6 +3646,11 @@ def main():
         "tools/native_install_boxes.py",
     )
     parser.add_argument(
+        "--unset-clock",
+        action="store_true",
+        help="judge only whether a host whose messenger restarts with its clock at 1970 leaves a month-old message alone (step 16)",
+    )
+    parser.add_argument(
         "--another-company",
         action="store_true",
         help="judge only whether a box one company disconnects and another connects holds nothing of the first "
@@ -3693,6 +3714,8 @@ def main():
                 rig.run_several_boxes(after_another_company=True)
             elif options.another_company:
                 rig.run_another_company()
+            elif options.unset_clock:
+                rig.run_unset_clock()
             elif options.boxes:
                 rig.run_boxes()
             else:
