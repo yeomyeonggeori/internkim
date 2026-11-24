@@ -2,6 +2,8 @@ import { messageNotificationTag } from '../../web/src/lib/notifications/message-
 
 export const readMarkCapability = 'person.read_state.mark';
 
+export const readMarkAllCapability = 'person.read_state.mark_all';
+
 export const readClearingQuietMilliseconds = 30_000;
 
 export type ReadClearing = {
@@ -13,6 +15,13 @@ export function readClearingOf(memberID: string, body: Record<string, unknown>):
 	const conversationID = typeof body.conversationID === 'string' ? body.conversationID.trim() : '';
 	if (!memberID || !conversationID || isThreadRead(body)) return null;
 	return { memberID, tag: messageNotificationTag(conversationID) };
+}
+
+export function conversationIDsMarkedRead(answer: unknown): string[] {
+	if (typeof answer !== 'object' || answer === null || !('conversationIDs' in answer)) return [];
+	const { conversationIDs } = answer;
+	if (!Array.isArray(conversationIDs)) return [];
+	return conversationIDs.filter((conversationID): conversationID is string => typeof conversationID === 'string' && conversationID !== '');
 }
 
 function isThreadRead(body: Record<string, unknown>): boolean {

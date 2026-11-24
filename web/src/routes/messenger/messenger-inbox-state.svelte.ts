@@ -1,7 +1,7 @@
 import { bridgeInbox, type InboxEntry } from '$lib/messenger/channel-over-bridge';
 import { messengerCacheScope, requireCurrentMessengerScope } from '$lib/messenger/cache-scope';
 import { appendOlderInbox, keepCachedInbox } from '$lib/messenger/inbox-cache';
-import { markReadThrough, type MessengerReadCount } from '$lib/messenger/messenger-api';
+import { markEveryConversationRead, markReadThrough, type MessengerReadCount } from '$lib/messenger/messenger-api';
 
 export type InboxFilter = 'all' | 'unread';
 
@@ -67,6 +67,11 @@ export class MessengerInboxState {
 		if (!chosen.isUnread) return;
 		this.entries = this.entries.map((entry) => (entry.id === chosen.id ? { ...entry, isUnread: false } : entry));
 		await markReadThrough(chosen.conversationID, chosen.id, chosen.threadRootId);
+	}
+
+	async markAllRead(): Promise<void> {
+		this.entries = this.entries.map((entry) => (entry.isUnread ? { ...entry, isUnread: false } : entry));
+		await markEveryConversationRead();
 	}
 
 	showReadThrough(conversationID: string, threadRootID?: string): void {

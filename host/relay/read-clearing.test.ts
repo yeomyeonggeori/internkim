@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { readClearingOf, readClearingTeller, type ReadClearing } from './read-clearing';
+import { conversationIDsMarkedRead, readClearingOf, readClearingTeller, type ReadClearing } from './read-clearing';
 
 describe('a read conversation', () => {
 	test('is cleared by the tag its message notifications carry', () => {
@@ -20,6 +20,18 @@ describe('a read conversation', () => {
 			memberID: 'member-1',
 			tag: 'message:channel-1'
 		});
+	});
+});
+
+describe('every conversation marked read at once', () => {
+	test('names each conversation the messenger marked', () => {
+		expect(conversationIDsMarkedRead({ conversationIDs: ['channel-1', '', 7, 'channel-2'] })).toEqual(['channel-1', 'channel-2']);
+	});
+
+	test('names none when the answer carries no list', () => {
+		expect(conversationIDsMarkedRead(null)).toEqual([]);
+		expect(conversationIDsMarkedRead({})).toEqual([]);
+		expect(conversationIDsMarkedRead({ conversationIDs: 'channel-1' })).toEqual([]);
 	});
 });
 

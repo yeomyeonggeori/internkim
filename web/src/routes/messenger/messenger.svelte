@@ -714,6 +714,7 @@
 						isOfflineNoticeShown={isCompanyComputerOffline}
 						chosenID={chosenInboxEntryID}
 						choose={chooseInboxEntry}
+						onAllRead={() => refreshConversations('the channel list did not refresh after marking everything read')}
 					>
 						{#snippet leading()}{@render channelListTrigger()}{/snippet}
 					</MessengerInbox>

@@ -253,6 +253,10 @@ export async function markReadThrough(channelID: string, messageID: string, thre
 	await ask('person.read_state.mark', { conversationID: channelID, messageID, parentID: threadRootID });
 }
 
+export async function markEveryConversationRead(): Promise<void> {
+	await ask('person.read_state.mark_all');
+}
+
 export async function announceTyping(channelID: string, threadRootID?: string): Promise<void> {
 	await ask('person.typing.send', { conversationID: channelID, ...(threadRootID ? { parentID: threadRootID } : {}) });
 }

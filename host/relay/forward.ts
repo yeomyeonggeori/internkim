@@ -6,7 +6,7 @@ import { MessengerAnswered } from './person-picture';
 import { reasonOf } from './failure';
 import { chatdRestartWaitMilliseconds, fetchWhenChatdListens } from './chatd-reach';
 import { channelOwnerAddCapability, seatedOwnerOf, type SeatedOwner } from './seated-owner';
-import { readMarkCapability } from './read-clearing';
+import { conversationIDsMarkedRead, readMarkAllCapability, readMarkCapability } from './read-clearing';
 import {
 	channelCreateCapability,
 	createdChannelIDOf,
@@ -311,6 +311,12 @@ async function serveAsActor(
 	if (capability === readMarkCapability) {
 		const marked = await dispatch.askChatd(readMarkCapability, { ...body, actor });
 		if (marked.status < 300) dispatch.conversationRead(memberID, body);
+		return marked;
+	}
+	if (capability === readMarkAllCapability) {
+		const marked = await dispatch.askChatd(readMarkAllCapability, { ...body, actor });
+		if (marked.status >= 300) return marked;
+		for (const conversationID of conversationIDsMarkedRead(marked.body)) dispatch.conversationRead(memberID, { conversationID });
 		return marked;
 	}
 	if (capability === channelCreateCapability) {
