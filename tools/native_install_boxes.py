@@ -107,11 +107,6 @@ NOT_YET = {
     SETUP_SAYS_READY: "pass condition 2: GET /api/company/box says whether each box is ready",
     SHARES_REPORTED: "seeding step 4: a standby keeps its share and reports it",
     SHARES_ON_DISK: "seeding step 4: the store holds the log from the first box on, and no standby keeps a share of it on disk",
-    OLD_BOX_COMMITS_REFUSED: (
-        "pass condition 4, fencing: on the box the company moved from, an insert as its services' role through the "
-        "database URL they held is neither refused nor answered within 30 s; its PostgreSQL still takes the "
-        "connection and the commit waits"
-    ),
     HALF_HELD_IS_FASTER: (
         "seeding step 4: a standby keeps a few pieces of the log on disk after the fill at most, and none in some runs, "
         "so the standby that takes over restores nearly everything from the store as the empty box does, and is no sooner"

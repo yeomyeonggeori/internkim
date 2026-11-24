@@ -338,6 +338,7 @@ func boxDaemon(appURL string) box.Daemon {
 		StandDown:              standDown,
 		StopServices:           stopTheServices,
 		StandUp:                standUp,
+		HandOver:               handOverTheCompany,
 		RestartServices: func() error {
 			return companyhost.RestartTheServices(thisComputer{}, os.Stdout)
 		},

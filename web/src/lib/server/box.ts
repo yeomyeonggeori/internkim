@@ -14,7 +14,12 @@ import {
 	sealedSecretSchema,
 	wifiOutcomeSchema,
 	type AwaitingBox,
+	boxMoveOutcomeSchema,
+	walPositionSchema,
 	type BoxConfiguration,
+	type BoxMove,
+	type BoxMoveOutcome,
+	type LogPosition,
 	type BoxPlacement,
 	type BoxRole,
 	type TakeOver,
@@ -431,12 +436,14 @@ export function holdsCompanyKey(box: BoxRow, keyring: Keyring | null): boolean {
 export async function companyBoxesOf(client: SupabaseClient, companyID: string): Promise<CompanyBoxes> {
 	const [boxes, keyring] = await Promise.all([boxesOfCompany(client, companyID), keyringOf(client, companyID)]);
 	const payer = await modelPayerOf(client, companyID, keyring);
+	const takeOver = await takeOverOf(client, companyID);
 	return {
 		boxes: boxes.map((box) => connectedBoxOf(box, keyring)),
+		move: await moveOfCompany(client, companyID, boxes, takeOver),
 		sealingKey: keyring?.sealingKey ?? null,
 		hasModelKey: Boolean(keyring?.sealedModelKey),
 		newestBackupAt: keyring ? await newestKeptBackupAt(client, companyID, keyring.sealingKey) : null,
-		takeOver: await takeOverOf(client, companyID),
+		takeOver,
 		isServedByConnectionFile: await companyServedByConnectionFile(client, companyID),
 		...payer
 	};
@@ -526,7 +533,7 @@ function documentOf(text: string): unknown {
 	}
 }
 
-const servingOutcomeSchema = z.enum(['serving', 'not_its_box', 'no_backup', 'served_by_connection_file']);
+const servingOutcomeSchema = z.enum(['serving', 'moving', 'not_its_box', 'no_backup', 'served_by_connection_file']);
 
 export type ServingOutcome = z.infer<typeof servingOutcomeSchema>;
 
@@ -534,6 +541,73 @@ export async function makeBoxServe(client: SupabaseClient, companyID: string, pu
 	const { data, error } = await client.rpc('make_box_serve', { serving_company: companyID, box_key: publicKey });
 	if (error) throw new Error(`making box ${publicKey} serve ${companyID}: ${error.message}`);
 	return servingOutcomeSchema.parse(data);
+}
+
+const moveRecordSchema = z.object({
+	from_box: boxKeySchema,
+	to_box: boxKeySchema,
+	asked_at: z.string(),
+	stopped_at: z.string().nullable(),
+	wal_timeline: z.number().int().positive().nullable(),
+	wal_position: walPositionSchema.nullable(),
+	file_entry: z.number().int().nonnegative().nullable()
+});
+
+type MoveRecord = z.infer<typeof moveRecordSchema>;
+
+async function moveRecordOf(client: SupabaseClient, companyID: string): Promise<MoveRecord | null> {
+	const { data, error } = await client
+		.from('box_move')
+		.select('from_box, to_box, asked_at, stopped_at, wal_timeline, wal_position, file_entry')
+		.eq('company_id', companyID)
+		.maybeSingle();
+	if (error) throw new Error(`move of ${companyID}: ${error.message}`);
+	return data ? moveRecordSchema.parse(data) : null;
+}
+
+async function moveOfCompany(client: SupabaseClient, companyID: string, boxes: BoxRow[], takeOver: TakeOver): Promise<BoxMove | null> {
+	const move = await moveRecordOf(client, companyID);
+	if (!move) return null;
+	const lastSeenAt = boxes.find((box) => box.publicKey === move.from_box)?.lastSeenAt ?? null;
+	const target = boxes.find((box) => box.publicKey === move.to_box) ?? null;
+	return {
+		fromBox: move.from_box,
+		toBox: move.to_box,
+		askedAt: move.asked_at,
+		isToBoxListening: hasCheckedInSinceAsked(target, move),
+		stoppedAt: move.stopped_at,
+		fromBoxLapsesAt: lastSeenAt ? new Date(Date.parse(lastSeenAt) + takeOver.lapseSeconds * 1000).toISOString() : null
+	};
+}
+
+export type MoveForBox = { fromBox: string; toBox: string; askedAt: string; stop: LogPosition | null };
+
+async function moveOfBox(client: SupabaseClient, box: BoxRow): Promise<MoveForBox | null> {
+	const move = await moveRecordOf(client, box.companyID);
+	if (!move || (move.from_box !== box.publicKey && move.to_box !== box.publicKey)) return null;
+	if (move.from_box === box.publicKey && !hasCheckedInSinceAsked(await boxOfPublicKey(client, move.to_box), move)) return null;
+	return { fromBox: move.from_box, toBox: move.to_box, askedAt: move.asked_at, stop: stopOf(move) };
+}
+
+function hasCheckedInSinceAsked(target: BoxRow | null, move: MoveRecord): boolean {
+	if (!target?.lastSeenAt) return false;
+	return Date.parse(target.lastSeenAt) >= Date.parse(move.asked_at);
+}
+
+function stopOf(move: MoveRecord): LogPosition | null {
+	if (move.wal_timeline === null || move.wal_position === null) return null;
+	return { walTimeline: move.wal_timeline, walPosition: move.wal_position, fileEntry: move.file_entry };
+}
+
+export async function noteBoxMove(client: SupabaseClient, publicKey: string, position: LogPosition): Promise<BoxMoveOutcome> {
+	const { data, error } = await client.rpc('note_box_move', {
+		box_key: publicKey,
+		stopped_timeline: position.walTimeline,
+		stopped_position: position.walPosition,
+		stopped_entry: position.fileEntry
+	});
+	if (error) throw new Error(`the move of box ${publicKey}: ${error.message}`);
+	return boxMoveOutcomeSchema.parse(data);
 }
 
 async function companyKeepsABackup(client: SupabaseClient, companyID: string): Promise<boolean> {
@@ -620,6 +694,7 @@ export type BoxSession = {
 	boxesAwaitingCompanyKey: AwaitingBox[];
 	keepsBackups: boolean;
 	takeOver: TakeOver;
+	move: MoveForBox | null;
 	serviceLapsesInSeconds: number | null;
 	targetVersion: string | null;
 	restartsToFollowTheModelPayer: boolean;
@@ -650,6 +725,7 @@ export async function boxSessionFor(
 		boxesAwaitingCompanyKey: holdsKey ? await boxesAwaitingCompanyKey(client, box.companyID) : [],
 		keepsBackups: await companyKeepsABackup(client, box.companyID),
 		takeOver: await takeOverOf(client, box.companyID),
+		move: await moveOfBox(client, box),
 		serviceLapsesInSeconds: role === 'standby' ? await secondsUntilTheServiceBoxLapses(client, box.companyID) : null,
 		targetVersion: role === 'standby' ? await targetVersionOf(client, box.companyID) : null,
 		restartsToFollowTheModelPayer: role === 'service' && (await payerChangeWaitsOn(client, box))

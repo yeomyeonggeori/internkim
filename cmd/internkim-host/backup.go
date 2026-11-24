@@ -8,6 +8,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/yeomyeonggeori/internkim/internal/box"
 	"github.com/yeomyeonggeori/internkim/internal/companyhost"
 	"github.com/yeomyeonggeori/internkim/internal/hostbackup"
 	"github.com/yeomyeonggeori/internkim/internal/offsite"
@@ -142,7 +143,15 @@ func takeOverWith(request companyhost.RestoreRequest) error {
 		return errorValue
 	}
 	defer os.Remove(takeOverSessionPath())
-	session, kept, errorValue := claimTheCompanyToTakeOver()
+	session, claim, kept, errorValue := claimTheCompanyToTakeOver()
+	if errorValue != nil {
+		return errorValue
+	}
+	stop, errorValue := whereTheMoveStopped(claim)
+	if errorValue != nil {
+		return errorValue
+	}
+	walStop, errorValue := walThrough(stop)
 	if errorValue != nil {
 		return errorValue
 	}
@@ -159,10 +168,10 @@ func takeOverWith(request companyhost.RestoreRequest) error {
 		return errorValue
 	}
 	request.Replace, request.KeepsThisBox = holdsACompany, true
-	request.BeforeStarting = startingWithTheTakeOverSession(boxDaemon("").Places, session.fresh)
+	request.BeforeStarting = finishingTheMoveFirst(stop, startingWithTheTakeOverSession(boxDaemon("").Places, session.fresh))
 	request.OnceServing = markThisBoxInstalled
 	request.EarlierFinding, request.FindingKept = attempts.finding(), takeOverRetries().keepTheFinding
-	request.RebuildFromWAL, request.ReplayFiles = rebuildTheDatabaseFromKeptWAL(kept), replayTheFileJournal(kept)
+	request.RebuildFromWAL, request.ReplayFiles = rebuildTheDatabaseFromKeptWAL(kept, walStop), replayTheFileJournal(kept, fileEntryThrough(stop))
 	result, errorValue := companyhost.Restore(request, thisComputer{}, os.Stdout)
 	if errorValue != nil {
 		return errorValue
@@ -171,20 +180,20 @@ func takeOverWith(request companyhost.RestoreRequest) error {
 	return takeOverRetries().finishTheTakeOver()
 }
 
-func claimTheCompanyToTakeOver() (takeOverSession, keptOffTheBox, error) {
+func claimTheCompanyToTakeOver() (takeOverSession, box.Session, keptOffTheBox, error) {
 	ask, errorValue := askingForThisBoxClaim()
 	if errorValue != nil {
-		return takeOverSession{}, keptOffTheBox{}, errorValue
+		return takeOverSession{}, box.Session{}, keptOffTheBox{}, errorValue
 	}
 	claim, errorValue := ask(context.Background())
 	if errorValue != nil {
-		return takeOverSession{}, keptOffTheBox{}, fmt.Errorf("asking which company this box takes over: %w", errorValue)
+		return takeOverSession{}, box.Session{}, keptOffTheBox{}, fmt.Errorf("asking which company this box takes over: %w", errorValue)
 	}
 	if errorValue := keepTheTakeOverSession(takeOverSessionPath(), claim.Session.AccessToken); errorValue != nil {
-		return takeOverSession{}, keptOffTheBox{}, fmt.Errorf("keeping the session this box takes the company over with: %w", errorValue)
+		return takeOverSession{}, box.Session{}, keptOffTheBox{}, fmt.Errorf("keeping the session this box takes the company over with: %w", errorValue)
 	}
 	kept, errorValue := keptForTheTakeOver(claim, blueclaw.CompanyHostBoxStatePath, takeOverSessionPath())
-	return takeOverSession{Path: takeOverSessionPath(), Ask: sessionOf(ask)}, kept, errorValue
+	return takeOverSession{Path: takeOverSessionPath(), Ask: sessionOf(confirmingTheLeaseOf(ask, blueclaw.CompanyHostBoxStatePath))}, claim, kept, errorValue
 }
 
 func printRestore(output io.Writer, result companyhost.RestoreResult) {

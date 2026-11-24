@@ -139,6 +139,7 @@ description: "PostgREST가 /rest/v1/rpc로 노출하는 함수 전부와, 누가
 | `my_muted_conversations` | — | `text[]` | definer | authenticated, service_role |
 | `my_notification_settings` | — | `jsonb` | definer | authenticated, service_role |
 | `my_team` | — | `uuid` | definer | anon, authenticated, service_role |
+| `note_box_move` | `box_key text, stopped_timeline integer, stopped_position pg_lsn, stopped_entry bigint` | `text` | definer | service_role |
 | `note_box_seen` | `box_key text, seen_version text` | `text` | definer | service_role |
 | `notification_settings_set` | `chosen jsonb` | `void` | definer | anon, authenticated, service_role |
 | `people_on_task` | `subject uuid` | `uuid[]` | invoker | anon, authenticated, service_role |

@@ -14,6 +14,7 @@ import (
 
 	"github.com/yeomyeonggeori/internkim/internal/box"
 	"github.com/yeomyeonggeori/internkim/internal/companyhost"
+	"github.com/yeomyeonggeori/internkim/internal/filestream"
 	"github.com/yeomyeonggeori/internkim/internal/offsite"
 	"github.com/yeomyeonggeori/internkim/internal/runtime/blueclaw"
 	"github.com/yeomyeonggeori/internkim/internal/walstream"
@@ -174,6 +175,48 @@ func stopTheTakeOver() error {
 		return fmt.Errorf("systemctl stop %s: %v: %s", takeOverUnitName, errorValue, strings.TrimSpace(string(output)))
 	}
 	return nil
+}
+
+func handOverTheCompany(ctx context.Context, session box.Session) (box.LogPosition, error) {
+	if errorValue := stopTheTakeOver(); errorValue != nil {
+		return box.LogPosition{}, errorValue
+	}
+	keepWhatWasWritten := func() error { return keepTheLastFileChanges(ctx) }
+	if errorValue := companyhost.StopForTheMove(thisComputer{}, os.Stdout, keepWhatWasWritten); errorValue != nil {
+		return box.LogPosition{}, errorValue
+	}
+	return whereTheCompanysLogsEnd(ctx, companyDestinationOf(session))
+}
+
+func keepTheLastFileChanges(ctx context.Context) error {
+	if !isActive(blueclaw.CompanyHostFileFollowServiceName) {
+		return nil
+	}
+	asking, cancel := context.WithTimeout(ctx, lastFileChangesWait)
+	defer cancel()
+	return filestream.AskToKeep(asking, blueclaw.CompanyHostFileJournalSocketPath)
+}
+
+const lastFileChangesWait = time.Minute
+
+func isActive(unitName string) bool {
+	return exec.Command("systemctl", "is-active", "--quiet", unitName+".service").Run() == nil
+}
+
+func whereTheCompanysLogsEnd(ctx context.Context, destination offsite.Destination) (box.LogPosition, error) {
+	wal, errorValue := walstream.KeptEnd(ctx, destination)
+	if errorValue != nil {
+		return box.LogPosition{}, fmt.Errorf("reading where the company's WAL ends in the store: %w", errorValue)
+	}
+	stop := box.LogPosition{WALTimeline: wal.Timeline, WALPosition: wal.LSN.String()}
+	entry, hasEntries, errorValue := filestream.Journal{Destination: destination}.Newest(ctx)
+	if errorValue != nil {
+		return box.LogPosition{}, fmt.Errorf("reading where the company's file journal ends in the store: %w", errorValue)
+	}
+	if hasEntries {
+		stop.FileEntry = &entry
+	}
+	return stop, nil
 }
 
 func standUp() error {

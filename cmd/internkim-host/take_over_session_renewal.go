@@ -67,6 +67,16 @@ func (session takeOverSession) fresh() (string, error) {
 	}
 }
 
+func confirmingTheLeaseOf(ask func(context.Context) (box.Session, error), boxStatePath string) func(context.Context) (box.Session, error) {
+	return func(ctx context.Context) (box.Session, error) {
+		claim, errorValue := ask(ctx)
+		if errorValue != nil || claim.Role != box.RoleService {
+			return claim, errorValue
+		}
+		return claim, box.ConfirmTheLease(boxStatePath, time.Now())
+	}
+}
+
 func sessionOf(ask func(context.Context) (box.Session, error)) func(context.Context) (box.HostSession, error) {
 	return func(ctx context.Context) (box.HostSession, error) {
 		claim, errorValue := ask(ctx)

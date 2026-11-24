@@ -54,7 +54,7 @@ type timelineStretch struct {
 	To       pglogrepl.LSN
 }
 
-func planTheReplay(ctx context.Context, kept KeptPieces, backup BaseBackup, keyring box.Keyring) (replayPlan, error) {
+func planTheReplay(ctx context.Context, kept KeptPieces, backup BaseBackup, keyring box.Keyring, through Position) (replayPlan, error) {
 	start, errorValue := backup.FirstWALNeeded()
 	if errorValue != nil {
 		return replayPlan{}, errorValue
@@ -93,7 +93,11 @@ func planTheReplay(ctx context.Context, kept KeptPieces, backup BaseBackup, keyr
 		}
 		plan.Pieces = append(plan.Pieces, covered...)
 	}
-	return plan, nil
+	if through.IsZero() {
+		return plan, nil
+	}
+	plan.Pieces, errorValue = endingAt(plan.Pieces, through)
+	return plan, errorValue
 }
 
 func stretchesFrom(ctx context.Context, kept KeptPieces, keyring box.Keyring, backup BaseBackup, start pglogrepl.LSN, newest int32) ([]timelineStretch, []TimelineHistory, error) {

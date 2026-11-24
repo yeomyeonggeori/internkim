@@ -7,6 +7,7 @@ import (
 	"io"
 	"io/fs"
 	"os"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -122,18 +123,100 @@ func StandDown(machine Machine, progress io.Writer) error {
 }
 
 func StopTheServices(machine Machine, progress io.Writer) error {
-	platform, errorValue := ThisMachine()
+	linux, errorValue := thisLinuxBox("stops its services")
 	if errorValue != nil {
 		return errorValue
 	}
-	linux, isLinux := platform.(linuxPlatform)
-	if !isLinux {
-		return fmt.Errorf("a box stops its services on a Linux host; on %s the company's services are Homebrew's", platform.Describe())
-	}
-	if errorValue := machine.Run("systemctl", append([]string{"disable", "--now"}, linux.companyServiceUnits()...), nil, progress); errorValue != nil {
+	if errorValue := disableNow(machine, linux.companyServiceUnits(), progress); errorValue != nil {
 		return fmt.Errorf("the company's services could not be stopped on this box: %w", errorValue)
 	}
 	return nil
+}
+
+func StopForTheMove(machine Machine, progress io.Writer, keepWhatWasWritten func() error) error {
+	linux, errorValue := thisLinuxBox("stops for a move")
+	if errorValue != nil {
+		return errorValue
+	}
+	return linux.stopForTheMove(machine, progress, keepWhatWasWritten)
+}
+
+func (linux linuxPlatform) stopForTheMove(machine Machine, progress io.Writer, keepWhatWasWritten func() error) error {
+	writers, followers := linux.writersAndFollowers()
+	behind, messenger := apartFromTheMessenger(writers)
+	if errorValue := disableNow(machine, behind, progress); errorValue != nil {
+		return fmt.Errorf("the company's services could not be stopped for the move: %w", errorValue)
+	}
+	if errorValue := disableNow(machine, messenger, progress); errorValue != nil {
+		return fmt.Errorf("the company's messenger could not be stopped for the move: %w", errorValue)
+	}
+	if errorValue := keepWhatWasWritten(); errorValue != nil {
+		return errorValue
+	}
+	if errorValue := disableNow(machine, linux.dataServiceUnits(), progress); errorValue != nil {
+		return fmt.Errorf("the company's database could not be stopped for the move, so it could still take commits the box moved to never sees: %w", errorValue)
+	}
+	if errorValue := disableNow(machine, followers, progress); errorValue != nil {
+		return fmt.Errorf("the followers that keep the company's logs in the store could not be stopped for the move: %w", errorValue)
+	}
+	return nil
+}
+
+func (platform linuxPlatform) writersAndFollowers() ([]string, []string) {
+	followers := []string{blueclaw.CompanyHostWALFollowServiceName + ".service", blueclaw.CompanyHostFileFollowServiceName + ".service"}
+	writers := []string{}
+	for _, unit := range platform.companyServiceUnits() {
+		if !slices.Contains(followers, unit) {
+			writers = append(writers, unit)
+		}
+	}
+	return writers, followers
+}
+
+var messengerUnits = []string{
+	blueclaw.RelayServiceName + ".service",
+	blueclaw.BuzzRelayServiceName + ".service",
+	blueclaw.BuzzMediaServiceName + ".service",
+	blueclaw.BuzzMediaGateServiceName + ".service",
+}
+
+func apartFromTheMessenger(units []string) ([]string, []string) {
+	behind, messenger := []string{}, []string{}
+	for _, unit := range units {
+		if slices.Contains(messengerUnits, unit) {
+			messenger = append(messenger, unit)
+		} else {
+			behind = append(behind, unit)
+		}
+	}
+	return behind, messenger
+}
+
+func (platform linuxPlatform) dataServiceUnits() []string {
+	units := []string{}
+	for _, unit := range blueclaw.CompanyHostDataServiceUnits(platform.Layout()) {
+		units = append(units, unit.FileName())
+	}
+	return units
+}
+
+func disableNow(machine Machine, units []string, progress io.Writer) error {
+	if len(units) == 0 {
+		return nil
+	}
+	return machine.Run("systemctl", append([]string{"disable", "--now"}, units...), nil, progress)
+}
+
+func thisLinuxBox(doing string) (linuxPlatform, error) {
+	platform, errorValue := ThisMachine()
+	if errorValue != nil {
+		return linuxPlatform{}, errorValue
+	}
+	linux, isLinux := platform.(linuxPlatform)
+	if !isLinux {
+		return linuxPlatform{}, fmt.Errorf("a box %s on a Linux host; on %s the company's services are Homebrew's", doing, platform.Describe())
+	}
+	return linux, nil
 }
 
 func forgetTheCurrentCompany() error {
@@ -150,15 +233,12 @@ func HoldsACompany() (bool, error) {
 }
 
 func StandUp(machine Machine, progress io.Writer) error {
-	platform, errorValue := ThisMachine()
+	linux, errorValue := thisLinuxBox("stands up")
 	if errorValue != nil {
 		return errorValue
 	}
-	linux, isLinux := platform.(linuxPlatform)
-	if !isLinux {
-		return fmt.Errorf("a box stands up on a Linux host; on %s the company's services are Homebrew's", platform.Describe())
-	}
-	if errorValue := machine.Run("systemctl", append([]string{"enable", "--now"}, linux.companyServiceUnits()...), nil, progress); errorValue != nil {
+	units := append(linux.dataServiceUnits(), linux.companyServiceUnits()...)
+	if errorValue := machine.Run("systemctl", append([]string{"enable", "--now"}, units...), nil, progress); errorValue != nil {
 		return fmt.Errorf("the company's services could not be started again on this box: %w", errorValue)
 	}
 	return nil

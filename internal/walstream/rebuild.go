@@ -35,13 +35,13 @@ type Rebuilt struct {
 	Pieces     int
 }
 
-func RebuildDataDirectory(ctx context.Context, destination offsite.Destination, keyring box.Keyring, cache offsite.ChunkCache, dataDirectoryPath string) (Rebuilt, error) {
+func RebuildDataDirectory(ctx context.Context, destination offsite.Destination, keyring box.Keyring, cache offsite.ChunkCache, dataDirectoryPath string, through Position) (Rebuilt, error) {
 	backup, errorValue := NewestBaseBackup(ctx, destination)
 	if errorValue != nil {
 		return Rebuilt{}, errorValue
 	}
 	kept := KeptPieces{Destination: destination, SystemID: backup.SystemID}
-	plan, errorValue := planTheReplay(ctx, kept, backup, keyring)
+	plan, errorValue := planTheReplay(ctx, kept, backup, keyring, through)
 	if errorValue != nil {
 		return Rebuilt{}, errorValue
 	}

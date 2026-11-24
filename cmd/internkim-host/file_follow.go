@@ -62,10 +62,10 @@ func serveTheFileJournal(ctx context.Context, kept keptOffTheBox, socketPath str
 	}
 }
 
-func replayTheFileJournal(kept keptOffTheBox) companyhost.FileJournalReplay {
+func replayTheFileJournal(kept keptOffTheBox, through *int64) companyhost.FileJournalReplay {
 	return func(apply companyhost.FileJournalApplier) (int, error) {
 		cache := offsite.ChunkCache{DirectoryPath: filepath.Join(blueclaw.CompanyHostBackupsPath, "file-chunks")}
-		replayed, errorValue := filestream.Journal{Destination: kept.destination}.Replay(context.Background(), kept.keyring, cache, func(entry filestream.Entry, contents io.Reader) error {
+		replayed, errorValue := filestream.Journal{Destination: kept.destination}.ReplayThrough(context.Background(), kept.keyring, cache, through, func(entry filestream.Entry, contents io.Reader) error {
 			return apply(entry.IsFull, entry.Removed, contents)
 		})
 		if errors.Is(errorValue, filestream.ErrNoFullEntry) {
