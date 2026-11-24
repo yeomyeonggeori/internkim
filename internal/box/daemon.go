@@ -25,7 +25,6 @@ const (
 )
 
 var (
-	ErrConnectedByFile   = errors.New("this computer was connected to its company with a connection file")
 	ErrNothingToTakeOver = errors.New("the company keeps no backup this box can open")
 	ErrTakeOverUnderway  = errors.New("this box is restoring the company's newest backup")
 )
@@ -73,14 +72,8 @@ type Daemon struct {
 }
 
 func (daemon Daemon) Run(ctx context.Context) error {
-	if daemon.connectedByFile() && !daemon.isResetAsked() {
-		return ErrConnectedByFile
-	}
 	identity, errorValue := LoadOrCreateIdentity(identityPathIn(daemon.Places.StateDirectoryPath))
 	if errorValue != nil {
-		return errorValue
-	}
-	if errorValue := rememberThisComputerIsABox(daemon.Places.StateDirectoryPath); errorValue != nil {
 		return errorValue
 	}
 	log.Printf("this box is %s", identity.PublicKey())
@@ -366,9 +359,6 @@ func (daemon Daemon) InstallWithConnectionFile(ctx context.Context, connectionKe
 		return "", errorValue
 	}
 	if errorValue := daemon.Client.Claim(ctx, identity, connectionKey); errorValue != nil {
-		return "", errorValue
-	}
-	if errorValue := rememberThisComputerIsABox(daemon.Places.StateDirectoryPath); errorValue != nil {
 		return "", errorValue
 	}
 	session, isClaimed, errorValue := daemon.Client.Session(ctx, identity, daemon.PackageVersion)

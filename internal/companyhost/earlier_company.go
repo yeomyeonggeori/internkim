@@ -129,20 +129,16 @@ func ForgetEveryCompany(machine Machine, progress io.Writer) error {
 	if errorValue != nil {
 		return errorValue
 	}
-	linux, isLinux := platform.(linuxPlatform)
-	if !isLinux {
-		return fmt.Errorf("a computer is emptied of an earlier company on a Linux host; on %s nothing was removed", platform.Describe())
-	}
-	return forgetEveryCompanyOn(linux, companyPlacesOn(linux.Layout()), machine, progress)
+	return forgetEveryCompanyOn(platform, companyPlacesOn(platform.Layout()), machine, progress)
 }
 
-func forgetEveryCompanyOn(platform linuxPlatform, places companyPlaces, machine Machine, progress io.Writer) error {
+func forgetEveryCompanyOn(platform companyHostPlatform, places companyPlaces, machine Machine, progress io.Writer) error {
 	held, _, errorValue := companyDirectoriesIn(filepath.Join(places.StateRootPath, filepath.Base(blueclaw.CompanyHostCompaniesRoot)))
 	if errorValue != nil {
 		return errorValue
 	}
 	fmt.Fprintf(progress, "removing the data of companies %s: their services, people's accounts, %s, the databases set aside by a take-over and %s apart from %s\n", strings.Join(held, ", "), strings.Join(append(append([]string{}, places.RemovedPaths...), places.EmptiedPaths...), ", "), places.StateRootPath, places.KeptInStateRoot)
-	if errorValue := platform.stopEveryCompanyService(machine, progress); errorValue != nil {
+	if errorValue := stopEveryCompanyService(platform, machine, progress); errorValue != nil {
 		return errorValue
 	}
 	if errorValue := forgetThePeople(platform.Layout(), machine); errorValue != nil {
@@ -151,15 +147,11 @@ func forgetEveryCompanyOn(platform linuxPlatform, places companyPlaces, machine 
 	return places.forget()
 }
 
-func (platform linuxPlatform) stopEveryCompanyService(machine Machine, progress io.Writer) error {
-	if errorValue := machine.Run("systemctl", append([]string{"disable", "--now"}, platform.companyServiceUnits()...), nil, progress); errorValue != nil {
+func stopEveryCompanyService(platform companyHostPlatform, machine Machine, progress io.Writer) error {
+	if errorValue := stopTheCompanyServices(platform, machine, progress); errorValue != nil {
 		return fmt.Errorf("the earlier company's services could not be stopped, so nothing was removed: %w", errorValue)
 	}
-	dataUnits := []string{}
-	for _, unit := range blueclaw.CompanyHostDataServiceUnits(platform.Layout()) {
-		dataUnits = append(dataUnits, unit.FileName())
-	}
-	if errorValue := machine.Run("systemctl", append([]string{"stop"}, dataUnits...), nil, progress); errorValue != nil {
+	if errorValue := platform.StopServices(machine, dataServiceNames(), progress); errorValue != nil {
 		return fmt.Errorf("the earlier company's database and cache could not be stopped, so nothing was removed: %w", errorValue)
 	}
 	return nil

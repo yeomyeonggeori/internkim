@@ -1,5 +1,4 @@
 <script lang="ts">
-	import { onMount } from 'svelte';
 	import { Button } from '$lib/components/ui/button';
 	import * as Card from '$lib/components/ui/card';
 	import * as AlertDialog from '$lib/components/ui/alert-dialog';
@@ -22,11 +21,6 @@
 	let isChecking = $state(false);
 	let isReplacing = $state(false);
 	let connection = $state<'unchecked' | 'connected' | 'offline' | 'unavailable'>('unchecked');
-	let isCompanyComputerOnline = $state(false);
-
-	onMount(async () => {
-		isCompanyComputerOnline = await isCompanyAppRunning().catch(() => false);
-	});
 
 	function askForDownload() {
 		if (configuration) return downloadHostConfiguration(configuration);
@@ -51,8 +45,7 @@
 	async function checkConnection() {
 		isChecking = true;
 		try {
-			isCompanyComputerOnline = await isCompanyAppRunning();
-			connection = isCompanyComputerOnline ? 'connected' : 'offline';
+			connection = (await isCompanyAppRunning()) ? 'connected' : 'offline';
 		} catch {
 			connection = 'unavailable';
 		} finally {
@@ -67,7 +60,7 @@
 		<Card.Description>{text.computerDescription}</Card.Description>
 	</Card.Header>
 	<Card.Content class="grid min-w-0 gap-6">
-		<BoxConnection {isCompanyComputerOnline} />
+		<BoxConnection />
 		<Collapsible.Root class="grid gap-4">
 			<Collapsible.Trigger class="inline-flex min-h-11 items-center justify-self-start text-sm underline">{text.otherComputer}</Collapsible.Trigger>
 			<Collapsible.Content class="grid min-w-0 gap-4">

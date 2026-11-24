@@ -514,19 +514,6 @@ func requireFile(t *testing.T, path, contents string, mode os.FileMode) {
 	}
 }
 
-func TestAComputerConnectedWithAFileIsNotAnnouncedAsEmpty(t *testing.T) {
-	plane := &fakePlane{}
-	recorded := &installs{}
-	daemon, places := daemonFor(t, plane, recorded)
-	writeConnectionFile(t, places.ConnectionFilePath, sampleConnectionDocument(t))
-
-	errorValue := daemon.Run(context.Background())
-
-	if !errors.Is(errorValue, ErrConnectedByFile) || plane.announcements != 0 {
-		t.Fatalf("error = %v, announcements = %d", errorValue, plane.announcements)
-	}
-}
-
 func TestAConnectionFileClaimsThisComputerAndInstallsFromItsSession(t *testing.T) {
 	plane := &fakePlane{accessToken: "file.session.token"}
 	recorded := &installs{}
@@ -643,7 +630,7 @@ func installingTheCompanyFiles(t *testing.T, places Places, recorded *installs) 
 	}
 }
 
-func TestAComputerServingOnAConnectionFileRunsAsABoxOnceItsFileClaimsIt(t *testing.T) {
+func TestAComputerItsConnectionFileClaimedRunsAsABox(t *testing.T) {
 	plane := &fakePlane{accessToken: "file.session.token"}
 	recorded := &installs{}
 	daemon, places := daemonFor(t, plane, recorded)

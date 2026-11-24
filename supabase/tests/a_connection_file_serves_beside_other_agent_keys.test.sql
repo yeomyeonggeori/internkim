@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(10);
+select plan(8);
 
 delete from public.company;
 
@@ -43,21 +43,11 @@ select is(
   null,
   'the other agent key is not the claim''s to spend'
 );
-select is(
-  public.company_served_by_connection_file('7d000000-0000-0000-0000-0000000000e1'),
-  false,
-  'and does not make the company look served by a connection file'
-);
 
-select is(
-  public.company_served_by_connection_file('7d000000-0000-0000-0000-0000000000e2'),
-  false,
-  'an agent key a script holds is no connection file serving the company'
-);
 select is(
   public.keep_claimed_box('7d000000-0000-0000-0000-0000000000e2', 'first-box', repeat('m', 43), null, false),
   'service',
-  'so the first box claimed by its code serves'
+  'the first box claimed by its code serves a company whose only key a script holds'
 );
 select is(
   public.make_box_serve('7d000000-0000-0000-0000-0000000000e2', 'first-box'),

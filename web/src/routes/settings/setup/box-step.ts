@@ -11,7 +11,7 @@ export function boxStepOf(boxes: Boxes): BoxStep {
 }
 
 export function isCompanyServed(boxes: CompanyBoxes): boolean {
-	return boxes.boxes.length > 0 || boxes.isServedByConnectionFile;
+	return boxes.boxes.length > 0;
 }
 
 export function shortBoxName(publicKey: string): string {

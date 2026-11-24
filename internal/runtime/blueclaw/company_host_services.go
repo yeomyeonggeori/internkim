@@ -44,6 +44,9 @@ type CompanyHostService struct {
 	// RunsOnceAndStays is a step rather than a daemon: systemd's Type=oneshot
 	// with RemainAfterExit, launchd's LaunchOnlyOnce.
 	RunsOnceAndStays bool
+	// StartsOnlyWhenAsked is systemd's unit with no [Install] section and
+	// launchd's RunAtLoad false.
+	StartsOnlyWhenAsked bool
 	// RestartAfterSeconds is how long the supervisor waits before starting a
 	// crashed process again. Zero means it is not restarted.
 	RestartAfterSeconds int

@@ -45,7 +45,8 @@ from native_install_rig import (  # noqa: E402
     ARCHITECTURE,
     BACKUP_TIMER_NAME,
     BACKUP_UNIT_NAME,
-    TIMED_UNIT_NAMES,
+    STATIC_UNIT_NAMES,
+    TAKE_OVER_UNIT_NAME,
     BACKUPS_DIRECTORY,
     DATA_SERVICE_PATH,
     DATABASE_DATA_DIRECTORY,
@@ -107,7 +108,6 @@ from native_install_rig import (  # noqa: E402
 DEFAULT_PACKAGE_DIRECTORY = Path(".artifacts/native-package")
 ADMIND_UNIT_NAME = "internkim-admind.service"
 AGENT_UNIT_NAME = "blueclaw.service"
-TAKE_OVER_UNIT_NAME = "internkim-take-over.service"
 TAKE_OVER_STATE_COMMAND = "systemctl show -p ActiveState -p Result %s"
 TAKE_OVER_EVIDENCE_COMMAND = r"""
 journalctl -u %(units)s --since @%(since)d --no-pager -o short-precise 2>&1 | tail -n 120
@@ -1243,7 +1243,7 @@ class Rig:
         )
 
     def observe_running_services(self, step):
-        unit_names = [name for name in self.units() if name not in TIMED_UNIT_NAMES]
+        unit_names = [name for name in self.units() if name not in STATIC_UNIT_NAMES]
         states = dict(
             line.split("=", 1)
             for line in self.machine.shell(UNIT_STATE_COMMAND % " ".join(unit_names)).stdout.split()
@@ -2833,7 +2833,7 @@ class Rig:
             "an administrator adds a second box by the code it shows, and the company keeps the first",
             "the answers of the setup page's verification and claim calls, made on the administrator's own "
             "session with the code `internkim box code` printed on the second guest",
-            "the connection file always replaces the company's computer, so adding is only ever the code's path; "
+            "a code is how an administrator adds a box from the setup page; "
             "the record's answer is what the setup page shows the administrator",
         ).record(
             verified_status == 200 and claimed_status == 200,

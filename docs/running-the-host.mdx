@@ -31,17 +31,22 @@ a service exits. Installation finishes once every service answers and the agent
 holds the company's roster, so a member can write to it right away. Then open the
 printed company setup address and choose Check connection.
 
-On Linux the second command claims the computer as one of the company's boxes
+The second command claims the computer as one of the company's boxes
 and spends the file, so the computer signs in with its own key from then on. It
-serves the company. When a box already serves it, the claim is refused and the
-file still stands; add the computer with the code it shows, as below. Run on a computer that already serves the same
+serves a company no box serves, and stands by beside the box that does, as a
+computer added with its code would. Run on a computer that already serves the same
 company, it makes that computer the box in place: its database, workspace,
 secrets, model key, backups and people's accounts stay, and the services restart
 once. A spent file claims nothing, so installing again takes a new one from
-company setup.
+company setup. A Mac serves its company or stands by beside the box that does,
+and does not take the company over. Made to serve while another box held the
+company, whether by an administrator or because that box went quiet, it refuses,
+and `/var/log/internkim/internkim-box.log` says why: a take-over restores the
+company, and restoring runs on Linux.
 
-On Linux the connection file is optional. After the first command alone, the
-computer waits for a company and shows an eight-character code at
+The connection file is optional. After the first command alone on Linux, or
+`sudo internkim install` with no file on a Mac, the computer waits for a
+company and shows an eight-character code at
 `http://<computer>.local:18088/` on its own network; `sudo internkim box code`
 prints the same code. An administrator on that network enters it on the company
 setup page, checks the last four characters of the computer's key, and confirms.
@@ -177,23 +182,22 @@ its port and its data.
 
 ## What the computer has [#what-the-computer-has]
 
-On Linux, the box service `internkim-box` does three things only on a computer
+The box service `internkim-box` does three things only on a Linux computer
 that has what each one needs. A Kim mini has all three. Taking the thing away
 turns its behaviour off.
 
-| The box | when the computer has | Turn it off with |
-|---|---|---|
-| opens a setup Wi-Fi network while it is offline, and joins a network an administrator gives it in company setup | a Wi-Fi device NetworkManager manages | `unmanaged-devices=interface-name:wlan0` under `[keyfile]` in `/etc/NetworkManager/conf.d/` |
-| is named after its company's address once claimed, and `kimmini` again once disconnected | the host name `kimmini`, or the name it last gave, which it keeps in `/var/lib/internkim/box/host-name` | `sudo hostnamectl set-hostname <name>` |
-| sets the password company setup sends for `admin`, and locks it on a reset or when another company claims the box | an `admin` account in `internkim-admin` | `sudo gpasswd --delete admin internkim-admin` |
+| The box | when the computer has | Turn it off with | On a Mac |
+|---|---|---|---|
+| opens a setup Wi-Fi network while it is offline, and joins a network an administrator gives it in company setup | a Wi-Fi device NetworkManager manages | `unmanaged-devices=interface-name:wlan0` under `[keyfile]` in `/etc/NetworkManager/conf.d/` | never, since macOS has no NetworkManager |
+| is named after its company's address once claimed, and `kimmini` again once disconnected | the host name `kimmini`, or the name it last gave, which it keeps in `/var/lib/internkim/box/host-name` | `sudo hostnamectl set-hostname <name>` | never; it keeps the name System Settings gives it |
+| sets the password company setup sends for `admin`, and locks it on a reset or when another company claims the box | an `admin` account in `internkim-admin` | `sudo gpasswd --delete admin internkim-admin` | never; it sets no account's password |
 
 An unmanaged Wi-Fi device is one NetworkManager no longer connects either, so a
 computer online over that device needs another way onto its network first.
 `sudo nmcli device set wlan0 managed no` does the same until NetworkManager
 restarts. The box looks for the Wi-Fi device and the account when it starts, so
 `sudo systemctl restart internkim-box` applies those two changes. It reads the
-host name before every rename. The box never makes a login account itself, and a
-Mac does none of the three.
+host name before every rename. The box never makes a login account itself.
 
 ## Settings
 
@@ -360,7 +364,7 @@ increases their size.
 ## Network access
 
 The host opens outbound connections and listens only on local interfaces. The
-exceptions are a Linux host that belongs to no company yet, which serves its
+exceptions are a host that belongs to no company yet, which serves its
 pairing code on port 18088 until it is claimed, and a box whose setup Wi-Fi
 network is open, which serves the setup page on it. To administer the computer, use
 a shell on the same network or a remote access method your company controls.

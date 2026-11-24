@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(15);
+select plan(11);
 
 delete from public.company;
 
@@ -13,7 +13,7 @@ insert into public.agent (company_id, name, api_key_hash) values
   ('7d000000-0000-0000-0000-0000000000c4', 'company-computer', repeat('b', 64)),
   ('7d000000-0000-0000-0000-0000000000c4', 'another-caller', repeat('c', 64));
 
-select public.keep_claimed_box('7d000000-0000-0000-0000-0000000000c3', 'standing-by', repeat('s', 43), 'kimmini', false);
+select public.keep_claimed_box('7d000000-0000-0000-0000-0000000000c3', 'serving', repeat('s', 43), 'kimmini', false);
 update public.box_keyring
   set sealed_model_key = '{"version":1,"recipient":"sssssssssssssssssssssssssssssssssssssssssss","enc":"e","ciphertext":"c"}'::jsonb
   where company_id = '7d000000-0000-0000-0000-0000000000c3';
@@ -30,13 +30,13 @@ select isnt(
 );
 select is(
   (select role from public.box where public_key = 'computer'),
-  'service',
-  'the computer serves, since no box served beside it'
+  'standby',
+  'the computer stands by beside the box that serves, as one added by its code would'
 );
 select is(
-  (select role from public.box where public_key = 'standing-by'),
-  'standby',
-  'the box that stood by beside it is kept and stands by'
+  (select role from public.box where public_key = 'serving'),
+  'service',
+  'and the box that served keeps serving'
 );
 select is(
   (select sealing_key from public.box_keyring where company_id = '7d000000-0000-0000-0000-0000000000c3'),
@@ -58,31 +58,6 @@ select is(
   public.claim_box_with_connection_file(repeat('a', 64), 'company-computer', 'another-computer', repeat('m', 43)),
   null,
   'a spent connection file claims nothing more'
-);
-
-update public.agent
-  set api_key_hash = repeat('d', 64), revoked_at = null
-  where company_id = '7d000000-0000-0000-0000-0000000000c3' and name = 'company-computer';
-select throws_ok(
-  $$select public.claim_box_with_connection_file(repeat('d', 64), 'company-computer', 'another-computer', repeat('m', 43))$$,
-  '55000',
-  null,
-  'a connection file does not claim a computer into a company a box already serves'
-);
-select is(
-  (select revoked_at from public.agent where api_key_hash = repeat('d', 64)),
-  null,
-  'so the file still stands for the computer that holds it'
-);
-select is(
-  (select count(*)::integer from public.box where public_key = 'another-computer'),
-  0,
-  'and the computer it was installed on is no box of the company'
-);
-select is(
-  (select array_agg(public_key || ':' || role order by public_key) from public.box where company_id = '7d000000-0000-0000-0000-0000000000c3'),
-  array['computer:service', 'standing-by:standby'],
-  'while the boxes of the company keep their roles'
 );
 
 select is(

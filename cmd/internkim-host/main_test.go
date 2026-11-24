@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/yeomyeonggeori/internkim/internal/box"
+	"github.com/yeomyeonggeori/internkim/internal/companyhost"
 )
 
 func TestTheConnectionFileIsFoundWhereverItSitsAmongTheOptions(t *testing.T) {
@@ -39,11 +40,18 @@ func TestTheConnectionFileIsFoundWhereverItSitsAmongTheOptions(t *testing.T) {
 	}
 }
 
-func TestInstallRefusesAnAmbiguousOrMissingConnectionFile(t *testing.T) {
-	for _, arguments := range [][]string{{}, {"--model-key-file", "/key"}, {"one.json", "two.json"}} {
+func TestInstallRefusesAnAmbiguousConnectionFileOrAKeyWithoutOne(t *testing.T) {
+	for _, arguments := range [][]string{{"--model-key-file", "/key"}, {"one.json", "two.json"}} {
 		if _, errorValue := parseInstallArguments(arguments); errorValue == nil {
 			t.Fatalf("%v was accepted", arguments)
 		}
+	}
+}
+
+func TestInstallWithoutAConnectionFileWaitsForACompany(t *testing.T) {
+	parsed, errorValue := parseInstallArguments(nil)
+	if errorValue != nil || parsed != (installArguments{}) {
+		t.Fatalf("an install naming no file parsed as %+v: %v", parsed, errorValue)
 	}
 }
 
@@ -149,9 +157,17 @@ func TestWifiSetupWiresGetOnlineChangeWifiAndScanWifiTogether(t *testing.T) {
 	}
 }
 
-func TestEveryBoxAsksWhetherItsHostNameIsOneInternKimGave(t *testing.T) {
-	if daemon := boxDaemon("https://example.com"); daemon.NameHost == nil {
+func TestABoxThatCanRenameItselfAsksWhetherItsHostNameIsOneInternKimGave(t *testing.T) {
+	abilities := companyhost.BoxAbilities{CanRenameItself: true}
+	if daemon := withWhatThisComputerHas(context.Background(), box.Daemon{}, abilities, "https://example.com", ""); daemon.NameHost == nil {
 		t.Fatal("a box never offers to rename its computer, so a Kim mini keeps kimmini once claimed")
+	}
+}
+
+func TestABoxOnAPlatformWithoutTheMeansSetsUpNoWifiNameOrPassword(t *testing.T) {
+	daemon := withWhatThisComputerHas(context.Background(), box.Daemon{}, companyhost.BoxAbilities{}, "https://example.com", "")
+	if daemon.NameHost != nil || daemon.GetOnline != nil || daemon.ChangeWifi != nil || daemon.SetAdminPassword != nil || daemon.LockAdminPassword != nil {
+		t.Fatalf("a box whose platform reports none of the three still wires one: %+v", daemon)
 	}
 }
 

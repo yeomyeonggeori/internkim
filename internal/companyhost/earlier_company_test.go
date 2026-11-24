@@ -129,10 +129,14 @@ func TestACompanyIsForgottenOnlyAfterItsServicesStopAndItsPeopleAreGone(t *testi
 		t.Fatal(errorValue)
 	}
 
-	if commands := commandsOf(machine); !slices.Equal(commands, []string{"systemctl", "systemctl", "blueclaw-posix-helper"}) {
+	if commands := commandsOf(machine); !slices.Equal(commands, []string{"systemctl", "systemctl", "systemctl", "blueclaw-posix-helper"}) {
 		t.Fatalf("ran %v; the services stop, then the accounts go, and only then the files", commands)
 	}
-	if run := machine.runs[2]; !slices.Equal(run[1:], []string{"forget-projected-identities"}) {
+	verbs := []string{machine.runs[0][1], machine.runs[1][1], machine.runs[2][1]}
+	if !slices.Equal(verbs, []string{"disable", "stop", "stop"}) {
+		t.Fatalf("asked systemd to %v; the company's services are kept from starting and stopped, then its database and cache", verbs)
+	}
+	if run := machine.runs[3]; !slices.Equal(run[1:], []string{"forget-projected-identities"}) {
 		t.Fatalf("the helper was asked %v", run[1:])
 	}
 	if left := entriesOf(t, filepath.Join(root, "workspace")); len(left) != 0 {

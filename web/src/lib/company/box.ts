@@ -163,7 +163,6 @@ export const companyBoxesSchema = z.object({
 	hasModelKey: z.boolean(),
 	newestBackupAt: z.string().nullable(),
 	takeOver: takeOverSchema,
-	isServedByConnectionFile: z.boolean(),
 	creditsCanPayForModels: z.boolean(),
 	usesOwnModelKey: z.boolean(),
 	paidBy: z.enum(shownModelPayers),
