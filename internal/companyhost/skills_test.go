@@ -31,6 +31,7 @@ func skillsLayout(t *testing.T, fixtures map[string]skillFixture) blueclaw.Compa
 		BinaryRoot:         filepath.Join(root, "bin"),
 		LibraryRoot:        filepath.Join(root, "lib"),
 		ProgramDirectories: []string{filepath.Join(root, "bin"), "/usr/bin"},
+		DownloadCachePath:  filepath.Join(root, "cache"),
 	}
 	for name, fixture := range fixtures {
 		scriptsPath := filepath.Join(layout.SkillsPath(), name, "scripts")
@@ -119,7 +120,10 @@ func TestSkillsArePreparedOnWhatEveryPersonsCommandRunsWithNoCacheOfTheirs(t *te
 				t.Fatalf("%v does not run with %s", run, setting)
 			}
 		}
-		for _, name := range []string{"HOME", "XDG_CACHE_HOME", "UV_CACHE_DIR", "BUN_INSTALL_CACHE_DIR", "npm_config_cache"} {
+		if value := settingIn(run, "UV_CACHE_DIR"); value != layout.ResolverCachePath() {
+			t.Fatalf("%v keeps what uv fetched in %q rather than the host's download cache %s", run, value, layout.ResolverCachePath())
+		}
+		for _, name := range []string{"HOME", "XDG_CACHE_HOME", "BUN_INSTALL_CACHE_DIR", "npm_config_cache"} {
 			value := settingIn(run, name)
 			if value == "" || !strings.Contains(value, "internkim-skill-preparation-") {
 				t.Fatalf("%v runs with %s=%q, a directory that outlives this run", run, name, value)
@@ -127,6 +131,21 @@ func TestSkillsArePreparedOnWhatEveryPersonsCommandRunsWithNoCacheOfTheirs(t *te
 			if _, errorValue := os.Stat(value); !os.IsNotExist(errorValue) {
 				t.Fatalf("%s=%s was left behind after the preparation", name, value)
 			}
+		}
+	}
+}
+
+func TestACheckoutsSkillsKeepWhatUvFetchedForThatRunAlone(t *testing.T) {
+	layout := skillsLayout(t, map[string]skillFixture{"dataroom": {hasRuntime: true}})
+	place := layout.BundledSkillsPlace()
+	place.ResolverCachePath = ""
+	machine := &recordedMachine{printed: map[string]string{"env": readySetupAnswer}}
+	if errorValue := prepareSkillsIn(place, machine, &strings.Builder{}); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	for _, run := range runtimeSetupRuns(machine, layout, "dataroom") {
+		if value := settingIn(run, "UV_CACHE_DIR"); !strings.Contains(value, "internkim-skill-preparation-") {
+			t.Fatalf("%v keeps a checkout's downloads in %q, which outlives the run", run, value)
 		}
 	}
 }

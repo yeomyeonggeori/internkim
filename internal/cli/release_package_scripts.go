@@ -94,7 +94,7 @@ func preRemoveBody(format linuxPackageFormat) string {
 func postRemoveBody(format linuxPackageFormat) string {
 	lines := []string{
 		`if ` + format.RemovalTest("postrm") + `; then`,
-		`  rm -rf ` + packageLayout.PythonRoot() + ` ` + packageLayout.DocumentVirtualEnvironmentPath() + ` ` + packageLayout.SkillsPath(),
+		`  rm -rf ` + packageLayout.PythonRoot() + ` ` + packageLayout.DocumentVirtualEnvironmentPath() + ` ` + packageLayout.SkillsPath() + ` ` + packageLayout.DownloadCachePath,
 		`fi`,
 		``,
 	}

@@ -56,6 +56,11 @@ type CompanyHostLayout struct {
 	// which directory and which name differ between distributions.
 	DatabaseProgramDirectory string
 	CacheProgramDirectory    string
+	// DownloadCachePath keeps what the install step fetched, so the next install
+	// or upgrade fetches only what changed. Only the account that runs the install
+	// step uses it: no person's command is given it, and everything taken from it
+	// is checked against the hash its lock records.
+	DownloadCachePath string
 }
 
 // The macOS workspace is a sibling of the state root rather than a child, for
@@ -92,6 +97,7 @@ func LinuxCompanyHostLayout() CompanyHostLayout {
 
 		DatabaseSocketDirectory: CompanyHostDatabaseSocketDirectory,
 		CacheSocketPath:         CompanyHostCacheSocketPath,
+		DownloadCachePath:       CompanyHostDownloadCachePath,
 	}
 }
 
@@ -137,6 +143,7 @@ func MacCompanyHostLayout(homebrewPrefix string) CompanyHostLayout {
 		DatabaseLoopbackAddress:  macDatabaseLoopbackAddress,
 		DatabaseProgramDirectory: HomebrewFormulaProgramDirectory(prefix, HomebrewDatabaseFormula),
 		CacheProgramDirectory:    HomebrewFormulaProgramDirectory(prefix, HomebrewCacheFormula),
+		DownloadCachePath:        prefix + "/var/cache/" + CompanyPackageName,
 	}
 }
 

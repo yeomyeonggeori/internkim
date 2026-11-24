@@ -207,9 +207,10 @@ func bundledSkillsIn(skillsPath string) ([]bundledSkill, error) {
 
 // The skills are prepared on the interpreter and the programs every person's
 // command is given, so what a setup builds is something they can run. HOME,
-// the cache home and the download caches are this run's alone and go with it,
-// so a setup cannot lean on a cache blueclaw hands a person, and only what it
-// keeps beside the skill stays.
+// the cache home and bun's and npm's caches are this run's alone and go with
+// it, so a setup cannot lean on a cache blueclaw hands a person, and only what
+// it keeps beside the skill stays. uv's cache is the host's download cache,
+// which no person is handed, so the next install fetches only what changed.
 func skillPreparationEnvironment(place blueclaw.BundledSkillsPlace, scratchPath string) ([]string, error) {
 	homePath := filepath.Join(scratchPath, "home")
 	if errorValue := os.MkdirAll(homePath, 0o755); errorValue != nil {
@@ -219,12 +220,19 @@ func skillPreparationEnvironment(place blueclaw.BundledSkillsPlace, scratchPath 
 		"PATH=" + place.SearchPath,
 		"HOME=" + homePath,
 		"XDG_CACHE_HOME=" + filepath.Join(scratchPath, "cache"),
-		"UV_CACHE_DIR=" + filepath.Join(scratchPath, "uv"),
+		"UV_CACHE_DIR=" + resolverCachePath(place, scratchPath),
 		"UV_PYTHON_DOWNLOADS=never",
 		"UV_COMPILE_BYTECODE=1",
 		"BUN_INSTALL_CACHE_DIR=" + filepath.Join(scratchPath, "bun"),
 		"npm_config_cache=" + filepath.Join(scratchPath, "npm"),
 	}, nil
+}
+
+func resolverCachePath(place blueclaw.BundledSkillsPlace, scratchPath string) string {
+	if place.ResolverCachePath == "" {
+		return filepath.Join(scratchPath, "uv")
+	}
+	return place.ResolverCachePath
 }
 
 func prepareSkill(place blueclaw.BundledSkillsPlace, skill bundledSkill, environment []string, runner SkillSetupRunner, progress io.Writer) error {

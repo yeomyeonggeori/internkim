@@ -47,13 +47,42 @@ class GuestPackageCacheTests(unittest.TestCase):
 
     def test_every_guest_mounts_the_one_cache_its_image_and_architecture_share(self):
         cache = self.directory() / "debian"
-        machine = rig.Machine("guest", self.directory(), package_cache_directory=cache)
+        machine = rig.Machine("guest", self.directory(), package_cache_directory=cache, download_cache_directory=self.directory() / "downloads")
         with unittest.mock.patch.object(rig, "checked") as ran:
             machine.create()
         created = ran.call_args_list[0].args[0]
         self.assertIn(f"{cache}:{rig.GUEST_PACKAGE_CACHE_PATH}", created)
         self.assertEqual(rig.package_cache_for("debian:trixie-slim"), rig.package_cache_for("debian:trixie-slim"))
         self.assertNotEqual(rig.package_cache_for("debian:trixie-slim"), rig.package_cache_for("ubuntu:24.04"))
+
+    def test_every_guest_keeps_what_its_install_step_downloads_where_the_host_keeps_it(self):
+        downloads = self.directory() / "downloads"
+        machine = rig.Machine("guest", self.directory(), package_cache_directory=self.directory(), download_cache_directory=downloads)
+        with unittest.mock.patch.object(rig, "checked") as ran:
+            machine.create()
+        created = ran.call_args_list[0].args[0]
+        self.assertIn(f"{downloads}:{rig.GUEST_DOWNLOAD_CACHE_PATH}", created)
+        self.assertEqual(rig.DOWNLOAD_CACHE_DIRECTORY.parent, rig.PACKAGE_CACHE_ROOT.parent)
+
+    def test_the_download_cache_is_dropped_whole_once_unused_or_past_its_limit(self):
+        now = 2_000_000_000
+
+        def downloads(size, age):
+            directory = self.directory() / "downloads"
+            (directory / "uv" / "archive-v0").mkdir(parents=True)
+            (directory / "uv" / "archive-v0" / "wheel").write_bytes(b"x" * size)
+            marker = directory / rig.DOWNLOAD_CACHE_USE_MARKER
+            marker.touch()
+            os.utime(marker, (now - age, now - age))
+            return directory
+
+        kept, unused, full = downloads(10, 60), downloads(10, rig.PACKAGE_CACHE_LONGEST_AGE_SECONDS + 1), downloads(200, 60)
+        for directory in (kept, unused, full):
+            rig.prune_download_cache(directory, now=now, limit_bytes=100)
+
+        self.assertTrue((kept / "uv" / "archive-v0" / "wheel").exists())
+        self.assertFalse((unused / "uv").exists() or (full / "uv").exists())
+        self.assertEqual((unused / rig.DOWNLOAD_CACHE_USE_MARKER).stat().st_mtime, now)
 
     def test_the_hooks_are_in_place_before_the_guest_first_asks_apt_for_anything(self):
         script = rig.BOOTSTRAP_SCRIPT
@@ -577,6 +606,7 @@ class WhatThePackageCarriesHasOneSpelling(unittest.TestCase):
     def test_the_paths_the_rig_reads_are_the_ones_the_package_installs(self):
         driver = load_driver()
         self.assertEqual(rig.HOST_PYTHON_VERSION, self.declared("host_python.go", "HostPythonVersion"))
+        self.assertEqual(rig.GUEST_DOWNLOAD_CACHE_PATH, self.declared("company_host_package.go", "CompanyHostDownloadCachePath"))
         library = self.declared("company_host_package.go", "CompanyPackageLibraryRoot")
         layout = self.blueclaw_source("company_host_layout.go")
         for path in rig.DOCUMENT_ENVIRONMENT_PATHS:
