@@ -274,20 +274,21 @@ class OrderTest(unittest.TestCase):
             commands.matching("gh release download")[0],
             commands.matching("test-native-install")[0],
             commands.matching("--people-upgrade")[0],
-            commands.matching("--several-boxes")[0],
+            commands.matching("--boxes")[0],
             commands.matching("install.sh")[0],
             commands.matching("NRestarts")[-1],
             commands.matching("--channel stable")[0],
         ]
         self.assertEqual(positions, sorted(positions))
 
-    def test_the_several_boxes_rig_takes_over_on_the_release_alone(self):
+    def test_the_boxes_rig_runs_on_the_release_alone(self):
         commands = ScriptedCommands()
         with tempfile.TemporaryDirectory() as directory:
             ship_quietly(shipment_with(commands, directory=directory))
-        several_boxes = commands.calls[commands.matching("--several-boxes")[0]]
-        self.assertIn(NEW_TAG, " ".join(several_boxes))
-        self.assertNotIn("--older-package-directory", several_boxes)
+        boxes_rig = commands.calls[commands.matching("--boxes")[0]]
+        self.assertIn("--package-directory", boxes_rig)
+        self.assertIn(NEW_TAG, boxes_rig[boxes_rig.index("--package-directory") + 1])
+        self.assertNotIn("--older-package-directory", boxes_rig)
         self.assertIn("--older-package-directory", commands.calls[commands.matching("--people-upgrade")[0]])
 
     def test_skip_host_leaves_the_release_on_testing(self):

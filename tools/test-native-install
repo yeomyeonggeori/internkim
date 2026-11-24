@@ -199,10 +199,6 @@ journalctl -u %(box)s --no-pager -n 200 2>/dev/null | grep -i 'browser work' | t
 
 RELAY_JOURNAL_COMMAND = "journalctl -u %(unit)s --no-pager -n 25 2>/dev/null"
 
-KEPT_UP_COMMAND = r"""
-journalctl -u %(box)s --no-pager -n 400 2>/dev/null | grep -E 'this box holds|keeping up with' | tail -3
-"""
-
 # A host whose install has just returned on a release without the roster wait:
 # the agent has started on the roster the prepare step writes, which names no
 # people because none has been handed over, and admind
@@ -249,30 +245,6 @@ LIST_PEOPLE_COMMAND = f"ls -1 {PEOPLE_DIRECTORY} 2>/dev/null"
 EARLIER_COMPANY_MARK_PATH = "/workspace/shared/left-by-the-earlier-company"
 PROJECTED_ACCOUNTS_COMMAND = "getent passwd | cut -d: -f1 | grep '^bc_person_' | sort"
 HELD_COMPANIES_COMMAND = f"ls -1 {STATE_DIRECTORY}/companies 2>/dev/null"
-EARLIER_COMPANY_CONVERSATION = "rig-earlier-company-conversation"
-EARLIER_COMPANY_ROW_COUNT = "select count(*) from conversation where display_name = '%(phrase)s';"
-TAKE_OVER_RETRY_PATH = "/var/lib/internkim/box/take-over-retry.json"
-WORKSPACE_DIRECTORY = "/workspace"
-CACHE_DATA_DIRECTORY = "/var/lib/internkim-cache"
-WHAT_A_BOX_HOLDS_COMMAND = r"""
-system_of() { od -An -tu8 -N8 "$1/global/pg_control" 2>/dev/null | tr -d ' '; }
-printf 'companies=%%s\n' "$(ls -1 %(state)s/companies 2>/dev/null | tr '\n' ' ')"
-printf 'current=%%s\n' "$(test -e %(state)s/current && echo present || echo absent)"
-printf 'mark=%%s\n' "$(test -e %(mark)s && echo present || echo absent)"
-printf 'workspace-entries=%%s\n' "$(ls -A %(workspace)s 2>/dev/null | wc -l | tr -d ' ')"
-printf 'database-entries=%%s\n' "$(ls -A %(database)s 2>/dev/null | wc -l | tr -d ' ')"
-printf 'database-system=%%s\n' "$(system_of %(database)s)"
-printf 'set-aside-databases=%%s\n' "$(for copy in %(database)s.before-take-over-*; do test -d "$copy" && echo "$(basename "$copy"):$(system_of "$copy")"; done | tr '\n' ' ')"
-printf 'cache-entries=%%s\n' "$(ls -A %(cache)s 2>/dev/null | wc -l | tr -d ' ')"
-printf 'safety-backups=%%s\n' "$(ls -1 %(backups)s 2>/dev/null | grep -c '^internkim-backup-.*\.tar$' || true)"
-printf 'backup-files=%%s\n' "$(ls -1 %(backups)s 2>/dev/null | grep -v '^standby-chunks$' | tr '\n' ' ')"
-printf 'retry-record=%%s\n' "$(test -e %(retry)s && echo present || echo absent)"
-printf 'accounts=%%s\n' "$(getent passwd | cut -d: -f1 | grep '^bc_person_' | tr '\n' ' ')"
-printf 'circle-groups=%%s\n' "$(getent group | cut -d: -f1 | grep '^bc_circle_' | tr '\n' ' ')"
-printf 'configuration-files=%%s\n' "$(ls -1 %(configuration)s 2>/dev/null | tr '\n' ' ')"
-printf 'relay-key-digest=%%s\n' "$(sha256sum %(configuration)s/agent-key 2>/dev/null | cut -c1-16)"
-"""
-
 DATABASE_IDENTIFIER_COMMAND = (
     f"runuser -u {DATABASE_USER} -- {DATA_SERVICE_PATH} psql --dbname blueclaw --tuples-only --no-align --command "
     '"select system_identifier from pg_control_system()"'
@@ -320,12 +292,6 @@ HOST_SOCKET_COMMAND = r"""
 pid="$(systemctl show %(unit)s -p MainPID --value 2>/dev/null)"
 printf 'serverkey=%%s\n' "$(tr '\0' '\n' < /proc/${pid:-0}/environ 2>/dev/null | grep -c '^GATEWAY_SERVER_KEY=' || true)"
 printf 'connected=%%s\n' "$(journalctl -u %(unit)s --no-pager -n 500 2>/dev/null | grep -c 'gateway connected for company %(company)s' || true)"
-"""
-
-WAL_FOLLOW_UNIT_NAME = "internkim-wal-follow"
-
-KEPT_WAL_COMMAND = r"""
-journalctl -u %(unit)s --no-pager -n 200 2>&1 | grep -E 'following the company|kept the base backup|keeping a base backup' || systemctl status %(unit)s --no-pager 2>&1 | tail -20
 """
 
 # The messenger keeps its own store on the company's machine, and a message that
@@ -480,48 +446,6 @@ APT_PROGRESS = ("(Reading database", "Selecting previously", "Adding 'diversion"
 
 MESSENGER_PICTURE_SOURCE = Path(__file__).resolve().parent / "native_install_assets" / messenger.PICTURE_NAME
 LONGEST_WAIT_FOR_THE_AGENT_SECONDS = 600
-
-
-def what_a_box_holds(reading):
-    """The key=value lines WHAT_A_BOX_HOLDS_COMMAND prints, as a dictionary."""
-    held = {}
-    for line in reading.splitlines():
-        key, separator, value = line.partition("=")
-        if separator:
-            held[key.strip()] = value.strip()
-    return held
-
-
-def holds_nothing_of(held, earlier, is_standing_by):
-    """Whether what a box holds carries nothing of the company it served before.
-
-    earlier carries the company_id, the system identifier of its database under database, and
-    under held what the box held, in the same shape, when that company disconnected it. A
-    circle's group is named after the circle, which two companies may both have, so only a
-    standby is required to hold none.
-    """
-    def shared(key):
-        return set(held.get(key, "").split()) & set(earlier["held"].get(key, "").split())
-
-    if earlier["company_id"] in held.get("companies", "").split():
-        return False
-    if any(shared(key) for key in ("companies", "accounts", "backup-files")):
-        return False
-    set_aside_systems = {entry.rpartition(":")[2] for entry in held.get("set-aside-databases", "").split()}
-    if earlier["database"] in set_aside_systems | {held.get("database-system", "")}:
-        return False
-    earlier_key = earlier["held"].get("relay-key-digest", "")
-    if earlier_key and held.get("relay-key-digest") == earlier_key:
-        return False
-    if held.get("mark") != "absent" or held.get("safety-backups") != "0" or held.get("retry-record") != "absent":
-        return False
-    if not is_standing_by:
-        return True
-    held_only_for_a_company = ("companies", "accounts", "circle-groups", "set-aside-databases", "backup-files", "relay-key-digest", "database-system")
-    if any(held.get(key, "") for key in held_only_for_a_company):
-        return False
-    counted = ("workspace-entries", "database-entries", "cache-entries")
-    return held.get("current") == "absent" and all(held.get(key) == "0" for key in counted)
 
 
 def message_asking_for_an_answer(occasion):
@@ -740,7 +664,6 @@ class Rig:
         self.plane = None
         self.plane_application_port = free_port()
         self.company_id = ""
-        self.earlier_company_id = ""
         self.package_under_test = None
         self.message_text = message_asking_for_an_answer("")
         self.remembered_phrase = f"rig remembers {uuid.uuid4().hex[:12]}"
@@ -749,7 +672,6 @@ class Rig:
         self.archive_path = None
         self.source_ownership = ""
         self.restored_machine = None
-        self.second_machine = None
         self.sent_messages = []
         self.files_command = f"dpkg-query -L {PACKAGE_NAME}"
         self.is_an_upgrade = False
@@ -1776,59 +1698,6 @@ class Rig:
             MESSENGER_DATABASE_PATH,
         )
 
-    def run_several_boxes(self, after_another_company=False):
-        """A second box joins the company, keeps up, and takes over when the first goes dark."""
-        step = self.step(13, "a second box joins the company, keeps up with it and takes over when the first goes dark")
-        self.start_the_plane()
-        self.give_the_guest_a_company(step, self.plane)
-        self.observe_running_services(step)
-        self.observe_the_host_holds_the_gateway_socket(step)
-        self.message_text = message_asking_for_an_answer("before a second box joins")
-        self.observe_the_member_round_trip(step, self.plane)
-        first, first_key = self.machine, self.box_key_of(self.machine)
-
-        second = self.start_a_second_machine()
-        earlier = self.serve_another_company_first(step, second) if after_another_company else None
-        second_key = self.join_as_an_added_box(step, second)
-        self.observe_the_roles(step, {first_key: "service", second_key: "standby"}, "after the second box joined")
-        self.observe_a_standby(step, second)
-        if earlier:
-            with self.driving(second, self.files_command):
-                self.observe_what_the_box_holds_of(step, earlier, "after it joined as a standby", is_standing_by=True)
-        self.observe_the_standby_takes_work(step, second)
-        spread = self.leave_a_spread_of_files(step)
-        self.keep_a_snapshot(step)
-        at_backup = self.manifest_of_the_company_files("at-the-backup")
-        self.observe_the_standby_keeps_up(step, second)
-        self.observe_the_company_keeps_wal(step)
-        self.message_text = message_asking_for_an_answer("after the newest snapshot, just before the first box goes dark")
-        self.observe_the_member_round_trip(step, self.plane)
-        before_dark = self.manifest_of_the_company_files("before-going-dark")
-
-        first.power_off()
-        self.take_over_with(step, second, second_key)
-        with self.driving(second, self.files_command):
-            self.observe_every_file_came_across(step, at_backup, before_dark)
-            self.observe_the_access_walls(step, spread)
-            self.observe_running_services(step)
-            self.observe_the_message_came_across(step)
-            self.observe_the_message_came_across(step, newest=True)
-            self.observe_the_host_holds_the_gateway_socket(step)
-            self.observe_the_connection_carries_the_session(step, second_key)
-            if earlier:
-                self.observe_nothing_of_the_earlier_company(step, earlier["company_id"], earlier)
-                self.observe_what_the_box_holds_of(step, earlier, "after it took the company over", is_standing_by=False)
-                self.observe_the_earlier_companys_row_is_not_in_the_database(step, earlier)
-                self.observe_the_earlier_companys_backups_are_untouched(step, earlier)
-            self.message_text = message_asking_for_an_answer("after the second box took over")
-            self.observe_the_member_round_trip(step, self.plane)
-
-        first.power_on()
-        self.plane.reach_the_record_from(first)
-        self.observe_the_roles(step, {first_key: "standby", second_key: "service"}, "after the first box came back")
-        with self.driving(first, self.files_command):
-            self.observe_a_standby(step, first, timeout_seconds=600)
-
     def run_boxes(self):
         """Three boxes from one install keep the company through a power cut and a move, and more of them restore it sooner."""
         step = self.step(15, "three boxes from one install keep the company through a power cut and a move, faster with more")
@@ -1936,6 +1805,13 @@ class Rig:
             f"`systemctl is-active` of the company's units and {BOX_UNIT_NAME} on boxes B and C",
             "two boxes running the company's agent and messenger at once is the split the lease exists to prevent",
             lambda scratch: [self.observe_a_standby(scratch, machine, timeout_seconds=600) for machine in (second, third)],
+        )
+        self.folded_observation(
+            step,
+            boxes.STANDBYS_TAKE_WORK,
+            f"established TCP connections from the {BOX_UNIT_NAME} process on boxes B and C to the gateway's port, and what it logged about browser work",
+            "the gateway gives work only to a box that holds this socket and has said how much room it has",
+            lambda scratch: [self.observe_the_standby_takes_work(scratch, machine) for machine in (second, third)],
         )
         self.observe_every_box_ready(step)
         self.observe_the_shares(step, {"B": second, "C": third})
@@ -2054,7 +1930,22 @@ class Rig:
                 "a mode that reads right can still be enforced by an owner the take-over renumbered",
                 lambda scratch: self.observe_the_access_walls(scratch, spread),
             )
+            self.folded_observation(
+                step,
+                boxes.SESSION_OF_ITS_OWN,
+                f"the fleet of the agent key in {STATE_DIRECTORY}/current/connection.json on the box that took over, and whether it is the session that box keeps in secrets/agent-key",
+                "a connection file left on the served box's key hands that box's session to whatever reads it next",
+                lambda scratch: self.observe_the_connection_carries_the_session(scratch, self.box_key_of(successor)),
+            )
             self.observe_the_schedule_runs(step, schedule_id, powered_off)
+            self.message_text = message_asking_for_an_answer("after a standby took the company over")
+            self.folded_observation(
+                step,
+                boxes.MEMBER_ANSWERED,
+                "a member's round trip to the agent on the box that took over, through the browser path and the gateway",
+                "messages kept in the messenger are what the take-over carried; an answer is the company working on its new box",
+                lambda scratch: self.observe_the_member_round_trip(scratch, self.plane),
+            )
         return successor
 
     def take_over_reading_while_the_agent_is_held(self, step, standbys, powered_off):
@@ -2509,6 +2400,7 @@ class Rig:
         for machine in dead:
             machine.power_on()
             self.plane.reach_the_record_from(machine)
+        self.observe_the_powered_boxes_stand_by(step, dead)
         live = [machine for machine in self.box_machines if machine.container_state() == "running"]
         self.observe_the_store_link_limited(step, live)
         self.fill_the_company(serving)
@@ -2542,6 +2434,35 @@ class Rig:
             "more boxes holding pieces is the claim; the clock on the take-over is what a company feels",
             judge,
         )
+
+    def observe_the_powered_boxes_stand_by(self, step, machines):
+        def observe(scratch):
+            for machine in machines:
+                self.observe_the_role(scratch, machine, "standby", "after it came back")
+                self.observe_a_standby(scratch, machine, timeout_seconds=600)
+
+        self.folded_observation(
+            step,
+            boxes.POWERED_BOX_STANDS_BY,
+            f"the role GET /api/company/box lists for the box whose power went, and `systemctl is-active` of the company's units and {BOX_UNIT_NAME} on it",
+            "a box that comes back serving runs the company a second time beside the box that took it over",
+            observe,
+        )
+
+    def observe_the_role(self, step, machine, expected, occasion, timeout_seconds=600):
+        key = self.box_key_of(machine)
+        deadline = time.monotonic() + timeout_seconds
+        while True:
+            held = self.boxes_in_the_record()
+            role = next((box["role"] for box in held.get("boxes", []) if box["publicKey"] == key), "unlisted")
+            if role == expected or time.monotonic() > deadline:
+                break
+            time.sleep(10)
+        step.observe(
+            f"the record names {machine.name} {expected} {occasion}",
+            "the role of that box the setup page lists for the company",
+            "the record is what every box reads to decide which of them serves",
+        ).record(role == expected, json.dumps(held)[:1200])
 
     def pieces_held_by(self, machine):
         listed = machine.shell(f"find {STANDBY_PIECES_DIRECTORY} -type f 2>/dev/null | wc -l").stdout.strip()
@@ -2661,69 +2582,6 @@ class Rig:
         recorded = {observation.name: observation.passed for step in self.steps for observation in step.observations}
         return boxes.judge(recorded)
 
-    def serve_another_company_first(self, step, second):
-        """The second box serves another seeded company, then that company disconnects it."""
-        company_id, administrator_email = self.company_id, self.plane.administrator_email
-        self.plane.administrator_email = self.plane.administrator_of_another_company(company_id)
-        with self.driving(second, self.files_command):
-            self.give_the_guest_a_company(step, self.plane)
-            self.earlier_company_id = self.company_id
-            earlier = self.leave_the_marks_of_a_company(step)
-            phrase = f"left by the earlier company {uuid.uuid4().hex}"
-            written = self.machine.shell(in_the_agents_database(REMEMBERED_ROW % {"conversation": EARLIER_COMPANY_CONVERSATION, "phrase": phrase}))
-            if written.returncode != 0:
-                raise RigFailure(f"the earlier company's row could not be written: {written.stdout.strip()[-300:]}")
-            self.disconnect_the_box(step)
-            earlier["held"] = self.what_the_box_holds()[1]
-        earlier.update({"company_id": self.earlier_company_id, "phrase": phrase, "plane_objects": len(self.plane.stored_backup_paths(self.earlier_company_id + "/"))})
-        self.plane.forget_the_company_computer(self.earlier_company_id)
-        self.company_id, self.plane.administrator_email = company_id, administrator_email
-        return earlier
-
-    def what_the_box_holds(self):
-        reading = self.machine.shell(
-            WHAT_A_BOX_HOLDS_COMMAND
-            % {
-                "state": STATE_DIRECTORY,
-                "mark": EARLIER_COMPANY_MARK_PATH,
-                "workspace": WORKSPACE_DIRECTORY,
-                "database": DATABASE_DATA_DIRECTORY,
-                "cache": CACHE_DATA_DIRECTORY,
-                "backups": BACKUPS_DIRECTORY,
-                "retry": TAKE_OVER_RETRY_PATH,
-                "configuration": CONFIGURATION_DIRECTORY,
-            }
-        )
-        return reading.stdout.strip(), what_a_box_holds(reading.stdout)
-
-    def observe_what_the_box_holds_of(self, step, earlier, when, is_standing_by):
-        reading, held = self.what_the_box_holds()
-        step.observe(
-            f"the box holds nothing of the company it served before, {when}",
-            f"the directories under {STATE_DIRECTORY}/companies, {EARLIER_COMPANY_MARK_PATH}, {WORKSPACE_DIRECTORY}, "
-            f"{DATABASE_DATA_DIRECTORY} and the system identifier of every copy a take-over set beside it, "
-            f"{CACHE_DATA_DIRECTORY}, the files under {BACKUPS_DIRECTORY}, {TAKE_OVER_RETRY_PATH}, the bc_person_ accounts, "
-            f"the bc_circle_ groups and the relay key under {CONFIGURATION_DIRECTORY}, against what the box held when the "
-            "earlier company disconnected it",
-            "a box that kept another company's files, accounts, database, backups or key hands them to the company it serves next",
-        ).record(holds_nothing_of(held, earlier, is_standing_by), f"{reading}\nwhen disconnected: {json.dumps(earlier['held'])}")
-
-    def observe_the_earlier_companys_row_is_not_in_the_database(self, step, earlier):
-        counted = self.machine.shell(in_the_agents_database(EARLIER_COMPANY_ROW_COUNT % {"phrase": earlier["phrase"]}))
-        step.observe(
-            "the database the box took over holds nothing the earlier company wrote",
-            "the rows of the taken-over agent database whose name is the phrase written into the earlier company's database",
-            "a take-over that kept the earlier company's database would answer this company's people from it",
-        ).record(counted.returncode == 0 and counted.stdout.strip() == "0", counted.stdout.strip()[-300:] or "no answer")
-
-    def observe_the_earlier_companys_backups_are_untouched(self, step, earlier):
-        now = len(self.plane.stored_backup_paths(earlier["company_id"] + "/"))
-        step.observe(
-            "the earlier company's backups on the plane are left as they were",
-            f"the objects under box_backup/{earlier['company_id']}/ before the box joined this company and after it took it over",
-            "a box that removed or rewrote another company's backups would destroy what that company keeps",
-        ).record(now == earlier["plane_objects"], f"before: {earlier['plane_objects']}\nafter: {now}")
-
     def run_another_company(self):
         """A box one company disconnects and another connects holds nothing of the first."""
         step = self.step(14, "a box another company connects holds nothing of the company before it")
@@ -2809,22 +2667,6 @@ class Rig:
         )
         return reading.stdout.strip()
 
-    def start_a_second_machine(self):
-        share = self.working_directory / "second-share"
-        (share / "scripts").mkdir(parents=True, exist_ok=True)
-        second = Machine(
-            self.options.name + "-second", share, kernel_image_path=self.options.kernel, distribution=self.options.distribution
-        )
-        second.preflight()
-        second.create()
-        self.second_machine = second
-        second.wait_until_running()
-        with self.driving(second, self.files_command):
-            self.install_declared_dependencies(self.package_under_test)
-        second.checked_shell(self.install_line(second), timeout_seconds=2400)
-        self.plane.reach_the_record_from(second)
-        return second
-
     def join_as_an_added_box(self, step, machine, intent="add"):
         """What an administrator does with a box that shows a code: verify it, then add it or let it replace the rest."""
         public_key = self.box_key_of(machine)
@@ -2869,21 +2711,6 @@ class Rig:
         status, answer = self.plane.ask_as_administrator("GET", "/api/company/box")
         return answer if status == 200 else {"boxes": [], "refused": f"{status} {answer!r}"[:300]}
 
-    def observe_the_roles(self, step, expected, occasion, timeout_seconds=600):
-        deadline = time.monotonic() + timeout_seconds
-        while True:
-            held = self.boxes_in_the_record()
-            roles = {box["publicKey"]: box["role"] for box in held.get("boxes", [])}
-            holds_key = all(box.get("holdsCompanyKey") for box in held.get("boxes", []))
-            if (roles == expected and holds_key) or time.monotonic() > deadline:
-                break
-            time.sleep(10)
-        step.observe(
-            f"the record names one serving box and the other standing by, both holding the company key, {occasion}",
-            "the role and holdsCompanyKey of each box the setup page lists for the company",
-            "a box that stands by without the company key cannot open a backup, so it would take over nothing",
-        ).record(roles == expected and holds_key, json.dumps(held)[:1200])
-
     def observe_a_standby(self, step, machine, timeout_seconds=300):
         company_units = " ".join((AGENT_UNIT_NAME, RELAY_UNIT_NAME, ADMIND_UNIT_NAME))
         reading = self.wait_in_machine(
@@ -2914,50 +2741,6 @@ class Rig:
             "the gateway gives work only to a box that holds this socket and has said how much room it has",
         ).record(not reading.stdout.startswith("sockets=0"), reading.stdout.strip())
 
-    def leave_a_spread_of_files(self, step):
-        """Files of every kind a company holds, written as each person's own account where a person writes them.
-
-        The circle's memory, the shared note and the .protected source of truth are written as
-        root and given the owner of the directory they sit in, because only the agent's service
-        writes those and the rig cannot ask it to write a chosen file.
-        """
-        written = self.machine.shell(company_files.SPREAD_COMMAND)
-        spread = company_files.spread_names(written.stdout)
-        step.observe(
-            "the serving box holds private files of three people, a circle's memory, a shared file and a .protected source of truth",
-            "the people, circle and outsider the spread was written for, including a file with a Korean name, one with "
-            "spaces, one of mode 0640, a symlink and an empty directory",
-            "a take-over that carries only the files a fresh install makes says nothing about the files people make",
-        ).record(written.returncode == 0 and bool(spread.get("outsider")), written.stdout.strip()[-600:] or written.stderr.strip()[-600:])
-        return spread
-
-    def manifest_of_the_company_files(self, name):
-        output = f"{SHARE_PATH}/manifest-{name}.tsv"
-        self.machine.checked_shell(company_files.manifest_command(output), timeout_seconds=1800)
-        return company_files.manifest_of((self.machine.share_directory / f"manifest-{name}.tsv").read_text(errors="surrogateescape"))
-
-    def observe_every_file_came_across(self, step, at_backup, before_dark):
-        after = self.manifest_of_the_company_files("after-the-take-over")
-        comparison = company_files.compare(at_backup, before_dark, after)
-        renumbered, is_consistent = company_files.renumbered_names(at_backup, after)
-        found = company_files.spread_found_in(after)
-        exemptions = "\n".join(company_files.exemption_list())
-        step.observe(
-            "every file the backup carries arrives on the box that took over with its content, mode, owner and group",
-            "a manifest as root of every entry under the backup's roots on the serving box right after the snapshot, "
-            "again just before it went dark, and on the box that took over: path, type, size, mode, owner and group "
-            "by name, link target and SHA-256",
-            "a restore run as root over the whole backup can land a file another person may not read with the wrong "
-            "owner, and only reading every one of them says it did not",
-        ).record(
-            not comparison.differences and all(found.values()) and is_consistent,
-            f"compared {comparison.compared} paths, {comparison.changed_after_the_backup} changed after the backup, "
-            f"{comparison.exempted} exempt, {len(comparison.differences)} differ\n"
-            + "\n".join(comparison.differences[:200])
-            + f"\nspread found: {json.dumps(found, ensure_ascii=False)}\n{exemptions}\n"
-            + f"each name keeps one number on each box: {is_consistent}\nrenumbered: " + ("; ".join(renumbered) or "none"),
-        )
-
     def observe_the_access_walls(self, step, spread):
         observation = step.observe(
             "on the box that took over, a person reads their own file and nobody else's, and nobody writes under .protected",
@@ -2974,92 +2757,6 @@ class Rig:
             company_files.ACCESS_WALLS_COMMAND % {key.replace("-", "_"): shlex.quote(value) for key, value in spread.items()}
         )
         observation.record(company_files.walls_hold(reading.stdout), reading.stdout.strip())
-
-    def keep_a_snapshot(self, step):
-        shipped = self.machine.shell(f"{PACKAGE_NAME} snapshot 2>&1", timeout_seconds=1800)
-        newest = self.boxes_in_the_record().get("newestBackupAt")
-        step.observe(
-            "the serving box keeps a snapshot sealed to the company key, off the box",
-            f"the exit status of `{PACKAGE_NAME} snapshot` on the serving box and the newest backup the setup page reports",
-            "a standby can only ever restore what reached the central plane; what the serving box wrote to its own "
-            "disk dies with it",
-        ).record(shipped.returncode == 0 and "Kept " in shipped.stdout and bool(newest), f"{shipped.stdout.strip()[-600:]}\nnewest {newest}")
-
-    def observe_the_standby_keeps_up(self, step, machine):
-        reading = self.wait_in_machine(
-            machine, KEPT_UP_COMMAND % {"box": BOX_UNIT_NAME}, lambda said: "this box holds" in said, 300
-        )
-        step.observe(
-            "the standby fetches the snapshot before anything goes wrong",
-            f"what {BOX_UNIT_NAME} on the standby logged about keeping up",
-            "fetching at take-over time puts the whole download inside the outage",
-        ).record("this box holds" in reading.stdout, reading.stdout.strip() or "it logged nothing about keeping up")
-
-    def take_over_with(self, step, machine, public_key):
-        status, answer = self.plane.ask_as_administrator("PATCH", "/api/company/box", {"publicKey": public_key})
-        started = time.monotonic()
-        with self.driving(machine, self.files_command):
-            connected = self.machine.wait_until(
-                HOST_SOCKET_COMMAND % {"unit": RELAY_UNIT_NAME, "company": self.company_id},
-                lambda reported: "connected=0" not in reported,
-                timeout_seconds=1800,
-            )
-            seconds = round(time.monotonic() - started)
-            finished = self.machine.wait_until(
-                TAKE_OVER_STATE_COMMAND % TAKE_OVER_UNIT_NAME,
-                lambda reported: not {"ActiveState=active", "ActiveState=activating"} & set(reported.split()),
-                timeout_seconds=600,
-            )
-        step.observe(
-            "with the first box dark, the administrator makes the second serve and it brings the company up",
-            "the setup page's answer to making the standby serve, then the second guest's relay reporting the "
-            "gateway connected for the company",
-            "the record moving the role is a promise; the relay holding the company's socket is the company back",
-        ).record(
-            status == 200 and "connected=0" not in connected.stdout,
-            f"make serve answered {status}: {str(answer)[:300]}\nthe relay connected {seconds}s later\n{connected.stdout.strip()}",
-        )
-        step.observe(
-            "the take-over runs to its end before the second box's services are judged",
-            f"ActiveState and Result of {TAKE_OVER_UNIT_NAME} on the second guest, read until it is no longer running",
-            "the relay connects while the take-over is still starting the other services, so its socket alone "
-            "does not say they were started",
-        ).record(
-            {"ActiveState=inactive", "Result=success"} <= set(finished.stdout.split()),
-            finished.stdout.strip(),
-        )
-
-    def observe_the_message_came_across(self, step, newest=False):
-        sent = self.sent_messages[-1 if newest else 0] if self.sent_messages else ("", "")
-        message_id, message_text = sent
-        stored = self.machine.shell(
-            MESSENGER_STORE_COMMAND % {"path": MESSENGER_DATABASE_PATH, "message": message_id or "no-message"}
-        )
-        if newest:
-            observation = step.observe(
-                "the message sent moments before the first box went dark is in the second box's messenger",
-                f"the row the last message id sent to the first box names, read on the second guest through {MESSENGER_DATABASE_PATH}",
-                "it was sent after the newest snapshot, so only WAL kept before the commit counted can have carried it",
-            )
-        else:
-            observation = step.observe(
-                "the message sent to the first box is in the second box's messenger",
-                f"the row the earlier message id names, read on the second guest through {MESSENGER_DATABASE_PATH}",
-                "a take-over that brings the services up on an empty messenger is a new company with the old name",
-            )
-        observation.record(bool(message_id) and message_text in stored.stdout, stored.stdout.strip()[-300:])
-
-    def observe_the_company_keeps_wal(self, step):
-        reading = self.machine.wait_until(
-            KEPT_WAL_COMMAND % {"unit": WAL_FOLLOW_UNIT_NAME},
-            lambda said: "kept the base backup" in said,
-            timeout_seconds=600,
-        )
-        step.observe(
-            "the serving box keeps a base backup and follows its database's WAL off the box",
-            f"what {WAL_FOLLOW_UNIT_NAME} on the serving box logged",
-            "without a base backup the standby can only take over from the snapshot, which misses what came after it",
-        ).record("kept the base backup" in reading.stdout, reading.stdout.strip()[-600:] or "it logged nothing")
 
     def wait_in_machine(self, machine, script, is_ready, timeout_seconds=300):
         with self.driving(machine, self.files_command):
@@ -3485,7 +3182,7 @@ class Rig:
         return all(step.verdict == "PASS" for step in self.steps)
 
     def every_machine(self):
-        held = [self.machine, self.restored_machine, self.second_machine, *self.box_machines]
+        held = [self.machine, self.restored_machine, *self.box_machines]
         return [machine for index, machine in enumerate(held) if machine and machine not in held[:index]]
 
 
@@ -3656,19 +3353,6 @@ def main():
         "(step 12 in place of every other step after the install)",
     )
     parser.add_argument(
-        "--several-boxes",
-        action="store_true",
-        help="judge only whether a second box joins the company by its code, keeps up with it, takes over when the "
-        "first goes dark, and leaves the first standing by when it comes back (step 13 in place of every other step "
-        "after the install)",
-    )
-    parser.add_argument(
-        "--several-boxes-after-another-company",
-        action="store_true",
-        help="judge step 13 with a second box that first served another company and was disconnected from it, "
-        "and that nothing of that company survives on it through the take-over",
-    )
-    parser.add_argument(
         "--boxes",
         action="store_true",
         help="judge three boxes made by one install line: they join, a power cut on the service box loses no "
@@ -3739,10 +3423,6 @@ def main():
 
             if options.people_upgrade:
                 rig.run_people_upgrade(releases)
-            elif options.several_boxes:
-                rig.run_several_boxes()
-            elif options.several_boxes_after_another_company:
-                rig.run_several_boxes(after_another_company=True)
             elif options.another_company:
                 rig.run_another_company()
             elif options.unset_clock:
@@ -3767,10 +3447,6 @@ def main():
                         rig.plane.forget_the_company_computer(rig.company_id)
                         rig.plane.forget_the_company_backups(rig.company_id)
                         rig.plane.forget_the_company_boxes(rig.company_id)
-                    if rig.earlier_company_id:
-                        rig.plane.forget_the_company_computer(rig.earlier_company_id)
-                        rig.plane.forget_the_company_backups(rig.earlier_company_id)
-                        rig.plane.forget_the_company_boxes(rig.earlier_company_id)
                 except RigFailure as failure:
                     print(f"✗ the rig's clean-up of the plane\n    {failure}", file=sys.stderr)
                 finally:
@@ -3784,8 +3460,6 @@ def main():
             print(f"the guest is still up: container exec {options.name} bash")
             if rig.restored_machine:
                 print(f"the restored guest is still up: container exec {rig.restored_machine.name} bash")
-            if rig.second_machine:
-                print(f"the second box is still up: container exec {rig.second_machine.name} bash")
             for machine in rig.box_machines[1:]:
                 print(f"a box is still up: container exec {machine.name} bash")
             print(f"its shared directory is {rig.working_directory}")

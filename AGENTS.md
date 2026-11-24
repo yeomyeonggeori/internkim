@@ -563,8 +563,8 @@ and delete the duplicates.
 - `tools/ship-host --release` takes `origin/main` to stable and onto our own
   host in one command. It cuts the testing release, checks the packages against
   `SHA256SUMS`, runs the Debian 13 rig, its `--people-upgrade` step (a host
-  with people and memory stays up through it) and the `--several-boxes`
-  rig, installs the release on our host by its tag while still on testing,
+  with people and memory stays up through it) and the `--boxes`
+  scenario, installs the release on our host by its tag while still on testing,
   watches `blueclaw` for two minutes, and only then promotes it. A failure on the host
   puts the host back on the release it ran and leaves the failed one on
   testing; stable never moved. If the failed release migrated the database,
