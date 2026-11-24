@@ -61,8 +61,37 @@ class GuestPackageCacheTests(unittest.TestCase):
         with unittest.mock.patch.object(rig, "checked") as ran:
             machine.create()
         created = ran.call_args_list[0].args[0]
-        self.assertIn(f"{downloads}:{rig.GUEST_DOWNLOAD_CACHE_PATH}", created)
+        self.assertIn(f"{downloads}:{rig.GUEST_DOWNLOAD_CACHE_MOUNT_PATH}", created)
+        self.assertIn(rig.GUEST_DOWNLOAD_CACHE_LINK, created[-1])
         self.assertEqual(rig.DOWNLOAD_CACHE_DIRECTORY.parent, rig.PACKAGE_CACHE_ROOT.parent)
+
+    def guest_with_the_download_cache_mounted(self, starts=1):
+        machine = rig.Machine("guest", self.directory(), package_cache_directory=self.directory(), download_cache_directory=self.directory() / "downloads")
+        with unittest.mock.patch.object(rig, "checked") as ran:
+            machine.create()
+        arguments = ran.call_args_list[0].args[0]
+        mount_point = next(argument for argument in arguments if argument.startswith(f"{machine.download_cache_directory}:")).split(":", 1)[1]
+        guest_root = self.directory()
+        macs_download_cache = guest_root / mount_point.lstrip("/")
+        (macs_download_cache / "uv" / "archive-v0").mkdir(parents=True)
+        (macs_download_cache / "uv" / "archive-v0" / "wheel").write_bytes(b"kept")
+        self.assertIn(rig.GUEST_DOWNLOAD_CACHE_LINK, arguments[-1])
+        for _ in range(starts):
+            subprocess.run(["sh", "-c", rig.GUEST_DOWNLOAD_CACHE_LINK.replace("/var/", f"{guest_root}/var/")], check=True)
+        return guest_root, macs_download_cache
+
+    def test_removing_the_package_empties_none_of_the_macs_download_cache(self):
+        guest_root, macs_download_cache = self.guest_with_the_download_cache_mounted()
+        guest_download_cache = guest_root / rig.GUEST_DOWNLOAD_CACHE_PATH.lstrip("/")
+        removal = subprocess.run(["rm", "-rf", str(guest_download_cache)], capture_output=True, text=True)
+        self.assertEqual(removal.returncode, 0, removal.stderr)
+        self.assertFalse(guest_download_cache.exists() or guest_download_cache.is_symlink())
+        self.assertEqual((macs_download_cache / "uv" / "archive-v0" / "wheel").read_bytes(), b"kept")
+
+    def test_a_guest_started_again_links_its_download_cache_once(self):
+        guest_root, macs_download_cache = self.guest_with_the_download_cache_mounted(starts=2)
+        self.assertEqual((guest_root / rig.GUEST_DOWNLOAD_CACHE_PATH.lstrip("/")).resolve(), macs_download_cache.resolve())
+        self.assertEqual([path.name for path in macs_download_cache.iterdir()], ["uv"])
 
     def test_the_download_cache_is_dropped_whole_once_unused_or_past_its_limit(self):
         now = 2_000_000_000
