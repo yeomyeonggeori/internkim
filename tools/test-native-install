@@ -109,6 +109,15 @@ ADMIND_UNIT_NAME = "internkim-admind.service"
 AGENT_UNIT_NAME = "blueclaw.service"
 TAKE_OVER_UNIT_NAME = "internkim-take-over.service"
 TAKE_OVER_STATE_COMMAND = "systemctl show -p ActiveState -p Result %s"
+TAKE_OVER_EVIDENCE_COMMAND = r"""
+journalctl -u %(units)s --since @%(since)d --no-pager -o short-precise 2>&1 | tail -n 120
+echo '--- disk and memory'
+df -h / %(backups)s 2>&1
+free -m 2>&1
+du -sh %(backups)s/* 2>/dev/null
+dmesg 2>/dev/null | grep -iE 'out of memory|oom|killed process' | tail -5
+"""
+
 MOVE_JOURNAL_COMMAND = "journalctl %(units)s --since @%(since)d --no-pager -o short-precise 2>&1 | grep -v \"Removed '/etc/systemd\" | tail -n 150"
 
 AGENT_HOLD_PATH = "/run/internkim-rig/hold-the-agent"
@@ -2567,19 +2576,29 @@ class Rig:
         time.sleep(boxes.SETTLING_AFTER_THE_FILL_SECONDS)
 
     def seconds_to_take_over(self, serving, standbys):
-        serving.power_off()
         keys = {self.box_key_of(machine): machine for machine in standbys}
+        since = {key: int(machine.shell("date +%s").stdout.strip() or 0) for key, machine in keys.items()}
+        serving.power_off()
         started = time.monotonic()
         changed = self.wait_for_the_role_to_change(keys, started, boxes.AUTOMATIC_TAKE_OVER_SECONDS)
         if not changed:
             chosen_key = next(iter(keys))
-            status, _ = self.plane.ask_as_administrator("PATCH", "/api/company/box", {"publicKey": chosen_key})
+            status, answer = self.plane.ask_as_administrator("PATCH", "/api/company/box", {"publicKey": chosen_key})
+            print(f"no standby took over by itself within {boxes.AUTOMATIC_TAKE_OVER_SECONDS}s; the setup page answered {status} {str(answer)[:300]} when one was made to serve", flush=True)
             if status != 200:
+                self.print_the_take_over_evidence("each standby", keys, since)
                 return None, None
             changed = (chosen_key, time.monotonic())
         key, at = changed
         successor = self.wait_for_a_serving_standby({key: keys[key]}, at, boxes.LONGEST_TAKE_OVER_SECONDS)
+        print(f"the standby holding its share was made to serve {round(at - started)}s after the power went and {'held the gateway after ' + str(round(time.monotonic() - at)) + 's' if successor else 'did not hold the gateway within ' + str(boxes.LONGEST_TAKE_OVER_SECONDS) + 's'}", flush=True)
+        self.print_the_take_over_evidence("the standby holding its share", {key: keys[key]}, since)
         return (round(time.monotonic() - at), successor) if successor else (None, None)
+
+    def print_the_take_over_evidence(self, which, machines, since):
+        for key, machine in machines.items():
+            command = TAKE_OVER_EVIDENCE_COMMAND % {"units": f"{BOX_UNIT_NAME} -u {TAKE_OVER_UNIT_NAME}", "since": since[key], "backups": BACKUPS_DIRECTORY}
+            print(f"what {which} ({machine.name}) logged from the power going:\n{machine.shell(command).stdout.strip()[-12000:]}", flush=True)
 
     def wait_for_the_role_to_change(self, keys, since, timeout_seconds):
         while time.monotonic() < since + timeout_seconds:
@@ -2615,7 +2634,9 @@ class Rig:
             print(f"the setup page refused to make the empty box serve: {status} {str(answer)[:300]}", flush=True)
             return None, fresh_pieces
         made_to_serve = time.monotonic()
+        since = int(fresh.shell("date +%s").stdout.strip() or 0)
         successor = self.wait_for_a_serving_standby({key: fresh}, made_to_serve, boxes.LONGEST_TAKE_OVER_SECONDS)
+        self.print_the_take_over_evidence("the empty box", {key: fresh}, {key: since})
         return (round(time.monotonic() - made_to_serve) if successor else None), fresh_pieces
 
     def wait_for_the_company_key(self, public_key):

@@ -42,7 +42,7 @@ func (lease serviceLease) retryInterval() time.Duration {
 	return leaseLength(lease.LapseSeconds) / retriesPerLease
 }
 
-func untilTheTakeOverNeedsACheck(session Session) time.Duration {
+func UntilTheTakeOverNeedsACheck(session Session) time.Duration {
 	if session.Role == RoleStandby && session.ServiceLapsesInSeconds != nil {
 		return time.Duration(max(*session.ServiceLapsesInSeconds, 0)+1) * time.Second
 	}

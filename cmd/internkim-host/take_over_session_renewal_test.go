@@ -19,11 +19,15 @@ type sessionsAsked struct {
 	asked int
 }
 
-func (sessions *sessionsAsked) ask(context.Context) (box.HostSession, error) {
+func (sessions *sessionsAsked) ask(context.Context) (box.Session, error) {
 	sessions.mutex.Lock()
 	defer sessions.mutex.Unlock()
 	sessions.asked++
-	return box.HostSession{AccessToken: fmt.Sprintf("session-%d", sessions.asked), ExpiresAt: time.Now().Add(time.Hour).Unix()}, nil
+	return box.Session{
+		Role:     box.RoleService,
+		Session:  box.HostSession{AccessToken: fmt.Sprintf("session-%d", sessions.asked), ExpiresAt: time.Now().Add(time.Hour).Unix()},
+		TakeOver: box.TakeOverPolicy{IsAutomatic: true, LapseSeconds: 90},
+	}, nil
 }
 
 func heldSession(t *testing.T, path string) string {
@@ -78,6 +82,20 @@ func TestATakeOverReplacesTheSessionItWasHandedWhileItRestores(t *testing.T) {
 			t.Fatalf("the take-over kept reading the store with %q", heldSession(t, sessionPath))
 		}
 		time.Sleep(10 * time.Millisecond)
+	}
+}
+
+func TestATakeOverChecksInWithinTheLeaseSoTheCompanyIsNotHandedToAnotherStandbyWhileItRestores(t *testing.T) {
+	sessions := &sessionsAsked{}
+	renewed, errorValue := sessions.ask(context.Background())
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+
+	wait := untilTheNextRenewal(renewed)
+
+	if wait > 45*time.Second/3 {
+		t.Fatalf("a take-over whose session lasts an hour checks in again after %s; the record lets another standby take over once the box goes unseen for 90s", wait)
 	}
 }
 
