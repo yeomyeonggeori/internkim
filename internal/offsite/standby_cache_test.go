@@ -29,7 +29,7 @@ func aCacheKeptUpWithASnapshot(t *testing.T) keptUpCache {
 	destination := destinationFor(t, storage, keyring)
 	members := hostMembers{
 		hostbackup.DatabaseMemberName("blueclaw"): randomBytes(t, 3*typicalChunkBytes),
-		hostbackup.RosterMemberName:               []byte(`{"people":[]}`),
+		hostbackup.FilesMemberName:                []byte("a small member"),
 	}
 	shipped, _ := shipSnapshot(t, destination, keyring, members, time.Now())
 	cache := ChunkCache{DirectoryPath: t.TempDir()}
@@ -106,7 +106,7 @@ func TestAChunkBadOnThePlaneTooFailsNamingItAfterOneFetch(t *testing.T) {
 	storage := newFakeStorage()
 	keyring := aKeyring(t)
 	destination := destinationFor(t, storage, keyring)
-	shipped, _ := shipSnapshot(t, destination, keyring, hostMembers{hostbackup.RosterMemberName: []byte(`{"people":["sample"]}`)}, time.Now())
+	shipped, _ := shipSnapshot(t, destination, keyring, hostMembers{hostbackup.FilesMemberName: []byte("a small member")}, time.Now())
 	chunkID := shipped.chunkIDs()[0]
 	altered := storage.objects[destination.chunkPath(chunkID)]
 	altered.bytes[len(altered.bytes)-1] ^= 1
