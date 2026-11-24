@@ -13,6 +13,7 @@ import io
 import json
 import os
 import posixpath
+import queue
 import re
 import secrets
 import shlex
@@ -989,6 +990,74 @@ BACKUP_BUCKET = "box_backup"
 BACKUP_LISTING_PAGE = 1000
 BACKUP_REMOVAL_BATCH = 100
 MEMBER_SESSION_SCRIPT = REPOSITORY_ROOT / "tools" / "native-install-member-session.ts"
+MEMBER_CONVERSATION_ANSWER_SECONDS = 15
+LONGEST_LINE_SECONDS = 120
+
+
+class MemberConversation:
+    """One member session that stays open, as a browser tab does, answering each line it is given with one JSON line.
+
+    A line that goes unanswered for longer than a session could take ends the session, and the next line
+    starts a new one, so a late answer is never read as the answer to the line after it.
+    """
+
+    def __init__(self, arguments, environment, log_path):
+        self.arguments = arguments
+        self.environment = {**os.environ, **environment}
+        self.log_path = Path(log_path)
+        self.process = None
+        self.answers = None
+
+    def start(self):
+        self.answers = queue.Queue()
+        with self.log_path.open("a") as log:
+            self.process = subprocess.Popen(
+                self.arguments,
+                cwd=REPOSITORY_ROOT,
+                env=self.environment,
+                stdin=subprocess.PIPE,
+                stdout=subprocess.PIPE,
+                stderr=log,
+                text=True,
+                bufsize=1,
+            )
+        threading.Thread(target=self.read_answers, args=(self.process, self.answers), daemon=True).start()
+
+    @staticmethod
+    def read_answers(process, answers):
+        for line in process.stdout:
+            if line.startswith("{"):
+                answers.put(json.loads(line))
+        answers.put(None)
+
+    def say(self, text):
+        if self.process is None or self.process.poll() is not None:
+            self.start()
+        try:
+            self.process.stdin.write(text + "\n")
+            self.process.stdin.flush()
+        except OSError as failure:
+            return {"status": 0, "error": f"the member's session would not take a line: {failure}"}
+        try:
+            answer = self.answers.get(timeout=LONGEST_LINE_SECONDS)
+        except queue.Empty:
+            self.close()
+            return {"status": 0, "error": f"the member's session gave no answer within {LONGEST_LINE_SECONDS}s"}
+        if answer is None:
+            return {"status": 0, "error": f"the member's session ended with {self.process.wait()}; {self.log_path} has what it said"}
+        return answer
+
+    def close(self):
+        if self.process is None or self.process.poll() is not None:
+            return
+        self.process.stdin.close()
+        try:
+            self.process.wait(timeout=10)
+        except subprocess.TimeoutExpired:
+            self.process.kill()
+            self.process.wait()
+
+
 MESSENGER_CREDENTIAL_KIND_SCHEMA = (
     REPOSITORY_ROOT
     / "pkg"
@@ -1355,6 +1424,23 @@ class CompanyPlane:
             if line.startswith("{"):
                 return json.loads(line)
         return {"refused": (completed.stderr.strip() or completed.stdout.strip() or "the member session said nothing")[-900:]}
+
+    def member_conversation(self, company_id, log_path):
+        """A member who keeps one browser tab open on the company and says one line after another in it."""
+        return MemberConversation(
+            ["bun", "run", str(MEMBER_SESSION_SCRIPT)],
+            {
+                "MEMBER_SESSION_PROJECT_URL": self.settings["API_URL"],
+                "MEMBER_SESSION_PUBLISHABLE_KEY": self.settings["PUBLISHABLE_KEY"],
+                "MEMBER_SESSION_GATEWAY_URL": self.gateway_url,
+                "MEMBER_SESSION_COMPANY_ID": company_id,
+                "MEMBER_SESSION_EMAIL": self.administrator_email,
+                "MEMBER_SESSION_PASSWORD": self.administrator_password,
+                "MEMBER_SESSION_KEEPS_TALKING": "1",
+                "MEMBER_SESSION_ANSWER_TIMEOUT_MS": str(MEMBER_CONVERSATION_ANSWER_SECONDS * 1000),
+            },
+            log_path,
+        )
 
     def active_member_emails(self, company_id):
         status, document = self.read_record(
