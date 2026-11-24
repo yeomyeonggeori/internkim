@@ -154,6 +154,55 @@ class ReleaseTests(unittest.TestCase):
         self.assertEqual(rig.asset_name(".rpm"), f"{rig.PACKAGE_NAME}-{rig.ARCHITECTURE}.rpm")
 
 
+class TheBoxIsGivenItsAppBeforeTheLine(unittest.TestCase):
+    """A box that starts knowing only the package's homepage announces itself there and is handed a real code."""
+
+    plane_url = "http://192.0.2.1:4321"
+
+    def served_release(self):
+        directory = Path(self.enterContext(tempfile.TemporaryDirectory()))
+        release = rig.Release(directory / "served")
+        release.port = 8000
+        return release, directory
+
+    def test_the_install_script_runs_after_the_drop_in_names_the_plane(self):
+        release, directory = self.served_release()
+        drop_in_directory = directory / "box.service.d"
+        self.enterContext(unittest.mock.patch.object(rig, "BOX_DROP_IN_DIRECTORY", str(drop_in_directory)))
+        self.enterContext(unittest.mock.patch.object(rig, "BOX_DROP_IN_PATH", str(drop_in_directory / "app-url.conf")))
+        fake_commands = directory / "bin"
+        fake_commands.mkdir()
+        curl = fake_commands / "curl"
+        curl.write_text(f"#!/bin/sh\necho 'cat {drop_in_directory / 'app-url.conf'}'\n")
+        curl.chmod(0o755)
+        ran = subprocess.run(
+            ["sh", "-c", release.install_line("192.0.2.1", self.plane_url)],
+            capture_output=True, text=True, env={"PATH": f"{fake_commands}:/usr/bin:/bin"},
+        )
+        self.assertEqual(ran.returncode, 0, ran.stderr)
+        self.assertEqual(ran.stdout, rig.box_drop_in(self.plane_url))
+
+    def test_the_drop_in_is_the_one_the_self_hosting_page_gives_an_administrator(self):
+        for page in ("self-hosting.mdx", "self-hosting.ko.mdx"):
+            text = (repository_root / "docs" / page).read_text()
+            self.assertIn(rig.BOX_DROP_IN_PATH, text, page)
+            self.assertIn(rig.box_drop_in("https://example.com"), text, page)
+
+    def test_every_guest_the_driver_installs_names_the_plane_the_run_starts(self):
+        driver = load_driver()
+        installing = driver.Rig(unittest.mock.Mock())
+        installing.working_directory = Path(self.enterContext(tempfile.TemporaryDirectory()))
+        installing.release, _ = self.served_release()
+        installing.machine = unittest.mock.Mock(**{"host_gateway.return_value": "192.0.2.1"})
+        line = installing.install_line(installing.machine)
+        for name, value in (("local_plane_settings", {}), ("local_plane_signing_key", ""), ("seeded_administrator", ("", ""))):
+            self.enterContext(unittest.mock.patch.object(rig, name, return_value=value))
+        self.enterContext(unittest.mock.patch.object(rig.CompanyPlane, "start"))
+        self.enterContext(unittest.mock.patch.object(rig.CompanyPlane, "reach_the_record_from"))
+        installing.start_the_plane()
+        self.assertIn(rig.box_drop_in(installing.plane.application_url), line)
+
+
 class MergedUsrTests(unittest.TestCase):
     def setUp(self):
         self.driver = load_driver()
@@ -328,6 +377,15 @@ class AddressesTheRigSpellsTests(unittest.TestCase):
 
     def test_the_messenger_store_is_read_through_the_file_the_install_writes(self):
         self.assertEqual(rig.MESSENGER_DATABASE_PATH, self.package("CompanyHostBuzzDatabasePath"))
+
+    def test_the_box_drop_in_starts_the_command_the_package_ships_with_only_its_app_given(self):
+        self.assertEqual(rig.BOX_COMMAND, f"{self.package('CompanyPackageBinaryRoot')}/{self.package('CompanyPackageName')} box")
+        unit = (rig.REPOSITORY_ROOT / "internal" / "runtime" / "blueclaw" / "company_host_package.go").read_text()
+        self.assertIn('"ExecStart=" + layout.BinaryPath(CompanyPackageName) + " box\\n"', unit)
+        self.assertEqual(
+            rig.box_drop_in("http://192.0.2.1:4321"),
+            f"[Service]\nExecStart=\nExecStart={rig.BOX_COMMAND} --app-url http://192.0.2.1:4321\n",
+        )
 
     def test_the_bridge_is_asked_where_its_unit_makes_it_answer(self):
         port, path = rig.MESSENGER_BRIDGE

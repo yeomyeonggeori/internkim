@@ -73,6 +73,8 @@ from native_install_rig import (  # noqa: E402
     COMPANY_CONDITION_PATH,
     MESSENGER_BRIDGE,
     MESSENGER_DATABASE_PATH,
+    BOX_DROP_IN_DIRECTORY,
+    BOX_UNIT_NAME,
     CompanyPlane,
     Machine,
     build_identity_reported,
@@ -83,12 +85,14 @@ from native_install_rig import (  # noqa: E402
     a_docx_saying,
     a_pdf_saying,
     answered,
+    application_url_at,
     asset_name,
     build_stand_in_package,
     capabilityd_argument,
     read_through_capabilityd,
     dependency_alternatives,
     dependency_names,
+    free_port,
     CANDIDATE_CHOICE_COMMAND,
     package_fields,
     RIG_MODEL_KEY,
@@ -98,7 +102,6 @@ from native_install_rig import (  # noqa: E402
 
 
 DEFAULT_PACKAGE_DIRECTORY = Path(".artifacts/native-package")
-BOX_UNIT_NAME = "internkim-box.service"
 ADMIND_UNIT_NAME = "internkim-admind.service"
 AGENT_UNIT_NAME = "blueclaw.service"
 TAKE_OVER_UNIT_NAME = "internkim-take-over.service"
@@ -135,14 +138,6 @@ claims = carried.split('.')[1]
 payload = json.loads(base64.urlsafe_b64decode(claims + '=' * (-len(claims) %% 4)))
 print('fleet=' + str(payload.get('app_metadata', {}).get('fleet_id')))
 print('kept=' + ('same' if carried == kept else 'different'))"
-"""
-
-POINT_THE_BOX_AT_THE_PLANE_COMMAND = r"""
-set -eu
-mkdir -p /etc/systemd/system/%(unit)s.d
-printf '[Service]\nExecStart=\nExecStart=%%s box --app-url %(app)s\n' "$(command -v %(package)s)" > /etc/systemd/system/%(unit)s.d/rig-plane.conf
-systemctl daemon-reload
-systemctl restart %(unit)s
 """
 
 # A standby box holds no company of its own, so none of the units that need
@@ -431,6 +426,7 @@ find / -xdev \
 UNOWNED_BY_DESIGN = [
     ("/etc/systemd/system/multi-user.target.wants", "systemd's enable symlinks; dpkg never owns them"),
     ("/etc/systemd/system/timers.target.wants", "the same, for the daily backup's timer"),
+    (BOX_DROP_IN_DIRECTORY, "the administrator's drop-in naming the app the box announces itself to, written before the line"),
     (STATE_DIRECTORY, "the state tree is deliberately not package-owned so remove and purge leave it (plan §5)"),
     *((path, "the install step builds the conversion environment from the lock; postrm removes it") for path in DOCUMENT_ENVIRONMENT_PATHS),
     (SKILLS_PATH, "the install step runs each skill's own setup, which keeps what the skill needs beside it; postrm removes the skills tree"),
@@ -708,6 +704,7 @@ class Rig:
         self.installed_version = None
         self.dependencies = []
         self.plane = None
+        self.plane_application_port = free_port()
         self.company_id = ""
         self.earlier_company_id = ""
         self.package_under_test = None
@@ -752,6 +749,11 @@ class Rig:
             for directory in directories
             if directory and (Path(directory) / asset_name(".deb")).is_file()
         ]
+
+    def install_line(self, machine):
+        """The line a guest runs, its box given the app this run's plane answers at, whether that plane is up yet or not."""
+        gateway = machine.host_gateway()
+        return self.release.install_line(gateway, application_url_at(gateway, self.plane_application_port))
 
     def prepare_release(self, release_directory):
         self.release = Release(self.working_directory / "release")
@@ -801,7 +803,7 @@ class Rig:
         return set(self.machine.checked_shell(SNAPSHOT_COMMAND).stdout.splitlines())
 
     def run_step_one(self, step):
-        attempt = self.machine.shell(self.release.install_line(self.machine.host_gateway()))
+        attempt = self.machine.shell(self.install_line(self.machine))
         installed = self.machine.shell(f"dpkg-query -W -f '${{Status}}' {PACKAGE_NAME}")
         reached = installed.returncode == 0 and "install ok installed" in installed.stdout
 
@@ -1172,7 +1174,9 @@ class Rig:
     # ------------------------------------------------------------------ step 5
 
     def start_the_plane(self):
-        self.plane = CompanyPlane(self.working_directory / "plane", self.machine.host_gateway())
+        self.plane = CompanyPlane(
+            self.working_directory / "plane", self.machine.host_gateway(), held={"applicationPort": self.plane_application_port}
+        )
         self.plane.start()
         self.plane.reach_the_record_from(self.machine)
 
@@ -1821,7 +1825,7 @@ class Rig:
 
     def install_a_box(self, step, letter, name):
         machine = self.start_a_box(letter)
-        attempt = machine.shell(self.release.install_line(machine.host_gateway()), timeout_seconds=2400)
+        attempt = machine.shell(self.install_line(machine), timeout_seconds=2400)
         installed = machine.shell(f"dpkg-query -W -f '${{Status}}' {PACKAGE_NAME}")
         step.observe(
             name,
@@ -2373,7 +2377,7 @@ class Rig:
             if machine is not survivor:
                 machine.destroy()
         fresh = self.start_a_box("D")
-        fresh.checked_shell(self.release.install_line(fresh.host_gateway()), timeout_seconds=2400)
+        fresh.checked_shell(self.install_line(fresh), timeout_seconds=2400)
         self.plane.reach_the_record_from(fresh)
         fresh.shell(boxes.STORE_LINK_LIMIT_COMMAND % {"port": self.plane.record_forward.port, "rate": boxes.STORE_LINK_RATE})
         survivor.power_off()
@@ -2547,19 +2551,14 @@ class Rig:
         second.wait_until_running()
         with self.driving(second, self.files_command):
             self.install_declared_dependencies(self.package_under_test)
-        second.checked_shell(self.release.install_line(second.host_gateway()), timeout_seconds=2400)
+        second.checked_shell(self.install_line(second), timeout_seconds=2400)
         self.plane.reach_the_record_from(second)
         return second
 
     def join_as_an_added_box(self, step, machine, intent="add"):
         """What an administrator does with a box that shows a code: verify it, then add it or let it replace the rest."""
         public_key = self.box_key_of(machine)
-        pointed_at = time.time()
-        machine.checked_shell(
-            POINT_THE_BOX_AT_THE_PLANE_COMMAND
-            % {"unit": BOX_UNIT_NAME, "app": self.plane.application_url, "package": PACKAGE_NAME}
-        )
-        self.wait_until_the_plane_issued_a_code(public_key, pointed_at)
+        self.wait_until_the_plane_issued_a_code(public_key, time.time())
         shown = self.wait_in_machine(machine, f"{PACKAGE_NAME} box code 2>&1", lambda said: "Enter it" in said)
         code = shown.stdout.split("\n", 1)[0].strip()
         verified_status, verified = self.plane.ask_as_administrator(
@@ -2583,7 +2582,7 @@ class Rig:
         return public_key
 
     def wait_until_the_plane_issued_a_code(self, public_key, since, timeout_seconds=300):
-        """A box that announced itself elsewhere first still shows that code until this plane gives it one."""
+        """The code a box shows is read once it has announced itself again, so it is one this plane holds."""
         deadline = time.monotonic() + timeout_seconds
         while time.monotonic() < deadline:
             status, document = self.plane.read_record(
@@ -2594,7 +2593,7 @@ class Rig:
                 time.sleep(CODE_WRITTEN_AFTER_ITS_ISSUE_SECONDS)
                 return
             time.sleep(3)
-        raise RigFailure(f"the plane issued box {public_key} no code within {timeout_seconds}s of pointing it there")
+        raise RigFailure(f"the plane issued box {public_key} no code within {timeout_seconds}s")
 
     def boxes_in_the_record(self):
         status, answer = self.plane.ask_as_administrator("GET", "/api/company/box")
@@ -3130,7 +3129,7 @@ class Rig:
         self.restored_machine.wait_until_running()
         self.restored_machine.checked_shell(family.tools_command, timeout_seconds=900)
         installed = self.restored_machine.shell(
-            self.release.install_line(self.restored_machine.host_gateway()), timeout_seconds=2400
+            self.install_line(self.restored_machine), timeout_seconds=2400
         )
         plane.reach_the_record_from(self.restored_machine)
         shutil.copyfile(self.archive_path, share / self.archive_path.name)

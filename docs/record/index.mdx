@@ -47,7 +47,7 @@ The schema of record is `supabase/migrations`, and
 
 The local stack is the Supabase CLI's native runtime, with no Docker. `tools/with-local-plane`
 starts it, holds it for one command at a time and stops it after fifteen idle minutes.
-A run that finds it held for more than 45 minutes, as a dev server or a held install rig holds it,
+A run that finds it held longer than any run that ends on its own, as a dev server or a held install rig holds it,
 fails at once and names the holder, its worktree, its command and how to stop it.
 
 ```bash

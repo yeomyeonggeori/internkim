@@ -35,6 +35,19 @@ Everyone signs in at your domain itself, so sign-in and the web app no longer
 depend on `intern.kim`. Your web app serves `install.sh` as well, and the host
 package that script installs still comes from our GitHub Releases.
 
+A box announces itself to `intern.kim` until it is given your address. The package
+starts the box as it installs, so on Linux give it the address in a systemd drop-in
+before running the install line:
+
+```bash
+sudo mkdir -p /etc/systemd/system/internkim-box.service.d
+sudo tee /etc/systemd/system/internkim-box.service.d/app-url.conf <<'EOF'
+[Service]
+ExecStart=
+ExecStart=/usr/bin/internkim box --app-url https://example.com
+EOF
+```
+
 ### Deploying the web app
 
 Which Supabase project the app talks to is decided when it runs: `hooks.server.ts`
