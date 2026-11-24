@@ -271,8 +271,8 @@ company running when one goes dark.
 
 ## The box's identity replaces the agent key
 
-A host installed from a connection file proves itself with a bearer agent key, a
-random secret the web app issues once. A box needs no shared secret. It signs a JWT
+A connection file carries a bearer agent key, a random secret the web app issues
+once. A box needs no shared secret. It signs a JWT
 naming its own public key, valid for one minute, and trades it at
 `/api/box/session` for an hour-long session as the company's host and for the model
 key sealed to the company key. Mail passwords are sealed to the same key.

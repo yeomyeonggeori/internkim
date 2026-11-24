@@ -292,6 +292,15 @@
       "callableBy": []
     },
     {
+      "name": "box_readiness_of",
+      "arguments": "ready_company uuid",
+      "returns": "TABLE(public_key text, is_ready boolean, share double precision)",
+      "security": "definer",
+      "callableBy": [
+        "service_role"
+      ]
+    },
+    {
       "name": "calendar_subscription_company",
       "arguments": "target_token_hash text",
       "returns": "uuid",
@@ -579,15 +588,6 @@
       "security": "definer",
       "callableBy": [
         "authenticated",
-        "service_role"
-      ]
-    },
-    {
-      "name": "company_served_by_connection_file",
-      "arguments": "served_company uuid",
-      "returns": "boolean",
-      "security": "definer",
-      "callableBy": [
         "service_role"
       ]
     },
@@ -1328,6 +1328,15 @@
       ]
     },
     {
+      "name": "note_box_share",
+      "arguments": "box_key text, reported_digest text, reported_kept_through timestamp with time zone, reported_share_pieces integer, reported_held_pieces integer, reported_log_pieces integer",
+      "returns": "boolean",
+      "security": "definer",
+      "callableBy": [
+        "service_role"
+      ]
+    },
+    {
       "name": "notification_settings_set",
       "arguments": "chosen jsonb",
       "returns": "void",
@@ -1448,12 +1457,30 @@
       ]
     },
     {
+      "name": "share_placement_of",
+      "arguments": "placed_company uuid",
+      "returns": "TABLE(public_key text, kept_through timestamp with time zone)",
+      "security": "definer",
+      "callableBy": [
+        "service_role"
+      ]
+    },
+    {
       "name": "size_bytes",
       "arguments": "document company_document",
       "returns": "bigint",
       "security": "invoker",
       "callableBy": [
         "authenticated",
+        "service_role"
+      ]
+    },
+    {
+      "name": "standbys_digest_of",
+      "arguments": "standing_company uuid",
+      "returns": "text",
+      "security": "definer",
+      "callableBy": [
         "service_role"
       ]
     },

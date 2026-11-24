@@ -183,12 +183,7 @@ func runBox(arguments []string) {
 	}
 	announcedTo := announcedAppURL(flags, *appURL, blueclaw.CompanyHostBoxStatePath, companyhost.CurrentConnectionPath())
 	daemon := withWhatThisComputerHas(ctx, boxDaemon(announcedTo), abilities, announcedTo, *madeOnPath)
-	errorValue = daemon.Run(ctx)
-	if errors.Is(errorValue, box.ErrConnectedByFile) {
-		fmt.Println(errorValue)
-		return
-	}
-	if errorValue != nil {
+	if errorValue := daemon.Run(ctx); errorValue != nil {
 		fmt.Fprintln(os.Stderr, errorValue)
 		os.Exit(1)
 	}

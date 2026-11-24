@@ -908,99 +908,19 @@ describe('a connection file claims the computer it is installed on', () => {
 		expect(await claimBoxWithConnectionFile(client, box.publicKey, box.encryptionKey, other.apiKey)).toBeNull();
 	});
 
-	test('a file of a company a box serves claims nothing, and still stands', async () => {
+	test('a file of a company a box serves claims the computer as a standby, as its code would', async () => {
 		const served = await aCompany('box-serves');
 		const serving = await aBox();
 		await claimWithCode(served.companyID, serving.publicKey, await announcedCode(serving));
 		const issued = await issueAgentKey(client, served.companyID, companyComputerName);
 		const computer = await aBox();
 
-		await expect(claimBoxWithConnectionFile(client, computer.publicKey, computer.encryptionKey, issued.apiKey)).rejects.toMatchObject({ status: 409 });
+		expect(await claimBoxWithConnectionFile(client, computer.publicKey, computer.encryptionKey, issued.apiKey)).toBe(served.companyID);
 
-		expect((await companyBoxesOf(client, served.companyID)).boxes.map((box) => `${box.publicKey}:${box.role}`)).toEqual([`${serving.publicKey}:service`]);
-		const stillStanding = await sessionForHost(credentials, issued.apiKey);
-		expect(await companyOfHostSession(credentials, stillStanding.accessToken)).toBe(served.companyID);
-	});
-});
-
-describe('a box added to a company its connection file computer serves', () => {
-	async function aCompanyOnAConnectionFile(label: string) {
-		const served = await aCompany(label);
-		const issued = await issueAgentKey(client, served.companyID, companyComputerName);
-		const hostSession = await sessionForHost(credentials, issued.apiKey);
-		return { companyID: served.companyID, hostSession, connectionKey: issued.apiKey };
-	}
-
-	async function roleOfHostSession(accessToken: string): Promise<unknown> {
-		const { data } = await asMember(credentials, accessToken).rpc('my_app_box_role');
-		return data;
-	}
-
-	test('stands by, leaves the computer serving, and cannot take the gateway', async () => {
-		const served = await aCompanyOnAConnectionFile('served');
-		const box = await aBox();
-		expect((await companyBoxesOf(client, served.companyID)).isServedByConnectionFile).toBe(true);
-
-		expect(await claimWithCode(served.companyID, box.publicKey, await announcedCode(box), 'add')).toBe('standby');
-
-		const standing = await boxSessionFor(credentials, box.publicKey, environment, appURL);
-		expect(standing?.role).toBe('standby');
-		expect(await roleOfHostSession(standing?.session.accessToken ?? '')).toBe('standby');
-		expect(await roleOfHostSession(served.hostSession.accessToken)).toBe('service');
-		expect(await companyOfHostSession(credentials, served.hostSession.accessToken)).toBe(served.companyID);
-	});
-
-	test('is never made to serve while the computer does', async () => {
-		const served = await aCompanyOnAConnectionFile('kept');
-		const box = await aBox();
-		await claimWithCode(served.companyID, box.publicKey, await announcedCode(box), 'add');
-
-		expect(await makeBoxServe(client, served.companyID, box.publicKey)).toBe('served_by_connection_file');
-		expect((await boxSessionFor(credentials, box.publicKey, environment, appURL))?.role).toBe('standby');
-	});
-
-	test('is kept when the computer installs its own connection file, with the keys the company seals to', async () => {
-		const served = await aCompanyOnAConnectionFile('joined');
-		const standing = await aBox();
-		await claimWithCode(served.companyID, standing.publicKey, await announcedCode(standing), 'add');
-		await keepSealedModelKey(client, served.companyID, { version: 1, recipient: standing.encryptionKey, enc: standing.encryptionKey, ciphertext: 'c2VhbGVk' });
-		const computer = await aBox();
-
-		expect(await claimBoxWithConnectionFile(client, computer.publicKey, computer.encryptionKey, served.connectionKey)).toBe(served.companyID);
-
-		const held = await companyBoxesOf(client, served.companyID);
-		expect(held.isServedByConnectionFile).toBe(false);
-		expect(held.boxes.map((box) => `${box.publicKey}:${box.role}`).sort()).toEqual(
-			[`${standing.publicKey}:standby`, `${computer.publicKey}:service`].sort()
+		expect((await companyBoxesOf(client, served.companyID)).boxes.map((box) => `${box.publicKey}:${box.role}`).sort()).toEqual(
+			[`${serving.publicKey}:service`, `${computer.publicKey}:standby`].sort()
 		);
-		expect(held.sealingKey).toBe(standing.encryptionKey);
-		expect(held.hasModelKey).toBe(true);
-		expect((await connectedBox(served.companyID, computer.publicKey))?.holdsCompanyKey).toBe(false);
-	});
-
-	test('serves when the computer installs its own connection file beside another agent key of the company', async () => {
-		const served = await aCompanyOnAConnectionFile('beside-another-key');
-		await issueAgentKey(client, served.companyID, 'relay sample unit');
-		const computer = await aBox();
-
-		expect(await claimBoxWithConnectionFile(client, computer.publicKey, computer.encryptionKey, served.connectionKey)).toBe(served.companyID);
-
-		const held = await companyBoxesOf(client, served.companyID);
-		expect(held.isServedByConnectionFile).toBe(false);
-		expect(held.boxes.map((box) => `${box.publicKey}:${box.role}`)).toEqual([`${computer.publicKey}:service`]);
-		expect(held.sealingKey).toBe(computer.encryptionKey);
-		expect((await connectedBox(served.companyID, computer.publicKey))?.holdsCompanyKey).toBe(true);
-		expect((await boxSessionFor(credentials, computer.publicKey, environment, appURL))?.role).toBe('service');
-	});
-
-	test('replaces the computer only when asked, which ends the computer\'s session', async () => {
-		const served = await aCompanyOnAConnectionFile('replaced');
-		const box = await aBox();
-
-		expect(await claimWithCode(served.companyID, box.publicKey, await announcedCode(box), 'replace')).toBe('service');
-
-		expect((await companyBoxesOf(client, served.companyID)).isServedByConnectionFile).toBe(false);
-		expect(await companyOfHostSession(credentials, served.hostSession.accessToken)).toBeNull();
+		expect((await boxSessionFor(credentials, computer.publicKey, environment, appURL))?.role).toBe('standby');
 	});
 });
 

@@ -16,11 +16,9 @@
 	import BoxWifiChange from './box-wifi-change.svelte';
 	import ModelPayer from './model-payer.svelte';
 	import SubscribeInstead from './subscribe-instead.svelte';
-	import ConnectedComputer from './connected-computer.svelte';
 	import { connectBox, disconnectBox, fetchBoxes, giveModelKey, makeBoxServe, verifyBoxCode, type Boxes } from './host-setup-client';
 	import { hostSetupText } from './text';
 
-	let { isCompanyComputerOnline }: { isCompanyComputerOnline: boolean } = $props();
 	const text = createPageText(hostSetupText);
 	const refreshMilliseconds = 5000;
 	let boxes = $state<Boxes>({
@@ -30,7 +28,6 @@
 		hasModelKey: false,
 		newestBackupAt: null,
 		takeOver: { isAutomatic: false, lapseSeconds: 90 },
-		isServedByConnectionFile: false,
 		creditsCanPayForModels: false,
 		usesOwnModelKey: true,
 		paidBy: 'nothing',
@@ -132,7 +129,7 @@
 	}
 
 	function canServe(box: ConnectedBox): boolean {
-		return box.role === 'standby' && box.holdsCompanyKey && step === 'connected' && !boxes.isServedByConnectionFile;
+		return box.role === 'standby' && box.holdsCompanyKey && step === 'connected';
 	}
 
 	function backupMoment(isoTime: string): string {
@@ -208,8 +205,6 @@
 {/snippet}
 
 <div class="grid min-w-0 gap-4">
-	{#if isCompanyComputerOnline && (!hasBoxes || boxes.isServedByConnectionFile)}<ConnectedComputer />{/if}
-
 	{#each boxes.boxes as box (box.publicKey)}
 		<Item.Root variant="outline">
 			<Item.Content>
@@ -294,9 +289,7 @@
 				<Item.Description>{verified.hostName ?? text.foundBox} · <span class="font-mono">{shortBoxName(verified.publicKey)}</span></Item.Description>
 				<Item.Description>{text.confirmNetwork.replace('{address}', verified.publicAddress)}</Item.Description>
 				<Item.Description>{text.confirmMatch.replace('{fingerprint}', shortBoxName(verified.publicKey))}</Item.Description>
-				{#if boxes.isServedByConnectionFile}
-					<Item.Description>{text.confirmAddBesideComputer}</Item.Description>
-				{:else if hasBoxes}
+				{#if hasBoxes}
 					<Item.Description>{text.confirmAddOrReplace}</Item.Description>
 				{/if}
 			</Item.Content>
@@ -310,12 +303,12 @@
 				</Button>
 			</Item.Actions>
 		</Item.Root>
-	{:else if step === 'searching' && !isCompanyComputerOnline}
+	{:else if step === 'searching'}
 		<div role="status" class="grid gap-1">
 			<p class="flex items-center gap-2 text-sm font-medium"><Spinner />{text.searching}</p>
 			<p class="text-sm text-muted-foreground">{text.searchingHint}</p>
 		</div>
-	{:else if boxes.empty.length > 0 && (isServed || isCompanyComputerOnline)}
+	{:else if boxes.empty.length > 0 && isServed}
 		<Collapsible.Root class="grid gap-2">
 			<Collapsible.Trigger class="inline-flex min-h-11 items-center justify-self-start text-sm underline">
 				{text.showWaitingBoxes.replace('{count}', String(boxes.empty.length))}

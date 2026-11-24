@@ -37,6 +37,7 @@ description: "PostgREST가 /rest/v1/rpc로 노출하는 함수 전부와, 누가
 | `attendance_work_policies` | — | `TABLE(member_id uuid, work_hours jsonb, minimum_daily_minutes integer, work_mode text, work_policy jsonb)` | definer | anon, authenticated, service_role |
 | `attendance_work_policy_save` | `target_policy jsonb` | `jsonb` | definer | authenticated |
 | `box_pairing_attempts_remain` | `claiming_company uuid` | `boolean` | definer | 없음 |
+| `box_readiness_of` | `ready_company uuid` | `TABLE(public_key text, is_ready boolean, share double precision)` | definer | service_role |
 | `calendar_subscription_company` | `target_token_hash text` | `uuid` | definer | service_role |
 | `calendar_subscription_save` | `target_token_hash text` | `void` | definer | authenticated |
 | `can_manage_task_relationship` | `target_task_id uuid` | `boolean` | definer | 없음 |
@@ -68,7 +69,6 @@ description: "PostgREST가 /rest/v1/rpc로 노출하는 함수 전부와, 누가
 | `company_of_task` | `target_task uuid` | `uuid` | invoker | authenticated, service_role |
 | `company_of_team` | `target_team uuid` | `uuid` | invoker | authenticated, service_role |
 | `company_representative_set` | `representative uuid` | `void` | definer | authenticated, service_role |
-| `company_served_by_connection_file` | `served_company uuid` | `boolean` | definer | service_role |
 | `company_subscription_changed` | `target_company uuid, target_customer text, target_subscription text, target_status text, status_at timestamp with time zone` | `void` | definer | service_role |
 | `company_subscription_invoice_paid` | `target_company uuid, target_event text, target_customer text, target_subscription text, granted_credits bigint, opens_period boolean, period_ends_at timestamp with time zone` | `void` | definer | service_role |
 | `company_topic` | `target_company uuid` | `text` | invoker | anon, authenticated, service_role |
@@ -141,6 +141,7 @@ description: "PostgREST가 /rest/v1/rpc로 노출하는 함수 전부와, 누가
 | `my_team` | — | `uuid` | definer | anon, authenticated, service_role |
 | `note_box_move` | `box_key text, stopped_timeline integer, stopped_position pg_lsn, stopped_entry bigint` | `text` | definer | service_role |
 | `note_box_seen` | `box_key text, seen_version text` | `text` | definer | service_role |
+| `note_box_share` | `box_key text, reported_digest text, reported_kept_through timestamp with time zone, reported_share_pieces integer, reported_held_pieces integer, reported_log_pieces integer` | `boolean` | definer | service_role |
 | `notification_settings_set` | `chosen jsonb` | `void` | definer | anon, authenticated, service_role |
 | `people_on_task` | `subject uuid` | `uuid[]` | invoker | anon, authenticated, service_role |
 | `person_set` | `target_member uuid, account_changes jsonb, organization_changes jsonb` | `void` | definer | authenticated, service_role |
@@ -153,7 +154,9 @@ description: "PostgREST가 /rest/v1/rpc로 노출하는 함수 전부와, 누가
 | `reopen_parent_for_an_unfinished_child` | `parent_id uuid` | `void` | definer | service_role |
 | `reserve_document_number` | `target_company uuid, requested_prefix text` | `text` | definer | authenticated, service_role |
 | `seconds_until_the_service_box_lapses` | `lapsing_company uuid` | `integer` | definer | service_role |
+| `share_placement_of` | `placed_company uuid` | `TABLE(public_key text, kept_through timestamp with time zone)` | definer | service_role |
 | `size_bytes` | `document company_document` | `bigint` | invoker | authenticated, service_role |
+| `standbys_digest_of` | `standing_company uuid` | `text` | definer | service_role |
 | `status_my_leave_request_takes` | — | `leave_status` | definer | authenticated, service_role |
 | `take_over_of` | `taken_company uuid` | `TABLE(is_automatic boolean, lapse_seconds integer)` | definer | service_role |
 | `task_children_link` | `parent_id uuid, child_ids uuid[]` | `void` | definer | authenticated |

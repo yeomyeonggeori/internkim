@@ -68,27 +68,3 @@ func TestABoxLeftWithAnEmptyConnectionFileInstallsAgain(t *testing.T) {
 		t.Fatalf("installs = %d, installed company = %q", len(recorded.requests), daemon.installedCompany())
 	}
 }
-
-func TestAResetFileIsHonouredOnAComputerThatLooksConnectedByFile(t *testing.T) {
-	plane := &fakePlane{isClaimed: true}
-	recorded := &installs{}
-	daemon, places := daemonFor(t, plane, recorded)
-	writeConnectionFile(t, places.ConnectionFilePath, sampleConnectionDocument(t))
-	daemon.Places.ResetRequestPath = filepath.Join(filepath.Dir(places.StateDirectoryPath), "boot", "internkim-reset")
-	writeConnectionFile(t, daemon.Places.ResetRequestPath, nil)
-
-	runSteps(t, daemon, 1)
-
-	if plane.releases != 1 || plane.announcements != 1 {
-		t.Fatalf("releases = %d, announcements = %d", plane.releases, plane.announcements)
-	}
-	if _, errorValue := os.Stat(daemon.Places.ResetRequestPath); !errors.Is(errorValue, os.ErrNotExist) {
-		t.Fatalf("the reset file is still there: %v", errorValue)
-	}
-
-	runSteps(t, daemon, 1)
-
-	if plane.announcements != 2 {
-		t.Fatalf("after its reset the box announced itself %d times across two boots, want 2", plane.announcements)
-	}
-}

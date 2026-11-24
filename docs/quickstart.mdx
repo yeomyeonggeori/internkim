@@ -58,7 +58,7 @@ on the same network first. To use a computer you already have, choose
 `Install on another computer instead`, then `Download connection file`, and save `internkim-host.json` to the computer that
 will run the company server. The file carries a key that connects a computer
 to this company, so keep it on that computer and do not commit it or send it
-in chat. On Linux the install spends the key: the computer then signs in with
+in chat. The install spends the key: the computer then signs in with
 its own, and the file connects nothing else.
 
 The setup page provides `Check connection` after installation.
@@ -130,10 +130,8 @@ locally.
 
 ## If the computer is replaced
 
-The connection file is tied to the company. Download a replacement from
-`https://intern.kim/<company-address>/settings/setup` when the existing
-connection must be replaced, then apply it on the new computer. The connection
-file alone does not carry host data. Back up the host data described in
-[What lives where](/what-lives-where) before moving the server. Company and
-member accounts in the hosted service remain, while the old connection file
-stops working after replacement.
+Install the new computer with a new connection file from
+`https://intern.kim/<company-address>/settings/setup`, or with the code it
+shows. It stands by beside the computer that serves, and `Make this box serve`
+on the setup page moves the company onto it with its data. Company and member
+accounts in the hosted service are not touched.

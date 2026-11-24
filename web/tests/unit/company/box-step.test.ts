@@ -16,7 +16,7 @@ const connected = {
 	share: null
 };
 const announced = { publicKey, announcedAt: '2026-09-27T00:00:00.000Z', hostName: null, pairingPageAddresses: [] };
-const noBoxes = { boxes: [], move: null, sealingKey: null, hasModelKey: false, newestBackupAt: null, takeOver: { isAutomatic: false, lapseSeconds: 300 }, isServedByConnectionFile: false, creditsCanPayForModels: false, usesOwnModelKey: true, paidBy: 'nothing' as const, isPayerChangeWaiting: false, isModelKeyOnlyOnTheComputer: false };
+const noBoxes = { boxes: [], move: null, sealingKey: null, hasModelKey: false, newestBackupAt: null, takeOver: { isAutomatic: false, lapseSeconds: 300 }, creditsCanPayForModels: false, usesOwnModelKey: true, paidBy: 'nothing' as const, isPayerChangeWaiting: false, isModelKeyOnlyOnTheComputer: false };
 
 describe('the company computer step', () => {
 	test('waits for a box when none is announcing on this network', () => {
@@ -28,16 +28,16 @@ describe('the company computer step', () => {
 	});
 
 	test('asks for the model key once a box is connected', () => {
-		expect(boxStepOf({ boxes: [connected], move: null, sealingKey: publicKey, hasModelKey: false, newestBackupAt: null, takeOver: { isAutomatic: false, lapseSeconds: 300 }, isServedByConnectionFile: false, creditsCanPayForModels: false, usesOwnModelKey: true, paidBy: 'nothing' as const, isPayerChangeWaiting: false, isModelKeyOnlyOnTheComputer: false, empty: [announced] })).toBe('givingModelKey');
+		expect(boxStepOf({ boxes: [connected], move: null, sealingKey: publicKey, hasModelKey: false, newestBackupAt: null, takeOver: { isAutomatic: false, lapseSeconds: 300 }, creditsCanPayForModels: false, usesOwnModelKey: true, paidBy: 'nothing' as const, isPayerChangeWaiting: false, isModelKeyOnlyOnTheComputer: false, empty: [announced] })).toBe('givingModelKey');
 	});
 
 	test('is done once the company has its model key, however many boxes it runs on', () => {
 		const standby = { ...connected, publicKey: 'p'.repeat(43), role: 'standby' as const, holdsCompanyKey: false };
-		expect(boxStepOf({ boxes: [connected, standby], move: null, sealingKey: publicKey, hasModelKey: true, newestBackupAt: null, takeOver: { isAutomatic: false, lapseSeconds: 300 }, isServedByConnectionFile: false, creditsCanPayForModels: false, usesOwnModelKey: true, paidBy: 'nothing' as const, isPayerChangeWaiting: false, isModelKeyOnlyOnTheComputer: false, empty: [] })).toBe('connected');
+		expect(boxStepOf({ boxes: [connected, standby], move: null, sealingKey: publicKey, hasModelKey: true, newestBackupAt: null, takeOver: { isAutomatic: false, lapseSeconds: 300 }, creditsCanPayForModels: false, usesOwnModelKey: true, paidBy: 'nothing' as const, isPayerChangeWaiting: false, isModelKeyOnlyOnTheComputer: false, empty: [] })).toBe('connected');
 	});
 
 	test('is done without a model key while a subscription pays for the models', () => {
-		expect(boxStepOf({ boxes: [connected], move: null, sealingKey: publicKey, hasModelKey: false, newestBackupAt: null, takeOver: { isAutomatic: false, lapseSeconds: 300 }, isServedByConnectionFile: false, creditsCanPayForModels: true, usesOwnModelKey: true, paidBy: 'subscription' as const, isPayerChangeWaiting: false, isModelKeyOnlyOnTheComputer: false, empty: [] })).toBe('connected');
+		expect(boxStepOf({ boxes: [connected], move: null, sealingKey: publicKey, hasModelKey: false, newestBackupAt: null, takeOver: { isAutomatic: false, lapseSeconds: 300 }, creditsCanPayForModels: true, usesOwnModelKey: true, paidBy: 'subscription' as const, isPayerChangeWaiting: false, isModelKeyOnlyOnTheComputer: false, empty: [] })).toBe('connected');
 	});
 });
 
@@ -46,12 +46,8 @@ test('a box is named by the last four characters of its public key, the ones its
 });
 
 describe('whether connecting a box adds to the company or starts it', () => {
-	test('a company with no box and no connection file is not served yet', () => {
+	test('a company with no box is not served yet', () => {
 		expect(isCompanyServed(noBoxes)).toBe(false);
-	});
-
-	test('a company its connection file computer serves is served before it has any box', () => {
-		expect(isCompanyServed({ ...noBoxes, isServedByConnectionFile: true })).toBe(true);
 	});
 
 	test('a company with a box is served', () => {

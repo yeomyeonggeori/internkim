@@ -120,8 +120,8 @@ describe('the per-member credit limit', () => {
 });
 
 describe('who pays for the models', () => {
-	const agentKeyHash = `who-pays-${slug}`;
-	const computer = { boxKey: null, agentKeyHash };
+	const boxKey = `who-pays-${slug}`.padEnd(43, 'p').slice(0, 43);
+	const computer = { boxKey, agentKeyHash: null };
 
 	async function subscriptionIs(status: 'active' | null) {
 		const { error } = await client.from('company').update({ subscription_status: status }).eq('id', companyID);
@@ -133,14 +133,14 @@ describe('who pays for the models', () => {
 	}
 
 	beforeEach(async () => {
-		await client.from('agent').delete().eq('company_id', companyID);
-		const { error } = await client.from('agent').insert({ company_id: companyID, name: 'company-computer', api_key_hash: agentKeyHash });
+		await client.from('box').delete().eq('company_id', companyID);
+		const { error } = await client.from('box').insert({ public_key: boxKey, company_id: companyID, encryption_key: 'k'.repeat(43), role: 'service' });
 		if (error) throw new Error(error.message);
 		await subscriptionIs(null);
 	}, networkHookTimeout);
 
 	afterAll(async () => {
-		await client.from('agent').delete().eq('company_id', companyID);
+		await client.from('box').delete().eq('company_id', companyID);
 		await subscriptionIs('active');
 	}, networkHookTimeout);
 

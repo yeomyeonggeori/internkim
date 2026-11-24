@@ -12,8 +12,7 @@ insert into public.member (id, company_id, email, user_id, status, is_admin, nam
    '55600000-0000-0000-0000-000000000001', 'active', true, '이샘플'),
   ('55600000-0000-0000-0000-000000000012', '55600000-0000-0000-0000-000000000000', 'key-peer@example.com',
    '55600000-0000-0000-0000-000000000002', 'active', false, '박예시');
-insert into public.agent (company_id, name, api_key_hash) values
-  ('55600000-0000-0000-0000-000000000000', 'company-computer', 'key-sample-computer');
+select public.keep_claimed_box('55600000-0000-0000-0000-000000000000', 'key-sample-box', repeat('k', 43), null, false);
 
 select is((select uses_own_model_key from public.company where id = '55600000-0000-0000-0000-000000000000'), true,
   'a company without a subscription uses its own key once its computer holds one');
@@ -30,7 +29,7 @@ select is((select uses_own_model_key from public.company where id = '55600000-00
 
 set local role authenticated;
 select set_config('request.jwt.claim.sub', '55600000-0000-0000-0000-000000000001', true);
-select throws_ok($$select public.keep_model_key_report('55600000-0000-0000-0000-000000000000', null, 'key-sample-computer', true)$$,
+select throws_ok($$select public.keep_model_key_report('55600000-0000-0000-0000-000000000000', 'key-sample-box', null, true)$$,
   '42501', null, 'only the model gateway keeps what a computer said');
 select throws_ok($$update public.company set uses_own_model_key = false where id = '55600000-0000-0000-0000-000000000000'$$,
   '42501', 'who pays for a company''s model calls is written by the server',
@@ -44,7 +43,7 @@ select results_eq(
   'the setting was written and who pays was left as it was');
 
 set local role service_role;
-select is(public.keep_model_key_report('55600000-0000-0000-0000-000000000000', null, 'key-sample-computer', true), true,
+select is(public.keep_model_key_report('55600000-0000-0000-0000-000000000000', 'key-sample-box', null, true), true,
   'a computer that says it holds a key is answered that a company without a subscription uses it');
 reset role;
 
@@ -57,7 +56,7 @@ select results_eq(
   $$select holds_model_key, uses_own_model_key_at_start from public.company_model_key_report('55600000-0000-0000-0000-000000000000')$$,
   $$values (true, true)$$,
   'a subscription started after the computer started leaves what it started with');
-select is(public.keep_model_key_report('55600000-0000-0000-0000-000000000000', null, 'key-sample-computer', true), false,
+select is(public.keep_model_key_report('55600000-0000-0000-0000-000000000000', 'key-sample-box', null, true), false,
   'the computer is answered that credits pay the next time its services start');
 reset role;
 

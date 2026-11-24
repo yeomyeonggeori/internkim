@@ -293,14 +293,9 @@ export async function claimBoxWithConnectionFile(
 		box_key: publicKey,
 		box_encryption_key: encryptionKey
 	});
-	if (error?.code === objectNotInPrerequisiteState) {
-		throw new BoxRefused('a box already serves this company, so a connection file cannot make this computer serve it; add it from company setup with the code it shows', 409);
-	}
 	if (error) throw new Error(`claiming box ${publicKey}: ${error.message}`);
 	return z.uuid().nullable().parse(data);
 }
-
-const objectNotInPrerequisiteState = '55000';
 
 const legacySealedModelKeySchema = z.object({
 	ephemeralPublicKey: boxKeySchema,
@@ -450,7 +445,6 @@ export async function companyBoxesOf(client: SupabaseClient, companyID: string):
 		hasModelKey: Boolean(keyring?.sealedModelKey),
 		newestBackupAt: keyring ? await newestKeptBackupAt(client, companyID, keyring.sealingKey) : null,
 		takeOver,
-		isServedByConnectionFile: await companyServedByConnectionFile(client, companyID),
 		...payer
 	};
 }
@@ -479,12 +473,6 @@ export async function usesOwnModelKeyOf(client: SupabaseClient, companyID: strin
 	const { data, error } = await client.from('company').select('uses_own_model_key').eq('id', companyID).single();
 	if (error) throw new Error(`whether ${companyID} uses its own model key: ${error.message}`);
 	return z.object({ uses_own_model_key: z.boolean() }).parse(data).uses_own_model_key;
-}
-
-async function companyServedByConnectionFile(client: SupabaseClient, companyID: string): Promise<boolean> {
-	const { data, error } = await client.rpc('company_served_by_connection_file', { served_company: companyID });
-	if (error) throw new Error(`whether a connection file serves ${companyID}: ${error.message}`);
-	return data === true;
 }
 
 const keptBackupBucket = 'box_backup';
@@ -539,7 +527,7 @@ function documentOf(text: string): unknown {
 	}
 }
 
-const servingOutcomeSchema = z.enum(['serving', 'moving', 'not_its_box', 'no_backup', 'served_by_connection_file']);
+const servingOutcomeSchema = z.enum(['serving', 'moving', 'not_its_box', 'no_backup']);
 
 export type ServingOutcome = z.infer<typeof servingOutcomeSchema>;
 

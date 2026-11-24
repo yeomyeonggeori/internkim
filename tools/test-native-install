@@ -2817,7 +2817,7 @@ class Rig:
             "an administrator adds a second box by the code it shows, and the company keeps the first",
             "the answers of the setup page's verification and claim calls, made on the administrator's own "
             "session with the code `internkim box code` printed on the second guest",
-            "the connection file always replaces the company's computer, so adding is only ever the code's path; "
+            "a code is how an administrator adds a box from the setup page; "
             "the record's answer is what the setup page shows the administrator",
         ).record(
             verified_status == 200 and claimed_status == 200,
