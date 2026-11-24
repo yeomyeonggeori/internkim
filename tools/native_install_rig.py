@@ -748,6 +748,7 @@ class Machine:
                 "--memory", f"{memory_mebibytes}M",
                 "--tmpfs", "/run",
                 "--tmpfs", "/run/lock",
+                "--cap-add", "CAP_SYS_TIME",
                 *([] if self.uses_runtime_kernel else ["--kernel", str(self.kernel_image_path)]),
                 "--platform", "linux/" + ARCHITECTURE,
                 "--volume", f"{self.share_directory}:{SHARE_PATH}",
