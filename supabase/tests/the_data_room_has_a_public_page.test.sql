@@ -7,7 +7,7 @@ insert into auth.users (id, email) values
   ('72000000-0000-0000-0000-000000000002', 'public-member@example.com');
 insert into public.company (id, name, slug, country, locale, timezone, profile) values
   ('72000000-0000-0000-0000-000000000000', 'Public Sample', 'public-sample', 'KR', 'ko', 'Asia/Seoul',
-   '{"name":{"ko":"공개 샘플"},"slogan":{"ko":"예시 슬로건"},"officeAddress":{"ko":"예시로 1"}}');
+   '{"name":{"ko":"공개 샘플"},"slogan":{"ko":"예시 슬로건"},"legalAttributes":{"ko":{"사업자등록번호":"000-00-00000"}},"capital":{"amount":100000000,"currency":"KRW"}}');
 insert into public.member (id, company_id, email, user_id, status, is_admin, name) values
   ('72000000-0000-0000-0000-000000000011', '72000000-0000-0000-0000-000000000000', 'public-admin@example.com',
    '72000000-0000-0000-0000-000000000001', 'active', true, '이샘플'),
@@ -20,9 +20,10 @@ insert into public.task (company_id, title, status, starts_at, ends_at) values
 
 select is((select array_agg(kind || ':' || field order by kind, field) from public.company_field
     where company_id = '72000000-0000-0000-0000-000000000000' and is_public),
-  array['profile:activity', 'profile:brandName', 'profile:description', 'profile:foundedDate', 'profile:name',
-    'profile:slogan', 'profile:website', 'record:award', 'record:history', 'record:product'],
-  'a new company publishes its introduction and its masked activity');
+  array['profile:activity', 'profile:brandName', 'profile:description', 'profile:email', 'profile:fax',
+    'profile:foundedDate', 'profile:legalAttributes', 'profile:name', 'profile:officeAddress', 'profile:phone',
+    'profile:representative', 'profile:slogan', 'profile:website', 'record:award', 'record:history', 'record:product'],
+  'a new company publishes its introduction, how it is registered and reached, and its masked activity');
 select is((select count(*)::integer from internal.data_room_fields_public_by_default() shown
     where not exists (select 1 from internal.data_room_template_fields() template
       where template.kind = shown.kind and template.field = shown.field)),
@@ -48,7 +49,8 @@ select ok(public.data_room_company('72000000-0000-0000-0000-000000000000') #> '{
 set local role anon;
 select set_config('request.jwt.claims', '{}', true);
 select is(public.data_room_company('72000000-0000-0000-0000-000000000000') -> 'profile',
-  '{"name":{"ko":"공개 샘플"},"slogan":{"ko":"예시 슬로건"}}'::jsonb, 'anyone sees exactly the published fields');
+  '{"name":{"ko":"공개 샘플"},"slogan":{"ko":"예시 슬로건"},"legalAttributes":{"ko":{"사업자등록번호":"000-00-00000"}}}'::jsonb,
+  'anyone sees exactly the published fields, the registration number among them and the capital not');
 select ok(public.data_room_company('72000000-0000-0000-0000-000000000000') ? 'activity',
   'a published activity field is shown');
 select ok(not (public.data_room_company('72000000-0000-0000-0000-000000000000') -> 'activity') ? 'board',

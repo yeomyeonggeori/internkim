@@ -26975,7 +26975,7 @@
         "state": "ok"
       },
       "canonicalName": "dataroom_publication_update",
-      "description": "Company dataroom: Update one publication on the company's public data room page: put one document or one company page field on it, or take it off. The public page is always at <company address>/room and anyone can open it without signing in; a new company starts with its introduction and its activity with names masked on it, and dataroom_get says which fields are public now. A published document can be read and downloaded by anyone, and a downloaded copy cannot be recalled, so confirm the exact document or field first. A document still in X is classified before it is published. Only a company administrator publishes.",
+      "description": "Company dataroom: Update one publication on the company's public data room page: put one document or one company page field on it, or take it off. The public page is always at <company address>/room and anyone can open it without signing in; a new company starts with its introduction, its registration, representative and contact details, and its activity with names masked on it, and dataroom_get says which fields are public now. A published document can be read and downloaded by anyone, and a downloaded copy cannot be recalled, so confirm the exact document or field first. A document still in X is classified before it is published. Only a company administrator publishes.",
       "estimatedLatency": "low",
       "idempotency": {
         "required": false,

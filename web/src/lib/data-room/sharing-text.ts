@@ -1,7 +1,7 @@
 export const dataRoomSharingText = {
 	ko: {
 		publicPage: '공개 페이지',
-		publicPageDescription: '누구나 로그인 없이 봅니다. 회사 소개와 이름을 가린 근무 현황으로 시작하며, 공개로 둔 회사 정보·문서만 보입니다.',
+		publicPageDescription: '누구나 로그인 없이 봅니다. 회사 소개, 사업자 등록 정보·대표자·연락처와 이름을 가린 근무 현황으로 시작하며, 공개로 둔 회사 정보·문서만 보입니다.',
 		publicSummary: '회사 정보 {fields}개 · 문서 {documents}개 공개 중',
 		openPublicPage: '열기',
 		peopleTitle: '코드로 여는 링크',
@@ -43,7 +43,7 @@ export const dataRoomSharingText = {
 	},
 	en: {
 		publicPage: 'Public page',
-		publicPageDescription: 'Anyone can open it without signing in. It starts with the company introduction and its activity with names masked, and shows only the fields and documents left on it.',
+		publicPageDescription: 'Anyone can open it without signing in. It starts with the company introduction, its registration, representative and contact details, and its activity with names masked, and shows only the fields and documents left on it.',
 		publicSummary: '{fields} company fields · {documents} documents public',
 		openPublicPage: 'Open',
 		peopleTitle: 'Links opened with a code',
