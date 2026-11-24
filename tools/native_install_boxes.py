@@ -38,6 +38,7 @@ B_ADDED = "box B is added by the code it shows"
 C_ADDED = "box C is added by the code it shows"
 A_SERVES = "box A runs every company service and holds the gateway socket"
 STANDBYS_IDLE = "boxes B and C stand by with only the box daemon awake"
+STANDBYS_TAKE_WORK = "boxes B and C each hold a socket of their own to the gateway, the one the company queue hands work over"
 SETUP_SAYS_READY = "the setup page says every box is ready"
 SHARES_REPORTED = "each standby reports half the company's pieces as its share"
 SHARES_ON_DISK = "the standbys hold every piece the store holds on disk, each piece on one standby"
@@ -54,8 +55,11 @@ ACCOUNTS_EQUAL = "the accounts, groups and memberships are what they were"
 SCHEDULES_EQUAL = "the scheduled tasks are what they were"
 ROSTER_EQUAL = "the roster is what it was"
 SECRETS_EQUAL = "the model key and the mail credentials are what they were"
+SESSION_OF_ITS_OWN = "the box that took over carries the session it holds in its connection file, not the one the store carried"
 WALLS_HOLD = "on the box that took over each person reads their own files and nobody else's"
 SCHEDULE_RUNS = "the task scheduled for just after the state was read runs on the box that took over"
+MEMBER_ANSWERED = "a member's message to the box that took over is answered"
+POWERED_BOX_STANDS_BY = "the box that lost its power comes back standing by"
 
 MOVE_INTERRUPTS_BRIEFLY = "moving the company to another box keeps members waiting under a minute"
 COMMITS_MOVED = "every acknowledged database commit is on the box the company moved to"
@@ -76,6 +80,7 @@ OBSERVATIONS = (
     C_ADDED,
     A_SERVES,
     STANDBYS_IDLE,
+    STANDBYS_TAKE_WORK,
     SETUP_SAYS_READY,
     SHARES_REPORTED,
     SHARES_ON_DISK,
@@ -91,14 +96,17 @@ OBSERVATIONS = (
     SCHEDULES_EQUAL,
     ROSTER_EQUAL,
     SECRETS_EQUAL,
+    SESSION_OF_ITS_OWN,
     WALLS_HOLD,
     SCHEDULE_RUNS,
+    MEMBER_ANSWERED,
     MOVE_INTERRUPTS_BRIEFLY,
     COMMITS_MOVED,
     FILE_WRITES_MOVED,
     MESSAGES_MOVED,
     OLD_BOX_COMMITS_REFUSED,
     OLD_BOX_STORE_WRITES_REFUSED,
+    POWERED_BOX_STANDS_BY,
     STORE_LINK_LIMITED,
     HALF_HELD_IS_FASTER,
 )

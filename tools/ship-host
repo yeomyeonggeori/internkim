@@ -339,8 +339,8 @@ def run_people_upgrade_rig(shipment):
     )
 
 
-def run_several_boxes_rig(shipment):
-    shipment.run(rig_command(shipment, ["--several-boxes"]), log_path=rig_log_path(shipment, "several-boxes-rig"))
+def run_boxes_rig(shipment):
+    shipment.run(rig_command(shipment, ["--boxes"]), log_path=rig_log_path(shipment, "boxes-rig"))
 
 
 def promote_to_stable(shipment):
@@ -471,7 +471,7 @@ def planned_steps(options):
         (lambda shipment: f"download {shipment.tag} and {shipment.previous_tag} and verify their checksums", download_and_verify),
         (lambda shipment: f"run the {RIG_DISTRIBUTION} install and upgrade rig, {shipment.previous_tag} to {shipment.tag}", run_install_rig),
         (lambda shipment: f"upgrade a host that already has people, {shipment.previous_tag} to {shipment.tag}", run_people_upgrade_rig),
-        (lambda shipment: f"take the company over from one box to a second on {shipment.tag}", run_several_boxes_rig),
+        (lambda shipment: f"keep a company on three boxes of {shipment.tag} through a power cut and a move, by the boxes ratchet", run_boxes_rig),
     ]
     if options.skip_host:
         return steps

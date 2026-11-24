@@ -74,7 +74,8 @@ repository-wide rule, are guards. They live in
   break, and says in the pull request which ran and why. A web change run
   without `--ui` prints `ui not run`.
 - `tools/test-native-install --boxes` runs for a change to anything the box
-  daemon compiles, the schema, the box routes, the gateway or the rig. It
+  daemon compiles, the schema, the box routes, the gateway or the rig, and
+  `tools/ship-host --release` runs it on the release's own packages. It
   installs three guests with one install line, cuts the service box's power
   while writers run, moves the company to another box and times a restore.
   A list in `tools/native_install_boxes.py` names each observation that does
