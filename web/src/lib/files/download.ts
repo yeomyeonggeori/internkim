@@ -73,15 +73,13 @@ export async function downloadFile(source: string, filename: string, identity: s
 	await downloadWithProgress(source, filename, identity);
 }
 
-export function startDownload(source: string, filename: string, identity: string = source): void {
-	if (!keepsFilesInsideTheApp()) {
-		clickDownloadLink(downloadAddressOf(source, filename), filename);
-		return;
-	}
-	downloadWithProgress(source, filename, identity).catch((failure: unknown) => {
-		tellNotKept(failure);
-		console.warn('the file was not downloaded', { source, filename, failure });
-	});
+export function startDownload(source: string | Promise<string>, filename: string, identity?: string): void {
+	Promise.resolve(source)
+		.then((address) => downloadFile(address, filename, identity))
+		.catch((failure: unknown) => {
+			tellNotKept(failure);
+			console.warn('the file was not downloaded', { filename, identity, failure });
+		});
 }
 
 export async function saveBlob(blob: Blob, filename: string): Promise<void> {

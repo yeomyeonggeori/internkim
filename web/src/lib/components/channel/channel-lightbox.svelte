@@ -24,7 +24,7 @@
 	import { Slider } from '$lib/components/ui/slider/index.js';
 	import { channelText } from '$lib/i18n/channel-text';
 	import { createPageText } from '$lib/i18n/page-text.svelte';
-	import { startDownload } from '$lib/files/download';
+	import { downloadAttachment } from './attachment-download';
 	import DownloadIndicator from '$lib/files/download-indicator.svelte';
 	import ChannelVideoPlayer from './channel-video-player.svelte';
 	import { dragsToDismiss, LightboxDragDismiss } from './lightbox-drag-dismiss.svelte';
@@ -196,7 +196,7 @@
 				type="button"
 				class="flex size-9 items-center justify-center rounded-full transition hover:bg-white/20"
 				aria-label={text.downloadAttachment}
-				onclick={() => startDownload(currentItem.source, currentItem.filename, currentItem.identity)}
+				onclick={() => downloadAttachment(currentItem.source, currentItem.filename, currentItem.identity)}
 			>
 				<DownloadIndicator identity={currentItem.identity}>
 					{#snippet idle()}

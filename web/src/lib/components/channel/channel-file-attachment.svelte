@@ -13,7 +13,7 @@
 	import { channelText } from '$lib/i18n/channel-text';
 	import { createPageText } from '$lib/i18n/page-text.svelte';
 	import { attachmentSource } from '$lib/stores/attachment-source.svelte';
-	import { startDownload } from '$lib/files/download';
+	import { downloadAttachment } from './attachment-download';
 	import DownloadIndicator from '$lib/files/download-indicator.svelte';
 	import { downloadProgress } from '$lib/files/download-progress.svelte';
 	import { downloadText } from '$lib/i18n/download-text';
@@ -161,7 +161,7 @@
 			<Attachment.Action
 				variant={hasPreview ? 'secondary' : 'ghost'}
 				aria-label={text.downloadAttachment}
-				onclick={() => startDownload(source, filename, attachment.url)}
+				onclick={() => downloadAttachment(source, filename, attachment.url)}
 			>
 				<DownloadIndicator identity={attachment.url} class="size-6">
 					{#snippet idle()}
