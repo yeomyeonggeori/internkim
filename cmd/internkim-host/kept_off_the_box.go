@@ -6,7 +6,6 @@ import (
 
 	"github.com/yeomyeonggeori/internkim/internal/box"
 	"github.com/yeomyeonggeori/internkim/internal/offsite"
-	"github.com/yeomyeonggeori/internkim/internal/runtime/blueclaw"
 )
 
 const keptOffTheBoxCheckEvery = 15 * time.Second
@@ -15,25 +14,18 @@ type keptOffTheBox struct {
 	destination        offsite.Destination
 	keyring            box.Keyring
 	holdsTheCompanyKey bool
-	isJournaled        bool
 }
 
 func whatThisBoxKeeps() (keptOffTheBox, error) {
-	return whatIsKeptOffTheBox(thisBox(), blueclaw.CompanyHostSeveralBoxesPath)
+	return whatIsKeptOffTheBox(thisBox())
 }
 
-func whatIsKeptOffTheBox(place offsite.ThisBox, severalBoxesPath string) (keptOffTheBox, error) {
+func whatIsKeptOffTheBox(place offsite.ThisBox) (keptOffTheBox, error) {
 	destination, keyring, holdsTheCompanyKey, errorValue := place.Destination()
 	if errorValue != nil {
 		return keptOffTheBox{}, errorValue
 	}
-	hasSeveralBoxes, _ := box.CompanyBoxCount(severalBoxesPath)
-	return keptOffTheBox{
-		destination:        destination,
-		keyring:            keyring,
-		holdsTheCompanyKey: holdsTheCompanyKey,
-		isJournaled:        holdsTheCompanyKey && hasSeveralBoxes,
-	}, nil
+	return keptOffTheBox{destination: destination, keyring: keyring, holdsTheCompanyKey: holdsTheCompanyKey}, nil
 }
 
 func whileThisBoxKeepsTheSame(ctx context.Context, kept keptOffTheBox) (context.Context, context.CancelFunc) {
@@ -46,7 +38,7 @@ func whileThisBoxKeepsTheSame(ctx context.Context, kept keptOffTheBox) (context.
 			case <-watched.Done():
 				return
 			case <-ticker.C:
-				if now, errorValue := whatThisBoxKeeps(); errorValue != nil || now.isJournaled != kept.isJournaled {
+				if now, errorValue := whatThisBoxKeeps(); errorValue != nil || now.holdsTheCompanyKey != kept.holdsTheCompanyKey {
 					cancel()
 					return
 				}

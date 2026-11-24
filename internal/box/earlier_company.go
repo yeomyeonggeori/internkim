@@ -97,16 +97,8 @@ func (daemon Daemon) forgetTheEarlierCompanyHere() error {
 		removeIfPresent(daemon.statePath(modelKeyAwaitingRestartFileName)),
 		removeIfPresent(daemon.statePath(modelKeyFromCompanyFileName)),
 		removeIfPresent(daemon.statePath(TakeOverRetryFileName)),
-		daemon.forgetSeveralBoxes(),
 		removeIfPresent(companyKeyPathIn(daemon.Places.StateDirectoryPath)),
 	)
-}
-
-func (daemon Daemon) forgetSeveralBoxes() error {
-	if daemon.Places.SeveralBoxesPath == "" {
-		return nil
-	}
-	return removeIfPresent(daemon.Places.SeveralBoxesPath)
 }
 
 func companyKeyOwner(stateDirectoryPath string) (string, error) {

@@ -129,15 +129,22 @@ export const companyBoxesSchema = z.object({
 }).strict();
 
 export const keptBackupManifestVersion = 2;
+export const keptBaseBackupVersion = 1;
 
-export const keptBackupManifestSchema = z.object({
-	version: z.literal(keptBackupManifestVersion),
-	name: z.string().min(1),
-	sealingKey: boxKeySchema,
-	createdAt: z.iso.datetime({ offset: true })
-});
+function keptBackupDocumentSchema(version: number) {
+	return z.object({
+		version: z.literal(version),
+		name: z.string().min(1),
+		sealingKey: boxKeySchema,
+		createdAt: z.iso.datetime({ offset: true })
+	});
+}
 
-export type KeptBackupManifest = z.infer<typeof keptBackupManifestSchema>;
+export const keptBackupManifestSchema = keptBackupDocumentSchema(keptBackupManifestVersion);
+
+export const keptBaseBackupSchema = keptBackupDocumentSchema(keptBaseBackupVersion);
+
+export type KeptBackupDocument = z.infer<typeof keptBackupManifestSchema>;
 
 export type CompanyBoxes = z.infer<typeof companyBoxesSchema>;
 

@@ -23,7 +23,7 @@ const exampleCompanyID = "00000000-0000-4000-8000-000000000001"
 func TestAnAttachmentIsStoredOnABoxThatHasItsOwnKeyAndNoCompanyYet(t *testing.T) {
 	place := boxWithAConnectionAndNoCompany(t)
 	identityOfTheBoxAt(t, place)
-	socketPath := theFileJournalServedFor(t, place, filepath.Join(place.BoxStatePath, "several-boxes"))
+	socketPath := theFileJournalServedFor(t, place)
 	store := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 		writer.WriteHeader(http.StatusOK)
 	}))
@@ -43,59 +43,35 @@ func TestAnAttachmentIsStoredOnABoxThatHasItsOwnKeyAndNoCompanyYet(t *testing.T)
 	}
 }
 
-func TestOnlyABoxHoldingTheCompanyKeyAmongSeveralBoxesJournals(t *testing.T) {
-	for _, scenario := range []struct {
-		name               string
-		holdsTheCompanyKey bool
-		boxCount           string
-		wantAnswer         string
-	}{
-		{"no company key, several boxes", false, "several", "unjournaled"},
-		{"the company key, one box", true, "one", "unjournaled"},
-		{"the company key, a count nobody wrote", true, "", "unjournaled"},
-	} {
-		place := boxWithAConnectionAndNoCompany(t)
-		identity := identityOfTheBoxAt(t, place)
-		if errorValue := box.MarkInstalledCompany(place.BoxStatePath, exampleCompanyID); errorValue != nil {
-			t.Fatal(errorValue)
-		}
-		if scenario.holdsTheCompanyKey {
-			holdTheCompanyKey(t, place, identity)
-		}
-		severalBoxesPath := filepath.Join(place.BoxStatePath, "several-boxes")
-		if scenario.boxCount != "" {
-			if errorValue := box.NoteSeveralBoxes(severalBoxesPath, scenario.boxCount == "several"); errorValue != nil {
-				t.Fatal(errorValue)
-			}
-		}
+func TestABoxOfACompanyWithoutTheCompanyKeyJournalsNothing(t *testing.T) {
+	place := boxWithAConnectionAndNoCompany(t)
+	identityOfTheBoxAt(t, place)
+	if errorValue := box.MarkInstalledCompany(place.BoxStatePath, exampleCompanyID); errorValue != nil {
+		t.Fatal(errorValue)
+	}
 
-		answer := askedOverTheSocket(t, theFileJournalServedFor(t, place, severalBoxesPath))
+	answer := askedOverTheSocket(t, theFileJournalServedFor(t, place))
 
-		if answer != scenario.wantAnswer {
-			t.Errorf("%s: the file journal answered %q, want %q", scenario.name, answer, scenario.wantAnswer)
-		}
+	if answer != "unjournaled" {
+		t.Fatalf("a box that cannot seal to the company key answered %q, want \"unjournaled\"", answer)
 	}
 }
 
-func TestABoxHoldingTheCompanyKeyAmongSeveralBoxesJournals(t *testing.T) {
+func TestTheFirstBoxOfACompanyJournalsWithNoOtherBoxToTakeOver(t *testing.T) {
 	place := boxWithAConnectionAndNoCompany(t)
 	identity := identityOfTheBoxAt(t, place)
 	if errorValue := box.MarkInstalledCompany(place.BoxStatePath, exampleCompanyID); errorValue != nil {
 		t.Fatal(errorValue)
 	}
 	holdTheCompanyKey(t, place, identity)
-	severalBoxesPath := filepath.Join(place.BoxStatePath, "several-boxes")
-	if errorValue := box.NoteSeveralBoxes(severalBoxesPath, true); errorValue != nil {
-		t.Fatal(errorValue)
-	}
 
-	kept, errorValue := whatIsKeptOffTheBox(place, severalBoxesPath)
+	kept, errorValue := whatIsKeptOffTheBox(place)
 
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	if !kept.isJournaled || kept.destination.CompanyID != exampleCompanyID || kept.destination.SealingKey != identity.EncryptionPublicKey() {
-		t.Fatalf("the box journals %v for %s under %s", kept.isJournaled, kept.destination.CompanyID, kept.destination.SealingKey)
+	if !kept.holdsTheCompanyKey || kept.destination.CompanyID != exampleCompanyID || kept.destination.SealingKey != identity.EncryptionPublicKey() {
+		t.Fatalf("the company's only box journals %v for %s under %s", kept.holdsTheCompanyKey, kept.destination.CompanyID, kept.destination.SealingKey)
 	}
 }
 
@@ -216,9 +192,9 @@ func filesIn(t *testing.T, directoryPath string) map[string]bool {
 	return names
 }
 
-func theFileJournalServedFor(t *testing.T, place offsite.ThisBox, severalBoxesPath string) string {
+func theFileJournalServedFor(t *testing.T, place offsite.ThisBox) string {
 	t.Helper()
-	kept, errorValue := whatIsKeptOffTheBox(place, severalBoxesPath)
+	kept, errorValue := whatIsKeptOffTheBox(place)
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}

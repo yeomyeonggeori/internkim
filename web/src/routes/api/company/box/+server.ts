@@ -54,7 +54,7 @@ export const PATCH: RequestHandler = async ({ request, platform }) => {
 		error(409, 'the company computer connected with a connection file serves the company, and no box can take over what it holds');
 	}
 	if (outcome === 'no_backup') {
-		error(409, 'the company keeps no backup yet for this box to take over from; the box that serves keeps one every fifteen minutes');
+		error(409, 'the company keeps no backup yet for this box to take over from; the box that serves keeps one as soon as it serves');
 	}
 	return json(await companyBoxesOf(member.record, member.companyID), { headers: privateHeaders });
 };

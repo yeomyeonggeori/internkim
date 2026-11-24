@@ -98,15 +98,16 @@ OBSERVATIONS = (
 )
 
 NEEDS_A_TAKE_OVER = (
-    "not reached until a take-over runs: the setup page refuses one before the first snapshot; seeding steps 1 and 2, "
-    "the log starts with the first box and a take-over starts from the logs alone"
+    "not reached until a take-over runs: the setup page makes a standby serve once the log has its base backup, and "
+    "the standby then refuses to start because a take-over still reads only a snapshot and none is kept in the first "
+    "quarter hour; seeding step 2, a take-over starts from the logs alone"
 )
-NEEDS_A_FENCED_MOVE = "not reached until a take-over runs (seeding steps 1 and 2); then pass condition 4, a move catches up and fences the old box"
+NEEDS_A_FENCED_MOVE = "not reached until a take-over runs (seeding step 2); then pass condition 4, a move catches up and fences the old box"
 
 NOT_YET = {
     SETUP_SAYS_READY: "pass condition 2: GET /api/company/box says whether each box is ready",
     SHARES_REPORTED: "seeding step 4: a standby keeps its share and reports it",
-    SHARES_ON_DISK: "seeding steps 1 and 4: the log starts with the first box, and each standby keeps its share on disk",
+    SHARES_ON_DISK: "seeding step 4: the store holds the log from the first box on, and no standby keeps a share of it on disk",
     AUTOMATIC_TAKE_OVER: "pass condition 3: a standby takes over by itself, with no administrator call",
     TAKEN_OVER_RUNS: NEEDS_A_TAKE_OVER,
     COMMITS_KEPT: NEEDS_A_TAKE_OVER,
@@ -126,7 +127,7 @@ NOT_YET = {
     OLD_BOX_COMMITS_REFUSED: NEEDS_A_FENCED_MOVE,
     OLD_BOX_STORE_WRITES_REFUSED: NEEDS_A_FENCED_MOVE,
     STORE_LINK_LIMITED: NEEDS_A_TAKE_OVER,
-    HALF_HELD_IS_FASTER: "not reached until a take-over runs (seeding steps 1 and 2); then seeding step 4, a take-over reads its own share first",
+    HALF_HELD_IS_FASTER: "not reached until a take-over runs (seeding step 2); then seeding step 4, a take-over reads its own share first",
 }
 
 

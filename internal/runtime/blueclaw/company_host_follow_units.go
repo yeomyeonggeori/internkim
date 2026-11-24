@@ -7,7 +7,6 @@ const (
 	CompanyHostFileFollowServiceName = "internkim-file-follow"
 	CompanyHostFileJournalSocketPath = "/run/" + CompanyHostFileFollowServiceName + "/barrier.sock"
 	companyHostFollowRestartWait     = "5s"
-	CompanyHostSeveralBoxesPath      = CompanyHostBoxStatePath + "/several-boxes"
 )
 
 type companyHostFollower struct {
@@ -18,8 +17,8 @@ type companyHostFollower struct {
 }
 
 var companyHostFollowers = []companyHostFollower{
-	{name: CompanyHostWALFollowServiceName, description: "keeps every commit with the company's other boxes before it counts", verb: "wal-follow"},
-	{name: CompanyHostFileFollowServiceName, description: "keeps every changed file with the company's other boxes", verb: "file-follow", runtimeDirectory: CompanyHostFileFollowServiceName},
+	{name: CompanyHostWALFollowServiceName, description: "keeps every commit off the box before it counts", verb: "wal-follow"},
+	{name: CompanyHostFileFollowServiceName, description: "keeps every changed file off the box", verb: "file-follow", runtimeDirectory: CompanyHostFileFollowServiceName},
 }
 
 func companyHostFollowUnits(layout CompanyHostLayout) []CompanyPackageUnit {
