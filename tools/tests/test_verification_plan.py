@@ -251,6 +251,26 @@ class VerificationPlanTests(unittest.TestCase):
         missed = sorted(path for path in go_build_reads_outside_go_sources(module.REPOSITORY_ROOT) if not go.matches(path) and not go.matches(f"{path}any-file"))
         self.assertEqual(missed, [])
 
+    def test_the_boxes_group_selects_every_package_the_box_daemon_compiles(self):
+        module = verification_module()
+        derived = module.go_package_patterns(module.BOXES_GO_PACKAGE)
+        self.assertEqual(module.BOXES_GO_PACKAGE_PATTERNS, derived, f"set BOXES_GO_PACKAGE_PATTERNS in tools/verify to {derived}")
+        boxes = next(group for group in module.GROUPS if group.name == "boxes")
+        for pattern in derived:
+            self.assertTrue(boxes.matches(pattern) or boxes.matches(pattern.replace("*", "any.go")), pattern)
+
+    def test_the_boxes_group_builds_the_package_before_the_scenario_runs_and_has_a_lane_of_its_own(self):
+        boxes = next(group for group in verification_module().GROUPS if group.name == "boxes")
+        built, packaged, scenario = boxes.commands
+        self.assertEqual(built[:2], ["go", "build"])
+        self.assertEqual(built[built.index("-o") + 1], packaged[0])
+        self.assertEqual(packaged[1:], ["release", "packages", "--format", "deb", "--architecture", "arm64"])
+        self.assertIn("tools/test-native-install --boxes", scenario[-1])
+        self.assertEqual(boxes.lane, "boxes")
+        self.assertTrue(boxes.fills_the_machine)
+        for changed_path in ["supabase/migrations/20990101000000_example.sql", "web/src/routes/api/company/box/+server.ts", "workers/connection-gateway/src/index.ts", "internal/walstream/follower.go", "tools/native_install_boxes.py"]:
+            self.assertTrue(boxes.is_touched_by([changed_path]), changed_path)
+
     def test_a_data_room_template_change_beside_migrations_and_the_plugin_runs_the_go_tests_that_read_them(self):
         groups = verification_module().GROUPS
         changed = [

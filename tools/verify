@@ -192,6 +192,62 @@ def files_the_api_suite_imports():
     return frozenset(next((submodule for submodule in submodules if path.startswith(f"{submodule}/")), path) for path in listed.stdout.split())
 
 
+def go_package_patterns(package):
+    """The patterns that select every file of this repository the Go build of one package compiles."""
+    listed = subprocess.run(
+        ["go", "list", "-deps", "-f", "{{if not .Standard}}{{.Dir}}{{end}}", package],
+        cwd=REPOSITORY_ROOT,
+        capture_output=True,
+        text=True,
+    )
+    if listed.returncode != 0:
+        raise SystemExit(f"cannot list what {package} compiles: {listed.stderr.strip()}")
+    root = REPOSITORY_ROOT.resolve()
+    submodules = [path for path, mode in repository_entries() if mode == "160000"]
+    patterns = {"go.mod", "go.sum"}
+    for directory in listed.stdout.split():
+        resolved = Path(directory).resolve()
+        if not resolved.is_relative_to(root):
+            continue
+        relative = resolved.relative_to(root).as_posix()
+        patterns.add(next((submodule for submodule in submodules if relative == submodule or relative.startswith(f"{submodule}/")), f"{relative}/*"))
+    return sorted(patterns)
+
+
+BOXES_GO_PACKAGE = "./cmd/internkim-host"
+BOXES_GO_PACKAGE_PATTERNS = [
+    ".dependency/blueclaw",
+    "cmd/internkim-host/*",
+    "go.mod",
+    "go.sum",
+    "internal/box/*",
+    "internal/boxwifi/*",
+    "internal/browser/*",
+    "internal/buzzidentity/*",
+    "internal/capabilities/*",
+    "internal/capabilityd/*",
+    "internal/companyhost/*",
+    "internal/desktop/*",
+    "internal/durablefile/*",
+    "internal/filestream/*",
+    "internal/hostbackup/*",
+    "internal/hostupdate/*",
+    "internal/hostversion/*",
+    "internal/llmbackend/*",
+    "internal/mediagate/*",
+    "internal/modelladder/*",
+    "internal/modelpayer/*",
+    "internal/offsite/*",
+    "internal/personname/*",
+    "internal/runtime/blueclaw/*",
+    "internal/servicetoken/*",
+    "internal/walstream/*",
+    "internal/workqueue/*",
+    "pkg/capabilityprotocol/*",
+    "pkg/capabilityprotocol/jsonschema/*",
+]
+
+
 GROUPS = [
     Group(
         "verification-plan",
@@ -574,6 +630,8 @@ GROUPS = [
             "tools/tests/test_e2e_tasks.py",
             "tools/native_install_messenger.py",
             "tools/native_install_files.py",
+            "tools/native_install_boxes.py",
+            "tools/tests/test_native_install_boxes.py",
             "tools/native_install_assets/*",
             "internal/admind/host_update.go",
             "internal/hostupdate/*",
@@ -589,7 +647,33 @@ GROUPS = [
         [
             ["python3", "-m", "unittest", "discover", "-s", "tools/tests", "-p", "test_native_install_rig.py"],
             ["python3", "-m", "unittest", "discover", "-s", "tools/tests", "-p", "test_e2e_tasks.py"],
+            ["python3", "-m", "unittest", "discover", "-s", "tools/tests", "-p", "test_native_install_boxes.py"],
         ],
+    ),
+    Group(
+        "boxes",
+        [
+            *BOXES_GO_PACKAGE_PATTERNS,
+            "supabase/migrations/*",
+            "web/src/routes/api/box/*",
+            "web/src/routes/api/company/box/*",
+            "web/src/lib/server/box*",
+            "web/src/lib/company/box.ts",
+            "workers/connection-gateway/*",
+            "host/*",
+            "tools/render-company-runtime",
+            "internal/cli/release_package*.go",
+            "web/static/install.sh",
+            "tools/test-native-install",
+            "tools/native_install_*.py",
+            "tools/native-install-member-session.ts",
+        ],
+        [
+            ["go", "build", "-o", ".artifacts/boxes/internkim", "./cmd/internkim"],
+            [".artifacts/boxes/internkim", "release", "packages", "--format", "deb", "--architecture", "arm64"],
+            holding_the_local_plane(["tools/test-native-install", "--boxes"]),
+        ],
+        fills_the_machine=True,
     ),
     Group(
         "ship-host",

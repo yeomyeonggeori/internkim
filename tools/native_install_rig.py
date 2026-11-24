@@ -1418,8 +1418,18 @@ class CompanyPlane:
             f"/rest/v1/agent?company_id=eq.{company_id}&name=eq.{COMPANY_COMPUTER_AGENT_NAME}"
         )
 
+    def company_of_the_administrator(self):
+        """The company the seeded administrator administers, found in the record rather than spelled here."""
+        status, document = self.read_record(
+            f"/rest/v1/member?select=company_id&is_admin=eq.true&status=eq.active&email=eq.{urllib.parse.quote(self.administrator_email)}"
+        )
+        rows = json.loads(document) if status == 200 and document else []
+        if not rows:
+            raise RigFailure(f"the seeded administrator {self.administrator_email} administers no company ({status}): {document[:300]!r}")
+        return rows[0]["company_id"]
+
     def forget_the_company_boxes(self, company_id):
-        """Take back the boxes a run claimed, so the next run's box is not refused beside one still serving."""
+        """Take back every box the scenario claimed for the company, so no run inherits an earlier run's boxes."""
         self.delete_from_record(f"/rest/v1/box?company_id=eq.{company_id}")
 
     def forget_the_company_backups(self, company_id):
