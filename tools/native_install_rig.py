@@ -583,6 +583,8 @@ PACKAGE_CACHE_ROOT = RIG_CACHE_ROOT / "packages"
 DOWNLOAD_CACHE_DIRECTORY = RIG_CACHE_ROOT / "downloads"
 DOWNLOAD_CACHE_USE_MARKER = ".last-used"
 GUEST_DOWNLOAD_CACHE_PATH = "/var/cache/internkim"
+GUEST_DOWNLOAD_CACHE_MOUNT_PATH = "/var/cache/internkim-rig-downloads"
+GUEST_DOWNLOAD_CACHE_LINK = f"ln -sfn {GUEST_DOWNLOAD_CACHE_MOUNT_PATH} {GUEST_DOWNLOAD_CACHE_PATH}\n"
 PACKAGE_CACHE_LIMIT_BYTES = 4 * 1024**3
 PACKAGE_CACHE_LONGEST_AGE_SECONDS = 30 * 24 * 3600
 PACKAGE_CACHE_STRAY_AGE_SECONDS = 24 * 3600
@@ -753,9 +755,9 @@ class Machine:
                 "--platform", "linux/" + ARCHITECTURE,
                 "--volume", f"{self.share_directory}:{SHARE_PATH}",
                 "--volume", f"{self.package_cache_directory}:{GUEST_PACKAGE_CACHE_PATH}",
-                "--volume", f"{self.download_cache_directory}:{GUEST_DOWNLOAD_CACHE_PATH}",
+                "--volume", f"{self.download_cache_directory}:{GUEST_DOWNLOAD_CACHE_MOUNT_PATH}",
                 self.image,
-                "sh", "-c", (ROSETTA_BOOTSTRAP if ARCHITECTURE == "amd64" else "") + self.bootstrap_script,
+                "sh", "-c", (ROSETTA_BOOTSTRAP if ARCHITECTURE == "amd64" else "") + GUEST_DOWNLOAD_CACHE_LINK + self.bootstrap_script,
             ]
         )
         self.created = True
