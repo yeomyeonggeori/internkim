@@ -2552,7 +2552,7 @@ class Rig:
             readings = []
             for machine in machines:
                 limited = machine.shell(boxes.STORE_LINK_LIMIT_COMMAND % {"port": self.plane.record_forward.port, "rate": boxes.STORE_LINK_RATE})
-                readings.append(f"{machine.name} (exit {limited.returncode}):\n{limited.stdout.strip()[-600:]}")
+                readings.append(f"{machine.name} (exit {limited.returncode}):\n{limited.stdout.strip()[-600:]}\n{limited.stderr.strip()[-600:]}")
                 if limited.returncode != 0:
                     return False, "\n".join(readings)
             return True, "\n".join(readings)

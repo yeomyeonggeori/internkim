@@ -64,6 +64,13 @@ class GuestPackageCacheTests(unittest.TestCase):
         self.assertEqual(rig.package_cache_for("debian:trixie-slim"), rig.package_cache_for("debian:trixie-slim"))
         self.assertNotEqual(rig.package_cache_for("debian:trixie-slim"), rig.package_cache_for("ubuntu:24.04"))
 
+    def test_every_guest_may_limit_its_own_link_to_the_store(self):
+        machine = rig.Machine("guest", self.directory(), package_cache_directory=self.directory(), download_cache_directory=self.directory())
+        with unittest.mock.patch.object(rig, "checked") as ran:
+            machine.create()
+        created = ran.call_args_list[0].args[0]
+        self.assertIn(("--cap-add", "CAP_NET_ADMIN"), list(zip(created, created[1:])))
+
     def test_every_guest_keeps_what_its_install_step_downloads_where_the_host_keeps_it(self):
         downloads = self.directory() / "downloads"
         machine = rig.Machine("guest", self.directory(), package_cache_directory=self.directory(), download_cache_directory=downloads)

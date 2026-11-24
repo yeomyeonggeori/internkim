@@ -755,6 +755,7 @@ class Machine:
                 "--tmpfs", "/run",
                 "--tmpfs", "/run/lock",
                 "--cap-add", "CAP_SYS_TIME",
+                "--cap-add", "CAP_NET_ADMIN",
                 *([] if self.uses_runtime_kernel else ["--kernel", str(self.kernel_image_path)]),
                 "--platform", "linux/" + ARCHITECTURE,
                 "--volume", f"{self.share_directory}:{SHARE_PATH}",
