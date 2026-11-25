@@ -60,8 +60,8 @@ insert into storage.objects (bucket_id, name, created_at) values
   ('asset', '44000000-0000-0000-0000-0000000000a0/shared/person-picture/face', now() - interval '30 days'),
   ('asset', '44000000-0000-0000-0000-0000000000b0/shared/transfer/other-company', now() - interval '30 days');
 
-insert into public.agent (company_id, name, api_key_hash) values
-  ('44000000-0000-0000-0000-0000000000a0', 'transfer host', 'transfer-host-hash');
+insert into public.box (public_key, company_id, encryption_key, role) values
+  ('transfer-host', '44000000-0000-0000-0000-0000000000a0', repeat('t', 43), 'service');
 
 create temporary table expired_as (caller text, name text);
 grant insert on expired_as to authenticated;
@@ -78,7 +78,7 @@ begin
 end;
 $$;
 
-select pg_temp.expire_as('host', '{"sub":"host-a","app_metadata":{"company_id":"44000000-0000-0000-0000-0000000000a0","agent_key_hash":"transfer-host-hash"}}', 7);
+select pg_temp.expire_as('host', '{"sub":"host-a","app_metadata":{"company_id":"44000000-0000-0000-0000-0000000000a0","fleet_id":"transfer-host"}}', 7);
 select pg_temp.expire_as('member', '{"sub":"44000000-0000-0000-0000-000000000001"}', 1);
 
 select is(

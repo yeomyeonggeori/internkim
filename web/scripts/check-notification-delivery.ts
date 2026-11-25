@@ -1,7 +1,8 @@
-//   bun run web/scripts/check-notification-delivery.ts --url http://127.0.0.1:54321 --key <service role> [--push-host host.docker.internal]
+//   bun run web/scripts/check-notification-delivery.ts --url http://127.0.0.1:54321 --key <service role> --signing-key <record signing JWK> [--push-host host.docker.internal]
 
 import { createClient } from '@supabase/supabase-js';
-import { issueAgentKey, provisionCompany } from '../src/lib/server/control-plane';
+import { provisionCompany } from '../src/lib/server/control-plane';
+import { claimABoxWithItsSession } from '../tests/support/a-claimed-box';
 import { aBrowserThatSubscribed, readAsTheBrowserWould } from '../tests/support/read-as-the-browser-would';
 
 function argument(name: string): string | undefined {
@@ -11,7 +12,8 @@ function argument(name: string): string | undefined {
 
 const projectURL = argument('url') ?? process.env.SUPABASE_URL ?? '';
 const serviceRoleKey = argument('key') ?? process.env.SUPABASE_SECRET_KEY ?? '';
-if (!projectURL || !serviceRoleKey) throw new Error('pass --url and --key');
+const signingKey = argument('signing-key') ?? process.env.SUPABASE_JWT_SIGNING_KEY ?? '';
+if (!projectURL || !serviceRoleKey || !signingKey) throw new Error('pass --url, --key and --signing-key');
 const pushServiceHost = argument('push-host') ?? '127.0.0.1';
 
 const admin = createClient(projectURL, serviceRoleKey, {
@@ -39,10 +41,10 @@ async function aPushServiceThatRecords(status: number): Promise<{
 	return { address: `http://${pushServiceHost}:${server.port}/push`, arrivals, stop: () => server.stop(true) };
 }
 
-async function notify(agentKey: string, body: Record<string, unknown>): Promise<Response> {
+async function notify(hostSession: string, body: Record<string, unknown>): Promise<Response> {
 	return fetch(`${projectURL.replace(/\/+$/, '')}/functions/v1/notify`, {
 		method: 'POST',
-		headers: { Authorization: `Bearer ${agentKey}`, 'Content-Type': 'application/json' },
+		headers: { Authorization: `Bearer ${hostSession}`, 'Content-Type': 'application/json' },
 		body: JSON.stringify(body)
 	});
 }
@@ -56,8 +58,7 @@ const company = await provisionCompany(
 const findings: [string, boolean][] = [];
 
 try {
-	const agent = await issueAgentKey(admin, company.companyID, `notify-check-${stamp}`);
-	const agentKey = agent.apiKey;
+	const hostSession = (await claimABoxWithItsSession({ projectURL, serviceRoleKey, signingKey }, company.companyID)).session.accessToken;
 	const externalID = `U-${stamp}`;
 	await admin.from('member').update({ messenger: { mattermost: externalID } }).eq('id', company.adminMemberID);
 
@@ -71,7 +72,7 @@ try {
 	});
 
 	const sent = { title: '이샘플', body: '오늘 회의 30분 미뤄도 될까요', openPath: '/task/', tag: `message:${stamp}` };
-	const answered = await notify(agentKey, {
+	const answered = await notify(hostSession, {
 		platform: 'mattermost',
 		externalIDs: [externalID],
 		category: 'message',
@@ -98,7 +99,7 @@ try {
 		arrival ? (await readAsTheBrowserWould(arrival.body, subscriber)) === JSON.stringify(sent) : false
 	]);
 
-	const byAddress = await notify(agentKey, {
+	const byAddress = await notify(hostSession, {
 		platform: '',
 		externalIDs: null,
 		emails: [`First-${stamp}@example.test`],
@@ -124,7 +125,7 @@ try {
 		.from('member')
 		.update({ preferences: { notificationSettings: { message: false } } })
 		.eq('id', company.adminMemberID);
-	const silenced = await notify(agentKey, {
+	const silenced = await notify(hostSession, {
 		platform: 'mattermost',
 		externalIDs: [externalID],
 		category: 'message',
@@ -143,7 +144,7 @@ try {
 		.from('member')
 		.update({ preferences: {} })
 		.eq('id', company.adminMemberID);
-	await notify(agentKey, { platform: 'mattermost', externalIDs: [externalID], category: 'message', ...sent });
+	await notify(hostSession, { platform: 'mattermost', externalIDs: [externalID], category: 'message', ...sent });
 	const surviving = await admin
 		.from('push_device')
 		.select('address')

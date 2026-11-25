@@ -1,7 +1,7 @@
 import { env } from '$env/dynamic/private';
 import { error } from '@sveltejs/kit';
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { companyOfHostCredential, controlPlane, planeCredentialsOf } from './control-plane';
+import { companyOfHostSession, controlPlane, planeCredentialsOf } from './control-plane';
 
 export type Environment = Record<string, string | undefined>;
 
@@ -21,7 +21,7 @@ export async function callingAgent(request: Request, environment: Environment): 
 	const presented = bearerTokenOf(request);
 	if (!presented) error(401, 'no company computer credential');
 
-	const companyID = await companyOfHostCredential(credentials, presented);
+	const companyID = await companyOfHostSession(credentials, presented);
 	if (!companyID) error(403, 'refused');
 
 	return { client: controlPlane(credentials), companyID };

@@ -1,7 +1,8 @@
-//   bun run web/scripts/check-relay.ts --url http://127.0.0.1:54321 --key <service role> --publishable <publishable key> --app http://localhost:5178 --relay ./internkim-relay
+//   bun run web/scripts/check-relay.ts --url http://127.0.0.1:54321 --key <service role> --signing-key <record signing JWK> --publishable <publishable key> --app http://localhost:5178 --relay ./internkim-relay
 
 import { createClient } from '@supabase/supabase-js';
-import { addMember, issueAgentKey, provisionCompany } from '../src/lib/server/control-plane';
+import { addMember, provisionCompany } from '../src/lib/server/control-plane';
+import { claimABoxWithItsSession } from '../tests/support/a-claimed-box';
 import { aBrowserThatSubscribed } from '../tests/support/read-as-the-browser-would';
 
 function argument(name: string): string | undefined {
@@ -11,11 +12,12 @@ function argument(name: string): string | undefined {
 
 const projectURL = argument('url') ?? '';
 const serviceRoleKey = argument('key') ?? '';
+const signingKey = argument('signing-key') ?? process.env.SUPABASE_JWT_SIGNING_KEY ?? '';
 const publishableKey = argument('publishable') ?? '';
 const appURL = argument('app') ?? 'http://localhost:5178';
 const relayPath = argument('relay') ?? './internkim-relay';
 const arrivalsPort = 18094;
-if (!projectURL || !serviceRoleKey || !publishableKey) throw new Error('pass --url, --key and --publishable');
+if (!projectURL || !serviceRoleKey || !signingKey || !publishableKey) throw new Error('pass --url, --key, --signing-key and --publishable');
 
 const admin = createClient(projectURL, serviceRoleKey, {
 	auth: { autoRefreshToken: false, persistSession: false }
@@ -119,7 +121,7 @@ try {
 	const secondMemberID = await addMember(admin, company.companyID, `second-${stamp}@example.test`);
 	await signUp(`first-${stamp}@example.test`, company.adminMemberID);
 	await signUp(`second-${stamp}@example.test`, secondMemberID);
-	const agent = await issueAgentKey(admin, company.companyID, `relay-check-${stamp}`);
+	const box = await claimABoxWithItsSession({ projectURL, serviceRoleKey, signingKey }, company.companyID);
 
 	const relayEnvironment = {
 		...process.env,
@@ -129,7 +131,7 @@ try {
 		MESSENGER_PLATFORM: 'mattermost',
 		CHATD_BASE_URL: connector.url,
 		ARRIVALS_PORT: String(arrivalsPort),
-		AGENT_API_KEY: agent.apiKey
+		AGENT_API_KEY: box.session.accessToken
 	};
 	relay = Bun.spawn([relayPath], { env: relayEnvironment, stdout: 'inherit', stderr: 'inherit' });
 

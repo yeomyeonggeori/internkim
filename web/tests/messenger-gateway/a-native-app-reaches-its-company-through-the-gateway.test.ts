@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { AbstractRelay } from 'nostr-tools/abstract-relay';
 import { finalizeEvent, generateSecretKey, getPublicKey, verifyEvent, type EventTemplate } from 'nostr-tools/pure';
-import { controlPlane, issueAgentKey, provisionCompany, sessionForHost } from '../../src/lib/server/control-plane';
+import { controlPlane, provisionCompany } from '../../src/lib/server/control-plane';
 import { connectToGateway, type GatewayConnection } from '../../../host/relay/gateway-socket';
 import type { Dispatch } from '../../../host/relay/forward';
 import { MessengerRelay } from '../../../host/relay/messenger-calls';
@@ -13,6 +13,7 @@ import { MessengerCopies } from '../../../host/relay/messenger-copies';
 import { messengerStoreOf } from '../../../host/relay/messenger-store';
 import { Transfers } from '../../../host/relay/transfers';
 import type { RangedSource } from '../../../host/relay/transfer-store';
+import { claimABoxWithItsSession } from '../support/a-claimed-box';
 import { projectURL, publishableKey, serviceRoleKey, signingKey } from '../support/supabase-environment';
 
 const repositoryRoot = resolve(import.meta.dir, '../../..');
@@ -157,8 +158,7 @@ async function connectTheHost(): Promise<void> {
 		`${slug}-admin@example.test`
 	);
 	companyID = provisioned.companyID;
-	const { apiKey } = await issueAgentKey(client, companyID, 'host');
-	const session = await sessionForHost(credentials, apiKey);
+	const { session } = await claimABoxWithItsSession(credentials, companyID);
 	const hostAccess = { projectURL, apiKey: publishableKey, accessToken: async () => session.accessToken };
 	const copies = new MessengerCopies({
 		companyID,

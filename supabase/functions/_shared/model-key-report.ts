@@ -12,7 +12,6 @@ export async function keptModelKeyReport(
 	const { data, error } = await client.rpc('keep_model_key_report', {
 		reporting_company: companyID,
 		reporting_box: computer.boxKey,
-		reporting_agent_key_hash: computer.agentKeyHash,
 		holds: report.holdsModelKey
 	});
 	if (error) refuse(502, `the record could not keep what this computer said about its key: ${error.message}`);

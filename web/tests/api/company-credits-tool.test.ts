@@ -121,7 +121,7 @@ describe('the per-member credit limit', () => {
 
 describe('who pays for the models', () => {
 	const boxKey = `who-pays-${slug}`.padEnd(43, 'p').slice(0, 43);
-	const computer = { boxKey, agentKeyHash: null };
+	const computer = { boxKey };
 
 	async function subscriptionIs(status: 'active' | null) {
 		const { error } = await client.from('company').update({ subscription_status: status }).eq('id', companyID);

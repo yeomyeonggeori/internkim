@@ -4,11 +4,11 @@ import {
 	addMember,
 	controlPlane,
 	issueAgentKey,
-	revokeAgent,
 	provisionCompany,
 	sessionForPlatformIdentity,
 } from '../../src/lib/server/control-plane';
 import { connectMessengerAccount } from '../../src/lib/server/member-credential';
+import { claimABoxWithItsSession, releaseTheClaimedBox, type ClaimedBoxWithSession } from '../support/a-claimed-box';
 import { projectURL, publishableKey, serviceRoleKey, signingKey } from '../support/supabase-environment';
 
 const networkHookTimeout = 60_000;
@@ -19,8 +19,7 @@ const client = controlPlane(credentials);
 const stamp = Date.now();
 let ourCompanyID = '';
 let theirCompanyID = '';
-let ourAgentKey = '';
-let ourAgentID = '';
+let ourBox: ClaimedBoxWithSession;
 let speakerID = '';
 
 async function withAccount(memberID: string): Promise<void> {
@@ -39,9 +38,7 @@ beforeAll(async () => {
 		`agent-ours-${stamp}-admin@example.test`,
 	);
 	ourCompanyID = ours.companyID;
-	const issued = await issueAgentKey(client, ourCompanyID, 'first');
-	ourAgentKey = issued.apiKey;
-	ourAgentID = issued.agentID;
+	ourBox = await claimABoxWithItsSession(credentials, ourCompanyID);
 
 	speakerID = await addMember(client, ourCompanyID, `agent-speaker-${stamp}@example.test`);
 	await withAccount(speakerID);
@@ -83,7 +80,7 @@ afterAll(async () => {
 }, networkHookTimeout);
 
 test('an agent acts as the member who spoke on its own platform', async () => {
-	const session = await sessionForPlatformIdentity(credentials, ourAgentKey, 'buzz', `speaker-${stamp}`);
+	const session = await sessionForPlatformIdentity(credentials, ourBox.session.accessToken, 'buzz', `speaker-${stamp}`);
 	expect(session.memberID).toBe(speakerID);
 
 	const asMember = createClient(projectURL, publishableKey, {
@@ -98,13 +95,13 @@ test('an agent acts as the member who spoke on its own platform', async () => {
 
 test('an agent cannot act for somebody at another company', async () => {
 	await expect(
-		sessionForPlatformIdentity(credentials, ourAgentKey, 'buzz', `outsider-${stamp}`),
+		sessionForPlatformIdentity(credentials, ourBox.session.accessToken, 'buzz', `outsider-${stamp}`),
 	).rejects.toThrow('no member here');
 });
 
 test('an identity nobody claims is refused', async () => {
 	await expect(
-		sessionForPlatformIdentity(credentials, ourAgentKey, 'buzz', 'nobody-at-all'),
+		sessionForPlatformIdentity(credentials, ourBox.session.accessToken, 'buzz', 'nobody-at-all'),
 	).rejects.toThrow('no member');
 });
 
@@ -114,38 +111,31 @@ test('a made-up key is refused', async () => {
 	).rejects.toThrow('belongs to no company computer');
 });
 
-test('the key is not stored in a usable form', async () => {
-	const { data } = await client.from('agent').select('api_key_hash').eq('id', ourAgentID).single();
+test('an agent key is no company computer', async () => {
+	const { apiKey } = await issueAgentKey(client, ourCompanyID, `ticket-${stamp}`);
 
-	expect(data!.api_key_hash).not.toBe(ourAgentKey);
-	expect(data!.api_key_hash).toHaveLength(64);
+	await expect(sessionForPlatformIdentity(credentials, apiKey, 'buzz', `speaker-${stamp}`)).rejects.toThrow(
+		'belongs to no company computer',
+	);
 });
 
-test('a second agent can run before the first is retired', async () => {
-	const spare = await issueAgentKey(client, ourCompanyID, 'spare');
+test('a second box acts for the company, and the first stops once the company lets it go', async () => {
+	const spare = await claimABoxWithItsSession(credentials, ourCompanyID);
 
-	const bySpare = await sessionForPlatformIdentity(credentials, spare.apiKey, 'buzz', `speaker-${stamp}`);
-	const byFirst = await sessionForPlatformIdentity(credentials, ourAgentKey, 'buzz', `speaker-${stamp}`);
+	const bySpare = await sessionForPlatformIdentity(credentials, spare.session.accessToken, 'buzz', `speaker-${stamp}`);
+	const byFirst = await sessionForPlatformIdentity(credentials, ourBox.session.accessToken, 'buzz', `speaker-${stamp}`);
 	expect(bySpare.memberID).toBe(speakerID);
 	expect(byFirst.memberID).toBe(speakerID);
 
-	await revokeAgent(client, ourAgentID);
+	await releaseTheClaimedBox(client, ourCompanyID, ourBox);
 	await expect(
-		sessionForPlatformIdentity(credentials, ourAgentKey, 'buzz', `speaker-${stamp}`),
+		sessionForPlatformIdentity(credentials, ourBox.session.accessToken, 'buzz', `speaker-${stamp}`),
 	).rejects.toThrow('belongs to no company computer');
-	const stillWorks = await sessionForPlatformIdentity(credentials, spare.apiKey, 'buzz', `speaker-${stamp}`);
+	const stillWorks = await sessionForPlatformIdentity(credentials, spare.session.accessToken, 'buzz', `speaker-${stamp}`);
 	expect(stillWorks.memberID).toBe(speakerID);
 });
 
-test('an agent that has connected is seen', async () => {
-	const { data } = await client.from('agent').select('last_seen_at').eq('id', ourAgentID).single();
-
-	expect(data!.last_seen_at).not.toBeNull();
-});
-
-// A name is held by one agent per company and revoking does not give it back,
-// so a second rotation used to answer a raw duplicate key.
-test('a fleet key can be rotated more than once', async () => {
+test('a connection file key can be rotated more than once', async () => {
 	const first = await issueAgentKey(client, ourCompanyID, 'rotating', { replaceStanding: true });
 	const second = await issueAgentKey(client, ourCompanyID, 'rotating', { replaceStanding: true });
 	const third = await issueAgentKey(client, ourCompanyID, 'rotating', { replaceStanding: true });

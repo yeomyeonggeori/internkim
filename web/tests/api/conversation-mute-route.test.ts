@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, mock, test } from 'bun:test';
-import { addMember, controlPlane, issueAgentKey, provisionCompany } from '../../src/lib/server/control-plane';
+import { addMember, controlPlane, provisionCompany } from '../../src/lib/server/control-plane';
+import { claimABoxWithItsSession } from '../support/a-claimed-box';
 import { projectURL, publishableKey, serviceRoleKey, signingKey } from '../support/supabase-environment';
 
 mock.module('$env/dynamic/private', () => ({
@@ -22,11 +23,11 @@ const otherSlug = `conversation-mute-other-${stamp}`;
 
 let companyID = '';
 let otherCompanyID = '';
-let agentKey = '';
+let hostSession = '';
 let seatedMemberID = '';
 let otherCompanyMemberID = '';
 
-async function statusOfMute(body: Record<string, unknown>, bearer = agentKey): Promise<number> {
+async function statusOfMute(body: Record<string, unknown>, bearer = hostSession): Promise<number> {
 	const request = new Request('https://intern.example.test/api/agent/conversation-mute', {
 		method: 'POST',
 		headers: { authorization: `Bearer ${bearer}`, 'content-type': 'application/json' },
@@ -54,7 +55,7 @@ beforeAll(async () => {
 		`${slug}-admin@example.test`
 	);
 	companyID = provisioned.companyID;
-	agentKey = (await issueAgentKey(client, companyID, 'conversation-mute')).apiKey;
+	hostSession = (await claimABoxWithItsSession({ projectURL, serviceRoleKey, signingKey }, companyID)).session.accessToken;
 	seatedMemberID = await addMember(client, companyID, `${slug}-seated@example.test`);
 	await client.from('member').update({ preferences: { mutedChannels: ['dm-own-choice'] } }).eq('id', seatedMemberID);
 

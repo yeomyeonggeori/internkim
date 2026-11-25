@@ -11,12 +11,7 @@ import { existsSync, mkdirSync, openSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
-import {
-	addMember,
-	claimMemberFor,
-	issueAgentKey,
-	provisionCompany
-} from '../../src/lib/server/control-plane';
+import { addMember, claimMemberFor, provisionCompany } from '../../src/lib/server/control-plane';
 import {
 	aConnectorNobodyRuns,
 	aMessengerNobodyRuns,
@@ -24,6 +19,7 @@ import {
 } from './a-messenger-nobody-runs';
 import { aModelNobodyPaysFor, type AModelNobodyPaysFor } from './a-model-nobody-pays-for';
 import { theArgumentsThatStart, theCommandThatStarts, thePackageValueOf } from '../support/the-package-units';
+import { claimABoxWithItsSession } from '../support/a-claimed-box';
 
 const repositoryRoot = join(import.meta.dir, '..', '..', '..');
 
@@ -32,7 +28,6 @@ export type ACompanyPlane = {
 	companyID: string;
 	admin: SupabaseClient;
 	people: { email: string; name: string; memberID: string }[];
-	agentAPIKey: string;
 	serviceToken: string;
 	admindURL: string;
 	blueclawURL: string;
@@ -414,10 +409,13 @@ export async function aCompanyPlane(request: PlaneRequest = {}): Promise<ACompan
 		// public API answers as "not active member" — so both of them sign in.
 		await arrive(admin, `sample-${runIdentifier}@example.test`);
 		await arrive(admin, colleagueEmail);
-		const agent = await issueAgentKey(admin, companyID, `plane-${runIdentifier}`);
+		const box = await claimABoxWithItsSession(
+			{ projectURL, serviceRoleKey, signingKey: environmentValue('SUPABASE_JWT_SIGNING_KEY') },
+			companyID
+		);
 
 		const agentKeyPath = join(runDirectory, 'secrets', 'agent-key');
-		writeFileSync(agentKeyPath, `${agent.apiKey}\n`, { mode: 0o600 });
+		writeFileSync(agentKeyPath, `${box.session.accessToken}\n`, { mode: 0o600 });
 		writeFileSync(join(runDirectory, 'secrets', 'buzz-key-seed'), `${crypto.randomUUID()}\n`, {
 			mode: 0o600
 		});
@@ -710,7 +708,6 @@ export async function aCompanyPlane(request: PlaneRequest = {}): Promise<ACompan
 				{ email: `sample-${runIdentifier}@example.test`, name: '이샘플', memberID: company.adminMemberID },
 				{ email: colleagueEmail, name: '박예시', memberID: colleagueID }
 			],
-			agentAPIKey: agent.apiKey,
 			serviceToken,
 			admindURL,
 			blueclawURL,

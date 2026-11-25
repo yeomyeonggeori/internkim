@@ -57,6 +57,7 @@ PY
 export SUPABASE_URL=http://127.0.0.1:54321
 export SUPABASE_PUBLISHABLE_KEY="$(readEnvironmentValue SUPABASE_PUBLISHABLE_KEY)"
 export SUPABASE_SECRET_KEY="$(readEnvironmentValue SUPABASE_SECRET_KEY)"
+export SUPABASE_JWT_SIGNING_KEY="$(readEnvironmentValue SUPABASE_JWT_SIGNING_KEY)"
 export INTERNKIM_APP_URL="http://127.0.0.1:$appPort"
 export COMPANY_PLANE_BIN="$binaryDirectory"
 skillsDirectory="$stateRoot/skills"
