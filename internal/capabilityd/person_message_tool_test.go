@@ -81,6 +81,22 @@ func TestANameTwoPeopleCarryDeletesNothingAndAsksWhich(t *testing.T) {
 	}
 }
 
+func TestSomeoneTheDirectoryNoLongerHoldsHasNothingDeleted(t *testing.T) {
+	wipe := answering(`{}`)
+	service := serviceReaching(t, reachingTheDirectoryAndTheWipe(wipe))
+
+	answered, errorValue := service.invokePersonMessageDeleteTool(context.Background(), personMessageDeleteCall("withdrawn@example.com"))
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if !answered.IsError {
+		t.Fatalf("a person who left the directory is refused, got %+v", answered)
+	}
+	if len(wipe.asked) != 0 {
+		t.Fatalf("the host is asked to delete nothing for a person the directory does not hold, got %+v", wipe.asked)
+	}
+}
+
 func TestTheHostsRefusalOfANonAdministratorReachesTheCaller(t *testing.T) {
 	refusing := answeringPerCall(func(*http.Request) (int, string) { return http.StatusForbidden, "admin access required" })
 	service := serviceReaching(t, reachingTheDirectoryAndTheWipe(refusing))
