@@ -60,6 +60,10 @@ func (service Service) invokeChatdPlatformMessageSend(ctx context.Context, reque
 	if input.DeliveryTarget.Type == "directMessage" && !hasArrivedOnAConversation(request.Context) && speaksAsTheRequester(request.Context) {
 		return service.invokeChatdMessageToTheAgent(ctx, request, input)
 	}
+	return service.postChatdMessage(ctx, request, input)
+}
+
+func (service Service) postChatdMessage(ctx context.Context, request capabilities.ToolInvokeRequest, input platformMessageSendInput) (capabilities.ToolInvokeResponse, error) {
 	attachmentFiles, failure, hasFailure := service.resolvePlatformMessageAttachments(request, input.Attachments)
 	if hasFailure {
 		return platformToolErrorResponse(request.ToolName, failure), nil

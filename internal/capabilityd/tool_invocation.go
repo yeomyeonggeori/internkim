@@ -290,7 +290,7 @@ func (service Service) capabilityToolApprovalDeniedResponse(ctx context.Context,
 	if isCarriedOutOnAHold(request) {
 		return service.refusalUnlessTheLedgerRedeems(ctx, request)
 	}
-	if sendsIntoTheAnsweredConversation(request) {
+	if sendsIntoTheAnsweredConversation(request) || service.sendReachesOnlyTheRequester(ctx, request) {
 		return capabilities.ToolInvokeResponse{}, false
 	}
 	return approvalRequiredResponse(request.ToolName, strings.TrimSpace(request.ToolName)+" requires approval before execution"), true
