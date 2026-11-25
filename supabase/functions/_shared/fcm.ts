@@ -1,6 +1,6 @@
 import { pkcs8FromPEM, signedJWT } from './jwt.ts';
 import { sayPushNotDelivered } from './push-diagnostics.ts';
-import { secureImageURLOf, senderOf, type Notification, type PushOutcome } from './push-vocabulary.ts';
+import { readTagKey, secureImageURLOf, senderOf, type Notification, type PushOutcome } from './push-vocabulary.ts';
 
 export type FcmKey = {
 	projectID: string;
@@ -76,6 +76,16 @@ export function fcmWidgetRefreshMessage(deviceToken: string, clock: string): Rec
 	};
 }
 
+export function fcmReadClearingMessage(deviceToken: string, tag: string): Record<string, unknown> {
+	return {
+		message: {
+			token: deviceToken,
+			data: { [readTagKey]: tag },
+			android: { priority: 'NORMAL' }
+		}
+	};
+}
+
 export async function sendFcm(
 	deviceToken: string,
 	notification: Notification,
@@ -92,6 +102,15 @@ export async function sendFcmWidgetRefresh(
 	nowInSeconds: number
 ): Promise<PushOutcome> {
 	return deliverFcm(deviceToken, fcmWidgetRefreshMessage(deviceToken, clock), key, nowInSeconds);
+}
+
+export async function sendFcmReadClearing(
+	deviceToken: string,
+	tag: string,
+	key: FcmKey,
+	nowInSeconds: number
+): Promise<PushOutcome> {
+	return deliverFcm(deviceToken, fcmReadClearingMessage(deviceToken, tag), key, nowInSeconds);
 }
 
 async function deliverFcm(

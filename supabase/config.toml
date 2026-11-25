@@ -226,6 +226,9 @@ verify_jwt = false
 [functions.withdraw-notification]
 verify_jwt = false
 
+[functions.clear-read-notifications]
+verify_jwt = false
+
 [functions.model-gateway]
 verify_jwt = false
 

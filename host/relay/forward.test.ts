@@ -41,6 +41,7 @@ function dispatchThatKnows(externalIDs: Record<string, string>) {
 	const connected: { memberID: string; account: ConnectedAccount }[] = [];
 	const admindCalls: AdmindCall[] = [];
 	const arrivals: { conversationID: string; messageID: string }[] = [];
+	const reads: { memberID: string; body: Record<string, unknown> }[] = [];
 	const transfers: { operation: string; memberID: string; requester?: string; actor?: unknown; body: unknown }[] = [];
 	const seatedOwners: SeatedOwner[] = [];
 	return {
@@ -48,6 +49,7 @@ function dispatchThatKnows(externalIDs: Record<string, string>) {
 		connected,
 		admindCalls,
 		arrivals,
+		reads,
 		transfers,
 		seatedOwners,
 		dispatch: {
@@ -94,6 +96,9 @@ function dispatchThatKnows(externalIDs: Record<string, string>) {
 			forgetRefusedMessengerCredential: () => {},
 			messageArrived: (conversationID: string, messageID: string) => {
 				arrivals.push({ conversationID, messageID });
+			},
+			conversationRead: (memberID: string, body: Record<string, unknown>) => {
+				reads.push({ memberID, body });
 			},
 
 			memberOfExternalID: async (externalID: string) => externalIDs[externalID] ?? null,
@@ -337,6 +342,34 @@ describe('a message the app sent', () => {
 
 		expect(served.status).toBe(200);
 		expect(arrivals).toEqual([{ conversationID: 'channel-1', messageID: 'event-1' }]);
+	});
+});
+
+describe('a conversation a member read', () => {
+	test('has its notifications cleared once the messenger recorded the read', async () => {
+		const { reads, dispatch } = dispatchThatKnows({});
+
+		const served = await serveCallForMember(
+			dispatch,
+			{ callID: 'c1', capability: 'person.read_state.mark', body: { conversationID: 'channel-1', messageID: 'event-1' } },
+			'member-1'
+		);
+
+		expect(served.status).toBe(200);
+		expect(reads).toEqual([{ memberID: 'member-1', body: { conversationID: 'channel-1', messageID: 'event-1' } }]);
+	});
+
+	test('keeps its notifications when the messenger refused the read', async () => {
+		const { reads, dispatch } = dispatchThatKnows({});
+
+		const served = await serveCallForMember(
+			{ ...dispatch, askChatd: async () => ({ status: 502, body: { error: 'the messenger did not answer' } }) },
+			{ callID: 'c1', capability: 'person.read_state.mark', body: { conversationID: 'channel-1', messageID: 'event-1' } },
+			'member-1'
+		);
+
+		expect(served.status).toBe(502);
+		expect(reads).toEqual([]);
 	});
 });
 

@@ -6,6 +6,7 @@ import { MessengerAnswered } from './person-picture';
 import { reasonOf } from './failure';
 import { chatdRestartWaitMilliseconds, fetchWhenChatdListens } from './chatd-reach';
 import { channelOwnerAddCapability, seatedOwnerOf, type SeatedOwner } from './seated-owner';
+import { readMarkCapability } from './read-clearing';
 import {
 	channelCreateCapability,
 	createdChannelIDOf,
@@ -192,6 +193,7 @@ export type Served = { status: number; body: unknown; replyTo: string | null };
 
 export type Dispatch = {
 	messageArrived: (conversationID: string, messageID: string) => void;
+	conversationRead: (memberID: string, body: Record<string, unknown>) => void;
 	serveAsset: (capability: string, body: Record<string, unknown>) => Promise<unknown>;
 	serveMessenger: (capability: string, body: Record<string, unknown>) => Promise<{ status: number; body: unknown }>;
 	askAdmindAPI: (request: PublicAPIRequest) => Promise<{ status: number; body: unknown }>;
@@ -305,6 +307,11 @@ async function serveAsActor(
 			dispatch.messageArrived(String(body.conversationID ?? ''), messageIDOf(sent.body));
 		}
 		return sent;
+	}
+	if (capability === readMarkCapability) {
+		const marked = await dispatch.askChatd(readMarkCapability, { ...body, actor });
+		if (marked.status < 300) dispatch.conversationRead(memberID, body);
+		return marked;
 	}
 	if (capability === channelCreateCapability) {
 		const created = await dispatch.askChatd(channelCreateCapability, { ...body, actor });

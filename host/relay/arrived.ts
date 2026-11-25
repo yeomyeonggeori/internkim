@@ -1,3 +1,4 @@
+import { messageNotificationTag } from '../../web/src/lib/notifications/message-tag';
 import { plainPreviewOf } from './plain-preview';
 
 export type ArrivedMessage = {
@@ -61,7 +62,7 @@ export function tellingOf(arrived: ArrivedMessage, authorName: string): Told {
 		title: authorName || 'internkim',
 		body: arrived.preview,
 		openPath: messagePathOf(arrived),
-		tag: `message:${arrived.conversationID}`
+		tag: messageNotificationTag(arrived.conversationID)
 	};
 }
 

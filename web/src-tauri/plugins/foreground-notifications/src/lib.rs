@@ -5,6 +5,8 @@ use tauri::{
 
 #[cfg(target_os = "macos")]
 mod macos;
+#[cfg(target_os = "macos")]
+mod read_clearing_macos;
 
 #[cfg(target_os = "ios")]
 tauri::ios_plugin_binding!(init_plugin_foreground_notifications);
@@ -12,7 +14,10 @@ tauri::ios_plugin_binding!(init_plugin_foreground_notifications);
 pub fn init<R: Runtime>() -> TauriPlugin<R> {
     let builder = Builder::new("foreground-notifications");
     #[cfg(target_os = "macos")]
-    let builder = builder.invoke_handler(tauri::generate_handler![macos::hold_back]);
+    let builder = builder.invoke_handler(tauri::generate_handler![
+        macos::hold_back,
+        read_clearing_macos::clear_delivered
+    ]);
     builder
         .setup(|_app, _api| {
             #[cfg(target_os = "ios")]

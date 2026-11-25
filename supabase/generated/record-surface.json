@@ -1850,6 +1850,10 @@
       "verifyJWT": true
     },
     {
+      "name": "clear-read-notifications",
+      "verifyJWT": false
+    },
+    {
       "name": "model-gateway",
       "verifyJWT": false
     },
