@@ -5,7 +5,7 @@ export const readTagKey = 'readTag';
 
 export function readTagOf(pushed: unknown): string {
 	if (typeof pushed !== 'object' || pushed === null) return '';
-	const readTag = (pushed as Record<string, unknown>)[readTagKey];
+	const readTag: unknown = Reflect.get(pushed, readTagKey);
 	return typeof readTag === 'string' ? readTag.trim() : '';
 }
 
