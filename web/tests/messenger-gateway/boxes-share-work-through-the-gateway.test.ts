@@ -5,7 +5,7 @@ import { join, resolve } from 'node:path';
 import { exportJWK, generateKeyPair } from 'jose';
 import { x25519 } from '@noble/curves/ed25519.js';
 import { base64URLOf } from '../../src/lib/company/seal-to-box';
-import { announceBox, boxSessionFor, claimBox, makeBoxServe, verifyBoxCode } from '../../src/lib/server/box';
+import { announceBox, boxSessionFor, claimBox, makeBoxServe, noteBoxMove, verifyBoxCode } from '../../src/lib/server/box';
 import { controlPlane, provisionCompany } from '../../src/lib/server/control-plane';
 import { projectURL, publishableKey, serviceRoleKey, signingKey } from '../support/supabase-environment';
 
@@ -161,7 +161,10 @@ test('work no box has room for is answered that no box had room', async () => {
 test('when the administrator makes the other box serve, the queue follows the new service box', async () => {
 	const keptManifest = `${companyID}/snapshots/internkim-snapshot-20261020T000000Z.json`;
 	await client.storage.from('box_backup').upload(keptManifest, new Blob(['{}'], { type: 'application/json' }));
-	expect(await makeBoxServe(client, companyID, annex)).toBe('serving');
+	const headOfficeStop = { walTimeline: 2, walPosition: '0/3000148', fileEntry: 41 };
+	expect(await makeBoxServe(client, companyID, annex)).toBe('moving');
+	expect(await noteBoxMove(client, headOffice, headOfficeStop)).toBe('stopped');
+	expect(await noteBoxMove(client, annex, headOfficeStop)).toBe('serving');
 	await client.storage.from('box_backup').remove([keptManifest]);
 	expect((await sessionOf(annex)).role).toBe('service');
 	expect((await sessionOf(headOffice)).role).toBe('standby');
