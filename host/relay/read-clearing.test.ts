@@ -25,10 +25,27 @@ describe('a read conversation', () => {
 
 type Scheduled = { run: () => void; milliseconds: number; cancelled: boolean };
 
-function tellerWithClock(askTheProject: (request: ReadClearing) => Promise<{ reached?: number }>, report: (line: string) => void = () => {}) {
+const membersByExternalID = new Map([
+	['external-1', 'member-1'],
+	['external-2', 'member-2']
+]);
+
+async function memberIDsOfKnown(externalIDs: string[]): Promise<Map<string, string>> {
+	return new Map(externalIDs.flatMap((externalID) => {
+		const memberID = membersByExternalID.get(externalID);
+		return memberID ? [[externalID, memberID] as const] : [];
+	}));
+}
+
+function tellerWithClock(
+	askTheProject: (request: ReadClearing) => Promise<{ reached?: number }>,
+	report: (line: string) => void = () => {},
+	memberIDsOf: (externalIDs: string[]) => Promise<Map<string, string>> = memberIDsOfKnown
+) {
 	const scheduled: Scheduled[] = [];
 	const teller = readClearingTeller({
 		askTheProject,
+		memberIDsOf,
 		report,
 		quietMilliseconds: 30_000,
 		schedule: (run, milliseconds) => {
@@ -90,10 +107,47 @@ describe('telling the project a conversation was read', () => {
 
 		tell('member-1', { conversationID: 'channel-1', messageID: 'event-1' });
 		tell('member-1', { conversationID: 'channel-2', messageID: 'event-2' });
-		arrived('channel-1');
+		await arrived('channel-1', ['external-1']);
 
 		await elapse();
 		expect(asked).toEqual([{ memberID: 'member-1', tag: 'message:channel-2' }]);
+	});
+
+	test('the author of the arriving message, notified of nothing, still has the conversation cleared', async () => {
+		const asked: ReadClearing[] = [];
+		const { tell, arrived, elapse } = tellerWithClock(async (request) => {
+			asked.push(request);
+			return {};
+		});
+
+		tell('member-1', { conversationID: 'channel-1', messageID: 'event-1' });
+		tell('member-2', { conversationID: 'channel-1', messageID: 'event-1' });
+		await arrived('channel-1', ['external-2']);
+
+		await elapse();
+		expect(asked).toEqual([{ memberID: 'member-1', tag: 'message:channel-1' }]);
+	});
+
+	test('recipients that cannot be resolved drop every clearing waiting on the conversation', async () => {
+		const asked: ReadClearing[] = [];
+		const reported: string[] = [];
+		const { tell, arrived, elapse } = tellerWithClock(
+			async (request) => {
+				asked.push(request);
+				return {};
+			},
+			(line) => reported.push(line),
+			async () => {
+				throw new Error('the record did not answer');
+			}
+		);
+
+		tell('member-1', { conversationID: 'channel-1', messageID: 'event-1' });
+		await arrived('channel-1', ['external-2']);
+
+		await elapse();
+		expect(asked).toEqual([]);
+		expect(reported).toEqual(['recipients of an arrival not resolved, so every clearing waiting on its conversation is dropped: the record did not answer']);
 	});
 
 	test('reports a project that would not answer', async () => {

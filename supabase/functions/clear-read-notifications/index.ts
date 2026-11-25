@@ -1,6 +1,7 @@
 import { callingAgent } from '../_shared/agent-caller.ts';
 import { askedObject, json, refuse, serveRefusals } from '../_shared/http.ts';
-import { clearReadOnMemberDevices, isMemberOfCompany } from '../_shared/notification-read-clearing.ts';
+import { isMemberOfCompany } from '../_shared/member-directory.ts';
+import { clearReadOnMemberDevices } from '../_shared/notification-read-clearing.ts';
 import { pushKeysFromVault } from '../_shared/push-keys.ts';
 
 type ClearRequest = { memberID?: unknown; tag?: unknown };

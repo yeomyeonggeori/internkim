@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, test } from 'bun:test';
-import { holdBackNotificationsFor, messageNotificationTag } from '$lib/native-shell/open-conversation';
+import { holdBackNotificationsFor } from '$lib/native-shell/open-conversation';
+import { messageNotificationTag } from '$lib/notifications/message-tag';
 import { tellingOf } from '../../../host/relay/arrived.ts';
 
 describe('the tag the shell holds back while a conversation is open', () => {

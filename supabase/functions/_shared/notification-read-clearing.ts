@@ -9,17 +9,6 @@ export function readClearingPayload(tag: string): Record<string, unknown> {
 	return { aps: { 'content-available': 1 }, [readTagKey]: tag };
 }
 
-export async function isMemberOfCompany(client: SupabaseClient, memberID: string, companyID: string): Promise<boolean> {
-	const { data, error } = await client
-		.from('member')
-		.select('id')
-		.eq('id', memberID)
-		.eq('company_id', companyID)
-		.maybeSingle<{ id: string }>();
-	if (error) throw new Error(`member ${memberID} could not be read: ${error.message}`);
-	return data !== null;
-}
-
 export async function clearReadOnMemberDevices(
 	client: SupabaseClient,
 	memberID: string,

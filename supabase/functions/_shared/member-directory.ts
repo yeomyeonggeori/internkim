@@ -87,3 +87,14 @@ export async function signedPictureURL(client: SupabaseClient, path: string): Pr
 	if (signed.error) return '';
 	return signed.data?.signedUrl ?? '';
 }
+
+export async function isMemberOfCompany(client: SupabaseClient, memberID: string, companyID: string): Promise<boolean> {
+	const { data, error } = await client
+		.from('member')
+		.select('id')
+		.eq('id', memberID)
+		.eq('company_id', companyID)
+		.maybeSingle<{ id: string }>();
+	if (error) throw new Error(`member ${memberID} could not be read: ${error.message}`);
+	return data !== null;
+}

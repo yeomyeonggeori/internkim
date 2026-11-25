@@ -265,6 +265,17 @@ function askChatdRaw(capability: string, body: Record<string, unknown>): Promise
 
 const messenger = new MessengerRelay(messengerRelayURL.replace(/^ws/, 'http'), messengerStoreOf(companyID, hostAccess, messengerCopies));
 
+const readClearing = readClearingTeller({
+	askTheProject: (request) => askTheProject('clear-read-notifications', request),
+	memberIDsOf,
+	report: (line) => console.error(line),
+	quietMilliseconds: readClearingQuietMilliseconds,
+	schedule: (run, milliseconds) => {
+		const timer = setTimeout(run, milliseconds);
+		return () => clearTimeout(timer);
+	}
+});
+
 const dispatch = {
 	messageArrived: tellBrowsers,
 	conversationRead: (memberID: string, body: Record<string, unknown>) => readClearing.read(memberID, body),
@@ -398,7 +409,7 @@ async function previewOf(link: string): Promise<LinkPreview | null> {
 
 async function tellThoseAddressed(arrived: ArrivedMessage): Promise<number> {
 	if (arrived.recipientExternalIDs.length === 0) return 0;
-	readClearing.arrived(arrived.conversationID);
+	await readClearing.arrived(arrived.conversationID, arrived.recipientExternalIDs);
 	const [authorName, senderPicturePath, messagePicturePath] = await Promise.all([
 		authorNameOf(arrived),
 		personPictures.pathForNotification(arrived.authorExternalID),
@@ -425,16 +436,6 @@ const notificationPictureSources: NotificationPictureSources = {
 };
 
 const withdrawnMessages = new WithdrawnMessages();
-
-const readClearing = readClearingTeller({
-	askTheProject: (request) => askTheProject('clear-read-notifications', request),
-	report: (line) => console.error(line),
-	quietMilliseconds: readClearingQuietMilliseconds,
-	schedule: (run, milliseconds) => {
-		const timer = setTimeout(run, milliseconds);
-		return () => clearTimeout(timer);
-	}
-});
 
 const tellWithdrawalTo = withdrawalTeller({
 	withdrawn: withdrawnMessages,
