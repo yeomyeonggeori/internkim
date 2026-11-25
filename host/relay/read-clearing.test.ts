@@ -27,7 +27,7 @@ type Scheduled = { run: () => void; milliseconds: number; cancelled: boolean };
 
 function tellerWithClock(askTheProject: (request: ReadClearing) => Promise<{ reached?: number }>, report: (line: string) => void = () => {}) {
 	const scheduled: Scheduled[] = [];
-	const tell = readClearingTeller({
+	const teller = readClearingTeller({
 		askTheProject,
 		report,
 		quietMilliseconds: 30_000,
@@ -43,7 +43,7 @@ function tellerWithClock(askTheProject: (request: ReadClearing) => Promise<{ rea
 		for (const entry of scheduled.splice(0)) if (!entry.cancelled) entry.run();
 		await Promise.resolve();
 	};
-	return { tell, scheduled, elapse };
+	return { tell: teller.read, arrived: teller.arrived, scheduled, elapse };
 }
 
 describe('telling the project a conversation was read', () => {
@@ -79,6 +79,21 @@ describe('telling the project a conversation was read', () => {
 			{ memberID: 'member-1', tag: 'message:channel-1' },
 			{ memberID: 'member-1', tag: 'message:channel-2' }
 		]);
+	});
+
+	test('a message arriving after the reading keeps its notification', async () => {
+		const asked: ReadClearing[] = [];
+		const { tell, arrived, elapse } = tellerWithClock(async (request) => {
+			asked.push(request);
+			return {};
+		});
+
+		tell('member-1', { conversationID: 'channel-1', messageID: 'event-1' });
+		tell('member-1', { conversationID: 'channel-2', messageID: 'event-2' });
+		arrived('channel-1');
+
+		await elapse();
+		expect(asked).toEqual([{ memberID: 'member-1', tag: 'message:channel-2' }]);
 	});
 
 	test('reports a project that would not answer', async () => {

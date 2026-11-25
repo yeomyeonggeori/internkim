@@ -267,7 +267,7 @@ const messenger = new MessengerRelay(messengerRelayURL.replace(/^ws/, 'http'), m
 
 const dispatch = {
 	messageArrived: tellBrowsers,
-	conversationRead: (memberID: string, body: Record<string, unknown>) => clearReadConversation(memberID, body),
+	conversationRead: (memberID: string, body: Record<string, unknown>) => readClearing.read(memberID, body),
 	serveAsset: asset,
 	serveMessenger: (capability: string, body: Record<string, unknown>) => messenger.serve(capability, body),
 	askChatd: (capability: string, body: Record<string, unknown>, largestBytes?: number) =>
@@ -398,6 +398,7 @@ async function previewOf(link: string): Promise<LinkPreview | null> {
 
 async function tellThoseAddressed(arrived: ArrivedMessage): Promise<number> {
 	if (arrived.recipientExternalIDs.length === 0) return 0;
+	readClearing.arrived(arrived.conversationID);
 	const [authorName, senderPicturePath, messagePicturePath] = await Promise.all([
 		authorNameOf(arrived),
 		personPictures.pathForNotification(arrived.authorExternalID),
@@ -425,7 +426,7 @@ const notificationPictureSources: NotificationPictureSources = {
 
 const withdrawnMessages = new WithdrawnMessages();
 
-const clearReadConversation = readClearingTeller({
+const readClearing = readClearingTeller({
 	askTheProject: (request) => askTheProject('clear-read-notifications', request),
 	report: (line) => console.error(line),
 	quietMilliseconds: readClearingQuietMilliseconds,

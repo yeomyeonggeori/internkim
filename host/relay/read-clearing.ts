@@ -26,8 +26,13 @@ export type ReadClearingTellerDependencies = {
 	schedule: (run: () => void, milliseconds: number) => () => void;
 };
 
-export function readClearingTeller(dependencies: ReadClearingTellerDependencies): (memberID: string, body: Record<string, unknown>) => void {
-	const waiting = new Map<string, () => void>();
+export type ReadClearingTeller = {
+	read: (memberID: string, body: Record<string, unknown>) => void;
+	arrived: (conversationID: string) => void;
+};
+
+export function readClearingTeller(dependencies: ReadClearingTellerDependencies): ReadClearingTeller {
+	const waiting = new Map<string, { tag: string; cancel: () => void }>();
 	const clear = async (clearing: ReadClearing): Promise<void> => {
 		try {
 			await dependencies.askTheProject(clearing);
@@ -35,14 +40,25 @@ export function readClearingTeller(dependencies: ReadClearingTellerDependencies)
 			dependencies.report(`notifications of a read conversation not cleared: ${failure instanceof Error ? failure.message : String(failure)}`);
 		}
 	};
-	return (memberID, body) => {
-		const clearing = readClearingOf(memberID, body);
-		if (!clearing) return;
-		const key = `${clearing.memberID} ${clearing.tag}`;
-		waiting.get(key)?.();
-		waiting.set(key, dependencies.schedule(() => {
-			waiting.delete(key);
-			void clear(clearing);
-		}, dependencies.quietMilliseconds));
+	return {
+		read: (memberID, body) => {
+			const clearing = readClearingOf(memberID, body);
+			if (!clearing) return;
+			const key = `${clearing.memberID} ${clearing.tag}`;
+			waiting.get(key)?.cancel();
+			const cancel = dependencies.schedule(() => {
+				waiting.delete(key);
+				void clear(clearing);
+			}, dependencies.quietMilliseconds);
+			waiting.set(key, { tag: clearing.tag, cancel });
+		},
+		arrived: (conversationID) => {
+			const tag = messageTagOf(conversationID);
+			for (const [key, pending] of waiting) {
+				if (pending.tag !== tag) continue;
+				pending.cancel();
+				waiting.delete(key);
+			}
+		}
 	};
 }
