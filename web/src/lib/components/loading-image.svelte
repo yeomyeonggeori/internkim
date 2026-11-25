@@ -16,7 +16,7 @@
 		class: className,
 		imageClass,
 		fallbackText,
-		messagePicture = false,
+		messagePicture,
 		onFailed
 	}: {
 		src: string;
@@ -29,7 +29,7 @@
 		class?: string;
 		imageClass?: string;
 		fallbackText?: string;
-		messagePicture?: boolean;
+		messagePicture?: string;
 		onFailed?: () => void;
 	} = $props();
 
@@ -74,7 +74,7 @@
 			{height}
 			{loading}
 			decoding="async"
-			data-message-picture={messagePicture ? '' : undefined}
+			data-message-picture={messagePicture}
 			aria-hidden={status !== 'loaded' ? true : undefined}
 			class={cn('absolute inset-0 size-full object-contain', status !== 'loaded' && 'invisible', imageClass)}
 			use:watchImage

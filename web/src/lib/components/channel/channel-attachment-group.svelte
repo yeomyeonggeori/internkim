@@ -17,10 +17,10 @@
 
 	let {
 		attachments,
-		openSource
+		openAttachment
 	}: {
 		attachments: ChannelMessageAttachment[];
-		openSource: (source: string) => void;
+		openAttachment: (url: string) => void;
 	} = $props();
 
 	const text = createPageText(channelText);
@@ -44,17 +44,16 @@
 							<img src={attachment.source} alt={attachment.filename ?? ''} class="aspect-square h-full w-full object-cover" />
 							<Spinner role="status" aria-label={text.attachmentUploading} class="absolute" />
 						{:else if attachment.source}
-							{@const source = attachment.source}
 							{@const notShown = attachmentSource.isNotShown(attachment.url)}
 							<button
 								type="button"
 								class="block h-full w-full cursor-zoom-in"
 								aria-label={notShown ? `${text.attachmentUnavailable} · ${text.retry}` : (attachment.filename ?? '이미지 크게 보기')}
-								onclick={() => (notShown ? attachmentSource.retry(attachment.url) : openSource(source))}
+								onclick={() => (notShown ? attachmentSource.retry(attachment.url) : openAttachment(attachment.url))}
 							>
 								<LoadingImage
-									messagePicture
-									src={source}
+									messagePicture={attachment.url}
+									src={attachment.source}
 									alt={attachment.filename ?? ''}
 									onFailed={() => attachmentSource.renew(attachment.url)}
 									loading="lazy"
@@ -92,10 +91,12 @@
 			<div class="relative w-fit max-w-full">
 				<ChannelVideoPlayer
 					{source}
+					identity={attachment.url}
 					width={attachment.widthPixels}
 					height={attachment.heightPixels}
 					variant="message"
-					onOpen={() => openSource(source)}
+					onOpen={() => openAttachment(attachment.url)}
+					onFailed={() => attachmentSource.renew(attachment.url)}
 				/>
 				<DownloadBadge identity={attachment.url} />
 			</div>
@@ -103,7 +104,7 @@
 			<ChannelFileAttachment
 				{attachment}
 				attachmentState={stateOf(attachment)}
-				onOpen={source && previewKindOf(attachment.filename ?? '') !== 'none' ? () => openSource(source) : undefined}
+				onOpen={source && previewKindOf(attachment.filename ?? '') !== 'none' ? () => openAttachment(attachment.url) : undefined}
 			/>
 		{/if}
 	{/each}

@@ -62,7 +62,6 @@
 	} from './channel-api';
 	import {
 		openableAttachments,
-		pictureAddressesOf,
 		messagePicturesOf,
 		lightboxItemsOf
 	} from './channel-attachments';
@@ -196,10 +195,10 @@
 		return readSequence === nextReadSequence && isCurrentChannel(requestedChannelID, generation, cacheGeneration);
 	}
 
-	function openLightbox(attachments: NonNullable<ChannelMessage['attachments']>, source: string) {
+	function openLightbox(attachments: NonNullable<ChannelMessage['attachments']>, url: string) {
 		const items = lightboxItemsOf(attachments);
 		if (items.length === 0) return;
-		lightbox = { items, index: Math.max(0, items.findIndex(item => item.source === source)) };
+		lightbox = { items, index: Math.max(0, items.findIndex(item => item.identity === url)) };
 	}
 	let lastConversationSignature = '';
 	let cacheGeneration = $state(0);
@@ -745,10 +744,12 @@
 		<div class={`relative w-fit max-w-[80%] self-start group-data-[align=end]/message:self-end`}>
 			<ChannelVideoPlayer
 				source={loneVideo.source ?? ''}
+				identity={loneVideo.url}
 				width={loneVideo.widthPixels}
 				height={loneVideo.heightPixels}
 				variant="message"
-				onOpen={() => openLightbox(attachments, loneVideo.source ?? '')}
+				onOpen={() => openLightbox(attachments, loneVideo.url)}
+				onFailed={() => attachmentSource.renew(loneVideo.url)}
 			/>
 			<DownloadBadge identity={loneVideo.url} />
 			{@render timeStamp(message)}
@@ -770,10 +771,10 @@
 				type="button"
 				class="block max-w-full cursor-zoom-in overflow-hidden rounded-lg"
 				aria-label={attachmentSource.isNotShown(loneImage.url) ? `${text.attachmentUnavailable} · ${text.retry}` : (loneImage.filename ?? '이미지 크게 보기')}
-				onclick={() => (attachmentSource.isNotShown(loneImage.url) ? attachmentSource.retry(loneImage.url) : openLightbox(attachments, loneImage.source ?? ''))}
+				onclick={() => (attachmentSource.isNotShown(loneImage.url) ? attachmentSource.retry(loneImage.url) : openLightbox(attachments, loneImage.url))}
 			>
 				<LoadingImage
-					messagePicture
+					messagePicture={loneImage.url}
 					src={loneImage.source ?? ''}
 					alt={loneImage.filename ?? ''}
 					onFailed={() => attachmentSource.renew(loneImage.url)}
@@ -788,7 +789,7 @@
 		</div>
 	{:else if attachments.length > 0}
 		<div class={`relative w-fit max-w-[80%] self-start group-data-[align=end]/message:self-end`}>
-			<ChannelAttachmentGroup {attachments} openSource={(source) => openLightbox(attachments, source)} />
+			<ChannelAttachmentGroup {attachments} openAttachment={(url) => openLightbox(attachments, url)} />
 			{@render timeStamp(message)}
 		</div>
 	{/if}
@@ -863,6 +864,7 @@
 {#snippet messageRow(message: ChannelMessage, startsGroup: boolean, isInTimeline: boolean)}
 	{@const replyChip = isInTimeline ? message.thread : undefined}
 	{@const isUnsent = outgoing.hasFailed(message.id)}
+	{@const pictures = messagePicturesOf(openableAttachments(message.attachments ?? [], openableAddressOf))}
 	<MessageRow
 		{message}
 		mine={isMine(message)}
@@ -879,9 +881,9 @@
 				message.text,
 				(message.attachments ?? []).map((attachment) => attachment.url)
 			),
-			pictureAddressesOf(openableAttachments(message.attachments ?? [], openableAddressOf))
+			pictures
 		)}
-		pictures={messagePicturesOf(openableAttachments(message.attachments ?? [], openableAddressOf))}
+		{pictures}
 		onReply={() => openThread(message)}
 		onEdit={() => (editingMessageID = message.id)}
 		onCopy={(wanted) => messageActions.copy(wanted)}

@@ -145,7 +145,7 @@
 {#snippet files(filename: string)}
 	{#if filename}
 		<div class="relative w-fit max-w-[80%] self-start group-data-[align=end]/message:self-end">
-			<ChannelAttachmentGroup attachments={fileAttachments(filename)} openSource={() => openFile(filename)} />
+			<ChannelAttachmentGroup attachments={fileAttachments(filename)} openAttachment={() => openFile(filename)} />
 		</div>
 	{/if}
 {/snippet}

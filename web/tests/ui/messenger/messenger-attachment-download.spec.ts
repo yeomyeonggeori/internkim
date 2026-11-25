@@ -144,6 +144,39 @@ test.describe('messenger attachment download', () => {
 	});
 });
 
+test.describe('a file the messenger cannot preview', () => {
+	const archiveName = '회의 자료.zip';
+	const archiveMessage = {
+		id: 'message-archive',
+		sender: author,
+		text: '',
+		sentAt: '2026-10-07T01:10:00Z',
+		attachments: [
+			{
+				kind: 'file',
+				url: 'meeting-archive',
+				source: `${storeOrigin}/object/sign/asset/meeting-archive.zip?token=sample`,
+				filename: archiveName,
+				mimeType: 'application/zip',
+				sizeBytes: 4096
+			}
+		]
+	};
+
+	test.beforeEach(async ({ page }) => {
+		await mockStore(page);
+		await mockDeviceMessenger(page, reader, [{ id: channelID, name: '첨부 채널', kind: 'group', myRole: 'member' }], [archiveMessage]);
+		await page.setViewportSize({ width: 1280, height: 800 });
+		await page.goto(`/messenger?channel=${channelID}`);
+	});
+
+	test('downloads from its title the way its download button does', async ({ page }) => {
+		const downloading = page.waitForEvent('download');
+		await page.getByRole('button', { name: archiveName }).click();
+		expect((await downloading).suggestedFilename()).toBe(archiveName);
+	});
+});
+
 test.describe('messenger attachment download inside the iPhone app', () => {
 	test.beforeEach(async ({ page }) => {
 		await insideTheIPhoneApp(page);

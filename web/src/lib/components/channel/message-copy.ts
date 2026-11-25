@@ -1,14 +1,16 @@
+import type { MessagePicture } from './channel-attachments';
+
 export type MessageCopy =
 	| { kind: 'text'; text: string }
-	| { kind: 'picture'; address: string }
+	| { kind: 'picture'; picture: MessagePicture }
 	| { kind: 'nothing' };
 
 export type CopyOutcome = 'success' | 'failure';
 
-export function whatToCopy(visibleText: string, pictureAddresses: string[]): MessageCopy {
+export function whatToCopy(visibleText: string, pictures: MessagePicture[]): MessageCopy {
 	if (visibleText !== '') return { kind: 'text', text: visibleText };
-	const firstPicture = pictureAddresses[0];
-	if (firstPicture) return { kind: 'picture', address: firstPicture };
+	const firstPicture = pictures[0];
+	if (firstPicture) return { kind: 'picture', picture: firstPicture };
 	return { kind: 'nothing' };
 }
 
@@ -40,10 +42,10 @@ async function pictureAsPNG(address: string): Promise<Blob> {
 	}
 }
 
-export async function copyPicture(address: string): Promise<CopyOutcome> {
+export async function copyPicture(address: Promise<string>): Promise<CopyOutcome> {
 	if (!navigator.clipboard?.write || typeof ClipboardItem === 'undefined') return 'failure';
 	try {
-		await navigator.clipboard.write([new ClipboardItem({ 'image/png': pictureAsPNG(address) })]);
+		await navigator.clipboard.write([new ClipboardItem({ 'image/png': address.then(pictureAsPNG) })]);
 		return 'success';
 	} catch (failure) {
 		console.warn('the picture was not put on the clipboard', failure);

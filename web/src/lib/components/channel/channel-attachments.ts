@@ -27,12 +27,6 @@ export function preparingLabel(label: string, progress: AttachmentProgress | nul
 	return `${label} ${Math.floor((progress.copiedBytes / progress.totalBytes) * 100)}%`;
 }
 
-export function pictureAddressesOf(attachments: ChannelMessageAttachment[]): string[] {
-	return attachments
-		.filter((attachment) => attachment.kind === 'image' && attachment.source)
-		.map((attachment) => attachment.source ?? '');
-}
-
 export type MessagePicture = { address: string; filename: string; identity: string };
 
 export function messagePicturesOf(attachments: ChannelMessageAttachment[]): MessagePicture[] {
