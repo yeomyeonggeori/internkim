@@ -13,10 +13,7 @@ func TestAReplayHandsOverEveryEntrySinceTheFullOneInTheOrderTheyWereKept(t *test
 	const changes = 60
 	kept := &keptObjects{objects: map[string][]byte{}}
 	follower := aFollower(t, kept)
-	state, errorValue := follower.start(context.Background())
-	if errorValue != nil {
-		t.Fatal(errorValue)
-	}
+	state := startedWithItsFullEntryKept(t, follower)
 	for number := range changes {
 		keepOneChange(t, state, number)
 	}
@@ -50,10 +47,7 @@ func TestAReplayHandsOverEveryEntrySinceTheFullOneInTheOrderTheyWereKept(t *test
 func TestAMoveReplaysTheFileJournalThroughTheEntryTheOldBoxStoppedAt(t *testing.T) {
 	kept := &keptObjects{objects: map[string][]byte{}}
 	follower := aFollower(t, kept)
-	state, errorValue := follower.start(context.Background())
-	if errorValue != nil {
-		t.Fatal(errorValue)
-	}
+	state := startedWithItsFullEntryKept(t, follower)
 	for number := range 5 {
 		keepOneChange(t, state, number)
 	}

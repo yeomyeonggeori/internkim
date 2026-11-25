@@ -14,16 +14,15 @@ const catchUpMargin = time.Minute
 
 func (state *following) catchUp(ctx context.Context) error {
 	if state.entriesKept > fullEntryAfter {
-		return state.keepFull(ctx)
+		return state.startFullEntry(ctx)
 	}
 	entries, errorValue := state.Journal.sinceNewestFull(ctx, state.Keyring, nil)
-	if errors.Is(errorValue, ErrNoFullEntry) || (errorValue == nil && time.Since(entries[0].CreatedAt) >= fullEntryEvery) {
-		return state.keepFull(ctx)
+	if errors.Is(errorValue, ErrNoFullEntry) {
+		return state.startFullEntry(ctx)
 	}
 	if errorValue != nil {
 		return errorValue
 	}
-	state.referenced = map[string]bool{}
 	for _, entry := range entries {
 		for _, identifier := range entry.Chunks {
 			state.referenced[identifier] = true
@@ -34,10 +33,15 @@ func (state *following) catchUp(ctx context.Context) error {
 	if errorValue != nil {
 		return errorValue
 	}
-	if len(changed) == 0 {
-		return nil
+	if len(changed) > 0 {
+		if errorValue := state.keepChanges(ctx, changed); errorValue != nil {
+			return errorValue
+		}
 	}
-	return state.keepChanges(ctx, changed)
+	if state.isAFullEntryDue() {
+		return state.startFullEntry(ctx)
+	}
+	return nil
 }
 
 func changedSince(roots []hostbackup.FileRoot, since time.Time) (map[string]Change, error) {

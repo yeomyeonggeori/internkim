@@ -13,10 +13,7 @@ import (
 
 func keepAJournal(t *testing.T, follower Follower, changes int) {
 	t.Helper()
-	state, errorValue := follower.start(context.Background())
-	if errorValue != nil {
-		t.Fatal(errorValue)
-	}
+	state := startedWithItsFullEntryKept(t, follower)
 	for number := range changes {
 		keepOneChange(t, state, number)
 	}
