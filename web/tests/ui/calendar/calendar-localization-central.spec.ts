@@ -33,6 +33,10 @@ test.describe('calendar localization', () => {
 		await expect(calendarFrame.locator('.calendar-toolbar-title')).toHaveText('June 2026');
 		await expect(calendarFrame.getByRole('tab', { name: 'Month', exact: true })).toBeVisible();
 
+		await calendarFrame.getByRole('tab', { name: 'Week', exact: true }).click();
+		await expect(calendarFrame.getByText('All day', { exact: true }).first()).toBeVisible();
+		await expect(calendarFrame.getByText('종일', { exact: true })).toHaveCount(0);
+
 		await calendarFrame.getByRole('tab', { name: 'Month', exact: true }).click();
 		await expect(calendarFrame.locator('.calendar-stage')).toHaveClass(/calendar-stage-month/);
 		await calendarFrame.locator('[data-calendar-date="2026-06-08"]').dblclick();

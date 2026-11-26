@@ -8,7 +8,9 @@
 	import { IsMobile } from '$lib/hooks/is-mobile.svelte';
 	import { cn } from '$lib/utils';
 	import { CalendarDate, type DateValue } from '@internationalized/date';
+	import { createPageText } from '$lib/i18n/page-text.svelte';
 	import { tick } from 'svelte';
+	import { calendarText } from '../text';
 	import CalendarEventChip from './calendar-event-chip.svelte';
 	import CalendarEventListCard from '../embed/calendar-event-list-card.svelte';
 	import {
@@ -90,7 +92,7 @@
 	const canSwipeWeeks = $derived(dayCount === 7);
 	const isPhone = new IsMobile();
 	const hasNarrowColumns = $derived(dayCount > 1 && isPhone.current);
-	const allDayRowLabel = '종일';
+	const text = createPageText(calendarText);
 	const allDayLaneHeightPixels = 22;
 	let allDayDragColumns = $state<{ days: Date[]; startIndex: number; endIndex: number } | null>(null);
 
@@ -545,7 +547,7 @@
 	<div
 		role="grid"
 		tabindex="-1"
-		aria-label={allDayRowLabel}
+		aria-label={text.allDay}
 		class="relative select-none"
 		style={`height: ${allDayRowHeightPixels(spans)}px`}
 		onpointerdown={(event) => startAllDayDrag(event, columnDays)}
@@ -597,7 +599,7 @@
 						class="border-border/50 text-muted-foreground border-b-2 px-2 py-1 text-right text-xs whitespace-nowrap"
 						style={`height: ${allDayRowHeightPixels(stripAllDaySpans)}px`}
 					>
-						종일
+						{text.allDay}
 					</div>
 				</div>
 				<div bind:this={headerStripElement} class="no-scrollbar min-w-0 flex-1 overflow-x-hidden">
@@ -657,7 +659,7 @@
 				{/each}
 			</div>
 			<div class="border-border/50 flex border-b-2">
-				<div class="text-muted-foreground w-16 shrink-0 px-2 py-1 text-right text-xs whitespace-nowrap">종일</div>
+				<div class="text-muted-foreground w-16 shrink-0 px-2 py-1 text-right text-xs whitespace-nowrap">{text.allDay}</div>
 				<div class="min-w-0 flex-1">
 					{@render allDayRow(days, daysAllDaySpans)}
 				</div>
