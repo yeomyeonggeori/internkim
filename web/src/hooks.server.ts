@@ -7,6 +7,7 @@ import { apiReferenceHomeFor } from '$lib/server/api-reference-redirect';
 import { defaultZone } from '$lib/server/fleet-domain';
 import { asksForConsent, unframeableHeaders } from '$lib/server/consent-framing';
 import { withInitialModeScript } from '$lib/server/initial-mode-script';
+import { withStartFailureRecoveryScript } from '$lib/server/start-failure-recovery-script';
 
 export const handle: Handle = async ({ event, resolve }) => {
 	if (event.request.method === 'OPTIONS') {
@@ -37,10 +38,12 @@ export const handle: Handle = async ({ event, resolve }) => {
 
 	const response = await resolve(event, {
 		transformPageChunk: ({ html }) =>
-			withInitialModeScript(
-				html.replace(
-					'<script id="central-plane" type="application/json">{}</script>',
-					`<script id="central-plane" type="application/json">${JSON.stringify(centralPlane)}</script>`
+			withStartFailureRecoveryScript(
+				withInitialModeScript(
+					html.replace(
+						'<script id="central-plane" type="application/json">{}</script>',
+						`<script id="central-plane" type="application/json">${JSON.stringify(centralPlane)}</script>`
+					)
 				)
 			)
 	});
