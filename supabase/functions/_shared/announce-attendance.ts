@@ -1,7 +1,7 @@
 import type { SupabaseClient } from './service-client.ts';
 import { whoHearsTheClockOf, type Colleague } from './attendance-audience.ts';
 import { endActivityOnOwnPhones, showClockOnOwnPhones } from './attendance-live-activity.ts';
-import { readNotificationSettings } from './categories.ts';
+import { colleaguesOfCompany } from './company-colleagues.ts';
 import { refreshOwnWidgets, widgetClockOf } from './attendance-widget-refresh.ts';
 import { pictureURLOfMember } from './member-directory.ts';
 import { notifyMember, type Notification } from './notify-member.ts';
@@ -153,28 +153,14 @@ async function tellWhoAnswers(
 	return tellEach(record, answering, 'leave', notification, pushKeys, nowInSeconds);
 }
 
-type ColleagueRow = { id: string; team_id: string | null; supervisor_id: string | null; preferences: unknown };
-
 async function colleaguesOf(record: SupabaseClient, companyID: string): Promise<Colleague[]> {
-	const { data, error } = await record
-		.from('member')
-		.select('id, team_id, supervisor_id, preferences')
-		.eq('company_id', companyID)
-		.eq('can_read_the_company', true)
-		.returns<ColleagueRow[]>();
-	if (error) throw new Error(error.message);
-	return (data ?? []).map((member) => ({
-		id: member.id,
-		teamID: member.team_id,
-		supervisorID: member.supervisor_id,
-		attendanceReach: readNotificationSettings(notificationSettingsOf(member.preferences)).attendanceReach
+	const colleagues = await colleaguesOfCompany(record, companyID);
+	return colleagues.map((colleague) => ({
+		id: colleague.id,
+		teamID: colleague.teamID,
+		supervisorID: colleague.supervisorID,
+		attendanceReach: colleague.notificationSettings.attendanceReach
 	}));
-}
-
-function notificationSettingsOf(preferences: unknown): unknown {
-	return typeof preferences === 'object' && preferences !== null
-		? Reflect.get(preferences, 'notificationSettings')
-		: undefined;
 }
 
 async function tellEach(

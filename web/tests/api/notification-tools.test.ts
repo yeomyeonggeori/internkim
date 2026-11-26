@@ -64,7 +64,7 @@ async function asAdmin(name: string, input: Record<string, unknown> = {}) {
 
 type NotificationChoice = { category: string; isOn: boolean; isChoosable: boolean };
 
-type SettingsResult = { categories: NotificationChoice[]; attendanceReach: string; mutedConversationIDs: string[] };
+type SettingsResult = { categories: NotificationChoice[]; attendanceReach: string; taskReach: string; mutedConversationIDs: string[] };
 
 type MutingResult = { conversationID: string; isMuted: boolean; mutedConversationIDs: string[] };
 
@@ -91,6 +91,7 @@ describe('what a person is told about', () => {
 		expect(choiceOf(settings, 'message').isOn).toBe(true);
 		expect(choiceOf(settings, 'mail').isOn).toBe(false);
 		expect(settings.attendanceReach).toBe('everyone');
+		expect(settings.taskReach).toBe('team');
 		expect(settings.mutedConversationIDs).toEqual([]);
 	});
 
@@ -128,6 +129,18 @@ describe('what a person is told about', () => {
 
 		const restored = resultOf<SettingsResult>(await asSample('notification_settings_set', { attendanceReach: 'everyone' }));
 		expect(restored.attendanceReach).toBe('everyone');
+	});
+
+	test('widens whose finished work reaches the requester, and keeps it through a category change', async () => {
+		const widened = resultOf<SettingsResult>(await asSample('notification_settings_set', { taskReach: 'everyone' }));
+		expect(widened.taskReach).toBe('everyone');
+		expect(widened.attendanceReach).toBe('everyone');
+
+		const afterCategory = resultOf<SettingsResult>(await asSample('notification_settings_set', { turnOff: ['mail'] }));
+		expect(afterCategory.taskReach).toBe('everyone');
+
+		const restored = resultOf<SettingsResult>(await asSample('notification_settings_set', { taskReach: 'team' }));
+		expect(restored.taskReach).toBe('team');
 	});
 
 	test('refuses a category the requester may not choose, and names it', async () => {

@@ -8,12 +8,15 @@
 	import {
 		attendanceReaches,
 		isAttendanceReach,
-		type AttendanceReach,
-		type NotificationCategory
+		isTaskReach,
+		taskReaches,
+		type NotificationCategory,
+		type TaskReach
 	} from '$lib/notifications/categories';
 	import {
 		chooseAttendanceReach,
 		chooseNotificationCategory,
+		chooseTaskReach,
 		type NotificationSettings
 	} from '$lib/notifications/settings';
 	import {
@@ -36,7 +39,7 @@
 
 	let reach = $state<Reachability>(notificationReachabilityRead.value ?? 'off');
 	let settings = $state<NotificationSettings>(
-		notificationSettingsRead.value ?? { categories: [], attendanceReach: 'everyone', mutedConversationIDs: [] }
+		notificationSettingsRead.value ?? { categories: [], attendanceReach: 'everyone', taskReach: 'team', mutedConversationIDs: [] }
 	);
 	let isLoadingReachability = $state(notificationReachabilityRead.value === undefined);
 	let isLoadingSettings = $state(notificationSettingsRead.value === undefined);
@@ -55,21 +58,37 @@
 		mail: text.notifyMail
 	});
 
-	const attendanceOff = 'off';
+	const reachOff = 'off';
 
-	const attendanceReachLabels: Record<AttendanceReach | typeof attendanceOff, string> = $derived({
-		everyone: text.notifyAttendanceEveryone,
-		teamAndSupervisors: text.notifyAttendanceTeamAndSupervisors,
-		team: text.notifyAttendanceTeam,
-		off: text.notifyAttendanceOff
+	type ReachCategory = 'attendance' | 'task';
+	type ReachOption = TaskReach | typeof reachOff;
+
+	const reachLabels: Record<ReachOption, string> = $derived({
+		everyone: text.notifyReachEveryone,
+		teamAndSupervisors: text.notifyReachTeamAndSupervisors,
+		team: text.notifyReachTeam,
+		involved: text.notifyReachInvolved,
+		off: text.notifyReachOff
 	});
 
-	const attendanceOptions = [...attendanceReaches, attendanceOff] as const;
+	const reachOptions: Record<ReachCategory, readonly ReachOption[]> = {
+		attendance: [...attendanceReaches, reachOff],
+		task: [...taskReaches, reachOff]
+	};
+
+	function reachRank(category: NotificationCategory): number {
+		if (category === 'attendance') return 0;
+		return category === 'task' ? 1 : 2;
+	}
+
+	function hasReach(category: NotificationCategory): category is ReachCategory {
+		return category === 'attendance' || category === 'task';
+	}
 
 	const shownCategories = $derived(
 		settings.categories
 			.filter((choice) => choice.isChoosable)
-			.toSorted((left, right) => Number(right.category === 'attendance') - Number(left.category === 'attendance'))
+			.toSorted((left, right) => reachRank(left.category) - reachRank(right.category))
 	);
 
 	async function loadReachability() {
@@ -145,23 +164,34 @@
 		}
 	}
 
-	function attendanceChosen(isOn: boolean): AttendanceReach | typeof attendanceOff {
-		return isOn ? settings.attendanceReach : attendanceOff;
+	function reachChosen(category: ReachCategory, isOn: boolean): ReachOption {
+		if (!isOn) return reachOff;
+		return category === 'attendance' ? settings.attendanceReach : settings.taskReach;
 	}
 
-	async function chooseAttendance(chosen: string) {
-		if (chosen === attendanceOff) return choose('attendance', false);
-		if (!isAttendanceReach(chosen)) return;
+	function withReach(category: ReachCategory, chosen: string): NotificationSettings | undefined {
+		if (category === 'attendance' && isAttendanceReach(chosen)) return { ...settings, attendanceReach: chosen };
+		if (category === 'task' && isTaskReach(chosen)) return { ...settings, taskReach: chosen };
+		return undefined;
+	}
+
+	function saveReach(category: ReachCategory, chosen: NotificationSettings): Promise<NotificationSettings> {
+		return category === 'attendance' ? chooseAttendanceReach(chosen.attendanceReach) : chooseTaskReach(chosen.taskReach);
+	}
+
+	async function chooseReach(category: ReachCategory, chosen: string) {
+		if (chosen === reachOff) return choose(category, false);
+		const narrowed = withReach(category, chosen);
+		if (!narrowed) return;
 		const previous = settings;
 		settings = {
-			...settings,
-			attendanceReach: chosen,
+			...narrowed,
 			categories: settings.categories.map((choice) =>
-				choice.category === 'attendance' ? { ...choice, isOn: true } : choice
+				choice.category === category ? { ...choice, isOn: true } : choice
 			)
 		};
 		try {
-			settings = await chooseAttendanceReach(chosen);
+			settings = await saveReach(category, narrowed);
 			notificationSettingsRead.remember(settings);
 		} catch {
 			settings = previous;
@@ -208,19 +238,20 @@
 							{categoryLabels[choice.category]}
 						</Label>
 						<div class="flex items-center gap-2">
-							{#if choice.category === 'attendance'}
+							{#if hasReach(choice.category)}
+								{@const category = choice.category}
 								<Select.Root
 									type="single"
-									value={attendanceChosen(choice.isOn)}
-									onValueChange={chooseAttendance}
+									value={reachChosen(category, choice.isOn)}
+									onValueChange={(chosen) => chooseReach(category, chosen)}
 									disabled={isLoadingReachability || reachabilityFailed || reach !== 'on'}
 								>
 									<Select.Trigger id="{fieldID}-{choice.category}" class="w-44">
-										{attendanceReachLabels[attendanceChosen(choice.isOn)]}
+										{reachLabels[reachChosen(category, choice.isOn)]}
 									</Select.Trigger>
 									<Select.Content><Select.Group>
-										{#each attendanceOptions as option (option)}
-											<Select.Item value={option} label={attendanceReachLabels[option]} />
+										{#each reachOptions[category] as option (option)}
+											<Select.Item value={option} label={reachLabels[option]} />
 										{/each}
 									</Select.Group></Select.Content>
 								</Select.Root>

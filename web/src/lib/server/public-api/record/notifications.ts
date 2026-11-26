@@ -1,8 +1,10 @@
 import {
 	attendanceReaches,
 	notificationCategories,
+	taskReaches,
 	type AttendanceReach,
-	type NotificationCategory
+	type NotificationCategory,
+	type TaskReach
 } from '../catalog/notifications';
 
 export type NotificationChoices = Record<NotificationCategory, boolean>;
@@ -49,11 +51,24 @@ export function attendanceReachFromStored(stored: unknown): AttendanceReach {
 	return typeof reach === 'string' && isAttendanceReach(reach) ? reach : 'everyone';
 }
 
+const defaultTaskReach: TaskReach = 'team';
+
+export function isTaskReach(value: string): value is TaskReach {
+	return taskReaches.some((reach) => reach === value);
+}
+
+export function taskReachFromStored(stored: unknown): TaskReach {
+	if (typeof stored !== 'object' || stored === null) return defaultTaskReach;
+	const reach = Reflect.get(stored, 'taskReach');
+	return typeof reach === 'string' && isTaskReach(reach) ? reach : defaultTaskReach;
+}
+
 export function storedFromChoices(
 	choices: NotificationChoices,
-	attendanceReach: AttendanceReach
+	attendanceReach: AttendanceReach,
+	taskReach: TaskReach
 ): Record<string, boolean | string> {
-	const stored: Record<string, boolean | string> = { attendanceReach };
+	const stored: Record<string, boolean | string> = { attendanceReach, taskReach };
 	for (const category of notificationCategories) {
 		stored[category] = choices[category];
 	}

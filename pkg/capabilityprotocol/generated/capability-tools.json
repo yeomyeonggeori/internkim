@@ -37866,7 +37866,7 @@
         "state": "ok"
       },
       "canonicalName": "notification_settings_get",
-      "description": "The notification settings: what the requester is told about, category by category, and the conversations they have muted. The kinds of thing a person is told about: message for something somebody wrote them, task for work assigned to them, approval for something waiting on their decision, attendance for their own clock, leave for the requests colleagues send, calendar for an event about to start, and mail for a new message in a connected mailbox. A category the requester may not choose is answered with isChoosable false, so a change to it would be refused. Whose clocking in and out the requester is told about while attendance is on: everyone for the whole company, teamAndSupervisors for their own team and every supervisor above them, one supervisor's supervisor after another, and team for their own team alone.",
+      "description": "The notification settings: what the requester is told about, category by category, and the conversations they have muted. The kinds of thing a person is told about: message for something somebody wrote them, task for work assigned to them, approval for something waiting on their decision, attendance for their own clock, leave for the requests colleagues send, calendar for an event about to start, and mail for a new message in a connected mailbox. A category the requester may not choose is answered with isChoosable false, so a change to it would be refused. Whose clocking in and out the requester is told about while attendance is on: everyone for the whole company, teamAndSupervisors for their own team and every supervisor above them, one supervisor's supervisor after another, and team for their own team alone. Whose finished work the requester is told about while task is on, beyond the tasks they requested or take part in: everyone for the whole company, teamAndSupervisors for their own team and every supervisor above them, team for their own team alone, and involved for nobody else's.",
       "estimatedLatency": "low",
       "idempotency": {
         "required": false,
@@ -37926,11 +37926,21 @@
               "type": "string"
             },
             "type": "array"
+          },
+          "taskReach": {
+            "enum": [
+              "everyone",
+              "teamAndSupervisors",
+              "team",
+              "involved"
+            ],
+            "type": "string"
           }
         },
         "required": [
           "categories",
           "attendanceReach",
+          "taskReach",
           "mutedConversationIDs"
         ],
         "type": "object"
@@ -37981,11 +37991,21 @@
                 "type": "string"
               },
               "type": "array"
+            },
+            "taskReach": {
+              "enum": [
+                "everyone",
+                "teamAndSupervisors",
+                "team",
+                "involved"
+              ],
+              "type": "string"
             }
           },
           "required": [
             "categories",
             "attendanceReach",
+            "taskReach",
             "mutedConversationIDs"
           ],
           "type": "object"
@@ -38002,7 +38022,7 @@
         "state": "ok"
       },
       "canonicalName": "notification_settings_set",
-      "description": "Change the notification settings: which categories of notice the requester is told about at all, whose clocking in and out reaches them, and which conversations are muted. This is the standing preference, not one arriving reminder: a repeating alert the requester set up is stopped with schedule_cancel. Only the categories and the reach the call names change, and the whole setting is answered back. A category the requester may not choose is refused by name rather than quietly dropped.",
+      "description": "Change the notification settings: which categories of notice the requester is told about at all, whose clocking in and out reaches them, whose finished work reaches them, and which conversations are muted. This is the standing preference, not one arriving reminder: a repeating alert the requester set up is stopped with schedule_cancel. Only the categories and the reaches the call names change, and the whole setting is answered back. A category the requester may not choose is refused by name rather than quietly dropped.",
       "estimatedLatency": "medium",
       "idempotency": {
         "required": false,
@@ -38019,6 +38039,16 @@
               "everyone",
               "teamAndSupervisors",
               "team"
+            ],
+            "type": "string"
+          },
+          "taskReach": {
+            "description": "Whose finished work the requester is told about while task is on, beyond the tasks they requested or take part in: everyone for the whole company, teamAndSupervisors for their own team and every supervisor above them, team for their own team alone, and involved for nobody else's. Left out, it keeps the reach it has.",
+            "enum": [
+              "everyone",
+              "teamAndSupervisors",
+              "team",
+              "involved"
             ],
             "type": "string"
           },
@@ -38067,6 +38097,16 @@
               "everyone",
               "teamAndSupervisors",
               "team"
+            ],
+            "type": "string"
+          },
+          "taskReach": {
+            "description": "Whose finished work the requester is told about while task is on, beyond the tasks they requested or take part in: everyone for the whole company, teamAndSupervisors for their own team and every supervisor above them, team for their own team alone, and involved for nobody else's. Left out, it keeps the reach it has.",
+            "enum": [
+              "everyone",
+              "teamAndSupervisors",
+              "team",
+              "involved"
             ],
             "type": "string"
           },
@@ -38152,11 +38192,21 @@
               "type": "string"
             },
             "type": "array"
+          },
+          "taskReach": {
+            "enum": [
+              "everyone",
+              "teamAndSupervisors",
+              "team",
+              "involved"
+            ],
+            "type": "string"
           }
         },
         "required": [
           "categories",
           "attendanceReach",
+          "taskReach",
           "mutedConversationIDs"
         ],
         "type": "object"
@@ -38213,11 +38263,21 @@
                 "type": "string"
               },
               "type": "array"
+            },
+            "taskReach": {
+              "enum": [
+                "everyone",
+                "teamAndSupervisors",
+                "team",
+                "involved"
+              ],
+              "type": "string"
             }
           },
           "required": [
             "categories",
             "attendanceReach",
+            "taskReach",
             "mutedConversationIDs"
           ],
           "type": "object"

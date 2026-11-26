@@ -21,7 +21,7 @@ reply of each thread with replies they have not read.
 | `message` | the relay sees a message addressed to someone | those addressed |
 | `attendance` | a member clocks in or out | everyone else in the company, or as far as each listener narrowed it |
 | `leave` | a member asks for leave | the administrators, minus the asker |
-| `task` | a task moves between statuses, or someone is added to one | for a move, the requester and the participants; for an addition, whoever was added. Never whoever wrote it |
+| `task` | a task moves between statuses, or someone is added to one | for a move, the requester and the participants, and for a move to `completed` also the colleagues whose reach covers whoever moved it; for an addition, whoever was added. Never whoever wrote it |
 | `calendar` | an event's reminder lead time is reached | the members on that event |
 | `approval` | an agent run needs a person | the requester |
 | `mail` | new mail arrives | the account's owner |
@@ -45,7 +45,10 @@ administrator an owner of it, and an administrator nobody invited starts that ch
 unmute it like any other conversation. Attendance also has a reach,
 `attendanceReach` in the same settings: `everyone`, `teamAndSupervisors` for the
 member's own team and every supervisor above them up to the top, or `team` for
-their own team alone. A supervisor in another team still counts. A member with
+their own team alone. A supervisor in another team still counts. Finished work
+has `taskReach`, with the same three values and `involved` for a member who
+hears only of the tasks they requested or take part in. It starts at `team`,
+and the team it measures is that of whoever moved the task. A member with
 no device subscribed is never reached at all, which is the state everyone
 starts in.
 

@@ -2,13 +2,15 @@ import { describe, expect, test } from 'bun:test';
 import { readFileSync } from 'node:fs';
 import {
 	attendanceReaches as browserReaches,
-	notificationCategories as browserCategories
+	notificationCategories as browserCategories,
+	taskReaches as browserTaskReaches
 } from '../../../src/lib/notifications/categories';
-import { attendanceReachFromStored, choicesFromStored } from '../../../src/lib/server/public-api/record/notifications';
+import { attendanceReachFromStored, choicesFromStored, taskReachFromStored } from '../../../src/lib/server/public-api/record/notifications';
 import {
 	attendanceReaches as sharedReaches,
 	notificationCategories as sharedCategories,
-	readNotificationSettings as sharedRead
+	readNotificationSettings as sharedRead,
+	taskReaches as sharedTaskReaches
 } from '../../../../supabase/functions/_shared/categories.ts';
 
 type CatalogTool = {
@@ -41,6 +43,12 @@ function reachesTheCatalogPublishes(): readonly string[] {
 	return published;
 }
 
+function taskReachesTheCatalogPublishes(): readonly string[] {
+	const published = settingsSetProperties().taskReach?.enum;
+	if (!published) throw new Error('the generated catalog publishes no task reaches');
+	return published;
+}
+
 describe('every copy of the categories says what the catalog does', () => {
 	test('the browser names the same categories in the same order', () => {
 		const browser: readonly string[] = browserCategories;
@@ -62,6 +70,19 @@ describe('every copy of the categories says what the catalog does', () => {
 	test('the record and the delivery side read a stored reach the same way', () => {
 		for (const stored of [undefined, {}, { attendanceReach: 'team' }, { attendanceReach: 'nobody' }]) {
 			expect(sharedRead(stored).attendanceReach).toBe(attendanceReachFromStored(stored));
+		}
+	});
+
+	test('the browser and the delivery side name the same task reaches', () => {
+		const browser: readonly string[] = browserTaskReaches;
+		const delivery: readonly string[] = sharedTaskReaches;
+		expect(browser).toEqual(taskReachesTheCatalogPublishes());
+		expect(delivery).toEqual(taskReachesTheCatalogPublishes());
+	});
+
+	test('the record and the delivery side read a stored task reach the same way', () => {
+		for (const stored of [undefined, {}, { taskReach: 'involved' }, { taskReach: 'nobody' }]) {
+			expect(sharedRead(stored).taskReach).toBe(taskReachFromStored(stored));
 		}
 	});
 
