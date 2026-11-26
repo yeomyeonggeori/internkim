@@ -38,7 +38,7 @@ function containsModuleLoadErrorText(value: string) {
 	return moduleLoadErrorPhrases.some((phrase) => normalizedValue.includes(phrase));
 }
 
-const moduleLoadErrorPhrases = [
+export const moduleLoadErrorPhrases = [
 	'importing a module script failed',
 	'failed to fetch dynamically imported module',
 	'error loading dynamically imported module',

@@ -20,22 +20,8 @@
 		<meta name="theme-color" media="(prefers-color-scheme: dark)" content="#09090b" />
 		<script>
 			if (window.self !== window.top) document.documentElement.classList.add('internkim-embedded');
-			addEventListener(
-				'error',
-				(event) => {
-					const source = event.target;
-					if (!source) return;
-					const isStylesheet = source.tagName === 'LINK' && source.rel === 'stylesheet';
-					const address = source.tagName === 'SCRIPT' ? source.src : isStylesheet ? source.href : '';
-					if (!address.includes('/_app/immutable/')) return;
-					if (sessionStorage.getItem('internkim-reloaded-for-release')) return;
-					sessionStorage.setItem('internkim-reloaded-for-release', '1');
-					location.reload();
-				},
-				true
-			);
-			addEventListener('load', () => sessionStorage.removeItem('internkim-reloaded-for-release'));
 		</script>
+		<script id="start-failure-recovery"></script>
 		<script id="central-plane" type="application/json">{}</script>
 		<script id="initial-mode"></script>
 		<style>
