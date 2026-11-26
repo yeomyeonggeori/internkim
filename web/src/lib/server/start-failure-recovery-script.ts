@@ -24,17 +24,25 @@ const recovery = `(() => {
 		notice.append(said, again);
 		document.body.append(notice);
 	};
-	const recover = () => {
-		if (sessionStorage.getItem(reloadedKey)) return sayItFailed();
+	const reloadOnce = () => {
+		if (sessionStorage.getItem(reloadedKey)) return false;
 		sessionStorage.setItem(reloadedKey, '1');
 		location.reload();
+		return true;
+	};
+	const recover = () => {
+		if (!reloadOnce()) sayItFailed();
 	};
 	addEventListener(
 		'error',
 		(event) => {
 			const source = event.target;
-			if (!source || source.tagName !== 'SCRIPT' || !source.src.includes('/_app/immutable/')) return;
-			recover();
+			if (!source) return;
+			const isStylesheet = source.tagName === 'LINK' && source.rel === 'stylesheet';
+			const address = source.tagName === 'SCRIPT' ? source.src : isStylesheet ? source.href : '';
+			if (!address.includes('/_app/immutable/')) return;
+			if (isStylesheet) reloadOnce();
+			else recover();
 		},
 		true
 	);
