@@ -223,7 +223,7 @@
 				{/if}
 				<h2 class="text-xl font-semibold tracking-tight max-sm:text-lg">{scopeTitle}</h2>
 			</div>
-			<div class="flex items-center gap-3"><span class="text-xs text-muted-foreground">{teamState.serverTime ? timeOf(teamState.serverTime) : '—'} 기준</span></div>
+			<div class="flex items-center gap-3"><span class="text-xs text-muted-foreground">{text.asOfTemplate.replace('{time}', teamState.serverTime ? timeOf(teamState.serverTime) : '—')}</span></div>
 		</div>
 
 		{#if !teamState.selectedTeamKey}
