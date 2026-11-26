@@ -34,12 +34,15 @@ type Follower struct {
 
 type following struct {
 	Follower
-	uploader    *offsite.Snapshot
-	next        int64
-	referenced  map[string]bool
-	lastFull    time.Time
-	entriesKept int
-	unchanged   keptStamps
+	uploader        *offsite.Snapshot
+	next            int64
+	referenced      map[string]bool
+	lastFull        time.Time
+	entriesKept     int
+	unchanged       keptStamps
+	fullEntry       *fullEntryInFlight
+	isFullEntryOwed bool
+	owedMarkers     []string
 }
 
 func (follower Follower) Run(ctx context.Context) error {
@@ -81,7 +84,7 @@ func (follower Follower) start(ctx context.Context) (*following, error) {
 	if errorValue != nil {
 		return nil, errorValue
 	}
-	state := &following{Follower: follower, uploader: uploader, next: 1, entriesKept: len(sequences), unchanged: keptStamps{}}
+	state := &following{Follower: follower, uploader: uploader, next: 1, entriesKept: len(sequences), unchanged: keptStamps{}, referenced: map[string]bool{}}
 	if len(sequences) > 0 {
 		state.next = slices.Max(sequences) + 1
 	}
@@ -119,6 +122,11 @@ func (state *following) follow(ctx context.Context, changes <-chan []Change, wat
 		select {
 		case errorValue := <-watching:
 			return errorValue
+		case kept := <-state.fullEntryKept():
+			if errorValue := state.landFullEntry(ctx, kept); errorValue != nil {
+				return errorValue
+			}
+			continue
 		case found := <-changes:
 			if gathered.isEmpty() {
 				gathered.firstChange = time.Now()
@@ -151,22 +159,27 @@ func (state *following) gather(gathered *gathering, found []Change) {
 }
 
 func (state *following) keepWhatChanged(ctx context.Context, gathered gathering) error {
+	answered := gathered.markers
 	switch {
 	case gathered.isOverflowed:
 		log.Printf("the kernel dropped file changes it could not queue, so the whole tree is kept again")
-		if errorValue := state.keepFull(ctx); errorValue != nil {
+		if errorValue := state.keepTheWholeTreeAgain(ctx, gathered.markers); errorValue != nil {
 			return errorValue
 		}
-	case time.Since(state.lastFull) >= fullEntryEvery, state.entriesKept > fullEntryAfter:
-		if errorValue := state.keepFull(ctx); errorValue != nil {
+		answered = nil
+	case state.holdsUntilDroppedChangesAreKept(gathered.markers):
+		answered = nil
+	case state.fullEntry == nil && state.isAFullEntryDue():
+		if errorValue := state.startFullEntry(ctx); errorValue != nil {
 			return errorValue
 		}
-	case len(gathered.changes) > 0:
+	}
+	if len(gathered.changes) > 0 {
 		if errorValue := state.keepChanges(ctx, gathered.changes); errorValue != nil {
 			return errorValue
 		}
 	}
-	state.Barrier.release(gathered.markers)
+	state.Barrier.release(answered)
 	return nil
 }
 
@@ -200,7 +213,7 @@ func (state *following) keepChanges(ctx context.Context, gathered map[string]Cha
 	if len(present) == 0 && len(removed) == 0 {
 		return nil
 	}
-	if errorValue := state.keep(ctx, false, removed, func(output io.Writer, snapshots hostbackup.Snapshotter) error {
+	if errorValue := state.keepChangeEntry(ctx, removed, func(output io.Writer, snapshots hostbackup.Snapshotter) error {
 		_, errorValue := hostbackup.WriteEntries(output, present, snapshots)
 		return errorValue
 	}); errorValue != nil {
@@ -215,45 +228,31 @@ func (state *following) keepChanges(ctx context.Context, gathered map[string]Cha
 	return nil
 }
 
-func (state *following) keepFull(ctx context.Context) error {
-	present := []hostbackup.FileRoot{}
-	for _, root := range state.Roots {
-		if _, errorValue := os.Stat(root.Path); errorValue == nil {
-			present = append(present, root)
-		}
-	}
-	state.referenced = map[string]bool{}
-	if errorValue := state.keep(ctx, true, nil, func(output io.Writer, snapshots hostbackup.Snapshotter) error {
-		_, errorValue := hostbackup.WriteFiles(output, present, snapshots)
-		return errorValue
-	}); errorValue != nil {
-		return errorValue
-	}
-	state.lastFull = time.Now()
-	if errorValue := state.pruneBehindTheFullEntry(ctx); errorValue != nil {
-		return errorValue
-	}
-	state.entriesKept = 1
-	return nil
-}
-
-func (state *following) keep(ctx context.Context, isFull bool, removed []string, write func(io.Writer, hostbackup.Snapshotter) error) error {
-	scratchPath, errorValue := os.MkdirTemp(state.ScratchDirectoryPath, "file-journal-")
+func (follower Follower) keepContent(uploader *offsite.Snapshot, write func(io.Writer, hostbackup.Snapshotter) error) (offsite.KeptContent, error) {
+	scratchPath, errorValue := os.MkdirTemp(follower.ScratchDirectoryPath, "file-journal-")
 	if errorValue != nil {
-		return errorValue
+		return offsite.KeptContent{}, errorValue
 	}
 	defer os.RemoveAll(scratchPath)
-	kept, errorValue := state.uploader.KeepContent(func(output io.Writer) error {
+	return uploader.KeepContent(func(output io.Writer) error {
 		return write(output, hostbackup.SQLiteSnapshots{ScratchDirectoryPath: scratchPath})
 	})
+}
+
+func (follower Follower) roles() []string {
+	roles := []string{}
+	for _, root := range follower.Roots {
+		roles = append(roles, root.Role)
+	}
+	return roles
+}
+
+func (state *following) keepChangeEntry(ctx context.Context, removed []string, write func(io.Writer, hostbackup.Snapshotter) error) error {
+	kept, errorValue := state.keepContent(state.uploader, write)
 	if errorValue != nil {
 		return fmt.Errorf("keeping the company's changed files: %w", errorValue)
 	}
-	roles := []string{}
-	for _, root := range state.Roots {
-		roles = append(roles, root.Role)
-	}
-	entry := Entry{Version: entryVersion, Sequence: state.next, CreatedAt: time.Now().UTC(), IsFull: isFull, Roles: roles, Removed: removed, Chunks: kept.Chunks, Size: kept.Size, SHA256: kept.SHA256}
+	entry := Entry{Version: entryVersion, Sequence: state.next, CreatedAt: time.Now().UTC(), Roles: state.roles(), Removed: removed, Chunks: kept.Chunks, Size: kept.Size, SHA256: kept.SHA256}
 	if errorValue := state.Journal.Keep(ctx, entry); errorValue != nil {
 		return errorValue
 	}
@@ -262,48 +261,12 @@ func (state *following) keep(ctx context.Context, isFull bool, removed []string,
 	for _, identifier := range kept.Chunks {
 		state.referenced[identifier] = true
 	}
-	return nil
-}
-
-func (state *following) pruneBehindTheFullEntry(ctx context.Context) error {
-	fullSequence := state.next - 1
-	sequences, errorValue := state.Journal.Sequences(ctx)
-	if errorValue != nil {
-		return errorValue
+	if state.fullEntry == nil {
+		return nil
 	}
-	stale := []string{}
-	for _, sequence := range sequences {
-		if sequence < fullSequence {
-			stale = append(stale, state.Journal.folder()+fmt.Sprintf(entryNameLayout, sequence))
-		}
-	}
-	if errorValue := removeInBatches(ctx, state.Journal.Destination.Store, stale); errorValue != nil {
-		return errorValue
-	}
-	chunkFolder := state.Journal.Destination.CompanyID + "/" + fileChunkFolder + "/"
-	listed, errorValue := state.Journal.Destination.Store.List(ctx, chunkFolder)
-	if errorValue != nil {
-		return errorValue
-	}
-	unreferenced := []string{}
-	unreferencedPaths := []string{}
-	for _, object := range listed {
-		if !state.referenced[object.Name] {
-			unreferenced = append(unreferenced, object.Name)
-			unreferencedPaths = append(unreferencedPaths, chunkFolder+object.Name)
-		}
-	}
-	state.uploader.Forget(unreferenced)
-	return removeInBatches(ctx, state.Journal.Destination.Store, unreferencedPaths)
-}
-
-const removeBatchSize = 1000
-
-func removeInBatches(ctx context.Context, store offsite.Store, paths []string) error {
-	for start := 0; start < len(paths); start += removeBatchSize {
-		if errorValue := store.Remove(ctx, paths[start:min(start+removeBatchSize, len(paths))]); errorValue != nil {
-			return errorValue
-		}
+	state.fullEntry.entriesSince++
+	for _, identifier := range kept.Chunks {
+		state.fullEntry.chunksSince[identifier] = true
 	}
 	return nil
 }
