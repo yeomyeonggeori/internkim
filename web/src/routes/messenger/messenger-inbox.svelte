@@ -1,5 +1,7 @@
 <script lang="ts">
+	import CheckCheckIcon from '@lucide/svelte/icons/check-check';
 	import InboxIcon from '@lucide/svelte/icons/inbox';
+	import { toast } from 'svelte-sonner';
 	import PersonAvatar from '$lib/components/person-avatar.svelte';
 	import { Badge } from '$lib/components/ui/badge/index.js';
 	import UnreadDot from '$lib/components/unread-dot.svelte';
@@ -14,6 +16,7 @@
 	import { createPageText } from '$lib/i18n/page-text.svelte';
 	import type { InboxEntry } from '$lib/messenger/channel-over-bridge';
 	import { messagePlainText } from '$lib/messenger/message-plain-text';
+	import { unreadBadgeLabel } from '$lib/messenger/unread-badge';
 	import { cn } from '$lib/utils.js';
 	import { inboxPlaceOf } from './messenger-inbox-place';
 	import MessengerInboxSkeleton from './messenger-inbox-skeleton.svelte';
@@ -26,6 +29,7 @@
 		isOfflineNoticeShown = false,
 		chosenID,
 		choose,
+		onAllRead,
 		leading,
 		class: className = ''
 	}: {
@@ -35,6 +39,7 @@
 		isOfflineNoticeShown?: boolean;
 		chosenID: string | undefined;
 		choose: (entry: InboxEntry) => void;
+		onAllRead: () => void;
 		leading?: Snippet;
 		class?: string;
 	} = $props();
@@ -42,6 +47,24 @@
 	const text = createPageText(messengerInboxText);
 
 	const conversationOf = $derived(new Map(conversations.map((conversation) => [conversation.id, conversation])));
+	const hasAnythingUnread = $derived(
+		inbox.entries.some((entry) => entry.isUnread) || conversations.some((conversation) => unreadBadgeLabel(conversation.unread) !== '')
+	);
+	let isMarkingAllRead = $state(false);
+
+	async function markAllRead() {
+		isMarkingAllRead = true;
+		try {
+			await inbox.markAllRead();
+		} catch (failure) {
+			console.warn('the messenger did not mark every conversation read', failure);
+			toast.error(text.markAllReadFailed);
+			void inbox.refresh();
+		} finally {
+			isMarkingAllRead = false;
+			onAllRead();
+		}
+	}
 
 	function loadOlderOnReach(sentinel: HTMLElement) {
 		const observer = new IntersectionObserver((entries) => {
@@ -61,6 +84,12 @@
 				<Tabs.Trigger value="unread">{text.unread}</Tabs.Trigger>
 			</Tabs.List>
 		</Tabs.Root>
+		<div class="ml-auto">
+			<Button variant="ghost" size="sm" disabled={!hasAnythingUnread || isMarkingAllRead} onclick={markAllRead}>
+				<CheckCheckIcon data-icon="inline-start" />
+				{text.markAllRead}
+			</Button>
+		</div>
 	</header>
 	{#if inbox.error && !inbox.hasLoaded && isOfflineNoticeShown}
 		<div class="flex-1"></div>

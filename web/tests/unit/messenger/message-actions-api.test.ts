@@ -17,7 +17,7 @@ mock.module('../../../src/lib/host-bridge', () => ({
 	}
 }));
 
-const { deletePost, addReaction, removeReaction, markReadThrough, editPost } = await import('../../../src/lib/messenger/messenger-api');
+const { deletePost, addReaction, removeReaction, markReadThrough, markEveryConversationRead, editPost } = await import('../../../src/lib/messenger/messenger-api');
 const { reactionValueFor } = await import('../../../src/lib/components/channel/channel-reactions');
 
 describe('what the message-action capabilities are asked to carry', () => {
@@ -94,5 +94,13 @@ describe('what the read-state capability is asked to carry', () => {
 
 		const call = asked.find((entry) => entry.capability === 'person.read_state.mark');
 		expect(call?.body).toEqual({ conversationID: 'channel-1', messageID: 'message-9', parentID: undefined });
+	});
+
+	test('markEveryConversationRead asks person.read_state.mark_all and names nothing else', async () => {
+		asked.length = 0;
+
+		await markEveryConversationRead();
+
+		expect(asked.map((entry) => entry.capability)).toEqual(['person.read_state.mark_all']);
 	});
 });

@@ -371,6 +371,30 @@ describe('a conversation a member read', () => {
 		expect(served.status).toBe(502);
 		expect(reads).toEqual([]);
 	});
+
+	test('marked read with every other conversation has each one cleared, and none when the messenger refused', async () => {
+		const { reads, dispatch } = dispatchThatKnows({});
+		const markAll = { callID: 'c1', capability: 'person.read_state.mark_all', body: {} };
+
+		const served = await serveCallForMember(
+			{ ...dispatch, askChatd: async () => ({ status: 200, body: { conversationIDs: ['channel-1', 'channel-2'] } }) },
+			markAll,
+			'member-1'
+		);
+		const refused = await serveCallForMember(
+			{ ...dispatch, askChatd: async () => ({ status: 502, body: { error: 'the messenger did not answer' } }) },
+			markAll,
+			'member-1'
+		);
+
+		expect(served.status).toBe(200);
+		expect(served.body).toEqual({ conversationIDs: ['channel-1', 'channel-2'] });
+		expect(refused.status).toBe(502);
+		expect(reads).toEqual([
+			{ memberID: 'member-1', body: { conversationID: 'channel-1' } },
+			{ memberID: 'member-1', body: { conversationID: 'channel-2' } }
+		]);
+	});
 });
 
 describe('a picture a member sets for themselves', () => {

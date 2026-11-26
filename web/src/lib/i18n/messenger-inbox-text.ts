@@ -16,6 +16,8 @@ export const messengerInboxText = {
 		unknownAuthor: '알 수 없는 사람',
 		chooseEntry: '항목을 고르세요',
 		chooseEntryDescription: '고른 메시지가 있는 대화를 여기에 엽니다.',
+		markAllRead: '모두 읽음',
+		markAllReadFailed: '모두 읽음으로 표시하지 못했습니다. 다시 시도해 주세요.',
 	},
 	en: {
 		inbox: 'Inbox',
@@ -34,5 +36,7 @@ export const messengerInboxText = {
 		unknownAuthor: 'Unknown person',
 		chooseEntry: 'Choose an item',
 		chooseEntryDescription: 'The conversation it came from opens here.',
+		markAllRead: 'Mark all read',
+		markAllReadFailed: 'Could not mark everything read. Try again.',
 	}
 };

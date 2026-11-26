@@ -81,6 +81,21 @@ class PagedInboxFixture extends MessengerInboxFixture {
 	}
 }
 
+class ReadEverythingFixture extends MessengerInboxFixture {
+	timesEverythingMarkedRead = 0;
+
+	host(capability: string, body: Record<string, unknown>): { status: number; body: unknown } {
+		if (capability === 'person.read_state.mark_all') {
+			this.timesEverythingMarkedRead += 1;
+			return { status: 200, body: {} };
+		}
+		if (capability === 'person.inbox.list' && this.timesEverythingMarkedRead > 0) {
+			return { status: 200, body: { items: inbox.map((entry) => ({ ...entry, isUnread: false })) } };
+		}
+		return super.host(capability, body);
+	}
+}
+
 async function openMessenger(page: Page, width: number, fixture = new MessengerInboxFixture(), path = '/messenger'): Promise<MessengerInboxFixture> {
 	await page.setViewportSize({ width, height: 900 });
 	await prepareWorkspaceLoading(page, fixture);
@@ -422,4 +437,20 @@ test('a mention read in its channel stops counting as unread in the inbox', asyn
 
 	await expect.poll(() => fixture.marks).toContainEqual({ conversationID: 'channel-1', messageID: 'mention-1' });
 	await expect(inboxItem).toContainText('1');
+});
+
+test('marking everything read clears every unread mark at once and leaves nothing more to mark', async ({ page }) => {
+	const fixture = new ReadEverythingFixture();
+	await openMessenger(page, 1280, fixture);
+	const panel = inboxPanel(page);
+	const markAllRead = panel.getByRole('button', { name: '모두 읽음' });
+	await expect(panel.locator('[data-inbox-entry]')).toHaveCount(3);
+
+	await markAllRead.click();
+
+	await expect(markAllRead).toBeDisabled();
+	await panel.getByRole('tab', { name: '안 읽음' }).click();
+	await expect(panel.getByText('안 읽은 소식이 없어요')).toBeVisible();
+	await expect(page.getByRole('listitem').filter({ has: page.getByRole('button', { name: '수신함', exact: true }) })).not.toContainText('2');
+	expect(fixture.timesEverythingMarkedRead).toBe(1);
 });
