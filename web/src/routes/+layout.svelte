@@ -7,6 +7,7 @@
 	import AppRail from '$lib/components/app-rail.svelte';
 	import { appRailMode } from '$lib/components/app-rail-mode.svelte';
 	import AppRailModeMenu from '$lib/components/app-rail-mode-menu.svelte';
+	import BrowserUpdateNotice from '$lib/components/browser-update-notice.svelte';
 	import EffectErrorBoundary from '$lib/components/effect-error-boundary.svelte';
 	import PageFailureNotice from '$lib/components/page-failure-notice.svelte';
 	import { appSectionPathOf, isFullScreenApp, usesAppShell, usesWebAuthGate } from '$lib/app-shell';
@@ -249,6 +250,7 @@
 				</EffectErrorBoundary>
 			{/if}
 			<div class="flex min-w-0 flex-1 flex-col">
+				<BrowserUpdateNotice />
 				{#if !isEmbeddedFrame()}
 					<header data-app-chrome class="internkim-app-header max-sm:hidden">
 						<AppRailModeMenu class="-ml-1 max-sm:hidden" />
