@@ -126,7 +126,7 @@
 	role="group"
 	data-message-id={message.id}
 	data-held={isAnchoredPickerOpen}
-	class="group/row relative -mx-4 px-4 py-1 transition-colors data-[held=true]:z-10 data-[held=true]:bg-muted/40 [@media(hover:hover)]:hover:z-10 [@media(hover:hover)]:hover:bg-muted/40"
+	class="group/row relative -mx-4 px-4 py-1 transition-colors data-[held=true]:z-10 data-[held=true]:bg-muted/40 has-[[role=listbox]]:z-10 [@media(hover:hover)]:hover:z-10 [@media(hover:hover)]:hover:bg-muted/40"
 	onpointerdown={notePictureUnderPointer}
 	use:swipeToReply={{ onReply, disabled: !canReply || !isSettled }}
 >

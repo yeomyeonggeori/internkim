@@ -60,6 +60,10 @@ async function openChannel(page: Page): Promise<EditMentionsFixture> {
 	return fixture;
 }
 
+async function stopHoveringTheMessage(page: Page) {
+	await page.mouse.move(0, 0);
+}
+
 async function startEditing(page: Page) {
 	await page.getByText('회의 자료 올렸어요').click({ button: 'right' });
 	await page.getByRole('menuitem', { name: '수정', exact: true }).click();
@@ -72,6 +76,7 @@ test('an edit keeps the people the message already called on and adds the one pi
 
 	await editor.press('End');
 	await editor.pressSequentially(' @최');
+	await stopHoveringTheMessage(page);
 	await page.getByRole('option', { name: /최견본/ }).click();
 	await editor.press('Enter');
 
