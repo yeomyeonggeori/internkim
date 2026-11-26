@@ -26,6 +26,9 @@ func (service Service) invokeChatdDirectMessageSend(ctx context.Context, request
 	if isRefused {
 		return platformDMErrorResponse(request.ToolName, failure), nil
 	}
+	if isTheRequestersOwnConversation(request.Context, []directoryPerson{person}) {
+		return service.postChatdMessage(ctx, request, input.toTheRequestersOwnConversation())
+	}
 	messageID, failure, hasFailure := service.postChatdDirectMessage(ctx, request, person, input.Message)
 	if hasFailure {
 		return platformDMErrorResponse(request.ToolName, failure), nil
@@ -53,6 +56,9 @@ func (service Service) invokeChatdDirectMessageBroadcast(ctx context.Context, re
 	people, failure, isRefused := service.resolvePersonHints(ctx, input.DeliveryTarget.PersonHints, language)
 	if isRefused {
 		return platformDMErrorResponse(request.ToolName, failure), nil
+	}
+	if isTheRequestersOwnConversation(request.Context, people) {
+		return service.postChatdMessage(ctx, request, input.toTheRequestersOwnConversation())
 	}
 	messageIDs := []string{}
 	failures := []platformMessageFailureResult{}
