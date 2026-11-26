@@ -21,28 +21,62 @@ Bun.plugin({
 
 const { flushSync, mount, unmount } = await import('svelte');
 const { default: Shell } = await import('./effect-error-boundary-fixtures/shell.svelte');
+const { default: PageShell } = await import('./effect-error-boundary-fixtures/page-shell.svelte');
 
 const reportedErrors: string[] = [];
 console.error = (_message: string, error: unknown) => reportedErrors.push(String(error));
 
-async function renderShell(isContained: boolean): Promise<{ gateText: string | null; reportedErrors: string[] }> {
-	reportedErrors.length = 0;
+async function renderShell(isContained: boolean): Promise<ShellOutcome> {
+	return render(() => mount(Shell, { target: newTarget(), props: { isContained } }));
+}
+
+async function renderPageShell(): Promise<ShellOutcome> {
+	return render(() => mount(PageShell, { target: newTarget() }));
+}
+
+async function renderPageShellThenLeave(): Promise<ShellOutcome> {
+	return render(() => mount(PageShell, { target: newTarget() }), leaveThePage);
+}
+
+function leaveThePage(): void {
+	document.querySelector<HTMLButtonElement>('[data-leave]')?.click();
+	flushSync();
+}
+
+interface ShellOutcome {
+	failureText: string | null;
+	pageText: string | null;
+	gateText: string | null;
+	reportedErrors: string[];
+	thrown: string | null;
+}
+
+function newTarget(): HTMLElement {
 	const target = document.createElement('div');
 	document.body.appendChild(target);
+	return target;
+}
+
+async function render(mountShell: () => ReturnType<typeof mount>, afterwards: () => void = () => {}): Promise<ShellOutcome> {
+	reportedErrors.length = 0;
 	let thrown: string | null = null;
 	let component: ReturnType<typeof mount> | null = null;
 	try {
-		component = mount(Shell, { target, props: { isContained } });
+		component = mountShell();
 		flushSync();
 	} catch (error) {
 		thrown = String(error);
 	}
 	await new Promise((resolve) => setTimeout(resolve, 20));
-	const gateText = target.querySelector('[data-gate]')?.textContent ?? null;
-	const outcome = { gateText, reportedErrors: [...reportedErrors], thrown };
+	afterwards();
+	await new Promise((resolve) => setTimeout(resolve, 20));
+	const gateText = document.querySelector('[data-gate]')?.textContent ?? null;
+	const failureText = document.querySelector('[data-failure]')?.textContent ?? null;
+	const pageText = document.querySelector('[data-page]')?.textContent ?? null;
+	const outcome = { failureText, pageText, gateText, reportedErrors: [...reportedErrors], thrown };
 	if (component) unmount(component);
-	target.remove();
+	document.body.replaceChildren();
 	return outcome;
 }
 
-console.log(JSON.stringify({ contained: await renderShell(true), uncontained: await renderShell(false) }));
+console.log(JSON.stringify({ contained: await renderShell(true), uncontained: await renderShell(false), page: await renderPageShell(), left: await renderPageShellThenLeave() }));
