@@ -30,17 +30,24 @@ func NewMasker() Masker {
 
 type Substitutions struct {
 	valueByToken      map[string]string
-	digitsByToken     map[string]string
+	identityByToken   map[string]string
 	maskedCountByKind map[string]int
 	restoredCount     int
 	inventedCount     int
 }
 
 func NewSubstitutions() *Substitutions {
-	return &Substitutions{valueByToken: map[string]string{}, digitsByToken: map[string]string{}, maskedCountByKind: map[string]int{}}
+	return &Substitutions{valueByToken: map[string]string{}, identityByToken: map[string]string{}, maskedCountByKind: map[string]int{}}
 }
 
 func (masker Masker) MaskText(text string, substitutions *Substitutions) string {
+	if containsKeyMarker(text) {
+		text = masker.maskWith(keyKinds, text, substitutions)
+	}
+	return masker.maskNumbers(text, substitutions)
+}
+
+func (masker Masker) maskNumbers(text string, substitutions *Substitutions) string {
 	var masked []byte
 	copiedUntil := 0
 	for start := 0; start < len(text); {
@@ -52,7 +59,7 @@ func (masker Masker) MaskText(text string, substitutions *Substitutions) string 
 		if digitCount(text[start:end]) >= fewestDigitsInAValue {
 			from, to := widenedByOneRune(text, max(start, copiedUntil), end)
 			from = max(from, copiedUntil)
-			if segment := masker.maskSegment(text[from:to], substitutions); segment != text[from:to] {
+			if segment := masker.maskWith(numberKinds, text[from:to], substitutions); segment != text[from:to] {
 				masked = append(append(masked, text[copiedUntil:from]...), segment...)
 				copiedUntil = to
 			}
@@ -65,31 +72,31 @@ func (masker Masker) MaskText(text string, substitutions *Substitutions) string 
 	return string(append(masked, text[copiedUntil:]...))
 }
 
-func (masker Masker) maskSegment(text string, substitutions *Substitutions) string {
+func (masker Masker) maskWith(kinds []kind, text string, substitutions *Substitutions) string {
 	for _, recognized := range kinds {
 		text = recognized.pattern.ReplaceAllStringFunc(text, func(match string) string {
 			if !recognized.isValid(match) {
 				return match
 			}
 			substitutions.maskedCountByKind[recognized.name]++
-			return masker.tokenFor(recognized.name, match, substitutions)
+			return masker.tokenFor(recognized, match, substitutions)
 		})
 	}
 	return text
 }
 
-func (masker Masker) tokenFor(kindName string, value string, substitutions *Substitutions) string {
-	digits := onlyDigits(value)
-	digest := masker.digestOf(kindName + "\x00" + digits)
+func (masker Masker) tokenFor(recognized kind, value string, substitutions *Substitutions) string {
+	identity := recognized.identity(value)
+	digest := masker.digestOf(recognized.name + "\x00" + identity)
 	for length := shortestTokenDigest; ; length += 2 {
-		token := "{{" + kindName + ":" + digest[:length] + "}}"
-		recordedDigits, isTaken := substitutions.digitsByToken[token]
+		token := "{{" + recognized.name + ":" + digest[:length] + "}}"
+		recordedIdentity, isTaken := substitutions.identityByToken[token]
 		if !isTaken {
-			substitutions.digitsByToken[token] = digits
+			substitutions.identityByToken[token] = identity
 			substitutions.valueByToken[token] = value
 			return token
 		}
-		if recordedDigits == digits {
+		if recordedIdentity == identity {
 			return token
 		}
 	}

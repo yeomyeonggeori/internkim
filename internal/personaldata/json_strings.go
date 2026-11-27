@@ -10,7 +10,7 @@ func (masker Masker) MaskJSON(document []byte, substitutions *Substitutions) ([]
 	if !json.Valid(document) {
 		return document, false
 	}
-	return rewriteStringValues(document, hasEnoughDigitsForAValue, func(value string) string {
+	return rewriteStringValues(document, mightHoldAValue, func(value string) string {
 		return masker.MaskText(value, substitutions)
 	}), true
 }
@@ -20,6 +20,10 @@ func (substitutions *Substitutions) UnmaskJSON(document []byte) []byte {
 		return document
 	}
 	return rewriteStringValues(document, mightHoldAToken, substitutions.UnmaskText)
+}
+
+func mightHoldAValue(literal []byte) bool {
+	return containsKeyMarker(literal) || hasEnoughDigitsForAValue(literal)
 }
 
 func hasEnoughDigitsForAValue(literal []byte) bool {
@@ -51,6 +55,9 @@ func rewriteStringValues(document []byte, mightChange func([]byte) bool, rewrite
 		end := endOfString(document, position)
 		replacement, isChanged := rewriteStringValue(document, position, end, mightChange, rewrite)
 		if isChanged {
+			if rewritten == nil {
+				rewritten = make([]byte, 0, len(document)+len(document)/8)
+			}
 			rewritten = append(append(rewritten, document[copiedUntil:position]...), replacement...)
 			copiedUntil = end
 		}

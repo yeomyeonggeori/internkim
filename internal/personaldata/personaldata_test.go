@@ -159,3 +159,48 @@ func TestEventsThatAreNotJSONPassAsSent(t *testing.T) {
 		t.Fatalf("comments and non-JSON events must pass unchanged, got %q", restored)
 	}
 }
+
+func TestAPIKeysLeaveAsTokensAndComeBackWhole(t *testing.T) {
+	keys := []string{
+		"sk-proj-" + strings.Repeat("Ab3_", 12),
+		"sk-ant-api03-" + strings.Repeat("xY9-", 20),
+		"sk-or-v1-" + strings.Repeat("0f", 32),
+		"ghp_" + strings.Repeat("a1B2", 9),
+		"github_pat_" + strings.Repeat("11AB_", 14),
+		"AKIA" + "ABCDEFGHIJKLMNOP",
+		"AIza" + strings.Repeat("Sy0_-", 7),
+		"xoxb-1234567890-abcdefghij",
+		"sk_live_" + strings.Repeat("4eC3", 6),
+		"hf_" + strings.Repeat("AbCd", 9),
+		"ik_" + strings.Repeat("0123456789abcdef", 4),
+		"eyJhbGciOiJIUzI1NiJ9.eyJyb2xlIjoic2VydmljZV9yb2xlIn0.dBjftJeZ4CVPmB92K27uhbUJU1p1r_wW1gFWFOEjXk",
+	}
+	masker := NewMasker()
+	for _, key := range keys {
+		masked, substitutions := maskedOnce(t, masker, `{"content":"키는 `+key+` 입니다"}`)
+		token := anyToken.FindString(masked)
+		if strings.Contains(masked, key) || !strings.HasPrefix(token, "{{apiKey:") {
+			t.Errorf("%s must leave as one apiKey token, sent %s", key, masked)
+			continue
+		}
+		if restored := string(substitutions.UnmaskJSON([]byte(masked))); !strings.Contains(restored, key) {
+			t.Errorf("%s must come back whole, got %s", key, restored)
+		}
+	}
+}
+
+func TestAKeyHoldingDigitsIsOneKeyAndNotAPhoneNumber(t *testing.T) {
+	key := "sk-proj-01012345678abcdefghijklmnop"
+	masked, _ := maskedOnce(t, NewMasker(), `["`+key+`"]`)
+	if tokens := anyToken.FindAllString(masked, -1); len(tokens) != 1 || !strings.HasPrefix(tokens[0], "{{apiKey:") {
+		t.Fatalf("a key must be masked whole before its digits are read as a number, sent %s", masked)
+	}
+}
+
+func TestWordsThatOnlyLookLikeKeyPrefixesStayAsWritten(t *testing.T) {
+	for _, text := range []string{"task-runner", "sk-short", "AKIA는 AWS 접두사", "ik_name", "eyJ만 있는 문자열"} {
+		if masked := NewMasker().MaskText(text, NewSubstitutions()); masked != text {
+			t.Errorf("%q must stay as written, sent %q", text, masked)
+		}
+	}
+}
