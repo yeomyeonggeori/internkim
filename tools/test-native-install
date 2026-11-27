@@ -428,6 +428,7 @@ UNOWNED_BY_DESIGN = [
     ("/etc/systemd/system/timers.target.wants", "the same, for the daily backup's timer"),
     (BOX_DROP_IN_DIRECTORY, "the administrator's drop-in naming the app the box announces itself to, written before the line"),
     (STATE_DIRECTORY, "the state tree is deliberately not package-owned so remove and purge leave it (plan §5)"),
+    (dict(company_files.BACKUP_ROOTS)["roster"], "the roster is state like the state tree, made by the host's tmpfiles rule so remove and purge leave it"),
     *((path, "the install step builds the conversion environment from the lock; postrm removes it") for path in DOCUMENT_ENVIRONMENT_PATHS),
     (SKILLS_PATH, "the install step runs each skill's own setup, which keeps what the skill needs beside it; postrm removes the skills tree"),
 ]
