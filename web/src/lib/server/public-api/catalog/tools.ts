@@ -1207,6 +1207,7 @@ export const leaveRequestInputSchema = z.strictObject({
   endsAt: z.string().describe(`Last day of the leave. ${momentDescription}`),
   days: z.number().describe('How many days of entitlement this consumes, which is not the same as the span it covers: a Friday-to-Monday leave spans four days and consumes two, and a half day is one day costing 0.5.'),
   note: z.string().describe('The reason, in the requester\'s own words. Omit when they gave none.').optional(),
+  originalLeaveHint: z.string().describe('Only when the person wants different days for a leave already approved and not yet started: that approved leave, by its exact leave ID or enough of the line leave_list shows for it to name exactly one. Never a new or intended date. Omit for a leave that replaces nothing.').optional(),
 });
 
 export const leaveRequestInputIntentSchema = leaveRequestInputSchema.partial();
@@ -1939,8 +1940,8 @@ const leaveToolDefinitions: CapabilityToolDefinition[] = [
     answeredBy: CapabilityAnsweredBy.Record,
     privacyClass: 'workspace_leave',
     policyResource: 'tool:leave_request',
-    description: 'File a leave request. It is filed as requested and grants nothing until somebody decides it. Whether the leave is paid and whether it consumes the entitlement follow from the kind, so do not ask the requester for either. It is the requester\'s own leave unless personHint names somebody else, which only an administrator may do.',
-    version: '2',
+    description: 'File a leave request. It is filed as requested and grants nothing until somebody decides it. Whether the leave is paid and whether it consumes the entitlement follow from the kind, so do not ask the requester for either. It is the requester\'s own leave unless personHint names somebody else, which only an administrator may do. To move an approved leave that has not started to other days, file the new days with originalLeaveHint naming it: the approved leave stands until the new one is approved and is removed when it is.',
+    version: '3',
     estimatedLatency: CapabilityEstimatedLatency.Medium,
     inputSchema: leaveRequestInputSchema,
     inputIntentSchema: leaveRequestInputIntentSchema,
@@ -1986,8 +1987,8 @@ const leaveToolDefinitions: CapabilityToolDefinition[] = [
     answeredBy: CapabilityAnsweredBy.Record,
     privacyClass: 'workspace_leave',
     policyResource: 'tool:leave_delete',
-    description: 'Take a leave back out of the record entirely, as though it was never filed. A person takes back their own while it is still waiting on a decision; an administrator takes back anybody\'s. Entitlement an approved leave spent comes back with it. To refuse a leave rather than erase it, decide it rejected.',
-    version: '2',
+    description: 'Take a leave back out of the record entirely, as though it was never filed. A person takes back their own while it is still waiting on a decision or approved and not yet started; an administrator takes back anybody\'s. Entitlement an approved leave spent comes back with it. To refuse a leave rather than erase it, decide it rejected.',
+    version: '3',
     estimatedLatency: CapabilityEstimatedLatency.Medium,
     inputSchema: leaveDeleteInputSchema,
     inputIntentSchema: leaveDeleteInputIntentSchema,

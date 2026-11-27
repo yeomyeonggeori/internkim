@@ -14,6 +14,7 @@ export type LeaveRow = {
 	starts_at: string;
 	ends_at: string;
 	note: string | null;
+	original_leave_id: string | null;
 };
 
 export type LeaveKind = {

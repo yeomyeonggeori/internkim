@@ -46,6 +46,17 @@ export async function tell(
 	return toldOf(pushed, messaged);
 }
 
+export async function tellByDirectMessage(
+	environment: Environment,
+	telling: Telling,
+	record?: SupabaseClient,
+	transport?: CompanyCallTransport
+): Promise<Told> {
+	const plane = record ?? controlPlaneOf(environment);
+	if (!plane) return { pushed: false, messaged: false, failure: 'the control plane is not configured' };
+	return toldOf({ done: false, failure: '' }, await messageThemOnTheirMessenger(plane, environment, telling, transport));
+}
+
 function failed(channel: string, reason: string): Attempt {
 	return { done: false, failure: `${channel}: ${reason}` };
 }
