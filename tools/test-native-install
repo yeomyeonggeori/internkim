@@ -490,10 +490,9 @@ for unit in %s; do
 done
 """
 
-# A dependency apt honoured is not always a package dpkg holds. postgresql-contrib
-# is a real package on bookworm, jammy and noble and a pure virtual name on
-# trixie, where `postgresql` provides it; asking only dpkg's status would call an
-# honoured line missing.
+# A dependency apt honoured is not always a package dpkg holds: a name another
+# installed package provides is virtual, and asking only dpkg's status would call
+# an honoured line missing.
 REMEMBERED_ROW = """
 begin;
 insert into conversation (conversation_id, platform, external_conversation_id, conversation_type,
@@ -825,8 +824,7 @@ class Rig:
             "`dpkg-query -W` for each name in the package's own Depends: field, and the "
             "Provides: of every installed package for the names dpkg does not record",
             "reading the field back off the machine is what shows apt honoured the line. A name can be "
-            "honoured without being recorded: postgresql-contrib is a real package on bookworm, "
-            "jammy and noble and purely virtual on trixie, where postgresql provides it and dpkg "
+            "honoured without being recorded, when another installed package provides it and dpkg "
             "never holds the name",
         ).record(
             not missing,

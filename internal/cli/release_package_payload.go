@@ -40,8 +40,6 @@ every unit stays inactive rather than restarting into a failure.`
 
 	payloadCacheDirectory = ".dependency/host-payload"
 
-	embeddingServerPrepareScriptPath = "tools/prepare-llama-server"
-
 	documentConversionLockPath = "assets/document-conversion/requirements.txt"
 
 	packageLicense = "Apache-2.0"
@@ -375,43 +373,50 @@ func vendoredPrograms(repositoryRootPath string, target packageTarget, stagingPa
 			Mode:        0o755,
 		})
 	}
-	embedding, errorValue := vendoredEmbedding(repositoryRootPath, target, stagingPath, output)
+	built, errorValue := builtFromSourceTrees(repositoryRootPath, target)
 	if errorValue != nil {
-		return nil, errorValue
-	}
-	return append(packaged, embedding...), nil
-}
-
-func vendoredEmbedding(repositoryRootPath string, target packageTarget, stagingPath string, output io.Writer) ([]packagedFile, error) {
-	serverDirectory, errorValue := builtEmbeddingServer(repositoryRootPath, target)
-	if errorValue != nil {
-		return nil, errorValue
-	}
-	if errorValue := requireDirectoryProgramsFit(serverDirectory, target); errorValue != nil {
 		return nil, errorValue
 	}
 	modelPath, errorValue := fetchPinnedPayload(repositoryRootPath, blueclaw.HostEmbeddingModelDownload(), output)
 	if errorValue != nil {
 		return nil, errorValue
 	}
-	return []packagedFile{
-		{SourcePath: serverDirectory, Destination: packageLayout.EmbeddingServerDirectory(), Mode: 0o755, IsDirectoryTree: true},
-		{SourcePath: modelPath, Destination: packageLayout.EmbeddingModelPath(), Mode: 0o644},
-	}, nil
+	model := packagedFile{SourcePath: modelPath, Destination: packageLayout.EmbeddingModelPath(), Mode: 0o644}
+	return append(append(packaged, built...), model), nil
 }
 
-func builtEmbeddingServer(repositoryRootPath string, target packageTarget) (string, error) {
-	artifactDirectory := blueclaw.EmbeddingServerArtifactPathFor(target.Architecture)
-	if errorValue := requirePreparedRevision(repositoryRootPath, embeddingServerPrepareScriptPath,
-		blueclaw.EmbeddingServerProgramName, artifactDirectory, "linux-"+target.Architecture); errorValue != nil {
+func builtFromSourceTrees(repositoryRootPath string, target packageTarget) ([]packagedFile, error) {
+	prepareTarget := "linux-" + target.Architecture
+	packaged := []packagedFile{}
+	for _, program := range blueclaw.HostProgramsBuiltFromSource() {
+		if !program.IsBuiltFor(prepareTarget) {
+			continue
+		}
+		treePath, errorValue := preparedTree(repositoryRootPath, program, prepareTarget)
+		if errorValue != nil {
+			return nil, errorValue
+		}
+		if errorValue := requireDirectoryProgramsFit(treePath, target); errorValue != nil {
+			return nil, errorValue
+		}
+		packaged = append(packaged, packagedFile{
+			SourcePath: treePath, Destination: program.TreePathIn(packageLayout), Mode: 0o755, IsDirectoryTree: true,
+		})
+	}
+	return packaged, nil
+}
+
+func preparedTree(repositoryRootPath string, program blueclaw.HostBuiltProgram, prepareTarget string) (string, error) {
+	if errorValue := requirePreparedRevision(repositoryRootPath, program.PrepareScriptPath,
+		program.ProgramName, program.ArtifactPathFor(prepareTarget), prepareTarget); errorValue != nil {
 		return "", errorValue
 	}
-	serverDirectory := filepath.Join(repositoryRootPath, artifactDirectory, filepath.Base(packageLayout.EmbeddingServerDirectory()))
-	if _, errorValue := os.Stat(filepath.Join(serverDirectory, blueclaw.EmbeddingServerProgramName)); errorValue != nil {
-		return "", fmt.Errorf("%s is not built at %s; build it with `%s --target linux-%s`: %w",
-			blueclaw.EmbeddingServerProgramName, serverDirectory, embeddingServerPrepareScriptPath, target.Architecture, errorValue)
+	treePath := filepath.Join(repositoryRootPath, program.ArtifactTreePathFor(prepareTarget))
+	if _, errorValue := os.Stat(filepath.Join(treePath, program.ProgramPathInsideTree())); errorValue != nil {
+		return "", fmt.Errorf("%s is not built at %s; build it with `%s --target %s`: %w",
+			program.ProgramName, treePath, program.PrepareScriptPath, prepareTarget, errorValue)
 	}
-	return serverDirectory, nil
+	return treePath, nil
 }
 
 func requireDirectoryProgramsFit(directoryPath string, target packageTarget) error {

@@ -118,7 +118,7 @@ func TestTheDatabaseRewritesItsAccessRulesWhenReloaded(t *testing.T) {
 		t.Error("the cache has no access rules to reload")
 	}
 	script := CompanyHostDataServiceScript()
-	rewritesThenReloads := "write_access_rules\n  exec \"$directory/pg_ctl\" --pgdata \"$data\" --silent reload"
+	rewritesThenReloads := "write_access_rules\n  exec \"$programs/pg_ctl\" --pgdata \"$data\" --silent reload"
 	if !strings.Contains(script, "postgres-access) reload_access_rules ;;") || !strings.Contains(script, rewritesThenReloads) {
 		t.Error("postgres-access does not write the access rules and then ask the server to read them")
 	}
@@ -169,7 +169,7 @@ func renderedPlistString(key string, value string) string {
 	return "<key>" + key + "</key>\n\t<string>" + value + "</string>"
 }
 
-func TestTheMacDatabaseIsHomebrewsPostgresRunAsTheHostsOwnAccount(t *testing.T) {
+func TestTheMacDatabaseIsTheCarriedPostgresRunAsTheHostsOwnAccount(t *testing.T) {
 	daemon := macDataDaemon(t, CompanyHostDatabaseServiceName)
 	if daemon.Label != "kim.intern."+CompanyHostDatabaseServiceName {
 		t.Errorf("the database's label is %s", daemon.Label)
@@ -177,7 +177,7 @@ func TestTheMacDatabaseIsHomebrewsPostgresRunAsTheHostsOwnAccount(t *testing.T) 
 	for _, required := range []string{
 		renderedPlistString("UserName", CompanyHostDatabaseUser),
 		renderedPlistString("GroupName", CompanyHostDatabaseUser),
-		"<array>\n\t\t<string>" + testHomebrewPrefix + "/opt/postgresql@17/bin/postgres</string>",
+		"<array>\n\t\t<string>" + testHomebrewPrefix + "/opt/internkim/libexec/postgresql/bin/postgres</string>",
 		"<string>-D</string>\n\t\t<string>/var/lib/internkim-postgres</string>",
 		"<string>listen_addresses=127.0.0.1</string>",
 		"<string>port=18432</string>",
@@ -207,7 +207,7 @@ func TestTheMacCacheIsHomebrewsRedisOnASocketOnly(t *testing.T) {
 func TestTheMacClusterIsMadeAsTheDatabasesAccountWithPeerForItAlone(t *testing.T) {
 	initialization := strings.Join(CompanyHostDatabaseInitialization(MacCompanyHostLayout(testHomebrewPrefix)), " ")
 	for _, required := range []string{
-		testHomebrewPrefix + "/opt/postgresql@17/bin/initdb",
+		testHomebrewPrefix + "/opt/internkim/libexec/postgresql/bin/initdb",
 		"--pgdata " + CompanyHostDatabaseDataPath,
 		"--username " + CompanyHostDatabaseUser,
 		"--auth-local=peer",
@@ -229,11 +229,11 @@ func TestALinuxHostHasNoDataLaunchDaemons(t *testing.T) {
 func dataServiceScriptOver(t *testing.T, programs string, data string) string {
 	t.Helper()
 	script := CompanyHostDataServiceScript()
-	discovery := regexp.MustCompile(`(?s)\npostgres_directory\(\) \{.*?\n\}\n`)
-	if !discovery.MatchString(script) {
-		t.Fatal("the data-service script has no postgres_directory to point at the fixture programs")
+	carried := `programs="` + LinuxCompanyHostLayout().DatabaseProgramDirectory() + `"`
+	if !strings.Contains(script, carried) {
+		t.Fatal("the data-service script does not name the carried programs to point at the fixture")
 	}
-	script = discovery.ReplaceAllLiteralString(script, "\npostgres_directory() {\n  echo "+programs+"\n}\n")
+	script = strings.Replace(script, carried, `programs="`+programs+`"`, 1)
 	return strings.Replace(script, `data="`+CompanyHostDatabaseDataPath+`"`, `data="`+data+`"`, 1)
 }
 
@@ -277,5 +277,58 @@ func TestReplayingTheKeptWALFailsWhenPostgreSQLStopsBeforeItsEnd(t *testing.T) {
 	}
 	if !strings.Contains(output, "stopped before it replayed the kept WAL to its end") {
 		t.Fatalf("postgres-recover failed without saying the replay was cut short: %s", output)
+	}
+}
+
+func TestEveryClusterIsMadeWithOneLocaleThatClassifiesHangul(t *testing.T) {
+	wanted := "--encoding=UTF8 --locale-provider=builtin --builtin-locale=C.UTF-8 --locale=C --lc-ctype=C.UTF-8 --data-checksums"
+	mac := strings.Join(CompanyHostDatabaseInitialization(MacCompanyHostLayout(testHomebrewPrefix)), " ")
+	if !strings.Contains(mac, wanted) {
+		t.Errorf("a Mac makes its cluster with %q and not %q", mac, wanted)
+	}
+	if !strings.Contains(CompanyHostDataServiceScript(), wanted) {
+		t.Errorf("the data-service script does not make its cluster with %q", wanted)
+	}
+}
+
+func TestEveryHostRunsTheDatabaseProgramsThePackageCarries(t *testing.T) {
+	for _, layout := range []CompanyHostLayout{LinuxCompanyHostLayout(), MacCompanyHostLayout(testHomebrewPrefix)} {
+		if want := layout.LibraryRoot + "/postgresql/bin/psql"; layout.DatabaseProgram("psql") != want {
+			t.Errorf("psql is %s and the package carries it at %s", layout.DatabaseProgram("psql"), want)
+		}
+	}
+	if !strings.Contains(CompanyHostDataServiceScript(), "programs=\""+LinuxCompanyHostLayout().DatabaseProgramDirectory()+"\"") {
+		t.Error("the data-service script does not run the PostgreSQL the package carries")
+	}
+}
+
+func TestTheDataServiceRefusesAClusterAnotherMajorMade(t *testing.T) {
+	programs := t.TempDir()
+	data := t.TempDir()
+	writeTestFile(t, programs+"/postgres", "#!/bin/sh\necho 'postgres (PostgreSQL) 17.12'\n", 0o755)
+	writeTestFile(t, data+"/PG_VERSION", "16\n", 0o644)
+	script := strings.NewReplacer(
+		LinuxCompanyHostLayout().DatabaseProgramDirectory(), programs,
+		CompanyHostDatabaseDataPath, data,
+	).Replace(CompanyHostDataServiceScript())
+
+	command := exec.Command("sh", "-s", "postgres")
+	command.Stdin = strings.NewReader(script)
+	output, errorValue := command.CombinedOutput()
+
+	if errorValue == nil {
+		t.Fatalf("a cluster PostgreSQL 16 made was started by the PostgreSQL 17 the package carries: %s", output)
+	}
+	for _, wanted := range []string{"made by PostgreSQL 16", "carries PostgreSQL 17", "new box", "snapshot"} {
+		if !strings.Contains(string(output), wanted) {
+			t.Errorf("the refusal does not say %q: %s", wanted, output)
+		}
+	}
+}
+
+func writeTestFile(t *testing.T, path string, contents string, mode os.FileMode) {
+	t.Helper()
+	if errorValue := os.WriteFile(path, []byte(contents), mode); errorValue != nil {
+		t.Fatal(errorValue)
 	}
 }

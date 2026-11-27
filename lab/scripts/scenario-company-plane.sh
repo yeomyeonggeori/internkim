@@ -12,6 +12,9 @@ environmentPath="$workspaceDirectory/.local/company-plane/environment.json"
 stateRoot="$(mktemp -d /tmp/company-plane.XXXXXX)"
 databasePassword="$(python3 -c 'import secrets; print(secrets.token_hex(24))')"
 databaseName="company_plane_$(date +%s)_$$"
+databaseAccount="company-plane-database"
+databasePrograms="$stateRoot/postgresql/bin"
+databaseData="$stateRoot/database"
 
 mkdir -p "$evidenceDirectory"
 chmod 755 "$stateRoot"
@@ -22,18 +25,23 @@ cleanup() {
     mkdir -p "$evidenceDirectory/$(dirname "$relativePath")"
     cp -f "$logPath" "$evidenceDirectory/$relativePath" || true
   done < <(find "$stateRoot" -type f -name '*.log' -print0 2>/dev/null)
-  runuser -u postgres -- dropdb --if-exists "$databaseName" >/dev/null 2>&1 || true
-  runuser -u postgres -- dropuser --if-exists company_plane_test >/dev/null 2>&1 || true
+  runuser -u "$databaseAccount" -- "$databasePrograms/pg_ctl" --pgdata "$databaseData" --mode fast --wait stop >/dev/null 2>&1 || true
   rm -rf "$stateRoot"
   exit "$status"
 }
 trap cleanup EXIT
 
 apt-get -o DPkg::Lock::Timeout=300 update >/dev/null
-apt-get -o DPkg::Lock::Timeout=300 install -y postgresql-16 postgresql-contrib >/dev/null
 xargs apt-get -o DPkg::Lock::Timeout=300 install -y --no-install-recommends < "$workspaceDirectory/.local/company-plane/packages-for-files-the-skills-read" >/dev/null
-systemctl enable --now postgresql
-runuser -u postgres -- psql -v ON_ERROR_STOP=1 -d postgres \
+id -u "$databaseAccount" >/dev/null 2>&1 || useradd --system --no-create-home --shell /usr/sbin/nologin "$databaseAccount"
+cp -a "$workspaceDirectory/.local/company-plane/postgresql" "$stateRoot/postgresql"
+install -d -o "$databaseAccount" -g "$databaseAccount" -m 0700 "$databaseData"
+mapfile -t clusterOptions < "$workspaceDirectory/.local/company-plane/database-cluster-options"
+runuser -u "$databaseAccount" -- "$databasePrograms/initdb" --pgdata "$databaseData" --username postgres \
+  --auth-local=trust --auth-host=scram-sha-256 "${clusterOptions[@]}" >/dev/null
+runuser -u "$databaseAccount" -- "$databasePrograms/pg_ctl" --pgdata "$databaseData" --log "$databaseData/database.log" --wait \
+  --options "-c listen_addresses=127.0.0.1 -c port=5432 -c unix_socket_directories=$databaseData" start >/dev/null
+runuser -u "$databaseAccount" -- "$databasePrograms/psql" --host "$databaseData" --username postgres -v ON_ERROR_STOP=1 -d postgres \
   -v database_password="$databasePassword" -v database_name="$databaseName" <<'SQL'
 CREATE ROLE company_plane_test LOGIN CREATEDB PASSWORD :'database_password';
 CREATE DATABASE :"database_name" OWNER company_plane_test;

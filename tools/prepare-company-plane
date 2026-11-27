@@ -22,6 +22,11 @@ CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -o "$binaryDirectory/describe-com
 CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -o "$binaryDirectory/internkim-host" ./cmd/internkim-host
 go run ./cmd/describe-company-host "$planeDirectory"
 
+# The plane runs the database the packaged host runs: the same build.
+"$repositoryRoot/tools/prepare-postgresql" --target linux-arm64
+rm -rf "$planeDirectory/postgresql"
+cp -a "$repositoryRoot/.dependency/postgresql-linux-arm64/postgresql" "$planeDirectory/postgresql"
+
 # The plane runs the embedding server the packaged host runs: the same build, the same weights.
 "$repositoryRoot/tools/prepare-llama-server" --target linux-arm64
 rm -rf "$planeDirectory/llama.cpp"

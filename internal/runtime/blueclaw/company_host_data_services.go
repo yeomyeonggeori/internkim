@@ -7,21 +7,21 @@ import (
 	"strings"
 )
 
-// The company host runs its own database and its own cache, from the server
-// binaries the machine's package manager installs, and never uses the
-// machine's default cluster or cache service. A company server that already
-// runs a PostgreSQL or a Redis keeps its data in it; sharing that instance would
-// put this company's tables beside theirs and make a package upgrade a change to
-// both. On a Mac the same holds for the person's own `brew services`: the host
-// starts Homebrew's binaries as its own accounts and leaves those services, and
-// the data directories they own, alone.
+// The company host runs its own database, from the PostgreSQL the package
+// carries, and its own cache, from the server the machine's package manager
+// installs, and never uses the machine's default cluster or cache service. A
+// company server that already runs a PostgreSQL or a Redis keeps its data in it;
+// sharing that instance would put this company's tables beside theirs and make a
+// package upgrade a change to both. On a Mac the same holds for the person's own
+// `brew services`: the host starts its own binaries as its own accounts and
+// leaves those services, and the data directories they own, alone.
 //
 // Under systemd neither service listens on a network address: each answers on a
 // Unix socket in a directory only its own group can open, so there is no port to
 // collide with and nothing on loopback to guard. The same two units serve every
-// family. Where the binaries are, which major version a cluster was made by, and
-// whether the cache is called redis or valkey differ between distributions, and
-// CompanyHostDataServiceScript is the one place that knows.
+// family. Where the cache's binaries are and whether it is called redis or valkey
+// differ between distributions, and CompanyHostDataServiceScript is the one place
+// that knows.
 //
 // launchd has no RuntimeDirectory= and nothing it starts as an unprivileged
 // account can create one under /var/run, so on a Mac each socket sits in its
@@ -56,8 +56,25 @@ const (
 	CompanyHostDatabasePort            = "5432"
 	companyHostDatabaseIdentMap        = "internkim"
 	companyHostDatabaseRecoverySeconds = "86400"
-	companyHostDatabaseCollation       = "C.UTF-8"
+
+	DatabaseServerProgramName = "postgres"
+
+	// The builtin provider's C.UTF-8 sorts by code point, the same on every
+	// machine, and classifies Hangul as letters: with lc_ctype C, pg_trgm takes
+	// no trigram from a Korean word.
+	companyHostDatabaseCharacterLocale = "C.UTF-8"
 )
+
+func CompanyHostDatabaseClusterOptions() []string {
+	return []string{
+		"--encoding=UTF8",
+		"--locale-provider=builtin",
+		"--builtin-locale=" + companyHostDatabaseCharacterLocale,
+		"--locale=C",
+		"--lc-ctype=" + companyHostDatabaseCharacterLocale,
+		"--data-checksums",
+	}
+}
 
 // IsDataService is true of the database and the cache. Restarting one restarts
 // everything bound to it, so a package upgrade or an install that restarts the
@@ -68,18 +85,17 @@ func (unit CompanyPackageUnit) IsDataService() bool {
 }
 
 // RunsTheDataServiceScript is true where the data-service script finds the
-// servers, and false where the layout names their directories.
+// cache's server, and false where the layout names its directory.
 func (layout CompanyHostLayout) RunsTheDataServiceScript() bool {
-	return layout.DatabaseProgramDirectory == ""
+	return layout.CacheProgramDirectory == ""
 }
 
-// DatabaseProgram is the path of one of PostgreSQL's programs, or its bare name
-// where the machine's PATH finds it.
+func (layout CompanyHostLayout) DatabaseProgramDirectory() string {
+	return layout.LibraryRoot + "/" + databaseTreeName + "/bin"
+}
+
 func (layout CompanyHostLayout) DatabaseProgram(programName string) string {
-	if layout.DatabaseProgramDirectory == "" {
-		return programName
-	}
-	return layout.DatabaseProgramDirectory + "/" + programName
+	return layout.DatabaseProgramDirectory() + "/" + programName
 }
 
 func (layout CompanyHostLayout) CacheProgram(programName string) string {
@@ -231,19 +247,15 @@ func companyHostCacheDaemon(layout CompanyHostLayout) CompanyHostService {
 // CompanyHostDatabaseInitialization is what makes the cluster on a Mac, run once
 // as the database's account. The superuser is that account's own name and signs
 // in by peer on the socket, which is how the install reaches it; every other
-// role signs in with its password on loopback. The locale is the one Homebrew's
-// own cluster is made with.
+// role signs in with its password on loopback.
 func CompanyHostDatabaseInitialization(layout CompanyHostLayout) []string {
-	return []string{
+	return append([]string{
 		layout.DatabaseProgram("initdb"),
 		"--pgdata", CompanyHostDatabaseDataPath,
 		"--username", CompanyHostDatabaseUser,
 		"--auth-local=peer",
 		"--auth-host=scram-sha-256",
-		"--encoding=UTF8",
-		"--locale=C",
-		"--data-checksums",
-	}
+	}, CompanyHostDatabaseClusterOptions()...)
 }
 
 type dataServiceUnitSettings struct {
@@ -296,18 +308,20 @@ func (settings dataServiceUnitSettings) reloadLine() string {
 	return "ExecReload=" + settings.ExecReload + "\n"
 }
 
-// CompanyHostDataServiceScript is the one program both data units run. It finds
-// the server binaries the distribution installed, makes the company's cluster on
-// first start, and answers the readiness questions the units and the installer
-// ask. It is rendered here rather than kept as a file so that the paths it names
-// are the constants the units name.
+// CompanyHostDataServiceScript is the one program both data units run. It runs
+// the PostgreSQL the package carries, refuses a cluster another major made,
+// finds the cache server the distribution installed, makes the company's cluster
+// on first start, and answers the readiness questions the units and the
+// installer ask. It is rendered here rather than kept as a file so that the
+// paths it names are the constants the units name.
 func CompanyHostDataServiceScript() string {
 	replacer := strings.NewReplacer(
+		"@DATABASE_PROGRAMS@", LinuxCompanyHostLayout().DatabaseProgramDirectory(),
+		"@CLUSTER_OPTIONS@", strings.Join(CompanyHostDatabaseClusterOptions(), " "),
 		"@DATA@", CompanyHostDatabaseDataPath,
 		"@SOCKET_DIRECTORY@", CompanyHostDatabaseSocketDirectory,
 		"@SOCKET_MODE@", companyHostDataSocketMode,
 		"@PORT@", CompanyHostDatabasePort,
-		"@COLLATION@", companyHostDatabaseCollation,
 		"@ROLE@", CompanyHostDatabaseUser,
 		"@IDENT_MAP@", companyHostDatabaseIdentMap,
 		"@RECOVERY_SECONDS@", companyHostDatabaseRecoverySeconds,
@@ -320,6 +334,7 @@ func CompanyHostDataServiceScript() string {
 const companyHostDataServiceTemplate = `#!/bin/sh
 set -eu
 
+programs="@DATABASE_PROGRAMS@"
 data="@DATA@"
 socket_directory="@SOCKET_DIRECTORY@"
 cache_socket="@CACHE_SOCKET@"
@@ -329,49 +344,21 @@ fail() {
   exit 1
 }
 
-major_of() {
-  "$1/postgres" --version | sed -n 's/^postgres (PostgreSQL) \([0-9][0-9]*\).*/\1/p'
+carried_major() {
+  "$programs/postgres" --version | sed -n 's/^postgres (PostgreSQL) \([0-9][0-9]*\).*/\1/p'
 }
 
-binary_directories() {
-  for directory in /usr/lib/postgresql/*/bin /usr/lib/postgresql[0-9]*/bin /usr/pgsql-*/bin /usr/bin; do
-    if [ -x "$directory/postgres" ]; then echo "$directory"; fi
-  done
-}
-
-binaries_for_major() {
-  for directory in $(binary_directories); do
-    if [ "$(major_of "$directory")" = "$1" ]; then echo "$directory"; return 0; fi
-  done
-  return 1
-}
-
-installed_majors() {
-  for directory in $(binary_directories); do
-    major_of "$directory"
-  done | sort -rn
-}
-
-highest_installed_major() {
-  installed_majors | head -n 1
-}
-
-postgres_directory() {
-  if [ -r "$data/PG_VERSION" ]; then
-    major="$(cat "$data/PG_VERSION")"
-    binaries_for_major "$major" || fail "the company database was made by PostgreSQL $major and this machine has no PostgreSQL $major installed; install it again, or restore the version the cluster was made by"
-    return
-  fi
-  major="$(highest_installed_major)"
-  [ -n "$major" ] || fail "no PostgreSQL server is installed; the package names the one to install"
-  binaries_for_major "$major"
+refuse_a_cluster_another_major_made() {
+  [ -r "$data/PG_VERSION" ] || return 0
+  cluster_major="$(cat "$data/PG_VERSION")"
+  carried="$(carried_major)"
+  [ "$cluster_major" = "$carried" ] || fail "the company database in $data was made by PostgreSQL $cluster_major, and this package carries PostgreSQL $carried, which cannot open it. Move the company to a new box: a move restores the company from its snapshot"
 }
 
 initialize_cluster() {
-  directory="$1"
   if [ -r "$data/PG_VERSION" ]; then return 0; fi
-  "$directory/initdb" --pgdata "$data" --username @ROLE@ --auth-local=peer --auth-host=reject \
-    --encoding UTF8 --locale @COLLATION@ --data-checksums >/dev/null
+  "$programs/initdb" --pgdata "$data" --username @ROLE@ --auth-local=peer --auth-host=reject \
+    @CLUSTER_OPTIONS@ >/dev/null
 }
 
 write_access_rules() {
@@ -385,16 +372,16 @@ write_access_rules() {
 }
 
 reload_access_rules() {
-  directory="$(postgres_directory)"
+  refuse_a_cluster_another_major_made
   write_access_rules
-  exec "$directory/pg_ctl" --pgdata "$data" --silent reload
+  exec "$programs/pg_ctl" --pgdata "$data" --silent reload
 }
 
 run_postgres() {
-  directory="$(postgres_directory)"
-  initialize_cluster "$directory"
+  refuse_a_cluster_another_major_made
+  initialize_cluster
   write_access_rules
-  exec "$directory/postgres" -D "$data" \
+  exec "$programs/postgres" -D "$data" \
     -c listen_addresses= \
     -c logging_collector=off \
     -c port=@PORT@ \
@@ -412,8 +399,7 @@ wait_until() {
 }
 
 postgres_answers() {
-  directory="$(postgres_directory)"
-  "$directory/pg_isready" --quiet --host "$socket_directory"
+  "$programs/pg_isready" --quiet --host "$socket_directory"
 }
 
 postgres_ready() {
@@ -421,16 +407,15 @@ postgres_ready() {
 }
 
 recovery_has_ended() {
-  [ "$("$1/psql" --host "$data" --port @PORT@ --username @ROLE@ --dbname postgres --no-psqlrc --tuples-only --no-align \
+  [ "$("$programs/psql" --host "$data" --port @PORT@ --username @ROLE@ --dbname postgres --no-psqlrc --tuples-only --no-align \
     --command 'select pg_is_in_recovery()' 2>/dev/null)" = f ]
 }
 
 wait_for_recovery_to_end() {
-  directory="$1"
   waited=0
   while [ "$waited" -lt @RECOVERY_SECONDS@ ]; do
-    recovery_has_ended "$directory" && return 0
-    "$directory/pg_ctl" --pgdata "$data" --silent status >/dev/null || fail "PostgreSQL stopped before it replayed the kept WAL to its end"
+    recovery_has_ended && return 0
+    "$programs/pg_ctl" --pgdata "$data" --silent status >/dev/null || fail "PostgreSQL stopped before it replayed the kept WAL to its end"
     sleep 1
     waited=$((waited + 1))
   done
@@ -438,12 +423,12 @@ wait_for_recovery_to_end() {
 }
 
 recover_postgres() {
-  directory="$(postgres_directory)"
+  refuse_a_cluster_another_major_made
   write_access_rules
-  "$directory/pg_ctl" --pgdata "$data" --wait --timeout @RECOVERY_SECONDS@ --silent \
+  "$programs/pg_ctl" --pgdata "$data" --wait --timeout @RECOVERY_SECONDS@ --silent \
     --options "-c listen_addresses= -c port=@PORT@ -c unix_socket_directories=$data" start
-  wait_for_recovery_to_end "$directory"
-  "$directory/pg_ctl" --pgdata "$data" --wait --mode fast --silent stop
+  wait_for_recovery_to_end
+  "$programs/pg_ctl" --pgdata "$data" --wait --mode fast --silent stop
 }
 
 cache_program() {
@@ -476,9 +461,9 @@ case "${1:-}" in
   postgres-ready) postgres_ready ;;
   postgres-access) reload_access_rules ;;
   postgres-recover) recover_postgres ;;
-  psql) directory="$(postgres_directory)"; shift; exec "$directory/psql" --host "$socket_directory" --no-psqlrc "$@" ;;
-  pg_dump|pg_restore) directory="$(postgres_directory)"; program="$1"; shift; exec "$directory/$program" --host "$socket_directory" "$@" ;;
-  postgres-major) directory="$(postgres_directory)"; major_of "$directory" ;;
+  psql) shift; exec "$programs/psql" --host "$socket_directory" --no-psqlrc "$@" ;;
+  pg_dump|pg_restore) program="$1"; shift; exec "$programs/$program" --host "$socket_directory" "$@" ;;
+  postgres-major) carried_major ;;
   cache) run_cache ;;
   cache-ready) wait_until cache_answers || fail "the cache did not answer on $cache_socket" ;;
   cache-ping) client="$(cache_client)"; exec "$client" -s "$cache_socket" ping ;;

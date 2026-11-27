@@ -102,6 +102,13 @@ SHELL_BUILTINS = {
     "SECONDS",
 }
 
+# ld.so(8) expands $ORIGIN in a runpath to the directory of the object that
+# carries it; a script writes it literally for patchelf, and no environment
+# supplies it.
+DYNAMIC_LINKER_TOKENS = {"ORIGIN"}
+
+NAMES_NO_ENVIRONMENT_SUPPLIES = SHELL_BUILTINS | DYNAMIC_LINKER_TOKENS
+
 # `eval "$(supabase status --env --output-format text | grep -E '^(API_URL|SECRET_KEY)=')"` assigns
 # these names the same way `NAME=value` would, just too indirectly for
 # SHELL_ASSIGNMENT_TARGET to see; read the alternation grep already filters
@@ -234,7 +241,7 @@ def shell_reads(relative_path, text):
         self_copied = {match.group(1) for match in SHELL_SELF_COPY.finditer(line)}
         for match in SHELL_BRACED.finditer(line):
             name, operator = match.group(1), match.group(2)
-            if name in SHELL_BUILTINS:
+            if name in NAMES_NO_ENVIRONMENT_SUPPLIES:
                 continue
             is_null_guard = operator and BARE_DEFAULT_OPERATOR.match(operator)
             if (operator and not is_null_guard) or name in self_copied:
@@ -243,7 +250,7 @@ def shell_reads(relative_path, text):
                 yield EnvironmentRead(name, str(relative_path), line_number)
         for match in SHELL_BARE.finditer(line):
             name = match.group(1)
-            if name in SHELL_BUILTINS:
+            if name in NAMES_NO_ENVIRONMENT_SUPPLIES:
                 continue
             if name in self_copied or name not in assigned_names:
                 yield EnvironmentRead(name, str(relative_path), line_number)

@@ -116,6 +116,9 @@ syncSharedDependencyArtifacts() {
   syncLocalState ".dependency/buzz-relay"
   syncLocalState ".dependency/llama-server-linux-arm64"
   syncLocalState ".dependency/llama-server-linux-amd64"
+  syncLocalState ".dependency/postgresql-linux-arm64"
+  syncLocalState ".dependency/postgresql-linux-amd64"
+  syncLocalState ".dependency/postgresql-darwin-arm64"
 }
 
 syncMode="link"

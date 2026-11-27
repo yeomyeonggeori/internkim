@@ -22,11 +22,11 @@ func TestThePinsCoverExactlyThePayloadProgramsDeclared(t *testing.T) {
 	if len(declared) == 0 {
 		t.Fatal("no dependency declares ArrivesAsPayload, so this test reads the wrong list")
 	}
-	for _, programName := range blueclaw.HostProgramsBuiltFromSource() {
-		if !declared[programName] {
-			t.Fatalf("%s is built from source and no dependency declares it ArrivesAsPayload", programName)
+	for _, program := range blueclaw.HostProgramsBuiltFromSource() {
+		if !declared[program.ProgramName] {
+			t.Fatalf("%s is built from source and no dependency declares it ArrivesAsPayload", program.ProgramName)
 		}
-		delete(declared, programName)
+		delete(declared, program.ProgramName)
 	}
 
 	for _, architecture := range debianArchitecturesThePinsCover(t) {

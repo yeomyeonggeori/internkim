@@ -1,0 +1,164 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+repository_root="$(cd "$(dirname "$0")/.." && pwd)"
+
+pinned_version="17.12"
+source_sha256="9cf136a703d8ee2f83465c43be4e9e8e7930c82b0bfba13be7e2537be769ac55"
+source_url="https://ftp.postgresql.org/pub/source/v$pinned_version/postgresql-$pinned_version.tar.bz2"
+
+openssl_version="3.5.9"
+openssl_sha256="603f5602e2eef00d77fbd429d34dcd5822bb301757a1bc9cdb24c670f1eb859a"
+openssl_url="https://github.com/openssl/openssl/releases/download/openssl-$openssl_version/openssl-$openssl_version.tar.gz"
+
+build_recipe="signed-char-relocatable-openssl-2"
+built_revision="$pinned_version+$build_recipe"
+
+# -fsigned-char makes arm64 lay out char the way amd64 does. Without it pg_trgm
+# hashes a non-ASCII trigram differently on each, so a GiST index one box wrote
+# answers wrongly on the other when it replays that box's WAL.
+compiler_flags="-O2 -fsigned-char"
+configure_options="--with-ssl=openssl --without-icu --without-readline --without-zlib"
+
+# Ubuntu 22.04 keeps the glibc floor at HostGlibcMinimum.
+linux_image="docker.io/library/ubuntu:22.04@sha256:b000e69a50ff940390233025e7a337fb8469b509e2334fa4d018ac30f3e18cdb"
+
+# The oldest macOS the messenger in the same keg already needs.
+macos_deployment_target="15.0"
+
+target=""
+case "${1:-}" in
+  --target) target="$2"; shift 2 ;;
+  --print-revision) printf '%s\n' "$built_revision"; exit 0 ;;
+  *) echo "usage: prepare-postgresql --target linux-arm64|linux-amd64|linux|darwin-arm64 | --print-revision" >&2; exit 1 ;;
+esac
+
+if [ "$target" = "linux" ]; then
+  "$0" --target linux-arm64
+  exec "$0" --target linux-amd64
+fi
+
+case "$target" in
+  linux-arm64) container_platform="linux/arm64" ;;
+  linux-amd64) container_platform="linux/amd64" ;;
+  darwin-arm64) container_platform="" ;;
+  *) echo "no PostgreSQL is built for $target; the targets are linux-arm64, linux-amd64 and darwin-arm64" >&2; exit 1 ;;
+esac
+
+artifact_directory="$repository_root/.dependency/postgresql-$target"
+installed_directory="$artifact_directory/postgresql"
+revision_file="$artifact_directory/REVISION"
+source_directory="$repository_root/.dependency/postgresql-source"
+source_archive="$source_directory/postgresql-$pinned_version.tar.bz2"
+openssl_archive="$source_directory/openssl-$openssl_version.tar.gz"
+
+if [ -x "$installed_directory/bin/postgres" ] && [ "$(cat "$revision_file" 2>/dev/null)" = "$built_revision" ]; then
+  echo "PostgreSQL artifact already up to date at $built_revision for $target"
+  exit 0
+fi
+
+fetch_pinned() {
+  url="$1"; checksum="$2"; archive="$3"
+  if [ "$(shasum -a 256 "$archive" 2>/dev/null | cut -d' ' -f1)" = "$checksum" ]; then return 0; fi
+  mkdir -p "$(dirname "$archive")"
+  curl -fL --retry 3 -o "$archive" "$url"
+  found="$(shasum -a 256 "$archive" | cut -d' ' -f1)"
+  if [ "$found" != "$checksum" ]; then
+    rm -f "$archive"
+    echo "$url hashes to $found and the pin says $checksum" >&2
+    exit 1
+  fi
+}
+
+remove_what_the_host_never_runs() {
+  rm -rf "$1/include" "$1/lib/postgresql/pgxs" "$1/lib/pkgconfig"
+  rm -f "$1"/lib/*.a
+}
+
+build_linux() {
+  container run --rm --platform "$container_platform" --memory 8G \
+    -v "$source_directory:/source" -v "$artifact_directory:/artifact" \
+    -e PINNED_VERSION="$pinned_version" -e COMPILER_FLAGS="$compiler_flags" -e CONFIGURE_OPTIONS="$configure_options" \
+    "$linux_image" bash -c '
+      set -euo pipefail
+      export DEBIAN_FRONTEND=noninteractive
+      apt-get update -qq
+      apt-get install -y -qq --no-install-recommends gcc make libc6-dev libssl-dev bison flex perl patchelf binutils bzip2 >/dev/null
+      mkdir -p /build && cd /build
+      tar xjf "/source/postgresql-$PINNED_VERSION.tar.bz2"
+      cd "postgresql-$PINNED_VERSION"
+      {
+        ./configure --prefix=/opt/database $CONFIGURE_OPTIONS --disable-rpath CFLAGS="$COMPILER_FLAGS"
+        make -j"$(nproc)" world-bin
+        make install-world-bin
+      } >/artifact/build.log 2>&1
+      for program in /opt/database/bin/*; do patchelf --set-rpath "\$ORIGIN/../lib" "$program"; done
+      for library in /opt/database/lib/*.so.*; do [ -L "$library" ] || patchelf --set-rpath "\$ORIGIN" "$library"; done
+      for module in /opt/database/lib/postgresql/*.so; do patchelf --set-rpath "\$ORIGIN/.." "$module"; done
+      strip --strip-unneeded /opt/database/bin/* /opt/database/lib/*.so.* /opt/database/lib/postgresql/*.so
+      cp -a /opt/database /artifact/postgresql
+    '
+}
+
+# Every library the build links against its own prefix is named by an absolute
+# path. Each one becomes a path from the file that loads it, and each file is
+# signed again because changing a load command invalidates its signature.
+relocate_darwin() {
+  prefix="$1"
+  for machine_file in $(find "$prefix/bin" "$prefix/lib" -type f); do
+    case "$(file -b "$machine_file")" in Mach-O*) ;; *) continue ;; esac
+    strip -x "$machine_file"
+    from_directory="$(dirname "$machine_file")"
+    if [ "$from_directory" = "$prefix/lib" ]; then
+      install_name_tool -id "@loader_path/$(basename "$machine_file")" "$machine_file"
+    fi
+    for library in $(otool -L "$machine_file" | awk 'NR > 1 {print $1}'); do
+      case "$library" in "$prefix"/lib/*) ;; *) continue ;; esac
+      relative="$(python3 -c 'import os, sys; print(os.path.relpath(sys.argv[1], sys.argv[2]))' "$library" "$from_directory")"
+      install_name_tool -change "$library" "@loader_path/$relative" "$machine_file"
+    done
+    codesign --force --sign - "$machine_file"
+  done
+}
+
+# macOS has no OpenSSL a program may link, and Homebrew's is built for the
+# macOS of the Mac that poured it, so the libssl and libcrypto pgcrypto and
+# libpq load are built here for the same oldest macOS, into the same prefix,
+# and relocated with it.
+build_darwin_openssl() {
+  tar xzf "$openssl_archive" -C "$build_directory"
+  cd "$build_directory/openssl-$openssl_version"
+  ./Configure darwin64-arm64-cc shared no-module no-engine no-tests no-docs \
+    --prefix="$build_directory/database" --libdir=lib --openssldir="$build_directory/openssl-configuration"
+  make -j"$(sysctl -n hw.ncpu)" build_libs
+  make install_dev install_runtime_libs
+}
+
+build_darwin_postgresql() {
+  tar xjf "$source_archive" -C "$build_directory"
+  cd "$build_directory/postgresql-$pinned_version"
+  ./configure --prefix="$build_directory/database" $configure_options CFLAGS="$compiler_flags" \
+    --with-includes="$build_directory/database/include" --with-libraries="$build_directory/database/lib"
+  make -j"$(sysctl -n hw.ncpu)" world-bin
+  make install-world-bin
+}
+
+build_darwin() {
+  build_directory="$(cd "$(mktemp -d "${TMPDIR:-/tmp}/internkim-database-build.XXXXXX")" && pwd -P)"
+  trap 'rm -rf "$build_directory"' EXIT
+  fetch_pinned "$openssl_url" "$openssl_sha256" "$openssl_archive"
+  export MACOSX_DEPLOYMENT_TARGET="$macos_deployment_target"
+  (build_darwin_openssl; build_darwin_postgresql) >"$artifact_directory/build.log" 2>&1
+  relocate_darwin "$build_directory/database"
+  cp -a "$build_directory/database" "$installed_directory"
+  cp "$build_directory/openssl-$openssl_version/LICENSE.txt" "$installed_directory/OPENSSL-LICENSE.txt"
+}
+
+fetch_pinned "$source_url" "$source_sha256" "$source_archive"
+rm -rf "$installed_directory" "$revision_file"
+mkdir -p "$artifact_directory"
+if [ "$target" = "darwin-arm64" ]; then build_darwin; else build_linux; fi
+remove_what_the_host_never_runs "$installed_directory"
+tar xjf "$source_archive" -O "postgresql-$pinned_version/COPYRIGHT" > "$installed_directory/COPYRIGHT"
+printf '%s\n' "$built_revision" > "$revision_file"
+echo "PostgreSQL artifact prepared at $built_revision for $target"

@@ -162,9 +162,13 @@ journalctl -u internkim-relay -n 50 --no-pager
 macOS에서는 `launchctl print system/kim.intern.<service>`로 서비스를 확인합니다.
 로그는 `/var/log/internkim/`에 있습니다.
 
+모든 호스트는 패키지에 들어 있는 PostgreSQL 17로 데이터베이스를 실행합니다. Linux와
+macOS가 같은 빌드를 씁니다. 다른 PostgreSQL 메이저 버전이 만든 데이터베이스는 여기서
+시작되지 않습니다. 회사를 새 상자로 옮기면 스냅샷에서 복원됩니다.
+
 Mac에서는 호스트의 데이터베이스와 캐시가 `kim.intern.internkim-postgresql`과
-`kim.intern.internkim-cache`로, 각자의 계정으로, 패키지와 함께 Homebrew가 설치한
-PostgreSQL과 Redis로 실행됩니다. 데이터는 Linux와 같이 `/var/lib/internkim-postgres`와
+`kim.intern.internkim-cache`로, 각자의 계정으로, 그 PostgreSQL과 패키지와 함께
+Homebrew가 설치한 Redis로 실행됩니다. 데이터는 Linux와 같이 `/var/lib/internkim-postgres`와
 `/var/lib/internkim-cache`에 있습니다. 데이터베이스는 `127.0.0.1:18432`에서, 캐시는
 자기 디렉터리 안의 소켓에서 응답하므로, 이미 `brew services`로 돌리고 있는
 PostgreSQL이나 Redis는 포트와 데이터를 그대로 지킵니다.

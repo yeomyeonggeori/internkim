@@ -2,6 +2,7 @@ package cli
 
 import (
 	"encoding/binary"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -109,5 +110,38 @@ func TestTheKegCarriesThePrepareScriptAndMigrationsTheRuntimeDocumentNames(t *te
 	}
 	if _, errorValue := os.Stat(filepath.Join(libraryPath, "migrations", "0001.sql")); errorValue != nil {
 		t.Errorf("the keg does not carry the migrations at %s: %v", layout.MigrationPath, errorValue)
+	}
+}
+
+func TestTheKegCarriesTheDatabaseTreeWithItsLibraryLinks(t *testing.T) {
+	for _, program := range blueclaw.HostProgramsBuiltFromSource() {
+		if !program.IsBuiltFor(blueclaw.HostPayloadDarwinArm64) {
+			continue
+		}
+		repository := preparedProgramRepository(t, program)
+		revision, errorValue := expectedPreparedRevision(repository, program.PrepareScriptPath)
+		if errorValue != nil {
+			t.Fatal(errorValue)
+		}
+		recordMessengerRevision(t, repository, program.ArtifactPathFor(blueclaw.HostPayloadDarwinArm64), revision)
+		placePreparedProgram(t, repository, program, blueclaw.HostPayloadDarwinArm64)
+		tree := filepath.Join(repository, program.ArtifactTreePathFor(blueclaw.HostPayloadDarwinArm64))
+		writeFileForTest(t, filepath.Join(tree, "lib", "libpq.5.dylib"), "library")
+		if errorValue := os.Symlink("libpq.5.dylib", filepath.Join(tree, "lib", "libpq.dylib")); errorValue != nil {
+			t.Fatal(errorValue)
+		}
+		libraryPath := t.TempDir()
+
+		if errorValue := copyBrewBuiltPrograms(repository, libraryPath, io.Discard); errorValue != nil {
+			t.Fatal(errorValue)
+		}
+
+		carried := filepath.Join(libraryPath, program.TreeName)
+		if _, errorValue := os.Stat(filepath.Join(carried, program.ProgramPathInsideTree())); errorValue != nil {
+			t.Errorf("the keg does not carry %s: %v", program.ProgramName, errorValue)
+		}
+		if link, errorValue := os.Readlink(filepath.Join(carried, "lib", "libpq.dylib")); errorValue != nil || link != "libpq.5.dylib" {
+			t.Errorf("the keg turned a library link into %q, %v", link, errorValue)
+		}
 	}
 }
