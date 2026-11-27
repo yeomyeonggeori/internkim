@@ -48,17 +48,44 @@ func TestABaseBackupIsDueWhenItIsBothOldAndFollowedByManyPieces(t *testing.T) {
 	}
 }
 
-func TestAFailedAttemptIsNotTriedAgainUntilTheNextHourlyCheck(t *testing.T) {
-	failedAt := cadenceNow.Add(-time.Minute)
+func TestTheFirstFailedBaseBackupIsTriedAgainWithinSeconds(t *testing.T) {
+	attempts := failedAttempts{}.afterAnotherFailure(cadenceNow)
 
-	if !aFailedAttemptIsRecent(failedAt, cadenceNow) {
-		t.Fatal("a base backup that failed a minute ago would be tried again at once")
+	if !attempts.isWaiting(cadenceNow.Add(time.Second)) {
+		t.Fatal("a base backup that failed a second ago is tried again at once")
 	}
-	if aFailedAttemptIsRecent(failedAt, failedAt.Add(upkeepCheckEvery)) {
-		t.Fatal("a base backup that failed an hour ago is never tried again")
+	if attempts.isWaiting(cadenceNow.Add(firstRetryAfterAFailedBaseBackup)) {
+		t.Fatalf("a base backup that failed once waits longer than %s, and every standby waits with it to be ready", firstRetryAfterAFailedBaseBackup)
 	}
-	if aFailedAttemptIsRecent(time.Time{}, cadenceNow) {
+	if wait := attempts.nextCheckIn(cadenceNow.Add(4 * time.Second)); wait != firstRetryAfterAFailedBaseBackup-4*time.Second {
+		t.Fatalf("the next check after a failure comes in %s", wait)
+	}
+}
+
+func TestFailedBaseBackupsWaitLongerEachTimeUpToTheHourlyCheck(t *testing.T) {
+	attempts := failedAttempts{}
+	waits := []time.Duration{}
+	for range 12 {
+		attempts = attempts.afterAnotherFailure(cadenceNow)
+		waits = append(waits, attempts.wait)
+	}
+
+	if waits[1] != 2*waits[0] {
+		t.Fatalf("the second failure waits %s after a first of %s", waits[1], waits[0])
+	}
+	if waits[len(waits)-1] != upkeepCheckEvery {
+		t.Fatalf("failures keep a base backup from being tried for %s, past the hourly check", waits[len(waits)-1])
+	}
+}
+
+func TestAnUpkeepThatNeverFailedChecksHourly(t *testing.T) {
+	attempts := failedAttempts{}
+
+	if attempts.isWaiting(cadenceNow) {
 		t.Fatal("an upkeep that never failed waits as if it had")
+	}
+	if wait := attempts.nextCheckIn(cadenceNow); wait != upkeepCheckEvery {
+		t.Fatalf("an upkeep that never failed checks again in %s", wait)
 	}
 }
 

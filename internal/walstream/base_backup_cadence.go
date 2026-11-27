@@ -64,8 +64,28 @@ func baseBackupIsDue(facts baseBackupFacts, now time.Time) bool {
 	return facts.piecesSince >= piecesATakeOverFetchesAtMost
 }
 
-func aFailedAttemptIsRecent(lastFailedAt time.Time, now time.Time) bool {
-	return !lastFailedAt.IsZero() && now.Sub(lastFailedAt) < upkeepCheckEvery
+type failedAttempts struct {
+	lastFailedAt time.Time
+	wait         time.Duration
+}
+
+func (attempts failedAttempts) afterAnotherFailure(now time.Time) failedAttempts {
+	wait := firstRetryAfterAFailedBaseBackup
+	if attempts.wait > 0 {
+		wait = min(2*attempts.wait, upkeepCheckEvery)
+	}
+	return failedAttempts{lastFailedAt: now, wait: wait}
+}
+
+func (attempts failedAttempts) isWaiting(now time.Time) bool {
+	return !attempts.lastFailedAt.IsZero() && now.Sub(attempts.lastFailedAt) < attempts.wait
+}
+
+func (attempts failedAttempts) nextCheckIn(now time.Time) time.Duration {
+	if !attempts.isWaiting(now) {
+		return upkeepCheckEvery
+	}
+	return attempts.lastFailedAt.Add(attempts.wait).Sub(now)
 }
 
 func piecesFrom(names []PieceName, start pglogrepl.LSN) int {
