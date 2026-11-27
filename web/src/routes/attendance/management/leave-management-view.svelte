@@ -18,6 +18,7 @@
 	import { attendanceText } from '../text';
 	import LeaveAdjustmentDialog from './leave-adjustment-dialog.svelte';
 	import { getLeaveManagementState } from './leave-management-state.svelte';
+	import LeaveDaysCorrectionDialog from './leave-days-correction-dialog.svelte';
 	import LeaveTimeCorrectionDialog from './leave-time-correction-dialog.svelte';
 	import PastLeaveDialog from './past-leave-dialog.svelte';
 	import AttendanceLoadingSkeleton from '../attendance-loading-skeleton.svelte';
@@ -287,6 +288,9 @@
 									<p class="font-medium tabular-nums">{dayValue(request.deductionMilliDays)}</p>
 									{#if request.status === 'approved' && request.unit !== 'fullDay'}
 										<LeaveTimeCorrectionDialog {request} />
+									{/if}
+									{#if request.status === 'approved' && request.unit === 'fullDay'}
+										<LeaveDaysCorrectionDialog {request} />
 									{/if}
 									{#if request.status === 'approved'}
 										<AlertDialog.Root>

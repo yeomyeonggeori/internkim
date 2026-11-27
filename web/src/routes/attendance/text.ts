@@ -261,7 +261,12 @@ export const attendanceText = {
 			correctTimeTitle: '휴가 시간 정정',
 			correctTimeDescription: '근무 기록과 겹치면 먼저 근무 기록을 정정한 후 다시 시도하세요.',
 			endTime: '종료 시간',
-			saveTimeCorrection: '시간 저장'
+			saveTimeCorrection: '시간 저장',
+			correctDaysAction: '날짜 수정',
+			correctDaysTitle: '휴가 날짜 수정',
+			correctDaysDescription: '수정하면 해당 직원에게 사유와 함께 알림이 갑니다.',
+			correctDaysReasonPlaceholder: '날짜를 수정하는 사유를 입력하세요.',
+			saveDaysCorrection: '날짜 저장'
 		},
 		workStatus: {
 			standard: '근무 기준',
@@ -721,7 +726,12 @@ export const attendanceText = {
 			correctTimeTitle: 'Correct leave time',
 			correctTimeDescription: 'If work records overlap, correct those records before trying again.',
 			endTime: 'End time',
-			saveTimeCorrection: 'Save time'
+			saveTimeCorrection: 'Save time',
+			correctDaysAction: 'Change dates',
+			correctDaysTitle: 'Change leave dates',
+			correctDaysDescription: 'The person is told of the change, with your reason.',
+			correctDaysReasonPlaceholder: 'Enter why the dates are changing.',
+			saveDaysCorrection: 'Save dates'
 		},
 		workStatus: {
 			standard: 'Work standard',

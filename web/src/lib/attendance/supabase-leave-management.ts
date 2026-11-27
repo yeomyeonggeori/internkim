@@ -4,6 +4,7 @@ import type {
 } from '../../routes/attendance/leave/employee-leave-types';
 import type {
 	LeaveManagementAdjustment,
+	LeaveManagementDaysCorrection,
 	LeaveManagementEmployee,
 	LeaveManagementPastLeave,
 	LeaveManagementPayload,
@@ -123,6 +124,25 @@ export async function createSupabaseManagedPastLeave(input: LeaveManagementPastL
 
 export async function cancelSupabaseManagedLeaveRequest(requestID: string): Promise<void> {
 	await askTheRecord('leave_delete', { leaveHint: requestID });
+}
+
+export async function correctSupabaseManagedLeaveDays(
+	requestID: string,
+	input: LeaveManagementDaysCorrection
+): Promise<void> {
+	const preview = await supabaseLeavePreview({
+		leaveTypeID: '',
+		unit: 'fullDay',
+		startDate: input.startDate,
+		endDate: input.endDate
+	});
+	await askTheRecord('leave_update', {
+		leaveHint: requestID,
+		startsAt: input.startDate,
+		endsAt: input.endDate,
+		days: preview.totalDeductionMilliDays / 1000,
+		reason: input.reason.trim()
+	});
 }
 
 export async function correctSupabaseManagedLeaveTime(

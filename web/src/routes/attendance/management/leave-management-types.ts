@@ -57,6 +57,12 @@ export type LeaveManagementPastLeave = {
 	reason: string;
 };
 
+export type LeaveManagementDaysCorrection = {
+	startDate: string;
+	endDate: string;
+	reason: string;
+};
+
 export type LeaveManagementTimeCorrection = {
 	employeeEmail: string;
 	startTime: string;

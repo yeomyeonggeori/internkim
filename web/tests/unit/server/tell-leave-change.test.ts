@@ -31,6 +31,17 @@ describe('what the administrators are told about a leave', () => {
 		expect(leaveChangeOf('leave_request', moved, sampleID)?.title).toBe('휴가 변경: 이샘플');
 	});
 
+	test('the person whose leave an administrator moved, with the reason', () => {
+		const moved = answered({ status: 'approved', replacedLeave: { startDate: '2027-03-02', endDate: '2027-03-02' } });
+		expect(leaveChangeOf('leave_update', moved, 'member-admin', '출장 일정 변경')).toEqual({
+			title: '휴가 수정',
+			body: '연차 2027-03-02 → 2027-03-09 · 사유: 출장 일정 변경',
+			personID: sampleID
+		});
+		expect(leaveChangeOf('leave_update', moved, sampleID, '')).toBeNull();
+		expect(leaveChangeOf('leave_update', answered({ status: 'approved' }), 'member-admin')).toBeNull();
+	});
+
 	test('nothing for a request withdrawn, a new leave, or somebody else\'s leave', () => {
 		expect(leaveChangeOf('leave_delete', answered({ status: 'requested' }), sampleID)).toBeNull();
 		expect(leaveChangeOf('leave_request', answered({ status: 'requested' }), sampleID)).toBeNull();

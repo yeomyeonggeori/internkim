@@ -1228,6 +1228,7 @@ export const leaveUpdateInputSchema = z.strictObject({
   endsAt: z.string().describe(`Last day of the leave. ${momentDescription} Omit to keep the day it ends on.`).optional(),
   days: z.number().describe('How many days of entitlement this consumes. Omit to keep the number it consumes.').optional(),
   note: z.string().describe('The reason, in the requester\'s own words. Omit to keep the note it has.').optional(),
+  reason: z.string().describe('Why an administrator is correcting somebody else\'s leave, in their own words. It is not kept on the leave: the person whose leave it is reads it in the message that tells them of the change. Omit when correcting your own.').optional(),
 });
 
 export const leaveUpdateInputIntentSchema = leaveUpdateInputSchema.partial();
@@ -1963,8 +1964,8 @@ const leaveToolDefinitions: CapabilityToolDefinition[] = [
     answeredBy: CapabilityAnsweredBy.Record,
     privacyClass: 'workspace_leave',
     policyResource: 'tool:leave_update',
-    description: 'Correct a leave that was filed wrong: its days, its kind, how much entitlement it consumes, or the note. A person corrects their own while it is still waiting on a decision; an administrator corrects anybody\'s at any time, which is how a leave filed for the wrong year is moved to the right one. Only the fields you pass change.',
-    version: '2',
+    description: 'Correct a leave that was filed wrong: its days, its kind, how much entitlement it consumes, or the note. A person corrects their own while it is still waiting on a decision; an administrator corrects anybody\'s at any time, which is how a leave filed for the wrong year is moved to the right one. Only the fields you pass change. When an administrator moves somebody else\'s leave to other days, that person is told by direct message, with the reason if one is passed.',
+    version: '3',
     estimatedLatency: CapabilityEstimatedLatency.Medium,
     inputSchema: leaveUpdateInputSchema,
     inputIntentSchema: leaveUpdateInputIntentSchema,

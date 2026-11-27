@@ -120,6 +120,7 @@ async function toolAnswered(
 		body: await withTheLeaveChangeTold(
 			{ environment, record: member.record, companyID: member.companyID, memberID: member.memberID },
 			name,
+			inputOfTheCall(name, payload.input),
 			await withTheCompanyTold(environment, member, name, inputOfTheCall(name, payload.input) as AttendanceAsked, answered.body)
 		)
 	};

@@ -328,7 +328,12 @@ export async function leaveUpdate(
 		.select('id')
 		.single<{ id: string }>();
 	if (error) throw refusalOfPostgresError(error);
-	return answeredLeave(context, await leaveByID(context, row.id));
+	const answered = answeredLeave(context, await leaveByID(context, row.id));
+	if (answered.startDate === held.startDate && answered.endDate === held.endDate) return answered;
+	return {
+		...answered,
+		replacedLeave: { leaveID: held.leaveID, startDate: held.startDate, endDate: held.endDate }
+	};
 }
 
 export type LeaveDeleteInput = z.infer<typeof leaveDeleteInputSchema>;
