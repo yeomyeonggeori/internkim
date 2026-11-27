@@ -14,7 +14,7 @@ class KeyboardPlugin: Plugin {
         self.webview = webview
     }
 
-    @objc public func set_accessory_bar(_ invoke: Invoke) throws {
+    @objc public func setAccessoryBar(_ invoke: Invoke) throws {
         let choice = try invoke.parseArgs(AccessoryBarChoice.self)
         DispatchQueue.main.async {
             guard let webview = self.webview else {
