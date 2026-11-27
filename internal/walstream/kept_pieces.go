@@ -113,19 +113,22 @@ func (kept KeptPieces) Read(ctx context.Context, name PieceName, keyring box.Key
 }
 
 func (kept KeptPieces) NewestEnd(ctx context.Context, timeline int32) (pglogrepl.LSN, bool, error) {
-	names, errorValue := kept.Names(ctx)
-	if errorValue != nil {
-		return 0, false, errorValue
-	}
-	var newest pglogrepl.LSN
-	isFound := false
-	for _, name := range names {
-		if name.Timeline == timeline && name.End > newest {
-			newest = name.End
-			isFound = true
+	for object, errorValue := range kept.Destination.Store.ListByDescendingName(ctx, kept.folder()) {
+		if errorValue != nil {
+			return 0, false, errorValue
+		}
+		name, errorValue := ParsePieceName(object.Name)
+		if errorValue != nil {
+			return 0, false, fmt.Errorf("the company's WAL folder holds %q: %w", object.Name, errorValue)
+		}
+		if name.Timeline < timeline {
+			break
+		}
+		if name.Timeline == timeline {
+			return name.End, true, nil
 		}
 	}
-	return newest, isFound, nil
+	return 0, false, nil
 }
 
 func compareLSN(left, right pglogrepl.LSN) int {

@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"iter"
 	"net/http"
 	"net/url"
 	"strings"
@@ -65,7 +66,7 @@ func (store Store) Get(ctx context.Context, path string) ([]byte, error) {
 func (store Store) List(ctx context.Context, prefix string) ([]StoredObject, error) {
 	listed := []StoredObject{}
 	for offset := 0; ; offset += listPageSize {
-		page, errorValue := store.listPage(ctx, prefix, offset)
+		page, errorValue := store.listPage(ctx, prefix, offset, nameAscending)
 		if errorValue != nil {
 			return nil, errorValue
 		}
@@ -77,6 +78,33 @@ func (store Store) List(ctx context.Context, prefix string) ([]StoredObject, err
 }
 
 const listPageSize = 1000
+
+type nameOrder string
+
+const (
+	nameAscending  nameOrder = "asc"
+	nameDescending nameOrder = "desc"
+)
+
+func (store Store) ListByDescendingName(ctx context.Context, prefix string) iter.Seq2[StoredObject, error] {
+	return func(yield func(StoredObject, error) bool) {
+		for offset := 0; ; offset += listPageSize {
+			page, errorValue := store.listPage(ctx, prefix, offset, nameDescending)
+			if errorValue != nil {
+				yield(StoredObject{}, errorValue)
+				return
+			}
+			for _, object := range page {
+				if !yield(object, nil) {
+					return
+				}
+			}
+			if len(page) < listPageSize {
+				return
+			}
+		}
+	}
+}
 
 func (store Store) ListEvery(ctx context.Context, folder string) ([]StoredObject, error) {
 	listed, errorValue := store.List(ctx, folder)
@@ -101,12 +129,12 @@ func (store Store) ListEvery(ctx context.Context, folder string) ([]StoredObject
 	return every, nil
 }
 
-func (store Store) listPage(ctx context.Context, prefix string, offset int) ([]StoredObject, error) {
+func (store Store) listPage(ctx context.Context, prefix string, offset int, order nameOrder) ([]StoredObject, error) {
 	body, errorValue := json.Marshal(map[string]any{
 		"prefix": prefix,
 		"limit":  listPageSize,
 		"offset": offset,
-		"sortBy": map[string]string{"column": "name", "order": "asc"},
+		"sortBy": map[string]string{"column": "name", "order": string(order)},
 	})
 	if errorValue != nil {
 		return nil, errorValue
