@@ -24,10 +24,12 @@
 		return `${milliDaysValue(value)}${text.dayUnit}`;
 	}
 
+	function datesOf(span: { startDate: string; endDate?: string }): string {
+		return span.endDate && span.endDate !== span.startDate ? `${span.startDate} – ${span.endDate}` : span.startDate;
+	}
+
 	function dateRange(): string {
-		return request.endDate && request.endDate !== request.startDate
-			? `${request.startDate} – ${request.endDate}`
-			: request.startDate;
+		return request.replaces ? `${datesOf(request.replaces)} → ${datesOf(request)}` : datesOf(request);
 	}
 
 	function timeRange(): string {
@@ -68,7 +70,7 @@
  <div class="min-w-0 space-y-1.5 text-sm">
   <p class="font-medium tabular-nums">{dateRange()}</p>
   {#if timeRange()}<p class="text-xs tabular-nums text-muted-foreground">{timeRange()}</p>{/if}
-  <div class="flex flex-wrap items-center gap-2"><Badge variant="outline">{leaveTypeName()}</Badge><span class="text-xs text-muted-foreground">{unitLabel()}</span><span class="tabular-nums">{days(request.deductionMilliDays)}</span></div>
+  <div class="flex flex-wrap items-center gap-2">{#if request.replaces}<Badge variant="secondary" data-testid="leave-approval-replaces">{text.changeRequest}</Badge>{/if}<Badge variant="outline">{leaveTypeName()}</Badge><span class="text-xs text-muted-foreground">{unitLabel()}</span><span class="tabular-nums">{days(request.deductionMilliDays)}</span></div>
   {#if request.reason}<p class="break-words whitespace-pre-line text-xs text-muted-foreground" aria-label={text.reason}>{request.reason}</p>{/if}
  </div>
  <div class="flex items-center gap-1.5 self-center"><LeaveApprovalDecisionDialog requestID={request.id} {text} /><Button size="sm" onclick={approve} disabled={approval.isMutating}>{approval.isMutating ? text.processing : text.approveAction}</Button></div>

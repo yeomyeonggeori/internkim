@@ -30,6 +30,7 @@ import {
 	leaveTimestampRange
 } from './supabase-leave-range';
 import { EmployeeLeaveAPIError } from '../../routes/attendance/leave/employee-leave-api-error';
+import { leaveReplacedByPending } from './leave-replaced-by-pending';
 import { ownLeaveRequests } from './own-leave-changes';
 import { summarizeSupabaseLeave } from './supabase-leave-summary';
 import {
@@ -184,7 +185,10 @@ export async function supabaseLeaveApprovalInbox(): Promise<LeaveApprovalInbox> 
 		.filter((row) => row.status === 'requested')
 		.sort((left, right) => left.starts_at.localeCompare(right.starts_at));
 
-	const pending = rows.map((row) => approvalOf(row, members, directory));
+	const replaced = await leaveReplacedByPending(rows, async () =>
+		(await leaveOf({ scope: 'all', status: 'approved' })).leave.map(leaveRowOf)
+	);
+	const pending = rows.map((row) => approvalOf(row, members, directory, replaced.get(row.original_leave_id ?? '')));
 	return { pendingCount: pending.length, pending };
 }
 
@@ -223,9 +227,11 @@ export function employeeLeaveRequestOfRow(
 function approvalOf(
 	row: LeaveRow,
 	members: MemberDirectory,
-	directory: LeaveTypeDirectory
+	directory: LeaveTypeDirectory,
+	original?: LeaveRow
 ): LeaveApprovalRequest {
 	const timeZone = members.timeZoneOf(row.member_id);
+	const replaced = original ? leaveDisplayRange(original.starts_at, original.ends_at, original.days, timeZone) : null;
 	return {
 		id: row.id,
 		employeeEmail: members.emailOf(row.member_id),
@@ -239,7 +245,8 @@ function approvalOf(
 		deductionMilliDays: Math.round(row.days * 1000),
 		reason: row.note ?? '',
 		createdAt: row.starts_at,
-		updatedAt: row.starts_at
+		updatedAt: row.starts_at,
+		...(replaced ? { replaces: { startDate: replaced.startDate, endDate: replaced.endDate } } : {})
 	};
 }
 
