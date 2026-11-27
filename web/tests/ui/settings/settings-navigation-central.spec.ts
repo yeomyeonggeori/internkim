@@ -81,3 +81,10 @@ test('an administrator of a subscribed company sees five general and six adminis
 	await expect(page.getByRole('button', { name: '메신저 열기', exact: true })).toBeVisible();
 	await expect(page.getByRole('link', { name: '김인턴 시작하기' })).toHaveCount(0);
 });
+
+test('a member who has chosen nothing is told of their own team\'s finished work and everyone\'s clock', async ({ page }) => {
+	await signInToTheCentralPlane(page, `${settingsPath}/notifications`, member3Email);
+	await expect(page.getByRole('heading', { level: 1, name: '알림' })).toBeVisible({ timeout: 20000 });
+	await expect(page.getByRole('main').getByLabel('업무', { exact: true })).toHaveText('내 팀', { timeout: 20000 });
+	await expect(page.getByRole('main').getByLabel('근태', { exact: true })).toHaveText('전체');
+});

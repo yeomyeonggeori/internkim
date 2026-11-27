@@ -14,10 +14,18 @@ export const attendanceReaches = ['everyone', 'teamAndSupervisors', 'team'] as c
 
 export type AttendanceReach = (typeof attendanceReaches)[number];
 
+export const taskReaches = [...attendanceReaches, 'involved'] as const;
+
+export type TaskReach = (typeof taskReaches)[number];
+
 export function isNotificationCategory(value: string): value is NotificationCategory {
 	return notificationCategories.some((category) => category === value);
 }
 
 export function isAttendanceReach(value: string): value is AttendanceReach {
 	return attendanceReaches.some((reach) => reach === value);
+}
+
+export function isTaskReach(value: string): value is TaskReach {
+	return taskReaches.some((reach) => reach === value);
 }

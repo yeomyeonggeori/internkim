@@ -6,14 +6,17 @@ import {
 	choicesFromStored,
 	isAttendanceReach,
 	isNotificationCategory,
-	storedFromChoices
+	isTaskReach,
+	storedFromChoices,
+	taskReachFromStored
 } from './notifications';
 import type { RecordContext } from './company';
 import {
 	notificationCategories,
 	notificationSettingsResultSchema,
 	type AttendanceReach,
-	type NotificationCategory
+	type NotificationCategory,
+	type TaskReach
 } from '../catalog/notifications';
 import type { ConversationMuteResult, NotificationSettingsResult } from '../catalog/notifications';
 import { InputRefused, AccessRefused, refusalOfPostgresError } from '../refusal';
@@ -49,6 +52,7 @@ async function settingsAnswered(context: RecordContext): Promise<NotificationSet
 			isChoosable: choosable.includes(category)
 		})),
 		attendanceReach: attendanceReachFromStored(stored),
+		taskReach: taskReachFromStored(stored),
 		mutedConversationIDs: await mutedConversationIDs(context)
 	};
 }
@@ -78,14 +82,23 @@ function reachAsked(named: string): AttendanceReach {
 	return reach;
 }
 
+function taskReachAsked(named: string): TaskReach {
+	const reach = named.trim();
+	if (!isTaskReach(reach)) {
+		throw new InputRefused(`${reach || 'a reach with no name'} is not a reach task notices have`, 'no_such_task_reach');
+	}
+	return reach;
+}
+
 export async function notificationSettingsSet(
 	context: RecordContext,
 	input: NotificationSettingsSetInput
 ): Promise<NotificationSettingsResult> {
 	const turnOn = input.turnOn ?? [];
 	const turnOff = input.turnOff ?? [];
-	if (turnOn.length === 0 && turnOff.length === 0 && input.attendanceReach === undefined) {
-		throw new InputRefused('a notification change names at least one category to turn on or off, or an attendance reach');
+	const namesNoReach = input.attendanceReach === undefined && input.taskReach === undefined;
+	if (turnOn.length === 0 && turnOff.length === 0 && namesNoReach) {
+		throw new InputRefused('a notification change names at least one category to turn on or off, or a reach');
 	}
 
 	const choosable = categoriesChoosableBy(requesterAdministers(context));
@@ -95,9 +108,10 @@ export async function notificationSettingsSet(
 	for (const named of turnOff) chosen[categoryAsked(named, choosable)] = false;
 	const attendanceReach =
 		input.attendanceReach === undefined ? attendanceReachFromStored(stored) : reachAsked(input.attendanceReach);
+	const taskReach = input.taskReach === undefined ? taskReachFromStored(stored) : taskReachAsked(input.taskReach);
 
 	const { error } = await context.caller.rpc('notification_settings_set', {
-		chosen: storedFromChoices(chosen, attendanceReach)
+		chosen: storedFromChoices(chosen, attendanceReach, taskReach)
 	});
 	if (error) throw refusalOfPostgresError(error);
 	return settingsAnswered(context);

@@ -9,6 +9,7 @@ const task = {
 	id: 'task-one',
 	title: '이샘플 인수인계',
 	status: 'in_progress',
+	company_id: 'company-one',
 	requester_id: 'member-one',
 	task_participant: [{ member_id: 'member-two' }, { member_id: 'member-one' }, { member_id: 'member-three' }]
 };

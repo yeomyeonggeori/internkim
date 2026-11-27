@@ -32,6 +32,15 @@ const attendanceReachSchema = z.enum(attendanceReaches);
 const attendanceReachDescription =
   'Whose clocking in and out the requester is told about while attendance is on: everyone for the whole company, teamAndSupervisors for their own team and every supervisor above them, one supervisor\'s supervisor after another, and team for their own team alone.';
 
+export const taskReaches = [...attendanceReaches, 'involved'] as const;
+
+export type TaskReach = (typeof taskReaches)[number];
+
+const taskReachSchema = z.enum(taskReaches);
+
+const taskReachDescription =
+  'Whose finished work the requester is told about while task is on, beyond the tasks they requested or take part in: everyone for the whole company, teamAndSupervisors for their own team and every supervisor above them, team for their own team alone, and involved for nobody else\'s.';
+
 const categoryListDescription =
   'The kinds of thing a person is told about: message for something somebody wrote them, task for work assigned to them, approval for something waiting on their decision, attendance for their own clock, leave for the requests colleagues send, calendar for an event about to start, and mail for a new message in a connected mailbox.';
 
@@ -41,6 +50,7 @@ export const notificationSettingsSetInputSchema = z.strictObject({
   turnOn: z.array(notificationCategorySchema).describe(`The categories to start being told about. ${categoryListDescription}`).optional(),
   turnOff: z.array(notificationCategorySchema).describe('The categories to stop being told about. A category named in neither list keeps the setting it has.').optional(),
   attendanceReach: attendanceReachSchema.describe(`${attendanceReachDescription} Left out, it keeps the reach it has.`).optional(),
+  taskReach: taskReachSchema.describe(`${taskReachDescription} Left out, it keeps the reach it has.`).optional(),
 });
 
 export const notificationSettingsSetInputIntentSchema = notificationSettingsSetInputSchema;
@@ -52,6 +62,7 @@ export const notificationSettingsResultSchema = z.strictObject({
     isChoosable: z.boolean(),
   })),
   attendanceReach: attendanceReachSchema,
+  taskReach: taskReachSchema,
   mutedConversationIDs: z.array(z.string()),
 });
 
@@ -79,7 +90,7 @@ export const notificationToolDefinitions: CapabilityToolDefinition[] = [
     answeredBy: CapabilityAnsweredBy.Record,
     privacyClass: 'user_notification',
     policyResource: 'tool:notification_settings_get',
-    description: `The notification settings: what the requester is told about, category by category, and the conversations they have muted. ${categoryListDescription} A category the requester may not choose is answered with isChoosable false, so a change to it would be refused. ${attendanceReachDescription}`,
+    description: `The notification settings: what the requester is told about, category by category, and the conversations they have muted. ${categoryListDescription} A category the requester may not choose is answered with isChoosable false, so a change to it would be refused. ${attendanceReachDescription} ${taskReachDescription}`,
     version: '1',
     estimatedLatency: CapabilityEstimatedLatency.Low,
     inputSchema: notificationSettingsGetInputSchema,
@@ -92,7 +103,7 @@ export const notificationToolDefinitions: CapabilityToolDefinition[] = [
     answeredBy: CapabilityAnsweredBy.Record,
     privacyClass: 'user_notification',
     policyResource: 'tool:notification_settings_set',
-    description: 'Change the notification settings: which categories of notice the requester is told about at all, whose clocking in and out reaches them, and which conversations are muted. This is the standing preference, not one arriving reminder: a repeating alert the requester set up is stopped with schedule_cancel. Only the categories and the reach the call names change, and the whole setting is answered back. A category the requester may not choose is refused by name rather than quietly dropped.',
+    description: 'Change the notification settings: which categories of notice the requester is told about at all, whose clocking in and out reaches them, whose finished work reaches them, and which conversations are muted. This is the standing preference, not one arriving reminder: a repeating alert the requester set up is stopped with schedule_cancel. Only the categories and the reaches the call names change, and the whole setting is answered back. A category the requester may not choose is refused by name rather than quietly dropped.',
     version: '1',
     estimatedLatency: CapabilityEstimatedLatency.Medium,
     inputSchema: notificationSettingsSetInputSchema,

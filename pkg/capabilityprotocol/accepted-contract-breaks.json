@@ -1205,6 +1205,16 @@
 		"release": "the attendance notification reach release carries the catalog to company hosts before the web/API deployment that answers attendanceReach"
 	},
 	{
+		"path": "notification_settings_get.result.taskReach",
+		"reason": "Finished work reaches colleagues beyond the task's requester and participants, as far as each listener's reach goes. The settings answer says which reach the requester chose, so a reader sees the setting it is about to change.",
+		"release": "the task completion reach release carries the catalog to company hosts before the web/API deployment that answers taskReach"
+	},
+	{
+		"path": "notification_settings_set.result.taskReach",
+		"reason": "Finished work reaches colleagues beyond the task's requester and participants, as far as each listener's reach goes. The settings answer says which reach the requester chose, so a reader sees the setting it is about to change.",
+		"release": "the task completion reach release carries the catalog to company hosts before the web/API deployment that answers taskReach"
+	},
+	{
 		"path": "schedule_list.result.totalCount",
 		"reason": "schedule_list answered at most twenty schedules, cut again by limit, with nothing saying more existed. It now reads a page at a time with a cursor and says how many match, the shape the other list tools answer.",
 		"release": "the host release carrying blueclaw's paged schedule list and this catalog reaches company hosts before the web/API catalog deploys; schedule_list is answered on the host, so the answer and its contract travel in the same package"

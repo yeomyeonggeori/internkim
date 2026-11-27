@@ -14,9 +14,16 @@ export const attendanceReaches = ['everyone', 'teamAndSupervisors', 'team'] as c
 
 export type AttendanceReach = (typeof attendanceReaches)[number];
 
+export const taskReaches = [...attendanceReaches, 'involved'] as const;
+
+export type TaskReach = (typeof taskReaches)[number];
+
+export const defaultTaskReach: TaskReach = 'team';
+
 export type NotificationSettings = {
 	categories: Record<NotificationCategory, boolean>;
 	attendanceReach: AttendanceReach;
+	taskReach: TaskReach;
 };
 
 const notifiesByDefault: Record<NotificationCategory, boolean> = {
@@ -30,7 +37,11 @@ const notifiesByDefault: Record<NotificationCategory, boolean> = {
 };
 
 export function readNotificationSettings(stored: unknown): NotificationSettings {
-	const settings: NotificationSettings = { categories: { ...notifiesByDefault }, attendanceReach: 'everyone' };
+	const settings: NotificationSettings = {
+		categories: { ...notifiesByDefault },
+		attendanceReach: 'everyone',
+		taskReach: defaultTaskReach
+	};
 	if (typeof stored !== 'object' || stored === null) return settings;
 
 	const held = stored as Record<string, unknown>;
@@ -39,5 +50,7 @@ export function readNotificationSettings(stored: unknown): NotificationSettings 
 	}
 	const reach = attendanceReaches.find((known) => known === held.attendanceReach);
 	if (reach) settings.attendanceReach = reach;
+	const taskReach = taskReaches.find((known) => known === held.taskReach);
+	if (taskReach) settings.taskReach = taskReach;
 	return settings;
 }
