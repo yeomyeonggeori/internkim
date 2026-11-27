@@ -238,6 +238,7 @@ BOXES_GO_PACKAGE_PATTERNS = [
     "internal/modelladder/*",
     "internal/modelpayer/*",
     "internal/offsite/*",
+    "internal/personaldata/*",
     "internal/personname/*",
     "internal/runtime/blueclaw/*",
     "internal/servicetoken/*",

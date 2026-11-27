@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -36,6 +37,7 @@ type modelRouteRig struct {
 	failsFirstAsks    atomic.Int32
 	releaseStream     chan struct{}
 	releasing         sync.Once
+	answerCompletion  http.HandlerFunc
 
 	mutex           sync.Mutex
 	heardOpenRouter []heardCall
@@ -97,6 +99,10 @@ func (rig *modelRouteRig) answerAsOpenRouter(writer http.ResponseWriter, request
 		writer.Write([]byte(`{"answeredBy":"openrouter"}`))
 		return
 	}
+	if rig.answerCompletion != nil {
+		rig.answerCompletion(writer, request)
+		return
+	}
 	writer.Header().Set("Content-Type", "text/event-stream")
 	writer.Write([]byte("data: first-from-openrouter\n\n"))
 	writer.(http.Flusher).Flush()
@@ -130,7 +136,12 @@ func heardCallOf(request *http.Request) heardCall {
 
 func (rig *modelRouteRig) call(t *testing.T, method string, path string, authorization string) *http.Response {
 	t.Helper()
-	request, errorValue := http.NewRequest(method, rig.route.URL+path, strings.NewReader(`{"model":"example/model","stream":true}`))
+	return rig.callWith(t, method, path, authorization, `{"model":"example/model","stream":true}`)
+}
+
+func (rig *modelRouteRig) callWith(t *testing.T, method string, path string, authorization string, body string) *http.Response {
+	t.Helper()
+	request, errorValue := http.NewRequest(method, rig.route.URL+path, strings.NewReader(body))
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
@@ -267,5 +278,33 @@ func TestTheModelRouteRetriesSoonWhileItHasNeverHeardWhoPays(t *testing.T) {
 
 	if asks := rig.payerAsks.Load(); asks != 2 {
 		t.Fatalf("a failed first ask is retried after the first pause, not after the hour-long steady interval; asked %d times", asks)
+	}
+}
+
+func TestTheModelRouteSendsAPhoneNumberAsATokenAndTheAgentReadsTheNumberBack(t *testing.T) {
+	var heardBody string
+	rig := aModelRouteRigRetrying(t, true, 20*time.Millisecond, 0, func(rig *modelRouteRig) {
+		rig.answerCompletion = func(writer http.ResponseWriter, request *http.Request) {
+			body, _ := io.ReadAll(request.Body)
+			heardBody = string(body)
+			token := regexp.MustCompile(`\{\{phoneNumber:[0-9a-f]+\}\}`).FindString(heardBody)
+			writer.Header().Set("Content-Type", "text/event-stream")
+			writer.Write([]byte("data: {\"choices\":[{\"index\":0,\"delta\":{\"content\":\"" + token[:9] + "\"}}]}\n\n"))
+			writer.Write([]byte("data: {\"choices\":[{\"index\":0,\"delta\":{\"content\":\"" + token[9:] + "로 연락드릴게요\"},\"finish_reason\":\"stop\"}]}\n\ndata: [DONE]\n\n"))
+		}
+	})
+	rig.usesOwnModelKey.Store(true)
+	rig.untilTheModelListIsAnsweredBy(t, "openrouter")
+
+	response := rig.callWith(t, http.MethodPost, "/api/v1/chat/completions", "Bearer "+rig.serviceToken,
+		`{"model":"example/model","stream":true,"messages":[{"role":"user","content":"제 번호는 010-1234-5678이에요"}]}`)
+	defer response.Body.Close()
+	answer, _ := io.ReadAll(response.Body)
+
+	if strings.Contains(heardBody, "1234-5678") || !strings.Contains(heardBody, "{{phoneNumber:") {
+		t.Fatalf("the provider must hear a token, never the number, heard %s", heardBody)
+	}
+	if !strings.Contains(string(answer), "010-1234-5678") || strings.Contains(string(answer), "{{phoneNumber:") {
+		t.Fatalf("the agent must read the number where the model wrote its token, got %s", answer)
 	}
 }
