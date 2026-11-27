@@ -590,6 +590,7 @@ PACKAGE_CACHE_LONGEST_AGE_SECONDS = 30 * 24 * 3600
 PACKAGE_CACHE_STRAY_AGE_SECONDS = 24 * 3600
 GUEST_PACKAGE_CACHE_PATH = "/var/cache/internkim-rig-packages"
 GUEST_PACKAGE_HOOK_PATH = "/usr/local/sbin/internkim-rig-packages"
+GUEST_DNF_CACHES = ("libdnf5", "dnf")
 GUEST_PACKAGE_HOOK = f"""#!/bin/sh
 kept={GUEST_PACKAGE_CACHE_PATH}
 [ -d "$kept" ] || exit 0
@@ -604,11 +605,22 @@ copy() {{
     cp $4 "$file" "$2/$name.partial.$$" && mv "$2/$name.partial.$$" "$2/$name"
   done
 }}
+copy_tree() {{
+  [ -d "$1" ] || return 0
+  (cd "$1" && find . -type f ! -name '*.partial.*' ! -name '*.lock') | while IFS= read -r file; do
+    target="$2/$file"
+    if [ -e "$target" ] && {{ [ "$3" = new ] || [ ! "$1/$file" -nt "$target" ]; }}; then continue; fi
+    mkdir -p "${{target%/*}}"
+    cp -p "$1/$file" "$target.partial.$$" && mv "$target.partial.$$" "$target"
+  done
+}}
 case "$1" in
   seed) copy "$kept/archives" /var/cache/apt/archives new ;;
   keep) copy /var/cache/apt/archives "$kept/archives" new ;;
   seed-lists) ls /var/lib/apt/lists/*Release >/dev/null 2>&1 || copy "$kept/lists" /var/lib/apt/lists all -p ;;
   keep-lists) copy /var/lib/apt/lists "$kept/lists" all -p ;;
+  seed-dnf) for cache in {" ".join(GUEST_DNF_CACHES)}; do copy_tree "$kept/$cache" "/var/cache/$cache" new; done ;;
+  keep-dnf) for cache in {" ".join(GUEST_DNF_CACHES)}; do copy_tree "/var/cache/$cache" "$kept/$cache" newer; done ;;
 esac
 exit 0
 """
@@ -617,25 +629,54 @@ GUEST_PACKAGE_HOOKS = (
     f'DPkg::Pre-Invoke {{ "{GUEST_PACKAGE_HOOK_PATH} keep"; }};\n'
 )
 GUEST_PACKAGE_HOOKS_PATH = "/etc/apt/apt.conf.d/zz-internkim-rig-packages"
+GUEST_DNF_PATH = "/usr/bin/dnf"
+GUEST_DNF_WRAPPER_PATH = "/usr/local/sbin/dnf"
+GUEST_DNF_WRAPPER = f"""#!/bin/sh
+{GUEST_DNF_PATH} "$@"
+status=$?
+{GUEST_PACKAGE_HOOK_PATH} keep-dnf
+exit $status
+"""
+GUEST_PACKAGE_SETUP = "\n".join(
+    [
+        f"cat > {GUEST_PACKAGE_HOOK_PATH} <<'EOF'\n{GUEST_PACKAGE_HOOK}EOF",
+        f"chmod 0755 {GUEST_PACKAGE_HOOK_PATH}",
+        "if [ -d /etc/apt/apt.conf.d ]; then",
+        f"  printf '%s' '{GUEST_PACKAGE_HOOKS}' > {GUEST_PACKAGE_HOOKS_PATH}",
+        f"  {GUEST_PACKAGE_HOOK_PATH} seed-lists",
+        "fi",
+        f"if [ -x {GUEST_DNF_PATH} ]; then",
+        "  sed -i '/^\\[main\\]/a keepcache=True' /etc/dnf/dnf.conf",
+        f"  cat > {GUEST_DNF_WRAPPER_PATH} <<'EOF'\n{GUEST_DNF_WRAPPER}EOF",
+        f"  chmod 0755 {GUEST_DNF_WRAPPER_PATH}",
+        f"  {GUEST_PACKAGE_HOOK_PATH} seed-dnf",
+        "fi",
+        "",
+    ]
+)
 
 
 def package_cache_for(image):
     return PACKAGE_CACHE_ROOT / f"{re.sub(r'[^A-Za-z0-9.-]+', '-', image)}-{ARCHITECTURE}"
 
 
+PACKAGE_SUFFIXES = (".deb", ".rpm")
+
+
 def prune_package_cache(directory, now=None, limit_bytes=PACKAGE_CACHE_LIMIT_BYTES):
-    """Bound the Mac's copy of the guests' packages: nothing older than thirty days, nothing past the limit, oldest first."""
+    """Bound the Mac's copy of the guests' packages: nothing older than thirty days, nothing past the limit, oldest first, and no repository metadata its index no longer names."""
     now = time.time() if now is None else now
-    archives = directory / "archives"
-    archives.mkdir(parents=True, exist_ok=True)
+    (directory / "archives").mkdir(parents=True, exist_ok=True)
     (directory / "lists").mkdir(exist_ok=True)
+    unnamed = set(unindexed_metadata(directory))
     kept = []
-    for path in archives.iterdir():
+    for path in [path for path in directory.rglob("*") if path.is_file()]:
         age = now - path.stat().st_mtime
         is_stray = ".partial." in path.name and age > PACKAGE_CACHE_STRAY_AGE_SECONDS
-        if is_stray or (path.suffix == ".deb" and age > PACKAGE_CACHE_LONGEST_AGE_SECONDS):
+        is_package = path.suffix in PACKAGE_SUFFIXES
+        if is_stray or path in unnamed or (is_package and age > PACKAGE_CACHE_LONGEST_AGE_SECONDS):
             path.unlink()
-        elif path.suffix == ".deb":
+        elif is_package:
             kept.append(path)
     kept.sort(key=lambda path: path.stat().st_mtime, reverse=True)
     total = 0
@@ -643,6 +684,15 @@ def prune_package_cache(directory, now=None, limit_bytes=PACKAGE_CACHE_LIMIT_BYT
         total += path.stat().st_size
         if total > limit_bytes:
             path.unlink()
+
+
+def unindexed_metadata(directory):
+    """dnf names each metadata file by its checksum, so a refreshed repository leaves the old files behind unless they are dropped once repomd.xml stops naming them."""
+    for index in directory.rglob("repodata/repomd.xml"):
+        named = set(re.findall(r'href="repodata/([^"]+)"', index.read_text(errors="replace")))
+        for path in index.parent.iterdir():
+            if path.is_file() and path.name != index.name and path.name not in named and ".partial." not in path.name:
+                yield path
 
 
 def prune_download_cache(directory, now=None, limit_bytes=PACKAGE_CACHE_LIMIT_BYTES):
@@ -665,12 +715,6 @@ BOOTSTRAP_SCRIPT = "\n".join(
     [
         "set -eu",
         "export DEBIAN_FRONTEND=noninteractive",
-        "if [ -d /etc/apt/apt.conf.d ]; then",
-        f"  cat > {GUEST_PACKAGE_HOOK_PATH} <<'EOF'\n{GUEST_PACKAGE_HOOK}EOF",
-        f"  chmod 0755 {GUEST_PACKAGE_HOOK_PATH}",
-        f"  printf '%s' '{GUEST_PACKAGE_HOOKS}' > {GUEST_PACKAGE_HOOKS_PATH}",
-        f"  {GUEST_PACKAGE_HOOK_PATH} seed-lists",
-        "fi",
         "if [ ! -x /lib/systemd/systemd ]; then",
         "  for attempt in 1 2 3; do",
         "    apt-get update && apt-get install -y --no-install-recommends systemd systemd-sysv curl ca-certificates && break",
@@ -764,7 +808,7 @@ class Machine:
                 "--volume", f"{self.package_cache_directory}:{GUEST_PACKAGE_CACHE_PATH}",
                 "--volume", f"{self.download_cache_directory}:{GUEST_DOWNLOAD_CACHE_MOUNT_PATH}",
                 self.image,
-                "sh", "-c", (ROSETTA_BOOTSTRAP if ARCHITECTURE == "amd64" else "") + GUEST_DOWNLOAD_CACHE_LINK + self.bootstrap_script,
+                "sh", "-c", (ROSETTA_BOOTSTRAP if ARCHITECTURE == "amd64" else "") + GUEST_DOWNLOAD_CACHE_LINK + GUEST_PACKAGE_SETUP + self.bootstrap_script,
             ]
         )
         self.created = True
@@ -778,10 +822,16 @@ class Machine:
                 return completed.stdout.strip()
             time.sleep(3)
         raise RigFailure(
-            f"{self.name} did not reach a running systemd within {timeout_seconds}s\n"
+            f"{self.name} did not reach a running systemd within {timeout_seconds}s: {self.boot_stage()}\n"
             f"its state: {self.container_state()}\n"
             f"the last of its console:\n{self.console_tail()}"
         )
+
+    def boot_stage(self):
+        first_process = self.shell("cat /proc/1/comm 2>/dev/null").stdout.strip()
+        if first_process == "systemd":
+            return f"systemd started and says {self.shell('systemctl is-system-running 2>&1').stdout.strip() or 'nothing'}"
+        return f"its bootstrap was still running as PID 1 ({first_process or 'unreadable'}) and had not started systemd"
 
     def container_state(self):
         for existing in self.list_containers():

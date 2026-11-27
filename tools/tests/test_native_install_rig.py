@@ -20,6 +20,7 @@ from pathlib import Path
 repository_root = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(repository_root / "tools"))
 
+import native_install_families as families  # noqa: E402
 import native_install_rig as rig  # noqa: E402
 
 
@@ -51,6 +52,21 @@ class FreePortTests(unittest.TestCase):
 
 
 class ContainerStateTests(unittest.TestCase):
+    def test_a_guest_that_never_reached_systemd_says_its_bootstrap_was_still_running(self):
+        machine = rig.Machine("guest", Path(tempfile.gettempdir()))
+        answers = {"cat /proc/1/comm 2>/dev/null": "sh\n"}
+
+        def shell(script):
+            return subprocess.CompletedProcess([], 0, answers.get(script, ""), "")
+
+        with unittest.mock.patch.object(machine, "shell", side_effect=shell), \
+                unittest.mock.patch.object(machine, "container_state", return_value="running"), \
+                unittest.mock.patch.object(machine, "console_tail", return_value="Fedora 44 - Updates 86 KiB/s"):
+            with self.assertRaises(rig.RigFailure) as raised:
+                machine.wait_until_running(timeout_seconds=0)
+        self.assertIn("bootstrap was still running as PID 1 (sh)", str(raised.exception))
+        self.assertIn("86 KiB/s", str(raised.exception))
+
     def test_a_guest_reads_running_from_either_shape_the_container_cli_lists(self):
         machine = rig.Machine("guest", Path(tempfile.gettempdir()))
         for status in ("running", {"state": "running", "networks": []}):
@@ -146,10 +162,82 @@ class GuestPackageCacheTests(unittest.TestCase):
         self.assertFalse((unused / "uv").exists() or (full / "uv").exists())
         self.assertEqual((unused / rig.DOWNLOAD_CACHE_USE_MARKER).stat().st_mtime, now)
 
+    def guest_script(self, bootstrap_script):
+        machine = rig.Machine(
+            "guest", self.directory(), bootstrap_script=bootstrap_script,
+            package_cache_directory=self.directory(), download_cache_directory=self.directory(),
+        )
+        with unittest.mock.patch.object(rig, "checked") as ran:
+            machine.create()
+        return ran.call_args_list[0].args[0][-1]
+
     def test_the_hooks_are_in_place_before_the_guest_first_asks_apt_for_anything(self):
-        script = rig.BOOTSTRAP_SCRIPT
+        script = self.guest_script(rig.BOOTSTRAP_SCRIPT)
         self.assertLess(script.index(rig.GUEST_PACKAGE_HOOKS_PATH), script.index("apt-get update"))
         self.assertLess(script.index("seed-lists"), script.index("apt-get update"))
+
+    def test_a_dnf_guest_is_seeded_and_keeps_its_cache_before_it_first_asks_dnf_for_anything(self):
+        for family in ("fedora", "rhel-10"):
+            script = self.guest_script(families.FAMILIES[family].bootstrap)
+            first_install = script.index("dnf install")
+            self.assertLess(script.index(rig.GUEST_DNF_WRAPPER_PATH), first_install, family)
+            self.assertLess(script.index("seed-dnf"), first_install, family)
+            self.assertLess(script.index("keepcache=True"), first_install, family)
+
+    def run_dnf_hook(self, verb, kept, guest_caches):
+        hook = (
+            rig.GUEST_PACKAGE_HOOK.replace(rig.GUEST_PACKAGE_CACHE_PATH, str(kept))
+            .replace("/var/cache/$cache", f"{guest_caches}/$cache")
+        )
+        subprocess.run(["sh", "-c", hook, "hook", verb], check=True)
+
+    def test_a_dnf_guest_takes_the_kept_cache_and_gives_back_what_it_fetched_or_refreshed(self):
+        kept, guest = self.directory(), self.directory()
+        kept_repository = kept / "libdnf5" / "updates-7608"
+        (kept_repository / "packages").mkdir(parents=True)
+        (kept_repository / "repodata").mkdir()
+        (kept_repository / "packages" / "systemd-259.rpm").write_text("kept systemd")
+        (kept_repository / "repodata" / "repomd.xml").write_text("old index")
+        os.utime(kept_repository / "repodata" / "repomd.xml", (1_700_000_000, 1_700_000_000))
+
+        self.run_dnf_hook("seed-dnf", kept, guest)
+        guest_repository = guest / "libdnf5" / "updates-7608"
+        self.assertEqual((guest_repository / "packages" / "systemd-259.rpm").read_text(), "kept systemd")
+        self.assertEqual(os.stat(guest_repository / "repodata" / "repomd.xml").st_mtime, 1_700_000_000)
+
+        (guest_repository / "repodata" / "repomd.xml").write_text("new index")
+        (guest_repository / "packages" / "curl-8.rpm").write_text("fetched curl")
+        self.run_dnf_hook("keep-dnf", kept, guest)
+
+        self.assertEqual((kept_repository / "repodata" / "repomd.xml").read_text(), "new index")
+        self.assertEqual((kept_repository / "packages" / "curl-8.rpm").read_text(), "fetched curl")
+        self.assertEqual([path.name for path in kept.rglob("*") if ".partial." in path.name], [])
+
+    def test_the_dnf_wrapper_keeps_the_cache_and_answers_with_dnfs_own_status(self):
+        directory = self.directory()
+        real_dnf, hook, record = directory / "dnf", directory / "hook", directory / "record"
+        real_dnf.write_text(f'#!/bin/sh\necho "dnf $*" >> {record}\nexit 7\n')
+        hook.write_text(f'#!/bin/sh\necho "hook $*" >> {record}\n')
+        for path in (real_dnf, hook):
+            path.chmod(0o755)
+        wrapper = rig.GUEST_DNF_WRAPPER.replace(rig.GUEST_DNF_PATH, str(real_dnf)).replace(rig.GUEST_PACKAGE_HOOK_PATH, str(hook))
+
+        completed = subprocess.run(["sh", "-c", wrapper, "dnf", "install", "-y", "curl"])
+
+        self.assertEqual(completed.returncode, 7)
+        self.assertEqual(record.read_text().splitlines(), ["dnf install -y curl", "hook keep-dnf"])
+
+    def test_dnf_metadata_its_index_no_longer_names_is_dropped(self):
+        cache = self.directory()
+        repodata = cache / "libdnf5" / "updates-7608" / "repodata"
+        repodata.mkdir(parents=True)
+        (repodata / "repomd.xml").write_text('<repomd><data type="primary"><location href="repodata/new-primary.xml.zck"/></data></repomd>')
+        (repodata / "new-primary.xml.zck").write_text("current")
+        (repodata / "old-primary.xml.zck").write_text("replaced")
+
+        rig.prune_package_cache(cache)
+
+        self.assertEqual(sorted(path.name for path in repodata.iterdir()), ["new-primary.xml.zck", "repomd.xml"])
 
     def test_a_guest_takes_the_packages_it_lacks_and_gives_back_the_ones_it_fetched(self):
         kept, archives, lists = self.directory(), self.directory(), self.directory()
@@ -203,6 +291,27 @@ class GuestPackageCacheTests(unittest.TestCase):
 
         self.assertEqual(sorted(path.name for path in (cache / "archives").iterdir()), [newest.name])
         self.assertFalse(stale.exists() or stray.exists() or older.exists())
+
+    def test_dnf_packages_are_bounded_by_the_same_age_and_limit(self):
+        cache = self.directory()
+        packages = cache / "libdnf5" / "updates-7608" / "packages"
+        packages.mkdir(parents=True)
+        now = 2_000_000_000
+
+        def kept(name, size, age):
+            path = packages / name
+            path.write_bytes(b"x" * size)
+            os.utime(path, (now - age, now - age))
+            return path
+
+        stale = kept("old-1.rpm", 10, rig.PACKAGE_CACHE_LONGEST_AGE_SECONDS + 1)
+        newest = kept("new-1.rpm", 60, 10)
+        older = kept("older-1.rpm", 60, 20)
+
+        rig.prune_package_cache(cache, now=now, limit_bytes=100)
+
+        self.assertEqual([path.name for path in packages.iterdir()], [newest.name])
+        self.assertFalse(stale.exists() or older.exists())
 
 
 class StandInPackageTests(unittest.TestCase):
