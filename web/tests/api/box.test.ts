@@ -1004,6 +1004,8 @@ describe('a standby keeps its share of the log', () => {
 		await keepSealedCompanyKeys(client, holder, [{ publicKey: second.publicKey, sealed }]);
 		await boxSessionFor(credentials, first.publicKey, environment, appURL);
 		await boxSessionFor(credentials, second.publicKey, environment, appURL);
+		const baseBackup = `${sharing.companyID}/base/internkim-base-20261124T000000Z.json`;
+		await client.storage.from('box_backup').upload(baseBackup, new Blob(['sealed']), { contentType: 'application/json' });
 		const walFolder = `${sharing.companyID}/wal/7000`;
 		const piece = `${walFolder}/00000001-0000000001000000-0000000001000100`;
 		await client.storage.from('box_backup').upload(piece, new Blob(['sealed']), { contentType: 'application/octet-stream' });
@@ -1023,7 +1025,7 @@ describe('a standby keeps its share of the log', () => {
 		expect(await connectedBox(sharing.companyID, second.publicKey)).toMatchObject({ isReady: true, share: 1 });
 
 		await expect(reportBoxShare(client, standby, { ...report, sharePieces: 2 })).rejects.toMatchObject({ status: 400 });
-		await client.storage.from('box_backup').remove([piece]);
+		await client.storage.from('box_backup').remove([piece, baseBackup]);
 	});
 });
 

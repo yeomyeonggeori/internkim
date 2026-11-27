@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(16);
+select plan(17);
 
 delete from public.company;
 
@@ -16,7 +16,6 @@ update public.box set sealed_company_key = '{"version":1}'::jsonb where public_k
 update public.box set last_seen_at = now();
 
 insert into storage.objects (bucket_id, name, created_at) values
-  ('box_backup', '7f000000-0000-0000-0000-0000000000d1/base/internkim-base-20261124T000000Z.json', now() - interval '10 minutes'),
   ('box_backup', '7f000000-0000-0000-0000-0000000000d1/wal/7000/00000001-0000000001000000-0000000001000100', now() - interval '5 minutes'),
   ('box_backup', '7f000000-0000-0000-0000-0000000000d1/snapshots/internkim-snapshot-20261124T000000Z.json', now());
 
@@ -68,6 +67,14 @@ select is(
 );
 
 select public.note_box_share('standby-b', public.standbys_digest_of('7f000000-0000-0000-0000-0000000000d1'), now() - interval '5 minutes', 1, 1, 2);
+select is(
+  (select is_ready from public.box_readiness_of('7f000000-0000-0000-0000-0000000000d1') where public_key = 'standby-b'),
+  false,
+  'a standby holding its whole share is not ready while the log holds no base backup, since its WAL has nothing to replay onto'
+);
+
+insert into storage.objects (bucket_id, name, created_at) values
+  ('box_backup', '7f000000-0000-0000-0000-0000000000d1/base/internkim-base-20261124T000000Z.json', now() - interval '10 minutes');
 select is(
   (select (is_ready, share) from public.box_readiness_of('7f000000-0000-0000-0000-0000000000d1') where public_key = 'standby-b'),
   (true, 0.5::double precision),

@@ -212,8 +212,9 @@ hosted service.
 
 The standby boxes hold that log once more between them, each piece on one of
 them, so two standbys hold half each ([Seeding across boxes](/docs/seeding)).
-The setup page says when each box is ready: a standby once it holds its whole
-share up to the newest piece the hosted service keeps.
+The setup page says when each box is ready: a standby once the log holds a base
+backup and the standby holds its whole share up to the newest piece the hosted
+service keeps.
 
 An administrator moves the company by choosing Make this box serve on a standby
 box. While the service box is seen, the move catches up first. The service box
