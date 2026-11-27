@@ -17,6 +17,7 @@ import (
 const (
 	baseBackupEvery                    = 24 * time.Hour
 	upkeepCheckEvery                   = time.Hour
+	firstRetryAfterAFailedBaseBackup   = 10 * time.Second
 	baseBackupsKept                    = 2
 	baseBackupKeptForATakeOverUnderway = time.Hour
 	unreferencedChunkGrace             = time.Hour
@@ -24,22 +25,28 @@ const (
 )
 
 func KeepBaseBackups(ctx context.Context, replicationConnection string, destination offsite.Destination, keyring box.Keyring, release string, pieces *PiecesSinceBaseBackup) {
-	lastFailedAt := time.Time{}
+	attempts := failedAttempts{}
 	for {
-		if !aFailedAttemptIsRecent(lastFailedAt, time.Now()) {
-			lastFailedAt = time.Time{}
-			if errorValue := keepABaseBackupWhenDue(ctx, replicationConnection, destination, keyring, release, pieces, time.Now()); errorValue != nil && ctx.Err() == nil {
-				log.Printf("keeping a base backup of the company database: %v; trying again in %s", errorValue, upkeepCheckEvery)
-				lastFailedAt = time.Now()
-			}
+		if !attempts.isWaiting(time.Now()) {
+			attempts = keepABaseBackupOrCountTheFailure(ctx, replicationConnection, destination, keyring, release, pieces, attempts)
 		}
 		select {
 		case <-ctx.Done():
 			return
-		case <-time.After(upkeepCheckEvery):
+		case <-time.After(attempts.nextCheckIn(time.Now())):
 		case <-pieces.reached:
 		}
 	}
+}
+
+func keepABaseBackupOrCountTheFailure(ctx context.Context, replicationConnection string, destination offsite.Destination, keyring box.Keyring, release string, pieces *PiecesSinceBaseBackup, attempts failedAttempts) failedAttempts {
+	errorValue := keepABaseBackupWhenDue(ctx, replicationConnection, destination, keyring, release, pieces, time.Now())
+	if errorValue == nil || ctx.Err() != nil {
+		return failedAttempts{}
+	}
+	attempts = attempts.afterAnotherFailure(time.Now())
+	log.Printf("keeping a base backup of the company database: %v; trying again in %s", errorValue, attempts.wait)
+	return attempts
 }
 
 func keepABaseBackupWhenDue(ctx context.Context, replicationConnection string, destination offsite.Destination, keyring box.Keyring, release string, pieces *PiecesSinceBaseBackup, now time.Time) error {
