@@ -65,6 +65,7 @@ export type RecordLeave = {
 	startsAt: string;
 	endsAt: string;
 	note: string | null;
+	originalLeaveID?: string | null;
 };
 
 export type RecordLeaveList = {

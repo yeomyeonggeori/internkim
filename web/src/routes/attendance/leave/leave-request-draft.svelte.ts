@@ -1,5 +1,6 @@
 import type {
 	EmployeeLeavePartialPeriod,
+	EmployeeLeaveRequest,
 	EmployeeLeavePreviewRequest,
 	EmployeeLeaveSubmission,
 	EmployeeLeaveType,
@@ -14,6 +15,7 @@ export class LeaveRequestDraft {
 	partialPeriod = $state<EmployeeLeavePartialPeriod>('morning');
 	startTime = $state('');
 	reason = $state('');
+	originalRequestID = $state('');
 
 	synchronize(leaveTypes: EmployeeLeaveType[], defaultDate: string): void {
 		const activeTypes = leaveTypes.filter((leaveType) => leaveType.isActive);
@@ -63,6 +65,21 @@ export class LeaveRequestDraft {
 		this.partialPeriod = 'morning';
 		this.startTime = '';
 		this.reason = '';
+		this.originalRequestID = '';
+		this.synchronize(leaveTypes, defaultDate);
+	}
+
+	startFrom(original: EmployeeLeaveRequest, leaveTypes: EmployeeLeaveType[], defaultDate: string): void {
+		this.reset(leaveTypes, defaultDate);
+		this.leaveTypeID = original.leaveTypeID;
+		this.unit = original.unit;
+		this.startDate = original.startDate;
+		this.endDate = original.unit === 'fullDay' ? original.endDate || original.startDate : '';
+		if (original.unit !== 'fullDay' && original.startTime) {
+			this.partialPeriod = 'custom';
+			this.startTime = original.startTime;
+		}
+		this.originalRequestID = original.id;
 		this.synchronize(leaveTypes, defaultDate);
 	}
 
@@ -85,6 +102,10 @@ export class LeaveRequestDraft {
 	submission(): EmployeeLeaveSubmission | null {
 		const previewRequest = this.previewRequest();
 		if (!previewRequest) return null;
-		return { ...previewRequest, reason: this.reason.trim() };
+		return {
+			...previewRequest,
+			reason: this.reason.trim(),
+			...(this.originalRequestID ? { originalRequestID: this.originalRequestID } : {})
+		};
 	}
 }

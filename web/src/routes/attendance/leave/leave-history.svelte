@@ -4,6 +4,7 @@
 	import type { AttendanceText } from '../text';
 	import type { EmployeeLeaveRequest } from './employee-leave-types';
 	import { getEmployeeLeaveState } from './employee-leave-state.svelte';
+	import LeaveChangeDialog from './leave-change-dialog.svelte';
 	import LeaveHistoryRow from './leave-history-row.svelte';
 	import { buildLeaveHistory } from './leave-history-model';
 	import AttendanceListLoading from '../attendance-list-loading.svelte';
@@ -16,6 +17,7 @@
 	const employeeLeave = getEmployeeLeaveState();
 	const pageSize = 3;
 	let pageIndex = $state(0);
+	let changing = $state<EmployeeLeaveRequest | null>(null);
 	const history = $derived(buildLeaveHistory(employeeLeave.payload?.requests ?? []));
 	const pageCount = $derived(Math.ceil(history.length / pageSize));
 	const currentPageIndex = $derived(Math.min(pageIndex, Math.max(0, pageCount - 1)));
@@ -53,6 +55,7 @@
 					{text}
 					isMutating={employeeLeave.isMutating}
 					onCancel={(request) => void cancelRequest(request)}
+					onChange={(request) => (changing = request)}
 				/>
 			{/each}
 		</div>
@@ -61,6 +64,8 @@
 			<Empty.Header><Empty.Title>{text.historyEmpty}</Empty.Title></Empty.Header>
 		</Empty.Root>
 	{/if}
+
+	<LeaveChangeDialog original={changing} onClosed={() => (changing = null)} />
 
 	{#if employeeLeave.payload}<ListPaginationFooter
  onPageChange={(page) => (pageIndex = page)}
