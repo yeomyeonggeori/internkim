@@ -1,6 +1,7 @@
 import { clearCachedAttendanceSummaries } from '../routes/attendance/attendance-summary-cache';
 import { clearCachedWorkStatusRows } from '../routes/attendance/work-status/work-status-cache';
 import { forgetStoredAttendanceToday } from '$lib/attendance/my-attendance-today-cache';
+import { forgetStoredMyCredits } from '$lib/company/my-credits-cache';
 import { forgetStoredCalendarRanges } from '../routes/calendar/embed/calendar-range-cache';
 import { forgetKeptPictures } from '$lib/stores/person-picture-cache';
 import { forgetPictureFiles } from '$lib/stores/person-picture-files';
@@ -84,6 +85,7 @@ export async function signOutOfSupabase(): Promise<void> {
 	clearCachedAttendanceSummaries();
 	clearCachedWorkStatusRows();
 	forgetStoredAttendanceToday();
+	forgetStoredMyCredits();
 	forgetStoredCalendarRanges();
 	forgetKeptPictures();
 	await forgetPictureFiles().catch((failure) => console.warn('the pictures kept on this device could not be forgotten', failure));

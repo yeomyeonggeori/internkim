@@ -1,15 +1,29 @@
 import { getContext, setContext } from 'svelte';
-import { companyCredits, type CompanyCredits } from '$lib/company/credits';
+import { companyCredits } from '$lib/company/credits';
+import { readStoredMyCredits, storeMyCredits, type MyCreditUsage } from '$lib/company/my-credits-cache';
 
 const myCreditsKey = Symbol('my-credits');
 
 export class MyCredits {
-	credits = $state<CompanyCredits | null>(null);
+	credits = $state<MyCreditUsage | null>(null);
 	isLoaded = $state(false);
 	paysBySubscription = $derived(this.credits?.paidBy === 'subscription');
+	private storageScope = '';
 
-	load = async () => {
-		this.credits = await companyCredits().catch(() => null);
+	showStored = (scope: string): void => {
+		this.storageScope = scope;
+		const stored = readStoredMyCredits(scope);
+		if (!stored) return;
+		this.credits = stored;
+		this.isLoaded = true;
+	};
+
+	load = async (): Promise<void> => {
+		const loaded = await companyCredits().catch(() => null);
+		if (loaded) {
+			this.credits = loaded;
+			storeMyCredits(this.storageScope, loaded);
+		}
 		this.isLoaded = true;
 	};
 }

@@ -7,31 +7,31 @@ test.describe.configure({ mode: 'serial', timeout: 60_000 });
 test.use({ locale: 'ko-KR' });
 
 const setupPath = `/${exampleCompanySlug}/settings/setup`;
-const computerKeyHash = `model-payer-ui-${exampleCompanyID}`;
+const boxPublicKey = `modelpayerb${exampleCompanyID.replaceAll('-', '')}`;
 const ownKeySwitch = '우리 OpenRouter 키 사용';
 const payerRule = '구독 중에는 크레딧이 내고, 구독이 없으면 회사 컴퓨터가 가진 키가 냅니다.';
 
 async function computerStarted(report: { holdsModelKey: boolean; usesOwnModelKey: boolean } | null): Promise<void> {
 	const { error } = await centralPlaneAdminClient()
-		.from('agent')
+		.from('box')
 		.update({
 			holds_model_key: report?.holdsModelKey ?? null,
 			uses_own_model_key_at_start: report?.usesOwnModelKey ?? null,
 			model_key_reported_at: report ? new Date().toISOString() : null
 		})
-		.eq('api_key_hash', computerKeyHash);
+		.eq('public_key', boxPublicKey);
 	if (error) throw new Error(error.message);
 }
 
 test.beforeAll(async () => {
 	const { error } = await centralPlaneAdminClient()
-		.from('agent')
-		.upsert({ company_id: exampleCompanyID, name: 'company-computer', api_key_hash: computerKeyHash, revoked_at: null }, { onConflict: 'company_id,name' });
+		.from('box')
+		.upsert({ public_key: boxPublicKey, company_id: exampleCompanyID, encryption_key: 'A'.repeat(43), role: 'service' }, { onConflict: 'public_key' });
 	if (error) throw new Error(error.message);
 });
 
 test.afterAll(async () => {
-	await centralPlaneAdminClient().from('agent').delete().eq('api_key_hash', computerKeyHash);
+	await centralPlaneAdminClient().from('box').delete().eq('public_key', boxPublicKey);
 	await unsubscribeTheCompany();
 });
 

@@ -13,28 +13,28 @@ test.describe.configure({ mode: 'serial', timeout: 60_000 });
 test.use({ locale: 'ko-KR' });
 
 const settingsPath = `/${exampleCompanySlug}/settings`;
-const computerKeyHash = `billing-ui-${exampleCompanyID}`;
+const boxPublicKey = `billinguibo${exampleCompanyID.replaceAll('-', '')}`;
 const keyPaysUntilNextStart = '회사 컴퓨터가 아직 회사 OpenRouter 키로 AI 사용료를 내고 있습니다. 서비스가 다음에 시작하면 크레딧으로 바뀝니다.';
 const keyPaysNow = '지금은 회사 OpenRouter 키가 AI 사용료를 냅니다.';
 
 async function computerStartedWithItsKey(): Promise<void> {
-	const { error } = await centralPlaneAdminClient().from('agent').upsert(
+	const { error } = await centralPlaneAdminClient().from('box').upsert(
 		{
+			public_key: boxPublicKey,
 			company_id: exampleCompanyID,
-			name: 'company-computer',
-			api_key_hash: computerKeyHash,
-			revoked_at: null,
+			encryption_key: 'A'.repeat(43),
+			role: 'service',
 			holds_model_key: true,
 			uses_own_model_key_at_start: true,
 			model_key_reported_at: new Date().toISOString()
 		},
-		{ onConflict: 'company_id,name' }
+		{ onConflict: 'public_key' }
 	);
 	if (error) throw new Error(error.message);
 }
 
 async function forgetTheComputer(): Promise<void> {
-	const { error } = await centralPlaneAdminClient().from('agent').delete().eq('api_key_hash', computerKeyHash);
+	const { error } = await centralPlaneAdminClient().from('box').delete().eq('public_key', boxPublicKey);
 	if (error) throw new Error(error.message);
 }
 
@@ -122,6 +122,25 @@ test('a member sees their own usage as a share and nothing of the billing', asyn
 	await expect(page.getByText('내 사용량', { exact: true })).toBeVisible({ timeout: 20000 });
 	await expect(page.getByText('0% 사용')).toBeVisible();
 	await expect(page.getByRole('heading', { name: '사용량 및 결제' })).toHaveCount(0);
+});
+
+test('a member who comes back to settings sees the usage section before the credits are read again', async ({ page }) => {
+	await signInToTheCentralPlane(page, `${settingsPath}/usage`, member3Email);
+	await expect(page.getByText('0% 사용')).toBeVisible({ timeout: 20000 });
+	let releaseTheCredits = (): void => undefined;
+	const creditsAreHeld = new Promise<void>((release) => {
+		releaseTheCredits = release;
+	});
+	await page.route('**/api/v1/tools/company_credits_get/invoke', async (route) => {
+		await creditsAreHeld;
+		await route.continue();
+	});
+	const creditsAsked = page.waitForRequest('**/api/v1/tools/company_credits_get/invoke', { timeout: 20000 });
+	await page.reload();
+	await creditsAsked;
+	await expect(page.getByRole('navigation', { name: '설정', exact: true }).getByRole('link', { name: '사용량', exact: true })).toBeVisible();
+	await expect(page.getByText('0% 사용')).toBeVisible();
+	releaseTheCredits();
 });
 
 test('an administrator whose card was declined is not offered a second subscription', async ({ page }) => {
