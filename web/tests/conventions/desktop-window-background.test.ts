@@ -17,7 +17,7 @@ function windowColourOf(rust: string, constant: string): string {
 
 describe('the desktop window background', () => {
 	const css = readFileSync('src/theme.css', 'utf8');
-	const rust = readFileSync('src-tauri/src/window_background.rs', 'utf8');
+	const rust = readFileSync('../.dependency/internkim-app/src-tauri/src/window_background.rs', 'utf8');
 
 	for (const mode of modes) {
 		test(`matches the web --background token under ${mode.selector}`, () => {

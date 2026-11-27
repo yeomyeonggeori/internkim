@@ -1,1 +1,0 @@
-../../../../src-tauri/gen/apple/Shared/AttendanceWidgetStore.swift

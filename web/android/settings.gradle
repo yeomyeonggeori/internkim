@@ -1,4 +1,0 @@
-include ':attendance-widget'
-project(':attendance-widget').projectDir = new File('../attendance-widget/android')
-include ':sender-notification'
-project(':sender-notification').projectDir = new File('../sender-notification/android')

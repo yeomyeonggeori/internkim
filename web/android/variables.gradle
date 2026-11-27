@@ -1,9 +1,0 @@
-ext {
-    minSdkVersion = 24
-    compileSdkVersion = 36
-    androidxAppCompatVersion = '1.7.1'
-    androidxCoreVersion = '1.17.0'
-    junitVersion = '4.13.2'
-    orgJsonVersion = '20250517'
-    firebaseMessagingVersion = '25.0.1'
-}

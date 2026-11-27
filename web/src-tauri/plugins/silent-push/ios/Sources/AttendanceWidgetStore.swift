@@ -1,1 +1,0 @@
-../../../../gen/apple/Shared/AttendanceWidgetStore.swift

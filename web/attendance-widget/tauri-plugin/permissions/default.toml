@@ -1,9 +1,0 @@
-[default]
-description = "Lets the web app hand the attendance widget its token, and see whether iOS lets it refresh in the background"
-permissions = [
-    "allow-install",
-    "allow-supply",
-    "allow-forget",
-    "allow-background-refresh-state",
-    "allow-open-settings",
-]

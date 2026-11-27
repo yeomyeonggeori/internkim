@@ -148,6 +148,8 @@ WEB_PATTERNS = [
     "workers/*",
     ".dependency/blueclaw",
     ".dependency/internkim-plugin",
+    ".dependency/internkim-app",
+    "assets/internkim.square.png",
     "pkg/capabilityprotocol/generated/*",
     "pkg/capabilityprotocol/refusal-sentences.json",
     "docs/web/app/lib/openapi.ts",
@@ -471,15 +473,6 @@ GROUPS = [
         working_directory="web",
         lane="web",
         fills_the_machine=True,
-    ),
-    Group(
-        "android",
-        ["web/attendance-widget/android/*", "web/sender-notification/android/*", "web/android/*"],
-        [
-            ["android/gradlew", "-p", "android", "--no-daemon", "--quiet", ":attendance-widget:testDebugUnitTest", ":sender-notification:compileDebugJavaWithJavac"],
-        ],
-        working_directory="web",
-        lane="web",
     ),
     Group(
         "captive-page",
