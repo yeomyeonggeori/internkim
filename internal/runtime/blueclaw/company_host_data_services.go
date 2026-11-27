@@ -420,11 +420,29 @@ postgres_ready() {
   wait_until postgres_answers || fail "PostgreSQL did not accept connections on $socket_directory"
 }
 
+recovery_has_ended() {
+  [ "$("$1/psql" --host "$data" --port @PORT@ --username @ROLE@ --dbname postgres --no-psqlrc --tuples-only --no-align \
+    --command 'select pg_is_in_recovery()' 2>/dev/null)" = f ]
+}
+
+wait_for_recovery_to_end() {
+  directory="$1"
+  waited=0
+  while [ "$waited" -lt @RECOVERY_SECONDS@ ]; do
+    recovery_has_ended "$directory" && return 0
+    "$directory/pg_ctl" --pgdata "$data" --silent status >/dev/null || fail "PostgreSQL stopped before it replayed the kept WAL to its end"
+    sleep 1
+    waited=$((waited + 1))
+  done
+  fail "PostgreSQL was still replaying the kept WAL after @RECOVERY_SECONDS@ seconds"
+}
+
 recover_postgres() {
   directory="$(postgres_directory)"
   write_access_rules
   "$directory/pg_ctl" --pgdata "$data" --wait --timeout @RECOVERY_SECONDS@ --silent \
     --options "-c listen_addresses= -c port=@PORT@ -c unix_socket_directories=$data" start
+  wait_for_recovery_to_end "$directory"
   "$directory/pg_ctl" --pgdata "$data" --wait --mode fast --silent stop
 }
 
