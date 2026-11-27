@@ -7,6 +7,7 @@
 	import { MessengerInboxState } from './messenger-inbox-state.svelte';
 	import { inboxPlaceOf, inboxThreadRootOf } from './messenger-inbox-place';
 	import { linkedMessageIDOf, withoutLinkedMessage } from './messenger-linked-message';
+	import { initialChannelOf } from './messenger-initial-channel';
 	import MessengerInboxPlaceLink from './messenger-inbox-place-link.svelte';
 	import MessengerOfflineBanner from './messenger-offline-banner.svelte';
 	import MessengerThreadCrumbs from './messenger-thread-crumbs.svelte';
@@ -108,7 +109,7 @@
 	const inbox = new MessengerInboxState();
 	let isInboxOpen = $state(isSupabaseConfigured() && !page.url.searchParams.has('channel'));
 	let chosenInboxEntryID = $state<string | undefined>(undefined);
-	let inboxRevealsUnderway = $state(0);
+	let revealsUnderway = $state(0);
 	const inboxEntry = $derived(
 		isSupabaseConfigured() ? { isActive: isInboxOpen, unread: inbox.unread, open: openInbox } : undefined
 	);
@@ -133,12 +134,12 @@
 		if (conversations.some((conversation) => conversation.id === entry.conversationID && conversation.isHidden === true)) {
 			bringBackHiddenConversation(entry.conversationID);
 		}
-		inboxRevealsUnderway += 1;
+		revealsUnderway += 1;
 		try {
 			await tick();
 			await channelView?.revealMessage(entry.id, inboxThreadRootOf(entry, conversationOf(entry.conversationID), !isMobile.current));
 		} finally {
-			inboxRevealsUnderway -= 1;
+			revealsUnderway -= 1;
 		}
 	}
 
@@ -315,17 +316,20 @@
 		}
 	}
 
-	function selectInitialChannel() {
+	function selectInitialChannel(isListSettled = true) {
 		if (isDestroyed) return;
-		const requestedID = page.url.searchParams.get('channel') ?? loadLastChannelID();
-		const remembered = requestedID
-			? shownConversations(conversations).find((conversation) => conversation.id === requestedID)
-			: undefined;
-		const initial = remembered ?? groupChannels[0] ?? shownConversations(conversations)[0];
-		if (!initial) return;
-		const linkedMessageID = remembered ? linkedMessageIDOf(page.url) : undefined;
-		selectChannel(initial.id);
-		void revealLinkedMessage(linkedMessageID);
+		const initial = initialChannelOf({
+			url: page.url,
+			conversations,
+			lastChannelID: loadLastChannelID(),
+			firstChannel: groupChannels[0],
+			isListSettled
+		});
+		if (initial.kind === 'awaited' || !initial.conversation) return;
+		selectChannel(initial.conversation.id);
+		if (initial.kind !== 'requested') return;
+		if (initial.conversation.isHidden === true) bringBackHiddenConversation(initial.conversation.id);
+		void revealLinkedMessage(initial.linkedMessageID);
 	}
 
 	afterNavigate((navigation) => {
@@ -341,13 +345,19 @@
 	async function openRequestedChannel(channelID: string, linkedMessageID: string | undefined) {
 		if (channelID === activeID) selectChannel(channelID);
 		else await showChannel(channelID);
+		if (conversationOf(channelID)?.isHidden === true) bringBackHiddenConversation(channelID);
 		await revealLinkedMessage(linkedMessageID);
 	}
 
 	async function revealLinkedMessage(messageID: string | undefined) {
 		if (!messageID) return;
-		await tick();
-		await channelView?.revealMessageInItsThread(messageID);
+		revealsUnderway += 1;
+		try {
+			await tick();
+			await channelView?.revealMessageInItsThread(messageID);
+		} finally {
+			revealsUnderway -= 1;
+		}
 	}
 
 	$effect(() => {
@@ -589,7 +599,7 @@
 			chosenInboxEntryID = undefined;
 			if (isSupabaseConfigured()) void inbox.load();
 			void channelOrder.load();
-			void loadConversationList().then(selectInitialChannel).catch(() => undefined);
+			void loadConversationList().then(() => selectInitialChannel()).catch(() => undefined);
 		});
 		if (isSupabaseConfigured()) stopListeningForArrivals = onCompanyEvent(readListOnArrival);
 
@@ -605,13 +615,14 @@
 		if (cached.length > 0) {
 			conversations = cached;
 			hasLoadedConversations = true;
-			selectInitialChannel();
+			selectInitialChannel(false);
 		}
 		let scope: MessengerCacheScope;
 		try { scope = await messengerCacheScope(); } catch (failure) {
 			if (isDestroyed || mountedGeneration !== cacheGeneration) return;
 			recordConversationFailure(failure);
 			isLoadingConversations = false;
+			if (activeID === undefined) selectInitialChannel();
 			return;
 		}
 		if (isDestroyed || mountedGeneration !== cacheGeneration) return;
@@ -625,6 +636,7 @@
 				selectInitialChannel();
 			}
 		} catch {
+			if (activeID === undefined) selectInitialChannel();
 			return;
 		}
 	});
@@ -808,7 +820,7 @@
 						canModerate={activeConversation?.myRole === 'owner' || activeConversation?.myRole === 'admin'}
 						isWithTheAgent={activeConversation?.isWithTheAgent === true}
 						threadLayout={isInboxOpen || isMobile.current ? 'focus' : 'sheet'}
-						onReadThrough={isChannelCoveredByInbox || inboxRevealsUnderway > 0 ? undefined : (messageID, threadRootID) => readThrough(activeID, messageID, threadRootID)}
+						onReadThrough={isChannelCoveredByInbox || revealsUnderway > 0 ? undefined : (messageID, threadRootID) => readThrough(activeID, messageID, threadRootID)}
 					/>
 				{/key}
 				{/if}
