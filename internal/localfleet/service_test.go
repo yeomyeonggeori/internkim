@@ -275,7 +275,7 @@ func joinedPlanArguments(plans []CommandPlan) string {
 	return strings.Join(lines, "\n")
 }
 
-func TestEachFleetAsksForAKeyInItsOwnName(t *testing.T) {
+func TestEachFleetPlaneTargetsItsOwnAdmindPort(t *testing.T) {
 	ephemeral, errorValue := NewService(Options{
 		RepositoryRootPath: "/repo",
 		ExecutablePath:     "/repo/internkim",
@@ -294,19 +294,10 @@ func TestEachFleetAsksForAKeyInItsOwnName(t *testing.T) {
 	}
 	ephemeralPlan := joinedPlanArguments([]CommandPlan{ephemeral.startCentralPlanePlan()})
 	sharedPlan := joinedPlanArguments([]CommandPlan{shared.startCentralPlanePlan()})
-	if !strings.Contains(ephemeralPlan, "--agent-name internkim-e2e-test-run-1") {
-		t.Fatalf("a run's plane must issue the key in that run's name:\n%s", ephemeralPlan)
-	}
-	if !strings.Contains(sharedPlan, "--agent-name "+DefaultVirtualMachineName) {
-		t.Fatalf("the shared fleet must issue the key in its own name:\n%s", sharedPlan)
-	}
 	if !strings.Contains(ephemeralPlan, "--admin-port "+strconv.Itoa(ephemeral.options.AdminHostPort)) {
 		t.Fatalf("the ephemeral plane must target its configured admind port:\n%s", ephemeralPlan)
 	}
 	if !strings.Contains(sharedPlan, "--admin-port "+strconv.Itoa(shared.options.AdminHostPort)) {
 		t.Fatalf("the shared plane must target its configured admind port:\n%s", sharedPlan)
-	}
-	if ephemeralPlan == sharedPlan {
-		t.Fatal("two fleets asking for the same name take each other's key away")
 	}
 }

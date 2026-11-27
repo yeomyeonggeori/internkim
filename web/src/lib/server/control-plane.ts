@@ -747,32 +747,6 @@ export async function connectedAppPermissionFor(
 	return connectedAppPermissionOf(data?.permission) ?? unchosenConnectedAppPermission;
 }
 
-export async function revokeAgent(client: SupabaseClient, agentID: string): Promise<void> {
-	const { error } = await client
-		.from('agent')
-		.update({ revoked_at: new Date().toISOString() })
-		.eq('id', agentID);
-	if (error) throw new Error(`agent ${agentID}: ${error.message}`);
-}
-
-export async function agentOfKey(
-	client: SupabaseClient,
-	apiKey: string,
-): Promise<{ agentID: string; companyID: string } | null> {
-	const { data, error } = await client
-		.from('agent')
-		.select('id, company_id, revoked_at, last_seen_at')
-		.eq('api_key_hash', await hashOf(apiKey))
-		.maybeSingle();
-	if (error) throw new Error(`agent key: ${error.message}`);
-	if (!data || data.revoked_at) return null;
-
-	if (isLastSeenStale(data.last_seen_at)) {
-		await client.from('agent').update({ last_seen_at: new Date().toISOString() }).eq('id', data.id);
-	}
-	return { agentID: data.id, companyID: data.company_id };
-}
-
 const lastSeenFreshForMilliseconds = 60_000;
 
 export function isLastSeenStale(lastSeenAt: string | null, now: number = Date.now()): boolean {
@@ -793,7 +767,7 @@ export async function sessionForPlatformIdentity(
 	externalID: string,
 ): Promise<MemberSession> {
 	const client = controlPlane(credentials);
-	const companyID = await companyOfHostCredential(credentials, apiKey);
+	const companyID = await companyOfHostSession(credentials, apiKey);
 	if (!companyID) throw new Error('that credential belongs to no company computer');
 
 	const memberID =
@@ -821,28 +795,13 @@ function isHostAddress(address: string): boolean {
 	return address.trim().toLowerCase().endsWith(`@${hostAddressDomain}`);
 }
 
-export async function sessionForHost(
-	credentials: PlaneCredentials,
-	presented: string,
-): Promise<HostSession> {
-	if (presented.split('.').length === 3) return presentedHostSession(credentials, presented);
-	const agent = await agentOfKey(controlPlane(credentials), presented);
-	if (!agent) throw new Error('that key belongs to no agent');
-	return hostSessionOfCompany(credentials, agent.companyID, { agentKeyHash: await hashOf(presented) });
-}
-
-async function presentedHostSession(credentials: PlaneCredentials, accessToken: string): Promise<HostSession> {
-	const session = await verifiedHostSession(credentials, accessToken);
+export async function sessionForHost(credentials: PlaneCredentials, presented: string): Promise<HostSession> {
+	const session = await verifiedHostSession(credentials, presented);
 	if (!session) throw new Error('that session belongs to no company computer');
 	return session;
 }
 
-type HostComputer = { fleetID: string } | { agentKeyHash: string };
-
-function claimsNaming(computer: HostComputer): Record<string, string> {
-	if ('fleetID' in computer) return { fleet_id: computer.fleetID };
-	return { agent_key_hash: computer.agentKeyHash };
-}
+type HostComputer = { fleetID: string };
 
 export async function hostSessionOfCompany(
 	credentials: SigningCredentials,
@@ -854,7 +813,7 @@ export async function hostSessionOfCompany(
 	const token = await recordTokenFor(credentials.signingKey, credentials.projectURL, {
 		userID,
 		email: address,
-		appMetadata: { company_id: companyID, ...claimsNaming(computer) },
+		appMetadata: { company_id: companyID, fleet_id: computer.fleetID },
 	});
 	return { companyID, ...token };
 }
@@ -889,15 +848,6 @@ export async function companyOfHostSession(
 	accessToken: string,
 ): Promise<string | null> {
 	return (await verifiedHostSession(credentials, accessToken))?.companyID ?? null;
-}
-
-export async function companyOfHostCredential(
-	credentials: PlaneCredentials,
-	presented: string,
-): Promise<string | null> {
-	if (presented.split('.').length === 3) return companyOfHostSession(credentials, presented);
-	const agent = await agentOfKey(controlPlane(credentials), presented);
-	return agent?.companyID ?? null;
 }
 
 async function keepHostAccount(

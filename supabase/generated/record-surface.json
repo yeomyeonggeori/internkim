@@ -974,7 +974,7 @@
     },
     {
       "name": "keep_model_key_report",
-      "arguments": "reporting_company uuid, reporting_box text, reporting_agent_key_hash text, holds boolean",
+      "arguments": "reporting_company uuid, reporting_box text, holds boolean",
       "returns": "boolean",
       "security": "definer",
       "callableBy": [

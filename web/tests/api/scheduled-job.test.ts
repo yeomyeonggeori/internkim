@@ -1,17 +1,17 @@
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test';
 import { SQL } from 'bun';
 import { isHttpError } from '@sveltejs/kit';
-import { controlPlane, issueAgentKey, provisionCompany, revokeAgent } from '../../src/lib/server/control-plane';
+import { controlPlane, provisionCompany } from '../../src/lib/server/control-plane';
 import { callingScheduledJob } from '../../src/lib/server/scheduled-job-request';
 import { localDatabaseURL } from '../../../supabase/scripts/local-database-url';
-import { projectURL, serviceRoleKey } from '../support/supabase-environment';
+import { claimABoxWithItsSession } from '../support/a-claimed-box';
+import { projectURL, serviceRoleKey, signingKey } from '../support/supabase-environment';
 
 const environment = { SUPABASE_URL: projectURL, SUPABASE_SECRET_KEY: serviceRoleKey };
 const client = controlPlane({ projectURL, serviceRoleKey });
 const stamp = Date.now();
 let jobSecret = '';
-let agentKey = '';
-let agentID = '';
+let hostSession = '';
 
 function requestCarrying(bearer: string): Request {
 	const headers = bearer ? { Authorization: `Bearer ${bearer}` } : undefined;
@@ -39,13 +39,10 @@ beforeAll(async () => {
 		{ name: 'Scheduled', slug: `scheduled-${stamp}`, country: 'KR', locale: 'ko', timezone: 'Asia/Seoul' },
 		`scheduled-${stamp}-admin@example.test`
 	);
-	const issued = await issueAgentKey(client, company.companyID, 'day digest');
-	agentKey = issued.apiKey;
-	agentID = issued.agentID;
+	hostSession = (await claimABoxWithItsSession({ projectURL, serviceRoleKey, signingKey }, company.companyID)).session.accessToken;
 });
 
 afterAll(async () => {
-	await revokeAgent(client, agentID);
 	await client.from('company').delete().eq('slug', `scheduled-${stamp}`);
 });
 
@@ -56,8 +53,8 @@ describe('callingScheduledJob', () => {
 		expect(error).toBeNull();
 	});
 
-	test('a company agent key is refused, since the jobs belong to no company', async () => {
-		expect(await refusalStatusOf(requestCarrying(agentKey))).toBe(403);
+	test('a company host session is refused, since the jobs belong to no company', async () => {
+		expect(await refusalStatusOf(requestCarrying(hostSession))).toBe(403);
 	});
 
 	test('a request with no secret is told it carries none', async () => {

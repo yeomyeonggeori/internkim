@@ -16,7 +16,6 @@ func (service Service) startCentralPlanePlan() CommandPlan {
 		"--state-root", service.options.StateRootPath,
 		"--app-port", strconv.Itoa(service.options.CompanyAppPort),
 		"--admin-port", strconv.Itoa(service.options.AdminHostPort),
-		"--agent-name", service.options.VirtualMachineName,
 	)
 }
 

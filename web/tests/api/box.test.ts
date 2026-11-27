@@ -368,13 +368,13 @@ describe('connecting an empty box', () => {
 		const box = await aBox();
 		await claimWithCode(companyID, box.publicKey, await announcedCode(box));
 		await client.from('company').update({ subscription_status: null }).eq('id', companyID);
-		await keptModelKeyReport(client, companyID, { boxKey: box.publicKey, agentKeyHash: null }, { holdsModelKey: true });
+		await keptModelKeyReport(client, companyID, { boxKey: box.publicKey }, { holdsModelKey: true });
 		expect((await boxSessionFor(credentials, box.publicKey, environment, appURL))?.restartsToFollowTheModelPayer).toBe(false);
 
 		await client.from('company').update({ subscription_status: 'active' }).eq('id', companyID);
 		expect((await boxSessionFor(credentials, box.publicKey, environment, appURL))?.restartsToFollowTheModelPayer).toBe(true);
 
-		await keptModelKeyReport(client, companyID, { boxKey: box.publicKey, agentKeyHash: null }, { holdsModelKey: true });
+		await keptModelKeyReport(client, companyID, { boxKey: box.publicKey }, { holdsModelKey: true });
 		expect((await boxSessionFor(credentials, box.publicKey, environment, appURL))?.restartsToFollowTheModelPayer).toBe(false);
 		await client.from('company').update({ subscription_status: null }).eq('id', companyID);
 	});
@@ -1119,15 +1119,11 @@ describe('the routes a company computer calls accept its session', () => {
 		expect(await companyOfHostSession(credentials, held)).toBeNull();
 	});
 
-	test('a session bought with an agent key ends when the company replaces that key', async () => {
-		const name = `replaced-key-${stamp}`;
-		const first = await issueAgentKey(client, companyID, name);
-		const bought = await sessionForHost(credentials, first.apiKey);
-		expect(await companyOfHostSession(credentials, bought.accessToken)).toBe(companyID);
+	test('an agent key buys no host session and calls no route', async () => {
+		const standing = await issueAgentKey(client, companyID, `standing-key-${stamp}`);
 
-		await issueAgentKey(client, companyID, name, { replaceStanding: true });
-
-		expect(await companyOfHostSession(credentials, bought.accessToken)).toBeNull();
+		await expect(sessionForHost(credentials, standing.apiKey)).rejects.toThrow('no company computer');
+		await expect(callingAgent(requestBearing(standing.apiKey), environment)).rejects.toMatchObject({ status: 403 });
 	});
 
 	test('a member’s own session buys no host session', async () => {

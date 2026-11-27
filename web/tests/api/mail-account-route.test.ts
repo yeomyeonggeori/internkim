@@ -3,18 +3,13 @@ import { x25519 } from '@noble/curves/ed25519.js';
 import { z } from 'zod';
 import { sealedSecretSchema, type SealedSecret } from '../../src/lib/company/box';
 import { base64URLOf } from '../../src/lib/company/seal-to-box';
-import {
-	addMember,
-	controlPlane,
-	issueAgentKey,
-	provisionCompany,
-	sessionForMember
-} from '../../src/lib/server/control-plane';
+import { addMember, controlPlane, provisionCompany, sessionForMember } from '../../src/lib/server/control-plane';
 import { imapConnectionOf, mailPasswordPurpose } from '../../src/lib/server/mail-account';
 import { keepMemberCredential } from '../../src/lib/server/member-credential';
 import { mailAccountCredentialKind } from '../../src/lib/server/public-api/catalog/credential';
 import { resealMailAccounts } from '../../scripts/reseal-mail-accounts';
 import { openedBy } from '../unit/company/open-from-box';
+import { claimABoxWithItsSession } from '../support/a-claimed-box';
 import { projectURL, publishableKey, serviceRoleKey, signingKey } from '../support/supabase-environment';
 
 const { GET: readOwnAccount, PUT: writeOwnAccount } = await import('../../src/routes/api/member/mail-account/+server');
@@ -38,9 +33,10 @@ const companyIDs: string[] = [];
 const answeredAccount = z.object({ account: z.record(z.string(), z.unknown()) });
 const answeredAccounts = z.object({ accounts: z.array(z.record(z.string(), z.unknown())) });
 
-type Company = { companyID: string; memberID: string; memberToken: string; agentKey: string };
+type Company = { companyID: string; memberID: string; memberToken: string };
 
 let boxed: Company;
+let boxedHostSession = '';
 let frozen: Company;
 
 const written = {
@@ -68,8 +64,7 @@ async function aCompany(label: string): Promise<Company> {
 	return {
 		companyID: provisioned.companyID,
 		memberID,
-		memberToken: (await sessionForMember(credentials, memberID)).accessToken,
-		agentKey: (await issueAgentKey(client, provisioned.companyID, 'mail')).apiKey
+		memberToken: (await sessionForMember(credentials, memberID)).accessToken
 	};
 }
 
@@ -101,7 +96,7 @@ async function readAs(company: Company): Promise<Record<string, unknown>> {
 
 async function readAsHost(company: Company): Promise<Record<string, unknown>> {
 	const path = `/api/agent/mail-account?memberID=${company.memberID}`;
-	const request = requestBearing(company.agentKey, path);
+	const request = requestBearing(boxedHostSession, path);
 	const response = await readAccountAsHost({
 		request,
 		url: new URL(request.url),
@@ -110,8 +105,8 @@ async function readAsHost(company: Company): Promise<Record<string, unknown>> {
 	return answeredAccount.parse(await response.json()).account;
 }
 
-async function listAsHost(company: Company): Promise<Record<string, unknown>[]> {
-	const request = requestBearing(company.agentKey, '/api/agent/mail-accounts');
+async function listAsHost(): Promise<Record<string, unknown>[]> {
+	const request = requestBearing(boxedHostSession, '/api/agent/mail-accounts');
 	const response = await readAccountsAsHost({ request, platform: { env: environment } } as unknown as Parameters<
 		typeof readAccountsAsHost
 	>[0]);
@@ -143,14 +138,7 @@ function sealedOf(offered: unknown): SealedSecret {
 
 beforeAll(async () => {
 	boxed = await aCompany('boxed');
-	const kept = await client.rpc('keep_claimed_box', {
-		claiming_company: boxed.companyID,
-		box_key: base64URLOf(x25519.utils.randomSecretKey()),
-		box_encryption_key: boxEncryptionKey,
-		box_host_name: null,
-		is_replacing: false
-	});
-	if (kept.error) throw new Error(kept.error.message);
+	boxedHostSession = (await claimABoxWithItsSession(credentials, boxed.companyID, boxEncryptionKey)).session.accessToken;
 	frozen = await aCompany('frozen');
 }, networkHookTimeout);
 
@@ -235,7 +223,7 @@ describe('a company with a box keeps its mail passwords sealed to it', () => {
 
 	test('the company computer is handed the sealed passwords and whose they are', async () => {
 		const account = await readAsHost(boxed);
-		const listed = await listAsHost(boxed);
+		const listed = await listAsHost();
 
 		expect(account.IMAPPassword).toBe('');
 		expect(sealedOf(account.SealedIMAPPassword).recipient).toBe(boxEncryptionKey);

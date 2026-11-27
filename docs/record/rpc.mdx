@@ -107,7 +107,7 @@ The record answers these directly. A caller reaches one at `POST /rest/v1/rpc/<n
 | `is_public_identity_credential` | `kind text` | `boolean` | definer | authenticated, service_role |
 | `is_work_hours` | `schedule jsonb` | `boolean` | invoker | anon, authenticated, service_role |
 | `keep_claimed_box` | `claiming_company uuid, box_key text, box_encryption_key text, box_host_name text, is_replacing boolean` | `text` | definer | service_role |
-| `keep_model_key_report` | `reporting_company uuid, reporting_box text, reporting_agent_key_hash text, holds boolean` | `boolean` | definer | service_role |
+| `keep_model_key_report` | `reporting_company uuid, reporting_box text, holds boolean` | `boolean` | definer | service_role |
 | `leave_accrue_due` | — | `jsonb` | definer | authenticated, service_role |
 | `leave_balances` | `target_year integer` | `jsonb` | definer | authenticated, service_role |
 | `leave_days_in_year` | `starts_at timestamp with time zone, ends_at timestamp with time zone, total_days numeric, time_zone text, target_year integer, year_start_month integer DEFAULT 1, year_start_day integer DEFAULT 1` | `numeric` | invoker | anon, authenticated, service_role |

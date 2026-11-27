@@ -111,8 +111,8 @@ read, whether required or optional, in one table:
 | --- | --- | --- |
 | `ADMIND_BASE_URL` | relay | admind's base URL the relay calls for workspace screens; defaults to http://127.0.0.1:18080 |
 | `ADMIND_SOCKET_PATH` | relay | the admind Unix socket the relay calls for workspace screens; defaults to /run/internkim/admind.sock |
-| `AGENT_API_KEY` | relay | the company agent key as a value, read only when AGENT_API_KEY_PATH is unset; for a shell driven by hand, never a deployment |
-| `AGENT_API_KEY_PATH` | relay | the path to the file holding the company agent key, so the key never lands in the process environment (ps eww) |
+| `AGENT_API_KEY` | relay | the host session of one of the company's boxes as a value, read only when AGENT_API_KEY_PATH is unset; for a shell driven by hand, never a deployment |
+| `AGENT_API_KEY_PATH` | relay | the path to the file the box daemon keeps its host session in, so the session never lands in the process environment (ps eww) |
 | `ANSWER_BYTE_CEILING` | relay | maximum bytes the relay will broadcast through Supabase Realtime before answering 413; defaults to the Supabase Pro plan's 3,000,000-byte limit |
 | `ARRIVALS_PORT` | relay | the loopback port the relay listens on for the messenger connector's arrival notifications; defaults to 18091 |
 | `BLUECLAW_ACP_SOCKET_PATH` | relay | the Unix socket blueclaw serves its ACP agent on, which the relay opens sessions over; defaults to /run/internkim/acp/blueclaw-acp.sock |
@@ -139,10 +139,10 @@ there. The task, calendar, people, leave and attendance tools never arrive:
 the web app runs those against the record.
 
 `INTERNKIM_APP_URL` is where everyone signs in, `https://<zone>` unless
-the company serves the app itself; the agent key is what decides which company
-the relay acts for. `MESSENGER_PLATFORM` names which messenger the company runs,
-and without it the relay refuses to start. Only the last three are per-company. Give it the agent key as a **path**, not a
-value, so the key never lands in the process environment where `ps eww` can read
+the company serves the app itself; the box's host session is what decides which
+company the relay acts for. `MESSENGER_PLATFORM` names which messenger the company runs,
+and without it the relay refuses to start. Only the last three are per-company. Give it the session as a **path**, not a
+value, so the session never lands in the process environment where `ps eww` can read
 it; `AGENT_API_KEY` still works for a shell you are driving by hand.
 
 One company, one process: it holds one `company:<id>` channel and one bot
@@ -205,13 +205,13 @@ CHATD_BOT_USER_NAME=<the bot's display name>
 
 The relay runs unprivileged and outlives the agent, so it reads neither that
 file nor the company directory. The company's four addresses and its own copy
-of the agent key sit in `/etc/internkim/relay.env` and `/etc/internkim/agent-key`,
-and it is handed the key as a path, so rotating the file is enough for it. Every
+of the box's host session sit in `/etc/internkim/relay.env` and `/etc/internkim/agent-key`,
+and it is handed the session as a path, so rotating the file is enough for it. Every
 socket, port and path the package decides is set by the relay's unit, so an
 upgrade that moves one moves the relay with it.
 
 Keys are never values in the environment. They live in `current/secrets/`:
-the agent key, the model key, and the Buzz identity seed, without which a
+the box's host session, the model key, and the Buzz identity seed, without which a
 message the agent sends under a person's own name cannot be signed. blueclaw
 runs as the `blueclaw` user and cannot open that directory, so
 `internkim-prepare` stages the keys it needs in `/run/internkim/secrets` before

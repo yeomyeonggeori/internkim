@@ -2,14 +2,16 @@ import { expect, test } from '@playwright/test';
 import { centralPlaneAdminClient, exampleCompanyID, exampleCompanySlug, member1Email } from '../support/central-test-utils';
 import { signInToTheCentralPlane } from '../support/central-plane-sign-in';
 import { subscribeTheCompany, unsubscribeTheCompany } from './company-subscription';
+import { claimABox, releaseTheClaimedBox, type ClaimedBox } from '../../support/a-claimed-box';
 
 test.describe.configure({ mode: 'serial', timeout: 60_000 });
 test.use({ locale: 'ko-KR' });
 
 const setupPath = `/${exampleCompanySlug}/settings/setup`;
-const boxPublicKey = `modelpayerb${exampleCompanyID.replaceAll('-', '')}`;
 const ownKeySwitch = '우리 OpenRouter 키 사용';
 const payerRule = '구독 중에는 크레딧이 내고, 구독이 없으면 회사 컴퓨터가 가진 키가 냅니다.';
+
+let computer: ClaimedBox;
 
 async function computerStarted(report: { holdsModelKey: boolean; usesOwnModelKey: boolean } | null): Promise<void> {
 	const { error } = await centralPlaneAdminClient()
@@ -19,19 +21,16 @@ async function computerStarted(report: { holdsModelKey: boolean; usesOwnModelKey
 			uses_own_model_key_at_start: report?.usesOwnModelKey ?? null,
 			model_key_reported_at: report ? new Date().toISOString() : null
 		})
-		.eq('public_key', boxPublicKey);
+		.eq('public_key', computer.publicKey);
 	if (error) throw new Error(error.message);
 }
 
 test.beforeAll(async () => {
-	const { error } = await centralPlaneAdminClient()
-		.from('box')
-		.upsert({ public_key: boxPublicKey, company_id: exampleCompanyID, encryption_key: 'A'.repeat(43), role: 'service' }, { onConflict: 'public_key' });
-	if (error) throw new Error(error.message);
+	computer = await claimABox(centralPlaneAdminClient(), exampleCompanyID);
 });
 
 test.afterAll(async () => {
-	await centralPlaneAdminClient().from('box').delete().eq('public_key', boxPublicKey);
+	await releaseTheClaimedBox(centralPlaneAdminClient(), exampleCompanyID, computer);
 	await unsubscribeTheCompany();
 });
 

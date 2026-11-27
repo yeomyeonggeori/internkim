@@ -7,7 +7,6 @@ import {
 	addMember,
 	asMember,
 	controlPlane,
-	issueAgentKey,
 	provisionCompany,
 	sessionForHost,
 	sessionForMember,
@@ -16,6 +15,7 @@ import {
 import type { CompanyEvent } from '../../src/lib/company-event';
 import { transferThroughTheHost, type HostConnection } from '../../src/lib/transfer/host-transfer';
 import { uploadToStore } from '../../src/lib/transfer/store-upload';
+import { claimABoxWithItsSession } from '../support/a-claimed-box';
 import { projectURL, publishableKey, serviceRoleKey, signingKey } from '../support/supabase-environment';
 
 const mebibyte = 1024 * 1024;
@@ -31,7 +31,7 @@ const transferTimeout = 600_000;
 type Member = { id: string; email: string; accessToken: string; workspaceHome: string };
 
 let companyID = '';
-let agentKey = '';
+let hostSession = '';
 let owner: Member;
 let colleague: Member;
 let directory = '';
@@ -275,7 +275,7 @@ async function startRelay(): Promise<void> {
 			...process.env,
 			SUPABASE_URL: projectURL,
 			SUPABASE_PUBLISHABLE_KEY: publishableKey,
-			AGENT_API_KEY: agentKey,
+			AGENT_API_KEY: hostSession,
 			INTERNKIM_APP_URL: `http://127.0.0.1:${servers.app.port}`,
 			MESSENGER_PLATFORM: 'buzz',
 			CHATD_BASE_URL: `http://127.0.0.1:${servers.chatd.port}`,
@@ -304,7 +304,7 @@ beforeAll(async () => {
 		`transfer-${stamp}-admin@example.test`
 	);
 	companyID = company.companyID;
-	agentKey = (await issueAgentKey(client, companyID, 'transfer-host')).apiKey;
+	hostSession = (await claimABoxWithItsSession(credentials, companyID)).session.accessToken;
 	owner = await memberOf(`transfer-owner-${stamp}@example.test`, '/workspace/private/people/person-owner');
 	colleague = await memberOf(`transfer-colleague-${stamp}@example.test`, '/workspace/private/people/person-colleague');
 

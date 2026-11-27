@@ -13,11 +13,11 @@
   },
   "AGENT_API_KEY": {
     "process": "relay",
-    "description": "the company agent key as a value, read only when AGENT_API_KEY_PATH is unset; for a shell driven by hand, never a deployment"
+    "description": "the host session of one of the company's boxes as a value, read only when AGENT_API_KEY_PATH is unset; for a shell driven by hand, never a deployment"
   },
   "AGENT_API_KEY_PATH": {
     "process": "relay",
-    "description": "the path to the file holding the company agent key, so the key never lands in the process environment (ps eww)"
+    "description": "the path to the file the box daemon keeps its host session in, so the session never lands in the process environment (ps eww)"
   },
   "ANSWER_BYTE_CEILING": {
     "process": "relay",
@@ -462,7 +462,7 @@
     "description": "override JWKS URL the connection-gateway worker verifies member tokens against, instead of deriving it from SUPABASE_URL"
   },
   "SUPABASE_JWT_SIGNING_KEY": {
-    "process": "web, web scripts",
+    "process": "web, web scripts, the company plane tests",
     "description": "the private JWK the web app signs record tokens with for personal access tokens, agent sessions and the host, minted by web/scripts/issue-record-signing-key.ts and imported in the Supabase dashboard; locally the ES256 key tools/with-local-plane writes to supabase/.temp/local-signing-keys.json, which web/scripts/local-plane-signing-key.sh reads",
     "isRequiredOnPages": true,
     "isInVault": true

@@ -235,7 +235,8 @@ administrator. Which rows a session sees is decided by the database itself.
 The tables are listed in [What lives where](/docs/what-lives-where).
 
 The control plane exists for what a member cannot do alone. Its callers
-authenticate with a company's agent key, and what it hands back is a session:
+present the host session of one of the company's boxes, and what it hands back
+is a session:
 `POST /api/agent/session` turns an identity the company knows into a member
 session, `POST /api/agent/host-session` signs the company's computer in as
 itself. Sibling routes under the same directory let that signed-in host read
@@ -526,19 +527,19 @@ screens fetch the new message.
 ## How someone in the messenger becomes someone in the record
 
 A person who has never opened the app still has a row in the record. Whatever
-acts for them on the host proves the company with its key, names the identity
+acts for them on the host proves the company with its box's session, names the identity
 that spoke, and receives a session for that member.
 
 ```
 POST /api/agent/session
-Authorization: Bearer <the company's agent key>
+Authorization: Bearer <the host session of a company box>
 
 { "kind": "email", "externalID": "…" }
 ```
 
 The relay asks when it opens a tool server for a requester, and again five
 minutes before that session expires. The control plane refuses an identity
-nobody claims, and refuses a member whose company is not the one that key
+nobody claims, and refuses a member whose company is not the one that box
 belongs to. What comes back is an ordinary member session, so everything the
 agent does in the record is bounded by that person's own permissions.
 

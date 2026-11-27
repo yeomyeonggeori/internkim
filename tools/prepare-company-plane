@@ -65,9 +65,11 @@ for pluginManifest in "$repositoryRoot"/.dependency/*/plugin.json; do
 done
 
 eval "$(supabase status --env --output-format text | grep -E '^(API_URL|PUBLISHABLE_KEY|SECRET_KEY)=')"
+. "$repositoryRoot/web/scripts/local-plane-signing-key.sh"
 mkdir -p "$(dirname "$environmentPath")"
 umask 077
 SUPABASE_API_URL="$API_URL" SUPABASE_PUBLISHABLE_KEY="$PUBLISHABLE_KEY" SUPABASE_SECRET_KEY="$SECRET_KEY" \
+SUPABASE_JWT_SIGNING_KEY="$(local_plane_signing_key "$repositoryRoot")" \
 python3 - "$environmentPath" <<'PY'
 import json
 import os
@@ -79,6 +81,7 @@ with open(path, "w", encoding="utf-8") as environment_file:
         "SUPABASE_URL": os.environ["SUPABASE_API_URL"],
         "SUPABASE_PUBLISHABLE_KEY": os.environ["SUPABASE_PUBLISHABLE_KEY"],
         "SUPABASE_SECRET_KEY": os.environ["SUPABASE_SECRET_KEY"],
+        "SUPABASE_JWT_SIGNING_KEY": os.environ["SUPABASE_JWT_SIGNING_KEY"],
     }, environment_file)
     environment_file.write("\n")
 os.chmod(path, 0o600)

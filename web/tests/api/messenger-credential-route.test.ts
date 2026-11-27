@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, describe, expect, mock, test } from 'bun:test';
 import { isHttpError } from '@sveltejs/kit';
-import { addMember, controlPlane, issueAgentKey, provisionCompany } from '../../src/lib/server/control-plane';
+import { addMember, controlPlane, provisionCompany } from '../../src/lib/server/control-plane';
+import { claimABoxWithItsSession } from '../support/a-claimed-box';
 import { messengerIdentityCredentialKind } from '../../src/lib/server/public-api/catalog/credential';
 import { projectURL, publishableKey, serviceRoleKey, signingKey } from '../support/supabase-environment';
 
@@ -24,12 +25,12 @@ const keyOfTheNewBox = `new-${stamp}`.padEnd(64, '1');
 
 let companyID = '';
 let memberID = '';
-let agentKey = '';
+let hostSession = '';
 
 async function keepAsHost(body: Record<string, unknown>): Promise<Response> {
 	const request = new Request('https://intern.example.test/api/agent/messenger-credential', {
 		method: 'POST',
-		headers: { authorization: `Bearer ${agentKey}`, 'content-type': 'application/json' },
+		headers: { authorization: `Bearer ${hostSession}`, 'content-type': 'application/json' },
 		body: JSON.stringify(body)
 	});
 	return keepCredentialAsHost({ request, platform: { env: environment } } as unknown as Parameters<
@@ -67,7 +68,7 @@ beforeAll(async () => {
 	);
 	companyID = provisioned.companyID;
 	memberID = await addMember(client, companyID, `${slug}-member@example.test`);
-	agentKey = (await issueAgentKey(client, companyID, 'messenger-credential')).apiKey;
+	hostSession = (await claimABoxWithItsSession({ projectURL, serviceRoleKey, signingKey }, companyID)).session.accessToken;
 }, networkHookTimeout);
 
 afterAll(async () => {

@@ -1,17 +1,14 @@
-import {
-	controlPlane,
-	issueAgentKey,
-	revokeAgent,
-	sessionForPlatformIdentity
-} from '../src/lib/server/control-plane';
-
-// The device asks for a member session before it can write anything as that
-// person. This reports who it can reach, because a resolver reading the wrong
-// table answers for one member and refuses the rest without anyone noticing.
+import { controlPlane, sessionForPlatformIdentity } from '../src/lib/server/control-plane';
+import { claimABoxWithItsSession, releaseTheClaimedBox } from '../tests/support/a-claimed-box';
 
 const projectURL = process.env.SUPABASE_URL ?? '';
+const publishableKey = process.env.SUPABASE_PUBLISHABLE_KEY ?? '';
 const serviceRoleKey = process.env.SUPABASE_SECRET_KEY ?? '';
-if (!projectURL || !serviceRoleKey) throw new Error('needs SUPABASE_URL and SUPABASE_SECRET_KEY');
+const signingKey = process.env.SUPABASE_JWT_SIGNING_KEY ?? '';
+if (!projectURL || !publishableKey || !serviceRoleKey || !signingKey) {
+	throw new Error('needs SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, SUPABASE_SECRET_KEY and SUPABASE_JWT_SIGNING_KEY');
+}
+const credentials = { projectURL, publishableKey, serviceRoleKey, signingKey };
 
 function argument(name: string): string | undefined {
 	const index = process.argv.indexOf(`--${name}`);
@@ -20,7 +17,7 @@ function argument(name: string): string | undefined {
 
 const platform = argument('platform') ?? 'mattermost';
 const wantedSlug = argument('company');
-const client = controlPlane({ projectURL, serviceRoleKey });
+const client = controlPlane(credentials);
 
 type CompanyRow = { id: string; name: string; slug: string };
 
@@ -52,14 +49,7 @@ const { data: members, error: memberError } = await client
 	.returns<{ email: string; messenger: Record<string, string> | null }[]>();
 if (memberError) throw new Error(memberError.message);
 
-// Revoking keeps the row and the row keeps the name, which is unique per
-// company, so a key made only to ask this question is revoked and then deleted:
-// a run that dies between the two leaves a dead key rather than a live one.
-const agentName = 'session reach check';
-const cleared = await client.from('agent').delete().eq('company_id', company.id).eq('name', agentName);
-if (cleared.error) throw new Error(`clearing ${agentName}: ${cleared.error.message}`);
-
-const issued = await issueAgentKey(client, company.id, agentName);
+const box = await claimABoxWithItsSession(credentials, company.id);
 
 let reached = 0;
 for (const member of members) {
@@ -69,20 +59,13 @@ for (const member of members) {
 		continue;
 	}
 	try {
-		const session = await sessionForPlatformIdentity(
-			{ projectURL, serviceRoleKey },
-			issued.apiKey,
-			platform,
-			externalID
-		);
+		const session = await sessionForPlatformIdentity(credentials, box.session.accessToken, platform, externalID);
 		reached += 1;
 		console.log(`${member.email}: session ok (${session.memberID})`);
 	} catch (errorValue) {
 		console.log(`${member.email}: REFUSED ${(errorValue as Error).message}`);
 	}
 }
-await revokeAgent(client, issued.agentID);
-const removed = await client.from('agent').delete().eq('id', issued.agentID);
-if (removed.error) throw new Error(`removing ${agentName}: ${removed.error.message}`);
+await releaseTheClaimedBox(client, company.id, box);
 
-console.log(`\n${reached}/${members.length} members of ${company.slug} the device can act for`);
+console.log(`\n${reached}/${members.length} members of ${company.slug} the company computer can act for`);

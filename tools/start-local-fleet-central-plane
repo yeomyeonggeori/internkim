@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
 # Brings up the record the local fleet's device belongs to: the local Supabase
-# stack and the app that fronts it, then issues the device its agent key. The
-# settings land in one file the fleet copies onto the machine.
+# stack and the app that fronts it.
 set -euo pipefail
 
 scriptDirectory="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -14,23 +13,20 @@ fi
 stateRoot=""
 appPort="5183"
 adminPort="18080"
-agentName="local-fleet"
 while [ "$#" -gt 0 ]; do
   case "$1" in
     --state-root) stateRoot="$2"; shift 2 ;;
     --app-port) appPort="$2"; shift 2 ;;
     --admin-port) adminPort="$2"; shift 2 ;;
-    --agent-name) agentName="$2"; shift 2 ;;
     *) echo "unknown argument: $1" >&2; exit 2 ;;
   esac
 done
 if [ -z "$stateRoot" ]; then
-  echo "usage: $0 --state-root <directory> [--app-port <port>] [--admin-port <port>] [--agent-name <name>]" >&2
+  echo "usage: $0 --state-root <directory> [--app-port <port>] [--admin-port <port>]" >&2
   exit 2
 fi
 
 mkdir -p "$stateRoot"
-settingsPath="$stateRoot/central-plane.env"
 appPIDPath="$stateRoot/central-plane-app.pid"
 appLogPath="$stateRoot/central-plane-app.log"
 
@@ -109,22 +105,4 @@ for attempt in $(seq 1 60); do
   sleep 1
 done
 
-agentKey="$(
-  cd "$repositoryRoot/web"
-  SUPABASE_URL="$API_URL" SUPABASE_SECRET_KEY="$SECRET_KEY" \
-    bun run scripts/issue-agent-key.ts --company "$fixtureCompanyID" --name "$agentName" --replace --quiet
-)"
-if [ -z "$agentKey" ]; then
-  echo "the record issued no agent key" >&2
-  exit 1
-fi
-
-cat > "$settingsPath" <<SETTINGS
-CENTRAL_PLANE_APP_URL=http://127.0.0.1:$appPort
-CENTRAL_PLANE_PROJECT_URL=$API_URL
-CENTRAL_PLANE_PUBLISHABLE_KEY=$PUBLISHABLE_KEY
-CENTRAL_PLANE_AGENT_KEY=$agentKey
-CENTRAL_PLANE_COMPANY_ID=$fixtureCompanyID
-SETTINGS
-chmod 600 "$settingsPath"
 echo "the record serves at $API_URL and the app at http://127.0.0.1:$appPort"

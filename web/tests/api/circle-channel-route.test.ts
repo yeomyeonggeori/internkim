@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, describe, expect, mock, test } from 'bun:test';
 import { z } from 'zod';
-import { addMember, controlPlane, issueAgentKey, provisionCompany } from '../../src/lib/server/control-plane';
+import { addMember, controlPlane, provisionCompany } from '../../src/lib/server/control-plane';
+import { claimABoxWithItsSession } from '../support/a-claimed-box';
 import { projectURL, publishableKey, serviceRoleKey, signingKey } from '../support/supabase-environment';
 
 mock.module('$env/dynamic/private', () => ({
@@ -36,12 +37,12 @@ const answeredCircles = z.object({
 });
 
 let companyID = '';
-let agentKey = '';
+let hostSession = '';
 
 function asTheHost(init: RequestInit = {}): { request: Request; platform: { env: typeof environment } } {
 	const request = new Request('https://intern.example.test/api/agent/circle-channel', {
 		...init,
-		headers: { authorization: `Bearer ${agentKey}`, 'content-type': 'application/json' }
+		headers: { authorization: `Bearer ${hostSession}`, 'content-type': 'application/json' }
 	});
 	return { request, platform: { env: environment } };
 }
@@ -69,7 +70,7 @@ beforeAll(async () => {
 		`${slug}-admin@example.test`
 	);
 	companyID = provisioned.companyID;
-	agentKey = (await issueAgentKey(client, companyID, 'circle-channel')).apiKey;
+	hostSession = (await claimABoxWithItsSession({ projectURL, serviceRoleKey, signingKey }, companyID)).session.accessToken;
 	const inCircle = await addMember(client, companyID, inCircleEmail);
 	const left = await addMember(client, companyID, leftEmail);
 	await client.from('member').update({ status: 'active' }).eq('id', inCircle);
