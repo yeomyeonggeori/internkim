@@ -5,19 +5,23 @@
 package modelpayer
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
 	"os"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/yeomyeonggeori/internkim/internal/modelladder"
+	"github.com/yeomyeonggeori/internkim/internal/personaldata"
 )
 
 const (
@@ -37,6 +41,7 @@ type Configuration struct {
 type Router struct {
 	configuration Configuration
 	askAgain      chan struct{}
+	masker        personaldata.Masker
 
 	mutex              sync.RWMutex
 	isAnswered         bool
@@ -60,7 +65,7 @@ func NewRouter(configuration Configuration) *Router {
 	if configuration.FirstRetry <= 0 {
 		configuration.FirstRetry = firstRetryBeforeAnAnswer
 	}
-	return &Router{configuration: configuration, askAgain: make(chan struct{}, 1)}
+	return &Router{configuration: configuration, askAgain: make(chan struct{}, 1), masker: personaldata.NewMasker()}
 }
 
 // KeepAsking asks the plane who pays now, again every AskEvery, and at once
@@ -124,12 +129,69 @@ func (router *Router) ServeHTTP(responseWriter http.ResponseWriter, request *htt
 		http.Error(responseWriter, errorValue.Error(), http.StatusServiceUnavailable)
 		return
 	}
+	substitutions, errorValue := router.maskPersonalData(request)
+	if errorValue != nil {
+		http.Error(responseWriter, errorValue.Error(), http.StatusBadRequest)
+		return
+	}
 	proxy := &httputil.ReverseProxy{
-		Rewrite:        chosen.rewrite(key),
-		FlushInterval:  -1,
-		ModifyResponse: router.askSoonWhenCreditsRunOut,
+		Rewrite:       chosen.rewrite(key),
+		FlushInterval: -1,
+		ModifyResponse: func(response *http.Response) error {
+			router.askSoonWhenCreditsRunOut(response)
+			return restorePersonalData(response, substitutions)
+		},
 	}
 	proxy.ServeHTTP(responseWriter, request)
+}
+
+func (router *Router) maskPersonalData(request *http.Request) (*personaldata.Substitutions, error) {
+	substitutions := personaldata.NewSubstitutions()
+	if request.Body == nil {
+		return substitutions, nil
+	}
+	body, errorValue := io.ReadAll(request.Body)
+	request.Body.Close()
+	if errorValue != nil {
+		return nil, fmt.Errorf("reading the model call to mask the personal data it carries: %w", errorValue)
+	}
+	masked, isJSON := router.masker.MaskJSON(body, substitutions)
+	if !isJSON && len(body) > 0 {
+		log.Printf("model_route.unmasked_body: path=%s content_type=%q is not JSON, so it leaves unmasked", request.URL.Path, request.Header.Get("Content-Type"))
+	}
+	if !substitutions.IsEmpty() {
+		log.Printf("model_route.masked_personal_data: path=%s %s", request.URL.Path, substitutions.MaskedSummary())
+	}
+	request.Body = io.NopCloser(bytes.NewReader(masked))
+	request.ContentLength = int64(len(masked))
+	return substitutions, nil
+}
+
+func restorePersonalData(response *http.Response, substitutions *personaldata.Substitutions) error {
+	if substitutions.IsEmpty() {
+		return nil
+	}
+	if encoding := response.Header.Get("Content-Encoding"); encoding != "" {
+		log.Printf("model_route.unrestored_answer: content_encoding=%q, so the model's tokens reach the agent as written", encoding)
+		return nil
+	}
+	if strings.HasPrefix(response.Header.Get("Content-Type"), "text/event-stream") {
+		response.Body = substitutions.UnmaskingEventStream(response.Body)
+		response.Header.Del("Content-Length")
+		response.ContentLength = -1
+		return nil
+	}
+	body, errorValue := io.ReadAll(response.Body)
+	response.Body.Close()
+	if errorValue != nil {
+		return fmt.Errorf("reading the model's answer to restore the personal data in it: %w", errorValue)
+	}
+	restored := substitutions.UnmaskJSON(body)
+	log.Printf("model_route.restored_personal_data: %s", substitutions.RestoredSummary())
+	response.Body = io.NopCloser(bytes.NewReader(restored))
+	response.ContentLength = int64(len(restored))
+	response.Header.Set("Content-Length", strconv.Itoa(len(restored)))
+	return nil
 }
 
 func (router *Router) currentUpstream() (upstream, error) {
@@ -159,6 +221,7 @@ func (chosen upstream) rewrite(key string) func(*httputil.ProxyRequest) {
 	return func(proxyRequest *httputil.ProxyRequest) {
 		proxyRequest.SetURL(chosen.origin)
 		proxyRequest.Out.Header.Set("Authorization", "Bearer "+key)
+		proxyRequest.Out.Header.Del("Accept-Encoding")
 		if !chosen.namesRequester {
 			proxyRequest.Out.Header.Del(modelladder.RequesterEmailHeader)
 		}
