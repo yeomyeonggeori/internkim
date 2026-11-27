@@ -1,7 +1,9 @@
 package blueclaw
 
 import (
+	"os"
 	"os/exec"
+	"path/filepath"
 	"regexp"
 	"strings"
 	"testing"
@@ -221,5 +223,59 @@ func TestALinuxHostHasNoDataLaunchDaemons(t *testing.T) {
 	daemons, errorValue := CompanyHostDataLaunchDaemons(LinuxCompanyHostLayout())
 	if errorValue != nil || len(daemons) != 0 {
 		t.Fatalf("a Linux host renders launchd daemons for its database and cache: %v %v", daemons, errorValue)
+	}
+}
+
+func dataServiceScriptOver(t *testing.T, programs string, data string) string {
+	t.Helper()
+	script := CompanyHostDataServiceScript()
+	discovery := regexp.MustCompile(`(?s)\npostgres_directory\(\) \{.*?\n\}\n`)
+	if !discovery.MatchString(script) {
+		t.Fatal("the data-service script has no postgres_directory to point at the fixture programs")
+	}
+	script = discovery.ReplaceAllLiteralString(script, "\npostgres_directory() {\n  echo "+programs+"\n}\n")
+	return strings.Replace(script, `data="`+CompanyHostDatabaseDataPath+`"`, `data="`+data+`"`, 1)
+}
+
+func writeFixtureProgram(t *testing.T, directory string, name string, body string) {
+	t.Helper()
+	if errorValue := os.WriteFile(filepath.Join(directory, name), []byte("#!/bin/sh\n"+body), 0o755); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+}
+
+func runRecoveryAgainstFixture(t *testing.T, statusBody string) (string, string, error) {
+	t.Helper()
+	programs, data := t.TempDir(), t.TempDir()
+	calls := filepath.Join(t.TempDir(), "calls")
+	writeFixtureProgram(t, programs, "pg_ctl", "for word; do last=$word; done\necho \"pg_ctl $last\" >> "+calls+"\n"+statusBody)
+	writeFixtureProgram(t, programs, "psql", "echo psql >> "+calls+"\n[ \"$(grep -c psql "+calls+")\" -ge 3 ] && echo f || echo t\n")
+	writeFixtureProgram(t, programs, "sleep", "")
+	command := exec.Command("sh", "-s", "postgres-recover")
+	command.Stdin = strings.NewReader(dataServiceScriptOver(t, programs, data))
+	command.Env = append(os.Environ(), "PATH="+programs+":"+os.Getenv("PATH"))
+	output, errorValue := command.CombinedOutput()
+	recorded, _ := os.ReadFile(calls)
+	return string(recorded), string(output), errorValue
+}
+
+func TestReplayingTheKeptWALStopsPostgreSQLOnlyOnceRecoveryHasEnded(t *testing.T) {
+	calls, output, errorValue := runRecoveryAgainstFixture(t, "exit 0\n")
+	if errorValue != nil {
+		t.Fatalf("postgres-recover failed: %v\n%s", errorValue, output)
+	}
+	want := "pg_ctl start\npsql\npg_ctl status\npsql\npg_ctl status\npsql\npg_ctl stop\n"
+	if calls != want {
+		t.Fatalf("pg_ctl --wait returns once the server is consistent, before it has replayed the WAL after that point, so stopping then leaves the database in recovery on its old timeline; the calls were:\n%s", calls)
+	}
+}
+
+func TestReplayingTheKeptWALFailsWhenPostgreSQLStopsBeforeItsEnd(t *testing.T) {
+	calls, output, errorValue := runRecoveryAgainstFixture(t, "[ \"$last\" = status ] && exit 3\nexit 0\n")
+	if errorValue == nil {
+		t.Fatalf("postgres-recover succeeded although PostgreSQL stopped while replaying; the calls were:\n%s", calls)
+	}
+	if !strings.Contains(output, "stopped before it replayed the kept WAL to its end") {
+		t.Fatalf("postgres-recover failed without saying the replay was cut short: %s", output)
 	}
 }
