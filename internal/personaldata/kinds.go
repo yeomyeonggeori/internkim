@@ -58,9 +58,24 @@ var numberKinds = []kind{
 		isValid:  isAnything,
 		identity: onlyDigits,
 	},
+	{
+		name:     "phoneNumber",
+		pattern:  regexp.MustCompile(`\B\+[1-9]\d{0,2}(?:[ .-]?(?:\(\d{1,4}\)|\d{1,4}))*[ .-]?\d{2,}\b`),
+		isValid:  isInternationalPhoneNumber,
+		identity: onlyDigits,
+	},
 }
 
 func isAnything(string) bool { return true }
+
+// ITU-T E.164 §6.1: an international number is at most fifteen digits.
+func isInternationalPhoneNumber(match string) bool {
+	digits := digitCount(match)
+	if digits < fewestDigitsInAValue || digits > 15 {
+		return false
+	}
+	return strings.Count(match, "(") <= 1
+}
 
 func itself(match string) string { return match }
 
@@ -130,7 +145,7 @@ func passesLuhnCheck(match string) bool {
 }
 
 func isNumberCharacter(character byte) bool {
-	return character >= '0' && character <= '9' || character == '-' || character == ' ' || character == '.' || character == '+'
+	return character >= '0' && character <= '9' || character == '-' || character == ' ' || character == '.' || character == '+' || character == '(' || character == ')'
 }
 
 func endOfNumberRun[Text string | []byte](text Text, start int) int {

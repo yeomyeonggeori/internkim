@@ -72,6 +72,14 @@ func TestOnlyNumbersThatCanBeRealAreMasked(t *testing.T) {
 		{"4111 1111 1111 1112", false},
 		{"02-123-4567", true},
 		{"+82 10-1234-5678", true},
+		{"+1 (415) 555-2671", true},
+		{"+44 20 7946 0958", true},
+		{"+81-3-1234-5678", true},
+		{"+8613812345678", true},
+		{"계산 3+1234567890", false},
+		{"+1234567890123456", false},
+		{"(415) 555-2671", false},
+		{"+1 415 555 2671 3번", true},
 		{"주문번호 2026-1127-0001", false},
 		{"20261127123456", false},
 		{"버전 1.10.1234.5678", false},
@@ -186,6 +194,24 @@ func TestAPIKeysLeaveAsTokensAndComeBackWhole(t *testing.T) {
 		if restored := string(substitutions.UnmaskJSON([]byte(masked))); !strings.Contains(restored, key) {
 			t.Errorf("%s must come back whole, got %s", key, restored)
 		}
+	}
+}
+
+func TestAnInternationalNumberIsOneTokenAndKeepsTheTextAroundIt(t *testing.T) {
+	masked, substitutions := maskedOnce(t, NewMasker(), `["런던 사무실은 +44 20 7946 0958입니다"]`)
+	tokens := anyToken.FindAllString(masked, -1)
+	if len(tokens) != 1 || !strings.HasPrefix(tokens[0], "{{phoneNumber:") || !strings.Contains(masked, "런던 사무실은 "+tokens[0]+"입니다") {
+		t.Fatalf("the whole number must become one phone number token in place, sent %s", masked)
+	}
+	if restored := string(substitutions.UnmaskJSON([]byte(masked))); restored != `["런던 사무실은 +44 20 7946 0958입니다"]` {
+		t.Fatalf("the token must come back as written, got %s", restored)
+	}
+}
+
+func TestACountAfterAnInternationalNumberStaysReadable(t *testing.T) {
+	masked := NewMasker().MaskText("+1 415 555 2671 3번 걸었어요", NewSubstitutions())
+	if !strings.HasSuffix(masked, "}} 3번 걸었어요") {
+		t.Fatalf("a short count after the number must stay outside the token, sent %q", masked)
 	}
 }
 
