@@ -124,6 +124,25 @@ test('a member sees their own usage as a share and nothing of the billing', asyn
 	await expect(page.getByRole('heading', { name: '사용량 및 결제' })).toHaveCount(0);
 });
 
+test('a member who comes back to settings sees the usage section before the credits are read again', async ({ page }) => {
+	await signInToTheCentralPlane(page, `${settingsPath}/usage`, member3Email);
+	await expect(page.getByText('0% 사용')).toBeVisible({ timeout: 20000 });
+	let releaseTheCredits = (): void => undefined;
+	const creditsAreHeld = new Promise<void>((release) => {
+		releaseTheCredits = release;
+	});
+	await page.route('**/api/v1/tools/company_credits_get/invoke', async (route) => {
+		await creditsAreHeld;
+		await route.continue();
+	});
+	const creditsAsked = page.waitForRequest('**/api/v1/tools/company_credits_get/invoke', { timeout: 20000 });
+	await page.reload();
+	await creditsAsked;
+	await expect(page.getByRole('navigation', { name: '설정', exact: true }).getByRole('link', { name: '사용량', exact: true })).toBeVisible();
+	await expect(page.getByText('0% 사용')).toBeVisible();
+	releaseTheCredits();
+});
+
 test('an administrator whose card was declined is not offered a second subscription', async ({ page }) => {
 	const declined = await centralPlaneAdminClient().rpc('company_subscription_changed', {
 		target_company: exampleCompanyID,

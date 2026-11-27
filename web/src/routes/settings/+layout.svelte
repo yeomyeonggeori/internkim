@@ -26,7 +26,9 @@
 
 	onMount(() => {
 		void role.load();
-		if (isSupabaseConfigured()) void credits.load();
+		if (!isSupabaseConfigured()) return;
+		credits.showStored(page.data.workspaceScope ?? '');
+		void credits.load();
 	});
 
 	$effect(() => {
