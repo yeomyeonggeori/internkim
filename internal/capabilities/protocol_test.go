@@ -195,7 +195,7 @@ func TestFlowDescriptorUsesTypedTaskCreateInput(t *testing.T) {
 	}
 	assertSchemaOmitsProperties(t, schema, "prompt", "content", "description", "assignee", "dueDate", "ownerID", "participantIDs", "weekCode", "allowDuplicate")
 	for _, descriptor := range TaskToolDescriptors() {
-		if descriptor.Name == "task_add" && descriptor.Version != "7" {
+		if descriptor.Name == "task_add" && descriptor.Version != "8" {
 			t.Fatalf("task_add version = %q", descriptor.Version)
 		}
 	}
@@ -225,8 +225,8 @@ func TestFlowDescriptorIncludesTaskUpdateInput(t *testing.T) {
 	if schema.MinProperties != 2 {
 		t.Fatalf("task_update minProperties = %d", schema.MinProperties)
 	}
-	if descriptorForTool(t, TaskToolDescriptors(), "task_update").Version != "7" {
-		t.Fatal("task_update descriptor must use the v7 contract that completes the work under a task")
+	if descriptorForTool(t, TaskToolDescriptors(), "task_update").Version != "8" {
+		t.Fatal("task_update descriptor must use the v8 contract that writes a task's note")
 	}
 	assertDescriptorCompletionEvidence(t, TaskToolDescriptors(), "task_update", "success", "write_task", "task")
 }

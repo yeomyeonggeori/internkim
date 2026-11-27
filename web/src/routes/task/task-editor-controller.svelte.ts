@@ -6,7 +6,7 @@ import {
 	updateTaskParticipantIDs
 } from './task-draft';
 import { definitionsFromSummary } from './task-options';
-import { deleteTaskDraft, saveTaskDraft } from './task-persistence';
+import { deleteTaskDraft, loadTaskNote, saveTaskDraft } from './task-persistence';
 import type { LoadTask } from './task-load-tracker';
 import {
 	canDeleteTask,
@@ -68,6 +68,18 @@ export class TaskEditorController {
 		this.originalTask = cloneTask(task);
 		this.isEditingTask = false;
 		this.taskErrorMessage = '';
+		void this.loadNote(task.id);
+	};
+
+	private loadNote = async (taskID: string): Promise<void> => {
+		const result = await loadTaskNote(taskID, this.text.task.noteLoadError);
+		if (this.taskDraft?.id !== taskID) return;
+		if (result.status === 'failed') {
+			this.taskErrorMessage = result.errorMessage;
+			return;
+		}
+		this.taskDraft.note = result.note;
+		if (this.originalTask) this.originalTask.note = result.note;
 	};
 
 	startEditingTask = (): void => {

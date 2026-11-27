@@ -270,6 +270,7 @@ async function mergedIntoDuplicate(
 function carriesSomethingNew(written: WrittenTaskFields, row: TaskRow): boolean {
 	return (
 		isNewValue(written.status, row.status) ||
+		isNewValue(written.note, row.note) ||
 		isNewValue(written.size, row.size) ||
 		isNewValue(written.business, row.business) ||
 		isNewValue(written.type, row.type) ||
@@ -367,6 +368,11 @@ function unwrittenParticipants(written: string[] | undefined, row: TaskRow): str
 	const held = new Set(row.task_participant.map(({ member_id }) => member_id));
 	if (held.size !== written.length) return 'participantPersonHints';
 	return written.every((personID) => held.has(personID)) ? null : 'participantPersonHints';
+}
+
+export async function taskGet(context: RecordContext, input: { taskHint: string }): Promise<AnsweredTask & { note?: string }> {
+	const row = await taskRowOfHint(context, input.taskHint);
+	return { ...answeredTask(context, row), ...(row.note ? { note: row.note } : {}) };
 }
 
 export async function taskDelete(

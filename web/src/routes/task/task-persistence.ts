@@ -1,4 +1,4 @@
-import { deleteTask, saveTask } from './task-api';
+import { deleteTask, saveTask, taskNote } from './task-api';
 import type { LoadTask } from './task-load-tracker';
 import type { Task } from './task-types';
 
@@ -15,6 +15,10 @@ type TaskDeleteResult =
 type TaskStatusResult =
 	| { status: 'ignored' }
 	| { status: 'saved' }
+	| { status: 'failed'; errorMessage: string };
+
+type TaskNoteResult =
+	| { status: 'loaded'; note: string }
 	| { status: 'failed'; errorMessage: string };
 
 type SaveTaskDraftInput = {
@@ -53,6 +57,14 @@ export async function saveTaskDraft(input: SaveTaskDraftInput): Promise<TaskSave
 		return { status: 'saved' };
 	} catch (error) {
 		return { status: 'failed', errorMessage: errorMessageFrom(error, input.saveErrorMessage) };
+	}
+}
+
+export async function loadTaskNote(taskID: string, loadErrorMessage: string): Promise<TaskNoteResult> {
+	try {
+		return { status: 'loaded', note: await taskNote(taskID) };
+	} catch (error) {
+		return { status: 'failed', errorMessage: errorMessageFrom(error, loadErrorMessage) };
 	}
 }
 

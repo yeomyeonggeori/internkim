@@ -881,6 +881,34 @@ describe('an event written through the record', () => {
 		expect(titles).toContain('주간 회의 (연장)');
 	});
 
+	test('a task keeps the note it was added with until an update replaces or clears it', async () => {
+		const made = resultOf(await run('task_add', { title: '세부 내용이 있는 업무', note: '배경\n- 조건 하나' }));
+		const taskHint = made.taskID as string;
+		expect(resultOf(await run('task_get', { taskHint })).note).toBe('배경\n- 조건 하나');
+
+		await run('task_update', { taskHint, size: 'S' });
+		expect(resultOf(await run('task_get', { taskHint })).note).toBe('배경\n- 조건 하나');
+
+		await run('task_update', { taskHint, note: '바뀐 조건' });
+		expect(resultOf(await run('task_get', { taskHint })).note).toBe('바뀐 조건');
+
+		await run('task_update', { taskHint, note: '' });
+		expect(resultOf(await run('task_get', { taskHint })).note).toBeUndefined();
+	});
+
+	test('a list of tasks leaves each note out, and one task read whole carries it', async () => {
+		const made = resultOf(await run('task_add', { title: '목록에서는 제목만 보이는 업무', note: '목록에는 싣지 않는 글' }));
+		const listed = resultOf(await run('task_list', { query: '목록에서는 제목만 보이는 업무' }));
+		const [entry] = listed.tasks as Record<string, unknown>[];
+		expect(entry.taskID).toBe(made.taskID);
+		expect(entry.note).toBeUndefined();
+		expect(made.note).toBeUndefined();
+
+		const whole = resultOf(await run('task_get', { taskHint: made.taskID as string }));
+		expect(whole.content).toBe('목록에서는 제목만 보이는 업무');
+		expect(whole.note).toBe('목록에는 싣지 않는 글');
+	});
+
 	test('matches a query against the note and the place, whatever the case', async () => {
 		const byPlace = resultOf(await run('event_list', { query: '회의실' }));
 		expect((byPlace.events as { title: string }[]).map((event) => event.title)).toContain(

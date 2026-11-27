@@ -10,6 +10,7 @@ import {
 	deleteTask,
 	everyTaskOfTheCompany,
 	linkTaskChildren,
+	readTask,
 	setTaskLabels,
 	setTaskParent,
 	updateTask,
@@ -131,6 +132,7 @@ export function taskOf(record: RecordTask): Task {
 		business: record.business || null,
 		type: record.type || null,
 		content: record.content ?? '',
+		note: record.note,
 		size: record.size ?? '',
 		status: centralStatusWord(record.status ?? ''),
 		startDate: record.startDate || undefined,
@@ -142,9 +144,14 @@ export function taskOf(record: RecordTask): Task {
 	};
 }
 
+export async function taskNote(taskID: string): Promise<string> {
+	return (await readTask(taskID)).note ?? '';
+}
+
 export function writtenTaskOf(task: Task): WrittenTask {
 	return {
 		title: task.content || untitledTask,
+		...(task.note !== undefined ? { note: task.note } : {}),
 		status: centralStatusFromWord(task.status),
 		business: task.business ?? '',
 		type: task.type ?? '',
@@ -155,9 +162,9 @@ export function writtenTaskOf(task: Task): WrittenTask {
 	};
 }
 
-function withoutUnchosenLabels(written: WrittenTask): WrittenTask {
-	const { business, type, ...chosen } = written;
-	return { ...chosen, ...(business ? { business } : {}), ...(type ? { type } : {}) };
+function withoutEmptyChoices(written: WrittenTask): WrittenTask {
+	const { business, type, note, ...chosen } = written;
+	return { ...chosen, ...(business ? { business } : {}), ...(type ? { type } : {}), ...(note ? { note } : {}) };
 }
 
 export function changedTaskFields(task: Task, originalTask: Task): Partial<WrittenTask> {
@@ -180,7 +187,7 @@ export async function saveTask(
 	} else {
 		const written = writtenTaskOf(task);
 		await addTask({
-			...withoutUnchosenLabels(written),
+			...withoutEmptyChoices(written),
 			...(task.parentTaskID ? { parentTaskHint: task.parentTaskID } : {}),
 			...(childTaskIDs.length > 0 ? { childTaskHints: childTaskIDs } : {})
 		});

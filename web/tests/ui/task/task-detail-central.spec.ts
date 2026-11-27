@@ -82,7 +82,7 @@ test('an edit saved from the sheet is on the record', async ({ page }) => {
 
 	const sheet = taskSheet(page);
 	await sheet.getByRole('button', { name: '업무 수정' }).click();
-	await sheet.getByPlaceholder('업무 내용').fill('E2E 상세 수정 후 업무');
+	await sheet.getByPlaceholder('업무 제목').fill('E2E 상세 수정 후 업무');
 	await chooseEditorOption(page, sheet, '종류', '회의');
 	await chooseEditorOption(page, sheet, '상태', '진행');
 	await sheet.getByRole('button', { name: '업무 저장' }).click();
@@ -93,6 +93,22 @@ test('an edit saved from the sheet is on the record', async ({ page }) => {
 	expect(saved?.type).toBe('회의');
 	expect(saved?.status).toBe('in_progress');
 	expect(saved?.business).toBe('사업둘');
+});
+
+test('details written in the sheet show under the task when it is opened again', async ({ page }) => {
+	const taskID = await seedOne({ title: 'E2E 글을 덧붙일 업무' });
+	await signInToTheTaskBoard(page);
+	await openTaskCard(page, taskID);
+
+	const sheet = taskSheet(page);
+	await expect(sheet.getByText('세부 내용')).not.toBeVisible();
+	await sheet.getByRole('button', { name: '업무 수정' }).click();
+	await sheet.getByLabel('세부 내용').fill('배경을 적는다\n둘째 줄');
+	await sheet.getByRole('button', { name: '업무 저장' }).click();
+	await expect(sheet).not.toBeVisible();
+
+	await openTaskCard(page, taskID);
+	await expect(taskSheet(page).getByText('배경을 적는다\n둘째 줄')).toBeVisible();
 });
 
 test('a task whose end date is today stays open when saved from the sheet', async ({ page }) => {
@@ -119,7 +135,7 @@ test('the save button stays on the sheet and shows it is saving while the edit i
 
 	const sheet = taskSheet(page);
 	await sheet.getByRole('button', { name: '업무 수정' }).click();
-	await sheet.getByPlaceholder('업무 내용').fill('E2E 상세 저장 중 업무 수정');
+	await sheet.getByPlaceholder('업무 제목').fill('E2E 상세 저장 중 업무 수정');
 	let releaseWrite = (): void => {};
 	const writeHeld = new Promise<void>((resolve) => {
 		releaseWrite = resolve;

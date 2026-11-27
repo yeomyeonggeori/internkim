@@ -18,6 +18,7 @@ export function createTaskDraft(owner: TaskMember, definitions: TaskDefinitions,
 		business: null,
 		type: null,
 		content: '',
+		note: '',
 		size: '',
 		status: 'planned',
 		weekCode

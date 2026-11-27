@@ -30,6 +30,8 @@ export type TaskEditorText = {
 	requestTitle: string;
 	content: string;
 	contentPlaceholder: string;
+	note: string;
+	notePlaceholder: string;
 	goal: string;
 	goalPlaceholder: string;
 	requester: string;

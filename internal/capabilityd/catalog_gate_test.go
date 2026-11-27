@@ -57,6 +57,15 @@ func gateCases() map[string]catalogGateCase {
 				expectResultHolds(t, answered, `"boardWeek":"2026-09-28"`)
 			},
 		},
+		"task_get": {
+			kind:    provesCarrying,
+			reaches: map[gateBackend]*standingIn{admindOverTheSocket: answering(`{"tool":"task_get","result":{"taskID":"task-1","content":"분기 계획 정리","note":"배경과 조건"}}`)},
+			input:   `{"taskHint":"task-1"}`,
+			expect: func(t *testing.T, answered capabilities.ToolInvokeResponse) {
+				expectSucceeded(t, answered)
+				expectResultHolds(t, answered, `"note":"배경과 조건"`)
+			},
+		},
 		"circle_list": {
 			kind:    provesCarrying,
 			reaches: map[gateBackend]*standingIn{admindOverTheSocket: answering(`{"tool":"circle_list","result":{"circles":[{"id":"finance","name":"재무","isDefault":true,"readableCategories":["F"],"memberIDs":[],"channelName":null,"channelID":null}]}}`)},

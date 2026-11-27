@@ -45,6 +45,19 @@ test('clearing labels and dates sends explicit empty fields', () => {
 	});
 });
 
+test('clearing a note that was read sends an explicit empty note', () => {
+	const original = { ...task(), note: '배경과 조건' };
+	expect(changedTaskFields({ ...original, note: '' }, original)).toEqual({ note: '' });
+});
+
+test('a task whose note was never read is written without a note, so the record keeps the one it holds', async () => {
+	const listed = task();
+	const update = spyOn(record, 'updateTask').mockResolvedValue({ taskID: listed.id });
+	await saveTask(listed);
+	expect(update).toHaveBeenCalledTimes(1);
+	expect(update.mock.calls[0][1]).not.toHaveProperty('note');
+});
+
 test('an original snapshot cannot be used for another task', () => {
 	expect(() => changedTaskFields({ ...task(), id: 'another-task' }, task())).toThrow('original task');
 });

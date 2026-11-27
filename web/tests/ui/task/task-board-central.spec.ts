@@ -195,7 +195,7 @@ test('the column add button writes a task the record gives that column', async (
 	await taskColumn(page, 'in_progress').getByRole('button', { name: '진행 업무 추가' }).first().click();
 	const sheet = taskSheet(page);
 	await expect(sheet).toBeVisible();
-	await sheet.getByPlaceholder('업무 내용').fill(title);
+	await sheet.getByPlaceholder('업무 제목').fill(title);
 	await sheet.getByRole('button', { name: '업무 저장' }).click();
 	await expect(sheet).not.toBeVisible();
 

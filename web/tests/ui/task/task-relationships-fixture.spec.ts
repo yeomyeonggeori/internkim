@@ -126,7 +126,7 @@ test('supplementary fixture: ordinary editing demands no history until relations
 	const fixture = new TaskRelationshipFixture();
 	await installAuthenticatedFixture(page, fixture);
 	const sheet = taskSheet(page);
-	await sheet.getByPlaceholder('업무 내용').fill('Fixture 보통 수정한 업무');
+	await sheet.getByPlaceholder('업무 제목').fill('Fixture 보통 수정한 업무');
 	await sheet.getByRole('button', { name: '업무 저장', exact: true }).click();
 	await expect(sheet).not.toBeVisible();
 	expect(fixture.historyReads).toBe(0);
@@ -212,10 +212,10 @@ test('supplementary fixture: initial and retained history failures both retry wi
 	await installAuthenticatedFixture(page, fixture);
 	const sheet = taskSheet(page);
 	const draftTitle = 'Fixture 재시도 뒤에도 남는 수정';
-	await sheet.getByPlaceholder('업무 내용').fill(draftTitle);
+	await sheet.getByPlaceholder('업무 제목').fill(draftTitle);
 	await sheet.getByRole('button', { name: '업무 관계', exact: true }).click();
 	await expect(sheet.getByRole('status')).toContainText('Temporarily unavailable');
-	await expect(sheet.getByPlaceholder('업무 내용')).toHaveValue(draftTitle);
+	await expect(sheet.getByPlaceholder('업무 제목')).toHaveValue(draftTitle);
 	await sheet.getByRole('button', { name: '다시 불러오기', exact: true }).click();
 	await expect(sheet.getByRole('heading', { name: '업무 관계', exact: true })).toBeVisible();
 	expect(fixture.historyReads).toBe(2);
@@ -227,10 +227,10 @@ test('supplementary fixture: initial and retained history failures both retry wi
 	await expect(sheet.getByRole('status')).toContainText('Temporarily unavailable');
 	await expect(sheet.getByRole('heading', { name: '업무 관계', exact: true })).toBeVisible();
 	await expect(sheet.getByRole('button', { name: '자녀 업무 추가' })).toHaveCount(0);
-	await expect(sheet.getByPlaceholder('업무 내용')).toHaveValue(draftTitle);
+	await expect(sheet.getByPlaceholder('업무 제목')).toHaveValue(draftTitle);
 	await sheet.getByRole('button', { name: '다시 불러오기', exact: true }).click();
 	await expect(sheet.getByRole('button', { name: '자녀 업무 추가' })).toBeEnabled();
-	await expect(sheet.getByPlaceholder('업무 내용')).toHaveValue(draftTitle);
+	await expect(sheet.getByPlaceholder('업무 제목')).toHaveValue(draftTitle);
 	await expect(sheet.locator(`[data-task-relationship-task="${parentTaskID}"]`)).toBeVisible();
 	expect(fixture.historyReads).toBe(4);
 	expect(fixture.tasks.find(task => task.taskID === targetTaskID)?.parentTaskID).toBe(parentTaskID);
@@ -241,7 +241,7 @@ test('supplementary fixture: a new task carries the parent and children chosen b
 	await installAuthenticatedFixture(page, fixture, false);
 	await page.getByRole('button', { name: '예정 업무 추가' }).first().click();
 	const sheet = taskSheet(page);
-	await sheet.getByPlaceholder('업무 내용').fill('Fixture 관계와 함께 추가하는 업무');
+	await sheet.getByPlaceholder('업무 제목').fill('Fixture 관계와 함께 추가하는 업무');
 	await sheet.getByRole('button', { name: '업무 관계', exact: true }).click();
 
 	await sheet.getByRole('button', { name: '부모 업무 추가' }).click();
