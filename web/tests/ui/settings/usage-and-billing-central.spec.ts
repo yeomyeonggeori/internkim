@@ -13,28 +13,28 @@ test.describe.configure({ mode: 'serial', timeout: 60_000 });
 test.use({ locale: 'ko-KR' });
 
 const settingsPath = `/${exampleCompanySlug}/settings`;
-const computerKeyHash = `billing-ui-${exampleCompanyID}`;
+const boxPublicKey = `billinguibo${exampleCompanyID.replaceAll('-', '')}`;
 const keyPaysUntilNextStart = '회사 컴퓨터가 아직 회사 OpenRouter 키로 AI 사용료를 내고 있습니다. 서비스가 다음에 시작하면 크레딧으로 바뀝니다.';
 const keyPaysNow = '지금은 회사 OpenRouter 키가 AI 사용료를 냅니다.';
 
 async function computerStartedWithItsKey(): Promise<void> {
-	const { error } = await centralPlaneAdminClient().from('agent').upsert(
+	const { error } = await centralPlaneAdminClient().from('box').upsert(
 		{
+			public_key: boxPublicKey,
 			company_id: exampleCompanyID,
-			name: 'company-computer',
-			api_key_hash: computerKeyHash,
-			revoked_at: null,
+			encryption_key: 'A'.repeat(43),
+			role: 'service',
 			holds_model_key: true,
 			uses_own_model_key_at_start: true,
 			model_key_reported_at: new Date().toISOString()
 		},
-		{ onConflict: 'company_id,name' }
+		{ onConflict: 'public_key' }
 	);
 	if (error) throw new Error(error.message);
 }
 
 async function forgetTheComputer(): Promise<void> {
-	const { error } = await centralPlaneAdminClient().from('agent').delete().eq('api_key_hash', computerKeyHash);
+	const { error } = await centralPlaneAdminClient().from('box').delete().eq('public_key', boxPublicKey);
 	if (error) throw new Error(error.message);
 }
 
