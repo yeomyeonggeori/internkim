@@ -1,8 +1,8 @@
 const panelBaseClass = [
 	'fixed bottom-[calc(9.75rem+env(safe-area-inset-bottom))] right-[max(0.75rem,calc((100vw-30rem)/2))]',
-	'z-[55] flex h-[min(500px,calc(100vh-10rem))] w-[calc(100vw-2rem)] max-w-[400px] flex-col overflow-hidden',
+	'z-[55] flex max-h-[min(500px,calc(100vh-10rem))] w-[calc(100vw-2rem)] max-w-[400px] flex-col overflow-hidden',
 	'rounded-2xl bg-popover text-popover-foreground shadow-2xl ring-1 ring-foreground/10',
-	'transition-all duration-[400ms] sm:bottom-[6.25rem] sm:right-6 sm:h-[min(500px,calc(100vh-7rem))]'
+	'transition-all duration-[400ms] sm:bottom-[6.25rem] sm:right-6 sm:h-[min(500px,calc(100vh-7rem))] sm:max-h-none'
 ].join(' ');
 
 export function quickAddPanelClass(isVisible: boolean): string {

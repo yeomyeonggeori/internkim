@@ -41,7 +41,7 @@
 <div class="flex min-h-0 flex-1 flex-col gap-3 px-5 py-4">
 	<Textarea
 		bind:ref={textareaElement}
-		class="min-h-28 flex-1 resize-none"
+		class="max-h-40 min-h-28! resize-none sm:max-h-none sm:flex-1"
 		placeholder={text.quickAddPlaceholder}
 		bind:value={quickTask.note}
 		onkeydown={submitOnModifierEnter}

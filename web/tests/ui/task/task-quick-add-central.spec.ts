@@ -91,6 +91,20 @@ test('the quick add panel stays inside a narrow viewport', async ({ page }) => {
 	expect(bounds.x + bounds.width).toBeLessThanOrEqual(430);
 });
 
+test('the quick add panel is only as tall as what it holds on a phone', async ({ page }) => {
+	const phoneHeight = 932;
+	await page.setViewportSize({ width: 430, height: phoneHeight });
+	await signInToTheTaskBoard(page);
+	await page.locator('[data-task-quick-add-launcher]').click();
+
+	const panel = page.getByRole('dialog', { name: '업무 추가' });
+	await expect(panel).toBeVisible();
+	const bounds = await panel.boundingBox();
+	expect(bounds).not.toBeNull();
+	if (!bounds) return;
+	expect(bounds.height).toBeLessThan(phoneHeight / 3);
+});
+
 test('a note adds every task drafted from it through task_add, leaving out a person nobody answers to', async ({ page }) => {
 	const addedTitle = 'E2E 빠른 추가로 적은 업무';
 	const narrowedTitle = 'E2E 빠른 추가로 맡긴 업무';
