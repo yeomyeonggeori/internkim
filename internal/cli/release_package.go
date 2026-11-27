@@ -112,12 +112,19 @@ func linuxPackageFormatNamed(name string) (linuxPackageFormat, bool) {
 	return linuxPackageFormat{}, false
 }
 
-// RunsOnlyWhen is the first line of a script that only one of dpkg's calls is
+// RunsOnlyWhen is the first line of a script that only some of dpkg's calls are
 // for: dpkg runs postinst for configure, abort-upgrade and others, and only the
-// first is an install. rpm and pacman call each script for exactly its purpose.
+// first is an install; it runs preinst for abort-upgrade too, when nothing new
+// is about to be unpacked. rpm and pacman call each script for exactly its purpose.
 func (format linuxPackageFormat) RunsOnlyWhen(script string) string {
-	if format.Name == "deb" && script == "postinst" {
+	if format.Name != "deb" {
+		return ""
+	}
+	switch script {
+	case "postinst":
 		return "[ \"$1\" = configure ] || exit 0\n"
+	case "preinst":
+		return "[ \"$1\" = install ] || [ \"$1\" = upgrade ] || exit 0\n"
 	}
 	return ""
 }
@@ -168,7 +175,7 @@ func linuxPackageInformation(format linuxPackageFormat, target packageTarget, ve
 			Scripts:   scripts,
 			Deb:       nfpm.Deb{Compression: format.Compression},
 			RPM:       nfpm.RPM{Compression: format.Compression},
-			ArchLinux: nfpm.ArchLinux{Scripts: nfpm.ArchLinuxScripts{PostUpgrade: scripts.PostInstall}},
+			ArchLinux: nfpm.ArchLinux{Scripts: nfpm.ArchLinuxScripts{PreUpgrade: scripts.PreInstall, PostUpgrade: scripts.PostInstall}},
 		},
 	}
 }
@@ -232,13 +239,14 @@ func writeMaintainerScripts(format linuxPackageFormat, stagingPath string) (nfpm
 		return nfpm.Scripts{}, errorValue
 	}
 	paths := map[packageScript]string{}
-	for _, script := range []packageScript{postInstallScript, preRemoveScript, postRemoveScript} {
+	for _, script := range []packageScript{preInstallScript, postInstallScript, preRemoveScript, postRemoveScript} {
 		paths[script] = filepath.Join(directory, string(script))
 		if errorValue := os.WriteFile(paths[script], []byte(maintainerScript(format, script)), 0o755); errorValue != nil {
 			return nfpm.Scripts{}, errorValue
 		}
 	}
 	return nfpm.Scripts{
+		PreInstall:  paths[preInstallScript],
 		PostInstall: paths[postInstallScript],
 		PreRemove:   paths[preRemoveScript],
 		PostRemove:  paths[postRemoveScript],

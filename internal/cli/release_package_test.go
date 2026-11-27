@@ -18,13 +18,77 @@ import (
 
 func TestEveryFormatsScriptsAreValidShell(t *testing.T) {
 	for _, format := range linuxPackageFormats() {
-		for _, script := range []packageScript{postInstallScript, preRemoveScript, postRemoveScript} {
+		for _, script := range []packageScript{preInstallScript, postInstallScript, preRemoveScript, postRemoveScript} {
 			command := exec.Command("sh", "-n")
 			command.Stdin = strings.NewReader(maintainerScript(format, script))
 			if output, errorValue := command.CombinedOutput(); errorValue != nil {
 				t.Errorf("the %s %s is not valid shell: %s", format.Name, script, output)
 			}
 		}
+	}
+}
+
+func runPreInstall(t *testing.T, format linuxPackageFormat, clusterMajor string, argument string) (string, error) {
+	t.Helper()
+	data := t.TempDir()
+	if clusterMajor != "" {
+		if errorValue := os.WriteFile(filepath.Join(data, "PG_VERSION"), []byte(clusterMajor+"\n"), 0o644); errorValue != nil {
+			t.Fatal(errorValue)
+		}
+	}
+	script := strings.ReplaceAll(maintainerScript(format, preInstallScript), blueclaw.CompanyHostDatabaseDataPath, data)
+	command := exec.Command("sh", "-s", argument)
+	command.Stdin = strings.NewReader(script)
+	output, errorValue := command.CombinedOutput()
+	return string(output), errorValue
+}
+
+func preInstallArgumentForAnUpgrade(format linuxPackageFormat) string {
+	switch format.Name {
+	case "deb":
+		return "upgrade"
+	case "rpm":
+		return "2"
+	}
+	return "1:0.0.70-1"
+}
+
+func TestEveryFormatRefusesToReplaceAHostWhoseClusterAnotherMajorMade(t *testing.T) {
+	for _, format := range linuxPackageFormats() {
+		output, errorValue := runPreInstall(t, format, "14", preInstallArgumentForAnUpgrade(format))
+
+		if errorValue == nil {
+			t.Fatalf("the %s preinst let a package carrying PostgreSQL %s replace a host whose cluster PostgreSQL 14 made", format.Name, blueclaw.CarriedDatabaseMajor)
+		}
+		for _, wanted := range []string{"made by PostgreSQL 14", "carries PostgreSQL " + blueclaw.CarriedDatabaseMajor, "new box"} {
+			if !strings.Contains(output, wanted) {
+				t.Errorf("the %s preinst refusal does not say %q: %s", format.Name, wanted, output)
+			}
+		}
+	}
+}
+
+func TestEveryFormatInstallsOverAClusterOfTheCarriedMajorOrNone(t *testing.T) {
+	for _, format := range linuxPackageFormats() {
+		for _, clusterMajor := range []string{blueclaw.CarriedDatabaseMajor, ""} {
+			if output, errorValue := runPreInstall(t, format, clusterMajor, preInstallArgumentForAnUpgrade(format)); errorValue != nil {
+				t.Errorf("the %s preinst refused a host whose cluster is %q: %v %s", format.Name, clusterMajor, errorValue, output)
+			}
+		}
+	}
+}
+
+func TestTheDebianPreInstallRefusesNothingWhenAnUpgradeIsBeingRolledBack(t *testing.T) {
+	if output, errorValue := runPreInstall(t, debianPackageFormat, "14", "abort-upgrade"); errorValue != nil {
+		t.Fatalf("dpkg's abort-upgrade, which unpacks nothing new, was refused: %v %s", errorValue, output)
+	}
+}
+
+func TestTheArchPackageChecksTheClusterBeforeAnUpgradeToo(t *testing.T) {
+	scripts := nfpm.Scripts{PreInstall: "preinst", PostInstall: "postinst"}
+	information := linuxPackageInformation(archlinuxPackageFormat, packageTargets[0], "1.0.0", nil, scripts)
+	if information.ArchLinux.Scripts.PreUpgrade != scripts.PreInstall {
+		t.Fatalf("pacman -U runs pre_upgrade on an upgrade, and the package gives it %q", information.ArchLinux.Scripts.PreUpgrade)
 	}
 }
 

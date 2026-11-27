@@ -26,6 +26,7 @@ import (
 type packageScript string
 
 const (
+	preInstallScript  packageScript = "preinst"
 	postInstallScript packageScript = "postinst"
 	preRemoveScript   packageScript = "prerm"
 	postRemoveScript  packageScript = "postrm"
@@ -33,11 +34,21 @@ const (
 
 func maintainerScript(format linuxPackageFormat, script packageScript) string {
 	body := map[packageScript]func(linuxPackageFormat) string{
+		preInstallScript:  preInstallBody,
 		postInstallScript: postInstallBody,
 		preRemoveScript:   preRemoveBody,
 		postRemoveScript:  postRemoveBody,
 	}[script]
 	return "#!/bin/sh\nset -e\n\n" + body(format)
+}
+
+func preInstallBody(format linuxPackageFormat) string {
+	return strings.Join([]string{
+		format.RunsOnlyWhen("preinst"),
+		blueclaw.CompanyHostRefusalOfAnotherMajorsCluster(),
+		"exit 0",
+		"",
+	}, "\n")
 }
 
 func postInstallBody(format linuxPackageFormat) string {

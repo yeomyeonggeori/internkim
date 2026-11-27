@@ -303,14 +303,9 @@ func TestEveryHostRunsTheDatabaseProgramsThePackageCarries(t *testing.T) {
 }
 
 func TestTheDataServiceRefusesAClusterAnotherMajorMade(t *testing.T) {
-	programs := t.TempDir()
 	data := t.TempDir()
-	writeTestFile(t, programs+"/postgres", "#!/bin/sh\necho 'postgres (PostgreSQL) 17.12'\n", 0o755)
 	writeTestFile(t, data+"/PG_VERSION", "16\n", 0o644)
-	script := strings.NewReplacer(
-		LinuxCompanyHostLayout().DatabaseProgramDirectory(), programs,
-		CompanyHostDatabaseDataPath, data,
-	).Replace(CompanyHostDataServiceScript())
+	script := strings.ReplaceAll(CompanyHostDataServiceScript(), CompanyHostDatabaseDataPath, data)
 
 	command := exec.Command("sh", "-s", "postgres")
 	command.Stdin = strings.NewReader(script)
@@ -330,5 +325,14 @@ func writeTestFile(t *testing.T, path string, contents string, mode os.FileMode)
 	t.Helper()
 	if errorValue := os.WriteFile(path, []byte(contents), mode); errorValue != nil {
 		t.Fatal(errorValue)
+	}
+}
+
+func TestTheDataServiceNamesTheMajorThePackageCarries(t *testing.T) {
+	command := exec.Command("sh", "-s", "postgres-major")
+	command.Stdin = strings.NewReader(CompanyHostDataServiceScript())
+	output, errorValue := command.Output()
+	if errorValue != nil || strings.TrimSpace(string(output)) != CarriedDatabaseMajor {
+		t.Fatalf("postgres-major answered %q, %v, and the package carries %s", output, errorValue, CarriedDatabaseMajor)
 	}
 }

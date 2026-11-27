@@ -1,6 +1,9 @@
 package blueclaw_test
 
 import (
+	"os"
+	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 
@@ -167,5 +170,19 @@ func TestTheEmbeddingModelIsPinnedByCommitAndChecksumOverHTTPS(t *testing.T) {
 	}
 	if !strings.HasSuffix(model.URL, "/"+model.ProgramName) {
 		t.Fatalf("the model is named %s and fetched from %s", model.ProgramName, model.URL)
+	}
+}
+
+func TestTheCarriedMajorIsTheOneThePrepareScriptBuilds(t *testing.T) {
+	script, errorValue := os.ReadFile(filepath.Join(repositoryRootFromHere, "tools", "prepare-postgresql"))
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	pinned := regexp.MustCompile(`(?m)^pinned_version="([0-9]+)\.[0-9]+"$`).FindSubmatch(script)
+	if pinned == nil {
+		t.Fatal("tools/prepare-postgresql pins no pinned_version=\"MAJOR.MINOR\"")
+	}
+	if string(pinned[1]) != blueclaw.CarriedDatabaseMajor {
+		t.Fatalf("tools/prepare-postgresql builds PostgreSQL %s and CarriedDatabaseMajor says %s", pinned[1], blueclaw.CarriedDatabaseMajor)
 	}
 }

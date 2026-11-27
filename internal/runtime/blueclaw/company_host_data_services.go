@@ -58,12 +58,30 @@ const (
 	companyHostDatabaseRecoverySeconds = "86400"
 
 	DatabaseServerProgramName = "postgres"
+	CarriedDatabaseMajor      = "17"
 
 	// The builtin provider's C.UTF-8 sorts by code point, the same on every
 	// machine, and classifies Hangul as letters: with lc_ctype C, pg_trgm takes
 	// no trigram from a Korean word.
 	companyHostDatabaseCharacterLocale = "C.UTF-8"
 )
+
+// CompanyHostRefusalOfAnotherMajorsCluster is shell that exits non-zero when the
+// company's cluster was made by a major this package does not carry.
+func CompanyHostRefusalOfAnotherMajorsCluster() string {
+	versionPath := CompanyHostDatabaseDataPath + "/PG_VERSION"
+	refusal := "the company database in " + CompanyHostDatabaseDataPath + " was made by PostgreSQL $cluster_major, and this package carries PostgreSQL " +
+		CarriedDatabaseMajor + ", which cannot open it. Move the company to a new box: a move restores the company from its snapshot"
+	return strings.Join([]string{
+		"if [ -r " + versionPath + " ]; then",
+		"  cluster_major=\"$(cat " + versionPath + ")\"",
+		"  if [ \"$cluster_major\" != " + CarriedDatabaseMajor + " ]; then",
+		"    echo \"internkim: " + refusal + "\" >&2",
+		"    exit 1",
+		"  fi",
+		"fi",
+	}, "\n")
+}
 
 func CompanyHostDatabaseClusterOptions() []string {
 	return []string{
@@ -318,6 +336,8 @@ func CompanyHostDataServiceScript() string {
 	replacer := strings.NewReplacer(
 		"@DATABASE_PROGRAMS@", LinuxCompanyHostLayout().DatabaseProgramDirectory(),
 		"@CLUSTER_OPTIONS@", strings.Join(CompanyHostDatabaseClusterOptions(), " "),
+		"@REFUSE_ANOTHER_MAJOR@", CompanyHostRefusalOfAnotherMajorsCluster(),
+		"@CARRIED_MAJOR@", CarriedDatabaseMajor,
 		"@DATA@", CompanyHostDatabaseDataPath,
 		"@SOCKET_DIRECTORY@", CompanyHostDatabaseSocketDirectory,
 		"@SOCKET_MODE@", companyHostDataSocketMode,
@@ -344,15 +364,8 @@ fail() {
   exit 1
 }
 
-carried_major() {
-  "$programs/postgres" --version | sed -n 's/^postgres (PostgreSQL) \([0-9][0-9]*\).*/\1/p'
-}
-
 refuse_a_cluster_another_major_made() {
-  [ -r "$data/PG_VERSION" ] || return 0
-  cluster_major="$(cat "$data/PG_VERSION")"
-  carried="$(carried_major)"
-  [ "$cluster_major" = "$carried" ] || fail "the company database in $data was made by PostgreSQL $cluster_major, and this package carries PostgreSQL $carried, which cannot open it. Move the company to a new box: a move restores the company from its snapshot"
+@REFUSE_ANOTHER_MAJOR@
 }
 
 initialize_cluster() {
@@ -463,7 +476,7 @@ case "${1:-}" in
   postgres-recover) recover_postgres ;;
   psql) shift; exec "$programs/psql" --host "$socket_directory" --no-psqlrc "$@" ;;
   pg_dump|pg_restore) program="$1"; shift; exec "$programs/$program" --host "$socket_directory" "$@" ;;
-  postgres-major) carried_major ;;
+  postgres-major) echo @CARRIED_MAJOR@ ;;
   cache) run_cache ;;
   cache-ready) wait_until cache_answers || fail "the cache did not answer on $cache_socket" ;;
   cache-ping) client="$(cache_client)"; exec "$client" -s "$cache_socket" ping ;;
