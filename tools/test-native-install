@@ -50,6 +50,7 @@ from native_install_rig import (  # noqa: E402
     BACKUPS_DIRECTORY,
     DATA_SERVICE_PATH,
     DATABASE_DATA_DIRECTORY,
+    GUEST_SCRIPT_PREAMBLE,
     DATABASE_USER,
     REPOSITORY_LISTING_COMMAND,
     RETIRED_MEMORY_STORE_COMMAND,
@@ -2067,7 +2068,7 @@ class Rig:
             "acknowledgements": self.acknowledgements.url,
         }
         script_path = f"{boxes.GUEST_DIRECTORY}/database-writer-{writer}.sh"
-        (machine.share_directory / f"database-writer-{writer}.sh").write_text(database_script)
+        (machine.share_directory / f"database-writer-{writer}.sh").write_text(GUEST_SCRIPT_PREAMBLE + database_script)
         named = machine.checked_shell(
             f"person=$(ls -1 {PEOPLE_DIRECTORY} | head -1); printf '%s %s' \"$person\" \"$(stat -c %U {PEOPLE_DIRECTORY}/$person)\""
         ).stdout.split()
