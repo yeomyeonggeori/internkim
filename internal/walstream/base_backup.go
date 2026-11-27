@@ -21,19 +21,20 @@ import (
 )
 
 const (
-	baseBackupVersion      = 1
-	baseBackupFolder       = "base"
-	baseBackupChunkFolder  = "base-chunks"
-	baseBackupNamePrefix   = "internkim-base-"
-	baseBackupNameSuffix   = ".json"
-	baseBackupTimeLayout   = "20060102T150405Z"
-	DataDirectoryArchive   = "base.tar"
-	BackupManifestArchive  = "backup_manifest"
-	newArchiveMessage      = 'n'
-	archiveDataMessage     = 'd'
-	manifestMessage        = 'm'
-	progressMessage        = 'p'
-	oldestStreamingVersion = 15
+	baseBackupVersion           = 1
+	baseBackupFolder            = "base"
+	baseBackupChunkFolder       = "base-chunks"
+	baseBackupNamePrefix        = "internkim-base-"
+	baseBackupNameSuffix        = ".json"
+	baseBackupTimeLayout        = "20060102T150405Z"
+	DataDirectoryArchive        = "base.tar"
+	BackupManifestArchive       = "backup_manifest"
+	newArchiveMessage           = 'n'
+	archiveDataMessage          = 'd'
+	manifestMessage             = 'm'
+	progressMessage             = 'p'
+	oldestMajorWithAManifest    = 13
+	firstMajorWithOneCopyStream = 15
 )
 
 var ErrNoBaseBackup = errors.New("the company keeps no base backup this box can open")
@@ -101,32 +102,9 @@ func TakeBaseBackup(ctx context.Context, replicationConnection string, destinati
 	if errorValue != nil {
 		return BaseBackup{}, errorValue
 	}
-	started, errorValue := pglogrepl.StartBaseBackup(ctx, connection, pglogrepl.BaseBackupOptions{Label: "internkim standby", Fast: true, NoWait: true, Manifest: true})
+	streamed, errorValue := streamBaseBackup(ctx, connection, major, snapshot.AddMember)
 	if errorValue != nil {
-		return BaseBackup{}, fmt.Errorf("starting a base backup of the company database: %w", errorValue)
-	}
-	if len(started.Tablespaces) > 1 {
-		return BaseBackup{}, fmt.Errorf("the company database keeps %d tablespaces; a base backup keeps the data directory alone, so a tablespace outside it would be lost", len(started.Tablespaces)-1)
-	}
-	if errorValue := pglogrepl.NextTableSpace(ctx, connection); errorValue != nil {
-		return BaseBackup{}, fmt.Errorf("reading the base backup of the company database: %w", errorValue)
-	}
-	stream := &baseBackupStream{ctx: ctx, connection: connection}
-	for {
-		name, isMore, errorValue := stream.nextArchive()
-		if errorValue != nil {
-			return BaseBackup{}, errorValue
-		}
-		if !isMore {
-			break
-		}
-		if errorValue := snapshot.AddMember(name, stream.copyArchive); errorValue != nil {
-			return BaseBackup{}, errorValue
-		}
-	}
-	finished, errorValue := pglogrepl.FinishBaseBackup(ctx, connection)
-	if errorValue != nil {
-		return BaseBackup{}, fmt.Errorf("finishing the base backup of the company database: %w", errorValue)
+		return BaseBackup{}, errorValue
 	}
 	backup := BaseBackup{
 		Version:         baseBackupVersion,
@@ -136,9 +114,9 @@ func TakeBaseBackup(ctx context.Context, replicationConnection string, destinati
 		PackageVersion:  release,
 		PostgreSQLMajor: major,
 		SystemID:        system.SystemID,
-		Timeline:        started.TimelineID,
-		Start:           started.LSN.String(),
-		End:             finished.LSN.String(),
+		Timeline:        streamed.started.TimelineID,
+		Start:           streamed.started.LSN.String(),
+		End:             streamed.finished.LSN.String(),
 		Members:         snapshot.Members(),
 		Chunks:          snapshot.Chunks(),
 	}
@@ -152,24 +130,131 @@ func TakeBaseBackup(ctx context.Context, replicationConnection string, destinati
 	return backup, destination.Store.Put(ctx, baseBackupPath(destination, backup.Name), document)
 }
 
+type streamedBaseBackup struct {
+	started  pglogrepl.BaseBackupResult
+	finished pglogrepl.BaseBackupResult
+}
+
+type archiveStream interface {
+	nextArchive() (string, bool, error)
+	copyArchive(output io.Writer) error
+}
+
+func streamBaseBackup(ctx context.Context, connection *pgconn.PgConn, major int, addArchive func(name string, produce func(io.Writer) error) error) (streamedBaseBackup, error) {
+	started, errorValue := pglogrepl.StartBaseBackup(ctx, connection, pglogrepl.BaseBackupOptions{Label: "internkim standby", Fast: true, NoWait: true, Manifest: true})
+	if errorValue != nil {
+		return streamedBaseBackup{}, fmt.Errorf("starting a base backup of the company database: %w", errorValue)
+	}
+	if len(started.Tablespaces) > 0 {
+		return streamedBaseBackup{}, fmt.Errorf("the company database keeps %d tablespaces outside its data directory; a base backup keeps the data directory alone, so they would be lost", len(started.Tablespaces))
+	}
+	if errorValue := pglogrepl.NextTableSpace(ctx, connection); errorValue != nil {
+		return streamedBaseBackup{}, fmt.Errorf("reading the base backup of the company database: %w", errorValue)
+	}
+	stream := archiveStreamOf(ctx, connection, major)
+	for {
+		name, isMore, errorValue := stream.nextArchive()
+		if errorValue != nil {
+			return streamedBaseBackup{}, errorValue
+		}
+		if !isMore {
+			break
+		}
+		if errorValue := addArchive(name, stream.copyArchive); errorValue != nil {
+			return streamedBaseBackup{}, errorValue
+		}
+	}
+	finished, errorValue := pglogrepl.FinishBaseBackup(ctx, connection)
+	if errorValue != nil {
+		return streamedBaseBackup{}, fmt.Errorf("finishing the base backup of the company database: %w", errorValue)
+	}
+	return streamedBaseBackup{started: started, finished: finished}, nil
+}
+
+func archiveStreamOf(ctx context.Context, connection *pgconn.PgConn, major int) archiveStream {
+	if major < firstMajorWithOneCopyStream {
+		return &copyStreamPerArchive{ctx: ctx, connection: connection, names: []string{DataDirectoryArchive, BackupManifestArchive}}
+	}
+	return &taggedCopyStream{ctx: ctx, connection: connection}
+}
+
 func streamingMajor(connection *pgconn.PgConn) (int, error) {
 	version := connection.ParameterStatus("server_version")
 	major, _, _ := strings.Cut(version, ".")
 	var number int
-	if _, errorValue := fmt.Sscanf(major, "%d", &number); errorValue != nil || number < oldestStreamingVersion {
-		return 0, fmt.Errorf("the company database runs PostgreSQL %s; keeping a base backup needs PostgreSQL %d or newer", version, oldestStreamingVersion)
+	if _, errorValue := fmt.Sscanf(major, "%d", &number); errorValue != nil || number < oldestMajorWithAManifest {
+		return 0, fmt.Errorf("the company database runs PostgreSQL %s; keeping a base backup needs PostgreSQL %d or newer", version, oldestMajorWithAManifest)
 	}
 	return number, nil
 }
 
-type baseBackupStream struct {
+type copyStreamPerArchive struct {
+	ctx        context.Context
+	connection *pgconn.PgConn
+	names      []string
+	hasBegun   bool
+}
+
+func (stream *copyStreamPerArchive) nextArchive() (string, bool, error) {
+	if len(stream.names) == 0 {
+		return "", false, nil
+	}
+	if stream.hasBegun {
+		if errorValue := stream.awaitTheNextCopy(); errorValue != nil {
+			return "", false, errorValue
+		}
+	}
+	stream.hasBegun = true
+	name := stream.names[0]
+	stream.names = stream.names[1:]
+	return name, true, nil
+}
+
+func (stream *copyStreamPerArchive) awaitTheNextCopy() error {
+	for {
+		message, errorValue := stream.connection.ReceiveMessage(stream.ctx)
+		if errorValue != nil {
+			return fmt.Errorf("reading the base backup of the company database: %w", errorValue)
+		}
+		switch message := message.(type) {
+		case *pgproto3.CopyOutResponse:
+			return nil
+		case *pgproto3.NoticeResponse:
+		case *pgproto3.ErrorResponse:
+			return fmt.Errorf("the company database stopped its base backup: %w", pgconn.ErrorResponseToPgError(message))
+		default:
+			return fmt.Errorf("the base backup of the company database sent %T where its %s should begin", message, stream.names[0])
+		}
+	}
+}
+
+func (stream *copyStreamPerArchive) copyArchive(output io.Writer) error {
+	for {
+		message, errorValue := stream.connection.ReceiveMessage(stream.ctx)
+		if errorValue != nil {
+			return fmt.Errorf("reading the base backup of the company database: %w", errorValue)
+		}
+		switch message := message.(type) {
+		case *pgproto3.CopyDone:
+			return nil
+		case *pgproto3.ErrorResponse:
+			return fmt.Errorf("the company database stopped its base backup: %w", pgconn.ErrorResponseToPgError(message))
+		case *pgproto3.CopyData:
+			if _, errorValue := output.Write(message.Data); errorValue != nil {
+				return errorValue
+			}
+		}
+	}
+}
+
+type taggedCopyStream struct {
 	ctx        context.Context
 	connection *pgconn.PgConn
 	nextName   string
 	isDone     bool
 }
 
-func (stream *baseBackupStream) nextArchive() (string, bool, error) {
+func (stream *taggedCopyStream) nextArchive() (string, bool, error) {
 	if stream.nextName != "" {
 		name := stream.nextName
 		stream.nextName = ""
@@ -184,7 +269,7 @@ func (stream *baseBackupStream) nextArchive() (string, bool, error) {
 	return stream.nextArchive()
 }
 
-func (stream *baseBackupStream) copyArchive(output io.Writer) error {
+func (stream *taggedCopyStream) copyArchive(output io.Writer) error {
 	for {
 		message, errorValue := stream.connection.ReceiveMessage(stream.ctx)
 		if errorValue != nil {
@@ -205,7 +290,7 @@ func (stream *baseBackupStream) copyArchive(output io.Writer) error {
 	}
 }
 
-func (stream *baseBackupStream) takeCopyData(data []byte, output io.Writer) (bool, error) {
+func (stream *taggedCopyStream) takeCopyData(data []byte, output io.Writer) (bool, error) {
 	if len(data) == 0 {
 		return false, nil
 	}

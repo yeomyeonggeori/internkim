@@ -101,8 +101,8 @@ values on its `box` row stand where a row per piece would be 50,000 rows for
 each 100 GB. One time orders every folder of the log, chunks named by their
 content included, which a WAL position and a file entry cannot.
 
-`internal.box_is_ready` reads it. A standby is ready once it ranked against the
-list as it stands, holds its share through the newest piece the store keeps,
+`internal.box_is_ready` reads it. A standby is ready once the log holds a base
+backup, it ranked against the list as it stands, holds its share through the newest piece the store keeps,
 and holds no piece of another standby's share. The service box is ready while
 it holds the company key and is seen within the lapse. The setup page and
 `GET /api/company/box` show that and each standby's share. A box deciding
