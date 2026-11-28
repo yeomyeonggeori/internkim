@@ -42,6 +42,7 @@
 	});
 
 	const hostUpdateLabels = $derived({ label: text.hostUpdate, updatingLabel: text.hostUpdating });
+	const appUpdateLabels = $derived({ label: text.appUpdate, updatingLabel: text.appUpdating, failedLabel: text.appUpdateFailed });
 
 	let appliedSessionKey = '';
 
@@ -83,6 +84,7 @@
 	<AppRailFooter
 		contactItem={appNavigation.contactItem}
 		{hostUpdateLabels}
+		{appUpdateLabels}
 		displayUserName={appNavigation.displayUserName}
 		userEmail={appNavigation.userEmail}
 		userImage={appNavigation.userImage}
