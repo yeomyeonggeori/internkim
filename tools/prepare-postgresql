@@ -11,14 +11,14 @@ openssl_version="3.5.9"
 openssl_sha256="603f5602e2eef00d77fbd429d34dcd5822bb301757a1bc9cdb24c670f1eb859a"
 openssl_url="https://github.com/openssl/openssl/releases/download/openssl-$openssl_version/openssl-$openssl_version.tar.gz"
 
-build_recipe="signed-char-relocatable-openssl-2"
+build_recipe="signed-char-relocatable-openssl-zlib-3"
 built_revision="$pinned_version+$build_recipe"
 
 # -fsigned-char makes arm64 lay out char the way amd64 does. Without it pg_trgm
 # hashes a non-ASCII trigram differently on each, so a GiST index one box wrote
 # answers wrongly on the other when it replays that box's WAL.
 compiler_flags="-O2 -fsigned-char"
-configure_options="--with-ssl=openssl --without-icu --without-readline --without-zlib"
+configure_options="--with-ssl=openssl --without-icu --without-readline"
 
 # Ubuntu 22.04 keeps the glibc floor at HostGlibcMinimum.
 linux_image="docker.io/library/ubuntu:22.04@sha256:b000e69a50ff940390233025e7a337fb8469b509e2334fa4d018ac30f3e18cdb"
@@ -83,7 +83,7 @@ build_linux() {
       set -euo pipefail
       export DEBIAN_FRONTEND=noninteractive
       apt-get update -qq
-      apt-get install -y -qq --no-install-recommends gcc make libc6-dev libssl-dev bison flex perl patchelf binutils bzip2 >/dev/null
+      apt-get install -y -qq --no-install-recommends gcc make libc6-dev libssl-dev zlib1g-dev bison flex perl patchelf binutils bzip2 >/dev/null
       mkdir -p /build && cd /build
       tar xjf "/source/postgresql-$PINNED_VERSION.tar.bz2"
       cd "postgresql-$PINNED_VERSION"
@@ -158,6 +158,13 @@ fetch_pinned "$source_url" "$source_sha256" "$source_archive"
 rm -rf "$installed_directory" "$revision_file"
 mkdir -p "$artifact_directory"
 if [ "$target" = "darwin-arm64" ]; then build_darwin; else build_linux; fi
+require_compressed_dumps_are_read() {
+  case " $(sed -n 's/^LIBS = //p' "$1/lib/postgresql/pgxs/src/Makefile.global") " in *" -lz "*) return 0 ;; esac
+  echo "the PostgreSQL built for $target links no zlib, so its pg_restore cannot read the compressed dumps other builds' pg_dump writes" >&2
+  exit 1
+}
+
+require_compressed_dumps_are_read "$installed_directory"
 remove_what_the_host_never_runs "$installed_directory"
 tar xjf "$source_archive" -O "postgresql-$pinned_version/COPYRIGHT" > "$installed_directory/COPYRIGHT"
 printf '%s\n' "$built_revision" > "$revision_file"
