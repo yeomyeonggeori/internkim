@@ -2572,6 +2572,8 @@ class Rig:
         key = self.join_as_an_added_box(scratch, fresh, "add")
         if not scratch.observations[-1].passed or not self.wait_for_the_company_key(key):
             print(f"the empty box was not added with the company key: {scratch.observations[-1].detail[:600]}", flush=True)
+            journal = keeper.shell(f"journalctl -u {BOX_UNIT_NAME} --since '-15 min' --no-pager -o short-precise | tail -60")
+            print(f"what the box that held the company key ({keeper.name}) logged:\n{journal.stdout.strip()[-8000:]}", flush=True)
             return None, None
         keeper.power_off()
         fresh_pieces = self.pieces_held_by(fresh)
