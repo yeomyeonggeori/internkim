@@ -5,9 +5,9 @@ import { mediaSavePresenceMarker } from '$lib/native-shell/media-save';
 import { shareSheetPresenceMarker } from '$lib/native-shell/share-sheet';
 
 const plugins = [
-	{ source: 'src-tauri/plugins/media-save/src/lib.rs', marker: mediaSavePresenceMarker },
-	{ source: 'src-tauri/plugins/share-sheet/src/lib.rs', marker: shareSheetPresenceMarker },
-	{ source: 'src-tauri/plugins/file-download/src/phone.rs', marker: fileDownloadPresenceMarker }
+	{ source: '../.dependency/internkim-app/src-tauri/plugins/media-save/src/lib.rs', marker: mediaSavePresenceMarker },
+	{ source: '../.dependency/internkim-app/src-tauri/plugins/share-sheet/src/lib.rs', marker: shareSheetPresenceMarker },
+	{ source: '../.dependency/internkim-app/src-tauri/plugins/file-download/src/phone.rs', marker: fileDownloadPresenceMarker }
 ];
 
 function announcedMarkerOf(rust: string): string {

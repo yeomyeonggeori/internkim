@@ -13,12 +13,12 @@ describe('the field a push names a read conversation in', () => {
 	});
 
 	test('is the one the iPhone app reads', () => {
-		expect(sourceOf('../../../src-tauri/gen/apple/Shared/SilentPush.swift')).toContain(`userInfo["${sharedReadTagKey}"]`);
+		expect(sourceOf('../../../../.dependency/internkim-app/src-tauri/gen/apple/Shared/SilentPush.swift')).toContain(`userInfo["${sharedReadTagKey}"]`);
 	});
 
 	test('is the one the Android app reads', () => {
 		expect(
-			sourceOf('../../../sender-notification/android/src/main/java/app/intern/kim/notification/ReadNotificationClearing.java')
+			sourceOf('../../../../.dependency/internkim-app/sender-notification/android/src/main/java/app/intern/kim/notification/ReadNotificationClearing.java')
 		).toContain(`readTagKey = "${sharedReadTagKey}"`);
 	});
 });

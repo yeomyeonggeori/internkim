@@ -6,3 +6,7 @@
 	path = .dependency/internkim-plugin
 	url = https://github.com/yeomyeonggeori/internkim-plugin.git
 	branch = main
+[submodule ".dependency/internkim-app"]
+	path = .dependency/internkim-app
+	url = https://github.com/yeomyeonggeori/internkim-app.git
+	branch = main

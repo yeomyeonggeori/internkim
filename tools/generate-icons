@@ -10,7 +10,7 @@ favicon from it, so intern.kim and docs.intern.kim show one mark.
 
 assets/internkim.icon.png is the finished app icon, drawn in Icon Composer
 with its own rounded shape and margin, and becomes the Mac app's
-web/src-tauri/icons/icon.icns: macOS draws an icns as it is given.
+.dependency/internkim-app/src-tauri/icons/icon.icns: macOS draws an icns as it is given.
 `cargo tauri icon` cuts that file from the square master too, so this script
 runs after it. assets/internkim.square.png is the face drawn full bleed, and
 takes the slots a platform masks for itself: the bot avatar, and the
@@ -41,9 +41,9 @@ REPOSITORY_ROOT = pathlib.Path(__file__).resolve().parent.parent
 ROUND_MASTER = REPOSITORY_ROOT / "assets" / "internkim.favicon.png"
 SQUARE_MASTER = REPOSITORY_ROOT / "assets" / "internkim.square.png"
 MAC_APP_ICON_MASTER = REPOSITORY_ROOT / "assets" / "internkim.icon.png"
-MAC_APP_ICON = "web/src-tauri/icons/icon.icns"
+MAC_APP_ICON = ".dependency/internkim-app/src-tauri/icons/icon.icns"
 MAC_APP_ICON_SIDES = [16, 32, 64, 128, 256, 512, 1024]
-MENU_BAR_ICON = "web/src-tauri/plugins/desktop-control/icons/menu-bar.png"
+MENU_BAR_ICON = ".dependency/internkim-app/src-tauri/plugins/desktop-control/icons/menu-bar.png"
 MENU_BAR_ICON_SIDE = 36
 ROUND_MARK_BLUE_RED_CHANNEL = 14
 DOCS_FAVICON_SIZES = [(48, 48), (32, 32), (16, 16)]

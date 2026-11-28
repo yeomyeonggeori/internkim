@@ -1,8 +1,0 @@
-{
-  "$schema": "../gen/schemas/mobile-schema.json",
-  "identifier": "mobile",
-  "platforms": ["iOS", "android"],
-  "windows": ["main"],
-  "remote": { "urls": ["https://intern.kim/*", "https://*.intern.kim/*"] },
-  "permissions": ["attendance-widget:default", "page-theme:default", "back-gesture:default", "print-sheet:default", "media-save:default", "share-sheet:default", "file-download:default", "keyboard:default", "attendance-activity:default", "haptics:allow-impact-feedback", "haptics:allow-notification-feedback", "haptics:allow-selection-feedback"]
-}

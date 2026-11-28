@@ -12,7 +12,7 @@ function pageAPIVersion(): string {
 }
 
 function appPluginVersion(): string {
-	const cargoManifest = readFileSync(`${webDirectory}src-tauri/Cargo.toml`, 'utf8');
+	const cargoManifest = readFileSync(`${webDirectory}../.dependency/internkim-app/src-tauri/Cargo.toml`, 'utf8');
 	return cargoManifest.match(/^tauri-plugin-notifications = \{ version = "([^"]+)"/m)?.[1] ?? '';
 }
 

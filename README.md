@@ -119,8 +119,7 @@ checks and contributions; [architecture](docs/architecture.mdx) maps the tree.
 
 ## License
 
-Apache-2.0, see [LICENSE](LICENSE). The submodules blueclaw and internkim-plugin are
-Apache-2.0 too.
+Apache-2.0, see [LICENSE](LICENSE). The submodules are Apache-2.0 too.
 
 <p align="center">
   <a href="https://dawn.kim"><img src="assets/yeomyeonggeori.logo.svg" width="40" alt="Yeomyeonggeori"></a><br>
