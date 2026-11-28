@@ -1,4 +1,5 @@
 <script lang="ts">
+	import AppRailAppUpdateItem from '$lib/components/app-rail-app-update-item.svelte';
 	import AppRailHostUpdateItem from '$lib/components/app-rail-host-update-item.svelte';
 	import AppRailNavItem from '$lib/components/app-rail-nav-item.svelte';
 	import AppRailProfileMenu from '$lib/components/app-rail-profile-menu.svelte';
@@ -8,6 +9,7 @@
 	let {
 		contactItem,
 		hostUpdateLabels,
+		appUpdateLabels,
 		displayUserName,
 		userEmail,
 		userImage,
@@ -17,6 +19,7 @@
 	}: {
 		contactItem: AppRailItem;
 		hostUpdateLabels: { label: string; updatingLabel: string };
+		appUpdateLabels: { label: string; updatingLabel: string; failedLabel: string };
 		displayUserName: string;
 		userEmail: string;
 		userImage?: string;
@@ -29,6 +32,7 @@
 <Sidebar.Footer>
 	<Sidebar.Menu>
 		<AppRailHostUpdateItem {...hostUpdateLabels} />
+		<AppRailAppUpdateItem {...appUpdateLabels} />
 		<AppRailNavItem item={contactItem} isExternal />
 		<AppRailProfileMenu
 			{displayUserName}
