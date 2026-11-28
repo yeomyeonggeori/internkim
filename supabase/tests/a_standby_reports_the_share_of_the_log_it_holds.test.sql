@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(17);
+select plan(18);
 
 delete from public.company;
 
@@ -84,6 +84,14 @@ select is(
   (select kept_through from public.share_placement_of('7f000000-0000-0000-0000-0000000000d1') where public_key = 'standby-b'),
   now() - interval '5 minutes',
   'and the other boxes read how far it holds its share'
+);
+
+insert into storage.objects (bucket_id, name, created_at) values
+  ('box_backup', '7f000000-0000-0000-0000-0000000000d1/file-journal/00000000000000000002', now() - interval '10 seconds');
+select is(
+  (select is_ready from public.box_readiness_of('7f000000-0000-0000-0000-0000000000d1') where public_key = 'standby-b'),
+  true,
+  'a piece kept since the standby last listed the log, within its next round, leaves a standby keeping up ready'
 );
 
 insert into storage.objects (bucket_id, name, created_at) values
