@@ -1846,8 +1846,11 @@ class Rig:
                 held = self.boxes_in_the_record()
                 listed = held.get("boxes", [])
                 is_reported = any("isReady" in box for box in listed)
-                if not is_reported or (len(listed) == 3 and all(box.get("isReady") is True for box in listed)) or time.monotonic() > deadline:
-                    return len(listed) == 3 and all(box.get("isReady") is True for box in listed), json.dumps(held)[:1500]
+                is_every_box_ready = len(listed) == 3 and all(box.get("isReady") is True for box in listed)
+                if is_every_box_ready or not is_reported:
+                    return is_every_box_ready, json.dumps(held)[:1500]
+                if time.monotonic() > deadline:
+                    return False, json.dumps(held)[:1500] + "\n" + self.what_a_standby_needs_to_be_ready()
                 time.sleep(15)
 
         self.judged_observation(
@@ -1857,6 +1860,19 @@ class Rig:
             "the setup page is where a person learns whether a box would carry the company; a box listed and not ready "
             "is a promise the page cannot keep",
             judge,
+        )
+
+    def what_a_standby_needs_to_be_ready(self):
+        status, document = self.plane.read_record(
+            "/rest/v1/box?select=host_name,role,last_seen_at,share_ranked_against,share_pieces,held_pieces,share_kept_through"
+            f"&company_id=eq.{self.company_id}"
+        )
+        kept_at = self.plane.stored_backup_times(self.company_id + "/")
+        base_backups = sorted(path for path in kept_at if "/base/" in path and path.endswith(".json"))
+        newest_piece_at = max(kept_at.values(), default="none")
+        return (
+            f"what internal.box_is_ready reads: boxes ({status}) {document[:900]}; "
+            f"base backups {base_backups[-2:]}; newest piece kept at {newest_piece_at}"
         )
 
     def observe_the_shares(self, step, standbys):
