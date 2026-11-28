@@ -3286,6 +3286,11 @@ def run_every_step(rig, options, releases, baseline):
         if not is_an_upgrade:
             judge_what_the_release_under_test_does(rig, step_five)
 
+    is_given_a_company = not options.stand_in and not options.without_company
+    step_six = rig.step(6, f"a backup brings the company back on a fresh {options.restore_family} machine") if is_given_a_company else None
+    if is_given_a_company and is_an_upgrade:
+        rig.take_a_backup(step_six)
+
     is_an_agent_update = options.agent_update and rig.plane and is_an_upgrade
     if is_an_agent_update:
         step_ten = rig.step(10, "an administrator asks the agent, and the host moves to the newer release and says so")
@@ -3296,7 +3301,7 @@ def run_every_step(rig, options, releases, baseline):
     if is_an_upgrade:
         rig.observe_the_shipped_files_are_unmodified(step_two)
 
-    if not options.stand_in and not options.without_company:
+    if is_given_a_company:
         if is_an_upgrade and not is_an_agent_update:
             step_seven = rig.step(7, "after the upgrade the same person still reaches the agent and hears back")
             rig.observe_the_upgraded_host_answers(step_seven, rig.plane)
@@ -3305,8 +3310,8 @@ def run_every_step(rig, options, releases, baseline):
             )
         if is_an_upgrade:
             judge_what_the_release_under_test_does(rig, step_five)
-        step_six = rig.step(6, f"a backup brings the company back on a fresh {options.restore_family} machine")
-        rig.take_a_backup(step_six)
+        else:
+            rig.take_a_backup(step_six)
 
     step_four = rig.step(4, "apt remove and apt purge leave what the plan says they leave")
     rig.run_step_four(step_four)
