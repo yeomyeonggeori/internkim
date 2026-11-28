@@ -240,6 +240,7 @@ describe('canonical capability tools', () => {
       'task_board_get',
       'task_delete',
       'task_draft_get',
+      'task_get',
       'task_invitation_delete',
       'task_invitation_list',
       'task_invite',

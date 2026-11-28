@@ -27,6 +27,7 @@ export type RecordTask = {
 	business?: string;
 	type?: string;
 	content?: string;
+	note?: string;
 	size?: string;
 	status?: string;
 	startDate?: string;
@@ -46,6 +47,7 @@ export type RecordTaskList = {
 
 export type WrittenTask = {
 	title: string;
+	note?: string;
 	status: string;
 	business?: string;
 	type?: string;
@@ -69,6 +71,10 @@ function taskListOfPages(pages: RecordTaskListPage[]): RecordTaskList {
 	const tasks = pages.flatMap((page) => page.tasks);
 	const childProgress = pages.flatMap((page) => page.childProgress ?? []);
 	return { ...first, count: tasks.length, tasks, ...(first.childProgress ? { childProgress } : {}) };
+}
+
+export function readTask(taskID: string): Promise<RecordTask> {
+	return invokeTool<RecordTask>('task_get', { taskHint: taskID });
 }
 
 export function addTask(written: WrittenTask & { parentTaskHint?: string; childTaskHints?: string[] }): Promise<RecordTask> {

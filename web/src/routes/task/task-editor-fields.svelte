@@ -1,6 +1,7 @@
 <script lang="ts">
 	import DatePicker from '$lib/components/date-picker.svelte';
 	import { Input } from '$lib/components/ui/input';
+	import { Textarea } from '$lib/components/ui/textarea';
 	import * as Select from '$lib/components/ui/select';
 	import PersonChip from '$lib/components/person-chip.svelte';
 	import {
@@ -53,6 +54,16 @@
 <label class="grid gap-1 text-xs font-medium text-muted-foreground">
 	{text.content}
 	<Input bind:value={taskDraft.content} placeholder={text.contentPlaceholder} disabled={!canEditTask} />
+</label>
+<label class="grid gap-1 text-xs font-medium text-muted-foreground">
+	{text.note}
+	<Textarea
+		bind:value={taskDraft.note}
+		rows={3}
+		class="max-h-60 min-h-20"
+		placeholder={text.notePlaceholder}
+		disabled={!canEditTask || taskDraft.note === undefined}
+	/>
 </label>
 <div class="grid gap-3 md:grid-cols-2">
 	{#if hasTaskRequestProvenance(taskDraft)}

@@ -100,7 +100,7 @@ test('first task visit shows structure then real cards before directory completi
 		await openTaskCard(page, id);
 		const sheet = taskSheet(page);
 		await sheet.getByRole('button', { name: '업무 수정' }).click();
-		await sheet.getByPlaceholder('업무 내용').fill('구성원 도착 전 수정한 업무');
+		await sheet.getByPlaceholder('업무 제목').fill('구성원 도착 전 수정한 업무');
 		const saving = page.waitForResponse(response => response.url().endsWith('/task_update/invoke'));
 		await sheet.getByRole('button', { name: '업무 저장' }).click();
 		expect((await saving).ok()).toBe(true);
@@ -161,7 +161,7 @@ test('ordinary task editing avoids 1501 historical rows until relationships are 
 		await expect(sheet.getByRole('button', { name: '업무 수정' })).toBeEnabled();
 		await expect(sheet.getByRole('button', { name: '업무 관계', exact: true })).toBeVisible();
 		await sheet.getByRole('button', { name: '업무 수정' }).click();
-		await sheet.getByPlaceholder('업무 내용').fill('전체 이력을 읽지 않고 저장한 업무');
+		await sheet.getByPlaceholder('업무 제목').fill('전체 이력을 읽지 않고 저장한 업무');
 		const saving = page.waitForResponse(response => response.url().endsWith('/task_update/invoke'));
 		await sheet.getByRole('button', { name: '업무 저장' }).click();
 		expect((await saving).ok()).toBe(true);
@@ -182,7 +182,7 @@ test('ordinary task editing avoids 1501 historical rows until relationships are 
 		await sheet.getByRole('button', { name: '업무 관계', exact: true }).click();
 		await expect.poll(() => historyReads).toBe(1);
 		await expect(sheet.locator('[data-task-relationships]')).toHaveCount(0);
-		await expect(sheet.getByPlaceholder('업무 내용')).toBeEditable();
+		await expect(sheet.getByPlaceholder('업무 제목')).toBeEditable();
 		releaseHistory();
 		await expect(sheet.locator(`[data-task-relationship-task="${historicalIDs[0]}"]`)).toBeVisible();
 		await expect(sheet.getByLabel('자녀 업무 1 / 1 완료, 100%', { exact: true })).toBeVisible();
@@ -225,7 +225,7 @@ test('initial and retained relationship failures retry without replacing the edi
 		await openTaskCard(page, id);
 		const sheet = taskSheet(page);
 		await sheet.getByRole('button', { name: '업무 수정' }).click();
-		await sheet.getByPlaceholder('업무 내용').fill('재시도 뒤에도 남아 있는 수정');
+		await sheet.getByPlaceholder('업무 제목').fill('재시도 뒤에도 남아 있는 수정');
 		await page.route('**/task_list/invoke', async route => {
 			if (!route.request().postDataJSON().input.cursor) historyReads++;
 			if (historyReads === 1 || historyReads === 3) await route.fulfill({ status: 503, json: { error: 'Temporarily unavailable' } });
@@ -233,11 +233,11 @@ test('initial and retained relationship failures retry without replacing the edi
 		});
 		await sheet.getByRole('button', { name: '업무 관계', exact: true }).click();
 		await expect(sheet.getByRole('status')).toContainText('Temporarily unavailable');
-		await expect(sheet.getByPlaceholder('업무 내용')).toHaveValue('재시도 뒤에도 남아 있는 수정');
+		await expect(sheet.getByPlaceholder('업무 제목')).toHaveValue('재시도 뒤에도 남아 있는 수정');
 		await sheet.getByRole('button', { name: '다시 불러오기', exact: true }).click();
 		await expect(sheet.getByRole('heading', { name: '업무 관계', exact: true })).toBeVisible();
 		expect(historyReads).toBe(2);
-		await expect(sheet.getByPlaceholder('업무 내용')).toHaveValue('재시도 뒤에도 남아 있는 수정');
+		await expect(sheet.getByPlaceholder('업무 제목')).toHaveValue('재시도 뒤에도 남아 있는 수정');
 		await sheet.getByRole('button', { name: '부모 업무 추가' }).click();
 		const selector = page.getByRole('dialog', { name: '부모 업무', exact: true });
 		await selector.getByPlaceholder('부모 업무 검색').fill(parentTitle);
@@ -248,10 +248,10 @@ test('initial and retained relationship failures retry without replacing the edi
 		await expect(sheet.getByRole('status')).toContainText('Temporarily unavailable');
 		await expect(sheet.getByRole('heading', { name: '업무 관계', exact: true })).toBeVisible();
 		await expect(sheet.getByRole('button', { name: '자녀 업무 추가' })).toHaveCount(0);
-		await expect(sheet.getByPlaceholder('업무 내용')).toHaveValue('재시도 뒤에도 남아 있는 수정');
+		await expect(sheet.getByPlaceholder('업무 제목')).toHaveValue('재시도 뒤에도 남아 있는 수정');
 		await sheet.getByRole('button', { name: '다시 불러오기', exact: true }).click();
 		await expect(sheet.getByRole('button', { name: '자녀 업무 추가' })).toBeEnabled();
-		await expect(sheet.getByPlaceholder('업무 내용')).toHaveValue('재시도 뒤에도 남아 있는 수정');
+		await expect(sheet.getByPlaceholder('업무 제목')).toHaveValue('재시도 뒤에도 남아 있는 수정');
 		const attached = await centralPlaneAdminClient().from('task').select('parent_task_id').eq('id', id).single();
 		expect(attached.error).toBeNull();
 		expect(attached.data?.parent_task_id).toBe(parentID);
@@ -317,7 +317,7 @@ test('saving a task never locks the tabs or brings back a skeleton', async ({ pa
 		await openTaskCard(page, id);
 		const sheet = taskSheet(page);
 		await sheet.getByRole('button', { name: '업무 수정' }).click();
-		await sheet.getByPlaceholder('업무 내용').fill('저장한 뒤에도 보이는 업무');
+		await sheet.getByPlaceholder('업무 제목').fill('저장한 뒤에도 보이는 업무');
 		const saving = page.waitForResponse(response => response.url().endsWith('/task_update/invoke'));
 		await sheet.getByRole('button', { name: '업무 저장' }).click();
 		expect((await saving).ok()).toBe(true);

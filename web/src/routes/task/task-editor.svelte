@@ -5,6 +5,7 @@
 	import { confirmDelete } from '$lib/components/ui/confirm-delete-dialog';
 	import { Separator } from '$lib/components/ui/separator';
 	import * as Sheet from '$lib/components/ui/sheet';
+	import TaskDetailNote from './task-detail-note.svelte';
 	import TaskDetailView from './task-detail-view.svelte';
 	import TaskEditorFields from './task-editor-fields.svelte';
 	import PencilIcon from '@lucide/svelte/icons/pencil';
@@ -214,6 +215,10 @@
 				<div class="min-h-0 flex-1 space-y-4 overflow-y-auto px-4 pb-4">
 					<TaskDetailView task={taskDraft} {text} {statusLabel} {businessColor} {taskTypeColor} {memberEmail} />
 					{@render relationships(false, true)}
+					<TaskDetailNote note={taskDraft.note} label={text.note} />
+					{#if taskErrorMessage}
+						<p class="rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">{taskErrorMessage}</p>
+					{/if}
 				</div>
 				<Sheet.Footer class="border-t">
 					{#if canEditTask}

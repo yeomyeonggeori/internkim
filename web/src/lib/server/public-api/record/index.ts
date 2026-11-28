@@ -91,7 +91,7 @@ import { taskInvite, taskInvitationDelete, taskInvitationList } from './task-inv
 import {
 	companyCircleChannelAdd, companyCircleChannelDelete, companyCircleList, companyCircleMemberSet, companyCircleSet
 } from './circle';
-import { taskAdd, taskDelete, taskList, taskBoard, taskUpdate, taskVocabularySet } from './task-tools';
+import { taskAdd, taskDelete, taskGet, taskList, taskBoard, taskUpdate, taskVocabularySet } from './task-tools';
 import { teamAdd, teamDelete, teamList, teamUpdate } from './team-tools';
 import {
 	companyHolidayDeleteTarget,
@@ -110,7 +110,7 @@ import { capabilityToolResultSchema, legacyAttendanceListResultSchema } from '..
 import { readWithNullAsAbsent } from '../null-as-absent';
 import { sentencesOfSchemaRefusal } from '../schema-sentences';
 import { Refusal, answerOfRefusal } from '../refusal';
-import { attendanceAddInputSchema, attendanceCurrentGetInputSchema, attendanceDeleteInputSchema, attendanceListInputSchema, attendanceUpdateInputSchema, calendarAddInputSchema, calendarDeleteInputSchema, calendarListInputSchema, calendarUpdateInputSchema, leaveBalanceInputSchema, leaveDecideInputSchema, leaveDeleteInputSchema, leaveGrantSetInputSchema, leaveListInputSchema, leaveRequestInputSchema, leaveReturnEarlyInputSchema, leaveUpdateInputSchema, taskAddInputSchema, taskBoardInputSchema, taskDeleteInputSchema, taskListInputSchema, taskUpdateInputSchema } from '../catalog/tools';
+import { attendanceAddInputSchema, attendanceCurrentGetInputSchema, attendanceDeleteInputSchema, attendanceListInputSchema, attendanceUpdateInputSchema, calendarAddInputSchema, calendarDeleteInputSchema, calendarListInputSchema, calendarUpdateInputSchema, leaveBalanceInputSchema, leaveDecideInputSchema, leaveDeleteInputSchema, leaveGrantSetInputSchema, leaveListInputSchema, leaveRequestInputSchema, leaveReturnEarlyInputSchema, leaveUpdateInputSchema, taskAddInputSchema, taskBoardInputSchema, taskDeleteInputSchema, taskGetInputSchema, taskListInputSchema, taskUpdateInputSchema } from '../catalog/tools';
 import { taskVocabularySetInputSchema } from '../catalog/labels';
 import { taskInvitationDeleteInputSchema, taskInvitationListInputSchema, taskInviteInputSchema } from '../catalog/task-invitation';
 import { calendarSubscriptionInputSchema } from '../catalog/calendar-subscription';
@@ -214,6 +214,7 @@ const toolsOverTheRecord: Record<string, RecordTool> = {
 	task_update: recordTool(taskUpdateInputSchema, everyone, (context, input, { announceTaskChange }) => taskUpdate(context, input, announceTaskChange)),
 	task_list: recordTool(taskListInputSchema, everyone, (context, input) => taskList(context, input)),
 	task_board_get: recordTool(taskBoardInputSchema, everyone, (context, input) => taskBoard(context, input)),
+	task_get: recordTool(taskGetInputSchema, everyone, (context, input) => taskGet(context, input)),
 	task_delete: recordTool(taskDeleteInputSchema, everyone, (context, input) => taskDelete(context, input), taskDeleteTarget),
 	task_vocabulary_set: recordTool(taskVocabularySetInputSchema, everyone, (context, input) => taskVocabularySet(context, input)),
 	task_invite: recordTool(taskInviteInputSchema, nobody, (context, input, { place }) => taskInvite(context, input, placeTheAppAnswersAt('task_invite', place))),

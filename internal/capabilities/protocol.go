@@ -103,6 +103,7 @@ func TaskToolDescriptors() []Descriptor {
 	return canonicalizeDescriptors(capabilityprotocol.MustGeneratedToolDescriptors(
 		"task_add",
 		"task_board_get",
+		"task_get",
 		"task_list",
 		"task_update",
 		"task_delete",

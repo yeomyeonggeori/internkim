@@ -6,6 +6,7 @@ import {
 	removeTask,
 	saveTask as saveTaskOnRecord,
 	saveTaskVocabulary,
+	taskNote,
 	taskState,
 	taskWeeklySummaryOf,
 	updateTaskParent as setTaskParentOnRecord,
@@ -18,7 +19,7 @@ export function fetchTaskState(scope?: string, boardWeek?: string): Promise<Task
 	return taskState(scope, boardWeek);
 }
 
-export { taskWeeklySummaryOf, forgetTaskStateRead };
+export { taskWeeklySummaryOf, forgetTaskStateRead, taskNote };
 
 export function mergeTaskSummary(state: TaskState, weeklySummary: TaskWeeklySummary): TaskSummary {
 	return {

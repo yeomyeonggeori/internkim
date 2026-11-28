@@ -37,6 +37,7 @@ export type Task = {
 	business: string | null;
 	type: string | null;
 	content: string;
+	note?: string;
 	size: string;
 	status: string;
 	startDate?: string;

@@ -453,6 +453,9 @@ export const taskResultSchema = z.strictObject({
   canUpdate: z.boolean().optional(),
 });
 
+const taskNoteDescription =
+  "What the user said about the work beyond its title, in their own words: background, conditions, links. Never a restatement of the title, and never details the user did not give.";
+
 const parentTaskHintDescription =
   'The task this one belongs under: its exact task ID or its exact CURRENT title as it appears in a task_list result. Never a new or intended title. Omit for work that stands on its own.';
 
@@ -460,6 +463,7 @@ export const taskAddInputSchema = z.strictObject({
   title: z.string().describe(
     "Concise noun-phrase title for the work itself, in the user's language. Keep the user's exact title when they give one; otherwise write one rather than reusing their sentence. People belong in the person fields, not the title.",
   ),
+  note: z.string().describe(`${taskNoteDescription} Omit when they gave none.`).optional(),
   size: workspaceTaskSizeSchema
     .describe(`Only a size the user names. ${labelsTheRecordDecides}`)
     .optional(),
@@ -494,7 +498,7 @@ const taskDraftGetInputSchema = z.strictObject({
 });
 
 const taskDraftGetResultSchema = z.strictObject({
-  tasks: z.array(taskAddInputSchema).describe('One task_add input for each piece of work the note describes, in the order the note gives them. Empty when the note describes no work.'),
+  tasks: z.array(taskAddInputSchema.omit({ note: true })).describe('One task_add input for each piece of work the note describes, in the order the note gives them. Empty when the note describes no work.'),
 });
 
 export const taskListInputSchema = z.strictObject({
@@ -526,6 +530,7 @@ const taskHintSchema = z.string().min(1).max(256).describe(
 const taskUpdateObjectSchema = z.strictObject({
   taskHint: taskHintSchema,
   title: z.string().describe('New task title.').optional(),
+  note: z.string().describe(`${taskNoteDescription} Replaces the whole current note. Omit to keep it; an empty string clears it.`).optional(),
   status: workspaceTaskStatusSchema.describe('New task status.').optional(),
   size: workspaceTaskSizeSchema.describe(taskSizeDescription).optional(),
   business: z.string().describe('Business label, taken from registeredLabels.businesses in a task_list result.').optional(),
@@ -554,6 +559,14 @@ export const taskUpdateInputIntentSchema = taskUpdateObjectSchema.omit({ taskHin
 
 export const taskDeleteInputSchema = z.strictObject({
   taskHint: taskHintSchema,
+});
+
+export const taskGetInputSchema = z.strictObject({
+  taskHint: taskHintSchema,
+});
+
+export const taskGetResultSchema = taskResultSchema.extend({
+  note: z.string().optional(),
 });
 
 export const taskDeleteInputIntentSchema = z.strictObject({});
@@ -1035,7 +1048,7 @@ const taskToolDefinitions: CapabilityToolDefinition[] = [
     privacyClass: 'workspace_task',
     policyResource: 'tool:task_add',
     description: 'Create a new workspace task with typed task fields. Never ask the user to classify it: send the business when you know it, and the record decides whatever business, type and size is left out from the company definitions. Use this to add a todo or assignment for the requester or another team member. Use task_update for existing work.',
-    version: '7',
+    version: '8',
     estimatedLatency: CapabilityEstimatedLatency.Medium,
     inputSchema: taskAddInputSchema,
     inputIntentSchema: taskAddInputIntentSchema,
@@ -1065,6 +1078,19 @@ const taskToolDefinitions: CapabilityToolDefinition[] = [
     sideEffect: CapabilitySideEffect.Read,
   },
   {
+    name: 'task_get',
+    namespace: 'task',
+    answeredBy: CapabilityAnsweredBy.Record,
+    privacyClass: 'workspace_task',
+    policyResource: 'tool:task_get',
+    description: 'Read one task whole, including its note: the details written under the title, which task_list and task_board_get leave out. Use it when the answer needs what a task says beyond its title.',
+    version: '1',
+    estimatedLatency: CapabilityEstimatedLatency.Low,
+    inputSchema: taskGetInputSchema,
+    result: { schema: taskGetResultSchema, effects: [] },
+    sideEffect: CapabilitySideEffect.Read,
+  },
+  {
     name: 'task_board_get',
     namespace: 'task',
     answeredBy: CapabilityAnsweredBy.Record,
@@ -1084,7 +1110,7 @@ const taskToolDefinitions: CapabilityToolDefinition[] = [
     privacyClass: 'workspace_task',
     policyResource: 'tool:task_update',
     description: 'Update explicit fields on an existing task, including who takes part in it, when canUpdate in task_list says the caller may change it. Classification fields use registeredLabels from task_list: business is a workspace label, while organizationHint and opportunityHint link CRM records. Choose classification values from those labels and the work context when the requester delegates that judgment. taskHint is the exact task ID or exact task title from a task_list result, resolved server-side to the canonical task; use task_list first when neither is known. At least one mutable field is required.',
-    version: '7',
+    version: '8',
     estimatedLatency: CapabilityEstimatedLatency.Medium,
     inputSchema: taskUpdateInputSchema,
     inputIntentSchema: taskUpdateInputIntentSchema,
