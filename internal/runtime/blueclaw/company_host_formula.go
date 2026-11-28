@@ -82,8 +82,9 @@ type HomebrewBottle struct {
 	// and Homebrew pours a bottle on that version and every later one.
 	Tag string
 	// Cellar is what the bottle may be poured into. It is :any_skip_relocation
-	// because nothing in the keg names the prefix: the programs are static, and
-	// the document environment is built by post_install after the pour.
+	// because nothing in the keg names the prefix: the programs are static or
+	// reach their libraries through @loader_path, and the document environment
+	// is built by post_install after the pour.
 	Cellar string
 	SHA256 string
 }

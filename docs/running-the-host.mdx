@@ -172,9 +172,13 @@ computer. `sudo usermod -aG internkim-admin <account>` adds an account to it.
 On macOS, run `launchctl print system/kim.intern.<service>` to inspect a
 service. Its logs are under `/var/log/internkim/`.
 
+Every host runs its database on the PostgreSQL 17 the package carries, one build
+for Linux and macOS. A database another PostgreSQL major made does not start on
+it; move the company to a new box, which restores it from its snapshot.
+
 A Mac runs the host's own database and cache as `kim.intern.internkim-postgresql`
-and `kim.intern.internkim-cache`, under their own accounts, from the PostgreSQL
-and Redis that Homebrew installed with the package. Their data is in
+and `kim.intern.internkim-cache`, under their own accounts, from that PostgreSQL
+and the Redis that Homebrew installed with the package. Their data is in
 `/var/lib/internkim-postgres` and `/var/lib/internkim-cache`, as on Linux. The
 database answers on `127.0.0.1:18432` and the cache on a socket in its own
 directory, so a PostgreSQL or Redis you already run with `brew services` keeps

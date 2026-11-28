@@ -219,6 +219,9 @@ func buildHomebrewKeg(repositoryRootPath string, kegPath string, version string,
 	if errorValue := fetchBrewVendoredPrograms(repositoryRootPath, libraryPath, output); errorValue != nil {
 		return errorValue
 	}
+	if errorValue := copyBrewBuiltPrograms(repositoryRootPath, libraryPath, output); errorValue != nil {
+		return errorValue
+	}
 	if errorValue := copyFile(
 		filepath.Join(repositoryRootPath, "tools", blueclaw.RenderCompanyRuntimeName),
 		filepath.Join(libraryPath, blueclaw.RenderCompanyRuntimeName), 0o755); errorValue != nil {
@@ -331,6 +334,55 @@ func fetchBrewVendoredPrograms(repositoryRootPath string, libraryPath string, ou
 		return errorValue
 	}
 	return copyFile(modelPath, filepath.Join(libraryPath, strings.TrimPrefix(layout.EmbeddingModelPath(), layout.LibraryRoot)), 0o644)
+}
+
+func copyBrewBuiltPrograms(repositoryRootPath string, libraryPath string, output io.Writer) error {
+	layout := blueclaw.MacCompanyHostLayout("")
+	for _, program := range blueclaw.HostProgramsBuiltFromSource() {
+		if !program.IsBuiltFor(blueclaw.HostPayloadDarwinArm64) {
+			continue
+		}
+		treePath, errorValue := preparedTree(repositoryRootPath, program, blueclaw.HostPayloadDarwinArm64)
+		if errorValue != nil {
+			return errorValue
+		}
+		destination := filepath.Join(libraryPath, strings.TrimPrefix(program.TreePathIn(layout), layout.LibraryRoot))
+		if errorValue := copyDirectoryTree(treePath, destination); errorValue != nil {
+			return fmt.Errorf("the keg carries %s: %w", program.TreePathIn(layout), errorValue)
+		}
+		fmt.Fprintf(output, "  carried %s\n", program.ProgramName)
+	}
+	return nil
+}
+
+// copyDirectoryTree keeps each file's mode and each link as a link, because a
+// library is reached through the link its soname names.
+func copyDirectoryTree(sourcePath string, destinationPath string) error {
+	return filepath.WalkDir(sourcePath, func(path string, entry fs.DirEntry, walkError error) error {
+		if walkError != nil {
+			return walkError
+		}
+		relative, errorValue := filepath.Rel(sourcePath, path)
+		if errorValue != nil {
+			return errorValue
+		}
+		target := filepath.Join(destinationPath, relative)
+		information, errorValue := entry.Info()
+		if errorValue != nil {
+			return errorValue
+		}
+		switch {
+		case entry.IsDir():
+			return os.MkdirAll(target, information.Mode().Perm())
+		case entry.Type()&fs.ModeSymlink != 0:
+			link, errorValue := os.Readlink(path)
+			if errorValue != nil {
+				return errorValue
+			}
+			return os.Symlink(link, target)
+		}
+		return copyFile(path, target, information.Mode().Perm())
+	})
 }
 
 func copyBrewCarriedTrees(repositoryRootPath string, libraryPath string) error {

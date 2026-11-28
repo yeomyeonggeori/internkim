@@ -202,7 +202,7 @@ func TestTheWaitNamesTheServiceThatIsSilentAndWhatToRead(t *testing.T) {
 	t.Cleanup(func() { waitForTheServerBudget = previousBudget })
 
 	machine := &recordedMachine{
-		failures: map[string]error{"pg_isready": errors.New("exit status 2")},
+		failures: map[string]error{blueclaw.LinuxCompanyHostLayout().DatabaseProgram("pg_isready"): errors.New("exit status 2")},
 		answers:  map[string]string{"systemctl": "failed"},
 	}
 	errorValue := waitUntilTheServerAnswers(linuxPlatform{}, machine, io.Discard)

@@ -45,3 +45,13 @@ the Q8_0 GGUF conversion of Google's EmbeddingGemma 2 published at
 https://huggingface.co/ggml-org/embeddinggemma-2-GGUF, which its model card
 licenses under Apache-2.0. `internal/runtime/blueclaw/host_payload_downloads.go`
 pins the model and the macOS release by version and checksum.
+
+## Database
+
+The company host package carries PostgreSQL 17.12 (PostgreSQL License,
+Portions Copyright (c) 1996-2026 PostgreSQL Global Development Group,
+https://www.postgresql.org/), built from source by `tools/prepare-postgresql`,
+with its `COPYRIGHT` file beside its programs. The macOS build also carries
+the libssl and libcrypto of OpenSSL 3.5.9 (Apache License 2.0,
+https://www.openssl.org/), with its license as `OPENSSL-LICENSE.txt`; the Linux
+build loads the distribution's.

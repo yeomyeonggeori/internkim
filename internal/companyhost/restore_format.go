@@ -90,7 +90,7 @@ func refuseAMemberTheHostCannotRead(archive hostbackup.Archive, name string, hos
 			return nil
 		}
 		return fmt.Errorf(
-			"%s is a dump in archive format %s, and the pg_restore of this computer's PostgreSQL %d reads up to %s. Install PostgreSQL %d or newer here first",
+			"%s is a dump in archive format %s, and the pg_restore of this computer's PostgreSQL %d reads up to %s; it needs a package that carries PostgreSQL %d or newer",
 			name, format, hostMajor, readable, oldestMajorReading(format))
 	})
 }

@@ -64,6 +64,10 @@ func describe(directory string) error {
 	if errorValue := os.WriteFile(filepath.Join(directory, "embedding-model.json"), append(modelDocument, '\n'), 0o644); errorValue != nil {
 		return errorValue
 	}
+	clusterOptions := strings.Join(blueclaw.CompanyHostDatabaseClusterOptions(), "\n") + "\n"
+	if errorValue := os.WriteFile(filepath.Join(directory, "database-cluster-options"), []byte(clusterOptions), 0o644); errorValue != nil {
+		return errorValue
+	}
 	packages := []string{}
 	for _, file := range blueclaw.HostFilesTheBundledSkillsRead() {
 		packages = append(packages, file.DebianPackage)

@@ -111,6 +111,10 @@ BACKUPS_DIRECTORY = "/var/lib/internkim-backups"
 DATABASE_USER = "internkim-postgres"
 DATA_SERVICE_PATH = "/usr/lib/internkim/data-service"
 DATABASE_DATA_DIRECTORY = "/var/lib/internkim-postgres"
+GUEST_SCRIPT_PREAMBLE = (
+    "set -o pipefail\n"
+    f"export PATH=\"$(sed -n 's/^programs=\"\\(.*\\)\"$/\\1/p' {DATA_SERVICE_PATH} 2>/dev/null):$PATH\"\n"
+)
 REPOSITORY_LISTING_COMMAND = (
     "ls /etc/apt/sources.list.d /etc/apt/preferences.d /etc/yum.repos.d /usr/share/keyrings 2>/dev/null "
     "| grep -i -e postgresql -e internkim; grep -n internkim /etc/pacman.conf; true"
@@ -215,8 +219,8 @@ def dependency_names(depends_field):
     A version constraint is dropped and the first alternative of an `a | b`
     clause is taken, which is the one a Debian machine installs by default.
 
-    A name bounded from both sides, as `postgresql (>= 14), postgresql (<< 18)`
-    would be, names one package twice; apt is asked for it once.
+    A name bounded from both sides, as `libc6 (>= 2.35), libc6 (<< 3)` would be,
+    names one package twice; apt is asked for it once.
     """
     names = []
     for clause in depends_field.replace("\n", " ").split(","):
@@ -846,7 +850,7 @@ class Machine:
     def shell(self, script, timeout_seconds=900):
         script_path = self.share_directory / "scripts" / f"step-{hashlib.sha256(script.encode()).hexdigest()[:16]}.sh"
         script_path.parent.mkdir(parents=True, exist_ok=True)
-        script_path.write_text("set -o pipefail\n" + script)
+        script_path.write_text(GUEST_SCRIPT_PREAMBLE + script)
         try:
             return subprocess.run(
                 [self.container_binary, "exec", self.name, "bash", f"{SHARE_PATH}/scripts/{script_path.name}"],

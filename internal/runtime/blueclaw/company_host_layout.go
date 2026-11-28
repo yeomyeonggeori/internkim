@@ -51,11 +51,11 @@ type CompanyHostLayout struct {
 	DatabaseSocketDirectory string
 	CacheSocketPath         string
 	DatabaseLoopbackAddress string
-	// DatabaseProgramDirectory and CacheProgramDirectory hold the servers and
-	// their clients. Empty means the data-service script finds them, because
-	// which directory and which name differ between distributions.
-	DatabaseProgramDirectory string
-	CacheProgramDirectory    string
+	// CacheProgramDirectory holds the cache's server and client. Empty means the
+	// data-service script finds them, because which directory and which name
+	// differ between distributions. The database's programs are the ones the
+	// package carries, at DatabaseProgram.
+	CacheProgramDirectory string
 	// DownloadCachePath keeps what the install step fetched, so the next install
 	// or upgrade fetches only what changed. Only the account that runs the install
 	// step uses it: no person's command is given it, and everything taken from it
@@ -138,12 +138,11 @@ func MacCompanyHostLayout(homebrewPrefix string) CompanyHostLayout {
 		RunPath:       macCompanyHostRunPath,
 		AgentHomePath: macBlueclawHomePath,
 
-		DatabaseSocketDirectory:  CompanyHostDatabaseDataPath,
-		CacheSocketPath:          macCacheSocketPath,
-		DatabaseLoopbackAddress:  macDatabaseLoopbackAddress,
-		DatabaseProgramDirectory: HomebrewFormulaProgramDirectory(prefix, HomebrewDatabaseFormula),
-		CacheProgramDirectory:    HomebrewFormulaProgramDirectory(prefix, HomebrewCacheFormula),
-		DownloadCachePath:        prefix + "/var/cache/" + CompanyPackageName,
+		DatabaseSocketDirectory: CompanyHostDatabaseDataPath,
+		CacheSocketPath:         macCacheSocketPath,
+		DatabaseLoopbackAddress: macDatabaseLoopbackAddress,
+		CacheProgramDirectory:   HomebrewFormulaProgramDirectory(prefix, HomebrewCacheFormula),
+		DownloadCachePath:       prefix + "/var/cache/" + CompanyPackageName,
 	}
 }
 
@@ -172,8 +171,13 @@ func (layout CompanyHostLayout) RuntimeTemplatePath() string {
 	return layout.LibraryRoot + "/runtime.template.json"
 }
 
+const (
+	embeddingServerTreeName = "llama.cpp"
+	databaseTreeName        = "postgresql"
+)
+
 func (layout CompanyHostLayout) EmbeddingServerDirectory() string {
-	return layout.LibraryRoot + "/llama.cpp"
+	return layout.LibraryRoot + "/" + embeddingServerTreeName
 }
 
 func (layout CompanyHostLayout) EmbeddingServerPath() string {
@@ -185,8 +189,11 @@ func (layout CompanyHostLayout) EmbeddingModelPath() string {
 }
 
 func (layout CompanyHostLayout) PayloadProgramPath(programName string) string {
-	if programName == EmbeddingServerProgramName {
+	switch programName {
+	case EmbeddingServerProgramName:
 		return layout.EmbeddingServerPath()
+	case DatabaseServerProgramName:
+		return layout.DatabaseProgram(programName)
 	}
 	return layout.BinaryPath(programName)
 }

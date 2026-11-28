@@ -3,6 +3,7 @@ package blueclaw
 import (
 	"fmt"
 	"path"
+	"slices"
 	"sort"
 	"strings"
 )
@@ -10,7 +11,8 @@ import (
 // The programs the company host runs that are packaged by nobody: the browsers the
 // skills drive, the S3 gateway the messenger stores attachments through, the
 // toolchains the agent and the document skills shell out to, and the llama.cpp server
-// that embeds every memory and skill. They arrive as pinned downloads, and this is
+// that embeds every memory and skill. They arrive as pinned downloads or are built
+// from source (HostProgramsBuiltFromSource), and this is
 // where the pins live, with the embedding model's weights beside them. Which programs
 // is not decided here: host_dependencies.go declares them ArrivesAsPayload and
 // TestThePinsCoverExactlyThePayloadProgramsDeclared holds this table to that list in
@@ -167,17 +169,55 @@ func HostEmbeddingModelDownload() HostPayloadDownload {
 	}
 }
 
-// HostProgramsBuiltFromSource are payload programs a Linux package carries from
-// tools/prepare-llama-server instead of from a pin, because the upstream Linux
-// build needs a newer glibc than HostGlibcMinimum.
-func HostProgramsBuiltFromSource() []string {
-	return []string{EmbeddingServerProgramName}
+// HostBuiltProgram is a payload program the package carries as a directory its
+// prepare script builds from source for each of Targets, instead of from a pin.
+// The upstream Linux llama-server needs a newer glibc than HostGlibcMinimum.
+type HostBuiltProgram struct {
+	ProgramName       string
+	PrepareScriptPath string
+	ArtifactName      string
+	TreeName          string
+	Targets           []string
 }
 
-// EmbeddingServerArtifactPathFor is where tools/prepare-llama-server leaves the
-// server built for one Debian architecture.
-func EmbeddingServerArtifactPathFor(debianArchitecture string) string {
-	return ".dependency/llama-server-linux-" + debianArchitecture
+func HostProgramsBuiltFromSource() []HostBuiltProgram {
+	return []HostBuiltProgram{
+		{
+			ProgramName:       EmbeddingServerProgramName,
+			PrepareScriptPath: "tools/prepare-llama-server",
+			ArtifactName:      "llama-server",
+			TreeName:          embeddingServerTreeName,
+			Targets:           []string{HostPayloadLinuxArm64, HostPayloadLinuxAmd64},
+		},
+		{
+			ProgramName:       DatabaseServerProgramName,
+			PrepareScriptPath: "tools/prepare-postgresql",
+			ArtifactName:      "postgresql",
+			TreeName:          databaseTreeName,
+			Targets:           []string{HostPayloadLinuxArm64, HostPayloadLinuxAmd64, HostPayloadDarwinArm64},
+		},
+	}
+}
+
+func (program HostBuiltProgram) IsBuiltFor(target string) bool {
+	return slices.Contains(program.Targets, target)
+}
+
+func (program HostBuiltProgram) ArtifactPathFor(target string) string {
+	return ".dependency/" + program.ArtifactName + "-" + target
+}
+
+func (program HostBuiltProgram) ArtifactTreePathFor(target string) string {
+	return program.ArtifactPathFor(target) + "/" + program.TreeName
+}
+
+func (program HostBuiltProgram) TreePathIn(layout CompanyHostLayout) string {
+	return layout.LibraryRoot + "/" + program.TreeName
+}
+
+func (program HostBuiltProgram) ProgramPathInsideTree() string {
+	layout := LinuxCompanyHostLayout()
+	return strings.TrimPrefix(layout.PayloadProgramPath(program.ProgramName), program.TreePathIn(layout)+"/")
 }
 
 // HostPayloadDownloads is what the host fetches for one Debian architecture. An

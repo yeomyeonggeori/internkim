@@ -21,8 +21,15 @@ func TestThePackageAsksTheDistributionOnlyForWhatItDoesNotCarry(t *testing.T) {
 			t.Errorf("the package carries %s and still asks the distribution for it", dependency.DebianPackage)
 		}
 	}
-	if !strings.Contains(depends, "postgresql, ") {
-		t.Errorf("the package must ask for the distribution's own PostgreSQL under one unversioned name, got %q", depends)
+	for _, manager := range blueclaw.PackageManagers() {
+		for _, name := range blueclaw.HostPackageDependsFor(manager) {
+			if strings.Contains(name, "postgresql") {
+				t.Errorf("%s is asked for %s, and the package carries its own PostgreSQL", manager, name)
+			}
+		}
+	}
+	if slices.Contains(blueclaw.HostHomebrewDependencies(), "postgresql@17") {
+		t.Error("the formula depends on postgresql@17, and the keg carries its own PostgreSQL")
 	}
 }
 

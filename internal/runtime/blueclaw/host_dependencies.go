@@ -14,17 +14,13 @@ const (
 	HostPartDatabase       HostPart = "database"
 )
 
-// The two formulas whose servers a Mac runs as the host's own database and
-// cache. The layout starts them from each formula's opt directory, which
-// Homebrew repoints at the current keg on every upgrade, so a plist never names
-// a version that an upgrade removes.
-const (
-	HomebrewDatabaseFormula = "postgresql@17"
-	HomebrewCacheFormula    = "redis"
-)
+// The formula whose server a Mac runs as the host's own cache. The layout starts
+// it from the formula's opt directory, which Homebrew repoints at the current
+// keg on every upgrade, so a plist never names a version that an upgrade removes.
+const HomebrewCacheFormula = "redis"
 
 // HomebrewFormulaProgramDirectory is where a formula's programs are, linked or
-// not: postgresql@17 is keg-only, so nothing of it is on the prefix's bin.
+// not: a keg-only formula puts nothing on the prefix's bin.
 func HomebrewFormulaProgramDirectory(homebrewPrefix string, formula string) string {
 	return strings.TrimRight(homebrewPrefix, "/") + "/opt/" + formula + "/bin"
 }
@@ -78,7 +74,7 @@ type HostDependency struct {
 	DnfPackages    []string
 	PacmanPackages []string
 	// WhatBringsItInstead is for a manager that installs this without being
-	// told to: Arch ships contrib inside postgresql. A
+	// told to: Arch's libheif depends on libde265. A
 	// manager with neither a name nor an entry here is a hole, and a test fails
 	// on it.
 	WhatBringsItInstead map[PackageManager]string
@@ -114,23 +110,6 @@ type HostReadableFile struct {
 }
 
 var hostDependencies = []HostDependency{
-	{
-		DebianPackage:   "postgresql",
-		DnfPackages:     []string{"postgresql-server"},
-		PacmanPackages:  []string{"postgresql"},
-		HomebrewFormula: HomebrewDatabaseFormula,
-		NeededBy:        []HostPart{HostPartDatabase},
-	},
-	{
-		DebianPackage: "postgresql-contrib",
-		DnfPackages:   []string{"postgresql-contrib"},
-		WhatBringsItInstead: map[PackageManager]string{
-			PackageManagerApt:    "a Debian server package carries contrib",
-			PackageManagerPacman: "Arch's postgresql package carries contrib",
-		},
-		WhatAnswersItOnAMac: "Homebrew's " + HomebrewDatabaseFormula + " carries contrib",
-		NeededBy:            []HostPart{HostPartDatabase},
-	},
 	{
 		DebianPackage:      "redis-server",
 		DebianAlternatives: []string{"valkey-server"},
@@ -179,7 +158,7 @@ var hostDependencies = []HostDependency{
 		DnfPackages:     []string{"openssl"},
 		PacmanPackages:  []string{"openssl"},
 		HomebrewFormula: "openssl@3",
-		NeededBy:        []HostPart{HostPartMessenger},
+		NeededBy:        []HostPart{HostPartMessenger, HostPartDatabase},
 	},
 	{
 		DebianPackage:       "ca-certificates",
@@ -203,14 +182,6 @@ var hostDependencies = []HostDependency{
 		HomebrewFormula:     "jq",
 		ProgramsTheHostRuns: []string{"jq"},
 		NeededBy:            []HostPart{HostPartAgent},
-	},
-	{
-		DebianPackage:       "postgresql-client",
-		DnfPackages:         []string{"postgresql"},
-		PacmanPackages:      []string{"postgresql"},
-		HomebrewFormula:     HomebrewDatabaseFormula,
-		ProgramsTheHostRuns: []string{"pg_isready"},
-		NeededBy:            []HostPart{HostPartDatabase},
 	},
 	{
 		DebianPackage:                "python3",
@@ -274,6 +245,12 @@ var hostDependencies = []HostDependency{
 		ProgramsTheHostRuns: []string{EmbeddingServerProgramName},
 		NeededBy:            []HostPart{HostPartAgent},
 	},
+	{
+		ArrivesAsPayload:    true,
+		WhatAnswersItOnAMac: "the package carries it",
+		ProgramsTheHostRuns: []string{DatabaseServerProgramName},
+		NeededBy:            []HostPart{HostPartDatabase},
+	},
 }
 
 // HostDependencies is the company host's dependency list, and the only one.
@@ -294,20 +271,6 @@ func (dependency HostDependency) neededByAnyOf(parts []HostPart) bool {
 
 func (dependency HostDependency) isInstalledByAPackageManager() bool {
 	return dependency.DebianPackage != "" && !dependency.ArrivesAsPayload
-}
-
-// HostDebianPackagesFor names what apt-get installs for the parts asked about.
-func HostDebianPackagesFor(parts ...HostPart) []string {
-	packages := []string{}
-	for _, dependency := range hostDependencies {
-		if !dependency.isInstalledByAPackageManager() {
-			continue
-		}
-		if dependency.neededByAnyOf(parts) {
-			packages = append(packages, dependency.DebianPackage)
-		}
-	}
-	return packages
 }
 
 // PackagesFor is every name the manager accepts for this dependency, in the
@@ -396,9 +359,8 @@ func HostPackagesToInstallFor(manager PackageManager, dependency HostDependency)
 }
 
 // HostHomebrewDependencies is every `depends_on` line of the formula, and only
-// those. It is a shorter list than Debian's because Homebrew's PostgreSQL
-// carries contrib and macOS supplies curl and the CA bundle itself; none of it
-// means the Mac needs less.
+// those. It is a shorter list than Debian's because macOS supplies curl and the
+// CA bundle itself; none of it means the Mac needs less.
 func HostHomebrewDependencies() []string {
 	formulas := []string{}
 	named := map[string]bool{}
@@ -455,16 +417,4 @@ func HostFilesTheBundledSkillsRead() []HostReadableFile {
 		})
 	}
 	return files
-}
-
-// BuzzRelayDatabasePackages is what the device path installs before it starts
-// the relay bound to it.
-func BuzzRelayDatabasePackages() string {
-	return strings.Join(HostDebianPackagesFor(HostPartDatabase), " ")
-}
-
-// BuzzRelayCachePackages is what it installs before the relay that queues
-// through it.
-func BuzzRelayCachePackages() string {
-	return strings.Join(HostDebianPackagesFor(HostPartCache), " ")
 }

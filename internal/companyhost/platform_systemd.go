@@ -41,7 +41,7 @@ func (platform linuxPlatform) StartTheDatabaseAndTheCache(machine Machine) error
 	}
 	if errorValue != nil {
 		return fmt.Errorf(
-			"%s could not be started. They are this package's own database and cache, run from the PostgreSQL and Redis or Valkey servers this machine installed, and the company server keeps everything it knows in them: %w",
+			"%s could not be started. They are this package's own database and cache, run from the PostgreSQL this package carries and the Redis or Valkey server this machine installed, and the company server keeps everything it knows in them: %w",
 			strings.Join(platform.unitsNamed(names), " and "), errorValue)
 	}
 	if errorValue := machine.Run("systemctl", []string{"reload", database}, nil, io.Discard); errorValue != nil {

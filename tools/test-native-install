@@ -50,6 +50,7 @@ from native_install_rig import (  # noqa: E402
     BACKUPS_DIRECTORY,
     DATA_SERVICE_PATH,
     DATABASE_DATA_DIRECTORY,
+    GUEST_SCRIPT_PREAMBLE,
     DATABASE_USER,
     REPOSITORY_LISTING_COMMAND,
     RETIRED_MEMORY_STORE_COMMAND,
@@ -490,10 +491,9 @@ for unit in %s; do
 done
 """
 
-# A dependency apt honoured is not always a package dpkg holds. postgresql-contrib
-# is a real package on bookworm, jammy and noble and a pure virtual name on
-# trixie, where `postgresql` provides it; asking only dpkg's status would call an
-# honoured line missing.
+# A dependency apt honoured is not always a package dpkg holds: a name another
+# installed package provides is virtual, and asking only dpkg's status would call
+# an honoured line missing.
 REMEMBERED_ROW = """
 begin;
 insert into conversation (conversation_id, platform, external_conversation_id, conversation_type,
@@ -825,8 +825,7 @@ class Rig:
             "`dpkg-query -W` for each name in the package's own Depends: field, and the "
             "Provides: of every installed package for the names dpkg does not record",
             "reading the field back off the machine is what shows apt honoured the line. A name can be "
-            "honoured without being recorded: postgresql-contrib is a real package on bookworm, "
-            "jammy and noble and purely virtual on trixie, where postgresql provides it and dpkg "
+            "honoured without being recorded, when another installed package provides it and dpkg "
             "never holds the name",
         ).record(
             not missing,
@@ -1847,8 +1846,11 @@ class Rig:
                 held = self.boxes_in_the_record()
                 listed = held.get("boxes", [])
                 is_reported = any("isReady" in box for box in listed)
-                if not is_reported or (len(listed) == 3 and all(box.get("isReady") is True for box in listed)) or time.monotonic() > deadline:
-                    return len(listed) == 3 and all(box.get("isReady") is True for box in listed), json.dumps(held)[:1500]
+                is_every_box_ready = len(listed) == 3 and all(box.get("isReady") is True for box in listed)
+                if is_every_box_ready or not is_reported:
+                    return is_every_box_ready, json.dumps(held)[:1500]
+                if time.monotonic() > deadline:
+                    return False, json.dumps(held)[:1500] + "\n" + self.what_a_standby_needs_to_be_ready()
                 time.sleep(15)
 
         self.judged_observation(
@@ -1858,6 +1860,19 @@ class Rig:
             "the setup page is where a person learns whether a box would carry the company; a box listed and not ready "
             "is a promise the page cannot keep",
             judge,
+        )
+
+    def what_a_standby_needs_to_be_ready(self):
+        status, document = self.plane.read_record(
+            "/rest/v1/box?select=host_name,role,last_seen_at,share_ranked_against,share_pieces,held_pieces,share_kept_through"
+            f"&company_id=eq.{self.company_id}"
+        )
+        kept_at = self.plane.stored_backup_times(self.company_id + "/")
+        base_backups = sorted(path for path in kept_at if "/base/" in path and path.endswith(".json"))
+        newest_piece_at = max(kept_at.values(), default="none")
+        return (
+            f"what internal.box_is_ready reads: boxes ({status}) {document[:900]}; "
+            f"base backups {base_backups[-2:]}; newest piece kept at {newest_piece_at}"
         )
 
     def observe_the_shares(self, step, standbys):
@@ -2069,7 +2084,7 @@ class Rig:
             "acknowledgements": self.acknowledgements.url,
         }
         script_path = f"{boxes.GUEST_DIRECTORY}/database-writer-{writer}.sh"
-        (machine.share_directory / f"database-writer-{writer}.sh").write_text(database_script)
+        (machine.share_directory / f"database-writer-{writer}.sh").write_text(GUEST_SCRIPT_PREAMBLE + database_script)
         named = machine.checked_shell(
             f"person=$(ls -1 {PEOPLE_DIRECTORY} | head -1); printf '%s %s' \"$person\" \"$(stat -c %U {PEOPLE_DIRECTORY}/$person)\""
         ).stdout.split()

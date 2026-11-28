@@ -148,53 +148,67 @@ func TestAKegCarriesARelayBuiltAtTheTreesRevision(t *testing.T) {
 	}
 }
 
-func embeddingServerRepository(t *testing.T) string {
+func preparedProgramRepository(t *testing.T, program blueclaw.HostBuiltProgram) string {
 	t.Helper()
 	repository := t.TempDir()
-	content, errorValue := os.ReadFile(filepath.Join("..", "..", embeddingServerPrepareScriptPath))
+	content, errorValue := os.ReadFile(filepath.Join("..", "..", program.PrepareScriptPath))
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	writeExecutableForTest(t, filepath.Join(repository, embeddingServerPrepareScriptPath), content)
+	writeExecutableForTest(t, filepath.Join(repository, program.PrepareScriptPath), content)
 	return repository
 }
 
-func TestALinuxPackageRefusesAnEmbeddingServerBuiltAtAnotherRevision(t *testing.T) {
-	repository := embeddingServerRepository(t)
-	artifactDirectory := blueclaw.EmbeddingServerArtifactPathFor("arm64")
-	recordMessengerRevision(t, repository, artifactDirectory, "b1+0000+cpu")
-	writeExecutableForTest(t, filepath.Join(repository, artifactDirectory, "llama.cpp", "llama-server"), []byte("x"))
+func placePreparedProgram(t *testing.T, repository string, program blueclaw.HostBuiltProgram, target string) {
+	t.Helper()
+	writeExecutableForTest(t, filepath.Join(repository, program.ArtifactTreePathFor(target), program.ProgramPathInsideTree()), []byte("x"))
+}
 
-	_, errorValue := builtEmbeddingServer(repository, packageTargets[0])
+func TestAPackageRefusesAProgramBuiltAtAnotherRevision(t *testing.T) {
+	for _, program := range blueclaw.HostProgramsBuiltFromSource() {
+		for _, target := range program.Targets {
+			repository := preparedProgramRepository(t, program)
+			recordMessengerRevision(t, repository, program.ArtifactPathFor(target), "b1+0000+cpu")
+			placePreparedProgram(t, repository, program, target)
 
-	if errorValue == nil || !strings.Contains(errorValue.Error(), "b1+0000+cpu") || !strings.Contains(errorValue.Error(), "prepare-llama-server --target linux-arm64") {
-		t.Fatalf("expected a refusal naming the stale revision and the fix, got %v", errorValue)
+			_, errorValue := preparedTree(repository, program, target)
+
+			fix := program.PrepareScriptPath + " --target " + target
+			if errorValue == nil || !strings.Contains(errorValue.Error(), "b1+0000+cpu") || !strings.Contains(errorValue.Error(), fix) {
+				t.Fatalf("expected %s for %s refused naming the stale revision and %q, got %v", program.ProgramName, target, fix, errorValue)
+			}
+		}
 	}
 }
 
-func TestALinuxPackageRefusesAnEmbeddingServerThatWasNeverBuilt(t *testing.T) {
-	repository := embeddingServerRepository(t)
+func TestAPackageRefusesAProgramThatWasNeverBuilt(t *testing.T) {
+	for _, program := range blueclaw.HostProgramsBuiltFromSource() {
+		for _, target := range program.Targets {
+			_, errorValue := preparedTree(preparedProgramRepository(t, program), program, target)
 
-	_, errorValue := builtEmbeddingServer(repository, packageTargets[1])
-
-	if errorValue == nil || !strings.Contains(errorValue.Error(), "record no revision") {
-		t.Fatalf("expected a refusal, got %v", errorValue)
+			if errorValue == nil || !strings.Contains(errorValue.Error(), "record no revision") {
+				t.Fatalf("expected %s for %s refused, got %v", program.ProgramName, target, errorValue)
+			}
+		}
 	}
 }
 
-func TestALinuxPackageCarriesAnEmbeddingServerBuiltAtTheTreesRevision(t *testing.T) {
-	repository := embeddingServerRepository(t)
-	artifactDirectory := blueclaw.EmbeddingServerArtifactPathFor("amd64")
-	revision, errorValue := expectedPreparedRevision(repository, embeddingServerPrepareScriptPath)
-	if errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	recordMessengerRevision(t, repository, artifactDirectory, revision)
-	writeExecutableForTest(t, filepath.Join(repository, artifactDirectory, "llama.cpp", "llama-server"), []byte("x"))
+func TestAPackageCarriesAProgramBuiltAtTheTreesRevision(t *testing.T) {
+	for _, program := range blueclaw.HostProgramsBuiltFromSource() {
+		for _, target := range program.Targets {
+			repository := preparedProgramRepository(t, program)
+			revision, errorValue := expectedPreparedRevision(repository, program.PrepareScriptPath)
+			if errorValue != nil {
+				t.Fatal(errorValue)
+			}
+			recordMessengerRevision(t, repository, program.ArtifactPathFor(target), revision)
+			placePreparedProgram(t, repository, program, target)
 
-	directory, errorValue := builtEmbeddingServer(repository, packageTargets[1])
+			directory, errorValue := preparedTree(repository, program, target)
 
-	if errorValue != nil || filepath.Base(directory) != "llama.cpp" {
-		t.Fatalf("a server built at this tree's revision was refused: %q, %v", directory, errorValue)
+			if errorValue != nil || filepath.Base(directory) != program.TreeName {
+				t.Fatalf("%s for %s built at this tree's revision was refused: %q, %v", program.ProgramName, target, directory, errorValue)
+			}
+		}
 	}
 }

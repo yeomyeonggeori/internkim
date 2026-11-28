@@ -514,14 +514,14 @@ class DependencyReadingTests(unittest.TestCase):
 
     def test_a_name_bounded_from_both_sides_is_asked_for_once(self):
         self.assertEqual(
-            rig.dependency_names("postgresql (>= 14), postgresql (<< 18), ca-certificates"),
-            ["postgresql", "ca-certificates"],
+            rig.dependency_names("libc6 (>= 2.35), libc6 (<< 3), ca-certificates"),
+            ["libc6", "ca-certificates"],
         )
 
     def test_every_alternative_of_a_clause_is_kept_in_order(self):
         self.assertEqual(
-            rig.dependency_alternatives("postgresql, redis-server | valkey-server, jq (>= 1.6)"),
-            [["postgresql"], ["redis-server", "valkey-server"], ["jq"]],
+            rig.dependency_alternatives("git, redis-server | valkey-server, jq (>= 1.6)"),
+            [["git"], ["redis-server", "valkey-server"], ["jq"]],
         )
 
     def test_the_first_alternative_with_a_candidate_is_chosen(self):
@@ -534,8 +534,8 @@ class DependencyReadingTests(unittest.TestCase):
 
     def test_a_versioned_or_alternative_dependency_reduces_to_a_name_apt_can_install(self):
         self.assertEqual(
-            rig.dependency_names("postgresql (>= 14), chromium | chromium-browser, jq"),
-            ["postgresql", "chromium", "jq"],
+            rig.dependency_names("libc6 (>= 2.35), chromium | chromium-browser, jq"),
+            ["libc6", "chromium", "jq"],
         )
 
     def test_the_plans_own_dependency_line_survives_the_wrapping_it_is_written_with(self):

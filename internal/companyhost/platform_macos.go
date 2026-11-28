@@ -27,9 +27,10 @@ import (
 // asks Homebrew where its prefix is and nothing else. `brew services` is not
 // used either: run as root it installs the formula's own service into
 // /Library/LaunchDaemons running as root, which PostgreSQL refuses, and takes
-// over the postgresql@17 and redis services the person at this Mac may already
-// run. The host starts the formulas' binaries as its own daemons instead, the
-// way the Linux package runs its own units.
+// over the postgresql and redis services the person at this Mac may already
+// run. The host starts the PostgreSQL the keg carries and the redis formula's
+// server as its own daemons instead, the way the Linux package runs its own
+// units.
 
 const (
 	// Below 500 so the accounts do not appear at the login window, and far
